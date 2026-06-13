@@ -1,5 +1,6 @@
 package com.example.demo.services;
 
+import com.example.demo.data.CashOperationType;
 import com.example.demo.data.CurrencyType;
 import com.example.demo.data.repository.*;
 import com.example.demo.services.models.Portfolio;
@@ -12,6 +13,7 @@ import org.springframework.util.CollectionUtils;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -26,6 +28,7 @@ public class HistoryService {
     private final CurrencyRateService currencyRateService;
     private final OpenedPositionRepository openedPositionRepository;
     private final ClosedPositionRepository closedPositionRepository;
+    private final CashOperationRepository cashOperationRepository;
     private final StockRepository stockRepository;
     private final OpenPositionHistoryRepository openPositionHistoryRepository;
     private final PortfolioHistoryRepository portfolioHistoryRepository;
@@ -36,7 +39,7 @@ public class HistoryService {
         Map<String, List<OpenedPosition>> openedPositions = openedPositionRepository.findAll().stream()
                 .collect(Collectors.groupingBy(OpenedPosition::getSymbol));
         Map<String, Stock> stocks = stockRepository.findAll().stream()
-                .collect(Collectors.toMap(Stock::getSymbol, Function.identity()));
+                .collect(Collectors.toMap(Stock::getSymbol, Function.identity(), (a, b) -> b, LinkedHashMap::new));
 
         ZonedDateTime now = ZonedDateTime.now();
         ZonedDateTime midnight = now.toLocalDate().atStartOfDay(ZoneId.systemDefault());
@@ -61,6 +64,17 @@ public class HistoryService {
         closedPositions.forEach((currency, positions) -> {
             Double profit = positions.stream().map(closedPosition -> closedPosition.getProfit() + closedPosition.getCommission()).reduce(Double::sum).orElse(0.0);
             portfolio.setTotal(portfolio.getTotal() + currencyRateService.convertToBaseCurrency(profit, portfolio.getBaseCurrency(), currency));
+        });
+
+        Map<CurrencyType, List<CashOperation>> cashOperations = cashOperationRepository.findAll().stream()
+                .collect(Collectors.groupingBy(CashOperation::getCurrency));
+        cashOperations.forEach((currency, operations) -> {
+            Double dividends = operations.stream()
+                    .filter(cashOperation -> cashOperation.getType() == CashOperationType.DIVIDEND)
+                    .map(CashOperation::getAmount)
+                    .reduce(Double::sum)
+                    .orElse(0.0);
+            portfolio.setTotal(portfolio.getTotal() + currencyRateService.convertToBaseCurrency(dividends, portfolio.getBaseCurrency(), currency));
         });
 
         portfolioHistory.setPortfolioId(MY_PORTFOLIO);
@@ -100,16 +114,34 @@ public class HistoryService {
         if (stock != null) {
             return stock.getMarketPrice();
         }
-        return positions.stream()
-                .map(OpenedPosition::getMarketPrice)
+        double totalVolume = positions.stream()
+                .map(OpenedPosition::getVolume)
                 .filter(Objects::nonNull)
-                .mapToDouble(Double::doubleValue).average().orElse(0.0);
+                .mapToDouble(Double::doubleValue)
+                .sum();
+        if (totalVolume == 0.0) {
+            return 0.0;
+        }
+        double weightedSum = positions.stream()
+                .filter(position -> position.getMarketPrice() != null && position.getVolume() != null)
+                .mapToDouble(position -> position.getMarketPrice() * position.getVolume())
+                .sum();
+        return weightedSum / totalVolume;
     }
 
     private static double getOpenPrice(List<OpenedPosition> positions) {
-        return positions.stream()
-                .map(OpenedPosition::getOpenPrice)
+        double totalVolume = positions.stream()
+                .map(OpenedPosition::getVolume)
                 .filter(Objects::nonNull)
-                .mapToDouble(Double::doubleValue).average().orElse(0.0);
+                .mapToDouble(Double::doubleValue)
+                .sum();
+        if (totalVolume == 0.0) {
+            return 0.0;
+        }
+        double weightedSum = positions.stream()
+                .filter(position -> position.getOpenPrice() != null && position.getVolume() != null)
+                .mapToDouble(position -> position.getOpenPrice() * position.getVolume())
+                .sum();
+        return weightedSum / totalVolume;
     }
 }

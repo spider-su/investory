@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -74,7 +75,7 @@ public class PortfolioService {
                         ),
                         TreeMap::new, // Use TreeMap to keep the result sorted by year-month
                         Collectors.summingDouble(
-                                position -> currencyRateService.convertToBaseCurrency(position.getProfit(), performance.getBaseCurrency(), position.getCurrency())
+                                position -> currencyRateService.convertToBaseCurrency(position.getProfit() + position.getCommission(), performance.getBaseCurrency(), position.getCurrency())
                         )
                 )));
         performance.setTotalOpen(openedPositionRepository.findAll().stream()
@@ -88,6 +89,9 @@ public class PortfolioService {
     public double calculateWinRate() {
         List<ClosedPosition> closedPositions = closedPositionRepository.findAll();
         long totalPositions = closedPositions.size();
+        if (totalPositions == 0) {
+            return 0.0;
+        }
         long profitablePositions = closedPositions.stream()
                 .filter(position -> position.getProfit() > 0)
                 .count();
@@ -186,21 +190,14 @@ public class PortfolioService {
 
     public Map<String, OpenPositionsPerformance> getOpenPositionsFlow() {
         ZonedDateTime days30 = ZonedDateTime.now().minusDays(30);
-        Map<String, List<OpenPositionHistory>> history = openPositionHistoryRepository.findAllAfterDate(days30).stream()
-                .filter(p -> p.getCurrency() == CurrencyType.USD)
-                .collect(Collectors.groupingBy((OpenPositionHistory openPositionHistory) ->
-                        openPositionHistory.getDate().getMonth().name() + "_" + openPositionHistory.getDate().getDayOfMonth()));
+        Map<LocalDate, List<OpenPositionHistory>> history = openPositionHistoryRepository.findAllAfterDate(days30).stream()
+                .collect(Collectors.groupingBy(openPositionHistory -> openPositionHistory.getDate().toLocalDate()));
 
-//        Map<String, OpenPositionsPerformance> performanceMap = new LinkedHashMap<>();
-//        history.forEach((key, positions) -> performanceMap.put(key,
-//                calculatePerformanceItem(positions)));
-//        return performanceMap;
         return history.entrySet().stream()
-                .sorted(Comparator.comparingInt(entry -> Integer.parseInt(entry.getKey().split("_")[1])))
-                .collect(Collectors.toMap(Map.Entry::getKey,
+                .sorted(Map.Entry.comparingByKey())
+                .collect(Collectors.toMap(entry -> entry.getKey().toString(),
                         entry -> calculatePerformanceItem(entry.getValue()),
-                        (e1, e2) -> e1, LinkedHashMap::new // maintains order
-                ));
+                        (e1, e2) -> e1, LinkedHashMap::new));
     }
 
     private OpenPositionsPerformance calculatePerformanceItem(List<OpenPositionHistory> positions) {
@@ -219,8 +216,10 @@ public class PortfolioService {
     private OpenPositionsPerformanceItem toPositionItem(OpenPositionHistory position) {
         OpenPositionsPerformanceItem item = new OpenPositionsPerformanceItem();
         item.setSymbol(position.getSymbol());
-        item.setDayOpen(position.getOpenProfit() != null ? position.getOpenProfit() : 0.0);
-        item.setDayClosed(position.getCloseProfit() != null ? position.getCloseProfit() : 0.0);
+        double openProfit = position.getOpenProfit() != null ? position.getOpenProfit() : 0.0;
+        double closeProfit = position.getCloseProfit() != null ? position.getCloseProfit() : 0.0;
+        item.setDayOpen(currencyRateService.convertToBaseCurrency(openProfit, CurrencyType.USD, position.getCurrency()));
+        item.setDayClosed(currencyRateService.convertToBaseCurrency(closeProfit, CurrencyType.USD, position.getCurrency()));
         return item;
     }
 

@@ -1,0 +1,17 @@
+.git
+.gitignore
+.idea
+.vscode
+
+# Build outputs
+target
+
+# Local docs and data dumps
+README.md
+*.xlsx
+*.csv
+
+# Environment/secrets
+.env
+*.log
+

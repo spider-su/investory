@@ -34,7 +34,7 @@ public class MarketService {
                 .collect(Collectors.groupingBy(OpenedPosition::getSymbol));
 
         Map<String, Stock> stocks = stockRepository.findAll().stream()
-                .collect(Collectors.toMap(Stock::getSymbol, Function.identity()));
+                .collect(Collectors.toMap(Stock::getSymbol, Function.identity(), (a, b) -> b, LinkedHashMap::new));
 
         ZonedDateTime now = ZonedDateTime.now();
         openedPositions.forEach((symbol, positions) -> {
@@ -144,7 +144,7 @@ public class MarketService {
                 .collect(Collectors.groupingBy(OpenedPosition::getSymbol));
 
         Map<String, Stock> stocks = stockRepository.findAll().stream()
-                .collect(Collectors.toMap(Stock::getSymbol, Function.identity()));
+                .collect(Collectors.toMap(Stock::getSymbol, Function.identity(), (a, b) -> b, LinkedHashMap::new));
 
         try {
             ZonedDateTime now = ZonedDateTime.now();
