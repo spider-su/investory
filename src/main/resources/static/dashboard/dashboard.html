@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Portfolio Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="/css/tabler.min.css" rel="stylesheet">
+    <link href="/css/main.css" rel="stylesheet">
+</head>
+
+<body class="d-flex flex-column">
+<div class="page">
+    <div class="container mt-4">
+        <h1 class="mb-4">Portfolio Dashboard</h1>
+
+        <!-- Top Summary Cards -->
+        <div class="row row-cards mb-4">
+            <!-- Base Currency Card -->
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h3 class="card-title">Base Currency: USD</h3>
+                    </div>
+                    <div class="card-body">
+                        <p>Total:
+                            <span th:text="${#numbers.formatDecimal(stats.total, 0, 0)}"
+                                  th:classappend="${stats.total >= 0} ? 'text-green' : 'text-red'"></span>
+                        </p>
+                        <p>Unrealized:
+                            <span th:text="${#numbers.formatDecimal(stats.totalUnrealizedInBase, 0, 0)}"
+                                  th:classappend="${stats.totalUnrealizedInBase >= 0} ? 'text-green' : 'text-red'"></span>
+                        </p>
+                        <p>Closed:
+                            <span th:text="${#numbers.formatDecimal(stats.totalProfitInBase, 0, 0)}"
+                                  th:classappend="${stats.totalProfitInBase >= 0} ? 'text-green' : 'text-red'"></span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Unrealized by Currency -->
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h3 class="card-title">Unrealized by Currency</h3>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item" th:each="entry : ${stats.unrealizedByCurrency}">
+                                <span th:text="${entry.key}"></span>:
+                                <span class="float-end" th:text="${#numbers.formatDecimal(entry.value, 0, 0)}"
+                                      th:classappend="${entry.value >= 0} ? 'text-green' : 'text-red'"></span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Profit by Currency -->
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h3 class="card-title">Profit by Currency</h3>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item" th:each="entry : ${stats.profitByCurrency}">
+                                <span th:text="${entry.key}"></span>:
+                                <span class="float-end" th:text="${#numbers.formatDecimal(entry.value, 0, 0)}"
+                                      th:classappend="${entry.value >= 0} ? 'text-green' : 'text-red'"></span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Monthly Performance Chart -->
+        <div class="row row-cards mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Monthly Performance</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart chart-sm">
+                            <canvas id="monthly-performance-chart" height="100"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Open Performance Chart -->
+        <div class="row row-cards mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Open Positions Performance (USD only)</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart chart-sm">
+                            <canvas id="open-positions-performance-chart" height="100"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance per Symbol Table -->
+        <div class="row row-cards mt-4">
+            <!-- Gainers -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Gainers</h3>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table card-table table-vcenter text-nowrap">
+                            <thead>
+                            <tr>
+                                <th>Symbol</th>
+                                <th>Total</th>
+                                <th>Closed</th>
+                                <th>Unrealized</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="symbol : ${stats.performancePerSymbol}"
+                                th:if="${symbol.total >= 0}">
+                                <td th:text="${symbol.symbol}"></td>
+                                <td th:text="${#numbers.formatDecimal(symbol.total, 0, 0)}" class="text-green"></td>
+                                <td th:text="${#numbers.formatDecimal(symbol.closedProfit, 0, 0)}"
+                                    th:classappend="${symbol.closedProfit >= 0} ? 'text-green' : 'text-red'"></td>
+                                <td th:text="${#numbers.formatDecimal(symbol.unrealizedProfit, 0, 0)}"
+                                    th:classappend="${symbol.unrealizedProfit >= 0} ? 'text-green' : 'text-red'"></td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Losers -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Losers</h3>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table card-table table-vcenter text-nowrap">
+                            <thead>
+                            <tr>
+                                <th>Symbol</th>
+                                <th>Total</th>
+                                <th>Closed</th>
+                                <th>Unrealized</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="symbol : ${stats.performancePerSymbol}"
+                                th:if="${symbol.total < 0}">
+                                <td th:text="${symbol.symbol}"></td>
+                                <td th:text="${#numbers.formatDecimal(symbol.total, 0, 0)}" class="text-red"></td>
+                                <td th:text="${#numbers.formatDecimal(symbol.closedProfit, 0, 0)}"
+                                    th:classappend="${symbol.closedProfit >= 0} ? 'text-green' : 'text-red'"></td>
+                                <td th:text="${#numbers.formatDecimal(symbol.unrealizedProfit, 0, 0)}"
+                                    th:classappend="${symbol.unrealizedProfit >= 0} ? 'text-green' : 'text-red'"></td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div> <!-- .container -->
+</div> <!-- .page -->
+
+<!-- Scripts -->
+<script src="/js/tabler.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    const monthlyPerformanceData = [[${stats.monthlyPerformance.calculateMonthlyPerformance}]];
+    const monthlyLabels = Object.keys(monthlyPerformanceData);
+    const monthlyData = Object.values(monthlyPerformanceData);
+
+    const ctxMonthly = document.getElementById("monthly-performance-chart").getContext("2d");
+    new Chart(ctxMonthly, {
+        type: 'bar',
+        data: {
+            labels: monthlyLabels,
+            datasets: [{
+                label: 'Monthly Profit',
+                data: monthlyData,
+                backgroundColor: monthlyData.map(val => val >= 0 ? '#2fb344' : '#dc3545'),
+                borderRadius: 4,
+                barPercentage: 0.6,
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+
+    const openPositionsRaw = [[${stats.openPositionsFlow}]];
+    const openLabels = Object.keys(openPositionsRaw);
+    const totalOpenData = openLabels.map(label => openPositionsRaw[label].totalOpen);
+    const totalClosedData = openLabels.map(label => openPositionsRaw[label].totalClosed);
+
+
+    const ctxOpen = document.getElementById("open-positions-performance-chart").getContext("2d");
+    new Chart(ctxOpen, {
+        type: 'bar',
+        data: {
+            labels: openLabels,
+            datasets: [
+                {
+                    label: 'Open',
+                    data: totalOpenData,
+                    backgroundColor: totalOpenData.map(val => val >= 0 ? '#007bff' : '#6c757d'),
+                    borderRadius: 4,
+                    barPercentage: 0.6
+                },
+                {
+                    label: 'Closed',
+                    data: totalClosedData,
+                    backgroundColor: totalClosedData.map(val => val >= 0 ? '#007bff' : '#6c757d'),
+                    borderRadius: 4,
+                    barPercentage: 0.6
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+    /*]]>*/
+</script>
+
+</body>
+</html>

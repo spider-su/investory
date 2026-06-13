@@ -1,0 +1,115 @@
+package com.example.demo.services;
+
+import com.example.demo.data.CurrencyType;
+import com.example.demo.data.repository.*;
+import com.example.demo.services.models.Portfolio;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.CollectionUtils;
+
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+@Slf4j
+@Service
+@Transactional
+@RequiredArgsConstructor
+public class HistoryService {
+    private final CurrencyRateService currencyRateService;
+    private final OpenedPositionRepository openedPositionRepository;
+    private final ClosedPositionRepository closedPositionRepository;
+    private final StockRepository stockRepository;
+    private final OpenPositionHistoryRepository openPositionHistoryRepository;
+    private final PortfolioHistoryRepository portfolioHistoryRepository;
+
+    final static long MY_PORTFOLIO = 1L;
+
+    public Collection<OpenPositionHistory> saveHistory() {
+        Map<String, List<OpenedPosition>> openedPositions = openedPositionRepository.findAll().stream()
+                .collect(Collectors.groupingBy(OpenedPosition::getSymbol));
+        Map<String, Stock> stocks = stockRepository.findAll().stream()
+                .collect(Collectors.toMap(Stock::getSymbol, Function.identity()));
+
+        ZonedDateTime now = ZonedDateTime.now();
+        ZonedDateTime midnight = now.toLocalDate().atStartOfDay(ZoneId.systemDefault());
+        Map<String, OpenPositionHistory> positionHistory = openPositionHistoryRepository.findAllAfterDate(midnight).stream()
+                .collect(Collectors.toMap(OpenPositionHistory::getSymbol, Function.identity()));
+        PortfolioHistory portfolioHistory = portfolioHistoryRepository.findOneAfterDate(midnight).orElse(new PortfolioHistory());
+
+        Portfolio portfolio = new Portfolio();
+        portfolio.setTotal(0);
+        portfolio.setBaseCurrency(CurrencyType.USD);
+        openedPositions.forEach((symbol, positions) -> {
+            OpenPositionHistory history = positionToHistory(symbol, positionHistory, positions, stocks, now);
+            portfolio.setTotal(portfolio.getTotal() + currencyRateService.convertToBaseCurrency(positions.stream()
+                     .map(openedPosition -> openedPosition.getProfit() + openedPosition.getCommission())
+                            .reduce(Double::sum).orElse(0.0), portfolio.getBaseCurrency(), history.getCurrency()));
+        });
+        openPositionHistoryRepository.saveAll(positionHistory.values());
+
+        Map<CurrencyType, List<ClosedPosition>> closedPositions = closedPositionRepository.findAll().stream()
+                .collect(Collectors.groupingBy(ClosedPosition::getCurrency));
+
+        closedPositions.forEach((currency, positions) -> {
+            Double profit = positions.stream().map(closedPosition -> closedPosition.getProfit() + closedPosition.getCommission()).reduce(Double::sum).orElse(0.0);
+            portfolio.setTotal(portfolio.getTotal() + currencyRateService.convertToBaseCurrency(profit, portfolio.getBaseCurrency(), currency));
+        });
+
+        portfolioHistory.setPortfolioId(MY_PORTFOLIO);
+        portfolioHistory.setCurrency(CurrencyType.USD);
+        if (portfolioHistory.getOpenTotal() == null) {
+            portfolioHistory.setOpenTotal(portfolio.getTotal());
+        } else {
+            portfolioHistory.setCloseTotal(portfolio.getTotal());
+        }
+        portfolioHistory.setDate(now);
+        portfolioHistoryRepository.save(portfolioHistory);
+        return positionHistory.values();
+    }
+
+    private OpenPositionHistory positionToHistory(String symbol, Map<String, OpenPositionHistory> positionHistory, List<OpenedPosition> positions, Map<String, Stock> stocks, ZonedDateTime now) {
+        OpenPositionHistory history = positionHistory.get(symbol);
+        if (history == null) {
+            history = new OpenPositionHistory();
+            OpenedPosition position = CollectionUtils.firstElement(positions);
+            history.setSymbol(symbol);
+            history.setCurrency(position.getCurrency());
+            history.setAmount(positions.stream().map(OpenedPosition::getVolume).reduce(Double::sum).orElse(0.0));
+            history.setOpenPrice(getMarketPrice(symbol, positions, stocks));
+            history.setOpenProfit((history.getOpenPrice() - getOpenPrice(positions)) * history.getAmount());
+            history.setDate(now);
+            positionHistory.put(symbol, history);
+        } else {
+            history.setClosePrice(getMarketPrice(symbol, positions, stocks));
+            history.setCloseProfit((history.getClosePrice() - getOpenPrice(positions)) * history.getAmount());
+            positionHistory.replace(symbol, history);
+        }
+        return history;
+    }
+
+    private static double getMarketPrice(String symbol, List<OpenedPosition> positions, Map<String, Stock> stocks) {
+        Stock stock = stocks.get(symbol);
+        if (stock != null) {
+            return stock.getMarketPrice();
+        }
+        return positions.stream()
+                .map(OpenedPosition::getMarketPrice)
+                .filter(Objects::nonNull)
+                .mapToDouble(Double::doubleValue).average().orElse(0.0);
+    }
+
+    private static double getOpenPrice(List<OpenedPosition> positions) {
+        return positions.stream()
+                .map(OpenedPosition::getOpenPrice)
+                .filter(Objects::nonNull)
+                .mapToDouble(Double::doubleValue).average().orElse(0.0);
+    }
+}
