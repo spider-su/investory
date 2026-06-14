@@ -32,11 +32,18 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,prefix=sha-
 
+      - name: Verify build context files
+        run: |
+          pwd
+          ls -la
+          test -f "${{ github.workspace }}/Dockerfile"
+          test -f "${{ github.workspace }}/pom.xml"
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: ./Dockerfile
+          context: ${{ github.workspace }}
+          file: ${{ github.workspace }}/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
