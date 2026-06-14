@@ -6,8 +6,8 @@ WHERE s.symbol = d.symbol
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_stocks_symbol ON stocks (symbol);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_currencies_base_to_currency ON currencies (base, to_currency);
-CREATE UNIQUE INDEX IF NOT EXISTS ux_open_positions_history_symbol_day ON open_positions_history (symbol, (date::date));
-CREATE UNIQUE INDEX IF NOT EXISTS ux_portfolio_history_portfolio_day ON portfolio_history (portfolio_id, (date::date));
+CREATE UNIQUE INDEX IF NOT EXISTS ux_open_positions_history_symbol_date ON open_positions_history (symbol, date);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_portfolio_history_portfolio_date ON portfolio_history (portfolio_id, date);
 
 DO $$
 BEGIN

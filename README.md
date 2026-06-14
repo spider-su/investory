@@ -41,3 +41,15 @@ Set repository secrets before running the workflow:
 - `DOCKERHUB_USERNAME`
 - `DOCKERHUB_TOKEN` (Docker Hub access token)
 
+## Broker import API
+
+Generic endpoint:
+
+```powershell
+curl -X POST "http://localhost:8080/import/broker/xtb" `
+  -F "file=@account_51499241_en_xlsx_2026-04-30_2026-05-31.xlsx" `
+  -F "source=MANUAL"
+```
+
+`/import/broker/ibkr` is wired but not implemented yet and currently returns an error.
+
