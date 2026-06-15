@@ -2,9 +2,11 @@ package com.example.demo.controllers.rest;
 
 import com.example.demo.data.CurrencyType;
 import com.example.demo.data.repository.OpenPositionHistory;
+import com.example.demo.services.BenchmarkService;
 import com.example.demo.services.HistoryService;
 import com.example.demo.services.MarketService;
 import com.example.demo.services.PortfolioService;
+import com.example.demo.services.models.Benchmark;
 import com.example.demo.services.models.InstrumentPerformance;
 import com.example.demo.services.models.OpenPositionsPerformance;
 import com.example.demo.services.models.Performance;
@@ -26,11 +28,18 @@ public class PortfolioController {
     private final PortfolioService portfolioService;
     private final HistoryService historyService;
     private final MarketService marketService;
+    private final BenchmarkService benchmarkService;
 
     // Endpoint to get the total profit/loss
     @GetMapping("/total-profit-loss")
     public Portfolio getTotalProfitLoss() {
         return portfolioService.calculateTotalProfitLoss();
+    }
+
+    // Endpoint to compare realized performance against the S&P 500
+    @GetMapping("/benchmark")
+    public Benchmark getBenchmark() {
+        return benchmarkService.calculate();
     }
 
     // Endpoint to get the monthly performance

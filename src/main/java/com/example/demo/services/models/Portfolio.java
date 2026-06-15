@@ -20,6 +20,13 @@ public class Portfolio {
     double dividends = 0.0;
     Map<CurrencyType, Double> dividendsByCurrency = new HashMap<>();
 
+    /** Dividend withholding tax already deducted (base currency, negative). */
+    double dividendTax = 0.0;
+    /** Estimated capital-gains tax: 19% of the current tax year's net realized gains (base currency, positive). */
+    double capitalGainsTax = 0.0;
+    /** Prior-year losses applied (carried forward) to reduce the current year's taxable gain (base currency). */
+    double lossCarryForward = 0.0;
+
     /** External cash funding (base currency), excluding internal transfers / FX conversions. */
     double deposits = 0.0;
     double withdrawals = 0.0;

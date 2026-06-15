@@ -35,6 +35,10 @@ public class HistoryService {
 
     final static long MY_PORTFOLIO = 1L;
 
+    private static long nzId(OpenPositionHistory history) {
+        return history.getId() == null ? 0L : history.getId();
+    }
+
     public Collection<OpenPositionHistory> saveHistory() {
         Map<String, List<OpenedPosition>> openedPositions = openedPositionRepository.findAll().stream()
                 .collect(Collectors.groupingBy(OpenedPosition::getSymbol));
@@ -44,7 +48,12 @@ public class HistoryService {
         ZonedDateTime now = ZonedDateTime.now();
         ZonedDateTime midnight = now.toLocalDate().atStartOfDay(ZoneId.systemDefault());
         Map<String, OpenPositionHistory> positionHistory = openPositionHistoryRepository.findAllAfterDate(midnight).stream()
-                .collect(Collectors.toMap(OpenPositionHistory::getSymbol, Function.identity()));
+                .collect(Collectors.toMap(
+                        OpenPositionHistory::getSymbol,
+                        Function.identity(),
+                        // Same-day duplicates can exist for a symbol; keep the most recently created row.
+                        (a, b) -> nzId(a) >= nzId(b) ? a : b,
+                        LinkedHashMap::new));
         PortfolioHistory portfolioHistory = portfolioHistoryRepository.findOneAfterDate(midnight).orElse(new PortfolioHistory());
 
         Portfolio portfolio = new Portfolio();

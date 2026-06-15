@@ -122,6 +122,11 @@ body {
 .iv-balance__label { font-size: .72rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--iv-text-muted); }
 .iv-balance__value { font-size: 1.35rem; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
 
+.iv-benchmark { display: flex; gap: 28px; margin-bottom: 16px; flex-wrap: wrap; }
+.iv-benchmark__stat { display: flex; flex-direction: column; gap: 2px; }
+.iv-benchmark__label { font-size: .72rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--iv-text-muted); }
+.iv-benchmark__value { font-size: 1.4rem; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+
 .iv-chip--rate {
     padding: 6px 12px;
     font-size: .78rem;
@@ -243,6 +248,7 @@ body {
 .iv-badge--pos { background: var(--iv-green-soft); color: var(--iv-green); }
 .iv-badge--neg { background: var(--iv-red-soft); color: var(--iv-red); }
 .iv-badge--muted { background: var(--iv-border); color: var(--iv-text-muted); font-weight: 600; }
+.iv-muted { color: var(--iv-text-muted); font-weight: 500; font-size: .85em; }
 
 /* lists */
 .iv-list { list-style: none; margin: 0; padding: 0; }

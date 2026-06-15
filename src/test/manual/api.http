@@ -9,30 +9,32 @@ Authorization: Basic admin admin
 Content-Disposition: form-data; name="file"; filename="account_ike_51729109_en_xlsx_2023-12-31_2026-06-15.xlsx"
 Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
 
-< E:\projects\investory\src\main\resources\account_ike_51729109_en_xlsx_2023-12-31_2026-06-15.xlsx
+< E:\projects\investory\src\main\resources\account_51499241_en_xlsx_2023-12-31_2026-06-15.xlsx
 --WebAppBoundary--
 
-<> 2026-01-01T140157.500.json
-<> 2026-01-01T140119.500.json
-<> 2026-01-01T135951.500.json
-<> 2026-01-01T135930.500.json
-<> 2026-01-01T135846.500.json
-<> 2026-01-01T135828.500.json
-<> 2026-01-01T135610.500.json
-<> 2026-01-01T135430.500.json
+###
+### Upload IBKR transactions CSV (POST requires ROLE_ADMIN)
+###
+POST http://localhost:8080/import/broker/ibkr
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+Authorization: Basic admin admin
 
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="U17959259.TRANSACTIONS.20250211.20260612.csv"
+Content-Type: text/csv
+
+< E:\projects\investory\src\main\resources\U17959259.TRANSACTIONS.20250211.20260612.csv
+--WebAppBoundary--
 
 ###
-POST http://localhost:8080/import/xtb?file=us_3.xlsx
-
-<> 2025-12-10T123942.500.json
-<> 2025-10-30T153840.500.json
-
+POST http://localhost:8080/import/stock/create
+Authorization: Basic admin admin
 ###
 POST http://localhost:8080/import/stock/sync
-
+Authorization: Basic admin admin
 ###
-POST http://localhost:8080/portfolio/history
+POST http://localhost:8080/portfolio/sync
+Authorization: Basic admin admin
 
 <> 2026-01-01T161700.200.json
 <> 2026-01-01T161458.500.json

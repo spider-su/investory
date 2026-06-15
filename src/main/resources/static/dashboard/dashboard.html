@@ -47,6 +47,9 @@
             <p class="iv-kpi__value"
                th:classappend="${stats.total >= 0} ? 'iv-pos' : 'iv-neg'"
                th:text="${#numbers.formatDecimal(stats.total, 0, 0)} + ' $'">0 $</p>
+            <div class="iv-kpi__meta">
+                <span th:text="'After tax: ' + ${#numbers.formatDecimal(stats.total - stats.capitalGainsTax, 0, 0)} + ' $'">After tax: 0 $</span>
+            </div>
         </div>
 
         <div class="iv-kpi">
@@ -181,16 +184,21 @@
 
         <div class="iv-card">
             <div class="iv-card__head">
-                <h3 class="iv-card__title">Income</h3>
-                <span class="iv-card__hint">Dividends &amp; interest · base USD</span>
+                <h3 class="iv-card__title">Income &amp; Taxes</h3>
+                <span class="iv-card__hint">Net of tax · base USD</span>
             </div>
             <div class="iv-card__body">
                 <ul class="iv-list">
                     <li class="iv-list__item">
-                        <span class="iv-list__key">Dividends</span>
+                        <span class="iv-list__key">Dividends <span class="iv-muted">(net)</span></span>
                         <span class="iv-badge"
                               th:classappend="${stats.dividends >= 0} ? 'iv-badge--pos' : 'iv-badge--neg'"
                               th:text="${#numbers.formatDecimal(stats.dividends, 0, 0)} + ' $'">0 $</span>
+                    </li>
+                    <li class="iv-list__item">
+                        <span class="iv-list__key">Dividend withholding tax</span>
+                        <span class="iv-badge iv-badge--muted"
+                              th:text="${#numbers.formatDecimal(stats.dividendTax, 0, 0)} + ' $'">0 $</span>
                     </li>
                     <li class="iv-list__item">
                         <span class="iv-list__key">Free-funds interest</span>
@@ -198,7 +206,52 @@
                               th:classappend="${stats.interest >= 0} ? 'iv-badge--pos' : 'iv-badge--neg'"
                               th:text="${#numbers.formatDecimal(stats.interest, 0, 0)} + ' $'">0 $</span>
                     </li>
+                    <li class="iv-list__item">
+                        <span class="iv-list__key">Capital gains tax <span class="iv-muted">(19% · this year)</span></span>
+                        <span class="iv-badge iv-badge--neg"
+                              th:text="'-' + ${#numbers.formatDecimal(stats.capitalGainsTax, 0, 0)} + ' $'">0 $</span>
+                    </li>
+                    <li class="iv-list__item" th:if="${stats.lossCarryForward > 0}">
+                        <span class="iv-list__key">Loss carry-forward applied</span>
+                        <span class="iv-badge iv-badge--muted"
+                              th:text="${#numbers.formatDecimal(stats.lossCarryForward, 0, 0)} + ' $'">0 $</span>
+                    </li>
                 </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- Performance vs S&P 500 -->
+    <section class="iv-grid iv-grid--charts" th:if="${benchmark != null and benchmark.available}">
+        <div class="iv-card">
+            <div class="iv-card__head">
+                <h3 class="iv-card__title">Performance vs S&amp;P 500</h3>
+                <span class="iv-card__hint">Realized + dividends vs same capital in SPY · USD</span>
+            </div>
+            <div class="iv-card__body">
+                <div class="iv-benchmark">
+                    <div class="iv-benchmark__stat">
+                        <span class="iv-benchmark__label">You</span>
+                        <span class="iv-benchmark__value"
+                              th:classappend="${benchmark.portfolioReturnPct >= 0} ? 'iv-pos' : 'iv-neg'"
+                              th:text="${#numbers.formatDecimal(benchmark.portfolioReturnPct, 0, 1)} + ' %'">0 %</span>
+                    </div>
+                    <div class="iv-benchmark__stat">
+                        <span class="iv-benchmark__label">S&amp;P 500</span>
+                        <span class="iv-benchmark__value"
+                              th:classappend="${benchmark.benchmarkReturnPct >= 0} ? 'iv-pos' : 'iv-neg'"
+                              th:text="${#numbers.formatDecimal(benchmark.benchmarkReturnPct, 0, 1)} + ' %'">0 %</span>
+                    </div>
+                    <div class="iv-benchmark__stat">
+                        <span class="iv-benchmark__label">Alpha</span>
+                        <span class="iv-benchmark__value"
+                              th:classappend="${benchmark.alpha >= 0} ? 'iv-pos' : 'iv-neg'"
+                              th:text="(${benchmark.alpha >= 0} ? '+' : '') + ${#numbers.formatDecimal(benchmark.alpha, 0, 1)} + ' pts'">0 pts</span>
+                    </div>
+                </div>
+                <div class="iv-chart">
+                    <canvas id="benchmark-chart"></canvas>
+                </div>
             </div>
         </div>
     </section>
@@ -371,6 +424,83 @@
     const tickColor = '#94a0b8';
     Chart.defaults.font.family = "Inter, system-ui, sans-serif";
     Chart.defaults.color = tickColor;
+
+    const benchmarkAvailable = [[${benchmark != null and benchmark.available}]];
+    if (benchmarkAvailable) {
+        const benchLabels = [[${benchmark.labels}]];
+        const benchPortfolio = [[${benchmark.portfolioCurve}]];
+        const benchSpy = [[${benchmark.benchmarkCurve}]];
+        const benchEl = document.getElementById("benchmark-chart");
+        if (benchEl) {
+            new Chart(benchEl.getContext("2d"), {
+                type: 'line',
+                data: {
+                    labels: benchLabels,
+                    datasets: [
+                        {
+                            label: 'Your realized P/L',
+                            data: benchPortfolio,
+                            borderColor: '#4f46e5',
+                            backgroundColor: 'rgba(79, 70, 229, .12)',
+                            fill: true,
+                            tension: 0.25,
+                            pointRadius: 0,
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'Same capital in S&P 500',
+                            data: benchSpy,
+                            borderColor: '#16a34a',
+                            backgroundColor: 'rgba(22, 163, 74, .08)',
+                            fill: true,
+                            tension: 0.25,
+                            pointRadius: 0,
+                            borderWidth: 2
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: tickColor, maxRotation: 0, autoSkip: true }
+                        },
+                        y: {
+                            grid: { color: gridColor, drawBorder: false },
+                            ticks: {
+                                color: tickColor,
+                                callback: function (value) {
+                                    return amountFormatter.format(value) + ' $';
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            align: 'end',
+                            labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, color: '#6b7488' }
+                        },
+                        tooltip: {
+                            backgroundColor: '#1e2536',
+                            padding: 12,
+                            cornerRadius: 10,
+                            callbacks: {
+                                label: function (context) {
+                                    return context.dataset.label + ': '
+                                        + amountFormatter.format(Math.round(context.parsed.y)) + ' $';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    }
 
     const ctxMonthly = document.getElementById("monthly-performance-chart").getContext("2d");
     new Chart(ctxMonthly, {

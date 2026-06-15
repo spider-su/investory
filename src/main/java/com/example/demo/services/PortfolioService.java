@@ -43,7 +43,11 @@ public class PortfolioService {
             return true;
         }
         String lower = comment.toLowerCase();
-        return !(lower.contains("currency conversion") || lower.contains("transfer"));
+        // Exclude internal movements only: XTB sub-account transfers ("Transfer from X to Y")
+        // and FX conversions. IBKR real funding reads "Electronic Fund Transfer" and must count.
+        return !(lower.contains("currency conversion")
+                || lower.contains("transfer from")
+                || lower.contains("transfer to"));
     }
 
     public Portfolio calculateTotalProfitLoss() {
@@ -68,11 +72,17 @@ public class PortfolioService {
         Map<CurrencyType, List<CashOperation>> cashOperations = cashOperationRepository.findAll().stream()
                 .collect(Collectors.groupingBy(CashOperation::getCurrency));
         cashOperations.forEach((currency, positions) -> {
-            Double dividends = positions.stream()
+            Double grossDividends = positions.stream()
                     .filter(cashOperation -> cashOperation.getType() == CashOperationType.DIVIDEND)
                     .map(CashOperation::getAmount).reduce(Double::sum).orElse(0.0);
-            portfolio.getDividendsByCurrency().merge(currency, dividends, Double::sum);
-            portfolio.setDividends(portfolio.getDividends() + currencyRateService.convertToBaseCurrency(dividends, portfolio.getBaseCurrency(), currency));
+            // Dividend withholding tax (already deducted at source); amounts are negative.
+            Double withholdingTax = positions.stream()
+                    .filter(cashOperation -> cashOperation.getType() == CashOperationType.WITHHOLDING_TAX)
+                    .map(CashOperation::getAmount).reduce(Double::sum).orElse(0.0);
+            Double netDividends = grossDividends + withholdingTax;
+            portfolio.getDividendsByCurrency().merge(currency, netDividends, Double::sum);
+            portfolio.setDividends(portfolio.getDividends() + currencyRateService.convertToBaseCurrency(netDividends, portfolio.getBaseCurrency(), currency));
+            portfolio.setDividendTax(portfolio.getDividendTax() + currencyRateService.convertToBaseCurrency(withholdingTax, portfolio.getBaseCurrency(), currency));
 
             for (CashOperation op : positions) {
                 double base = currencyRateService.convertToBaseCurrency(nz(op.getAmount()), portfolio.getBaseCurrency(), currency);
@@ -111,6 +121,51 @@ public class PortfolioService {
         }
 
         portfolio.setTotal(portfolio.getTotalProfitInBase() + portfolio.getTotalUnrealizedInBase() + portfolio.getDividends());
+
+        // Estimated capital-gains tax ("Belka" 19%) for the CURRENT tax year only, applying
+        // loss carry-forward from prior years (Polish rule: losses deductible over the next 5 years).
+        int currentYear = java.time.Year.now().getValue();
+        Map<Integer, Double> realizedByYear = closedPositionRepository.findAll().stream()
+                .filter(p -> p.getCloseTime() != null)
+                .collect(Collectors.groupingBy(
+                        p -> p.getCloseTime().getYear(),
+                        Collectors.summingDouble(p -> currencyRateService.convertToBaseCurrency(
+                                nz(p.getProfit()) + nz(p.getCommission()) + nz(p.getSwap()),
+                                portfolio.getBaseCurrency(), p.getCurrency()))));
+
+        // Walk years chronologically: loss years feed a pool; gain years consume losses from the
+        // previous 5 years (oldest first). Only the current year's resulting tax is reported.
+        Map<Integer, Double> lossPool = new TreeMap<>();
+        double currentYearTaxable = 0.0;
+        double appliedToCurrentYear = 0.0;
+        for (Integer year : new TreeSet<>(realizedByYear.keySet())) {
+            double net = realizedByYear.getOrDefault(year, 0.0);
+            if (net < 0) {
+                lossPool.merge(year, -net, Double::sum);
+                continue;
+            }
+            double remainingGain = net;
+            for (Map.Entry<Integer, Double> loss : lossPool.entrySet()) {
+                if (remainingGain <= 0) {
+                    break;
+                }
+                int lossYear = loss.getKey();
+                if (lossYear < year - 5 || lossYear >= year) {
+                    continue; // outside the 5-year deduction window
+                }
+                double use = Math.min(remainingGain, loss.getValue());
+                loss.setValue(loss.getValue() - use);
+                remainingGain -= use;
+                if (year == currentYear) {
+                    appliedToCurrentYear += use;
+                }
+            }
+            if (year == currentYear) {
+                currentYearTaxable = remainingGain;
+            }
+        }
+        portfolio.setCapitalGainsTax(Math.round(currentYearTaxable * 0.19 * 100.0) / 100.0);
+        portfolio.setLossCarryForward(Math.round(appliedToCurrentYear * 100.0) / 100.0);
 
         // Balance = total assets value (equity) of every account as of the latest import,
         // converted to the base currency.

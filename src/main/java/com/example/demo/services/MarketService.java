@@ -21,16 +21,19 @@ import java.util.stream.Collectors;
 public class MarketService {
 
     public static final Set<String> NOT_SUPPORTED_SYMBOLS = Set.of("CSPX");
+    private static final String IBKR_ACCOUNT = "IBKR";
 
     private final TwelveDataService twelveDataService;
 
     private final OpenedPositionRepository openedPositionRepository;
     private final StockRepository stockRepository;
     private final HistoryService historyService;
+    private final AccountSummaryRepository accountSummaryRepository;
 
     public void createStocks() {
         Map<String, List<OpenedPosition>> openedPositions = openedPositionRepository.findAll().stream()
-                .filter(openedPosition -> openedPosition.getSymbol().contains(".US"))
+                .filter(p -> p.getSymbol() != null
+                        && (p.getSymbol().contains(".US") || IBKR_ACCOUNT.equals(p.getAccount())))
                 .collect(Collectors.groupingBy(OpenedPosition::getSymbol));
 
         Map<String, Stock> stocks = stockRepository.findAll().stream()
@@ -50,7 +53,9 @@ public class MarketService {
         OpenedPosition position = CollectionUtils.firstElement(positions);
         stock.setCurrency(position.getCurrency());
         stock.setSymbol(position.getSymbol());
-        stock.setTicker(position.getSymbol().substring(0, position.getSymbol().indexOf(".")));
+        // XTB symbols are TICKER.EXCHANGE; IBKR symbols are bare tickers.
+        int dot = position.getSymbol().indexOf(".");
+        stock.setTicker(dot >= 0 ? position.getSymbol().substring(0, dot) : position.getSymbol());
 
         stock.setAmount(positions.stream().map(OpenedPosition::getVolume).reduce(Double::sum).orElse(0.0));
         stock.setOpenPrice(positions.stream().map(OpenedPosition::getOpenPrice)
@@ -83,10 +88,17 @@ public class MarketService {
         AtomicInteger i = new AtomicInteger(1);
         chunks.forEach(chunk  -> {
             log.info("Updating chunk {} out of {}", i.getAndIncrement(), chunks.size());
-            updateStockMarketPrice(chunk);
+            try {
+                updateStockMarketPrice(chunk);
+            } catch (Exception e) {
+                // e.g. TwelveData 429 rate limit: skip this chunk, keep the prices we already
+                // fetched, and let a later run pick up the rest instead of failing the whole sync.
+                log.warn("Skipping stock chunk (will retry next run): {}", e.getMessage());
+            }
             try {
                 Thread.sleep(120_000); // 2 minutes
             } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 throw new RuntimeException(e);
             }
         });
@@ -168,8 +180,47 @@ public class MarketService {
     }
 
     public void fullPortfolioUpdate() {
+        createStocks();   // ensure a Stock row exists for every quotable holding (idempotent)
         updateStocks();
 //        syncStocks();
+        syncIbkrPositions();
         historyService.saveHistory();
+    }
+
+    /**
+     * Applies the latest fetched market prices to IBKR open positions so their unrealized P/L
+     * reflects current value (XTB positions keep their imported snapshot and are left untouched).
+     */
+    public void syncIbkrPositions() {
+        List<OpenedPosition> positions = openedPositionRepository.findAllByAccount(IBKR_ACCOUNT);
+        if (positions.isEmpty()) {
+            return;
+        }
+        Map<String, Stock> stocksBySymbol = stockRepository.findAll().stream()
+                .collect(Collectors.toMap(Stock::getSymbol, Function.identity(), (a, b) -> b));
+
+        for (OpenedPosition position : positions) {
+            Stock stock = stocksBySymbol.get(position.getSymbol());
+            if (stock == null || stock.getMarketPrice() == null || stock.getMarketPrice() == 0.0) {
+                continue; // no quote resolved -> keep cost-based value
+            }
+            double openPrice = position.getOpenPrice() != null ? position.getOpenPrice() : 0.0;
+            position.setMarketPrice(stock.getMarketPrice());
+            position.setProfit(position.getVolume() * (stock.getMarketPrice() - openPrice));
+        }
+        openedPositionRepository.saveAll(positions);
+
+        // Re-value the IBKR account equity at market = cash balance + market value of holdings,
+        // so the dashboard Balance reflects current value (not import-time cost basis).
+        accountSummaryRepository.findById(IBKR_ACCOUNT).ifPresent(summary -> {
+            double cash = summary.getBalance() != null ? summary.getBalance() : 0.0;
+            double marketValue = positions.stream()
+                    .mapToDouble(p -> (p.getVolume() != null ? p.getVolume() : 0.0)
+                            * (p.getMarketPrice() != null ? p.getMarketPrice() : 0.0))
+                    .sum();
+            summary.setEquity(Math.round((cash + marketValue) * 100.0) / 100.0);
+            summary.setUpdatedAt(ZonedDateTime.now());
+            accountSummaryRepository.save(summary);
+        });
     }
 }

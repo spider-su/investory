@@ -178,6 +178,38 @@ public class TwelveDataService {
         return indicators;
     }
 
+    /**
+     * Fetches monthly closing prices for a symbol, keyed by "yyyy-MM" (chronological).
+     * Used for benchmark comparison (e.g. SPY).
+     */
+    public java.util.NavigableMap<String, Double> fetchMonthlyCloses(String symbol, int months) {
+        java.util.TreeMap<String, Double> closes = new java.util.TreeMap<>();
+        try {
+            String url = "https://api.twelvedata.com/time_series?symbol=" + symbol
+                    + "&interval=1month&outputsize=" + months + "&apikey=" + apiKey;
+            ObjectMapper mapper = new ObjectMapper();
+            HttpClient client = HttpClient.newHttpClient();
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .timeout(java.time.Duration.ofSeconds(10))
+                    .build();
+            String body = client.send(request, HttpResponse.BodyHandlers.ofString()).body();
+            JsonNode json = mapper.readTree(body);
+            JsonNode values = json.path("values");
+            if (values.isArray()) {
+                for (JsonNode value : values) {
+                    String datetime = value.path("datetime").asText();
+                    if (datetime.length() >= 7) {
+                        closes.put(datetime.substring(0, 7), value.path("close").asDouble());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("Failed to fetch monthly closes for {}: {}", symbol, e.getMessage());
+        }
+        return closes;
+    }
+
     public Map<String, StockQuote> fetchStockQuotes(String joinedSymbols) throws Exception {
         String urlString = "https://api.twelvedata.com/quote?symbol=" + joinedSymbols + "&apikey=" + apiKey;
 
