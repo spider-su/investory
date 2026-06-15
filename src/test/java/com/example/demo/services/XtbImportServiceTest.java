@@ -30,6 +30,8 @@ class XtbImportServiceTest {
     private OpenedPositionRepository openedPositionRepository;
     @Mock
     private CashOperationRepository cashOperationRepository;
+    @Mock
+    private AccountSummaryRepository accountSummaryRepository;
 
     @InjectMocks
     private XtbImportService xtbImportService;

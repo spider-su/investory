@@ -97,16 +97,28 @@ public class HistoryService {
             history.setSymbol(symbol);
             history.setCurrency(position.getCurrency());
             history.setAmount(positions.stream().map(OpenedPosition::getVolume).reduce(Double::sum).orElse(0.0));
-            history.setOpenPrice(getMarketPrice(symbol, positions, stocks));
-            history.setOpenProfit((history.getOpenPrice() - getOpenPrice(positions)) * history.getAmount());
             history.setDate(now);
             positionHistory.put(symbol, history);
-        } else {
-            history.setClosePrice(getMarketPrice(symbol, positions, stocks));
-            history.setCloseProfit((history.getClosePrice() - getOpenPrice(positions)) * history.getAmount());
-            positionHistory.replace(symbol, history);
         }
+        // Capture a genuine market-open and market-close price for the day so the
+        // dashboard shows real intraday movement instead of the same value twice.
+        double openCostBasis = getOpenPrice(positions);
+        double dayOpenPrice = getDayOpenPrice(symbol, positions, stocks);
+        double dayClosePrice = getMarketPrice(symbol, positions, stocks);
+        history.setOpenPrice(dayOpenPrice);
+        history.setOpenProfit((dayOpenPrice - openCostBasis) * history.getAmount());
+        history.setClosePrice(dayClosePrice);
+        history.setCloseProfit((dayClosePrice - openCostBasis) * history.getAmount());
         return history;
+    }
+
+    private static double getDayOpenPrice(String symbol, List<OpenedPosition> positions, Map<String, Stock> stocks) {
+        Stock stock = stocks.get(symbol);
+        if (stock != null && stock.getDayOpenPrice() != null) {
+            return stock.getDayOpenPrice();
+        }
+        // Fall back to the latest market price if no distinct open price is available.
+        return getMarketPrice(symbol, positions, stocks);
     }
 
     private static double getMarketPrice(String symbol, List<OpenedPosition> positions, Map<String, Stock> stocks) {

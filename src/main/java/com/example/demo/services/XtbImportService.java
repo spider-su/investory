@@ -29,22 +29,206 @@ public class XtbImportService {
     private final ClosedPositionRepository closedPositionRepository;
     private final OpenedPositionRepository openedPositionRepository;
     private final CashOperationRepository cashOperationRepository;
+    private final AccountSummaryRepository accountSummaryRepository;
 
     public void importXtbExport(InputStream excelInputStream) throws Exception {
         try (Workbook workbook = new XSSFWorkbook(excelInputStream)) {
+            Sheet openSheet = findOpenPositionsSheet(workbook);
+            ImportContext openContext = getImportContext(openSheet);
+
+            // Some XTB exports leave the account-currency header blank. Since Gross P/L /
+            // Commission / Swap are reported in the ACCOUNT currency, a wrong/null currency
+            // corrupts every conversion, so resolve it explicitly before importing anything.
+            CurrencyType resolved = openContext.currency;
+            if (resolved == null) {
+                resolved = inferCurrency(openSheet);
+            }
+            if (resolved == null) {
+                resolved = inferCurrency(workbook.getSheet("CLOSED POSITION HISTORY"));
+            }
+            if (resolved == null) {
+                throw new IllegalStateException("Account " + openContext.account
+                        + ": the account currency is missing from the export and could not be inferred "
+                        + "(unsupported exchange?). Import aborted to avoid corrupt data.");
+            }
+            final CurrencyType currency = resolved;
+
             List<CashOperation> cashOperations = importCashOperations(workbook.getSheet("CASH OPERATION HISTORY"));
+            // The MT (leveraged/CFD) sub-account keeps its own cash ledger; merge it so
+            // CFD-account dividends and adjustments are not silently dropped.
+            cashOperations.addAll(importCashOperations(workbook.getSheet("BALANCE OPERATION HISTORY MT")));
+            cashOperations.forEach(operation -> {
+                if (operation.getCurrency() == null) {
+                    operation.setCurrency(currency);
+                }
+            });
             cashOperationRepository.saveAll(cashOperations);
 
             List<ClosedPosition> closedPositions = importClosedPositions(workbook.getSheet("CLOSED POSITION HISTORY MT"));
             closedPositions.addAll(importClosedPositions(workbook.getSheet("CLOSED POSITION HISTORY")));
+            closedPositions.forEach(position -> {
+                if (position.getCurrency() == null) {
+                    position.setCurrency(currency);
+                }
+            });
             closedPositionRepository.saveAll(closedPositions);
 
-            ImportedItems<OpenedPosition> openedImport = importItems(findOpenPositionsSheet(workbook), this::convertToOpenedPosition);
+            ImportedItems<OpenedPosition> openedImport = importItems(openSheet, this::convertToOpenedPosition);
+            openedImport.items.forEach(position -> {
+                if (position.getCurrency() == null) {
+                    position.setCurrency(currency);
+                }
+            });
             if (StringUtils.hasText(openedImport.context.account)) {
                 openedPositionRepository.removeAllByAccountNotIn(openedImport.context.account, openedImport.items);
             }
             openedPositionRepository.saveAll(openedImport.items);
+
+            // Capture the broker-reported total assets value (Equity) per account so the
+            // dashboard "Balance" reflects today's holdings + cash, not P/L.
+            importAccountSummary(openSheet, currency);
+            importAccountSummary(workbook.getSheet("BALANCE OPERATION HISTORY MT"), currency);
         }
+    }
+
+    /**
+     * Maps an XTB symbol's exchange suffix to its quote currency. Used only to infer a
+     * missing account currency together with the Gross-P/L ratio check, so it must stay
+     * conservative: only suffixes whose quote currency is a supported {@link CurrencyType}.
+     */
+    private CurrencyType currencyForSuffix(String symbol) {
+        if (symbol == null) {
+            return null;
+        }
+        int dot = symbol.lastIndexOf('.');
+        if (dot < 0) {
+            return null;
+        }
+        switch (symbol.substring(dot + 1).trim().toUpperCase()) {
+            case "US":
+            case "UK": // LSE ETFs on XTB (SGLD, VWRA, ...) are USD-denominated
+                return CurrencyType.USD;
+            case "PL":
+                return CurrencyType.PLN;
+            case "DE":
+            case "FR":
+            case "NL":
+            case "IT":
+            case "ES":
+            case "FI":
+            case "PT":
+            case "IE":
+            case "AT":
+            case "BE":
+                return CurrencyType.EUR;
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * Infers the account currency from position rows when the header is blank. XTB reports
+     * Gross P/L in the account currency while prices are in the instrument currency, so a
+     * position whose {@code grossPL ≈ volume * (price - openPrice)} reveals that the account
+     * currency equals that instrument's quote currency. The most-voted currency wins.
+     */
+    private CurrencyType inferCurrency(Sheet sheet) {
+        if (sheet == null) {
+            return null;
+        }
+        ImportContext context = getImportContext(sheet);
+        Map<String, Integer> columns = context.columnIndexes;
+        if (CollectionUtils.isEmpty(columns)) {
+            return null;
+        }
+        Integer volumeCol = columns.get("Volume");
+        Integer openCol = columns.get("Open price");
+        Integer priceCol = columns.containsKey("Market price") ? columns.get("Market price") : columns.get("Close price");
+        Integer grossCol = columns.get("Gross P/L");
+        Integer symbolCol = columns.get("Symbol");
+        if (volumeCol == null || openCol == null || priceCol == null || grossCol == null || symbolCol == null) {
+            return null;
+        }
+
+        Map<CurrencyType, Integer> votes = new EnumMap<>(CurrencyType.class);
+        for (Row row : sheet) {
+            if (isRowEmpty(row) || row.getRowNum() <= context.headerRowNum
+                    || row.getCell(1) == null || row.getCell(1).getCellType() != CellType.NUMERIC) {
+                continue;
+            }
+            Double volume = getDouble(row.getCell(volumeCol));
+            Double openPrice = getDouble(row.getCell(openCol));
+            Double price = getDouble(row.getCell(priceCol));
+            Double gross = getDouble(row.getCell(grossCol));
+            String symbol = getString(row.getCell(symbolCol));
+            if (volume == null || openPrice == null || price == null || gross == null || symbol == null) {
+                continue;
+            }
+            double instrumentPl = volume * (price - openPrice);
+            if (Math.abs(instrumentPl) < 0.5) {
+                continue; // too small to give a reliable ratio
+            }
+            double ratio = gross / instrumentPl;
+            if (ratio >= 0.97 && ratio <= 1.03) {
+                CurrencyType currency = currencyForSuffix(symbol);
+                if (currency != null) {
+                    votes.merge(currency, 1, Integer::sum);
+                }
+            }
+        }
+        return votes.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse(null);
+    }
+
+    private void importAccountSummary(Sheet sheet, CurrencyType fallbackCurrency) {
+        if (sheet == null) {
+            return;
+        }
+        ImportContext context = getImportContext(sheet);
+        CurrencyType currency = context.currency != null ? context.currency : fallbackCurrency;
+        if (!StringUtils.hasText(context.account) || currency == null) {
+            return;
+        }
+
+        Integer balanceCol = null;
+        Integer equityCol = null;
+        int headerRowNum = -1;
+        for (Row row : sheet) {
+            for (int c = 0; c < row.getLastCellNum(); c++) {
+                Cell cell = row.getCell(c);
+                if (cell != null && cell.getCellType() == CellType.STRING) {
+                    String value = cell.getStringCellValue().trim();
+                    if ("Balance".equalsIgnoreCase(value)) {
+                        balanceCol = c;
+                        headerRowNum = row.getRowNum();
+                    } else if ("Equity".equalsIgnoreCase(value)) {
+                        equityCol = c;
+                    }
+                }
+            }
+            if (balanceCol != null && equityCol != null) {
+                break;
+            }
+        }
+        if (balanceCol == null || equityCol == null) {
+            return;
+        }
+
+        Row valueRow = sheet.getRow(headerRowNum + 1);
+        if (valueRow == null) {
+            return;
+        }
+
+        AccountSummary summary = accountSummaryRepository.findById(context.account)
+                .orElseGet(AccountSummary::new);
+        summary.setAccount(context.account);
+        summary.setCurrency(currency);
+        summary.setBalance(getDouble(valueRow.getCell(balanceCol)));
+        summary.setEquity(getDouble(valueRow.getCell(equityCol)));
+        summary.setUpdatedAt(ZonedDateTime.now());
+        accountSummaryRepository.save(summary);
     }
 
     private List<CashOperation> importCashOperations(Sheet sheet) {
@@ -89,6 +273,7 @@ public class XtbImportService {
         position.setClosePrice(getDouble(row.getCell(context.columnIndexes.get("Close price"))));
         position.setComment(getString(row.getCell(context.columnIndexes.get("Comment"))));
         position.setCommission(getDouble(row.getCell(context.columnIndexes.get("Commission"))));
+        position.setSwap(getDouble(cell(row, context, "Swap")));
         position.setProfit(getDouble(row.getCell(context.columnIndexes.get("Gross P/L"))));
         return position;
     }
@@ -116,15 +301,25 @@ public class XtbImportService {
 
     private CashOperation convertToCashOperation(Row row, ImportContext context) {
         CashOperation operation = new CashOperation();
-        operation.setId(getLong(row.getCell(context.columnIndexes.get("ID"))));
+        operation.setId(getLong(cell(row, context, "ID")));
         operation.setAccount(context.account);
-        operation.setType(CashOperationType.fromString(getString(row.getCell(context.columnIndexes.get("Type")))));
-        operation.setSymbol(getString(row.getCell(context.columnIndexes.get("Symbol"))));
-        operation.setAmount(getDouble(row.getCell(context.columnIndexes.get("Amount"))));
+        operation.setType(CashOperationType.fromString(getString(cell(row, context, "Type"))));
+        operation.setSymbol(getString(cell(row, context, "Symbol")));
+        operation.setAmount(getDouble(cell(row, context, "Amount")));
         operation.setCurrency(context.currency);
-        operation.setComment(getString(row.getCell(context.columnIndexes.get("Comment"))));
-        operation.setDate(getDateTime(row.getCell(context.columnIndexes.get("Time"))));
+        operation.setComment(getString(cell(row, context, "Comment")));
+        operation.setDate(getDateTime(cell(row, context, "Time")));
         return operation;
+    }
+
+    /**
+     * Safe column accessor: returns {@code null} when the header label is absent on
+     * this sheet (e.g. the MT balance ledger has no {@code Symbol} column), avoiding
+     * a NullPointerException when unboxing a missing column index.
+     */
+    private Cell cell(Row row, ImportContext context, String label) {
+        Integer index = context.columnIndexes.get(label);
+        return index == null ? null : row.getCell(index);
     }
 
     private ImportContext getImportContext(Sheet sheet) {
@@ -202,7 +397,7 @@ public class XtbImportService {
     }
 
     private ZonedDateTime getDateTime(Cell cell) {
-        if (cell.getCellType() == CellType.NUMERIC) {
+        if (cell != null && cell.getCellType() == CellType.NUMERIC) {
             return cell.getDateCellValue().toInstant()
                     .atZone(ZoneId.systemDefault());
         }

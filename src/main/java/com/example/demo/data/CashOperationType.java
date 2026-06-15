@@ -13,9 +13,18 @@ public enum CashOperationType {
     TRANSFER,
     WITHDRAWAL,
     DEPOSIT,
+    WITHHOLDING_TAX,
+    SWAP,
+    ROLLOVER,
+    CORRECTION,
+    STAMP_DUTY,
+    TRANSACTION_TAX,
     UNKNOWN;
 
     public static CashOperationType fromString(String value) {
+        if (value == null) {
+            return UNKNOWN;
+        }
         switch (value.toLowerCase()) {
             case "sec fee": return SEC_FEE;
             case "subaccount transfer": return SUBACCOUNT_TRANSFER;
@@ -27,8 +36,16 @@ public enum CashOperationType {
             case "free-funds interest tax": return FREE_FUNDS_INTEREST_TAX;
             case "commission": return COMMISSION;
             case "transfer": return TRANSFER;
-            case "withdrawal": return WITHDRAWAL;
-            case "deposit": return DEPOSIT;
+            case "withdrawal":
+            case "withdraw": return WITHDRAWAL;
+            case "deposit":
+            case "ike deposit": return DEPOSIT;
+            case "withholding tax": return WITHHOLDING_TAX;
+            case "swap": return SWAP;
+            case "rollover": return ROLLOVER;
+            case "correction": return CORRECTION;
+            case "stamp duty": return STAMP_DUTY;
+            case "tax iftt": return TRANSACTION_TAX;
             default: return UNKNOWN;
         }
     }

@@ -46,6 +46,8 @@ public class ClosedPosition {
 
     private Double commission;
 
+    private Double swap;
+
     private Double profit;
 
     private String comment;

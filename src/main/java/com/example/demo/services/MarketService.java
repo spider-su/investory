@@ -59,6 +59,7 @@ public class MarketService {
         stock.setMarketPrice(positions.stream().map(OpenedPosition::getMarketPrice)
                 .filter(Objects::nonNull)
                 .mapToDouble(Double::doubleValue).average().orElse(0.0));
+        stock.setDayOpenPrice(stock.getMarketPrice());
         stock.setProfit(positions.stream().map(OpenedPosition::getProfit).reduce(Double::sum).orElse(0.0));
 
         stock.setSyncDate(now);
@@ -130,6 +131,7 @@ public class MarketService {
                     return;
                 }
                 stock.setMarketPrice(stockQuote.getClose());
+                stock.setDayOpenPrice(stockQuote.getOpen());
                 stock.setProfit(stock.getAmount() * (stock.getMarketPrice() - stock.getOpenPrice()));
                 stock.setUpdatedDate(now);
             });

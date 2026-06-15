@@ -18,6 +18,7 @@ import java.time.ZonedDateTime;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -29,8 +30,50 @@ public class ImportOrchestratorService {
     private final ImportBatchRepository importBatchRepository;
     private final ImportRowErrorRepository importRowErrorRepository;
 
+    @Transactional(readOnly = true)
+    public Optional<ImportBatchDetailsResponse> getBatch(Long batchId) {
+        return importBatchRepository.findById(batchId).map(this::toDetailsResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<ImportBatchDetailsResponse> getLatestBatch() {
+        return importBatchRepository.findFirstByOrderByIdDesc().map(this::toDetailsResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ImportBatchDetailsResponse> listBatches(int limit) {
+        return importBatchRepository.findAll().stream()
+                .sorted((a, b) -> Long.compare(b.getId(), a.getId()))
+                .limit(limit)
+                .map(this::toDetailsResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<ImportRowErrorResponse> getBatchErrors(Long batchId) {
+        return importRowErrorRepository.findAllByBatch_IdOrderByIdAsc(batchId).stream()
+                .map(error -> new ImportRowErrorResponse(
+                        error.getId(),
+                        error.getSheetName(),
+                        error.getRowNumber(),
+                        error.getErrorCode(),
+                        error.getErrorMessage()
+                ))
+                .collect(Collectors.toList());
+    }
+
     @Transactional
     public ImportBatchResponse importFile(BrokerType broker, byte[] fileBytes, String fileName, ImportSourceType sourceType, String sourceRef) {
+        String checksum = sha256(fileBytes);
+        Optional<ImportBatch> existingBatch = importBatchRepository.findFirstByBrokerAndFileSha256OrderByIdDesc(broker, checksum)
+                .filter(batch -> batch.getStatus() == ImportBatchStatus.APPLIED);
+        if (existingBatch.isPresent()) {
+            ImportBatch batch = existingBatch.get();
+            batch.setErrorMessage("File already imported, returning existing batch");
+            importBatchRepository.save(batch);
+            return toBatchResponse(batch, "File already imported, returning existing batch", true);
+        }
+
         Map<BrokerType, BrokerImportParser> parserByBroker = parsers.stream()
                 .collect(Collectors.toMap(BrokerImportParser::brokerType, Function.identity()));
 
@@ -44,7 +87,7 @@ public class ImportOrchestratorService {
         batch.setSourceType(sourceType);
         batch.setSourceRef(sourceRef);
         batch.setFileName(fileName);
-        batch.setFileSha256(sha256(fileBytes));
+        batch.setFileSha256(checksum);
         batch.setStartedAt(ZonedDateTime.now());
         batch.setStatus(ImportBatchStatus.RECEIVED);
         batch.setRowsTotal(0);
@@ -62,8 +105,7 @@ public class ImportOrchestratorService {
             batch.setFinishedAt(ZonedDateTime.now());
             importBatchRepository.save(batch);
 
-            return new ImportBatchResponse(batch.getId(), broker, batch.getStatus(),
-                    batch.getRowsTotal(), batch.getRowsApplied(), batch.getRowsFailed(), batch.getErrorMessage());
+            return toBatchResponse(batch, batch.getErrorMessage(), false);
         } catch (Exception e) {
             batch.setStatus(ImportBatchStatus.FAILED);
             batch.setRowsFailed(1);
@@ -88,6 +130,42 @@ public class ImportOrchestratorService {
         } catch (Exception e) {
             throw new IllegalStateException("Cannot compute file checksum", e);
         }
+    }
+
+    private ImportBatchDetailsResponse toDetailsResponse(ImportBatch batch) {
+        return new ImportBatchDetailsResponse(
+                batch.getId(),
+                batch.getBroker(),
+                batch.getSourceType(),
+                batch.getSourceRef(),
+                batch.getFileName(),
+                batch.getFileSha256(),
+                batch.getStatus(),
+                batch.getRowsTotal() != null ? batch.getRowsTotal() : 0,
+                batch.getRowsApplied() != null ? batch.getRowsApplied() : 0,
+                batch.getRowsFailed() != null ? batch.getRowsFailed() : 0,
+                batch.getErrorMessage(),
+                isDuplicateBatch(batch),
+                batch.getStartedAt(),
+                batch.getFinishedAt()
+        );
+    }
+
+    private ImportBatchResponse toBatchResponse(ImportBatch batch, String message, boolean duplicate) {
+        return new ImportBatchResponse(
+                batch.getId(),
+                batch.getBroker(),
+                batch.getStatus(),
+                batch.getRowsTotal() != null ? batch.getRowsTotal() : 0,
+                batch.getRowsApplied() != null ? batch.getRowsApplied() : 0,
+                batch.getRowsFailed() != null ? batch.getRowsFailed() : 0,
+                message,
+                duplicate
+        );
+    }
+
+    private boolean isDuplicateBatch(ImportBatch batch) {
+        return batch.getErrorMessage() != null && batch.getErrorMessage().startsWith("File already imported");
     }
 }
 

@@ -27,6 +27,8 @@ public class Stock {
     private CurrencyType currency;
     private Double amount;
     private Double openPrice;
+    @Column(name = "day_open_price")
+    private Double dayOpenPrice;
     private Double marketPrice;
     private Double profit;
     private ZonedDateTime updatedDate;

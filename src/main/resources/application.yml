@@ -1,4 +1,8 @@
 spring:
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 60MB
   security:
     oauth2:
       client:
@@ -44,6 +48,11 @@ app:
   api:
     twelve-data-key: ${TWELVEDATA_API_KEY:}
     exchange-rate-key: ${EXCHANGERATE_API_KEY:}
+  security:
+    admin-username: ${APP_SECURITY_ADMIN_USERNAME:admin}
+    admin-password: ${APP_SECURITY_ADMIN_PASSWORD:change-me-admin}
+    user-username: ${APP_SECURITY_USER_USERNAME:user}
+    user-password: ${APP_SECURITY_USER_PASSWORD:change-me-user}
   telegram:
     bot-username: ${TELEGRAM_BOT_USERNAME:}
     bot-token: ${TELEGRAM_BOT_TOKEN:}

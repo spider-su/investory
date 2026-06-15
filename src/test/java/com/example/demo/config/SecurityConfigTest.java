@@ -1,0 +1,89 @@
+package com.example.demo.config;
+
+import com.example.demo.data.BrokerType;
+import com.example.demo.data.ImportBatchStatus;
+import com.example.demo.data.ImportSourceType;
+import com.example.demo.controllers.rest.ImportController;
+import com.example.demo.services.MarketService;
+import com.example.demo.services.imports.ImportBatchDetailsResponse;
+import com.example.demo.services.imports.ImportOrchestratorService;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.ZonedDateTime;
+import java.util.List;
+
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@WebMvcTest(controllers = {ImportController.class})
+@Import(SecurityConfig.class)
+class SecurityConfigTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockBean
+    private ImportOrchestratorService importOrchestratorService;
+
+    @MockBean
+    private MarketService marketService;
+
+    @Test
+    void unauthenticatedApiRequest_isUnauthorized() throws Exception {
+        mockMvc.perform(get("/import/batches"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(username = "user", roles = {"USER"})
+    void userCanReadImportBatches() throws Exception {
+        when(importOrchestratorService.listBatches(1)).thenReturn(List.of(
+                new ImportBatchDetailsResponse(
+                        1L,
+                        BrokerType.XTB,
+                        ImportSourceType.MANUAL,
+                        null,
+                        "sample.xlsx",
+                        "hash",
+                        ImportBatchStatus.APPLIED,
+                        10,
+                        10,
+                        0,
+                        "ok",
+                        false,
+                        ZonedDateTime.now(),
+                        ZonedDateTime.now()
+                )
+        ));
+
+        mockMvc.perform(get("/import/batches").param("limit", "1"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(username = "user", roles = {"USER"})
+    void userCannotRunAdminPostEndpoint() throws Exception {
+        mockMvc.perform(post("/import/stock/create"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "admin", roles = {"ADMIN", "USER"})
+    void adminCanRunAdminPostEndpoint() throws Exception {
+        mockMvc.perform(post("/import/stock/create"))
+                .andExpect(status().isOk());
+
+        verify(marketService).createStocks();
+    }
+}
+
+

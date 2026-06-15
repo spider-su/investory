@@ -53,3 +53,27 @@ curl -X POST "http://localhost:8080/import/broker/xtb" `
 
 `/import/broker/ibkr` is wired but not implemented yet and currently returns an error.
 
+Import monitoring endpoints:
+
+```powershell
+curl "http://localhost:8080/import/batches?limit=20"
+curl "http://localhost:8080/import/batches/1"
+curl "http://localhost:8080/import/batches/latest"
+curl "http://localhost:8080/import/batches/1/errors"
+```
+
+## Security
+
+HTTP Basic auth is enabled for API endpoints.
+
+- `GET /` and static assets are public.
+- `POST`, `PUT`, `DELETE` endpoints require `ADMIN` role.
+- Other API reads require authentication.
+
+Override default users with environment variables:
+
+- `APP_SECURITY_ADMIN_USERNAME`
+- `APP_SECURITY_ADMIN_PASSWORD`
+- `APP_SECURITY_USER_USERNAME`
+- `APP_SECURITY_USER_PASSWORD`
+

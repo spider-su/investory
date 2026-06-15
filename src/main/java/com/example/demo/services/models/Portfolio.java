@@ -20,10 +20,22 @@ public class Portfolio {
     double dividends = 0.0;
     Map<CurrencyType, Double> dividendsByCurrency = new HashMap<>();
 
+    /** External cash funding (base currency), excluding internal transfers / FX conversions. */
+    double deposits = 0.0;
+    double withdrawals = 0.0;
+    double netDeposits = 0.0;
+    /** Free-funds interest net of interest tax (base currency). */
+    double interest = 0.0;
+
     double totalUnrealizedInBase = 0.0;
     Map<CurrencyType, Double> unrealizedByCurrency = new HashMap<>();
 
     double total = 0.0;
+
+    /** Total assets value (cash + open positions) across all accounts, converted to base currency. */
+    double balance = 0.0;
+
+    Map<CurrencyType, Double> exchangeRates = new HashMap<>();
 
     List<InstrumentPerformance> performancePerSymbol;
 

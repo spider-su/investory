@@ -8,173 +8,307 @@
     <link href="/css/main.css" rel="stylesheet">
 </head>
 
-<body class="d-flex flex-column">
-<div class="page">
-    <div class="container mt-4">
-        <h1 class="mb-4">Portfolio Dashboard</h1>
-
-        <!-- Top Summary Cards -->
-        <div class="row row-cards mb-4">
-            <!-- Base Currency Card -->
-            <div class="col-md-4">
-                <div class="card h-100">
-                    <div class="card-header">
-                        <h3 class="card-title">Base Currency: USD</h3>
-                    </div>
-                    <div class="card-body">
-                        <p>Total:
-                            <span th:text="${#numbers.formatDecimal(stats.total, 0, 0)}"
-                                  th:classappend="${stats.total >= 0} ? 'text-green' : 'text-red'"></span>
-                        </p>
-                        <p>Unrealized:
-                            <span th:text="${#numbers.formatDecimal(stats.totalUnrealizedInBase, 0, 0)}"
-                                  th:classappend="${stats.totalUnrealizedInBase >= 0} ? 'text-green' : 'text-red'"></span>
-                        </p>
-                        <p>Closed:
-                            <span th:text="${#numbers.formatDecimal(stats.totalProfitInBase, 0, 0)}"
-                                  th:classappend="${stats.totalProfitInBase >= 0} ? 'text-green' : 'text-red'"></span>
-                        </p>
-                    </div>
-                </div>
+<body>
+<div class="iv-app">
+    <!-- Topbar -->
+    <header class="iv-topbar">
+        <div class="iv-brand">
+            <div class="iv-brand__logo">I</div>
+            <div>
+                <h1 class="iv-brand__title">Investory</h1>
+                <p class="iv-brand__subtitle">Portfolio performance dashboard</p>
             </div>
+        </div>
+        <div class="iv-balance">
+            <span class="iv-balance__label">Balance</span>
+            <span class="iv-balance__value"
+                  th:classappend="${stats.balance >= 0} ? 'iv-pos' : 'iv-neg'"
+                  th:text="${#numbers.formatDecimal(stats.balance, 0, 0)} + ' $'">0 $</span>
+        </div>
+        <div class="iv-topbar__meta">
+            <span class="iv-chip iv-chip--rate" th:each="rate : ${stats.exchangeRates}"
+                  th:text="'1 ' + ${stats.baseCurrency} + ' = ' + ${#numbers.formatDecimal(rate.value, 1, 2)} + ' ' + ${rate.key}">1 USD = 0.00</span>
+            <span class="iv-chip"><span class="iv-chip__dot"></span> Live · Base USD</span>
+        </div>
+    </header>
 
-            <!-- Unrealized by Currency -->
-            <div class="col-md-4">
-                <div class="card h-100">
-                    <div class="card-header">
-                        <h3 class="card-title">Unrealized by Currency</h3>
-                    </div>
-                    <div class="card-body">
-                        <ul class="list-group list-group-flush">
-                            <li class="list-group-item" th:each="entry : ${stats.unrealizedByCurrency}">
-                                <span th:text="${entry.key}"></span>:
-                                <span class="float-end" th:text="${#numbers.formatDecimal(entry.value, 0, 0)}"
-                                      th:classappend="${entry.value >= 0} ? 'text-green' : 'text-red'"></span>
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
+    <!-- KPI tiles -->
+    <section class="iv-grid iv-grid--kpi">
+        <div class="iv-kpi">
+            <p class="iv-kpi__label">
+                <span class="iv-kpi__icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 3v18h18"/><path d="M19 9l-5 5-4-4-3 3"/>
+                    </svg>
+                </span>
+                Profit
+            </p>
+            <p class="iv-kpi__value"
+               th:classappend="${stats.total >= 0} ? 'iv-pos' : 'iv-neg'"
+               th:text="${#numbers.formatDecimal(stats.total, 0, 0)} + ' $'">0 $</p>
+        </div>
 
-            <!-- Profit by Currency -->
-            <div class="col-md-4">
-                <div class="card h-100">
-                    <div class="card-header">
-                        <h3 class="card-title">Profit by Currency</h3>
-                    </div>
-                    <div class="card-body">
-                        <ul class="list-group list-group-flush">
-                            <li class="list-group-item" th:each="entry : ${stats.profitByCurrency}">
-                                <span th:text="${entry.key}"></span>:
-                                <span class="float-end" th:text="${#numbers.formatDecimal(entry.value, 0, 0)}"
-                                      th:classappend="${entry.value >= 0} ? 'text-green' : 'text-red'"></span>
-                            </li>
-                        </ul>
-                    </div>
-                </div>
+        <div class="iv-kpi">
+            <p class="iv-kpi__label">
+                <span class="iv-kpi__icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 12h4l3 8 4-16 3 8h4"/>
+                    </svg>
+                </span>
+                Unrealized P/L
+            </p>
+            <p class="iv-kpi__value"
+               th:classappend="${stats.totalUnrealizedInBase >= 0} ? 'iv-pos' : 'iv-neg'"
+               th:text="${#numbers.formatDecimal(stats.totalUnrealizedInBase, 0, 0)} + ' $'">0 $</p>
+            <div class="iv-kpi__meta">
+                <span>Current positions</span>
             </div>
         </div>
 
-        <!-- Monthly Performance Chart -->
-        <div class="row row-cards mb-4">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">Monthly Performance</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="chart chart-sm">
-                            <canvas id="monthly-performance-chart" height="100"></canvas>
-                        </div>
-                    </div>
-                </div>
+        <div class="iv-kpi">
+            <p class="iv-kpi__label">
+                <span class="iv-kpi__icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20 6L9 17l-5-5"/>
+                    </svg>
+                </span>
+                Realized P/L
+            </p>
+            <p class="iv-kpi__value"
+               th:classappend="${stats.totalProfitInBase >= 0} ? 'iv-pos' : 'iv-neg'"
+               th:text="${#numbers.formatDecimal(stats.totalProfitInBase, 0, 0)} + ' $'">0 $</p>
+            <div class="iv-kpi__meta">
+                <span>Closed positions</span>
             </div>
         </div>
 
-        <!-- Open Performance Chart -->
-        <div class="row row-cards mb-4">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">Open Positions Performance (USD only)</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="chart chart-sm">
-                            <canvas id="open-positions-performance-chart" height="100"></canvas>
-                        </div>
-                    </div>
-                </div>
+        <div class="iv-kpi">
+            <p class="iv-kpi__label">
+                <span class="iv-kpi__icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="1" x2="12" y2="23"/>
+                        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                    </svg>
+                </span>
+                Dividends
+            </p>
+            <p class="iv-kpi__value"
+               th:classappend="${stats.dividends >= 0} ? 'iv-pos' : 'iv-neg'"
+               th:text="${#numbers.formatDecimal(stats.dividends, 0, 0)} + ' $'">0 $</p>
+        </div>
+    </section>
+
+    <!-- Currency breakdown -->
+    <section class="iv-grid iv-grid--split" style="margin-bottom: var(--iv-gutter);">
+        <div class="iv-card">
+            <div class="iv-card__head">
+                <h3 class="iv-card__title">Unrealized by Currency</h3>
+                <span class="iv-card__hint">Open P/L + dividends · native currency</span>
+            </div>
+            <div class="iv-card__body">
+                <ul class="iv-list">
+                    <li class="iv-list__item" th:each="entry : ${stats.unrealizedByCurrency}">
+                        <span class="iv-list__key"><span class="iv-cur" th:text="${entry.key}"></span></span>
+                        <span class="iv-list__values">
+                            <span class="iv-badge"
+                                  th:classappend="${entry.value >= 0} ? 'iv-badge--pos' : 'iv-badge--neg'"
+                                  th:text="${#numbers.formatDecimal(entry.value, 0, 0)} + ' ' + ${entry.key}"></span>
+                            <span class="iv-badge iv-badge--muted"
+                                  th:with="dividend=${stats.dividendsByCurrency.get(entry.key)}"
+                                  th:text="${#numbers.formatDecimal(dividend, 0, 0)} + ' ' + ${entry.key} + ' div'"></span>
+                        </span>
+                    </li>
+                </ul>
             </div>
         </div>
 
-        <!-- Performance per Symbol Table -->
-        <div class="row row-cards mt-4">
-            <!-- Gainers -->
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">Gainers</h3>
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table card-table table-vcenter text-nowrap">
-                            <thead>
-                            <tr>
-                                <th>Symbol</th>
-                                <th>Total</th>
-                                <th>Closed</th>
-                                <th>Unrealized</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            <tr th:each="symbol : ${stats.performancePerSymbol}"
-                                th:if="${symbol.total >= 0}">
-                                <td th:text="${symbol.symbol}"></td>
-                                <td th:text="${#numbers.formatDecimal(symbol.total, 0, 0)}" class="text-green"></td>
-                                <td th:text="${#numbers.formatDecimal(symbol.closedProfit, 0, 0)}"
-                                    th:classappend="${symbol.closedProfit >= 0} ? 'text-green' : 'text-red'"></td>
-                                <td th:text="${#numbers.formatDecimal(symbol.unrealizedProfit, 0, 0)}"
-                                    th:classappend="${symbol.unrealizedProfit >= 0} ? 'text-green' : 'text-red'"></td>
-                            </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+        <div class="iv-card">
+            <div class="iv-card__head">
+                <h3 class="iv-card__title">Profit by Currency</h3>
+                <span class="iv-card__hint">Realized P/L + dividends · native currency</span>
             </div>
+            <div class="iv-card__body">
+                <ul class="iv-list">
+                    <li class="iv-list__item" th:each="entry : ${stats.profitByCurrency}">
+                        <span class="iv-list__key"><span class="iv-cur" th:text="${entry.key}"></span></span>
+                        <span class="iv-list__values">
+                            <span class="iv-badge"
+                                  th:with="dividend=${stats.dividendsByCurrency.get(entry.key)}"
+                                  th:classappend="${entry.value + dividend >= 0} ? 'iv-badge--pos' : 'iv-badge--neg'"
+                                  th:text="${#numbers.formatDecimal(entry.value + dividend, 0, 0)} + ' ' + ${entry.key}"></span>
+                            <span class="iv-badge iv-badge--muted"
+                                  th:with="dividend=${stats.dividendsByCurrency.get(entry.key)}"
+                                  th:text="'incl. ' + ${#numbers.formatDecimal(dividend, 0, 0)} + ' ' + ${entry.key} + ' div'"></span>
+                        </span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </section>
 
-            <!-- Losers -->
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">Losers</h3>
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table card-table table-vcenter text-nowrap">
-                            <thead>
-                            <tr>
-                                <th>Symbol</th>
-                                <th>Total</th>
-                                <th>Closed</th>
-                                <th>Unrealized</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            <tr th:each="symbol : ${stats.performancePerSymbol}"
-                                th:if="${symbol.total < 0}">
-                                <td th:text="${symbol.symbol}"></td>
-                                <td th:text="${#numbers.formatDecimal(symbol.total, 0, 0)}" class="text-red"></td>
-                                <td th:text="${#numbers.formatDecimal(symbol.closedProfit, 0, 0)}"
-                                    th:classappend="${symbol.closedProfit >= 0} ? 'text-green' : 'text-red'"></td>
-                                <td th:text="${#numbers.formatDecimal(symbol.unrealizedProfit, 0, 0)}"
-                                    th:classappend="${symbol.unrealizedProfit >= 0} ? 'text-green' : 'text-red'"></td>
-                            </tr>
-                            </tbody>
-                        </table>
-                    </div>
+    <!-- Funding & Income -->
+    <section class="iv-grid iv-grid--split" style="margin-bottom: var(--iv-gutter);">
+        <div class="iv-card">
+            <div class="iv-card__head">
+                <h3 class="iv-card__title">Account Funding</h3>
+                <span class="iv-card__hint">External cash · base USD</span>
+            </div>
+            <div class="iv-card__body">
+                <ul class="iv-list">
+                    <li class="iv-list__item">
+                        <span class="iv-list__key">Net deposits</span>
+                        <span class="iv-badge"
+                              th:classappend="${stats.netDeposits >= 0} ? 'iv-badge--pos' : 'iv-badge--neg'"
+                              th:text="${#numbers.formatDecimal(stats.netDeposits, 0, 0)} + ' $'">0 $</span>
+                    </li>
+                    <li class="iv-list__item">
+                        <span class="iv-list__key">Deposits</span>
+                        <span class="iv-badge iv-badge--muted"
+                              th:text="${#numbers.formatDecimal(stats.deposits, 0, 0)} + ' $'">0 $</span>
+                    </li>
+                    <li class="iv-list__item">
+                        <span class="iv-list__key">Withdrawals</span>
+                        <span class="iv-badge iv-badge--muted"
+                              th:text="${#numbers.formatDecimal(stats.withdrawals, 0, 0)} + ' $'">0 $</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="iv-card">
+            <div class="iv-card__head">
+                <h3 class="iv-card__title">Income</h3>
+                <span class="iv-card__hint">Dividends &amp; interest · base USD</span>
+            </div>
+            <div class="iv-card__body">
+                <ul class="iv-list">
+                    <li class="iv-list__item">
+                        <span class="iv-list__key">Dividends</span>
+                        <span class="iv-badge"
+                              th:classappend="${stats.dividends >= 0} ? 'iv-badge--pos' : 'iv-badge--neg'"
+                              th:text="${#numbers.formatDecimal(stats.dividends, 0, 0)} + ' $'">0 $</span>
+                    </li>
+                    <li class="iv-list__item">
+                        <span class="iv-list__key">Free-funds interest</span>
+                        <span class="iv-badge"
+                              th:classappend="${stats.interest >= 0} ? 'iv-badge--pos' : 'iv-badge--neg'"
+                              th:text="${#numbers.formatDecimal(stats.interest, 0, 0)} + ' $'">0 $</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- Monthly Performance Chart -->
+    <section class="iv-grid iv-grid--charts">
+        <div class="iv-card">
+            <div class="iv-card__head">
+                <h3 class="iv-card__title">Monthly Performance</h3>
+                <span class="iv-card__hint">Net P/L &amp; trade count per month</span>
+            </div>
+            <div class="iv-card__body">
+                <div class="iv-chart">
+                    <canvas id="monthly-performance-chart"></canvas>
                 </div>
             </div>
         </div>
-    </div> <!-- .container -->
-</div> <!-- .page -->
+    </section>
+
+    <!-- Open Performance Chart -->
+    <section class="iv-grid iv-grid--charts">
+        <div class="iv-card">
+            <div class="iv-card__head">
+                <h3 class="iv-card__title">Open Positions Balance</h3>
+                <span class="iv-card__hint">Market open vs close · USD</span>
+            </div>
+            <div class="iv-card__body">
+                <div class="iv-chart">
+                    <canvas id="open-positions-performance-chart"></canvas>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Performance per Symbol -->
+    <section class="iv-grid iv-grid--split">
+        <div class="iv-card">
+            <div class="iv-card__head">
+                <h3 class="iv-card__title">Top Gainers</h3>
+                <span class="iv-card__hint">Best performing symbols</span>
+            </div>
+            <div class="iv-table-wrap">
+                <table class="iv-table">
+                    <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th class="iv-text-right">Total</th>
+                        <th class="iv-text-right">Closed</th>
+                        <th class="iv-text-right">Unrealized</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="symbol : ${stats.performancePerSymbol}" th:if="${symbol.total >= 0}">
+                        <td>
+                            <span class="iv-sym">
+                                <span class="iv-sym__avatar" th:text="${#strings.substring(symbol.symbol, 0, 1)}"></span>
+                                <span th:text="${symbol.symbol}"></span>
+                            </span>
+                        </td>
+                        <td class="iv-text-right iv-amt iv-pos" th:text="${#numbers.formatDecimal(symbol.total, 0, 0)}"></td>
+                        <td class="iv-text-right iv-amt" th:classappend="${symbol.closedProfit >= 0} ? 'iv-pos' : 'iv-neg'"
+                            th:text="${#numbers.formatDecimal(symbol.closedProfit, 0, 0)}"></td>
+                        <td class="iv-text-right iv-amt" th:classappend="${symbol.unrealizedProfit >= 0} ? 'iv-pos' : 'iv-neg'"
+                            th:text="${#numbers.formatDecimal(symbol.unrealizedProfit, 0, 0)}"></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="iv-card">
+            <div class="iv-card__head">
+                <h3 class="iv-card__title">Top Losers</h3>
+                <span class="iv-card__hint">Worst performing symbols</span>
+            </div>
+            <div class="iv-table-wrap">
+                <table class="iv-table">
+                    <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th class="iv-text-right">Total</th>
+                        <th class="iv-text-right">Closed</th>
+                        <th class="iv-text-right">Unrealized</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="symbol : ${stats.performancePerSymbol}" th:if="${symbol.total < 0}">
+                        <td>
+                            <span class="iv-sym">
+                                <span class="iv-sym__avatar" th:text="${#strings.substring(symbol.symbol, 0, 1)}"></span>
+                                <span th:text="${symbol.symbol}"></span>
+                            </span>
+                        </td>
+                        <td class="iv-text-right iv-amt iv-neg" th:text="${#numbers.formatDecimal(symbol.total, 0, 0)}"></td>
+                        <td class="iv-text-right iv-amt" th:classappend="${symbol.closedProfit >= 0} ? 'iv-pos' : 'iv-neg'"
+                            th:text="${#numbers.formatDecimal(symbol.closedProfit, 0, 0)}"></td>
+                        <td class="iv-text-right iv-amt" th:classappend="${symbol.unrealizedProfit >= 0} ? 'iv-pos' : 'iv-neg'"
+                            th:text="${#numbers.formatDecimal(symbol.unrealizedProfit, 0, 0)}"></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <footer class="iv-footer">
+        <span>Investory · Portfolio tracker</span>
+        <span>Values in base currency USD</span>
+    </footer>
+</div> <!-- .iv-app -->
 
 <!-- Scripts -->
 <script src="/js/tabler.min.js"></script>
@@ -185,6 +319,59 @@
     const monthlyLabels = Object.keys(monthlyPerformanceData);
     const monthlyData = Object.values(monthlyPerformanceData);
 
+    const monthlyOperationsCount = [[${stats.monthlyPerformance.monthlyOperationsCount}]];
+    const monthlyCounts = monthlyLabels.map(label => monthlyOperationsCount[label] || 0);
+
+    const monthlyCashflowData = [[${stats.monthlyPerformance.monthlyCashflow}]];
+    const monthlyCashflow = monthlyLabels.map(label => monthlyCashflowData[label] || 0);
+
+    const amountFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+
+    const operationsCountPlugin = {
+        id: 'operationsCountLabels',
+        afterDatasetsDraw(chart) {
+            const ctx = chart.ctx;
+            const meta = chart.getDatasetMeta(0);
+            ctx.save();
+            ctx.textAlign = 'center';
+            meta.data.forEach((bar, index) => {
+                const count = monthlyCounts[index];
+                if (!count) {
+                    return;
+                }
+                const value = monthlyData[index];
+                const cashflowText = amountFormatter.format(Math.round(monthlyCashflow[index])) + ' $';
+                const countText = count + (count === 1 ? ' trade' : ' trades');
+                const positive = value >= 0;
+                if (positive) {
+                    // cashflow sits just above the bar, trade count above the cashflow
+                    ctx.textBaseline = 'bottom';
+                    ctx.font = '700 12px Inter, sans-serif';
+                    ctx.fillStyle = '#1e2536';
+                    ctx.fillText(cashflowText, bar.x, bar.y - 6);
+                    ctx.font = '600 10px Inter, sans-serif';
+                    ctx.fillStyle = '#94a0b8';
+                    ctx.fillText(countText, bar.x, bar.y - 22);
+                } else {
+                    // cashflow sits just below the bar, trade count under the cashflow
+                    ctx.textBaseline = 'top';
+                    ctx.font = '700 12px Inter, sans-serif';
+                    ctx.fillStyle = '#1e2536';
+                    ctx.fillText(cashflowText, bar.x, bar.y + 6);
+                    ctx.font = '600 10px Inter, sans-serif';
+                    ctx.fillStyle = '#94a0b8';
+                    ctx.fillText(countText, bar.x, bar.y + 22);
+                }
+            });
+            ctx.restore();
+        }
+    };
+
+    const gridColor = 'rgba(148, 160, 184, .18)';
+    const tickColor = '#94a0b8';
+    Chart.defaults.font.family = "Inter, system-ui, sans-serif";
+    Chart.defaults.color = tickColor;
+
     const ctxMonthly = document.getElementById("monthly-performance-chart").getContext("2d");
     new Chart(ctxMonthly, {
         type: 'bar',
@@ -193,24 +380,57 @@
             datasets: [{
                 label: 'Monthly Profit',
                 data: monthlyData,
-                backgroundColor: monthlyData.map(val => val >= 0 ? '#2fb344' : '#dc3545'),
-                borderRadius: 4,
-                barPercentage: 0.6,
+                backgroundColor: monthlyData.map(val => val >= 0 ? '#16a34a' : '#dc2626'),
+                hoverBackgroundColor: monthlyData.map(val => val >= 0 ? '#15803d' : '#b91c1c'),
+                borderRadius: 6,
+                maxBarThickness: 46,
+                barPercentage: 0.7,
+                categoryPercentage: 0.7
             }]
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
+            layout: {
+                padding: {
+                    top: 40,
+                    bottom: 40
+                }
+            },
             scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { color: tickColor, maxRotation: 0, autoSkip: true }
+                },
                 y: {
-                    beginAtZero: true
+                    beginAtZero: true,
+                    grid: { color: gridColor, drawBorder: false },
+                    ticks: { color: tickColor }
                 }
             },
             plugins: {
                 legend: {
                     display: false
+                },
+                tooltip: {
+                    backgroundColor: '#1e2536',
+                    padding: 12,
+                    cornerRadius: 10,
+                    titleFont: { weight: '700' },
+                    callbacks: {
+                        label: function (context) {
+                            return 'P/L: ' + amountFormatter.format(Math.round(context.parsed.y)) + ' $';
+                        },
+                        afterLabel: function (context) {
+                            const count = monthlyCounts[context.dataIndex] || 0;
+                            const cashflow = amountFormatter.format(Math.round(monthlyCashflow[context.dataIndex] || 0));
+                            return 'Trades: ' + count + '\nCashflow: ' + cashflow + ' $';
+                        }
+                    }
                 }
             }
-        }
+        },
+        plugins: [operationsCountPlugin]
     });
 
     const openPositionsRaw = [[${stats.openPositionsFlow}]];
@@ -226,31 +446,70 @@
             labels: openLabels,
             datasets: [
                 {
-                    label: 'Open',
+                    label: 'Market open',
                     data: totalOpenData,
-                    backgroundColor: totalOpenData.map(val => val >= 0 ? '#007bff' : '#6c757d'),
-                    borderRadius: 4,
-                    barPercentage: 0.6
+                    backgroundColor: '#4f46e5',
+                    hoverBackgroundColor: '#4338ca',
+                    borderRadius: 6,
+                    maxBarThickness: 30,
+                    barPercentage: 0.8,
+                    categoryPercentage: 0.7
                 },
                 {
-                    label: 'Closed',
+                    label: 'Market close',
                     data: totalClosedData,
-                    backgroundColor: totalClosedData.map(val => val >= 0 ? '#007bff' : '#6c757d'),
-                    borderRadius: 4,
-                    barPercentage: 0.6
+                    backgroundColor: '#22c55e',
+                    hoverBackgroundColor: '#16a34a',
+                    borderRadius: 6,
+                    maxBarThickness: 30,
+                    barPercentage: 0.8,
+                    categoryPercentage: 0.7
                 }
             ]
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
+            layout: { padding: { top: 12, bottom: 12 } },
             scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { color: tickColor, maxRotation: 0, autoSkip: true }
+                },
                 y: {
-                    beginAtZero: true
+                    beginAtZero: true,
+                    grid: { color: gridColor, drawBorder: false },
+                    ticks: {
+                        color: tickColor,
+                        callback: function (value) {
+                            return amountFormatter.format(value) + ' $';
+                        }
+                    }
                 }
             },
             plugins: {
                 legend: {
-                    display: false
+                    display: true,
+                    position: 'top',
+                    align: 'end',
+                    labels: {
+                        usePointStyle: true,
+                        pointStyle: 'circle',
+                        boxWidth: 8,
+                        boxHeight: 8,
+                        color: '#6b7488'
+                    }
+                },
+                tooltip: {
+                    backgroundColor: '#1e2536',
+                    padding: 12,
+                    cornerRadius: 10,
+                    callbacks: {
+                        label: function (context) {
+                            return context.dataset.label + ': '
+                                + amountFormatter.format(Math.round(context.parsed.y)) + ' $';
+                        }
+                    }
                 }
             }
         }

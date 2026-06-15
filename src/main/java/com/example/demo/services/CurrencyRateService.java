@@ -23,12 +23,23 @@ public class CurrencyRateService {
     private static final Map<CurrencyType, Map<CurrencyType, Double>> exchangeRateCache = new HashMap<>();
 
     public double convertToBaseCurrency(double amount, CurrencyType baseCurrency, CurrencyType positionCurrency) {
+        // Same currency needs no rate (and must not depend on a stored USD->USD rate).
+        if (baseCurrency == positionCurrency) {
+            return amount;
+        }
+
         if (!exchangeRateCache.containsKey(baseCurrency) || !exchangeRateCache.get(baseCurrency).containsKey(positionCurrency)) {
             preloadExchangeRates();
         }
 
-        // Return the rate from the cache
-        double rate = exchangeRateCache.get(baseCurrency).get(positionCurrency);
+        Map<CurrencyType, Double> rates = exchangeRateCache.get(baseCurrency);
+        Double rate = rates == null ? null : rates.get(positionCurrency);
+        if (rate == null || rate == 0.0) {
+            // No FX data loaded yet (e.g. /currency/refresh never ran): don't blow up the
+            // whole dashboard/import — fall back to the unconverted amount and warn.
+            log.warn("Missing FX rate {} -> {}; returning amount unconverted", baseCurrency, positionCurrency);
+            return amount;
+        }
         return amount / rate; // Convert the amount to the base currency
     }
 

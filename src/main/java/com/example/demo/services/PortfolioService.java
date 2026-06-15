@@ -25,7 +25,26 @@ public class PortfolioService {
     private final OpenedPositionRepository openedPositionRepository;
     private final OpenPositionHistoryRepository openPositionHistoryRepository;
     private final CashOperationRepository cashOperationRepository;
+    private final AccountSummaryRepository accountSummaryRepository;
 
+
+    private static double nz(Double value) {
+        return value == null ? 0.0 : value;
+    }
+
+    /**
+     * Whether a deposit/withdrawal represents real external cash funding rather than an
+     * internal sub-account transfer or a currency conversion (which the broker also books
+     * as Deposit/Withdraw rows but are not actual income/outflow for the portfolio).
+     */
+    private static boolean isExternalFunding(CashOperation operation) {
+        String comment = operation.getComment();
+        if (comment == null) {
+            return true;
+        }
+        String lower = comment.toLowerCase();
+        return !(lower.contains("currency conversion") || lower.contains("transfer"));
+    }
 
     public Portfolio calculateTotalProfitLoss() {
         Map<CurrencyType, List<ClosedPosition>> closedPositions = closedPositionRepository.findAll().stream()
@@ -33,7 +52,7 @@ public class PortfolioService {
 
         Portfolio portfolio = new Portfolio();
         closedPositions.forEach((currency, positions) -> {
-            Double profit = positions.stream().map(closedPosition -> closedPosition.getProfit() + closedPosition.getCommission()).reduce(Double::sum).orElse(0.0);
+            Double profit = positions.stream().map(p -> nz(p.getProfit()) + nz(p.getCommission()) + nz(p.getSwap())).reduce(Double::sum).orElse(0.0);
             portfolio.getProfitByCurrency().merge(currency, profit, Double::sum);
             portfolio.setTotalProfitInBase(portfolio.getTotalProfitInBase() + currencyRateService.convertToBaseCurrency(profit, portfolio.getBaseCurrency(), currency));
         });
@@ -41,7 +60,7 @@ public class PortfolioService {
         Map<CurrencyType, List<OpenedPosition>> openedPositions = openedPositionRepository.findAll().stream()
                 .collect(Collectors.groupingBy(OpenedPosition::getCurrency));
         openedPositions.forEach((currency, positions) -> {
-            Double unrealized = positions.stream().map(openedPosition -> openedPosition.getProfit() + openedPosition.getCommission()).reduce(Double::sum).orElse(0.0);
+            Double unrealized = positions.stream().map(p -> nz(p.getProfit()) + nz(p.getCommission()) + nz(p.getSwap())).reduce(Double::sum).orElse(0.0);
             portfolio.getUnrealizedByCurrency().merge(currency, unrealized, Double::sum);
             portfolio.setTotalUnrealizedInBase(portfolio.getTotalUnrealizedInBase() + currencyRateService.convertToBaseCurrency(unrealized, portfolio.getBaseCurrency(), currency));
         });
@@ -54,9 +73,74 @@ public class PortfolioService {
                     .map(CashOperation::getAmount).reduce(Double::sum).orElse(0.0);
             portfolio.getDividendsByCurrency().merge(currency, dividends, Double::sum);
             portfolio.setDividends(portfolio.getDividends() + currencyRateService.convertToBaseCurrency(dividends, portfolio.getBaseCurrency(), currency));
+
+            for (CashOperation op : positions) {
+                double base = currencyRateService.convertToBaseCurrency(nz(op.getAmount()), portfolio.getBaseCurrency(), currency);
+                if (op.getType() == null) {
+                    continue;
+                }
+                switch (op.getType()) {
+                    case DEPOSIT:
+                        // Only count real external funding, not FX conversions / inter-account transfers.
+                        if (isExternalFunding(op)) {
+                            portfolio.setDeposits(portfolio.getDeposits() + base);
+                        }
+                        break;
+                    case WITHDRAWAL:
+                        if (isExternalFunding(op)) {
+                            portfolio.setWithdrawals(portfolio.getWithdrawals() + base);
+                        }
+                        break;
+                    case FREE_FUNDS_INTEREST:
+                    case FREE_FUNDS_INTEREST_TAX:
+                        portfolio.setInterest(portfolio.getInterest() + base);
+                        break;
+                    default:
+                        break;
+                }
+            }
         });
+        portfolio.setNetDeposits(portfolio.getDeposits() + portfolio.getWithdrawals());
+
+        // Ensure every supported currency (incl. PLN) is represented across all breakdowns,
+        // so accounts with no positions/dividends still show a 0 row instead of disappearing.
+        for (CurrencyType currency : CurrencyType.values()) {
+            portfolio.getProfitByCurrency().putIfAbsent(currency, 0.0);
+            portfolio.getUnrealizedByCurrency().putIfAbsent(currency, 0.0);
+            portfolio.getDividendsByCurrency().putIfAbsent(currency, 0.0);
+        }
 
         portfolio.setTotal(portfolio.getTotalProfitInBase() + portfolio.getTotalUnrealizedInBase() + portfolio.getDividends());
+
+        // Balance = total assets value (equity) of every account as of the latest import,
+        // converted to the base currency.
+        double balance = accountSummaryRepository.findAll().stream()
+                .mapToDouble(summary -> currencyRateService.convertToBaseCurrency(
+                        nz(summary.getEquity()), portfolio.getBaseCurrency(), summary.getCurrency()))
+                .sum();
+        if (balance == 0.0) {
+            // No broker equity snapshot imported yet (account_summaries empty): approximate
+            // current assets from the market value of open positions (purchase value + unrealized P/L).
+            balance = openedPositionRepository.findAll().stream()
+                    .mapToDouble(position -> currencyRateService.convertToBaseCurrency(
+                            nz(position.getPurchaseValue()) + nz(position.getProfit()),
+                            portfolio.getBaseCurrency(), position.getCurrency()))
+                    .sum();
+        }
+        portfolio.setBalance(balance);
+
+        // Exchange rates for the currencies board (units of each currency per 1 base currency)
+        for (CurrencyType currency : CurrencyType.values()) {
+            if (currency == portfolio.getBaseCurrency()) {
+                continue;
+            }
+            try {
+                portfolio.getExchangeRates().put(currency, currencyRateService.getRate(portfolio.getBaseCurrency(), currency));
+            } catch (RuntimeException e) {
+                log.warn("No FX rate available for {} -> {}", portfolio.getBaseCurrency(), currency);
+            }
+        }
+
         portfolio.setPerformancePerSymbol(calculatePerformancePerInstrument(portfolio.getBaseCurrency()));
         portfolio.setMonthlyPerformance(calculateMonthlyPerformance());
         portfolio.setOpenPositionsFlow(getOpenPositionsFlow());
@@ -67,22 +151,53 @@ public class PortfolioService {
     public Performance calculateMonthlyPerformance() {
         Performance performance = new Performance();
         List<ClosedPosition> closed = closedPositionRepository.findAll();
+        int currentYear = java.time.Year.now().getValue();
         performance.setCalculateMonthlyPerformance(closed.stream()
                 .collect(Collectors.groupingBy(
-                        position -> String.format("%d-%02d",
-                                position.getCloseTime().getYear(),
-                                position.getCloseTime().getMonthValue()
-                        ),
-                        TreeMap::new, // Use TreeMap to keep the result sorted by year-month
+                        position -> monthlyBucketKey(position, currentYear),
+                        TreeMap::new, // Use TreeMap to keep the result sorted by year / year-month
                         Collectors.summingDouble(
                                 position -> currencyRateService.convertToBaseCurrency(position.getProfit() + position.getCommission(), performance.getBaseCurrency(), position.getCurrency())
                         )
+                )));
+        performance.setMonthlyOperationsCount(closed.stream()
+                .collect(Collectors.groupingBy(
+                        position -> monthlyBucketKey(position, currentYear),
+                        TreeMap::new,
+                        Collectors.counting()
+                )));
+        performance.setMonthlyCashflow(closed.stream()
+                .collect(Collectors.groupingBy(
+                        position -> monthlyBucketKey(position, currentYear),
+                        TreeMap::new,
+                        Collectors.summingDouble(position -> {
+                            double volume = position.getVolume() != null ? Math.abs(position.getVolume()) : 0.0;
+                            double openPrice = position.getOpenPrice() != null ? Math.abs(position.getOpenPrice()) : 0.0;
+                            double closePrice = position.getClosePrice() != null ? Math.abs(position.getClosePrice()) : 0.0;
+                            // Cashflow = total traded value of both legs (open + close) of each closed trade.
+                            double notional = volume * (openPrice + closePrice);
+                            return currencyRateService.convertToBaseCurrency(notional, performance.getBaseCurrency(), position.getCurrency());
+                        })
                 )));
         performance.setTotalOpen(openedPositionRepository.findAll().stream()
                 .map(OpenedPosition::getPurchaseValue).filter(Objects::nonNull).reduce(Double::sum).orElse(0.0));
 //        performance.setTotalProfit(closed.stream().map(ClosedPosition::getPurchaseValue).reduce(Double::sum).orElse(0.0));
 //        performance.setBase(performance.getTotalOpen() - performance.getTotalProfit());
         return performance;
+    }
+
+    /**
+     * Buckets a closed position for the monthly performance chart.
+     * Positions closed before January 1st of the current year are aggregated by
+     * year (e.g. "2024", "2025"), while positions in the current year are kept
+     * per-month (e.g. "2026-01").
+     */
+    private String monthlyBucketKey(ClosedPosition position, int currentYear) {
+        int year = position.getCloseTime().getYear();
+        if (year < currentYear) {
+            return String.format("%d", year);
+        }
+        return String.format("%d-%02d", year, position.getCloseTime().getMonthValue());
     }
 
     // 4. Win Rate (percentage of profitable trades)
@@ -216,10 +331,15 @@ public class PortfolioService {
     private OpenPositionsPerformanceItem toPositionItem(OpenPositionHistory position) {
         OpenPositionsPerformanceItem item = new OpenPositionsPerformanceItem();
         item.setSymbol(position.getSymbol());
-        double openProfit = position.getOpenProfit() != null ? position.getOpenProfit() : 0.0;
-        double closeProfit = position.getCloseProfit() != null ? position.getCloseProfit() : 0.0;
-        item.setDayOpen(currencyRateService.convertToBaseCurrency(openProfit, CurrencyType.USD, position.getCurrency()));
-        item.setDayClosed(currencyRateService.convertToBaseCurrency(closeProfit, CurrencyType.USD, position.getCurrency()));
+        double amount = position.getAmount() != null ? position.getAmount() : 0.0;
+        double openPrice = position.getOpenPrice() != null ? position.getOpenPrice() : 0.0;
+        // If the market-close snapshot wasn't captured yet, fall back to the open price.
+        double closePrice = position.getClosePrice() != null ? position.getClosePrice() : openPrice;
+        // Balance (market value) of the open positions at market open / close.
+        double openBalance = openPrice * amount;
+        double closeBalance = closePrice * amount;
+        item.setDayOpen(currencyRateService.convertToBaseCurrency(openBalance, CurrencyType.USD, position.getCurrency()));
+        item.setDayClosed(currencyRateService.convertToBaseCurrency(closeBalance, CurrencyType.USD, position.getCurrency()));
         return item;
     }
 

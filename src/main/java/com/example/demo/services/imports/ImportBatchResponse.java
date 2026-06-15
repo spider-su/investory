@@ -9,6 +9,7 @@ public record ImportBatchResponse(Long batchId,
                                   int rowsTotal,
                                   int rowsApplied,
                                   int rowsFailed,
-                                  String message) {
+                                  String message,
+                                  boolean duplicate) {
 }
 
