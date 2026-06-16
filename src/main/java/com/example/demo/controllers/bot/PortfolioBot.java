@@ -1,14 +1,29 @@
 package com.example.demo.controllers.bot;
 
-import com.example.demo.PriceChecker;
+import com.example.demo.data.BrokerType;
+import com.example.demo.data.ImportSourceType;
+import com.example.demo.services.imports.ImportBatchResponse;
+import com.example.demo.services.imports.ImportOrchestratorService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
+import org.telegram.telegrambots.meta.api.methods.GetFile;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.objects.Document;
+import org.telegram.telegrambots.meta.api.objects.File;
+import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.util.Locale;
+
+@Slf4j
 @Component
+@ConditionalOnProperty(name = "app.telegram.enabled", havingValue = "true")
 public class PortfolioBot extends TelegramLongPollingBot {
 
     @Value("${app.telegram.chat-id:}")
@@ -19,6 +34,12 @@ public class PortfolioBot extends TelegramLongPollingBot {
 
     @Value("${app.telegram.bot-token:}")
     private String botToken;
+
+    private final ImportOrchestratorService importOrchestratorService;
+
+    public PortfolioBot(ImportOrchestratorService importOrchestratorService) {
+        this.importOrchestratorService = importOrchestratorService;
+    }
 
     @Override
     public String getBotUsername() {
@@ -32,43 +53,117 @@ public class PortfolioBot extends TelegramLongPollingBot {
 
     @Override
     public void onUpdateReceived(Update update) {
-        if (update.hasMessage() && update.getMessage().hasText()) {
-            String receivedText = update.getMessage().getText();
-            String chatId = update.getMessage().getChatId().toString();
+        if (!update.hasMessage()) {
+            return;
+        }
+        Message message = update.getMessage();
+        String replyChatId = message.getChatId().toString();
 
-            String response = receivedText.equals("/start") ? "Hello bot!" :
-                    "You should buy it now !!!: " + receivedText;
-            PriceChecker priceChecker = new PriceChecker(this);
-            priceChecker.checkPrices();
-//            SendMessage message = new SendMessage(chatId, response);
-//            try {
-//                execute(message);
-//            } catch (TelegramApiException e) {
-//                e.printStackTrace();
-//            }
+        if (message.hasDocument()) {
+            handleDocument(message, replyChatId);
+            return;
+        }
+
+        if (message.hasText()) {
+            String text = message.getText();
+            String response = "/start".equals(text)
+                    ? "Hello! Send me a broker statement (XLSX for XTB, CSV for IBKR) and I'll import it."
+                    : "I understand /start and broker statement files (XLSX/CSV).";
+            sendTo(replyChatId, response);
+        }
+    }
+
+    private void handleDocument(Message message, String replyChatId) {
+        Document document = message.getDocument();
+        String fileName = document.getFileName() != null ? document.getFileName() : "upload";
+        BrokerType broker = detectBroker(fileName);
+        if (broker == null) {
+            sendTo(replyChatId, "Could not detect broker from file name: " + fileName
+                    + ". Use an XTB *.xlsx or IBKR *.csv export.");
+            return;
+        }
+
+        try {
+            byte[] bytes = downloadDocumentBytes(document);
+            ImportBatchResponse result = importOrchestratorService.importFile(
+                    broker, bytes, fileName, ImportSourceType.TELEGRAM, replyChatId);
+            sendTo(replyChatId, formatImportSummary(result));
+        } catch (Exception e) {
+            log.warn("Telegram import failed for {}", fileName, e);
+            sendTo(replyChatId, "Import failed: " + e.getMessage());
+        }
+    }
+
+    private byte[] downloadDocumentBytes(Document document) throws TelegramApiException, IOException {
+        GetFile getFile = new GetFile(document.getFileId());
+        File telegramFile = execute(getFile);
+        java.io.File local = downloadFile(telegramFile);
+        try (FileInputStream in = new FileInputStream(local)) {
+            return in.readAllBytes();
+        } finally {
+            if (!local.delete()) {
+                local.deleteOnExit();
+            }
+        }
+    }
+
+    static BrokerType detectBroker(String fileName) {
+        if (fileName == null) {
+            return null;
+        }
+        String lower = fileName.toLowerCase(Locale.ROOT);
+        if (lower.contains("xtb") || lower.endsWith(".xlsx")) {
+            return BrokerType.XTB;
+        }
+        if (lower.contains("ibkr") || lower.startsWith("u") || lower.endsWith(".csv")) {
+            return BrokerType.IBKR;
+        }
+        return null;
+    }
+
+    private String formatImportSummary(ImportBatchResponse r) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(r.duplicate() ? "Already imported." : "Import complete.").append('\n');
+        sb.append("Broker: ").append(r.broker()).append('\n');
+        sb.append("Status: ").append(r.status()).append('\n');
+        sb.append("Rows total/applied/failed: ")
+                .append(r.rowsTotal()).append('/').append(r.rowsApplied()).append('/').append(r.rowsFailed());
+        if (r.message() != null && !r.message().isBlank()) {
+            sb.append('\n').append(r.message());
+        }
+        return sb.toString();
+    }
+
+    private void sendTo(String targetChatId, String text) {
+        try {
+            execute(new SendMessage(targetChatId, text));
+        } catch (TelegramApiException e) {
+            log.warn("Failed to send Telegram message", e);
         }
     }
 
     public void sendMessage(String data) {
-        SendMessage message = new SendMessage(chatId, data);
-        try {
-            execute(message);
-        } catch (TelegramApiException e) {
-            e.printStackTrace();
+        if (chatId == null || chatId.isBlank()) {
+            log.debug("Telegram chat-id not configured; skipping message");
+            return;
         }
+        sendTo(chatId, data);
     }
 
     public void sendMarkdownMessage(String message) {
+        if (chatId == null || chatId.isBlank()) {
+            log.debug("Telegram chat-id not configured; skipping markdown message");
+            return;
+        }
         try {
             SendMessage sendMessage = new SendMessage();
             sendMessage.setChatId(chatId);
             sendMessage.setText(message);
             sendMessage.setParseMode("MarkdownV2");
             sendMessage.disableWebPagePreview();
-
             execute(sendMessage);
         } catch (TelegramApiException e) {
-            e.printStackTrace();
+            log.warn("Failed to send Telegram markdown message", e);
         }
     }
 

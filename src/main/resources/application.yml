@@ -54,7 +54,14 @@ app:
     user-username: ${APP_SECURITY_USER_USERNAME:user}
     user-password: ${APP_SECURITY_USER_PASSWORD:change-me-user}
   telegram:
+    enabled: ${TELEGRAM_BOT_ENABLED:false}
     bot-username: ${TELEGRAM_BOT_USERNAME:}
     bot-token: ${TELEGRAM_BOT_TOKEN:}
     chat-id: ${TELEGRAM_CHAT_ID:}
+  notifications:
+    enabled: ${NOTIFICATIONS_ENABLED:true}
+    drawdown-threshold-pct: ${ALERT_DRAWDOWN_PCT:10}
+    big-move-threshold-pct: ${ALERT_BIG_MOVE_PCT:5}
+    concentration-threshold-pct: ${ALERT_CONCENTRATION_PCT:25}
+    stale-import-days: ${ALERT_STALE_IMPORT_DAYS:7}
 
