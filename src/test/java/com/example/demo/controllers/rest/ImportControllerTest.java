@@ -1,5 +1,6 @@
 package com.example.demo.controllers.rest;
 
+import com.example.demo.config.MockMvcSecurityTestConfig;
 import com.example.demo.config.SecurityConfig;
 import com.example.demo.data.BrokerType;
 import com.example.demo.data.ImportBatchStatus;
@@ -10,8 +11,8 @@ import com.example.demo.services.imports.ImportOrchestratorService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
@@ -28,12 +29,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(controllers = ImportController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, MockMvcSecurityTestConfig.class})
 class ImportControllerTest {
 
     @Autowired private MockMvc mockMvc;
-    @MockBean private ImportOrchestratorService importOrchestratorService;
-    @MockBean private MarketService marketService;
+    @MockitoBean private ImportOrchestratorService importOrchestratorService;
+    @MockitoBean private MarketService marketService;
 
     @Test
     @WithMockUser(roles = "ADMIN")

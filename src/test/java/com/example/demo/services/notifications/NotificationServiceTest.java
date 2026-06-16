@@ -101,6 +101,9 @@ class NotificationServiceTest {
 
     @Test
     void runAlerts_sendsOnlyFiredRulesAndContinuesAfterRuleFailure() {
+        // firingRule and throwingRule both need a code() — it's logged. silentRule never fires
+        // so its code() is unused; stub it lenient to avoid strict-stubbing complaints.
+        org.mockito.Mockito.lenient().when(firingRule.code()).thenReturn("FIRING");
         when(firingRule.evaluate()).thenReturn(Optional.of("warning text"));
         when(silentRule.evaluate()).thenReturn(Optional.empty());
         when(throwingRule.code()).thenReturn("BROKEN");

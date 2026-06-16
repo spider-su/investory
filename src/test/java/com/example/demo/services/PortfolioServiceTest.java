@@ -35,9 +35,13 @@ class PortfolioServiceTest {
 
     @BeforeEach
     void setUp() {
+        // Use real helpers so the test still exercises end-to-end behaviour after the extraction.
+        TaxCalculator taxCalculator = new TaxCalculator(currencyRateService);
+        CashFlowAggregator cashFlowAggregator = new CashFlowAggregator(currencyRateService);
         portfolioService = new PortfolioService(currencyRateService,
                 closedPositionRepository, openedPositionRepository, openPositionHistoryRepository,
-                cashOperationRepository, accountSummaryRepository);
+                cashOperationRepository, accountSummaryRepository,
+                taxCalculator, cashFlowAggregator);
         // Identity FX so tests are arithmetic-only. lenient() because some tests don't trigger FX conversion.
         org.mockito.Mockito.lenient().when(currencyRateService.convertToBaseCurrency(anyDouble(), any(), any()))
                 .thenAnswer(invocation -> invocation.getArgument(0, Double.class));

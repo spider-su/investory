@@ -4,6 +4,9 @@ import com.example.demo.data.BrokerType;
 import com.example.demo.data.ImportSourceType;
 import com.example.demo.services.imports.ImportBatchResponse;
 import com.example.demo.services.imports.ImportOrchestratorService;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.util.Locale;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -17,10 +20,6 @@ import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.util.Locale;
-
 @Slf4j
 @Component
 @ConditionalOnProperty(name = "app.telegram.enabled", havingValue = "true")
@@ -32,23 +31,20 @@ public class PortfolioBot extends TelegramLongPollingBot {
     @Value("${app.telegram.bot-username:}")
     private String botUsername;
 
-    @Value("${app.telegram.bot-token:}")
-    private String botToken;
-
     private final ImportOrchestratorService importOrchestratorService;
 
-    public PortfolioBot(ImportOrchestratorService importOrchestratorService) {
+    public PortfolioBot(
+            @Value("${app.telegram.bot-token:}") String botToken,
+            ImportOrchestratorService importOrchestratorService) {
+        // Use the non-deprecated constructor that stores the token in the base
+        // class; removes the need to override the deprecated getBotToken().
+        super(botToken);
         this.importOrchestratorService = importOrchestratorService;
     }
 
     @Override
     public String getBotUsername() {
         return botUsername;
-    }
-
-    @Override
-    public String getBotToken() {
-        return botToken;
     }
 
     @Override
@@ -149,22 +145,4 @@ public class PortfolioBot extends TelegramLongPollingBot {
         }
         sendTo(chatId, data);
     }
-
-    public void sendMarkdownMessage(String message) {
-        if (chatId == null || chatId.isBlank()) {
-            log.debug("Telegram chat-id not configured; skipping markdown message");
-            return;
-        }
-        try {
-            SendMessage sendMessage = new SendMessage();
-            sendMessage.setChatId(chatId);
-            sendMessage.setText(message);
-            sendMessage.setParseMode("MarkdownV2");
-            sendMessage.disableWebPagePreview();
-            execute(sendMessage);
-        } catch (TelegramApiException e) {
-            log.warn("Failed to send Telegram markdown message", e);
-        }
-    }
-
 }

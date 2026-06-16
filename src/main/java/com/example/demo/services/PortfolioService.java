@@ -1,6 +1,5 @@
 package com.example.demo.services;
 
-import com.example.demo.data.CashOperationType;
 import com.example.demo.data.CurrencyType;
 import com.example.demo.data.repository.*;
 import com.example.demo.services.models.*;
@@ -26,28 +25,12 @@ public class PortfolioService {
     private final OpenPositionHistoryRepository openPositionHistoryRepository;
     private final CashOperationRepository cashOperationRepository;
     private final AccountSummaryRepository accountSummaryRepository;
+    private final TaxCalculator taxCalculator;
+    private final CashFlowAggregator cashFlowAggregator;
 
 
     private static double nz(Double value) {
         return value == null ? 0.0 : value;
-    }
-
-    /**
-     * Whether a deposit/withdrawal represents real external cash funding rather than an
-     * internal sub-account transfer or a currency conversion (which the broker also books
-     * as Deposit/Withdraw rows but are not actual income/outflow for the portfolio).
-     */
-    private static boolean isExternalFunding(CashOperation operation) {
-        String comment = operation.getComment();
-        if (comment == null) {
-            return true;
-        }
-        String lower = comment.toLowerCase();
-        // Exclude internal movements only: XTB sub-account transfers ("Transfer from X to Y")
-        // and FX conversions. IBKR real funding reads "Electronic Fund Transfer" and must count.
-        return !(lower.contains("currency conversion")
-                || lower.contains("transfer from")
-                || lower.contains("transfer to"));
     }
 
     public Portfolio calculateTotalProfitLoss() {
@@ -69,48 +52,16 @@ public class PortfolioService {
             portfolio.setTotalUnrealizedInBase(portfolio.getTotalUnrealizedInBase() + currencyRateService.convertToBaseCurrency(unrealized, portfolio.getBaseCurrency(), currency));
         });
 
-        Map<CurrencyType, List<CashOperation>> cashOperations = cashOperationRepository.findAll().stream()
-                .collect(Collectors.groupingBy(CashOperation::getCurrency));
-        cashOperations.forEach((currency, positions) -> {
-            Double grossDividends = positions.stream()
-                    .filter(cashOperation -> cashOperation.getType() == CashOperationType.DIVIDEND)
-                    .map(CashOperation::getAmount).reduce(Double::sum).orElse(0.0);
-            // Dividend withholding tax (already deducted at source); amounts are negative.
-            Double withholdingTax = positions.stream()
-                    .filter(cashOperation -> cashOperation.getType() == CashOperationType.WITHHOLDING_TAX)
-                    .map(CashOperation::getAmount).reduce(Double::sum).orElse(0.0);
-            Double netDividends = grossDividends + withholdingTax;
-            portfolio.getDividendsByCurrency().merge(currency, netDividends, Double::sum);
-            portfolio.setDividends(portfolio.getDividends() + currencyRateService.convertToBaseCurrency(netDividends, portfolio.getBaseCurrency(), currency));
-            portfolio.setDividendTax(portfolio.getDividendTax() + currencyRateService.convertToBaseCurrency(withholdingTax, portfolio.getBaseCurrency(), currency));
-
-            for (CashOperation op : positions) {
-                double base = currencyRateService.convertToBaseCurrency(nz(op.getAmount()), portfolio.getBaseCurrency(), currency);
-                if (op.getType() == null) {
-                    continue;
-                }
-                switch (op.getType()) {
-                    case DEPOSIT:
-                        // Only count real external funding, not FX conversions / inter-account transfers.
-                        if (isExternalFunding(op)) {
-                            portfolio.setDeposits(portfolio.getDeposits() + base);
-                        }
-                        break;
-                    case WITHDRAWAL:
-                        if (isExternalFunding(op)) {
-                            portfolio.setWithdrawals(portfolio.getWithdrawals() + base);
-                        }
-                        break;
-                    case FREE_FUNDS_INTEREST:
-                    case FREE_FUNDS_INTEREST_TAX:
-                        portfolio.setInterest(portfolio.getInterest() + base);
-                        break;
-                    default:
-                        break;
-                }
-            }
-        });
-        portfolio.setNetDeposits(portfolio.getDeposits() + portfolio.getWithdrawals());
+        CashFlowAggregator.CashFlowSummary cashFlow = cashFlowAggregator.aggregate(
+                cashOperationRepository.findAll(), portfolio.getBaseCurrency());
+        portfolio.setDeposits(cashFlow.deposits());
+        portfolio.setWithdrawals(cashFlow.withdrawals());
+        portfolio.setNetDeposits(cashFlow.netDeposits());
+        portfolio.setInterest(cashFlow.interest());
+        portfolio.setDividends(cashFlow.dividends());
+        portfolio.setDividendTax(cashFlow.dividendTax());
+        cashFlow.dividendsByCurrency().forEach(
+                (currency, amount) -> portfolio.getDividendsByCurrency().merge(currency, amount, Double::sum));
 
         // Ensure every supported currency (incl. PLN) is represented across all breakdowns,
         // so accounts with no positions/dividends still show a 0 row instead of disappearing.
@@ -124,48 +75,10 @@ public class PortfolioService {
 
         // Estimated capital-gains tax ("Belka" 19%) for the CURRENT tax year only, applying
         // loss carry-forward from prior years (Polish rule: losses deductible over the next 5 years).
-        int currentYear = java.time.Year.now().getValue();
-        Map<Integer, Double> realizedByYear = closedPositionRepository.findAll().stream()
-                .filter(p -> p.getCloseTime() != null)
-                .collect(Collectors.groupingBy(
-                        p -> p.getCloseTime().getYear(),
-                        Collectors.summingDouble(p -> currencyRateService.convertToBaseCurrency(
-                                nz(p.getProfit()) + nz(p.getCommission()) + nz(p.getSwap()),
-                                portfolio.getBaseCurrency(), p.getCurrency()))));
-
-        // Walk years chronologically: loss years feed a pool; gain years consume losses from the
-        // previous 5 years (oldest first). Only the current year's resulting tax is reported.
-        Map<Integer, Double> lossPool = new TreeMap<>();
-        double currentYearTaxable = 0.0;
-        double appliedToCurrentYear = 0.0;
-        for (Integer year : new TreeSet<>(realizedByYear.keySet())) {
-            double net = realizedByYear.getOrDefault(year, 0.0);
-            if (net < 0) {
-                lossPool.merge(year, -net, Double::sum);
-                continue;
-            }
-            double remainingGain = net;
-            for (Map.Entry<Integer, Double> loss : lossPool.entrySet()) {
-                if (remainingGain <= 0) {
-                    break;
-                }
-                int lossYear = loss.getKey();
-                if (lossYear < year - 5 || lossYear >= year) {
-                    continue; // outside the 5-year deduction window
-                }
-                double use = Math.min(remainingGain, loss.getValue());
-                loss.setValue(loss.getValue() - use);
-                remainingGain -= use;
-                if (year == currentYear) {
-                    appliedToCurrentYear += use;
-                }
-            }
-            if (year == currentYear) {
-                currentYearTaxable = remainingGain;
-            }
-        }
-        portfolio.setCapitalGainsTax(Math.round(currentYearTaxable * 0.19 * 100.0) / 100.0);
-        portfolio.setLossCarryForward(Math.round(appliedToCurrentYear * 100.0) / 100.0);
+        TaxCalculator.TaxSummary tax = taxCalculator.calculate(
+                closedPositionRepository.findAll(), portfolio.getBaseCurrency());
+        portfolio.setCapitalGainsTax(tax.capitalGainsTax());
+        portfolio.setLossCarryForward(tax.lossCarryForward());
 
         // Balance = total assets value (equity) of every account as of the latest import,
         // converted to the base currency.
