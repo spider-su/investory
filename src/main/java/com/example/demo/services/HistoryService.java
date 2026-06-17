@@ -3,7 +3,6 @@ package com.example.demo.services;
 import com.example.demo.data.CashOperationType;
 import com.example.demo.data.CurrencyType;
 import com.example.demo.data.repository.*;
-import com.example.demo.services.models.Portfolio;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -33,10 +32,15 @@ public class HistoryService {
     private final OpenPositionHistoryRepository openPositionHistoryRepository;
     private final PortfolioHistoryRepository portfolioHistoryRepository;
 
-    final static long MY_PORTFOLIO = 1L;
+    static final long MY_PORTFOLIO = 1L;
+    private static final CurrencyType BASE_CURRENCY = CurrencyType.USD;
 
     private static long nzId(OpenPositionHistory history) {
         return history.getId() == null ? 0L : history.getId();
+    }
+
+    private static double nz(Double value) {
+        return value == null ? 0.0 : value;
     }
 
     public Collection<OpenPositionHistory> saveHistory() {
@@ -56,42 +60,45 @@ public class HistoryService {
                         LinkedHashMap::new));
         PortfolioHistory portfolioHistory = portfolioHistoryRepository.findOneAfterDate(midnight).orElse(new PortfolioHistory());
 
-        Portfolio portfolio = new Portfolio();
-        portfolio.setTotal(0);
-        portfolio.setBaseCurrency(CurrencyType.USD);
-        openedPositions.forEach((symbol, positions) -> {
+        // Single base-currency accumulator: open net + closed net + dividends. Replaces the
+        // previous "build a Portfolio DTO just to track a running double" pattern.
+        double total = 0.0;
+        for (Map.Entry<String, List<OpenedPosition>> entry : openedPositions.entrySet()) {
+            String symbol = entry.getKey();
+            List<OpenedPosition> positions = entry.getValue();
             OpenPositionHistory history = positionToHistory(symbol, positionHistory, positions, stocks, now);
-            portfolio.setTotal(portfolio.getTotal() + currencyRateService.convertToBaseCurrency(positions.stream()
-                     .map(openedPosition -> openedPosition.getProfit() + openedPosition.getCommission())
-                            .reduce(Double::sum).orElse(0.0), portfolio.getBaseCurrency(), history.getCurrency()));
-        });
+            double netOpen = positions.stream()
+                    .mapToDouble(p -> nz(p.getProfit()) + nz(p.getCommission()))
+                    .sum();
+            total += currencyRateService.convertToBaseCurrency(netOpen, BASE_CURRENCY, history.getCurrency());
+        }
         openPositionHistoryRepository.saveAll(positionHistory.values());
 
         Map<CurrencyType, List<ClosedPosition>> closedPositions = closedPositionRepository.findAll().stream()
                 .collect(Collectors.groupingBy(ClosedPosition::getCurrency));
-
-        closedPositions.forEach((currency, positions) -> {
-            Double profit = positions.stream().map(closedPosition -> closedPosition.getProfit() + closedPosition.getCommission()).reduce(Double::sum).orElse(0.0);
-            portfolio.setTotal(portfolio.getTotal() + currencyRateService.convertToBaseCurrency(profit, portfolio.getBaseCurrency(), currency));
-        });
+        for (Map.Entry<CurrencyType, List<ClosedPosition>> entry : closedPositions.entrySet()) {
+            double netClosed = entry.getValue().stream()
+                    .mapToDouble(p -> nz(p.getProfit()) + nz(p.getCommission()))
+                    .sum();
+            total += currencyRateService.convertToBaseCurrency(netClosed, BASE_CURRENCY, entry.getKey());
+        }
 
         Map<CurrencyType, List<CashOperation>> cashOperations = cashOperationRepository.findAll().stream()
                 .collect(Collectors.groupingBy(CashOperation::getCurrency));
-        cashOperations.forEach((currency, operations) -> {
-            Double dividends = operations.stream()
-                    .filter(cashOperation -> cashOperation.getType() == CashOperationType.DIVIDEND)
-                    .map(CashOperation::getAmount)
-                    .reduce(Double::sum)
-                    .orElse(0.0);
-            portfolio.setTotal(portfolio.getTotal() + currencyRateService.convertToBaseCurrency(dividends, portfolio.getBaseCurrency(), currency));
-        });
+        for (Map.Entry<CurrencyType, List<CashOperation>> entry : cashOperations.entrySet()) {
+            double dividends = entry.getValue().stream()
+                    .filter(op -> op.getType() == CashOperationType.DIVIDEND)
+                    .mapToDouble(op -> nz(op.getAmount()))
+                    .sum();
+            total += currencyRateService.convertToBaseCurrency(dividends, BASE_CURRENCY, entry.getKey());
+        }
 
         portfolioHistory.setPortfolioId(MY_PORTFOLIO);
-        portfolioHistory.setCurrency(CurrencyType.USD);
+        portfolioHistory.setCurrency(BASE_CURRENCY);
         if (portfolioHistory.getOpenTotal() == null) {
-            portfolioHistory.setOpenTotal(portfolio.getTotal());
+            portfolioHistory.setOpenTotal(total);
         } else {
-            portfolioHistory.setCloseTotal(portfolio.getTotal());
+            portfolioHistory.setCloseTotal(total);
         }
         portfolioHistory.setDate(now);
         portfolioHistoryRepository.save(portfolioHistory);
@@ -132,7 +139,10 @@ public class HistoryService {
 
     private static double getMarketPrice(String symbol, List<OpenedPosition> positions, Map<String, Stock> stocks) {
         Stock stock = stocks.get(symbol);
-        if (stock != null) {
+        // The stocks row can exist without a market price (e.g. just-seeded by createStocks before
+        // the first updateStocks run). Fall through to the position-level price in that case
+        // instead of NPE-ing on the unboxing below.
+        if (stock != null && stock.getMarketPrice() != null) {
             return stock.getMarketPrice();
         }
         double totalVolume = positions.stream()
@@ -166,3 +176,5 @@ public class HistoryService {
         return weightedSum / totalVolume;
     }
 }
+
+

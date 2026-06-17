@@ -97,6 +97,41 @@ class HistoryServiceTest {
     }
 
     @Test
+    void saveHistory_doesNotNpeWhenStockExistsButHasNoMarketPrice() {
+        // Reproduces the bug: just-seeded stock row (no updateStocks yet) used to NPE on
+        // (closePrice - costBasis) * amount because getMarketPrice() returned a null Double.
+        OpenedPosition position = new OpenedPosition();
+        position.setSymbol("FRESH.US");
+        position.setCurrency(CurrencyType.USD);
+        position.setVolume(2.0);
+        position.setOpenPrice(50.0);
+        position.setMarketPrice(60.0);
+        position.setProfit(20.0);
+        position.setCommission(0.0);
+
+        Stock seeded = new Stock();
+        seeded.setSymbol("FRESH.US");
+        seeded.setMarketPrice(null);   // never quoted
+        seeded.setDayOpenPrice(null);
+
+        when(openedPositionRepository.findAll()).thenReturn(List.of(position));
+        when(stockRepository.findAll()).thenReturn(List.of(seeded));
+        when(openPositionHistoryRepository.findAllAfterDate(any())).thenReturn(List.of());
+        when(portfolioHistoryRepository.findOneAfterDate(any())).thenReturn(Optional.empty());
+        when(closedPositionRepository.findAll()).thenReturn(List.of());
+        when(cashOperationRepository.findAll()).thenReturn(List.of());
+
+        Collection<OpenPositionHistory> result = historyService.saveHistory();
+
+        assertEquals(1, result.size());
+        OpenPositionHistory history = result.iterator().next();
+        // Falls back to the position's market price (volume-weighted average = 60).
+        assertEquals(60.0, history.getClosePrice(), 0.01);
+        assertEquals(60.0, history.getOpenPrice(), 0.01);
+        assertEquals(20.0, history.getCloseProfit(), 0.01);
+    }
+
+    @Test
     void saveHistory_setsCloseTotalOnSubsequentRunOfDay() {
         OpenedPosition position = new OpenedPosition();
         position.setSymbol("AAPL.US");

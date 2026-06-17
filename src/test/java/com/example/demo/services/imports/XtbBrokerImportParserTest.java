@@ -11,7 +11,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.io.ByteArrayInputStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.verify;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class XtbBrokerImportParserTest {
@@ -28,15 +29,13 @@ class XtbBrokerImportParserTest {
     }
 
     @Test
-    void importFile_delegatesToService_andReturnsUnknownSuccess() throws Exception {
+    void importFile_delegatesAndPropagatesServiceCounts() throws Exception {
         ByteArrayInputStream in = new ByteArrayInputStream(new byte[]{1, 2, 3});
+        ImportExecutionResult expected = new ImportExecutionResult(42, 42, 0, "XTB 51499241: ...");
+        when(xtbImportService.importXtbExport(in)).thenReturn(expected);
 
         ImportExecutionResult result = parser.importFile(in, "file.xlsx");
 
-        verify(xtbImportService).importXtbExport(in);
-        assertEquals(0, result.rowsTotal());
-        assertEquals(0, result.rowsApplied());
-        assertEquals("Imported successfully", result.details());
+        assertSame(expected, result);
     }
 }
-

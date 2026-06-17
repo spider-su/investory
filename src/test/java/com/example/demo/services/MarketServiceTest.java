@@ -10,13 +10,17 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.ZonedDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -33,8 +37,10 @@ class MarketServiceTest {
 
     @BeforeEach
     void setUp() {
+        // chunkPauseMs=0 keeps the chunked sync synchronous so we don't need
+        // the daemon-thread + Thread.interrupt() dance the old test used.
         marketService = new MarketService(twelveDataService, openedPositionRepository,
-                stockRepository, historyService, accountSummaryRepository);
+                stockRepository, historyService, accountSummaryRepository, 0L);
     }
 
     @Test
@@ -74,7 +80,7 @@ class MarketServiceTest {
 
         marketService.createStocks();
 
-        org.mockito.ArgumentCaptor<Iterable<Stock>> captor = org.mockito.ArgumentCaptor.forClass(Iterable.class);
+        ArgumentCaptor<Iterable<Stock>> captor = ArgumentCaptor.forClass(Iterable.class);
         verify(stockRepository).saveAll(captor.capture());
         List<Stock> saved = toList(captor.getValue());
         assertEquals(1, saved.size());
@@ -100,7 +106,7 @@ class MarketServiceTest {
 
         marketService.createStocks();
 
-        org.mockito.ArgumentCaptor<Iterable<Stock>> captor = org.mockito.ArgumentCaptor.forClass(Iterable.class);
+        ArgumentCaptor<Iterable<Stock>> captor = ArgumentCaptor.forClass(Iterable.class);
         verify(stockRepository).saveAll(captor.capture());
         assertEquals(0, toList(captor.getValue()).size());
     }
@@ -143,24 +149,24 @@ class MarketServiceTest {
 
         marketService.syncIbkrPositions();
 
-        verify(accountSummaryRepository, org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any());
+        verify(accountSummaryRepository, never()).save(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
-    void updateStocks_skipsUnsupportedSymbolsAndPersistsQuoteData() throws Exception {
+    void updateStocks_skipsUnsupportedSymbolsAndPersistsQuoteData() {
         Stock supported = new Stock();
         supported.setSymbol("AAPL.US");
         supported.setTicker("AAPL");
         supported.setAmount(5.0);
         supported.setOpenPrice(100.0);
-        supported.setUpdatedDate(java.time.ZonedDateTime.now().minusHours(1));
+        supported.setUpdatedDate(ZonedDateTime.now().minusHours(1));
 
         Stock unsupported = new Stock();
         unsupported.setSymbol("CSPX.UK");
         unsupported.setTicker("CSPX");
         unsupported.setAmount(2.0);
         unsupported.setOpenPrice(50.0);
-        unsupported.setUpdatedDate(java.time.ZonedDateTime.now().minusHours(2));
+        unsupported.setUpdatedDate(ZonedDateTime.now().minusHours(2));
 
         when(stockRepository.findAll()).thenReturn(List.of(unsupported, supported));
 
@@ -169,30 +175,65 @@ class MarketServiceTest {
         quote.setClose(110.0);
         quote.setOpen(108.0);
         quote.setCurrency("USD");
-        when(twelveDataService.fetchStockQuotes(anyString()))
-                .thenReturn(Map.of("AAPL", quote));
+        // Single-chunk fetch must contain only the supported ticker.
+        when(twelveDataService.fetchStockQuotes("AAPL")).thenReturn(Map.of("AAPL", quote));
 
-        // Production code sleeps 2 minutes between chunks; run on a daemon thread and bail out as
-        // soon as the single chunk has been applied. The interrupted-sleep stack trace is logged
-        // to stderr (cosmetic only) but does not fail the test.
-        Thread runner = new Thread(() -> {
-            try {
-                marketService.updateStocks();
-            } catch (RuntimeException expected) {
-                // Caused by the deliberate interrupt below.
-            }
-        }, "market-test-runner");
-        runner.setDaemon(true);
-        runner.start();
-        for (int i = 0; i < 50 && supported.getMarketPrice() == null; i++) {
-            Thread.sleep(50);
-        }
-        runner.interrupt();
-        runner.join(1000);
+        marketService.updateStocks();
 
         assertEquals(110.0, supported.getMarketPrice());
         assertEquals(108.0, supported.getDayOpenPrice());
         assertEquals(5.0 * (110.0 - 100.0), supported.getProfit(), 0.01);
+        // Unsupported stock is never updated.
+        org.junit.jupiter.api.Assertions.assertNull(unsupported.getMarketPrice());
+        verify(twelveDataService, times(1)).fetchStockQuotes("AAPL");
+        verify(stockRepository, times(1)).saveAll(org.mockito.ArgumentMatchers.<Iterable<Stock>>any());
+    }
+
+    @Test
+    void updateStocks_continuesWhenFetchFailsAndLogsTheChunk() {
+        Stock a = newStock("A", "A.US", 1.0);
+        Stock b = newStock("B", "B.US", 1.0);
+        when(stockRepository.findAll()).thenReturn(List.of(a, b));
+        when(twelveDataService.fetchStockQuotes(anyString()))
+                .thenThrow(new RuntimeException("rate limit"));
+
+        // Must not throw: a failing chunk is logged and the sync continues to the next one.
+        marketService.updateStocks();
+
+        verify(twelveDataService, times(1)).fetchStockQuotes(anyString());
+        // No quote means no saveAll for stocks.
+        verify(stockRepository, never()).saveAll(org.mockito.ArgumentMatchers.<Iterable<Stock>>any());
+    }
+
+    @Test
+    void updateStocks_skipsHttpCallWhenAllSymbolsAreUnsupported() {
+        Stock only = newStock("CSPX", "CSPX.UK", 2.0);
+        when(stockRepository.findAll()).thenReturn(List.of(only));
+
+        marketService.updateStocks();
+
+        verify(twelveDataService, never()).fetchStockQuotes(anyString());
+    }
+
+    @Test
+    void fullPortfolioUpdate_callsCreateUpdateSyncAndHistoryInOrder() {
+        when(stockRepository.findAll()).thenReturn(List.of());
+        when(openedPositionRepository.findAll()).thenReturn(List.of());
+        when(openedPositionRepository.findAllByAccount(eq("IBKR"))).thenReturn(List.of());
+
+        marketService.fullPortfolioUpdate();
+
+        verify(historyService, times(1)).saveHistory();
+    }
+
+    private static Stock newStock(String ticker, String symbol, double amount) {
+        Stock s = new Stock();
+        s.setTicker(ticker);
+        s.setSymbol(symbol);
+        s.setAmount(amount);
+        s.setOpenPrice(0.0);
+        s.setUpdatedDate(ZonedDateTime.now().minusMinutes(5));
+        return s;
     }
 
     private static <T> List<T> toList(Iterable<T> iterable) {
@@ -201,4 +242,3 @@ class MarketServiceTest {
         return list;
     }
 }
-

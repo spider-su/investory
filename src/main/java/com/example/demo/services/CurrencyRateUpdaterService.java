@@ -30,7 +30,9 @@ public class CurrencyRateUpdaterService {
             Thread.sleep(2000);
             updateRatesForBase("PLN");
         } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+            // Restore the interrupt flag so callers (scheduler, tests) can observe the cancellation.
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Interrupted while updating currency rates", e);
         }
     }
 

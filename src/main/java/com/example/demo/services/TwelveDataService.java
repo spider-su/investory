@@ -1,200 +1,102 @@
 package com.example.demo.services;
 
-
-import com.example.demo.data.repository.FundamentalIndicator;
 import com.example.demo.services.models.StockQuote;
 import com.example.demo.services.models.TechnicalIndicator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
+import java.io.IOException;
 import java.net.URI;
-import java.net.URL;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Set;
+import java.util.NavigableMap;
+import java.util.TreeMap;
 
+/**
+ * Native HTTP client for the TwelveData REST API.
+ *
+ * <p>Endpoints used: {@code /quote}, {@code /macd}, {@code /rsi}, {@code /time_series}.
+ * The API key is sourced from {@code app.api.twelve-data-key}.
+ *
+ * <p>All requests go through the same {@link HttpClient} (reused) with a 10s timeout.
+ * Tests can inject a stubbed {@code HttpClient} via the package-private constructor.
+ */
 @Slf4j
 @Service
 public class TwelveDataService {
-    @Value("${app.api.twelve-data-key}")
+
+    private static final String BASE_URL = "https://api.twelvedata.com";
+    private static final Duration TIMEOUT = Duration.ofSeconds(10);
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    private HttpClient httpClient = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
+
+    @Value("${app.api.twelve-data-key:}")
     private String apiKey;
 
+    public TwelveDataService() {
+        // Default constructor; HttpClient is initialised inline and apiKey is
+        // injected via @Value. Field injection (rather than constructor injection)
+        // is used so the IntelliJ Spring inspector is satisfied — a constructor
+        // taking only @Value-bound String is flagged as non-autowireable.
+    }
+
+    /** Test seam: swap the underlying HTTP client (e.g. for a Mockito mock). */
+    void setHttpClient(HttpClient httpClient) {
+        this.httpClient = httpClient;
+    }
+
+    /** Test seam: set the API key without going through Spring property binding. */
+    void setApiKey(String apiKey) {
+        this.apiKey = apiKey;
+    }
+
+    /**
+     * Fetches MACD + RSI + last-day volume for a single symbol. The result is partially
+     * populated even if one of the calls misses (the missing fields stay at 0).
+     */
     public TechnicalIndicator fetchTechnicalIndicatorsFromTwelveData(String symbol) {
         TechnicalIndicator result = new TechnicalIndicator();
         result.setSymbol(symbol);
-        result.setTimestamp(ZonedDateTime.now().now());
-//        result.sesetSyncDate(LocalDateTime.now());
-
+        result.setTimestamp(ZonedDateTime.now());
         try {
-            ObjectMapper mapper = new ObjectMapper();
-            HttpClient client = HttpClient.newHttpClient();
+            JsonNode macd = get("/macd", Map.of("symbol", symbol, "interval", "1day"));
+            result.setMacd(macd.path("values").path(0).path("macd").asDouble(0.0));
 
-            // Fetch MACD
-            String macdUrl = "https://api.twelvedata.com/macd?symbol=" + symbol + "&interval=1day&apikey=" + apiKey;
-            HttpRequest macdRequest = HttpRequest.newBuilder().uri(URI.create(macdUrl)).build();
-            String macdBody = client.send(macdRequest, HttpResponse.BodyHandlers.ofString()).body();
-            JsonNode macdJson = mapper.readTree(macdBody);
-            result.setMacd(macdJson.path("values").get(0).path("macd").asDouble());
+            JsonNode rsi = get("/rsi", Map.of("symbol", symbol, "interval", "1day", "time_period", "14"));
+            result.setRsi(rsi.path("values").path(0).path("rsi").asDouble(0.0));
 
-            // Fetch RSI
-            String rsiUrl = "https://api.twelvedata.com/rsi?symbol=" + symbol + "&interval=1day&time_period=14&apikey=" + apiKey;
-            HttpRequest rsiRequest = HttpRequest.newBuilder().uri(URI.create(rsiUrl)).build();
-            String rsiBody = client.send(rsiRequest, HttpResponse.BodyHandlers.ofString()).body();
-            JsonNode rsiJson = mapper.readTree(rsiBody);
-            result.setRsi(rsiJson.path("values").get(0).path("rsi").asDouble());
-
-            // Fetch Volume from time_series
-            String priceUrl = "https://api.twelvedata.com/time_series?symbol=" + symbol + "&interval=1day&outputsize=1&apikey=" + apiKey;
-            HttpRequest priceRequest = HttpRequest.newBuilder().uri(URI.create(priceUrl)).build();
-            String priceBody = client.send(priceRequest, HttpResponse.BodyHandlers.ofString()).body();
-            JsonNode priceJson = mapper.readTree(priceBody);
-            result.setVolume(priceJson.path("values").get(0).path("volume").asLong());
+            JsonNode series = get("/time_series",
+                    Map.of("symbol", symbol, "interval", "1day", "outputsize", "1"));
+            result.setVolume(series.path("values").path(0).path("volume").asLong(0L));
             return result;
-        } catch (Exception e) {
+        } catch (TwelveDataException e) {
             throw new RuntimeException("Failed to fetch technical indicators for " + symbol, e);
         }
     }
 
-    public Map<String, TechnicalIndicator> fetchFundamentalIndicator(Set<String> symbols) throws Exception {
-        Map<String, TechnicalIndicator> indicators = new HashMap<>();
-        ObjectMapper mapper = new ObjectMapper();
-        HttpClient client = HttpClient.newHttpClient();
-
-        for (String symbol : symbols) {
-            try {
-                TechnicalIndicator indicator = new TechnicalIndicator();
-                indicator.setSymbol(symbol);
-
-                // Fetch MACD
-                String macdUrl = "https://api.twelvedata.com/macd?symbol=" + symbol + "&interval=1day&apikey=" + apiKey;
-                HttpRequest macdRequest = HttpRequest.newBuilder().uri(URI.create(macdUrl)).build();
-                String macdBody = client.send(macdRequest, HttpResponse.BodyHandlers.ofString()).body();
-                JsonNode macdJson = mapper.readTree(macdBody);
-                indicator.setMacd(macdJson.path("values").get(0).path("macd").asDouble());
-
-                // Fetch RSI
-                String rsiUrl = "https://api.twelvedata.com/rsi?symbol=" + symbol + "&interval=1day&time_period=14&apikey=" + apiKey;
-                HttpRequest rsiRequest = HttpRequest.newBuilder().uri(URI.create(rsiUrl)).build();
-                String rsiBody = client.send(rsiRequest, HttpResponse.BodyHandlers.ofString()).body();
-                JsonNode rsiJson = mapper.readTree(rsiBody);
-                indicator.setRsi(rsiJson.path("values").get(0).path("rsi").asDouble());
-
-                indicators.put(symbol, indicator);
-
-            } catch (Exception e) {
-                System.err.println("Failed to fetch MACD/RSI for " + symbol + ": " + e.getMessage());
-            }
-        }
-
-        // Fetch volume in batch
-        try {
-            String joinedSymbols = String.join(",", symbols);
-            String volumeUrl = "https://api.twelvedata.com/time_series?symbol=" + joinedSymbols + "&interval=1day&outputsize=1&apikey=" + apiKey;
-            HttpRequest volumeRequest = HttpRequest.newBuilder().uri(URI.create(volumeUrl)).build();
-            String volumeBody = client.send(volumeRequest, HttpResponse.BodyHandlers.ofString()).body();
-            JsonNode volumeJson = mapper.readTree(volumeBody);
-
-            for (String symbol : symbols) {
-                JsonNode values = volumeJson.path(symbol).path("values");
-                if (values != null && values.isArray() && values.size() > 0) {
-                    long volume = values.get(0).path("volume").asLong();
-                    TechnicalIndicator ind = indicators.get(symbol);
-                    if (ind != null) ind.setVolume(volume);
-                }
-            }
-
-        } catch (Exception e) {
-            System.err.println("Failed to fetch volume batch: " + e.getMessage());
-        }
-
-        return indicators;
-    }
-
-    public Map<String, TechnicalIndicator> fetchTechnicalIndicator(Set<String> symbols) throws Exception {
-        Map<String, TechnicalIndicator> indicators = new HashMap<>();
-        ObjectMapper mapper = new ObjectMapper();
-        HttpClient client = HttpClient.newHttpClient();
-
-        for (String symbol : symbols) {
-            try {
-                TechnicalIndicator indicator = new TechnicalIndicator();
-                indicator.setSymbol(symbol);
-
-                // Fetch MACD
-                String macdUrl = "https://api.twelvedata.com/macd?symbol=" + symbol + "&interval=1day&apikey=" + apiKey;
-                HttpRequest macdRequest = HttpRequest.newBuilder().uri(URI.create(macdUrl)).build();
-                String macdBody = client.send(macdRequest, HttpResponse.BodyHandlers.ofString()).body();
-                JsonNode macdJson = mapper.readTree(macdBody);
-                indicator.setMacd(macdJson.path("values").get(0).path("macd").asDouble());
-
-                // Fetch RSI
-                String rsiUrl = "https://api.twelvedata.com/rsi?symbol=" + symbol + "&interval=1day&time_period=14&apikey=" + apiKey;
-                HttpRequest rsiRequest = HttpRequest.newBuilder().uri(URI.create(rsiUrl)).build();
-                String rsiBody = client.send(rsiRequest, HttpResponse.BodyHandlers.ofString()).body();
-                JsonNode rsiJson = mapper.readTree(rsiBody);
-                indicator.setRsi(rsiJson.path("values").get(0).path("rsi").asDouble());
-
-                indicators.put(symbol, indicator);
-
-            } catch (Exception e) {
-                System.err.println("Failed to fetch MACD/RSI for " + symbol + ": " + e.getMessage());
-            }
-        }
-
-        // Fetch volume in batch
-        try {
-            String joinedSymbols = String.join(",", symbols);
-            String volumeUrl = "https://api.twelvedata.com/time_series?symbol=" + joinedSymbols + "&interval=1day&outputsize=1&apikey=" + apiKey;
-            HttpRequest volumeRequest = HttpRequest.newBuilder().uri(URI.create(volumeUrl)).build();
-            String volumeBody = client.send(volumeRequest, HttpResponse.BodyHandlers.ofString()).body();
-            JsonNode volumeJson = mapper.readTree(volumeBody);
-
-            for (String symbol : symbols) {
-                JsonNode values = volumeJson.path(symbol).path("values");
-                if (values != null && values.isArray() && values.size() > 0) {
-                    long volume = values.get(0).path("volume").asLong();
-                    TechnicalIndicator ind = indicators.get(symbol);
-                    if (ind != null) ind.setVolume(volume);
-                }
-            }
-
-        } catch (Exception e) {
-            System.err.println("Failed to fetch volume batch: " + e.getMessage());
-        }
-
-        return indicators;
-    }
-
     /**
      * Fetches monthly closing prices for a symbol, keyed by "yyyy-MM" (chronological).
-     * Used for benchmark comparison (e.g. SPY).
+     * Used by {@code BenchmarkService} for the SPY comparison curve. Returns an empty map
+     * on any error so the caller can fall back to its previous-day cached values.
      */
-    public java.util.NavigableMap<String, Double> fetchMonthlyCloses(String symbol, int months) {
-        java.util.TreeMap<String, Double> closes = new java.util.TreeMap<>();
+    public NavigableMap<String, Double> fetchMonthlyCloses(String symbol, int months) {
+        NavigableMap<String, Double> closes = new TreeMap<>();
         try {
-            String url = "https://api.twelvedata.com/time_series?symbol=" + symbol
-                    + "&interval=1month&outputsize=" + months + "&apikey=" + apiKey;
-            ObjectMapper mapper = new ObjectMapper();
-            HttpClient client = HttpClient.newHttpClient();
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .timeout(java.time.Duration.ofSeconds(10))
-                    .build();
-            String body = client.send(request, HttpResponse.BodyHandlers.ofString()).body();
-            JsonNode json = mapper.readTree(body);
+            JsonNode json = get("/time_series",
+                    Map.of("symbol", symbol, "interval", "1month", "outputsize", String.valueOf(months)));
             JsonNode values = json.path("values");
             if (values.isArray()) {
                 for (JsonNode value : values) {
@@ -204,85 +106,110 @@ public class TwelveDataService {
                     }
                 }
             }
-        } catch (Exception e) {
+        } catch (TwelveDataException e) {
             log.error("Failed to fetch monthly closes for {}: {}", symbol, e.getMessage());
         }
         return closes;
     }
 
-    public Map<String, StockQuote> fetchStockQuotes(String joinedSymbols) throws Exception {
-        String urlString = "https://api.twelvedata.com/quote?symbol=" + joinedSymbols + "&apikey=" + apiKey;
-
-        URL url = new URL(urlString);
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setRequestMethod("GET");
-
-        if (conn.getResponseCode() != 200) {
-            throw new RuntimeException("HTTP error code: " + conn.getResponseCode());
-        }
-
-        BufferedReader br = new BufferedReader(new InputStreamReader((conn.getInputStream())));
-        StringBuilder output = new StringBuilder();
-        String line;
-        while ((line = br.readLine()) != null) {
-            output.append(line);
-        }
-        conn.disconnect();
-
-        return parseQuotes(output.toString());
-    }
-
-    private Map<String, StockQuote> parseQuotes(String jsonResponse) {
-        JsonObject root = JsonParser.parseString(jsonResponse).getAsJsonObject();
-        Map<String, StockQuote> quotes = new HashMap<>();
-
-        if (root.get("code") != null && !"200".equalsIgnoreCase(root.get("code").toString())) {
-            throw new IllegalArgumentException(root.get("message").toString());
-        }
-
-        Set<String> symbols = root.keySet();
-        if (symbols.contains("symbol")) {
-            symbols = Set.of(root.get("symbol").getAsString());
-        }
-        symbols.forEach(symbol -> {
-            StockQuote quote = parseQuote(symbol, root);
-            if (quote != null) {
-                quotes.put(symbol, quote);
-            }
-        });
-        return quotes;
-    }
-
-    private StockQuote parseQuote(String symbol, JsonObject root) {
+    /**
+     * Fetches quote(s) by symbol. {@code joinedSymbols} is a comma-separated list of
+     * tickers. Single-symbol responses come back as the quote at the JSON root;
+     * multi-symbol responses come back as {@code {"AAPL": {...}, "MSFT": {...}}}.
+     */
+    public Map<String, StockQuote> fetchStockQuotes(String joinedSymbols) {
+        Map<String, StockQuote> result = new LinkedHashMap<>();
+        JsonNode root;
         try {
-            JsonObject json = !root.has(symbol) ? root : root.getAsJsonObject(symbol);
-            if (json.has("code")) {
-                return null;
-            }
+            root = get("/quote", Map.of("symbol", joinedSymbols));
+        } catch (TwelveDataException e) {
+            throw new RuntimeException("Failed to fetch quotes for " + joinedSymbols, e);
+        }
 
+        if (root.has("code") && root.path("code").asInt(200) != 200) {
+            throw new IllegalArgumentException("TwelveData /quote error: " + root.path("message").asText());
+        }
+        if (root.has("symbol")) {
+            // Single-symbol response: the quote is at the root.
+            StockQuote single = parseQuote(root);
+            if (single != null) {
+                result.put(single.getSymbol(), single);
+            }
+            return result;
+        }
+        Iterator<String> fieldNames = root.fieldNames();
+        while (fieldNames.hasNext()) {
+            String symbol = fieldNames.next();
+            StockQuote q = parseQuote(root.path(symbol));
+            if (q != null) {
+                result.put(symbol, q);
+            }
+        }
+        return result;
+    }
+
+    private StockQuote parseQuote(JsonNode json) {
+        if (json == null || json.isMissingNode() || json.has("code")) {
+            return null;
+        }
+        try {
             StockQuote quote = new StockQuote();
-            quote.setSymbol(json.get("symbol").getAsString());
-            quote.setName(json.get("name").getAsString());
-            quote.setExchange(json.get("exchange").getAsString());
-            quote.setCurrency(json.get("currency").getAsString());
-            quote.setDatetime(json.get("datetime").getAsString());
-            quote.setOpen(json.get("open").getAsDouble());
-            quote.setHigh(json.get("high").getAsDouble());
-            quote.setLow(json.get("low").getAsDouble());
-            quote.setClose(json.get("close").getAsDouble());
-            quote.setVolume(json.get("volume").getAsLong());
-            quote.setPreviousClose(json.get("previous_close").getAsDouble());
-            quote.setChange(json.get("change").getAsDouble());
-            quote.setPercentChange(json.get("percent_change").getAsDouble());
-            quote.setMarketOpen(json.get("is_market_open").getAsBoolean());
-//            quote.setDividendYield(json.get("dividend_yield").getAsDouble());
-//            quote.setEps(json.get("eps").getAsDouble());
-//            quote.setPeRatio(json.get("pe_ratio").getAsDouble());
+            quote.setSymbol(json.path("symbol").asText(null));
+            quote.setName(json.path("name").asText(null));
+            quote.setExchange(json.path("exchange").asText(null));
+            quote.setCurrency(json.path("currency").asText(null));
+            quote.setDatetime(json.path("datetime").asText(null));
+            quote.setOpen(json.path("open").asDouble(0.0));
+            quote.setHigh(json.path("high").asDouble(0.0));
+            quote.setLow(json.path("low").asDouble(0.0));
+            quote.setClose(json.path("close").asDouble(0.0));
+            quote.setVolume(json.path("volume").asLong(0L));
+            quote.setPreviousClose(json.path("previous_close").asDouble(0.0));
+            quote.setChange(json.path("change").asDouble(0.0));
+            quote.setPercentChange(json.path("percent_change").asDouble(0.0));
+            quote.setMarketOpen(json.path("is_market_open").asBoolean(false));
             return quote;
         } catch (Exception e) {
-            log.error("Failed to parse StockQuote: {} - {}", symbol, e.getMessage(), e);
+            log.error("Failed to parse StockQuote: {}", e.getMessage(), e);
             return null;
         }
     }
-}
 
+    /** Single GET path; centralises timeout, URL building, and error mapping. */
+    JsonNode get(String path, Map<String, String> params) throws TwelveDataException {
+        StringBuilder sb = new StringBuilder(BASE_URL).append(path).append('?');
+        Map<String, String> all = new HashMap<>(params);
+        all.put("apikey", apiKey);
+        boolean first = true;
+        for (Map.Entry<String, String> e : all.entrySet()) {
+            if (!first) {
+                sb.append('&');
+            }
+            sb.append(encode(e.getKey())).append('=').append(encode(e.getValue()));
+            first = false;
+        }
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(sb.toString()))
+                .timeout(TIMEOUT)
+                .GET()
+                .build();
+        try {
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() / 100 != 2) {
+                throw new TwelveDataException(
+                        "TwelveData HTTP " + response.statusCode() + " for " + path, null);
+            }
+            return MAPPER.readTree(response.body());
+        } catch (IOException e) {
+            throw new TwelveDataException("TwelveData IO error for " + path + ": " + e.getMessage(), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new TwelveDataException("TwelveData call interrupted for " + path, e);
+        }
+    }
+
+    private static String encode(String value) {
+        return value == null ? "" : URLEncoder.encode(value, StandardCharsets.UTF_8);
+    }
+}

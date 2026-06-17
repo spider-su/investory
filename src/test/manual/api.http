@@ -25,10 +25,10 @@ Content-Type: text/csv
 --WebAppBoundary--
 
 ###
-POST http://localhost:8080/import/stock/create
+POST http://localhost:8080/stock/create
 Authorization: Basic admin admin
 ###
-POST http://localhost:8080/import/stock/sync
+POST http://localhost:8080/stock/sync
 Authorization: Basic admin admin
 ###
 POST http://localhost:8080/portfolio/sync

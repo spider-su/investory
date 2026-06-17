@@ -2,23 +2,26 @@ package com.example.demo.controllers.rest;
 
 import com.example.demo.data.BrokerType;
 import com.example.demo.data.ImportSourceType;
-import com.example.demo.services.MarketService;
 import com.example.demo.services.imports.ImportBatchResponse;
 import com.example.demo.services.imports.ImportBatchDetailsResponse;
+import com.example.demo.services.imports.ImportFailedException;
 import com.example.demo.services.imports.ImportOrchestratorService;
 import com.example.demo.services.imports.ImportRowErrorResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.http.HttpStatus;
 
+import java.io.IOException;
 import java.util.List;
 
 @Slf4j
@@ -28,7 +31,6 @@ import java.util.List;
 public class ImportController {
 
     private final ImportOrchestratorService importOrchestratorService;
-    private final MarketService marketService;
 
     @GetMapping("/batches")
     List<ImportBatchDetailsResponse> listBatches(@RequestParam(value = "limit", required = false, defaultValue = "20") Integer limit) {
@@ -58,49 +60,48 @@ public class ImportController {
                                        @RequestParam("file") MultipartFile file,
                                        @RequestParam(value = "source", required = false, defaultValue = "MANUAL") ImportSourceType sourceType,
                                        @RequestParam(value = "sourceRef", required = false) String sourceRef) {
-        try {
-            return importOrchestratorService.importFile(
-                    BrokerType.fromValue(broker),
-                    file.getBytes(),
-                    file.getOriginalFilename() != null ? file.getOriginalFilename() : "upload.xlsx",
-                    sourceType,
-                    sourceRef
-            );
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to import broker export", e);
-        }
+        BrokerType brokerType = BrokerType.fromValue(broker);
+        return importOrchestratorService.importFile(
+                brokerType,
+                readBytes(file),
+                file.getOriginalFilename() != null ? file.getOriginalFilename() : "upload.bin",
+                sourceType,
+                sourceRef);
     }
 
+    /**
+     * Legacy alias kept for older HTTP scripts. New callers should use
+     * {@link #importByBroker(String, MultipartFile, ImportSourceType, String)}.
+     */
     @PostMapping("/xtb")
-    void importFromXtb(@RequestParam("file") MultipartFile file) {
+    ImportBatchResponse importFromXtb(@RequestParam("file") MultipartFile file) {
+        return importOrchestratorService.importFile(
+                BrokerType.XTB,
+                readBytes(file),
+                file.getOriginalFilename() != null ? file.getOriginalFilename() : "xtb.xlsx",
+                ImportSourceType.MANUAL,
+                null);
+    }
+
+
+    private static byte[] readBytes(MultipartFile file) {
         try {
-            importOrchestratorService.importFile(
-                    BrokerType.XTB,
-                    file.getBytes(),
-                    file.getOriginalFilename() != null ? file.getOriginalFilename() : "xtb.xlsx",
-                    ImportSourceType.MANUAL,
-                    null
-            );
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to import XTB export", e);
+            return file.getBytes();
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Could not read uploaded file: " + e.getMessage(), e);
         }
     }
 
-    @PostMapping("/stock/create")
-    void createOpenedPositions() {
-        try {
-            marketService.createStocks();
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to create OpenedPositions stock", e);
-        }
+    @ExceptionHandler(IllegalArgumentException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    String handleIllegalArgument(IllegalArgumentException e) {
+        return e.getMessage();
     }
 
-    @PostMapping("/stock/sync")
-    void sync() {
-        try {
-            marketService.updateStocks();
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to create OpenedPositions stock", e);
-        }
+    @ExceptionHandler(ImportFailedException.class)
+    @ResponseStatus(HttpStatus.UNPROCESSABLE_CONTENT)
+    String handleImportFailed(ImportFailedException e) {
+        log.warn("Import failed: {}", e.getMessage());
+        return e.getMessage();
     }
 }

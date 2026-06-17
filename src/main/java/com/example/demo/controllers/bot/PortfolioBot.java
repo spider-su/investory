@@ -108,10 +108,25 @@ public class PortfolioBot extends TelegramLongPollingBot {
             return null;
         }
         String lower = fileName.toLowerCase(Locale.ROOT);
-        if (lower.contains("xtb") || lower.endsWith(".xlsx")) {
+        // Keyword match wins over extension so "IBKR_jan.xlsx" is not misclassified as XTB
+        // and "upload.csv" is not misclassified as IBKR.
+        if (lower.contains("xtb")) {
             return BrokerType.XTB;
         }
-        if (lower.contains("ibkr") || lower.startsWith("u") || lower.endsWith(".csv")) {
+        if (lower.contains("ibkr")) {
+            return BrokerType.IBKR;
+        }
+        // IBKR Activity Statement files are named like "U17959259.TRANSACTIONS....csv";
+        // require a digit right after the leading 'U' to avoid catching arbitrary "u*"
+        // file names like "upload.csv" or "us-rates.csv".
+        if (lower.length() > 1 && lower.charAt(0) == 'u' && Character.isDigit(lower.charAt(1))
+                && lower.endsWith(".csv")) {
+            return BrokerType.IBKR;
+        }
+        if (lower.endsWith(".xlsx")) {
+            return BrokerType.XTB;
+        }
+        if (lower.endsWith(".csv")) {
             return BrokerType.IBKR;
         }
         return null;

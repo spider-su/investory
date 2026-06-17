@@ -36,7 +36,8 @@ class BenchmarkServiceTest {
     @BeforeEach
     void setUp() {
         benchmarkService = new BenchmarkService(closedPositionRepository, cashOperationRepository,
-                accountSummaryRepository, openedPositionRepository, currencyRateService, twelveDataService);
+                accountSummaryRepository, openedPositionRepository, currencyRateService, twelveDataService,
+                "2026-01");
         // Identity FX so calculations stay readable. lenient() because the empty-portfolio test skips FX.
         org.mockito.Mockito.lenient().when(currencyRateService.convertToBaseCurrency(anyDouble(), any(), any()))
                 .thenAnswer(invocation -> invocation.getArgument(0, Double.class));

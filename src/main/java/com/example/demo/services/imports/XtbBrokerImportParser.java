@@ -20,8 +20,6 @@ public class XtbBrokerImportParser implements BrokerImportParser {
 
     @Override
     public ImportExecutionResult importFile(InputStream inputStream, String fileName) throws Exception {
-        xtbImportService.importXtbExport(inputStream);
-        return ImportExecutionResult.unknownSuccess();
+        return xtbImportService.importXtbExport(inputStream);
     }
 }
-

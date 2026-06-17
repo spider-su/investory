@@ -1,34 +1,56 @@
 package com.example.demo.services.imports;
 
 import com.example.demo.data.BrokerType;
-import com.example.demo.data.ImportBatchStatus;
 import com.example.demo.data.ImportSourceType;
 import com.example.demo.data.repository.ImportBatch;
 import com.example.demo.data.repository.ImportBatchRepository;
-import com.example.demo.data.repository.ImportRowError;
 import com.example.demo.data.repository.ImportRowErrorRepository;
-import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayInputStream;
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.time.ZonedDateTime;
+import java.util.EnumMap;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * Coordinates broker imports: dedup -> persist a RECEIVED batch -> run the parser
+ * -> persist the APPLIED or FAILED outcome (with the failing row's payload truncated).
+ *
+ * <p>The orchestrator deliberately is NOT {@code @Transactional}; audit writes go through
+ * {@link ImportBatchAuditWriter} which uses {@code REQUIRES_NEW} so that a parser-side
+ * rollback does not erase the FAILED batch + {@code import_row_error} rows.
+ */
+@Slf4j
 @Service
-@RequiredArgsConstructor
 public class ImportOrchestratorService {
 
-    private final List<BrokerImportParser> parsers;
+    private final Map<BrokerType, BrokerImportParser> parserByBroker;
     private final ImportBatchRepository importBatchRepository;
     private final ImportRowErrorRepository importRowErrorRepository;
+    private final ImportBatchAuditWriter auditWriter;
+
+    public ImportOrchestratorService(List<BrokerImportParser> parsers,
+                                     ImportBatchRepository importBatchRepository,
+                                     ImportRowErrorRepository importRowErrorRepository,
+                                     ImportBatchAuditWriter auditWriter) {
+        this.parserByBroker = new EnumMap<>(BrokerType.class);
+        for (BrokerImportParser parser : parsers) {
+            BrokerImportParser previous = this.parserByBroker.put(parser.brokerType(), parser);
+            if (previous != null) {
+                throw new IllegalStateException("Duplicate BrokerImportParser registered for "
+                        + parser.brokerType() + ": " + previous + " and " + parser);
+            }
+        }
+        this.importBatchRepository = importBatchRepository;
+        this.importRowErrorRepository = importRowErrorRepository;
+        this.auditWriter = auditWriter;
+    }
 
     @Transactional(readOnly = true)
     public Optional<ImportBatchDetailsResponse> getBatch(Long batchId) {
@@ -62,65 +84,40 @@ public class ImportOrchestratorService {
                 .collect(Collectors.toList());
     }
 
-    @Transactional
-    public ImportBatchResponse importFile(BrokerType broker, byte[] fileBytes, String fileName, ImportSourceType sourceType, String sourceRef) {
-        String checksum = sha256(fileBytes);
-        Optional<ImportBatch> existingBatch = importBatchRepository.findFirstByBrokerAndFileSha256OrderByIdDesc(broker, checksum)
-                .filter(batch -> batch.getStatus() == ImportBatchStatus.APPLIED);
-        if (existingBatch.isPresent()) {
-            ImportBatch batch = existingBatch.get();
-            batch.setErrorMessage("File already imported, returning existing batch");
-            importBatchRepository.save(batch);
-            return toBatchResponse(batch, "File already imported, returning existing batch", true);
-        }
-
-        Map<BrokerType, BrokerImportParser> parserByBroker = parsers.stream()
-                .collect(Collectors.toMap(BrokerImportParser::brokerType, Function.identity()));
-
+    public ImportBatchResponse importFile(BrokerType broker,
+                                          byte[] fileBytes,
+                                          String fileName,
+                                          ImportSourceType sourceType,
+                                          String sourceRef) {
         BrokerImportParser parser = parserByBroker.get(broker);
         if (parser == null) {
             throw new IllegalArgumentException("No parser registered for broker: " + broker);
         }
 
-        ImportBatch batch = new ImportBatch();
-        batch.setBroker(broker);
-        batch.setSourceType(sourceType);
-        batch.setSourceRef(sourceRef);
-        batch.setFileName(fileName);
-        batch.setFileSha256(checksum);
-        batch.setStartedAt(ZonedDateTime.now());
-        batch.setStatus(ImportBatchStatus.RECEIVED);
-        batch.setRowsTotal(0);
-        batch.setRowsApplied(0);
-        batch.setRowsFailed(0);
-        batch = importBatchRepository.save(batch);
-
-        try {
-            ImportExecutionResult result = parser.importFile(new ByteArrayInputStream(fileBytes), fileName);
-            batch.setStatus(ImportBatchStatus.APPLIED);
-            batch.setRowsTotal(result.rowsTotal());
-            batch.setRowsApplied(result.rowsApplied());
-            batch.setRowsFailed(result.rowsFailed());
-            batch.setErrorMessage(result.details());
-            batch.setFinishedAt(ZonedDateTime.now());
-            importBatchRepository.save(batch);
-
-            return toBatchResponse(batch, batch.getErrorMessage(), false);
-        } catch (Exception e) {
-            batch.setStatus(ImportBatchStatus.FAILED);
-            batch.setRowsFailed(1);
-            batch.setErrorMessage(e.getMessage());
-            batch.setFinishedAt(ZonedDateTime.now());
-            importBatchRepository.save(batch);
-
-            ImportRowError rowError = new ImportRowError();
-            rowError.setBatch(batch);
-            rowError.setErrorCode("IMPORT_FAILED");
-            rowError.setErrorMessage(e.getMessage());
-            rowError.setRawPayload(new String(fileBytes, StandardCharsets.UTF_8));
-            importRowErrorRepository.save(rowError);
-            throw new RuntimeException("Failed to import file for broker " + broker, e);
+        String checksum = sha256(fileBytes);
+        Optional<ImportBatch> existing = auditWriter.findExistingAppliedBatch(broker, checksum);
+        if (existing.isPresent()) {
+            // Duplicate is a per-request observation; do NOT mutate the original successful
+            // batch's row in the database (used to overwrite errorMessage and poison the
+            // details endpoint forever after).
+            ImportBatch batch = existing.get();
+            return toBatchResponse(batch, "File already imported, returning existing batch", true);
         }
+
+        ImportBatch batch = auditWriter.startBatch(broker, sourceType, sourceRef, fileName, checksum);
+
+        ImportExecutionResult result;
+        try {
+            result = parser.importFile(new ByteArrayInputStream(fileBytes), fileName);
+        } catch (Exception e) {
+            log.warn("Broker import failed for {} ({} bytes): {}", broker, fileBytes.length, e.getMessage());
+            ImportBatch failed = auditWriter.finalizeFailed(batch.getId(), e.getMessage(), fileBytes);
+            throw new ImportFailedException("Failed to import file for broker " + broker
+                    + " (batchId=" + failed.getId() + "): " + e.getMessage(), e);
+        }
+
+        ImportBatch finalized = auditWriter.finalizeApplied(batch.getId(), result);
+        return toBatchResponse(finalized, finalized.getErrorMessage(), false);
     }
 
     private String sha256(byte[] data) {
@@ -141,11 +138,12 @@ public class ImportOrchestratorService {
                 batch.getFileName(),
                 batch.getFileSha256(),
                 batch.getStatus(),
-                batch.getRowsTotal() != null ? batch.getRowsTotal() : 0,
-                batch.getRowsApplied() != null ? batch.getRowsApplied() : 0,
-                batch.getRowsFailed() != null ? batch.getRowsFailed() : 0,
+                nz(batch.getRowsTotal()),
+                nz(batch.getRowsApplied()),
+                nz(batch.getRowsFailed()),
                 batch.getErrorMessage(),
-                isDuplicateBatch(batch),
+                // "duplicate" is per-upload semantics; not meaningful when looking up a batch by id.
+                false,
                 batch.getStartedAt(),
                 batch.getFinishedAt()
         );
@@ -156,16 +154,16 @@ public class ImportOrchestratorService {
                 batch.getId(),
                 batch.getBroker(),
                 batch.getStatus(),
-                batch.getRowsTotal() != null ? batch.getRowsTotal() : 0,
-                batch.getRowsApplied() != null ? batch.getRowsApplied() : 0,
-                batch.getRowsFailed() != null ? batch.getRowsFailed() : 0,
+                nz(batch.getRowsTotal()),
+                nz(batch.getRowsApplied()),
+                nz(batch.getRowsFailed()),
                 message,
                 duplicate
         );
     }
 
-    private boolean isDuplicateBatch(ImportBatch batch) {
-        return batch.getErrorMessage() != null && batch.getErrorMessage().startsWith("File already imported");
+    private static int nz(Integer value) {
+        return value == null ? 0 : value;
     }
 }
 

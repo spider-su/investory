@@ -15,9 +15,16 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-@Transactional
+@Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class PortfolioService {
+
+    /**
+     * Symbols whose total |P/L| falls below {@code OTHER_BUCKET_RATIO * |grand total|} are
+     * collapsed into a single "Other" row in the per-instrument ranking, so the chart isn't
+     * dominated by long-tail noise.
+     */
+    private static final double OTHER_BUCKET_RATIO = 0.019;
 
     private final CurrencyRateService currencyRateService;
     private final ClosedPositionRepository closedPositionRepository;
@@ -34,7 +41,10 @@ public class PortfolioService {
     }
 
     public Portfolio calculateTotalProfitLoss() {
-        Map<CurrencyType, List<ClosedPosition>> closedPositions = closedPositionRepository.findAll().stream()
+        // Read once: the same list seeds the per-currency P/L, the cashflow tax base,
+        // and the capital-gains tax calculation below.
+        List<ClosedPosition> closedPositionsAll = closedPositionRepository.findAll();
+        Map<CurrencyType, List<ClosedPosition>> closedPositions = closedPositionsAll.stream()
                 .collect(Collectors.groupingBy(ClosedPosition::getCurrency));
 
         Portfolio portfolio = new Portfolio();
@@ -76,7 +86,7 @@ public class PortfolioService {
         // Estimated capital-gains tax ("Belka" 19%) for the CURRENT tax year only, applying
         // loss carry-forward from prior years (Polish rule: losses deductible over the next 5 years).
         TaxCalculator.TaxSummary tax = taxCalculator.calculate(
-                closedPositionRepository.findAll(), portfolio.getBaseCurrency());
+                closedPositionsAll, portfolio.getBaseCurrency());
         portfolio.setCapitalGainsTax(tax.capitalGainsTax());
         portfolio.setLossCarryForward(tax.lossCarryForward());
 
@@ -125,7 +135,10 @@ public class PortfolioService {
                         position -> monthlyBucketKey(position, currentYear),
                         TreeMap::new, // Use TreeMap to keep the result sorted by year / year-month
                         Collectors.summingDouble(
-                                position -> currencyRateService.convertToBaseCurrency(position.getProfit() + position.getCommission(), performance.getBaseCurrency(), position.getCurrency())
+                                // Include swap so this matches the realized P/L number used everywhere else.
+                                position -> currencyRateService.convertToBaseCurrency(
+                                        nz(position.getProfit()) + nz(position.getCommission()) + nz(position.getSwap()),
+                                        performance.getBaseCurrency(), position.getCurrency())
                         )
                 )));
         performance.setMonthlyOperationsCount(closed.stream()
@@ -225,20 +238,19 @@ public class PortfolioService {
         allSymbols.addAll(openedProfits.keySet());
 
         List<InstrumentPerformance> instrumentPerformances = allSymbols.stream()
-                .map(symbol -> new InstrumentPerformance(
-                        symbol,
-                        closedProfits.getOrDefault(symbol, 0.0),
-                        openedProfits.getOrDefault(symbol, 0.0),
-                        0
-                ))
-                .peek(s -> s.setTotal(s.getClosedProfit() + s.getUnrealizedProfit()))
-                .sorted(Comparator.comparing(InstrumentPerformance::getTotal)) // optional sort
+                .map(symbol -> {
+                    double closedProfit = closedProfits.getOrDefault(symbol, 0.0);
+                    double unrealizedProfit = openedProfits.getOrDefault(symbol, 0.0);
+                    return new InstrumentPerformance(symbol, closedProfit, unrealizedProfit,
+                            closedProfit + unrealizedProfit);
+                })
+                .sorted(Comparator.comparing(InstrumentPerformance::getTotal))
                 .collect(Collectors.toList());
 
         double totalSum = instrumentPerformances.stream()
                 .filter(Objects::nonNull)
                 .mapToDouble(InstrumentPerformance::getTotal).sum();
-        double threshold = totalSum * 0.019;
+        double threshold = totalSum * OTHER_BUCKET_RATIO;
 
         List<InstrumentPerformance> major = new ArrayList<>();
         double otherClosed = 0.0;
@@ -267,8 +279,14 @@ public class PortfolioService {
         List<ClosedPosition> closedPositions = closedPositionRepository.findAll();
 
         return closedPositions.stream()
-                .collect(Collectors.groupingBy(position -> position.getCloseTime().toString(),
-                        Collectors.summingDouble(position -> currencyRateService.convertToBaseCurrency(position.getProfit(), baseCurrency, position.getCurrency()))));
+                .filter(p -> p.getCloseTime() != null)
+                .collect(Collectors.groupingBy(
+                        // Bucket by ISO date ("yyyy-MM-dd") rather than the full timestamp,
+                        // so multiple trades on the same day collapse into one chart point.
+                        position -> position.getCloseTime().toLocalDate().toString(),
+                        TreeMap::new,
+                        Collectors.summingDouble(position -> currencyRateService.convertToBaseCurrency(
+                                nz(position.getProfit()), baseCurrency, position.getCurrency()))));
     }
 
     public Map<String, OpenPositionsPerformance> getOpenPositionsFlow() {

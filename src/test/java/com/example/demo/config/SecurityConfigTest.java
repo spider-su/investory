@@ -4,6 +4,7 @@ import com.example.demo.data.BrokerType;
 import com.example.demo.data.ImportBatchStatus;
 import com.example.demo.data.ImportSourceType;
 import com.example.demo.controllers.rest.ImportController;
+import com.example.demo.controllers.rest.StockController;
 import com.example.demo.services.MarketService;
 import com.example.demo.services.imports.ImportBatchDetailsResponse;
 import com.example.demo.services.imports.ImportOrchestratorService;
@@ -24,7 +25,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(controllers = {ImportController.class})
+@WebMvcTest(controllers = {ImportController.class, StockController.class})
 @Import({SecurityConfig.class, MockMvcSecurityTestConfig.class})
 class SecurityConfigTest {
 
@@ -72,18 +73,20 @@ class SecurityConfigTest {
     @Test
     @WithMockUser(username = "user", roles = {"USER"})
     void userCannotRunAdminPostEndpoint() throws Exception {
-        mockMvc.perform(post("/import/stock/create"))
+        mockMvc.perform(post("/stock/create"))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     @WithMockUser(username = "admin", roles = {"ADMIN", "USER"})
     void adminCanRunAdminPostEndpoint() throws Exception {
-        mockMvc.perform(post("/import/stock/create"))
+        mockMvc.perform(post("/stock/create"))
                 .andExpect(status().isOk());
 
         verify(marketService).createStocks();
     }
 }
+
+
 
 

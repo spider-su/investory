@@ -176,7 +176,7 @@ Override default users with environment variables:
 ```
 src/main/java/com/example/demo/
   GoogleAuthSpringBootApplication.java     Spring Boot entrypoint
-  clients/                                 Feign clients (exchangerate.host)
+  clients/                                 Native java.net.http clients (exchangerate.host)
   config/                                  SecurityConfig, SchedulerConfig, TelegramBotConfig
   controllers/
     bot/PortfolioBot.java                  Optional Telegram bot (long polling)

@@ -4,8 +4,8 @@ import com.example.demo.data.CashOperationType;
 import com.example.demo.data.CurrencyType;
 import com.example.demo.data.repository.*;
 import com.example.demo.services.models.Benchmark;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,13 +16,10 @@ import java.util.*;
 @Slf4j
 @Service
 @Transactional(readOnly = true)
-@RequiredArgsConstructor
 public class BenchmarkService {
 
     private static final CurrencyType BASE = CurrencyType.USD;
     private static final String BENCHMARK_SYMBOL = "SPY";
-    // Earlier periods had small balances and no consistent strategy, so exclude them.
-    private static final YearMonth COMPARISON_START = YearMonth.of(2026, 1);
 
     private final ClosedPositionRepository closedPositionRepository;
     private final CashOperationRepository cashOperationRepository;
@@ -31,9 +28,35 @@ public class BenchmarkService {
     private final CurrencyRateService currencyRateService;
     private final TwelveDataService twelveDataService;
 
-    // Daily-refreshed cache of benchmark monthly closes (one external call per day).
-    private static NavigableMap<String, Double> cachedCloses;
-    private static LocalDate cachedOn;
+    /**
+     * Earliest month included in the comparison curve. Earlier periods had small balances
+     * and no consistent strategy, so they're excluded from the benchmark by default.
+     * Configurable via {@code app.benchmark.comparison-start} as {@code yyyy-MM}.
+     */
+    private final YearMonth comparisonStart;
+
+    /**
+     * Daily-refreshed cache of benchmark monthly closes. Instance-scoped (was
+     * {@code static}) so multiple Spring contexts and parallel tests don't share state.
+     */
+    private NavigableMap<String, Double> cachedCloses;
+    private LocalDate cachedOn;
+
+    public BenchmarkService(ClosedPositionRepository closedPositionRepository,
+                            CashOperationRepository cashOperationRepository,
+                            AccountSummaryRepository accountSummaryRepository,
+                            OpenedPositionRepository openedPositionRepository,
+                            CurrencyRateService currencyRateService,
+                            TwelveDataService twelveDataService,
+                            @Value("${app.benchmark.comparison-start:2026-01}") String comparisonStart) {
+        this.closedPositionRepository = closedPositionRepository;
+        this.cashOperationRepository = cashOperationRepository;
+        this.accountSummaryRepository = accountSummaryRepository;
+        this.openedPositionRepository = openedPositionRepository;
+        this.currencyRateService = currencyRateService;
+        this.twelveDataService = twelveDataService;
+        this.comparisonStart = YearMonth.parse(comparisonStart);
+    }
 
     public Benchmark calculate() {
         Benchmark benchmark = new Benchmark();
@@ -44,14 +67,14 @@ public class BenchmarkService {
             }
 
             // Monthly realized P/L (incl. commission + swap) and dividends, in base USD.
-            // Comparison starts Jan 2026 — earlier amounts were small with no consistent strategy.
+            // Comparison starts at comparisonStart -- earlier amounts were small with no consistent strategy.
             TreeMap<String, Double> monthly = new TreeMap<>();
             for (ClosedPosition p : closed) {
                 if (p.getCloseTime() == null) {
                     continue;
                 }
                 YearMonth month = YearMonth.from(p.getCloseTime());
-                if (month.isBefore(COMPARISON_START)) {
+                if (month.isBefore(comparisonStart)) {
                     continue;
                 }
                 double value = convert(nz(p.getProfit()) + nz(p.getCommission()) + nz(p.getSwap()), p.getCurrency());
@@ -59,7 +82,7 @@ public class BenchmarkService {
             }
             for (CashOperation c : cashOperationRepository.findAll()) {
                 if (c.getType() == CashOperationType.DIVIDEND && c.getDate() != null
-                        && !YearMonth.from(c.getDate()).isBefore(COMPARISON_START)) {
+                        && !YearMonth.from(c.getDate()).isBefore(comparisonStart)) {
                     monthly.merge(YearMonth.from(c.getDate()).toString(),
                             convert(nz(c.getAmount()), c.getCurrency()), Double::sum);
                 }
@@ -69,7 +92,7 @@ public class BenchmarkService {
             }
 
             // Continuous month labels from the comparison start to the current month.
-            YearMonth start = COMPARISON_START;
+            YearMonth start = comparisonStart;
             YearMonth end = YearMonth.now();
             if (end.isBefore(start)) {
                 end = start;

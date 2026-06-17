@@ -4,11 +4,11 @@ import com.example.demo.data.CashOperationType;
 import com.example.demo.data.CurrencyType;
 import com.example.demo.data.PositionType;
 import com.example.demo.data.repository.*;
+import com.example.demo.services.imports.ImportExecutionResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.springframework.data.util.Pair;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
@@ -26,12 +26,18 @@ import java.util.function.BiFunction;
 @RequiredArgsConstructor
 public class XtbImportService {
 
+    /**
+     * Locale-neutral formatter for non-string cells. {@code Locale.ROOT} keeps a "." as the
+     * decimal separator so numeric ids stay parseable downstream.
+     */
+    private static final DataFormatter DATA_FORMATTER = new DataFormatter(Locale.ROOT);
+
     private final ClosedPositionRepository closedPositionRepository;
     private final OpenedPositionRepository openedPositionRepository;
     private final CashOperationRepository cashOperationRepository;
     private final AccountSummaryRepository accountSummaryRepository;
 
-    public void importXtbExport(InputStream excelInputStream) throws Exception {
+    public ImportExecutionResult importXtbExport(InputStream excelInputStream) throws Exception {
         try (Workbook workbook = new XSSFWorkbook(excelInputStream)) {
             Sheet openSheet = findOpenPositionsSheet(workbook);
             ImportContext openContext = getImportContext(openSheet);
@@ -88,6 +94,13 @@ public class XtbImportService {
             // dashboard "Balance" reflects today's holdings + cash, not P/L.
             importAccountSummary(openSheet, currency);
             importAccountSummary(workbook.getSheet("BALANCE OPERATION HISTORY MT"), currency);
+
+            int total = cashOperations.size() + closedPositions.size() + openedImport.items.size();
+            String details = String.format(
+                    "XTB %s: %d cash operations, %d closed positions, %d open positions",
+                    openContext.account != null ? openContext.account : "?",
+                    cashOperations.size(), closedPositions.size(), openedImport.items.size());
+            return new ImportExecutionResult(total, total, 0, details);
         }
     }
 
@@ -423,8 +436,22 @@ public class XtbImportService {
     }
 
     private String getString(Cell cell) {
-        if (cell == null) return null;
-        return cell.getStringCellValue().trim();
+        if (cell == null || cell.getCellType() == CellType.BLANK) {
+            return null;
+        }
+        if (cell.getCellType() == CellType.STRING) {
+            String raw = cell.getStringCellValue();
+            return raw == null ? null : raw.trim();
+        }
+        // POI would throw IllegalStateException for non-STRING cells; the formatter
+        // safely renders NUMERIC / BOOLEAN / FORMULA / ERROR with Locale.ROOT (so a
+        // numeric id stays "12345", not "12 345" or "12,345.00").
+        String formatted = DATA_FORMATTER.formatCellValue(cell);
+        if (formatted == null) {
+            return null;
+        }
+        String trimmed = formatted.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private Double getDouble(Cell cell) {

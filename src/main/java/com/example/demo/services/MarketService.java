@@ -2,12 +2,13 @@ package com.example.demo.services;
 
 import com.example.demo.services.models.StockQuote;
 import com.example.demo.data.repository.*;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
+import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -17,18 +18,39 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @Transactional
-@RequiredArgsConstructor
 public class MarketService {
 
     public static final Set<String> NOT_SUPPORTED_SYMBOLS = Set.of("CSPX");
     private static final String IBKR_ACCOUNT = "IBKR";
 
-    private final TwelveDataService twelveDataService;
+    /**
+     * TwelveData free tier allows 8 calls per minute. Group the symbol fetches into
+     * chunks of that size and pause between them so we don't trip the rate limit.
+     */
+    static final int CHUNK_SIZE = 8;
+    /** Default inter-chunk pause matching the free-tier rate window. */
+    static final long DEFAULT_CHUNK_PAUSE_MS = 120_000L;
 
+    private final TwelveDataService twelveDataService;
     private final OpenedPositionRepository openedPositionRepository;
     private final StockRepository stockRepository;
     private final HistoryService historyService;
     private final AccountSummaryRepository accountSummaryRepository;
+    private final Duration chunkPause;
+
+    public MarketService(TwelveDataService twelveDataService,
+                         OpenedPositionRepository openedPositionRepository,
+                         StockRepository stockRepository,
+                         HistoryService historyService,
+                         AccountSummaryRepository accountSummaryRepository,
+                         @Value("${app.market.chunk-pause-ms:" + DEFAULT_CHUNK_PAUSE_MS + "}") long chunkPauseMs) {
+        this.twelveDataService = twelveDataService;
+        this.openedPositionRepository = openedPositionRepository;
+        this.stockRepository = stockRepository;
+        this.historyService = historyService;
+        this.accountSummaryRepository = accountSummaryRepository;
+        this.chunkPause = Duration.ofMillis(Math.max(0L, chunkPauseMs));
+    }
 
     public void createStocks() {
         Map<String, List<OpenedPosition>> openedPositions = openedPositionRepository.findAll().stream()
@@ -83,29 +105,42 @@ public class MarketService {
                         LinkedHashMap::new // preserve order
                 ));
 
-        List<Map<String, Stock>> chunks = splitIntoChunks(stocks, 8);
+        List<Map<String, Stock>> chunks = splitIntoChunks(stocks, CHUNK_SIZE);
         log.info("Found {} stocks, divided in {} chunks", stocks.size(), chunks.size());
         AtomicInteger i = new AtomicInteger(1);
-        chunks.forEach(chunk  -> {
-            log.info("Updating chunk {} out of {}", i.getAndIncrement(), chunks.size());
+        for (Map<String, Stock> chunk : chunks) {
+            int idx = i.getAndIncrement();
+            log.info("Updating chunk {} out of {}", idx, chunks.size());
             try {
                 updateStockMarketPrice(chunk);
             } catch (Exception e) {
                 // e.g. TwelveData 429 rate limit: skip this chunk, keep the prices we already
                 // fetched, and let a later run pick up the rest instead of failing the whole sync.
-                log.warn("Skipping stock chunk (will retry next run): {}", e.getMessage());
+                log.warn("Skipping stock chunk {} (will retry next run): {}", idx, e.getMessage());
             }
-            try {
-                Thread.sleep(120_000); // 2 minutes
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new RuntimeException(e);
+            // No point sleeping after the final chunk.
+            if (idx < chunks.size() && !chunkPause.isZero()) {
+                if (!sleep(chunkPause)) {
+                    log.warn("Stock sync interrupted after chunk {}; stopping cleanly", idx);
+                    return;
+                }
             }
-        });
+        }
         log.info("Updating stock prices for the open positions finished");
     }
 
-    public static <K, V> List<Map<K, V>> splitIntoChunks(Map<K, V> map, int chunkSize) {
+    /** @return {@code true} if the full pause elapsed, {@code false} if interrupted. */
+    private static boolean sleep(Duration duration) {
+        try {
+            Thread.sleep(duration.toMillis());
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    static <K, V> List<Map<K, V>> splitIntoChunks(Map<K, V> map, int chunkSize) {
         List<Map<K, V>> chunks = new ArrayList<>();
         Map<K, V> currentChunk = new LinkedHashMap<>();
         int count = 0;
@@ -128,29 +163,29 @@ public class MarketService {
     }
 
     private void updateStockMarketPrice(Map<String, Stock> stocks) {
-        try {
-            ZonedDateTime now = ZonedDateTime.now();
-            String tickers = String.join(",", stocks.keySet().stream()
-                    .filter(s -> !NOT_SUPPORTED_SYMBOLS.contains(s))
-                    .collect(Collectors.toSet()));
-            log.info("Fetching data for : {}", tickers);
-            Map<String, StockQuote> stockQuotes = twelveDataService.fetchStockQuotes(tickers);
-            log.info("Fetched. {}", stockQuotes.values().stream()
-                    .map(q -> String.format("%s.%s: %.2f", q.getSymbol(), q.getCurrency(), q.getClose())).collect(Collectors.joining(",")));
-            stocks.forEach((ticker, stock) -> {
-                StockQuote stockQuote = stockQuotes.get(ticker);
-                if (stockQuote == null) {
-                    return;
-                }
-                stock.setMarketPrice(stockQuote.getClose());
-                stock.setDayOpenPrice(stockQuote.getOpen());
-                stock.setProfit(stock.getAmount() * (stock.getMarketPrice() - stock.getOpenPrice()));
-                stock.setUpdatedDate(now);
-            });
-            stockRepository.saveAll(stocks.values());
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to fetch from TwelveDataService", e);
+        ZonedDateTime now = ZonedDateTime.now();
+        String tickers = stocks.keySet().stream()
+                .filter(s -> !NOT_SUPPORTED_SYMBOLS.contains(s))
+                .collect(Collectors.joining(","));
+        if (tickers.isEmpty()) {
+            return; // entire chunk was unsupported; skip the HTTP round-trip
         }
+        log.info("Fetching data for : {}", tickers);
+        Map<String, StockQuote> stockQuotes = twelveDataService.fetchStockQuotes(tickers);
+        log.info("Fetched. {}", stockQuotes.values().stream()
+                .map(q -> String.format("%s.%s: %.2f", q.getSymbol(), q.getCurrency(), q.getClose()))
+                .collect(Collectors.joining(",")));
+        stocks.forEach((ticker, stock) -> {
+            StockQuote stockQuote = stockQuotes.get(ticker);
+            if (stockQuote == null) {
+                return;
+            }
+            stock.setMarketPrice(stockQuote.getClose());
+            stock.setDayOpenPrice(stockQuote.getOpen());
+            stock.setProfit(stock.getAmount() * (stock.getMarketPrice() - stock.getOpenPrice()));
+            stock.setUpdatedDate(now);
+        });
+        stockRepository.saveAll(stocks.values());
     }
 
     public void syncStocks() {
@@ -160,23 +195,19 @@ public class MarketService {
         Map<String, Stock> stocks = stockRepository.findAll().stream()
                 .collect(Collectors.toMap(Stock::getSymbol, Function.identity(), (a, b) -> b, LinkedHashMap::new));
 
-        try {
-            ZonedDateTime now = ZonedDateTime.now();
-            openedPositions.forEach((symbol, positions) -> {
-                Stock stock = stocks.get(symbol);
-                if (stock == null) {
-                    return;
-                }
-                positions.forEach(position -> {
-                    position.setMarketPrice(stock.getMarketPrice());
-                    position.setProfit(position.getVolume() * (position.getMarketPrice() - position.getOpenPrice()));
-                });
-                stock.setSyncDate(now);
-                openedPositionRepository.saveAll(positions);
+        ZonedDateTime now = ZonedDateTime.now();
+        openedPositions.forEach((symbol, positions) -> {
+            Stock stock = stocks.get(symbol);
+            if (stock == null) {
+                return;
+            }
+            positions.forEach(position -> {
+                position.setMarketPrice(stock.getMarketPrice());
+                position.setProfit(position.getVolume() * (position.getMarketPrice() - position.getOpenPrice()));
             });
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to fetch from TwelveDataService", e);
-        }
+            stock.setSyncDate(now);
+            openedPositionRepository.saveAll(positions);
+        });
     }
 
     public void fullPortfolioUpdate() {
