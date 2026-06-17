@@ -1,7 +1,8 @@
 package com.example.demo.services;
 
+import com.example.demo.clients.TwelveDataService;
 import com.example.demo.services.models.StockQuote;
-import com.example.demo.data.repository.*;
+import com.example.demo.infrastructure.repository.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -213,7 +214,7 @@ public class MarketService {
     public void fullPortfolioUpdate() {
         createStocks();   // ensure a Stock row exists for every quotable holding (idempotent)
         updateStocks();
-//        syncStocks();
+        syncStocks();
         syncIbkrPositions();
         historyService.saveHistory();
     }

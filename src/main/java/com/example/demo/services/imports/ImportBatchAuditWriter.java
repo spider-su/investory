@@ -1,12 +1,12 @@
 package com.example.demo.services.imports;
 
-import com.example.demo.data.BrokerType;
-import com.example.demo.data.ImportBatchStatus;
-import com.example.demo.data.ImportSourceType;
-import com.example.demo.data.repository.ImportBatch;
-import com.example.demo.data.repository.ImportBatchRepository;
-import com.example.demo.data.repository.ImportRowError;
-import com.example.demo.data.repository.ImportRowErrorRepository;
+import com.example.demo.infrastructure.BrokerType;
+import com.example.demo.infrastructure.ImportBatchStatus;
+import com.example.demo.infrastructure.ImportSourceType;
+import com.example.demo.infrastructure.repository.ImportBatch;
+import com.example.demo.infrastructure.repository.ImportBatchRepository;
+import com.example.demo.infrastructure.repository.ImportRowError;
+import com.example.demo.infrastructure.repository.ImportRowErrorRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;

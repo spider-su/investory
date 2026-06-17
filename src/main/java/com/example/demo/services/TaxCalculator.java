@@ -1,7 +1,8 @@
 package com.example.demo.services;
 
-import com.example.demo.data.CurrencyType;
-import com.example.demo.data.repository.ClosedPosition;
+import com.example.demo.infrastructure.CurrencyType;
+import com.example.demo.infrastructure.repository.ClosedPosition;
+import com.example.demo.services.currency.CurrencyRateService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

@@ -1,8 +1,9 @@
 package com.example.demo.services;
 
-import com.example.demo.data.CurrencyType;
-import com.example.demo.data.repository.CurrencyRate;
-import com.example.demo.data.repository.CurrencyRateRepository;
+import com.example.demo.infrastructure.CurrencyType;
+import com.example.demo.infrastructure.repository.CurrencyRate;
+import com.example.demo.infrastructure.repository.CurrencyRateRepository;
+import com.example.demo.services.currency.CurrencyRateService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

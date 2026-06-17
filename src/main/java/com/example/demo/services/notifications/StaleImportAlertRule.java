@@ -1,8 +1,8 @@
 package com.example.demo.services.notifications;
 
-import com.example.demo.data.ImportBatchStatus;
-import com.example.demo.data.repository.ImportBatch;
-import com.example.demo.data.repository.ImportBatchRepository;
+import com.example.demo.infrastructure.ImportBatchStatus;
+import com.example.demo.infrastructure.repository.ImportBatch;
+import com.example.demo.infrastructure.repository.ImportBatchRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

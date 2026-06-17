@@ -1,6 +1,6 @@
 package com.example.demo.config;
 
-import com.example.demo.services.CurrencyRateUpdaterService;
+import com.example.demo.services.currency.CurrencyRateUpdaterService;
 import com.example.demo.services.MarketService;
 import com.example.demo.services.notifications.NotificationService;
 import org.junit.jupiter.api.Test;

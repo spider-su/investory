@@ -1,6 +1,6 @@
 package com.example.demo.services.notifications;
 
-import com.example.demo.data.CurrencyType;
+import com.example.demo.infrastructure.CurrencyType;
 import com.example.demo.services.PortfolioService;
 import com.example.demo.services.models.Portfolio;
 import org.junit.jupiter.api.BeforeEach;

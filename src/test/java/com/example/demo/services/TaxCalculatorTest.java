@@ -1,7 +1,8 @@
 package com.example.demo.services;
 
-import com.example.demo.data.CurrencyType;
-import com.example.demo.data.repository.ClosedPosition;
+import com.example.demo.infrastructure.CurrencyType;
+import com.example.demo.infrastructure.repository.ClosedPosition;
+import com.example.demo.services.currency.CurrencyRateService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,7 +15,6 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class TaxCalculatorTest {

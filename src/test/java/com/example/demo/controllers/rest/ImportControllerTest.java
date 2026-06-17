@@ -2,9 +2,9 @@ package com.example.demo.controllers.rest;
 
 import com.example.demo.config.MockMvcSecurityTestConfig;
 import com.example.demo.config.SecurityConfig;
-import com.example.demo.data.BrokerType;
-import com.example.demo.data.ImportBatchStatus;
-import com.example.demo.data.ImportSourceType;
+import com.example.demo.infrastructure.BrokerType;
+import com.example.demo.infrastructure.ImportBatchStatus;
+import com.example.demo.infrastructure.ImportSourceType;
 import com.example.demo.services.imports.ImportBatchResponse;
 import com.example.demo.services.imports.ImportFailedException;
 import com.example.demo.services.imports.ImportOrchestratorService;

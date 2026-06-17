@@ -1,7 +1,8 @@
 package com.example.demo.services;
 
-import com.example.demo.data.CurrencyType;
-import com.example.demo.data.repository.*;
+import com.example.demo.clients.TwelveDataService;
+import com.example.demo.infrastructure.CurrencyType;
+import com.example.demo.infrastructure.repository.*;
 import com.example.demo.services.models.StockQuote;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

@@ -1,7 +1,8 @@
 package com.example.demo.services;
 
-import com.example.demo.data.CurrencyType;
-import com.example.demo.data.repository.*;
+import com.example.demo.infrastructure.CurrencyType;
+import com.example.demo.infrastructure.repository.*;
+import com.example.demo.services.currency.CurrencyRateService;
 import com.example.demo.services.models.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

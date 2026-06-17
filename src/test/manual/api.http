@@ -34,3 +34,6 @@ Authorization: Basic admin admin
 POST http://localhost:8080/portfolio/sync
 Authorization: Basic admin admin
 
+###
+POST http://localhost:8080/currency/refresh
+Authorization: Basic admin admin

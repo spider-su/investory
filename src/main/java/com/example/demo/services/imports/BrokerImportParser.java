@@ -1,6 +1,6 @@
 package com.example.demo.services.imports;
 
-import com.example.demo.data.BrokerType;
+import com.example.demo.infrastructure.BrokerType;
 
 import java.io.InputStream;
 

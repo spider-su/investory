@@ -1,7 +1,7 @@
 package com.example.demo.services.imports;
 
-import com.example.demo.data.BrokerType;
-import com.example.demo.data.ImportBatchStatus;
+import com.example.demo.infrastructure.BrokerType;
+import com.example.demo.infrastructure.ImportBatchStatus;
 
 public record ImportBatchResponse(Long batchId,
                                   BrokerType broker,

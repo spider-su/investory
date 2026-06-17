@@ -1,6 +1,6 @@
 package com.example.demo.services.models;
 
-import com.example.demo.data.CurrencyType;
+import com.example.demo.infrastructure.CurrencyType;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;

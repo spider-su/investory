@@ -1,8 +1,8 @@
 package com.example.demo.config;
 
-import com.example.demo.data.BrokerType;
-import com.example.demo.data.ImportBatchStatus;
-import com.example.demo.data.ImportSourceType;
+import com.example.demo.infrastructure.BrokerType;
+import com.example.demo.infrastructure.ImportBatchStatus;
+import com.example.demo.infrastructure.ImportSourceType;
 import com.example.demo.controllers.rest.ImportController;
 import com.example.demo.controllers.rest.StockController;
 import com.example.demo.services.MarketService;

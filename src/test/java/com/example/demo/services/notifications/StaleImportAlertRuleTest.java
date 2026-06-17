@@ -1,9 +1,9 @@
 package com.example.demo.services.notifications;
 
-import com.example.demo.data.BrokerType;
-import com.example.demo.data.ImportBatchStatus;
-import com.example.demo.data.repository.ImportBatch;
-import com.example.demo.data.repository.ImportBatchRepository;
+import com.example.demo.infrastructure.BrokerType;
+import com.example.demo.infrastructure.ImportBatchStatus;
+import com.example.demo.infrastructure.repository.ImportBatch;
+import com.example.demo.infrastructure.repository.ImportBatchRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

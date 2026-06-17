@@ -1,8 +1,9 @@
 package com.example.demo.services;
 
-import com.example.demo.data.CashOperationType;
-import com.example.demo.data.CurrencyType;
-import com.example.demo.data.repository.*;
+import com.example.demo.infrastructure.CashOperationType;
+import com.example.demo.infrastructure.CurrencyType;
+import com.example.demo.infrastructure.repository.*;
+import com.example.demo.services.currency.CurrencyRateService;
 import com.example.demo.services.models.InstrumentPerformance;
 import com.example.demo.services.models.Performance;
 import com.example.demo.services.models.Portfolio;

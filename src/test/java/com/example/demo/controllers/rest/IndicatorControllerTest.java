@@ -2,8 +2,8 @@ package com.example.demo.controllers.rest;
 
 import com.example.demo.config.MockMvcSecurityTestConfig;
 import com.example.demo.config.SecurityConfig;
-import com.example.demo.services.FundamentalService;
-import com.example.demo.services.TechnicalService;
+import com.example.demo.services.indicators.FundamentalService;
+import com.example.demo.services.indicators.TechnicalService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;

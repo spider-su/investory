@@ -1,7 +1,9 @@
 package com.example.demo.services;
 
 import com.example.demo.clients.ExchangeRateClient;
-import com.example.demo.data.CurrencyType;
+import com.example.demo.infrastructure.CurrencyType;
+import com.example.demo.services.currency.CurrencyRateService;
+import com.example.demo.services.currency.CurrencyRateUpdaterService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

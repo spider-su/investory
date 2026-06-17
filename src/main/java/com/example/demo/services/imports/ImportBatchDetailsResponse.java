@@ -1,8 +1,8 @@
 package com.example.demo.services.imports;
 
-import com.example.demo.data.BrokerType;
-import com.example.demo.data.ImportBatchStatus;
-import com.example.demo.data.ImportSourceType;
+import com.example.demo.infrastructure.BrokerType;
+import com.example.demo.infrastructure.ImportBatchStatus;
+import com.example.demo.infrastructure.ImportSourceType;
 
 import java.time.ZonedDateTime;
 

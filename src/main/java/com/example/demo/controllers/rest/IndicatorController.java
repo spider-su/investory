@@ -1,7 +1,7 @@
 package com.example.demo.controllers.rest;
 
-import com.example.demo.services.FundamentalService;
-import com.example.demo.services.TechnicalService;
+import com.example.demo.services.indicators.FundamentalService;
+import com.example.demo.services.indicators.TechnicalService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PostMapping;

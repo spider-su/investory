@@ -1,9 +1,9 @@
 package com.example.demo.services.notifications;
 
-import com.example.demo.data.repository.OpenedPosition;
-import com.example.demo.data.repository.OpenedPositionRepository;
-import com.example.demo.services.CurrencyRateService;
-import com.example.demo.data.CurrencyType;
+import com.example.demo.infrastructure.repository.OpenedPosition;
+import com.example.demo.infrastructure.repository.OpenedPositionRepository;
+import com.example.demo.services.currency.CurrencyRateService;
+import com.example.demo.infrastructure.CurrencyType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

@@ -1,10 +1,10 @@
 package com.example.demo.services.imports;
 
-import com.example.demo.data.BrokerType;
-import com.example.demo.data.ImportSourceType;
-import com.example.demo.data.repository.ImportBatch;
-import com.example.demo.data.repository.ImportBatchRepository;
-import com.example.demo.data.repository.ImportRowErrorRepository;
+import com.example.demo.infrastructure.BrokerType;
+import com.example.demo.infrastructure.ImportSourceType;
+import com.example.demo.infrastructure.repository.ImportBatch;
+import com.example.demo.infrastructure.repository.ImportBatchRepository;
+import com.example.demo.infrastructure.repository.ImportRowErrorRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

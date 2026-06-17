@@ -2,7 +2,7 @@ package com.example.demo.controllers.rest;
 
 import com.example.demo.config.MockMvcSecurityTestConfig;
 import com.example.demo.config.SecurityConfig;
-import com.example.demo.services.CurrencyRateUpdaterService;
+import com.example.demo.services.currency.CurrencyRateUpdaterService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;

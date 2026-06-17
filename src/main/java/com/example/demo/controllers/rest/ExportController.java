@@ -1,6 +1,6 @@
 package com.example.demo.controllers.rest;
 
-import com.example.demo.services.YahooExportService;
+import com.example.demo.services.imports.yahoo.YahooExportService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PostMapping;

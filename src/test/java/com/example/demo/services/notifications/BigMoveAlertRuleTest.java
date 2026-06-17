@@ -1,7 +1,7 @@
 package com.example.demo.services.notifications;
 
-import com.example.demo.data.repository.Stock;
-import com.example.demo.data.repository.StockRepository;
+import com.example.demo.infrastructure.repository.Stock;
+import com.example.demo.infrastructure.repository.StockRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

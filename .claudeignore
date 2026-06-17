@@ -1,0 +1,8 @@
+**/target/**
+**/.idea/**
+**/.git/**
+**/.github/**
+**/node_modules/**
+**/build/**
+*.class
+*.jar

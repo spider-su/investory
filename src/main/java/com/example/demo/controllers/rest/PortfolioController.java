@@ -1,7 +1,7 @@
 package com.example.demo.controllers.rest;
 
-import com.example.demo.data.CurrencyType;
-import com.example.demo.data.repository.OpenPositionHistory;
+import com.example.demo.infrastructure.CurrencyType;
+import com.example.demo.infrastructure.repository.OpenPositionHistory;
 import com.example.demo.services.BenchmarkService;
 import com.example.demo.services.HistoryService;
 import com.example.demo.services.MarketService;

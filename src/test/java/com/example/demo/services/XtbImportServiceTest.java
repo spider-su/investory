@@ -1,7 +1,8 @@
 package com.example.demo.services;
 
-import com.example.demo.data.CurrencyType;
-import com.example.demo.data.repository.*;
+import com.example.demo.infrastructure.CurrencyType;
+import com.example.demo.infrastructure.repository.*;
+import com.example.demo.services.imports.xtb.XtbImportService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;

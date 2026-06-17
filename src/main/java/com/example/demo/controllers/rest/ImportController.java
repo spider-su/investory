@@ -1,7 +1,7 @@
 package com.example.demo.controllers.rest;
 
-import com.example.demo.data.BrokerType;
-import com.example.demo.data.ImportSourceType;
+import com.example.demo.infrastructure.BrokerType;
+import com.example.demo.infrastructure.ImportSourceType;
 import com.example.demo.services.imports.ImportBatchResponse;
 import com.example.demo.services.imports.ImportBatchDetailsResponse;
 import com.example.demo.services.imports.ImportFailedException;

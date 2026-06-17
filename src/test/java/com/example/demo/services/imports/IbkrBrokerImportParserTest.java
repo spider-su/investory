@@ -1,7 +1,8 @@
 package com.example.demo.services.imports;
 
-import com.example.demo.data.BrokerType;
-import com.example.demo.services.IbkrImportService;
+import com.example.demo.infrastructure.BrokerType;
+import com.example.demo.services.imports.ibrk.IbkrBrokerImportParser;
+import com.example.demo.services.imports.ibrk.IbkrImportService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;

@@ -1,7 +1,8 @@
 package com.example.demo.services.imports;
 
-import com.example.demo.data.BrokerType;
-import com.example.demo.services.XtbImportService;
+import com.example.demo.infrastructure.BrokerType;
+import com.example.demo.services.imports.xtb.XtbBrokerImportParser;
+import com.example.demo.services.imports.xtb.XtbImportService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;

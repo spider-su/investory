@@ -1,6 +1,6 @@
 package com.example.demo.controllers.bot;
 
-import com.example.demo.data.BrokerType;
+import com.example.demo.infrastructure.BrokerType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
