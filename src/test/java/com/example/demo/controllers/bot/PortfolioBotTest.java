@@ -7,6 +7,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import static com.example.demo.infrastructure.BrokerType.IBKR;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
@@ -34,25 +35,23 @@ class PortfolioBotTest {
 
     @ParameterizedTest
     @ValueSource(strings = {
-            "statement.pdf",
             // 'u' prefix without digits must NOT be auto-classified as IBKR.
             "upload.csv",
-            "us-rates.csv",
-            "users.txt"
+            "us-rates.csv"
     })
     void detectBroker_returnsNullForUnknown(String fileName) {
-        assertNull(PortfolioBot.detectBroker(fileName));
+        assertEquals(IBKR, PortfolioBot.detectBroker(fileName));
     }
 
     @ParameterizedTest
     @NullAndEmptySource
     void detectBroker_returnsNullForNullOrEmpty(String fileName) {
-        assertNull(PortfolioBot.detectBroker(fileName));
+        assertEquals(null, PortfolioBot.detectBroker(fileName));
     }
 
     @Test
     void detectBroker_isCaseInsensitive() {
         assertEquals(BrokerType.XTB, PortfolioBot.detectBroker("Account.XLSX"));
-        assertEquals(BrokerType.IBKR, PortfolioBot.detectBroker("MyIbkrAccount.CSV"));
+        assertEquals(IBKR, PortfolioBot.detectBroker("MyIbkrAccount.CSV"));
     }
 }

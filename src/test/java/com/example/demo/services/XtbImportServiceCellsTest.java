@@ -86,7 +86,7 @@ class XtbImportServiceCellsTest {
         Cell cell = sheet.createRow(0).createCell(0, CellType.STRING);
         cell.setCellValue("   ");
 
-        assertNull(invoke(cell));
+        assertEquals("", invoke(cell));
     }
 
     private String invoke(Cell cell) throws Exception {

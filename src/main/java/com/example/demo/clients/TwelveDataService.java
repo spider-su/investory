@@ -54,12 +54,12 @@ public class TwelveDataService {
     }
 
     /** Test seam: swap the underlying HTTP client (e.g. for a Mockito mock). */
-    void setHttpClient(HttpClient httpClient) {
+    public void setHttpClient(HttpClient httpClient) {
         this.httpClient = httpClient;
     }
 
     /** Test seam: set the API key without going through Spring property binding. */
-    void setApiKey(String apiKey) {
+    public void setApiKey(String apiKey) {
         this.apiKey = apiKey;
     }
 
