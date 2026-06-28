@@ -55,3 +55,60 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     });
 })();
+
+const fileInput = document.getElementById('xtb-file-input');
+const uploadForm = document.getElementById('xtb-upload-form');
+const fileNameBadge = document.getElementById('file-chosen-name');
+
+if (fileInput) {
+    fileInput.addEventListener('change', function() {
+        if (this.files && this.files.length > 0) {
+            const file = this.files[0];
+            fileNameBadge.innerText = "Uploading: " + file.name;
+            fileNameBadge.style.display = 'inline-block';
+
+            // Prepare multipart data payload
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // Send asynchronous POST request
+            fetch('/import/xtb', {
+                method: 'POST',
+                body: formData
+                // Browser automatically applies basic auth if logged into localhost:8080
+            })
+                .then(response => {
+                    if (!response.ok) throw new Error('Network response error');
+                    return response.json();
+                })
+                .then(data => {
+                    // Populate data into the modal elements
+                    document.getElementById('modal-message').innerText = data.message;
+                    document.getElementById('modal-status').innerText = data.status;
+                    document.getElementById('modal-rows-total').innerText = data.rowsTotal;
+                    document.getElementById('modal-rows-applied').innerText = data.rowsApplied;
+                    document.getElementById('modal-rows-failed').innerText = data.rowsFailed;
+
+                    // Apply success/failure coloring to status badge
+                    const statusBadge = document.getElementById('modal-status');
+                    if(data.status === 'APPLIED') {
+                        statusBadge.className = "iv-badge iv-badge--pos";
+                    } else {
+                        statusBadge.className = "iv-badge iv-badge--neg";
+                    }
+
+                    // Reveal Modal overlay
+                    document.getElementById('status-modal').style.display = 'flex';
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Failed to upload statement layout. Check server logs.');
+                });
+        }
+    });
+}
+
+// Modal Close Function helper
+window.closeModal = function() {
+    document.getElementById('status-modal').style.display = 'none';
+}
