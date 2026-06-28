@@ -98,12 +98,12 @@ public class ImportBatchAuditWriter {
             return null;
         }
         if (rawPayload.length <= RAW_PAYLOAD_LIMIT) {
-            return new String(rawPayload, java.nio.charset.StandardCharsets.UTF_8);
+            return new String(rawPayload, java.nio.charset.StandardCharsets.UTF_8).replace("\u0000", "");
         }
         byte[] head = new byte[RAW_PAYLOAD_LIMIT];
         System.arraycopy(rawPayload, 0, head, 0, RAW_PAYLOAD_LIMIT);
         return "[truncated to " + RAW_PAYLOAD_LIMIT + " of " + rawPayload.length + " bytes]\n"
-                + new String(head, java.nio.charset.StandardCharsets.UTF_8);
+                + new String(head, java.nio.charset.StandardCharsets.UTF_8).replace("\u0000", "");
     }
 }
 
