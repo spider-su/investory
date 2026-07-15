@@ -1,15 +1,16 @@
 package com.example.demo.infrastructure.repository;
 
 import com.example.demo.infrastructure.CurrencyType;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
-
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
 @Repository
 public interface CurrencyRateRepository extends JpaRepository<CurrencyRate, Long> {
-    @Query("SELECT c FROM CurrencyRate c WHERE c.base = :base AND c.toCurrency = :toCurrency")
-    Optional<CurrencyRate> findByBaseAndToCurrency(@Param("base") CurrencyType base, @Param("toCurrency") CurrencyType toCurrency);
+
+    List<CurrencyRate> findAllByOrderByBaseAscToCurrencyAscMonthStartAsc();
+
+    Optional<CurrencyRate> findByMonthStartAndBaseAndToCurrency(LocalDate monthStart, CurrencyType base, CurrencyType toCurrency);
 }

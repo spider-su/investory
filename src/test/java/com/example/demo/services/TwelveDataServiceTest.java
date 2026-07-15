@@ -1,6 +1,6 @@
 package com.example.demo.services;
 
-import com.example.demo.clients.TwelveDataService;
+import com.example.demo.clients.market.TwelveDataService;
 import com.example.demo.services.models.StockQuote;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

@@ -11,10 +11,16 @@ import org.springframework.context.annotation.Import;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import static org.hamcrest.Matchers.containsString;
-import static org.mockito.Mockito.verify;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(controllers = ExportController.class)
@@ -24,21 +30,28 @@ class ExportControllerTest {
     @Autowired private MockMvc mockMvc;
     @MockitoBean private YahooExportService exportService;
 
-    @Test
-    @WithMockUser(roles = "ADMIN")
-    void save_callsServiceAndReturnsPath() throws Exception {
-        mockMvc.perform(post("/export/save"))
-                .andExpect(status().isOk())
-                .andExpect(content().string(containsString("yahoo_export.csv")));
+    // ── GET /export/generate ────────────────────────────────────────────────
 
-        verify(exportService).exportToYahooCsv("yahoo_export.csv");
+    @Test
+    @WithMockUser
+    void generate_returnsPortfolioCsvDownload() throws Exception {
+        doAnswer(invocation -> {
+            String path = invocation.getArgument(0, String.class);
+            Files.writeString(Path.of(path), "Symbol\nAAPL", StandardCharsets.UTF_8);
+            return null;
+        }).when(exportService).exportToYahooCsv(anyString());
+
+        mockMvc.perform(get("/export/generate"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("text/csv"))
+                .andExpect(header().string("Content-Disposition", containsString("attachment")))
+                .andExpect(header().string("Content-Disposition", containsString("yahoo-portfolio-")))
+                .andExpect(content().string(containsString("AAPL")));
     }
 
     @Test
-    @WithMockUser(roles = "USER")
-    void save_forbiddenForNonAdmin() throws Exception {
-        mockMvc.perform(post("/export/save"))
-                .andExpect(status().isForbidden());
+    void generate_requiresAuthentication() throws Exception {
+        mockMvc.perform(get("/export/generate"))
+                .andExpect(status().isUnauthorized());
     }
 }
-

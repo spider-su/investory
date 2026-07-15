@@ -21,14 +21,17 @@ spring:
       hibernate:
         default_schema: investory
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/inventory}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/investory}
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
   flyway:
     enabled: true
     schemas: investory
+    default-schema: investory
+    create-schemas: true
     locations: classpath:sql/migration
+    out-of-order: true
   devtools:
     restart:
       enabled: true
@@ -64,4 +67,16 @@ app:
     big-move-threshold-pct: ${ALERT_BIG_MOVE_PCT:5}
     concentration-threshold-pct: ${ALERT_CONCENTRATION_PCT:25}
     stale-import-days: ${ALERT_STALE_IMPORT_DAYS:7}
+  market:
+    chunk-pause-ms: ${MARKET_CHUNK_PAUSE_MS:120000}
+    # Current TwelveData plan does not allow non-US exchange quotes; manual prices cover these.
+    skip-non-us-listings: ${MARKET_SKIP_NON_US_LISTINGS:true}
+    # Comma-separated stored asset symbols to skip even when they look US-listed.
+    excluded-symbols: ${MARKET_EXCLUDED_SYMBOLS:}
+  export:
+    yahoo:
+      # Comma-separated account IDs to include in Yahoo CSV export.
+      # Leave empty (or omit) to export ALL accounts.
+      # Example: accounts: 51499241,U17959259
+      accounts: ${YAHOO_EXPORT_ACCOUNTS:}
 

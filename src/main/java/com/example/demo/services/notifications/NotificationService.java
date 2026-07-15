@@ -9,6 +9,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Aggregates and dispatches Telegram notifications:
@@ -65,15 +66,15 @@ public class NotificationService {
                         "Dividends: %s %s%n" +
                         "Cap-gains tax (est): %s %s",
                 fmt(p.getBalance()), p.getBaseCurrency(),
-                fmt(p.getTotal()), p.getBaseCurrency(),
-                fmt(p.getTotalUnrealizedInBase()), fmt(p.getTotalProfitInBase()),
+                fmt(p.getTotalProfit()), p.getBaseCurrency(),
+                fmt(p.getUnrealizedProfit()), fmt(p.getRealizedProfit()),
                 fmt(p.getDividends()), p.getBaseCurrency(),
                 fmt(p.getCapitalGainsTax()), p.getBaseCurrency()
         );
     }
 
     private static String fmt(double value) {
-        return String.format("%,.0f", value);
+        return String.format(Locale.US, "%,.0f", value);
     }
 
     private void send(String message) {

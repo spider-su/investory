@@ -9,7 +9,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import static com.example.demo.infrastructure.BrokerType.IBKR;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 
 class PortfolioBotTest {
 

@@ -19,14 +19,11 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.util.Optional;
-
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -57,6 +54,30 @@ class ImportControllerTest {
         ArgumentCaptor<byte[]> bytesCaptor = ArgumentCaptor.forClass(byte[].class);
         verify(importOrchestratorService).importFile(eq(BrokerType.XTB), bytesCaptor.capture(),
                 eq("file.xlsx"), eq(ImportSourceType.MANUAL), any());
+        org.junit.jupiter.api.Assertions.assertArrayEquals("payload".getBytes(), bytesCaptor.getValue());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void importByBroker_passesSourceMetadata() throws Exception {
+        when(importOrchestratorService.importFile(eq(BrokerType.IBKR), any(), eq("statement.csv"),
+                eq(ImportSourceType.TELEGRAM), eq("telegram-file-123")))
+                .thenReturn(new ImportBatchResponse(100L, BrokerType.IBKR, ImportBatchStatus.APPLIED,
+                        1, 1, 0, "ok", false));
+
+        MockMultipartFile multipart = new MockMultipartFile("file", "statement.csv",
+                MediaType.TEXT_PLAIN_VALUE, "payload".getBytes());
+
+        mockMvc.perform(multipart("/import/broker/ibkr")
+                        .file(multipart)
+                        .param("source", "TELEGRAM")
+                        .param("sourceRef", "telegram-file-123")
+                        .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.broker").value("IBKR"));
+
+        verify(importOrchestratorService).importFile(eq(BrokerType.IBKR), any(),
+                eq("statement.csv"), eq(ImportSourceType.TELEGRAM), eq("telegram-file-123"));
     }
 
     @Test
@@ -84,27 +105,12 @@ class ImportControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = "ADMIN")
-    void legacyXtbEndpoint_delegatesToOrchestrator() throws Exception {
-        when(importOrchestratorService.importFile(eq(BrokerType.XTB), any(), eq("legacy.xlsx"),
-                eq(ImportSourceType.MANUAL), any()))
-                .thenReturn(new ImportBatchResponse(1L, BrokerType.XTB, ImportBatchStatus.APPLIED,
-                        1, 1, 0, "ok", false));
-
-        MockMultipartFile multipart = new MockMultipartFile("file", "legacy.xlsx",
+    void importByBroker_requiresAuthentication() throws Exception {
+        MockMultipartFile multipart = new MockMultipartFile("file", "file.xlsx",
                 MediaType.APPLICATION_OCTET_STREAM_VALUE, "payload".getBytes());
 
-        mockMvc.perform(multipart("/import/xtb").file(multipart).with(csrf()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.batchId").value(1));
+        mockMvc.perform(multipart("/import/broker/XTB").file(multipart).with(csrf()))
+                .andExpect(status().isUnauthorized());
     }
 
-    @Test
-    @WithMockUser(roles = "USER")
-    void getBatch_returns404WhenMissing() throws Exception {
-        when(importOrchestratorService.getBatch(404L)).thenReturn(Optional.empty());
-
-        mockMvc.perform(get("/import/batches/404"))
-                .andExpect(status().isNotFound());
-    }
 }

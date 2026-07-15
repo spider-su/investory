@@ -1,8 +1,8 @@
 package com.example.demo.services.notifications;
 
 import com.example.demo.infrastructure.ImportBatchStatus;
-import com.example.demo.infrastructure.repository.ImportBatch;
-import com.example.demo.infrastructure.repository.ImportBatchRepository;
+import com.example.demo.infrastructure.repository.imports.ImportHistory;
+import com.example.demo.infrastructure.repository.imports.ImportRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -17,7 +17,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class StaleImportAlertRule implements AlertRule {
 
-    private final ImportBatchRepository importBatchRepository;
+    private final ImportRepository importRepository;
     private final NotificationProperties properties;
 
     @Override
@@ -27,11 +27,11 @@ public class StaleImportAlertRule implements AlertRule {
 
     @Override
     public Optional<String> evaluate() {
-        Optional<ImportBatch> latest = importBatchRepository.findFirstByOrderByIdDesc();
+        Optional<ImportHistory> latest = importRepository.findFirstByOrderByIdDesc();
         if (latest.isEmpty()) {
             return Optional.of("No broker imports recorded yet.");
         }
-        ImportBatch batch = latest.get();
+        ImportHistory batch = latest.get();
         ZonedDateTime ts = batch.getFinishedAt() != null ? batch.getFinishedAt() : batch.getStartedAt();
         if (ts == null) {
             return Optional.empty();

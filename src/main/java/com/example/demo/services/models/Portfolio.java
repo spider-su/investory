@@ -14,8 +14,8 @@ import java.util.Map;
 @NoArgsConstructor
 public class Portfolio {
     CurrencyType baseCurrency = CurrencyType.USD;
-    double totalProfitInBase = 0.0;
-    Map<CurrencyType, Double> profitByCurrency = new HashMap<>();
+    double realizedProfit = 0.0;
+    Map<CurrencyType, Double> realizedByCurrency = new HashMap<>();
 
     double dividends = 0.0;
     Map<CurrencyType, Double> dividendsByCurrency = new HashMap<>();
@@ -34,20 +34,25 @@ public class Portfolio {
     /** Free-funds interest net of interest tax (base currency). */
     double interest = 0.0;
 
-    double totalUnrealizedInBase = 0.0;
+    double unrealizedProfit = 0.0;
     Map<CurrencyType, Double> unrealizedByCurrency = new HashMap<>();
 
-    double total = 0.0;
+    double totalProfit = 0.0;
 
     /** Total assets value (cash + open positions) across all accounts, converted to base currency. */
     double balance = 0.0;
+    /** Free cash across all accounts in base currency. */
+    double cash = 0.0;
+    List<AccountBalance> accountBalances;
+    List<OpenPositionValue> openPositionValues;
+    List<DividendGainer> dividendGainers;
+    /** Return on investment: (balance - netDeposits) / netDeposits * 100. */
+    double roi = 0.0;
 
     Map<CurrencyType, Double> exchangeRates = new HashMap<>();
 
     List<InstrumentPerformance> performancePerSymbol;
 
     Performance monthlyPerformance;
-
-    Map<String, OpenPositionsPerformance> openPositionsFlow;
 
 }

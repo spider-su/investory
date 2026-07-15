@@ -10,11 +10,26 @@ public enum PositionType {
         if (value == null) {
             return UNKNOWN;
         }
-        switch (value.toUpperCase()) {
-            case "BUY": return BUY;
-            case "SELL": return SELL;
-            case "CLOSED": return CLOSED;
-            default: return UNKNOWN;
+        return switch (value.toUpperCase()) {
+            case "BUY" -> BUY;
+            case "SELL" -> SELL;
+            case "CLOSED" -> CLOSED;
+            default -> UNKNOWN;
+        };
+    }
+
+    public static PositionType fromBrokerSideOrBuy(String value) {
+        if (value == null) {
+            return BUY;
         }
+        String normalized = value.trim().toUpperCase();
+        if (normalized.contains("SELL") || normalized.contains("SHORT")) {
+            return SELL;
+        }
+        if (normalized.contains("BUY") || normalized.contains("LONG")) {
+            return BUY;
+        }
+        PositionType parsed = fromString(normalized);
+        return parsed == SELL ? SELL : BUY;
     }
 }

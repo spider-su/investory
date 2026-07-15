@@ -20,7 +20,7 @@ That's roughly 2-3 days of focused work and clears most of the operational rough
 |---|---|---|
 | Actuator + `/actuator/health` (DB, Telegram bot reg, last import age) | S | Container orchestrators (Compose `healthcheck`, K8s probes) need a real signal. |
 | Micrometer + Prometheus exporter | M | Quote-fetch latency, FX-refresh failures, rule-fire counts — none are visible today. |
-| Structured request logging (correlation id per import batch) | S | Currently logs are flat; tying log lines to `import_batch.id` makes triage trivial. |
+| Structured request logging (correlation id per import batch) | S | Currently logs are flat; tying log lines to `imports.id` makes triage trivial. |
 | OpenAPI / Swagger UI (`springdoc-openapi-starter-webmvc-ui`) | S | Replaces the hand-written `src/test/manual/api.http`. ~10 lines + auto-docs. |
 | Dedicated `application-prod.yml` (disable devtools, force `notifications.enabled=true`, tighten Hibernate logging) | S | Today a prod run inherits dev defaults. |
 

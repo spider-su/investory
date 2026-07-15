@@ -1,12 +1,12 @@
 package com.example.demo.services;
 
-import com.example.demo.infrastructure.CashOperationType;
 import com.example.demo.infrastructure.CurrencyType;
 import com.example.demo.infrastructure.repository.CashOperation;
 import com.example.demo.services.currency.CurrencyRateService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,26 +57,26 @@ public class CashFlowAggregator {
             CurrencyType currency = entry.getKey();
             List<CashOperation> positions = entry.getValue();
 
-            double grossDividends = positions.stream()
-                    .filter(op -> op.getType() == CashOperationType.DIVIDEND)
-                    .mapToDouble(op -> nz(op.getAmount()))
-                    .sum();
-            // Dividend withholding tax (already deducted at source); amounts are negative.
-            double withholdingTax = positions.stream()
-                    .filter(op -> op.getType() == CashOperationType.WITHHOLDING_TAX)
-                    .mapToDouble(op -> nz(op.getAmount()))
-                    .sum();
-            double netDividends = grossDividends + withholdingTax;
-            dividendsByCurrency.merge(currency, netDividends, Double::sum);
-            dividends += currencyRateService.convertToBaseCurrency(netDividends, baseCurrency, currency);
-            dividendTax += currencyRateService.convertToBaseCurrency(withholdingTax, baseCurrency, currency);
+            double grossDividends = 0.0;
+            double withholdingTax = 0.0;
 
             for (CashOperation op : positions) {
                 if (op.getType() == null) {
                     continue;
                 }
-                double base = currencyRateService.convertToBaseCurrency(nz(op.getAmount()), baseCurrency, currency);
+                LocalDate rateDate = op.getDate() != null ? op.getDate().toLocalDate() : LocalDate.now();
+                double amount = nz(op.getAmount());
+                double base = currencyRateService.convertToBaseCurrency(amount, baseCurrency, currency, rateDate);
                 switch (op.getType()) {
+                    case DIVIDEND:
+                        grossDividends += amount;
+                        dividends += base;
+                        break;
+                    case WITHHOLDING_TAX:
+                        withholdingTax += amount;
+                        dividends += base;
+                        dividendTax += base;
+                        break;
                     case DEPOSIT:
                         if (isExternalFunding(op)) {
                             deposits += base;
@@ -95,6 +95,8 @@ public class CashFlowAggregator {
                         break;
                 }
             }
+
+            dividendsByCurrency.merge(currency, grossDividends + withholdingTax, Double::sum);
         }
 
         return new CashFlowSummary(deposits, withdrawals, interest, dividends, dividendTax, dividendsByCurrency);

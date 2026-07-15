@@ -1,20 +1,34 @@
 package com.example.demo.services;
 
-import com.example.demo.clients.TwelveDataService;
+import com.example.demo.clients.market.TwelveDataService;
+import com.example.demo.infrastructure.repository.Asset;
+import com.example.demo.infrastructure.repository.AssetRepository;
+import com.example.demo.infrastructure.repository.ClosedPosition;
+import com.example.demo.infrastructure.repository.ClosedPositionRepository;
+import com.example.demo.infrastructure.repository.OpenedPosition;
+import com.example.demo.infrastructure.repository.OpenedPositionRepository;
 import com.example.demo.services.models.StockQuote;
-import com.example.demo.infrastructure.repository.*;
+import java.time.Duration;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.CollectionUtils;
-
-import java.time.Duration;
-import java.time.ZonedDateTime;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.util.StringUtils;
 
 @Slf4j
 @Service
@@ -22,7 +36,7 @@ import java.util.stream.Collectors;
 public class MarketService {
 
     public static final Set<String> NOT_SUPPORTED_SYMBOLS = Set.of("CSPX");
-    private static final String IBKR_ACCOUNT = "IBKR";
+    private static final Long IBKR_ACCOUNT = 17959259L;
 
     /**
      * TwelveData free tier allows 8 calls per minute. Group the symbol fetches into
@@ -31,103 +45,283 @@ public class MarketService {
     static final int CHUNK_SIZE = 8;
     /** Default inter-chunk pause matching the free-tier rate window. */
     static final long DEFAULT_CHUNK_PAUSE_MS = 120_000L;
+    private static final String REMX_UK_SYMBOL = "REMX.UK";
+    private static final double REMX_UK_TWELVE_DATA_DIVISOR = 79.0 / 15.25;
+    private static final String VHYD_UK_SYMBOL = "VHYD.UK";
+    private static final Map<String, String> TWELVE_DATA_SYMBOL_OVERRIDES =
+            Map.of(VHYD_UK_SYMBOL, "VHYDl:CBOE");
 
     private final TwelveDataService twelveDataService;
     private final OpenedPositionRepository openedPositionRepository;
-    private final StockRepository stockRepository;
-    private final HistoryService historyService;
-    private final AccountSummaryRepository accountSummaryRepository;
+    private final ClosedPositionRepository closedPositionRepository;
+    private final AssetRepository assetRepository;
+    private final StatisticsRefreshService statisticsRefreshService;
+    private final boolean skipNonUsListings;
+    private final Set<String> excludedAssetSymbols;
     private final Duration chunkPause;
+    private final TransactionTemplate chunkTransactionTemplate;
 
     public MarketService(TwelveDataService twelveDataService,
                          OpenedPositionRepository openedPositionRepository,
-                         StockRepository stockRepository,
-                         HistoryService historyService,
-                         AccountSummaryRepository accountSummaryRepository,
-                         @Value("${app.market.chunk-pause-ms:" + DEFAULT_CHUNK_PAUSE_MS + "}") long chunkPauseMs) {
+                         ClosedPositionRepository closedPositionRepository,
+                         AssetRepository assetRepository,
+                         StatisticsRefreshService statisticsRefreshService,
+                         PlatformTransactionManager transactionManager,
+                         @Value("${app.market.chunk-pause-ms:" + DEFAULT_CHUNK_PAUSE_MS + "}") long chunkPauseMs,
+                         @Value("${app.market.skip-non-us-listings:true}") boolean skipNonUsListings,
+                         @Value("${app.market.excluded-symbols:}") String excludedSymbolsCsv) {
         this.twelveDataService = twelveDataService;
         this.openedPositionRepository = openedPositionRepository;
-        this.stockRepository = stockRepository;
-        this.historyService = historyService;
-        this.accountSummaryRepository = accountSummaryRepository;
+        this.closedPositionRepository = closedPositionRepository;
+        this.assetRepository = assetRepository;
+        this.statisticsRefreshService = statisticsRefreshService;
+        this.skipNonUsListings = skipNonUsListings;
+        this.excludedAssetSymbols = parseSymbolSet(excludedSymbolsCsv);
         this.chunkPause = Duration.ofMillis(Math.max(0L, chunkPauseMs));
+        this.chunkTransactionTemplate = new TransactionTemplate(transactionManager);
+        this.chunkTransactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
-    public void createStocks() {
-        Map<String, List<OpenedPosition>> openedPositions = openedPositionRepository.findAll().stream()
-                .filter(p -> p.getSymbol() != null
-                        && (p.getSymbol().contains(".US") || IBKR_ACCOUNT.equals(p.getAccount())))
-                .collect(Collectors.groupingBy(OpenedPosition::getSymbol));
-
-        Map<String, Stock> stocks = stockRepository.findAll().stream()
-                .collect(Collectors.toMap(Stock::getSymbol, Function.identity(), (a, b) -> b, LinkedHashMap::new));
-
-        ZonedDateTime now = ZonedDateTime.now();
-        openedPositions.forEach((symbol, positions) -> {
-            if (!stocks.containsKey(symbol)) {
-                stocks.put(symbol, positionToStock(positions, now));
-            }
-        });
-        stockRepository.saveAll(stocks.values());
-    }
-
-    private Stock positionToStock(List<OpenedPosition> positions, ZonedDateTime now) {
-        Stock stock = new Stock();
-        OpenedPosition position = CollectionUtils.firstElement(positions);
-        stock.setCurrency(position.getCurrency());
-        stock.setSymbol(position.getSymbol());
-        // XTB symbols are TICKER.EXCHANGE; IBKR symbols are bare tickers.
-        int dot = position.getSymbol().indexOf(".");
-        stock.setTicker(dot >= 0 ? position.getSymbol().substring(0, dot) : position.getSymbol());
-
-        stock.setAmount(positions.stream().map(OpenedPosition::getVolume).reduce(Double::sum).orElse(0.0));
-        stock.setOpenPrice(positions.stream().map(OpenedPosition::getOpenPrice)
-                .filter(Objects::nonNull)
-                .mapToDouble(Double::doubleValue).average().orElse(0.0));
-        stock.setMarketPrice(positions.stream().map(OpenedPosition::getMarketPrice)
-                .filter(Objects::nonNull)
-                .mapToDouble(Double::doubleValue).average().orElse(0.0));
-        stock.setDayOpenPrice(stock.getMarketPrice());
-        stock.setProfit(positions.stream().map(OpenedPosition::getProfit).reduce(Double::sum).orElse(0.0));
-
-        stock.setSyncDate(now);
-        stock.setUpdatedDate(now.minusHours(1));
-        return stock;
-    }
-
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void updateStocks() {
-        log.info("Updating stock prices for the open positions started");
-        Map<String, Stock> stocks = stockRepository.findAll().stream()
-                .sorted(Comparator.comparing(Stock::getUpdatedDate))
-                .collect(Collectors.toMap(
-                        Stock::getTicker,
-                        Function.identity(),
-                        (a, b) -> b,
-                        LinkedHashMap::new // preserve order
-                ));
+        updateStocks(true);
+    }
 
-        List<Map<String, Stock>> chunks = splitIntoChunks(stocks, CHUNK_SIZE);
-        log.info("Found {} stocks, divided in {} chunks", stocks.size(), chunks.size());
+    private void updateStocks(boolean refreshAfterUpdate) {
+        log.info("Updating asset prices started");
+
+        refreshAssetActivityFromOpenPositions();
+
+        // Source tickers from assets table; skip unsupported symbols.
+        // TwelveData recognizes the app's US-style tickers, not symbols like NVDA.US.
+        Map<String, List<Asset>> assetsByTicker = assetRepository.findAll().stream()
+                .filter(a -> Boolean.TRUE.equals(a.getActive()))
+                .filter(this::isSupportedForPriceUpdate)
+                .collect(Collectors.groupingBy(this::twelveDataSymbol, LinkedHashMap::new, Collectors.toList()));
+
+        // For inactive assets (fully closed positions), keep a meaningful last-known price
+        // from the latest closed deal so portfolio views do not show null/zero prices.
+        backfillInactiveAssetPricesFromLatestClosedDeals();
+
+        List<Map<String, List<Asset>>> chunks = splitIntoChunks(assetsByTicker, CHUNK_SIZE);
+        log.info("Found {} unique tickers across {} assets, divided into {} chunks",
+                assetsByTicker.size(), assetRepository.count(), chunks.size());
+
         AtomicInteger i = new AtomicInteger(1);
-        for (Map<String, Stock> chunk : chunks) {
+        for (Map<String, List<Asset>> chunk : chunks) {
             int idx = i.getAndIncrement();
             log.info("Updating chunk {} out of {}", idx, chunks.size());
             try {
-                updateStockMarketPrice(chunk);
+                runChunkInNewTransaction(chunk);
             } catch (Exception e) {
-                // e.g. TwelveData 429 rate limit: skip this chunk, keep the prices we already
-                // fetched, and let a later run pick up the rest instead of failing the whole sync.
-                log.warn("Skipping stock chunk {} (will retry next run): {}", idx, e.getMessage());
+                log.warn("Chunk {} failed ({}). Retrying tickers individually", idx, e.getMessage());
+                chunk.forEach((ticker, assets) -> {
+                    try {
+                        runChunkInNewTransaction(Map.of(ticker, assets));
+                    } catch (Exception ex) {
+                        log.warn("Skipping ticker {} after fallback retry failure: {}", ticker, ex.getMessage());
+                    }
+                });
             }
-            // No point sleeping after the final chunk.
             if (idx < chunks.size() && !chunkPause.isZero()) {
                 if (!sleep(chunkPause)) {
-                    log.warn("Stock sync interrupted after chunk {}; stopping cleanly", idx);
+                    log.warn("Asset price sync interrupted after chunk {}; stopping cleanly", idx);
+                    refreshStatisticsIfNeeded(refreshAfterUpdate);
                     return;
                 }
             }
         }
-        log.info("Updating stock prices for the open positions finished");
+        refreshStatisticsIfNeeded(refreshAfterUpdate);
+        log.info("Updating asset prices finished");
+    }
+
+    private void runChunkInNewTransaction(Map<String, List<Asset>> chunkByTicker) {
+        chunkTransactionTemplate.executeWithoutResult(
+                status -> fetchAndUpsertPrices(chunkByTicker));
+    }
+
+    private void backfillInactiveAssetPricesFromLatestClosedDeals() {
+        List<Asset> inactiveAssets = assetRepository.findAll().stream()
+                .filter(asset -> !Boolean.TRUE.equals(asset.getActive()))
+                .filter(asset -> StringUtils.hasText(asset.getSymbol()))
+                .toList();
+        if (inactiveAssets.isEmpty()) {
+            return;
+        }
+        Map<String, ClosedPosition> latestClosedBySymbol = closedPositionRepository.findAll().stream()
+                .filter(position -> StringUtils.hasText(position.getSymbol()))
+                .filter(position -> position.getClosePrice() != null)
+                .collect(Collectors.toMap(
+                        ClosedPosition::getSymbol,
+                        position -> position,
+                        (left, right) -> {
+                            ZonedDateTime leftTime = left.getCloseTime();
+                            ZonedDateTime rightTime = right.getCloseTime();
+                            if (leftTime == null) {
+                                return right;
+                            }
+                            if (rightTime == null) {
+                                return left;
+                            }
+                            return rightTime.isAfter(leftTime) ? right : left;
+                        }));
+
+        List<Asset> backfilled = new ArrayList<>();
+        for (Asset asset : inactiveAssets) {
+            ClosedPosition latest = latestClosedBySymbol.get(asset.getSymbol());
+            if (latest == null) {
+                continue;
+            }
+            asset.setMarketPrice(latest.getClosePrice());
+            asset.setMarketPriceUsd(latest.getClosePrice());
+            asset.setPriceSource("ClosedPosition");
+            asset.setPriceUpdatedAt(
+                    latest.getCloseTime() != null ? latest.getCloseTime() : ZonedDateTime.now());
+            backfilled.add(asset);
+        }
+
+        if (!backfilled.isEmpty()) {
+            assetRepository.saveAll(backfilled);
+            log.info("Backfilled {} inactive asset prices from latest closed deals", backfilled.size());
+        }
+    }
+
+    private void refreshAssetActivityFromOpenPositions() {
+        Set<String> openSymbols = openedPositionRepository.findAll().stream()
+                .map(OpenedPosition::getSymbol)
+                .filter(StringUtils::hasText)
+                .collect(Collectors.toSet());
+
+        List<Asset> changed = new ArrayList<>();
+        for (Asset asset : assetRepository.findAll()) {
+            boolean shouldBeActive = openSymbols.contains(asset.getSymbol());
+            if (!Objects.equals(asset.getActive(), shouldBeActive)) {
+                asset.setActive(shouldBeActive);
+                changed.add(asset);
+            }
+        }
+        if (!changed.isEmpty()) {
+            assetRepository.saveAll(changed);
+            log.info("Asset activity refresh: {} assets updated ({} open symbols)", changed.size(), openSymbols.size());
+        }
+    }
+
+    private void fetchAndUpsertPrices(Map<String, List<Asset>> chunkByTicker) {
+        String tickers = String.join(",", chunkByTicker.keySet());
+        if (tickers.isEmpty()) {
+            return;
+        }
+        log.info("Fetching quotes for: {}", tickers);
+        Map<String, StockQuote> quotes = twelveDataService.fetchStockQuotes(tickers);
+        ZonedDateTime now = ZonedDateTime.now();
+
+        List<Asset> toSave = new ArrayList<>();
+        chunkByTicker.forEach((ticker, assets) -> {
+            StockQuote quote = findQuote(quotes, ticker, assets);
+            if (quote == null) {
+                return;
+            }
+            for (Asset asset : assets) {
+                double marketPrice = normalizeMarketPrice(asset, quote.getClose());
+                asset.setMarketPrice(marketPrice);
+                // If the asset currency matches base USD the usd price is the same;
+                // otherwise callers can convert; store raw quote price for now.
+                asset.setMarketPriceUsd(marketPrice);
+                asset.setPriceSource("TwelveData");
+                asset.setPriceUpdatedAt(now);
+                toSave.add(asset);
+            }
+        });
+        assetRepository.saveAll(toSave);
+    }
+
+    private double normalizeMarketPrice(Asset asset, double quoteClose) {
+        if (REMX_UK_SYMBOL.equals(asset.getSymbol())) {
+            return quoteClose / REMX_UK_TWELVE_DATA_DIVISOR;
+        }
+        return quoteClose;
+    }
+
+    private String twelveDataSymbol(Asset asset) {
+        String override = TWELVE_DATA_SYMBOL_OVERRIDES.get(asset.getSymbol());
+        if (override != null) {
+            return override;
+        }
+        String ticker = asset.getTicker();
+        if (!StringUtils.hasText(ticker) || !StringUtils.hasText(asset.getSymbol())) {
+            return ticker;
+        }
+        if (asset.getSymbol().endsWith(".PL")) {
+            return ticker + ":GPW";
+        }
+        if (asset.getSymbol().endsWith(".DE")) {
+            return ticker + ":XETR";
+        }
+        if (asset.getSymbol().endsWith(".UK")) {
+            return ticker + ":LSE";
+        }
+        return ticker;
+    }
+
+    private StockQuote findQuote(Map<String, StockQuote> quotes, String requestKey, List<Asset> assets) {
+        StockQuote byRequestKey = quotes.get(requestKey);
+        if (byRequestKey != null) {
+            return byRequestKey;
+        }
+        String ticker = requestKey;
+        int colon = requestKey.indexOf(':');
+        if (colon > 0) {
+            ticker = requestKey.substring(0, colon);
+        }
+        StockQuote byTicker = quotes.get(ticker);
+        if (byTicker != null) {
+            return byTicker;
+        }
+        for (Asset asset : assets) {
+            StockQuote byAssetTicker = quotes.get(asset.getTicker());
+            if (byAssetTicker != null) {
+                return byAssetTicker;
+            }
+        }
+        return null;
+    }
+
+    private boolean isSupportedForPriceUpdate(Asset asset) {
+        if (asset == null || !StringUtils.hasText(asset.getTicker())) {
+            return false;
+        }
+        String ticker = asset.getTicker().trim().toUpperCase(Locale.ROOT);
+        if (NOT_SUPPORTED_SYMBOLS.contains(ticker)) {
+            return false;
+        }
+        String symbol = asset.getSymbol();
+        if (StringUtils.hasText(symbol)
+                && excludedAssetSymbols.contains(symbol.trim().toUpperCase(Locale.ROOT))) {
+            return false;
+        }
+        return !(skipNonUsListings && isNonUsExchangeSymbol(symbol));
+    }
+
+    private static boolean isNonUsExchangeSymbol(String symbol) {
+        if (!StringUtils.hasText(symbol)) {
+            return false;
+        }
+        int dot = symbol.lastIndexOf('.');
+        if (dot < 0 || dot == symbol.length() - 1) {
+            return false;
+        }
+        return !"US".equals(symbol.substring(dot + 1).trim().toUpperCase(Locale.ROOT));
+    }
+
+    private static Set<String> parseSymbolSet(String csv) {
+        if (!StringUtils.hasText(csv)) {
+            return Set.of();
+        }
+        return Arrays.stream(csv.split(","))
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .map(symbol -> symbol.toUpperCase(Locale.ROOT))
+                .collect(Collectors.toUnmodifiableSet());
     }
 
     /** @return {@code true} if the full pause elapsed, {@code false} if interrupted. */
@@ -163,60 +357,32 @@ public class MarketService {
         return chunks;
     }
 
-    private void updateStockMarketPrice(Map<String, Stock> stocks) {
-        ZonedDateTime now = ZonedDateTime.now();
-        String tickers = stocks.keySet().stream()
-                .filter(s -> !NOT_SUPPORTED_SYMBOLS.contains(s))
-                .collect(Collectors.joining(","));
-        if (tickers.isEmpty()) {
-            return; // entire chunk was unsupported; skip the HTTP round-trip
-        }
-        log.info("Fetching data for : {}", tickers);
-        Map<String, StockQuote> stockQuotes = twelveDataService.fetchStockQuotes(tickers);
-        log.info("Fetched. {}", stockQuotes.values().stream()
-                .map(q -> String.format("%s.%s: %.2f", q.getSymbol(), q.getCurrency(), q.getClose()))
-                .collect(Collectors.joining(",")));
-        stocks.forEach((ticker, stock) -> {
-            StockQuote stockQuote = stockQuotes.get(ticker);
-            if (stockQuote == null) {
-                return;
-            }
-            stock.setMarketPrice(stockQuote.getClose());
-            stock.setDayOpenPrice(stockQuote.getOpen());
-            stock.setProfit(stock.getAmount() * (stock.getMarketPrice() - stock.getOpenPrice()));
-            stock.setUpdatedDate(now);
-        });
-        stockRepository.saveAll(stocks.values());
-    }
-
     public void syncStocks() {
         Map<String, List<OpenedPosition>> openedPositions = openedPositionRepository.findAll().stream()
                 .collect(Collectors.groupingBy(OpenedPosition::getSymbol));
 
-        Map<String, Stock> stocks = stockRepository.findAll().stream()
-                .collect(Collectors.toMap(Stock::getSymbol, Function.identity(), (a, b) -> b, LinkedHashMap::new));
+        Map<String, Asset> assetsBySymbol = assetRepository.findAllBySymbolIn(openedPositions.keySet()).stream()
+                .collect(Collectors.toMap(Asset::getSymbol, asset -> asset, (a, b) -> b));
 
-        ZonedDateTime now = ZonedDateTime.now();
         openedPositions.forEach((symbol, positions) -> {
-            Stock stock = stocks.get(symbol);
-            if (stock == null) {
+            Asset asset = assetsBySymbol.get(symbol);
+            if (asset == null || asset.getMarketPrice() == null) {
                 return;
             }
             positions.forEach(position -> {
-                position.setMarketPrice(stock.getMarketPrice());
-                position.setProfit(position.getVolume() * (position.getMarketPrice() - position.getOpenPrice()));
+                position.setMarketPrice(asset.getMarketPrice());
+                position.setProfit(position.getVolume() * (asset.getMarketPrice() - position.getOpenPrice()));
             });
-            stock.setSyncDate(now);
             openedPositionRepository.saveAll(positions);
         });
     }
 
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void fullPortfolioUpdate() {
-        createStocks();   // ensure a Stock row exists for every quotable holding (idempotent)
-        updateStocks();
+        updateStocks(false);
         syncStocks();
         syncIbkrPositions();
-        historyService.saveHistory();
+        statisticsRefreshService.refreshAll();
     }
 
     /**
@@ -228,31 +394,31 @@ public class MarketService {
         if (positions.isEmpty()) {
             return;
         }
-        Map<String, Stock> stocksBySymbol = stockRepository.findAll().stream()
-                .collect(Collectors.toMap(Stock::getSymbol, Function.identity(), (a, b) -> b));
+        Set<String> symbols = positions.stream()
+                .map(OpenedPosition::getSymbol)
+                .filter(StringUtils::hasText)
+                .collect(Collectors.toSet());
+        Map<String, Asset> assetsBySymbol = assetRepository.findAllBySymbolIn(symbols).stream()
+                .collect(Collectors.toMap(Asset::getSymbol, asset -> asset, (a, b) -> b));
 
         for (OpenedPosition position : positions) {
-            Stock stock = stocksBySymbol.get(position.getSymbol());
-            if (stock == null || stock.getMarketPrice() == null || stock.getMarketPrice() == 0.0) {
-                continue; // no quote resolved -> keep cost-based value
+            Asset asset = assetsBySymbol.get(position.getSymbol());
+            if (asset == null || asset.getMarketPrice() == null || asset.getMarketPrice() == 0.0) {
+                continue;
             }
             double openPrice = position.getOpenPrice() != null ? position.getOpenPrice() : 0.0;
-            position.setMarketPrice(stock.getMarketPrice());
-            position.setProfit(position.getVolume() * (stock.getMarketPrice() - openPrice));
+            position.setMarketPrice(asset.getMarketPrice());
+            position.setProfit(position.getVolume() * (asset.getMarketPrice() - openPrice));
         }
         openedPositionRepository.saveAll(positions);
 
-        // Re-value the IBKR account equity at market = cash balance + market value of holdings,
-        // so the dashboard Balance reflects current value (not import-time cost basis).
-        accountSummaryRepository.findById(IBKR_ACCOUNT).ifPresent(summary -> {
-            double cash = summary.getBalance() != null ? summary.getBalance() : 0.0;
-            double marketValue = positions.stream()
-                    .mapToDouble(p -> (p.getVolume() != null ? p.getVolume() : 0.0)
-                            * (p.getMarketPrice() != null ? p.getMarketPrice() : 0.0))
-                    .sum();
-            summary.setEquity(Math.round((cash + marketValue) * 100.0) / 100.0);
-            summary.setUpdatedAt(ZonedDateTime.now());
-            accountSummaryRepository.save(summary);
-        });
+        // Account cash/equity is broker-imported state. Quote refresh must not rewrite it:
+        // account statistics will combine broker cash with current market value from assets.
+    }
+
+    private void refreshStatisticsIfNeeded(boolean refreshAfterUpdate) {
+        if (refreshAfterUpdate) {
+            statisticsRefreshService.refreshAll();
+        }
     }
 }

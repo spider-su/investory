@@ -6,8 +6,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Comparison of the portfolio's realized performance against an S&P 500 buy-and-hold
- * of the same capital, expressed as cumulative USD P/L over time plus headline returns.
+ * Comparison of account monthly P/L against SPY performance from the same starting value,
+ * expressed as cumulative USD P/L over time plus headline returns.
  */
 @Data
 public class Benchmark {
@@ -18,10 +18,10 @@ public class Benchmark {
     /** Month labels ("yyyy-MM") shared by both curves. */
     private List<String> labels = new ArrayList<>();
 
-    /** Cumulative realized P/L + dividends of the portfolio, in base USD. */
+    /** Cumulative account monthly P/L excluding external funding flows, in base USD. */
     private List<Double> portfolioCurve = new ArrayList<>();
 
-    /** Cumulative P/L if the same capital had tracked the S&P 500, in base USD. */
+    /** Cumulative P/L if each account's starting value had tracked SPY, in base USD. */
     private List<Double> benchmarkCurve = new ArrayList<>();
 
     private double investedCapital;
@@ -31,5 +31,31 @@ public class Benchmark {
     private double benchmarkReturnPct;
     /** Portfolio return minus benchmark return, in percentage points. */
     private double alpha;
+
+    private List<AccountOption> accountOptions = new ArrayList<>();
+    private List<AccountSeries> accountSeries = new ArrayList<>();
+    private boolean accountValuesAvailable;
+    private Integer selectedAccountValueYear;
+    private List<AccountValueYear> accountValueYears = new ArrayList<>();
+
+    public record AccountOption(Long id, String name, boolean selected) {}
+
+    public record AccountSeries(
+            Long id,
+            double investedCapital,
+            double portfolioPl,
+            double benchmarkPl,
+            List<Double> portfolioCurve,
+            List<Double> benchmarkCurve) {}
+
+    public record AccountValueYear(
+            int year,
+            List<String> labels,
+            List<AccountValueSeries> accountSeries) {}
+
+    public record AccountValueSeries(
+            Long id,
+            String name,
+            List<Double> values) {}
 }
 

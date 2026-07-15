@@ -3,7 +3,11 @@ package com.example.demo.controllers.ui;
 import com.example.demo.services.BenchmarkService;
 import com.example.demo.services.PortfolioService;
 import com.example.demo.services.models.Benchmark;
+import com.example.demo.services.models.InstrumentPerformance;
 import com.example.demo.services.models.Portfolio;
+import java.util.ArrayList;
+import java.util.List;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -64,5 +68,31 @@ class HomeControllerTest {
                 .andExpect(view().name("dashboard"))
                 .andExpect(model().attributeExists("stats"))
                 .andExpect(model().attributeExists("benchmark"));
+    }
+
+    @Test
+    void dashboardLimitsTopGainersAndLosersToTen() throws Exception {
+        Portfolio portfolio = new Portfolio();
+        portfolio.setPerformancePerSymbol(performanceRows());
+        when(portfolioService.calculateTotalProfitLoss()).thenReturn(portfolio);
+        when(benchmarkService.calculate()).thenReturn(new Benchmark());
+
+        mockMvc.perform(get("/dashboard"))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("topGainers", Matchers.hasSize(10)))
+                .andExpect(model().attribute("topLosers", Matchers.hasSize(10)))
+                .andExpect(model().attribute("topGainers", Matchers.hasItem(
+                        Matchers.hasProperty("symbol", Matchers.equalTo("GAIN_12")))))
+                .andExpect(model().attribute("topLosers", Matchers.hasItem(
+                        Matchers.hasProperty("symbol", Matchers.equalTo("LOSS_12")))));
+    }
+
+    private List<InstrumentPerformance> performanceRows() {
+        List<InstrumentPerformance> rows = new ArrayList<>();
+        for (int i = 1; i <= 12; i++) {
+            rows.add(new InstrumentPerformance("GAIN_" + i, i, 0, i));
+            rows.add(new InstrumentPerformance("LOSS_" + i, -i, 0, -i));
+        }
+        return rows;
     }
 }

@@ -58,9 +58,9 @@ class NotificationServiceTest {
         Portfolio portfolio = new Portfolio();
         portfolio.setBaseCurrency(CurrencyType.USD);
         portfolio.setBalance(12345.0);
-        portfolio.setTotal(678.0);
-        portfolio.setTotalUnrealizedInBase(100.0);
-        portfolio.setTotalProfitInBase(578.0);
+        portfolio.setTotalProfit(678.0);
+        portfolio.setUnrealizedProfit(100.0);
+        portfolio.setRealizedProfit(578.0);
         portfolio.setDividends(50.0);
         portfolio.setCapitalGainsTax(12.5);
         when(portfolioService.calculateTotalProfitLoss()).thenReturn(portfolio);

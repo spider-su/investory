@@ -1,0 +1,123 @@
+package com.example.demo.services;
+
+import com.example.demo.infrastructure.CurrencyType;
+import com.example.demo.infrastructure.repository.Asset;
+import com.example.demo.infrastructure.repository.AssetRepository;
+import com.example.demo.infrastructure.repository.OpenedPosition;
+import com.example.demo.infrastructure.repository.OpenedPositionRepository;
+import com.example.demo.services.currency.CurrencyRateService;
+import java.time.LocalDate;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class AssetPriceFallbackService {
+
+  private static final CurrencyType BASE_CURRENCY = CurrencyType.USD;
+
+  private final OpenedPositionRepository openedPositionRepository;
+  private final AssetRepository assetRepository;
+  private final CurrencyRateService currencyRateService;
+
+  @Transactional
+  public void populateMissingPricesFromOpenPositions() {
+    Map<String, WeightedPrice> weightedPrices =
+        openedPositionRepository.findAll().stream()
+            .filter(position -> StringUtils.hasText(position.getSymbol()))
+            .filter(position -> nz(position.getVolume()) > 0.0)
+            .filter(position -> position.getOpenPrice() != null)
+            .collect(
+                Collectors.groupingBy(
+                    OpenedPosition::getSymbol,
+                    Collectors.collectingAndThen(
+                        Collectors.toList(), this::weightedOpenPrice)));
+
+    weightedPrices.values().removeIf(Objects::isNull);
+    if (weightedPrices.isEmpty()) {
+      return;
+    }
+
+    Map<String, Asset> assetsBySymbol =
+        assetRepository.findAllBySymbolIn(weightedPrices.keySet()).stream()
+            .collect(Collectors.toMap(Asset::getSymbol, Function.identity(), (left, right) -> right));
+
+    ZonedDateTime now = ZonedDateTime.now();
+    LocalDate rateDate = now.toLocalDate();
+    Collection<Asset> changed = new ArrayList<>();
+    weightedPrices.forEach(
+        (symbol, weightedPrice) -> {
+          Asset asset = assetsBySymbol.get(symbol);
+          if (asset == null) {
+            log.warn("Skipping fallback price for {} because asset catalog row is missing", symbol);
+            return;
+          }
+          CurrencyType currency =
+              asset.getCurrency() != null ? asset.getCurrency() : weightedPrice.currency();
+          if (currency == null) {
+            currency = BASE_CURRENCY;
+          }
+
+          boolean fallbackSource =
+              !StringUtils.hasText(asset.getPriceSource())
+                  || "OpenPositionWeightedAverage".equals(asset.getPriceSource())
+                  || "OPEN_PRICE_FALLBACK".equals(asset.getPriceSource());
+          boolean updated = false;
+          if (fallbackSource || asset.getMarketPrice() == null || asset.getMarketPrice() == 0.0) {
+            asset.setMarketPrice(weightedPrice.price());
+            updated = true;
+          }
+          if (fallbackSource || asset.getMarketPriceUsd() == null || asset.getMarketPriceUsd() == 0.0) {
+            asset.setMarketPriceUsd(
+                currencyRateService.convertToBaseCurrency(
+                    weightedPrice.price(), BASE_CURRENCY, currency, rateDate));
+            updated = true;
+          }
+          if (updated) {
+            asset.setPriceSource("OpenPositionWeightedAverage");
+            asset.setPriceUpdatedAt(now);
+            changed.add(asset);
+          }
+        });
+
+    if (!changed.isEmpty()) {
+      assetRepository.saveAll(changed);
+      log.info("Seeded {} missing asset prices from open-position weighted averages", changed.size());
+    }
+  }
+
+  private WeightedPrice weightedOpenPrice(Collection<OpenedPosition> positions) {
+    double volume = positions.stream().mapToDouble(position -> nz(position.getVolume())).sum();
+    if (volume <= 0.0) {
+      return null;
+    }
+    double weightedValue =
+        positions.stream()
+            .mapToDouble(position -> nz(position.getOpenPrice()) * nz(position.getVolume()))
+            .sum();
+    CurrencyType currency =
+        positions.stream()
+            .map(OpenedPosition::getCurrency)
+            .filter(Objects::nonNull)
+            .findFirst()
+            .orElse(BASE_CURRENCY);
+    return new WeightedPrice(weightedValue / volume, currency);
+  }
+
+  private static double nz(Double value) {
+    return value == null ? 0.0 : value;
+  }
+
+  private record WeightedPrice(double price, CurrencyType currency) {}
+}

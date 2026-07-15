@@ -4,6 +4,10 @@
 /target/
 *.xlsx
 *.csv
+*.zip
 /target/
 src/main/resources/application-local.yml
 .env
+/src/test/manual/http-client.private.env.json
+/generated
+/scripts

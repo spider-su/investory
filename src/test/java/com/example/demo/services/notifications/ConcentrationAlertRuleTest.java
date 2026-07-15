@@ -1,9 +1,10 @@
 package com.example.demo.services.notifications;
 
-import com.example.demo.infrastructure.CurrencyType;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
 import com.example.demo.services.currency.CurrencyRateService;
+import com.example.demo.testsupport.portfolio.PortfolioBuilders;
+import com.example.demo.testsupport.portfolio.PortfolioTestData;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,9 +44,9 @@ class ConcentrationAlertRuleTest {
     @Test
     void evaluate_firesWhenSymbolExceedsThreshold() {
         when(openedPositionRepository.findAll()).thenReturn(List.of(
-                position("AAPL.US", 10.0, 100.0),   // 1000
-                position("MSFT.US", 1.0, 100.0),    // 100
-                position("PG.US", 1.0, 100.0)       // 100
+                position(PortfolioTestData.AAPL, 10.0, 100.0),   // 1000
+                position(PortfolioTestData.MSFT, 1.0, 100.0),    // 100
+                position(PortfolioTestData.SPY, 1.0, 100.0)      // 100
         ));
 
         Optional<String> result = rule.evaluate();
@@ -58,11 +59,11 @@ class ConcentrationAlertRuleTest {
     @Test
     void evaluate_isQuietForBalancedPortfolio() {
         when(openedPositionRepository.findAll()).thenReturn(List.of(
-                position("AAPL.US", 1.0, 100.0),
-                position("MSFT.US", 1.0, 100.0),
-                position("PG.US", 1.0, 100.0),
-                position("KO.US", 1.0, 100.0),
-                position("LMT.US", 1.0, 100.0)
+                position(PortfolioTestData.AAPL, 1.0, 100.0),
+                position(PortfolioTestData.MSFT, 1.0, 100.0),
+                position(PortfolioTestData.SPY, 1.0, 100.0),
+                position(PortfolioTestData.TSLA, 1.0, 100.0),
+                position(PortfolioTestData.BTC, 1.0, 100.0)
         ));
 
         assertFalse(rule.evaluate().isPresent());
@@ -75,13 +76,13 @@ class ConcentrationAlertRuleTest {
         assertFalse(rule.evaluate().isPresent());
     }
 
-    private static OpenedPosition position(String symbol, double volume, double price) {
-        OpenedPosition p = new OpenedPosition();
-        p.setSymbol(symbol);
-        p.setCurrency(CurrencyType.USD);
-        p.setVolume(volume);
-        p.setMarketPrice(price);
-        return p;
+    private static OpenedPosition position(
+            PortfolioTestData.AssetDefinition asset, double volume, double price) {
+        return PortfolioBuilders.openPosition(asset)
+                .quantity(volume)
+                .price(price)
+                .marketPrice(price)
+                .build();
     }
 }
 

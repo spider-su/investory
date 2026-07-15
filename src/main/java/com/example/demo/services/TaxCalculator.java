@@ -46,7 +46,7 @@ public class TaxCalculator {
                         p -> p.getCloseTime().getYear(),
                         Collectors.summingDouble(p -> currencyRateService.convertToBaseCurrency(
                                 nz(p.getProfit()) + nz(p.getCommission()) + nz(p.getSwap()),
-                                baseCurrency, p.getCurrency()))));
+                                baseCurrency, p.getCurrency(), p.getCloseTime().toLocalDate()))));
 
         // Walk years chronologically: loss years feed a pool; gain years consume losses from the
         // previous 5 years (oldest first). Only the current year's resulting tax is reported.

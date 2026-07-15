@@ -1,5 +1,7 @@
 package com.example.demo.clients;
 
+import com.example.demo.clients.currency.ExchangeRateClient;
+import com.example.demo.clients.currency.ExchangeRateException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;

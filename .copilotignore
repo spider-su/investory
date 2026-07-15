@@ -1,0 +1,6 @@
+# .copilotignore
+*.env
+*secret*
+target/
+src/test/resources/large-test-data.json
+src/main/resources/application-prod.yml

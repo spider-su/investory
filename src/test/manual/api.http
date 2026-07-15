@@ -1,39 +1,19 @@
 ###
-POST http://localhost:8080/import/xtb
+GET {{host}}/export/generate
 Content-Type: multipart/form-data; boundary=WebAppBoundary
-Authorization: Basic admin admin
-
---WebAppBoundary
-Content-Disposition: form-data; name="file"; filename="account_ike_51729109_en_xlsx_2023-12-31_2026-06-15.xlsx"
-Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
-
-< E:\projects\investory\src\main\resources\account_51499241_en_xlsx_2023-12-31_2026-06-15.xlsx
---WebAppBoundary--
+#Authorization: Basic admin change-me-admin
+Authorization: Basic {{user}} {{password}}
 
 ###
 ### Upload IBKR transactions CSV (POST requires ROLE_ADMIN)
 ###
-POST http://localhost:8080/import/broker/ibkr
+POST {{host}}/import/broker/ibkr
 Content-Type: multipart/form-data; boundary=WebAppBoundary
-Authorization: Basic admin admin
+Authorization: Basic {{user}} {{password}}
 
 --WebAppBoundary
 Content-Disposition: form-data; name="file"; filename="U17959259.TRANSACTIONS.20250211.20260612.csv"
 Content-Type: text/csv
 
-< E:\projects\investory\src\main\resources\U17959259.TRANSACTIONS.20250211.20260612.csv
+< U17959259.TRANSACTIONS.20250211.20260612.csv
 --WebAppBoundary--
-
-###
-POST http://localhost:8080/stock/create
-Authorization: Basic admin admin
-###
-POST http://localhost:8080/stock/sync
-Authorization: Basic admin admin
-###
-POST http://localhost:8080/portfolio/sync
-Authorization: Basic admin admin
-
-###
-POST http://localhost:8080/currency/refresh
-Authorization: Basic admin admin
