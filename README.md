@@ -1,200 +1,328 @@
-# investory
+# Investory
 
-Spring Boot 4.1 (Java 25) portfolio tracker that imports XTB (XLSX) and IBKR (CSV) broker statements, refreshes quotes and FX, computes analytics, and surfaces them as a REST API + Thymeleaf dashboard. Optional Telegram bot accepts statement uploads and pushes a daily digest + rule-based alerts.
+> **Portfolio intelligence for long-term investors.**
+>
+> Track your investments across multiple brokers, currencies and asset classes while preserving a complete transaction history and producing accurate portfolio analytics.
+>
+> **Built with Spring Boot + PostgreSQL. Developed with OpenAI Codex and GPT-5.6 as AI engineering assistants for implementation, architecture, debugging, documentation and UX design.**
 
-## Run locally
+---
 
-Requirements: Java 25, Maven 3.9+, PostgreSQL.
+## Why Investory?
 
-```powershell
-Set-Location "E:\projects\investory"
-mvn clean package
+Most broker dashboards answer only one question:
+
+> **"What is my portfolio worth today?"**
+
+Investory answers much more:
+
+- How much did I actually earn?
+- What came from dividends?
+- What was realized vs unrealized?
+- What is my after-tax performance?
+- Which broker contributes most?
+- How did each account perform?
+- How did currency movements affect my returns?
+- How close am I to simply buying SPY?
+
+Investory combines complete transaction history with market prices to reconstruct portfolio history and calculate meaningful long-term investment metrics.
+
+---
+
+# Features
+
+### Portfolio overview
+
+- Portfolio value
+- Cash balance
+- ROI / Total Return
+- Multi-currency support
+- Live FX conversion
+- Multiple broker accounts
+
+### Performance analytics
+
+- Total Profit
+- Realized Profit/Loss
+- Unrealized Profit/Loss
+- Dividend Income
+- After-tax estimates
+- Monthly performance
+- Historical portfolio value
+
+### Position analysis
+
+- Current positions
+- Closed positions
+- Position history
+- Currency exposure
+- Asset allocation
+- Winners / Losers
+- Performance by account
+
+### Data management
+
+- Import broker statements
+- Manual price overrides
+- Historical price synchronization
+- Yahoo Finance export
+- Portfolio reconciliation tools
+
+---
+
+# Supported brokers
+
+Currently implemented:
+
+- Interactive Brokers (IBKR)
+- XTB
+
+The architecture allows additional brokers to be added without changing portfolio analytics.
+
+---
+
+# Technology
+
+| Layer | Technology |
+|--------|------------|
+| Backend | Java 21 |
+| Framework | Spring Boot |
+| Database | PostgreSQL |
+| ORM | Spring Data JPA |
+| Frontend | Thymeleaf |
+| Charts | Chart.js |
+| Build | Maven |
+
+---
+
+# Architecture
+
+Investory is built around an immutable transaction ledger.
+
+```
+Broker Imports
+        │
+        ▼
+Transaction Ledger
+        │
+        ▼
+Portfolio Engine
+        │
+ ┌──────┴────────┐
+ ▼               ▼
+Valuation     Performance
+Engine         Engine
+ └──────┬────────┘
+        ▼
+ Dashboard
+```
+
+Instead of storing daily balances, Investory reconstructs portfolio state from transactions.
+
+This provides:
+
+- deterministic calculations
+- reproducible history
+- complete auditability
+- easier reconciliation
+- accurate realized P/L
+
+---
+
+# Key capabilities
+
+## Multi-broker portfolio
+
+Manage investments across multiple brokerage accounts as one portfolio while still being able to analyze each account independently.
+
+---
+
+## Multi-currency support
+
+Native support for:
+
+- USD
+- EUR
+- PLN
+
+with automatic FX conversion for:
+
+- portfolio value
+- realized profit
+- unrealized profit
+- dividends
+- historical performance
+
+---
+
+## Portfolio reconciliation
+
+Investory keeps two complementary views of the portfolio:
+
+- immutable transaction history
+- historical account valuation
+
+Small differences caused by missing historical prices or FX interpolation can be reconciled while preserving the integrity of the transaction ledger.
+
+---
+
+## Performance analytics
+
+Instead of only displaying balance, Investory separates:
+
+- realized gains
+- unrealized gains
+- dividends
+- taxes
+- currency impact
+
+making long-term investment performance much easier to understand.
+
+---
+
+# Dashboard
+
+The dashboard includes:
+
+- Portfolio Value
+- Available Cash
+- Total Return
+- Profit
+- Unrealized P/L
+- Realized P/L
+- Dividend Income
+- Monthly Returns
+- Top Gainers
+- Top Losers
+- Historical Performance
+- Currency Breakdown
+- Position Tables
+- Import Tools
+
+---
+
+# AI-assisted development
+
+Investory was developed using **OpenAI Codex** and **GPT-5.6** throughout the project.
+
+AI was used as an engineering assistant—not as an automatic code generator—with every significant change reviewed before integration.
+
+## OpenAI Codex
+
+Codex accelerated implementation by assisting with:
+
+- Spring Boot development
+- PostgreSQL query optimization
+- Repository and service refactoring
+- Materialized view implementation
+- DTO and mapper generation
+- Portfolio analytics
+- Historical reconstruction logic
+- Debugging reconciliation issues
+- Test generation
+- Code reviews
+
+Development remained iterative, with Codex acting as a pair programmer rather than generating complete applications.
+
+---
+
+## GPT-5.6
+
+GPT-5.6 supported both engineering and product development by helping with:
+
+- architecture reviews
+- portfolio reconciliation algorithms
+- financial calculation validation
+- dashboard UX improvements
+- interface wording
+- feature brainstorming
+- documentation
+- README generation
+- Devpost submission
+- CSS and UI refinement
+- API design discussions
+
+GPT-5.6 was also used extensively to evaluate new portfolio analytics ideas and translate investment concepts into practical product features.
+
+---
+
+## Examples of AI-assisted work
+
+During development AI contributed to work such as:
+
+- portfolio reconciliation between Interactive Brokers and XTB
+- historical account reconstruction
+- multi-currency portfolio calculations
+- tax-aware profit calculations
+- dashboard redesign
+- PostgreSQL materialized view optimization
+- documentation improvements
+- performance tuning
+- developer experience improvements
+
+---
+
+## Human responsibility
+
+All portfolio calculations, accounting logic and investment analytics were designed, validated and tested by the project author.
+
+AI accelerated development, but architectural decisions, financial calculations and final implementations were reviewed before being accepted.
+
+---
+
+# Roadmap
+
+Planned improvements include:
+
+- additional broker integrations
+- portfolio benchmarking
+- factor exposure
+- dividend forecasting
+- portfolio rebalancing suggestions
+- risk metrics
+- Monte Carlo simulations
+- portfolio attribution
+- richer tax reporting
+
+---
+
+# Running locally
+
+Requirements:
+
+- Java 21
+- PostgreSQL
+- Maven
+
+```bash
+git clone https://github.com/<your-user>/investory.git
+
+cd investory
+
 mvn spring-boot:run
 ```
 
-Tests:
-
-```powershell
-mvn test
-```
-
-Formatting (google-java-format via Spotless, not bound to `verify`):
-
-```powershell
-mvn spotless:check        # report mis-formatted files
-mvn spotless:apply        # rewrite them in place
-```
-
-## Docker
-
-Build image locally:
-
-```powershell
-Set-Location "E:\projects\investory"
-docker build -t aserobaba/investory:latest .
-```
-
-Push image to Docker Hub:
-
-```powershell
-docker login
-docker push aserobaba/investory:latest
-```
-
-## Docker Compose
-
-Start app with environment from `.env`:
-
-```powershell
-Set-Location "E:\projects\investory"
-docker compose up -d
-```
-
-Stop and remove containers:
-
-```powershell
-Set-Location "E:\projects\investory"
-docker compose down
-```
-
-## GitHub Actions (Docker publish)
-
-Workflow file: `.github/workflows/docker-publish.yml`
-
-Set repository secrets before running the workflow:
-
-- `DOCKERHUB_USERNAME`
-- `DOCKERHUB_TOKEN` (Docker Hub access token)
-
-## Broker import API
-
-Generic endpoint (preferred):
-
-```powershell
-# XTB statement (XLSX)
-curl -X POST "http://localhost:8080/import/broker/xtb" `
-  -u admin:change-me-admin `
-  -F "file=@account_51499241_en_xlsx_2026-04-30_2026-05-31.xlsx" `
-  -F "source=MANUAL"
-
-# IBKR statement (CSV)
-curl -X POST "http://localhost:8080/import/broker/ibkr" `
-  -u admin:change-me-admin `
-  -F "file=@U17959259.TRANSACTIONS.20250211.20260612.csv" `
-  -F "source=MANUAL"
-```
-
-The response is an `ImportBatchResponse` JSON with `batchId`, `status`, `rowsTotal/Applied/Failed`, and a `duplicate` flag (the orchestrator SHA-256s the upload and short-circuits re-imports).
-
-Legacy XTB-only endpoint `POST /import/xtb` still works for older scripts.
-
-Import monitoring endpoints:
-
-```powershell
-curl -u admin:change-me-admin "http://localhost:8080/import/batches?limit=20"
-curl -u admin:change-me-admin "http://localhost:8080/import/batches/1"
-curl -u admin:change-me-admin "http://localhost:8080/import/batches/latest"
-curl -u admin:change-me-admin "http://localhost:8080/import/batches/1/errors"
-```
-
-## Dashboard
-
-`GET /dashboard` renders the Thymeleaf dashboard with KPIs, monthly bucketing, per-symbol ranking, the SPY benchmark, and an "Import statement" card that uploads broker files straight from the browser (POST `/import/broker/{broker}`).
-
-## Telegram bot (optional)
-
-Disabled by default. Enable with:
-
-```env
-TELEGRAM_BOT_ENABLED=true
-TELEGRAM_BOT_USERNAME=your_bot
-TELEGRAM_BOT_TOKEN=123:abc
-TELEGRAM_CHAT_ID=123456789
-```
-
-When enabled, `config/TelegramBotConfig` registers `controllers/bot/PortfolioBot`:
-
-- Send `/start` -> friendly greeting.
-- Send an XLSX/CSV document -> the bot detects the broker by filename, imports it via `ImportOrchestratorService`, and replies with the batch summary.
-- The bot itself is also the delivery channel for the daily digest and alerts (see below).
-
-When `TELEGRAM_BOT_ENABLED=false`, the application starts cleanly with no Telegram dependencies wired; the digest and alerts still run but log their messages instead of sending them.
-
-## Notifications & alerts
-
-`services/notifications/NotificationService` runs at the end of the weekday market-close scheduler (22:00 `Europe/Warsaw`):
-
-1. `sendDailyDigest()` posts a short summary (balance, total/realized/unrealized P/L, dividends, est. capital-gains tax).
-2. `runAlerts()` iterates every `AlertRule` Spring bean and dispatches only those that fire.
-
-Built-in rules (each is a small `@Component` - add new ones by implementing `AlertRule`):
-
-| Rule | Fires when | Default threshold |
-|---|---|---|
-| `DrawdownAlertRule` | balance drops below tracked peak by >= threshold | `ALERT_DRAWDOWN_PCT=10` |
-| `BigMoveAlertRule` | any stock's intraday move (open->price) crosses threshold | `ALERT_BIG_MOVE_PCT=5` |
-| `ConcentrationAlertRule` | any single symbol exceeds threshold of open-position market value | `ALERT_CONCENTRATION_PCT=25` |
-| `StaleImportAlertRule` | last `ImportBatch` is older than threshold or status `FAILED` | `ALERT_STALE_IMPORT_DAYS=7` |
-
-Master switch: `NOTIFICATIONS_ENABLED=true|false` (default true).
-
-## Database
-
-PostgreSQL + Flyway. Migrations live under `src/main/resources/sql/migration/` (currently `V01.000` through `V01.006`, covering the initial schema, monitoring, data integrity, import batches, day-open prices, closed-position swap, and account summaries). The schema name is `investory`.
-
-Connection variables:
-
-- `DB_URL` (default `jdbc:postgresql://localhost:5432/inventory`)
-- `DB_USERNAME` (default `postgres`)
-- `DB_PASSWORD` (default `postgres`)
-
-## Security
-
-HTTP Basic auth is enabled for API endpoints (`config/SecurityConfig`).
-
-- `GET /`, `/error`, static assets, and `/dashboard/**` are public.
-- `POST`, `PUT`, `DELETE` endpoints require the `ADMIN` role.
-- Other API reads require authentication.
-
-Override default users with environment variables:
-
-- `APP_SECURITY_ADMIN_USERNAME`
-- `APP_SECURITY_ADMIN_PASSWORD`
-- `APP_SECURITY_USER_USERNAME`
-- `APP_SECURITY_USER_PASSWORD`
-
-## Scheduler (weekday, `Europe/Warsaw`)
-
-| Cron | Job |
-|---|---|
-| `0 0 6 * * 1-5` | FX rate refresh |
-| `0 30 15 * * 1-5` | Portfolio + history snapshot (market open) |
-| `0 0 22 * * 1-5` | Portfolio + history snapshot, then daily digest + alerts |
-
-## Project layout (high level)
+Open:
 
 ```
-src/main/java/com/example/demo/
-  GoogleAuthSpringBootApplication.java     Spring Boot entrypoint
-  clients/                                 Native java.net.http clients (exchangerate.host)
-  config/                                  SecurityConfig, SchedulerConfig, TelegramBotConfig
-  controllers/
-    bot/PortfolioBot.java                  Optional Telegram bot (long polling)
-    rest/                                  REST API
-    ui/HomeController.java                 Thymeleaf views (/, /dashboard)
-  data/                                    Enums (BrokerType, CurrencyType, ...)
-  data/repository/                         JPA entities + repositories
-  services/                                Domain services (Portfolio, Market, History, Benchmark, ...)
-  services/imports/                        BrokerImportParser SPI + ImportOrchestratorService
-  services/notifications/                  AlertRule SPI + NotificationService + built-in rules
-  services/models/                         DTOs returned to the UI/API
-
-src/main/resources/
-  application.yml                          Config (DB, security, Telegram, notifications)
-  sql/migration/                           Flyway migrations
-  static/                                  CSS, JS, dashboard.html
-  templates/home.html                      Public landing page
-
-src/test/java/...                          JUnit 5 + Mockito + WebMvcTest suite
-src/test/manual/api.http                   Hand-curated request collection (JetBrains HTTP client)
+http://localhost:8080
 ```
+
+---
+
+# Project goals
+
+Investory is intended for investors who want to understand:
+
+- where their returns come from
+- how their portfolio evolves over time
+- how multiple brokers combine into one investment strategy
+- how taxes and currency movements affect long-term performance
+
+Rather than replacing broker platforms, Investory provides a consolidated analytics layer focused on long-term portfolio management.
+
+---
+
+# License
+
+MIT License
