@@ -8,6 +8,8 @@ dates, prices, FX rates, and common operations inside individual tests.
 - `PortfolioTestData` contains immutable canonical dates, account definitions, asset definitions,
   deterministic prices, and deterministic FX rates.
 - `PortfolioBuilders` creates fresh production entities with valid defaults and explicit overrides.
+- `PortfolioBuilders.accountDaily()` creates deterministic historical account rows for history and
+  performance tests.
 - `PortfolioScenarios` composes builders into small domain scenarios such as funded portfolio,
   long position, dividend, internal transfer, multi-currency, and duplicate import.
 - `PortfolioTestContext` returns named references to generated accounts, assets, operations,
@@ -27,3 +29,14 @@ dates, prices, FX rates, and common operations inside individual tests.
 
 Keep scenarios minimal. Use the complete/reference scenario pattern only for reporting,
 reconciliation, end-to-end, or regression tests.
+
+## Example
+
+```java
+PortfolioTestContext context = PortfolioScenarios.createDividendScenario();
+
+assertEquals(
+    context.expected().dividend().netCashIncrease(),
+    context.operations().aaplDividend().getAmount() + context.operations().aaplWithholdingTax().getAmount(),
+    0.01);
+```

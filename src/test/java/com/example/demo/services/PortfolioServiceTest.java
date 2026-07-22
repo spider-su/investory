@@ -7,7 +7,6 @@ import com.example.demo.infrastructure.repository.account.Account;
 import com.example.demo.infrastructure.repository.account.AccountMonthlyPerformance;
 import com.example.demo.infrastructure.repository.account.AccountMonthlyPerformanceRepository;
 import com.example.demo.infrastructure.repository.account.AccountRepository;
-import com.example.demo.infrastructure.repository.account.AccountStatistics;
 import com.example.demo.infrastructure.repository.account.AccountStatisticsRepository;
 import com.example.demo.infrastructure.repository.portfolio.PortfolioAssetAllocation;
 import com.example.demo.infrastructure.repository.portfolio.PortfolioAssetAllocationRepository;
@@ -20,6 +19,9 @@ import com.example.demo.services.models.DividendGainer;
 import com.example.demo.services.models.InstrumentPerformance;
 import com.example.demo.services.models.Performance;
 import com.example.demo.services.models.Portfolio;
+import com.example.demo.testsupport.portfolio.PortfolioBuilders;
+import com.example.demo.testsupport.portfolio.PortfolioTestData;
+import com.example.demo.testsupport.portfolio.PortfolioTestData.AccountDefinition;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -99,22 +101,18 @@ class PortfolioServiceTest {
         )));
         when(closedPositionRepository.findAll()).thenReturn(List.of());
         when(openedPositionRepository.findAll()).thenReturn(List.of(opened("AAPL.US", 50.0, -2.0, 0.0)));
-        when(accountStatisticsRepository.findAll()).thenReturn(List.of(AccountStatistics.builder()
-                .accountId(17959259L)
-                .netDeposit(800.0)
-                .cashBalance(125.0)
-                .marketValue(975.0)
-                .realizedProfit(200.0)
-                .unrealizedProfit(75.0)
-                .dividends(25.0)
-                .build(), AccountStatistics.builder()
-                .accountId(999L)
-                .cashBalance(0.0)
-                .marketValue(0.0)
-                .realizedProfit(0.0)
-                .unrealizedProfit(0.0)
-                .dividends(0.0)
-                .build()));
+        when(accountStatisticsRepository.findAll()).thenReturn(List.of(
+                PortfolioBuilders.accountStatistics()
+                        .account(PortfolioTestData.IBKR_USD)
+                        .deposits(800.0, 0.0)
+                        .balances(125.0, 975.0, 900.0)
+                        .performance(200.0, 75.0, 25.0)
+                        .build(),
+                PortfolioBuilders.accountStatistics()
+                        .account(new AccountDefinition(999L, "Empty", CurrencyType.PLN, "Broker"))
+                        .balances(0.0, 0.0, 0.0)
+                        .performance(0.0, 0.0, 0.0)
+                        .build()));
         Account account = new Account();
         account.setId(17959259L);
         account.setName("IBKR");
@@ -184,12 +182,12 @@ class PortfolioServiceTest {
         account.setId(51747407L);
         account.setName("Trading EUR");
         account.setCurrency(CurrencyType.EUR);
-        when(accountStatisticsRepository.findAll()).thenReturn(List.of(AccountStatistics.builder()
-                .accountId(51747407L)
-                .netDeposit(13370.17)
-                .cashBalance(0.0)
-                .marketValue(0.0)
-                .build()));
+        when(accountStatisticsRepository.findAll()).thenReturn(List.of(
+                PortfolioBuilders.accountStatistics()
+                        .account(new AccountDefinition(51747407L, "Trading EUR", CurrencyType.EUR, "Broker"))
+                        .deposits(13370.17, 0.0)
+                        .balances(0.0, 0.0, 0.0)
+                        .build()));
         when(accountRepository.findMapByIdIn(any())).thenReturn(Map.of(51747407L, account));
         when(closedPositionRepository.findAll()).thenReturn(List.of());
         when(openedPositionRepository.findAll()).thenReturn(List.of());
@@ -355,7 +353,7 @@ class PortfolioServiceTest {
     @Test
     void calculateTotalProfitLoss_aggregatesRealizedAndUnrealizedAndDividends() {
         when(closedPositionRepository.findAll()).thenReturn(List.of(
-                closed("AAPL.US", 100.0, -1.0, 0.0, ZonedDateTime.now().minusDays(3))
+                closed("AAPL.US", 100.0, -1.0, 0.0, PortfolioTestData.atNoon(PortfolioTestData.MID_YEAR))
         ));
         when(openedPositionRepository.findAll()).thenReturn(List.of(
                 opened("MSFT.US", 50.0, 0.0, 0.0)
@@ -365,17 +363,13 @@ class PortfolioServiceTest {
                 cash(CashOperationType.DEPOSIT, 1000.0, "wire transfer"),
                 cash(CashOperationType.WITHDRAWAL, -200.0, "wire transfer")
         ));
-        when(accountStatisticsRepository.findAll()).thenReturn(List.of(AccountStatistics.builder()
-                .accountId(1L)
-                .totalDeposit(1000.0)
-                .totalWithdrawal(-200.0)
-                .cashBalance(0.0)
-                .marketValue(5000.0)
-                .netDeposit(800.0)
-                .realizedProfit(99.0)
-                .unrealizedProfit(50.0)
-                .dividends(25.0)
-                .build()));
+        when(accountStatisticsRepository.findAll()).thenReturn(List.of(
+                PortfolioBuilders.accountStatistics()
+                        .account(new AccountDefinition(1L, "Main", CurrencyType.USD, "Broker"))
+                        .deposits(1000.0, -200.0)
+                        .balances(0.0, 5000.0, 4950.0)
+                        .performance(99.0, 50.0, 25.0)
+                        .build()));
         Account account = new Account();
         account.setId(1L);
         account.setCurrency(CurrencyType.USD);
@@ -413,7 +407,7 @@ class PortfolioServiceTest {
     void calculateTotalProfitLoss_appliesCapitalGainsTaxOnCurrentYearGains() {
         int year = java.time.Year.now().getValue();
         when(closedPositionRepository.findAll()).thenReturn(List.of(
-                closed("AAPL.US", 1000.0, 0.0, 0.0, ZonedDateTime.now().withYear(year))
+                closed("AAPL.US", 1000.0, 0.0, 0.0, PortfolioTestData.atNoon(LocalDate.of(year, 6, 30)))
         ));
         when(openedPositionRepository.findAll()).thenReturn(List.of());
         when(cashOperationRepository.findAll()).thenReturn(List.of());
@@ -433,10 +427,10 @@ class PortfolioServiceTest {
     @Test
     void calculateWinRate_countsOnlyProfitableTrades() {
         when(closedPositionRepository.findAll()).thenReturn(List.of(
-                closed("A", 10.0, 0.0, 0.0, ZonedDateTime.now()),
-                closed("B", -5.0, 0.0, 0.0, ZonedDateTime.now()),
-                closed("C", 20.0, 0.0, 0.0, ZonedDateTime.now()),
-                closed("D", -2.0, 0.0, 0.0, ZonedDateTime.now())
+                closed("A", 10.0, 0.0, 0.0, PortfolioTestData.atNoon(PortfolioTestData.MID_YEAR)),
+                closed("B", -5.0, 0.0, 0.0, PortfolioTestData.atNoon(PortfolioTestData.MID_YEAR)),
+                closed("C", 20.0, 0.0, 0.0, PortfolioTestData.atNoon(PortfolioTestData.MID_YEAR)),
+                closed("D", -2.0, 0.0, 0.0, PortfolioTestData.atNoon(PortfolioTestData.MID_YEAR))
         ));
 
         assertEquals(50.0, portfolioService.calculateWinRate());
@@ -445,9 +439,9 @@ class PortfolioServiceTest {
     @Test
     void calculateLargestWinLoss_returnsMaxAndMinProfit() {
         when(closedPositionRepository.findAll()).thenReturn(List.of(
-                closed("A", 100.0, 0.0, 0.0, ZonedDateTime.now()),
-                closed("B", -50.0, 0.0, 0.0, ZonedDateTime.now()),
-                closed("C", 25.0, 0.0, 0.0, ZonedDateTime.now())
+                closed("A", 100.0, 0.0, 0.0, PortfolioTestData.atNoon(PortfolioTestData.MID_YEAR)),
+                closed("B", -50.0, 0.0, 0.0, PortfolioTestData.atNoon(PortfolioTestData.MID_YEAR)),
+                closed("C", 25.0, 0.0, 0.0, PortfolioTestData.atNoon(PortfolioTestData.MID_YEAR))
         ));
 
         Map<String, Double> result = portfolioService.calculateLargestWinLoss();
@@ -458,7 +452,7 @@ class PortfolioServiceTest {
     @Test
     void calculatePerformancePerInstrument_includesBothOpenAndClosedPositions() {
         when(closedPositionRepository.findAll()).thenReturn(List.of(
-                closed("AAPL.US", 100.0, 0.0, 0.0, ZonedDateTime.now())
+                closed("AAPL.US", 100.0, 0.0, 0.0, PortfolioTestData.atNoon(PortfolioTestData.MID_YEAR))
         ));
         when(openedPositionRepository.findAll()).thenReturn(List.of(
                 opened("AAPL.US", 50.0, 0.0, 0.0),
@@ -493,7 +487,7 @@ class PortfolioServiceTest {
 
     @Test
     void calculateCashFlowOverTime_groupsByCloseTime() {
-        ZonedDateTime when = ZonedDateTime.now();
+        ZonedDateTime when = PortfolioTestData.atNoon(PortfolioTestData.MID_YEAR);
         when(closedPositionRepository.findAll()).thenReturn(List.of(
                 closed("A", 10.0, 0.0, 0.0, when),
                 closed("B", 5.0, 0.0, 0.0, when)
@@ -505,12 +499,14 @@ class PortfolioServiceTest {
     }
 
     private static ClosedPosition closed(String symbol, double profit, double commission, double swap, ZonedDateTime closeTime) {
-        ClosedPosition cp = new ClosedPosition();
-        cp.setSymbol(symbol);
-        cp.setCurrency(CurrencyType.USD);
-        cp.setProfit(profit);
-        cp.setCommission(commission);
-        cp.setSwap(swap);
+        ClosedPosition cp = PortfolioBuilders.closedPosition(PortfolioTestData.AAPL)
+                .symbol(symbol)
+                .currency(CurrencyType.USD)
+                .profit(profit)
+                .commission(commission)
+                .swap(swap)
+                .closeOn(closeTime.toLocalDate())
+                .build();
         cp.setCloseTime(closeTime);
         cp.setVolume(1.0);
         cp.setOpenPrice(100.0);
@@ -519,17 +515,15 @@ class PortfolioServiceTest {
     }
 
     private static OpenedPosition opened(String symbol, double profit, double commission, double swap) {
-        OpenedPosition op = new OpenedPosition();
-        op.setSymbol(symbol);
-        op.setCurrency(CurrencyType.USD);
-        op.setProfit(profit);
-        op.setCommission(commission);
-        op.setSwap(swap);
-        op.setVolume(1.0);
-        op.setOpenPrice(100.0);
-        op.setMarketPrice(100.0 + profit);
-        op.setPurchaseValue(100.0);
-        return op;
+        return PortfolioBuilders.openPosition(PortfolioTestData.AAPL)
+                .symbol(symbol)
+                .currency(CurrencyType.USD)
+                .quantity(1.0)
+                .price(100.0)
+                .marketPrice(100.0 + profit)
+                .commission(commission)
+                .swap(swap)
+                .build();
     }
 
     private static AccountMonthlyPerformance monthlyPerformance(
@@ -549,13 +543,13 @@ class PortfolioServiceTest {
     }
 
     private static CashOperation cash(CashOperationType type, double amount, String comment) {
-        CashOperation c = new CashOperation();
-        c.setType(type);
-        c.setAmount(amount);
-        c.setCurrency(CurrencyType.USD);
-        c.setComment(comment);
-        c.setDate(ZonedDateTime.now());
-        return c;
+        return PortfolioBuilders.cashOperation()
+                .type(type)
+                .deposit(amount, CurrencyType.USD)
+                .type(type)
+                .comment(comment)
+                .on(PortfolioTestData.MID_YEAR)
+                .build();
     }
 
     private static CashOperation dividend(String symbol, double amount, CurrencyType currency) {
@@ -573,4 +567,3 @@ class PortfolioServiceTest {
     }
 
 }
-

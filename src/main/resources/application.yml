@@ -61,6 +61,26 @@ app:
     bot-username: ${TELEGRAM_BOT_USERNAME:}
     bot-token: ${TELEGRAM_BOT_TOKEN:}
     chat-id: ${TELEGRAM_CHAT_ID:}
+  openai:
+    enabled: ${OPENAI_ENABLED:false}
+    api-key: ${OPENAI_API_KEY:}
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+    model: ${OPENAI_MODEL:gpt-5-mini}
+    max-output-tokens: ${OPENAI_MAX_OUTPUT_TOKENS:1200}
+    instructions: ${OPENAI_INSTRUCTIONS:You are the Investory assistant. Give concise, factual answers about investing and portfolio management. Do not claim access to portfolio data unless it was included in the user's message. State uncertainty clearly. Do not provide personalized financial guarantees.}
+    portfolio-context:
+      enabled: ${OPENAI_PORTFOLIO_CONTEXT_ENABLED:true}
+      dashboard-url: ${OPENAI_PORTFOLIO_CONTEXT_URL:http://localhost:8080/dashboard}
+      max-characters: ${OPENAI_PORTFOLIO_CONTEXT_MAX_CHARACTERS:16000}
+    analysis:
+      enabled: ${OPENAI_ANALYSIS_ENABLED:false}
+      zone: ${OPENAI_ANALYSIS_ZONE:Europe/Warsaw}
+      # First day of every month, 09:00 local time.
+      monthly-cron: ${OPENAI_ANALYSIS_MONTHLY_CRON:0 0 9 1 * *}
+      # Second day of Jan/Apr/Jul/Oct, avoiding duplicate delivery with monthly report.
+      quarterly-cron: ${OPENAI_ANALYSIS_QUARTERLY_CRON:0 15 9 2 1,4,7,10 *}
+      # Third day of January, after monthly and quarterly reports.
+      annual-cron: ${OPENAI_ANALYSIS_ANNUAL_CRON:0 30 9 3 1 *}
   notifications:
     enabled: ${NOTIFICATIONS_ENABLED:true}
     drawdown-threshold-pct: ${ALERT_DRAWDOWN_PCT:10}
@@ -79,4 +99,3 @@ app:
       # Leave empty (or omit) to export ALL accounts.
       # Example: accounts: 51499241,U17959259
       accounts: ${YAHOO_EXPORT_ACCOUNTS:}
-

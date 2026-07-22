@@ -4,6 +4,8 @@ import com.example.demo.infrastructure.BrokerType;
 import com.example.demo.infrastructure.ImportSourceType;
 import com.example.demo.services.imports.ImportBatchResponse;
 import com.example.demo.services.imports.ImportOrchestratorService;
+import com.example.demo.services.openai.OpenAiChatService;
+import com.example.demo.services.portfolio.PortfolioCommandRouter;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Locale;
@@ -25,6 +27,9 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 @ConditionalOnProperty(name = "app.telegram.enabled", havingValue = "true")
 public class PortfolioBot extends TelegramLongPollingBot {
 
+    static final long MAX_DOWNLOAD_SIZE_BYTES = 20L * 1024 * 1024;
+    static final int MAX_MESSAGE_LENGTH = 4096;
+
     @Value("${app.telegram.chat-id:}")
     private String chatId;
 
@@ -32,14 +37,18 @@ public class PortfolioBot extends TelegramLongPollingBot {
     private String botUsername;
 
     private final ImportOrchestratorService importOrchestratorService;
+    private final OpenAiChatService openAiChatService;
+    private final PortfolioCommandRouter portfolioCommandRouter;
 
     public PortfolioBot(
             @Value("${app.telegram.bot-token:}") String botToken,
-            ImportOrchestratorService importOrchestratorService) {
-        // Use the non-deprecated constructor that stores the token in the base
-        // class; removes the need to override the deprecated getBotToken().
+            ImportOrchestratorService importOrchestratorService,
+            OpenAiChatService openAiChatService,
+            PortfolioCommandRouter portfolioCommandRouter) {
         super(botToken);
         this.importOrchestratorService = importOrchestratorService;
+        this.openAiChatService = openAiChatService;
+        this.portfolioCommandRouter = portfolioCommandRouter;
     }
 
     @Override
@@ -54,6 +63,11 @@ public class PortfolioBot extends TelegramLongPollingBot {
         }
         Message message = update.getMessage();
         String replyChatId = message.getChatId().toString();
+        if (!isAuthorized(chatId, replyChatId)) {
+            log.warn("Ignoring Telegram update from unauthorized chat {}", replyChatId);
+            sendTo(replyChatId, "This chat is not authorized to use Investory.");
+            return;
+        }
 
         if (message.hasDocument()) {
             handleDocument(message, replyChatId);
@@ -62,16 +76,64 @@ public class PortfolioBot extends TelegramLongPollingBot {
 
         if (message.hasText()) {
             String text = message.getText();
-            String response = "/start".equals(text)
-                    ? "Hello! Send me a broker statement (XLSX for XTB, CSV for IBKR) and I'll import it."
-                    : "I understand /start and broker statement files (XLSX/CSV).";
-            sendTo(replyChatId, response);
+            if (isStartCommand(text, botUsername)) {
+                sendTo(replyChatId, portfolioCommandRouter.help());
+                return;
+            }
+            if (isResetCommand(text, botUsername)) {
+                openAiChatService.resetConversation(replyChatId);
+                sendTo(replyChatId, "Conversation context cleared.");
+                return;
+            }
+
+            var deterministicReply = portfolioCommandRouter.route(text, botUsername);
+            if (deterministicReply.isPresent()) {
+                sendTo(replyChatId, deterministicReply.get());
+                return;
+            }
+
+            sendTo(replyChatId, openAiChatService.reply(replyChatId, text));
         }
+    }
+
+    static boolean isAuthorized(String configuredChatId, String candidateChatId) {
+        return configuredChatId != null
+                && !configuredChatId.isBlank()
+                && configuredChatId.trim().equals(candidateChatId);
+    }
+
+    static boolean isStartCommand(String text, String configuredBotUsername) {
+        if (text == null) {
+            return false;
+        }
+        String command = text.trim();
+        return "/start".equals(command)
+                || (configuredBotUsername != null
+                        && !configuredBotUsername.isBlank()
+                        && ("/start@" + configuredBotUsername).equalsIgnoreCase(command));
+    }
+
+    static boolean isResetCommand(String text, String configuredBotUsername) {
+        if (text == null) {
+            return false;
+        }
+        String command = text.trim();
+        return "/reset".equals(command)
+                || (configuredBotUsername != null
+                        && !configuredBotUsername.isBlank()
+                        && ("/reset@" + configuredBotUsername).equalsIgnoreCase(command));
     }
 
     private void handleDocument(Message message, String replyChatId) {
         Document document = message.getDocument();
         String fileName = document.getFileName() != null ? document.getFileName() : "upload";
+        Long fileSize = document.getFileSize();
+        if (isDownloadTooLarge(fileSize)) {
+            sendTo(replyChatId, "File is too large for Telegram bot download: " + fileName
+                    + ". Maximum supported size is 20 MB.");
+            return;
+        }
+
         BrokerType broker = detectBroker(fileName);
         if (broker == null) {
             sendTo(replyChatId, "Could not detect broker from file name: " + fileName
@@ -86,8 +148,14 @@ public class PortfolioBot extends TelegramLongPollingBot {
             sendTo(replyChatId, formatImportSummary(result));
         } catch (Exception e) {
             log.warn("Telegram import failed for {}", fileName, e);
-            sendTo(replyChatId, "Import failed: " + e.getMessage());
+            String messageText = e.getMessage();
+            sendTo(replyChatId, "Import failed"
+                    + (messageText == null || messageText.isBlank() ? "." : ": " + messageText));
         }
+    }
+
+    static boolean isDownloadTooLarge(Long fileSize) {
+        return fileSize != null && fileSize > MAX_DOWNLOAD_SIZE_BYTES;
     }
 
     private byte[] downloadDocumentBytes(Document document) throws TelegramApiException, IOException {
@@ -108,17 +176,12 @@ public class PortfolioBot extends TelegramLongPollingBot {
             return null;
         }
         String lower = fileName.toLowerCase(Locale.ROOT);
-        // Keyword match wins over extension so "IBKR_jan.xlsx" is not misclassified as XTB
-        // and "upload.csv" is not misclassified as IBKR.
         if (lower.contains("xtb")) {
             return BrokerType.XTB;
         }
         if (lower.contains("ibkr")) {
             return BrokerType.IBKR;
         }
-        // IBKR Activity Statement files are named like "U17959259.TRANSACTIONS....csv";
-        // require a digit right after the leading 'U' to avoid catching arbitrary "u*"
-        // file names like "upload.csv" or "us-rates.csv".
         if (lower.length() > 1 && lower.charAt(0) == 'u' && Character.isDigit(lower.charAt(1))
                 && lower.endsWith(".csv")) {
             return BrokerType.IBKR;
@@ -146,10 +209,17 @@ public class PortfolioBot extends TelegramLongPollingBot {
     }
 
     private void sendTo(String targetChatId, String text) {
-        try {
-            execute(new SendMessage(targetChatId, text));
-        } catch (TelegramApiException e) {
-            log.warn("Failed to send Telegram message", e);
+        if (text == null || text.isEmpty()) {
+            return;
+        }
+        for (int start = 0; start < text.length(); start += MAX_MESSAGE_LENGTH) {
+            int end = Math.min(start + MAX_MESSAGE_LENGTH, text.length());
+            try {
+                execute(new SendMessage(targetChatId, text.substring(start, end)));
+            } catch (TelegramApiException e) {
+                log.warn("Failed to send Telegram message", e);
+                return;
+            }
         }
     }
 
@@ -158,6 +228,6 @@ public class PortfolioBot extends TelegramLongPollingBot {
             log.debug("Telegram chat-id not configured; skipping message");
             return;
         }
-        sendTo(chatId, data);
+        sendTo(chatId.trim(), data);
     }
 }

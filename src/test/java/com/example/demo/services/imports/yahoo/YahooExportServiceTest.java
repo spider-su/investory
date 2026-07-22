@@ -1,11 +1,11 @@
 package com.example.demo.services.imports.yahoo;
 
 import com.example.demo.infrastructure.CurrencyType;
-import com.example.demo.infrastructure.PositionType;
-import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
 import com.example.demo.infrastructure.repository.account.AccountStatistics;
 import com.example.demo.infrastructure.repository.account.AccountStatisticsRepository;
+import com.example.demo.testsupport.portfolio.PortfolioBuilders;
+import com.example.demo.testsupport.portfolio.PortfolioTestData;
 import com.opencsv.CSVReader;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,7 +18,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
@@ -53,29 +52,21 @@ class YahooExportServiceTest {
     when(openedPositionRepository.findAll())
         .thenReturn(
             List.of(
-                OpenedPosition.builder()
-                    .id(1L)
-                    .account(51499241L)
-                    .symbol("AAPL.US")
-                    .type(PositionType.BUY)
-                    .currency(CurrencyType.USD)
-                    .volume(10.0)
-                    .openTime(
-                        ZonedDateTime.of(2025, 12, 15, 10, 0, 0, 0, ZoneId.of("America/New_York")))
-                    .openPrice(100.0)
+                PortfolioBuilders.openPosition(PortfolioTestData.AAPL)
+                    .withId(1L)
+                    .forAccount(51499241L)
+                    .quantity(10.0)
+                    .price(100.0)
                     .marketPrice(130.0)
+                    .on(PortfolioTestData.YEAR_END)
                     .build(),
-                OpenedPosition.builder()
-                    .id(2L)
-                    .account(51499241L)
-                    .symbol("AAPL.US")
-                    .type(PositionType.BUY)
-                    .currency(CurrencyType.USD)
-                    .volume(2.0)
-                    .openTime(
-                        ZonedDateTime.of(2026, 2, 10, 10, 0, 0, 0, ZoneId.of("America/New_York")))
-                    .openPrice(120.0)
+                PortfolioBuilders.openPosition(PortfolioTestData.AAPL)
+                    .withId(2L)
+                    .forAccount(51499241L)
+                    .quantity(2.0)
+                    .price(120.0)
                     .marketPrice(130.0)
+                    .on(PortfolioTestData.AAPL_SECOND_BUY_DATE)
                     .build()));
     stubNoAccountSummaries();
 
@@ -106,29 +97,24 @@ class YahooExportServiceTest {
     when(openedPositionRepository.findAll())
         .thenReturn(
             List.of(
-                OpenedPosition.builder()
-                    .id(1L)
-                    .account(51499241L)
+                PortfolioBuilders.openPosition(PortfolioTestData.AAPL)
+                    .withId(1L)
+                    .forAccount(51499241L)
                     .symbol("NVDA.US")
-                    .type(PositionType.BUY)
-                    .currency(CurrencyType.USD)
-                    .volume(1.0)
-                    .openTime(
-                        ZonedDateTime.of(2025, 12, 1, 10, 0, 0, 0, ZoneId.of("America/New_York")))
-                    .openPrice(146.0)
+                    .quantity(1.0)
+                    .price(146.0)
                     .marketPrice(130.0)
+                    .on(PortfolioTestData.YEAR_END)
                     .build(),
-                OpenedPosition.builder()
-                    .id(2L)
-                    .account(50290466L)
+                PortfolioBuilders.openPosition(PortfolioTestData.AAPL)
+                    .withId(2L)
+                    .forAccount(50290466L)
                     .symbol("NVDA.US")
-                    .type(PositionType.BUY)
                     .currency(CurrencyType.PLN)
-                    .volume(1.0)
-                    .openTime(
-                        ZonedDateTime.of(2025, 12, 1, 10, 0, 0, 0, ZoneId.of("America/New_York")))
-                    .openPrice(150.0)
+                    .quantity(1.0)
+                    .price(150.0)
                     .marketPrice(130.0)
+                    .on(PortfolioTestData.YEAR_END)
                     .build()));
     stubNoAccountSummaries();
 
@@ -154,29 +140,25 @@ class YahooExportServiceTest {
     when(openedPositionRepository.findAll())
         .thenReturn(
             List.of(
-                OpenedPosition.builder()
-                    .id(1L)
-                    .account(51499241L)
+                PortfolioBuilders.openPosition(PortfolioTestData.IWDA_AS)
+                    .withId(1L)
+                    .forAccount(51499241L)
                     .symbol("VWRA.UK")
-                    .type(PositionType.BUY)
                     .currency(CurrencyType.USD)
-                    .volume(5.0)
-                    .openTime(
-                        ZonedDateTime.of(2025, 11, 1, 10, 0, 0, 0, ZoneId.of("Europe/London")))
-                    .openPrice(90.0)
+                    .quantity(5.0)
+                    .price(90.0)
                     .marketPrice(100.0)
+                    .on(PortfolioTestData.YEAR_END)
                     .build(),
-                OpenedPosition.builder()
-                    .id(2L)
-                    .account(51499241L)
+                PortfolioBuilders.openPosition(PortfolioTestData.IWDA_AS)
+                    .withId(2L)
+                    .forAccount(51499241L)
                     .symbol("VWRA")
-                    .type(PositionType.BUY)
                     .currency(CurrencyType.USD)
-                    .volume(10.0)
-                    .openTime(
-                        ZonedDateTime.of(2025, 11, 15, 10, 0, 0, 0, ZoneId.of("Europe/London")))
-                    .openPrice(92.0)
+                    .quantity(10.0)
+                    .price(92.0)
                     .marketPrice(100.0)
+                    .on(PortfolioTestData.YEAR_END)
                     .build()));
     stubNoAccountSummaries();
 
@@ -203,18 +185,13 @@ class YahooExportServiceTest {
     when(openedPositionRepository.findAll())
         .thenReturn(
             List.of(
-                OpenedPosition.builder()
-                    .id(1L)
-                    .account(51499241L)
-                    .symbol("MSFT.US")
-                    .type(PositionType.BUY)
-                    .currency(CurrencyType.USD)
-                    .volume(5.0)
-                    .openTime(
-                        ZonedDateTime.of(
-                            2025, 12, 15, 10, 0, 0, 0, ZoneId.of("America/New_York")))
-                    .openPrice(200.0)
+                PortfolioBuilders.openPosition(PortfolioTestData.MSFT)
+                    .withId(1L)
+                    .forAccount(51499241L)
+                    .quantity(5.0)
+                    .price(200.0)
                     .marketPrice(250.0)
+                    .on(PortfolioTestData.YEAR_END)
                     .build()));
     stubNoAccountSummaries();
 
@@ -259,17 +236,13 @@ class YahooExportServiceTest {
     when(openedPositionRepository.findAll())
         .thenReturn(
             List.of(
-                OpenedPosition.builder()
-                    .id(1L)
-                    .account(51499241L)
-                    .symbol("AAPL.US")
-                    .type(PositionType.BUY)
-                    .currency(CurrencyType.USD)
-                    .volume(10.0)
-                    .openTime(
-                        ZonedDateTime.of(2025, 12, 1, 10, 0, 0, 0, ZoneId.of("America/New_York")))
-                    .openPrice(100.0)
+                PortfolioBuilders.openPosition(PortfolioTestData.AAPL)
+                    .withId(1L)
+                    .forAccount(51499241L)
+                    .quantity(10.0)
+                    .price(100.0)
                     .marketPrice(130.0)
+                    .on(PortfolioTestData.YEAR_END)
                     .build()));
     when(accountStatisticsRepository.findAll())
         .thenReturn(List.of(accountStatistics(51499241L, 0.0)));
@@ -291,9 +264,9 @@ class YahooExportServiceTest {
   }
 
   private static AccountStatistics accountStatistics(Long accountId, Double cashBalance) {
-    return AccountStatistics.builder()
-        .accountId(accountId)
-        .cashBalance(cashBalance)
+    return PortfolioBuilders.accountStatistics()
+        .account(new PortfolioTestData.AccountDefinition(accountId, "Cash Account", CurrencyType.USD, "Broker"))
+        .balances(cashBalance, 0.0, 0.0)
         .build();
   }
 

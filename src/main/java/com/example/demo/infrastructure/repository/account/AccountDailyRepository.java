@@ -1,5 +1,6 @@
 package com.example.demo.infrastructure.repository.account;
 
+import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -7,6 +8,10 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface AccountDailyRepository extends JpaRepository<AccountDaily, Long> {
+
+  List<AccountDaily> findAllByOrderByDateAscAccountIdAsc();
+
+  List<AccountDaily> findAllByAccountIdOrderByDateAsc(Long accountId);
 
   @Modifying
   @Query("DELETE FROM AccountDaily")

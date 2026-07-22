@@ -12,6 +12,7 @@ import com.example.demo.infrastructure.repository.ClosedPosition;
 import com.example.demo.infrastructure.repository.CurrencyRate;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.account.Account;
+import com.example.demo.infrastructure.repository.account.AccountDaily;
 import com.example.demo.infrastructure.repository.account.AccountStatistics;
 import com.example.demo.infrastructure.repository.imports.ImportHistory;
 import com.example.demo.testsupport.portfolio.PortfolioTestData.AccountDefinition;
@@ -45,6 +46,10 @@ public final class PortfolioBuilders {
 
   public static FxRateBuilder fxRate() {
     return new FxRateBuilder();
+  }
+
+  public static AccountDailyBuilder accountDaily() {
+    return new AccountDailyBuilder();
   }
 
   public static AccountStatisticsBuilder accountStatistics() {
@@ -250,6 +255,21 @@ public final class PortfolioBuilders {
       return this;
     }
 
+    public OpenPositionBuilder forAccount(Long accountId) {
+      position.setAccount(accountId);
+      return this;
+    }
+
+    public OpenPositionBuilder symbol(String symbol) {
+      position.setSymbol(symbol);
+      return this;
+    }
+
+    public OpenPositionBuilder currency(CurrencyType currency) {
+      position.setCurrency(currency);
+      return this;
+    }
+
     public OpenPositionBuilder quantity(double quantity) {
       position.setVolume(quantity);
       recalculatePurchaseValue();
@@ -270,6 +290,16 @@ public final class PortfolioBuilders {
 
     public OpenPositionBuilder commission(double commission) {
       position.setCommission(commission);
+      return this;
+    }
+
+    public OpenPositionBuilder swap(double swap) {
+      position.setSwap(swap);
+      return this;
+    }
+
+    public OpenPositionBuilder profit(double profit) {
+      position.setProfit(profit);
       return this;
     }
 
@@ -322,6 +352,16 @@ public final class PortfolioBuilders {
       return this;
     }
 
+    public ClosedPositionBuilder symbol(String symbol) {
+      position.setSymbol(symbol);
+      return this;
+    }
+
+    public ClosedPositionBuilder currency(CurrencyType currency) {
+      position.setCurrency(currency);
+      return this;
+    }
+
     public ClosedPositionBuilder commission(double commission) {
       position.setCommission(commission);
       return this;
@@ -341,6 +381,86 @@ public final class PortfolioBuilders {
       requireText(position.getSymbol(), "closed position symbol is required");
       require(position.getCloseTime() != null, "closed position close time is required");
       return position;
+    }
+  }
+
+  public static final class AccountDailyBuilder {
+    private final AccountDaily daily = new AccountDaily();
+
+    private AccountDailyBuilder() {
+      daily.setId(1L);
+      daily.setAccountId(PortfolioTestData.IBKR_USD_ACCOUNT_ID);
+      daily.setDate(PortfolioTestData.JANUARY_MONTH_END);
+      daily.setCashBalance(0.0);
+      daily.setMarketValue(0.0);
+      daily.setEquity(0.0);
+      daily.setUnrealizedProfit(0.0);
+      daily.setCostBase(0.0);
+      daily.setRealizedProfit(0.0);
+      daily.setDividends(0.0);
+      daily.setInterest(0.0);
+      daily.setFees(0.0);
+      daily.setTaxes(0.0);
+      daily.setDeposits(0.0);
+      daily.setWithdrawals(0.0);
+      daily.setUpdatedAt(PortfolioTestData.atNoon(PortfolioTestData.JANUARY_MONTH_END));
+    }
+
+    public AccountDailyBuilder id(Long id) {
+      daily.setId(id);
+      return this;
+    }
+
+    public AccountDailyBuilder account(AccountDefinition account) {
+      daily.setAccountId(account.id());
+      return this;
+    }
+
+    public AccountDailyBuilder account(Long accountId) {
+      daily.setAccountId(accountId);
+      return this;
+    }
+
+    public AccountDailyBuilder on(LocalDate date) {
+      daily.setDate(date);
+      daily.setUpdatedAt(PortfolioTestData.atNoon(date));
+      return this;
+    }
+
+    public AccountDailyBuilder valuation(double cashBalance, double marketValue, double costBase) {
+      daily.setCashBalance(cashBalance);
+      daily.setMarketValue(marketValue);
+      daily.setEquity(cashBalance + marketValue);
+      daily.setCostBase(costBase);
+      daily.setUnrealizedProfit(marketValue - costBase);
+      return this;
+    }
+
+    public AccountDailyBuilder equity(double equity) {
+      daily.setEquity(equity);
+      return this;
+    }
+
+    public AccountDailyBuilder performance(
+        double realizedProfit,
+        double unrealizedProfit,
+        double dividends,
+        double interest,
+        double fees,
+        double taxes) {
+      daily.setRealizedProfit(realizedProfit);
+      daily.setUnrealizedProfit(unrealizedProfit);
+      daily.setDividends(dividends);
+      daily.setInterest(interest);
+      daily.setFees(fees);
+      daily.setTaxes(taxes);
+      return this;
+    }
+
+    public AccountDaily build() {
+      require(daily.getAccountId() != null, "account daily account id is required");
+      require(daily.getDate() != null, "account daily date is required");
+      return daily;
     }
   }
 
@@ -413,6 +533,14 @@ public final class PortfolioBuilders {
       statistics.setTotalDeposit(deposits);
       statistics.setTotalWithdrawal(withdrawals);
       statistics.setNetDeposit(deposits + withdrawals);
+      return this;
+    }
+
+    public AccountStatisticsBuilder performance(
+        double realizedProfit, double unrealizedProfit, double dividends) {
+      statistics.setRealizedProfit(realizedProfit);
+      statistics.setUnrealizedProfit(unrealizedProfit);
+      statistics.setDividends(dividends);
       return this;
     }
 

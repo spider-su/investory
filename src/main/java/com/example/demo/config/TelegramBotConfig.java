@@ -1,8 +1,8 @@
 package com.example.demo.config;
 
 import com.example.demo.controllers.bot.PortfolioBot;
-import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,24 +22,21 @@ import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
 @ConditionalOnProperty(name = "app.telegram.enabled", havingValue = "true")
 public class TelegramBotConfig {
 
-    private final PortfolioBot portfolioBot;
-
-    public TelegramBotConfig(PortfolioBot portfolioBot) {
-        this.portfolioBot = portfolioBot;
-    }
-
     @Bean
     public TelegramBotsApi telegramBotsApi() throws TelegramApiException {
         return new TelegramBotsApi(DefaultBotSession.class);
     }
 
-    @PostConstruct
-    public void registerBot() {
-        try {
-            telegramBotsApi().registerBot(portfolioBot);
-            log.info("Telegram bot registered: {}", portfolioBot.getBotUsername());
-        } catch (TelegramApiException e) {
-            log.error("Failed to register Telegram bot", e);
-        }
+    @Bean
+    public SmartInitializingSingleton telegramBotRegistration(
+            TelegramBotsApi telegramBotsApi, PortfolioBot portfolioBot) {
+        return () -> {
+            try {
+                telegramBotsApi.registerBot(portfolioBot);
+                log.info("Telegram bot registered: {}", portfolioBot.getBotUsername());
+            } catch (TelegramApiException e) {
+                throw new IllegalStateException("Failed to register Telegram bot", e);
+            }
+        };
     }
 }

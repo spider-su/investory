@@ -50,8 +50,13 @@ class ExportControllerTest {
     }
 
     @Test
-    void generate_requiresAuthentication() throws Exception {
-        mockMvc.perform(get("/export/generate"))
-                .andExpect(status().isUnauthorized());
+    void generate_isPublicReadEndpoint() throws Exception {
+        doAnswer(invocation -> {
+            String path = invocation.getArgument(0, String.class);
+            Files.writeString(Path.of(path), "Symbol\nAAPL", StandardCharsets.UTF_8);
+            return null;
+        }).when(exportService).exportToYahooCsv(anyString());
+
+        mockMvc.perform(get("/export/generate")).andExpect(status().isOk());
     }
 }

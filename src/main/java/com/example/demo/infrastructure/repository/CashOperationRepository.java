@@ -7,4 +7,6 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface CashOperationRepository extends JpaRepository<CashOperation, Long> {
     List<CashOperation> findAllByAccount(Long account);
+
+    List<CashOperation> findAllByOrderByDateDescIdDesc();
 }

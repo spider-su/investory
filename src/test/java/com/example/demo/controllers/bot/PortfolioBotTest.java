@@ -9,6 +9,9 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import static com.example.demo.infrastructure.BrokerType.IBKR;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PortfolioBotTest {
 
@@ -26,26 +29,55 @@ class PortfolioBotTest {
             "U17959259.TRANSACTIONS.20250211.20260612.csv, IBKR",
             // generic extension fallbacks
             "statement-2026.xlsx, XTB",
-            "transactions.csv, IBKR"
+            "transactions.csv, IBKR",
+            "upload.csv, IBKR",
+            "us-rates.csv, IBKR"
     })
     void detectBroker_resolvesKnownBrokers(String fileName, BrokerType expected) {
         assertEquals(expected, PortfolioBot.detectBroker(fileName));
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {
-            // 'u' prefix without digits must NOT be auto-classified as IBKR.
-            "upload.csv",
-            "us-rates.csv"
-    })
-    void detectBroker_returnsNullForUnknown(String fileName) {
-        assertEquals(IBKR, PortfolioBot.detectBroker(fileName));
+    @ValueSource(strings = {"statement.pdf", "statement.txt", "upload"})
+    void detectBroker_returnsNullForUnsupportedFiles(String fileName) {
+        assertNull(PortfolioBot.detectBroker(fileName));
     }
 
     @ParameterizedTest
     @NullAndEmptySource
     void detectBroker_returnsNullForNullOrEmpty(String fileName) {
-        assertEquals(null, PortfolioBot.detectBroker(fileName));
+        assertNull(PortfolioBot.detectBroker(fileName));
+    }
+
+    @Test
+    void authorization_requiresExactConfiguredChatId() {
+        assertTrue(PortfolioBot.isAuthorized(" 123456 ", "123456"));
+        assertFalse(PortfolioBot.isAuthorized("123456", "654321"));
+        assertFalse(PortfolioBot.isAuthorized("", "123456"));
+        assertFalse(PortfolioBot.isAuthorized(null, "123456"));
+    }
+
+    @Test
+    void downloadLimit_allowsTwentyMbAndRejectsLargerFiles() {
+        assertFalse(PortfolioBot.isDownloadTooLarge(null));
+        assertFalse(PortfolioBot.isDownloadTooLarge(PortfolioBot.MAX_DOWNLOAD_SIZE_BYTES));
+        assertTrue(PortfolioBot.isDownloadTooLarge(PortfolioBot.MAX_DOWNLOAD_SIZE_BYTES + 1));
+    }
+
+    @Test
+    void startCommand_supportsDirectAndGroupChatForms() {
+        assertTrue(PortfolioBot.isStartCommand("/start", "investory_bot"));
+        assertTrue(PortfolioBot.isStartCommand(" /start@Investory_Bot ", "investory_bot"));
+        assertFalse(PortfolioBot.isStartCommand("/start@other_bot", "investory_bot"));
+        assertFalse(PortfolioBot.isStartCommand(null, "investory_bot"));
+    }
+
+    @Test
+    void resetCommand_supportsDirectAndGroupChatForms() {
+        assertTrue(PortfolioBot.isResetCommand("/reset", "investory_bot"));
+        assertTrue(PortfolioBot.isResetCommand(" /reset@Investory_Bot ", "investory_bot"));
+        assertFalse(PortfolioBot.isResetCommand("/reset@other_bot", "investory_bot"));
+        assertFalse(PortfolioBot.isResetCommand("reset", "investory_bot"));
     }
 
     @Test
