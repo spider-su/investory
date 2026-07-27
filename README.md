@@ -1,12 +1,9 @@
 # Investory
 
-> **Portfolio intelligence for long-term investors.**
+> Portfolio intelligence for long-term investors.
 >
-> Track your investments across multiple brokers, currencies and asset classes while preserving a complete transaction history and producing accurate portfolio analytics.
->
-> **Built with Spring Boot + PostgreSQL. Developed with OpenAI Codex and GPT-5.6 as AI engineering assistants for implementation, architecture, debugging, documentation and UX design.**
-
----
+> Track investments across brokers, currencies, and asset classes while preserving a complete
+> transaction ledger and producing reproducible portfolio analytics.
 
 ## Why Investory?
 
@@ -25,11 +22,12 @@ Investory answers much more:
 - How did currency movements affect my returns?
 - How close am I to simply buying SPY?
 
-Investory combines complete transaction history with market prices to reconstruct portfolio history and calculate meaningful long-term investment metrics.
+Investory combines transaction history with market prices to reconstruct portfolio state and derive
+daily and monthly analytics.
 
 ---
 
-# Features
+## Features
 
 ### Portfolio overview
 
@@ -70,7 +68,7 @@ Investory combines complete transaction history with market prices to reconstruc
 
 ---
 
-# Supported brokers
+## Supported brokers
 
 Currently implemented:
 
@@ -81,11 +79,11 @@ The architecture allows additional brokers to be added without changing portfoli
 
 ---
 
-# Technology
+## Technology
 
 | Layer | Technology |
 |--------|------------|
-| Backend | Java 21 |
+| Backend | Java 25 |
 | Framework | Spring Boot |
 | Database | PostgreSQL |
 | ORM | Spring Data JPA |
@@ -95,7 +93,7 @@ The architecture allows additional brokers to be added without changing portfoli
 
 ---
 
-# Architecture
+## Architecture
 
 Investory is built around an immutable transaction ledger.
 
@@ -117,7 +115,8 @@ Engine         Engine
  Dashboard
 ```
 
-Instead of storing daily balances, Investory reconstructs portfolio state from transactions.
+Investory reconstructs portfolio state from transactions and stores derived daily and monthly
+account projections for fast, reproducible analytics.
 
 This provides:
 
@@ -127,60 +126,7 @@ This provides:
 - easier reconciliation
 - accurate realized P/L
 
----
-
-# Key capabilities
-
-## Multi-broker portfolio
-
-Manage investments across multiple brokerage accounts as one portfolio while still being able to analyze each account independently.
-
----
-
-## Multi-currency support
-
-Native support for:
-
-- USD
-- EUR
-- PLN
-
-with automatic FX conversion for:
-
-- portfolio value
-- realized profit
-- unrealized profit
-- dividends
-- historical performance
-
----
-
-## Portfolio reconciliation
-
-Investory keeps two complementary views of the portfolio:
-
-- immutable transaction history
-- historical account valuation
-
-Small differences caused by missing historical prices or FX interpolation can be reconciled while preserving the integrity of the transaction ledger.
-
----
-
-## Performance analytics
-
-Instead of only displaying balance, Investory separates:
-
-- realized gains
-- unrealized gains
-- dividends
-- taxes
-- currency impact
-
-making long-term investment performance much easier to understand.
-
----
-
-# Dashboard
+## Dashboard
 
 The dashboard includes:
 
@@ -199,83 +145,19 @@ The dashboard includes:
 - Position Tables
 - Import Tools
 
----
+## Documentation
 
-# AI-assisted development
+- `README.md`: product overview and local run basics.
+- `AGENTS.md`: canonical engineering guide for current architecture, DB, API surface, invariants,
+  and workflow.
+- `ROADMAP.md`: future work only.
+- `docs/`: focused supporting documents such as compatibility reports and refactor notes.
 
-Investory was developed using **OpenAI Codex** and **GPT-5.6** throughout the project.
-
-AI was used as an engineering assistant—not as an automatic code generator—with every significant change reviewed before integration.
-
-## OpenAI Codex
-
-Codex accelerated implementation by assisting with:
-
-- Spring Boot development
-- PostgreSQL query optimization
-- Repository and service refactoring
-- Materialized view implementation
-- DTO and mapper generation
-- Portfolio analytics
-- Historical reconstruction logic
-- Debugging reconciliation issues
-- Test generation
-- Code reviews
-
-Development remained iterative, with Codex acting as a pair programmer rather than generating complete applications.
-
----
-
-## GPT-5.6
-
-GPT-5.6 supported both engineering and product development by helping with:
-
-- architecture reviews
-- portfolio reconciliation algorithms
-- financial calculation validation
-- dashboard UX improvements
-- interface wording
-- feature brainstorming
-- documentation
-- README generation
-- Devpost submission
-- CSS and UI refinement
-- API design discussions
-
-GPT-5.6 was also used extensively to evaluate new portfolio analytics ideas and translate investment concepts into practical product features.
-
----
-
-## Examples of AI-assisted work
-
-During development AI contributed to work such as:
-
-- portfolio reconciliation between Interactive Brokers and XTB
-- historical account reconstruction
-- multi-currency portfolio calculations
-- tax-aware profit calculations
-- dashboard redesign
-- PostgreSQL materialized view optimization
-- documentation improvements
-- performance tuning
-- developer experience improvements
-
----
-
-## Human responsibility
-
-All portfolio calculations, accounting logic and investment analytics were designed, validated and tested by the project author.
-
-AI accelerated development, but architectural decisions, financial calculations and final implementations were reviewed before being accepted.
-
----
-
-# Roadmap
+## Roadmap
 
 Planned improvements include:
 
 - additional broker integrations
-- portfolio benchmarking
 - factor exposure
 - dividend forecasting
 - portfolio rebalancing suggestions
@@ -284,13 +166,11 @@ Planned improvements include:
 - portfolio attribution
 - richer tax reporting
 
----
-
-# Running locally
+## Running locally
 
 Requirements:
 
-- Java 21
+- Java 25 or newer
 - PostgreSQL
 - Maven
 
@@ -308,9 +188,7 @@ Open:
 http://localhost:8080
 ```
 
----
-
-# Project goals
+## Project goals
 
 Investory is intended for investors who want to understand:
 
@@ -321,8 +199,6 @@ Investory is intended for investors who want to understand:
 
 Rather than replacing broker platforms, Investory provides a consolidated analytics layer focused on long-term portfolio management.
 
----
-
-# License
+## License
 
 MIT License

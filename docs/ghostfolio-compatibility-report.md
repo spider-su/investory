@@ -5,6 +5,10 @@ Generated: 2026-07-27
 Scope: read-only endpoints currently implemented by Investory under `/api/v1`,
 `/api/v2`, and `/api/assets` for the Ghostfolio frontend.
 
+This is a focused compatibility note, not the canonical source of current repository architecture.
+If the HTTP surface or runtime invariants change, update `AGENTS.md` first and then adjust this
+report as needed.
+
 ## Matrix
 
 | Endpoint | Ghostfolio contract | Investory source | Controller | Mapper/orchestrator | Status | Remaining gaps |

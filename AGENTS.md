@@ -1,116 +1,211 @@
 # AGENTS.md
 
+Canonical engineering guidance for every coding agent working in this repository.
+Tool-specific instruction files should contain only small overlays and must not duplicate
+project facts from this file.
+
+## Communication Style
+
+- User-facing conversation in this repository should use brief caveman-style English across
+  commentary and final responses: short sentences, simple wording, direct statements.
+- Keep code, commands, file paths, API names, class names, and other technical identifiers exact.
+- If caveman phrasing would make a technical point ambiguous, keep the technical point precise and
+  only simplify the surrounding prose.
+
+## Stack Discipline
+
+- Treat current project stack as the default implementation target: Spring Boot, Java, Maven,
+  PostgreSQL, Flyway, JPA, Thymeleaf, and the existing frontend/runtime choices already in repo.
+- Prefer implementing inside the existing stack instead of proposing other languages, frameworks,
+  database dialects, ORMs, build tools, or frontend stacks.
+- Only suggest or introduce a different stack component when the user explicitly asks for it or a
+  hard technical constraint in the repository makes the current stack unable to satisfy the task.
+
+## Flyway Discipline
+
+- Prefer updating the intended migration structure instead of stacking extra patch migrations when
+  the migration is still part of active local work and has not become a stable shared baseline.
+- Use additional follow-up patch migrations for already-shipped or shared schema history that must
+  remain append-only.
+
 ## Project Snapshot
-- Spring Boot 4.1 monolith for portfolio/investment tracking (`pom.xml`, Java 25 via `<java.version>`).
-- Main flow: broker XLSX/CSV import -> normalized portfolio tables -> FX/market sync -> projection refresh -> Thymeleaf dashboard, Yahoo CSV export, and optional Telegram notifications.
+
+- Spring Boot 4.1 monolith for portfolio and investment tracking; Maven build targeting Java 25.
+- Main flow: broker XLSX/CSV import -> normalized portfolio tables -> FX and market sync ->
+  daily/monthly projections -> Thymeleaf dashboard, Ghostfolio-compatible read APIs, Yahoo CSV
+  export, Telegram notifications, and optional OpenAI answers/reports.
 - Package boundaries:
-  - `controllers`: UI, REST import/export, Telegram bot entrypoint.
-  - `services`: dashboard analytics, market/FX sync, projection rebuilds, reset helpers, tax/cash-flow helpers.
-  - `services/imports`: broker parser SPI and broker-specific importers.
+  - `controllers`: UI, import/export/admin REST, Telegram bot, and Ghostfolio compatibility.
+  - `services`: portfolio analytics, market/FX sync, projections, reset, tax, cash flow, and
+    manual prices.
+  - `services/imports`: broker parser SPI, XTB/IBKR implementations, and Yahoo export.
+  - `services/openai`: Telegram AI replies, dashboard context, and scheduled reports.
+  - `services/portfolio`: deterministic Telegram command routing.
   - `services/notifications`: digest and alert rules.
-  - `infrastructure`: enums and JPA repositories/entities.
-  - `clients`: native `java.net.http` clients for external APIs.
-  - `config`: security, scheduling, Telegram wiring.
-- Current public controllers are intentionally small: dashboard (`/`, `/dashboard`), broker import (`POST /import/broker/{broker}`), and Yahoo export (`GET /export/generate`).
+  - `infrastructure`: enums, JPA entities/repositories, and projection/view entities.
+  - `clients`: native `java.net.http` clients for TwelveData and exchangerate.host.
+  - `config`: security, scheduling, Thymeleaf, Telegram, and AI scheduling.
 
-## System Flow
-- Import flow: `POST /import/broker/{broker}` -> `ImportController` -> `ImportOrchestratorService.importFile()` -> `BrokerImportParser` (`XtbBrokerImportParser` or `IbkrBrokerImportParser`) -> writes `cash_operations`, unified `positions`, `assets`, account summary fields on `accounts`, and `import_history`.
-- UI import flow: dashboard "Import statement" card posts multipart files to `/import/broker/{broker}` and renders the `ImportBatchResponse`.
-- Telegram import flow: `PortfolioBot` detects broker from document filename and calls the same orchestrator with `ImportSourceType.TELEGRAM`.
-- Market flow: `MarketService.fullPortfolioUpdate()` runs price refresh, applies prices to open positions, re-values IBKR positions/account equity, then refreshes SQL projections/materialized views.
-- Projection flow: `PortfolioProjectionService.recalculateAll()` rebuilds `account_monthly` and `account_statistics` from current imported rows. Per-position projection values are kept in memory only for account-statistics calculation. Missing/projection-sourced account balance/equity fields are backfilled from `account_statistics` in the account's own currency; real broker summaries are not overwritten.
-- Dashboard flow: `PortfolioService.calculateTotalProfitLoss()` prefers `mv_portfolio_kpi_summary` for totals, then enriches with non-zero account balances, currency breakdowns, taxes, symbol performance, monthly performance, dividend gainers, and FX cards.
-- Benchmark flow: `BenchmarkService.calculate(...)` reads `account_monthly`, supports account filtering from dashboard checkboxes, hides near-zero accounts, and compares each selected account's month-to-month value change against the same starting value compounded by SPY monthly closes from TwelveData. For multi-account selections, each account keeps its own starting value and curves are summed.
-- Export flow: `YahooExportService` writes a Yahoo-compatible CSV from DB state; cash is exported as a `USDT-USD` position and positions use the first day of the current month as open date.
-- Notification flow: `NotificationService.sendDailyDigest()` plus `runAlerts()`; Telegram delivery is optional and disabled by default.
-- Scheduler flow:
-  - FX refresh: weekdays `15:00 Europe/Warsaw`.
-  - Market close record: weekdays `22:01 Europe/Warsaw`, runs full market update plus projection recalculation.
-  - Notifications: weekdays `22:22 Europe/Warsaw`.
+## Build And Test
 
-## Database And Migrations
-- PostgreSQL + Flyway. Current squashed baseline files are:
-  - `V01.000__Initial_schema.sql`
-  - `V01.001__Initial_data.sql`
-  - `V01.002__checks_and_views.sql`
-- Keep schema consistent as `investory` (`spring.jpa.properties.hibernate.default_schema` and `spring.flyway.schemas` in `application.yml`).
-- Currency domain is fixed to `USD`, `EUR`, `PLN` (`CurrencyType`). FX rows live in `exchange_rates(month, base, to_currency, rate)`.
-- Core tables:
-  - `accounts`, `portfolios`, `assets`
-  - `cash_operations`
-  - unified `positions` table for both open and closed positions
-  - `accounts` also stores broker-reported cash/equity snapshots, or projection-derived fallback values in account currency when broker data is missing
-  - `account_statistics`, `account_monthly`
-  - `import_history`
-- Java still has `OpenedPosition` and `ClosedPosition` entities, but both map to `positions`; repositories filter by `close_time IS NULL` or `close_time IS NOT NULL`. Do not recreate split `opened_positions` / `closed_positions` tables.
-- `V01.002__checks_and_views.sql` keeps:
-  - `refresh_account_statistics(...)`
-  - `mv_portfolio_asset_allocation` (kept for future allocation UI/API use)
-  - `mv_portfolio_kpi_summary` (used by dashboard totals)
-- Removed legacy/unused database surface: `stocks`, `ticker_monthly`, `monthly_position_summary`, `position_summary`, `portfolio_history`, open-position history, indicator tables, and old diagnostic regular views.
+- No Maven wrapper is currently present. Use Maven directly: `mvn test`, `mvn clean package`,
+  or `mvn spring-boot:run`.
+- Java 25 or newer is required. Ensure `java -version` and `mvn -version` use a compatible JDK;
+  do not rely on a machine-specific JDK path in repository documentation.
+- Spotless is configured but not bound to the lifecycle. Run `mvn spotless:check` or
+  `mvn spotless:apply` manually.
+- Lombok must remain in `maven-compiler-plugin` `annotationProcessorPaths`; compiler plugin 3.15
+  does not auto-discover it from the project classpath.
+- `@WebMvcTest` comes from
+  `org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest`.
+- MVC test slices that exercise security need
+  `@Import({SecurityConfig.class, MockMvcSecurityTestConfig.class})`.
+- Spring Boot 4 removed `@MockBean`; use `@MockitoBean` from
+  `org.springframework.test.context.bean.override.mockito`.
+- Telegram transitives are deliberately pinned in dependency management:
+  `commons-io 2.21.0`, `commons-lang3 3.20.0`, and `commons-beanutils 1.11.0`.
+  Do not downgrade or remove the overrides without checking the associated advisories.
+- Manual API smoke requests live in `src/test/manual/api.http`.
+- Do not record an exact test count here; it becomes stale. Report the result of the current
+  verified run when handing off a change.
 
-## Import Notes
-- Import parsers implement `BrokerImportParser`; add a broker by creating a `@Component` implementation and adding a `BrokerType`.
-- `ImportOrchestratorService.importFile()` checks SHA-256. A previously applied file returns `duplicate=true` without mutating the existing batch row.
-- Failure auditing goes through `ImportBatchAuditWriter` with `REQUIRES_NEW`, so FAILED `import_history` rows survive parser rollback. Raw payload is capped at 8 KB with a truncation header.
-- XTB uses the V2 importer (`XtbImportV2Service`) through `XtbBrokerImportParser`; do not reintroduce the legacy XTB importer.
-- IBKR import supports activity statements and transaction-only CSVs. Activity statement `Open Positions` / `Net Asset Value` sections replace reconstructed IBKR open rows and update balance/equity fields on `accounts`.
-- Asset identity rules:
-  - `assets.symbol` is the app/broker symbol, usually `TICKER.EXCHANGE` (`AAPL.US`, `CDR.PL`, `REMX.UK`).
-  - `assets.ticker` is the TwelveData request symbol. For US assets this is usually bare (`NVDA`), not `NVDA.US`.
-  - `assets.ibkr` stores IBKR-specific aliases/mapping.
-  - `assets.yahoo` stores Yahoo export/fetch symbol when needed.
-- Latest asset prices are stored directly on `assets` (`market_price`, `market_price_usd`, `price_source`, `price_updated_at`); `market_price_usd` must be populated because projections and export code expect it.
-- `account_statistics` and `account_monthly` are projection tables. If imported cash-operation dates are manually changed, run the projection refresh instead of patching dashboard calculations; otherwise balances, cash, and benchmark curves can temporarily disagree.
+## Runtime And Security
 
-## Market And FX Notes
-- TwelveData client lives in `clients/market/TwelveDataService`; quote sync is intentionally chunked (`MarketService.CHUNK_SIZE = 8`) with `app.market.chunk-pause-ms` defaulting to 120 seconds.
-- Market sync sources symbols from `assets`, not a `stocks` table.
-- `MarketService` marks assets active based on open positions and backfills inactive asset prices from latest closed deals.
-- `REMX.UK` has a manual quote normalization because TwelveData returns a scale inconsistent with the held VanEck instrument.
-- `CurrencyRateUpdaterService` calls exchangerate.host only for USD-based rates, then derives EUR/PLN cross rates locally. It writes one row per currency pair per month-start.
-- `CurrencyRateService.convertToBaseCurrency(...)` uses direct or inverse cached historical rates and falls back to unconverted amount with a warning when data is missing.
+- PostgreSQL + Flyway use schema `investory`.
+- `spring.jpa.hibernate.ddl-auto=none`; make schema changes through versioned Flyway migrations
+  under `src/main/resources/sql/migration`.
+- HTTP Basic uses in-memory `ADMIN` and `USER` credentials from `app.security.*`.
+- Root, dashboard, error, and static resources are public. Mutating routes require `ROLE_ADMIN`;
+  CSRF is currently disabled.
+- Ghostfolio compatibility has a separate, permissive security chain only under the
+  `ghostfolio` profile. Do not weaken default security to support it.
+- Telegram wiring is conditional on `app.telegram.enabled=true`.
+- OpenAI chat is configured by `app.openai.*`, uses `gpt-5-mini` by default, and is disabled by
+  default. Portfolio context is rendered dashboard text capped by the configured character limit.
+- Notifications are controlled by `app.notifications.enabled`.
 
-## UI/API Surface
+## HTTP Surface
+
 - Public UI:
   - `GET /`
   - `GET /dashboard`
-- REST:
+- Import/export/admin:
   - `POST /import/broker/{broker}`
   - `GET /export/generate`
   - `POST /admin/refresh-prices`
+  - `POST /admin/rebuild-monthly`
   - `POST /admin/assets/{symbol}/price`
-- Removed REST controllers/endpoints: stock sync/create, portfolio JSON API, indicator API, currency refresh API, history API, import history listing API.
-- Thymeleaf dashboard template is under `classpath:/static/dashboard/`; `/` returns `templates/home.html`.
-- Security uses HTTP Basic with in-memory users. `GET /`, `/error`, static assets, and `/dashboard/**` are public; mutating requests require `ROLE_ADMIN`; CSRF is disabled.
-- Dashboard behavior to preserve:
-  - Account lists and benchmark account options exclude near-zero accounts (`cash_balance + market_value` threshold).
-  - Benchmark chart tooltips show both percent and absolute P/L values.
-  - Dividend KPI has a popup-style `Top 10` table. Rows are converted to dashboard base currency, sorted by USD-equivalent net dividends, and rendered as top 9 symbols plus an `Other` summary row when more than 10 symbols exist.
-  - Dividend popup symbols are plain text; do not add symbol avatars/icons there.
+- Ghostfolio-compatible surface:
+  - `GET /api/v1/info`, `GET /api/v1/health`
+  - `POST /api/v1/auth/anonymous`
+  - `/api/v1/user`, `/api/v1/user/settings`
+  - `/api/v1/account/**`, `/api/v1/activities/**`, `/api/v1/portfolio/**`
+  - `/api/v2/portfolio/performance`, `/api/assets/**`
+- Removed legacy controllers should remain removed unless a concrete product need returns:
+  stock sync/create, currency refresh, indicators, history, and import-history listing.
 
-## Notifications
-- Alert rules implement `AlertRule` and are injected as a list into `NotificationService`.
-- Active alert rules include concentration, drawdown, and stale import checks.
-- `DrawdownAlertRule` keeps peak equity in memory and resets on restart.
-- `app.notifications.enabled=false` silences digest and alerts without removing beans.
-- Telegram bot config is conditional on `app.telegram.enabled=true`; app starts cleanly with Telegram disabled.
+## Import Flow
 
-## Build Wiring Gotchas
-- Lombok must remain in `<annotationProcessorPaths>` of `maven-compiler-plugin`; Boot 4.1 / compiler plugin 3.15 no longer auto-discovers processors from classpath.
-- `@WebMvcTest` needs `@Import({SecurityConfig.class, MockMvcSecurityTestConfig.class})`; otherwise `@WithMockUser` tests can still return 401.
-- `@MockBean` is removed in Boot 4.x; tests use `@MockitoBean` from `org.springframework.test.context.bean.override.mockito`.
-- `@WebMvcTest` import is `org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest`.
-- Vulnerable Telegram transitives are pinned in dependency management: `commons-io 2.21.0`, `commons-lang3 3.20.0`, `commons-beanutils 1.11.0`. Do not downgrade.
-- Maven runtime must be Java 25+. On this machine Java 26 works:
-  `JAVA_HOME=/Users/olesirob/Library/Java/JavaVirtualMachines/openjdk-26/Contents/Home PATH="/Users/olesirob/Library/Java/JavaVirtualMachines/openjdk-26/Contents/Home/bin:$PATH" /Users/olesirob/Applications/IntelliJ\ IDEA.app/Contents/plugins/maven/lib/maven3/bin/mvn test`
+- `ImportController` -> `ImportOrchestratorService.importFile()` -> `BrokerImportParser`.
+- Current parser implementations are `XtbBrokerImportParser` and `IbkrBrokerImportParser`.
+  Add a broker with a `@Component` implementation and a new `BrokerType`.
+- XTB uses `XtbImportV2Service`; do not restore the legacy importer.
+- IBKR supports activity statements and transaction-only CSVs. Activity-statement
+  `Open Positions` and `Net Asset Value` sections replace reconstructed open rows and update
+  account summaries.
+- Imports are deduplicated by SHA-256. A previously applied file returns `duplicate=true`
+  without mutating portfolio rows.
+- Failure auditing uses `ImportBatchAuditWriter` with `REQUIRES_NEW`, so failed
+  `import_history` rows survive parser rollback. Raw payload is capped at 8 KB with truncation
+  metadata.
+- Telegram document imports use the same orchestrator with `ImportSourceType.TELEGRAM`;
+  filename and extension drive broker detection.
+- Asset identity:
+  - `assets.symbol`: application/broker symbol, normally `TICKER.EXCHANGE`.
+  - `assets.ticker`: TwelveData request symbol, often bare for US instruments.
+  - `assets.ibkr`: IBKR alias or mapping.
+  - `assets.yahoo`: Yahoo-specific symbol where needed.
 
-## Developer Workflow
-- No Maven wrapper detected; use Maven directly.
-- Build/test/run:
-  - `mvn clean package`
-  - `mvn test`
-  - `mvn spring-boot:run`
-- Spotless is configured but not bound to a lifecycle phase. Use `mvn spotless:apply` or `mvn spotless:check` manually.
-- Manual API smoke calls live in `src/test/manual/api.http`.
-- Current test suite is JUnit 5 + Mockito + Spring MVC test slices. Recent full run: `191 tests`, `0 failures`, `0 errors`.
+## Database And Projection Guardrails
+
+- Current baseline migrations:
+  - `V01.000__Initial_schema.sql`
+  - `V01.001__Initial_data.sql`
+  - `V01.002__checks_and_views.sql`
+  - `V01.003__asset_price_history_import.sql`
+- Currency is limited to `USD`, `EUR`, and `PLN`.
+- Core live tables include `accounts`, `portfolios`, `assets`, `asset_price_history`,
+  `cash_operations`, `positions`, `account_daily`, `account_monthly`, `account_statistics`,
+  `import_history`, `exchange_rates`, and benchmark monthly closes.
+- `positions` is the only position table. `OpenedPosition` and `ClosedPosition` map to it and
+  are filtered by `close_time`; never recreate split position tables.
+- `assets` owns current quote columns: `market_price`, `market_price_usd`, `price_source`, and
+  `price_updated_at`. Projections and export require `market_price_usd`.
+- `asset_price_history` distinguishes observed and estimated prices and preserves source,
+  quality, scale, proxy, and currency metadata. Do not collapse those semantics.
+- `account_daily` is live projection data and feeds monthly/statistics refresh; it is not
+  disposable legacy history.
+- `account_monthly` feeds benchmark curves and account filtering. `account_statistics` feeds
+  balances, cash/currency calculations, and fallback account summaries.
+- Materialized views:
+  - `mv_portfolio_kpi_summary`
+  - `mv_portfolio_asset_allocation`
+  - `mv_portfolio_currency_breakdown`
+- Removed database surface must stay removed: `stocks`, `ticker_monthly`,
+  `monthly_position_summary`, `position_summary`, `portfolio_history`, old open-position
+  history, indicator tables, and obsolete diagnostic views.
+
+## Market, FX, And Projections
+
+- `MarketService.fullPortfolioUpdate()` refreshes prices, applies them to open positions,
+  re-values IBKR positions/account equity, and refreshes projections/views.
+- TwelveData access lives in `clients/market/TwelveDataService`; symbols come from `assets`.
+- Quote sync uses `MarketService.CHUNK_SIZE = 8` and `app.market.chunk-pause-ms` defaults to
+  120 seconds.
+- `app.market.skip-non-us-listings=true` by default; manual prices cover unavailable listings.
+- Preserve the `REMX.UK` quote normalization unless provider mapping changes.
+- `AssetPriceFallbackService` uses historical prices while preserving provenance and quality.
+- FX refresh fetches USD-base rates from exchangerate.host and derives EUR/PLN crosses locally.
+  Rows are stored per currency pair at month start.
+- Currency conversion tries direct and inverse cached historical rates, then warns and returns
+  the unconverted amount when no rate exists.
+- `PortfolioProjectionService.recalculateAll()` rebuilds daily/monthly/statistics projections.
+  Refresh projections after correcting imported dates rather than patching dashboard math.
+
+## Dashboard, Export, Telegram, And Notifications
+
+- Dashboard template: `classpath:/static/dashboard/dashboard.html`; `/` returns
+  `templates/home.html`.
+- Dashboard totals prefer `mv_portfolio_kpi_summary` and are enriched with account balances,
+  currencies, taxes, performance, dividends, benchmark data, and FX cards.
+- Preserve these UI rules:
+  - Exclude near-zero accounts from account lists and benchmark choices.
+  - Benchmark tooltips show percent and absolute P/L.
+  - Dividend Top 10 shows nine symbols plus `Other` when more than ten symbols exist.
+  - Dividend popup symbols are plain text, without avatars.
+- Yahoo export emits cash as `USDT-USD` and supports account filtering through
+  `app.export.yahoo.accounts`.
+- Telegram rejects unauthorized chats unless `app.telegram.chat-id` matches. It supports broker
+  documents, `/start`, `/reset`, deterministic portfolio commands, then OpenAI fallback.
+- `PortfolioCommandService` reads the same dashboard context as AI; keep command values aligned
+  with dashboard rendering.
+- Scheduled AI reports require both AI analysis and Telegram to be enabled. Services must use
+  supplied portfolio context, state missing data, and avoid fabricated facts or direct
+  buy/sell instructions.
+- Active alerts are concentration, drawdown, and stale import. Drawdown peak equity is currently
+  in memory and resets on restart.
+- Scheduler times, all in `Europe/Warsaw`:
+  - FX refresh: weekdays 15:00.
+  - Market close update/projection refresh: weekdays 22:01.
+  - Notification digest and alerts: weekdays 22:22.
+  - AI reports: monthly day 1 at 09:00; quarterly day 2 at 09:15; annual January 3 at 09:30.
+
+## Change Discipline
+
+- Before deleting an entity, table, view, or endpoint, check Java, migrations, dashboard assets,
+  Ghostfolio controllers, schedulers, reset/export paths, and tests.
+- Do not reintroduce removed APIs or tables as shortcuts.
+- Update this file when a change adds or removes endpoints, migrations, schedulers, core tables,
+  or externally visible configuration.
+- Keep `ROADMAP.md` future-facing. Completed work belongs in history/release notes, not among
+  active priorities.

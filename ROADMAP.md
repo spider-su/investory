@@ -1,14 +1,14 @@
 # ROADMAP
 
-Living plan of follow-ups based on the current state of the codebase (post Boot 4.1 + Java 25 upgrade, June 2026). Items are sized **S** (≤ half day), **M** (1-2 days), **L** (multi-day). Tackle in any order, but the "Next 30 days" list is the recommended sequence.
+Living plan of follow-ups based on the current state of the codebase (post Boot 4.1 + Java 25 upgrade, June 2026). Items are sized **S** (≤ half day), **M** (1-2 days), **L** (multi-day). Tackle items in any order, but the next-priorities list is the recommended sequence. Current architecture and invariants live in `AGENTS.md`.
 
-## Next 30 days (high impact, low risk)
+## Next priorities (high impact, low risk)
 
-1. **Persist `DrawdownAlertRule` peak equity** _(S)_ - currently in-memory, resets on every restart; a single-row `notification_state` table (or column on `portfolio_history`) makes the rule reliable.
-2. **Per-rule alert deduplication** _(S)_ - same condition fires every weekday at 22:00 → 5 duplicate Telegrams per week. Add `last_fired_at` per `AlertRule.code()` and only re-fire after N hours / state change.
+1. **Persist `DrawdownAlertRule` peak equity** _(S)_ - currently in-memory and resets on every restart. Store it in a dedicated `notification_state` table; do not restore the removed `portfolio_history` table.
+2. **Per-rule alert deduplication** _(S)_ - the same condition can fire every weekday at the 22:22 notification run. Add `last_fired_at` per `AlertRule.code()` and only re-fire after N hours or a state change.
 3. **Spring Boot Actuator + healthcheck** _(S)_ - add `spring-boot-starter-actuator`, expose `/actuator/health` (DB + Telegram + import-staleness), wire into Docker `HEALTHCHECK`.
-4. **Test job in GitHub Actions** _(S)_ - the existing workflow only builds the Docker image. Add a `mvn test` step on PRs so the ~30-class suite gates merges.
-5. **Maven wrapper (`mvnw`)** _(S)_ - vendoring the wrapper unblocks CI and Docker builds without a system Maven, and means the README "Run locally" snippet works on a fresh machine.
+4. **Test job in GitHub Actions** _(S)_ - the existing workflow only builds the Docker image. Add a `mvn test` job on pull requests so the suite gates merges.
+5. **Maven wrapper (`mvnw`)** _(S)_ - vendor and verify the wrapper, then switch CI, Docker, `README.md`, and the build instructions in `AGENTS.md` together. Until that change lands, Maven must be installed and invoked directly.
 
 That's roughly 2-3 days of focused work and clears most of the operational rough edges.
 
@@ -29,9 +29,8 @@ That's roughly 2-3 days of focused work and clears most of the operational rough
 | Item | Effort | Why |
 |---|---|---|
 | WireMock fixtures for `TwelveDataService` (`/quote`, `/time_series`, rate-limit 429) | M | The most fragile external dependency has zero tests. |
-| Unit tests for `IbkrImportService` FIFO matching | M | 577 lines, only smoke-tested via parser. Cover lot-matching, partial fills, forex rows, dividends, synthetic-id stability. |
-| Synthetic XLSX builder for `XtbImportServiceTest` | M | Today 10 of 11 fixture tests skip when broker exports aren't present; an Apache POI helper would generate the minimal sheet shape and remove the `Assumptions.assumeTrue` workaround. |
-| `YahooExportService` + `YahooFinanceService` tests (temp dir, mocked client) | S | Currently a hot-zone for silent regressions. |
+| Extend IBKR FIFO edge-case coverage | M | Existing importer tests cover the main statement flows; add focused cases for lot matching across partial fills, forex rows, and synthetic-ID stability. |
+| Synthetic XLSX builder for `XtbImportHistoryV2ServiceTest` | M | Several fixture tests skip when private broker exports are absent. An Apache POI helper can generate the minimal sheet shapes and remove `Assumptions.assumeTrue`. |
 | JaCoCo report (Maven plugin + threshold per package) | S | Surface what's actually covered; today coverage is a guess. |
 | Spring Boot integration test against Testcontainers Postgres | M | Catches Flyway migration drift before deploy. Today no test boots the full context. |
 
@@ -51,7 +50,6 @@ That's roughly 2-3 days of focused work and clears most of the operational rough
 |---|---|---|
 | Additional `BrokerImportParser` impls (Revolut, Trade Republic, DEGIRO) | M each | SPI is ready; each broker is essentially a column-mapping plus FIFO match. |
 | IBKR FlexQuery scheduled pull (no more manual CSV upload) | L | Replaces the Telegram/UI upload for IBKR with a `@Scheduled` job hitting IBKR's auth-token endpoint. |
-| Refactor `XtbImportService` static state into a per-call context | M | Listed as a known gotcha in `AGENTS.md`; blocks concurrent imports today. |
 | Idempotent partial re-imports (overlap windows) | M | The SHA-256 check covers full duplicates; overlapping date ranges between two exports double-count today unless you reset. |
 | Validation report attached to `ImportBatch` (sheet-level row totals, currency totals, gaps) | S | Helps the user trust the import. |
 
@@ -76,7 +74,7 @@ That's roughly 2-3 days of focused work and clears most of the operational rough
 | ~~Move inline dashboard JS to `static/js/dashboard.js`~~ | done | The Import-statement card now references the external script. |
 | ~~Pin vulnerable telegrambots transitives~~ | done | `commons-io 2.21.0`, `commons-lang3 3.20.0`, `commons-beanutils 1.11.0` pinned in `<dependencyManagement>` to clear three advisories. |
 | ~~Bump `poi-ooxml` 5.2.3 → 5.4.1, `opencsv` 5.7.1 → 5.9, `gson` 2.10.1 → 2.13.2~~ | done | Refreshes direct deps; clears `CVE-2025-31672` on `poi-ooxml`. |
-| Bump `telegrambots` 6.8 → 7.x / 10.x (Boot starter, split artifacts) | M | 6.x is no longer maintained; the 7.x+ line ships a real Spring Boot starter (`telegrambots-springboot-longpolling-starter`) and splits client/meta into separate jars. Held back during the Boot 4 migration because the local Maven cache didn't have the newer versions — pure infra task, no API blocker. Requires reworking `PortfolioBot` to the `LongPollingSingleThreadUpdateConsumer` API. |
+| Bump `telegrambots` 6.9 → 7.x / 10.x (Boot starter, split artifacts) | M | 6.x is no longer maintained; the 7.x+ line ships a Spring Boot starter (`telegrambots-springboot-longpolling-starter`) and splits client/meta into separate jars. This requires reworking `PortfolioBot` to the newer consumer API. |
 | Tighten `PortfolioBot.detectBroker` heuristic | S | Today any `U*.csv` is treated as IBKR; tighten to `^U\d+\..*\.csv$` to avoid false positives. |
 | `application-prod.yml` profile + secret hygiene (no `change-me-admin` default) | S | Already listed under Theme E; relevant here too once Spotless/format is enforced. |
 
@@ -100,7 +98,7 @@ That's roughly 2-3 days of focused work and clears most of the operational rough
 ## How to use this file
 
 - Each line is meant to land as a small PR. Reference the item in the commit subject (e.g. `feat(notifications): persist drawdown peak [Roadmap A.1]`).
-- When something ships, move it out of "Next 30 days" and into the relevant theme as `~~done~~` (or just delete).
+- When something ships, remove it from "Next priorities" and mark it done in the relevant theme or release notes.
 - Keep `AGENTS.md` in sync once a roadmap item changes a documented invariant.
 
 

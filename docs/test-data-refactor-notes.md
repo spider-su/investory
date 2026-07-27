@@ -2,6 +2,9 @@
 
 Generated: 2026-07-27
 
+This is a focused test-data design note, not the canonical source of repository architecture or
+workflow. Keep current project facts in `AGENTS.md`.
+
 ## Existing Fixture Approaches
 
 - A centralized package already exists at
