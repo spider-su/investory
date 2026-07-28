@@ -20,6 +20,10 @@ spring:
     properties:
       hibernate:
         default_schema: investory
+        jdbc.batch_size: 50
+        jdbc.batch_versioned_data: true
+        order_inserts: true
+        order_updates: true
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/investory}
     username: ${DB_USERNAME:postgres}

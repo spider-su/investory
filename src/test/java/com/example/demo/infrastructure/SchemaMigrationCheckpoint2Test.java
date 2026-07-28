@@ -102,6 +102,7 @@ class SchemaMigrationCheckpoint2Test {
       assertTrue(viewExists(statement, "v_account_daily_reconciliation"));
       assertTrue(viewExists(statement, "v_non_usd_closed_trade_reconciliation"));
       assertTrue(viewExists(statement, "v_reporting_validation_summary"));
+      assertTrue(viewExists(statement, "v_position_currency_validation"));
       assertTrue(columnExists(statement, "v_normalized_daily_price", "selection_priority"));
       assertTrue(columnExists(statement, "v_normalized_daily_price", "selected_price_date"));
       assertTrue(columnExists(statement, "v_normalized_daily_price", "underlying_observation_date"));
@@ -111,6 +112,9 @@ class SchemaMigrationCheckpoint2Test {
       assertTrue(columnExists(statement, "v_account_daily_reconciliation", "market_value_difference"));
       assertTrue(columnExists(statement, "v_non_usd_closed_trade_reconciliation", "anomaly_code"));
       assertTrue(columnExists(statement, "v_reporting_validation_summary", "status"));
+      assertTrue(columnExists(statement, "v_open_position_values", "account_currency"));
+      assertTrue(columnExists(statement, "v_open_position_values", "position_row_count"));
+      assertTrue(columnExists(statement, "v_position_currency_validation", "anomaly_code"));
     }
   }
 
@@ -175,6 +179,74 @@ class SchemaMigrationCheckpoint2Test {
                 and source = 'STOOQ'
                 and source_symbol = 'cspx.uk'
                 and price_date = date '2025-11-26'
+              """));
+    }
+  }
+
+  @Test
+  void repairsXtbPositionCurrencyAndPreventsDoubleFxConversionInOpenPositionView() throws Exception {
+    try (Connection connection = DriverManager.getConnection(DB_URL, DB_USERNAME, DB_PASSWORD);
+        Statement statement = connection.createStatement()) {
+      statement.execute(
+          """
+          update investory.assets
+             set market_price = 634.50
+           where symbol = 'MSFT.US'
+          """);
+
+      statement.execute(
+          """
+          insert into investory.positions (
+              id, account_id, asset_id, operation, volume, currency, open_time, open_price, purchase_value
+          ) values
+              (-910001, 17959259, 'MSFT.US', 'BUY', 3, 'USD', timestamptz '2025-07-01 12:00:00+00', 402.91, 1208.73),
+              (-910002, 50290466, 'MSFT.US', 'BUY', 5, 'PLN', timestamptz '2025-07-02 12:00:00+00', 454.422, 2272.11),
+              (-910003, 51707603, 'MSFT.US', 'BUY', 5, 'PLN', timestamptz '2025-07-03 12:00:00+00', 454.716, 2273.58)
+          """);
+
+      assertEquals(2, singleInt(statement, """
+          select count(*)
+          from investory.v_position_currency_validation
+          where asset_id = 'MSFT.US'
+            and anomaly_code = 'POSITION_ASSET_CURRENCY_MISMATCH'
+          """));
+
+      assertEquals(2, singleInt(statement, "select investory.repair_position_trade_currency()"));
+
+      assertEquals(
+          "USD",
+          singleString(statement, """
+              select currency
+              from investory.positions
+              where id = -910002
+              """));
+      assertEquals(
+          "USD",
+          singleString(statement, """
+              select currency
+              from investory.positions
+              where id = -910003
+              """));
+
+      assertEquals(
+          "2272.11000000",
+          singleString(
+              statement,
+              """
+              select trim(to_char(round(cost_basis_in_base_currency::numeric, 8), 'FM9999999990.00000000'))
+              from investory.v_open_position_values
+              where asset_symbol = 'MSFT.US'
+                and account_id = 50290466
+              """));
+
+      assertEquals(
+          "5754.42000000",
+          singleString(
+              statement,
+              """
+              select trim(to_char(round(sum(cost_basis_in_base_currency)::numeric, 8), 'FM9999999990.00000000'))
+              from investory.v_open_position_values
+              where asset_symbol = 'MSFT.US'
               """));
     }
   }

@@ -14,9 +14,12 @@ public class AccountBalance {
   private String accountName;
   private Double netDeposit;
   private Double baseNetDeposit;
+  private Double profit;
+  private Double localProfit;
   private Double profitLossPercent;
   private double balance;
   private double cash;
   private CurrencyType localCurrency;
   private Double localBalance;
+  private Double localCash;
 }

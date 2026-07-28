@@ -302,7 +302,10 @@ public class MarketService {
                 && excludedAssetSymbols.contains(symbol.trim().toUpperCase(Locale.ROOT))) {
             return false;
         }
-        return !(skipNonUsListings && isNonUsExchangeSymbol(symbol));
+        // REMX.UK has an explicit TwelveData mapping/normalization and must refresh even
+        // when generic non-US listings are disabled.
+        return REMX_UK_SYMBOL.equals(symbol)
+                || !(skipNonUsListings && isNonUsExchangeSymbol(symbol));
     }
 
     private static boolean isNonUsExchangeSymbol(String symbol) {
@@ -381,10 +384,15 @@ public class MarketService {
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    public void fullPortfolioUpdate() {
+    public void refreshMarketPricesAndPositions() {
         updateStocks(false);
         syncStocks();
         syncIbkrPositions();
+    }
+
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void fullPortfolioUpdate() {
+        refreshMarketPricesAndPositions();
         statisticsRefreshService.refreshAll();
     }
 

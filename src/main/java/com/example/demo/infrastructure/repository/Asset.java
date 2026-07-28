@@ -25,7 +25,7 @@ import lombok.NoArgsConstructor;
 public class Asset {
 
   @Id
-  @SequenceGenerator(name = "assets_id_seq", sequenceName = "assets_id_seq", allocationSize = 1)
+  @SequenceGenerator(name = "assets_id_seq", sequenceName = "assets_id_seq", allocationSize = 50)
   @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "assets_id_seq")
   @Column(name = "id", updatable = false, nullable = false)
   private Long id;

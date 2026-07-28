@@ -57,6 +57,9 @@ account state and derive consistent daily and monthly analytics.
 - Asset allocation
 - Winners / Losers
 - Performance by account
+- Risk exposure summary
+- Daily and monthly performance attribution
+- Data quality status
 
 ### Data management
 
@@ -65,6 +68,9 @@ account state and derive consistent daily and monthly analytics.
 - Historical price synchronization
 - Yahoo Finance export
 - Portfolio reconciliation tools
+
+Broker imports use Hibernate JDBC batching. Asset and `account_daily` IDs use pooled sequence
+allocation; cash operations and positions keep deterministic application-assigned IDs.
 
 ---
 
@@ -166,6 +172,8 @@ The dashboard includes:
 - Currency Breakdown
 - Position Tables
 - Import Tools
+- Data Quality and Risk Exposure
+- Daily and Monthly Attribution
 
 ## Documentation
 
@@ -183,9 +191,7 @@ Planned improvements include:
 - factor exposure
 - dividend forecasting
 - portfolio rebalancing suggestions
-- risk metrics
 - Monte Carlo simulations
-- portfolio attribution
 - richer tax reporting
 
 ## Running locally

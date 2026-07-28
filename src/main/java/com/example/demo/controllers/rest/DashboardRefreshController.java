@@ -30,6 +30,13 @@ public class DashboardRefreshController {
     return new RefreshPricesResponse("OK", "Open position prices refreshed", ZonedDateTime.now());
   }
 
+  @PostMapping("/update-history")
+  RefreshPricesResponse updateHistory() {
+    marketService.refreshMarketPricesAndPositions();
+    portfolioProjectionService.recalculateAll();
+    return new RefreshPricesResponse("OK", "Market prices refreshed and history rebuilt", ZonedDateTime.now());
+  }
+
   @PostMapping("/rebuild-monthly")
   RefreshPricesResponse rebuildMonthly() {
     portfolioProjectionService.recalculateAll();

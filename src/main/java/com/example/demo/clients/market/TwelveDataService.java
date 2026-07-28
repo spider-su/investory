@@ -82,7 +82,9 @@ public class TwelveDataService {
                 }
             }
         } catch (TwelveDataException e) {
-            log.error("Failed to fetch monthly closes for {}: {}", symbol, e.getMessage());
+            // Benchmark data is optional. TwelveData 429 must not look like an application
+            // failure; BenchmarkService keeps the cached curve and retries on a later day.
+            log.warn("Monthly benchmark fetch skipped for {}: {}", symbol, e.getMessage());
         }
         return closes;
     }

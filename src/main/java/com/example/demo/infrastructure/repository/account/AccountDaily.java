@@ -28,7 +28,7 @@ public class AccountDaily {
   @SequenceGenerator(
       name = "account_daily_id_seq",
       sequenceName = "account_daily_id_seq",
-      allocationSize = 1)
+      allocationSize = 50)
   @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "account_daily_id_seq")
   @Column(name = "id", updatable = false, nullable = false)
   private Long id;

@@ -39,12 +39,19 @@ public class Portfolio {
 
     double totalProfit = 0.0;
 
+    String reconciliationStatus = "UNKNOWN";
+    double reconciliationDifference = 0.0;
+    PortfolioDataQuality dataQuality = PortfolioDataQuality.unknown();
+    RiskExposureSummary riskExposure = RiskExposureSummary.unavailable(0.0);
+
     /** Total assets value (cash + open positions) across all accounts, converted to base currency. */
     double balance = 0.0;
     /** Free cash across all accounts in base currency. */
     double cash = 0.0;
     List<AccountBalance> accountBalances;
+    AccountBalance accountBalancesTotal;
     List<OpenPositionValue> openPositionValues;
+    OpenPositionValue openPositionValuesTotal;
     List<DividendGainer> dividendGainers;
     /** Return on investment: (balance - netDeposits) / netDeposits * 100. */
     double roi = 0.0;
