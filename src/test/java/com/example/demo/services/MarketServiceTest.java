@@ -18,6 +18,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -31,6 +32,7 @@ class MarketServiceTest {
     @Mock private OpenedPositionRepository openedPositionRepository;
     @Mock private ClosedPositionRepository closedPositionRepository;
     @Mock private AssetRepository assetRepository;
+    @Mock private AssetPriceHistoryGapFillService assetPriceHistoryGapFillService;
     @Mock private StatisticsRefreshService statisticsRefreshService;
     @Mock private PlatformTransactionManager transactionManager;
 
@@ -282,7 +284,7 @@ class MarketServiceTest {
 
     private MarketService marketService(boolean skipNonUsListings, String excludedSymbolsCsv) {
         return new MarketService(twelveDataService, openedPositionRepository,
-                closedPositionRepository, assetRepository,
+                closedPositionRepository, assetRepository, assetPriceHistoryGapFillService,
                 statisticsRefreshService, transactionManager, 0L, skipNonUsListings, excludedSymbolsCsv);
     }
 

@@ -129,7 +129,7 @@ public class PortfolioService {
         portfolio.setDividends(dividends);
         portfolio.setDeposits(deposits);
         portfolio.setNetDeposits(netDeposits);
-        portfolio.setWithdrawals(netDeposits - deposits);
+        portfolio.setWithdrawals(deposits - netDeposits);
         portfolio.setCash(cash);
         portfolio.setBalance(balance);
         portfolio.setRoi(netDeposits > 0 ? (balance - netDeposits) / netDeposits * 100.0 : 0.0);
@@ -238,9 +238,9 @@ public class PortfolioService {
 
     private void applyInvestmentProfitFromWealth(Portfolio portfolio) {
         double netDeposits = portfolio.getNetDeposits();
-        double investmentProfit = portfolio.getBalance() - netDeposits;
-        portfolio.setTotalProfit(investmentProfit);
-        portfolio.setRoi(netDeposits > 0 ? investmentProfit / netDeposits * 100.0 : 0.0);
+        double wealthProfit = nz(portfolio.getBalance()) - netDeposits;
+        portfolio.setTotalProfit(wealthProfit);
+        portfolio.setRoi(netDeposits > 0 ? wealthProfit / netDeposits * 100.0 : 0.0);
     }
 
     private void ensureCurrencyRows(Portfolio portfolio) {
@@ -265,18 +265,25 @@ public class PortfolioService {
                     .filter(this::hasDashboardAccountSurface)
                     .map(stat -> {
                         double balance = nz(stat.getCashBalance()) + nz(stat.getMarketValue());
-                        double netDeposit = nz(stat.getNetDeposit());
                         Account account = accountsById.get(stat.getAccountId());
                         CurrencyType localCurrency = account.getCurrency();
+                        double localBalance =
+                                nz(localBalance(balance, baseCurrency, localCurrency, LocalDate.now()));
+                        double localNetDeposit = nz(stat.getAccountNetDeposit());
+                        double baseNetDeposit = localCurrency == baseCurrency
+                                ? localNetDeposit
+                                : currencyRateService.convertToBaseCurrency(
+                                        localNetDeposit, baseCurrency, localCurrency, LocalDate.now());
                         return new AccountBalance(
                                 stat.getAccountId(),
                                 account.getName(),
-                                netDeposit,
-                                profitLossPercent(balance, netDeposit),
+                                localNetDeposit,
+                                baseNetDeposit,
+                                profitLossPercent(balance, baseNetDeposit),
                                 balance,
                                 nz(stat.getCashBalance()),
                                 localCurrency,
-                                localBalance(balance, baseCurrency, localCurrency, LocalDate.now()));
+                                localBalance);
                     })
                     .toList();
         }
@@ -286,10 +293,13 @@ public class PortfolioService {
 
     private boolean hasDashboardAccountSurface(AccountStatistics stat) {
         return Math.abs(nz(stat.getCashBalance()) + nz(stat.getMarketValue())) >= ACCOUNT_VISIBILITY_MIN_VALUE
-                || Math.abs(nz(stat.getNetDeposit())) >= ACCOUNT_VISIBILITY_MIN_VALUE;
+                || Math.abs(nz(stat.getAccountNetDeposit())) >= ACCOUNT_VISIBILITY_MIN_VALUE;
     }
 
     private Double profitLossPercent(double balance, double netDeposit) {
+        if (Math.abs(balance) < 0.005) {
+            return 0.0;
+        }
         return Math.abs(netDeposit) >= ACCOUNT_VISIBILITY_MIN_VALUE
                 ? (balance - netDeposit) / netDeposit * 100.0
                 : null;
@@ -336,15 +346,28 @@ public class PortfolioService {
     }
 
     private List<DividendGainer> calculateDividendGainers(CurrencyType baseCurrency) {
-        List<SymbolPerformance> rows = symbolPerformanceRepository.findAll();
-        if (CollectionUtils.isEmpty(rows)) {
+        List<CashOperation> cashOperations = cashOperationRepository.findAll();
+        if (CollectionUtils.isEmpty(cashOperations)) {
             return List.of();
         }
 
-        List<DividendGainer> sortedRows = rows.stream()
-                .filter(row -> Math.abs(nz(row.getDividends())) > 0.005)
-                .sorted(Comparator.comparingDouble((SymbolPerformance row) -> nz(row.getDividends())).reversed())
-                .map(row -> new DividendGainer(row.getSymbol(), nz(row.getDividends())))
+        Map<String, Double> dividendsBySymbolInBase = new HashMap<>();
+        for (CashOperation operation : cashOperations) {
+            if (operation.getType() != CashOperationType.DIVIDEND || !org.springframework.util.StringUtils.hasText(operation.getSymbol())) {
+                continue;
+            }
+            CurrencyType currency = operation.getCurrency() != null ? operation.getCurrency() : baseCurrency;
+            LocalDate rateDate =
+                    operation.getDate() != null ? operation.getDate().toLocalDate() : LocalDate.now();
+            double amountInBase = currencyRateService.convertToBaseCurrency(
+                    nz(operation.getAmount()), baseCurrency, currency, rateDate);
+            dividendsBySymbolInBase.merge(operation.getSymbol(), amountInBase, Double::sum);
+        }
+
+        List<DividendGainer> sortedRows = dividendsBySymbolInBase.entrySet().stream()
+                .filter(entry -> Math.abs(entry.getValue()) > 0.005)
+                .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
+                .map(entry -> new DividendGainer(entry.getKey(), entry.getValue()))
                 .toList();
 
         if (sortedRows.size() <= 10) {
@@ -477,7 +500,7 @@ public class PortfolioService {
     private Double localBalance(
             double balance, CurrencyType baseCurrency, CurrencyType localCurrency, LocalDate rateDate) {
         if (localCurrency == baseCurrency) {
-            return null;
+            return balance;
         }
         return currencyRateService.convertToBaseCurrency(balance, localCurrency, baseCurrency, rateDate);
     }
@@ -488,20 +511,32 @@ public class PortfolioService {
         int currentYear = java.time.Year.now().getValue();
 
         Map<String, Double> monthlyProfit = new TreeMap<>();
-        Map<String, Long> monthlyOps = new TreeMap<>();
         Map<String, Double> monthlyCashflow = new TreeMap<>();
+        Map<String, Set<Long>> monthlyAccounts = new TreeMap<>();
+        Set<Long> visibleAccounts = accountStatisticsRepository.findAll().stream()
+                .filter(stat -> stat.getAccountId() != null)
+                .filter(this::hasVisibleAccountSurface)
+                .map(AccountStatistics::getAccountId)
+                .collect(Collectors.toCollection(TreeSet::new));
+        boolean filterVisibleAccounts = !visibleAccounts.isEmpty();
 
         for (AccountMonthlyPerformance row :
                 accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc()) {
+            if (filterVisibleAccounts && !visibleAccounts.contains(row.getAccountId())) {
+                continue;
+            }
             String bucketKey = summaryBucketKey(row.getMonth(), currentYear);
             monthlyProfit.merge(bucketKey, nz(row.getProfit()), Double::sum);
             monthlyCashflow.merge(bucketKey, nz(row.getNetCashflow()), Double::sum);
             if (Math.abs(nz(row.getEndEquity())) >= 50.0
                     || Math.abs(nz(row.getProfit())) >= 0.005
                     || Math.abs(nz(row.getNetCashflow())) >= 0.005) {
-                monthlyOps.merge(bucketKey, 1L, Long::sum);
+                monthlyAccounts.computeIfAbsent(bucketKey, ignored -> new TreeSet<>()).add(row.getAccountId());
             }
         }
+
+        Map<String, Long> monthlyOps = monthlyAccounts.entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> (long) entry.getValue().size(), (a, b) -> a, TreeMap::new));
 
         performance.setCalculateMonthlyPerformance(monthlyProfit);
         performance.setMonthlyOperationsCount(monthlyOps);
@@ -518,6 +553,11 @@ public class PortfolioService {
             return String.format("%d", month.getYear());
         }
         return String.format("%d-%02d", month.getYear(), month.getMonthValue());
+    }
+
+    private boolean hasVisibleAccountSurface(AccountStatistics stat) {
+        return Math.abs(nz(stat.getCashBalance()) + nz(stat.getMarketValue())) > ACCOUNT_VISIBILITY_MIN_VALUE
+                || Math.abs(nz(stat.getNetDeposit())) > ACCOUNT_VISIBILITY_MIN_VALUE;
     }
 
     // 4. Win Rate (percentage of profitable trades)

@@ -7,6 +7,7 @@ import com.example.demo.infrastructure.repository.*;
 import com.example.demo.infrastructure.repository.account.Account;
 import com.example.demo.infrastructure.repository.account.AccountRepository;
 import com.example.demo.services.AssetCatalogService;
+import com.example.demo.services.ReportingDateHelper;
 import com.example.demo.services.imports.ImportExecutionResult;
 import com.opencsv.CSVReader;
 import java.io.InputStream;
@@ -14,7 +15,6 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -40,7 +40,7 @@ import org.springframework.util.StringUtils;
 @RequiredArgsConstructor
 public class IbkrImportService {
 
-  private static final ZoneId ZONE = ZoneId.systemDefault();
+  private static final java.time.ZoneId ZONE = ReportingDateHelper.REPORTING_ZONE;
   private static final String SECTION = "Transaction History";
   private static final Long IBKR_ACCOUNT = 17959259L;
   private static final Long DEFAULT_PORTFOLIO_ID = 1L;
@@ -51,6 +51,10 @@ public class IbkrImportService {
   private static final Pattern COMPACT_BOND_SYMBOL_PATTERN = Pattern.compile("^T\\d{6,}(?:\\.[A-Z]{2})?$");
   private static final Pattern BOND_CALL_PRICE_PATTERN =
       Pattern.compile("(?i)for\\s+USD\\s+([0-9]+(?:\\.[0-9]+)?)\\s+per\\s+Bond");
+  private static final Pattern IBKR_FILENAME_ACCOUNT_PATTERN =
+      Pattern.compile("(?i)\\bU?(\\d{6,})\\.(?:TRANSACTIONS|ACTIVITY)");
+  private static final Pattern INTERNAL_TRANSFER_PATTERN =
+      Pattern.compile("(?i)transfer\\s+from\\s+(\\d{6,})\\s+to\\s+(\\d{6,})");
 
   private final ClosedPositionRepository closedPositionRepository;
   private final CashOperationRepository cashOperationRepository;
@@ -59,21 +63,24 @@ public class IbkrImportService {
   private final AssetRepository assetRepository;
   private final AccountRepository accountRepository;
   private final AssetCatalogService assetCatalogService;
+  private final IbkrPositionReconstructionService ibkrPositionReconstructionService;
 
   public ImportExecutionResult importStatement(InputStream csvStream) throws Exception {
+    return importStatement(csvStream, null);
+  }
+
+  public ImportExecutionResult importStatement(InputStream csvStream, String fileName) throws Exception {
     List<String[]> rows;
     try (CSVReader reader =
         new CSVReader(new InputStreamReader(csvStream, StandardCharsets.UTF_8))) {
       rows = reader.readAll();
     }
+    Long accountIdFromFilename = parseAccountIdFromFilename(fileName);
 
     Map<String, Integer> col = locateHeader(rows, SECTION);
     Map<String, Integer> dedup = new HashMap<>();
     List<CashOperation> cashOps = new ArrayList<>();
-    List<ClosedPosition> closedPositions = new ArrayList<>();
-    List<PositionTransaction> positionTransactions = new ArrayList<>();
     List<IbkrTradePriceObservation> tradePriceObservations = new ArrayList<>();
-    Map<String, ReconstructedPosition> reconstructedPositions = new LinkedHashMap<>();
     int total = 0;
     int failed = 0;
 
@@ -85,12 +92,20 @@ public class IbkrImportService {
       try {
         String type = value(r, col, "Transaction Type", "Type");
         Long account =
-            normalizeIbkrAccountId(value(r, col, "Account", "Account ID", "AccountId"));
+            resolveIbkrAccountId(
+                accountIdFromFilename, value(r, col, "Account", "Account ID", "AccountId"));
+        String description = value(r, col, "Description");
         String rawSymbol = value(r, col, "Symbol");
         String symbol = cleanSymbol(rawSymbol);
-        String description = value(r, col, "Description");
+        if (symbol == null && isForexTradeComponent(type, rawSymbol, description)) {
+          symbol = rawSymbol(rawSymbol);
+        }
         ZonedDateTime date = parseDate(value(r, col, "Date", "Date/Time", "Trade Date"));
         Double net = parseNumber(value(r, col, "Net Amount", "Net Cash", "NetCash", "Proceeds"));
+        Double grossAmount =
+            parseNumber(value(r, col, "Gross Amount", "Gross Amount ", "Gross Cash", "Proceeds"));
+        Double commission =
+            parseNumber(value(r, col, "Commission", "Comm/Fee", "Commission/Fee"));
         Double quantity =
             normalizeTradeQuantity(
                 rawSymbol, symbol, description, parseNumber(value(r, col, "Quantity", "Qty", "Shares")));
@@ -116,14 +131,12 @@ public class IbkrImportService {
         op.setId(syntheticId(key, dedup));
         op.setAccount(account);
         op.setType(mapCashType(type, description));
-        op.setSymbol(shouldKeepCashOperationSymbol(op.getType()) ? symbol : null);
+        op.setSymbol(shouldKeepCashOperationSymbol(op.getType(), type, rawSymbol, description) ? symbol : null);
         op.setAmount(net != null ? net : 0.0);
         op.setCurrency(currency);
-        op.setComment(description);
+        op.setComment(buildOperationComment(type, rawSymbol, description, quantity, price, grossAmount, commission));
         op.setDate(date);
         cashOps.add(op);
-        positionTransactions.add(
-            new PositionTransaction(op, type, symbol, description, quantity, price));
         maybeBuildTradePriceObservation(r, col, type, symbol, date, price)
             .ifPresent(tradePriceObservations::add);
       } catch (Exception e) {
@@ -132,40 +145,39 @@ public class IbkrImportService {
       }
     }
 
-    positionTransactions.stream()
-        .sorted(Comparator.comparing(tx -> tx.operation().getDate()))
-        .forEach(tx -> applyPositionTransaction(reconstructedPositions, closedPositions, dedup, tx));
-
-    ensureIbkrAccountExists(cashOps, openPositionsFromReconstructedPositions(reconstructedPositions));
+    ensureIbkrAccountExists(cashOps, List.of());
     ensureCashOperationAssetsExist(cashOps);
     persistTradePriceHistory(tradePriceObservations);
     cashOperationRepository.saveAll(cashOps);
-    closedPositionRepository.saveAll(closedPositions);
 
+    List<Long> affectedAccounts =
+        cashOps.stream().map(CashOperation::getAccount).filter(Objects::nonNull).distinct().toList();
     List<OpenedPosition> openPositions = new ArrayList<>();
     if (findSection(rows, "Open Positions", "Positions") != null) {
-      // Activity Statement: use broker-reported open positions (market values) + NAV.
       openPositions = importOpenPositions(rows, dedup);
-      openedPositionRepository.removeAllByAccountNotIn(IBKR_ACCOUNT, openPositions);
-      openedPositionRepository.saveAll(openPositions);
       ensureAssetsExist(openPositions);
+      for (Long accountId : affectedAccounts) {
+        List<OpenedPosition> snapshotForAccount =
+            openPositions.stream()
+                .filter(position -> Objects.equals(position.getAccount(), accountId))
+                .toList();
+        ibkrPositionReconstructionService.rebuildFromCanonicalHistory(accountId, snapshotForAccount);
+      }
     } else {
-      openPositions = reconstructOpenPositions(reconstructedPositions, dedup);
-      if (!openPositions.isEmpty()) {
-        openedPositionRepository.removeAllByAccountNotIn(IBKR_ACCOUNT, openPositions);
-        openedPositionRepository.saveAll(openPositions);
-      } else if (!reconstructedPositions.isEmpty()) {
-        openedPositionRepository.deleteByAccount(IBKR_ACCOUNT);
+      for (Long accountId : affectedAccounts) {
+        IbkrPositionReconstructionService.ReconstructionResult rebuild =
+            ibkrPositionReconstructionService.rebuildFromCanonicalHistory(accountId, null);
+        openPositions.addAll(rebuild.openedPositions());
       }
     }
 
     String details =
         String.format(
             "IBKR: %d cash operations, %d closed positions, %d open positions, %d skipped",
-            cashOps.size(), closedPositions.size(), openPositions.size(), failed);
+            cashOps.size(), 0, openPositions.size(), failed);
     log.info(details);
     return new ImportExecutionResult(
-        total, cashOps.size() + closedPositions.size() + openPositions.size(), failed, details);
+        total, cashOps.size() + openPositions.size(), failed, details);
   }
 
   private void applyPositionTransaction(
@@ -178,6 +190,13 @@ public class IbkrImportService {
     if (op.getType() != CashOperationType.STOCK_PURCHASE
         && op.getType() != CashOperationType.STOCK_SELL
         && !isBondRedemption(tx)) {
+      if (isUnknownCorporateAction(tx)) {
+        log.warn(
+            "IBKR unknown corporate action kept as cash only: account={}, symbol={}, description={}",
+            op.getAccount(),
+            tx.rawSymbol(),
+            tx.description());
+      }
       return;
     }
     if (!StringUtils.hasText(symbol)) {
@@ -192,14 +211,31 @@ public class IbkrImportService {
                     op.getAccount(), symbol, op.getCurrency(), op.getDate()));
 
     if (op.getType() == CashOperationType.TRANSFER) {
-      List<ClosedSlice> closedSlices =
-          closeReconstructedPosition(position, inferredBondRedemptionQuantity(position, tx));
+      double redemptionQuantity = inferredBondRedemptionQuantity(position, tx);
+      if (redemptionQuantity <= 0.0) {
+        log.warn(
+            "IBKR bond redemption quantity unresolved: account={}, symbol={}, description={}",
+            op.getAccount(),
+            tx.rawSymbol(),
+            tx.description());
+        return;
+      }
+      List<ClosedSlice> closedSlices = closeReconstructedPosition(position, redemptionQuantity);
       addClosedPositions(closedPositions, dedup, position, tx, op, closedSlices);
       position.lastDate = op.getDate();
       return;
     }
 
     if (tx.quantity() == null || tx.quantity() == 0.0) {
+      if (isForexTradeComponent(tx)) {
+        log.warn(
+            "IBKR malformed Forex Trade Component: account={}, symbol={}, description={}, quantity={}, price={}",
+            op.getAccount(),
+            tx.rawSymbol(),
+            tx.description(),
+            tx.quantity(),
+            tx.price());
+      }
       return;
     }
 
@@ -209,6 +245,14 @@ public class IbkrImportService {
     if (op.getType() == CashOperationType.STOCK_PURCHASE) {
       position.addLot(op.getDate(), tradeQuantity, tradeValue);
     } else {
+      if (tradeQuantity > position.quantity + 0.000001) {
+        log.warn(
+            "IBKR sell exceeds reconstructed inventory: account={}, symbol={}, requested={}, available={}",
+            op.getAccount(),
+            symbol,
+            tradeQuantity,
+            position.quantity);
+      }
       List<ClosedSlice> closedSlices = closeReconstructedPosition(position, tradeQuantity);
       addClosedPositions(closedPositions, dedup, position, tx, op, closedSlices);
     }
@@ -235,7 +279,11 @@ public class IbkrImportService {
           totalClosedQuantity == 0.0
               ? 0.0
               : totalSaleValue * closed.quantity() / totalClosedQuantity;
-      addClosedPosition(closedPositions, dedup, position, op, closed, saleValue);
+      double allocatedCommission =
+          totalClosedQuantity == 0.0
+              ? 0.0
+              : Math.abs(nz(tx.commission())) * closed.quantity() / totalClosedQuantity;
+      addClosedPosition(closedPositions, dedup, position, op, closed, saleValue, allocatedCommission);
     }
   }
 
@@ -245,7 +293,8 @@ public class IbkrImportService {
       ReconstructedPosition position,
       CashOperation op,
       ClosedSlice closed,
-      double saleValue) {
+      double saleValue,
+      double commission) {
     ClosedPosition closedPosition = new ClosedPosition();
     closedPosition.setId(
         syntheticId(
@@ -274,7 +323,7 @@ public class IbkrImportService {
     closedPosition.setPurchaseValue(closed.costBasis());
     closedPosition.setSaleValue(saleValue);
     closedPosition.setMargin(0.0);
-    closedPosition.setCommission(0.0);
+    closedPosition.setCommission(commission);
     closedPosition.setSwap(0.0);
     closedPosition.setProfit(saleValue - closed.costBasis());
     closedPositions.add(closedPosition);
@@ -380,7 +429,8 @@ public class IbkrImportService {
         position.setProfit(0.0);
         position.setCommission(0.0);
         position.setSwap(0.0);
-        position.setComment("IBKR reconstructed from transactions");
+        position.setComment(
+            "IBKR reconstructed from transactions (best effort; no Open Positions snapshot)");
         positions.add(position);
         lotIndex++;
       }
@@ -576,6 +626,7 @@ public class IbkrImportService {
   private void ensureCashOperationAssetsExist(List<CashOperation> cashOperations) {
     List<AssetCatalogService.AssetSeed> assets = new ArrayList<>();
     cashOperations.stream()
+        .filter(operation -> !isPseudoFxCashSymbol(operation))
         .map(CashOperation::getSymbol)
         .filter(StringUtils::hasText)
         .map(symbol -> assetCatalogService.seedForSymbol(symbol, CurrencyType.USD))
@@ -584,9 +635,19 @@ public class IbkrImportService {
     assetCatalogService.ensureAssetsExist(assets);
   }
 
-  private boolean shouldKeepCashOperationSymbol(CashOperationType type) {
+  private boolean isPseudoFxCashSymbol(CashOperation operation) {
+    return operation.getType() == CashOperationType.TRANSFER
+        && StringUtils.hasText(operation.getSymbol())
+        && operation.getSymbol().contains(".");
+  }
+
+  private boolean shouldKeepCashOperationSymbol(
+      CashOperationType type, String rawType, String rawSymbol, String description) {
     return type == CashOperationType.STOCK_PURCHASE
         || type == CashOperationType.STOCK_SELL
+        || (type == CashOperationType.TRANSFER
+            && normalizeOperationType(rawType) != null
+            && normalizeOperationType(rawType).startsWith("corporate action"))
         || type == CashOperationType.DIVIDEND
         || type == CashOperationType.WITHHOLDING_TAX;
   }
@@ -604,7 +665,16 @@ public class IbkrImportService {
     if (price == null || !isBondTrade(rawSymbol, canonicalSymbol, description)) {
       return price;
     }
-    return price / 100.0;
+    /*
+     * IBKR bond trades come as percent-of-par quotes.
+     * Example: 100.426116 means 100.426116% of 1,000 face value = 1,004.26116 per bond.
+     *
+     * Quantity is normalized above from face-value units into bond units:
+     *   10,000 face value -> 10 bonds
+     *
+     * So trade price must become unit price per normalized bond, not fractional percent.
+     */
+    return price * (IBKR_BOND_FACE_VALUE_UNIT / 100.0);
   }
 
   private boolean isBondTrade(String rawSymbol, String canonicalSymbol, String description) {
@@ -763,8 +833,91 @@ public class IbkrImportService {
     return Long.valueOf(digits);
   }
 
+  private Long resolveIbkrAccountId(Long accountIdFromFilename, String accountColumnValue) {
+    if (accountIdFromFilename != null) {
+      return accountIdFromFilename;
+    }
+    return normalizeIbkrAccountId(accountColumnValue);
+  }
+
+  private Long parseAccountIdFromFilename(String fileName) {
+    if (!StringUtils.hasText(fileName)) {
+      return null;
+    }
+    Matcher matcher = IBKR_FILENAME_ACCOUNT_PATTERN.matcher(fileName);
+    if (!matcher.find()) {
+      return null;
+    }
+    return Long.valueOf(matcher.group(1));
+  }
+
+  private String buildOperationComment(
+      String rawType,
+      String rawSymbol,
+      String description,
+      Double quantity,
+      Double price,
+      Double grossAmount,
+      Double commission) {
+    String base = orDefault(description, "");
+    List<String> parts = new ArrayList<>();
+    if (StringUtils.hasText(base)) {
+      parts.add(base);
+    }
+    if (StringUtils.hasText(rawType)) {
+      parts.add("ibkrRawType=" + rawType.trim());
+    }
+    if (StringUtils.hasText(rawSymbol)) {
+      parts.add("ibkrRawSymbol=" + rawSymbol.trim());
+    }
+    if (quantity != null) {
+      parts.add("ibkrQuantity=" + quantity);
+    }
+    if (price != null) {
+      parts.add("ibkrPrice=" + price);
+    }
+    if (grossAmount != null) {
+      parts.add("ibkrGrossAmount=" + grossAmount);
+    }
+    if (commission != null) {
+      parts.add("ibkrCommission=" + Math.abs(commission));
+    }
+    if (isForexTradeComponent(rawType, rawSymbol, description)) {
+      Matcher matcher = INTERNAL_TRANSFER_PATTERN.matcher(orDefault(description, ""));
+      if (matcher.find()) {
+        parts.add("ibkrTransferFrom=" + matcher.group(1));
+        parts.add("ibkrTransferTo=" + matcher.group(2));
+      }
+    }
+    return String.join(" | ", parts);
+  }
+
+  private boolean isForexTradeComponent(PositionTransaction tx) {
+    return isForexTradeComponent(tx.transactionType(), tx.rawSymbol(), tx.description());
+  }
+
+  private boolean isForexTradeComponent(String rawType, String rawSymbol, String description) {
+    String normalized = normalizeOperationType(rawType);
+    if (!"forex trade component".equals(normalized)) {
+      return false;
+    }
+    return StringUtils.hasText(rawSymbol) || StringUtils.hasText(description);
+  }
+
+  private boolean isUnknownCorporateAction(PositionTransaction tx) {
+    String normalized = normalizeOperationType(tx.transactionType());
+    return normalized != null
+        && normalized.startsWith("corporate action")
+        && !isBondRedemption(tx);
+  }
+
+  private boolean looksLikePartialTransactionHistory(List<String[]> rows) {
+    return findSection(rows, "Open Positions", "Positions") == null;
+  }
+
   /** Stable negative id from content hash; an occurrence counter disambiguates identical rows. */
   private long syntheticId(String key, Map<String, Integer> dedup) {
+    key = key == null ? "" : key.trim().replaceAll("\\s+", " ");
     int occurrence = dedup.merge(key, 1, Integer::sum);
     try {
       byte[] hash =
@@ -836,9 +989,12 @@ public class IbkrImportService {
       CashOperation operation,
       String transactionType,
       String symbol,
+      String rawSymbol,
       String description,
       Double quantity,
-      Double price) {}
+      Double price,
+      Double grossAmount,
+      Double commission) {}
 
   private record IbkrTradePriceObservation(
       String symbol,

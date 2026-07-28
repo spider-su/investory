@@ -2,7 +2,9 @@ package com.example.demo.services;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.example.demo.infrastructure.CashOperationType;
@@ -89,6 +91,126 @@ class CashOperationNormalizerTest {
     assertEquals(rows.get(0).transferGroupId(), rows.get(1).transferGroupId());
     assertFalse(rows.get(0).externalFlow());
     assertFalse(rows.get(1).externalFlow());
+  }
+
+  @Test
+  void normalize_doesNotTreatUnexplainedNegativeDepositAsExternalWithdrawal() {
+    CashOperation negativeDeposit =
+        cash(40L, 51499241L, CashOperationType.DEPOSIT, -42.50, CurrencyType.USD);
+    negativeDeposit.setComment("manual correction without transfer hint");
+
+    NormalizedCashOperation row = normalizer.normalize(List.of(negativeDeposit)).getFirst();
+
+    assertNotEquals(NormalizedCategory.EXTERNAL_WITHDRAWAL, row.normalizedCategory());
+    assertFalse(row.externalFlow());
+  }
+
+  @Test
+  void normalize_doesNotTreatPositiveWithdrawalAsExternalDeposit() {
+    CashOperation positiveWithdrawal =
+        cash(41L, 51499241L, CashOperationType.WITHDRAWAL, 42.50, CurrencyType.USD);
+    positiveWithdrawal.setComment("withdrawal reversal");
+
+    NormalizedCashOperation row = normalizer.normalize(List.of(positiveWithdrawal)).getFirst();
+
+    assertNotEquals(NormalizedCategory.EXTERNAL_DEPOSIT, row.normalizedCategory());
+    assertFalse(row.externalFlow());
+  }
+
+  @Test
+  void normalize_zeroDepositDoesNotBecomeNormalCapitalFlow() {
+    CashOperation zeroDeposit = cash(42L, 51499241L, CashOperationType.DEPOSIT, 0.0, CurrencyType.USD);
+    zeroDeposit.setComment("zero adjustment");
+
+    NormalizedCashOperation row = normalizer.normalize(List.of(zeroDeposit)).getFirst();
+
+    assertEquals(CashOperationNormalizer.EconomicDirection.NEUTRAL, row.economicDirection());
+    assertNotEquals(NormalizedCategory.EXTERNAL_DEPOSIT, row.normalizedCategory());
+    assertFalse(row.externalFlow());
+  }
+
+  @Test
+  void normalize_unmatchedInternalTransferRemainsVisibleAndUnpaired() {
+    CashOperation transferOut =
+        cash(43L, 50290466L, CashOperationType.DEPOSIT, -5200.0, CurrencyType.PLN);
+    transferOut.setComment("Transfer out operation on account with id 50290466");
+    transferOut.setDate(ZonedDateTime.parse("2025-02-03T13:34:00Z"));
+
+    NormalizedCashOperation row = normalizer.normalize(List.of(transferOut)).getFirst();
+
+    assertEquals(NormalizedCategory.INTERNAL_TRANSFER_OUT, row.normalizedCategory());
+    assertNull(row.relatedOperationId());
+    assertNull(row.transferGroupId());
+  }
+
+  @Test
+  void normalize_transferBetweenAccountsUsesAccountCluesNotOnlyAmountAndTime() {
+    CashOperation legA = cash(50L, 51499241L, CashOperationType.TRANSFER, -1000.0, CurrencyType.USD);
+    legA.setComment("Transfer from 51499241 to 51993106");
+    legA.setDate(ZonedDateTime.parse("2026-01-10T10:00:00Z"));
+
+    CashOperation legB = cash(51L, 51993106L, CashOperationType.TRANSFER, 1000.0, CurrencyType.USD);
+    legB.setComment("Transfer from 51499241 to 51993106");
+    legB.setDate(ZonedDateTime.parse("2026-01-10T10:01:00Z"));
+
+    CashOperation unrelated =
+        cash(52L, 53582946L, CashOperationType.TRANSFER, 1000.0, CurrencyType.USD);
+    unrelated.setComment("Transfer from 11111111 to 22222222");
+    unrelated.setDate(ZonedDateTime.parse("2026-01-10T10:02:00Z"));
+
+    List<NormalizedCashOperation> rows = normalizer.normalize(List.of(legA, unrelated, legB));
+
+    assertEquals(NormalizedCategory.INTERNAL_TRANSFER_OUT, rows.get(0).normalizedCategory());
+    assertEquals(NormalizedCategory.INTERNAL_TRANSFER_IN, rows.get(2).normalizedCategory());
+    assertEquals(rows.get(0).transferGroupId(), rows.get(2).transferGroupId());
+    assertNull(rows.get(1).transferGroupId());
+  }
+
+  @Test
+  void normalize_subaccountTransferPairingIsInputOrderIndependent() {
+    CashOperation left = cash(60L, 51548444L, CashOperationType.SUBACCOUNT_TRANSFER, -1250.0, CurrencyType.EUR);
+    left.setComment("Transfer from 51548444 to 51551130");
+    left.setDate(ZonedDateTime.parse("2024-11-30T00:48:00Z"));
+    CashOperation right = cash(61L, 51548444L, CashOperationType.SUBACCOUNT_TRANSFER, 1250.0, CurrencyType.EUR);
+    right.setComment("Transfer from 51548444 to 51551130");
+    right.setDate(ZonedDateTime.parse("2024-11-30T00:49:00Z"));
+
+    List<NormalizedCashOperation> forward = normalizer.normalize(List.of(left, right));
+    List<NormalizedCashOperation> backward = normalizer.normalize(List.of(right, left));
+
+    assertNotNull(forward.get(0).transferGroupId());
+    assertEquals(forward.get(0).transferGroupId(), forward.get(1).transferGroupId());
+    assertNotNull(backward.get(0).transferGroupId());
+    assertEquals(backward.get(0).transferGroupId(), backward.get(1).transferGroupId());
+  }
+
+  @Test
+  void normalize_negativeInterestBecomesInterestReversal() {
+    CashOperation interest =
+        cash(70L, 51499241L, CashOperationType.FREE_FUNDS_INTEREST, -1.23, CurrencyType.USD);
+
+    NormalizedCashOperation row = normalizer.normalize(List.of(interest)).getFirst();
+
+    assertEquals(NormalizedCategory.INTEREST_REVERSAL, row.normalizedCategory());
+    assertTrue(row.reversal());
+  }
+
+  @Test
+  void normalize_feeCorrectionsBecomeFeeReversals() {
+    CashOperation commissionRefund =
+        cash(71L, 51499241L, CashOperationType.CORRECTION, 5.00, CurrencyType.USD);
+    commissionRefund.setComment("Commission Refund");
+
+    CashOperation secFeeAdjustment =
+        cash(72L, 51499241L, CashOperationType.CORRECTION, 0.01, CurrencyType.USD);
+    secFeeAdjustment.setComment("corr Sec Fee adj");
+
+    List<NormalizedCashOperation> rows = normalizer.normalize(List.of(commissionRefund, secFeeAdjustment));
+
+    assertEquals(NormalizedCategory.FEE, rows.get(0).normalizedCategory());
+    assertTrue(rows.get(0).reversal());
+    assertEquals(NormalizedCategory.FEE, rows.get(1).normalizedCategory());
+    assertTrue(rows.get(1).reversal());
   }
 
   private static CashOperation cash(

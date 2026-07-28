@@ -33,7 +33,7 @@ class IbkrBrokerImportHistoryParserTest {
     void importFile_delegatesAndReturnsServiceResult() throws Exception {
         ByteArrayInputStream in = new ByteArrayInputStream(new byte[]{1});
         ImportExecutionResult expected = new ImportExecutionResult(5, 5, 0, "ok");
-        when(ibkrImportService.importStatement(in)).thenReturn(expected);
+        when(ibkrImportService.importStatement(in, "ibkr.csv")).thenReturn(expected);
 
         ImportExecutionResult result = parser.importFile(in, "ibkr.csv");
 

@@ -1,6 +1,8 @@
 package com.example.demo.services;
 
 import com.example.demo.clients.market.TwelveDataService;
+import com.example.demo.infrastructure.CurrencyType;
+import com.example.demo.infrastructure.repository.NormalizedCashOperationRepository;
 import com.example.demo.infrastructure.repository.account.Account;
 import com.example.demo.infrastructure.repository.account.AccountDaily;
 import com.example.demo.infrastructure.repository.account.AccountDailyRepository;
@@ -11,6 +13,7 @@ import com.example.demo.infrastructure.repository.account.AccountStatistics;
 import com.example.demo.infrastructure.repository.account.AccountStatisticsRepository;
 import com.example.demo.infrastructure.repository.benchmark.BenchmarkMonthlyClose;
 import com.example.demo.infrastructure.repository.benchmark.BenchmarkMonthlyCloseRepository;
+import com.example.demo.services.currency.CurrencyRateService;
 import com.example.demo.services.models.Benchmark;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,12 +33,23 @@ public class BenchmarkService {
     private static final String BENCHMARK_SYMBOL = "SPY";
     private static final int FETCH_MONTHS = 120;
     private static final double ACTIVE_ACCOUNT_MIN_VALUE = 50.0;
+    private static final CurrencyType BASE_CURRENCY = CurrencyType.USD;
+    private static final Set<String> NET_DEPOSIT_CATEGORIES = Set.of(
+            "EXTERNAL_DEPOSIT",
+            "EXTERNAL_WITHDRAWAL",
+            "INTERNAL_TRANSFER_IN",
+            "INTERNAL_TRANSFER_OUT",
+            "INTERNAL_BOOKKEEPING",
+            "FX_CONVERSION",
+            "CORRECTION");
 
     private final AccountDailyRepository accountDailyRepository;
     private final AccountMonthlyPerformanceRepository accountMonthlyPerformanceRepository;
     private final AccountRepository accountRepository;
     private final AccountStatisticsRepository accountStatisticsRepository;
+    private final NormalizedCashOperationRepository normalizedCashOperationRepository;
     private final BenchmarkMonthlyCloseRepository benchmarkMonthlyCloseRepository;
+    private final CurrencyRateService currencyRateService;
     private final TwelveDataService twelveDataService;
 
     /**
@@ -51,14 +65,18 @@ public class BenchmarkService {
                             AccountMonthlyPerformanceRepository accountMonthlyPerformanceRepository,
                             AccountRepository accountRepository,
                             AccountStatisticsRepository accountStatisticsRepository,
+                            NormalizedCashOperationRepository normalizedCashOperationRepository,
                             BenchmarkMonthlyCloseRepository benchmarkMonthlyCloseRepository,
+                            CurrencyRateService currencyRateService,
                             TwelveDataService twelveDataService,
                             @Value("${app.benchmark.comparison-start:2026-01}") String comparisonStart) {
         this.accountDailyRepository = accountDailyRepository;
         this.accountMonthlyPerformanceRepository = accountMonthlyPerformanceRepository;
         this.accountRepository = accountRepository;
         this.accountStatisticsRepository = accountStatisticsRepository;
+        this.normalizedCashOperationRepository = normalizedCashOperationRepository;
         this.benchmarkMonthlyCloseRepository = benchmarkMonthlyCloseRepository;
+        this.currencyRateService = currencyRateService;
         this.twelveDataService = twelveDataService;
         this.comparisonStart = YearMonth.parse(comparisonStart);
     }
@@ -74,6 +92,7 @@ public class BenchmarkService {
             Set<Long> requestedAccounts = accountIds == null ? Set.of() : new HashSet<>(accountIds);
             boolean filterSubmitted = accountIds != null;
             Set<Long> availableAccounts = activeAccountIds(allRows, accountStatisticsRepository.findAll());
+            Set<Long> accountValueAccounts = activeAccountIds(allRows, List.of());
             Set<Long> selectedAccounts =
                     !filterSubmitted
                             ? availableAccounts
@@ -81,8 +100,11 @@ public class BenchmarkService {
                                     .filter(availableAccounts::contains)
                                     .collect(Collectors.toCollection(TreeSet::new));
             Map<Long, Account> accountsById = accountRepository.findMapByIdIn(availableAccounts);
-            benchmark.setAccountOptions(accountOptions(accountsById, selectedAccounts));
-            benchmark.setAccountValueYears(accountValueYears(allRows, availableAccounts, accountsById));
+            benchmark.setAccountOptions(accountOptions(
+                    accountsById,
+                    accountValueAccounts,
+                    filterSubmitted ? selectedAccounts : accountValueAccounts));
+            benchmark.setAccountValueYears(accountValueYears(allRows, accountValueAccounts, accountsById));
             benchmark.setAccountValuesAvailable(!benchmark.getAccountValueYears().isEmpty());
             benchmark.setSelectedAccountValueYear(
                     benchmark.isAccountValuesAvailable()
@@ -286,8 +308,9 @@ public class BenchmarkService {
     }
 
     private List<Benchmark.AccountOption> accountOptions(
-            Map<Long, Account> accountsById, Set<Long> selectedAccounts) {
+            Map<Long, Account> accountsById, Set<Long> visibleAccounts, Set<Long> selectedAccounts) {
         return accountsById.values().stream()
+                .filter(account -> visibleAccounts.contains(account.getId()))
                 .map(account -> new Benchmark.AccountOption(
                         account.getId(),
                         account.getName(),
@@ -303,6 +326,15 @@ public class BenchmarkService {
             return List.of();
         }
 
+        Set<Long> allAccountIdsWithHistory = dailyRows.stream()
+                .map(AccountDaily::getAccountId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(TreeSet::new));
+        Map<Long, Map<String, Double>> visibleNetDepositByDay =
+                normalizedNetDepositByDay(availableAccounts);
+        Map<Long, Map<String, Double>> portfolioNetDepositByDay =
+                normalizedNetDepositByDay(allAccountIdsWithHistory);
+
         NavigableMap<Integer, List<AccountDaily>> rowsByYear = dailyRows.stream()
                 .filter(row -> row.getDate() != null)
                 .filter(row -> availableAccounts.contains(row.getAccountId()))
@@ -315,39 +347,58 @@ public class BenchmarkService {
         rowsByYear.descendingMap().forEach((year, rows) -> {
             List<String> labels = dailyLabels(rows);
             List<Benchmark.AccountValueSeries> accountSeries = accountsById.values().stream()
-                    .map(account -> dailyAccountValueSeries(account, rows, labels))
-                    .filter(series -> series.profitValues().stream()
-                                    .anyMatch(value -> Math.abs(value) > ACTIVE_ACCOUNT_MIN_VALUE))
+                    .map(account -> dailyAccountValueSeries(
+                            account,
+                            rows,
+                            labels,
+                            visibleNetDepositByDay.getOrDefault(account.getId(), Map.of())))
                     .toList();
             if (!accountSeries.isEmpty()) {
-                years.add(new Benchmark.AccountValueYear(year, labels, accountSeries));
+                List<AccountDaily> allRowsForYear = dailyRows.stream()
+                        .filter(row -> row.getDate() != null)
+                        .filter(row -> row.getDate().getYear() == year)
+                        .toList();
+                Benchmark.AccountValueSeries totalSeries =
+                        portfolioAccountValueSeries(allRowsForYear, labels, portfolioNetDepositByDay);
+                years.add(new Benchmark.AccountValueYear(
+                        year,
+                        labels,
+                        accountSeries,
+                        totalSeries.profitValues(),
+                        totalSeries.profitPctValues()));
             }
         });
         return years;
     }
 
     private Benchmark.AccountValueSeries dailyAccountValueSeries(
-            Account account, List<AccountDaily> rows, List<String> labels) {
-        Map<String, AccountValuePoint> valuesByDay = rows.stream()
+            Account account, List<AccountDaily> rows, List<String> labels, Map<String, Double> netDepositByDay) {
+        Map<String, AccountDaily> valuesByDay = rows.stream()
                 .filter(row -> account.getId().equals(row.getAccountId()))
                 .collect(Collectors.groupingBy(
                         row -> row.getDate().toString(),
                         Collectors.collectingAndThen(
                                 Collectors.toList(),
-                                this::accountValuePoint)));
+                                dayRows -> dayRows.stream()
+                                        .max(Comparator.comparing(AccountDaily::getDate))
+                                        .orElse(null))));
         List<Double> profitValues = new ArrayList<>();
         List<Double> profitPctValues = new ArrayList<>();
         Double startingEquity = null;
-        double cumulativeProfit = 0.0;
+        double cumulativeNetDeposit = 0.0;
         for (String label : labels) {
-            AccountValuePoint point = valuesByDay.get(label);
+            AccountDaily point = valuesByDay.get(label);
+            double profit = profitValues.isEmpty() ? 0.0 : profitValues.get(profitValues.size() - 1);
+            cumulativeNetDeposit += netDepositByDay.getOrDefault(label, 0.0);
             if (point != null) {
-                if (startingEquity == null && Math.abs(point.equity()) > ACTIVE_ACCOUNT_MIN_VALUE) {
-                    startingEquity = point.equity() - point.dailyProfit();
+                double equity = nz(point.getEquity());
+                if (startingEquity == null && Math.abs(equity - cumulativeNetDeposit) > ACTIVE_ACCOUNT_MIN_VALUE) {
+                    startingEquity = equity - cumulativeNetDeposit;
                 }
-                cumulativeProfit += point.dailyProfit();
+                if (startingEquity != null) {
+                    profit = equity - startingEquity - cumulativeNetDeposit;
+                }
             }
-            double profit = cumulativeProfit;
             double profitPct =
                     startingEquity == null || Math.abs(startingEquity) <= ACTIVE_ACCOUNT_MIN_VALUE
                             ? 0.0
@@ -358,17 +409,76 @@ public class BenchmarkService {
         return new Benchmark.AccountValueSeries(account.getId(), account.getName(), profitValues, profitPctValues);
     }
 
-    private AccountValuePoint accountValuePoint(List<AccountDaily> rows) {
-        AccountDaily latest = rows.stream()
-                .max(Comparator.comparing(AccountDaily::getDate))
-                .orElse(null);
-        if (latest == null) {
-            return new AccountValuePoint(0.0, 0.0);
+    private Benchmark.AccountValueSeries portfolioAccountValueSeries(
+            List<AccountDaily> rows,
+            List<String> labels,
+            Map<Long, Map<String, Double>> netDepositByDay) {
+        Map<String, Double> equityByDay = rows.stream()
+                .collect(Collectors.groupingBy(
+                        row -> row.getDate().toString(),
+                        TreeMap::new,
+                        Collectors.summingDouble(row -> nz(row.getEquity()))));
+
+        Map<String, Double> portfolioNetDepositByDay = new HashMap<>();
+        netDepositByDay.values().forEach(byDay ->
+                byDay.forEach((day, amount) -> portfolioNetDepositByDay.merge(day, amount, Double::sum)));
+
+        List<Double> profitValues = new ArrayList<>();
+        List<Double> profitPctValues = new ArrayList<>();
+        Double startingEquity = null;
+        double cumulativeNetDeposit = 0.0;
+        for (String label : labels) {
+            double profit = profitValues.isEmpty() ? 0.0 : profitValues.get(profitValues.size() - 1);
+            cumulativeNetDeposit += portfolioNetDepositByDay.getOrDefault(label, 0.0);
+            Double equity = equityByDay.get(label);
+            if (equity != null) {
+                if (startingEquity == null && Math.abs(equity - cumulativeNetDeposit) > ACTIVE_ACCOUNT_MIN_VALUE) {
+                    startingEquity = equity - cumulativeNetDeposit;
+                }
+                if (startingEquity != null) {
+                    profit = equity - startingEquity - cumulativeNetDeposit;
+                }
+            }
+            double profitPct =
+                    startingEquity == null || Math.abs(startingEquity) <= ACTIVE_ACCOUNT_MIN_VALUE
+                            ? 0.0
+                            : profit / startingEquity * 100.0;
+            profitValues.add(round(profit));
+            profitPctValues.add(round(profitPct));
         }
-        return new AccountValuePoint(nz(latest.getEquity()), nz(latest.getDailyProfitAmount()));
+        return new Benchmark.AccountValueSeries(0L, "Portfolio total", profitValues, profitPctValues);
     }
 
-    private record AccountValuePoint(double equity, double dailyProfit) {}
+    private Map<Long, Map<String, Double>> normalizedNetDepositByDay(Set<Long> accountIds) {
+        if (CollectionUtils.isEmpty(accountIds)) {
+            return Map.of();
+        }
+        return normalizedCashOperationRepository.findAllByAccountIdIn(accountIds).stream()
+                .filter(row -> NET_DEPOSIT_CATEGORIES.contains(row.getNormalizedCategory()))
+                .collect(Collectors.groupingBy(
+                        NormalizedCashOperationRepository.NormalizedCashOperationRow::getAccountId,
+                        Collectors.groupingBy(
+                                row -> row.getDate().toString(),
+                                Collectors.summingDouble(row -> nz(row.getAmountInBaseCurrency())))));
+    }
+
+    private double convertToBase(double amount, CurrencyType currency, LocalDate date) {
+        if (Math.abs(amount) < 0.000001 || currency == null || currency == BASE_CURRENCY) {
+            return amount;
+        }
+        return currencyRateService.convertToBaseCurrency(amount, BASE_CURRENCY, currency, date);
+    }
+
+    private CurrencyType parseCurrency(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return BASE_CURRENCY;
+        }
+        try {
+            return CurrencyType.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            return BASE_CURRENCY;
+        }
+    }
 
     private List<String> dailyLabels(List<AccountDaily> rows) {
         LocalDate first = rows.stream()

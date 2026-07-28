@@ -492,16 +492,40 @@ public class XtbImportV2Service {
       List<ClosedPosition> closedPositions,
       List<OpenedPosition> openedPositions,
       CurrencyType defaultCurrency) {
+    Set<String> symbols = new HashSet<>();
+    closedPositions.stream()
+        .map(ClosedPosition::getSymbol)
+        .filter(StringUtils::hasText)
+        .forEach(symbols::add);
+    openedPositions.stream()
+        .map(OpenedPosition::getSymbol)
+        .filter(StringUtils::hasText)
+        .forEach(symbols::add);
+    Map<String, CurrencyType> quoteCurrencyBySymbol =
+        assetRepository.findAllBySymbolIn(symbols).stream()
+            .filter(asset -> StringUtils.hasText(asset.getSymbol()))
+            .filter(asset -> asset.getCurrency() != null)
+            .collect(
+                java.util.stream.Collectors.toMap(
+                    Asset::getSymbol, Asset::getCurrency, (left, right) -> right));
+
     Map<PriceCheckpointKey, WeightedPrice> aggregated = new LinkedHashMap<>();
 
     for (ClosedPosition position : closedPositions) {
+      CurrencyType quoteCurrency =
+          resolveTradeObservationCurrency(
+              position.getSymbol(), position.getCurrency(), defaultCurrency, quoteCurrencyBySymbol);
+      Double normalizedOpenPrice =
+          normalizeTradeObservationPrice(position.getOpenPrice(), position.getPurchaseValue(), position.getVolume());
+      Double normalizedClosePrice =
+          normalizeTradeObservationPrice(position.getClosePrice(), position.getSaleValue(), position.getVolume());
       addCheckpoint(
           aggregated,
           position.getSymbol(),
           position.getOpenTime(),
-          position.getOpenPrice(),
+          normalizedOpenPrice,
           position.getVolume(),
-          firstNonNull(position.getCurrency(), defaultCurrency),
+          quoteCurrency,
           "XTB_TRADE_OPEN",
           "XTB_TRADE_OPEN",
           "XTB_TRADE_OPEN_OBSERVATION");
@@ -509,22 +533,27 @@ public class XtbImportV2Service {
           aggregated,
           position.getSymbol(),
           position.getCloseTime(),
-          position.getClosePrice(),
+          normalizedClosePrice,
           position.getVolume(),
-          firstNonNull(position.getCurrency(), defaultCurrency),
+          quoteCurrency,
           "XTB_TRADE_CLOSE",
           "XTB_TRADE_CLOSE",
           "XTB_TRADE_CLOSE_OBSERVATION");
     }
 
     for (OpenedPosition position : openedPositions) {
+      CurrencyType quoteCurrency =
+          resolveTradeObservationCurrency(
+              position.getSymbol(), position.getCurrency(), defaultCurrency, quoteCurrencyBySymbol);
+      Double normalizedOpenPrice =
+          normalizeTradeObservationPrice(position.getOpenPrice(), position.getPurchaseValue(), position.getVolume());
       addCheckpoint(
           aggregated,
           position.getSymbol(),
           position.getOpenTime(),
-          position.getOpenPrice(),
+          normalizedOpenPrice,
           position.getVolume(),
-          firstNonNull(position.getCurrency(), defaultCurrency),
+          quoteCurrency,
           "XTB_TRADE_OPEN",
           "XTB_TRADE_OPEN",
           "XTB_TRADE_OPEN_OBSERVATION");
@@ -534,10 +563,10 @@ public class XtbImportV2Service {
       return;
     }
 
-    Set<String> symbols = new HashSet<>();
-    aggregated.keySet().forEach(key -> symbols.add(key.symbol()));
+    Set<String> aggregatedSymbols = new HashSet<>();
+    aggregated.keySet().forEach(key -> aggregatedSymbols.add(key.symbol()));
     Map<String, Long> assetIdsBySymbol =
-        assetRepository.findAllBySymbolIn(symbols).stream()
+        assetRepository.findAllBySymbolIn(aggregatedSymbols).stream()
             .collect(java.util.stream.Collectors.toMap(Asset::getSymbol, Asset::getId, (a, b) -> a));
 
     for (Map.Entry<PriceCheckpointKey, WeightedPrice> entry : aggregated.entrySet()) {
@@ -603,6 +632,47 @@ public class XtbImportV2Service {
       return null;
     }
     return normalized.getOrDefault(rawSymbol, null);
+  }
+
+  private CurrencyType resolveTradeObservationCurrency(
+      String symbol,
+      CurrencyType positionCurrency,
+      CurrencyType defaultCurrency,
+      Map<String, CurrencyType> quoteCurrencyBySymbol) {
+    if (StringUtils.hasText(symbol)) {
+      CurrencyType quoteCurrency = quoteCurrencyBySymbol.get(symbol);
+      if (quoteCurrency != null) {
+        return quoteCurrency;
+      }
+    }
+    return firstNonNull(positionCurrency, defaultCurrency);
+  }
+
+  private Double normalizeTradeObservationPrice(Double rawPrice, Double grossValue, Double volume) {
+    if (rawPrice == null || rawPrice <= 0.0) {
+      return rawPrice;
+    }
+    if (grossValue == null || volume == null || Math.abs(volume) <= LOT_EPSILON) {
+      return rawPrice;
+    }
+
+    double effectivePrice = Math.abs(grossValue / volume);
+    if (effectivePrice <= 0.0) {
+      return rawPrice;
+    }
+
+    double ratio = rawPrice / effectivePrice;
+    if (approximately(ratio, 10.0) || approximately(ratio, 100.0) || approximately(ratio, 1000.0)) {
+      return effectivePrice;
+    }
+    if (approximately(ratio, 0.1) || approximately(ratio, 0.01) || approximately(ratio, 0.001)) {
+      return effectivePrice;
+    }
+    return rawPrice;
+  }
+
+  private boolean approximately(double value, double target) {
+    return Math.abs(value - target) <= target * 0.05;
   }
 
   private CurrencyType firstNonNull(CurrencyType first, CurrencyType second) {

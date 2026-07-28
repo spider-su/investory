@@ -2,6 +2,7 @@ package com.example.demo.services;
 
 import com.example.demo.infrastructure.CurrencyType;
 import com.example.demo.infrastructure.repository.Asset;
+import com.example.demo.infrastructure.repository.AssetPriceHistoryRepository;
 import com.example.demo.infrastructure.repository.AssetRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
@@ -10,6 +11,7 @@ import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -29,6 +31,7 @@ public class AssetPriceFallbackService {
 
   private final OpenedPositionRepository openedPositionRepository;
   private final AssetRepository assetRepository;
+  private final AssetPriceHistoryRepository assetPriceHistoryRepository;
   private final CurrencyRateService currencyRateService;
 
   @Transactional
@@ -49,12 +52,27 @@ public class AssetPriceFallbackService {
       return;
     }
 
+    ZonedDateTime now = ZonedDateTime.now();
+    LocalDate rateDate = now.toLocalDate();
     Map<String, Asset> assetsBySymbol =
         assetRepository.findAllBySymbolIn(weightedPrices.keySet()).stream()
             .collect(Collectors.toMap(Asset::getSymbol, Function.identity(), (left, right) -> right));
-
-    ZonedDateTime now = ZonedDateTime.now();
-    LocalDate rateDate = now.toLocalDate();
+    Map<String, HistoricalQuote> historicalQuotesBySymbol =
+        assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(
+                weightedPrices.keySet(), rateDate)
+            .stream()
+            .filter(row -> row.getPriceDate() != null)
+            .collect(
+                Collectors.toMap(
+                    AssetPriceHistoryRepository.HistoricalAssetPriceRow::getSymbol,
+                    row ->
+                        new HistoricalQuote(
+                            row.getClosePrice(),
+                            parseCurrency(row.getPriceCurrency()),
+                            row.getPriceOrigin(),
+                            row.getPriceDate(),
+                            row.getQualityScore()),
+                    AssetPriceFallbackService::preferHistoricalQuote));
     Collection<Asset> changed = new ArrayList<>();
     weightedPrices.forEach(
         (symbol, weightedPrice) -> {
@@ -74,6 +92,26 @@ public class AssetPriceFallbackService {
                   || "OpenPositionWeightedAverage".equals(asset.getPriceSource())
                   || "OPEN_PRICE_FALLBACK".equals(asset.getPriceSource());
           boolean updated = false;
+          HistoricalQuote historicalQuote = historicalQuotesBySymbol.get(symbol);
+          if (historicalQuote != null
+              && historicalQuote.price() != null
+              && historicalQuote.price() > 0.0
+              && (fallbackSource || asset.getMarketPrice() == null || asset.getMarketPrice() == 0.0)) {
+            CurrencyType historicalCurrency =
+                historicalQuote.currency() != null ? historicalQuote.currency() : currency;
+            asset.setMarketPrice(historicalQuote.price());
+            asset.setMarketPriceUsd(
+                currencyRateService.convertToBaseCurrency(
+                    historicalQuote.price(), BASE_CURRENCY, historicalCurrency, historicalQuote.priceDate()));
+            asset.setPriceSource(
+                StringUtils.hasText(historicalQuote.priceOrigin())
+                    ? historicalQuote.priceOrigin()
+                    : "HistoricalPriceFallback");
+            asset.setPriceUpdatedAt(now);
+            changed.add(asset);
+            return;
+          }
+
           if (fallbackSource || asset.getMarketPrice() == null || asset.getMarketPrice() == 0.0) {
             asset.setMarketPrice(weightedPrice.price());
             updated = true;
@@ -119,5 +157,33 @@ public class AssetPriceFallbackService {
     return value == null ? 0.0 : value;
   }
 
+  private static HistoricalQuote preferHistoricalQuote(
+      HistoricalQuote left, HistoricalQuote right) {
+    return Comparator.comparing(HistoricalQuote::priceDate)
+            .thenComparing(quote -> quote.qualityScore() == null ? Integer.MIN_VALUE : quote.qualityScore())
+            .compare(left, right)
+        >= 0
+        ? left
+        : right;
+  }
+
+  private CurrencyType parseCurrency(String raw) {
+    if (!StringUtils.hasText(raw)) {
+      return null;
+    }
+    try {
+      return CurrencyType.valueOf(raw.trim().toUpperCase());
+    } catch (IllegalArgumentException ex) {
+      return null;
+    }
+  }
+
   private record WeightedPrice(double price, CurrencyType currency) {}
+
+  private record HistoricalQuote(
+      Double price,
+      CurrencyType currency,
+      String priceOrigin,
+      LocalDate priceDate,
+      Integer qualityScore) {}
 }

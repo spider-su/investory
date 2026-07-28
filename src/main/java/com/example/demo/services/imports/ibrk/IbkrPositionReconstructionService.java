@@ -1,0 +1,473 @@
+package com.example.demo.services.imports.ibrk;
+
+import com.example.demo.infrastructure.CashOperationType;
+import com.example.demo.infrastructure.CurrencyType;
+import com.example.demo.infrastructure.PositionType;
+import com.example.demo.infrastructure.repository.CashOperation;
+import com.example.demo.infrastructure.repository.CashOperationRepository;
+import com.example.demo.infrastructure.repository.ClosedPosition;
+import com.example.demo.infrastructure.repository.ClosedPositionRepository;
+import com.example.demo.infrastructure.repository.OpenedPosition;
+import com.example.demo.infrastructure.repository.OpenedPositionRepository;
+import com.example.demo.services.ReportingDateHelper;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.time.ZonedDateTime;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class IbkrPositionReconstructionService {
+
+  private static final double EPSILON = 0.000001d;
+
+  private final CashOperationRepository cashOperationRepository;
+  private final OpenedPositionRepository openedPositionRepository;
+  private final ClosedPositionRepository closedPositionRepository;
+
+  @Transactional
+  public ReconstructionResult rebuildFromCanonicalHistory(
+      Long accountId, List<OpenedPosition> authoritativeOpenPositions) {
+    List<CashOperation> canonicalOperations =
+        cashOperationRepository.findAllByAccount(accountId).stream()
+            .sorted(
+                Comparator.comparing(CashOperation::getDate)
+                    .thenComparing(op -> orDefault(op.getSymbol(), ""))
+                    .thenComparing(op -> orDefault(op.getComment(), ""))
+                    .thenComparing(CashOperation::getId))
+            .toList();
+
+    Map<String, Integer> dedup = new HashMap<>();
+    Map<String, ReconstructedPosition> positions = new LinkedHashMap<>();
+    List<ClosedPosition> closed = new ArrayList<>();
+
+    canonicalOperations.stream()
+        .map(this::toCanonicalTrade)
+        .filter(Objects::nonNull)
+        .forEach(tx -> applyTrade(positions, closed, dedup, tx));
+
+    validateQuantityReconciliation(positions, canonicalOperations);
+
+    List<OpenedPosition> open =
+        authoritativeOpenPositions != null
+            ? authoritativeOpenPositions
+            : buildOpenPositions(positions, dedup);
+
+    replaceDerivedPositions(accountId, open, closed);
+    return new ReconstructionResult(open, closed);
+  }
+
+  private void replaceDerivedPositions(
+      Long accountId, List<OpenedPosition> open, List<ClosedPosition> closed) {
+    openedPositionRepository.deleteByAccount(accountId);
+    closedPositionRepository.deleteByAccount(accountId);
+    if (!closed.isEmpty()) {
+      closedPositionRepository.saveAll(closed);
+    }
+    if (!open.isEmpty()) {
+      openedPositionRepository.saveAll(open);
+    }
+  }
+
+  private CanonicalTrade toCanonicalTrade(CashOperation operation) {
+      if (operation.getAccount() == null) {
+        return null;
+      }
+    if (operation.getType() != CashOperationType.STOCK_PURCHASE
+        && operation.getType() != CashOperationType.STOCK_SELL
+        && operation.getType() != CashOperationType.TRANSFER) {
+      return null;
+    }
+    String symbol = operation.getSymbol();
+    String rawType = commentField(operation.getComment(), "ibkrRawType");
+    String description = operation.getComment();
+    Double quantity = parseDouble(commentField(operation.getComment(), "ibkrQuantity"));
+    Double price = parseDouble(commentField(operation.getComment(), "ibkrPrice"));
+    Double grossAmount = parseDouble(commentField(operation.getComment(), "ibkrGrossAmount"));
+    Double commission = parseDouble(commentField(operation.getComment(), "ibkrCommission"));
+    String rawSymbol = commentField(operation.getComment(), "ibkrRawSymbol");
+    return new CanonicalTrade(
+        operation, rawType, symbol, rawSymbol, description, quantity, price, grossAmount, commission);
+  }
+
+  private void applyTrade(
+      Map<String, ReconstructedPosition> positions,
+      List<ClosedPosition> closedPositions,
+      Map<String, Integer> dedup,
+      CanonicalTrade tx) {
+    CashOperation op = tx.operation();
+    if (op.getType() == CashOperationType.TRANSFER && !isBondRedemption(tx)) {
+      return;
+    }
+    if (!StringUtils.hasText(tx.symbol())) {
+      return;
+    }
+    ReconstructedPosition position =
+        positions.computeIfAbsent(
+            op.getAccount() + "|" + tx.symbol(),
+            ignored -> new ReconstructedPosition(op.getAccount(), tx.symbol(), op.getCurrency()));
+
+    if (op.getType() == CashOperationType.STOCK_PURCHASE) {
+      if (tx.quantity() == null || Math.abs(tx.quantity()) < EPSILON) {
+        return;
+      }
+      double qty = Math.abs(tx.quantity());
+      double value =
+          Math.abs(nz(op.getAmount())) > EPSILON
+              ? Math.abs(nz(op.getAmount()))
+              : qty * nz(tx.price());
+      position.addLot(op.getDate(), qty, value);
+      return;
+    }
+
+    double requestedQuantity;
+    if (op.getType() == CashOperationType.TRANSFER) {
+      requestedQuantity = inferredBondRedemptionQuantity(position, tx);
+    } else {
+      requestedQuantity = tx.quantity() == null ? 0.0 : Math.abs(tx.quantity());
+    }
+    if (requestedQuantity <= EPSILON) {
+      return;
+    }
+    List<ClosedSlice> slices = closeReconstructedPosition(position, requestedQuantity);
+    addClosedPositions(closedPositions, dedup, position, tx, slices);
+  }
+
+  private List<OpenedPosition> buildOpenPositions(
+      Map<String, ReconstructedPosition> reconstructedPositions, Map<String, Integer> dedup) {
+    List<OpenedPosition> positions = new ArrayList<>();
+    for (ReconstructedPosition reconstructed : reconstructedPositions.values()) {
+      if (reconstructed.quantity <= EPSILON) {
+        continue;
+      }
+      int lotIndex = 0;
+      for (ReconstructedLot lot : reconstructed.lots) {
+        if (lot.quantity <= EPSILON) {
+          continue;
+        }
+        OpenedPosition position = new OpenedPosition();
+        position.setId(
+            syntheticId(
+                "POS|"
+                    + reconstructed.account
+                    + "|"
+                    + reconstructed.symbol
+                    + "|"
+                    + ReportingDateHelper.toReportingDate(lot.openDate)
+                    + "|"
+                    + lotIndex,
+                dedup));
+        position.setAccount(reconstructed.account);
+        position.setSymbol(reconstructed.symbol);
+        position.setType(PositionType.BUY);
+        position.setCurrency(reconstructed.currency);
+        position.setVolume(lot.quantity);
+        position.setOpenTime(lot.openDate);
+        position.setPurchaseValue(lot.costBasis);
+        position.setOpenPrice(lot.quantity <= EPSILON ? 0.0 : lot.costBasis / lot.quantity);
+        position.setCommission(0.0);
+        position.setSwap(0.0);
+        position.setProfit(0.0);
+        position.setComment("IBKR reconstructed from canonical cash history");
+        positions.add(position);
+        lotIndex++;
+      }
+    }
+    return positions;
+  }
+
+  private void addClosedPositions(
+      List<ClosedPosition> closedPositions,
+      Map<String, Integer> dedup,
+      ReconstructedPosition position,
+      CanonicalTrade tx,
+      List<ClosedSlice> closedSlices) {
+    if (closedSlices.isEmpty()) {
+      return;
+    }
+    CashOperation op = tx.operation();
+    double totalClosedQuantity = closedSlices.stream().mapToDouble(ClosedSlice::quantity).sum();
+    double totalSaleValue = Math.abs(nz(op.getAmount()));
+    if (totalSaleValue <= EPSILON) {
+      totalSaleValue = totalClosedQuantity * nz(tx.price());
+    }
+    for (ClosedSlice closed : closedSlices) {
+      double saleValue =
+          totalClosedQuantity <= EPSILON
+              ? 0.0
+              : totalSaleValue * closed.quantity() / totalClosedQuantity;
+      double allocatedCommission =
+          totalClosedQuantity <= EPSILON
+              ? 0.0
+              : Math.abs(nz(tx.commission())) * closed.quantity() / totalClosedQuantity;
+      ClosedPosition row = new ClosedPosition();
+      row.setId(
+          syntheticId(
+              "CLOSED|"
+                  + op.getAccount()
+                  + "|"
+                  + position.symbol
+                  + "|"
+                  + ReportingDateHelper.toReportingDate(op.getDate())
+                  + "|"
+                  + ReportingDateHelper.toReportingDate(closed.openDate())
+                  + "|"
+                  + closed.quantity()
+                  + "|"
+                  + saleValue,
+              dedup));
+      row.setAccount(op.getAccount());
+      row.setSymbol(position.symbol);
+      row.setType(PositionType.BUY);
+      row.setCurrency(position.currency);
+      row.setVolume(closed.quantity());
+      row.setOpenTime(closed.openDate());
+      row.setOpenPrice(closed.averageCost());
+      row.setCloseTime(op.getDate());
+      row.setClosePrice(closed.quantity() <= EPSILON ? 0.0 : saleValue / closed.quantity());
+      row.setPurchaseValue(closed.costBasis());
+      row.setSaleValue(saleValue);
+      row.setCommission(allocatedCommission);
+      row.setSwap(0.0);
+      row.setMargin(0.0);
+      row.setProfit(saleValue - closed.costBasis());
+      closedPositions.add(row);
+    }
+  }
+
+  private List<ClosedSlice> closeReconstructedPosition(
+      ReconstructedPosition position, double requestedQuantity) {
+    double remaining = Math.min(Math.abs(requestedQuantity), position.quantity);
+    List<ClosedSlice> slices = new ArrayList<>();
+    while (remaining > EPSILON && !position.lots.isEmpty()) {
+      ReconstructedLot lot = position.lots.peekFirst();
+      double closeQuantity = Math.min(remaining, lot.quantity);
+      double averageCost = lot.quantity <= EPSILON ? 0.0 : lot.costBasis / lot.quantity;
+      double closedCostBasis = averageCost * closeQuantity;
+      lot.quantity -= closeQuantity;
+      lot.costBasis -= closedCostBasis;
+      position.quantity -= closeQuantity;
+      position.costBasis -= closedCostBasis;
+      remaining -= closeQuantity;
+      slices.add(new ClosedSlice(closeQuantity, closedCostBasis, averageCost, lot.openDate));
+      if (lot.quantity <= EPSILON) {
+        position.lots.removeFirst();
+      }
+    }
+    position.normalize();
+    return slices;
+  }
+
+  private double inferredBondRedemptionQuantity(ReconstructedPosition position, CanonicalTrade tx) {
+    Double redemptionPrice = parseBondCallPrice(tx.description());
+    if (redemptionPrice != null && redemptionPrice > 0.0) {
+      return Math.abs(tx.operation().getAmount()) / redemptionPrice;
+    }
+    if (position.quantity <= EPSILON || position.costBasis <= EPSILON) {
+      return 0.0;
+    }
+    double averageCost = position.costBasis / position.quantity;
+    return averageCost <= EPSILON ? 0.0 : Math.abs(tx.operation().getAmount()) / averageCost;
+  }
+
+  private Double parseBondCallPrice(String description) {
+    if (!StringUtils.hasText(description)) {
+      return null;
+    }
+    java.util.regex.Matcher matcher =
+        java.util.regex.Pattern.compile("(?i)for\\s+USD\\s+([0-9]+(?:\\.[0-9]+)?)\\s+per\\s+Bond")
+            .matcher(description);
+    if (!matcher.find()) {
+      return null;
+    }
+    return parseDouble(matcher.group(1));
+  }
+
+  private boolean isBondRedemption(CanonicalTrade tx) {
+    if (tx.operation().getType() != CashOperationType.TRANSFER || !StringUtils.hasText(tx.symbol())) {
+      return false;
+    }
+    String rawType = tx.rawType() == null ? "" : tx.rawType().trim().toLowerCase(Locale.ROOT);
+    String description = tx.description() == null ? "" : tx.description().toLowerCase(Locale.ROOT);
+    return rawType.startsWith("corporate action")
+        && description.contains("call")
+        && description.contains("redemption");
+  }
+
+  private void validateQuantityReconciliation(
+      Map<String, ReconstructedPosition> positions, List<CashOperation> canonicalOperations) {
+    Map<String, Double> netByPosition = new HashMap<>();
+    Map<String, ReconstructedPosition> validationPositions = new HashMap<>();
+    for (CashOperation operation : canonicalOperations) {
+      if (!StringUtils.hasText(operation.getSymbol())) {
+        continue;
+      }
+      Double quantity = parseDouble(commentField(operation.getComment(), "ibkrQuantity"));
+      String positionKey = operation.getAccount() + "|" + operation.getSymbol();
+      if (operation.getType() == CashOperationType.STOCK_PURCHASE && quantity != null) {
+        netByPosition.merge(positionKey, Math.abs(quantity), Double::sum);
+      } else if (operation.getType() == CashOperationType.STOCK_SELL && quantity != null) {
+        netByPosition.merge(positionKey, -Math.abs(quantity), Double::sum);
+      } else if (operation.getType() == CashOperationType.TRANSFER) {
+        ReconstructedPosition validationPosition =
+            validationPositions.computeIfAbsent(
+                positionKey,
+                ignored -> {
+                  ReconstructedPosition seeded = new ReconstructedPosition(operation.getAccount(), operation.getSymbol(), operation.getCurrency());
+                  ReconstructedPosition existing = positions.get(positionKey);
+                  if (existing != null) {
+                    seeded.quantity = existing.quantity;
+                    seeded.costBasis = existing.costBasis;
+                  }
+                  return seeded;
+                });
+        CanonicalTrade tx = toCanonicalTrade(operation);
+        if (tx != null && isBondRedemption(tx)) {
+          double redeemed = inferredBondRedemptionQuantity(validationPosition, tx);
+          netByPosition.merge(positionKey, -Math.abs(redeemed), Double::sum);
+        }
+      }
+    }
+    for (Map.Entry<String, Double> entry : netByPosition.entrySet()) {
+      if (entry.getValue() < -EPSILON) {
+        continue;
+      }
+      ReconstructedPosition position = positions.get(entry.getKey());
+      double reconstructed = position == null ? 0.0 : position.quantity;
+      if (Math.abs(entry.getValue() - reconstructed) > EPSILON) {
+        throw new IllegalStateException(
+            "IBKR quantity reconstruction mismatch for "
+                + entry.getKey()
+                + ": netTransactions="
+                + entry.getValue()
+                + ", reconstructedOpen="
+                + reconstructed);
+      }
+    }
+  }
+
+  private static String commentField(String comment, String key) {
+    if (!StringUtils.hasText(comment)) {
+      return null;
+    }
+    for (String part : comment.split("\\|")) {
+      String trimmed = part.trim();
+      if (trimmed.startsWith(key + "=")) {
+        return trimmed.substring((key + "=").length()).trim();
+      }
+    }
+    return null;
+  }
+
+  private static Double parseDouble(String value) {
+    if (!StringUtils.hasText(value)) {
+      return null;
+    }
+    try {
+      return Double.valueOf(value.replace(",", ""));
+    } catch (NumberFormatException ignored) {
+      return null;
+    }
+  }
+
+  private static String orDefault(String value, String fallback) {
+    return StringUtils.hasText(value) ? value : fallback;
+  }
+
+  private static double nz(Double value) {
+    return value == null ? 0.0 : value;
+  }
+
+  private long syntheticId(String key, Map<String, Integer> dedup) {
+    int occurrence = dedup.merge(key, 1, Integer::sum);
+    try {
+      byte[] hash =
+          MessageDigest.getInstance("SHA-256")
+              .digest((key + "#" + occurrence).getBytes(StandardCharsets.UTF_8));
+      long value = 0L;
+      for (int i = 0; i < 8; i++) {
+        value = (value << 8) | (hash[i] & 0xffL);
+      }
+      value &= Long.MAX_VALUE;
+      return -(value == 0 ? 1 : value);
+    } catch (Exception e) {
+      throw new IllegalStateException("Cannot hash IBKR row id", e);
+    }
+  }
+
+  public record ReconstructionResult(List<OpenedPosition> openedPositions, List<ClosedPosition> closedPositions) {}
+
+  private record CanonicalTrade(
+      CashOperation operation,
+      String rawType,
+      String symbol,
+      String rawSymbol,
+      String description,
+      Double quantity,
+      Double price,
+      Double grossAmount,
+      Double commission) {}
+
+  private static final class ReconstructedPosition {
+    private final Long account;
+    private final String symbol;
+    private final CurrencyType currency;
+    private final Deque<ReconstructedLot> lots = new ArrayDeque<>();
+    private double quantity;
+    private double costBasis;
+
+    private ReconstructedPosition(Long account, String symbol, CurrencyType currency) {
+      this.account = account;
+      this.symbol = symbol;
+      this.currency = currency == null ? CurrencyType.USD : currency;
+    }
+
+    private void addLot(ZonedDateTime openDate, double quantity, double costBasis) {
+      lots.addLast(new ReconstructedLot(openDate, quantity, costBasis));
+      this.quantity += quantity;
+      this.costBasis += costBasis;
+    }
+
+    private void normalize() {
+      if (Math.abs(quantity) < EPSILON) {
+        quantity = 0.0;
+        costBasis = 0.0;
+        lots.clear();
+      }
+    }
+  }
+
+  private static final class ReconstructedLot {
+    private final ZonedDateTime openDate;
+    private double quantity;
+    private double costBasis;
+
+    private ReconstructedLot(ZonedDateTime openDate, double quantity, double costBasis) {
+      this.openDate = openDate;
+      this.quantity = quantity;
+      this.costBasis = costBasis;
+    }
+
+    private ZonedDateTime openDate() {
+      return openDate;
+    }
+  }
+
+  private record ClosedSlice(
+      double quantity, double costBasis, double averageCost, ZonedDateTime openDate) {}
+}

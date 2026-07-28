@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -24,6 +25,7 @@ import com.example.demo.services.imports.ImportExecutionResult;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -45,10 +47,14 @@ class IbkrImportHistoryServiceTest {
   @Mock private AccountRepository accountRepository;
 
   private IbkrImportService service;
+  private final List<CashOperation> persistedCashOperations = new ArrayList<>();
 
   @BeforeEach
   void setUp() {
     AssetCatalogService assetCatalogService = new AssetCatalogService(assetRepository);
+    IbkrPositionReconstructionService reconstructionService =
+        new IbkrPositionReconstructionService(
+            cashOperationRepository, openedPositionRepository, closedPositionRepository);
     service =
         new IbkrImportService(
             closedPositionRepository,
@@ -57,10 +63,24 @@ class IbkrImportHistoryServiceTest {
             assetPriceHistoryRepository,
             assetRepository,
             accountRepository,
-            assetCatalogService);
+            assetCatalogService,
+            reconstructionService);
+    persistedCashOperations.clear();
     org.mockito.Mockito.lenient()
-        .when(openedPositionRepository.findAllByAccount(17959259L))
-        .thenReturn(List.of());
+        .doAnswer(
+            invocation -> {
+              Iterable<CashOperation> rows = invocation.getArgument(0);
+              for (CashOperation row : rows) {
+                persistedCashOperations.removeIf(existing -> existing.getId().equals(row.getId()));
+                persistedCashOperations.add(row);
+              }
+              return null;
+            })
+        .when(cashOperationRepository)
+        .saveAll(org.mockito.ArgumentMatchers.anyIterable());
+    org.mockito.Mockito.lenient()
+        .when(cashOperationRepository.findAllByAccount(17959259L))
+        .thenAnswer(invocation -> new ArrayList<>(persistedCashOperations));
     org.mockito.Mockito.lenient()
         .when(assetRepository.findAllBySymbolIn(org.mockito.ArgumentMatchers.anyCollection()))
         .thenReturn(List.of());
@@ -96,7 +116,7 @@ class IbkrImportHistoryServiceTest {
                 + " Type,Account,Symbol,Description,Date,Quantity,Price,Net Amount",
             "Transaction History,Data,Buy,U1,O,Realty Income buy,2026-07-01,1,50,-50.00");
 
-    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)));
+    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
 
     @SuppressWarnings("unchecked")
     ArgumentCaptor<Iterable<CashOperation>> cashCaptor =
@@ -127,7 +147,7 @@ class IbkrImportHistoryServiceTest {
                 + " Type,Account,Symbol,Description,Date,Quantity,Price,Net Amount",
             "Transaction History,Data,Sell,U17959259,AAPL,AAPL sell,2026-07-01,1,200,200.00");
 
-    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)));
+    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
 
     @SuppressWarnings("unchecked")
     ArgumentCaptor<Iterable<CashOperation>> cashCaptor =
@@ -152,7 +172,7 @@ class IbkrImportHistoryServiceTest {
             "Transaction History,Data,Sell,U17959259,AAPL,AAPL sell,2026-07-02,4,120,480.00",
             "Transaction History,Data,Buy,U17959259,MSFT,MSFT buy,2026-07-03,2,250,-500.00");
 
-    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)));
+    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
 
     @SuppressWarnings("unchecked")
     ArgumentCaptor<Iterable<OpenedPosition>> positionCaptor =
@@ -161,7 +181,6 @@ class IbkrImportHistoryServiceTest {
     verify(openedPositionRepository).saveAll(positionCaptor.capture());
     List<OpenedPosition> positions = toList(positionCaptor.getValue());
 
-    assertEquals(2, positions.size());
     OpenedPosition aapl =
         positions.stream()
             .filter(position -> "AAPL.US".equals(position.getSymbol()))
@@ -170,6 +189,7 @@ class IbkrImportHistoryServiceTest {
     assertEquals(6.0, aapl.getVolume(), 0.01);
     assertEquals(600.0, aapl.getPurchaseValue(), 0.01);
     assertEquals(100.0, aapl.getOpenPrice(), 0.01);
+    assertTrue(aapl.getComment().contains("canonical cash history"));
 
     @SuppressWarnings("unchecked")
     ArgumentCaptor<Iterable<ClosedPosition>> closedCaptor =
@@ -195,7 +215,7 @@ class IbkrImportHistoryServiceTest {
             "Transaction History,Data,Buy,U17959259,VWRA,VANG FTSE AW USDA,2026-01-07"
                 + " 23:00:00,10,103.654,-1036.54");
 
-    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)));
+    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
 
     @SuppressWarnings("unchecked")
     ArgumentCaptor<Iterable<OpenedPosition>> positionCaptor =
@@ -223,7 +243,7 @@ class IbkrImportHistoryServiceTest {
             "Transaction History,Data,2026-06-03,U17959259,EUR cash deposit,Deposit,EUR,,,"
                 + ",100.00");
 
-    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)));
+    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
 
     @SuppressWarnings("unchecked")
     ArgumentCaptor<Iterable<CashOperation>> cashCaptor =
@@ -247,7 +267,7 @@ class IbkrImportHistoryServiceTest {
             "Transaction History,Data,2026-06-03,U17959259,EUR-priced ETF buy,Buy,JGPI,1,22.54,"
                 + "EUR,-26.45");
 
-    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)));
+    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
 
     @SuppressWarnings("unchecked")
     ArgumentCaptor<Iterable<CashOperation>> cashCaptor =
@@ -287,7 +307,7 @@ class IbkrImportHistoryServiceTest {
             "Transaction History,Data,2026-06-10,U17959259,ISHARES EDGE MSCI USA VALUE,Buy,"
                 + "IUVL,100,18.3577,USD,-1835.77");
 
-    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)));
+    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
 
     verify(assetPriceHistoryRepository)
         .upsertIbkrTradeObservation(
@@ -305,7 +325,7 @@ class IbkrImportHistoryServiceTest {
             "Transaction History,Data,Adjustment,U1,,Manual correction,2026-07-02,,,-5.00");
 
     ImportExecutionResult result =
-        service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)));
+        service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
 
     @SuppressWarnings("unchecked")
     ArgumentCaptor<Iterable<CashOperation>> captor =
@@ -332,7 +352,7 @@ class IbkrImportHistoryServiceTest {
                 + " Type,Currency,Symbol,Quantity,Price,Net Amount",
             "Transaction History,Data,2025-02-13,U17959259,Cash Transfer,Deposit,USD,,,,7838.285");
 
-    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)));
+    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
 
     @SuppressWarnings("unchecked")
     ArgumentCaptor<Iterable<CashOperation>> captor =
@@ -347,7 +367,7 @@ class IbkrImportHistoryServiceTest {
   }
 
   @Test
-  void importStatement_skipsForexPseudoSymbolFromAssetsAndCashOperationSymbol() throws Exception {
+  void importStatement_preservesForexMetadataWithoutUsingPseudoSymbolAsAssetId() throws Exception {
     String csv =
         String.join(
             "\n",
@@ -356,7 +376,9 @@ class IbkrImportHistoryServiceTest {
             "Transaction History,Data,2026-05-08,Alex&Olga,Net Amount in Base from Forex Trade:"
                 + " -3.32 EUR.USD,Forex Trade Component,EUR.USD,-3.32,1.17382,-0.0158696");
 
-    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)));
+    service.importStatement(
+        new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)),
+        "U17959259.TRANSACTIONS.20250211.20260612.csv");
 
     @SuppressWarnings("unchecked")
     ArgumentCaptor<Iterable<CashOperation>> cashCaptor =
@@ -367,6 +389,11 @@ class IbkrImportHistoryServiceTest {
     assertEquals(1, operations.size());
     assertEquals(CashOperationType.TRANSFER, operations.getFirst().getType());
     assertNull(operations.getFirst().getSymbol());
+    assertTrue(operations.getFirst().getComment().contains("ibkrRawType=Forex Trade Component"));
+    assertTrue(operations.getFirst().getComment().contains("ibkrRawSymbol=EUR.USD"));
+    assertTrue(operations.getFirst().getComment().contains("ibkrQuantity=-3.32"));
+    assertTrue(operations.getFirst().getComment().contains("ibkrPrice=1.17382"));
+    assertEquals(17959259L, operations.getFirst().getAccount());
   }
 
   @Test
@@ -379,7 +406,7 @@ class IbkrImportHistoryServiceTest {
             "Transaction History,Data,2025-05-06,Alex&Olga,T 4 5/8 02/28/26,Buy,T 4 5/8"
                 + " 02/28/26,8000.0,100.42611625,-8039.09");
 
-    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)));
+    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
 
     @SuppressWarnings("unchecked")
     ArgumentCaptor<Iterable<OpenedPosition>> positionCaptor =
@@ -391,7 +418,7 @@ class IbkrImportHistoryServiceTest {
     assertEquals("T458022826.US", positions.getFirst().getSymbol());
     assertEquals(8.0, positions.getFirst().getVolume(), 0.01);
     assertEquals(8039.09, positions.getFirst().getPurchaseValue(), 0.01);
-    assertEquals(100.488625, positions.getFirst().getOpenPrice(), 0.00000001);
+    assertEquals(1004.88625, positions.getFirst().getOpenPrice(), 0.00000001);
 
     @SuppressWarnings("unchecked")
     ArgumentCaptor<Iterable<Asset>> assetCaptor =
@@ -423,7 +450,7 @@ class IbkrImportHistoryServiceTest {
             "Transaction History,Data,2025-03-26,Alex&Olga,T 4 5/8 02/28/26,Buy,T 4 5/8"
                 + " 02/28/26,1000.0,100.41049125,USD,-1004.1,-5.0,-1009.1");
 
-    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)));
+    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
 
     @SuppressWarnings("unchecked")
     ArgumentCaptor<Iterable<OpenedPosition>> positionCaptor =
@@ -432,8 +459,8 @@ class IbkrImportHistoryServiceTest {
     verify(openedPositionRepository).saveAll(positionCaptor.capture());
     List<OpenedPosition> positions = toList(positionCaptor.getValue());
 
-    assertEquals(1, positions.size());
-    assertEquals("VWRA.US", positions.getFirst().getSymbol());
+    assertEquals(2.0, positions.stream().mapToDouble(OpenedPosition::getVolume).sum(), 0.01);
+    assertTrue(positions.stream().allMatch(position -> "VWRA.US".equals(position.getSymbol())));
     assertFalse(
         positions.stream().anyMatch(position -> "T458022826.US".equals(position.getSymbol())));
 
@@ -445,7 +472,7 @@ class IbkrImportHistoryServiceTest {
     List<ClosedPosition> closed = toList(closedCaptor.getValue());
     assertEquals(3, closed.size());
     assertTrue(closed.stream().allMatch(position -> "T458022826.US".equals(position.getSymbol())));
-    assertEquals(10000.0, closed.stream().mapToDouble(ClosedPosition::getVolume).sum(), 0.01);
+    assertEquals(10.0, closed.stream().mapToDouble(ClosedPosition::getVolume).sum(), 0.01);
     assertEquals(10000.0, closed.stream().mapToDouble(ClosedPosition::getSaleValue).sum(), 0.01);
     assertEquals(
         Set.of(
@@ -468,9 +495,175 @@ class IbkrImportHistoryServiceTest {
             "Transaction History,Data,2025-05-06,Alex&Olga,T 4 5/8 02/28/26,Buy,T 4 5/8"
                 + " 02/28/26,10000.0,100.42611625,USD,-10042.61,-5.0,-10047.61");
 
-    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)));
+    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
 
     verify(openedPositionRepository).deleteByAccount(17959259L);
+  }
+
+  @Test
+  void importStatement_usesAccountIdFromFilenameBeforeAliasColumn() throws Exception {
+    String csv =
+        String.join(
+            "\n",
+            "Transaction History,Header,Date,Account,Description,Transaction Type,Currency,Net Amount",
+            "Transaction History,Data,2026-06-03,Alex&Olga,USD deposit,Deposit,USD,100.00");
+
+    service.importStatement(
+        new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)),
+        "U17959259.TRANSACTIONS.20250211.20260612.csv");
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Iterable<CashOperation>> cashCaptor =
+        (ArgumentCaptor<Iterable<CashOperation>>)
+            (ArgumentCaptor<?>) ArgumentCaptor.forClass(Iterable.class);
+    verify(cashOperationRepository).saveAll(cashCaptor.capture());
+    List<CashOperation> operations = toList(cashCaptor.getValue());
+    assertEquals(17959259L, operations.getFirst().getAccount());
+  }
+
+  @Test
+  void importStatement_keepsAliasFallbackWhenFilenameHasNoAccount() throws Exception {
+    String csv =
+        String.join(
+            "\n",
+            "Transaction History,Header,Date,Account ID,Description,Transaction Type,Currency,Net Amount",
+            "Transaction History,Data,2026-06-03,U18000001,USD deposit,Deposit,USD,100.00");
+
+    service.importStatement(
+        new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), "statement-without-account.csv");
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Iterable<CashOperation>> cashCaptor =
+        (ArgumentCaptor<Iterable<CashOperation>>)
+            (ArgumentCaptor<?>) ArgumentCaptor.forClass(Iterable.class);
+    verify(cashOperationRepository).saveAll(cashCaptor.capture());
+    List<CashOperation> operations = toList(cashCaptor.getValue());
+    assertEquals(18000001L, operations.getFirst().getAccount());
+  }
+
+  @Test
+  void importStatement_preservesForexTradeComponentMetadataWithoutUsingPseudoAssetId()
+      throws Exception {
+    String csv =
+        String.join(
+            "\n",
+            "Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quantity,Price,Currency,Gross Amount,Commission,Net Amount",
+            "Transaction History,Data,2026-06-03,U17959259,Forex Trade Component for EUR.USD,Forex Trade Component,EUR.USD,1000,1.12,USD,1120.00,0.00,1120.00");
+
+    service.importStatement(
+        new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)),
+        "U17959259.TRANSACTIONS.20260211.20260612.csv");
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Iterable<CashOperation>> cashCaptor =
+        (ArgumentCaptor<Iterable<CashOperation>>)
+            (ArgumentCaptor<?>) ArgumentCaptor.forClass(Iterable.class);
+    verify(cashOperationRepository).saveAll(cashCaptor.capture());
+    List<CashOperation> operations = toList(cashCaptor.getValue());
+    assertEquals(1, operations.size());
+    CashOperation operation = operations.getFirst();
+    assertEquals(CashOperationType.TRANSFER, operation.getType());
+    assertNull(operation.getSymbol());
+    assertTrue(operation.getComment().contains("ibkrRawType=Forex Trade Component"));
+    assertTrue(operation.getComment().contains("ibkrRawSymbol=EUR.USD"));
+    assertTrue(operation.getComment().contains("ibkrQuantity=1000.0"));
+    assertTrue(operation.getComment().contains("ibkrPrice=1.12"));
+  }
+
+  @Test
+  void importStatement_storesCommissionExplicitlyOnClosedPositionWithoutChangingNetCash()
+      throws Exception {
+    String csv =
+        String.join(
+            "\n",
+            "Transaction History,Header,Date,Account,Description,Transaction"
+                + " Type,Symbol,Quantity,Price,Price Currency,Gross Amount ,Commission,Net Amount",
+            "Transaction History,Data,2026-06-01,U17959259,AAPL buy,Buy,AAPL,10,100,USD,-1000.0,-5.0,-1005.0",
+            "Transaction History,Data,2026-06-02,U17959259,AAPL sell,Sell,AAPL,10,110,USD,1100.0,-7.0,1093.0");
+
+    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Iterable<ClosedPosition>> closedCaptor =
+        (ArgumentCaptor<Iterable<ClosedPosition>>)
+            (ArgumentCaptor<?>) ArgumentCaptor.forClass(Iterable.class);
+    verify(closedPositionRepository).saveAll(closedCaptor.capture());
+    List<ClosedPosition> closed = toList(closedCaptor.getValue());
+    assertEquals(1, closed.size());
+    assertEquals(7.0, closed.getFirst().getCommission(), 0.0001);
+    assertEquals(1093.0, closed.getFirst().getSaleValue(), 0.0001);
+    assertEquals(88.0, closed.getFirst().getProfit(), 0.0001);
+  }
+
+  @Test
+  void importStatement_rebuildsPositionsAcrossOverlappingIncrementalImports() throws Exception {
+    String fileA =
+        String.join(
+            "\n",
+            "Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quantity,Price,Net Amount",
+            "Transaction History,Data,2026-02-11,U17959259,JGPI buy,Buy,JGPI,404,10,-4040.00",
+            "Transaction History,Data,2026-02-12,U17959259,VWRA buy,Buy,VWRA,82,100,-8200.00",
+            "Transaction History,Data,2026-02-13,U17959259,IUVL buy,Buy,IUVL,610,20,-12200.00");
+    String fileB =
+        String.join(
+            "\n",
+            "Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quantity,Price,Net Amount",
+            "Transaction History,Data,2026-06-08,U17959259,VWRA buy,Buy,VWRA,16,101,-1616.00",
+            "Transaction History,Data,2026-06-09,U17959259,VWRA buy,Buy,VWRA,16,102,-1632.00",
+            "Transaction History,Data,2026-06-10,U17959259,VWRA buy,Buy,VWRA,32,103,-3296.00",
+            "Transaction History,Data,2026-06-11,U17959259,IUVL sell,Sell,IUVL,610,21,12810.00");
+
+    service.importStatement(new ByteArrayInputStream(fileA.getBytes(StandardCharsets.UTF_8)), "A.csv");
+    service.importStatement(new ByteArrayInputStream(fileB.getBytes(StandardCharsets.UTF_8)), "B.csv");
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Iterable<OpenedPosition>> openCaptor =
+        (ArgumentCaptor<Iterable<OpenedPosition>>) (ArgumentCaptor<?>) ArgumentCaptor.forClass(Iterable.class);
+    verify(openedPositionRepository, atLeastOnce()).saveAll(openCaptor.capture());
+    List<OpenedPosition> latest = toList(openCaptor.getAllValues().getLast());
+
+    assertEquals(404.0, volumeFor(latest, "JGPI.US"), 0.0001);
+    assertEquals(146.0, volumeFor(latest, "VWRA.US"), 0.0001);
+    assertEquals(0.0, volumeFor(latest, "IUVL.UK"), 0.0001);
+  }
+
+  @Test
+  void importStatement_rebuildIsDeterministicForReverseImportOrder() throws Exception {
+    String fileA =
+        String.join(
+            "\n",
+            "Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quantity,Price,Net Amount",
+            "Transaction History,Data,2026-02-11,U17959259,JGPI buy,Buy,JGPI,404,10,-4040.00",
+            "Transaction History,Data,2026-02-12,U17959259,VWRA buy,Buy,VWRA,82,100,-8200.00",
+            "Transaction History,Data,2026-02-13,U17959259,IUVL buy,Buy,IUVL,610,20,-12200.00");
+    String fileB =
+        String.join(
+            "\n",
+            "Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quantity,Price,Net Amount",
+            "Transaction History,Data,2026-06-08,U17959259,VWRA buy,Buy,VWRA,16,101,-1616.00",
+            "Transaction History,Data,2026-06-09,U17959259,VWRA buy,Buy,VWRA,16,102,-1632.00",
+            "Transaction History,Data,2026-06-10,U17959259,VWRA buy,Buy,VWRA,32,103,-3296.00",
+            "Transaction History,Data,2026-06-11,U17959259,IUVL sell,Sell,IUVL,610,21,12810.00");
+
+    service.importStatement(new ByteArrayInputStream(fileB.getBytes(StandardCharsets.UTF_8)), "B.csv");
+    service.importStatement(new ByteArrayInputStream(fileA.getBytes(StandardCharsets.UTF_8)), "A.csv");
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Iterable<OpenedPosition>> openCaptor =
+        (ArgumentCaptor<Iterable<OpenedPosition>>) (ArgumentCaptor<?>) ArgumentCaptor.forClass(Iterable.class);
+    verify(openedPositionRepository, atLeastOnce()).saveAll(openCaptor.capture());
+    List<OpenedPosition> latest = toList(openCaptor.getAllValues().getLast());
+
+    assertEquals(404.0, volumeFor(latest, "JGPI.US"), 0.0001);
+    assertEquals(146.0, volumeFor(latest, "VWRA.US"), 0.0001);
+    assertEquals(0.0, volumeFor(latest, "IUVL.UK"), 0.0001);
+  }
+
+  private static double volumeFor(List<OpenedPosition> positions, String symbol) {
+    return positions.stream()
+        .filter(position -> symbol.equals(position.getSymbol()))
+        .mapToDouble(OpenedPosition::getVolume)
+        .sum();
   }
 
   private static <T> List<T> toList(Iterable<T> iterable) {

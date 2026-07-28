@@ -51,7 +51,9 @@ public class Benchmark {
     public record AccountValueYear(
             int year,
             List<String> labels,
-            List<AccountValueSeries> accountSeries) {}
+            List<AccountValueSeries> accountSeries,
+            List<Double> totalProfitValues,
+            List<Double> totalProfitPctValues) {}
 
     public record AccountValueSeries(
             Long id,

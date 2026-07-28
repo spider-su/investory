@@ -35,6 +35,9 @@ public class CashOperationNormalizer {
       Pattern.compile(
           "currency conversion,\\s*([A-Z]{3})\\s+to\\s+([A-Z]{3}).*?from\\s+TA:\\s*(\\d+)\\s+to:\\s*(\\d+).*?exchange rate:\\s*([0-9]+(?:[\\.,][0-9]+)?)",
           Pattern.CASE_INSENSITIVE);
+  private static final Pattern FEE_CORRECTION_PATTERN =
+      Pattern.compile(
+          "(?i)(commission\\s+refund|commission\\s+adj|sec\\s*fee\\s*adj|sec\\s*fee\\s*adjustment|fee\\s+refund)");
 
   public List<NormalizedCashOperation> normalize(List<CashOperation> operations) {
     List<MutableNormalized> normalized = new ArrayList<>();
@@ -76,6 +79,21 @@ public class CashOperationNormalizer {
             "explicit transfer in/out comment");
       }
       if (amount >= 0.0) {
+        if (Math.abs(amount) <= EPSILON) {
+          return MutableNormalized.of(
+              index,
+              operation,
+              NormalizedCategory.UNCLASSIFIED,
+              "ZERO_DEPOSIT",
+              direction,
+              false,
+              false,
+              false,
+              false,
+              false,
+              false,
+              "zero raw deposit requires review");
+        }
         return MutableNormalized.of(
             index,
             operation,
@@ -93,32 +111,32 @@ public class CashOperationNormalizer {
       return MutableNormalized.of(
           index,
           operation,
-          NormalizedCategory.EXTERNAL_WITHDRAWAL,
-          "RAW_DEPOSIT_NEGATIVE",
+          NormalizedCategory.UNCLASSIFIED,
+          "RAW_DEPOSIT_NEGATIVE_REVIEW",
           direction,
-          true,
           false,
           false,
           false,
           false,
           false,
-          "negative raw deposit fallback");
+          false,
+          "negative raw deposit requires review");
     }
 
     if (rawType == CashOperationType.WITHDRAWAL) {
       return MutableNormalized.of(
           index,
           operation,
-          amount <= 0.0 ? NormalizedCategory.EXTERNAL_WITHDRAWAL : NormalizedCategory.EXTERNAL_DEPOSIT,
-          amount <= 0.0 ? "RAW_WITHDRAWAL" : "RAW_WITHDRAWAL_POSITIVE",
+          amount <= 0.0 ? NormalizedCategory.EXTERNAL_WITHDRAWAL : NormalizedCategory.UNCLASSIFIED,
+          amount <= 0.0 ? "RAW_WITHDRAWAL" : "RAW_WITHDRAWAL_POSITIVE_REVIEW",
           direction,
-          true,
+          amount <= 0.0,
           false,
           false,
           false,
           false,
           false,
-          "raw withdrawal sign mapping");
+          amount <= 0.0 ? "raw withdrawal sign mapping" : "positive raw withdrawal requires review");
     }
 
     if (rawType == CashOperationType.TRANSFER && parseFxConversion(operation.getComment()).isPresent()) {
@@ -310,6 +328,22 @@ public class CashOperationNormalizer {
     }
 
     if (rawType == CashOperationType.CORRECTION) {
+      if (isFeeCorrection(comment)) {
+        boolean reversal = amount > 0.0 || reversalHint;
+        return MutableNormalized.of(
+            index,
+            operation,
+            NormalizedCategory.FEE,
+            reversal ? "FEE_REVERSAL" : "FEE",
+            direction,
+            false,
+            false,
+            false,
+            false,
+            true,
+            reversal,
+            "fee correction/refund");
+      }
       return MutableNormalized.of(
           index,
           operation,
@@ -357,8 +391,9 @@ public class CashOperationNormalizer {
   }
 
   private void pairSubaccountTransfers(List<MutableNormalized> normalized) {
+    List<MutableNormalized> sorted = sortForPairing(normalized);
     Map<String, Deque<MutableNormalized>> outflows = new HashMap<>();
-    for (MutableNormalized current : normalized) {
+    for (MutableNormalized current : sorted) {
       if (current.category != NormalizedCategory.INTERNAL_BOOKKEEPING) {
         continue;
       }
@@ -390,13 +425,29 @@ public class CashOperationNormalizer {
   }
 
   private void pairInternalTransferLedger(List<MutableNormalized> normalized) {
+    List<MutableNormalized> sorted = sortForPairing(normalized);
     Map<String, Deque<MutableNormalized>> outflows = new HashMap<>();
-    for (MutableNormalized current : normalized) {
+    for (MutableNormalized current : sorted) {
       if (current.category != NormalizedCategory.INTERNAL_TRANSFER_OUT
           && current.category != NormalizedCategory.INTERNAL_TRANSFER_IN) {
         continue;
       }
-      String key = current.operation.getCurrency() + "|" + roundedAbsAmount(current.operation.getAmount());
+      Optional<TransferBetweenAccountsHint> hint = parseTransferBetweenAccounts(current.operation.getComment());
+      String key =
+          hint.map(
+                  value ->
+                      value.sourceAccount()
+                          + "|"
+                          + value.targetAccount()
+                          + "|"
+                          + current.operation.getCurrency()
+                          + "|"
+                          + roundedAbsAmount(current.operation.getAmount()))
+              .orElseGet(
+                  () ->
+                      current.operation.getCurrency()
+                          + "|"
+                          + roundedAbsAmount(current.operation.getAmount()));
       if (current.category == NormalizedCategory.INTERNAL_TRANSFER_OUT) {
         outflows.computeIfAbsent(key, ignored -> new ArrayDeque<>()).addLast(current);
         continue;
@@ -419,8 +470,9 @@ public class CashOperationNormalizer {
   }
 
   private void pairFxConversions(List<MutableNormalized> normalized) {
+    List<MutableNormalized> sorted = sortForPairing(normalized);
     Map<String, Deque<MutableNormalized>> groups = new HashMap<>();
-    for (MutableNormalized current : normalized) {
+    for (MutableNormalized current : sorted) {
       if (current.category != NormalizedCategory.FX_CONVERSION) {
         continue;
       }
@@ -459,6 +511,17 @@ public class CashOperationNormalizer {
       current.classificationReason = "paired FX conversion legs";
       match.classificationReason = "paired FX conversion legs";
     }
+  }
+
+  private static List<MutableNormalized> sortForPairing(List<MutableNormalized> normalized) {
+    return normalized.stream()
+        .sorted(
+            Comparator.comparing(
+                    (MutableNormalized row) -> row.operation.getDate(),
+                    Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(row -> opId(row.operation))
+                .thenComparingInt(MutableNormalized::index))
+        .toList();
   }
 
   private static MutableNormalized pollWithinWindow(
@@ -525,6 +588,11 @@ public class CashOperationNormalizer {
 
   private static String normalizedComment(String comment) {
     return comment == null ? "" : comment.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
+  }
+
+  private static boolean isFeeCorrection(String normalizedComment) {
+    return StringUtils.hasText(normalizedComment)
+        && FEE_CORRECTION_PATTERN.matcher(normalizedComment).find();
   }
 
   private static long roundedAbsAmount(Double amount) {

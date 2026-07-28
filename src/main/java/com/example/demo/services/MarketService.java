@@ -55,6 +55,7 @@ public class MarketService {
     private final OpenedPositionRepository openedPositionRepository;
     private final ClosedPositionRepository closedPositionRepository;
     private final AssetRepository assetRepository;
+    private final AssetPriceHistoryGapFillService assetPriceHistoryGapFillService;
     private final StatisticsRefreshService statisticsRefreshService;
     private final boolean skipNonUsListings;
     private final Set<String> excludedAssetSymbols;
@@ -65,6 +66,7 @@ public class MarketService {
                          OpenedPositionRepository openedPositionRepository,
                          ClosedPositionRepository closedPositionRepository,
                          AssetRepository assetRepository,
+                         AssetPriceHistoryGapFillService assetPriceHistoryGapFillService,
                          StatisticsRefreshService statisticsRefreshService,
                          PlatformTransactionManager transactionManager,
                          @Value("${app.market.chunk-pause-ms:" + DEFAULT_CHUNK_PAUSE_MS + "}") long chunkPauseMs,
@@ -74,6 +76,7 @@ public class MarketService {
         this.openedPositionRepository = openedPositionRepository;
         this.closedPositionRepository = closedPositionRepository;
         this.assetRepository = assetRepository;
+        this.assetPriceHistoryGapFillService = assetPriceHistoryGapFillService;
         this.statisticsRefreshService = statisticsRefreshService;
         this.skipNonUsListings = skipNonUsListings;
         this.excludedAssetSymbols = parseSymbolSet(excludedSymbolsCsv);

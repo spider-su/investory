@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import com.example.demo.infrastructure.CurrencyType;
 import com.example.demo.infrastructure.repository.Asset;
+import com.example.demo.infrastructure.repository.AssetPriceHistoryRepository;
 import com.example.demo.infrastructure.repository.AssetRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
@@ -29,6 +30,7 @@ class AssetPriceFallbackServiceTest {
 
   @Mock private OpenedPositionRepository openedPositionRepository;
   @Mock private AssetRepository assetRepository;
+  @Mock private AssetPriceHistoryRepository assetPriceHistoryRepository;
   @Mock private CurrencyRateService currencyRateService;
 
   @Test
@@ -36,7 +38,10 @@ class AssetPriceFallbackServiceTest {
   void populateMissingPricesFromOpenPositions_usesWeightedOpenPriceAndUsdConversion() {
     AssetPriceFallbackService service =
         new AssetPriceFallbackService(
-            openedPositionRepository, assetRepository, currencyRateService);
+            openedPositionRepository,
+            assetRepository,
+            assetPriceHistoryRepository,
+            currencyRateService);
 
     OpenedPosition first = position(10.0, 200.0);
     OpenedPosition second = position(30.0, 220.0);
@@ -63,7 +68,10 @@ class AssetPriceFallbackServiceTest {
   void populateMissingPricesFromOpenPositions_doesNotOverwriteExistingPrice() {
     AssetPriceFallbackService service =
         new AssetPriceFallbackService(
-            openedPositionRepository, assetRepository, currencyRateService);
+            openedPositionRepository,
+            assetRepository,
+            assetPriceHistoryRepository,
+            currencyRateService);
 
     OpenedPosition position =
         PortfolioBuilders.openPosition(PortfolioTestData.SPY)

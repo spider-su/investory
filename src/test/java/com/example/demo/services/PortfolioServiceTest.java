@@ -7,6 +7,7 @@ import com.example.demo.infrastructure.repository.account.Account;
 import com.example.demo.infrastructure.repository.account.AccountMonthlyPerformance;
 import com.example.demo.infrastructure.repository.account.AccountMonthlyPerformanceRepository;
 import com.example.demo.infrastructure.repository.account.AccountRepository;
+import com.example.demo.infrastructure.repository.account.AccountStatistics;
 import com.example.demo.infrastructure.repository.account.AccountStatisticsRepository;
 import com.example.demo.infrastructure.repository.portfolio.PortfolioAssetAllocation;
 import com.example.demo.infrastructure.repository.portfolio.PortfolioAssetAllocationRepository;
@@ -206,6 +207,32 @@ class PortfolioServiceTest {
         assertEquals(51747407L, result.getAccountBalances().getFirst().getAccountId());
         assertEquals(13370.17, result.getAccountBalances().getFirst().getNetDeposit(), 0.01);
         assertEquals(-100.0, result.getAccountBalances().getFirst().getProfitLossPercent(), 0.01);
+    }
+
+    @Test
+    void calculateTotalProfitLoss_usesBaseBalanceForBaseCurrencyAccountProfitLoss() {
+        Account account = new Account();
+        account.setId(51499241L);
+        account.setName("Trading USD");
+        account.setCurrency(CurrencyType.USD);
+        when(accountStatisticsRepository.findAll()).thenReturn(List.of(
+                PortfolioBuilders.accountStatistics()
+                        .account(new AccountDefinition(51499241L, "Trading USD", CurrencyType.USD, "Broker"))
+                        .deposits(0.0, 0.0)
+                        .balances(69.0, 22035.0, 22104.0)
+                        .netDeposits(21671.38, 21671.38)
+                        .build()));
+        when(accountRepository.findMapByIdIn(any())).thenReturn(Map.of(51499241L, account));
+        when(closedPositionRepository.findAll()).thenReturn(List.of());
+        when(openedPositionRepository.findAll()).thenReturn(List.of());
+        when(cashOperationRepository.findAll()).thenReturn(List.of());
+
+        Portfolio result = portfolioService.calculateTotalProfitLoss();
+
+        assertEquals(1, result.getAccountBalances().size());
+        assertEquals(51499241L, result.getAccountBalances().getFirst().getAccountId());
+        assertEquals(22104.0, result.getAccountBalances().getFirst().getLocalBalance(), 0.01);
+        assertEquals(1.9972, result.getAccountBalances().getFirst().getProfitLossPercent(), 0.0001);
     }
 
     @Test
@@ -483,6 +510,9 @@ class PortfolioServiceTest {
     @Test
     void calculateMonthlyPerformance_bucketsByYearAndMonth() {
         int year = java.time.Year.now().getValue();
+        when(accountStatisticsRepository.findAll()).thenReturn(List.of(
+                visibleAccountStats(1L, 1050.0, 75.0)
+        ));
         when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc()).thenReturn(List.of(
                 monthlyPerformance(1L, LocalDate.of(year, 3, 1), 100.0, 0.0, 1100.0),
                 monthlyPerformance(1L, LocalDate.of(year - 1, 7, 1), 50.0, 25.0, 1050.0)
@@ -494,6 +524,28 @@ class PortfolioServiceTest {
         assertTrue(monthly.containsKey(String.valueOf(year - 1)));
         assertTrue(monthly.keySet().stream().anyMatch(k -> k.startsWith(year + "-")));
         assertEquals(25.0, perf.getMonthlyCashflow().get(String.valueOf(year - 1)), 0.01);
+        assertEquals(1L, perf.getMonthlyOperationsCount().get(String.valueOf(year - 1)));
+    }
+
+    @Test
+    void calculateMonthlyPerformance_countsDistinctVisibleAccountsPerYearBucket() {
+        int year = java.time.Year.now().getValue();
+        when(accountStatisticsRepository.findAll()).thenReturn(List.of(
+                visibleAccountStats(1L, 1000.0, 1000.0),
+                visibleAccountStats(2L, 1000.0, 1000.0),
+                visibleAccountStats(3L, 0.0, 0.0)
+        ));
+        when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc()).thenReturn(List.of(
+                monthlyPerformance(1L, LocalDate.of(year - 1, 1, 1), 100.0, 0.0, 1000.0),
+                monthlyPerformance(1L, LocalDate.of(year - 1, 2, 1), 50.0, 0.0, 1050.0),
+                monthlyPerformance(2L, LocalDate.of(year - 1, 3, 1), -10.0, 0.0, 990.0),
+                monthlyPerformance(2L, LocalDate.of(year - 1, 4, 1), 20.0, 0.0, 1010.0),
+                monthlyPerformance(3L, LocalDate.of(year - 1, 5, 1), 5.0, 0.0, 5.0)
+        ));
+
+        Performance perf = portfolioService.calculateMonthlyPerformance();
+
+        assertEquals(2L, perf.getMonthlyOperationsCount().get(String.valueOf(year - 1)));
     }
 
     @Test
@@ -552,6 +604,14 @@ class PortfolioServiceTest {
                 profit,
                 0.0,
                 ZonedDateTime.now());
+    }
+
+    private static AccountStatistics visibleAccountStats(Long accountId, double balance, double netDeposit) {
+        return PortfolioBuilders.accountStatistics()
+                .account(new AccountDefinition(accountId, "A" + accountId, CurrencyType.USD, "Test"))
+                .balances(0.0, balance, balance)
+                .deposits(netDeposit, 0.0)
+                .build();
     }
 
     private static CashOperation cash(CashOperationType type, double amount, String comment) {

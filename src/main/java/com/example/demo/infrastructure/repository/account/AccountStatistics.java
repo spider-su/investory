@@ -37,6 +37,9 @@ public class AccountStatistics {
   @Column(name = "net_deposit", nullable = false)
   private Double netDeposit;
 
+  @Column(name = "account_net_deposit", nullable = false)
+  private Double accountNetDeposit;
+
   @Column(name = "cash_balance", nullable = false)
   private Double cashBalance;
 

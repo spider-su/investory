@@ -9,8 +9,10 @@ import com.example.demo.infrastructure.repository.account.AccountMonthlyPerforma
 import com.example.demo.infrastructure.repository.account.AccountRepository;
 import com.example.demo.infrastructure.repository.account.AccountStatistics;
 import com.example.demo.infrastructure.repository.account.AccountStatisticsRepository;
+import com.example.demo.infrastructure.repository.NormalizedCashOperationRepository;
 import com.example.demo.infrastructure.repository.benchmark.BenchmarkMonthlyClose;
 import com.example.demo.infrastructure.repository.benchmark.BenchmarkMonthlyCloseRepository;
+import com.example.demo.services.currency.CurrencyRateService;
 import com.example.demo.services.models.Benchmark;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,7 +45,9 @@ class BenchmarkServiceTest {
     @Mock private AccountMonthlyPerformanceRepository accountMonthlyPerformanceRepository;
     @Mock private AccountRepository accountRepository;
     @Mock private AccountStatisticsRepository accountStatisticsRepository;
+    @Mock private NormalizedCashOperationRepository normalizedCashOperationRepository;
     @Mock private BenchmarkMonthlyCloseRepository benchmarkMonthlyCloseRepository;
+    @Mock private CurrencyRateService currencyRateService;
     @Mock private TwelveDataService twelveDataService;
 
     private BenchmarkService benchmarkService;
@@ -55,7 +59,9 @@ class BenchmarkServiceTest {
                 accountMonthlyPerformanceRepository,
                 accountRepository,
                 accountStatisticsRepository,
+                normalizedCashOperationRepository,
                 benchmarkMonthlyCloseRepository,
+                currencyRateService,
                 twelveDataService,
                 "2026-01");
         org.mockito.Mockito.lenient()
@@ -405,8 +411,9 @@ class BenchmarkServiceTest {
         assertEquals("2026-01-05", year2026.labels().getFirst());
         assertEquals("2026-01-06", year2026.labels().getLast());
         assertEquals(2, year2026.accountSeries().size());
-        assertEquals(List.of(1000.0, 1200.0), year2026.accountSeries().getFirst().profitValues());
-        assertEquals(List.of(500.0, 700.0), year2026.accountSeries().get(1).profitValues());
+        assertEquals(List.of(0.0, 200.0), year2026.accountSeries().getFirst().profitValues());
+        assertEquals(List.of(0.0, 200.0), year2026.accountSeries().get(1).profitValues());
+        assertEquals(List.of(0.0, 400.0), year2026.totalProfitValues());
     }
 
     @Test
@@ -427,8 +434,9 @@ class BenchmarkServiceTest {
         assertTrue(benchmark.isAccountValuesAvailable());
         Benchmark.AccountValueYear year2026 = benchmark.getAccountValueYears().getFirst();
         assertEquals(List.of("2026-01-05", "2026-01-06"), year2026.labels());
-        assertEquals(List.of(1000.0, 1050.0), year2026.accountSeries().getFirst().profitValues());
-        assertEquals(List.of(0.0, 500.0), year2026.accountSeries().get(1).profitValues());
+        assertEquals(List.of(0.0, 50.0), year2026.accountSeries().getFirst().profitValues());
+        assertEquals(List.of(0.0, 0.0), year2026.accountSeries().get(1).profitValues());
+        assertEquals(List.of(0.0, 550.0), year2026.totalProfitValues());
     }
 
     @Test
