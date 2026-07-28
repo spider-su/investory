@@ -6,11 +6,9 @@ project facts from this file.
 
 ## Communication Style
 
-- User-facing conversation in this repository should use brief caveman-style English across
-  commentary and final responses: short sentences, simple wording, direct statements.
+- User-facing conversation in this repository should use brief, simple, direct English.
 - Keep code, commands, file paths, API names, class names, and other technical identifiers exact.
-- If caveman phrasing would make a technical point ambiguous, keep the technical point precise and
-  only simplify the surrounding prose.
+- Do not simplify wording when doing so would make a technical point ambiguous.
 
 ## Stack Discipline
 
@@ -40,12 +38,12 @@ project facts from this file.
 ## Project Snapshot
 
 - Spring Boot 4.1 monolith for portfolio and investment tracking; Maven build targeting Java 25.
-- Main flow: broker XLSX/CSV import -> normalized portfolio tables -> FX and market sync ->
-  daily/monthly projections -> Thymeleaf dashboard, Ghostfolio-compatible read APIs, Yahoo CSV
-  export, Telegram notifications, and optional OpenAI answers/reports.
+- Main flow: broker XLSX/CSV import -> normalized operational tables -> FX and market sync ->
+  `account_daily` rebuild -> derived reporting views -> Thymeleaf dashboard, Ghostfolio-compatible
+  read APIs, Yahoo CSV export, Telegram notifications, and optional OpenAI answers/reports.
 - Package boundaries:
   - `controllers`: UI, import/export/admin REST, Telegram bot, and Ghostfolio compatibility.
-  - `services`: portfolio analytics, market/FX sync, projections, reset, tax, cash flow, and
+  - `services`: portfolio analytics, market/FX sync, reporting rebuilds, reset, tax, cash flow, and
     manual prices.
   - `services/imports`: broker parser SPI, XTB/IBKR implementations, and Yahoo export.
   - `services/openai`: Telegram AI replies, dashboard context, and scheduled reports.
@@ -54,6 +52,22 @@ project facts from this file.
   - `infrastructure`: enums, JPA entities/repositories, and projection/view entities.
   - `clients`: native `java.net.http` clients for TwelveData and exchangerate.host.
   - `config`: security, scheduling, Thymeleaf, Telegram, and AI scheduling.
+
+## Architectural Invariants
+
+- Raw broker events are immutable source inputs.
+- `account_daily` is the only persisted historical reporting fact table.
+- Higher account, portfolio, monthly, KPI, allocation, currency, and symbol reports derive from
+  `account_daily` through views or materialized views.
+- Controllers must not classify broker operations or calculate financial values.
+- Snapshot values and daily flow values are different concepts and must remain separate.
+- Daily flow fields contain only events occurring on that date; they are never lifetime cumulative
+  totals.
+- Returns are compounded from daily returns. Never average return percentages.
+- Missing FX, missing prices, or duplicate valuation matches must produce explicit diagnostics.
+  Never assume an FX rate of 1 and never return an unconverted amount as a successful conversion.
+- Before adding a reporting table, ask: **Can this be derived from `account_daily`?** If yes, use a
+  view or materialized view.
 
 ## Build And Test
 
@@ -135,7 +149,43 @@ project facts from this file.
   - `assets.ibkr`: IBKR alias or mapping.
   - `assets.yahoo`: Yahoo-specific symbol where needed.
 
-## Database And Projection Guardrails
+## XTB Cash-Operation Semantics
+
+XTB raw operation names are not sufficient to determine economic meaning. Classification must also
+inspect amount sign, comment text, account relationship, and related nearby records.
+
+Preserve every raw record. Store normalized meaning separately or derive it deterministically.
+
+Apply the most specific rule first:
+
+1. Explicit transfer-in or transfer-out comment.
+2. Currency-conversion comment.
+3. Correction or reversal comment.
+4. Paired `SUBACCOUNT_TRANSFER` detection.
+5. Raw operation mapping.
+6. Sign-based subtype.
+7. Unclassified fallback with a validation issue.
+
+Required interpretations:
+
+- Negative `DEPOSIT` with `Transfer out operation` -> `INTERNAL_TRANSFER_OUT`.
+- Positive `DEPOSIT` with `Transfer in operation` -> `INTERNAL_TRANSFER_IN`.
+- `TRANSFER` with `Transfer from <source> to <destination>` -> internal account transfer.
+- `TRANSFER` identified as currency conversion -> `FX_CONVERSION`.
+- Opposite paired `SUBACCOUNT_TRANSFER` rows -> internal bookkeeping; preserve both rows and group
+  them deterministically.
+- Negative `DIVIDEND` -> signed dividend reversal, not withdrawal.
+- Positive `WITHHOLDING_TAX` -> signed tax reversal/refund, not income.
+- Trade purchases and sales change cash and positions but are not external deposits or withdrawals.
+- Zero-valued fee rows remain auditable and contribute zero.
+
+At account level, internal transfers change cash. At portfolio level, matched internal transfer legs
+must cancel and must not change contributed capital or investment performance.
+
+Only normalized `EXTERNAL_DEPOSIT` and `EXTERNAL_WITHDRAWAL` records may populate the corresponding
+`account_daily` flow fields.
+
+## Database And Reporting Guardrails
 
 - Current baseline migrations:
   - `V01.000__Initial_schema.sql`
@@ -143,9 +193,9 @@ project facts from this file.
   - `V01.002__checks_and_views.sql`
   - `V01.003__asset_price_history_import.sql`
 - Currency is limited to `USD`, `EUR`, and `PLN`.
-- Core raw tables include `accounts`, `portfolios`, `assets`, `asset_price_history`,
+- Core operational tables include `accounts`, `portfolios`, `assets`, `asset_price_history`,
   `cash_operations`, `positions`, `import_history`, `exchange_rates`, and benchmark monthly closes.
-- `account_daily` is the persisted projection/read-model boundary rebuilt from raw tables.
+- `account_daily` is the persisted reporting/read-model boundary rebuilt from operational tables.
 - Higher summaries above `account_daily` must stay database-derived views/materialized views, not
   separately persisted application-owned tables.
 - `positions` is the only position table. `OpenedPosition` and `ClosedPosition` map to it and
@@ -154,39 +204,98 @@ project facts from this file.
   `price_updated_at`. Projections and export require `market_price_usd`.
 - `asset_price_history` distinguishes observed and estimated prices and preserves source,
   quality, scale, proxy, and currency metadata. Do not collapse those semantics.
-- `account_daily` is live projection data and feeds all higher reporting layers; it is not
+- `account_daily` is live reporting data and feeds all higher reporting layers; it is not
   disposable legacy history.
-- Ordinary reporting views:
-  - `v_portfolio_daily`
-- Materialized reporting views:
-  - `account_monthly_mv`
-  - `portfolio_daily_mv`
-  - `portfolio_monthly_mv`
-  - `account_statistics`
-  - `portfolio_kpi_summary`
-  - `portfolio_asset_allocation`
-  - `portfolio_currency_breakdown`
-  - `symbol_performance`
-- Removed database surface must stay removed: `stocks`, `ticker_monthly`,
-  `monthly_position_summary`, `position_summary`, `portfolio_history`, old open-position
-  history, indicator tables, and obsolete diagnostic views.
 
-## Market, FX, And Projections
+`account_daily` uses `(account_id, snapshot_date)` as its identity.
+
+Snapshot fields represent closing state:
+
+- cash balance
+- market value
+- equity
+- cost basis
+- unrealized profit
+
+Flow fields represent only that day's activity:
+
+- deposits
+- withdrawals
+- dividends
+- interest
+- fees
+- taxes
+- realized profit
+
+Monthly reports sum daily flows and compound daily returns. They must not sum cumulative lifetime
+values.
+
+Ordinary reporting views:
+
+- `v_portfolio_daily`
+
+Materialized reporting views:
+
+- `account_monthly_mv`
+- `portfolio_daily_mv`
+- `portfolio_monthly_mv`
+- `account_statistics`
+- `portfolio_kpi_summary`
+- `portfolio_asset_allocation`
+- `portfolio_currency_breakdown`
+- `symbol_performance`
+
+Removed database surface must stay removed: `stocks`, `ticker_monthly`,
+`monthly_position_summary`, `position_summary`, `portfolio_history`, old open-position
+history, indicator tables, and obsolete diagnostic views.
+
+## Market, FX, And Reporting Refresh
 
 - `MarketService.fullPortfolioUpdate()` refreshes prices, applies them to open positions,
-  re-values IBKR positions/account equity, and refreshes projections/views.
+  re-values applicable positions/accounts, and starts the reporting refresh pipeline.
 - TwelveData access lives in `clients/market/TwelveDataService`; symbols come from `assets`.
 - Quote sync uses `MarketService.CHUNK_SIZE = 8` and `app.market.chunk-pause-ms` defaults to
   120 seconds.
 - `app.market.skip-non-us-listings=true` by default; manual prices cover unavailable listings.
-- Preserve the `REMX.UK` quote normalization unless provider mapping changes.
+- `REMX.UK` currently has source-specific quote normalization. Preserve behavior until it is replaced
+  by explicit asset/source metadata such as quote unit, multiplier, currency, and provider symbol.
+  Do not spread symbol-specific hard-coded scaling rules.
 - `AssetPriceFallbackService` uses historical prices while preserving provenance and quality.
 - FX refresh fetches USD-base rates from exchangerate.host and derives EUR/PLN crosses locally.
   Rows are stored per currency pair at month start.
-- Currency conversion tries direct and inverse cached historical rates, then warns and returns
-  the unconverted amount when no rate exists.
-- `PortfolioProjectionService.recalculateAll()` rebuilds daily/monthly/statistics projections.
-  Refresh projections after correcting imported dates rather than patching dashboard math.
+- Currency conversion may use direct or inverse historical rates. If neither exists, fail the
+  conversion or mark the result unavailable and create a validation issue. Never return the original
+  amount as though conversion succeeded.
+
+The authoritative reporting refresh order is:
+
+1. Refresh prices and FX inputs.
+2. Rebuild `account_daily` deterministically.
+3. Refresh dependent views/materialized views.
+4. Run reporting validation.
+5. Invalidate application caches if applicable.
+
+`PortfolioProjectionService.recalculateAll()` must follow this dependency order. Do not rebuild
+monthly/statistics projections independently from imported rows, and do not patch dashboard math to
+compensate for stale reporting data.
+
+## Reporting Validation
+
+Reporting rebuilds must detect or expose at least:
+
+- `equity != cash_balance + market_value`
+- `unrealized_profit != market_value - cost_basis`
+- missing prices
+- missing FX rates
+- duplicate price matches
+- duplicate position/lot joins
+- external flows derived from internal transfers
+- unmatched internal transfers
+- unclassified non-zero operations
+- implausible valuation jumps without trade, split, or quantity justification
+
+Do not hide anomalies by clipping values, substituting arbitrary prices, or forcing returns into a
+range. Fix or surface the source-data or valuation problem.
 
 ## Dashboard, Export, Telegram, And Notifications
 
@@ -212,7 +321,7 @@ project facts from this file.
   in memory and resets on restart.
 - Scheduler times, all in `Europe/Warsaw`:
   - FX refresh: weekdays 15:00.
-  - Market close update/projection refresh: weekdays 22:01.
+  - Market close update/reporting refresh: weekdays 22:01.
   - Notification digest and alerts: weekdays 22:22.
   - AI reports: monthly day 1 at 09:00; quarterly day 2 at 09:15; annual January 3 at 09:30.
 
@@ -222,6 +331,6 @@ project facts from this file.
   Ghostfolio controllers, schedulers, reset/export paths, and tests.
 - Do not reintroduce removed APIs or tables as shortcuts.
 - Update this file when a change adds or removes endpoints, migrations, schedulers, core tables,
-  or externally visible configuration.
+  reporting invariants, or externally visible configuration.
 - Keep `ROADMAP.md` future-facing. Completed work belongs in history/release notes, not among
   active priorities.
