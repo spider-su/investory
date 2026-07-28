@@ -26,6 +26,11 @@ import com.example.demo.infrastructure.repository.ClosedPosition;
 import com.example.demo.infrastructure.repository.ClosedPositionRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
+import com.example.demo.infrastructure.repository.account.AccountMonthlyPerformanceRepository;
+import com.example.demo.infrastructure.repository.portfolio.PortfolioAssetAllocationRepository;
+import com.example.demo.infrastructure.repository.portfolio.PortfolioCurrencyBreakdownRepository;
+import com.example.demo.infrastructure.repository.portfolio.PortfolioKpiSummaryRepository;
+import com.example.demo.infrastructure.repository.portfolio.SymbolPerformanceRepository;
 import com.example.demo.services.currency.CurrencyRateService;
 import com.example.demo.testsupport.portfolio.PortfolioBuilders;
 import com.example.demo.testsupport.portfolio.PortfolioTestData;
@@ -40,6 +45,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -52,8 +58,14 @@ class PortfolioProjectionServiceTest {
   @Mock private AccountRepository accountRepository;
   @Mock private AssetPriceHistoryRepository assetPriceHistoryRepository;
   @Mock private AccountDailyRepository accountDailyRepository;
+  @Mock private AccountMonthlyPerformanceRepository accountMonthlyPerformanceRepository;
   @Mock private AccountStatisticsRepository accountStatisticsRepository;
+  @Mock private PortfolioAssetAllocationRepository portfolioAssetAllocationRepository;
+  @Mock private PortfolioCurrencyBreakdownRepository portfolioCurrencyBreakdownRepository;
+  @Mock private PortfolioKpiSummaryRepository portfolioKpiSummaryRepository;
+  @Mock private SymbolPerformanceRepository symbolPerformanceRepository;
   @Mock private CurrencyRateService currencyRateService;
+  @Spy private CashOperationNormalizer cashOperationNormalizer = new CashOperationNormalizer();
 
   @InjectMocks private PortfolioProjectionService service;
 
@@ -103,16 +115,10 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    verify(accountDailyRepository).deleteAllRows();
-    verify(accountStatisticsRepository).deleteAllRows();
-
     ArgumentCaptor<Iterable<AccountDaily>> accountDailyCaptor = ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(accountDailyCaptor.capture());
+    verify(accountDailyRepository).refreshReportingViews();
     assertFalse(toList(accountDailyCaptor.getValue()).isEmpty());
-
-    ArgumentCaptor<Iterable<AccountStatistics>> statsCaptor = ArgumentCaptor.forClass(Iterable.class);
-    verify(accountStatisticsRepository).saveAll(statsCaptor.capture());
-    assertFalse(toList(statsCaptor.getValue()).isEmpty());
   }
 
   @Test
@@ -125,7 +131,7 @@ class PortfolioProjectionServiceTest {
     service.recalculateAll();
 
     verify(accountDailyRepository).saveAll(anyList());
-    verify(accountStatisticsRepository).saveAll(anyList());
+    verify(accountDailyRepository).refreshReportingViews();
     verify(currencyRateService, never())
         .convertToBaseCurrency(
             org.mockito.ArgumentMatchers.anyDouble(),
@@ -183,15 +189,17 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountStatistics>> statsCaptor =
-        ArgumentCaptor.forClass(Iterable.class);
-    verify(accountStatisticsRepository).saveAll(statsCaptor.capture());
-    AccountStatistics stats = toList(statsCaptor.getValue()).getFirst();
+    ArgumentCaptor<Iterable<AccountDaily>> accountDailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    verify(accountDailyRepository).saveAll(accountDailyCaptor.capture());
+    AccountDaily latest =
+        toList(accountDailyCaptor.getValue()).stream()
+            .filter(row -> row.getAccountId().equals(51551301L))
+            .max(java.util.Comparator.comparing(AccountDaily::getDate))
+            .orElseThrow();
 
-    assertEquals(51551301L, stats.getAccountId());
-    assertEquals(120.0, stats.getMarketValue(), 0.01);
-    assertEquals(100.0, stats.getCostBase(), 0.01);
-    assertEquals(20.0, stats.getUnrealizedProfit(), 0.01);
+    assertEquals(120.0, latest.getMarketValue(), 0.01);
+    assertEquals(100.0, latest.getCostBase(), 0.01);
+    assertEquals(20.0, latest.getUnrealizedProfit(), 0.01);
 
   }
 
@@ -351,6 +359,133 @@ class PortfolioProjectionServiceTest {
 
     assertEquals(800.0, tradeDay.getMarketValue(), 0.01);
     assertEquals(-200.0, tradeDay.getUnrealizedProfit(), 0.01);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void recalculateAll_usesCostBasisBeforeFirstKnownHistoricalPriceInsteadOfFutureSnapshotPrice() {
+    ZonedDateTime tradeDate = ZonedDateTime.parse("2026-02-13T12:00:00Z");
+
+    CashOperation deposit = new CashOperation();
+    deposit.setAccount(51499241L);
+    deposit.setType(CashOperationType.DEPOSIT);
+    deposit.setAmount(5000.0);
+    deposit.setCurrency(CurrencyType.USD);
+    deposit.setDate(tradeDate.minusDays(1));
+
+    CashOperation stockPurchase = new CashOperation();
+    stockPurchase.setAccount(51499241L);
+    stockPurchase.setType(CashOperationType.STOCK_PURCHASE);
+    stockPurchase.setAmount(-1901.80);
+    stockPurchase.setCurrency(CurrencyType.USD);
+    stockPurchase.setDate(tradeDate);
+    stockPurchase.setSymbol("DTLA.UK");
+
+    OpenedPosition opened = new OpenedPosition();
+    opened.setAccount(51499241L);
+    opened.setSymbol("DTLA.UK");
+    opened.setCurrency(CurrencyType.USD);
+    opened.setType(PositionType.BUY);
+    opened.setVolume(400.0);
+    opened.setOpenPrice(4.7545);
+    opened.setPurchaseValue(1901.80);
+    opened.setOpenTime(tradeDate);
+
+    Asset asset = new Asset();
+    asset.setSymbol("DTLA.UK");
+    asset.setMarketPriceUsd(0.55);
+    asset.setPriceUpdatedAt(ZonedDateTime.parse("2026-05-13T12:00:00Z"));
+
+    when(openedPositionRepository.findAll()).thenReturn(List.of(opened));
+    when(closedPositionRepository.findAll()).thenReturn(List.of());
+    when(cashOperationRepository.findAll()).thenReturn(List.of(deposit, stockPurchase));
+    when(assetRepository.findAll()).thenReturn(List.of(asset));
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+        .thenReturn(List.of());
+    when(currencyRateService.convertToBaseCurrency(
+            org.mockito.ArgumentMatchers.anyDouble(),
+            org.mockito.ArgumentMatchers.eq(CurrencyType.USD),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    service.recalculateAll();
+
+    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    verify(accountDailyRepository).saveAll(dailyCaptor.capture());
+    AccountDaily tradeDay =
+        toList(dailyCaptor.getValue()).stream()
+            .filter(row -> row.getDate().equals(tradeDate.toLocalDate()))
+            .findFirst()
+            .orElseThrow();
+
+    assertEquals(1901.80, tradeDay.getMarketValue(), 0.01);
+    assertEquals(5000.0, tradeDay.getEquity(), 0.01);
+    assertEquals(0.0, tradeDay.getUnrealizedProfit(), 0.01);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void recalculateAll_doesNotReuseMonthsOldHistoricalPriceForPastValuation() {
+    ZonedDateTime tradeDate = ZonedDateTime.parse("2025-12-05T12:00:00Z");
+
+    CashOperation deposit = new CashOperation();
+    deposit.setAccount(51499241L);
+    deposit.setType(CashOperationType.DEPOSIT);
+    deposit.setAmount(5000.0);
+    deposit.setCurrency(CurrencyType.USD);
+    deposit.setDate(tradeDate.minusDays(1));
+
+    CashOperation stockPurchase = new CashOperation();
+    stockPurchase.setAccount(51499241L);
+    stockPurchase.setType(CashOperationType.STOCK_PURCHASE);
+    stockPurchase.setAmount(-2329.205436);
+    stockPurchase.setCurrency(CurrencyType.USD);
+    stockPurchase.setDate(tradeDate);
+    stockPurchase.setSymbol("JGPI.DE");
+
+    OpenedPosition opened = new OpenedPosition();
+    opened.setAccount(51499241L);
+    opened.setSymbol("JGPI.DE");
+    opened.setCurrency(CurrencyType.USD);
+    opened.setType(PositionType.BUY);
+    opened.setVolume(87.0);
+    opened.setOpenPrice(2329.205436 / 87.0);
+    opened.setPurchaseValue(2329.205436);
+    opened.setOpenTime(tradeDate);
+
+    Asset asset = new Asset();
+    asset.setSymbol("JGPI.DE");
+    asset.setMarketPriceUsd(30.90414402);
+    asset.setPriceSource("OpenPositionWeightedAverage");
+    asset.setPriceUpdatedAt(ZonedDateTime.parse("2026-07-27T12:00:00Z"));
+
+    when(openedPositionRepository.findAll()).thenReturn(List.of(opened));
+    when(closedPositionRepository.findAll()).thenReturn(List.of());
+    when(cashOperationRepository.findAll()).thenReturn(List.of(deposit, stockPurchase));
+    when(assetRepository.findAll()).thenReturn(List.of(asset));
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+        .thenReturn(List.of(historicalPrice("JGPI.DE", LocalDate.parse("2025-03-03"), 26.65, "USD", 95)));
+    when(currencyRateService.convertToBaseCurrency(
+            org.mockito.ArgumentMatchers.anyDouble(),
+            org.mockito.ArgumentMatchers.eq(CurrencyType.USD),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    service.recalculateAll();
+
+    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    verify(accountDailyRepository).saveAll(dailyCaptor.capture());
+    AccountDaily tradeDay =
+        toList(dailyCaptor.getValue()).stream()
+            .filter(row -> row.getDate().equals(tradeDate.toLocalDate()))
+            .findFirst()
+            .orElseThrow();
+
+    assertEquals(2329.205436, tradeDay.getMarketValue(), 0.01);
+    assertEquals(5000.0, tradeDay.getEquity(), 0.01);
+    assertEquals(0.0, tradeDay.getUnrealizedProfit(), 0.01);
   }
 
   @Test
@@ -939,6 +1074,11 @@ class PortfolioProjectionServiceTest {
       @Override
       public String getPriceCurrency() {
         return currency;
+      }
+
+      @Override
+      public Double getPriceScaleFactor() {
+        return 1.0;
       }
 
       @Override

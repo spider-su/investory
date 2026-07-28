@@ -36,8 +36,11 @@ public class AccountDaily {
   @Column(name = "account_id", nullable = false)
   private Long accountId;
 
-  @Column(name = "date", nullable = false)
+  @Column(name = "snapshot_date", nullable = false)
   private LocalDate date;
+
+  @Column(name = "valuation_currency", nullable = false)
+  private String valuationCurrency;
 
   @Column(name = "cash_balance", nullable = false)
   private Double cashBalance;
@@ -75,8 +78,17 @@ public class AccountDaily {
   @Column(name = "withdrawals", nullable = false)
   private Double withdrawals;
 
-  @Column(name = "daily_return")
+  @Column(name = "daily_profit_amount", nullable = false)
+  private Double dailyProfitAmount;
+
+  @Column(name = "daily_return_pct")
   private Double dailyReturn;
+
+  @Column(name = "portfolio_weight")
+  private Double portfolioWeight;
+
+  @Column(name = "created_at", nullable = false)
+  private ZonedDateTime createdAt;
 
   @Column(name = "updated_at", nullable = false)
   private ZonedDateTime updatedAt;

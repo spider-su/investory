@@ -10,5 +10,5 @@ import lombok.NoArgsConstructor;
 @EqualsAndHashCode
 public class PortfolioAssetAllocationId implements Serializable {
   private Long portfolioId;
-  private String assetId;
+  private Long assetId;
 }

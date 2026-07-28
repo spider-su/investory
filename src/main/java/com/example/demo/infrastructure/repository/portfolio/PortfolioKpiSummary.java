@@ -10,14 +10,12 @@ import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.Immutable;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Immutable
-@Table(name = "mv_portfolio_kpi_summary")
+@Table(name = "portfolio_kpi_summary")
 public class PortfolioKpiSummary {
 
   @Id
@@ -37,6 +35,9 @@ public class PortfolioKpiSummary {
   @Column(name = "net_deposits")
   private Double netDeposits;
 
+  @Column(name = "total_withdrawals")
+  private Double totalWithdrawals;
+
   @Column(name = "total_cash")
   private Double totalCash;
 
@@ -54,4 +55,55 @@ public class PortfolioKpiSummary {
 
   @Column(name = "total_dividends")
   private Double totalDividends;
+
+  @Column(name = "total_interest")
+  private Double totalInterest;
+
+  @Column(name = "total_fees")
+  private Double totalFees;
+
+  @Column(name = "total_taxes")
+  private Double totalTaxes;
+
+  @Column(name = "activity_count")
+  private Integer activityCount;
+
+  @Column(name = "source_max_date")
+  private java.time.LocalDate sourceMaxDate;
+
+  @Column(name = "updated_at", nullable = false)
+  private java.time.ZonedDateTime updatedAt;
+
+  public PortfolioKpiSummary(
+      Long portfolioId,
+      String portfolioName,
+      CurrencyType baseCurrency,
+      double totalDeposits,
+      double netDeposits,
+      double totalCash,
+      double totalMarketValue,
+      double totalEquity,
+      double totalRealizedProfit,
+      double totalUnrealizedProfit,
+      double totalDividends,
+      double totalInterest,
+      java.time.ZonedDateTime updatedAt) {
+    this.portfolioId = portfolioId;
+    this.portfolioName = portfolioName;
+    this.baseCurrency = baseCurrency;
+    this.totalDeposits = totalDeposits;
+    this.totalWithdrawals = totalDeposits - netDeposits;
+    this.netDeposits = netDeposits;
+    this.totalCash = totalCash;
+    this.totalMarketValue = totalMarketValue;
+    this.totalEquity = totalEquity;
+    this.totalRealizedProfit = totalRealizedProfit;
+    this.totalUnrealizedProfit = totalUnrealizedProfit;
+    this.totalDividends = totalDividends;
+    this.totalInterest = totalInterest;
+    this.totalFees = 0.0;
+    this.totalTaxes = 0.0;
+    this.activityCount = 0;
+    this.updatedAt = updatedAt;
+  }
 }

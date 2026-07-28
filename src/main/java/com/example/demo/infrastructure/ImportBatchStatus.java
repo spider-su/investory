@@ -1,8 +1,9 @@
 package com.example.demo.infrastructure;
 
 public enum ImportBatchStatus {
-    RECEIVED,
-    APPLIED,
+    STARTED,
+    COMPLETED,
+    PARTIAL,
     FAILED
 }
 

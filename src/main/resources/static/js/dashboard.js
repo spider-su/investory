@@ -310,7 +310,7 @@ if (fileInput) {
  // Modal Close Function helper
 window.closeModal = function() {
     document.getElementById('status-modal').style.display = 'none';
-}
+};
 
 // Dashboard usability enhancements.
 (function () {

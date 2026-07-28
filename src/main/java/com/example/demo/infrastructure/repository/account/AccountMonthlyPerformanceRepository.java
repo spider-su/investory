@@ -6,7 +6,8 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface AccountMonthlyPerformanceRepository
-    extends JpaRepository<AccountMonthlyPerformance, String> {
+    extends JpaRepository<AccountMonthlyPerformance, AccountMonthlyPerformanceId> {
 
   List<AccountMonthlyPerformance> findAllByOrderByMonthAscAccountIdAsc();
+
 }

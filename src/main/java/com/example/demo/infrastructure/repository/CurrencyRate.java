@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDate;
+import java.time.ZonedDateTime;
 
 @Data
 @Builder(toBuilder = true)
@@ -36,5 +37,11 @@ public class CurrencyRate {
 
     @Column(nullable = false)
     private double rate;
+
+    @Column(name = "source", nullable = false, length = 32, insertable = false, updatable = false)
+    private String source;
+
+    @Column(name = "imported_at", nullable = false, insertable = false, updatable = false)
+    private ZonedDateTime importedAt;
 }
 

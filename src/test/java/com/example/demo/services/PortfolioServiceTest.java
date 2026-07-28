@@ -14,6 +14,8 @@ import com.example.demo.infrastructure.repository.portfolio.PortfolioCurrencyBre
 import com.example.demo.infrastructure.repository.portfolio.PortfolioCurrencyBreakdownRepository;
 import com.example.demo.infrastructure.repository.portfolio.PortfolioKpiSummary;
 import com.example.demo.infrastructure.repository.portfolio.PortfolioKpiSummaryRepository;
+import com.example.demo.infrastructure.repository.portfolio.SymbolPerformance;
+import com.example.demo.infrastructure.repository.portfolio.SymbolPerformanceRepository;
 import com.example.demo.services.currency.CurrencyRateService;
 import com.example.demo.services.models.DividendGainer;
 import com.example.demo.services.models.InstrumentPerformance;
@@ -55,6 +57,7 @@ class PortfolioServiceTest {
     @Mock private PortfolioAssetAllocationRepository portfolioAssetAllocationRepository;
     @Mock private PortfolioCurrencyBreakdownRepository portfolioCurrencyBreakdownRepository;
     @Mock private PortfolioKpiSummaryRepository portfolioKpiSummaryRepository;
+    @Mock private SymbolPerformanceRepository symbolPerformanceRepository;
 
     private PortfolioService portfolioService;
 
@@ -68,10 +71,12 @@ class PortfolioServiceTest {
                 cashOperationRepository, accountRepository,
                 accountStatisticsRepository, accountMonthlyPerformanceRepository, portfolioAssetAllocationRepository,
                 portfolioCurrencyBreakdownRepository, portfolioKpiSummaryRepository,
+                symbolPerformanceRepository,
                 taxCalculator, cashFlowAggregator);
         org.mockito.Mockito.lenient().when(portfolioKpiSummaryRepository.findAll()).thenReturn(List.of());
         org.mockito.Mockito.lenient().when(portfolioAssetAllocationRepository.findAll()).thenReturn(List.of());
         org.mockito.Mockito.lenient().when(portfolioCurrencyBreakdownRepository.findAll()).thenReturn(List.of());
+        org.mockito.Mockito.lenient().when(symbolPerformanceRepository.findAll()).thenReturn(List.of());
         // Identity FX so tests are arithmetic-only. lenient() because some tests don't trigger FX conversion.
         org.mockito.Mockito.lenient().when(currencyRateService.convertToBaseCurrency(anyDouble(), any(), any()))
                 .thenAnswer(invocation -> invocation.getArgument(0, Double.class));
@@ -97,10 +102,12 @@ class PortfolioServiceTest {
                 1100.0,
                 200.0,
                 75.0,
-                25.0
+                25.0,
+                0.0,
+                ZonedDateTime.now()
         )));
         when(closedPositionRepository.findAll()).thenReturn(List.of());
-        when(openedPositionRepository.findAll()).thenReturn(List.of(opened("AAPL.US", 50.0, -2.0, 0.0)));
+        org.mockito.Mockito.lenient().when(openedPositionRepository.findAll()).thenReturn(List.of(opened("AAPL.US", 50.0, -2.0, 0.0)));
         when(accountStatisticsRepository.findAll()).thenReturn(List.of(
                 PortfolioBuilders.accountStatistics()
                         .account(PortfolioTestData.IBKR_USD)
@@ -125,8 +132,8 @@ class PortfolioServiceTest {
                 17959259L, account,
                 999L, emptyAccount));
         when(portfolioAssetAllocationRepository.findAll()).thenReturn(List.of(
-                new PortfolioAssetAllocation(1L, CurrencyType.USD, "AAPL.US", 7.0, 650.0, 700.0, 50.0),
-                new PortfolioAssetAllocation(1L, CurrencyType.USD, "MSFT.US", 3.0, 290.0, 300.0, 10.0)
+                new PortfolioAssetAllocation(1L, CurrencyType.USD, "AAPL.US", 7.0, 650.0, 700.0, 50.0, ZonedDateTime.now()),
+                new PortfolioAssetAllocation(1L, CurrencyType.USD, "MSFT.US", 3.0, 290.0, 300.0, 10.0, ZonedDateTime.now())
         ));
         when(currencyRateService.convertToBaseCurrency(anyDouble(), any(CurrencyType.class), any(CurrencyType.class), any(LocalDate.class)))
                 .thenAnswer(invocation -> {
@@ -214,7 +221,9 @@ class PortfolioServiceTest {
                 1100.0,
                 200.0,
                 75.0,
-                25.0
+                25.0,
+                0.0,
+                ZonedDateTime.now()
         )));
         when(closedPositionRepository.findAll()).thenReturn(List.of());
         when(openedPositionRepository.findAll()).thenReturn(List.of());
@@ -243,7 +252,9 @@ class PortfolioServiceTest {
                 1100.0,
                 200.0,
                 75.0,
-                4912.0
+                4912.0,
+                0.0,
+                ZonedDateTime.now()
         )));
         when(cashOperationRepository.findAll()).thenReturn(List.of(
                 dividend("AAPL.US", 100.0, CurrencyType.USD),
@@ -260,24 +271,23 @@ class PortfolioServiceTest {
 
     @Test
     void calculateTotalProfitLoss_populatesDividendGainersSortedByConvertedUsdWithOtherBucket() {
-        List<CashOperation> dividends = new ArrayList<>();
-        dividends.add(dividend("PZU.PL", 1200.0, CurrencyType.PLN));
-        dividends.add(dividend("AAPL.US", 250.0, CurrencyType.USD));
-        dividends.add(dividendTax("AAPL.US", -50.0, CurrencyType.USD));
-        for (int i = 1; i <= 10; i++) {
-            dividends.add(dividend("SMALL_" + i, i, CurrencyType.USD));
-        }
-        when(cashOperationRepository.findAll()).thenReturn(dividends);
+        when(symbolPerformanceRepository.findAll()).thenReturn(List.of(
+                new SymbolPerformance("PZU.PL", 0.0, 0.0, 0.0, 300.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now()),
+                new SymbolPerformance("AAPL.US", 0.0, 0.0, 0.0, 200.0, 50.0, 0.0, 0.0, 0.0, ZonedDateTime.now()),
+                new SymbolPerformance("SMALL_1", 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now()),
+                new SymbolPerformance("SMALL_2", 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now()),
+                new SymbolPerformance("SMALL_3", 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now()),
+                new SymbolPerformance("SMALL_4", 0.0, 0.0, 0.0, 4.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now()),
+                new SymbolPerformance("SMALL_5", 0.0, 0.0, 0.0, 5.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now()),
+                new SymbolPerformance("SMALL_6", 0.0, 0.0, 0.0, 6.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now()),
+                new SymbolPerformance("SMALL_7", 0.0, 0.0, 0.0, 7.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now()),
+                new SymbolPerformance("SMALL_8", 0.0, 0.0, 0.0, 8.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now()),
+                new SymbolPerformance("SMALL_9", 0.0, 0.0, 0.0, 9.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now()),
+                new SymbolPerformance("SMALL_10", 0.0, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now())
+        ));
         when(closedPositionRepository.findAll()).thenReturn(List.of());
         when(openedPositionRepository.findAll()).thenReturn(List.of());
         when(accountStatisticsRepository.findAll()).thenReturn(List.of());
-        when(currencyRateService.convertToBaseCurrency(
-                        anyDouble(), any(CurrencyType.class), any(CurrencyType.class), any(LocalDate.class)))
-                .thenAnswer(invocation -> {
-                    double amount = invocation.getArgument(0);
-                    CurrencyType source = invocation.getArgument(2);
-                    return source == CurrencyType.PLN ? amount / 4.0 : amount;
-                });
 
         Portfolio result = portfolioService.calculateTotalProfitLoss();
 
@@ -306,7 +316,9 @@ class PortfolioServiceTest {
                 108093.40001497,
                 6417.90706124,
                 6575.81104821,
-                2955.45329345
+                2955.45329345,
+                0.0,
+                ZonedDateTime.now()
         )));
         when(closedPositionRepository.findAll()).thenReturn(List.of());
         when(openedPositionRepository.findAll()).thenReturn(List.of(opened("VWRA", -250.0, -1.0, 0.0)));
@@ -330,12 +342,14 @@ class PortfolioServiceTest {
                 800.0,
                 999.0,
                 999.0,
-                999.0
+                999.0,
+                0.0,
+                ZonedDateTime.now()
         )));
         when(portfolioCurrencyBreakdownRepository.findAll()).thenReturn(List.of(
-                new PortfolioCurrencyBreakdown(1L, CurrencyType.USD, "REALIZED", CurrencyType.USD, 100.0, 100.0),
-                new PortfolioCurrencyBreakdown(1L, CurrencyType.USD, "UNREALIZED", CurrencyType.USD, -250.0, -250.0),
-                new PortfolioCurrencyBreakdown(1L, CurrencyType.USD, "DIVIDENDS", CurrencyType.PLN, 400.0, 100.0)
+                new PortfolioCurrencyBreakdown(1L, CurrencyType.USD, "REALIZED", CurrencyType.USD, 100.0, 100.0, ZonedDateTime.now()),
+                new PortfolioCurrencyBreakdown(1L, CurrencyType.USD, "UNREALIZED", CurrencyType.USD, -250.0, -250.0, ZonedDateTime.now()),
+                new PortfolioCurrencyBreakdown(1L, CurrencyType.USD, "DIVIDENDS", CurrencyType.PLN, 400.0, 100.0, ZonedDateTime.now())
         ));
         when(closedPositionRepository.findAll()).thenReturn(List.of());
 
@@ -451,12 +465,9 @@ class PortfolioServiceTest {
 
     @Test
     void calculatePerformancePerInstrument_includesBothOpenAndClosedPositions() {
-        when(closedPositionRepository.findAll()).thenReturn(List.of(
-                closed("AAPL.US", 100.0, 0.0, 0.0, PortfolioTestData.atNoon(PortfolioTestData.MID_YEAR))
-        ));
-        when(openedPositionRepository.findAll()).thenReturn(List.of(
-                opened("AAPL.US", 50.0, 0.0, 0.0),
-                opened("MSFT.US", 30.0, 0.0, 0.0)
+        when(symbolPerformanceRepository.findAll()).thenReturn(List.of(
+                new SymbolPerformance("AAPL.US", 100.0, 50.0, 150.0, 0.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now()),
+                new SymbolPerformance("MSFT.US", 0.0, 30.0, 30.0, 0.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now())
         ));
 
         List<InstrumentPerformance> performance = portfolioService.calculatePerformancePerInstrument(CurrencyType.USD);
@@ -539,7 +550,8 @@ class PortfolioServiceTest {
                 Math.min(netCashflow, 0.0),
                 netCashflow,
                 profit,
-                0.0);
+                0.0,
+                ZonedDateTime.now());
     }
 
     private static CashOperation cash(CashOperationType type, double amount, String comment) {

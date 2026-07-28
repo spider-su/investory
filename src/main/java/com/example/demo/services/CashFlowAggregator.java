@@ -116,6 +116,8 @@ public class CashFlowAggregator {
         // Exclude internal movements only: XTB sub-account transfers ("Transfer from X to Y")
         // and FX conversions. IBKR real funding reads "Electronic Fund Transfer" and must count.
         return !(lower.contains("currency conversion")
+                || lower.contains("transfer in operation")
+                || lower.contains("transfer out operation")
                 || lower.contains("transfer from")
                 || lower.contains("transfer to"));
     }

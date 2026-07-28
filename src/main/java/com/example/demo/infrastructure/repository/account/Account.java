@@ -20,6 +20,15 @@ public class Account {
   @Column(name = "currency", nullable = false)
   private CurrencyType currency;
 
+  @Column(name = "provider", nullable = false)
+  private String provider;
+
   @Column(name = "name", nullable = false)
   private String name;
+
+  @Column(name = "owner", nullable = false)
+  private String owner;
+
+  @Column(name = "portfolio_id", nullable = false)
+  private Long portfolioId;
 }

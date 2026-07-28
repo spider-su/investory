@@ -20,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -404,8 +405,8 @@ class BenchmarkServiceTest {
         assertEquals("2026-01-05", year2026.labels().getFirst());
         assertEquals("2026-01-06", year2026.labels().getLast());
         assertEquals(2, year2026.accountSeries().size());
-        assertEquals(List.of(1000.0, 1200.0), year2026.accountSeries().getFirst().values());
-        assertEquals(List.of(500.0, 700.0), year2026.accountSeries().get(1).values());
+        assertEquals(List.of(1000.0, 1200.0), year2026.accountSeries().getFirst().profitValues());
+        assertEquals(List.of(500.0, 700.0), year2026.accountSeries().get(1).profitValues());
     }
 
     @Test
@@ -426,8 +427,8 @@ class BenchmarkServiceTest {
         assertTrue(benchmark.isAccountValuesAvailable());
         Benchmark.AccountValueYear year2026 = benchmark.getAccountValueYears().getFirst();
         assertEquals(List.of("2026-01-05", "2026-01-06"), year2026.labels());
-        assertEquals(List.of(1000.0, 1050.0), year2026.accountSeries().getFirst().values());
-        assertEquals(List.of(0.0, 500.0), year2026.accountSeries().get(1).values());
+        assertEquals(List.of(1000.0, 1050.0), year2026.accountSeries().getFirst().profitValues());
+        assertEquals(List.of(0.0, 500.0), year2026.accountSeries().get(1).profitValues());
     }
 
     @Test
@@ -494,7 +495,8 @@ class BenchmarkServiceTest {
                 Math.min(netCashflow, 0.0),
                 netCashflow,
                 profit,
-                startEquity == 0.0 ? 0.0 : profit / startEquity);
+                startEquity == 0.0 ? 0.0 : profit / startEquity,
+                ZonedDateTime.now());
     }
 
     private static Account account(Long id, String name) {

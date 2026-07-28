@@ -15,5 +15,5 @@ Authorization: Basic {{user}} {{password}}
 Content-Disposition: form-data; name="file"; filename="U17959259.TRANSACTIONS.20250211.20260612.csv"
 Content-Type: text/csv
 
-< U17959259.TRANSACTIONS.20250211.20260612.csv
+< D:\projects\investory\src\main\resources\U17959259.TRANSACTIONS.20250211.20260612.csv
 --WebAppBoundary--

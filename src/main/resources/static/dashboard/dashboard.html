@@ -50,7 +50,7 @@
                     </div>
                     <div class="iv-balance-popover__row"
                          th:each="account : ${stats.accountBalances}"
-                         th:if="${account.netDeposit != null and (account.netDeposit > 0.005 or account.netDeposit < -0.005)}">
+                         th:if="${account.netDeposit != null and (account.netDeposit >= 50 or account.netDeposit <= -50)}">
                         <span th:text="${account.accountId}">0</span>
                         <span th:text="${account.accountName}">Account</span>
                         <span th:text="${account.netDeposit == null ? '-' : #numbers.formatDecimal(account.netDeposit, 1, 'POINT', 0, 'COMMA') + ' $'}">0 $</span>
@@ -526,13 +526,20 @@
         <div class="iv-card">
             <div class="iv-card__head">
                 <h3 class="iv-card__title">Account value history</h3>
-                <span class="iv-card__hint">Daily absolute value by selected account and total · USD</span>
+                <span class="iv-card__hint" id="account-value-hint">Daily profit by selected account and total · USD</span>
                 <div class="iv-event-legend" aria-label="Chart event markers">
                     <span><i class="iv-event-dot iv-event-dot--deposit"></i>Deposit</span>
                     <span><i class="iv-event-dot iv-event-dot--dividend"></i>Dividend</span>
                     <span><i class="iv-event-dot iv-event-dot--trade"></i>Major trade</span>
                 </div>
                 <div class="iv-card__controls" th:if="${benchmark.accountValuesAvailable}">
+                    <label class="iv-select-field">
+                        <span>Show</span>
+                        <select id="account-value-mode">
+                            <option value="absolute" selected>Absolute</option>
+                            <option value="percent">Percent</option>
+                        </select>
+                    </label>
                     <label class="iv-select-field">
                         <span>Year</span>
                         <select id="account-value-year">
@@ -561,7 +568,7 @@
                 </div>
                 <div class="iv-empty" id="account-value-empty"
                      th:style="${benchmark.accountValuesAvailable} ? 'display:none' : ''">
-                    Select at least one account with daily history to show account values.
+                    Select at least one account with daily history to show profit.
                 </div>
                 <div id="account-value-content" th:style="${benchmark.accountValuesAvailable} ? '' : 'display:none'">
                     <div class="iv-chart">
@@ -688,6 +695,10 @@
     const monthlyCashflow = monthlyLabels.map(label => monthlyCashflowData[label] || 0);
 
     const amountFormatter = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
+    const percentFormatter = new Intl.NumberFormat('de-DE', {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1
+    });
     const signedUsdFormatter = new Intl.NumberFormat('de-DE', {
         maximumFractionDigits: 0,
         signDisplay: 'always'
@@ -949,9 +960,32 @@
         return accountValueYears.find(year => Number(year.year) === selectedYear) || accountValueYears[0];
     }
 
+    function selectedAccountValueMode() {
+        return document.getElementById('account-value-mode')?.value === 'percent' ? 'percent' : 'absolute';
+    }
+
+    function accountValueSeriesData(series, mode) {
+        return mode === 'percent' ? (series.profitPctValues || []) : (series.profitValues || []);
+    }
+
+    function accountValueAxisLabel(value, mode) {
+        return mode === 'percent'
+            ? percentFormatter.format((Number(value) || 0) / 100)
+            : amountFormatter.format(Math.round(Number(value) || 0)) + ' $';
+    }
+
+    function updateAccountValueHint(mode) {
+        const hintEl = document.getElementById('account-value-hint');
+        if (!hintEl) return;
+        hintEl.textContent = mode === 'percent'
+            ? 'Daily profit by selected account and total · %'
+            : 'Daily profit by selected account and total · USD';
+    }
+
     function updateAccountValueChart(selectedIds) {
         if (!accountValueChart) return;
         const year = selectedAccountValueYear();
+        const mode = selectedAccountValueMode();
         const emptyEl = document.getElementById('account-value-empty');
         const contentEl = document.getElementById('account-value-content');
         if (!year || !year.accountSeries || year.accountSeries.length === 0) {
@@ -962,15 +996,11 @@
 
         const selectedSeries = year.accountSeries.filter(series => selectedIds.has(Number(series.id)));
         const total = year.labels.map((_, index) =>
-            selectedSeries.reduce((sum, series) => sum + ((series.values || [])[index] || 0), 0));
+            selectedSeries.reduce((sum, series) => sum + (accountValueSeriesData(series, mode)[index] || 0), 0));
         const hasValues = selectedSeries.length > 0 && total.some(value => Math.abs(value) > 1);
         if (emptyEl) emptyEl.style.display = hasValues ? 'none' : '';
         if (contentEl) contentEl.style.display = hasValues ? '' : 'none';
-        const allAccountsSelected =
-            selectedSeries.length === year.accountSeries.length;
-
-        const singleAccountSelected =
-            selectedSeries.length === 1;
+        updateAccountValueHint(mode);
         const palette = ['#4f46e5', '#16a34a', '#f59e0b', '#dc2626', '#0891b2', '#7c3aed', '#0f766e', '#be123c'];
         accountValueChart.data.labels = year.labels || [];
         accountValueChart.data.datasets = [
@@ -986,7 +1016,7 @@
             },
             ...selectedSeries.map((series, index) => ({
                 label: series.name,
-                data: series.values || [],
+                data: accountValueSeriesData(series, mode),
                 borderColor: palette[index % palette.length],
                 backgroundColor: 'transparent',
                 fill: false,
@@ -1003,6 +1033,12 @@
             { index: Math.floor(labelCount * 0.48), type: 'dividend', label: 'Dividend received' },
             { index: Math.floor(labelCount * 0.74), type: 'trade', label: 'Major trade executed' }
         ] : [];
+        accountValueChart.options.scales.y.ticks.callback = function (value) {
+            return accountValueAxisLabel(value, mode);
+        };
+        accountValueChart.options.plugins.tooltip.callbacks.label = function (context) {
+            return context.dataset.label + ': ' + accountValueAxisLabel(context.parsed.y || 0, mode);
+        };
         accountValueChart.update();
     }
 
@@ -1016,6 +1052,8 @@
     document.querySelectorAll('.js-account-value-account')
         .forEach(input => input.addEventListener('change', () =>
             updateAccountValueChart(selectedAccountValueAccountIds())));
+    document.getElementById('account-value-mode')?.addEventListener('change', () =>
+        updateAccountValueChart(selectedAccountValueAccountIds()));
     document.getElementById('account-value-year')?.addEventListener('change', () =>
         updateAccountValueChart(selectedAccountValueAccountIds()));
     document.getElementById('benchmark-check-all')?.addEventListener('click', () => {

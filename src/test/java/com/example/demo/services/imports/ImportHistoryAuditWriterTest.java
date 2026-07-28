@@ -48,7 +48,7 @@ class ImportHistoryAuditWriterTest {
         assertEquals("ref", batch.getSourceRef());
         assertEquals("ibkr.csv", batch.getFileName());
         assertEquals("abc", batch.getFileSha256());
-        assertEquals(ImportBatchStatus.RECEIVED, batch.getStatus());
+        assertEquals(ImportBatchStatus.STARTED, batch.getStatus());
         assertNotNull(batch.getStartedAt());
         assertEquals(0, batch.getRowsTotal());
     }
@@ -77,7 +77,7 @@ class ImportHistoryAuditWriterTest {
                 "abc");
 
         assertEquals(55L, batch.getId());
-        assertEquals(ImportBatchStatus.RECEIVED, batch.getStatus());
+        assertEquals(ImportBatchStatus.STARTED, batch.getStatus());
         assertEquals(0, batch.getRowsTotal());
         assertEquals(0, batch.getRowsApplied());
         assertEquals(0, batch.getRowsFailed());
@@ -92,13 +92,13 @@ class ImportHistoryAuditWriterTest {
     void finalizeApplied_updatesCountsAndStatus() {
         ImportHistory existing = new ImportHistory();
         existing.setId(5L);
-        existing.setStatus(ImportBatchStatus.RECEIVED);
+        existing.setStatus(ImportBatchStatus.STARTED);
         when(importRepository.getById(5L)).thenReturn(existing);
         when(importRepository.save(any(ImportHistory.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ImportHistory result = auditWriter.finalizeApplied(5L, new ImportExecutionResult(10, 9, 1, "done"));
 
-        assertEquals(ImportBatchStatus.APPLIED, result.getStatus());
+        assertEquals(ImportBatchStatus.COMPLETED, result.getStatus());
         assertEquals(10, result.getRowsTotal());
         assertEquals(9, result.getRowsApplied());
         assertEquals(1, result.getRowsFailed());

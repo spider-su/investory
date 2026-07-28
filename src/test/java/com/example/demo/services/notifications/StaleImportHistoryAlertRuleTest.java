@@ -46,7 +46,7 @@ class StaleImportHistoryAlertRuleTest {
     @Test
     void evaluate_firesWhenLastBatchIsOlderThanThreshold() {
         when(importRepository.findFirstByOrderByIdDesc())
-                .thenReturn(Optional.of(batch(ImportBatchStatus.APPLIED, ZonedDateTime.now().minusDays(30))));
+                .thenReturn(Optional.of(batch(ImportBatchStatus.COMPLETED, ZonedDateTime.now().minusDays(30))));
 
         Optional<String> result = rule.evaluate();
 
@@ -65,7 +65,7 @@ class StaleImportHistoryAlertRuleTest {
     @Test
     void evaluate_isQuietForFreshAppliedBatch() {
         when(importRepository.findFirstByOrderByIdDesc())
-                .thenReturn(Optional.of(batch(ImportBatchStatus.APPLIED, ZonedDateTime.now())));
+                .thenReturn(Optional.of(batch(ImportBatchStatus.COMPLETED, ZonedDateTime.now())));
 
         assertFalse(rule.evaluate().isPresent());
     }

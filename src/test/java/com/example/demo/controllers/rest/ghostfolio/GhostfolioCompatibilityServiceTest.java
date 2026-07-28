@@ -16,6 +16,8 @@ import com.example.demo.infrastructure.repository.CashOperationRepository;
 import com.example.demo.infrastructure.repository.ClosedPositionRepository;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
 import com.example.demo.infrastructure.repository.account.AccountDailyRepository;
+import com.example.demo.infrastructure.repository.account.AccountStatisticsRepository;
+import com.example.demo.infrastructure.repository.portfolio.SymbolPerformanceRepository;
 import com.example.demo.services.PortfolioService;
 import com.example.demo.services.currency.CurrencyRateService;
 import com.example.demo.services.models.OpenPositionValue;
@@ -40,6 +42,8 @@ class GhostfolioCompatibilityServiceTest {
     @Mock private CashOperationRepository cashOperationRepository;
     @Mock private OpenedPositionRepository openedPositionRepository;
     @Mock private ClosedPositionRepository closedPositionRepository;
+    @Mock private AccountStatisticsRepository accountStatisticsRepository;
+    @Mock private SymbolPerformanceRepository symbolPerformanceRepository;
     @Mock private CurrencyRateService currencyRateService;
 
     private GhostfolioCompatibilityService service;
@@ -54,7 +58,11 @@ class GhostfolioCompatibilityServiceTest {
                         cashOperationRepository,
                         openedPositionRepository,
                         closedPositionRepository,
+                        accountStatisticsRepository,
+                        symbolPerformanceRepository,
                         currencyRateService);
+        lenient().when(accountStatisticsRepository.findAll()).thenReturn(List.of());
+        lenient().when(symbolPerformanceRepository.findAll()).thenReturn(List.of());
         lenient().when(cashOperationRepository.findAll()).thenReturn(List.of());
         lenient().when(cashOperationRepository.findAllByOrderByDateDescIdDesc()).thenReturn(List.of());
         lenient().when(openedPositionRepository.findAll()).thenReturn(List.of());

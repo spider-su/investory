@@ -8,28 +8,20 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 @ExtendWith(MockitoExtension.class)
 class StatisticsRefreshServiceTest {
 
-  @Mock private JdbcTemplate jdbcTemplate;
+  @Mock private PortfolioProjectionService portfolioProjectionService;
 
   @Test
-  void refreshAllRefreshesAccountStatisticsAndMaterializedViews() {
-    StatisticsRefreshService service = new StatisticsRefreshService(jdbcTemplate);
+  void refreshAllRefreshesPersistedPortfolioProjections() {
+    StatisticsRefreshService service = new StatisticsRefreshService(portfolioProjectionService);
 
     service.refreshAll();
 
-    InOrder ordered = inOrder(jdbcTemplate);
-    ordered.verify(jdbcTemplate).execute("SELECT refresh_account_statistics()");
-    ordered
-        .verify(jdbcTemplate)
-        .execute("REFRESH MATERIALIZED VIEW CONCURRENTLY mv_portfolio_asset_allocation");
-    ordered
-        .verify(jdbcTemplate)
-        .execute("REFRESH MATERIALIZED VIEW CONCURRENTLY mv_portfolio_currency_breakdown");
-    ordered.verify(jdbcTemplate).execute("REFRESH MATERIALIZED VIEW CONCURRENTLY mv_portfolio_kpi_summary");
-    verifyNoMoreInteractions(jdbcTemplate);
+    InOrder ordered = inOrder(portfolioProjectionService);
+    ordered.verify(portfolioProjectionService).recalculateAll();
+    verifyNoMoreInteractions(portfolioProjectionService);
   }
 }

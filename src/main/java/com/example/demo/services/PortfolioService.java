@@ -15,6 +15,8 @@ import com.example.demo.infrastructure.repository.portfolio.PortfolioCurrencyBre
 import com.example.demo.infrastructure.repository.portfolio.PortfolioCurrencyBreakdownRepository;
 import com.example.demo.infrastructure.repository.portfolio.PortfolioKpiSummary;
 import com.example.demo.infrastructure.repository.portfolio.PortfolioKpiSummaryRepository;
+import com.example.demo.infrastructure.repository.portfolio.SymbolPerformance;
+import com.example.demo.infrastructure.repository.portfolio.SymbolPerformanceRepository;
 import com.example.demo.services.currency.CurrencyRateService;
 import com.example.demo.services.models.*;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +41,7 @@ public class PortfolioService {
      * dominated by long-tail noise.
      */
     private static final double OTHER_BUCKET_RATIO = 0.019;
+    private static final double ACCOUNT_VISIBILITY_MIN_VALUE = 50.0;
 
     private final CurrencyRateService currencyRateService;
     private final ClosedPositionRepository closedPositionRepository;
@@ -50,6 +53,7 @@ public class PortfolioService {
     private final PortfolioAssetAllocationRepository portfolioAssetAllocationRepository;
     private final PortfolioCurrencyBreakdownRepository portfolioCurrencyBreakdownRepository;
     private final PortfolioKpiSummaryRepository portfolioKpiSummaryRepository;
+    private final SymbolPerformanceRepository symbolPerformanceRepository;
     private final TaxCalculator taxCalculator;
     private final CashFlowAggregator cashFlowAggregator;
 
@@ -137,14 +141,14 @@ public class PortfolioService {
     }
 
     private void applyCashFlowSupplement(Portfolio portfolio) {
+        List<AccountStatistics> stats = accountStatisticsRepository.findAll();
+        portfolio.setInterest(stats.stream().mapToDouble(stat -> nz(stat.getInterest())).sum());
         List<CashOperation> cashOperations = cashOperationRepository.findAll();
-        if (CollectionUtils.isEmpty(cashOperations)) {
-            return;
+        if (!CollectionUtils.isEmpty(cashOperations)) {
+            CashFlowAggregator.CashFlowSummary cashFlow = cashFlowAggregator.aggregate(
+                    cashOperations, portfolio.getBaseCurrency());
+            portfolio.setDividendTax(cashFlow.dividendTax());
         }
-        CashFlowAggregator.CashFlowSummary cashFlow = cashFlowAggregator.aggregate(
-                cashOperations, portfolio.getBaseCurrency());
-        portfolio.setDividendTax(cashFlow.dividendTax());
-        portfolio.setInterest(cashFlow.interest());
     }
 
     private void applyCalculatedTotals(Portfolio portfolio) {
@@ -212,7 +216,7 @@ public class PortfolioService {
         double balance;
         if (!stats.isEmpty()) {
             List<AccountStatistics> activeStats = stats.stream()
-                    .filter(s -> nz(s.getCashBalance()) + nz(s.getMarketValue()) > 0.005)
+                    .filter(s -> Math.abs(nz(s.getCashBalance()) + nz(s.getMarketValue())) >= ACCOUNT_VISIBILITY_MIN_VALUE)
                     .toList();
             marketValue = activeStats.stream().mapToDouble(s -> nz(s.getMarketValue())).sum();
             cash = activeStats.stream().mapToDouble(s -> nz(s.getCashBalance())).sum();
@@ -281,12 +285,12 @@ public class PortfolioService {
     }
 
     private boolean hasDashboardAccountSurface(AccountStatistics stat) {
-        return Math.abs(nz(stat.getCashBalance()) + nz(stat.getMarketValue())) > 0.005
-                || Math.abs(nz(stat.getNetDeposit())) > 0.005;
+        return Math.abs(nz(stat.getCashBalance()) + nz(stat.getMarketValue())) >= ACCOUNT_VISIBILITY_MIN_VALUE
+                || Math.abs(nz(stat.getNetDeposit())) >= ACCOUNT_VISIBILITY_MIN_VALUE;
     }
 
     private Double profitLossPercent(double balance, double netDeposit) {
-        return Math.abs(netDeposit) > 0.005
+        return Math.abs(netDeposit) >= ACCOUNT_VISIBILITY_MIN_VALUE
                 ? (balance - netDeposit) / netDeposit * 100.0
                 : null;
     }
@@ -307,7 +311,7 @@ public class PortfolioService {
                         (PortfolioAssetAllocation allocation) -> nz(allocation.getTotalValueInBaseCurrency()))
                         .reversed())
                 .map(allocation -> new OpenPositionValue(
-                        allocation.getAssetId(),
+                        allocation.getAssetSymbol(),
                         nz(allocation.getTotalVolume()),
                         nz(allocation.getCostBasisInBaseCurrency()),
                         nz(allocation.getTotalVolume()) > 0.005
@@ -332,36 +336,15 @@ public class PortfolioService {
     }
 
     private List<DividendGainer> calculateDividendGainers(CurrencyType baseCurrency) {
-        List<CashOperation> operations = cashOperationRepository.findAll();
-        if (CollectionUtils.isEmpty(operations)) {
+        List<SymbolPerformance> rows = symbolPerformanceRepository.findAll();
+        if (CollectionUtils.isEmpty(rows)) {
             return List.of();
         }
 
-        Map<String, Double> dividendsBySymbol = operations.stream()
-                .filter(operation -> operation.getType() == CashOperationType.DIVIDEND
-                        || operation.getType() == CashOperationType.WITHHOLDING_TAX)
-                .filter(operation -> operation.getSymbol() != null && !operation.getSymbol().isBlank())
-                .collect(Collectors.groupingBy(
-                        CashOperation::getSymbol,
-                        Collectors.summingDouble(operation -> {
-                            CurrencyType currency = operation.getCurrency() != null
-                                    ? operation.getCurrency()
-                                    : baseCurrency;
-                            LocalDate rateDate = operation.getDate() != null
-                                    ? operation.getDate().toLocalDate()
-                                    : LocalDate.now();
-                            return currencyRateService.convertToBaseCurrency(
-                                    nz(operation.getAmount()), baseCurrency, currency, rateDate);
-                        })));
-
-        if (dividendsBySymbol.isEmpty()) {
-            return List.of();
-        }
-
-        List<DividendGainer> sortedRows = dividendsBySymbol.entrySet().stream()
-                .filter(entry -> Math.abs(entry.getValue()) > 0.005)
-                .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
-                .map(entry -> new DividendGainer(entry.getKey(), entry.getValue()))
+        List<DividendGainer> sortedRows = rows.stream()
+                .filter(row -> Math.abs(nz(row.getDividends())) > 0.005)
+                .sorted(Comparator.comparingDouble((SymbolPerformance row) -> nz(row.getDividends())).reversed())
+                .map(row -> new DividendGainer(row.getSymbol(), nz(row.getDividends())))
                 .toList();
 
         if (sortedRows.size() <= 10) {
@@ -573,36 +556,12 @@ public class PortfolioService {
     }
 
     public List<InstrumentPerformance> calculatePerformancePerInstrument(CurrencyType baseCurrency) {
-        List<ClosedPosition> closedPositions = closedPositionRepository.findAll();
-        List<OpenedPosition> openedPositions = openedPositionRepository.findAll();
-
-        Map<String, Double> closedProfits = closedPositions.stream()
-                .collect(Collectors.groupingBy(
-                        ClosedPosition::getSymbol,
-                        Collectors.summingDouble(position -> currencyRateService.convertToBaseCurrency(
-                                position.getProfit(), baseCurrency, position.getCurrency(),
-                                position.getCloseTime() != null ? position.getCloseTime().toLocalDate() : java.time.LocalDate.now()))
-                ));
-
-        Map<String, Double> openedProfits = openedPositions.stream()
-                .collect(Collectors.groupingBy(
-                        OpenedPosition::getSymbol,
-                        Collectors.summingDouble(position -> currencyRateService.convertToBaseCurrency(
-                                position.getProfit(), baseCurrency, position.getCurrency(), java.time.LocalDate.now()))
-                ));
-
-        // Merge symbols from both maps
-        Set<String> allSymbols = new HashSet<>();
-        allSymbols.addAll(closedProfits.keySet());
-        allSymbols.addAll(openedProfits.keySet());
-
-        List<InstrumentPerformance> instrumentPerformances = allSymbols.stream()
-                .map(symbol -> {
-                    double closedProfit = closedProfits.getOrDefault(symbol, 0.0);
-                    double unrealizedProfit = openedProfits.getOrDefault(symbol, 0.0);
-                    return new InstrumentPerformance(symbol, closedProfit, unrealizedProfit,
-                            closedProfit + unrealizedProfit);
-                })
+        List<InstrumentPerformance> instrumentPerformances = symbolPerformanceRepository.findAll().stream()
+                .map(row -> new InstrumentPerformance(
+                        row.getSymbol(),
+                        nz(row.getClosedProfit()),
+                        nz(row.getUnrealizedProfit()),
+                        nz(row.getTotalProfit())))
                 .sorted(Comparator.comparing(InstrumentPerformance::getTotal))
                 .toList();
 

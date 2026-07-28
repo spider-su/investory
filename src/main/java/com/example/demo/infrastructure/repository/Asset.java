@@ -33,16 +33,16 @@ public class Asset {
   @Column(name = "name", nullable = false, length = 511)
   private String name;
 
-  @Column(name = "symbol", nullable = false, length = 15)
+  @Column(name = "symbol", nullable = false, length = 64)
   private String symbol;
 
-  @Column(name = "ticker", nullable = false, length = 15)
+  @Column(name = "ticker", nullable = false, length = 64)
   private String ticker;
 
-  @Column(name = "ibkr", nullable = false, length = 15)
+  @Column(name = "ibkr", nullable = false, length = 64)
   private String ibrk;
 
-  @Column(name = "yahoo", nullable = false, length = 15)
+  @Column(name = "yahoo", nullable = false, length = 64)
   private String yahoo;
 
   @Column(name = "country", nullable = false, length = 15)
@@ -52,8 +52,17 @@ public class Asset {
   @Column(name = "currency", nullable = false, length = 3)
   private CurrencyType currency;
 
-  @Column(name = "asset_type", length = 20)
+  @Column(name = "asset_type", nullable = false, length = 32)
   private String assetType;
+
+  @Column(name = "isin", length = 12)
+  private String isin;
+
+  @Column(name = "figi", length = 16)
+  private String figi;
+
+  @Column(name = "exchange_mic", length = 4)
+  private String exchangeMic;
 
   @Column(name = "active")
   private Boolean active;

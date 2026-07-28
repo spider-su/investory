@@ -1,0 +1,2 @@
+import java.sql.*;
+public class DbProbe { public static void main(String[] a) throws Exception { try (var c=DriverManager.getConnection(a[0],a[1],a[2]); var s=c.createStatement(); var r=s.executeQuery(a[3])) { var m=r.getMetaData(); for(int i=1;i<=m.getColumnCount();i++){ if(i>1) System.out.print("\t"); System.out.print(m.getColumnLabel(i)); } System.out.println(); while(r.next()){ for(int i=1;i<=m.getColumnCount();i++){ if(i>1) System.out.print("\t"); Object v=r.getObject(i); System.out.print(v==null?"NULL":v.toString()); } System.out.println(); } } } }

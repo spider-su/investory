@@ -5,4 +5,7 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface PortfolioAssetAllocationRepository
-    extends JpaRepository<PortfolioAssetAllocation, PortfolioAssetAllocationId> {}
+    extends JpaRepository<PortfolioAssetAllocation, PortfolioAssetAllocationId> {
+
+  default void deleteAllRows() {}
+}

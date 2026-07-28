@@ -7,6 +7,9 @@ import com.example.demo.infrastructure.repository.CashOperation;
 import com.example.demo.infrastructure.repository.CashOperationRepository;
 import com.example.demo.infrastructure.repository.ClosedPosition;
 import com.example.demo.infrastructure.repository.ClosedPositionRepository;
+import com.example.demo.infrastructure.repository.Asset;
+import com.example.demo.infrastructure.repository.AssetPriceHistoryRepository;
+import com.example.demo.infrastructure.repository.AssetRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
 import com.example.demo.services.AssetCatalogService;
@@ -30,6 +33,7 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -75,6 +79,8 @@ public class XtbImportV2Service {
   private final ClosedPositionRepository closedPositionRepository;
   private final OpenedPositionRepository openedPositionRepository;
   private final CashOperationRepository cashOperationRepository;
+  private final AssetPriceHistoryRepository assetPriceHistoryRepository;
+  private final AssetRepository assetRepository;
   private final AssetCatalogService assetCatalogService;
 
   public boolean isZipReport(String fileName) {
@@ -149,8 +155,10 @@ public class XtbImportV2Service {
 
       List<OpenedPosition> openedPositions =
           reconstructOpenedPositions(operationsForOpenReconstruction(account, cashOperations), account, currency);
+      openedPositions = deduplicateOpenedPositions(openedPositions);
 
       ensureAssetsExist(cashOperations, closedPositions, openedPositions, currency);
+      persistTradePriceHistory(closedPositions, openedPositions, currency);
 
       cashOperationRepository.saveAll(cashOperations);
       closedPositionRepository.saveAll(closedPositions);
@@ -160,6 +168,8 @@ public class XtbImportV2Service {
         openedPositionRepository.removeAllByAccountNotIn(account, openedPositions);
         openedPositionRepository.saveAll(openedPositions);
       }
+      closedPositionRepository.deleteDuplicateClosedPositions(account);
+      openedPositionRepository.deleteDuplicateOpenedPositions(account);
 
       int total = cashOperations.size() + closedPositions.size() + openedPositions.size();
       String details =
@@ -215,7 +225,7 @@ public class XtbImportV2Service {
     }
 
     List<ClosedPosition> positions = new ArrayList<>();
-    Map<String, Integer> businessKeyOccurrences = new HashMap<>();
+    Set<String> seenBusinessKeys = new HashSet<>();
     for (Row row : dataRows(sheet, columns)) {
       String symbol = cellValue(row, columns.get("Ticker"));
       String typeText = cellValue(row, columns.get("Type"));
@@ -252,10 +262,12 @@ public class XtbImportV2Service {
               swap,
               profit,
               product);
-      int occurrence = businessKeyOccurrences.merge(businessKey, 1, Integer::sum);
+      if (!seenBusinessKeys.add(businessKey)) {
+        continue;
+      }
 
       ClosedPosition position = new ClosedPosition();
-      position.setId(syntheticId(businessKey + "|" + occurrence));
+      position.setId(syntheticId(businessKey));
       position.setAccount(account);
       position.setSymbol(symbol);
       position.setType(PositionType.fromBrokerSideOrBuy(typeText));
@@ -274,6 +286,20 @@ public class XtbImportV2Service {
       positions.add(position);
     }
     return positions;
+  }
+
+  private List<OpenedPosition> deduplicateOpenedPositions(List<OpenedPosition> positions) {
+    if (CollectionUtils.isEmpty(positions)) {
+      return List.of();
+    }
+    Map<Long, OpenedPosition> unique = new LinkedHashMap<>();
+    for (OpenedPosition position : positions) {
+      if (position == null || position.getId() == null) {
+        continue;
+      }
+      unique.putIfAbsent(position.getId(), position);
+    }
+    return new ArrayList<>(unique.values());
   }
 
   private String closedPositionBusinessKey(
@@ -462,6 +488,104 @@ public class XtbImportV2Service {
     assetCatalogService.ensureAssetsExist(assets);
   }
 
+  private void persistTradePriceHistory(
+      List<ClosedPosition> closedPositions,
+      List<OpenedPosition> openedPositions,
+      CurrencyType defaultCurrency) {
+    Map<PriceCheckpointKey, WeightedPrice> aggregated = new LinkedHashMap<>();
+
+    for (ClosedPosition position : closedPositions) {
+      addCheckpoint(
+          aggregated,
+          position.getSymbol(),
+          position.getOpenTime(),
+          position.getOpenPrice(),
+          position.getVolume(),
+          firstNonNull(position.getCurrency(), defaultCurrency),
+          "XTB_TRADE_OPEN",
+          "XTB_TRADE_OPEN",
+          "XTB_TRADE_OPEN_OBSERVATION");
+      addCheckpoint(
+          aggregated,
+          position.getSymbol(),
+          position.getCloseTime(),
+          position.getClosePrice(),
+          position.getVolume(),
+          firstNonNull(position.getCurrency(), defaultCurrency),
+          "XTB_TRADE_CLOSE",
+          "XTB_TRADE_CLOSE",
+          "XTB_TRADE_CLOSE_OBSERVATION");
+    }
+
+    for (OpenedPosition position : openedPositions) {
+      addCheckpoint(
+          aggregated,
+          position.getSymbol(),
+          position.getOpenTime(),
+          position.getOpenPrice(),
+          position.getVolume(),
+          firstNonNull(position.getCurrency(), defaultCurrency),
+          "XTB_TRADE_OPEN",
+          "XTB_TRADE_OPEN",
+          "XTB_TRADE_OPEN_OBSERVATION");
+    }
+
+    if (aggregated.isEmpty()) {
+      return;
+    }
+
+    Set<String> symbols = new HashSet<>();
+    aggregated.keySet().forEach(key -> symbols.add(key.symbol()));
+    Map<String, Long> assetIdsBySymbol =
+        assetRepository.findAllBySymbolIn(symbols).stream()
+            .collect(java.util.stream.Collectors.toMap(Asset::getSymbol, Asset::getId, (a, b) -> a));
+
+    for (Map.Entry<PriceCheckpointKey, WeightedPrice> entry : aggregated.entrySet()) {
+      Long assetId = assetIdsBySymbol.get(entry.getKey().symbol());
+      if (assetId == null) {
+        continue;
+      }
+      WeightedPrice weightedPrice = entry.getValue();
+      if (weightedPrice.totalWeight <= 0.0) {
+        continue;
+      }
+      assetPriceHistoryRepository.upsertObservedPrice(
+          assetId,
+          entry.getKey().priceDate(),
+          entry.getKey().source(),
+          entry.getKey().symbol(),
+          entry.getKey().symbol(),
+          entry.getKey().priceOrigin(),
+          entry.getKey().currency().name(),
+          weightedPrice.weightedAverage(),
+          90,
+          entry.getKey().qualityClass());
+    }
+  }
+
+  private void addCheckpoint(
+      Map<PriceCheckpointKey, WeightedPrice> aggregated,
+      String symbol,
+      ZonedDateTime timestamp,
+      Double price,
+      Double volume,
+      CurrencyType currency,
+      String source,
+      String priceOrigin,
+      String qualityClass) {
+    if (!StringUtils.hasText(symbol) || timestamp == null || price == null || price <= 0.0) {
+      return;
+    }
+    double weight = volume == null ? 0.0 : Math.abs(volume);
+    if (weight <= 0.0) {
+      weight = 1.0;
+    }
+    PriceCheckpointKey key =
+        new PriceCheckpointKey(
+            symbol, timestamp.toLocalDate(), currency == null ? CurrencyType.USD : currency, source, priceOrigin, qualityClass);
+    aggregated.computeIfAbsent(key, ignored -> new WeightedPrice()).add(price, weight);
+  }
+
   private void normalizeImportedSymbols(
       List<CashOperation> cashOperations, List<ClosedPosition> closedPositions) {
     List<String> rawSymbols = new ArrayList<>();
@@ -479,6 +603,10 @@ public class XtbImportV2Service {
       return null;
     }
     return normalized.getOrDefault(rawSymbol, null);
+  }
+
+  private CurrencyType firstNonNull(CurrencyType first, CurrencyType second) {
+    return first != null ? first : second;
   }
 
   private CurrencyType inferCurrency(
@@ -728,6 +856,28 @@ public class XtbImportV2Service {
   }
 
   private record LotEvent(boolean actionOpen, PositionType side, double volume, double price) {}
+
+  private record PriceCheckpointKey(
+      String symbol,
+      java.time.LocalDate priceDate,
+      CurrencyType currency,
+      String source,
+      String priceOrigin,
+      String qualityClass) {}
+
+  private static class WeightedPrice {
+    private double weightedPriceSum;
+    private double totalWeight;
+
+    private void add(double price, double weight) {
+      weightedPriceSum += price * weight;
+      totalWeight += weight;
+    }
+
+    private double weightedAverage() {
+      return totalWeight <= 0.0 ? 0.0 : weightedPriceSum / totalWeight;
+    }
+  }
 }
 
 

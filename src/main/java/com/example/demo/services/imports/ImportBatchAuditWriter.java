@@ -34,7 +34,7 @@ public class ImportBatchAuditWriter {
     @Transactional(readOnly = true)
     public Optional<ImportHistory> findExistingAppliedBatch(BrokerType broker, String sha256) {
         return importRepository.findFirstByBrokerAndFileSha256OrderByIdDesc(broker, sha256)
-                .filter(batch -> batch.getStatus() == ImportBatchStatus.APPLIED);
+                .filter(batch -> batch.getStatus() == ImportBatchStatus.COMPLETED);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -44,7 +44,7 @@ public class ImportBatchAuditWriter {
                                     String fileName,
                                     String sha256) {
         Optional<ImportHistory> existing = importRepository.findFirstByBrokerAndFileSha256OrderByIdDesc(broker, sha256);
-        if (existing.isPresent() && existing.get().getStatus() != ImportBatchStatus.APPLIED) {
+        if (existing.isPresent() && existing.get().getStatus() != ImportBatchStatus.COMPLETED) {
             ImportHistory batch = existing.get();
             batch.setBroker(broker);
             batch.setSourceType(sourceType);
@@ -53,7 +53,7 @@ public class ImportBatchAuditWriter {
             batch.setFileSha256(sha256);
             batch.setStartedAt(ZonedDateTime.now());
             batch.setFinishedAt(null);
-            batch.setStatus(ImportBatchStatus.RECEIVED);
+            batch.setStatus(ImportBatchStatus.STARTED);
             batch.setRowsTotal(0);
             batch.setRowsApplied(0);
             batch.setRowsFailed(0);
@@ -68,7 +68,7 @@ public class ImportBatchAuditWriter {
         batch.setFileName(fileName);
         batch.setFileSha256(sha256);
         batch.setStartedAt(ZonedDateTime.now());
-        batch.setStatus(ImportBatchStatus.RECEIVED);
+        batch.setStatus(ImportBatchStatus.STARTED);
         batch.setRowsTotal(0);
         batch.setRowsApplied(0);
         batch.setRowsFailed(0);
@@ -78,7 +78,7 @@ public class ImportBatchAuditWriter {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public ImportHistory finalizeApplied(Long batchId, ImportExecutionResult result) {
         ImportHistory batch = importRepository.getById(batchId);
-        batch.setStatus(ImportBatchStatus.APPLIED);
+        batch.setStatus(ImportBatchStatus.COMPLETED);
         batch.setRowsTotal(result.rowsTotal());
         batch.setRowsApplied(result.rowsApplied());
         batch.setRowsFailed(result.rowsFailed());

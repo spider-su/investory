@@ -561,7 +561,7 @@ public final class PortfolioBuilders {
       history.setFileSha256("duplicate-import-checksum");
       history.setStartedAt(PortfolioTestData.atNoon(PortfolioTestData.JANUARY_DEPOSIT_DATE));
       history.setFinishedAt(PortfolioTestData.atNoon(PortfolioTestData.JANUARY_DEPOSIT_DATE));
-      history.setStatus(ImportBatchStatus.APPLIED);
+      history.setStatus(ImportBatchStatus.COMPLETED);
       history.setRowsTotal(1);
       history.setRowsApplied(1);
       history.setRowsFailed(0);

@@ -11,15 +11,13 @@ import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.Immutable;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Immutable
 @IdClass(PortfolioCurrencyBreakdownId.class)
-@Table(name = "mv_portfolio_currency_breakdown")
+@Table(name = "portfolio_currency_breakdown")
 public class PortfolioCurrencyBreakdown {
 
   @Id
@@ -44,4 +42,7 @@ public class PortfolioCurrencyBreakdown {
 
   @Column(name = "amount_in_base_currency")
   private Double amountInBaseCurrency;
+
+  @Column(name = "updated_at", nullable = false)
+  private java.time.ZonedDateTime updatedAt;
 }

@@ -11,15 +11,13 @@ import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.Immutable;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Immutable
 @IdClass(PortfolioAssetAllocationId.class)
-@Table(name = "mv_portfolio_asset_allocation")
+@Table(name = "portfolio_asset_allocation")
 public class PortfolioAssetAllocation {
 
   @Id
@@ -32,7 +30,10 @@ public class PortfolioAssetAllocation {
 
   @Id
   @Column(name = "asset_id", nullable = false)
-  private String assetId;
+  private Long assetId;
+
+  @Column(name = "asset_symbol")
+  private String assetSymbol;
 
   @Column(name = "total_volume")
   private Double totalVolume;
@@ -45,4 +46,27 @@ public class PortfolioAssetAllocation {
 
   @Column(name = "unrealized_pl_in_base_currency")
   private Double unrealizedPlInBaseCurrency;
+
+  @Column(name = "updated_at", nullable = false)
+  private java.time.ZonedDateTime updatedAt;
+
+  public PortfolioAssetAllocation(
+      Long portfolioId,
+      CurrencyType baseCurrency,
+      String assetSymbol,
+      double totalVolume,
+      double costBasisInBaseCurrency,
+      double totalValueInBaseCurrency,
+      double unrealizedPlInBaseCurrency,
+      java.time.ZonedDateTime updatedAt) {
+    this.portfolioId = portfolioId;
+    this.baseCurrency = baseCurrency;
+    this.assetId = null;
+    this.assetSymbol = assetSymbol;
+    this.totalVolume = totalVolume;
+    this.costBasisInBaseCurrency = costBasisInBaseCurrency;
+    this.totalValueInBaseCurrency = totalValueInBaseCurrency;
+    this.unrealizedPlInBaseCurrency = unrealizedPlInBaseCurrency;
+    this.updatedAt = updatedAt;
+  }
 }

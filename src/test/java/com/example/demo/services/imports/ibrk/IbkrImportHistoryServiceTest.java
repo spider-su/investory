@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import com.example.demo.infrastructure.CashOperationType;
 import com.example.demo.infrastructure.CurrencyType;
 import com.example.demo.infrastructure.repository.Asset;
+import com.example.demo.infrastructure.repository.AssetPriceHistoryRepository;
 import com.example.demo.infrastructure.repository.AssetRepository;
 import com.example.demo.infrastructure.repository.CashOperation;
 import com.example.demo.infrastructure.repository.CashOperationRepository;
@@ -17,6 +18,7 @@ import com.example.demo.infrastructure.repository.ClosedPosition;
 import com.example.demo.infrastructure.repository.ClosedPositionRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
+import com.example.demo.infrastructure.repository.account.AccountRepository;
 import com.example.demo.services.AssetCatalogService;
 import com.example.demo.services.imports.ImportExecutionResult;
 import java.io.ByteArrayInputStream;
@@ -38,7 +40,9 @@ class IbkrImportHistoryServiceTest {
   @Mock private ClosedPositionRepository closedPositionRepository;
   @Mock private CashOperationRepository cashOperationRepository;
   @Mock private OpenedPositionRepository openedPositionRepository;
+  @Mock private AssetPriceHistoryRepository assetPriceHistoryRepository;
   @Mock private AssetRepository assetRepository;
+  @Mock private AccountRepository accountRepository;
 
   private IbkrImportService service;
 
@@ -50,6 +54,9 @@ class IbkrImportHistoryServiceTest {
             closedPositionRepository,
             cashOperationRepository,
             openedPositionRepository,
+            assetPriceHistoryRepository,
+            assetRepository,
+            accountRepository,
             assetCatalogService);
     org.mockito.Mockito.lenient()
         .when(openedPositionRepository.findAllByAccount(17959259L))
@@ -255,6 +262,39 @@ class IbkrImportHistoryServiceTest {
   }
 
   @Test
+  void importStatement_writesExactIbkrTradePriceToAssetPriceHistory() throws Exception {
+    Asset asset =
+        Asset.builder()
+            .id(41L)
+            .name("iShares Edge MSCI USA Value")
+            .symbol("IUVL.UK")
+            .ticker("IUVL")
+            .ibrk("IUVL")
+            .yahoo("IUVL.L")
+            .country("UK")
+            .currency(CurrencyType.USD)
+            .assetType("ETF")
+            .active(true)
+            .build();
+    when(assetRepository.findAllByIbrkIgnoreCase("IUVL")).thenReturn(List.of(asset));
+    when(assetRepository.findAllBySymbolIn(Set.of("IUVL.UK"))).thenReturn(List.of(asset));
+
+    String csv =
+        String.join(
+            "\n",
+            "Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,"
+                + "Quantity,Price,Price Currency,Net Amount",
+            "Transaction History,Data,2026-06-10,U17959259,ISHARES EDGE MSCI USA VALUE,Buy,"
+                + "IUVL,100,18.3577,USD,-1835.77");
+
+    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)));
+
+    verify(assetPriceHistoryRepository)
+        .upsertIbkrTradeObservation(
+            41L, LocalDate.of(2026, 6, 10), "IUVL.UK", "IUVL", "USD", 18.3577);
+  }
+
+  @Test
   void importStatement_mapsCorporateActionAndAdjustmentToConcreteCashTypes() throws Exception {
     String csv =
         String.join(
@@ -280,6 +320,30 @@ class IbkrImportHistoryServiceTest {
     assertEquals(2, result.rowsTotal());
     assertEquals(2, result.rowsApplied());
     assertEquals(0, result.rowsFailed());
+  }
+
+  @Test
+  void importStatement_mapsIbkrCashTransferDepositToTransferInsteadOfExternalDeposit()
+      throws Exception {
+    String csv =
+        String.join(
+            "\n",
+            "Transaction History,Header,Date,Account,Description,Transaction"
+                + " Type,Currency,Symbol,Quantity,Price,Net Amount",
+            "Transaction History,Data,2025-02-13,U17959259,Cash Transfer,Deposit,USD,,,,7838.285");
+
+    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)));
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Iterable<CashOperation>> captor =
+        (ArgumentCaptor<Iterable<CashOperation>>)
+            (ArgumentCaptor<?>) ArgumentCaptor.forClass(Iterable.class);
+    verify(cashOperationRepository).saveAll(captor.capture());
+    List<CashOperation> operations = toList(captor.getValue());
+
+    assertEquals(1, operations.size());
+    assertEquals(CashOperationType.TRANSFER, operations.getFirst().getType());
+    assertNull(operations.getFirst().getSymbol());
   }
 
   @Test
@@ -325,9 +389,9 @@ class IbkrImportHistoryServiceTest {
     List<OpenedPosition> positions = toList(positionCaptor.getValue());
     assertEquals(1, positions.size());
     assertEquals("T458022826.US", positions.getFirst().getSymbol());
-    assertEquals(8000.0, positions.getFirst().getVolume(), 0.01);
+    assertEquals(8.0, positions.getFirst().getVolume(), 0.01);
     assertEquals(8039.09, positions.getFirst().getPurchaseValue(), 0.01);
-    assertEquals(1.00488625, positions.getFirst().getOpenPrice(), 0.00000001);
+    assertEquals(100.488625, positions.getFirst().getOpenPrice(), 0.00000001);
 
     @SuppressWarnings("unchecked")
     ArgumentCaptor<Iterable<Asset>> assetCaptor =

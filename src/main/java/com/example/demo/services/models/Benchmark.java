@@ -56,6 +56,7 @@ public class Benchmark {
     public record AccountValueSeries(
             Long id,
             String name,
-            List<Double> values) {}
+            List<Double> profitValues,
+            List<Double> profitPctValues) {}
 }
 

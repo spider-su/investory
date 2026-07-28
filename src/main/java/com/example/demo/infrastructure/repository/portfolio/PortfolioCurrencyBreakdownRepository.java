@@ -5,4 +5,7 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface PortfolioCurrencyBreakdownRepository
-    extends JpaRepository<PortfolioCurrencyBreakdown, PortfolioCurrencyBreakdownId> {}
+    extends JpaRepository<PortfolioCurrencyBreakdown, PortfolioCurrencyBreakdownId> {
+
+  default void deleteAllRows() {}
+}

@@ -1,12 +1,15 @@
 package com.example.demo.infrastructure.repository;
 
 import java.util.List;
+import java.util.Collection;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
 public interface CashOperationRepository extends JpaRepository<CashOperation, Long> {
     List<CashOperation> findAllByAccount(Long account);
+
+    List<CashOperation> findAllByAccountIn(Collection<Long> accounts);
 
     List<CashOperation> findAllByOrderByDateDescIdDesc();
 }

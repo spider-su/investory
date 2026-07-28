@@ -29,7 +29,7 @@ public class BenchmarkService {
 
     private static final String BENCHMARK_SYMBOL = "SPY";
     private static final int FETCH_MONTHS = 120;
-    private static final double ACTIVE_ACCOUNT_MIN_VALUE = 1.0;
+    private static final double ACTIVE_ACCOUNT_MIN_VALUE = 50.0;
 
     private final AccountDailyRepository accountDailyRepository;
     private final AccountMonthlyPerformanceRepository accountMonthlyPerformanceRepository;
@@ -316,7 +316,7 @@ public class BenchmarkService {
             List<String> labels = dailyLabels(rows);
             List<Benchmark.AccountValueSeries> accountSeries = accountsById.values().stream()
                     .map(account -> dailyAccountValueSeries(account, rows, labels))
-                    .filter(series -> series.values().stream()
+                    .filter(series -> series.profitValues().stream()
                                     .anyMatch(value -> Math.abs(value) > ACTIVE_ACCOUNT_MIN_VALUE))
                     .toList();
             if (!accountSeries.isEmpty()) {
@@ -335,16 +335,27 @@ public class BenchmarkService {
                         Collectors.collectingAndThen(
                                 Collectors.toList(),
                                 this::accountValuePoint)));
-        List<Double> values = new ArrayList<>();
-        double previousValue = 0.0;
+        List<Double> profitValues = new ArrayList<>();
+        List<Double> profitPctValues = new ArrayList<>();
+        Double startingEquity = null;
+        double cumulativeProfit = 0.0;
         for (String label : labels) {
             AccountValuePoint point = valuesByDay.get(label);
             if (point != null) {
-                previousValue = point.equity();
+                if (startingEquity == null && Math.abs(point.equity()) > ACTIVE_ACCOUNT_MIN_VALUE) {
+                    startingEquity = point.equity() - point.dailyProfit();
+                }
+                cumulativeProfit += point.dailyProfit();
             }
-            values.add(round(previousValue));
+            double profit = cumulativeProfit;
+            double profitPct =
+                    startingEquity == null || Math.abs(startingEquity) <= ACTIVE_ACCOUNT_MIN_VALUE
+                            ? 0.0
+                            : profit / startingEquity * 100.0;
+            profitValues.add(round(profit));
+            profitPctValues.add(round(profitPct));
         }
-        return new Benchmark.AccountValueSeries(account.getId(), account.getName(), values);
+        return new Benchmark.AccountValueSeries(account.getId(), account.getName(), profitValues, profitPctValues);
     }
 
     private AccountValuePoint accountValuePoint(List<AccountDaily> rows) {
@@ -352,12 +363,12 @@ public class BenchmarkService {
                 .max(Comparator.comparing(AccountDaily::getDate))
                 .orElse(null);
         if (latest == null) {
-            return new AccountValuePoint(0.0);
+            return new AccountValuePoint(0.0, 0.0);
         }
-        return new AccountValuePoint(nz(latest.getEquity()));
+        return new AccountValuePoint(nz(latest.getEquity()), nz(latest.getDailyProfitAmount()));
     }
 
-    private record AccountValuePoint(double equity) {}
+    private record AccountValuePoint(double equity, double dailyProfit) {}
 
     private List<String> dailyLabels(List<AccountDaily> rows) {
         LocalDate first = rows.stream()

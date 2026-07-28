@@ -5,7 +5,6 @@ import com.example.demo.infrastructure.ImportSourceType;
 import com.example.demo.infrastructure.repository.imports.ImportHistory;
 import com.example.demo.services.AssetPriceFallbackService;
 import com.example.demo.services.PortfolioProjectionService;
-import com.example.demo.services.StatisticsRefreshService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -18,8 +17,8 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Coordinates broker imports: dedup -> persist a RECEIVED batch -> run the parser
- * -> persist the APPLIED or FAILED outcome (with the failing row's payload truncated).
+ * Coordinates broker imports: dedup -> persist a STARTED batch -> run the parser
+ * -> persist the COMPLETED or FAILED outcome (with the failing row's payload truncated).
  *
  * <p>The orchestrator deliberately is not transactional; audit writes go through
  * {@link ImportBatchAuditWriter} which uses {@code REQUIRES_NEW} so that a parser-side
@@ -33,13 +32,11 @@ public class ImportOrchestratorService {
     private final ImportBatchAuditWriter auditWriter;
     private final AssetPriceFallbackService assetPriceFallbackService;
     private final PortfolioProjectionService portfolioProjectionService;
-    private final StatisticsRefreshService statisticsRefreshService;
 
     public ImportOrchestratorService(List<BrokerImportParser> parsers,
                                      ImportBatchAuditWriter auditWriter,
                                      AssetPriceFallbackService assetPriceFallbackService,
-                                     PortfolioProjectionService portfolioProjectionService,
-                                     StatisticsRefreshService statisticsRefreshService) {
+                                      PortfolioProjectionService portfolioProjectionService) {
         this.parserByBroker = new EnumMap<>(BrokerType.class);
         for (BrokerImportParser parser : parsers) {
             BrokerImportParser previous = this.parserByBroker.put(parser.brokerType(), parser);
@@ -51,7 +48,6 @@ public class ImportOrchestratorService {
         this.auditWriter = auditWriter;
         this.assetPriceFallbackService = assetPriceFallbackService;
         this.portfolioProjectionService = portfolioProjectionService;
-        this.statisticsRefreshService = statisticsRefreshService;
     }
 
     public ImportBatchResponse importFile(BrokerType broker,
@@ -137,8 +133,6 @@ public class ImportOrchestratorService {
             log.warn("Projection recalculation failed after import (batchId={}): {}",
                     batch.getId(), e.getMessage());
         }
-
-        statisticsRefreshService.refreshAll();
     }
 
     private String sha256(byte[] data) {

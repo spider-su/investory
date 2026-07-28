@@ -4,4 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface PortfolioKpiSummaryRepository extends JpaRepository<PortfolioKpiSummary, Long> {}
+public interface PortfolioKpiSummaryRepository extends JpaRepository<PortfolioKpiSummary, Long> {
+
+  default void deleteAllRows() {}
+}

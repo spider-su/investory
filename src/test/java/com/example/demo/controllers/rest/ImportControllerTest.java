@@ -40,7 +40,7 @@ class ImportControllerTest {
     void importByBroker_uploadsFileAndReturnsResponse() throws Exception {
         when(importOrchestratorService.importFile(eq(BrokerType.XTB), any(), eq("file.xlsx"),
                 eq(ImportSourceType.MANUAL), any()))
-                .thenReturn(new ImportBatchResponse(99L, BrokerType.XTB, ImportBatchStatus.APPLIED,
+                .thenReturn(new ImportBatchResponse(99L, BrokerType.XTB, ImportBatchStatus.COMPLETED,
                         10, 10, 0, "ok", false));
 
         MockMultipartFile multipart = new MockMultipartFile("file", "file.xlsx",
@@ -62,7 +62,7 @@ class ImportControllerTest {
     void importByBroker_passesSourceMetadata() throws Exception {
         when(importOrchestratorService.importFile(eq(BrokerType.IBKR), any(), eq("statement.csv"),
                 eq(ImportSourceType.TELEGRAM), eq("telegram-file-123")))
-                .thenReturn(new ImportBatchResponse(100L, BrokerType.IBKR, ImportBatchStatus.APPLIED,
+                .thenReturn(new ImportBatchResponse(100L, BrokerType.IBKR, ImportBatchStatus.COMPLETED,
                         1, 1, 0, "ok", false));
 
         MockMultipartFile multipart = new MockMultipartFile("file", "statement.csv",

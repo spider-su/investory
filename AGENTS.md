@@ -28,6 +28,15 @@ project facts from this file.
 - Use additional follow-up patch migrations for already-shipped or shared schema history that must
   remain append-only.
 
+## Execution Autonomy
+
+- For routine work inside this repository, do not stop to ask for permission before editing project
+  files or running normal build, test, lint, and verification commands.
+- Treat repository-local implementation, compile, test, and check steps as pre-approved by the
+  user unless the action would be destructive or would require platform-level sandbox escalation.
+- If platform approval is technically required outside repository-local work, request it directly
+  without first asking the user in chat.
+
 ## Project Snapshot
 
 - Spring Boot 4.1 monolith for portfolio and investment tracking; Maven build targeting Java 25.
@@ -134,23 +143,30 @@ project facts from this file.
   - `V01.002__checks_and_views.sql`
   - `V01.003__asset_price_history_import.sql`
 - Currency is limited to `USD`, `EUR`, and `PLN`.
-- Core live tables include `accounts`, `portfolios`, `assets`, `asset_price_history`,
-  `cash_operations`, `positions`, `account_daily`, `account_monthly`, `account_statistics`,
-  `import_history`, `exchange_rates`, and benchmark monthly closes.
+- Core raw tables include `accounts`, `portfolios`, `assets`, `asset_price_history`,
+  `cash_operations`, `positions`, `import_history`, `exchange_rates`, and benchmark monthly closes.
+- `account_daily` is the persisted projection/read-model boundary rebuilt from raw tables.
+- Higher summaries above `account_daily` must stay database-derived views/materialized views, not
+  separately persisted application-owned tables.
 - `positions` is the only position table. `OpenedPosition` and `ClosedPosition` map to it and
   are filtered by `close_time`; never recreate split position tables.
 - `assets` owns current quote columns: `market_price`, `market_price_usd`, `price_source`, and
   `price_updated_at`. Projections and export require `market_price_usd`.
 - `asset_price_history` distinguishes observed and estimated prices and preserves source,
   quality, scale, proxy, and currency metadata. Do not collapse those semantics.
-- `account_daily` is live projection data and feeds monthly/statistics refresh; it is not
+- `account_daily` is live projection data and feeds all higher reporting layers; it is not
   disposable legacy history.
-- `account_monthly` feeds benchmark curves and account filtering. `account_statistics` feeds
-  balances, cash/currency calculations, and fallback account summaries.
-- Materialized views:
-  - `mv_portfolio_kpi_summary`
-  - `mv_portfolio_asset_allocation`
-  - `mv_portfolio_currency_breakdown`
+- Ordinary reporting views:
+  - `v_portfolio_daily`
+- Materialized reporting views:
+  - `account_monthly_mv`
+  - `portfolio_daily_mv`
+  - `portfolio_monthly_mv`
+  - `account_statistics`
+  - `portfolio_kpi_summary`
+  - `portfolio_asset_allocation`
+  - `portfolio_currency_breakdown`
+  - `symbol_performance`
 - Removed database surface must stay removed: `stocks`, `ticker_monthly`,
   `monthly_position_summary`, `position_summary`, `portfolio_history`, old open-position
   history, indicator tables, and obsolete diagnostic views.

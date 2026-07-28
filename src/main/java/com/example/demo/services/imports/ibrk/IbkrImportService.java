@@ -4,6 +4,8 @@ import com.example.demo.infrastructure.CashOperationType;
 import com.example.demo.infrastructure.CurrencyType;
 import com.example.demo.infrastructure.PositionType;
 import com.example.demo.infrastructure.repository.*;
+import com.example.demo.infrastructure.repository.account.Account;
+import com.example.demo.infrastructure.repository.account.AccountRepository;
 import com.example.demo.services.AssetCatalogService;
 import com.example.demo.services.imports.ImportExecutionResult;
 import com.opencsv.CSVReader;
@@ -41,12 +43,21 @@ public class IbkrImportService {
   private static final ZoneId ZONE = ZoneId.systemDefault();
   private static final String SECTION = "Transaction History";
   private static final Long IBKR_ACCOUNT = 17959259L;
+  private static final Long DEFAULT_PORTFOLIO_ID = 1L;
+  private static final String DEFAULT_ACCOUNT_PROVIDER = "IBKR";
+  private static final String DEFAULT_ACCOUNT_NAME = "IBKR";
+  private static final String DEFAULT_ACCOUNT_OWNER = "Investory";
+  private static final double IBKR_BOND_FACE_VALUE_UNIT = 1000.0;
+  private static final Pattern COMPACT_BOND_SYMBOL_PATTERN = Pattern.compile("^T\\d{6,}(?:\\.[A-Z]{2})?$");
   private static final Pattern BOND_CALL_PRICE_PATTERN =
       Pattern.compile("(?i)for\\s+USD\\s+([0-9]+(?:\\.[0-9]+)?)\\s+per\\s+Bond");
 
   private final ClosedPositionRepository closedPositionRepository;
   private final CashOperationRepository cashOperationRepository;
   private final OpenedPositionRepository openedPositionRepository;
+  private final AssetPriceHistoryRepository assetPriceHistoryRepository;
+  private final AssetRepository assetRepository;
+  private final AccountRepository accountRepository;
   private final AssetCatalogService assetCatalogService;
 
   public ImportExecutionResult importStatement(InputStream csvStream) throws Exception {
@@ -61,6 +72,7 @@ public class IbkrImportService {
     List<CashOperation> cashOps = new ArrayList<>();
     List<ClosedPosition> closedPositions = new ArrayList<>();
     List<PositionTransaction> positionTransactions = new ArrayList<>();
+    List<IbkrTradePriceObservation> tradePriceObservations = new ArrayList<>();
     Map<String, ReconstructedPosition> reconstructedPositions = new LinkedHashMap<>();
     int total = 0;
     int failed = 0;
@@ -74,13 +86,20 @@ public class IbkrImportService {
         String type = value(r, col, "Transaction Type", "Type");
         Long account =
             normalizeIbkrAccountId(value(r, col, "Account", "Account ID", "AccountId"));
-        String symbol = cleanSymbol(value(r, col, "Symbol"));
+        String rawSymbol = value(r, col, "Symbol");
+        String symbol = cleanSymbol(rawSymbol);
         String description = value(r, col, "Description");
         ZonedDateTime date = parseDate(value(r, col, "Date", "Date/Time", "Trade Date"));
         Double net = parseNumber(value(r, col, "Net Amount", "Net Cash", "NetCash", "Proceeds"));
-        Double quantity = parseNumber(value(r, col, "Quantity", "Qty", "Shares"));
+        Double quantity =
+            normalizeTradeQuantity(
+                rawSymbol, symbol, description, parseNumber(value(r, col, "Quantity", "Qty", "Shares")));
         Double price =
-            parseNumber(value(r, col, "Price", "T. Price", "Trade Price", "Transaction Price"));
+            normalizeTradePrice(
+                rawSymbol,
+                symbol,
+                description,
+                parseNumber(value(r, col, "Price", "T. Price", "Trade Price", "Transaction Price")));
         CurrencyType currency =
             parseCurrency(value(r, col, "Currency", "Currency Primary", "CurrencyPrimary"));
 
@@ -96,7 +115,7 @@ public class IbkrImportService {
                 description);
         op.setId(syntheticId(key, dedup));
         op.setAccount(account);
-        op.setType(mapCashType(type));
+        op.setType(mapCashType(type, description));
         op.setSymbol(shouldKeepCashOperationSymbol(op.getType()) ? symbol : null);
         op.setAmount(net != null ? net : 0.0);
         op.setCurrency(currency);
@@ -105,6 +124,8 @@ public class IbkrImportService {
         cashOps.add(op);
         positionTransactions.add(
             new PositionTransaction(op, type, symbol, description, quantity, price));
+        maybeBuildTradePriceObservation(r, col, type, symbol, date, price)
+            .ifPresent(tradePriceObservations::add);
       } catch (Exception e) {
         failed++;
         log.warn("Skipping IBKR row: {}", e.getMessage());
@@ -115,7 +136,9 @@ public class IbkrImportService {
         .sorted(Comparator.comparing(tx -> tx.operation().getDate()))
         .forEach(tx -> applyPositionTransaction(reconstructedPositions, closedPositions, dedup, tx));
 
+    ensureIbkrAccountExists(cashOps, openPositionsFromReconstructedPositions(reconstructedPositions));
     ensureCashOperationAssetsExist(cashOps);
+    persistTradePriceHistory(tradePriceObservations);
     cashOperationRepository.saveAll(cashOps);
     closedPositionRepository.saveAll(closedPositions);
 
@@ -503,8 +526,10 @@ public class IbkrImportService {
     return value == null ? 0.0 : value;
   }
 
-  private CashOperationType mapCashType(String type) {
+  private CashOperationType mapCashType(String type, String description) {
     String normalized = normalizeOperationType(type);
+    String normalizedDescription =
+        description == null ? null : description.trim().toLowerCase(Locale.ROOT);
     if (normalized == null) {
       return CashOperationType.UNKNOWN;
     }
@@ -524,7 +549,10 @@ public class IbkrImportService {
       case "foreign tax withholding" -> CashOperationType.WITHHOLDING_TAX;
       case "credit interest", "investment interest received", "investment interest paid" ->
           CashOperationType.FREE_FUNDS_INTEREST;
-      case "deposit" -> CashOperationType.DEPOSIT;
+      case "deposit" ->
+          "cash transfer".equals(normalizedDescription)
+              ? CashOperationType.TRANSFER
+              : CashOperationType.DEPOSIT;
       case "withdrawal" -> CashOperationType.WITHDRAWAL;
       case "adjustment" -> CashOperationType.CORRECTION;
       default -> CashOperationType.UNKNOWN;
@@ -563,6 +591,132 @@ public class IbkrImportService {
         || type == CashOperationType.WITHHOLDING_TAX;
   }
 
+  private Double normalizeTradeQuantity(
+      String rawSymbol, String canonicalSymbol, String description, Double quantity) {
+    if (quantity == null || !isBondTrade(rawSymbol, canonicalSymbol, description)) {
+      return quantity;
+    }
+    return quantity / IBKR_BOND_FACE_VALUE_UNIT;
+  }
+
+  private Double normalizeTradePrice(
+      String rawSymbol, String canonicalSymbol, String description, Double price) {
+    if (price == null || !isBondTrade(rawSymbol, canonicalSymbol, description)) {
+      return price;
+    }
+    return price / 100.0;
+  }
+
+  private boolean isBondTrade(String rawSymbol, String canonicalSymbol, String description) {
+    if (isKnownBondAsset(canonicalSymbol)) {
+      return true;
+    }
+    String raw = rawSymbol == null ? "" : rawSymbol.trim().toUpperCase(Locale.ROOT);
+    String canonical = canonicalSymbol == null ? "" : canonicalSymbol.trim().toUpperCase(Locale.ROOT);
+    String text = description == null ? "" : description.trim().toLowerCase(Locale.ROOT);
+    return raw.contains(" 1/") // treasury coupon style like T 4 5/8 02/28/26
+        || raw.contains(" 5/8 ")
+        || text.contains("treasury")
+        || text.contains(" per bond")
+        || text.contains("bond ")
+        || COMPACT_BOND_SYMBOL_PATTERN.matcher(canonical).matches()
+        || COMPACT_BOND_SYMBOL_PATTERN.matcher(raw).matches();
+  }
+
+  private boolean isKnownBondAsset(String symbol) {
+    if (!StringUtils.hasText(symbol)) {
+      return false;
+    }
+    return assetRepository.findAllBySymbolIn(List.of(symbol)).stream()
+        .anyMatch(asset -> "BOND".equalsIgnoreCase(asset.getAssetType()));
+  }
+
+  private void ensureIbkrAccountExists(
+      List<CashOperation> cashOperations, List<OpenedPosition> reconstructedOpenPositions) {
+    Set<Long> accountIds = new LinkedHashSet<>();
+    cashOperations.stream().map(CashOperation::getAccount).filter(Objects::nonNull).forEach(accountIds::add);
+    reconstructedOpenPositions.stream()
+        .map(OpenedPosition::getAccount)
+        .filter(Objects::nonNull)
+        .forEach(accountIds::add);
+    if (accountIds.isEmpty()) {
+      accountIds.add(IBKR_ACCOUNT);
+    }
+    for (Long accountId : accountIds) {
+      if (accountRepository.existsById(accountId)) {
+        continue;
+      }
+      Account account = new Account();
+      account.setId(accountId);
+      account.setCurrency(CurrencyType.USD);
+      account.setProvider(DEFAULT_ACCOUNT_PROVIDER);
+      account.setName(accountId.equals(IBKR_ACCOUNT) ? DEFAULT_ACCOUNT_NAME : "IBKR " + accountId);
+      account.setOwner(DEFAULT_ACCOUNT_OWNER);
+      account.setPortfolioId(DEFAULT_PORTFOLIO_ID);
+      accountRepository.save(account);
+    }
+  }
+
+  private List<OpenedPosition> openPositionsFromReconstructedPositions(
+      Map<String, ReconstructedPosition> reconstructedPositions) {
+    if (reconstructedPositions.isEmpty()) {
+      return List.of();
+    }
+    return reconstructedPositions.values().stream()
+        .filter(position -> position.account != null)
+        .map(
+            position -> {
+              OpenedPosition openedPosition = new OpenedPosition();
+              openedPosition.setAccount(position.account);
+              return openedPosition;
+            })
+        .toList();
+  }
+
+  private Optional<IbkrTradePriceObservation> maybeBuildTradePriceObservation(
+      String[] row,
+      Map<String, Integer> col,
+      String transactionType,
+      String symbol,
+      ZonedDateTime tradeDate,
+      Double price) {
+    String normalizedType = normalizeOperationType(transactionType);
+    if (!"buy".equals(normalizedType) && !"sell".equals(normalizedType)) {
+      return Optional.empty();
+    }
+    if (!StringUtils.hasText(symbol) || tradeDate == null || price == null || price <= 0.0) {
+      return Optional.empty();
+    }
+    CurrencyType priceCurrency = parseCurrency(value(row, col, "Price Currency"));
+    return Optional.of(
+        new IbkrTradePriceObservation(
+            symbol, tradeDate.toLocalDate(), priceCurrency, price, rawSymbol(value(row, col, "Symbol"))));
+  }
+
+  private void persistTradePriceHistory(List<IbkrTradePriceObservation> observations) {
+    if (observations.isEmpty()) {
+      return;
+    }
+    Set<String> symbols =
+        observations.stream().map(IbkrTradePriceObservation::symbol).collect(java.util.stream.Collectors.toSet());
+    Map<String, Long> assetIdsBySymbol =
+        assetRepository.findAllBySymbolIn(symbols).stream()
+            .collect(java.util.stream.Collectors.toMap(Asset::getSymbol, Asset::getId, (a, b) -> a));
+    for (IbkrTradePriceObservation observation : observations) {
+      Long assetId = assetIdsBySymbol.get(observation.symbol());
+      if (assetId == null) {
+        continue;
+      }
+      assetPriceHistoryRepository.upsertIbkrTradeObservation(
+          assetId,
+          observation.priceDate(),
+          observation.symbol(),
+          observation.originalSourceSymbol(),
+          observation.priceCurrency().name(),
+          observation.priceValue());
+    }
+  }
+
   private Double parseNumber(String raw) {
     if (!StringUtils.hasText(raw) || "-".equals(raw)) {
       return null;
@@ -587,6 +741,13 @@ public class IbkrImportService {
 
   private String orDefault(String value, String fallback) {
     return StringUtils.hasText(value) ? value : fallback;
+  }
+
+  private String rawSymbol(String symbol) {
+    if (!StringUtils.hasText(symbol) || "-".equals(symbol.trim())) {
+      return null;
+    }
+    return symbol.trim();
   }
 
   private Long normalizeIbkrAccountId(String raw) {
@@ -678,4 +839,11 @@ public class IbkrImportService {
       String description,
       Double quantity,
       Double price) {}
+
+  private record IbkrTradePriceObservation(
+      String symbol,
+      LocalDate priceDate,
+      CurrencyType priceCurrency,
+      Double priceValue,
+      String originalSourceSymbol) {}
 }

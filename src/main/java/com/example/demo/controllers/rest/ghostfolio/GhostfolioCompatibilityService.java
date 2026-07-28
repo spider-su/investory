@@ -13,6 +13,9 @@ import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
 import com.example.demo.infrastructure.repository.account.AccountDaily;
 import com.example.demo.infrastructure.repository.account.AccountDailyRepository;
+import com.example.demo.infrastructure.repository.account.AccountStatistics;
+import com.example.demo.infrastructure.repository.account.AccountStatisticsRepository;
+import com.example.demo.infrastructure.repository.portfolio.SymbolPerformanceRepository;
 import com.example.demo.services.PortfolioService;
 import com.example.demo.services.currency.CurrencyRateService;
 import com.example.demo.services.models.AccountBalance;
@@ -47,6 +50,8 @@ class GhostfolioCompatibilityService {
     private final CashOperationRepository cashOperationRepository;
     private final OpenedPositionRepository openedPositionRepository;
     private final ClosedPositionRepository closedPositionRepository;
+    private final AccountStatisticsRepository accountStatisticsRepository;
+    private final SymbolPerformanceRepository symbolPerformanceRepository;
     private final CurrencyRateService currencyRateService;
 
     Map<String, Object> accounts() {
@@ -150,16 +155,17 @@ class GhostfolioCompatibilityService {
         List<AccountBalance> source = portfolio.getAccountBalances() == null
                 ? List.of()
                 : portfolio.getAccountBalances();
-        Map<Long, AccountDaily> latestDaily = latestDailyByAccount();
+        Map<Long, AccountStatistics> statsByAccount = accountStatisticsRepository.findAll().stream()
+                .collect(Collectors.toMap(AccountStatistics::getAccountId, row -> row));
         Map<Long, Long> activities = activitiesCountByAccount();
         double totalValue = portfolio.getBalance();
 
         return source.stream()
                 .filter(account -> accountMatches(requestedAccountIds, String.valueOf(account.getAccountId())))
                 .map(account -> {
-                    AccountDaily daily = latestDaily.get(account.getAccountId());
-                    double dividends = daily == null ? 0.0d : nz(daily.getDividends());
-                    double interest = daily == null ? 0.0d : nz(daily.getInterest());
+                    AccountStatistics stat = statsByAccount.get(account.getAccountId());
+                    double dividends = stat == null ? 0.0d : nz(stat.getDividends());
+                    double interest = stat == null ? 0.0d : nz(stat.getInterest());
                     double value = account.getBalance();
                     double cash = account.getCash();
 
@@ -181,8 +187,8 @@ class GhostfolioCompatibilityService {
                     row.put("platform", null);
                     row.put("isExcluded", false);
                     row.put("isDefault", false);
-                    row.put("createdAt", firstAccountDate(account.getAccountId()).map(Instant::toString).orElse(null));
-                    row.put("updatedAt", daily == null ? null : daily.getUpdatedAt().toInstant().toString());
+                    row.put("createdAt", stat == null || stat.getFirstActivityAt() == null ? null : stat.getFirstActivityAt().toInstant().toString());
+                    row.put("updatedAt", stat == null || stat.getUpdatedAt() == null ? null : stat.getUpdatedAt().toInstant().toString());
                     return row;
                 })
                 .toList();
@@ -486,10 +492,8 @@ class GhostfolioCompatibilityService {
     }
 
     private double dividendsForSymbol(String symbol) {
-        return cashOperationRepository.findAll().stream()
-                .filter(row -> row.getType() == CashOperationType.DIVIDEND)
-                .filter(row -> symbol.equals(row.getSymbol()))
-                .mapToDouble(row -> Math.abs(nz(row.getAmount())))
+        return symbolPerformanceRepository.findAllBySymbol(symbol).stream()
+                .mapToDouble(row -> nz(row.getDividends()))
                 .sum();
     }
 
