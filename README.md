@@ -22,8 +22,8 @@ Investory answers much more:
 - How did currency movements affect my returns?
 - How close am I to simply buying SPY?
 
-Investory combines transaction history with market prices to reconstruct portfolio state and derive
-daily and monthly analytics.
+Investory combines immutable broker events with market prices and FX rates to reconstruct a canonical
+account state and derive consistent daily and monthly analytics.
 
 ---
 
@@ -75,7 +75,8 @@ Currently implemented:
 - Interactive Brokers (IBKR)
 - XTB
 
-The architecture allows additional brokers to be added without changing portfolio analytics.
+Broker-specific importers preserve source records and map them into a common operational model without
+changing the higher reporting architecture.
 
 ---
 
@@ -84,7 +85,7 @@ The architecture allows additional brokers to be added without changing portfoli
 | Layer | Technology |
 |--------|------------|
 | Backend | Java 25 |
-| Framework | Spring Boot |
+| Framework | Spring Boot 4.1 |
 | Database | PostgreSQL |
 | ORM | Spring Data JPA |
 | Frontend | Thymeleaf |
@@ -95,28 +96,39 @@ The architecture allows additional brokers to be added without changing portfoli
 
 ## Architecture
 
-Investory is built around an immutable transaction ledger.
+Investory separates broker events, reconstructed state, and reporting projections.
 
-```
+```text
 Broker Imports
         │
         ▼
-Transaction Ledger
+Immutable Raw Events
         │
         ▼
-Portfolio Engine
+Normalized Operations + Positions
         │
- ┌──────┴────────┐
- ▼               ▼
-Valuation     Performance
-Engine         Engine
- └──────┬────────┘
         ▼
- Dashboard
+Historical Prices + FX
+        │
+        ▼
+account_daily
+        │
+        ▼
+Views / Materialized Views
+        │
+        ▼
+Dashboard / APIs / Exports
 ```
 
-Investory reconstructs portfolio state from transactions and stores derived daily and monthly
-account projections for fast, reproducible analytics.
+`account_daily` is the persisted historical reporting boundary. Each row represents one account on one
+date.
+
+It combines end-of-day snapshots such as cash, market value, equity, cost basis, and unrealized profit
+with flows that occurred on that date, such as deposits, withdrawals, dividends, interest, fees, taxes,
+and realized profit.
+
+Daily flow columns are not cumulative. Monthly and portfolio reporting derives from `account_daily`
+through database views and materialized views.
 
 This provides:
 
@@ -124,7 +136,17 @@ This provides:
 - reproducible history
 - complete auditability
 - easier reconciliation
-- accurate realized P/L
+- consistent account and portfolio analytics
+- safe monthly aggregation
+
+### Financial interpretation
+
+- Internal transfers change account cash but do not change portfolio contributed capital.
+- Currency conversion is not a deposit, withdrawal, or investment profit.
+- Broker corrections and reversals retain their signs.
+- Missing FX or ambiguous valuation inputs are reported as validation issues rather than treated as
+  successful conversions.
+- Returns are compounded from daily returns; percentages are not averaged.
 
 ## Dashboard
 
@@ -175,7 +197,7 @@ Requirements:
 - Maven
 
 ```bash
-git clone https://github.com/<your-user>/investory.git
+git clone https://github.com/spider-su/investory.git
 
 cd investory
 
@@ -184,7 +206,7 @@ mvn spring-boot:run
 
 Open:
 
-```
+```text
 http://localhost:8080
 ```
 
