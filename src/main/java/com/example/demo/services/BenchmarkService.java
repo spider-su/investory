@@ -93,6 +93,13 @@ public class BenchmarkService {
             boolean filterSubmitted = accountIds != null;
             Set<Long> availableAccounts = activeAccountIds(allRows, accountStatisticsRepository.findAll());
             Set<Long> accountValueAccounts = activeAccountIds(allRows, List.of());
+            Set<Long> cashOnlyAccounts = accountRepository.findAll().stream()
+                    .filter(Account::isCashOnly)
+                    .map(Account::getId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+            availableAccounts.removeAll(cashOnlyAccounts);
+            accountValueAccounts.removeAll(cashOnlyAccounts);
             Set<Long> selectedAccounts =
                     !filterSubmitted
                             ? availableAccounts

@@ -104,8 +104,16 @@ public class PortfolioProjectionService {
       return;
     }
 
-    List<OpenedPosition> opened = openedPositionRepository.findAllByAccountIn(affectedAccounts);
-    List<ClosedPosition> closed = closedPositionRepository.findAllByAccountIn(affectedAccounts);
+    Set<Long> cashOnlyAccounts = accountRepository.findAllById(affectedAccounts).stream()
+        .filter(Account::isCashOnly)
+        .map(Account::getId)
+        .collect(Collectors.toSet());
+    List<OpenedPosition> opened = openedPositionRepository.findAllByAccountIn(affectedAccounts).stream()
+        .filter(position -> !cashOnlyAccounts.contains(position.getAccount()))
+        .toList();
+    List<ClosedPosition> closed = closedPositionRepository.findAllByAccountIn(affectedAccounts).stream()
+        .filter(position -> !cashOnlyAccounts.contains(position.getAccount()))
+        .toList();
     List<CashOperation> cash = cashOperationRepository.findAllByAccountIn(affectedAccounts);
 
     Map<String, Asset> assets =
@@ -1225,6 +1233,16 @@ public class PortfolioProjectionService {
       if (shares <= EPSILON) {
         return 0.0;
       }
+      // Use the fresh asset quote for today's projection. Historical rows remain
+      // authoritative for prior dates.
+      if (asset != null
+          && asset.getMarketPrice() != null
+          && asset.getMarketPrice() > EPSILON
+          && asset.getPriceUpdatedAt() != null
+          && !asset.getPriceUpdatedAt().toLocalDate().isBefore(date)) {
+        CurrencyType currency = asset.getCurrency() == null ? BASE_CURRENCY : asset.getCurrency();
+        return convert(shares * asset.getMarketPrice(), currency, date);
+      }
       NavigableMap<LocalDate, HistoricalPrice> prices = pricesBySymbol.get(symbol);
       if (prices != null) {
         Map.Entry<LocalDate, HistoricalPrice> price = prices.floorEntry(date);
@@ -1425,6 +1443,15 @@ public class PortfolioProjectionService {
           break;
         case INTERNAL_TRANSFER_IN:
         case INTERNAL_TRANSFER_OUT:
+          // Internal transfers are excluded from portfolio net flows because the
+          // matching in/out rows cancel across accounts. They are still account-level
+          // flows, otherwise the receiving account reports the transfer as fake profit.
+          if (amountBase >= 0.0) {
+            deposits += Math.abs(amountBase);
+          } else {
+            withdrawals += Math.abs(amountBase);
+          }
+          break;
         case INTERNAL_BOOKKEEPING:
         case FX_CONVERSION:
           cashAdjustments += amountBase;

@@ -4,18 +4,18 @@ INSERT INTO investory.portfolios (id, name, base_currency, owner) VALUES
     (1, 'Alex & Olga Portfolio', 'USD', 'Alex & Olga Kotik')
 on conflict do nothing;
 
-insert into accounts (id, currency, provider, name, owner, portfolio_id) values
-    ('51551301', 'PLN', 'XTB', 'IKE Alex',  'Alex Kotik', 1),
-    ('51822121', 'USD', 'XTB', 'REITs USD',   'Olga Kotik', 1),
-    ('51747407', 'EUR', 'XTB', 'EUR - Empty',   'Olga Kotik', 1),
-    ('53582946', 'USD', 'XTB', 'Trading USD Metal',   'Olga Kotik', 1),
-    ('51729109', 'PLN', 'XTB', 'IKE Olga',  'Olga Kotik', 1),
-    ('50290466', 'PLN', 'XTB', 'PLN - Empty',   'Alex Kotik', 1),
-    ('51499241', 'USD', 'XTB', 'Trading USD',   'Alex Kotik', 1),
-    ('51548444', 'EUR', 'XTB', 'Trading EUR',   'Alex Kotik', 1),
-    ('51993106', 'USD', 'XTB', 'Dividends', 'Alex Kotik', 1),
-    ('51707603', 'PLN', 'XTB', 'PLN - Empty',  'Olga Kotik', 1),
-    ('17959259', 'USD', 'IBKR', 'IBKR', 'Alex Kotik', 1)
+insert into accounts (id, currency, provider, name, owner, portfolio_id, cash_only) values
+    ('51551301', 'PLN', 'XTB', 'IKE Alex',  'Alex Kotik', 1, false),
+    ('51822121', 'USD', 'XTB', 'REITs USD',   'Olga Kotik', 1, false),
+    ('51747407', 'EUR', 'XTB', 'EUR - Empty',   'Olga Kotik', 1, true),
+    ('53582946', 'USD', 'XTB', 'Trading USD Metal',   'Olga Kotik', 1, false),
+    ('51729109', 'PLN', 'XTB', 'IKE Olga',  'Olga Kotik', 1, false),
+    ('50290466', 'PLN', 'XTB', 'PLN - Empty',   'Alex Kotik', 1, true),
+    ('51499241', 'USD', 'XTB', 'Trading USD',   'Alex Kotik', 1, false),
+    ('51548444', 'EUR', 'XTB', 'Trading EUR',   'Alex Kotik', 1, true),
+    ('51993106', 'USD', 'XTB', 'Dividends', 'Alex Kotik', 1, false),
+    ('51707603', 'PLN', 'XTB', 'PLN - Empty',  'Olga Kotik', 1, true),
+    ('17959259', 'USD', 'IBKR', 'IBKR', 'Alex Kotik', 1, false)
 on conflict (id) do nothing;
 
 INSERT INTO investory.exchange_rates (month, base, to_currency, rate) VALUES
@@ -143,5 +143,3 @@ ON CONFLICT (symbol) DO UPDATE SET
     currency = EXCLUDED.currency,
     asset_type = EXCLUDED.asset_type,
     active = EXCLUDED.active;
-
--- Remaining catalog rows are owned by V01.003 generated import and are refreshed there.

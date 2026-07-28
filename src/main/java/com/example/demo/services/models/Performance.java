@@ -23,6 +23,7 @@ public class Performance {
     Map<String, Long> monthlyOperationsCount = new TreeMap<>();
 
     Map<String, Double> monthlyCashflow = new TreeMap<>();
+    Map<String, MonthlyAttribution> monthlyAttributions = new TreeMap<>();
 
     double base = 0.0;
 }

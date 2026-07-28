@@ -1,4 +1,4 @@
-package com.example.demo.services.imports.yahoo;
+package com.example.demo.services.exports.yahoo;
 
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;

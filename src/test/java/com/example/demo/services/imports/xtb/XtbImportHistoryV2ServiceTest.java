@@ -244,6 +244,16 @@ class XtbImportHistoryV2ServiceTest {
             101.33333333333333,
             90,
             "XTB_TRADE_OPEN_OBSERVATION");
+
+    ArgumentCaptor<Iterable<OpenedPosition>> openedCaptor = ArgumentCaptor.forClass(Iterable.class);
+    verify(openedPositionRepository, atLeastOnce()).saveAll(openedCaptor.capture());
+    List<OpenedPosition> savedOpened = new ArrayList<>();
+    for (Iterable<OpenedPosition> batch : openedCaptor.getAllValues()) {
+      for (OpenedPosition position : batch) {
+        savedOpened.add(position);
+      }
+    }
+    assertTrue(savedOpened.stream().allMatch(position -> position.getCurrency() == CurrencyType.USD));
   }
 
   private static CashOperation cashOperation(

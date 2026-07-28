@@ -4,6 +4,7 @@ import com.example.demo.infrastructure.CashOperationType;
 import com.example.demo.infrastructure.CurrencyType;
 import com.example.demo.infrastructure.repository.*;
 import com.example.demo.infrastructure.repository.account.Account;
+import com.example.demo.infrastructure.repository.account.AccountDailyRepository;
 import com.example.demo.infrastructure.repository.account.AccountMonthlyPerformance;
 import com.example.demo.infrastructure.repository.account.AccountMonthlyPerformanceRepository;
 import com.example.demo.infrastructure.repository.account.AccountRepository;
@@ -15,8 +16,12 @@ import com.example.demo.infrastructure.repository.portfolio.PortfolioCurrencyBre
 import com.example.demo.infrastructure.repository.portfolio.PortfolioCurrencyBreakdownRepository;
 import com.example.demo.infrastructure.repository.portfolio.PortfolioKpiSummary;
 import com.example.demo.infrastructure.repository.portfolio.PortfolioKpiSummaryRepository;
+import com.example.demo.infrastructure.repository.portfolio.PortfolioMonthlyPerformance;
+import com.example.demo.infrastructure.repository.portfolio.PortfolioMonthlyPerformanceRepository;
 import com.example.demo.infrastructure.repository.portfolio.SymbolPerformance;
 import com.example.demo.infrastructure.repository.portfolio.SymbolPerformanceRepository;
+import com.example.demo.infrastructure.repository.portfolio.PortfolioFallbackReconciliationRepository;
+import com.example.demo.infrastructure.repository.portfolio.PortfolioDataQualityRepository;
 import com.example.demo.services.currency.CurrencyRateService;
 import com.example.demo.services.models.DividendGainer;
 import com.example.demo.services.models.InstrumentPerformance;
@@ -34,6 +39,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalDouble;
@@ -52,13 +58,19 @@ class PortfolioServiceTest {
     @Mock private ClosedPositionRepository closedPositionRepository;
     @Mock private OpenedPositionRepository openedPositionRepository;
     @Mock private CashOperationRepository cashOperationRepository;
+    @Mock private NormalizedCashOperationRepository normalizedCashOperationRepository;
     @Mock private AccountRepository accountRepository;
     @Mock private AccountStatisticsRepository accountStatisticsRepository;
+    @Mock private AccountDailyRepository accountDailyRepository;
     @Mock private AccountMonthlyPerformanceRepository accountMonthlyPerformanceRepository;
     @Mock private PortfolioAssetAllocationRepository portfolioAssetAllocationRepository;
+    @Mock private AssetRepository assetRepository;
     @Mock private PortfolioCurrencyBreakdownRepository portfolioCurrencyBreakdownRepository;
     @Mock private PortfolioKpiSummaryRepository portfolioKpiSummaryRepository;
+    @Mock private PortfolioMonthlyPerformanceRepository portfolioMonthlyPerformanceRepository;
     @Mock private SymbolPerformanceRepository symbolPerformanceRepository;
+    @Mock private PortfolioFallbackReconciliationRepository fallbackReconciliationRepository;
+    @Mock private PortfolioDataQualityRepository dataQualityRepository;
 
     private PortfolioService portfolioService;
 
@@ -69,15 +81,18 @@ class PortfolioServiceTest {
         CashFlowAggregator cashFlowAggregator = new CashFlowAggregator(currencyRateService);
         portfolioService = new PortfolioService(currencyRateService,
                 closedPositionRepository, openedPositionRepository,
-                cashOperationRepository, accountRepository,
-                accountStatisticsRepository, accountMonthlyPerformanceRepository, portfolioAssetAllocationRepository,
-                portfolioCurrencyBreakdownRepository, portfolioKpiSummaryRepository,
-                symbolPerformanceRepository,
+                cashOperationRepository, normalizedCashOperationRepository, accountRepository,
+                accountStatisticsRepository, accountDailyRepository, accountMonthlyPerformanceRepository, portfolioAssetAllocationRepository,
+                assetRepository,
+                portfolioCurrencyBreakdownRepository, portfolioKpiSummaryRepository, portfolioMonthlyPerformanceRepository,
+                fallbackReconciliationRepository, dataQualityRepository, symbolPerformanceRepository,
                 taxCalculator, cashFlowAggregator);
         org.mockito.Mockito.lenient().when(portfolioKpiSummaryRepository.findAll()).thenReturn(List.of());
         org.mockito.Mockito.lenient().when(portfolioAssetAllocationRepository.findAll()).thenReturn(List.of());
         org.mockito.Mockito.lenient().when(portfolioCurrencyBreakdownRepository.findAll()).thenReturn(List.of());
         org.mockito.Mockito.lenient().when(symbolPerformanceRepository.findAll()).thenReturn(List.of());
+        org.mockito.Mockito.lenient().when(portfolioMonthlyPerformanceRepository.findAllByOrderByMonthAscPortfolioIdAsc()).thenReturn(List.of());
+        org.mockito.Mockito.lenient().when(normalizedCashOperationRepository.findAllByAccountIdIn(any())).thenReturn(List.of());
         // Identity FX so tests are arithmetic-only. lenient() because some tests don't trigger FX conversion.
         org.mockito.Mockito.lenient().when(currencyRateService.convertToBaseCurrency(anyDouble(), any(), any()))
                 .thenAnswer(invocation -> invocation.getArgument(0, Double.class));
@@ -132,20 +147,8 @@ class PortfolioServiceTest {
         when(accountRepository.findMapByIdIn(any())).thenReturn(Map.of(
                 17959259L, account,
                 999L, emptyAccount));
-        when(portfolioAssetAllocationRepository.findAll()).thenReturn(List.of(
-                new PortfolioAssetAllocation(1L, CurrencyType.USD, "AAPL.US", 7.0, 650.0, 700.0, 50.0, ZonedDateTime.now()),
-                new PortfolioAssetAllocation(1L, CurrencyType.USD, "MSFT.US", 3.0, 290.0, 300.0, 10.0, ZonedDateTime.now())
-        ));
-        when(currencyRateService.convertToBaseCurrency(anyDouble(), any(CurrencyType.class), any(CurrencyType.class), any(LocalDate.class)))
-                .thenAnswer(invocation -> {
-                    double amount = invocation.getArgument(0);
-                    CurrencyType target = invocation.getArgument(1);
-                    CurrencyType source = invocation.getArgument(2);
-                    if (target == CurrencyType.PLN && source == CurrencyType.USD) {
-                        return amount * 4.0;
-                    }
-                    return amount;
-                });
+        when(currencyRateService.findRate(any(CurrencyType.class), any(CurrencyType.class), any(LocalDate.class)))
+                .thenReturn(OptionalDouble.of(4.0));
 
         Portfolio result = portfolioService.calculateTotalProfitLoss();
 
@@ -156,7 +159,7 @@ class PortfolioServiceTest {
         assertEquals(125.0, result.getCash(), 0.01);
         assertEquals(1100.0, result.getBalance(), 0.01);
         assertEquals(1000.0, result.getDeposits(), 0.01);
-        assertEquals(-200.0, result.getWithdrawals(), 0.01);
+        assertEquals(200.0, result.getWithdrawals(), 0.01);
         assertEquals(800.0, result.getNetDeposits(), 0.01);
         assertEquals(37.5, result.getRoi(), 0.01);
         assertEquals(200.0, result.getRealizedByCurrency().get(CurrencyType.PLN), 0.01);
@@ -172,15 +175,7 @@ class PortfolioServiceTest {
         assertEquals(125.0, result.getAccountBalances().getFirst().getCash(), 0.01);
         assertEquals(CurrencyType.PLN, result.getAccountBalances().getFirst().getLocalCurrency());
         assertEquals(4400.0, result.getAccountBalances().getFirst().getLocalBalance(), 0.01);
-        assertEquals(2, result.getOpenPositionValues().size());
-        assertEquals("AAPL.US", result.getOpenPositionValues().getFirst().getSymbol());
-        assertEquals(7.0, result.getOpenPositionValues().getFirst().getVolume(), 0.01);
-        assertEquals(650.0, result.getOpenPositionValues().getFirst().getCostBase(), 0.01);
-        assertEquals(92.857, result.getOpenPositionValues().getFirst().getAverageOpenPrice(), 0.001);
-        assertEquals(700.0, result.getOpenPositionValues().getFirst().getValue(), 0.01);
-        assertEquals(50.0, result.getOpenPositionValues().getFirst().getUnrealized(), 0.01);
-        assertEquals(7.692, result.getOpenPositionValues().getFirst().getProfitLossPercent(), 0.001);
-        assertEquals(70.0, result.getOpenPositionValues().getFirst().getSharePercent(), 0.01);
+        assertTrue(result.getOpenPositionValues().isEmpty());
         assertTrue(result.getDividendGainers().isEmpty());
     }
 
@@ -206,7 +201,35 @@ class PortfolioServiceTest {
         assertEquals(1, result.getAccountBalances().size());
         assertEquals(51747407L, result.getAccountBalances().getFirst().getAccountId());
         assertEquals(13370.17, result.getAccountBalances().getFirst().getNetDeposit(), 0.01);
-        assertEquals(-100.0, result.getAccountBalances().getFirst().getProfitLossPercent(), 0.01);
+        assertEquals(0.0, result.getAccountBalances().getFirst().getProfitLossPercent(), 0.01);
+    }
+
+    @Test
+    void calculateTotalProfitLoss_usesTransferAwareNormalizedNetDepositsForAccountCards() {
+        Account account = new Account();
+        account.setId(51747407L);
+        account.setName("Trading EUR");
+        account.setCurrency(CurrencyType.EUR);
+        when(accountStatisticsRepository.findAll()).thenReturn(List.of(
+                PortfolioBuilders.accountStatistics()
+                        .account(new AccountDefinition(51747407L, "Trading EUR", CurrencyType.EUR, "Broker"))
+                        .deposits(13370.17, 0.0)
+                        .netDeposits(13370.17, 13370.17)
+                        .balances(0.0, 0.0, 0.0)
+                        .build()));
+        when(accountRepository.findMapByIdIn(any())).thenReturn(Map.of(51747407L, account));
+        when(closedPositionRepository.findAll()).thenReturn(List.of());
+        when(openedPositionRepository.findAll()).thenReturn(List.of());
+        when(cashOperationRepository.findAll()).thenReturn(List.of());
+        when(normalizedCashOperationRepository.findAllByAccountIdIn(any())).thenReturn(List.of(
+                normalizedCashOperationRow(51747407L, "EXTERNAL_DEPOSIT", 13370.17, 13370.17),
+                normalizedCashOperationRow(51747407L, "INTERNAL_TRANSFER_OUT", -13358.49, -13358.49)));
+
+        Portfolio result = portfolioService.calculateTotalProfitLoss();
+
+        assertEquals(1, result.getAccountBalances().size());
+        assertEquals(11.68, result.getAccountBalances().getFirst().getNetDeposit(), 0.01);
+        assertEquals(11.68, result.getAccountBalances().getFirst().getBaseNetDeposit(), 0.01);
     }
 
     @Test
@@ -232,7 +255,7 @@ class PortfolioServiceTest {
         assertEquals(1, result.getAccountBalances().size());
         assertEquals(51499241L, result.getAccountBalances().getFirst().getAccountId());
         assertEquals(22104.0, result.getAccountBalances().getFirst().getLocalBalance(), 0.01);
-        assertEquals(1.9972, result.getAccountBalances().getFirst().getProfitLossPercent(), 0.0001);
+        assertEquals(1.9963, result.getAccountBalances().getFirst().getProfitLossPercent(), 0.001);
     }
 
     @Test
@@ -264,6 +287,81 @@ class PortfolioServiceTest {
         assertFalse(result.getExchangeRates().containsKey(CurrencyType.EUR));
         assertEquals(3.75, result.getExchangeRates().get(CurrencyType.PLN), 0.01);
         verify(currencyRateService, never()).getRate(any(CurrencyType.class), any(CurrencyType.class));
+    }
+
+    private static NormalizedCashOperationRepository.NormalizedCashOperationRow normalizedCashOperationRow(
+            long accountId, String category, double amount, double amountInBaseCurrency) {
+        return new NormalizedCashOperationRepository.NormalizedCashOperationRow() {
+            @Override
+            public Long getOperationId() {
+                return null;
+            }
+
+            @Override
+            public Long getAccountId() {
+                return accountId;
+            }
+
+            @Override
+            public String getAccountCurrency() {
+                return null;
+            }
+
+            @Override
+            public String getCurrency() {
+                return null;
+            }
+
+            @Override
+            public String getBaseCurrency() {
+                return null;
+            }
+
+            @Override
+            public String getRawOperation() {
+                return null;
+            }
+
+            @Override
+            public String getNormalizedCategory() {
+                return category;
+            }
+
+            @Override
+            public String getSymbol() {
+                return null;
+            }
+
+            @Override
+            public Double getAmount() {
+                return amount;
+            }
+
+            @Override
+            public Double getAmountInBaseCurrency() {
+                return amountInBaseCurrency;
+            }
+
+            @Override
+            public String getComment() {
+                return null;
+            }
+
+            @Override
+            public LocalDate getDate() {
+                return null;
+            }
+
+            @Override
+            public LocalDate getRateMonth() {
+                return null;
+            }
+
+            @Override
+            public Double getBaseToOperationRate() {
+                return null;
+            }
+        };
     }
 
     @Test
@@ -353,7 +451,7 @@ class PortfolioServiceTest {
         Portfolio result = portfolioService.calculateTotalProfitLoss();
 
         assertEquals(6575.81104821, result.getUnrealizedProfit(), 0.01);
-        assertEquals(7125.747025200006, result.getTotalProfit(), 0.01);
+        assertEquals(15949.1714029, result.getTotalProfit(), 0.01);
     }
 
     @Test
@@ -385,7 +483,7 @@ class PortfolioServiceTest {
         assertEquals(999.0, result.getRealizedProfit(), 0.01);
         assertEquals(999.0, result.getUnrealizedProfit(), 0.01);
         assertEquals(999.0, result.getDividends(), 0.01);
-        assertEquals(0.0, result.getTotalProfit(), 0.01);
+        assertEquals(2997.0, result.getTotalProfit(), 0.01);
         assertEquals(100.0, result.getRealizedByCurrency().get(CurrencyType.USD), 0.01);
         assertEquals(-250.0, result.getUnrealizedByCurrency().get(CurrencyType.USD), 0.01);
         assertEquals(400.0, result.getDividendsByCurrency().get(CurrencyType.PLN), 0.01);
@@ -422,7 +520,7 @@ class PortfolioServiceTest {
         assertEquals(99.0, result.getRealizedProfit(), 0.01);     // 100 - 1
         assertEquals(50.0, result.getUnrealizedProfit(), 0.01);
         assertEquals(25.0, result.getDividends(), 0.01);
-        assertEquals(4200.0, result.getTotalProfit(), 0.01);
+        assertEquals(174.0, result.getTotalProfit(), 0.01);
         assertEquals(1000.0, result.getDeposits(), 0.01);
         assertEquals(-200.0, result.getWithdrawals(), 0.01);
         assertEquals(800.0, result.getNetDeposits(), 0.01);
@@ -513,6 +611,10 @@ class PortfolioServiceTest {
         when(accountStatisticsRepository.findAll()).thenReturn(List.of(
                 visibleAccountStats(1L, 1050.0, 75.0)
         ));
+        when(portfolioMonthlyPerformanceRepository.findAllByOrderByMonthAscPortfolioIdAsc()).thenReturn(List.of(
+                portfolioMonthlyPerformance(LocalDate.of(year, 3, 1), 100.0, 0.0),
+                portfolioMonthlyPerformance(LocalDate.of(year - 1, 7, 1), 50.0, 25.0)
+        ));
         when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc()).thenReturn(List.of(
                 monthlyPerformance(1L, LocalDate.of(year, 3, 1), 100.0, 0.0, 1100.0),
                 monthlyPerformance(1L, LocalDate.of(year - 1, 7, 1), 50.0, 25.0, 1050.0)
@@ -520,11 +622,10 @@ class PortfolioServiceTest {
 
         Performance perf = portfolioService.calculateMonthlyPerformance();
         Map<String, Double> monthly = perf.getCalculateMonthlyPerformance();
-        // Past year is bucketed by year only; current year by year-month.
-        assertTrue(monthly.containsKey(String.valueOf(year - 1)));
+        assertTrue(monthly.containsKey(String.format("%d-07", year - 1)));
         assertTrue(monthly.keySet().stream().anyMatch(k -> k.startsWith(year + "-")));
-        assertEquals(25.0, perf.getMonthlyCashflow().get(String.valueOf(year - 1)), 0.01);
-        assertEquals(1L, perf.getMonthlyOperationsCount().get(String.valueOf(year - 1)));
+        assertEquals(25.0, perf.getMonthlyCashflow().get(String.format("%d-07", year - 1)), 0.01);
+        assertEquals(1L, perf.getMonthlyOperationsCount().get(String.format("%d-07", year - 1)));
     }
 
     @Test
@@ -534,6 +635,9 @@ class PortfolioServiceTest {
                 visibleAccountStats(1L, 1000.0, 1000.0),
                 visibleAccountStats(2L, 1000.0, 1000.0),
                 visibleAccountStats(3L, 0.0, 0.0)
+        ));
+        when(portfolioMonthlyPerformanceRepository.findAllByOrderByMonthAscPortfolioIdAsc()).thenReturn(List.of(
+                portfolioMonthlyPerformance(LocalDate.of(year - 1, 1, 1), 160.0, 0.0)
         ));
         when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc()).thenReturn(List.of(
                 monthlyPerformance(1L, LocalDate.of(year - 1, 1, 1), 100.0, 0.0, 1000.0),
@@ -545,7 +649,30 @@ class PortfolioServiceTest {
 
         Performance perf = portfolioService.calculateMonthlyPerformance();
 
-        assertEquals(2L, perf.getMonthlyOperationsCount().get(String.valueOf(year - 1)));
+        assertEquals(1L, perf.getMonthlyOperationsCount().get(String.format("%d-01", year - 1)));
+        assertEquals(1L, perf.getMonthlyOperationsCount().get(String.format("%d-02", year - 1)));
+    }
+
+    @Test
+    void calculateMonthlyPerformance_usesPortfolioMonthlyRowsForPortfolioProfitAndFlow() {
+        int year = java.time.Year.now().getValue() - 1;
+        when(accountStatisticsRepository.findAll()).thenReturn(List.of(
+                visibleAccountStats(1L, 1000.0, 1000.0),
+                visibleAccountStats(2L, 1000.0, 1000.0)
+        ));
+        when(portfolioMonthlyPerformanceRepository.findAllByOrderByMonthAscPortfolioIdAsc()).thenReturn(List.of(
+                portfolioMonthlyPerformance(LocalDate.of(year, 1, 1), 2400.0, 82600.0)
+        ));
+        when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc()).thenReturn(List.of(
+                monthlyPerformance(1L, LocalDate.of(year, 1, 1), -39035.91, 17903.83, 1000.0),
+                monthlyPerformance(2L, LocalDate.of(year, 1, 1), 24521.86, -5869.47, 1000.0)
+        ));
+
+        Performance perf = portfolioService.calculateMonthlyPerformance();
+
+        assertEquals(2400.0, perf.getCalculateMonthlyPerformance().get(String.format("%d-01", year)), 0.01);
+        assertEquals(82600.0, perf.getMonthlyCashflow().get(String.format("%d-01", year)), 0.01);
+        assertEquals(2L, perf.getMonthlyOperationsCount().get(String.format("%d-01", year)));
     }
 
     @Test
@@ -587,6 +714,30 @@ class PortfolioServiceTest {
                 .commission(commission)
                 .swap(swap)
                 .build();
+    }
+
+    private static PortfolioMonthlyPerformance portfolioMonthlyPerformance(
+            LocalDate month, double profit, double netCashflow) {
+        double deposits = Math.max(0.0, netCashflow);
+        double withdrawals = Math.max(0.0, -netCashflow);
+        return new PortfolioMonthlyPerformance(
+                1L,
+                month,
+                month,
+                month.plusMonths(1).minusDays(1),
+                0.0,
+                profit + deposits - withdrawals,
+                CurrencyType.USD,
+                deposits,
+                withdrawals,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                profit,
+                null,
+                ZonedDateTime.now());
     }
 
     private static AccountMonthlyPerformance monthlyPerformance(

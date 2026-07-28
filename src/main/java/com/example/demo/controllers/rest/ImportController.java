@@ -19,6 +19,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
+import java.util.Locale;
 
 @Slf4j
 @RestController
@@ -27,6 +28,20 @@ import java.io.IOException;
 public class ImportController {
 
     private final ImportOrchestratorService importOrchestratorService;
+
+    @PostMapping
+    ImportBatchResponse importAuto(@RequestParam("file") MultipartFile file,
+                                   @RequestParam(value = "source", required = false, defaultValue = "MANUAL") ImportSourceType sourceType,
+                                   @RequestParam(value = "sourceRef", required = false) String sourceRef) {
+        String fileName = file.getOriginalFilename() != null ? file.getOriginalFilename() : "upload.bin";
+        BrokerType brokerType = detectBrokerType(fileName);
+        return importOrchestratorService.importFile(
+                brokerType,
+                readBytes(file),
+                fileName,
+                sourceType,
+                sourceRef);
+    }
 
     @PostMapping("/broker/{broker}")
     ImportBatchResponse importByBroker(@PathVariable("broker") String broker,
@@ -40,6 +55,20 @@ public class ImportController {
                 file.getOriginalFilename() != null ? file.getOriginalFilename() : "upload.bin",
                 sourceType,
                 sourceRef);
+    }
+
+    private static BrokerType detectBrokerType(String fileName) {
+        String normalized = fileName.toLowerCase(Locale.ROOT);
+        if (normalized.endsWith(".csv")) {
+            return BrokerType.IBKR;
+        }
+        if (normalized.endsWith(".xlsx") || normalized.endsWith(".zip")) {
+            return BrokerType.XTB;
+        }
+        throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Unsupported import file extension for auto-detect: " + fileName
+                        + ". Supported: .csv -> IBKR, .xlsx/.zip -> XTB");
     }
 
 

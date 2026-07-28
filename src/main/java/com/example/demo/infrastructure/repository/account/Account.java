@@ -31,4 +31,7 @@ public class Account {
 
   @Column(name = "portfolio_id", nullable = false)
   private Long portfolioId;
+
+  @Column(name = "cash_only", nullable = false)
+  private boolean cashOnly;
 }

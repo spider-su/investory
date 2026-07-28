@@ -58,12 +58,27 @@ document.addEventListener("DOMContentLoaded", function () {
 
 const fileInput = document.getElementById('xtb-file-input');
 const uploadForm = document.getElementById('xtb-upload-form');
+const importStatementBtn = document.getElementById('import-statement-btn');
 const fileNameBadge = document.getElementById('file-chosen-name');
+
+if (importStatementBtn && fileInput) {
+    importStatementBtn.addEventListener('click', function () {
+        fileInput.click();
+    });
+}
 
 if (fileInput) {
     fileInput.addEventListener('change', function() {
         if (this.files && this.files.length > 0) {
             const file = this.files[0];
+            const originalImportText = importStatementBtn ? importStatementBtn.innerHTML : 'Import';
+            if (importStatementBtn) {
+                importStatementBtn.disabled = true;
+                importStatementBtn.setAttribute('aria-busy', 'true');
+                importStatementBtn.innerHTML = '<span class="iv-spinner" aria-hidden="true"></span> Importing…';
+            }
+            if (yahooGenerateBtn) yahooGenerateBtn.disabled = true;
+            if (refreshPricesBtn) refreshPricesBtn.disabled = true;
             fileNameBadge.innerText = "Uploading: " + file.name;
             fileNameBadge.style.display = 'inline-block';
 
@@ -103,6 +118,15 @@ if (fileInput) {
                 .catch(error => {
                     console.error('Error:', error);
                     alert('Failed to upload statement layout. Check server logs.');
+                })
+                .finally(() => {
+                    if (importStatementBtn) {
+                        importStatementBtn.disabled = false;
+                        importStatementBtn.removeAttribute('aria-busy');
+                        importStatementBtn.innerHTML = originalImportText;
+                    }
+                    if (yahooGenerateBtn) yahooGenerateBtn.disabled = false;
+                    if (refreshPricesBtn) refreshPricesBtn.disabled = false;
                 });
      }
    });
@@ -159,12 +183,22 @@ if (fileInput) {
 
  // Dashboard — refresh market prices and rebuild derived summaries
  const refreshPricesBtn = document.getElementById('refresh-prices-btn');
- const rebuildSummaryBtn = document.getElementById('rebuild-summary-btn');
+
+ function elapsedLabel(text, startedAt) {
+     return '<span class="iv-spinner" aria-hidden="true"></span> ' + text + ' (' + Math.floor((Date.now() - startedAt) / 1000) + 's)';
+ }
 
  function runDashboardMaintenance(button, url, loadingText, fallbackSuccess, errorLabel) {
      if (!button || !yahooExportStatus) return;
      button.disabled = true;
-     yahooExportStatus.innerText = loadingText;
+     const originalButtonHtml = button.innerHTML;
+     const startedAt = Date.now();
+     const timer = window.setInterval(function () {
+         yahooExportStatus.innerHTML = elapsedLabel(loadingText, startedAt);
+         button.innerHTML = elapsedLabel(loadingText, startedAt);
+     }, 1000);
+     yahooExportStatus.innerHTML = elapsedLabel(loadingText, startedAt);
+     button.innerHTML = elapsedLabel(loadingText, startedAt);
      yahooExportStatus.className = 'iv-badge iv-badge--muted';
      yahooExportStatus.style.display = 'inline-block';
 
@@ -191,7 +225,9 @@ if (fileInput) {
              yahooExportStatus.className = 'iv-badge iv-badge--neg';
          })
          .finally(() => {
+             window.clearInterval(timer);
              button.disabled = false;
+             button.innerHTML = originalButtonHtml;
          });
  }
 
@@ -199,21 +235,10 @@ if (fileInput) {
      refreshPricesBtn.addEventListener('click', function () {
          runDashboardMaintenance(
              refreshPricesBtn,
-             '/admin/refresh-prices',
-             '⏳ Refreshing prices…',
-             'Prices refreshed',
+             '/admin/update-history',
+             '⏳ Updating history…',
+             'History updated',
              'Dashboard price refresh');
-     });
- }
-
- if (rebuildSummaryBtn) {
-     rebuildSummaryBtn.addEventListener('click', function () {
-         runDashboardMaintenance(
-             rebuildSummaryBtn,
-             '/admin/rebuild-monthly',
-             '⏳ Rebuilding account stats…',
-             'Account stats rebuilt',
-             'Dashboard monthly rebuild');
      });
  }
 

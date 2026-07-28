@@ -53,11 +53,15 @@ CREATE TABLE IF NOT EXISTS investory.accounts (
     name            varchar(255) NOT NULL,
     owner           varchar(255) NOT NULL,
     portfolio_id    bigint NOT NULL REFERENCES investory.portfolios(id) ON DELETE CASCADE,
+    cash_only       boolean NOT NULL DEFAULT false,
     created_at      timestamptz NOT NULL DEFAULT now()
 );
 COMMENT ON TABLE investory.accounts IS 'Each account linked to a portfolio with own history, performance and statistics';
 COMMENT ON COLUMN investory.accounts.id IS 'Unique real identifier for the account in the broker system, used for linking cash flows and positions';
 COMMENT ON COLUMN investory.accounts.portfolio_id IS 'Reference to the portfolio this account belongs to';
+COMMENT ON COLUMN investory.accounts.cash_only IS
+    'When true, this account contributes cash operations only. Position trades and position valuation are excluded from projections and trading reports.';
+CREATE INDEX IF NOT EXISTS ix_accounts_cash_only ON investory.accounts(cash_only) WHERE cash_only;
 
 CREATE TABLE IF NOT EXISTS investory.assets(
     id               bigserial PRIMARY KEY,
@@ -485,3 +489,7 @@ DO $$
         END IF;
     END
 $$;
+
+-- Match Hibernate's pooled ID allocation for faster bulk imports.
+ALTER SEQUENCE IF EXISTS investory.assets_id_seq INCREMENT BY 50;
+ALTER SEQUENCE IF EXISTS investory.account_daily_id_seq INCREMENT BY 50;

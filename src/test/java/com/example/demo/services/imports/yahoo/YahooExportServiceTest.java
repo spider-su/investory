@@ -4,6 +4,7 @@ import com.example.demo.infrastructure.CurrencyType;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
 import com.example.demo.infrastructure.repository.account.AccountStatistics;
 import com.example.demo.infrastructure.repository.account.AccountStatisticsRepository;
+import com.example.demo.services.exports.yahoo.YahooExportService;
 import com.example.demo.testsupport.portfolio.PortfolioBuilders;
 import com.example.demo.testsupport.portfolio.PortfolioTestData;
 import com.opencsv.CSVReader;

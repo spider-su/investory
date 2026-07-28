@@ -7,7 +7,7 @@ import java.util.List;
 
 /**
  * Comparison of account monthly P/L against SPY performance from the same starting value,
- * expressed as cumulative USD P/L over time plus headline returns.
+ * expressed as cumulative USD P/L over time plus simple excess return in percentage points.
  */
 @Data
 public class Benchmark {
@@ -29,7 +29,7 @@ public class Benchmark {
     private double benchmarkPl;
     private double portfolioReturnPct;
     private double benchmarkReturnPct;
-    /** Portfolio return minus benchmark return, in percentage points. */
+    /** Portfolio return minus benchmark return, in percentage points. This is not risk-adjusted alpha. */
     private double alpha;
 
     private List<AccountOption> accountOptions = new ArrayList<>();

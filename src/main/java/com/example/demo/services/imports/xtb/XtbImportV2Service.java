@@ -33,7 +33,6 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -151,11 +150,12 @@ public class XtbImportV2Service {
 
       CurrencyType currency = inferCurrency(sourceName, cashOperations, closedPositions);
       cashOperations.forEach(op -> op.setCurrency(currency));
-      closedPositions.forEach(pos -> pos.setCurrency(currency));
 
       List<OpenedPosition> openedPositions =
           reconstructOpenedPositions(operationsForOpenReconstruction(account, cashOperations), account, currency);
       openedPositions = deduplicateOpenedPositions(openedPositions);
+
+      applyPositionCurrencies(closedPositions, openedPositions);
 
       ensureAssetsExist(cashOperations, closedPositions, openedPositions, currency);
       persistTradePriceHistory(closedPositions, openedPositions, currency);
@@ -627,6 +627,36 @@ public class XtbImportV2Service {
         position -> position.setSymbol(normalizedSymbol(position.getSymbol(), normalized)));
   }
 
+  private void applyPositionCurrencies(
+      List<ClosedPosition> closedPositions, List<OpenedPosition> openedPositions) {
+    Set<String> symbols = new HashSet<>();
+    closedPositions.stream()
+        .map(ClosedPosition::getSymbol)
+        .filter(StringUtils::hasText)
+        .forEach(symbols::add);
+    openedPositions.stream()
+        .map(OpenedPosition::getSymbol)
+        .filter(StringUtils::hasText)
+        .forEach(symbols::add);
+
+    Map<String, CurrencyType> assetCurrencyBySymbol =
+        assetRepository.findAllBySymbolIn(symbols).stream()
+            .filter(asset -> StringUtils.hasText(asset.getSymbol()))
+            .filter(asset -> asset.getCurrency() != null)
+            .collect(
+                java.util.stream.Collectors.toMap(
+                    Asset::getSymbol, Asset::getCurrency, (left, right) -> left));
+
+    closedPositions.forEach(
+        position ->
+            position.setCurrency(
+                resolvePositionCurrency(position.getSymbol(), assetCurrencyBySymbol)));
+    openedPositions.forEach(
+        position ->
+            position.setCurrency(
+                resolvePositionCurrency(position.getSymbol(), assetCurrencyBySymbol)));
+  }
+
   private String normalizedSymbol(String rawSymbol, Map<String, String> normalized) {
     if (!StringUtils.hasText(rawSymbol)) {
       return null;
@@ -644,8 +674,27 @@ public class XtbImportV2Service {
       if (quoteCurrency != null) {
         return quoteCurrency;
       }
+      AssetCatalogService.AssetSeed inferredSeed = assetCatalogService.seedForSymbol(symbol, null);
+      if (inferredSeed != null && inferredSeed.currency() != null) {
+        return inferredSeed.currency();
+      }
     }
     return firstNonNull(positionCurrency, defaultCurrency);
+  }
+
+  private CurrencyType resolvePositionCurrency(
+      String symbol, Map<String, CurrencyType> assetCurrencyBySymbol) {
+    if (StringUtils.hasText(symbol)) {
+      CurrencyType assetCurrency = assetCurrencyBySymbol.get(symbol);
+      if (assetCurrency != null) {
+        return assetCurrency;
+      }
+      AssetCatalogService.AssetSeed inferredSeed = assetCatalogService.seedForSymbol(symbol, null);
+      if (inferredSeed != null && inferredSeed.currency() != null) {
+        return inferredSeed.currency();
+      }
+    }
+    return null;
   }
 
   private Double normalizeTradeObservationPrice(Double rawPrice, Double grossValue, Double volume) {

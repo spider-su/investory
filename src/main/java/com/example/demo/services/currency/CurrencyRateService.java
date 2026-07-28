@@ -60,10 +60,6 @@ public class CurrencyRateService {
         }
     }
 
-    public void updateRates(CurrencyType base, Map<CurrencyType, Double> rates) {
-        updateRates(base, rates, LocalDate.now());
-    }
-
     public void updateRates(CurrencyType base, Map<CurrencyType, Double> rates, LocalDate date) {
         LocalDate rateMonth = toMonthStart(date);
         rates.forEach((toCurrency, rate) -> {
