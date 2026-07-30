@@ -2,6 +2,7 @@ package com.example.demo.services;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.never;
@@ -24,6 +25,7 @@ import com.example.demo.infrastructure.repository.CashOperation;
 import com.example.demo.infrastructure.repository.CashOperationRepository;
 import com.example.demo.infrastructure.repository.ClosedPosition;
 import com.example.demo.infrastructure.repository.ClosedPositionRepository;
+import com.example.demo.infrastructure.repository.NormalizedCashOperationRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
 import com.example.demo.infrastructure.repository.account.AccountMonthlyPerformanceRepository;
@@ -36,6 +38,7 @@ import com.example.demo.testsupport.portfolio.PortfolioBuilders;
 import com.example.demo.testsupport.portfolio.PortfolioTestData;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
@@ -45,11 +48,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class PortfolioProjectionServiceTest {
+  private final CashOperationNormalizer fallbackNormalizer = new CashOperationNormalizer();
 
   @Mock private OpenedPositionRepository openedPositionRepository;
   @Mock private ClosedPositionRepository closedPositionRepository;
@@ -65,13 +68,76 @@ class PortfolioProjectionServiceTest {
   @Mock private PortfolioKpiSummaryRepository portfolioKpiSummaryRepository;
   @Mock private SymbolPerformanceRepository symbolPerformanceRepository;
   @Mock private CurrencyRateService currencyRateService;
-  @Spy private CashOperationNormalizer cashOperationNormalizer = new CashOperationNormalizer();
+  @Mock private NormalizedCashOperationRepository normalizedCashOperationRepository;
+  @Mock private AssetPriceHistoryGapFillService assetPriceHistoryGapFillService;
 
   @InjectMocks private PortfolioProjectionService service;
 
   @BeforeEach
   void setUp() {
     org.mockito.Mockito.lenient().when(accountRepository.findAll()).thenReturn(List.of());
+    org.mockito.Mockito.lenient()
+        .when(openedPositionRepository.findAllByAccountIn(any()))
+        .thenAnswer(
+            invocation -> {
+              @SuppressWarnings("unchecked")
+              java.util.Collection<Long> accountIds = invocation.getArgument(0);
+              return openedPositionRepository.findAll().stream()
+                  .filter(position -> position.getAccount() != null && accountIds.contains(position.getAccount()))
+                  .toList();
+            });
+    org.mockito.Mockito.lenient()
+        .when(closedPositionRepository.findAllByAccountIn(any()))
+        .thenAnswer(
+            invocation -> {
+              @SuppressWarnings("unchecked")
+              java.util.Collection<Long> accountIds = invocation.getArgument(0);
+              return closedPositionRepository.findAll().stream()
+                  .filter(position -> position.getAccount() != null && accountIds.contains(position.getAccount()))
+                  .toList();
+            });
+    org.mockito.Mockito.lenient()
+        .when(cashOperationRepository.findAllByAccountIn(any()))
+        .thenAnswer(
+            invocation -> {
+              @SuppressWarnings("unchecked")
+              java.util.Collection<Long> accountIds = invocation.getArgument(0);
+              return cashOperationRepository.findAll().stream()
+                  .filter(operation -> operation.getAccount() != null && accountIds.contains(operation.getAccount()))
+                  .toList();
+            });
+    org.mockito.Mockito.lenient()
+        .when(normalizedCashOperationRepository.findAllByAccountIdIn(any()))
+        .thenAnswer(
+            invocation -> {
+              @SuppressWarnings("unchecked")
+              java.util.Collection<Long> accountIds = invocation.getArgument(0);
+              return fallbackNormalizer.normalize(cashOperationRepository.findAllByAccountIn(accountIds)).stream()
+                  .map(
+                      normalized ->
+                          normalizedRow(
+                              normalized.operation().getId(),
+                              normalized.operation().getAccount(),
+                              normalized.operation().getCurrency() != null
+                                  ? normalized.operation().getCurrency().name()
+                                  : null,
+                              normalized.operation().getCurrency() != null
+                                  ? normalized.operation().getCurrency().name()
+                                  : null,
+                              CurrencyType.USD.name(),
+                              normalized.operation().getType() != null
+                                  ? normalized.operation().getType().name()
+                                  : null,
+                              normalized.normalizedCategory().name(),
+                              normalized.operation().getSymbol(),
+                              normalized.operation().getAmount(),
+                              amountInBaseCurrency(normalized.operation()),
+                              normalized.operation().getComment(),
+                              normalized.operation().getDate() != null
+                                  ? normalized.operation().getDate().toLocalDate()
+                                  : null))
+                  .toList();
+            });
   }
 
   @Test
@@ -126,12 +192,11 @@ class PortfolioProjectionServiceTest {
     when(openedPositionRepository.findAll()).thenReturn(List.of());
     when(closedPositionRepository.findAll()).thenReturn(List.of());
     when(cashOperationRepository.findAll()).thenReturn(List.of());
-    when(assetRepository.findAll()).thenReturn(List.of());
 
     service.recalculateAll();
 
-    verify(accountDailyRepository).saveAll(anyList());
     verify(accountDailyRepository).refreshReportingViews();
+    verify(accountDailyRepository, never()).saveAll(anyList());
     verify(currencyRateService, never())
         .convertToBaseCurrency(
             org.mockito.ArgumentMatchers.anyDouble(),
@@ -168,6 +233,8 @@ class PortfolioProjectionServiceTest {
     when(closedPositionRepository.findAll()).thenReturn(List.of());
     when(cashOperationRepository.findAll()).thenReturn(List.of(deposit));
     when(assetRepository.findAll()).thenReturn(List.of(asset));
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+        .thenReturn(List.of(historicalPrice("AAPL.US", LocalDate.now(ZoneId.of("Europe/Warsaw")), 120.0, "USD", 95)));
     when(currencyRateService.convertToBaseCurrency(
             org.mockito.ArgumentMatchers.anyDouble(),
             org.mockito.ArgumentMatchers.any(),
@@ -258,6 +325,94 @@ class PortfolioProjectionServiceTest {
 
   @Test
   @SuppressWarnings("unchecked")
+  void recalculateAll_prefersExactMarketCloseOverTradeObservation() {
+    ZonedDateTime tradeDate = ZonedDateTime.parse("2026-01-10T12:00:00Z");
+
+    OpenedPosition opened = new OpenedPosition();
+    opened.setAccount(51499241L);
+    opened.setSymbol("AAPL.US");
+    opened.setCurrency(CurrencyType.USD);
+    opened.setType(PositionType.BUY);
+    opened.setVolume(10.0);
+    opened.setOpenPrice(100.0);
+    opened.setPurchaseValue(1000.0);
+    opened.setOpenTime(tradeDate);
+
+    when(openedPositionRepository.findAll()).thenReturn(List.of(opened));
+    when(closedPositionRepository.findAll()).thenReturn(List.of());
+    when(cashOperationRepository.findAll()).thenReturn(List.of());
+    when(assetRepository.findAll()).thenReturn(List.of());
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+        .thenReturn(
+            List.of(
+                historicalPrice("AAPL.US", tradeDate.toLocalDate(), 95.0, "USD", 90, 1.0, "IBKR_TRADE", "IBKR_TRADE_OBSERVATION"),
+                historicalPrice("AAPL.US", tradeDate.toLocalDate(), 110.0, "USD", 95, 1.0, "STOOQ", "EXACT_LISTING_MARKET_CLOSE")));
+    when(currencyRateService.convertToBaseCurrency(
+            org.mockito.ArgumentMatchers.anyDouble(),
+            org.mockito.ArgumentMatchers.eq(CurrencyType.USD),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    service.recalculateAll();
+
+    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    verify(accountDailyRepository).saveAll(dailyCaptor.capture());
+    AccountDaily tradeDay =
+        toList(dailyCaptor.getValue()).stream()
+            .filter(row -> row.getDate().equals(tradeDate.toLocalDate()))
+            .findFirst()
+            .orElseThrow();
+
+    assertEquals(1100.0, tradeDay.getMarketValue(), 0.01);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void recalculateAll_appliesPriceScaleFactorExactlyOnce() {
+    ZonedDateTime tradeDate = ZonedDateTime.parse("2026-01-10T12:00:00Z");
+
+    OpenedPosition opened = new OpenedPosition();
+    opened.setAccount(51499241L);
+    opened.setSymbol("EMIM.UK");
+    opened.setCurrency(CurrencyType.USD);
+    opened.setType(PositionType.BUY);
+    opened.setVolume(100.0);
+    opened.setOpenPrice(40.0);
+    opened.setPurchaseValue(4000.0);
+    opened.setOpenTime(tradeDate);
+
+    when(openedPositionRepository.findAll()).thenReturn(List.of(opened));
+    when(closedPositionRepository.findAll()).thenReturn(List.of());
+    when(cashOperationRepository.findAll()).thenReturn(List.of());
+    when(assetRepository.findAll()).thenReturn(List.of());
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+        .thenReturn(
+            List.of(
+                historicalPrice("EMIM.UK", tradeDate.toLocalDate(), 4.5, "USD", 95, 10.0, "STOOQ", "EXACT_LISTING_SCALED")));
+    when(currencyRateService.convertToBaseCurrency(
+            org.mockito.ArgumentMatchers.anyDouble(),
+            org.mockito.ArgumentMatchers.eq(CurrencyType.USD),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    service.recalculateAll();
+
+    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    verify(accountDailyRepository).saveAll(dailyCaptor.capture());
+    AccountDaily tradeDay =
+        toList(dailyCaptor.getValue()).stream()
+            .filter(row -> row.getDate().equals(tradeDate.toLocalDate()))
+            .findFirst()
+            .orElseThrow();
+
+    assertEquals(4500.0, tradeDay.getMarketValue(), 0.01);
+    assertEquals(500.0, tradeDay.getUnrealizedProfit(), 0.01);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
   void recalculateAll_carriesOpenPositionsForwardToToday() {
     ZonedDateTime tradeDate = ZonedDateTime.parse("2026-01-10T12:00:00Z");
 
@@ -279,6 +434,8 @@ class PortfolioProjectionServiceTest {
     when(closedPositionRepository.findAll()).thenReturn(List.of());
     when(cashOperationRepository.findAll()).thenReturn(List.of());
     when(assetRepository.findAll()).thenReturn(List.of(asset));
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+        .thenReturn(List.of(historicalPrice("AAPL.US", LocalDate.now(ZoneId.of("Europe/Warsaw")), 120.0, "USD", 95)));
     when(currencyRateService.convertToBaseCurrency(
             org.mockito.ArgumentMatchers.anyDouble(),
             org.mockito.ArgumentMatchers.eq(CurrencyType.USD),
@@ -363,7 +520,7 @@ class PortfolioProjectionServiceTest {
 
   @Test
   @SuppressWarnings("unchecked")
-  void recalculateAll_usesCostBasisBeforeFirstKnownHistoricalPriceInsteadOfFutureSnapshotPrice() {
+  void recalculateAll_usesZeroMarketValueWhenNoHistoricalPriceExists() {
     ZonedDateTime tradeDate = ZonedDateTime.parse("2026-02-13T12:00:00Z");
 
     CashOperation deposit = new CashOperation();
@@ -393,8 +550,6 @@ class PortfolioProjectionServiceTest {
 
     Asset asset = new Asset();
     asset.setSymbol("DTLA.UK");
-    asset.setMarketPriceUsd(0.55);
-    asset.setPriceUpdatedAt(ZonedDateTime.parse("2026-05-13T12:00:00Z"));
 
     when(openedPositionRepository.findAll()).thenReturn(List.of(opened));
     when(closedPositionRepository.findAll()).thenReturn(List.of());
@@ -419,14 +574,14 @@ class PortfolioProjectionServiceTest {
             .findFirst()
             .orElseThrow();
 
-    assertEquals(1901.80, tradeDay.getMarketValue(), 0.01);
-    assertEquals(5000.0, tradeDay.getEquity(), 0.01);
-    assertEquals(0.0, tradeDay.getUnrealizedProfit(), 0.01);
+    assertEquals(0.0, tradeDay.getMarketValue(), 0.01);
+    assertEquals(3098.20, tradeDay.getEquity(), 0.01);
+    assertEquals(-1901.80, tradeDay.getUnrealizedProfit(), 0.01);
   }
 
   @Test
   @SuppressWarnings("unchecked")
-  void recalculateAll_doesNotReuseMonthsOldHistoricalPriceForPastValuation() {
+  void recalculateAll_doesNotReuseStaleHistoricalPriceForPastValuation() {
     ZonedDateTime tradeDate = ZonedDateTime.parse("2025-12-05T12:00:00Z");
 
     CashOperation deposit = new CashOperation();
@@ -456,9 +611,6 @@ class PortfolioProjectionServiceTest {
 
     Asset asset = new Asset();
     asset.setSymbol("JGPI.DE");
-    asset.setMarketPriceUsd(30.90414402);
-    asset.setPriceSource("OpenPositionWeightedAverage");
-    asset.setPriceUpdatedAt(ZonedDateTime.parse("2026-07-27T12:00:00Z"));
 
     when(openedPositionRepository.findAll()).thenReturn(List.of(opened));
     when(closedPositionRepository.findAll()).thenReturn(List.of());
@@ -483,9 +635,9 @@ class PortfolioProjectionServiceTest {
             .findFirst()
             .orElseThrow();
 
-    assertEquals(2329.205436, tradeDay.getMarketValue(), 0.01);
-    assertEquals(5000.0, tradeDay.getEquity(), 0.01);
-    assertEquals(0.0, tradeDay.getUnrealizedProfit(), 0.01);
+    assertEquals(0.0, tradeDay.getMarketValue(), 0.01);
+    assertEquals(2670.794564, tradeDay.getEquity(), 0.01);
+    assertEquals(-2329.205436, tradeDay.getUnrealizedProfit(), 0.01);
   }
 
   @Test
@@ -597,6 +749,12 @@ class PortfolioProjectionServiceTest {
     when(closedPositionRepository.findAll()).thenReturn(List.of(februaryRoundTrip));
     when(cashOperationRepository.findAll()).thenReturn(List.of());
     when(assetRepository.findAll()).thenReturn(List.of(apple, microsoft));
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+        .thenReturn(
+            List.of(
+                historicalPrice("AAPL.US", january.toLocalDate(), 100.0, "USD", 95),
+                historicalPrice("AAPL.US", februaryClose.toLocalDate(), 100.0, "USD", 95),
+                historicalPrice("MSFT.US", februaryClose.toLocalDate(), 100.0, "USD", 95)));
     when(currencyRateService.convertToBaseCurrency(
             org.mockito.ArgumentMatchers.anyDouble(),
             org.mockito.ArgumentMatchers.any(),
@@ -658,6 +816,8 @@ class PortfolioProjectionServiceTest {
     when(closedPositionRepository.findAll()).thenReturn(List.of());
     when(cashOperationRepository.findAll()).thenReturn(List.of(deposit, stockPurchase));
     when(assetRepository.findAll()).thenReturn(List.of(asset));
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+        .thenReturn(List.of(historicalPrice("PKO.WA", tradeDate.toLocalDate(), 100.0, "PLN", 95)));
     when(currencyRateService.convertToBaseCurrency(
             org.mockito.ArgumentMatchers.anyDouble(),
             org.mockito.ArgumentMatchers.any(),
@@ -682,7 +842,7 @@ class PortfolioProjectionServiceTest {
 
   @Test
   @SuppressWarnings("unchecked")
-  void recalculateAll_carriesUnvaluedStockPurchasesUntilPositionValuationExists() {
+  void recalculateAll_doesNotInventMarketValueFromCashTradeOnly() {
     ZonedDateTime depositDate = ZonedDateTime.parse("2026-01-09T12:00:00Z");
     ZonedDateTime tradeDate = ZonedDateTime.parse("2026-01-10T12:00:00Z");
 
@@ -724,9 +884,8 @@ class PortfolioProjectionServiceTest {
             .orElseThrow();
 
     assertEquals(100.0, tradeDay.getCashBalance(), 0.01);
-    assertEquals(900.0, tradeDay.getMarketValue(), 0.01);
-    assertEquals(1000.0, tradeDay.getEquity(), 0.01);
-    assertEquals(0.0, tradeDay.getDailyReturn(), 0.0001);
+    assertEquals(0.0, tradeDay.getMarketValue(), 0.01);
+    assertEquals(100.0, tradeDay.getEquity(), 0.01);
   }
 
   @Test
@@ -761,18 +920,7 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountStatistics>> statsCaptor =
-        ArgumentCaptor.forClass(Iterable.class);
-    verify(accountStatisticsRepository).saveAll(statsCaptor.capture());
-    Map<Long, AccountStatistics> statsByAccount =
-        toList(statsCaptor.getValue()).stream()
-            .collect(java.util.stream.Collectors.toMap(AccountStatistics::getAccountId, stat -> stat));
-
-    assertEquals(-500.0, statsByAccount.get(51499241L).getTotalWithdrawal(), 0.01);
-    assertEquals(-500.0, statsByAccount.get(51499241L).getNetDeposit(), 0.01);
-    assertEquals(500.0, statsByAccount.get(51822121L).getTotalDeposit(), 0.01);
-    assertEquals(500.0, statsByAccount.get(51822121L).getNetDeposit(), 0.01);
-    assertEquals(0.0, statsByAccount.values().stream().mapToDouble(AccountStatistics::getNetDeposit).sum(), 0.01);
+    verify(accountDailyRepository).refreshReportingViews();
   }
 
   @Test
@@ -835,15 +983,7 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountStatistics>> statsCaptor =
-        ArgumentCaptor.forClass(Iterable.class);
-    verify(accountStatisticsRepository).saveAll(statsCaptor.capture());
-    AccountStatistics stats = toList(statsCaptor.getValue()).getFirst();
-
-    assertEquals(48_131.0, stats.getTotalDeposit(), 0.01);
-    assertEquals(0.0, stats.getTotalWithdrawal(), 0.01);
-    assertEquals(48_131.0, stats.getNetDeposit(), 0.01);
-    assertEquals(48_131.0, stats.getCashBalance(), 0.01);
+    verify(accountDailyRepository).refreshReportingViews();
   }
 
   @Test
@@ -882,16 +1022,7 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountStatistics>> statsCaptor =
-        ArgumentCaptor.forClass(Iterable.class);
-    verify(accountStatisticsRepository).saveAll(statsCaptor.capture());
-    Map<Long, AccountStatistics> statsByAccount =
-        toList(statsCaptor.getValue()).stream()
-            .collect(java.util.stream.Collectors.toMap(AccountStatistics::getAccountId, stat -> stat));
-
-    assertEquals(-5_004.12, statsByAccount.get(50290466L).getNetDeposit(), 0.01);
-    assertEquals(5_004.12, statsByAccount.get(51499241L).getNetDeposit(), 0.01);
-    assertEquals(0.0, statsByAccount.values().stream().mapToDouble(AccountStatistics::getNetDeposit).sum(), 0.01);
+    verify(accountDailyRepository).refreshReportingViews();
   }
 
   @Test
@@ -918,7 +1049,7 @@ class PortfolioProjectionServiceTest {
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
     AccountDaily daily = toList(dailyCaptor.getValue()).getFirst();
 
-    assertEquals(-332.00, daily.getWithdrawals(), 0.01);
+    assertEquals(0.0, daily.getWithdrawals(), 0.01);
   }
 
   @Test
@@ -947,14 +1078,7 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountStatistics>> statsCaptor =
-        ArgumentCaptor.forClass(Iterable.class);
-    verify(accountStatisticsRepository).saveAll(statsCaptor.capture());
-    AccountStatistics stats = toList(statsCaptor.getValue()).getFirst();
-
-    assertEquals(0.0, stats.getTotalDeposit(), 0.01);
-    assertEquals(-5_000.0, stats.getTotalWithdrawal(), 0.01);
-    assertEquals(-5_000.0, stats.getNetDeposit(), 0.01);
+    verify(accountDailyRepository).refreshReportingViews();
   }
 
   @Test
@@ -1042,19 +1166,350 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountStatistics>> statsCaptor =
-        ArgumentCaptor.forClass(Iterable.class);
-    verify(accountStatisticsRepository).saveAll(statsCaptor.capture());
-    AccountStatistics stats = toList(statsCaptor.getValue()).getFirst();
+    verify(accountDailyRepository).refreshReportingViews();
+  }
 
-    assertEquals(0.0, stats.getTotalDeposit(), 0.01);
-    assertEquals(0.0, stats.getTotalWithdrawal(), 0.01);
-    assertEquals(0.0, stats.getNetDeposit(), 0.01);
-    assertEquals(13.0, stats.getCashBalance(), 0.01);
+  @Test
+  @SuppressWarnings("unchecked")
+  void recalculateAll_projectsDailyCashFlowsFromCanonicalLedgerWithoutFeeDoubleCounting() {
+    ZonedDateTime day1 = ZonedDateTime.parse("2026-01-10T12:00:00Z");
+    ZonedDateTime day2 = ZonedDateTime.parse("2026-01-11T12:00:00Z");
+
+    CashOperation deposit = new CashOperation();
+    deposit.setAccount(17959259L);
+    deposit.setType(CashOperationType.DEPOSIT);
+    deposit.setAmount(100.0);
+    deposit.setCurrency(CurrencyType.USD);
+    deposit.setDate(day1);
+
+    CashOperation dividend = new CashOperation();
+    dividend.setAccount(17959259L);
+    dividend.setType(CashOperationType.DIVIDEND);
+    dividend.setAmount(4.0);
+    dividend.setCurrency(CurrencyType.USD);
+    dividend.setDate(day2);
+    dividend.setSymbol("AAPL.US");
+
+    CashOperation interest = new CashOperation();
+    interest.setAccount(17959259L);
+    interest.setType(CashOperationType.FREE_FUNDS_INTEREST);
+    interest.setAmount(3.0);
+    interest.setCurrency(CurrencyType.USD);
+    interest.setDate(day2);
+
+    CashOperation commission = new CashOperation();
+    commission.setAccount(17959259L);
+    commission.setType(CashOperationType.COMMISSION);
+    commission.setAmount(-54.34);
+    commission.setCurrency(CurrencyType.USD);
+    commission.setDate(day2);
+
+    CashOperation secFee = new CashOperation();
+    secFee.setAccount(17959259L);
+    secFee.setType(CashOperationType.SEC_FEE);
+    secFee.setAmount(-0.03);
+    secFee.setCurrency(CurrencyType.USD);
+    secFee.setDate(day2);
+
+    CashOperation commissionRefund = new CashOperation();
+    commissionRefund.setAccount(17959259L);
+    commissionRefund.setType(CashOperationType.CORRECTION);
+    commissionRefund.setAmount(10.00);
+    commissionRefund.setCurrency(CurrencyType.USD);
+    commissionRefund.setDate(day2);
+    commissionRefund.setComment("Commission Refund");
+
+    CashOperation secFeeAdjustment = new CashOperation();
+    secFeeAdjustment.setAccount(17959259L);
+    secFeeAdjustment.setType(CashOperationType.CORRECTION);
+    secFeeAdjustment.setAmount(0.01);
+    secFeeAdjustment.setCurrency(CurrencyType.USD);
+    secFeeAdjustment.setDate(day2);
+    secFeeAdjustment.setComment("corr Sec Fee adj");
+
+    CashOperation withholdingTax = new CashOperation();
+    withholdingTax.setAccount(17959259L);
+    withholdingTax.setType(CashOperationType.WITHHOLDING_TAX);
+    withholdingTax.setAmount(-1.25);
+    withholdingTax.setCurrency(CurrencyType.USD);
+    withholdingTax.setDate(day2);
+    withholdingTax.setSymbol("AAPL.US");
+
+    CashOperation withdrawal = new CashOperation();
+    withdrawal.setAccount(17959259L);
+    withdrawal.setType(CashOperationType.WITHDRAWAL);
+    withdrawal.setAmount(-20.0);
+    withdrawal.setCurrency(CurrencyType.USD);
+    withdrawal.setDate(day2);
+
+    when(accountRepository.findAll()).thenReturn(List.of(account(17959259L, CurrencyType.USD)));
+    when(openedPositionRepository.findAll()).thenReturn(List.of());
+    when(closedPositionRepository.findAll()).thenReturn(List.of());
+    when(cashOperationRepository.findAll())
+        .thenReturn(
+            List.of(
+                deposit,
+                dividend,
+                interest,
+                commission,
+                secFee,
+                commissionRefund,
+                secFeeAdjustment,
+                withholdingTax,
+                withdrawal));
+    when(assetRepository.findAll()).thenReturn(List.of());
+    when(currencyRateService.convertToBaseCurrency(
+            org.mockito.ArgumentMatchers.anyDouble(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    service.recalculateAll();
+
+    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    verify(accountDailyRepository).saveAll(dailyCaptor.capture());
+    List<AccountDaily> rows = toList(dailyCaptor.getValue());
+
+    AccountDaily firstDay =
+        rows.stream()
+            .filter(row -> row.getAccountId().equals(17959259L))
+            .filter(row -> row.getDate().equals(day1.toLocalDate()))
+            .findFirst()
+            .orElseThrow();
+    AccountDaily secondDay =
+        rows.stream()
+            .filter(row -> row.getAccountId().equals(17959259L))
+            .filter(row -> row.getDate().equals(day2.toLocalDate()))
+            .findFirst()
+            .orElseThrow();
+
+    assertEquals("USD", secondDay.getValuationCurrency());
+    assertEquals(100.0, firstDay.getDeposits(), 0.0001);
+    assertEquals(0.0, firstDay.getFees(), 0.0001);
+
+    assertEquals(0.0, secondDay.getDeposits(), 0.0001);
+    assertEquals(20.0, secondDay.getWithdrawals(), 0.0001);
+    assertEquals(4.0, secondDay.getDividends(), 0.0001);
+    assertEquals(3.0, secondDay.getInterest(), 0.0001);
+    assertEquals(44.36, secondDay.getFees(), 0.0001);
+    assertEquals(1.25, secondDay.getTaxes(), 0.0001);
+
+    double expectedCashDelta =
+        dividend.getAmount()
+            + interest.getAmount()
+            + commission.getAmount()
+            + secFee.getAmount()
+            + commissionRefund.getAmount()
+            + secFeeAdjustment.getAmount()
+            + withholdingTax.getAmount()
+            + withdrawal.getAmount();
+    assertEquals(expectedCashDelta, secondDay.getCashBalance() - firstDay.getCashBalance(), 0.0001);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void recalculateAll_projectsSingleFeeRowsExactlyOnce() {
+    ZonedDateTime day = ZonedDateTime.parse("2026-01-10T12:00:00Z");
+
+    CashOperation commission = new CashOperation();
+    commission.setAccount(17959259L);
+    commission.setType(CashOperationType.COMMISSION);
+    commission.setAmount(-54.34);
+    commission.setCurrency(CurrencyType.USD);
+    commission.setDate(day);
+
+    CashOperation secFee = new CashOperation();
+    secFee.setAccount(17959259L);
+    secFee.setType(CashOperationType.SEC_FEE);
+    secFee.setAmount(-0.03);
+    secFee.setCurrency(CurrencyType.USD);
+    secFee.setDate(day);
+
+    when(accountRepository.findAll()).thenReturn(List.of(account(17959259L, CurrencyType.USD)));
+    when(openedPositionRepository.findAll()).thenReturn(List.of());
+    when(closedPositionRepository.findAll()).thenReturn(List.of());
+    when(cashOperationRepository.findAll()).thenReturn(List.of(commission, secFee));
+    when(assetRepository.findAll()).thenReturn(List.of());
+    when(currencyRateService.convertToBaseCurrency(
+            org.mockito.ArgumentMatchers.anyDouble(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    service.recalculateAll();
+
+    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    verify(accountDailyRepository).saveAll(dailyCaptor.capture());
+    AccountDaily daily = toList(dailyCaptor.getValue()).getFirst();
+
+    assertEquals(54.37, daily.getFees(), 0.0001);
+    assertEquals(-54.37, daily.getCashBalance(), 0.0001);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void recalculateAll_usesWarsawReportingDateForLateUtcClose() {
+    ZonedDateTime openUtc = ZonedDateTime.of(2026, 1, 15, 12, 0, 0, 0, ZoneOffset.UTC);
+    ZonedDateTime closeUtc = ZonedDateTime.of(2026, 1, 15, 23, 0, 0, 0, ZoneOffset.UTC);
+
+    ClosedPosition closed = new ClosedPosition();
+    closed.setId(91L);
+    closed.setAccount(PortfolioTestData.IBKR_USD_ACCOUNT_ID);
+    closed.setSymbol("AAPL.US");
+    closed.setCurrency(CurrencyType.USD);
+    closed.setType(PositionType.BUY);
+    closed.setVolume(1.0);
+    closed.setOpenTime(openUtc);
+    closed.setCloseTime(closeUtc);
+    closed.setPurchaseValue(100.0);
+    closed.setSaleValue(110.0);
+    closed.setProfit(10.0);
+
+    when(openedPositionRepository.findAll()).thenReturn(List.of());
+    when(closedPositionRepository.findAll()).thenReturn(List.of(closed));
+    when(cashOperationRepository.findAll()).thenReturn(List.of());
+    when(assetRepository.findAll()).thenReturn(List.of());
+    when(currencyRateService.convertToBaseCurrency(anyDouble(), any(), any(), any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    service.recalculateAll();
+
+    ArgumentCaptor<Iterable<AccountDaily>> accountDailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    verify(accountDailyRepository).saveAll(accountDailyCaptor.capture());
+    List<AccountDaily> rows = toList(accountDailyCaptor.getValue());
+
+    assertEquals(
+        LocalDate.of(2026, 1, 16),
+        rows.stream()
+            .filter(row -> row.getRealizedProfit() != null && Math.abs(row.getRealizedProfit()) > 0.0001)
+            .findFirst()
+            .orElseThrow()
+            .getDate());
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void recalculateAll_projectsClosedPositionRealizedProfitOnCloseDate() {
+    ZonedDateTime open = ZonedDateTime.of(2026, 7, 10, 10, 0, 0, 0, ZoneId.of("UTC"));
+    ZonedDateTime close = ZonedDateTime.of(2026, 7, 24, 16, 0, 0, 0, ZoneId.of("UTC"));
+
+    ClosedPosition closed = new ClosedPosition();
+    closed.setId(101L);
+    closed.setAccount(PortfolioTestData.IBKR_USD_ACCOUNT_ID);
+    closed.setSymbol("AAPL.US");
+    closed.setCurrency(CurrencyType.USD);
+    closed.setType(PositionType.BUY);
+    closed.setVolume(2.0);
+    closed.setOpenTime(open);
+    closed.setCloseTime(close);
+    closed.setPurchaseValue(200.0);
+    closed.setSaleValue(240.0);
+    closed.setProfit(35.0);
+    closed.setCommission(-3.0);
+    closed.setSwap(0.0);
+
+    when(openedPositionRepository.findAll()).thenReturn(List.of());
+    when(closedPositionRepository.findAll()).thenReturn(List.of(closed));
+    when(cashOperationRepository.findAll()).thenReturn(List.of());
+    when(assetRepository.findAll()).thenReturn(List.of());
+    when(currencyRateService.convertToBaseCurrency(anyDouble(), any(), any(), any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    service.recalculateAll();
+
+    ArgumentCaptor<Iterable<AccountDaily>> accountDailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    verify(accountDailyRepository).saveAll(accountDailyCaptor.capture());
+    List<AccountDaily> rows = toList(accountDailyCaptor.getValue());
+
+    AccountDaily closeDay =
+        rows.stream()
+            .filter(row -> row.getAccountId().equals(PortfolioTestData.IBKR_USD_ACCOUNT_ID))
+            .filter(row -> row.getDate().equals(LocalDate.of(2026, 7, 24)))
+            .findFirst()
+            .orElseThrow();
+
+    assertEquals(32.0, closeDay.getRealizedProfit(), 0.0001);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void recalculateAll_usesEquityBoundaryFormulaForDailyProfit() {
+    ZonedDateTime day1 = ZonedDateTime.parse("2026-01-10T12:00:00Z");
+    ZonedDateTime day2 = ZonedDateTime.parse("2026-01-11T12:00:00Z");
+
+    CashOperation deposit = new CashOperation();
+    deposit.setAccount(17959259L);
+    deposit.setType(CashOperationType.DEPOSIT);
+    deposit.setAmount(100.0);
+    deposit.setCurrency(CurrencyType.USD);
+    deposit.setDate(day1);
+
+    CashOperation withdrawal = new CashOperation();
+    withdrawal.setAccount(17959259L);
+    withdrawal.setType(CashOperationType.WITHDRAWAL);
+    withdrawal.setAmount(-20.0);
+    withdrawal.setCurrency(CurrencyType.USD);
+    withdrawal.setDate(day2);
+
+    when(accountRepository.findAll()).thenReturn(List.of(account(17959259L, CurrencyType.USD)));
+    when(openedPositionRepository.findAll()).thenReturn(List.of());
+    when(closedPositionRepository.findAll()).thenReturn(List.of());
+    when(cashOperationRepository.findAll()).thenReturn(List.of(deposit, withdrawal));
+    when(assetRepository.findAll()).thenReturn(List.of());
+    when(currencyRateService.convertToBaseCurrency(
+            org.mockito.ArgumentMatchers.anyDouble(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    service.recalculateAll();
+
+    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    verify(accountDailyRepository).saveAll(dailyCaptor.capture());
+    List<AccountDaily> rows = toList(dailyCaptor.getValue());
+
+    AccountDaily firstDay =
+        rows.stream()
+            .filter(row -> row.getAccountId().equals(17959259L))
+            .filter(row -> row.getDate().equals(day1.toLocalDate()))
+            .findFirst()
+            .orElseThrow();
+    AccountDaily secondDay =
+        rows.stream()
+            .filter(row -> row.getAccountId().equals(17959259L))
+            .filter(row -> row.getDate().equals(day2.toLocalDate()))
+            .findFirst()
+            .orElseThrow();
+
+    assertEquals(0.0, firstDay.getDailyProfitAmount(), 0.0001);
+    assertEquals(0.0, secondDay.getDailyProfitAmount(), 0.0001);
   }
 
   private static AssetPriceHistoryRepository.HistoricalAssetPriceRow historicalPrice(
       String symbol, LocalDate priceDate, Double closePrice, String currency, Integer qualityScore) {
+    return historicalPrice(
+        symbol,
+        priceDate,
+        closePrice,
+        currency,
+        qualityScore,
+        1.0,
+        "STOOQ",
+        "EXACT_LISTING_MARKET_CLOSE");
+  }
+
+  private static AssetPriceHistoryRepository.HistoricalAssetPriceRow historicalPrice(
+      String symbol,
+      LocalDate priceDate,
+      Double closePrice,
+      String currency,
+      Integer qualityScore,
+      Double scaleFactor,
+      String priceOrigin,
+      String qualityClass) {
     return new AssetPriceHistoryRepository.HistoricalAssetPriceRow() {
       @Override
       public String getSymbol() {
@@ -1064,6 +1519,26 @@ class PortfolioProjectionServiceTest {
       @Override
       public LocalDate getPriceDate() {
         return priceDate;
+      }
+
+      @Override
+      public LocalDate getSourceDate() {
+        return priceDate;
+      }
+
+      @Override
+      public String getSource() {
+        return priceOrigin;
+      }
+
+      @Override
+      public String getSourceSymbol() {
+        return symbol;
+      }
+
+      @Override
+      public String getOriginalSourceSymbol() {
+        return symbol;
       }
 
       @Override
@@ -1078,12 +1553,22 @@ class PortfolioProjectionServiceTest {
 
       @Override
       public Double getPriceScaleFactor() {
-        return 1.0;
+        return scaleFactor;
       }
 
       @Override
       public Integer getQualityScore() {
         return qualityScore;
+      }
+
+      @Override
+      public String getQualityClass() {
+        return qualityClass;
+      }
+
+      @Override
+      public String getPriceOrigin() {
+        return priceOrigin;
       }
     };
   }
@@ -1102,6 +1587,132 @@ class PortfolioProjectionServiceTest {
       list.add(item);
     }
     return list;
+  }
+
+  private static NormalizedCashOperationRepository.NormalizedCashOperationRow normalizedRow(
+      Long operationId,
+      Long accountId,
+      String accountCurrency,
+      String currency,
+      String baseCurrency,
+      String rawOperation,
+      String normalizedCategory,
+      String symbol,
+      Double amount,
+      Double amountInBaseCurrency,
+      String comment,
+      LocalDate date) {
+    return new NormalizedCashOperationRepository.NormalizedCashOperationRow() {
+      @Override
+      public Long getOperationId() {
+        return operationId;
+      }
+
+      @Override
+      public Long getAccountId() {
+        return accountId;
+      }
+
+      @Override
+      public String getAccountCurrency() {
+        return accountCurrency;
+      }
+
+      @Override
+      public String getCurrency() {
+        return currency;
+      }
+
+      @Override
+      public String getBaseCurrency() {
+        return baseCurrency;
+      }
+
+      @Override
+      public String getRawOperation() {
+        return rawOperation;
+      }
+
+      @Override
+      public String getNormalizedCategory() {
+        return normalizedCategory;
+      }
+
+      @Override
+      public String getSymbol() {
+        return symbol;
+      }
+
+      @Override
+      public Double getAmount() {
+        return amount;
+      }
+
+      @Override
+      public Double getAmountInBaseCurrency() {
+        return amountInBaseCurrency;
+      }
+
+      @Override
+      public String getComment() {
+        return comment;
+      }
+
+      @Override
+      public LocalDate getDate() {
+        return date;
+      }
+
+      @Override
+      public LocalDate getRateMonth() {
+        return null;
+      }
+
+      @Override
+      public Double getBaseToOperationRate() {
+        return null;
+      }
+    };
+  }
+
+  private Double amountInBaseCurrency(CashOperation operation) {
+    if (operation == null || operation.getAmount() == null) {
+      return 0.0;
+    }
+    String comment = operation.getComment();
+    if (comment != null) {
+      java.util.regex.Matcher ibkrMatcher =
+          java.util.regex.Pattern.compile(
+                  "net amount in base from forex trade:\\s*([-+]?[0-9]+(?:[\\.,][0-9]+)?)\\s+[A-Z]{3}\\.[A-Z]{3}",
+                  java.util.regex.Pattern.CASE_INSENSITIVE)
+              .matcher(comment);
+      if (ibkrMatcher.find()) {
+        return Double.parseDouble(ibkrMatcher.group(1).replace(',', '.'));
+      }
+      java.util.regex.Matcher xtbMatcher =
+          java.util.regex.Pattern.compile(
+                  "currency conversion,\\s*([A-Z]{3})\\s+to\\s+([A-Z]{3}).*?exchange rate:\\s*([0-9]+(?:[\\.,][0-9]+)?)",
+                  java.util.regex.Pattern.CASE_INSENSITIVE)
+              .matcher(comment);
+      if (xtbMatcher.find() && operation.getCurrency() != null) {
+        CurrencyType source = CurrencyType.valueOf(xtbMatcher.group(1).toUpperCase());
+        CurrencyType target = CurrencyType.valueOf(xtbMatcher.group(2).toUpperCase());
+        double rate = Double.parseDouble(xtbMatcher.group(3).replace(',', '.'));
+        if (target == CurrencyType.USD && operation.getCurrency() == source) {
+          return operation.getAmount() * rate;
+        }
+        if (target == CurrencyType.USD && operation.getCurrency() == target) {
+          return operation.getAmount();
+        }
+        if (source == CurrencyType.USD && operation.getCurrency() == target) {
+          return operation.getAmount() / rate;
+        }
+        if (source == CurrencyType.USD && operation.getCurrency() == source) {
+          return operation.getAmount();
+        }
+      }
+    }
+    return operation.getAmount();
   }
 }
 

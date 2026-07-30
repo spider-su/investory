@@ -13,6 +13,7 @@ public class AccountBalance {
   private Long accountId;
   private String accountName;
   private Double netDeposit;
+  private Double baseNetDeposit;
   private Double profitLossPercent;
   private double balance;
   private double cash;

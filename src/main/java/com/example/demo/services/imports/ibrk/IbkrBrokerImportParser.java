@@ -21,7 +21,7 @@ public class IbkrBrokerImportParser implements BrokerImportParser {
 
     @Override
     public ImportExecutionResult importFile(InputStream inputStream, String fileName) throws Exception {
-        return ibkrImportService.importStatement(inputStream);
+        return ibkrImportService.importStatement(inputStream, fileName);
     }
 }
 

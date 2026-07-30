@@ -19,6 +19,10 @@ public interface ClosedPositionRepository extends JpaRepository<ClosedPosition, 
 	List<ClosedPosition> findAllByAccountIn(@Param("accounts") Collection<Long> accounts);
 
 	@Modifying
+	@Query("DELETE FROM ClosedPosition cp WHERE cp.closeTime IS NOT NULL AND cp.account = :account")
+	void deleteByAccount(@Param("account") Long account);
+
+	@Modifying
 	@Query(
 			value = """
 					DELETE FROM investory.positions p

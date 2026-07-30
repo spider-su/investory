@@ -536,6 +536,11 @@ public final class PortfolioBuilders {
       return this;
     }
 
+    public AccountStatisticsBuilder netDeposits(double netDepositBase, double ignoredLocalNetDeposit) {
+      statistics.setNetDeposit(netDepositBase);
+      return this;
+    }
+
     public AccountStatisticsBuilder performance(
         double realizedProfit, double unrealizedProfit, double dividends) {
       statistics.setRealizedProfit(realizedProfit);

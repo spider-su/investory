@@ -18,6 +18,7 @@ import com.example.demo.infrastructure.repository.CashOperation;
 import com.example.demo.infrastructure.repository.CashOperationRepository;
 import com.example.demo.infrastructure.repository.ClosedPosition;
 import com.example.demo.infrastructure.repository.ClosedPositionRepository;
+import com.example.demo.infrastructure.repository.NormalizedCashOperationRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
 import com.example.demo.infrastructure.repository.portfolio.PortfolioAssetAllocation;
@@ -28,11 +29,9 @@ import com.example.demo.infrastructure.repository.portfolio.PortfolioKpiSummary;
 import com.example.demo.infrastructure.repository.portfolio.PortfolioKpiSummaryRepository;
 import com.example.demo.infrastructure.repository.portfolio.SymbolPerformance;
 import com.example.demo.infrastructure.repository.portfolio.SymbolPerformanceRepository;
-import com.example.demo.services.CashOperationNormalizer.NormalizedCashOperation;
 import com.example.demo.services.CashOperationNormalizer.NormalizedCategory;
 import com.example.demo.services.currency.CurrencyRateService;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -43,12 +42,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.NavigableMap;
-import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -65,16 +61,9 @@ public class PortfolioProjectionService {
   private static final double EPSILON = 1e-9;
   private static final double NEAR_EMPTY_ACCOUNT_VALUE_THRESHOLD = 50.0;
   private static final long MAX_HISTORICAL_PRICE_STALENESS_DAYS = 10;
-  private static final ZoneId DEFAULT_ZONE = ZoneId.of("Europe/Warsaw");
-  private static final Pattern XTB_CURRENCY_CONVERSION_PATTERN =
-      Pattern.compile(
-          "currency conversion,\\s*([A-Z]{3})\\s+to\\s+([A-Z]{3}).*?exchange rate:\\s*([0-9]+(?:[\\.,][0-9]+)?)",
-          Pattern.CASE_INSENSITIVE);
-  private static final Pattern IBKR_FOREX_BASE_AMOUNT_PATTERN =
-      Pattern.compile(
-          "net amount in base from forex trade:\\s*([-+]?[0-9]+(?:[\\.,][0-9]+)?)\\s+[A-Z]{3}\\.[A-Z]{3}",
-          Pattern.CASE_INSENSITIVE);
-  private static final Pattern COMPACT_BOND_SYMBOL_PATTERN = Pattern.compile("^[A-Z]\\d{9}(?:\\.[A-Z]{2})?$");
+  private static final String QUALITY_EXACT_LISTING_MARKET_CLOSE = "EXACT_LISTING_MARKET_CLOSE";
+  private static final String QUALITY_EXACT_LISTING_SCALED = "EXACT_LISTING_SCALED";
+  private static final String QUALITY_STALE_CARRY_FORWARD = "STALE_CARRY_FORWARD";
 
   private final OpenedPositionRepository openedPositionRepository;
   private final ClosedPositionRepository closedPositionRepository;
@@ -90,17 +79,19 @@ public class PortfolioProjectionService {
   private final PortfolioKpiSummaryRepository portfolioKpiSummaryRepository;
   private final SymbolPerformanceRepository symbolPerformanceRepository;
   private final CurrencyRateService currencyRateService;
-  private final CashOperationNormalizer cashOperationNormalizer;
+  private final NormalizedCashOperationRepository normalizedCashOperationRepository;
+  private final AssetPriceHistoryGapFillService assetPriceHistoryGapFillService;
 
   @Transactional
   public void recalculateAll() {
+    assetPriceHistoryGapFillService.fillMissingBusinessDayGaps(ReportingDateHelper.today());
     Set<Long> accountIds = allKnownAccountIds();
     recalculateAccounts(accountIds);
   }
 
   @Transactional
   public void recalculateAccounts(Set<Long> accountIds) {
-    ZonedDateTime now = ZonedDateTime.now(DEFAULT_ZONE);
+    ZonedDateTime now = ReportingDateHelper.now();
     if (accountIds == null || accountIds.isEmpty()) {
       rebuildDerivedSummaries(now);
       return;
@@ -142,7 +133,8 @@ public class PortfolioProjectionService {
             .map(key -> new AccountTickerKey(key.accountId(), key.ticker()))
             .collect(Collectors.toSet());
     Set<AccountTickerKey> cashSettledTickers = cashSettledTickers(cash);
-    List<NormalizedCashOperation> normalizedCash = cashOperationNormalizer.normalize(cash);
+    List<CanonicalNormalizedCashOperation> normalizedCash =
+        loadNormalizedCashOperations(affectedAccounts, accountCurrencies);
     processCash(
         normalizedCash, positions, tickerDaily, accountDaily, accountCurrencies, positionValuedTickers);
 
@@ -255,8 +247,6 @@ public class PortfolioProjectionService {
         dayAcc.buyQty += volume;
         dayAcc.buyValue += valueBase;
       }
-      double feesBase = convert(nz(position.getCommission()) + nz(position.getSwap()), currency, date);
-      dayAcc.fees += feesBase;
     }
   }
 
@@ -318,49 +308,54 @@ public class PortfolioProjectionService {
         closeAcc.sellQty += volume;
         closeAcc.sellValue += closeValueBase;
       }
-      double realizedBase = convert(netRealized, currency, closeDate);
-      double feesBase = convert(nz(position.getCommission()) + nz(position.getSwap()), currency, closeDate);
-      closeAcc.realizedProfit += realizedBase;
-      closeAcc.fees += feesBase;
+      closeAcc.realizedProfit += convert(netRealized, currency, closeDate);
     }
   }
 
   private void processCash(
-      List<NormalizedCashOperation> cash,
+      List<CanonicalNormalizedCashOperation> cash,
       Map<PositionKey, PositionAccumulator> positions,
       Map<DayTickerKey, TickerMonthAccumulator> tickerDaily,
       Map<DayAccountKey, AccountMonthAccumulator> accountDaily,
       Map<Long, CurrencyType> accountCurrencies,
       Set<AccountTickerKey> positionValuedTickers) {
-    for (NormalizedCashOperation normalized : cash) {
-      CashOperation operation = normalized.operation();
-      if (operation.getAccount() == null || operation.getType() == null) {
+    for (CanonicalNormalizedCashOperation normalized : cash) {
+      if (normalized.accountId() == null || normalized.normalizedCategory() == null) {
         continue;
       }
 
-      CurrencyType currency = operation.getCurrency() != null ? operation.getCurrency() : BASE_CURRENCY;
-      CurrencyType accountCurrency = accountCurrencies.getOrDefault(operation.getAccount(), currency);
-      LocalDate date = toDate(operation.getDate());
-      double amount = nz(operation.getAmount());
-      double amountBase = cashFlowAmountBase(operation, amount, currency, date);
+      CurrencyType currency = normalized.currency() != null ? normalized.currency() : BASE_CURRENCY;
+      CurrencyType accountCurrency = accountCurrencies.getOrDefault(normalized.accountId(), currency);
+      LocalDate date = normalized.date();
+      double amount = nz(normalized.amount());
+      double amountBase = nz(normalized.amountInBaseCurrency());
       double amountAccountCurrency = convertBetween(amount, accountCurrency, currency, date);
 
-      DayAccountKey accountKey = DayAccountKey.of(operation.getAccount(), date);
+      /*
+       * Daily cash-flow fields in account_daily come from one canonical source only:
+       * normalized cash operations.
+       *
+       * Position pipelines feed valuation and realized trade P/L, but never deposits,
+       * withdrawals, dividends, interest, fees, or taxes. That avoids double counting
+       * commissions / SEC fees already present in the canonical cash ledger.
+       */
+      DayAccountKey accountKey = DayAccountKey.of(normalized.accountId(), date);
       AccountMonthAccumulator accountAcc =
           accountDaily.computeIfAbsent(accountKey, ignored -> new AccountMonthAccumulator());
       boolean hasPositionValuation =
-          StringUtils.hasText(operation.getSymbol())
-              && positionValuedTickers.contains(new AccountTickerKey(operation.getAccount(), operation.getSymbol()));
+          StringUtils.hasText(normalized.symbol())
+              && positionValuedTickers.contains(
+                  new AccountTickerKey(normalized.accountId(), normalized.symbol()));
       accountAcc.apply(normalized, amountBase, amountAccountCurrency, hasPositionValuation);
 
-      if (!StringUtils.hasText(operation.getSymbol())) {
+      if (!StringUtils.hasText(normalized.symbol())) {
         continue;
       }
-      DayTickerKey tickerKey = DayTickerKey.of(operation.getAccount(), operation.getSymbol(), date);
+      DayTickerKey tickerKey = DayTickerKey.of(normalized.accountId(), normalized.symbol(), date);
       TickerMonthAccumulator tickerAcc =
           tickerDaily.computeIfAbsent(tickerKey, ignored -> new TickerMonthAccumulator());
 
-      PositionKey positionKey = new PositionKey(operation.getAccount(), operation.getSymbol(), currency);
+      PositionKey positionKey = new PositionKey(normalized.accountId(), normalized.symbol(), currency);
       PositionAccumulator positionAcc =
           positions.computeIfAbsent(positionKey, ignored -> new PositionAccumulator());
       positionAcc.touch(date);
@@ -370,14 +365,38 @@ public class PortfolioProjectionService {
         tickerAcc.dividends += amountBase;
         positionAcc.totalDividends += amount;
       }
+      if (!hasPositionValuation && normalized.normalizedCategory() == NormalizedCategory.TRADE_PURCHASE) {
+        tickerAcc.buyValue += Math.abs(amountBase);
+      }
+      if (!hasPositionValuation && normalized.normalizedCategory() == NormalizedCategory.TRADE_SALE) {
+        tickerAcc.sellValue += Math.abs(amountBase);
+      }
       if (isTaxCategory(normalized.normalizedCategory())) {
         positionAcc.totalTax += -amount;
       }
       if (isFeeCategory(normalized.normalizedCategory())) {
-        tickerAcc.fees += -amountBase;
         positionAcc.totalCommission += -amount;
       }
     }
+  }
+
+  private List<CanonicalNormalizedCashOperation> loadNormalizedCashOperations(
+      Set<Long> affectedAccounts, Map<Long, CurrencyType> accountCurrencies) {
+    return normalizedCashOperationRepository.findAllByAccountIdIn(affectedAccounts).stream()
+        .map(
+            row ->
+                new CanonicalNormalizedCashOperation(
+                    row.getOperationId(),
+                    row.getAccountId(),
+                    row.getSymbol(),
+                    parseCurrency(row.getCurrency(), accountCurrencies.get(row.getAccountId())),
+                    row.getRawOperation(),
+                    parseCategory(row.getNormalizedCategory()),
+                    nz(row.getAmount()),
+                    nz(row.getAmountInBaseCurrency()),
+                    row.getDate(),
+                    row.getComment()))
+        .toList();
   }
 
   private List<PositionProjection> buildPositionRows(
@@ -388,14 +407,8 @@ public class PortfolioProjectionService {
       PositionAccumulator acc = entry.getValue();
       double avgBuyPrice = acc.totalBuyQty > EPSILON ? acc.totalBuyValue / acc.totalBuyQty : 0.0;
       double costBasis = Math.abs(acc.sharesOwned) * avgBuyPrice;
-      double costBasisBase = convert(costBasis, key.currency(), LocalDate.now());
-      double unrealizedBase = convert(acc.unrealizedProfit, key.currency(), LocalDate.now());
-
-      Asset asset = assets.get(key.ticker());
-      if (asset != null && asset.getMarketPriceUsd() != null && Math.abs(acc.sharesOwned) > EPSILON) {
-        double marketValueBase = acc.sharesOwned * asset.getMarketPriceUsd();
-        unrealizedBase = marketValueBase - costBasisBase;
-      }
+      double costBasisBase = convert(costBasis, key.currency(), ReportingDateHelper.today());
+      double unrealizedBase = convert(acc.unrealizedProfit, key.currency(), ReportingDateHelper.today());
 
       rows.add(
           new PositionProjection(key.accountId(), key.ticker(), costBasisBase, unrealizedBase));
@@ -470,7 +483,6 @@ public class PortfolioProjectionService {
         acc.buys += tickerAcc.buyValue;
         acc.sells += tickerAcc.sellValue;
         acc.realizedProfit += tickerAcc.realizedProfit;
-        acc.fees += tickerAcc.fees;
         acc.endingMarketValue += marketValue;
         acc.costBase += runningCostBasis;
       }
@@ -492,26 +504,40 @@ public class PortfolioProjectionService {
       double previousCash = 0.0;
       double previousCashAccountCurrency = 0.0;
       double previousMarket = 0.0;
-      double cashTradeMarketValue = 0.0;
       for (DayAccountEntry entry : entries) {
         AccountMonthAccumulator acc = entry.acc();
+        /*
+         * Cash is reconstructed in native account currency first, then converted to base
+         * currency for storage.
+         *
+         * USD account:
+         *   today_cash_usd - yesterday_cash_usd == today's USD cash ledger sum
+         *
+         * non-USD account:
+         *   native cash delta comes from today's native cash ledger rows
+         *   stored USD cash is today's native closing cash converted at today's FX
+         *   so day-over-day USD cash includes both today's converted cash movements
+         *   and cash FX revaluation on the opening native balance.
+         */
         double cashBalanceAccountCurrency =
             previousCashAccountCurrency + acc.cashDeltaAccountCurrency;
         double cashBalance = convert(cashBalanceAccountCurrency, accountCurrency, entry.key().date());
-        cashTradeMarketValue = Math.max(0.0, cashTradeMarketValue + acc.buys - acc.sells);
-        double marketValue =
-            acc.endingMarketValue > EPSILON ? acc.endingMarketValue : cashTradeMarketValue;
+        double marketValue = acc.endingMarketValue > EPSILON ? acc.endingMarketValue : 0.0;
         double equity = cashBalance + marketValue;
         double previousEquity = previousCash + previousMarket;
-        double costBase = acc.costBase > EPSILON ? acc.costBase : cashTradeMarketValue;
+        double costBase = acc.costBase > EPSILON ? acc.costBase : 0.0;
         double unrealizedProfit = marketValue - costBase;
-        double dailyProfit =
-            (marketValue - previousMarket - acc.buys + acc.sells)
-                + acc.realizedProfit
-                + acc.dividends
-                + acc.interest
-                - acc.fees
-                - acc.taxes;
+        /*
+         * Canonical daily profit must reconcile to the same boundary formula used by
+         * account_monthly_mv:
+         *
+         *   daily profit = closing equity - opening equity - external deposits + external withdrawals
+         *
+         * Internal transfers, FX conversion, trade settlement, dividends, interest, fees,
+         * taxes, and realized trade rows already affect equity through the canonical cash
+         * ledger and/or market valuation, so they must not be added again here.
+         */
+        double dailyProfit = equity - previousEquity - acc.deposits + acc.withdrawals;
         double denominator = Math.abs(previousEquity) + Math.max(0.0, acc.deposits);
         double dailyReturn = Math.abs(denominator) > EPSILON ? dailyProfit / denominator : 0.0;
 
@@ -519,7 +545,7 @@ public class PortfolioProjectionService {
             AccountDaily.builder()
                 .accountId(entry.key().accountId())
                 .date(entry.key().date())
-                .valuationCurrency(accountCurrency.name())
+                .valuationCurrency(BASE_CURRENCY.name())
                 .cashBalance(cashBalance)
                 .marketValue(marketValue)
                 .equity(equity)
@@ -826,7 +852,7 @@ public class PortfolioProjectionService {
                     metricType,
                     currency,
                     localAmount,
-                    convert(localAmount, currency, LocalDate.now(DEFAULT_ZONE)),
+                    convert(localAmount, currency, ReportingDateHelper.today()),
                     now)));
   }
 
@@ -966,7 +992,7 @@ public class PortfolioProjectionService {
   }
 
   private static LocalDate toDate(ZonedDateTime dateTime) {
-    return dateTime == null ? LocalDate.now() : dateTime.withZoneSameInstant(DEFAULT_ZONE).toLocalDate();
+    return ReportingDateHelper.toReportingDate(dateTime);
   }
 
   private Set<Long> accountsWithOpenShares(
@@ -1013,21 +1039,112 @@ public class PortfolioProjectionService {
       if (scaledClosePrice <= EPSILON) {
         continue;
       }
-      prices
-          .computeIfAbsent(row.getSymbol(), ignored -> new TreeMap<>())
-          .putIfAbsent(row.getPriceDate(), new HistoricalPrice(scaledClosePrice, currency));
+      HistoricalPrice candidate =
+          new HistoricalPrice(
+              row.getPriceDate(),
+              row.getSourceDate() != null ? row.getSourceDate() : row.getPriceDate(),
+              scaledClosePrice,
+              currency,
+              row.getSource(),
+              row.getSourceSymbol(),
+              row.getOriginalSourceSymbol(),
+              row.getPriceOrigin(),
+              row.getQualityClass(),
+              row.getQualityScore() == null ? 0 : row.getQualityScore(),
+              resolveContractMultiplier(row.getQualityClass()));
+      NavigableMap<LocalDate, HistoricalPrice> symbolPrices =
+          prices.computeIfAbsent(row.getSymbol(), ignored -> new TreeMap<>());
+      HistoricalPrice existing = symbolPrices.get(row.getPriceDate());
+      if (existing == null || isBetterHistoricalPrice(candidate, existing)) {
+        symbolPrices.put(row.getPriceDate(), candidate);
+      }
     }
     return new HistoricalPriceBook(prices);
   }
 
+  private static boolean isBetterHistoricalPrice(HistoricalPrice candidate, HistoricalPrice existing) {
+    int candidateRank = valuationPriorityRank(candidate.qualityClass(), candidate.priceOrigin());
+    int existingRank = valuationPriorityRank(existing.qualityClass(), existing.priceOrigin());
+    if (candidateRank != existingRank) {
+      return candidateRank < existingRank;
+    }
+    return candidate.qualityScore() > existing.qualityScore();
+  }
+
+  private static int valuationPriorityRank(String qualityClass, String priceOrigin) {
+    String quality = qualityClass == null ? "" : qualityClass.trim().toUpperCase(Locale.ROOT);
+    String origin = priceOrigin == null ? "" : priceOrigin.trim().toUpperCase(Locale.ROOT);
+    if (quality.contains(QUALITY_EXACT_LISTING_MARKET_CLOSE)) {
+      return 1;
+    }
+    if (quality.contains(QUALITY_EXACT_LISTING_SCALED)) {
+      return 2;
+    }
+    if (quality.contains("ALTERNATE") || quality.contains("PROXY")) {
+      return 3;
+    }
+    if (origin.contains("MANUAL") || quality.contains("MANUAL")) {
+      return 4;
+    }
+    if (quality.contains("INTERPOLATED")) {
+      return 5;
+    }
+    if (quality.contains("TRADE_OBSERVATION") || origin.contains("TRADE")) {
+      return 6;
+    }
+    if (quality.contains(QUALITY_STALE_CARRY_FORWARD) || origin.contains("CARRY_FORWARD")) {
+      return 7;
+    }
+    return 8;
+  }
+
+  private static boolean selectedPriceNeedsDiagnostic(HistoricalPrice price) {
+    return valuationPriorityRank(price.qualityClass(), price.priceOrigin()) > 2;
+  }
+
+  private static boolean canCarryForwardValuationPrice(HistoricalPrice price) {
+    if (price == null) {
+      return false;
+    }
+    String quality = price.qualityClass() == null ? "" : price.qualityClass().trim().toUpperCase(Locale.ROOT);
+    String origin = price.priceOrigin() == null ? "" : price.priceOrigin().trim().toUpperCase(Locale.ROOT);
+    return quality.contains("TRADE_OBSERVATION")
+        || origin.contains("TRADE")
+        || quality.contains(QUALITY_STALE_CARRY_FORWARD)
+        || origin.contains("CARRY_FORWARD");
+  }
+
+  private static double resolveContractMultiplier(String qualityClass) {
+    String quality = qualityClass == null ? "" : qualityClass.trim().toUpperCase(Locale.ROOT);
+    if (quality.contains("PERCENT_OF_PAR")) {
+      return 0.01;
+    }
+    return 1.0;
+  }
+
   private static CurrencyType parseCurrency(String value) {
+    return parseCurrency(value, BASE_CURRENCY);
+  }
+
+  private static CurrencyType parseCurrency(String value, CurrencyType fallback) {
     if (!StringUtils.hasText(value)) {
-      return BASE_CURRENCY;
+      return fallback != null ? fallback : BASE_CURRENCY;
     }
     try {
       return CurrencyType.valueOf(value);
     } catch (IllegalArgumentException ignored) {
-      return BASE_CURRENCY;
+      return fallback != null ? fallback : BASE_CURRENCY;
+    }
+  }
+
+  private static NormalizedCategory parseCategory(String value) {
+    if (!StringUtils.hasText(value)) {
+      return NormalizedCategory.UNCLASSIFIED;
+    }
+    try {
+      return NormalizedCategory.valueOf(value);
+    } catch (IllegalArgumentException ignored) {
+      return NormalizedCategory.UNCLASSIFIED;
     }
   }
 
@@ -1046,69 +1163,6 @@ public class PortfolioProjectionService {
     }
     OptionalDouble rate = currencyRateService.findRate(BASE_CURRENCY, targetCurrency, date);
     return rate.isPresent() ? baseAmount * rate.getAsDouble() : baseAmount;
-  }
-
-  private double cashFlowAmountBase(
-      CashOperation operation, double amount, CurrencyType currency, LocalDate date) {
-    return parseXtbCurrencyConversion(operation.getComment())
-        .map(conversion -> xtbCurrencyConversionAmountBase(conversion, amount, currency, date))
-        .or(() -> parseIbkrForexBaseAmount(operation.getComment()))
-        .orElseGet(() -> convert(amount, currency, date));
-  }
-
-  private double xtbCurrencyConversionAmountBase(
-      XtbCurrencyConversion conversion, double amount, CurrencyType rowCurrency, LocalDate date) {
-    if (conversion.sourceCurrency() == BASE_CURRENCY) {
-      if (rowCurrency == conversion.sourceCurrency()) {
-        return amount;
-      }
-      if (rowCurrency == conversion.targetCurrency()) {
-        return amount / conversion.rate();
-      }
-    }
-    if (conversion.targetCurrency() == BASE_CURRENCY) {
-      if (rowCurrency == conversion.sourceCurrency()) {
-        return amount * conversion.rate();
-      }
-      if (rowCurrency == conversion.targetCurrency()) {
-        return amount;
-      }
-    }
-    if (rowCurrency == conversion.sourceCurrency()) {
-      return convert(amount, conversion.sourceCurrency(), date);
-    }
-    if (rowCurrency == conversion.targetCurrency()) {
-      return convert(amount / conversion.rate(), conversion.sourceCurrency(), date);
-    }
-    return convert(amount, rowCurrency, date);
-  }
-
-  private Optional<XtbCurrencyConversion> parseXtbCurrencyConversion(String comment) {
-    if (!StringUtils.hasText(comment)) {
-      return Optional.empty();
-    }
-    Matcher matcher = XTB_CURRENCY_CONVERSION_PATTERN.matcher(comment);
-    if (!matcher.find()) {
-      return Optional.empty();
-    }
-    CurrencyType sourceCurrency = parseCurrency(matcher.group(1).toUpperCase(Locale.ROOT));
-    CurrencyType targetCurrency = parseCurrency(matcher.group(2).toUpperCase(Locale.ROOT));
-    double rate = Double.parseDouble(matcher.group(3).replace(',', '.'));
-    if (rate <= EPSILON || sourceCurrency == targetCurrency) {
-      return Optional.empty();
-    }
-    return Optional.of(new XtbCurrencyConversion(sourceCurrency, targetCurrency, rate));
-  }
-
-  private Optional<Double> parseIbkrForexBaseAmount(String comment) {
-    if (!StringUtils.hasText(comment)) {
-      return Optional.empty();
-    }
-    Matcher matcher = IBKR_FOREX_BASE_AMOUNT_PATTERN.matcher(comment);
-    if (!matcher.find()) {
-      return Optional.empty();
-    }
-    return Optional.of(Double.parseDouble(matcher.group(1).replace(',', '.')));
   }
 
   private static boolean isTaxCategory(NormalizedCategory category) {
@@ -1134,10 +1188,30 @@ public class PortfolioProjectionService {
     }
   }
 
-  private record HistoricalPrice(double closePrice, CurrencyType currency) {}
+  private record HistoricalPrice(
+      LocalDate valuationPriceDate,
+      LocalDate observationDate,
+      double normalizedClosePrice,
+      CurrencyType currency,
+      String source,
+      String sourceSymbol,
+      String originalSourceSymbol,
+      String priceOrigin,
+      String qualityClass,
+      int qualityScore,
+      double contractMultiplier) {}
 
-  private record XtbCurrencyConversion(
-      CurrencyType sourceCurrency, CurrencyType targetCurrency, double rate) {}
+  private record CanonicalNormalizedCashOperation(
+      Long operationId,
+      Long accountId,
+      String symbol,
+      CurrencyType currency,
+      String rawOperation,
+      NormalizedCategory normalizedCategory,
+      double amount,
+      double amountInBaseCurrency,
+      LocalDate date,
+      String comment) {}
 
   private final class HistoricalPriceBook {
     private final Map<String, NavigableMap<LocalDate, HistoricalPrice>> pricesBySymbol;
@@ -1148,47 +1222,75 @@ public class PortfolioProjectionService {
 
     private double marketValue(
         String symbol, double shares, LocalDate date, Asset asset, double fallbackCostBasis) {
+      if (shares <= EPSILON) {
+        return 0.0;
+      }
       NavigableMap<LocalDate, HistoricalPrice> prices = pricesBySymbol.get(symbol);
       if (prices != null) {
         Map.Entry<LocalDate, HistoricalPrice> price = prices.floorEntry(date);
         if (price != null) {
-          if (price.getKey().plusDays(MAX_HISTORICAL_PRICE_STALENESS_DAYS).isBefore(date)) {
-            return fallbackMarketValue(asset, shares, date, fallbackCostBasis);
-          }
           HistoricalPrice historicalPrice = price.getValue();
-          double closePrice = normalizeHistoricalClosePrice(symbol, historicalPrice.closePrice(), shares, fallbackCostBasis);
-          return convert(shares * closePrice, historicalPrice.currency(), date);
+          LocalDate observationDate =
+              historicalPrice.observationDate() != null
+                  ? historicalPrice.observationDate()
+                  : price.getKey();
+          if (observationDate.plusDays(MAX_HISTORICAL_PRICE_STALENESS_DAYS).isBefore(date)) {
+            if (canCarryForwardValuationPrice(historicalPrice)) {
+              log.warn(
+                  "Valuation carries forward stale fallback price: symbol={}, valuationDate={}, selectedPriceDate={}, observationDate={}, qualityClass={}, priceOrigin={}, source={}, sourceSymbol={}",
+                  symbol,
+                  date,
+                  price.getKey(),
+                  observationDate,
+                  historicalPrice.qualityClass(),
+                  historicalPrice.priceOrigin(),
+                  historicalPrice.source(),
+                  historicalPrice.sourceSymbol());
+            } else {
+              log.debug(
+                  "Valuation uses zero because price is stale: symbol={}, valuationDate={}, selectedPriceDate={}, observationDate={}",
+                  symbol,
+                  date,
+                  price.getKey(),
+                  observationDate);
+              return 0.0;
+            }
+          }
+          if (selectedPriceNeedsDiagnostic(historicalPrice)) {
+            log.warn(
+                "Valuation used non-primary price source: symbol={}, date={}, selectedPriceDate={}, observationDate={}, qualityClass={}, priceOrigin={}, source={}, sourceSymbol={}, originalSourceSymbol={}",
+                symbol,
+                date,
+                historicalPrice.valuationPriceDate(),
+                observationDate,
+                historicalPrice.qualityClass(),
+                historicalPrice.priceOrigin(),
+                historicalPrice.source(),
+                historicalPrice.sourceSymbol(),
+                historicalPrice.originalSourceSymbol());
+          }
+          /*
+           * Canonical valuation model:
+           *   market value = quantity × normalized market price × contract multiplier × FX
+           *
+           * normalized market price = close_price × price_scale_factor from asset_price_history
+           * contract multiplier defaults to 1 and is only changed by explicit metadata.
+           */
+          double localMarketValue =
+              shares * historicalPrice.normalizedClosePrice() * historicalPrice.contractMultiplier();
+          return convert(localMarketValue, historicalPrice.currency(), date);
         }
-        return fallbackMarketValue(asset, shares, date, fallbackCostBasis);
+        log.debug(
+            "Valuation uses zero because no historical price row exists: symbol={}, date={}",
+            symbol,
+            date);
+        return 0.0;
       }
-      return fallbackMarketValue(asset, shares, date, fallbackCostBasis);
-    }
-
-    private double normalizeHistoricalClosePrice(
-        String symbol, double closePrice, double shares, double fallbackCostBasis) {
-      if (closePrice <= EPSILON || shares <= EPSILON) {
-        return closePrice;
-      }
-      double averageCostPerShare = fallbackCostBasis / shares;
-      if (closePrice < 10.0
-          && averageCostPerShare > 100.0
-          && StringUtils.hasText(symbol)
-          && COMPACT_BOND_SYMBOL_PATTERN.matcher(symbol.trim().toUpperCase(Locale.ROOT)).matches()) {
-        return closePrice * 1000.0;
-      }
-      return closePrice;
-    }
-
-    private double fallbackMarketValue(
-        Asset asset, double shares, LocalDate date, double fallbackCostBasis) {
-      if (asset == null || asset.getMarketPriceUsd() == null) {
-        return fallbackCostBasis;
-      }
-      if (asset.getPriceUpdatedAt() == null) {
-        return shares * asset.getMarketPriceUsd();
-      }
-      LocalDate snapshotDate = asset.getPriceUpdatedAt().withZoneSameInstant(DEFAULT_ZONE).toLocalDate();
-      return date.isBefore(snapshotDate) ? fallbackCostBasis : shares * asset.getMarketPriceUsd();
+      log.debug(
+          "Valuation uses zero because symbol has no historical price book: symbol={}, date={}",
+          symbol,
+          date);
+      return 0.0;
     }
   }
 
@@ -1289,7 +1391,6 @@ public class PortfolioProjectionService {
     double sellValue;
     double realizedProfit;
     double dividends;
-    double fees;
   }
 
   private static final class AccountMonthAccumulator {
@@ -1310,11 +1411,10 @@ public class PortfolioProjectionService {
     boolean hasCashSettlementRows;
 
     void apply(
-        NormalizedCashOperation normalized,
+        CanonicalNormalizedCashOperation normalized,
         double amountBase,
         double amountAccountCurrency,
         boolean hasPositionValuation) {
-      CashOperation operation = normalized.operation();
       cashDeltaAccountCurrency += amountAccountCurrency;
       switch (normalized.normalizedCategory()) {
         case EXTERNAL_DEPOSIT:
@@ -1340,18 +1440,40 @@ public class PortfolioProjectionService {
         case WITHHOLDING_TAX:
         case WITHHOLDING_TAX_REVERSAL:
         case OTHER_TAX:
+          // Expense convention in account_daily: expense > 0, reversal/refund < 0.
           taxes += -amountBase;
           break;
         case FEE:
+          /*
+           * account_daily.fees uses the same expense convention:
+           *   fee charge   -> positive
+           *   fee refund   -> negative
+           *
+           * Included in fees:
+           * - COMMISSION
+           * - SEC_FEE
+           * - SWAP
+           * - explicit fee corrections/refunds normalized as FEE/FEE_REVERSAL
+           *
+           * Excluded from fees:
+           * - STAMP_DUTY
+           * - TRANSACTION_TAX
+           * - FREE_FUNDS_INTEREST_TAX
+           * - WITHHOLDING_TAX
+           * - ROLLOVER
+           */
           fees += -amountBase;
           break;
         case TRADE_PURCHASE:
         case TRADE_SALE:
-        case REALIZED_TRADE_RESULT:
           hasTradeCashMovements = true;
           hasCashSettlementRows =
-              operation.getType() == CashOperationType.STOCK_PURCHASE
-                  || operation.getType() == CashOperationType.STOCK_SELL;
+              CashOperationType.STOCK_PURCHASE.name().equals(normalized.rawOperation())
+                  || CashOperationType.STOCK_SELL.name().equals(normalized.rawOperation());
+          cashAdjustments += amountBase;
+          break;
+        case REALIZED_TRADE_RESULT:
+          realizedProfit += amountBase;
           cashAdjustments += amountBase;
           break;
         case CORRECTION:

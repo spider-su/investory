@@ -53,7 +53,12 @@
                          th:if="${account.netDeposit != null and (account.netDeposit >= 50 or account.netDeposit <= -50)}">
                         <span th:text="${account.accountId}">0</span>
                         <span th:text="${account.accountName}">Account</span>
-                        <span th:text="${account.netDeposit == null ? '-' : #numbers.formatDecimal(account.netDeposit, 1, 'POINT', 0, 'COMMA') + ' $'}">0 $</span>
+                        <span>
+                            <span th:text="${account.netDeposit == null ? '-' : #numbers.formatDecimal(account.netDeposit, 1, 'POINT', 0, 'COMMA') + ' ' + account.localCurrency}">0 $</span>
+                            <span class="iv-balance-popover__local"
+                                  th:if="${account.baseNetDeposit != null and account.localCurrency != T(com.example.demo.infrastructure.CurrencyType).USD}"
+                                  th:text="'(' + ${#numbers.formatDecimal(account.baseNetDeposit, 1, 'POINT', 0, 'COMMA')} + ' $)'">(0 $)</span>
+                        </span>
                         <span th:classappend="${account.profitLossPercent != null and account.profitLossPercent >= 0} ? 'iv-pos' : (${account.profitLossPercent != null} ? 'iv-neg' : '')"
                               th:text="${account.profitLossPercent == null ? '-' : #numbers.formatDecimal(account.profitLossPercent, 1, 'NONE', 1, 'COMMA') + '%'}">0%</span>
                         <span>
@@ -995,9 +1000,10 @@
         }
 
         const selectedSeries = year.accountSeries.filter(series => selectedIds.has(Number(series.id)));
-        const total = year.labels.map((_, index) =>
-            selectedSeries.reduce((sum, series) => sum + (accountValueSeriesData(series, mode)[index] || 0), 0));
-        const hasValues = selectedSeries.length > 0 && total.some(value => Math.abs(value) > 1);
+        const total = mode === 'percent'
+            ? (year.totalProfitPctValues || [])
+            : (year.totalProfitValues || []);
+        const hasValues = total.some(value => Math.abs(value) > 1) || selectedSeries.length > 0;
         if (emptyEl) emptyEl.style.display = hasValues ? 'none' : '';
         if (contentEl) contentEl.style.display = hasValues ? '' : 'none';
         updateAccountValueHint(mode);
@@ -1005,7 +1011,7 @@
         accountValueChart.data.labels = year.labels || [];
         accountValueChart.data.datasets = [
             {
-                label: 'Selected total',
+                label: 'Portfolio total',
                 data: total,
                 borderColor: '#1e2536',
                 backgroundColor: 'rgba(30, 37, 54, .08)',
