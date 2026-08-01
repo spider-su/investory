@@ -4,6 +4,7 @@ import com.example.demo.infrastructure.CurrencyType;
 import com.example.demo.infrastructure.repository.CurrencyRate;
 import com.example.demo.infrastructure.repository.CurrencyRateRepository;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -22,6 +23,8 @@ import org.springframework.util.CollectionUtils;
 @RequiredArgsConstructor
 public class CurrencyRateService {
 
+    public static final long MAX_FX_AGE_DAYS = 45;
+
     private final CurrencyRateRepository currencyRateRepository;
 
     private static final Map<CurrencyType, Map<CurrencyType, NavigableMap<LocalDate, Double>>> exchangeRateCache =
@@ -32,24 +35,16 @@ public class CurrencyRateService {
     }
 
     public double convertToBaseCurrency(double amount, CurrencyType baseCurrency, CurrencyType positionCurrency, LocalDate rateDate) {
-        // Same currency needs no rate (and must not depend on a stored USD->USD rate).
-        if (baseCurrency == positionCurrency) {
-            return amount;
-        }
-
-        LocalDate rateMonth = toMonthStart(rateDate);
-        if (!hasRate(baseCurrency, positionCurrency, rateMonth)) {
+        FxRateResolution resolution = resolveRate(positionCurrency, baseCurrency, rateDate);
+        if (!resolution.isUsable()) {
             preloadExchangeRates();
+            resolution = resolveRate(positionCurrency, baseCurrency, rateDate);
         }
-
-        Double rate = getHistoricalRate(baseCurrency, positionCurrency, rateMonth);
-        if (rate == null || rate == 0.0) {
-            // No FX data loaded yet: don't blow up the
-            // whole dashboard/import — fall back to the unconverted amount and warn.
-            log.warn("Missing FX rate {} -> {}; returning amount unconverted", baseCurrency, positionCurrency);
-            return amount;
+        if (!resolution.isUsable()) {
+            throw new FxRateUnavailableException(
+                    positionCurrency, baseCurrency, rateDate, resolution.conversionStatus());
         }
-        return amount / rate; // Convert the amount to the base currency
+        return amount * resolution.fxRateToTarget();
     }
 
     public void preloadExchangeRates() {
@@ -88,18 +83,15 @@ public class CurrencyRateService {
     }
 
     public OptionalDouble findRate(CurrencyType base, CurrencyType toCurrency, LocalDate date) {
-        if (base == toCurrency) {
-            return OptionalDouble.of(1.0);
-        }
-        LocalDate rateMonth = toMonthStart(date);
-        if (!hasRate(base, toCurrency, rateMonth)) {
+        FxRateResolution resolution = resolveRate(base, toCurrency, date);
+        if (!resolution.isUsable()) {
             preloadExchangeRates();
+            resolution = resolveRate(base, toCurrency, date);
         }
-        Double rate = getHistoricalRate(base, toCurrency, rateMonth);
-        if (rate == null || rate == 0.0) {
+        if (!resolution.isUsable()) {
             return OptionalDouble.empty();
         }
-        return OptionalDouble.of(rate);
+        return OptionalDouble.of(resolution.fxRateToTarget());
     }
 
     public double getRate(CurrencyType base, CurrencyType toCurrency, LocalDate date) {
@@ -108,24 +100,59 @@ public class CurrencyRateService {
                         "Rate not found for " + base + " to " + toCurrency + " at " + toMonthStart(date)));
     }
 
-    private boolean hasRate(CurrencyType base, CurrencyType toCurrency, LocalDate date) {
-        return getHistoricalRate(base, toCurrency, date) != null;
+    public FxRateResolution resolveRate(
+            CurrencyType sourceCurrency, CurrencyType targetCurrency, LocalDate valuationDate) {
+        LocalDate effectiveDate = valuationDate == null ? LocalDate.now() : valuationDate;
+        if (sourceCurrency == targetCurrency) {
+            return new FxRateResolution(1.0, "SAME_CURRENCY", effectiveDate, 0, "SAME_CURRENCY");
+        }
+
+        RateObservation direct = findCachedRate(sourceCurrency, targetCurrency, effectiveDate);
+        if (direct != null) {
+            return resolution(direct.rate(), "DIRECT", direct.rateDate(), effectiveDate);
+        }
+        RateObservation inverse = findCachedRate(targetCurrency, sourceCurrency, effectiveDate);
+        if (inverse != null && inverse.rate() != 0.0) {
+            return resolution(1.0 / inverse.rate(), "INVERSE", inverse.rateDate(), effectiveDate);
+        }
+        for (CurrencyType pivot : CurrencyType.values()) {
+            if (pivot == sourceCurrency || pivot == targetCurrency) {
+                continue;
+            }
+            RateObservation first = resolveStoredEdge(sourceCurrency, pivot, effectiveDate);
+            RateObservation second = resolveStoredEdge(pivot, targetCurrency, effectiveDate);
+            if (first != null && second != null) {
+                LocalDate sourceDate = first.rateDate().isBefore(second.rateDate())
+                        ? first.rateDate()
+                        : second.rateDate();
+                return resolution(
+                        first.rate() * second.rate(), "TRIANGULATED:" + pivot, sourceDate, effectiveDate);
+            }
+        }
+        return new FxRateResolution(0.0, "MISSING", null, null, "MISSING");
     }
 
-    private Double getHistoricalRate(CurrencyType base, CurrencyType toCurrency, LocalDate date) {
-        Double direct = findCachedRate(base, toCurrency, date);
+    private RateObservation resolveStoredEdge(
+            CurrencyType sourceCurrency, CurrencyType targetCurrency, LocalDate valuationDate) {
+        RateObservation direct = findCachedRate(sourceCurrency, targetCurrency, valuationDate);
         if (direct != null) {
             return direct;
         }
-
-        Double inverse = findCachedRate(toCurrency, base, date);
-        if (inverse == null || inverse == 0.0) {
+        RateObservation inverse = findCachedRate(targetCurrency, sourceCurrency, valuationDate);
+        if (inverse == null || inverse.rate() == 0.0) {
             return null;
         }
-        return 1.0 / inverse;
+        return new RateObservation(1.0 / inverse.rate(), inverse.rateDate());
     }
 
-    private Double findCachedRate(CurrencyType base, CurrencyType toCurrency, LocalDate date) {
+    private FxRateResolution resolution(
+            double rate, String source, LocalDate sourceRateDate, LocalDate valuationDate) {
+        int ageDays = Math.toIntExact(ChronoUnit.DAYS.between(sourceRateDate, valuationDate));
+        String status = ageDays > MAX_FX_AGE_DAYS ? "STALE" : "OK";
+        return new FxRateResolution(rate, source, sourceRateDate, ageDays, status);
+    }
+
+    private RateObservation findCachedRate(CurrencyType base, CurrencyType toCurrency, LocalDate date) {
         Map<CurrencyType, NavigableMap<LocalDate, Double>> byBase = exchangeRateCache.get(base);
         if (byBase == null) {
             return null;
@@ -137,10 +164,7 @@ public class CurrencyRateService {
 
         LocalDate effectiveDate = date == null ? LocalDate.now() : date;
         Map.Entry<LocalDate, Double> floor = byPair.floorEntry(effectiveDate);
-        if (floor != null) {
-            return floor.getValue();
-        }
-        return byPair.firstEntry() != null ? byPair.firstEntry().getValue() : null;
+        return floor == null ? null : new RateObservation(floor.getValue(), floor.getKey());
     }
 
     private void cacheRate(CurrencyType base, CurrencyType toCurrency, LocalDate date, double rate) {
@@ -153,6 +177,19 @@ public class CurrencyRateService {
     private LocalDate toMonthStart(LocalDate date) {
         LocalDate effectiveDate = date == null ? LocalDate.now() : date;
         return effectiveDate.withDayOfMonth(1);
+    }
+
+    private record RateObservation(double rate, LocalDate rateDate) {}
+
+    public record FxRateResolution(
+            double fxRateToTarget,
+            String source,
+            LocalDate sourceRateDate,
+            Integer ageDays,
+            String conversionStatus) {
+        public boolean isUsable() {
+            return "OK".equals(conversionStatus) || "SAME_CURRENCY".equals(conversionStatus);
+        }
     }
 }
 

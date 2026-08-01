@@ -115,6 +115,53 @@ class AssetPriceHistoryGapFillServiceTest {
         .upsertCarryForwardPrice(any(), any(), any(), any(), any(), any(), any());
   }
 
+  @Test
+  void fillMissingBusinessDayGaps_prefersOpenLotPriceWhenSplitObservationsTie() {
+    AssetPriceHistoryGapFillService service =
+        new AssetPriceHistoryGapFillService(
+            openedPositionRepository, assetRepository, assetPriceHistoryRepository);
+
+    OpenedPosition opened = new OpenedPosition();
+    opened.setSymbol("NFLX.US");
+    Asset asset = new Asset();
+    asset.setId(202L);
+    asset.setSymbol("NFLX.US");
+
+    when(openedPositionRepository.findAll()).thenReturn(List.of(opened));
+    when(assetRepository.findAllBySymbolIn(Set.of("NFLX.US"))).thenReturn(List.of(asset));
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+        .thenReturn(
+            List.of(
+                row(
+                    "NFLX.US",
+                    LocalDate.of(2025, 11, 16),
+                    1181.21,
+                    "USD",
+                    90,
+                    "XTB_TRADE_CLOSE",
+                    "XTB_TRADE_CLOSE_OBSERVATION"),
+                row(
+                    "NFLX.US",
+                    LocalDate.of(2025, 11, 16),
+                    112.98,
+                    "USD",
+                    90,
+                    "XTB_TRADE_OPEN",
+                    "XTB_TRADE_OPEN_OBSERVATION")));
+
+    service.fillMissingBusinessDayGaps(LocalDate.of(2025, 11, 17));
+
+    verify(assetPriceHistoryRepository)
+        .upsertCarryForwardPrice(
+            202L,
+            LocalDate.of(2025, 11, 17),
+            LocalDate.of(2025, 11, 16),
+            "NFLX.US",
+            "NFLX.US",
+            "USD",
+            112.98);
+  }
+
   private static AssetPriceHistoryRepository.HistoricalAssetPriceRow row(
       String symbol,
       LocalDate date,

@@ -32,6 +32,7 @@ class MarketServiceTest {
     @Mock private OpenedPositionRepository openedPositionRepository;
     @Mock private ClosedPositionRepository closedPositionRepository;
     @Mock private AssetRepository assetRepository;
+    @Mock private AssetPriceHistoryRepository assetPriceHistoryRepository;
     @Mock private AssetPriceHistoryGapFillService assetPriceHistoryGapFillService;
     @Mock private StatisticsRefreshService statisticsRefreshService;
     @Mock private PlatformTransactionManager transactionManager;
@@ -115,6 +116,7 @@ class MarketServiceTest {
         quote.setClose(110.0);
         quote.setOpen(108.0);
         quote.setCurrency("USD");
+        quote.setDatetime("2026-07-31");
         // Single-chunk fetch must contain only the supported ticker.
         when(twelveDataService.fetchStockQuotes("AAPL")).thenReturn(Map.of("AAPL", quote));
 
@@ -122,6 +124,17 @@ class MarketServiceTest {
 
         verify(twelveDataService, times(1)).fetchStockQuotes("AAPL");
         verify(assetRepository, times(1)).saveAll(org.mockito.ArgumentMatchers.any());
+        verify(assetPriceHistoryRepository).upsertObservedPrice(
+                supported.getId(),
+                java.time.LocalDate.of(2026, 7, 31),
+                "TWELVE_DATA",
+                "AAPL",
+                "AAPL.US",
+                "TWELVE_DATA_MARKET_CLOSE",
+                "USD",
+                110.0,
+                100,
+                "EXACT_LISTING_MARKET_CLOSE");
         verify(statisticsRefreshService).refreshAll();
     }
 
@@ -134,19 +147,30 @@ class MarketServiceTest {
 
         StockQuote quote = new StockQuote();
         quote.setSymbol("REMX");
-        quote.setClose(79.0);
+        quote.setClose(65.97);
         quote.setCurrency("USD");
-        when(twelveDataService.fetchStockQuotes("REMX:LSE")).thenReturn(Map.of("REMX", quote));
+        when(twelveDataService.fetchStockQuotes("REMX")).thenReturn(Map.of("REMX", quote));
 
         marketService.updateStocks();
 
-        verify(twelveDataService).fetchStockQuotes("REMX:LSE");
+        verify(twelveDataService).fetchStockQuotes("REMX");
         ArgumentCaptor<Iterable<Asset>> captor = ArgumentCaptor.forClass(Iterable.class);
         verify(assetRepository).saveAll(captor.capture());
         List<Asset> saved = toList(captor.getValue());
         assertEquals(1, saved.size());
         assertEquals("REMX.UK", saved.get(0).getSymbol());
-        assertEquals(15.25, saved.get(0).getMarketPrice(), 0.00000001);
+        assertEquals(12.93, saved.get(0).getMarketPrice(), 0.00000001);
+        verify(assetPriceHistoryRepository).upsertObservedPrice(
+                eq(remx.getId()),
+                any(java.time.LocalDate.class),
+                eq("TWELVE_DATA"),
+                eq("REMX"),
+                eq("REMX.UK"),
+                eq("TWELVE_DATA_MARKET_CLOSE"),
+                eq("USD"),
+                eq(12.93),
+                eq(100),
+                eq("EXACT_LISTING_MARKET_CLOSE"));
     }
 
     @Test
@@ -284,7 +308,8 @@ class MarketServiceTest {
 
     private MarketService marketService(boolean skipNonUsListings, String excludedSymbolsCsv) {
         return new MarketService(twelveDataService, openedPositionRepository,
-                closedPositionRepository, assetRepository, assetPriceHistoryGapFillService,
+                closedPositionRepository, assetRepository, assetPriceHistoryRepository,
+                assetPriceHistoryGapFillService,
                 statisticsRefreshService, transactionManager, 0L, skipNonUsListings, excludedSymbolsCsv);
     }
 

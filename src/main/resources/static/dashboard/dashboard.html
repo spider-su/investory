@@ -77,18 +77,20 @@
             </details>
             <details class="iv-balance-popover" th:if="${stats.accountBalances != null and !stats.accountBalances.isEmpty()}">
                 <summary class="iv-balance-popover__trigger">View accounts</summary>
-                <div class="iv-balance-popover__panel">
+                <div class="iv-balance-popover__panel iv-sortable-grid">
                     <div class="iv-balance-popover__row iv-balance-popover__row--head">
-                        <span>Account</span>
-                        <span>Name</span>
-                        <span>Net deposit</span>
-                        <span>Balance</span>
-                        <span>Profit</span>
-                        <span>P/L</span>
-                        <span>Cash</span>
+                        <button type="button" class="iv-sort-button" data-sort-key="account">Account</button>
+                        <button type="button" class="iv-sort-button" data-sort-key="name">Name</button>
+                        <button type="button" class="iv-sort-button" data-sort-key="deposit">Net deposit</button>
+                        <button type="button" class="iv-sort-button" data-sort-key="balance">Balance</button>
+                        <button type="button" class="iv-sort-button" data-sort-key="profit">Profit</button>
+                        <button type="button" class="iv-sort-button" data-sort-key="pl">P/L</button>
+                        <button type="button" class="iv-sort-button" data-sort-key="cash">Cash</button>
                     </div>
                     <div class="iv-balance-popover__row"
-                         th:each="account : ${stats.accountBalances}">
+                         th:each="account : ${stats.accountBalances}"
+                         data-sort-row
+                         th:attr="data-sort-account=${account.accountId},data-sort-name=${account.accountName},data-sort-deposit=${account.baseNetDeposit},data-sort-balance=${account.balance},data-sort-profit=${account.profit},data-sort-pl=${account.profitLossPercent},data-sort-cash=${account.cash}">
                         <span th:text="${account.accountId}">0</span>
                         <span th:text="${account.accountName}">Account</span>
                         <span>
@@ -263,16 +265,19 @@
                     <details class="iv-balance-popover iv-position-popover"
                              th:if="${stats.openPositionValues != null and !stats.openPositionValues.isEmpty()}">
                         <summary class="iv-balance-popover__trigger">View positions</summary>
-                        <div class="iv-balance-popover__panel iv-position-popover__panel">
+                        <div class="iv-balance-popover__panel iv-position-popover__panel iv-sortable-grid">
                             <div class="iv-position-popover__row iv-balance-popover__row--head">
-                                <span>Symbol</span>
-                                <span>Price</span>
-                                <span>Value</span>
-                                <span>Unrealized</span>
-                                <span>P/L</span>
-                                <span>Share</span>
+                                <button type="button" class="iv-sort-button" data-sort-key="symbol">Symbol</button>
+                                <button type="button" class="iv-sort-button" data-sort-key="price">Price</button>
+                                <button type="button" class="iv-sort-button" data-sort-key="value">Value</button>
+                                <button type="button" class="iv-sort-button" data-sort-key="unrealized">Unrealized</button>
+                                <button type="button" class="iv-sort-button" data-sort-key="pl">P/L</button>
+                                <button type="button" class="iv-sort-button" data-sort-key="share">Share</button>
                             </div>
-                            <div class="iv-position-popover__row" th:each="position : ${stats.openPositionValues}">
+                            <div class="iv-position-popover__row"
+                                 th:each="position : ${stats.openPositionValues}"
+                                 data-sort-row
+                                 th:attr="data-sort-symbol=${position.symbol},data-sort-price=${position.marketPrice},data-sort-value=${position.value},data-sort-unrealized=${position.unrealized},data-sort-pl=${position.profitLossPercent},data-sort-share=${position.sharePercent}">
                                 <span class="iv-position-popover__symbol-cell">
                                     <span th:classappend="${position.unrealized > -0.01 and position.unrealized < 0.01} ? 'iv-position-popover__symbol--stale'"
                                           th:text="${position.symbol}">AAPL.US</span>
@@ -469,7 +474,7 @@
                 <button type="button" class="iv-modal__close" onclick="closeModal()" aria-label="Close import dialog">&times;</button>
             </div>
             <div class="iv-modal__body">
-                <div class="iv-modal__status-badge" id="modal-status">APPLIED</div>
+                <div class="iv-badge iv-badge--pos" id="modal-status">COMPLETED</div>
                 <p id="modal-message" style="margin: 15px 0; font-weight: 500; color: #1e2536;"></p>
 
                 <table class="iv-table" style="margin-top: 15px;">

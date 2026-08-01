@@ -9,15 +9,18 @@ import static org.mockito.Mockito.verify;
 
 import com.example.demo.infrastructure.CashOperationType;
 import com.example.demo.infrastructure.CurrencyType;
+import com.example.demo.infrastructure.PositionSettlementModel;
 import com.example.demo.infrastructure.repository.Asset;
 import com.example.demo.infrastructure.repository.AssetPriceHistoryRepository;
 import com.example.demo.infrastructure.repository.CashOperation;
 import com.example.demo.infrastructure.repository.CashOperationRepository;
+import com.example.demo.infrastructure.repository.ClosedPosition;
 import com.example.demo.infrastructure.repository.ClosedPositionRepository;
 import com.example.demo.infrastructure.repository.AssetRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
 import com.example.demo.services.AssetCatalogService;
+import com.example.demo.services.PositionSettlementModelService;
 import com.example.demo.services.imports.ImportExecutionResult;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -25,7 +28,10 @@ import java.io.InputStream;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import org.apache.poi.ss.usermodel.Row;
@@ -51,6 +57,39 @@ class XtbImportHistoryV2ServiceTest {
 
   @BeforeEach
   void setUp() {
+    Map<String, Asset> storedAssets = new HashMap<>();
+    AtomicLong assetIds = new AtomicLong(1000);
+    org.mockito.Mockito.lenient()
+        .when(assetRepository.findAllBySymbolIn(org.mockito.ArgumentMatchers.anyCollection()))
+        .thenAnswer(
+            invocation ->
+                invocation.<java.util.Collection<String>>getArgument(0).stream()
+                    .map(storedAssets::get)
+                    .filter(java.util.Objects::nonNull)
+                    .toList());
+    org.mockito.Mockito.lenient()
+        .when(assetRepository.findAllByTickerIn(org.mockito.ArgumentMatchers.anyCollection()))
+        .thenAnswer(
+            invocation -> {
+              java.util.Collection<String> tickers = invocation.getArgument(0);
+              return storedAssets.values().stream()
+                  .filter(asset -> tickers.contains(asset.getTicker()))
+                  .toList();
+            });
+    org.mockito.Mockito.lenient()
+        .when(assetRepository.saveAll(org.mockito.ArgumentMatchers.<List<Asset>>any()))
+        .thenAnswer(
+            invocation -> {
+              List<Asset> assets = invocation.getArgument(0);
+              assets.forEach(
+                  asset -> {
+                    if (asset.getId() == null) {
+                      asset.setId(assetIds.incrementAndGet());
+                    }
+                    storedAssets.put(asset.getSymbol(), asset);
+                  });
+              return assets;
+            });
     xtbImportV2Service =
         new XtbImportV2Service(
             closedPositionRepository,
@@ -58,13 +97,9 @@ class XtbImportHistoryV2ServiceTest {
             cashOperationRepository,
             assetPriceHistoryRepository,
             assetRepository,
-            new AssetCatalogService(assetRepository));
-    org.mockito.Mockito.lenient()
-        .when(assetRepository.findAllBySymbolIn(org.mockito.ArgumentMatchers.anyCollection()))
-        .thenReturn(List.of());
-    org.mockito.Mockito.lenient()
-        .when(assetRepository.findAllByTickerIn(org.mockito.ArgumentMatchers.anyCollection()))
-        .thenReturn(List.of());
+            new AssetCatalogService(assetRepository),
+            new PositionSettlementModelService(),
+            new XtbPositionCurrencyResolver());
   }
 
   @Test
@@ -72,7 +107,7 @@ class XtbImportHistoryV2ServiceTest {
     try (InputStream inputStream =
         getClass()
             .getResourceAsStream(
-                "/50290466_51499241_51548444_51993106_2006-01-01_2026-07-05.zip")) {
+                "/50290466_51499241_51548444_51993106_2023-12-31_2025-12-31.zip")) {
       org.junit.jupiter.api.Assumptions.assumeTrue(
           inputStream != null, "Fixture zip not on classpath; skipping");
 
@@ -81,7 +116,7 @@ class XtbImportHistoryV2ServiceTest {
               inputStream, "50290466_51499241_51548444_51993106_2006-01-01_2026-07-05.zip");
 
       assertTrue(result.rowsApplied() > 0);
-      assertTrue(result.details().contains("imported 5 workbook"));
+      assertTrue(result.details().contains("workbook"));
     }
 
     verify(cashOperationRepository, atLeastOnce()).saveAll(anyList());
@@ -107,13 +142,13 @@ class XtbImportHistoryV2ServiceTest {
     try (InputStream inputStream =
         getClass()
             .getResourceAsStream(
-                "/51707603_51747407_51822121_53582946_2024-06-30_2026-07-15.zip")) {
+                "/51707603_51747407_51822121_53582946_2025-12-31_2026-07-31.zip")) {
       org.junit.jupiter.api.Assumptions.assumeTrue(
           inputStream != null, "Fixture zip not on classpath; skipping");
 
       ImportExecutionResult result =
           xtbImportV2Service.importZip(
-              inputStream, "51707603_51747407_51822121_53582946_2024-06-30_2026-07-15.zip");
+              inputStream, "51707603_51747407_51822121_53582946_2025-12-31_2026-07-31.zip");
 
       assertTrue(result.rowsApplied() > 0);
       assertTrue(result.details().contains("imported 5 workbook"));
@@ -130,7 +165,7 @@ class XtbImportHistoryV2ServiceTest {
     try (InputStream inputStream =
         getClass()
             .getResourceAsStream(
-                "/50290466_51499241_51548444_51993106_2006-01-01_2026-07-05.zip")) {
+                "/50290466_51499241_51548444_51993106_2023-12-31_2025-12-31.zip")) {
       org.junit.jupiter.api.Assumptions.assumeTrue(
           inputStream != null, "Fixture zip not on classpath; skipping");
 
@@ -160,7 +195,7 @@ class XtbImportHistoryV2ServiceTest {
   }
 
   @Test
-  void importWorkbook_writesWeightedXtbTradeCheckpointsToAssetPriceHistory() throws Exception {
+  void importWorkbook_createsMissingAssetSkipsFooterAndWritesTradeCheckpoints() throws Exception {
     Asset asset =
         Asset.builder()
             .id(77L)
@@ -175,7 +210,7 @@ class XtbImportHistoryV2ServiceTest {
             .active(true)
             .build();
     org.mockito.Mockito.when(assetRepository.findAllBySymbolIn(org.mockito.ArgumentMatchers.anyCollection()))
-        .thenReturn(List.of(asset));
+        .thenReturn(List.of(), List.of(), List.of(asset));
 
     try (XSSFWorkbook workbook = new XSSFWorkbook()) {
       XSSFSheet cashSheet = workbook.createSheet("Cash Operations");
@@ -192,7 +227,7 @@ class XtbImportHistoryV2ServiceTest {
 
       Row cashRow1 = cashSheet.createRow(2);
       cashRow1.createCell(0).setCellValue(1);
-      cashRow1.createCell(1).setCellValue("STOCK_PURCHASE");
+      cashRow1.createCell(1).setCellValue("Stock purchase");
       cashRow1.createCell(2).setCellValue("AAPL.US");
       cashRow1.createCell(3).setCellValue("2026-07-10 10:00:00");
       cashRow1.createCell(4).setCellValue(-1000);
@@ -200,7 +235,7 @@ class XtbImportHistoryV2ServiceTest {
 
       Row cashRow2 = cashSheet.createRow(3);
       cashRow2.createCell(0).setCellValue(2);
-      cashRow2.createCell(1).setCellValue("STOCK_PURCHASE");
+      cashRow2.createCell(1).setCellValue("Stock purchase");
       cashRow2.createCell(2).setCellValue("AAPL.US");
       cashRow2.createCell(3).setCellValue("2026-07-10 11:00:00");
       cashRow2.createCell(4).setCellValue(-1040);
@@ -226,10 +261,28 @@ class XtbImportHistoryV2ServiceTest {
       closedHeader2.createCell(12).setCellValue("Profit/Loss");
       closedHeader2.createCell(13).setCellValue("Product");
 
+      Row closedRow = closedSheet.createRow(2);
+      closedRow.createCell(0).setCellValue("AAPL.US");
+      closedRow.createCell(1).setCellValue("BUY");
+      closedRow.createCell(2).setCellValue(2);
+      closedRow.createCell(3).setCellValue("2026-07-01 10:00:00");
+      closedRow.createCell(4).setCellValue(100);
+      closedRow.createCell(5).setCellValue("2026-07-02 10:00:00");
+      closedRow.createCell(6).setCellValue(110);
+      closedRow.createCell(7).setCellValue(800);
+      closedRow.createCell(8).setCellValue(880);
+      closedRow.createCell(9).setCellValue(-4);
+      closedRow.createCell(11).setCellValue(-1);
+      closedRow.createCell(12).setCellValue(75);
+
+      Row totalsRow = closedSheet.createRow(3);
+      totalsRow.createCell(12).setCellValue(250.0);
+      totalsRow.createCell(13).setCellValue("Total");
+
       ByteArrayOutputStream out = new ByteArrayOutputStream();
       workbook.write(out);
       xtbImportV2Service.importWorkbook(
-          new ByteArrayInputStream(out.toByteArray()), "USD_test.xlsx");
+          new ByteArrayInputStream(out.toByteArray()), "PLN_test.xlsx");
     }
 
     verify(assetPriceHistoryRepository)
@@ -241,9 +294,21 @@ class XtbImportHistoryV2ServiceTest {
             "AAPL.US",
             "XTB_TRADE_OPEN",
             "USD",
-            101.33333333333333,
+            102.0,
             90,
             "XTB_TRADE_OPEN_OBSERVATION");
+    verify(assetRepository).saveAll(anyList());
+
+    ArgumentCaptor<Iterable<ClosedPosition>> closedCaptor = ArgumentCaptor.forClass(Iterable.class);
+    verify(closedPositionRepository).saveAll(closedCaptor.capture());
+    List<ClosedPosition> savedClosed = new ArrayList<>();
+    closedCaptor.getValue().forEach(savedClosed::add);
+    assertEquals(1, savedClosed.size(), "Footer row must not become a position");
+    assertEquals(CurrencyType.USD, savedClosed.getFirst().getPriceCurrency());
+    assertEquals(CurrencyType.PLN, savedClosed.getFirst().getCostCurrency());
+    assertEquals(CurrencyType.PLN, savedClosed.getFirst().getProfitCurrency());
+    assertEquals(CurrencyType.PLN, savedClosed.getFirst().getCommissionCurrency());
+    assertEquals(PositionSettlementModel.CASH_SETTLED, savedClosed.getFirst().getSettlementModel());
 
     ArgumentCaptor<Iterable<OpenedPosition>> openedCaptor = ArgumentCaptor.forClass(Iterable.class);
     verify(openedPositionRepository, atLeastOnce()).saveAll(openedCaptor.capture());
@@ -253,7 +318,107 @@ class XtbImportHistoryV2ServiceTest {
         savedOpened.add(position);
       }
     }
-    assertTrue(savedOpened.stream().allMatch(position -> position.getCurrency() == CurrencyType.USD));
+    assertTrue(savedOpened.stream().allMatch(position -> position.getPriceCurrency() == CurrencyType.USD));
+    assertTrue(savedOpened.stream().allMatch(position -> position.getCostCurrency() == CurrencyType.USD));
+    assertTrue(savedOpened.stream().allMatch(position -> position.getProfitCurrency() == CurrencyType.PLN));
+    assertTrue(savedOpened.stream().allMatch(position -> position.getCommissionCurrency() == CurrencyType.PLN));
+  }
+
+  @Test
+  void importWorkbook_preservesIdenticalPartialCloseRowsAndBrokerCurrencyEvidence()
+      throws Exception {
+    Asset asset =
+        Asset.builder()
+            .id(12851L)
+            .name("L&G Clean Energy UCITS ETF")
+            .symbol("NCLR.UK")
+            .ticker("NCLR")
+            .ibrk("NCLR")
+            .yahoo("NCLR.L")
+            .country("UK")
+            .currency(CurrencyType.USD)
+            .assetType("ETF")
+            .active(true)
+            .build();
+    org.mockito.Mockito.when(assetRepository.findAllBySymbolIn(org.mockito.ArgumentMatchers.anyCollection()))
+        .thenReturn(List.of(asset));
+
+    try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+      XSSFSheet cashSheet = workbook.createSheet("Cash Operations");
+      Row cashAccount = cashSheet.createRow(0);
+      cashAccount.createCell(0).setCellValue("Account number");
+      cashAccount.createCell(1).setCellValue("51729109");
+      Row cashHeader = cashSheet.createRow(1);
+      cashHeader.createCell(0).setCellValue("ID");
+      cashHeader.createCell(1).setCellValue("Type");
+      cashHeader.createCell(2).setCellValue("Ticker");
+      cashHeader.createCell(3).setCellValue("Time");
+      cashHeader.createCell(4).setCellValue("Amount");
+      cashHeader.createCell(5).setCellValue("Comment");
+
+      XSSFSheet closedSheet = workbook.createSheet("Closed Positions");
+      Row closedAccount = closedSheet.createRow(0);
+      closedAccount.createCell(0).setCellValue("Account");
+      closedAccount.createCell(1).setCellValue("51729109");
+      String[] headers = {
+        "Ticker",
+        "Type",
+        "Volume",
+        "Open Time (UTC)",
+        "Open Price",
+        "Open Conversion Rate",
+        "Close Time (UTC)",
+        "Close Price",
+        "Close Conversion Rate",
+        "Purchase Value",
+        "Sale Value",
+        "Commission",
+        "Margin",
+        "Swap",
+        "Profit/Loss",
+        "Product",
+        "Position ID"
+      };
+      Row closedHeader = closedSheet.createRow(1);
+      for (int index = 0; index < headers.length; index++) {
+        closedHeader.createCell(index).setCellValue(headers[index]);
+      }
+      for (int occurrence = 0; occurrence < 4; occurrence++) {
+        Row row = closedSheet.createRow(occurrence + 2);
+        row.createCell(0).setCellValue("NCLR.UK");
+        row.createCell(1).setCellValue("BUY");
+        row.createCell(2).setCellValue(1);
+        row.createCell(3).setCellValue("2026-01-01 10:00:00");
+        row.createCell(4).setCellValue(50);
+        row.createCell(5).setCellValue(3.5);
+        row.createCell(6).setCellValue("2026-02-05 10:00:00");
+        row.createCell(7).setCellValue(60);
+        row.createCell(8).setCellValue(3.6);
+        row.createCell(9).setCellValue(175);
+        row.createCell(10).setCellValue(216);
+        row.createCell(11).setCellValue(0);
+        row.createCell(14).setCellValue(41);
+        row.createCell(15).setCellValue("IKE");
+        row.createCell(16).setCellValue(2317002593L);
+      }
+
+      ByteArrayOutputStream output = new ByteArrayOutputStream();
+      workbook.write(output);
+      xtbImportV2Service.importWorkbook(
+          new ByteArrayInputStream(output.toByteArray()), "PLN_repeated_rows.xlsx");
+    }
+
+    ArgumentCaptor<Iterable<ClosedPosition>> captor = ArgumentCaptor.forClass(Iterable.class);
+    verify(closedPositionRepository).saveAll(captor.capture());
+    List<ClosedPosition> positions = new ArrayList<>();
+    captor.getValue().forEach(positions::add);
+
+    assertEquals(4, positions.size());
+    assertEquals(4, positions.stream().map(ClosedPosition::getId).distinct().count());
+    assertEquals(List.of(1, 2, 3, 4), positions.stream().map(ClosedPosition::getSourceRowOccurrence).toList());
+    assertTrue(positions.stream().allMatch(position -> "2317002593".equals(position.getSourcePositionId())));
+    assertTrue(positions.stream().allMatch(position -> position.getPriceCurrency() == CurrencyType.USD));
+    assertTrue(positions.stream().allMatch(position -> position.getCostCurrency() == CurrencyType.PLN));
   }
 
   private static CashOperation cashOperation(

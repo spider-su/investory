@@ -162,10 +162,9 @@ class PortfolioServiceTest {
         assertEquals(200.0, result.getWithdrawals(), 0.01);
         assertEquals(800.0, result.getNetDeposits(), 0.01);
         assertEquals(37.5, result.getRoi(), 0.01);
-        assertEquals(200.0, result.getRealizedByCurrency().get(CurrencyType.PLN), 0.01);
-        assertEquals(0.0, result.getUnrealizedByCurrency().get(CurrencyType.USD), 0.01);
-        assertEquals(75.0, result.getUnrealizedByCurrency().get(CurrencyType.PLN), 0.01);
-        assertEquals(25.0, result.getDividendsByCurrency().get(CurrencyType.PLN), 0.01);
+        assertEquals(200.0, result.getRealizedByCurrency().get(CurrencyType.USD), 0.01);
+        assertEquals(75.0, result.getUnrealizedByCurrency().get(CurrencyType.USD), 0.01);
+        assertEquals(25.0, result.getDividendsByCurrency().get(CurrencyType.USD), 0.01);
         assertEquals(1, result.getAccountBalances().size());
         assertEquals(17959259L, result.getAccountBalances().getFirst().getAccountId());
         assertEquals("IBKR", result.getAccountBalances().getFirst().getAccountName());
@@ -338,8 +337,23 @@ class PortfolioServiceTest {
             }
 
             @Override
-            public Double getAmountInBaseCurrency() {
+            public Double getAmountInPortfolioBaseCurrency() {
                 return amountInBaseCurrency;
+            }
+
+            @Override
+            public String getPortfolioConversionStatus() {
+                return "OK";
+            }
+
+            @Override
+            public Double getAmountInAccountCurrency() {
+                return amountInBaseCurrency;
+            }
+
+            @Override
+            public String getAccountConversionStatus() {
+                return "OK";
             }
 
             @Override
@@ -358,8 +372,8 @@ class PortfolioServiceTest {
             }
 
             @Override
-            public Double getBaseToOperationRate() {
-                return null;
+            public Double getFxRateToBase() {
+                return 1.0;
             }
         };
     }
@@ -487,6 +501,67 @@ class PortfolioServiceTest {
         assertEquals(100.0, result.getRealizedByCurrency().get(CurrencyType.USD), 0.01);
         assertEquals(-250.0, result.getUnrealizedByCurrency().get(CurrencyType.USD), 0.01);
         assertEquals(400.0, result.getDividendsByCurrency().get(CurrencyType.PLN), 0.01);
+    }
+
+    @Test
+    void calculateTotalProfitLoss_preservesConfiguredPortfolioBaseCurrency() {
+        when(portfolioKpiSummaryRepository.findAll()).thenReturn(List.of(new PortfolioKpiSummary(
+                2L,
+                "EUR portfolio",
+                CurrencyType.EUR,
+                1000.0,
+                800.0,
+                100.0,
+                700.0,
+                800.0,
+                40.0,
+                60.0,
+                20.0,
+                0.0,
+                ZonedDateTime.now()
+        )));
+        when(closedPositionRepository.findAll()).thenReturn(List.of());
+
+        Portfolio result = portfolioService.calculateTotalProfitLoss();
+
+        assertEquals(CurrencyType.EUR, result.getBaseCurrency());
+        assertEquals(CurrencyType.EUR, result.getAccountBalancesTotal().getLocalCurrency());
+        assertEquals(CurrencyType.EUR, result.getOpenPositionValuesTotal().getCurrency());
+    }
+
+    @Test
+    void calculateTotalProfitLoss_fallsBackWhenCurrencyBreakdownContainsUnsupportedMetricType() {
+        when(portfolioCurrencyBreakdownRepository.findAll()).thenReturn(List.of(
+                new PortfolioCurrencyBreakdown(
+                        1L,
+                        CurrencyType.USD,
+                        "ACCOUNT_LATEST",
+                        CurrencyType.USD,
+                        500.0,
+                        500.0,
+                        ZonedDateTime.now())
+        ));
+        when(accountStatisticsRepository.findAll()).thenReturn(List.of(
+                PortfolioBuilders.accountStatistics()
+                        .account(new AccountDefinition(1L, "Main", CurrencyType.USD, "Broker"))
+                        .performance(10.0, 20.0, 30.0)
+                        .build()));
+        Account account = new Account();
+        account.setId(1L);
+        account.setCurrency(CurrencyType.USD);
+        when(accountRepository.findAll()).thenReturn(List.of(account));
+        when(accountRepository.findMapByIdIn(any())).thenReturn(Map.of(1L, account));
+        when(closedPositionRepository.findAll()).thenReturn(List.of());
+
+        Portfolio result = portfolioService.calculateTotalProfitLoss();
+
+        assertEquals(10.0, result.getRealizedProfit(), 0.01);
+        assertEquals(20.0, result.getUnrealizedProfit(), 0.01);
+        assertEquals(30.0, result.getDividends(), 0.01);
+        assertEquals(60.0, result.getTotalProfit(), 0.01);
+        assertEquals(10.0, result.getRealizedByCurrency().get(CurrencyType.USD), 0.01);
+        assertEquals(20.0, result.getUnrealizedByCurrency().get(CurrencyType.USD), 0.01);
+        assertEquals(30.0, result.getDividendsByCurrency().get(CurrencyType.USD), 0.01);
     }
 
     @Test

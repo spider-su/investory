@@ -57,11 +57,11 @@ That's roughly 2-3 days of focused work and clears most of the operational rough
 
 | Item | Effort | Why |
 |---|---|---|
-| Activate or remove the OAuth2 Google config | S | The YAML stub is dead code; either wire it in (uncomment the starter dep in `pom.xml`) or delete the block. Drift attracts confusion. |
+| ~~Activate or remove the OAuth2 Google config~~ | done | The dead YAML stub is gone from the default and local configs. Drift removed. |
 | Per-user data scoping (add `owner_id` column to all positional tables + Flyway migration) | L | Today every authenticated user sees the same portfolio. Required before exposing the instance to more than one human. |
 | CSRF for UI POST routes only | S | CSRF is globally off; enable for the dashboard's import form and keep API routes off (Basic auth). |
 | Rate limiting on import endpoints (`bucket4j`) | S | Anyone with admin can DOS the orchestrator with a giant XLSX loop. |
-| Externalise secrets to env / Docker secrets, not yaml defaults | S | `change-me-admin` is the default password today; the README should reflect that and the prod profile should refuse to start without overrides. |
+| ~~Externalise secrets to env / Docker secrets, not yaml defaults~~ | done | `application-prod.yml` now requires explicit `APP_SECURITY_*` overrides and disables devtools in prod. |
 
 ## Theme F - Code health & dependencies
 
@@ -75,8 +75,8 @@ That's roughly 2-3 days of focused work and clears most of the operational rough
 | ~~Pin vulnerable telegrambots transitives~~ | done | `commons-io 2.21.0`, `commons-lang3 3.20.0`, `commons-beanutils 1.11.0` pinned in `<dependencyManagement>` to clear three advisories. |
 | ~~Bump `poi-ooxml` 5.2.3 → 5.4.1, `opencsv` 5.7.1 → 5.9, `gson` 2.10.1 → 2.13.2~~ | done | Refreshes direct deps; clears `CVE-2025-31672` on `poi-ooxml`. |
 | Bump `telegrambots` 6.9 → 7.x / 10.x (Boot starter, split artifacts) | M | 6.x is no longer maintained; the 7.x+ line ships a Spring Boot starter (`telegrambots-springboot-longpolling-starter`) and splits client/meta into separate jars. This requires reworking `PortfolioBot` to the newer consumer API. |
-| Tighten `PortfolioBot.detectBroker` heuristic | S | Today any `U*.csv` is treated as IBKR; tighten to `^U\d+\..*\.csv$` to avoid false positives. |
-| `application-prod.yml` profile + secret hygiene (no `change-me-admin` default) | S | Already listed under Theme E; relevant here too once Spotless/format is enforced. |
+| ~~Tighten `PortfolioBot.detectBroker` heuristic~~ | done | IBKR now matches only explicit `ibkr` names or strict `U\d+\..*\.csv` activity files. |
+| ~~`application-prod.yml` profile + secret hygiene (no `change-me-admin` default)~~ | done | Production config now demands explicit `APP_SECURITY_*` overrides. |
 
 ## Theme G - UX
 

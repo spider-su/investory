@@ -11,12 +11,12 @@ import static org.mockito.Mockito.when;
 
 import com.example.demo.infrastructure.CashOperationType;
 import com.example.demo.infrastructure.CurrencyType;
+import com.example.demo.infrastructure.PositionSettlementModel;
 import com.example.demo.infrastructure.PositionType;
 import com.example.demo.infrastructure.repository.account.Account;
 import com.example.demo.infrastructure.repository.account.AccountRepository;
 import com.example.demo.infrastructure.repository.account.AccountDaily;
 import com.example.demo.infrastructure.repository.account.AccountDailyRepository;
-import com.example.demo.infrastructure.repository.account.AccountStatistics;
 import com.example.demo.infrastructure.repository.account.AccountStatisticsRepository;
 import com.example.demo.infrastructure.repository.Asset;
 import com.example.demo.infrastructure.repository.AssetPriceHistoryRepository;
@@ -41,7 +41,6 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -75,7 +74,40 @@ class PortfolioProjectionServiceTest {
 
   @BeforeEach
   void setUp() {
-    org.mockito.Mockito.lenient().when(accountRepository.findAll()).thenReturn(List.of());
+    org.mockito.Mockito.lenient().when(accountRepository.findAll()).thenReturn(defaultAccounts());
+    org.mockito.Mockito.lenient()
+        .when(accountRepository.findAllById(any()))
+        .thenAnswer(
+            invocation -> {
+              @SuppressWarnings("unchecked")
+              java.util.Collection<Long> accountIds = invocation.getArgument(0);
+              return accountRepository.findAll().stream()
+                  .filter(account -> account.getId() != null && accountIds.contains(account.getId()))
+                  .toList();
+            });
+    org.mockito.Mockito.lenient()
+        .when(accountRepository.findPortfolioCurrenciesByAccountIdIn(any()))
+        .thenAnswer(
+            invocation -> {
+              @SuppressWarnings("unchecked")
+              java.util.Collection<Long> accountIds = invocation.getArgument(0);
+              return accountRepository.findAll().stream()
+                  .filter(account -> account.getId() != null && accountIds.contains(account.getId()))
+                  .<AccountRepository.AccountPortfolioCurrencyRow>map(
+                      account ->
+                          new AccountRepository.AccountPortfolioCurrencyRow() {
+                            @Override
+                            public Long getAccountId() {
+                              return account.getId();
+                            }
+
+                            @Override
+                            public String getBaseCurrency() {
+                              return defaultPortfolioBaseCurrency(account).name();
+                            }
+                          })
+                  .toList();
+            });
     org.mockito.Mockito.lenient()
         .when(openedPositionRepository.findAllByAccountIn(any()))
         .thenAnswer(
@@ -118,13 +150,11 @@ class PortfolioProjectionServiceTest {
                           normalizedRow(
                               normalized.operation().getId(),
                               normalized.operation().getAccount(),
+                               accountCurrency(normalized.operation()).name(),
                               normalized.operation().getCurrency() != null
                                   ? normalized.operation().getCurrency().name()
                                   : null,
-                              normalized.operation().getCurrency() != null
-                                  ? normalized.operation().getCurrency().name()
-                                  : null,
-                              CurrencyType.USD.name(),
+                               defaultPortfolioBaseCurrency(normalized.operation()).name(),
                               normalized.operation().getType() != null
                                   ? normalized.operation().getType().name()
                                   : null,
@@ -132,6 +162,7 @@ class PortfolioProjectionServiceTest {
                               normalized.operation().getSymbol(),
                               normalized.operation().getAmount(),
                               amountInBaseCurrency(normalized.operation()),
+                               normalized.operation().getAmount(),
                               normalized.operation().getComment(),
                               normalized.operation().getDate() != null
                                   ? normalized.operation().getDate().toLocalDate()
@@ -294,7 +325,10 @@ class PortfolioProjectionServiceTest {
 
     Asset asset = new Asset();
     asset.setSymbol("AAPL.US");
+    asset.setCurrency(CurrencyType.USD);
+    asset.setMarketPrice(999.0);
     asset.setMarketPriceUsd(999.0);
+    asset.setPriceUpdatedAt(tradeDate.plusMonths(1));
 
     when(openedPositionRepository.findAll()).thenReturn(List.of(opened));
     when(closedPositionRepository.findAll()).thenReturn(List.of());
@@ -321,6 +355,152 @@ class PortfolioProjectionServiceTest {
 
     assertEquals(1100.0, tradeDay.getMarketValue(), 0.01);
     assertEquals(100.0, tradeDay.getUnrealizedProfit(), 0.01);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void recalculateAll_prefersOpenLotObservationWhenTradePricesTie() {
+    ZonedDateTime splitDate = ZonedDateTime.parse("2025-11-16T13:51:04Z");
+
+    OpenedPosition opened = new OpenedPosition();
+    opened.setAccount(51499241L);
+    opened.setSymbol("NFLX.US");
+    opened.setCurrency(CurrencyType.USD);
+    opened.setType(PositionType.BUY);
+    opened.setVolume(10.0);
+    opened.setOpenPrice(112.0);
+    opened.setPurchaseValue(1120.0);
+    opened.setOpenTime(splitDate);
+
+    when(openedPositionRepository.findAll()).thenReturn(List.of(opened));
+    when(closedPositionRepository.findAll()).thenReturn(List.of());
+    when(cashOperationRepository.findAll()).thenReturn(List.of());
+    when(assetRepository.findAll()).thenReturn(List.of());
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+        .thenReturn(
+            List.of(
+                historicalPrice(
+                    "NFLX.US",
+                    splitDate.toLocalDate(),
+                    1181.0,
+                    "USD",
+                    90,
+                    1.0,
+                    "XTB_TRADE_CLOSE",
+                    "XTB_TRADE_CLOSE_OBSERVATION"),
+                historicalPrice(
+                    "NFLX.US",
+                    splitDate.toLocalDate(),
+                    112.0,
+                    "USD",
+                    90,
+                    1.0,
+                    "XTB_TRADE_OPEN",
+                    "XTB_TRADE_OPEN_OBSERVATION")));
+    when(currencyRateService.convertToBaseCurrency(
+            org.mockito.ArgumentMatchers.anyDouble(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    service.recalculateAll();
+
+    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    verify(accountDailyRepository).saveAll(dailyCaptor.capture());
+    AccountDaily splitDay =
+        toList(dailyCaptor.getValue()).stream()
+            .filter(row -> row.getDate().equals(splitDate.toLocalDate()))
+            .findFirst()
+            .orElseThrow();
+
+    assertEquals(1120.0, splitDay.getMarketValue(), 0.01);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void recalculateAll_treatsCashOnlyTradesAsReportingBoundaryFlows() {
+    ZonedDateTime tradeDate = ZonedDateTime.parse("2026-01-10T12:00:00Z");
+    long accountId = 51707603L;
+
+    Account cashOnlyAccount = account(accountId, CurrencyType.USD);
+    cashOnlyAccount.setCashOnly(true);
+
+    OpenedPosition opened = new OpenedPosition();
+    opened.setAccount(accountId);
+    opened.setSymbol("CSPX.UK");
+    opened.setCurrency(CurrencyType.USD);
+    opened.setType(PositionType.BUY);
+    opened.setVolume(10.0);
+    opened.setOpenPrice(100.0);
+    opened.setPurchaseValue(1000.0);
+    opened.setOpenTime(tradeDate);
+
+    CashOperation deposit = new CashOperation();
+    deposit.setAccount(accountId);
+    deposit.setType(CashOperationType.DEPOSIT);
+    deposit.setAmount(1000.0);
+    deposit.setCurrency(CurrencyType.USD);
+    deposit.setDate(tradeDate.minusDays(1));
+
+    CashOperation purchase = new CashOperation();
+    purchase.setAccount(accountId);
+    purchase.setType(CashOperationType.STOCK_PURCHASE);
+    purchase.setSymbol("CSPX.UK");
+    purchase.setAmount(-1000.0);
+    purchase.setCurrency(CurrencyType.USD);
+    purchase.setDate(tradeDate);
+
+    CashOperation sale = new CashOperation();
+    sale.setAccount(accountId);
+    sale.setType(CashOperationType.STOCK_SELL);
+    sale.setSymbol("CSPX.UK");
+    sale.setAmount(1100.0);
+    sale.setCurrency(CurrencyType.USD);
+    sale.setDate(tradeDate.plusDays(1));
+
+    Asset asset = new Asset();
+    asset.setSymbol("CSPX.UK");
+    asset.setMarketPriceUsd(100.0);
+
+    when(accountRepository.findAll()).thenReturn(List.of(cashOnlyAccount));
+    when(openedPositionRepository.findAll()).thenReturn(List.of(opened));
+    when(closedPositionRepository.findAll()).thenReturn(List.of());
+    when(cashOperationRepository.findAll()).thenReturn(List.of(deposit, purchase, sale));
+    when(assetRepository.findAll()).thenReturn(List.of(asset));
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+        .thenReturn(
+            List.of(
+                historicalPrice(
+                    "CSPX.UK", tradeDate.toLocalDate(), 100.0, "USD", 95)));
+    when(currencyRateService.convertToBaseCurrency(
+            org.mockito.ArgumentMatchers.anyDouble(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    service.recalculateAll();
+
+    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    verify(accountDailyRepository).saveAll(dailyCaptor.capture());
+    AccountDaily tradeDay =
+        toList(dailyCaptor.getValue()).stream()
+            .filter(row -> row.getDate().equals(tradeDate.toLocalDate()))
+            .findFirst()
+            .orElseThrow();
+    AccountDaily saleDay =
+        toList(dailyCaptor.getValue()).stream()
+            .filter(row -> row.getDate().equals(tradeDate.plusDays(1).toLocalDate()))
+            .findFirst()
+            .orElseThrow();
+
+    assertEquals(0.0, tradeDay.getMarketValue(), 0.01);
+    assertEquals(1000.0, tradeDay.getWithdrawals(), 0.01);
+    assertEquals(0.0, tradeDay.getDailyProfitAmount(), 0.01);
+    assertEquals(0.0, saleDay.getMarketValue(), 0.01);
+    assertEquals(1100.0, saleDay.getDeposits(), 0.01);
+    assertEquals(0.0, saleDay.getDailyProfitAmount(), 0.01);
   }
 
   @Test
@@ -702,6 +882,71 @@ class PortfolioProjectionServiceTest {
     assertEquals(0.0, closeDay.getMarketValue(), 0.01);
     assertEquals(0.0, closeDay.getCostBase(), 0.01);
     assertEquals(24.75, closeDay.getCashBalance(), 0.01);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void recalculateAll_doesNotValueResultOnlyCfdAtFullNotional() {
+    ZonedDateTime openDate = ZonedDateTime.parse("2026-03-06T17:58:43Z");
+    ZonedDateTime closeDate = ZonedDateTime.parse("2026-03-08T21:00:06Z");
+
+    ClosedPosition cfd = new ClosedPosition();
+    cfd.setId(2422831730L);
+    cfd.setAccount(51499241L);
+    cfd.setSymbol("NATGAS");
+    cfd.setCurrency(CurrencyType.USD);
+    cfd.setType(PositionType.BUY);
+    cfd.setSettlementModel(PositionSettlementModel.RESULT_ONLY);
+    cfd.setVolume(0.01);
+    cfd.setOpenTime(openDate);
+    cfd.setCloseTime(closeDate);
+    cfd.setOpenPrice(3.212);
+    cfd.setClosePrice(3.347);
+    cfd.setMargin(96.36);
+    cfd.setProfit(40.50);
+    cfd.setSwap(-0.54);
+    cfd.setCommission(0.0);
+
+    CashOperation closeResult = new CashOperation();
+    closeResult.setId(2422831730L);
+    closeResult.setAccount(51499241L);
+    closeResult.setType(CashOperationType.CLOSE_TRADE);
+    closeResult.setAmount(40.50);
+    closeResult.setCurrency(CurrencyType.USD);
+    closeResult.setDate(closeDate);
+    closeResult.setSymbol("NATGAS");
+
+    CashOperation swap = new CashOperation();
+    swap.setId(2422831731L);
+    swap.setAccount(51499241L);
+    swap.setType(CashOperationType.SWAP);
+    swap.setAmount(-0.54);
+    swap.setCurrency(CurrencyType.USD);
+    swap.setDate(closeDate);
+    swap.setSymbol("NATGAS");
+
+    when(openedPositionRepository.findAll()).thenReturn(List.of());
+    when(closedPositionRepository.findAll()).thenReturn(List.of(cfd));
+    when(cashOperationRepository.findAll()).thenReturn(List.of(closeResult, swap));
+    when(assetRepository.findAll()).thenReturn(List.of());
+    when(currencyRateService.convertToBaseCurrency(anyDouble(), any(), any(), any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    service.recalculateAll();
+
+    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    verify(accountDailyRepository).saveAll(dailyCaptor.capture());
+    AccountDaily closeDay =
+        toList(dailyCaptor.getValue()).stream()
+            .filter(row -> row.getDate().equals(closeDate.toLocalDate()))
+            .findFirst()
+            .orElseThrow();
+
+    assertEquals(0.0, closeDay.getMarketValue(), 0.0001);
+    assertEquals(0.0, closeDay.getCostBase(), 0.0001);
+    assertEquals(39.96, closeDay.getCashBalance(), 0.0001);
+    assertEquals(40.50, closeDay.getRealizedProfit(), 0.0001);
+    assertEquals(39.96, closeDay.getDailyProfitAmount(), 0.0001);
   }
 
   @Test
@@ -1578,7 +1823,46 @@ class PortfolioProjectionServiceTest {
     account.setId(id);
     account.setCurrency(currency);
     account.setName(String.valueOf(id));
+    account.setPortfolioId(id);
     return account;
+  }
+
+  private static List<Account> defaultAccounts() {
+    return List.of(
+        account(PortfolioTestData.IBKR_USD_ACCOUNT_ID, CurrencyType.USD),
+        account(50290466L, CurrencyType.PLN),
+        account(51499241L, CurrencyType.USD),
+        account(51548444L, CurrencyType.EUR),
+        account(PortfolioTestData.POLISH_BONDS_PLN_ACCOUNT_ID, CurrencyType.PLN),
+        account(51707603L, CurrencyType.PLN),
+        account(51822121L, CurrencyType.USD),
+        account(PortfolioTestData.CRYPTO_USD_ACCOUNT_ID, CurrencyType.USD));
+  }
+
+  private static CurrencyType defaultPortfolioBaseCurrency(Account account) {
+    return CurrencyType.USD;
+  }
+
+  private static CurrencyType accountCurrency(CashOperation operation) {
+    if (operation == null) {
+      return CurrencyType.USD;
+    }
+    return defaultAccounts().stream()
+        .filter(account -> account.getId() != null && account.getId().equals(operation.getAccount()))
+        .map(Account::getCurrency)
+        .findFirst()
+        .orElseGet(() -> operation.getCurrency() != null ? operation.getCurrency() : CurrencyType.USD);
+  }
+
+  private static CurrencyType defaultPortfolioBaseCurrency(CashOperation operation) {
+    if (operation == null) {
+      return CurrencyType.USD;
+    }
+    return defaultAccounts().stream()
+        .filter(account -> account.getId() != null && account.getId().equals(operation.getAccount()))
+        .findFirst()
+        .map(PortfolioProjectionServiceTest::defaultPortfolioBaseCurrency)
+        .orElse(CurrencyType.USD);
   }
 
   private static <T> List<T> toList(Iterable<T> iterable) {
@@ -1600,6 +1884,7 @@ class PortfolioProjectionServiceTest {
       String symbol,
       Double amount,
       Double amountInBaseCurrency,
+      Double amountInAccountCurrency,
       String comment,
       LocalDate date) {
     return new NormalizedCashOperationRepository.NormalizedCashOperationRow() {
@@ -1649,8 +1934,23 @@ class PortfolioProjectionServiceTest {
       }
 
       @Override
-      public Double getAmountInBaseCurrency() {
+      public Double getAmountInPortfolioBaseCurrency() {
         return amountInBaseCurrency;
+      }
+
+      @Override
+      public String getPortfolioConversionStatus() {
+        return "OK";
+      }
+
+      @Override
+      public Double getAmountInAccountCurrency() {
+        return amountInAccountCurrency;
+      }
+
+      @Override
+      public String getAccountConversionStatus() {
+        return "OK";
       }
 
       @Override
@@ -1669,8 +1969,8 @@ class PortfolioProjectionServiceTest {
       }
 
       @Override
-      public Double getBaseToOperationRate() {
-        return null;
+      public Double getFxRateToBase() {
+        return 1.0;
       }
     };
   }

@@ -144,12 +144,21 @@ public class AssetPriceFallbackService {
         positions.stream()
             .mapToDouble(position -> nz(position.getOpenPrice()) * nz(position.getVolume()))
             .sum();
-    CurrencyType currency =
-        positions.stream()
-            .map(OpenedPosition::getCurrency)
-            .filter(Objects::nonNull)
-            .findFirst()
-            .orElse(BASE_CURRENCY);
+    java.util.Set<CurrencyType> currencies = positions.stream()
+        .map(OpenedPosition::getPriceCurrency)
+        .filter(Objects::nonNull)
+        .collect(java.util.stream.Collectors.toSet());
+    // The same instrument can be held across accounts whose reconstruction stamped different
+    // position currencies onto price_currency. Do NOT abort the whole backfill for that: a single
+    // symbol with mixed/missing currency must not block pricing every other asset (including
+    // symbols that have good historical prices). Degrade to an unknown currency and let the
+    // downstream historical/asset-currency resolution handle it.
+    CurrencyType currency = currencies.size() == 1 ? currencies.iterator().next() : null;
+    if (currencies.size() > 1) {
+      log.warn(
+          "Mixed open-price currencies {} for a reconstructed symbol; deferring to historical/asset"
+              + " currency for the weighted-average fallback", currencies);
+    }
     return new WeightedPrice(weightedValue / volume, currency);
   }
 

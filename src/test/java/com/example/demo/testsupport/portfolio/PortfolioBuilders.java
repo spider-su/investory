@@ -501,6 +501,7 @@ public final class PortfolioBuilders {
 
     private AccountStatisticsBuilder() {
       statistics.setAccountId(PortfolioTestData.IBKR_USD_ACCOUNT_ID);
+      statistics.setValuationCurrency(CurrencyType.USD.name());
       statistics.setTotalDeposit(0.0);
       statistics.setTotalWithdrawal(0.0);
       statistics.setNetDeposit(0.0);

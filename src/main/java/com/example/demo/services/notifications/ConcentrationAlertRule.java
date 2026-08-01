@@ -38,11 +38,11 @@ public class ConcentrationAlertRule implements AlertRule {
             if (p.getSymbol() == null) {
                 continue;
             }
-            double volume = p.getVolume() != null ? p.getVolume() : 0.0;
+            double volume = p.signedQuantity();
             double price = p.getMarketPrice() != null ? p.getMarketPrice()
                     : (p.getOpenPrice() != null ? p.getOpenPrice() : 0.0);
             double native_ = Math.abs(volume * price);
-            double base = currencyRateService.convertToBaseCurrency(native_, BASE, p.getCurrency());
+            double base = currencyRateService.convertToBaseCurrency(native_, BASE, p.getPriceCurrency());
             exposureBySymbol.merge(p.getSymbol(), base, Double::sum);
             total += base;
         }

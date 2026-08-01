@@ -21,25 +21,52 @@ public class CashOperation {
     @Id
     private Long id;
 
-    @Column(name = "account_id")
+    @Column(name = "account_id", nullable = false)
     private Long account;
 
     @Enumerated(value = EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(name = "operation", columnDefinition = "cash_operation_type")
+    @Column(name = "operation", nullable = false, columnDefinition = "cash_operation_type")
     private CashOperationType type;
 
     @Column(name = "asset_id")
+    private Long assetId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "asset_id", insertable = false, updatable = false)
+    private Asset asset;
+
+    @Column(name = "source_asset_symbol")
+    private String sourceAssetSymbol;
+
+    @Column(name = "broker_symbol")
+    private String brokerSymbol;
+
+    @Transient
     private String symbol;
 
+    @Column(nullable = false)
     private Double amount;
 
     @Enumerated(value = EnumType.STRING)
-    @Column(name = "currency")
+    @Column(name = "currency", nullable = false)
     private CurrencyType currency;
 
     private String comment;
 
+    @Column(nullable = false)
     private ZonedDateTime date;
+
+    public void setSymbol(String symbol) {
+        this.symbol = symbol;
+        if (this.sourceAssetSymbol == null) {
+            this.sourceAssetSymbol = symbol;
+        }
+    }
+
+    @PostLoad
+    void loadCanonicalSymbol() {
+        this.symbol = asset != null ? asset.getSymbol() : sourceAssetSymbol;
+    }
 
 }

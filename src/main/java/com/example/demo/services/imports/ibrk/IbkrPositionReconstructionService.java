@@ -120,7 +120,8 @@ public class IbkrPositionReconstructionService {
     ReconstructedPosition position =
         positions.computeIfAbsent(
             op.getAccount() + "|" + tx.symbol(),
-            ignored -> new ReconstructedPosition(op.getAccount(), tx.symbol(), op.getCurrency()));
+            ignored -> new ReconstructedPosition(
+                op.getAccount(), op.getAssetId(), tx.symbol(), op.getSourceAssetSymbol(), op.getCurrency()));
 
     if (op.getType() == CashOperationType.STOCK_PURCHASE) {
       if (tx.quantity() == null || Math.abs(tx.quantity()) < EPSILON) {
@@ -173,7 +174,9 @@ public class IbkrPositionReconstructionService {
                     + lotIndex,
                 dedup));
         position.setAccount(reconstructed.account);
+        position.setAssetId(reconstructed.assetId);
         position.setSymbol(reconstructed.symbol);
+        position.setSourceAssetSymbol(reconstructed.sourceAssetSymbol);
         position.setType(PositionType.BUY);
         position.setCurrency(reconstructed.currency);
         position.setVolume(lot.quantity);
@@ -232,7 +235,9 @@ public class IbkrPositionReconstructionService {
                   + saleValue,
               dedup));
       row.setAccount(op.getAccount());
+      row.setAssetId(position.assetId);
       row.setSymbol(position.symbol);
+      row.setSourceAssetSymbol(position.sourceAssetSymbol);
       row.setType(PositionType.BUY);
       row.setCurrency(position.currency);
       row.setVolume(closed.quantity());
@@ -328,7 +333,9 @@ public class IbkrPositionReconstructionService {
             validationPositions.computeIfAbsent(
                 positionKey,
                 ignored -> {
-                  ReconstructedPosition seeded = new ReconstructedPosition(operation.getAccount(), operation.getSymbol(), operation.getCurrency());
+                  ReconstructedPosition seeded = new ReconstructedPosition(
+                      operation.getAccount(), operation.getAssetId(), operation.getSymbol(),
+                      operation.getSourceAssetSymbol(), operation.getCurrency());
                   ReconstructedPosition existing = positions.get(positionKey);
                   if (existing != null) {
                     seeded.quantity = existing.quantity;
@@ -425,16 +432,21 @@ public class IbkrPositionReconstructionService {
 
   private static final class ReconstructedPosition {
     private final Long account;
+    private final Long assetId;
     private final String symbol;
+    private final String sourceAssetSymbol;
     private final CurrencyType currency;
     private final Deque<ReconstructedLot> lots = new ArrayDeque<>();
     private double quantity;
     private double costBasis;
 
-    private ReconstructedPosition(Long account, String symbol, CurrencyType currency) {
+    private ReconstructedPosition(
+        Long account, Long assetId, String symbol, String sourceAssetSymbol, CurrencyType currency) {
       this.account = account;
+      this.assetId = Objects.requireNonNull(assetId, "IBKR canonical asset id");
       this.symbol = symbol;
-      this.currency = currency == null ? CurrencyType.USD : currency;
+      this.sourceAssetSymbol = sourceAssetSymbol;
+      this.currency = Objects.requireNonNull(currency, "IBKR monetary currency");
     }
 
     private void addLot(ZonedDateTime openDate, double quantity, double costBasis) {

@@ -299,11 +299,13 @@ COMMENT ON TABLE investory.import_history IS 'History of imports from providers 
 
 CREATE TABLE investory.cash_operations (
     id           bigserial PRIMARY KEY,
-    account_id   bigint REFERENCES investory.accounts(id) ON DELETE CASCADE,
+    account_id   bigint NOT NULL REFERENCES investory.accounts(id) ON DELETE CASCADE,
     operation    investory.cash_operation_type NOT NULL,
-    asset_id     varchar(64) REFERENCES investory.assets(symbol),
+    asset_id     bigint REFERENCES investory.assets(id),
+    source_asset_symbol varchar(128),
+    broker_symbol varchar(128),
     amount       numeric(20,8) NOT NULL,
-    currency     varchar(3) REFERENCES investory.currencies(id),
+    currency     varchar(3) NOT NULL REFERENCES investory.currencies(id),
     comment      varchar(1023),
     date         timestamp with time zone NOT NULL
 );
@@ -312,17 +314,35 @@ CREATE TABLE investory.cash_operations (
 COMMENT ON TABLE investory.cash_operations IS 'All RAW historical records of cash operations imported from all portfolio providers';
 
 CREATE TYPE investory.positions_operation_type AS ENUM ('BUY', 'SELL');
+CREATE TYPE investory.position_settlement_model AS ENUM (
+    'CASH_SETTLED',
+    'RESULT_ONLY',
+    'UNCLASSIFIED'
+);
 CREATE TABLE IF NOT EXISTS investory.positions (
     id              bigserial PRIMARY KEY,
-    account_id      bigint REFERENCES investory.accounts(id) ON DELETE CASCADE,
-    asset_id        varchar(64) REFERENCES investory.assets(symbol),
+    account_id      bigint NOT NULL REFERENCES investory.accounts(id) ON DELETE CASCADE,
+    asset_id        bigint NOT NULL REFERENCES investory.assets(id),
+    source_asset_symbol varchar(128) NOT NULL,
+    broker_symbol   varchar(128),
+    broker_product  varchar(255),
+    source_position_id varchar(128),
+    source_row_occurrence integer NOT NULL DEFAULT 1,
     operation       investory.positions_operation_type NOT NULL,
-    volume          numeric(20,8),
-    currency        varchar(3) REFERENCES investory.currencies(id),
-    open_time       timestamptz,
-    open_price      numeric(20,8),
+    settlement_model investory.position_settlement_model NOT NULL DEFAULT 'CASH_SETTLED',
+    volume          numeric(20,8) NOT NULL,
+    price_currency  varchar(3) NOT NULL REFERENCES investory.currencies(id),
+    cost_currency   varchar(3) NOT NULL REFERENCES investory.currencies(id),
+    profit_currency varchar(3) NOT NULL REFERENCES investory.currencies(id),
+    commission_currency varchar(3) NOT NULL REFERENCES investory.currencies(id),
+    open_time       timestamptz NOT NULL,
+    open_price      numeric(20,8) NOT NULL,
+    source_open_price numeric(20,8),
+    open_conversion_rate numeric(20,8),
     close_time      timestamptz,
     close_price     numeric(20,8),
+    source_close_price numeric(20,8),
+    close_conversion_rate numeric(20,8),
     base_value      numeric(20,8),
     purchase_value  numeric(20,8),
     sale_value      numeric(20,8),
@@ -331,27 +351,55 @@ CREATE TABLE IF NOT EXISTS investory.positions (
     swap            numeric(20,8),
     profit          numeric(20,8)
 );
--- CREATE UNIQUE INDEX IF NOT EXISTS ux_positions_business_key
---     ON investory.positions (
---         account_id,
---         asset_id,
---         operation,
---         COALESCE(volume, 0),
---         COALESCE(currency, ''),
---         COALESCE(open_time, '-infinity'::timestamptz),
---         COALESCE(open_price, 0),
---         COALESCE(close_time, 'infinity'::timestamptz),
---         COALESCE(close_price, 0),
---         COALESCE(base_value, 0),
---         COALESCE(purchase_value, 0),
---         COALESCE(sale_value, 0),
---         COALESCE(margin, 0),
---         COALESCE(commission, 0),
---         COALESCE(swap, 0),
---         COALESCE(profit, 0)
---     );
+CREATE INDEX IF NOT EXISTS ix_positions_source_position_id
+    ON investory.positions(account_id, source_position_id)
+    WHERE source_position_id IS NOT NULL;
+COMMENT ON COLUMN investory.positions.id IS
+    'Stable broker/source row identity assigned by the importer. The primary key is the row-level deduplication boundary across overlapping import files.';
+COMMENT ON COLUMN investory.cash_operations.id IS
+    'Stable broker/source row identity assigned by the importer. The primary key is the row-level deduplication boundary across overlapping import files.';
 COMMENT ON TABLE investory.positions IS 'Portfolio assets, both active and closed, used for calculating portfolio performance and reporting';
 COMMENT ON COLUMN investory.positions.close_time IS 'The time when the position was closed, null if the position is still open';
+COMMENT ON COLUMN investory.positions.asset_id IS 'Canonical application identity. Numeric foreign key to assets.id; broker symbols are never identity.';
+COMMENT ON COLUMN investory.positions.source_asset_symbol IS 'Unmodified symbol text from the imported source row, retained for audit.';
+COMMENT ON COLUMN investory.positions.broker_symbol IS 'Optional broker-specific symbol or contract identifier retained for provenance.';
+COMMENT ON COLUMN investory.positions.broker_product IS
+    'Broker product text retained from the source row. XTB uses this as settlement-model evidence when present.';
+COMMENT ON COLUMN investory.positions.source_position_id IS
+    'Broker position identifier retained for provenance. It is not row-unique because partial closes can reuse one broker position id.';
+COMMENT ON COLUMN investory.positions.source_row_occurrence IS
+    'One-based occurrence of otherwise identical source rows. Legitimate repeated lots must remain separate.';
+COMMENT ON COLUMN investory.positions.open_conversion_rate IS
+    'Broker-reported multiplier from source_open_price currency to purchase-value currency.';
+COMMENT ON COLUMN investory.positions.close_conversion_rate IS
+    'Broker-reported multiplier from source_close_price currency to sale-value currency.';
+COMMENT ON COLUMN investory.positions.source_open_price IS
+    'Unmodified broker open price before any import-time normalization into a supported currency.';
+COMMENT ON COLUMN investory.positions.source_close_price IS
+    'Unmodified broker close price before any import-time normalization into a supported currency.';
+COMMENT ON COLUMN investory.positions.volume IS 'Non-negative absolute quantity. Canonical signed quantity is BUY => volume and SELL => -volume.';
+COMMENT ON COLUMN investory.positions.settlement_model IS
+    'Per-position settlement contract. CASH_SETTLED moves trade notional through cash; RESULT_ONLY moves only realized profit/loss, swap, and fees. It is position-scoped because one account and symbol can contain both contracts.';
+COMMENT ON COLUMN investory.positions.price_currency IS 'Currency of open_price and close_price.';
+COMMENT ON COLUMN investory.positions.cost_currency IS 'Currency of purchase_value, sale_value, base_value, and margin.';
+COMMENT ON COLUMN investory.positions.profit_currency IS 'Currency of profit and swap.';
+COMMENT ON COLUMN investory.positions.commission_currency IS 'Currency of commission.';
+COMMENT ON COLUMN investory.cash_operations.asset_id IS 'Optional canonical application identity. Numeric foreign key to assets.id.';
+COMMENT ON COLUMN investory.cash_operations.source_asset_symbol IS 'Unmodified source symbol when the cash row names an instrument.';
+COMMENT ON COLUMN investory.cash_operations.currency IS 'Currency of amount. This is independent from accounts.currency and asset quote currency.';
+
+CREATE OR REPLACE FUNCTION investory.signed_position_quantity(
+    operation investory.positions_operation_type,
+    volume numeric
+) RETURNS numeric
+LANGUAGE sql
+IMMUTABLE
+RETURNS NULL ON NULL INPUT
+AS $$
+    SELECT CASE WHEN operation = 'SELL' THEN -ABS(volume) ELSE ABS(volume) END
+$$;
+COMMENT ON FUNCTION investory.signed_position_quantity(investory.positions_operation_type, numeric) IS
+    'Canonical position quantity: BUY is positive and SELL is negative while stored positions.volume remains non-negative.';
 
 CREATE TABLE IF NOT EXISTS investory.account_daily (
     id                  bigserial PRIMARY KEY,

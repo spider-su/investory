@@ -11,3 +11,5 @@ src/main/resources/application-local.yml
 /src/test/manual/http-client.private.env.json
 /generated
 /scripts
+/tools/DbProbe.java
+/tools/DbProbe.class

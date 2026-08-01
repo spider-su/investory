@@ -9,6 +9,7 @@ import com.example.demo.services.portfolio.PortfolioCommandRouter;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Locale;
+import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -29,6 +30,7 @@ public class PortfolioBot extends TelegramLongPollingBot {
 
     static final long MAX_DOWNLOAD_SIZE_BYTES = 20L * 1024 * 1024;
     static final int MAX_MESSAGE_LENGTH = 4096;
+    private static final Pattern IBKR_TRANSACTION_FILE = Pattern.compile("^u\\d+\\..*\\.csv$");
 
     @Value("${app.telegram.chat-id:}")
     private String chatId;
@@ -137,7 +139,7 @@ public class PortfolioBot extends TelegramLongPollingBot {
         BrokerType broker = detectBroker(fileName);
         if (broker == null) {
             sendTo(replyChatId, "Could not detect broker from file name: " + fileName
-                    + ". Use an XTB *.xlsx or IBKR *.csv export.");
+                    + ". Use an XTB *.xlsx or IBKR activity CSV export.");
             return;
         }
 
@@ -182,15 +184,11 @@ public class PortfolioBot extends TelegramLongPollingBot {
         if (lower.contains("ibkr")) {
             return BrokerType.IBKR;
         }
-        if (lower.length() > 1 && lower.charAt(0) == 'u' && Character.isDigit(lower.charAt(1))
-                && lower.endsWith(".csv")) {
+        if (IBKR_TRANSACTION_FILE.matcher(lower).matches()) {
             return BrokerType.IBKR;
         }
         if (lower.endsWith(".xlsx")) {
             return BrokerType.XTB;
-        }
-        if (lower.endsWith(".csv")) {
-            return BrokerType.IBKR;
         }
         return null;
     }

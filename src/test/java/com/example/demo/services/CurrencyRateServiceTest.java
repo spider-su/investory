@@ -4,6 +4,7 @@ import com.example.demo.infrastructure.CurrencyType;
 import com.example.demo.infrastructure.repository.CurrencyRate;
 import com.example.demo.infrastructure.repository.CurrencyRateRepository;
 import com.example.demo.services.currency.CurrencyRateService;
+import com.example.demo.services.currency.FxRateUnavailableException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -47,10 +48,10 @@ class CurrencyRateServiceTest {
 
     @Test
     void convertToBaseCurrency_usesHistoricalRateForRequestedDate() {
-        // Uses the latest rate on or before 2026-06-15 => 2026-06-01.
-        assertEquals(100.0, service.convertToBaseCurrency(90.0, CurrencyType.USD, CurrencyType.EUR, LocalDate.of(2026, 6, 15)), 1e-9);
-        // Uses the normalized month start 2026-07-01.
-        assertEquals(105.88235294117646, service.convertToBaseCurrency(90.0, CurrencyType.USD, CurrencyType.EUR, LocalDate.of(2026, 7, 5)), 1e-9);
+        // Direct EUR->USD rate exists for 2026-06-01, so direct wins over inverse USD->EUR.
+        assertEquals(99.0, service.convertToBaseCurrency(90.0, CurrencyType.USD, CurrencyType.EUR, LocalDate.of(2026, 6, 15)), 1e-9);
+        // Direct historical EUR->USD still wins on later dates until a newer direct rate exists.
+        assertEquals(99.0, service.convertToBaseCurrency(90.0, CurrencyType.USD, CurrencyType.EUR, LocalDate.of(2026, 7, 5)), 1e-9);
     }
 
     @Test
@@ -65,11 +66,13 @@ class CurrencyRateServiceTest {
     }
 
     @Test
-    void convertToBaseCurrency_returnsAmountUnconvertedWhenRateMissing() {
+    void convertToBaseCurrency_throwsWhenRateMissing() {
         when(currencyRateRepository.findAllByOrderByBaseAscToCurrencyAscMonthStartAsc()).thenReturn(List.of());
         CurrencyRateService freshService = new CurrencyRateService(currencyRateRepository);
-        double result = freshService.convertToBaseCurrency(123.0, CurrencyType.PLN, CurrencyType.EUR, LocalDate.of(2026, 7, 5));
-        assertEquals(123.0, result);
+        freshService.preloadExchangeRates();
+        assertThrows(
+                FxRateUnavailableException.class,
+                () -> freshService.convertToBaseCurrency(123.0, CurrencyType.PLN, CurrencyType.EUR, LocalDate.of(2026, 7, 5)));
     }
 
     @Test

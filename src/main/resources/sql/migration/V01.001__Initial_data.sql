@@ -4,6 +4,12 @@ INSERT INTO investory.portfolios (id, name, base_currency, owner) VALUES
     (1, 'Alex & Olga Portfolio', 'USD', 'Alex & Olga Kotik')
 on conflict do nothing;
 
+SELECT setval(
+    pg_get_serial_sequence('investory.portfolios', 'id'),
+    COALESCE((SELECT MAX(id) FROM investory.portfolios), 1),
+    true
+);
+
 insert into accounts (id, currency, provider, name, owner, portfolio_id, cash_only) values
     ('51551301', 'PLN', 'XTB', 'IKE Alex',  'Alex Kotik', 1, false),
     ('51822121', 'USD', 'XTB', 'REITs USD',   'Olga Kotik', 1, false),

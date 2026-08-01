@@ -88,6 +88,8 @@ project facts from this file.
   CSRF is currently disabled.
 - Ghostfolio compatibility has a separate, permissive security chain only under the
   `ghostfolio` profile. Do not weaken default security to support it.
+- `application-prod.yml` disables devtools and requires explicit `APP_SECURITY_*` overrides for
+  production credentials; do not rely on the local yaml defaults in prod runs.
 - Telegram wiring is conditional on `app.telegram.enabled=true`.
 - OpenAI chat is configured by `app.openai.*`, uses `gpt-5-mini` by default, and is disabled by
   default. Portfolio context is rendered dashboard text capped by the configured character limit.
@@ -130,10 +132,13 @@ project facts from this file.
 - Telegram document imports use the same orchestrator with `ImportSourceType.TELEGRAM`;
   filename and extension drive broker detection.
 - Asset identity:
-  - `assets.symbol`: application/broker symbol, normally `TICKER.EXCHANGE`.
+  - `assets.id`: canonical application identity used by every transactional and price foreign key.
+  - `assets.symbol`: canonical display/provider-routing symbol, normally `TICKER.EXCHANGE`.
   - `assets.ticker`: TwelveData request symbol, often bare for US instruments.
   - `assets.ibkr`: IBKR alias or mapping.
   - `assets.yahoo`: Yahoo-specific symbol where needed.
+  - `positions.source_asset_symbol` and `cash_operations.source_asset_symbol` preserve raw imports;
+    broker symbols are provenance, never identity.
 
 ## Database And Projection Guardrails
 
@@ -150,6 +155,11 @@ project facts from this file.
   separately persisted application-owned tables.
 - `positions` is the only position table. `OpenedPosition` and `ClosedPosition` map to it and
   are filtered by `close_time`; never recreate split position tables.
+- Position money uses explicit `price_currency`, `cost_currency`, `profit_currency`, and
+  `commission_currency`; never infer them from `accounts.currency`. Stored `volume` is absolute;
+  use the shared signed-quantity helper/function for BUY/SELL direction. The
+  `positions.settlement_model` contract is per position because one account and symbol can hold
+  both cash-settled shares and result-only CFDs. Never value `RESULT_ONLY` at full notional.
 - `assets` owns current quote columns: `market_price`, `market_price_usd`, `price_source`, and
   `price_updated_at`. Projections and export require `market_price_usd`.
 - `asset_price_history` distinguishes observed and estimated prices and preserves source,
@@ -161,6 +171,7 @@ project facts from this file.
   application-assigned IDs, so broker imports do not use their sequences.
 - Ordinary reporting views:
   - `v_portfolio_daily`
+  - `reporting_trade_settlement_reconciliation_by_account`
 - Materialized reporting views:
   - `account_monthly_mv`
   - `portfolio_daily_mv`
@@ -170,6 +181,7 @@ project facts from this file.
   - `portfolio_asset_allocation`
   - `portfolio_currency_breakdown`
   - `symbol_performance`
+  - `reporting_trade_settlement_reconciliation`
 - Removed database surface must stay removed: `stocks`, `ticker_monthly`,
   `monthly_position_summary`, `position_summary`, `portfolio_history`, old open-position
   history, indicator tables, and obsolete diagnostic views.
@@ -263,6 +275,9 @@ project facts from this file.
 
 ## Local Database Investigation
 
+- Always use the `local` Spring profile configuration and connect through JDBC when checking live
+  database data or validating live calculation results. Do not try another Spring profile, infer
+  credentials from another configuration source, or use `psql` for these checks.
 - For data discrepancies, connect to the configured local PostgreSQL database before drawing
   conclusions from screenshots or code alone.
 - First verify database freshness and schema: Flyway version, required columns such as

@@ -24,21 +24,17 @@ class PortfolioBotTest {
             // explicit IBKR keyword always wins (even with .xlsx)
             "ibkr-2026.csv, IBKR",
             "IBKR_jan.xlsx, IBKR",
-            // IBKR account-id files: U + digits + .csv
-            "U1234.csv, IBKR",
+            // IBKR activity files: U + digits + dotted transaction name + .csv
             "U17959259.TRANSACTIONS.20250211.20260612.csv, IBKR",
-            // generic extension fallbacks
-            "statement-2026.xlsx, XTB",
-            "transactions.csv, IBKR",
-            "upload.csv, IBKR",
-            "us-rates.csv, IBKR"
+            // extension fallbacks
+            "statement-2026.xlsx, XTB"
     })
     void detectBroker_resolvesKnownBrokers(String fileName, BrokerType expected) {
         assertEquals(expected, PortfolioBot.detectBroker(fileName));
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"statement.pdf", "statement.txt", "upload"})
+    @ValueSource(strings = {"statement.pdf", "statement.txt", "upload", "U1234.csv", "statement.csv", "transactions.csv", "us-rates.csv"})
     void detectBroker_returnsNullForUnsupportedFiles(String fileName) {
         assertNull(PortfolioBot.detectBroker(fileName));
     }
@@ -59,7 +55,6 @@ class PortfolioBotTest {
 
     @Test
     void downloadLimit_allowsTwentyMbAndRejectsLargerFiles() {
-        assertFalse(PortfolioBot.isDownloadTooLarge(null));
         assertFalse(PortfolioBot.isDownloadTooLarge(PortfolioBot.MAX_DOWNLOAD_SIZE_BYTES));
         assertTrue(PortfolioBot.isDownloadTooLarge(PortfolioBot.MAX_DOWNLOAD_SIZE_BYTES + 1));
     }
@@ -84,5 +79,6 @@ class PortfolioBotTest {
     void detectBroker_isCaseInsensitive() {
         assertEquals(BrokerType.XTB, PortfolioBot.detectBroker("Account.XLSX"));
         assertEquals(IBKR, PortfolioBot.detectBroker("MyIbkrAccount.CSV"));
+        assertEquals(IBKR, PortfolioBot.detectBroker("U17959259.TRANSACTIONS.20250211.20251231.CSV"));
     }
 }

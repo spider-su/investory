@@ -91,10 +91,12 @@ public class PortfolioService {
             applyCalculatedTotals(portfolio);
         }
         portfolio.setAccountBalances(calculateAccountBalances(portfolio.getBaseCurrency()));
-        portfolio.setAccountBalancesTotal(accountBalancesTotal(portfolio.getAccountBalances()));
+        portfolio.setAccountBalancesTotal(
+                accountBalancesTotal(portfolio.getAccountBalances(), portfolio.getBaseCurrency()));
         List<OpenPositionValue> openPositionValues = calculateOpenPositionValues();
         portfolio.setOpenPositionValues(openPositionValues);
-        portfolio.setOpenPositionValuesTotal(openPositionValuesTotal(openPositionValues));
+        portfolio.setOpenPositionValuesTotal(
+                openPositionValuesTotal(openPositionValues, portfolio.getBaseCurrency()));
         portfolio.setDividendGainers(calculateDividendGainers(portfolio.getBaseCurrency()));
         applyFallbackReconciliationStatus(portfolio);
         applyDataQuality(portfolio);
@@ -202,7 +204,8 @@ public class PortfolioService {
         if (topFive >= 50.0) warnings.add("Top five holdings exceed 50% of portfolio.");
         portfolio.setRiskExposure(new RiskExposureSummary(largest, topFive, baseExposure, foreignExposure,
             portfolio.getCash(), portfolio.getDividends() + portfolio.getInterest(),
-            "Current snapshot · base USD · cash excluded from asset concentration", warnings));
+            "Current snapshot · base " + portfolio.getBaseCurrency()
+                + " · cash excluded from asset concentration", warnings));
     }
 
     private static Number number(Object value) { return value instanceof Number n ? n : 0; }
@@ -266,26 +269,37 @@ public class PortfolioService {
 
         // ── Realized P/L from imported closed positions ──────────────────────
         for (ClosedPosition position : closedPositions) {
-            CurrencyType currency = position.getCurrency() != null
-                ? position.getCurrency() : portfolio.getBaseCurrency();
             LocalDate rateDate = position.getCloseTime() != null
                 ? position.getCloseTime().toLocalDate() : LocalDate.now();
-            double profit = nz(position.getProfit()) + nz(position.getCommission()) + nz(position.getSwap());
-            portfolio.getRealizedByCurrency().merge(currency, profit, Double::sum);
+            CurrencyType profitCurrency = position.getProfitCurrency();
+            CurrencyType commissionCurrency = position.getCommissionCurrency();
+            double profitAndSwap = nz(position.getProfit()) + nz(position.getSwap());
+            double commission = nz(position.getCommission());
+            portfolio.getRealizedByCurrency().merge(profitCurrency, profitAndSwap, Double::sum);
+            portfolio.getRealizedByCurrency().merge(commissionCurrency, commission, Double::sum);
             portfolio.setRealizedProfit(
                 portfolio.getRealizedProfit()
                     + currencyRateService.convertToBaseCurrency(
-                        profit, portfolio.getBaseCurrency(), currency, rateDate));
+                        profitAndSwap, portfolio.getBaseCurrency(), profitCurrency, rateDate)
+                    + currencyRateService.convertToBaseCurrency(
+                        commission, portfolio.getBaseCurrency(), commissionCurrency, rateDate));
         }
 
         // ── Unrealized P/L (live from open positions — always real-time) ─────
-        Map<CurrencyType, List<OpenedPosition>> openedPositions = openedPositionRepository.findAll().stream()
-                .collect(Collectors.groupingBy(OpenedPosition::getCurrency));
-        openedPositions.forEach((currency, positions) -> {
-            Double unrealized = positions.stream().map(p -> nz(p.getProfit()) + nz(p.getCommission()) + nz(p.getSwap())).reduce(Double::sum).orElse(0.0);
-            portfolio.getUnrealizedByCurrency().merge(currency, unrealized, Double::sum);
-            portfolio.setUnrealizedProfit(portfolio.getUnrealizedProfit() + currencyRateService.convertToBaseCurrency(unrealized, portfolio.getBaseCurrency(), currency, java.time.LocalDate.now()));
-        });
+        for (OpenedPosition position : openedPositionRepository.findAll()) {
+            CurrencyType profitCurrency = position.getProfitCurrency();
+            CurrencyType commissionCurrency = position.getCommissionCurrency();
+            double profitAndSwap = nz(position.getProfit()) + nz(position.getSwap());
+            double commission = nz(position.getCommission());
+            portfolio.getUnrealizedByCurrency().merge(profitCurrency, profitAndSwap, Double::sum);
+            portfolio.getUnrealizedByCurrency().merge(commissionCurrency, commission, Double::sum);
+            portfolio.setUnrealizedProfit(
+                    portfolio.getUnrealizedProfit()
+                            + currencyRateService.convertToBaseCurrency(
+                                    profitAndSwap, portfolio.getBaseCurrency(), profitCurrency, LocalDate.now())
+                            + currencyRateService.convertToBaseCurrency(
+                                    commission, portfolio.getBaseCurrency(), commissionCurrency, LocalDate.now()));
+        }
 
         // ── Dividends from imported cash operations ──────────────────────────
         double dividendsTotal = 0.0;
@@ -335,8 +349,14 @@ public class PortfolioService {
         } else {
             balance = openedPositionRepository.findAll().stream()
                     .mapToDouble(position -> currencyRateService.convertToBaseCurrency(
-                            nz(position.getPurchaseValue()) + nz(position.getProfit()),
-                            portfolio.getBaseCurrency(), position.getCurrency(), java.time.LocalDate.now()))
+                                    nz(position.getPurchaseValue()), portfolio.getBaseCurrency(),
+                                    position.getCostCurrency(), java.time.LocalDate.now())
+                            + currencyRateService.convertToBaseCurrency(
+                                    nz(position.getProfit()) + nz(position.getSwap()), portfolio.getBaseCurrency(),
+                                    position.getProfitCurrency(), java.time.LocalDate.now())
+                            + currencyRateService.convertToBaseCurrency(
+                                    nz(position.getCommission()), portfolio.getBaseCurrency(),
+                                    position.getCommissionCurrency(), java.time.LocalDate.now()))
                     .sum();
             marketValue = balance;
             cash = 0.0;
@@ -425,7 +445,8 @@ public class PortfolioService {
         return List.of();
     }
 
-    private AccountBalance accountBalancesTotal(List<AccountBalance> accounts) {
+    private AccountBalance accountBalancesTotal(
+            List<AccountBalance> accounts, CurrencyType baseCurrency) {
         double netDeposit = accounts.stream().mapToDouble(account -> nz(account.getBaseNetDeposit())).sum();
         double balance = accounts.stream().mapToDouble(AccountBalance::getBalance).sum();
         double profit = accounts.stream().mapToDouble(account -> nz(account.getProfit())).sum();
@@ -434,7 +455,7 @@ public class PortfolioService {
                 ? (balance - netDeposit) / netDeposit * 100.0
                 : null;
         return new AccountBalance(null, "Total", netDeposit, netDeposit, profit, profit, roi,
-                balance, cash, CurrencyType.USD, balance, cash);
+                balance, cash, baseCurrency, balance, cash);
     }
 
     private boolean hasDashboardAccountSurface(AccountStatistics stat) {
@@ -575,11 +596,6 @@ public class PortfolioService {
             return false;
         }
 
-        Map<Long, Account> accountsById = accountsById(stats.stream()
-                .map(AccountStatistics::getAccountId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet()));
-
         portfolio.getRealizedByCurrency().clear();
         portfolio.getUnrealizedByCurrency().clear();
         portfolio.getDividendsByCurrency().clear();
@@ -588,7 +604,10 @@ public class PortfolioService {
         double unrealizedInBase = 0.0;
         double dividendsInBase = 0.0;
         for (AccountStatistics stat : stats) {
-            CurrencyType currency = accountsById.get(stat.getAccountId()).getCurrency();
+            // Every monetary value in account_statistics is already expressed in
+            // valuation_currency (normally the portfolio base). Account currency is only
+            // display metadata and must never be used to relabel these converted values.
+            CurrencyType currency = CurrencyType.valueOf(stat.getValuationCurrency());
             double realized = nz(stat.getRealizedProfit());
             double unrealized = nz(stat.getUnrealizedProfit());
             double dividends = nz(stat.getDividends());
@@ -630,20 +649,24 @@ public class PortfolioService {
         double realizedInBase = 0.0;
         double unrealizedInBase = 0.0;
         double dividendsInBase = 0.0;
+        boolean hasSupportedMetric = false;
         for (PortfolioCurrencyBreakdown row : rows) {
             CurrencyType currency = row.getCurrency();
             double localAmount = nz(row.getAmountLocal());
             double baseAmount = nz(row.getAmountInBaseCurrency());
             switch (row.getMetricType()) {
                 case "REALIZED" -> {
+                    hasSupportedMetric = true;
                     portfolio.getRealizedByCurrency().merge(currency, localAmount, Double::sum);
                     realizedInBase += baseAmount;
                 }
                 case "UNREALIZED" -> {
+                    hasSupportedMetric = true;
                     portfolio.getUnrealizedByCurrency().merge(currency, localAmount, Double::sum);
                     unrealizedInBase += baseAmount;
                 }
                 case "DIVIDENDS" -> {
+                    hasSupportedMetric = true;
                     portfolio.getDividendsByCurrency().merge(currency, localAmount, Double::sum);
                     dividendsInBase += baseAmount;
                 }
@@ -651,6 +674,10 @@ public class PortfolioService {
                     // Ignore unknown projection metric rows; the MV owns the supported set.
                 }
             }
+        }
+
+        if (!hasSupportedMetric) {
+            return false;
         }
 
         if (updateTotals) {
@@ -671,12 +698,16 @@ public class PortfolioService {
         double unrealizedProfit = 0.0;
         LocalDate rateDate = LocalDate.now();
         for (OpenedPosition position : openedPositionRepository.findAll()) {
-            CurrencyType currency =
-                    position.getCurrency() != null ? position.getCurrency() : portfolio.getBaseCurrency();
-            double unrealized = nz(position.getProfit()) + nz(position.getCommission()) + nz(position.getSwap());
-            portfolio.getUnrealizedByCurrency().merge(currency, unrealized, Double::sum);
+            CurrencyType profitCurrency = position.getProfitCurrency();
+            CurrencyType commissionCurrency = position.getCommissionCurrency();
+            double profitAndSwap = nz(position.getProfit()) + nz(position.getSwap());
+            double commission = nz(position.getCommission());
+            portfolio.getUnrealizedByCurrency().merge(profitCurrency, profitAndSwap, Double::sum);
+            portfolio.getUnrealizedByCurrency().merge(commissionCurrency, commission, Double::sum);
             unrealizedProfit += currencyRateService.convertToBaseCurrency(
-                    unrealized, portfolio.getBaseCurrency(), currency, rateDate);
+                    profitAndSwap, portfolio.getBaseCurrency(), profitCurrency, rateDate);
+            unrealizedProfit += currencyRateService.convertToBaseCurrency(
+                    commission, portfolio.getBaseCurrency(), commissionCurrency, rateDate);
         }
         if (updateTotals) {
             portfolio.setUnrealizedProfit(unrealizedProfit);
@@ -698,13 +729,14 @@ public class PortfolioService {
                 .orElse(balance);
     }
 
-    private OpenPositionValue openPositionValuesTotal(List<OpenPositionValue> positions) {
+    private OpenPositionValue openPositionValuesTotal(
+            List<OpenPositionValue> positions, CurrencyType baseCurrency) {
         double value = positions.stream().mapToDouble(OpenPositionValue::getValue).sum();
         double unrealized = positions.stream().mapToDouble(OpenPositionValue::getUnrealized).sum();
         return new OpenPositionValue(
-                "Total", 0.0, 0.0, 0.0, 0.0, CurrencyType.USD, value, unrealized,
+                "Total", 0.0, 0.0, 0.0, 0.0, baseCurrency, value, unrealized,
                 positionProfitLossPercent(unrealized, positions.stream()
-                        .mapToDouble(OpenPositionValue::getCostBase).sum()), CurrencyType.USD, 100.0);
+                        .mapToDouble(OpenPositionValue::getCostBase).sum()), baseCurrency, 100.0);
     }
 
     private CurrencyType assetQuoteCurrency(Asset asset, String symbol) {
@@ -919,8 +951,13 @@ public class PortfolioService {
                         // so multiple trades on the same day collapse into one chart point.
                         position -> position.getCloseTime().toLocalDate().toString(),
                         TreeMap::new,
-                        Collectors.summingDouble(position -> currencyRateService.convertToBaseCurrency(
-                                nz(position.getProfit()), baseCurrency, position.getCurrency(), position.getCloseTime().toLocalDate()))));
+                        Collectors.summingDouble(position ->
+                                currencyRateService.convertToBaseCurrency(
+                                        nz(position.getProfit()) + nz(position.getSwap()), baseCurrency,
+                                        position.getProfitCurrency(), position.getCloseTime().toLocalDate())
+                                        + currencyRateService.convertToBaseCurrency(
+                                                nz(position.getCommission()), baseCurrency,
+                                                position.getCommissionCurrency(), position.getCloseTime().toLocalDate()))));
     }
 
     // 8. Dividends Received (if modeled)

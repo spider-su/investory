@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import com.example.demo.infrastructure.CurrencyType;
 import com.example.demo.infrastructure.repository.Asset;
 import com.example.demo.infrastructure.repository.AssetRepository;
+import com.example.demo.infrastructure.repository.AssetPriceHistoryRepository;
 import com.example.demo.services.ManualAssetPriceService.ManualAssetPrice;
 import com.example.demo.services.currency.CurrencyRateService;
 import com.example.demo.testsupport.portfolio.PortfolioBuilders;
@@ -27,6 +28,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ManualAssetPriceServiceTest {
 
   @Mock private AssetRepository assetRepository;
+  @Mock private AssetPriceHistoryRepository assetPriceHistoryRepository;
   @Mock private CurrencyRateService currencyRateService;
   @Mock private MarketService marketService;
   @Mock private StatisticsRefreshService statisticsRefreshService;
@@ -37,7 +39,11 @@ class ManualAssetPriceServiceTest {
   void setUp() {
     service =
         new ManualAssetPriceService(
-            assetRepository, currencyRateService, marketService, statisticsRefreshService);
+            assetRepository,
+            assetPriceHistoryRepository,
+            currencyRateService,
+            marketService,
+            statisticsRefreshService);
   }
 
   @Test
@@ -59,6 +65,17 @@ class ManualAssetPriceServiceTest {
     assertEquals("Manual", asset.getPriceSource());
 
     verify(assetRepository).save(asset);
+    verify(assetPriceHistoryRepository).upsertObservedPrice(
+        eq(asset.getId()),
+        any(LocalDate.class),
+        eq("MANUAL"),
+        eq("PKO.PL"),
+        eq("PKO.PL"),
+        eq("MANUAL"),
+        eq("PLN"),
+        eq(123.45),
+        eq(100),
+        eq("MANUAL"));
     verify(marketService).syncStocks();
     verify(statisticsRefreshService).refreshAll();
   }

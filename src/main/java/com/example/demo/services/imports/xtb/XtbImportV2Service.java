@@ -2,6 +2,7 @@ package com.example.demo.services.imports.xtb;
 
 import com.example.demo.infrastructure.CashOperationType;
 import com.example.demo.infrastructure.CurrencyType;
+import com.example.demo.infrastructure.PositionSettlementModel;
 import com.example.demo.infrastructure.PositionType;
 import com.example.demo.infrastructure.repository.CashOperation;
 import com.example.demo.infrastructure.repository.CashOperationRepository;
@@ -13,12 +14,15 @@ import com.example.demo.infrastructure.repository.AssetRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
 import com.example.demo.services.AssetCatalogService;
+import com.example.demo.services.PositionSettlementModelService;
 import com.example.demo.services.imports.ImportExecutionResult;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -40,7 +44,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.zip.CRC32;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import lombok.RequiredArgsConstructor;
@@ -81,6 +84,8 @@ public class XtbImportV2Service {
   private final AssetPriceHistoryRepository assetPriceHistoryRepository;
   private final AssetRepository assetRepository;
   private final AssetCatalogService assetCatalogService;
+  private final PositionSettlementModelService positionSettlementModelService;
+  private final XtbPositionCurrencyResolver positionCurrencyResolver;
 
   public boolean isZipReport(String fileName) {
     return fileName != null && fileName.trim().toLowerCase(Locale.ROOT).endsWith(".zip");
@@ -155,9 +160,10 @@ public class XtbImportV2Service {
           reconstructOpenedPositions(operationsForOpenReconstruction(account, cashOperations), account, currency);
       openedPositions = deduplicateOpenedPositions(openedPositions);
 
-      applyPositionCurrencies(closedPositions, openedPositions);
+      applyPositionCurrencies(closedPositions, openedPositions, currency);
 
       ensureAssetsExist(cashOperations, closedPositions, openedPositions, currency);
+      applyAssetIdentities(cashOperations, closedPositions, openedPositions);
       persistTradePriceHistory(closedPositions, openedPositions, currency);
 
       cashOperationRepository.saveAll(cashOperations);
@@ -168,9 +174,6 @@ public class XtbImportV2Service {
         openedPositionRepository.removeAllByAccountNotIn(account, openedPositions);
         openedPositionRepository.saveAll(openedPositions);
       }
-      closedPositionRepository.deleteDuplicateClosedPositions(account);
-      openedPositionRepository.deleteDuplicateOpenedPositions(account);
-
       int total = cashOperations.size() + closedPositions.size() + openedPositions.size();
       String details =
           String.format(
@@ -225,9 +228,14 @@ public class XtbImportV2Service {
     }
 
     List<ClosedPosition> positions = new ArrayList<>();
-    Set<String> seenBusinessKeys = new HashSet<>();
+    Map<String, Integer> sourceRowOccurrences = new HashMap<>();
     for (Row row : dataRows(sheet, columns)) {
       String symbol = cellValue(row, columns.get("Ticker"));
+      // XTB sheets can end with a totals/footer row. It contains numeric values in
+      // known columns but is not a position and has no ticker.
+      if (!StringUtils.hasText(symbol)) {
+        continue;
+      }
       String typeText = cellValue(row, columns.get("Type"));
       Double volume = parseDouble(cellValue(row, columns.get("Volume"))).orElse(null);
       ZonedDateTime openTime = parseDate(cell(row, columns.get("Open Time (UTC)")));
@@ -244,6 +252,11 @@ public class XtbImportV2Service {
               .or(() -> parseDouble(cellValue(row, columns.get("Gross Profit"))))
               .orElse(null);
       String product = cellValue(row, columns.get("Product"));
+      String sourcePositionId = normalizeSourcePositionId(cellValue(row, columns.get("Position ID")));
+      Double openConversionRate =
+          parseDouble(cellValue(row, columns.get("Open Conversion Rate"))).orElse(null);
+      Double closeConversionRate =
+          parseDouble(cellValue(row, columns.get("Close Conversion Rate"))).orElse(null);
 
       String businessKey =
           closedPositionBusinessKey(
@@ -262,26 +275,34 @@ public class XtbImportV2Service {
               swap,
               profit,
               product);
-      if (!seenBusinessKeys.add(businessKey)) {
-        continue;
-      }
+      String sourceIdentity =
+          account + "|" + firstNonBlank(sourcePositionId, "NO_POSITION_ID") + "|" + businessKey;
+      int sourceRowOccurrence = sourceRowOccurrences.merge(sourceIdentity, 1, Integer::sum);
 
       ClosedPosition position = new ClosedPosition();
-      position.setId(syntheticId(businessKey));
+      position.setId(syntheticId(sourceIdentity + "|occurrence=" + sourceRowOccurrence));
       position.setAccount(account);
+      position.setSourcePositionId(sourcePositionId);
+      position.setSourceRowOccurrence(sourceRowOccurrence);
       position.setSymbol(symbol);
       position.setType(PositionType.fromBrokerSideOrBuy(typeText));
       position.setVolume(volume);
       position.setOpenTime(openTime);
       position.setOpenPrice(openPrice);
+      position.setSourceOpenPrice(openPrice);
+      position.setOpenConversionRate(openConversionRate);
       position.setCloseTime(closeTime);
       position.setClosePrice(closePrice);
+      position.setSourceClosePrice(closePrice);
+      position.setCloseConversionRate(closeConversionRate);
       position.setPurchaseValue(purchaseValue);
       position.setSaleValue(saleValue);
       position.setCommission(commission);
       position.setMargin(margin);
       position.setSwap(swap);
       position.setProfit(profit);
+      position.setSettlementModel(
+          positionSettlementModelService.classifyXtb(purchaseValue, saleValue, margin, product));
       position.setComment(product);
       positions.add(position);
     }
@@ -425,6 +446,7 @@ public class XtbImportV2Service {
         position.setVolume(lot.volume);
         position.setOpenTime(lot.openTime);
         position.setOpenPrice(lot.openPrice);
+        position.setSourceOpenPrice(lot.openPrice);
         position.setMarketPrice(lot.openPrice);
         position.setPurchaseValue(lot.volume * lot.openPrice);
         position.setProfit(0.0);
@@ -488,6 +510,33 @@ public class XtbImportV2Service {
     assetCatalogService.ensureAssetsExist(assets);
   }
 
+  private void applyAssetIdentities(
+      List<CashOperation> cashOperations,
+      List<ClosedPosition> closedPositions,
+      List<OpenedPosition> openedPositions) {
+    Set<String> symbols = new HashSet<>();
+    cashOperations.stream().map(CashOperation::getSymbol).filter(StringUtils::hasText).forEach(symbols::add);
+    closedPositions.stream().map(ClosedPosition::getSymbol).filter(StringUtils::hasText).forEach(symbols::add);
+    openedPositions.stream().map(OpenedPosition::getSymbol).filter(StringUtils::hasText).forEach(symbols::add);
+    Map<String, Long> ids = assetRepository.findAllBySymbolIn(symbols).stream()
+        .collect(java.util.stream.Collectors.toMap(Asset::getSymbol, Asset::getId));
+    cashOperations.forEach(operation -> {
+      if (StringUtils.hasText(operation.getSymbol())) {
+        operation.setAssetId(requiredAssetId(operation.getSymbol(), ids));
+      }
+    });
+    closedPositions.forEach(position -> position.setAssetId(requiredAssetId(position.getSymbol(), ids)));
+    openedPositions.forEach(position -> position.setAssetId(requiredAssetId(position.getSymbol(), ids)));
+  }
+
+  private Long requiredAssetId(String symbol, Map<String, Long> ids) {
+    Long assetId = ids.get(symbol);
+    if (assetId == null) {
+      throw new IllegalArgumentException("Unknown or ambiguous XTB asset symbol: " + symbol);
+    }
+    return assetId;
+  }
+
   private void persistTradePriceHistory(
       List<ClosedPosition> closedPositions,
       List<OpenedPosition> openedPositions,
@@ -514,7 +563,7 @@ public class XtbImportV2Service {
     for (ClosedPosition position : closedPositions) {
       CurrencyType quoteCurrency =
           resolveTradeObservationCurrency(
-              position.getSymbol(), position.getCurrency(), defaultCurrency, quoteCurrencyBySymbol);
+              position.getSymbol(), position.getPriceCurrency(), defaultCurrency, quoteCurrencyBySymbol);
       Double normalizedOpenPrice =
           normalizeTradeObservationPrice(position.getOpenPrice(), position.getPurchaseValue(), position.getVolume());
       Double normalizedClosePrice =
@@ -544,7 +593,7 @@ public class XtbImportV2Service {
     for (OpenedPosition position : openedPositions) {
       CurrencyType quoteCurrency =
           resolveTradeObservationCurrency(
-              position.getSymbol(), position.getCurrency(), defaultCurrency, quoteCurrencyBySymbol);
+              position.getSymbol(), position.getPriceCurrency(), defaultCurrency, quoteCurrencyBySymbol);
       Double normalizedOpenPrice =
           normalizeTradeObservationPrice(position.getOpenPrice(), position.getPurchaseValue(), position.getVolume());
       addCheckpoint(
@@ -611,7 +660,12 @@ public class XtbImportV2Service {
     }
     PriceCheckpointKey key =
         new PriceCheckpointKey(
-            symbol, timestamp.toLocalDate(), currency == null ? CurrencyType.USD : currency, source, priceOrigin, qualityClass);
+            symbol,
+            timestamp.toLocalDate(),
+            java.util.Objects.requireNonNull(currency, "XTB trade price currency"),
+            source,
+            priceOrigin,
+            qualityClass);
     aggregated.computeIfAbsent(key, ignored -> new WeightedPrice()).add(price, weight);
   }
 
@@ -621,14 +675,20 @@ public class XtbImportV2Service {
     cashOperations.stream().map(CashOperation::getSymbol).filter(StringUtils::hasText).forEach(rawSymbols::add);
     closedPositions.stream().map(ClosedPosition::getSymbol).filter(StringUtils::hasText).forEach(rawSymbols::add);
     Map<String, String> normalized = assetCatalogService.normalizeSymbolsForStorage(rawSymbols);
-    cashOperations.forEach(
-        operation -> operation.setSymbol(normalizedSymbol(operation.getSymbol(), normalized)));
-    closedPositions.forEach(
-        position -> position.setSymbol(normalizedSymbol(position.getSymbol(), normalized)));
+    cashOperations.forEach(operation -> {
+      operation.setBrokerSymbol(operation.getSourceAssetSymbol());
+      operation.setSymbol(normalizedSymbol(operation.getSymbol(), normalized));
+    });
+    closedPositions.forEach(position -> {
+      position.setBrokerSymbol(position.getSourceAssetSymbol());
+      position.setSymbol(normalizedSymbol(position.getSymbol(), normalized));
+    });
   }
 
   private void applyPositionCurrencies(
-      List<ClosedPosition> closedPositions, List<OpenedPosition> openedPositions) {
+      List<ClosedPosition> closedPositions,
+      List<OpenedPosition> openedPositions,
+      CurrencyType accountCurrency) {
     Set<String> symbols = new HashSet<>();
     closedPositions.stream()
         .map(ClosedPosition::getSymbol)
@@ -648,13 +708,42 @@ public class XtbImportV2Service {
                     Asset::getSymbol, Asset::getCurrency, (left, right) -> left));
 
     closedPositions.forEach(
-        position ->
-            position.setCurrency(
-                resolvePositionCurrency(position.getSymbol(), assetCurrencyBySymbol)));
+        position -> {
+          CurrencyType configuredCurrency = assetCurrencyBySymbol.get(position.getSymbol());
+          CurrencyType inferredCurrency = currencyForSuffix(position.getSymbol());
+          CurrencyType quoteCurrency;
+          if (position.getSettlementModel() == PositionSettlementModel.CASH_SETTLED) {
+            XtbPositionCurrencyResolver.Resolution resolution =
+                positionCurrencyResolver.resolve(
+                    position, accountCurrency, configuredCurrency, inferredCurrency);
+            if (resolution.normalizePricesToAccountCurrency()) {
+              normalizePositionPricesToAccountCurrency(position);
+            }
+            quoteCurrency = resolution.priceCurrency();
+          } else {
+            quoteCurrency = firstNonNull(configuredCurrency, inferredCurrency);
+          }
+          // Supported XTB quote currencies remain instrument quotes. Unsupported source
+          // currencies are normalized into account currency while source prices and broker
+          // conversion rates remain available for audit. Purchase/sale values, P/L, swap,
+          // and commission are account-currency amounts.
+          position.setPriceCurrency(quoteCurrency);
+          position.setCostCurrency(accountCurrency);
+          position.setProfitCurrency(accountCurrency);
+          position.setCommissionCurrency(accountCurrency);
+        });
     openedPositions.forEach(
-        position ->
-            position.setCurrency(
-                resolvePositionCurrency(position.getSymbol(), assetCurrencyBySymbol)));
+        position -> {
+          CurrencyType quoteCurrency =
+              resolvePositionCurrency(position.getSymbol(), assetCurrencyBySymbol);
+          // Reconstructed lots come from "OPEN ... @ price" comments. Their generated
+          // purchase value is quantity * quote price, so its cost currency is the quote
+          // currency even when the cash account is PLN or EUR.
+          position.setPriceCurrency(quoteCurrency);
+          position.setCostCurrency(quoteCurrency);
+          position.setProfitCurrency(accountCurrency);
+          position.setCommissionCurrency(accountCurrency);
+        });
   }
 
   private String normalizedSymbol(String rawSymbol, Map<String, String> normalized) {
@@ -669,6 +758,9 @@ public class XtbImportV2Service {
       CurrencyType positionCurrency,
       CurrencyType defaultCurrency,
       Map<String, CurrencyType> quoteCurrencyBySymbol) {
+    if (positionCurrency != null) {
+      return positionCurrency;
+    }
     if (StringUtils.hasText(symbol)) {
       CurrencyType quoteCurrency = quoteCurrencyBySymbol.get(symbol);
       if (quoteCurrency != null) {
@@ -950,9 +1042,72 @@ public class XtbImportV2Service {
   }
 
   private long syntheticId(String key) {
-    CRC32 crc32 = new CRC32();
-    crc32.update(key.getBytes(StandardCharsets.UTF_8));
-    return -Math.abs(crc32.getValue() + 1);
+    try {
+      byte[] hash = MessageDigest.getInstance("SHA-256").digest(key.getBytes(StandardCharsets.UTF_8));
+      long value = 0L;
+      for (int index = 0; index < Long.BYTES; index++) {
+        value = (value << 8) | (hash[index] & 0xffL);
+      }
+      value &= Long.MAX_VALUE;
+      return value == 0L ? -1L : -value;
+    } catch (NoSuchAlgorithmException exception) {
+      throw new IllegalStateException("Cannot hash XTB row id", exception);
+    }
+  }
+
+  private void normalizePositionPricesToAccountCurrency(ClosedPosition position) {
+    position.setOpenPrice(
+        normalizedBrokerPrice(
+            position.getOpenPrice(),
+            position.getOpenConversionRate(),
+            position.getPurchaseValue(),
+            position.getVolume(),
+            "open",
+            position));
+    if (position.getClosePrice() != null) {
+      position.setClosePrice(
+          normalizedBrokerPrice(
+              position.getClosePrice(),
+              position.getCloseConversionRate(),
+              position.getSaleValue(),
+              position.getVolume(),
+              "close",
+              position));
+    }
+  }
+
+  private Double normalizedBrokerPrice(
+      Double price,
+      Double conversionRate,
+      Double grossValue,
+      Double volume,
+      String leg,
+      ClosedPosition position) {
+    if (price == null) {
+      return null;
+    }
+    if (conversionRate != null && conversionRate > 0.0) {
+      return price * conversionRate;
+    }
+    if (grossValue != null && volume != null && Math.abs(volume) > LOT_EPSILON) {
+      return Math.abs(grossValue / volume);
+    }
+    throw new IllegalArgumentException(
+        "Cannot normalize XTB "
+            + leg
+            + " price for account "
+            + position.getAccount()
+            + ", symbol "
+            + position.getSymbol()
+            + ", position "
+            + position.getSourcePositionId());
+  }
+
+  private String normalizeSourcePositionId(String value) {
+    if (!StringUtils.hasText(value)) {
+      return null;
+    }
+    return parseLong(value).map(String::valueOf).orElse(value.trim());
   }
 
   private String firstNonBlank(String first, String second) {

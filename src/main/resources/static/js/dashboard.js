@@ -99,15 +99,20 @@ if (fileInput) {
                 .then(data => {
                     // Populate data into the modal elements
                     document.getElementById('modal-message').innerText = data.message;
-                    document.getElementById('modal-status').innerText = data.status;
                     document.getElementById('modal-rows-total').innerText = data.rowsTotal;
                     document.getElementById('modal-rows-applied').innerText = data.rowsApplied;
                     document.getElementById('modal-rows-failed').innerText = data.rowsFailed;
 
-                    // Apply success/failure coloring to status badge
+                    // Show the row outcome. The batch status is COMPLETED for both full and
+                    // partial imports, so it cannot drive this presentation by itself.
                     const statusBadge = document.getElementById('modal-status');
-                    if(data.status === 'APPLIED') {
+                    statusBadge.innerText = data.status;
+                    const rowsApplied = Number(data.rowsApplied) || 0;
+                    const rowsSkipped = Number(data.rowsFailed) || 0;
+                    if (rowsSkipped === 0) {
                         statusBadge.className = "iv-badge iv-badge--pos";
+                    } else if (rowsApplied > 0) {
+                        statusBadge.className = "iv-badge iv-badge--warn";
                     } else {
                         statusBadge.className = "iv-badge iv-badge--neg";
                     }
@@ -336,6 +341,56 @@ if (fileInput) {
 window.closeModal = function() {
     document.getElementById('status-modal').style.display = 'none';
 };
+
+// Sort account and open-position popover rows without moving their total rows.
+(function () {
+    function compareValues(left, right, direction) {
+        const leftNumber = Number(left);
+        const rightNumber = Number(right);
+        const leftIsNumber = left !== '' && Number.isFinite(leftNumber);
+        const rightIsNumber = right !== '' && Number.isFinite(rightNumber);
+
+        if (leftIsNumber && rightIsNumber) {
+            return (leftNumber - rightNumber) * direction;
+        }
+        if (leftIsNumber !== rightIsNumber) {
+            return leftIsNumber ? -1 : 1;
+        }
+        return String(left || '').localeCompare(String(right || ''), undefined, {
+            numeric: true,
+            sensitivity: 'base'
+        }) * direction;
+    }
+
+    document.querySelectorAll('.iv-sortable-grid').forEach(function (grid) {
+        const buttons = Array.from(grid.querySelectorAll(':scope > .iv-balance-popover__row--head .iv-sort-button'));
+        buttons.forEach(function (button) {
+            button.addEventListener('click', function () {
+                const key = button.dataset.sortKey;
+                const ascending = !button.classList.contains('is-sort-asc');
+                const direction = ascending ? 1 : -1;
+                const rows = Array.from(grid.querySelectorAll(':scope > [data-sort-row]'));
+                const totalRow = Array.from(grid.children).find(function (child) {
+                    return child.classList.contains('iv-balance-popover__row--total')
+                        || child.classList.contains('iv-position-popover__row--total');
+                }) || null;
+
+                rows.sort(function (left, right) {
+                    return compareValues(left.dataset['sort' + key.charAt(0).toUpperCase() + key.slice(1)],
+                        right.dataset['sort' + key.charAt(0).toUpperCase() + key.slice(1)], direction);
+                });
+                rows.forEach(function (row) { grid.insertBefore(row, totalRow); });
+
+                buttons.forEach(function (candidate) {
+                    candidate.classList.remove('is-sort-asc', 'is-sort-desc');
+                    candidate.removeAttribute('aria-pressed');
+                });
+                button.classList.add(ascending ? 'is-sort-asc' : 'is-sort-desc');
+                button.setAttribute('aria-pressed', 'true');
+            });
+        });
+    });
+})();
 
 // Dashboard usability enhancements.
 (function () {

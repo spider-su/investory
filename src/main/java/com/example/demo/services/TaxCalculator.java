@@ -44,9 +44,7 @@ public class TaxCalculator {
                 .filter(p -> p.getCloseTime() != null)
                 .collect(Collectors.groupingBy(
                         p -> p.getCloseTime().getYear(),
-                        Collectors.summingDouble(p -> currencyRateService.convertToBaseCurrency(
-                                nz(p.getProfit()) + nz(p.getCommission()) + nz(p.getSwap()),
-                                baseCurrency, p.getCurrency(), p.getCloseTime().toLocalDate()))));
+                        Collectors.summingDouble(p -> netProfitInBase(p, baseCurrency))));
 
         // Walk years chronologically: loss years feed a pool; gain years consume losses from the
         // previous 5 years (oldest first). Only the current year's resulting tax is reported.
@@ -82,6 +80,16 @@ public class TaxCalculator {
         return new TaxSummary(
                 round(currentYearTaxable * RATE),
                 round(appliedToCurrentYear));
+    }
+
+    private double netProfitInBase(ClosedPosition position, CurrencyType baseCurrency) {
+        var date = position.getCloseTime().toLocalDate();
+        return currencyRateService.convertToBaseCurrency(
+                        nz(position.getProfit()) + nz(position.getSwap()),
+                        baseCurrency, position.getProfitCurrency(), date)
+                + currencyRateService.convertToBaseCurrency(
+                        nz(position.getCommission()),
+                        baseCurrency, position.getCommissionCurrency(), date);
     }
 
     private static double nz(Double value) {

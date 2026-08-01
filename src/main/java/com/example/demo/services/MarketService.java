@@ -3,12 +3,14 @@ package com.example.demo.services;
 import com.example.demo.clients.market.TwelveDataService;
 import com.example.demo.infrastructure.repository.Asset;
 import com.example.demo.infrastructure.repository.AssetRepository;
+import com.example.demo.infrastructure.repository.AssetPriceHistoryRepository;
 import com.example.demo.infrastructure.repository.ClosedPosition;
 import com.example.demo.infrastructure.repository.ClosedPositionRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
 import com.example.demo.services.models.StockQuote;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -46,15 +48,20 @@ public class MarketService {
     /** Default inter-chunk pause matching the free-tier rate window. */
     static final long DEFAULT_CHUNK_PAUSE_MS = 120_000L;
     private static final String REMX_UK_SYMBOL = "REMX.UK";
-    private static final double REMX_UK_TWELVE_DATA_DIVISOR = 79.0 / 15.25;
+    // TwelveData has only the NYSE REMX quote. Calibrate that proxy to the London
+    // REMX.UK share price using the 2026-07-31 closes: 65.97 USD / 12.93 USD.
+    private static final double REMX_UK_TWELVE_DATA_DIVISOR = 65.97 / 12.93;
     private static final String VHYD_UK_SYMBOL = "VHYD.UK";
     private static final Map<String, String> TWELVE_DATA_SYMBOL_OVERRIDES =
-            Map.of(VHYD_UK_SYMBOL, "VHYDl:CBOE");
+            Map.of(
+                    REMX_UK_SYMBOL, "REMX",
+                    VHYD_UK_SYMBOL, "VHYDl:CBOE");
 
     private final TwelveDataService twelveDataService;
     private final OpenedPositionRepository openedPositionRepository;
     private final ClosedPositionRepository closedPositionRepository;
     private final AssetRepository assetRepository;
+    private final AssetPriceHistoryRepository assetPriceHistoryRepository;
     private final AssetPriceHistoryGapFillService assetPriceHistoryGapFillService;
     private final StatisticsRefreshService statisticsRefreshService;
     private final boolean skipNonUsListings;
@@ -66,6 +73,7 @@ public class MarketService {
                          OpenedPositionRepository openedPositionRepository,
                          ClosedPositionRepository closedPositionRepository,
                          AssetRepository assetRepository,
+                         AssetPriceHistoryRepository assetPriceHistoryRepository,
                          AssetPriceHistoryGapFillService assetPriceHistoryGapFillService,
                          StatisticsRefreshService statisticsRefreshService,
                          PlatformTransactionManager transactionManager,
@@ -76,6 +84,7 @@ public class MarketService {
         this.openedPositionRepository = openedPositionRepository;
         this.closedPositionRepository = closedPositionRepository;
         this.assetRepository = assetRepository;
+        this.assetPriceHistoryRepository = assetPriceHistoryRepository;
         this.assetPriceHistoryGapFillService = assetPriceHistoryGapFillService;
         this.statisticsRefreshService = statisticsRefreshService;
         this.skipNonUsListings = skipNonUsListings;
@@ -233,9 +242,39 @@ public class MarketService {
                 asset.setPriceSource("TwelveData");
                 asset.setPriceUpdatedAt(now);
                 toSave.add(asset);
+                assetPriceHistoryRepository.upsertObservedPrice(
+                        asset.getId(),
+                        quoteDate(quote),
+                        "TWELVE_DATA",
+                        twelveDataSymbol(asset),
+                        asset.getSymbol(),
+                        "TWELVE_DATA_MARKET_CLOSE",
+                        quoteCurrency(asset, quote),
+                        marketPrice,
+                        100,
+                        "EXACT_LISTING_MARKET_CLOSE");
             }
         });
         assetRepository.saveAll(toSave);
+    }
+
+    private LocalDate quoteDate(StockQuote quote) {
+        String datetime = quote.getDatetime();
+        if (StringUtils.hasText(datetime) && datetime.length() >= 10) {
+            try {
+                return LocalDate.parse(datetime.substring(0, 10));
+            } catch (java.time.format.DateTimeParseException ignored) {
+                log.warn("Invalid quote datetime '{}'; using reporting date", datetime);
+            }
+        }
+        return ReportingDateHelper.today();
+    }
+
+    private String quoteCurrency(Asset asset, StockQuote quote) {
+        if (StringUtils.hasText(quote.getCurrency())) {
+            return quote.getCurrency().trim().toUpperCase(Locale.ROOT);
+        }
+        return asset.getCurrency() != null ? asset.getCurrency().name() : "USD";
     }
 
     private double normalizeMarketPrice(Asset asset, double quoteClose) {
@@ -377,7 +416,7 @@ public class MarketService {
             }
             positions.forEach(position -> {
                 position.setMarketPrice(asset.getMarketPrice());
-                position.setProfit(position.getVolume() * (asset.getMarketPrice() - position.getOpenPrice()));
+                position.setProfit(position.signedQuantity() * (asset.getMarketPrice() - position.getOpenPrice()));
             });
             openedPositionRepository.saveAll(positions);
         });
@@ -419,7 +458,7 @@ public class MarketService {
             }
             double openPrice = position.getOpenPrice() != null ? position.getOpenPrice() : 0.0;
             position.setMarketPrice(asset.getMarketPrice());
-            position.setProfit(position.getVolume() * (asset.getMarketPrice() - openPrice));
+            position.setProfit(position.signedQuantity() * (asset.getMarketPrice() - openPrice));
         }
         openedPositionRepository.saveAll(positions);
 

@@ -111,7 +111,20 @@ public class AssetPriceHistoryGapFillService {
     return Comparator.comparingInt(AssetPriceHistoryGapFillService::priorityRank)
         .thenComparing(
             row -> row.getQualityScore() == null ? 0 : row.getQualityScore(), Comparator.reverseOrder())
+        .thenComparingInt(AssetPriceHistoryGapFillService::tradeObservationTieRank)
         .compare(left, right);
+  }
+
+  private static int tradeObservationTieRank(
+      AssetPriceHistoryRepository.HistoricalAssetPriceRow row) {
+    String origin = upper(row.getPriceOrigin());
+    if (origin.equals("XTB_TRADE_OPEN")) {
+      return 0;
+    }
+    if (origin.equals("XTB_TRADE_CLOSE")) {
+      return 2;
+    }
+    return 1;
   }
 
   private static int priorityRank(AssetPriceHistoryRepository.HistoricalAssetPriceRow row) {

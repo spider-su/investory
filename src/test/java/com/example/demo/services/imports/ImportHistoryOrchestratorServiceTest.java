@@ -98,6 +98,30 @@ class ImportHistoryOrchestratorServiceTest {
     }
 
     @Test
+    void importFile_reprocessesDuplicateXtbFileAndReturnsReloadedBatchState() throws Exception {
+        ImportHistory existing = batch(77L, ImportBatchStatus.COMPLETED, "stale", 12, 12, 0);
+        ImportHistory refreshed = batch(77L, ImportBatchStatus.COMPLETED, "refreshed", 12, 12, 0);
+        when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
+                .thenReturn(Optional.of(existing))
+                .thenReturn(Optional.of(refreshed));
+
+        ImportBatchResponse response = importOrchestratorService.importFile(
+                BrokerType.XTB,
+                "abc".getBytes(StandardCharsets.UTF_8),
+                "file.xlsx",
+                ImportSourceType.MANUAL,
+                null
+        );
+
+        assertEquals(77L, response.batchId());
+        assertFalse(response.duplicate());
+        assertEquals("Duplicate XTB file reprocessed to rebuild open positions | refreshed", response.message());
+        verify(auditWriter, never()).startBatch(any(), any(), any(), anyString(), anyString());
+        verify(auditWriter, never()).finalizeApplied(any(), any());
+        verify(xtbParser).importFile(any(), eq("file.xlsx"));
+    }
+
+    @Test
     void importFile_reprocessesDuplicateXtbFileWithoutMutatingExistingBatch() throws Exception {
         ImportHistory existing = batch(77L, ImportBatchStatus.COMPLETED, "ok", 12, 12, 0);
         when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))

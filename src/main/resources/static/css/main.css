@@ -18,6 +18,8 @@
     --iv-green-soft: #e7f7ed;
     --iv-red: #dc2626;
     --iv-red-soft: #fdecec;
+    --iv-orange: #c2410c;
+    --iv-orange-soft: #fff1e6;
     --iv-blue: #2563eb;
 
     --iv-radius: 16px;
@@ -269,6 +271,30 @@ button:disabled { cursor:wait !important; opacity:.7; }
   border-color: currentColor;
 }
 .iv-balance-popover__row--head span { font-weight: 800; }
+.iv-sort-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-weight: 800;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    cursor: pointer;
+}
+.iv-sort-button::after { content: '↕'; color: var(--iv-text-soft); font-size: .8em; }
+.iv-sort-button.is-sort-asc::after { content: '↑'; color: var(--iv-primary); }
+.iv-sort-button.is-sort-desc::after { content: '↓'; color: var(--iv-primary); }
+.iv-sort-button:hover, .iv-sort-button:focus-visible { color: var(--iv-primary); }
+.iv-balance-popover__row--head .iv-sort-button:nth-child(n+3),
+.iv-position-popover__row.iv-balance-popover__row--head .iv-sort-button:nth-child(n+2) {
+    justify-content: flex-end;
+    text-align: right;
+}
 .iv-balance-popover__local {
     display: block;
     color: var(--iv-text-muted);
@@ -471,6 +497,7 @@ button:disabled { cursor:wait !important; opacity:.7; }
 }
 
 .iv-badge--pos { background: var(--iv-green-soft); color: var(--iv-green); }
+.iv-badge--warn { background: var(--iv-orange-soft); color: var(--iv-orange); }
 .iv-badge--neg { background: var(--iv-red-soft); color: var(--iv-red); }
 .iv-badge--muted { background: var(--iv-border); color: var(--iv-text-muted); font-weight: 600; }
 .iv-muted { color: var(--iv-text-muted); font-weight: 500; font-size: .85em; }

@@ -66,7 +66,11 @@ public class ImportOrchestratorService {
             if (shouldReprocessDuplicate(broker)) {
                 ImportHistory batch = existing.get();
                 reprocessDuplicate(parser, fileBytes, fileName, batch);
-                return toBatchResponse(batch, "Duplicate " + broker + " file reprocessed to rebuild open positions", false);
+                ImportHistory reloaded = auditWriter.findExistingAppliedBatch(broker, checksum)
+                        .orElse(batch);
+                return toBatchResponse(reloaded,
+                        combineMessage("Duplicate " + broker + " file reprocessed to rebuild open positions",
+                                reloaded.getErrorMessage()), false);
             }
             // Duplicate is a per-request observation; do NOT mutate the original successful
             // batch's row in the database (used to overwrite errorMessage and poison the
@@ -90,9 +94,9 @@ public class ImportOrchestratorService {
 
         ImportHistory finalized = auditWriter.finalizeApplied(batch.getId(), result);
 
-        refreshDerivedData(finalized);
+        String refreshWarning = refreshDerivedData(finalized);
 
-        return toBatchResponse(finalized, finalized.getErrorMessage(), false);
+        return toBatchResponse(finalized, combineMessage(finalized.getErrorMessage(), refreshWarning), false);
     }
 
     private boolean shouldReprocessDuplicate(BrokerType broker) {
@@ -119,12 +123,14 @@ public class ImportOrchestratorService {
         return e.getClass().getSimpleName();
     }
 
-    private void refreshDerivedData(ImportHistory batch) {
+    private String refreshDerivedData(ImportHistory batch) {
+        StringBuilder warnings = new StringBuilder();
         try {
             assetPriceFallbackService.populateMissingPricesFromOpenPositions();
         } catch (Exception e) {
             log.warn("Asset price fallback population failed after import (batchId={}): {}",
                     batch.getId(), e.getMessage());
+            warnings.append("asset price fallback failed: ").append(exceptionMessage(e));
         }
 
         try {
@@ -132,7 +138,23 @@ public class ImportOrchestratorService {
         } catch (Exception e) {
             log.warn("Projection recalculation failed after import (batchId={}): {}",
                     batch.getId(), e.getMessage());
+            if (!warnings.isEmpty()) {
+                warnings.append("; ");
+            }
+            warnings.append("projection recalculation failed: ").append(exceptionMessage(e));
         }
+
+        return warnings.isEmpty() ? null : warnings.toString();
+    }
+
+    private String combineMessage(String primary, String secondary) {
+        if (primary == null || primary.isBlank()) {
+            return secondary;
+        }
+        if (secondary == null || secondary.isBlank()) {
+            return primary;
+        }
+        return primary + " | " + secondary;
     }
 
     private String sha256(byte[] data) {
@@ -161,4 +183,3 @@ public class ImportOrchestratorService {
         return value == null ? 0 : value;
     }
 }
-

@@ -3,6 +3,7 @@ package com.example.demo.services.imports.ibrk;
 import com.example.demo.infrastructure.CashOperationType;
 import com.example.demo.infrastructure.CurrencyType;
 import com.example.demo.infrastructure.PositionType;
+import com.example.demo.infrastructure.repository.Asset;
 import com.example.demo.infrastructure.repository.*;
 import com.example.demo.infrastructure.repository.account.Account;
 import com.example.demo.infrastructure.repository.account.AccountRepository;
@@ -76,6 +77,7 @@ public class IbkrImportService {
       rows = reader.readAll();
     }
     Long accountIdFromFilename = parseAccountIdFromFilename(fileName);
+    CurrencyType baseCurrency = parseStatementBaseCurrency(rows);
 
     Map<String, Integer> col = locateHeader(rows, SECTION);
     Map<String, Integer> dedup = new HashMap<>();
@@ -116,7 +118,7 @@ public class IbkrImportService {
                 description,
                 parseNumber(value(r, col, "Price", "T. Price", "Trade Price", "Transaction Price")));
         CurrencyType currency =
-            parseCurrency(value(r, col, "Currency", "Currency Primary", "CurrencyPrimary"));
+            resolveMonetaryCurrency(r, col, symbol, baseCurrency);
 
         CashOperation op = new CashOperation();
         String key =
@@ -132,6 +134,10 @@ public class IbkrImportService {
         op.setAccount(account);
         op.setType(mapCashType(type, description));
         op.setSymbol(shouldKeepCashOperationSymbol(op.getType(), type, rawSymbol, description) ? symbol : null);
+        if (StringUtils.hasText(op.getSymbol())) {
+          op.setSourceAssetSymbol(rawSymbol(rawSymbol));
+          op.setBrokerSymbol(rawSymbol(rawSymbol));
+        }
         op.setAmount(net != null ? net : 0.0);
         op.setCurrency(currency);
         op.setComment(buildOperationComment(type, rawSymbol, description, quantity, price, grossAmount, commission));
@@ -145,10 +151,15 @@ public class IbkrImportService {
       }
     }
 
-    ensureIbkrAccountExists(cashOps, List.of());
     ensureCashOperationAssetsExist(cashOps);
+    ensureIbkrAccountExists(cashOps, List.of());
+    applyCashOperationAssetIdentities(cashOps);
     persistTradePriceHistory(tradePriceObservations);
     cashOperationRepository.saveAll(cashOps);
+    // Reconstruction re-reads the full canonical cash history for the account. Flush the freshly
+    // saved operations so the same-transaction read sees this file's rows; otherwise the rebuild
+    // runs on stale (previously committed) data and drops multi-file position history.
+    cashOperationRepository.flush();
 
     List<Long> affectedAccounts =
         cashOps.stream().map(CashOperation::getAccount).filter(Objects::nonNull).distinct().toList();
@@ -156,6 +167,7 @@ public class IbkrImportService {
     if (findSection(rows, "Open Positions", "Positions") != null) {
       openPositions = importOpenPositions(rows, dedup);
       ensureAssetsExist(openPositions);
+      applyPositionAssetIdentities(openPositions);
       for (Long accountId : affectedAccounts) {
         List<OpenedPosition> snapshotForAccount =
             openPositions.stream()
@@ -480,9 +492,11 @@ public class IbkrImportService {
       p.setId(syntheticId("POS|" + IBKR_ACCOUNT + "|" + symbol, dedup));
       p.setAccount(IBKR_ACCOUNT);
       p.setSymbol(symbol);
+      p.setSourceAssetSymbol(rawSymbol(at(r, cSymbol)));
+      p.setBrokerSymbol(rawSymbol(at(r, cSymbol)));
       p.setType(quantity >= 0 ? PositionType.BUY : PositionType.SELL);
       p.setCurrency(parseCurrency(at(r, cCurrency)));
-      p.setVolume(quantity);
+      p.setVolume(Math.abs(quantity));
       p.setOpenTime(now);
       p.setOpenPrice(parseNumber(at(r, cCost)));
       p.setMarketPrice(parseNumber(at(r, cClose)));
@@ -558,11 +572,54 @@ public class IbkrImportService {
   }
 
   private CurrencyType parseCurrency(String raw) {
-    if (StringUtils.hasText(raw)) {
-      try {
-        return CurrencyType.valueOf(raw.trim().toUpperCase());
-      } catch (IllegalArgumentException ignored) {
-        // unsupported currency (e.g. GBP) -> treat as base USD
+    if (!StringUtils.hasText(raw)) {
+      throw new IllegalArgumentException("IBKR row has no monetary currency");
+    }
+    try {
+      return CurrencyType.valueOf(raw.trim().toUpperCase());
+    } catch (IllegalArgumentException exception) {
+      throw new IllegalArgumentException("Unsupported IBKR monetary currency: " + raw, exception);
+    }
+  }
+
+  /**
+   * Resolves the monetary currency for a cash row. IBKR "Transaction History" statements expose the
+   * amount currency as {@code Price Currency} (USD or EUR for trades); older exports used
+   * {@code Currency}. Rows without a per-row currency (e.g. dividends and withholding carry
+   * {@code "-"}) inherit the listing currency of the corresponding asset. Rows without a symbol
+   * (deposits, withdrawals, interest, FX adjustments) fall back to the statement base currency.
+   */
+  private CurrencyType resolveMonetaryCurrency(
+      String[] row, Map<String, Integer> col, String canonicalSymbol, CurrencyType baseCurrency) {
+    String raw =
+        value(row, col, "Currency", "Currency Primary", "CurrencyPrimary", "Price Currency");
+    if (StringUtils.hasText(raw) && !"-".equals(raw.trim())) {
+      return parseCurrency(raw);
+    }
+    if (StringUtils.hasText(canonicalSymbol)) {
+      AssetCatalogService.AssetSeed seed = assetCatalogService.seedForSymbol(canonicalSymbol, null);
+      if (seed != null && seed.currency() != null) {
+        return seed.currency();
+      }
+    }
+    if (baseCurrency != null) {
+      return baseCurrency;
+    }
+    throw new IllegalArgumentException("IBKR row has no monetary currency");
+  }
+
+  /** Reads the statement base currency from the {@code Summary} section, defaulting to USD. */
+  private CurrencyType parseStatementBaseCurrency(List<String[]> rows) {
+    for (String[] r : rows) {
+      if (r.length > 3
+          && "Summary".equals(r[0])
+          && "Data".equals(r[1])
+          && "Base Currency".equalsIgnoreCase(r[2] == null ? null : r[2].trim())) {
+        try {
+          return parseCurrency(r[3]);
+        } catch (RuntimeException ignored) {
+          // fall through to default
+        }
       }
     }
     return CurrencyType.USD;
@@ -635,10 +692,39 @@ public class IbkrImportService {
     assetCatalogService.ensureAssetsExist(assets);
   }
 
+  private void applyCashOperationAssetIdentities(List<CashOperation> operations) {
+    Set<String> symbols = operations.stream().map(CashOperation::getSymbol)
+        .filter(StringUtils::hasText).collect(java.util.stream.Collectors.toSet());
+    Map<String, Long> ids = assetRepository.findAllBySymbolIn(symbols).stream()
+        .collect(java.util.stream.Collectors.toMap(Asset::getSymbol, Asset::getId));
+    operations.forEach(operation -> {
+      if (StringUtils.hasText(operation.getSymbol()) && !isPseudoFxCashSymbol(operation)) {
+        operation.setAssetId(requiredAssetId(operation.getSymbol(), ids));
+      }
+    });
+  }
+
+  private void applyPositionAssetIdentities(List<OpenedPosition> positions) {
+    Set<String> symbols = positions.stream().map(OpenedPosition::getSymbol)
+        .filter(StringUtils::hasText).collect(java.util.stream.Collectors.toSet());
+    Map<String, Long> ids = assetRepository.findAllBySymbolIn(symbols).stream()
+        .collect(java.util.stream.Collectors.toMap(Asset::getSymbol, Asset::getId));
+    positions.forEach(position -> position.setAssetId(requiredAssetId(position.getSymbol(), ids)));
+  }
+
+  private Long requiredAssetId(String symbol, Map<String, Long> ids) {
+    Long assetId = ids.get(symbol);
+    if (assetId == null) {
+      throw new IllegalArgumentException("Unknown or ambiguous IBKR asset symbol: " + symbol);
+    }
+    return assetId;
+  }
+
   private boolean isPseudoFxCashSymbol(CashOperation operation) {
     return operation.getType() == CashOperationType.TRANSFER
-        && StringUtils.hasText(operation.getSymbol())
-        && operation.getSymbol().contains(".");
+        && StringUtils.hasText(operation.getSourceAssetSymbol())
+        && operation.getSourceAssetSymbol().trim().toUpperCase(Locale.ROOT)
+            .matches("^[A-Z]{3}\\.[A-Z]{3}$");
   }
 
   private boolean shouldKeepCashOperationSymbol(
@@ -951,7 +1037,7 @@ public class IbkrImportService {
         Long account, String symbol, CurrencyType currency, ZonedDateTime lastDate) {
       this.account = account;
       this.symbol = symbol;
-      this.currency = currency == null ? CurrencyType.USD : currency;
+      this.currency = Objects.requireNonNull(currency, "IBKR monetary currency");
       this.lastDate = lastDate;
     }
 

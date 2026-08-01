@@ -3,6 +3,7 @@ package com.example.demo.services;
 import com.example.demo.infrastructure.CurrencyType;
 import com.example.demo.infrastructure.repository.Asset;
 import com.example.demo.infrastructure.repository.AssetRepository;
+import com.example.demo.infrastructure.repository.AssetPriceHistoryRepository;
 import com.example.demo.services.currency.CurrencyRateService;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
@@ -18,6 +19,7 @@ public class ManualAssetPriceService {
   private static final CurrencyType BASE_CURRENCY = CurrencyType.USD;
 
   private final AssetRepository assetRepository;
+  private final AssetPriceHistoryRepository assetPriceHistoryRepository;
   private final CurrencyRateService currencyRateService;
   private final MarketService marketService;
   private final StatisticsRefreshService statisticsRefreshService;
@@ -49,6 +51,17 @@ public class ManualAssetPriceService {
     asset.setPriceSource("Manual");
     asset.setPriceUpdatedAt(updatedAt);
     assetRepository.save(asset);
+    assetPriceHistoryRepository.upsertObservedPrice(
+        asset.getId(),
+        ReportingDateHelper.today(),
+        "MANUAL",
+        asset.getSymbol(),
+        asset.getSymbol(),
+        "MANUAL",
+        currency.name(),
+        marketPrice,
+        100,
+        "MANUAL");
 
     marketService.syncStocks();
     statisticsRefreshService.refreshAll();

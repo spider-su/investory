@@ -15,7 +15,7 @@ public class PortfolioDataQualityRepository {
         return entityManager.createNativeQuery("WITH p AS (SELECT COUNT(*) total, "
             + "COUNT(*) FILTER (WHERE a.market_price IS NOT NULL) priced, "
             + "COUNT(*) FILTER (WHERE a.market_price IS NULL) missing "
-            + "FROM investory.positions x LEFT JOIN investory.assets a ON a.symbol=x.asset_id WHERE x.close_time IS NULL AND COALESCE(x.volume,0)<>0), "
+            + "FROM investory.positions x LEFT JOIN investory.assets a ON a.id=x.asset_id WHERE x.close_time IS NULL AND COALESCE(x.volume,0)<>0), "
             + "s AS (SELECT COUNT(*) total_accounts, COUNT(*) FILTER (WHERE account_id IS NOT NULL) reconciled FROM investory.account_statistics), "
             + "d AS (SELECT MAX(price_updated_at) latest_price FROM investory.assets), "
             + "f AS (SELECT MAX(month) latest_fx FROM investory.exchange_rates), "

@@ -2,7 +2,6 @@ package com.example.demo.config;
 
 import com.example.demo.services.currency.CurrencyRateUpdaterService;
 import com.example.demo.services.MarketService;
-import com.example.demo.services.PortfolioProjectionService;
 import com.example.demo.services.notifications.NotificationService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,7 +18,6 @@ class SchedulerConfigTest {
     @Mock private MarketService marketService;
     @Mock private CurrencyRateUpdaterService updaterService;
     @Mock private NotificationService notificationService;
-    @Mock private PortfolioProjectionService portfolioProjectionService;
 
     @InjectMocks
     private SchedulerConfig schedulerConfig;
@@ -31,15 +29,11 @@ class SchedulerConfigTest {
     }
 
     @Test
-    void recordAtMarketClose_runsUpdateThenDigestThenAlerts() {
+    void recordAtMarketClose_runsFullPortfolioUpdate() {
         schedulerConfig.recordAtMarketClose();
 
-        org.mockito.InOrder order = inOrder(marketService, portfolioProjectionService);
+        org.mockito.InOrder order = inOrder(marketService);
         order.verify(marketService).fullPortfolioUpdate();
-        order.verify(portfolioProjectionService).recalculateAll();
-        //TODO: fixme
-        //        order.verify(notificationService).sendDailyDigest();
-        //        order.verify(notificationService).runAlerts();
     }
 
     @Test
