@@ -641,17 +641,15 @@ class SchemaMigrationCheckpoint2Test {
               where account_id = -950001
               """));
 
-      assertEquals(
-          true,
-          exists(
-              statement,
-              """
-              select 1
-              from investory.account_statistics
-              where account_id = -950001
-                and total_deposit is null
-                and net_deposit is null
-              """));
+        assertTrue(exists(
+                statement,
+                """
+                        select 1
+                        from investory.account_statistics
+                        where account_id = -950001
+                          and total_deposit is null
+                          and net_deposit is null
+                        """));
 
       assertEquals(
           "200.00000000",
@@ -663,17 +661,15 @@ class SchemaMigrationCheckpoint2Test {
               where account_id = -950001
               """));
 
-      assertEquals(
-          true,
-          exists(
-              statement,
-              """
-              select 1
-              from investory.reporting_account_daily_cashflow_reconciliation
-              where account_id = -950001
-                and snapshot_date = date '2025-01-15'
-                and ledger_cash_native is null
-              """));
+        assertTrue(exists(
+                statement,
+                """
+                        select 1
+                        from investory.reporting_account_daily_cashflow_reconciliation
+                        where account_id = -950001
+                          and snapshot_date = date '2025-01-15'
+                          and ledger_cash_native is null
+                        """));
     }
   }
 

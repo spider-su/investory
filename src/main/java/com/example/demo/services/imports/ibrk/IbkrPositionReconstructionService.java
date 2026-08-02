@@ -19,10 +19,12 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -63,10 +65,10 @@ public class IbkrPositionReconstructionService {
 
     validateQuantityReconciliation(positions, canonicalOperations);
 
+    List<OpenedPosition> canonicalOpen = buildOpenPositions(positions, dedup);
     List<OpenedPosition> open =
-        authoritativeOpenPositions != null
-            ? authoritativeOpenPositions
-            : buildOpenPositions(positions, dedup);
+        mergeAuthoritativeOpenPositionFallback(
+            canonicalOpen, authoritativeOpenPositions, canonicalOperations);
 
     replaceDerivedPositions(accountId, open, closed);
     return new ReconstructionResult(open, closed);
@@ -195,6 +197,53 @@ public class IbkrPositionReconstructionService {
       }
     }
     return positions;
+  }
+
+  /**
+   * Activity-statement open-position snapshots are fallback only.
+   *
+   * <p>Canonical trade history is the source of truth for symbols that have any trade ledger rows.
+   * Snapshot-only symbols are appended as bootstrap rows when no canonical trade history exists for
+   * that symbol yet (for example, first import starts mid-history).
+   */
+  private List<OpenedPosition> mergeAuthoritativeOpenPositionFallback(
+      List<OpenedPosition> canonicalOpen,
+      List<OpenedPosition> authoritativeOpenPositions,
+      List<CashOperation> canonicalOperations) {
+    if (authoritativeOpenPositions == null) {
+      return canonicalOpen;
+    }
+
+    Set<String> canonicalTradeSymbols = new LinkedHashSet<>();
+    canonicalOperations.stream()
+        .map(this::toCanonicalTrade)
+        .filter(Objects::nonNull)
+        .map(CanonicalTrade::symbol)
+        .filter(StringUtils::hasText)
+        .forEach(canonicalTradeSymbols::add);
+
+    Set<String> canonicalOpenSymbols = new LinkedHashSet<>();
+    canonicalOpen.stream()
+        .map(OpenedPosition::getSymbol)
+        .filter(StringUtils::hasText)
+        .forEach(canonicalOpenSymbols::add);
+
+    List<OpenedPosition> merged = new ArrayList<>(canonicalOpen);
+    for (OpenedPosition snapshotPosition : authoritativeOpenPositions) {
+      String symbol = snapshotPosition.getSymbol();
+      if (!StringUtils.hasText(symbol)) {
+        continue;
+      }
+      if (canonicalOpenSymbols.contains(symbol)) {
+        continue;
+      }
+      if (canonicalTradeSymbols.contains(symbol)) {
+        continue;
+      }
+      merged.add(snapshotPosition);
+      canonicalOpenSymbols.add(symbol);
+    }
+    return merged;
   }
 
   private void addClosedPositions(

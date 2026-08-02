@@ -831,6 +831,52 @@ class IbkrImportHistoryServiceTest {
     assertEquals(0.0, volumeFor(latest, "IUVL.UK"), 0.0001);
   }
 
+  @Test
+  void importStatement_ignoresStaleSnapshotRowsWhenCanonicalHistoryShowsSymbolClosed()
+      throws Exception {
+    String fileA =
+        String.join(
+            "\n",
+            "Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quantity,Price,Net Amount,Currency",
+            "Transaction History,Data,2026-01-02,U17959259,AAPL buy,Buy,AAPL,4,100,-400.00,USD",
+            "Transaction History,Data,2026-01-03,U17959259,JGPI buy,Buy,JGPI,10,20,-200.00,USD");
+    String fileB =
+        String.join(
+            "\n",
+            "Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quantity,Price,Net Amount,Currency",
+            "Transaction History,Data,2026-01-05,U17959259,AAPL sell,Sell,AAPL,-4,110,440.00,USD",
+            "Open Positions,Header,Symbol,Quantity,Currency,Cost Price,Cost Basis,Close Price,Unrealized P/L,DataDiscriminator",
+            "Open Positions,Data,AAPL,4,USD,100,400,110,40,Summary",
+            "Open Positions,Data,JGPI,10,USD,20,200,21,10,Summary");
+
+    service.importStatement(new ByteArrayInputStream(fileA.getBytes(StandardCharsets.UTF_8)), "A.csv");
+    service.importStatement(new ByteArrayInputStream(fileB.getBytes(StandardCharsets.UTF_8)), "B.csv");
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Iterable<OpenedPosition>> openCaptor =
+        (ArgumentCaptor<Iterable<OpenedPosition>>) (ArgumentCaptor<?>) ArgumentCaptor.forClass(Iterable.class);
+    verify(openedPositionRepository, atLeastOnce()).saveAll(openCaptor.capture());
+    List<OpenedPosition> latest = toList(openCaptor.getAllValues().getLast());
+
+    assertEquals(0.0, volumeFor(latest, "AAPL.US"), 0.0001);
+    assertEquals(10.0, volumeFor(latest, "JGPI.US"), 0.0001);
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Iterable<ClosedPosition>> closedCaptor =
+        (ArgumentCaptor<Iterable<ClosedPosition>>) (ArgumentCaptor<?>) ArgumentCaptor.forClass(Iterable.class);
+    verify(closedPositionRepository, atLeastOnce()).saveAll(closedCaptor.capture());
+    List<ClosedPosition> closed = toList(closedCaptor.getAllValues().getLast());
+
+    assertEquals(1, closed.stream().filter(position -> "AAPL.US".equals(position.getSymbol())).count());
+    assertEquals(
+        4.0,
+        closed.stream()
+            .filter(position -> "AAPL.US".equals(position.getSymbol()))
+            .mapToDouble(ClosedPosition::getVolume)
+            .sum(),
+        0.0001);
+  }
+
   private static double volumeFor(List<OpenedPosition> positions, String symbol) {
     return positions.stream()
         .filter(position -> symbol.equals(position.getSymbol()))

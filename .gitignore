@@ -6,6 +6,7 @@
 *.csv
 *.zip
 src/main/resources/application-local.yml
+src/main/resources/application-k3s.yml
 .env
 /src/test/manual/http-client.private.env.json
 /generated

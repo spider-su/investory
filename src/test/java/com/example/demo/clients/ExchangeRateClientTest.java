@@ -17,10 +17,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
@@ -101,7 +98,7 @@ class ExchangeRateClientTest {
 
         ExchangeRateException ex = assertThrows(ExchangeRateException.class,
                 () -> client.getLatestRates("USD", "USD,EUR,PLN", "test-key"));
-        assertTrue(ex.getCause() instanceof IOException);
+        assertInstanceOf(IOException.class, ex.getCause());
     }
 
     @Test
