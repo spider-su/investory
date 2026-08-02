@@ -11,30 +11,63 @@ import java.sql.Statement;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
-@EnabledIfSystemProperty(named = "investory.test.db.enabled", matches = "true")
+/**
+ * Migration chain test. It always runs against a disposable PostgreSQL container, never against a
+ * developer database, so the destructive schema reset below cannot touch real data.
+ */
+@Testcontainers
 class SchemaMigrationCheckpoint2Test {
 
-  private static final String DB_URL =
-      System.getProperty("investory.test.db.url", "jdbc:postgresql://localhost:5432/investory");
-  private static final String DB_USERNAME =
-      System.getProperty("investory.test.db.username", "postgres");
-  private static final String DB_PASSWORD =
-      System.getProperty("investory.test.db.password", "postgres");
+  private static final String TEST_DATABASE_NAME = "investory_migration_test";
+
+  @Container
+  private final PostgreSQLContainer<?> postgres =
+      new PostgreSQLContainer<>("postgres:16-alpine")
+          .withDatabaseName(TEST_DATABASE_NAME)
+          .withUsername("investory_test")
+          .withPassword("investory_test");
+
+  private String dbUrl() {
+    return postgres.getJdbcUrl();
+  }
+
+  private String dbUsername() {
+    return postgres.getUsername();
+  }
+
+  private String dbPassword() {
+    return postgres.getPassword();
+  }
+
+  private Connection openConnection() throws Exception {
+    return DriverManager.getConnection(dbUrl(), dbUsername(), dbPassword());
+  }
+
+  /**
+   * Hard safety guard: refuse any destructive statement unless the target is the throwaway
+   * container database created for this test class.
+   */
+  private void assertDisposableTestDatabase() {
+    String url = dbUrl();
+    if (url == null || !url.matches("^jdbc:postgresql://.*/" + TEST_DATABASE_NAME + "(?:\\?.*)?$")) {
+      throw new IllegalStateException(
+          "Refusing to run migration test against non-disposable database: " + url);
+    }
+  }
 
   @BeforeEach
   void recreateDatabaseFromEmptySchema() throws Exception {
-    try (Connection connection = DriverManager.getConnection(DB_URL, DB_USERNAME, DB_PASSWORD);
-        Statement statement = connection.createStatement()) {
-      statement.execute("DROP SCHEMA IF EXISTS investory CASCADE");
-      statement.execute("CREATE SCHEMA investory");
-    }
+    assertDisposableTestDatabase();
+
 
     Flyway flyway =
         Flyway.configure()
             .cleanDisabled(true)
-            .dataSource(DB_URL, DB_USERNAME, DB_PASSWORD)
+            .dataSource(dbUrl(), dbUsername(), dbPassword())
             .schemas("investory")
             .defaultSchema("investory")
             .locations("classpath:sql/migration")
@@ -44,9 +77,9 @@ class SchemaMigrationCheckpoint2Test {
 
   @Test
   void appliesAllMigrationsAndCreatesCheckpoint2Invariants() throws Exception {
-    try (Connection connection = DriverManager.getConnection(DB_URL, DB_USERNAME, DB_PASSWORD);
+    try (Connection connection = openConnection();
         Statement statement = connection.createStatement()) {
-      assertEquals(4, singleInt(statement, "SELECT count(*) FROM investory.flyway_schema_history"));
+      assertEquals(5, singleInt(statement, "SELECT count(*) FROM investory.flyway_schema_history"));
       assertTrue(
           exists(
               statement,
@@ -215,7 +248,7 @@ class SchemaMigrationCheckpoint2Test {
 
   @Test
   void classifiesIbkrCashTransferWithEnrichedCommentAsExternalDeposit() throws Exception {
-    try (Connection connection = DriverManager.getConnection(DB_URL, DB_USERNAME, DB_PASSWORD);
+    try (Connection connection = openConnection();
         Statement statement = connection.createStatement()) {
       statement.execute(
           """
@@ -241,7 +274,7 @@ class SchemaMigrationCheckpoint2Test {
 
   @Test
   void storesCspxAsUsdAcrossAssetMappingAndHistory() throws Exception {
-    try (Connection connection = DriverManager.getConnection(DB_URL, DB_USERNAME, DB_PASSWORD);
+    try (Connection connection = openConnection();
         Statement statement = connection.createStatement()) {
       assertEquals(
           "USD",
@@ -280,7 +313,7 @@ class SchemaMigrationCheckpoint2Test {
 
   @Test
   void advancesPortfolioSequencePastSeededIds() throws Exception {
-    try (Connection connection = DriverManager.getConnection(DB_URL, DB_USERNAME, DB_PASSWORD);
+    try (Connection connection = openConnection();
         Statement statement = connection.createStatement()) {
       assertEquals(
           2,
@@ -296,7 +329,7 @@ class SchemaMigrationCheckpoint2Test {
 
   @Test
   void convertsAccountDailyValuesToPortfolioBaseCurrency() throws Exception {
-    try (Connection connection = DriverManager.getConnection(DB_URL, DB_USERNAME, DB_PASSWORD);
+    try (Connection connection = openConnection();
         Statement statement = connection.createStatement()) {
       statement.execute(
           """
@@ -323,7 +356,7 @@ class SchemaMigrationCheckpoint2Test {
 
   @Test
   void requiresCoreRawRowFields() throws Exception {
-    try (Connection connection = DriverManager.getConnection(DB_URL, DB_USERNAME, DB_PASSWORD);
+    try (Connection connection = openConnection();
         Statement statement = connection.createStatement()) {
       assertEquals(
           12,
@@ -348,7 +381,7 @@ class SchemaMigrationCheckpoint2Test {
 
   @Test
   void sameCurrencyPositionDoesNotReportMissingFx() throws Exception {
-    try (Connection connection = DriverManager.getConnection(DB_URL, DB_USERNAME, DB_PASSWORD);
+    try (Connection connection = openConnection();
         Statement statement = connection.createStatement()) {
       statement.execute(
           """
@@ -382,7 +415,7 @@ class SchemaMigrationCheckpoint2Test {
 
   @Test
   void keepsUsdCostCurrencyForUsdAssetHeldInPlnAccounts() throws Exception {
-    try (Connection connection = DriverManager.getConnection(DB_URL, DB_USERNAME, DB_PASSWORD);
+    try (Connection connection = openConnection();
         Statement statement = connection.createStatement()) {
       statement.execute(
           """
@@ -456,7 +489,7 @@ class SchemaMigrationCheckpoint2Test {
   @Test
   void canonicalPortfolioFxSupportsSameCurrencyDirectInverseTriangulationStaleAndMissing()
       throws Exception {
-    try (Connection connection = DriverManager.getConnection(DB_URL, DB_USERNAME, DB_PASSWORD);
+    try (Connection connection = openConnection();
         Statement statement = connection.createStatement()) {
       statement.execute(
           """
@@ -560,7 +593,7 @@ class SchemaMigrationCheckpoint2Test {
 
   @Test
   void accountStatisticsFailClosedWhenOneCashOperationHasMissingFx() throws Exception {
-    try (Connection connection = DriverManager.getConnection(DB_URL, DB_USERNAME, DB_PASSWORD);
+    try (Connection connection = openConnection();
         Statement statement = connection.createStatement()) {
       statement.execute(
           """
@@ -646,7 +679,7 @@ class SchemaMigrationCheckpoint2Test {
 
   @Test
   void reconcilesResultOnlyAndSameDayRoundTripContracts() throws Exception {
-    try (Connection connection = DriverManager.getConnection(DB_URL, DB_USERNAME, DB_PASSWORD);
+    try (Connection connection = openConnection();
         Statement statement = connection.createStatement()) {
       statement.execute(
           """
@@ -760,7 +793,7 @@ class SchemaMigrationCheckpoint2Test {
 
   @Test
   void positionReportingConvertsProfitAndCommissionCurrenciesBeforeSumming() throws Exception {
-    try (Connection connection = DriverManager.getConnection(DB_URL, DB_USERNAME, DB_PASSWORD);
+    try (Connection connection = openConnection();
         Statement statement = connection.createStatement()) {
       statement.execute(
           """
