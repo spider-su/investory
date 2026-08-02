@@ -131,7 +131,7 @@ public class PortfolioService {
             }
         }
 
-        portfolio.setPerformancePerSymbol(calculatePerformancePerInstrument(portfolio.getBaseCurrency()));
+        portfolio.setPerformancePerSymbol(calculatePerformancePerInstrument());
         portfolio.setMonthlyPerformance(calculateMonthlyPerformance());
         return portfolio;
     }
@@ -176,22 +176,22 @@ public class PortfolioService {
     }
 
     private LocalDate toLocalDate(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof LocalDate localDate) {
-            return localDate;
-        }
-        if (value instanceof java.sql.Date sqlDate) {
-            return sqlDate.toLocalDate();
-        }
-        if (value instanceof TemporalAccessor temporal) {
-            try {
-                return LocalDate.from(temporal);
-            } catch (java.time.DateTimeException ignored) {
-                // Fall through for values returned as timestamp strings.
+        return switch (value) {
+            case null -> null;
+            case LocalDate localDate -> localDate;
+            case java.sql.Date sqlDate -> sqlDate.toLocalDate();
+            case TemporalAccessor temporal -> {
+                try {
+                    yield LocalDate.from(temporal);
+                } catch (java.time.DateTimeException ignored) {
+                    yield parseLocalDateText(value);
+                }
             }
-        }
+            default -> parseLocalDateText(value);
+        };
+    }
+
+    private LocalDate parseLocalDateText(Object value) {
         String text = String.valueOf(value);
         return LocalDate.parse(text.length() >= 10 ? text.substring(0, 10) : text);
     }
@@ -353,14 +353,13 @@ public class PortfolioService {
         List<AccountStatistics> stats = accountStatisticsRepository.findAll();
         Set<Long> cashOnlyAccounts = cashOnlyAccountIds();
         stats = stats.stream().filter(stat -> !cashOnlyAccounts.contains(stat.getAccountId())).toList();
-        double marketValue;
         double cash;
         double balance;
         if (!stats.isEmpty()) {
             List<AccountStatistics> activeStats = stats.stream()
                     .filter(s -> Math.abs(nz(s.getCashBalance()) + nz(s.getMarketValue())) >= ACCOUNT_VISIBILITY_MIN_VALUE)
                     .toList();
-            marketValue = activeStats.stream().mapToDouble(s -> nz(s.getMarketValue())).sum();
+            double marketValue = activeStats.stream().mapToDouble(s -> nz(s.getMarketValue())).sum();
             cash = activeStats.stream().mapToDouble(s -> nz(s.getCashBalance())).sum();
             balance = marketValue + cash;
         } else {
@@ -375,7 +374,6 @@ public class PortfolioService {
                                     nz(position.getCommission()), portfolio.getBaseCurrency(),
                                     position.getCommissionCurrency(), java.time.LocalDate.now()))
                     .sum();
-            marketValue = balance;
             cash = 0.0;
         }
         portfolio.setBalance(balance);
@@ -852,7 +850,11 @@ public class PortfolioService {
         }
 
         Map<String, Long> monthlyOps = monthlyAccounts.entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, entry -> (long) entry.getValue().size(), (a, b) -> a, TreeMap::new));
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry -> (long) entry.getValue().size(),
+                        (existing, ignored) -> existing,
+                        TreeMap::new));
 
         performance.setCalculateMonthlyPerformance(monthlyProfit);
         performance.setMonthlyOperationsCount(monthlyOps);
@@ -888,7 +890,7 @@ public class PortfolioService {
         return (double) profitablePositions / totalPositions * 100;
     }
 
-    public List<InstrumentPerformance> calculatePerformancePerInstrument(CurrencyType baseCurrency) {
+    public List<InstrumentPerformance> calculatePerformancePerInstrument() {
         List<InstrumentPerformance> instrumentPerformances = symbolPerformanceRepository.findAll().stream()
                 .map(row -> new InstrumentPerformance(
                         row.getSymbol(),

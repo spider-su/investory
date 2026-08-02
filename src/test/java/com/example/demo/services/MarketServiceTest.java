@@ -8,6 +8,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -36,6 +37,7 @@ class MarketServiceTest {
     @Mock private AssetPriceHistoryGapFillService assetPriceHistoryGapFillService;
     @Mock private StatisticsRefreshService statisticsRefreshService;
     @Mock private PlatformTransactionManager transactionManager;
+    @Captor private ArgumentCaptor<Iterable<Asset>> assetIterableCaptor;
 
     private MarketService marketService;
 
@@ -76,7 +78,10 @@ class MarketServiceTest {
         OpenedPosition ibkr = new OpenedPosition();
         ibkr.setSymbol("AAPL");
         ibkr.setAccount(17959259L);
-        ibkr.setCurrency(CurrencyType.USD);
+        ibkr.setPriceCurrency(CurrencyType.USD);
+        ibkr.setCostCurrency(CurrencyType.USD);
+        ibkr.setProfitCurrency(CurrencyType.USD);
+        ibkr.setCommissionCurrency(CurrencyType.USD);
         ibkr.setVolume(10.0);
         ibkr.setOpenPrice(150.0);
 
@@ -154,9 +159,8 @@ class MarketServiceTest {
         marketService.updateStocks();
 
         verify(twelveDataService).fetchStockQuotes("REMX");
-        ArgumentCaptor<Iterable<Asset>> captor = ArgumentCaptor.forClass(Iterable.class);
-        verify(assetRepository).saveAll(captor.capture());
-        List<Asset> saved = toList(captor.getValue());
+        verify(assetRepository).saveAll(assetIterableCaptor.capture());
+        List<Asset> saved = toList(assetIterableCaptor.getValue());
         assertEquals(1, saved.size());
         assertEquals("REMX.UK", saved.get(0).getSymbol());
         assertEquals(12.93, saved.get(0).getMarketPrice(), 0.00000001);

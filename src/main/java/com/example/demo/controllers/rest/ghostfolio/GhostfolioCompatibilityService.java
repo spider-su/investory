@@ -394,16 +394,16 @@ class GhostfolioCompatibilityService {
                 "open-" + row.getId(),
                 row.getAccount(),
                 row.getSymbol(),
-                row.getCurrency(),
+                row.getCostCurrency(),
                 row.getType() == PositionType.SELL ? "SELL" : "BUY",
                 date,
                 portfolio);
         activity.put("quantity", Math.abs(nz(row.getVolume())));
         activity.put("unitPrice", nz(row.getOpenPrice()));
         activity.put("fee", Math.abs(nz(row.getCommission())));
-        activity.put("feeInBaseCurrency", convert(Math.abs(nz(row.getCommission())), portfolio.getBaseCurrency(), row.getCurrency(), date));
+        activity.put("feeInBaseCurrency", convert(Math.abs(nz(row.getCommission())), portfolio.getBaseCurrency(), row.getCommissionCurrency(), date));
         activity.put("value", value);
-        activity.put("valueInBaseCurrency", convert(value, portfolio.getBaseCurrency(), row.getCurrency(), date));
+        activity.put("valueInBaseCurrency", convert(value, portfolio.getBaseCurrency(), row.getCostCurrency(), date));
         return activity;
     }
 
@@ -414,16 +414,16 @@ class GhostfolioCompatibilityService {
                 "closed-" + row.getId(),
                 row.getAccount(),
                 row.getSymbol(),
-                row.getCurrency(),
+                row.getProfitCurrency(),
                 "SELL",
                 date,
                 portfolio);
         activity.put("quantity", Math.abs(nz(row.getVolume())));
         activity.put("unitPrice", nz(row.getClosePrice()));
         activity.put("fee", Math.abs(nz(row.getCommission())));
-        activity.put("feeInBaseCurrency", convert(Math.abs(nz(row.getCommission())), portfolio.getBaseCurrency(), row.getCurrency(), date));
+        activity.put("feeInBaseCurrency", convert(Math.abs(nz(row.getCommission())), portfolio.getBaseCurrency(), row.getCommissionCurrency(), date));
         activity.put("value", value);
-        activity.put("valueInBaseCurrency", convert(value, portfolio.getBaseCurrency(), row.getCurrency(), date));
+        activity.put("valueInBaseCurrency", convert(value, portfolio.getBaseCurrency(), row.getProfitCurrency(), date));
         return activity;
     }
 
@@ -683,10 +683,6 @@ class GhostfolioCompatibilityService {
 
     private static Instant toInstant(ZonedDateTime date) {
         return date == null ? null : date.toInstant();
-    }
-
-    private static Instant toInstant(LocalDate date) {
-        return date == null ? null : date.atStartOfDay().toInstant(ZoneOffset.UTC);
     }
 
     private static Optional<Instant> parseInstant(String value) {

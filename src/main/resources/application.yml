@@ -33,7 +33,6 @@ spring:
     suffix: .html
     mode: HTML
     cache: false
-    enabled: true
     check-template: true
     check-template-location: true
     template-resolver-order: 1

@@ -122,6 +122,58 @@ java -cp "tools;$cp;$jar" ReconRunner "src\main\resources" $url postgres postgre
   several cash operations (trade + commission + fee), so a raw line-count does not map
   1:1. Add a faithful IBKR expected-model when the IBKR files are imported. Until then
   C0 covers IBKR presence.
-- C2–C6 to follow after C0/C1 are green on the full (re-imported) set.
+- C6 to follow after C5 is green on the full (re-imported) set.
+
+## C2–C5 results (local DB)
+
+- **C2: PASS** — closed positions reconcile to broker `Profit` per account; open
+  positions all `CASH_SETTLED`, priced, positive volume.
+- **C3: PASS** — all open-symbol assets priced; only the in-progress current month is
+  missing FX (WARN, expected).
+- **C4: PASS** — `equity = cash + market_value`, ledger sum reconciles, no negative
+  equity; the cross-account `FX_CONVERSION` phantom is gone.
+- **C5: PASS (after canonical-price fix)** — see below.
+
+### C5 root cause: three price sources for one "current" value
+
+The open-position value disagreed across layers because each resolved *current* price
+differently:
+
+- **popup / allocation** (`v_open_position_values` → `portfolio_asset_allocation`) used
+  `COALESCE(latest v_canonical_asset_daily_price, assets.market_price)` — i.e. it
+  *preferred the latest history row* over the canonical quote column.
+- **header KPI** (`account_daily` → `portfolio_kpi_summary`) used
+  `PortfolioProjectionService.marketValue()`, which only used `assets.market_price` when
+  `price_updated_at == snapshot_date` and otherwise fell to the historical floor (and
+  could even zero a position past `MAX_HISTORICAL_PRICE_STALENESS_DAYS`).
+
+For a stale asset these two picked different prices (example `MRVL.US`: canonical column
+was a stale `ClosedPosition` fallback `74.08`; history had `206.10`; the real live quote
+is `187.56`), producing a header-vs-popup gap (~$757 on the full portfolio).
+
+### Fix (single canonical current-price source)
+
+`assets.market_price` / `assets.market_price_usd` is the one canonical current quote
+(kept fresh by `MarketService`, `ManualAssetPriceService`, `AssetPriceFallbackService`).
+Both current-value surfaces now read it:
+
+1. `v_open_position_values` uses `asset.market_price` (+ `asset.currency`) directly
+   instead of preferring the latest history row.
+2. `PortfolioProjectionService.marketValue()` uses `asset.market_price` for the current
+   valuation date (`date == currentDate`) regardless of `price_updated_at`; prior dates
+   still use observed history.
+
+After the fix, all four surfaces agree exactly (local DB, base currency):
+`v_open_position_values` = `account_daily` latest = `portfolio_asset_allocation` =
+`portfolio_kpi_summary.total_market_value` = **129 235.70**.
+
+### Environment notes (local DB, not code/migration bugs)
+
+- The app must run with the `local` Spring profile (see `AGENTS.md`); otherwise it hits
+  the empty default datasource and Flyway migrates from scratch.
+- This particular local DB predates the `bigserial` account_daily schema and was missing
+  `investory.account_daily_id_seq`, so `recalculateAll()` failed on insert. A fresh
+  recreate from the current migrations creates the sequence; it was added live here to
+  unblock testing.
 
 

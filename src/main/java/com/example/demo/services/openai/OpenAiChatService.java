@@ -91,7 +91,7 @@ public class OpenAiChatService {
                 return FAILURE_MESSAGE;
             }
 
-            String responseId = response.path("id").asText(null);
+            String responseId = response.path("id").asString(null);
             if (responseId != null && !responseId.isBlank()) {
                 previousResponseIds.put(chatId, responseId);
             }
@@ -153,8 +153,8 @@ public class OpenAiChatService {
         StringBuilder text = new StringBuilder();
         for (JsonNode output : response.path("output")) {
             for (JsonNode content : output.path("content")) {
-                if ("output_text".equals(content.path("type").asText())) {
-                    String part = content.path("text").asText("");
+                if ("output_text".equals(content.path("type").asString())) {
+                    String part = content.path("text").asString("");
                     if (!part.isBlank()) {
                         if (!text.isEmpty()) {
                             text.append('\n');

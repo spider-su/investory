@@ -59,7 +59,6 @@ class IbkrImportHistoryServiceTest {
     service =
         new IbkrImportService(
             cashOperationRepository,
-            openedPositionRepository,
             assetPriceHistoryRepository,
             assetRepository,
             accountRepository,
@@ -80,11 +79,10 @@ class IbkrImportHistoryServiceTest {
         .saveAll(org.mockito.ArgumentMatchers.anyIterable());
     org.mockito.Mockito.lenient()
         .when(cashOperationRepository.findAllByAccount(17959259L))
-        .thenAnswer(invocation -> new ArrayList<>(persistedCashOperations));
+        .thenAnswer(_ -> new ArrayList<>(persistedCashOperations));
     org.mockito.Mockito.lenient()
         .when(assetRepository.findAllBySymbolIn(org.mockito.ArgumentMatchers.anyCollection()))
         .thenAnswer(invocation -> {
-          @SuppressWarnings("unchecked")
           java.util.Collection<String> symbols = invocation.getArgument(0);
           return symbols.stream().map(IbkrImportHistoryServiceTest::asset).toList();
         });
@@ -218,6 +216,31 @@ class IbkrImportHistoryServiceTest {
   }
 
   @Test
+  void importStatement_setsExplicitCurrenciesForOpenPositionSnapshot() throws Exception {
+    String csv =
+        String.join(
+            "\n",
+            "Transaction History,Header,Transaction Type,Account,Symbol,Description,Date,Quantity,Price,Net Amount,Currency",
+            "Transaction History,Data,Buy,U17959259,AAPL,AAPL buy,2026-07-01,2,100,-200.00,EUR",
+            "Open Positions,Header,Symbol,Quantity,Currency,Cost Price,Cost Basis,Close Price,Unrealized P/L,DataDiscriminator",
+            "Open Positions,Data,AAPL,2,EUR,100,200,110,20,Summary");
+
+    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Iterable<OpenedPosition>> positionCaptor =
+        (ArgumentCaptor<Iterable<OpenedPosition>>)
+            (ArgumentCaptor<?>) ArgumentCaptor.forClass(Iterable.class);
+    verify(openedPositionRepository).saveAll(positionCaptor.capture());
+    OpenedPosition position = toList(positionCaptor.getValue()).getFirst();
+
+    assertEquals(CurrencyType.EUR, position.getPriceCurrency());
+    assertEquals(CurrencyType.EUR, position.getCostCurrency());
+    assertEquals(CurrencyType.EUR, position.getProfitCurrency());
+    assertEquals(CurrencyType.EUR, position.getCommissionCurrency());
+  }
+
+  @Test
   void importStatement_reconstructsOpenPositionsFromIbkrAliasColumns() throws Exception {
     String csv =
         String.join(
@@ -291,7 +314,8 @@ class IbkrImportHistoryServiceTest {
   }
 
   @Test
-  void importStatement_usesPriceCurrencyAsCashCurrencyForTrades() throws Exception {
+  void importStatement_usesStatementBaseCurrencyForCashWhenOnlyPriceCurrencyIsPresent()
+      throws Exception {
     String csv =
         String.join(
             "\n",
@@ -315,12 +339,12 @@ class IbkrImportHistoryServiceTest {
 
     assertEquals(1, operations.size());
     assertEquals(CashOperationType.STOCK_PURCHASE, operations.getFirst().getType());
-    assertEquals(CurrencyType.EUR, operations.getFirst().getCurrency());
+    assertEquals(CurrencyType.USD, operations.getFirst().getCurrency());
     assertEquals(-26.45, operations.getFirst().getAmount(), 0.0001);
   }
 
   @Test
-  void importStatement_mapsDividendWithoutRowCurrencyToAssetListingCurrency() throws Exception {
+  void importStatement_mapsDividendWithoutRowCurrencyToStatementBaseCurrency() throws Exception {
     Asset eurListed =
         Asset.builder()
             .id(77L)
@@ -359,7 +383,7 @@ class IbkrImportHistoryServiceTest {
 
     assertEquals(1, operations.size());
     assertEquals(CashOperationType.DIVIDEND, operations.getFirst().getType());
-    assertEquals(CurrencyType.EUR, operations.getFirst().getCurrency());
+    assertEquals(CurrencyType.USD, operations.getFirst().getCurrency());
     assertEquals(3.99, operations.getFirst().getAmount(), 0.0001);
   }
 

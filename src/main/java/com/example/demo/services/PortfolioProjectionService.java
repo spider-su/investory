@@ -18,10 +18,6 @@ import com.example.demo.infrastructure.repository.ClosedPositionRepository;
 import com.example.demo.infrastructure.repository.NormalizedCashOperationRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
-import com.example.demo.infrastructure.repository.portfolio.PortfolioAssetAllocationRepository;
-import com.example.demo.infrastructure.repository.portfolio.PortfolioCurrencyBreakdownRepository;
-import com.example.demo.infrastructure.repository.portfolio.PortfolioKpiSummaryRepository;
-import com.example.demo.infrastructure.repository.portfolio.SymbolPerformanceRepository;
 import com.example.demo.services.CashOperationNormalizer.NormalizedCategory;
 import com.example.demo.services.currency.CurrencyRateService;
 import java.time.LocalDate;
@@ -62,10 +58,6 @@ public class PortfolioProjectionService {
   private final AccountRepository accountRepository;
   private final AssetPriceHistoryRepository assetPriceHistoryRepository;
   private final AccountDailyRepository accountDailyRepository;
-  private final PortfolioAssetAllocationRepository portfolioAssetAllocationRepository;
-  private final PortfolioCurrencyBreakdownRepository portfolioCurrencyBreakdownRepository;
-  private final PortfolioKpiSummaryRepository portfolioKpiSummaryRepository;
-  private final SymbolPerformanceRepository symbolPerformanceRepository;
   private final CurrencyRateService currencyRateService;
   private final NormalizedCashOperationRepository normalizedCashOperationRepository;
   private final AssetPriceHistoryGapFillService assetPriceHistoryGapFillService;
@@ -81,14 +73,14 @@ public class PortfolioProjectionService {
   public void recalculateAccounts(Set<Long> accountIds) {
     ZonedDateTime now = ReportingDateHelper.now();
     if (accountIds == null || accountIds.isEmpty()) {
-      rebuildDerivedSummaries(now);
+      rebuildDerivedSummaries();
       return;
     }
 
     Map<Long, LocalDate> dirtyFromByAccount = earliestActivityDateByAccount(accountIds);
     Set<Long> affectedAccounts = dirtyFromByAccount.keySet();
     if (affectedAccounts.isEmpty()) {
-      rebuildDerivedSummaries(now);
+      rebuildDerivedSummaries();
       return;
     }
 
@@ -102,8 +94,6 @@ public class PortfolioProjectionService {
     List<ClosedPosition> closed = closedPositionRepository.findAllByAccountIn(affectedAccounts).stream()
         .filter(position -> !cashOnlyAccounts.contains(position.getAccount()))
         .toList();
-    List<CashOperation> cash = cashOperationRepository.findAllByAccountIn(affectedAccounts);
-
     Map<String, Asset> assets =
         assetRepository.findAll().stream()
             .filter(asset -> StringUtils.hasText(asset.getSymbol()))
@@ -135,13 +125,12 @@ public class PortfolioProjectionService {
             .map(key -> new AccountTickerKey(key.accountId(), key.ticker()))
             .collect(Collectors.toSet());
     List<CanonicalNormalizedCashOperation> normalizedCash =
-        loadNormalizedCashOperations(affectedAccounts, accountCurrencies);
+        loadNormalizedCashOperations(affectedAccounts);
     processCash(
         normalizedCash,
         positions,
         tickerDaily,
         accountDaily,
-        accountCurrencies,
         positionValuedTickers,
         cashOnlyAccounts);
 
@@ -157,7 +146,7 @@ public class PortfolioProjectionService {
             portfolioBaseCurrencies,
             now);
     replaceAccountDerivedRows(accountRows, dirtyFromByAccount);
-    rebuildDerivedSummaries(now);
+    rebuildDerivedSummaries();
 
     log.info(
         "Portfolio projections recalculated: {} accounts, {} account_daily, dependent materialized views refreshed",
@@ -351,7 +340,6 @@ public class PortfolioProjectionService {
       Map<PositionKey, PositionAccumulator> positions,
       Map<DayTickerKey, TickerMonthAccumulator> tickerDaily,
       Map<DayAccountKey, AccountMonthAccumulator> accountDaily,
-      Map<Long, CurrencyType> accountCurrencies,
       Set<AccountTickerKey> positionValuedTickers,
       Set<Long> cashOnlyAccounts) {
     for (CanonicalNormalizedCashOperation normalized : cash) {
@@ -360,9 +348,8 @@ public class PortfolioProjectionService {
       }
 
       CurrencyType currency = normalized.currency();
-      CurrencyType accountCurrency = accountCurrencies.getOrDefault(normalized.accountId(), currency);
       LocalDate date = normalized.date();
-      double amount = nz(normalized.amount());
+      double amount = normalized.amount();
       if (!normalized.isComplete()) {
         throw new IllegalStateException(
             "Cash operation "
@@ -394,7 +381,6 @@ public class PortfolioProjectionService {
           normalized,
           amountBase,
           amountAccountCurrency,
-          hasPositionValuation,
           cashOnlyAccounts.contains(normalized.accountId()));
 
       if (!StringUtils.hasText(normalized.symbol())) {
@@ -421,16 +407,16 @@ public class PortfolioProjectionService {
         tickerAcc.sellValue += Math.abs(amountBase);
       }
       if (isTaxCategory(normalized.normalizedCategory())) {
-        positionAcc.totalTax += -amount;
+        positionAcc.totalTax -= amount;
       }
       if (isFeeCategory(normalized.normalizedCategory())) {
-        positionAcc.totalCommission += -amount;
+        positionAcc.totalCommission -= amount;
       }
     }
   }
 
   private List<CanonicalNormalizedCashOperation> loadNormalizedCashOperations(
-      Set<Long> affectedAccounts, Map<Long, CurrencyType> accountCurrencies) {
+      Set<Long> affectedAccounts) {
     return normalizedCashOperationRepository.findAllByAccountIdIn(affectedAccounts).stream()
         .map(
             row ->
@@ -511,8 +497,8 @@ public class PortfolioProjectionService {
                 entry.getKey().ticker(),
                 shares,
                 day,
+                currentDate,
                 asset,
-                runningCostBasis,
                 baseCurrency(entry.getKey().accountId(), portfolioBaseCurrencies));
 
         AccountMonthAccumulator acc =
@@ -617,7 +603,7 @@ public class PortfolioProjectionService {
     return rows;
   }
 
-  private void rebuildDerivedSummaries(ZonedDateTime now) {
+  private void rebuildDerivedSummaries() {
     accountDailyRepository.refreshReportingViews();
   }
 
@@ -657,9 +643,7 @@ public class PortfolioProjectionService {
     LocalDate dateTo =
         tickerDays.stream()
             .map(DayTickerKey::date)
-            .max(Comparator.naturalOrder())
-            .map(maxDate -> maxDate.isAfter(currentDate) ? maxDate : currentDate)
-            .orElse(currentDate);
+            .reduce(currentDate, (latest, date) -> date.isAfter(latest) ? date : latest);
 
     Map<String, NavigableMap<LocalDate, HistoricalPrice>> prices = new HashMap<>();
     for (AssetPriceHistoryRepository.HistoricalAssetPriceRow row :
@@ -913,19 +897,21 @@ public class PortfolioProjectionService {
         String symbol,
         double shares,
         LocalDate date,
+         LocalDate valuationDate,
         Asset asset,
-        double fallbackCostBasis,
         CurrencyType portfolioBaseCurrency) {
       if (shares <= EPSILON) {
         return 0.0;
       }
-      // Use the fresh asset quote for today's projection. Historical rows remain
-      // authoritative for prior dates.
-      if (asset != null
+      // Canonical current-quote rule: for the current valuation date, value open
+      // positions from the canonical assets.market_price column. This keeps the
+      // account_daily projection, the header KPI rollup, and the open-position popup
+      // (investory.v_open_position_values) resolving today's price from a single
+      // source. Prior dates remain on observed historical prices.
+      if (date.equals(valuationDate)
+          && asset != null
           && asset.getMarketPrice() != null
-          && asset.getMarketPrice() > EPSILON
-          && asset.getPriceUpdatedAt() != null
-          && asset.getPriceUpdatedAt().toLocalDate().equals(date)) {
+          && asset.getMarketPrice() > EPSILON) {
         CurrencyType currency = requiredCurrency(asset.getCurrency(), asset.getId(), "market price");
         return convert(shares * asset.getMarketPrice(), portfolioBaseCurrency, currency, date);
       }
@@ -1118,7 +1104,6 @@ public class PortfolioProjectionService {
         CanonicalNormalizedCashOperation normalized,
         double amountBase,
         double amountAccountCurrency,
-        boolean hasPositionValuation,
         boolean cashOnlyAccount) {
       cashDeltaAccountCurrency += amountAccountCurrency;
       switch (normalized.normalizedCategory()) {
@@ -1155,7 +1140,7 @@ public class PortfolioProjectionService {
         case WITHHOLDING_TAX_REVERSAL:
         case OTHER_TAX:
           // Expense convention in account_daily: expense > 0, reversal/refund < 0.
-          taxes += -amountBase;
+          taxes -= amountBase;
           break;
         case FEE:
           /*
@@ -1176,7 +1161,7 @@ public class PortfolioProjectionService {
            * - WITHHOLDING_TAX
            * - ROLLOVER
            */
-          fees += -amountBase;
+          fees -= amountBase;
           break;
         case TRADE_PURCHASE:
         case TRADE_SALE:

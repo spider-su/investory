@@ -59,6 +59,11 @@ project facts from this file.
 
 - No Maven wrapper is currently present. Use Maven directly: `mvn test`, `mvn clean package`,
   or `mvn spring-boot:run`.
+- Always start the app with the `local` Spring profile when running against the local database:
+  `mvn spring-boot:run -Dspring-boot.run.profiles=local`. Without it the app binds the empty
+  default datasource (`localhost:5432/investory`) and Flyway attempts a from-scratch migration,
+  which surfaces as misleading errors (for example a missing `signed_position_quantity`
+  function). This is an environment/run issue, not a code or migration change.
 - Java 25 or newer is required. Ensure `java -version` and `mvn -version` use a compatible JDK;
   do not rely on a machine-specific JDK path in repository documentation.
 - Spotless is configured but not bound to the lifecycle. Run `mvn spotless:check` or

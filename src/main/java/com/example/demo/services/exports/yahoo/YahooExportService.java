@@ -174,15 +174,14 @@ public class YahooExportService {
               toString(acc.latestMarketPrice),
               currentMonthStart(),
               acc.weightedAveragePrice(),
-              acc.totalQty,
-              "BUY"));
+              acc.totalQty));
     }
 
     // Cash balance from account summary fields -> USDT-USD
     double totalCashUsd = computeTotalCashBalanceUsd();
     if (totalCashUsd > EPSILON) {
       rows.add(
-          buildRow(USDT_TICKER, "1.0", currentMonthStart(), 1.0, totalCashUsd, "BUY"));
+          buildRow(USDT_TICKER, "1.0", currentMonthStart(), 1.0, totalCashUsd));
     }
 
     rows.sort(Comparator.comparing(row -> row[IDX_SYMBOL]));
@@ -289,8 +288,7 @@ public class YahooExportService {
       String currentPrice,
       LocalDate month,
       double price,
-      double quantity,
-      String transactionType) {
+      double quantity) {
     String[] row = new String[HEADER.length];
     java.util.Arrays.fill(row, "");
     LocalDateTime rowTime = month.atStartOfDay();
@@ -301,7 +299,7 @@ public class YahooExportService {
     row[IDX_TRADE_DATE] = rowTime.toLocalDate().format(CSV_TRADE_DATE_FMT);
     row[IDX_PURCHASE_PRICE] = toString(price);
     row[IDX_QUANTITY] = trimDouble(quantity);
-    row[IDX_TRANSACTION_TYPE] = transactionType;
+    row[IDX_TRANSACTION_TYPE] = "BUY";
     return row;
   }
 

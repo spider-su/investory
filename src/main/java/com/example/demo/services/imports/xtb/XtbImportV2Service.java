@@ -442,7 +442,10 @@ public class XtbImportV2Service {
         position.setAccount(accountId);
         position.setSymbol(symbol);
         position.setType(type);
-        position.setCurrency(currency);
+        position.setPriceCurrency(currency);
+        position.setCostCurrency(currency);
+        position.setProfitCurrency(currency);
+        position.setCommissionCurrency(currency);
         position.setVolume(lot.volume);
         position.setOpenTime(lot.openTime);
         position.setOpenPrice(lot.openPrice);

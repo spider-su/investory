@@ -178,7 +178,10 @@ public class IbkrPositionReconstructionService {
         position.setSymbol(reconstructed.symbol);
         position.setSourceAssetSymbol(reconstructed.sourceAssetSymbol);
         position.setType(PositionType.BUY);
-        position.setCurrency(reconstructed.currency);
+        position.setPriceCurrency(reconstructed.currency);
+        position.setCostCurrency(reconstructed.currency);
+        position.setProfitCurrency(reconstructed.currency);
+        position.setCommissionCurrency(reconstructed.currency);
         position.setVolume(lot.quantity);
         position.setOpenTime(lot.openDate);
         position.setPurchaseValue(lot.costBasis);
@@ -239,7 +242,10 @@ public class IbkrPositionReconstructionService {
       row.setSymbol(position.symbol);
       row.setSourceAssetSymbol(position.sourceAssetSymbol);
       row.setType(PositionType.BUY);
-      row.setCurrency(position.currency);
+      row.setPriceCurrency(position.currency);
+      row.setCostCurrency(position.currency);
+      row.setProfitCurrency(position.currency);
+      row.setCommissionCurrency(position.currency);
       row.setVolume(closed.quantity());
       row.setOpenTime(closed.openDate());
       row.setOpenPrice(closed.averageCost());

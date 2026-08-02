@@ -130,21 +130,6 @@ public class ClosedPosition {
         this.symbol = asset != null ? asset.getSymbol() : sourceAssetSymbol;
     }
 
-    /** @deprecated Use the explicit monetary currency getter. */
-    @Deprecated
-    public CurrencyType getCurrency() {
-        return profitCurrency;
-    }
-
-    /** @deprecated Importers must set explicit currency roles. */
-    @Deprecated
-    public void setCurrency(CurrencyType currency) {
-        this.profitCurrency = currency;
-        if (priceCurrency == null) priceCurrency = currency;
-        if (costCurrency == null) costCurrency = currency;
-        if (commissionCurrency == null) commissionCurrency = currency;
-    }
-
     public double signedQuantity() {
         return PositionQuantities.signed(type, volume);
     }

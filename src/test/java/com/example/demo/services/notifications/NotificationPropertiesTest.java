@@ -3,6 +3,7 @@ package com.example.demo.services.notifications;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class NotificationPropertiesTest {
 
@@ -14,7 +15,7 @@ class NotificationPropertiesTest {
         properties.setConcentrationThresholdPct(33.0);
         properties.setStaleImportDays(14);
 
-        assertEquals(true, properties.isEnabled());
+        assertTrue(properties.isEnabled());
         assertEquals(12.5, properties.getDrawdownThresholdPct());
         assertEquals(33.0, properties.getConcentrationThresholdPct());
         assertEquals(14, properties.getStaleImportDays());

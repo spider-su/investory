@@ -156,7 +156,7 @@ class PortfolioServiceTest {
                 ZonedDateTime.now()
         )));
         when(closedPositionRepository.findAll()).thenReturn(List.of());
-        org.mockito.Mockito.lenient().when(openedPositionRepository.findAll()).thenReturn(List.of(opened("AAPL.US", 50.0, -2.0, 0.0)));
+        org.mockito.Mockito.lenient().when(openedPositionRepository.findAll()).thenReturn(List.of(opened("AAPL.US", 50.0, -2.0)));
         when(accountStatisticsRepository.findAll()).thenReturn(List.of(
                 PortfolioBuilders.accountStatistics()
                         .account(PortfolioTestData.IBKR_USD)
@@ -254,8 +254,8 @@ class PortfolioServiceTest {
         when(openedPositionRepository.findAll()).thenReturn(List.of());
         when(cashOperationRepository.findAll()).thenReturn(List.of());
         when(normalizedCashOperationRepository.findAllByAccountIdIn(any())).thenReturn(List.of(
-                normalizedCashOperationRow(51747407L, "EXTERNAL_DEPOSIT", 13370.17, 13370.17),
-                normalizedCashOperationRow(51747407L, "INTERNAL_TRANSFER_OUT", -13358.49, -13358.49)));
+                normalizedCashOperationRow("EXTERNAL_DEPOSIT", 13370.17, 13370.17),
+                normalizedCashOperationRow("INTERNAL_TRANSFER_OUT", -13358.49, -13358.49)));
 
         Portfolio result = portfolioService.calculateTotalProfitLoss();
 
@@ -322,7 +322,7 @@ class PortfolioServiceTest {
     }
 
     private static NormalizedCashOperationRepository.NormalizedCashOperationRow normalizedCashOperationRow(
-            long accountId, String category, double amount, double amountInBaseCurrency) {
+            String category, double amount, double amountInBaseCurrency) {
         return new NormalizedCashOperationRepository.NormalizedCashOperationRow() {
             @Override
             public Long getOperationId() {
@@ -331,7 +331,7 @@ class PortfolioServiceTest {
 
             @Override
             public Long getAccountId() {
-                return accountId;
+                return 51747407L;
             }
 
             @Override
@@ -437,8 +437,8 @@ class PortfolioServiceTest {
                 ZonedDateTime.now()
         )));
         when(cashOperationRepository.findAll()).thenReturn(List.of(
-                dividend("AAPL.US", 100.0, CurrencyType.USD),
-                dividendTax("AAPL.US", -15.0, CurrencyType.USD)));
+                dividend(),
+                dividendTax()));
         when(closedPositionRepository.findAll()).thenReturn(List.of());
         when(openedPositionRepository.findAll()).thenReturn(List.of());
         when(accountStatisticsRepository.findAll()).thenReturn(List.of());
@@ -501,7 +501,7 @@ class PortfolioServiceTest {
                 ZonedDateTime.now()
         )));
         when(closedPositionRepository.findAll()).thenReturn(List.of());
-        when(openedPositionRepository.findAll()).thenReturn(List.of(opened("VWRA", -250.0, -1.0, 0.0)));
+        when(openedPositionRepository.findAll()).thenReturn(List.of(opened("VWRA", -250.0, -1.0)));
 
         Portfolio result = portfolioService.calculateTotalProfitLoss();
 
@@ -608,10 +608,10 @@ class PortfolioServiceTest {
     @Test
     void calculateTotalProfitLoss_aggregatesRealizedAndUnrealizedAndDividends() {
         when(closedPositionRepository.findAll()).thenReturn(List.of(
-                closed("AAPL.US", 100.0, -1.0, 0.0, PortfolioTestData.atNoon(PortfolioTestData.MID_YEAR))
+                closed("AAPL.US", 100.0, -1.0, PortfolioTestData.atNoon(PortfolioTestData.MID_YEAR))
         ));
         when(openedPositionRepository.findAll()).thenReturn(List.of(
-                opened("MSFT.US", 50.0, 0.0, 0.0)
+                opened("MSFT.US", 50.0, 0.0)
         ));
         when(cashOperationRepository.findAll()).thenReturn(List.of(
                 cash(CashOperationType.DIVIDEND, 25.0, null),
@@ -662,7 +662,7 @@ class PortfolioServiceTest {
     void calculateTotalProfitLoss_appliesCapitalGainsTaxOnCurrentYearGains() {
         int year = java.time.Year.now().getValue();
         when(closedPositionRepository.findAll()).thenReturn(List.of(
-                closed("AAPL.US", 1000.0, 0.0, 0.0, PortfolioTestData.atNoon(LocalDate.of(year, 6, 30)))
+                closed("AAPL.US", 1000.0, 0.0, PortfolioTestData.atNoon(LocalDate.of(year, 6, 30)))
         ));
         when(openedPositionRepository.findAll()).thenReturn(List.of());
         when(cashOperationRepository.findAll()).thenReturn(List.of());
@@ -682,10 +682,10 @@ class PortfolioServiceTest {
     @Test
     void calculateWinRate_countsOnlyProfitableTrades() {
         when(closedPositionRepository.findAll()).thenReturn(List.of(
-                closed("A", 10.0, 0.0, 0.0, PortfolioTestData.atNoon(PortfolioTestData.MID_YEAR)),
-                closed("B", -5.0, 0.0, 0.0, PortfolioTestData.atNoon(PortfolioTestData.MID_YEAR)),
-                closed("C", 20.0, 0.0, 0.0, PortfolioTestData.atNoon(PortfolioTestData.MID_YEAR)),
-                closed("D", -2.0, 0.0, 0.0, PortfolioTestData.atNoon(PortfolioTestData.MID_YEAR))
+                closed("A", 10.0, 0.0, PortfolioTestData.atNoon(PortfolioTestData.MID_YEAR)),
+                closed("B", -5.0, 0.0, PortfolioTestData.atNoon(PortfolioTestData.MID_YEAR)),
+                closed("C", 20.0, 0.0, PortfolioTestData.atNoon(PortfolioTestData.MID_YEAR)),
+                closed("D", -2.0, 0.0, PortfolioTestData.atNoon(PortfolioTestData.MID_YEAR))
         ));
 
         assertEquals(50.0, portfolioService.calculateWinRate());
@@ -698,7 +698,7 @@ class PortfolioServiceTest {
                 new SymbolPerformance("MSFT.US", 0.0, 30.0, 30.0, 0.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now())
         ));
 
-        List<InstrumentPerformance> performance = portfolioService.calculatePerformancePerInstrument(CurrencyType.USD);
+        List<InstrumentPerformance> performance = portfolioService.calculatePerformancePerInstrument();
 
         assertEquals(2, performance.size());
         InstrumentPerformance aapl = performance.stream()
@@ -778,13 +778,13 @@ class PortfolioServiceTest {
         assertEquals(2L, perf.getMonthlyOperationsCount().get(String.format("%d-01", year)));
     }
 
-    private static ClosedPosition closed(String symbol, double profit, double commission, double swap, ZonedDateTime closeTime) {
+    private static ClosedPosition closed(String symbol, double profit, double commission, ZonedDateTime closeTime) {
         ClosedPosition cp = PortfolioBuilders.closedPosition(PortfolioTestData.AAPL)
                 .symbol(symbol)
                 .currency(CurrencyType.USD)
                 .profit(profit)
                 .commission(commission)
-                .swap(swap)
+                .swap(0.0)
                 .closeOn(closeTime.toLocalDate())
                 .build();
         cp.setCloseTime(closeTime);
@@ -794,7 +794,7 @@ class PortfolioServiceTest {
         return cp;
     }
 
-    private static OpenedPosition opened(String symbol, double profit, double commission, double swap) {
+    private static OpenedPosition opened(String symbol, double profit, double commission) {
         return PortfolioBuilders.openPosition(PortfolioTestData.AAPL)
                 .symbol(symbol)
                 .currency(CurrencyType.USD)
@@ -802,7 +802,7 @@ class PortfolioServiceTest {
                 .price(100.0)
                 .marketPrice(100.0 + profit)
                 .commission(commission)
-                .swap(swap)
+                .swap(0.0)
                 .build();
     }
 
@@ -865,17 +865,17 @@ class PortfolioServiceTest {
                 .build();
     }
 
-    private static CashOperation dividend(String symbol, double amount, CurrencyType currency) {
-        CashOperation c = cash(CashOperationType.DIVIDEND, amount, null);
-        c.setSymbol(symbol);
-        c.setCurrency(currency);
+    private static CashOperation dividend() {
+        CashOperation c = cash(CashOperationType.DIVIDEND, 100.0, null);
+        c.setSymbol("AAPL.US");
+        c.setCurrency(CurrencyType.USD);
         return c;
     }
 
-    private static CashOperation dividendTax(String symbol, double amount, CurrencyType currency) {
-        CashOperation c = cash(CashOperationType.WITHHOLDING_TAX, amount, null);
-        c.setSymbol(symbol);
-        c.setCurrency(currency);
+    private static CashOperation dividendTax() {
+        CashOperation c = cash(CashOperationType.WITHHOLDING_TAX, -15.0, null);
+        c.setSymbol("AAPL.US");
+        c.setCurrency(CurrencyType.USD);
         return c;
     }
 

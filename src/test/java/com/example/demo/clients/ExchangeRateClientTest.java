@@ -37,16 +37,19 @@ class ExchangeRateClientTest {
     @Mock
     private HttpClient httpClient;
 
+    @Mock
+    private HttpResponse<String> response;
+
     private final ObjectMapper objectMapper =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     @Test
     void getLatestRates_buildsLiveUrlAndParsesQuotes() throws Exception {
-        @SuppressWarnings("unchecked")
-        HttpResponse<String> response = (HttpResponse<String>) org.mockito.Mockito.mock(HttpResponse.class);
         when(response.statusCode()).thenReturn(200);
         when(response.body()).thenReturn("{\"quotes\":{\"USDEUR\":0.9,\"USDPLN\":4.0}}");
-        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        when(httpClient.send(
+                        any(HttpRequest.class),
+                        org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any()))
                 .thenReturn(response);
 
         ExchangeRateClient client = new ExchangeRateClient(httpClient, objectMapper);
@@ -59,7 +62,9 @@ class ExchangeRateClientTest {
 
         ArgumentCaptor<HttpRequest> requestCaptor = ArgumentCaptor.forClass(HttpRequest.class);
         org.mockito.Mockito.verify(httpClient)
-                .send(requestCaptor.capture(), any(HttpResponse.BodyHandler.class));
+                .send(
+                        requestCaptor.capture(),
+                        org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any());
         URI uri = requestCaptor.getValue().uri();
         assertEquals("api.exchangerate.host", uri.getHost());
         assertEquals("/live", uri.getPath());
@@ -72,10 +77,10 @@ class ExchangeRateClientTest {
 
     @Test
     void getLatestRates_throwsExchangeRateExceptionOnNon2xx() throws Exception {
-        @SuppressWarnings("unchecked")
-        HttpResponse<String> response = (HttpResponse<String>) org.mockito.Mockito.mock(HttpResponse.class);
         when(response.statusCode()).thenReturn(503);
-        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        when(httpClient.send(
+                        any(HttpRequest.class),
+                        org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any()))
                 .thenReturn(response);
 
         ExchangeRateClient client = new ExchangeRateClient(httpClient, objectMapper);
@@ -87,7 +92,9 @@ class ExchangeRateClientTest {
 
     @Test
     void getLatestRates_wrapsIoErrorInExchangeRateException() throws Exception {
-        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        when(httpClient.send(
+                        any(HttpRequest.class),
+                        org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any()))
                 .thenThrow(new IOException("boom"));
 
         ExchangeRateClient client = new ExchangeRateClient(httpClient, objectMapper);
@@ -99,7 +106,9 @@ class ExchangeRateClientTest {
 
     @Test
     void getLatestRates_restoresInterruptFlag() throws Exception {
-        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        when(httpClient.send(
+                        any(HttpRequest.class),
+                        org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any()))
                 .thenThrow(new InterruptedException("cancelled"));
 
         ExchangeRateClient client = new ExchangeRateClient(httpClient, objectMapper);
@@ -117,11 +126,11 @@ class ExchangeRateClientTest {
 
     @Test
     void get_returnsBodyForArbitraryPathAndParams() throws Exception {
-        @SuppressWarnings("unchecked")
-        HttpResponse<String> response = (HttpResponse<String>) org.mockito.Mockito.mock(HttpResponse.class);
         when(response.statusCode()).thenReturn(200);
         when(response.body()).thenReturn("ok");
-        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        when(httpClient.send(
+                        any(HttpRequest.class),
+                        org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any()))
                 .thenReturn(response);
 
         ExchangeRateClient client = new ExchangeRateClient(httpClient, objectMapper);

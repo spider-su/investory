@@ -139,7 +139,16 @@ VALUES
     ('Beta ETF Dywidenda Plus Portfelowy Fundusz Inwestycyjny Zamknięty', 'ETFBDIVPL.PL', 'ETFBDIVPL', 'ETFBDIVPL', 'ETFBDIVPL.PL', 'PL', 'PLN', 'ETF', false),
     ('Beta ETF MWIG40TR', 'ETFBM40TR.PL', 'ETFBM40TR', 'ETFBM40TR', 'ETFBM40TR.PL', 'PL', 'PLN', 'ETF', false),
     ('Beta ETF WIG20TR', 'ETFBW20TR.PL', 'ETFBW20TR', 'ETFBW20TR', 'ETFBW20TR.PL', 'PL', 'PLN', 'ETF', true),
-    ('ETHEREUM', 'ETHEREUM', 'ETHEREUM', 'ETHEREUM', 'ETHEREUM', 'US', 'USD', 'CRYPTOCURRENCY', false)
+    ('ETHEREUM', 'ETHEREUM', 'ETHEREUM', 'ETHEREUM', 'ETHEREUM', 'US', 'USD', 'CRYPTOCURRENCY', false),
+    ('Haleon Plc - ADR',     'HLN.US', 'HLN', 'HLN', 'HLN.US','US', 'USD', 'EQUITY', false),
+    ('Intuit Inc.','INTU.US', 'INTU', 'INTU', 'INTU.US','US', 'USD', 'EQUITY', false),
+    ('iShares Physical Palladium ETC','IPDM.UK', 'IPDM', 'IPDM', 'IPDM.L','UK', 'USD', 'ETF', false),
+    ('iShares Physical Platinum ETC',     'IPLT.UK', 'IPLT', 'IPLT', 'IPLT.L','UK', 'USD', 'ETF', false),
+    ('iShares Russell 2000 ETF','IWM.US', 'IWM', 'IWM', 'IWM.US','US', 'USD', 'ETF', false),
+    ('iShares MSCI India UCITS ETF USD (Acc)','NDIA.UK', 'NDIA', 'NDIA', 'NDIA.L','UK', 'USD', 'ETF', false),
+    ('VanEck Semiconductor UCITS ETF','SMH.UK', 'SMH', 'SMH', 'SMH.L','UK', 'USD', 'ETF', false),
+    ('Unknown XTB instrument T458022826','T458022826.US', 'T458022826', 'T458022826', 'T458022826.US','US', 'USD', 'EQUITY', false),
+    ('W. P. Carey Inc.','WPC.US', 'WPC', 'WPC', 'WPC.US','US', 'USD', 'EQUITY', false)
 ON CONFLICT (symbol) DO UPDATE SET
     name = EXCLUDED.name,
     ticker = EXCLUDED.ticker,

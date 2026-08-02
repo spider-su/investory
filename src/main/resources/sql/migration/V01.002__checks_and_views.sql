@@ -589,17 +589,14 @@ SELECT
     CASE
         WHEN portfolio_conversion_status IN ('OK', 'SAME_CURRENCY')
             THEN amount * fx_rate_to_base
-        ELSE NULL
     END AS amount_in_portfolio_base_currency,
     CASE
         WHEN portfolio_conversion_status IN ('OK', 'SAME_CURRENCY')
             THEN amount * fx_rate_to_base
-        ELSE NULL
     END AS amount_in_base_currency,
     CASE
         WHEN account_conversion_status IN ('OK', 'SAME_CURRENCY')
             THEN amount * fx_rate_to_account_currency
-        ELSE NULL
     END AS amount_in_account_currency,
     comment,
     date,
@@ -1450,9 +1447,9 @@ SELECT
     CASE WHEN COALESCE(las.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(las.total_deposits, 0) END AS total_deposits,
     CASE WHEN COALESCE(las.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(las.total_withdrawals, 0) END AS total_withdrawals,
     CASE WHEN COALESCE(las.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(las.net_deposits, 0) END AS net_deposits,
-    CASE WHEN COALESCE(lpd.is_complete, true) THEN COALESCE(lpd.cash_balance, 0) ELSE NULL END AS total_cash,
-    CASE WHEN COALESCE(lpd.is_complete, true) THEN COALESCE(lpd.market_value, 0) ELSE NULL END AS total_market_value,
-    CASE WHEN COALESCE(lpd.is_complete, true) THEN COALESCE(lpd.equity, 0) ELSE NULL END AS total_equity,
+    CASE WHEN COALESCE(lpd.is_complete, true) THEN COALESCE(lpd.cash_balance, 0) END AS total_cash,
+    CASE WHEN COALESCE(lpd.is_complete, true) THEN COALESCE(lpd.market_value, 0) END AS total_market_value,
+    CASE WHEN COALESCE(lpd.is_complete, true) THEN COALESCE(lpd.equity, 0) END AS total_equity,
     CASE WHEN COALESCE(las.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(las.total_realized_profit, 0) END AS total_realized_profit,
     CASE WHEN COALESCE(las.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(las.total_unrealized_profit, 0) END AS total_unrealized_profit,
     CASE WHEN COALESCE(las.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(las.total_dividends, 0) END AS total_dividends,
@@ -2003,8 +2000,11 @@ WITH canonical_fx AS (
              investory.signed_position_quantity(p.operation, p.volume) AS volume,
              p.open_price,
              COALESCE(p.purchase_value, p.volume * p.open_price, 0) AS cost_basis_native,
-             COALESCE(lmp.market_price, asset.market_price) AS market_price,
-             COALESCE(lmp.market_price_currency, asset.currency::varchar(3)) AS market_price_currency
+             -- Canonical current-quote rule: value open positions from the canonical
+             -- assets.market_price column so the popup, header KPI rollup, and the
+             -- account_daily projection all resolve today's price from one source.
+             asset.market_price AS market_price,
+             asset.currency::varchar(3) AS market_price_currency
          FROM investory.positions p
                   JOIN investory.accounts a
                        ON a.id = p.account_id

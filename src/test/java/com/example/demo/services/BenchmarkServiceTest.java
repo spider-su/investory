@@ -116,7 +116,8 @@ class BenchmarkServiceTest {
         closes.put("2026-02", 525.0);
         when(twelveDataService.fetchMonthlyCloses(anyString(), anyInt())).thenReturn(closes);
         when(benchmarkMonthlyCloseRepository.findBySymbolOrderByMonthDateAsc("SPY"))
-                .thenReturn(List.of(), List.of(
+                .thenReturn(List.of())
+                .thenReturn(List.of(
                         benchmarkClose("2025-12", 500.0),
                         benchmarkClose("2026-01", 500.0),
                         benchmarkClose("2026-02", 525.0)
@@ -177,8 +178,8 @@ class BenchmarkServiceTest {
     void calculate_usesDailyReturnSoDepositsDoNotBecomePerformance() {
         when(accountDailyRepository.findAll())
                 .thenReturn(List.of(
-                        monthlyWithReturn(1L, "2026-01-01", 0.0, 1000.0, null),
-                        monthlyWithReturn(1L, "2026-02-01", 1000.0, 2100.0, 0.10)
+                        monthlyWithReturn("2026-01-01", 0.0, 1000.0, null),
+                        monthlyWithReturn("2026-02-01", 1000.0, 2100.0, 0.10)
                 ));
         when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc())
                 .thenReturn(List.of(
@@ -211,8 +212,8 @@ class BenchmarkServiceTest {
     void calculate_usesPersistedBenchmarkClosesWithoutFetching() {
         when(accountDailyRepository.findAll())
                 .thenReturn(List.of(
-                        monthlyWithStartingValue(1L, "2026-01-01", 1000.0, 0.0, 1000.0),
-                        monthlyWithStartingValue(1L, "2026-02-01", 0.0, 0.0, 1100.0)
+                        monthlyWithStartingValue(1L, "2026-01-01", 1000.0),
+                        monthlyWithStartingValue(1L, "2026-02-01", 1100.0)
                 ));
         when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc())
                 .thenReturn(List.of(
@@ -248,9 +249,9 @@ class BenchmarkServiceTest {
                         3L, account(3L, "PLN Trading"))));
         when(accountDailyRepository.findAll())
                 .thenReturn(List.of(
-                        monthlyWithStartingValue(1L, "2026-01-01", 1000.0, 0.0, 1100.0),
-                        monthlyWithStartingValue(2L, "2026-01-01", 500.0, 0.0, 0.0),
-                        monthlyWithStartingValue(3L, "2026-01-01", 500.0, 0.0, 0.5)
+                        monthlyWithStartingValue(1L, "2026-01-01", 1100.0),
+                        monthlyWithStartingValue(2L, "2026-01-01", 0.0),
+                        monthlyWithStartingValue(3L, "2026-01-01", 0.5)
                 ));
         when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc())
                 .thenReturn(List.of(
@@ -287,8 +288,8 @@ class BenchmarkServiceTest {
                 ));
         when(accountDailyRepository.findAll())
                 .thenReturn(List.of(
-                        monthlyWithStartingValue(1L, "2026-01-01", 1000.0, 0.0, 1000.0),
-                        monthlyWithStartingValue(2L, "2026-01-01", 500.0, 0.0, 500.0)
+                        monthlyWithStartingValue(1L, "2026-01-01", 1000.0),
+                        monthlyWithStartingValue(2L, "2026-01-01", 500.0)
                 ));
         when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc())
                 .thenReturn(List.of(
@@ -321,8 +322,8 @@ class BenchmarkServiceTest {
                 ));
         when(accountDailyRepository.findAll())
                 .thenReturn(List.of(
-                        monthlyWithStartingValue(1L, "2026-01-01", 1000.0, 0.0, 1000.0),
-                        monthlyWithStartingValue(2L, "2026-01-01", 6500.0, 0.0, 500.0)
+                        monthlyWithStartingValue(1L, "2026-01-01", 1000.0),
+                        monthlyWithStartingValue(2L, "2026-01-01", 500.0)
                 ));
         when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc())
                 .thenReturn(List.of(
@@ -349,10 +350,10 @@ class BenchmarkServiceTest {
                         2L, account(2L, "Side"))));
         when(accountDailyRepository.findAll())
                 .thenReturn(List.of(
-                        monthlyWithStartingValue(1L, "2026-01-01", 1000.0, 0.0, 1000.0),
-                        monthlyWithStartingValue(1L, "2026-02-01", 0.0, 0.0, 1100.0),
-                        monthlyWithStartingValue(2L, "2026-01-01", 5000.0, 0.0, 5000.0),
-                        monthlyWithStartingValue(2L, "2026-02-01", 0.0, 0.0, 5000.0)
+                        monthlyWithStartingValue(1L, "2026-01-01", 1000.0),
+                        monthlyWithStartingValue(1L, "2026-02-01", 1100.0),
+                        monthlyWithStartingValue(2L, "2026-01-01", 5000.0),
+                        monthlyWithStartingValue(2L, "2026-02-01", 5000.0)
                 ));
         when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc())
                 .thenReturn(List.of(
@@ -367,7 +368,8 @@ class BenchmarkServiceTest {
         closes.put("2026-02", 525.0);
         when(twelveDataService.fetchMonthlyCloses(anyString(), anyInt())).thenReturn(closes);
         when(benchmarkMonthlyCloseRepository.findBySymbolOrderByMonthDateAsc("SPY"))
-                .thenReturn(List.of(), List.of(
+                .thenReturn(List.of())
+                .thenReturn(List.of(
                         benchmarkClose("2025-12", 500.0),
                         benchmarkClose("2026-01", 500.0),
                         benchmarkClose("2026-02", 525.0)));
@@ -474,16 +476,15 @@ class BenchmarkServiceTest {
     }
 
     private static AccountDaily monthlyWithReturn(
-            Long accountId, String month, double netCashFlow, double portfolioValue, Double monthlyReturn) {
-        AccountDaily row = monthly(accountId, month, netCashFlow, portfolioValue);
+            String month, double netCashFlow, double portfolioValue, Double monthlyReturn) {
+        AccountDaily row = monthly(1L, month, netCashFlow, portfolioValue);
         row.setDailyReturn(monthlyReturn);
         return row;
     }
 
     private static AccountDaily monthlyWithStartingValue(
-            Long accountId, String month, double startingValue, double netCashFlow, double portfolioValue) {
-        AccountDaily row = monthly(accountId, month, netCashFlow, portfolioValue);
-        return row;
+            Long accountId, String month, double portfolioValue) {
+        return monthly(accountId, month, 0.0, portfolioValue);
     }
 
     private static AccountMonthlyPerformance monthlyPerformance(

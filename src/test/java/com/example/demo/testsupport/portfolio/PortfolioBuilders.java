@@ -60,6 +60,20 @@ public final class PortfolioBuilders {
     return new ImportHistoryBuilder();
   }
 
+  private static void setCurrencies(OpenedPosition position, CurrencyType currency) {
+    position.setPriceCurrency(currency);
+    position.setCostCurrency(currency);
+    position.setProfitCurrency(currency);
+    position.setCommissionCurrency(currency);
+  }
+
+  private static void setCurrencies(ClosedPosition position, CurrencyType currency) {
+    position.setPriceCurrency(currency);
+    position.setCostCurrency(currency);
+    position.setProfitCurrency(currency);
+    position.setCommissionCurrency(currency);
+  }
+
   public static final class AccountBuilder {
     private final Account account = new Account();
 
@@ -235,7 +249,7 @@ public final class PortfolioBuilders {
     private OpenPositionBuilder(AssetDefinition asset) {
       position.setAccount(PortfolioTestData.IBKR_USD_ACCOUNT_ID);
       position.setSymbol(asset.symbol());
-      position.setCurrency(asset.currency());
+      setCurrencies(position, asset.currency());
       position.setType(PositionType.BUY);
       position.setVolume(PortfolioTestData.AAPL_FIRST_BUY_QUANTITY);
       position.setOpenPrice(PortfolioTestData.AAPL_FIRST_BUY_PRICE);
@@ -266,7 +280,7 @@ public final class PortfolioBuilders {
     }
 
     public OpenPositionBuilder currency(CurrencyType currency) {
-      position.setCurrency(currency);
+      setCurrencies(position, currency);
       return this;
     }
 
@@ -316,7 +330,12 @@ public final class PortfolioBuilders {
     public OpenedPosition build() {
       requireText(position.getSymbol(), "open position symbol is required");
       require(position.getAccount() != null, "open position account is required");
-      require(position.getCurrency() != null, "open position currency is required");
+      require(position.getPriceCurrency() != null, "open position price currency is required");
+      require(position.getCostCurrency() != null, "open position cost currency is required");
+      require(position.getProfitCurrency() != null, "open position profit currency is required");
+      require(
+          position.getCommissionCurrency() != null,
+          "open position commission currency is required");
       return position;
     }
 
@@ -333,7 +352,7 @@ public final class PortfolioBuilders {
     private ClosedPositionBuilder(AssetDefinition asset) {
       position.setAccount(PortfolioTestData.IBKR_USD_ACCOUNT_ID);
       position.setSymbol(asset.symbol());
-      position.setCurrency(asset.currency());
+      setCurrencies(position, asset.currency());
       position.setType(PositionType.CLOSED);
       position.setVolume(10.0);
       position.setOpenPrice(100.0);
@@ -358,7 +377,7 @@ public final class PortfolioBuilders {
     }
 
     public ClosedPositionBuilder currency(CurrencyType currency) {
-      position.setCurrency(currency);
+      setCurrencies(position, currency);
       return this;
     }
 

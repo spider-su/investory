@@ -5,11 +5,14 @@
 *.xlsx
 *.csv
 *.zip
-/target/
 src/main/resources/application-local.yml
 .env
 /src/test/manual/http-client.private.env.json
 /generated
 /scripts
-/tools/DbProbe.java
+/tools/Db*.java
+/tools/MigrateFix.java
 /tools/*.class
+/tools/
+/src/test/python/
+/.github/TODO/

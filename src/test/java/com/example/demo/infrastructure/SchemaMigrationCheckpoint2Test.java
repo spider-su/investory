@@ -11,7 +11,9 @@ import java.sql.Statement;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 
+@EnabledIfSystemProperty(named = "investory.test.db.enabled", matches = "true")
 class SchemaMigrationCheckpoint2Test {
 
   private static final String DB_URL =

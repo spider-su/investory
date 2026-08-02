@@ -40,7 +40,9 @@ public class AssetPriceHistoryGapFillService {
 
     Map<String, Asset> assetsBySymbol =
         assetRepository.findAllBySymbolIn(openSymbols).stream()
-            .collect(java.util.stream.Collectors.toMap(Asset::getSymbol, asset -> asset, (a, b) -> a));
+            .collect(
+                java.util.stream.Collectors.toMap(
+                    Asset::getSymbol, asset -> asset, (existing, ignored) -> existing));
     if (assetsBySymbol.isEmpty()) {
       return;
     }

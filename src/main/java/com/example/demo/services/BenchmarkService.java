@@ -391,7 +391,7 @@ public class BenchmarkService {
         double cumulativeNetDeposit = 0.0;
         for (String label : labels) {
             AccountDaily point = valuesByDay.get(label);
-            double profit = profitValues.isEmpty() ? 0.0 : profitValues.get(profitValues.size() - 1);
+            double profit = profitValues.isEmpty() ? 0.0 : profitValues.getLast();
             cumulativeNetDeposit += netDepositByDay.getOrDefault(label, 0.0);
             if (point != null) {
                 double equity = nz(point.getEquity());
@@ -431,7 +431,7 @@ public class BenchmarkService {
         Double startingEquity = null;
         double cumulativeNetDeposit = 0.0;
         for (String label : labels) {
-            double profit = profitValues.isEmpty() ? 0.0 : profitValues.get(profitValues.size() - 1);
+            double profit = profitValues.isEmpty() ? 0.0 : profitValues.getLast();
             cumulativeNetDeposit += portfolioNetDepositByDay.getOrDefault(label, 0.0);
             Double equity = equityByDay.get(label);
             if (equity != null) {
@@ -465,29 +465,17 @@ public class BenchmarkService {
                                 Collectors.summingDouble(row -> nz(row.getAmountInBaseCurrency())))));
     }
 
-    private CurrencyType parseCurrency(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return BASE_CURRENCY;
-        }
-        try {
-            return CurrencyType.valueOf(raw.trim().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException ex) {
-            return BASE_CURRENCY;
-        }
-    }
-
     private List<String> dailyLabels(List<AccountDaily> rows) {
-        LocalDate first = rows.stream()
+        List<LocalDate> dates = rows.stream()
                 .map(AccountDaily::getDate)
-                .min(Comparator.naturalOrder())
-                .orElse(null);
-        LocalDate last = rows.stream()
-                .map(AccountDaily::getDate)
-                .max(Comparator.naturalOrder())
-                .orElse(null);
-        if (first == null || last == null) {
+                .filter(Objects::nonNull)
+                .sorted()
+                .toList();
+        if (dates.isEmpty()) {
             return List.of();
         }
+        LocalDate first = dates.getFirst();
+        LocalDate last = dates.getLast();
         List<String> labels = new ArrayList<>();
         for (LocalDate day = first; !day.isAfter(last); day = day.plusDays(1)) {
             labels.add(day.toString());

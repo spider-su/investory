@@ -27,10 +27,6 @@ import com.example.demo.infrastructure.repository.ClosedPositionRepository;
 import com.example.demo.infrastructure.repository.NormalizedCashOperationRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
-import com.example.demo.infrastructure.repository.portfolio.PortfolioAssetAllocationRepository;
-import com.example.demo.infrastructure.repository.portfolio.PortfolioCurrencyBreakdownRepository;
-import com.example.demo.infrastructure.repository.portfolio.PortfolioKpiSummaryRepository;
-import com.example.demo.infrastructure.repository.portfolio.SymbolPerformanceRepository;
 import com.example.demo.services.currency.CurrencyRateService;
 import com.example.demo.testsupport.portfolio.PortfolioBuilders;
 import com.example.demo.testsupport.portfolio.PortfolioTestData;
@@ -58,10 +54,6 @@ class PortfolioProjectionServiceTest {
   @Mock private AccountRepository accountRepository;
   @Mock private AssetPriceHistoryRepository assetPriceHistoryRepository;
   @Mock private AccountDailyRepository accountDailyRepository;
-  @Mock private PortfolioAssetAllocationRepository portfolioAssetAllocationRepository;
-  @Mock private PortfolioCurrencyBreakdownRepository portfolioCurrencyBreakdownRepository;
-  @Mock private PortfolioKpiSummaryRepository portfolioKpiSummaryRepository;
-  @Mock private SymbolPerformanceRepository symbolPerformanceRepository;
   @Mock private CurrencyRateService currencyRateService;
   @Mock private NormalizedCashOperationRepository normalizedCashOperationRepository;
   @Mock private AssetPriceHistoryGapFillService assetPriceHistoryGapFillService;
@@ -238,7 +230,7 @@ class PortfolioProjectionServiceTest {
     OpenedPosition opened = new OpenedPosition();
     opened.setAccount(51551301L);
     opened.setSymbol("AAPL.US");
-    opened.setCurrency(CurrencyType.PLN);
+    setCurrencies(opened, CurrencyType.PLN);
     opened.setType(PositionType.BUY);
     opened.setVolume(1.0);
     opened.setOpenPrice(400.0);
@@ -305,7 +297,7 @@ class PortfolioProjectionServiceTest {
     OpenedPosition opened = new OpenedPosition();
     opened.setAccount(51499241L);
     opened.setSymbol("AAPL.US");
-    opened.setCurrency(CurrencyType.USD);
+    setCurrencies(opened, CurrencyType.USD);
     opened.setType(PositionType.BUY);
     opened.setVolume(10.0);
     opened.setOpenPrice(100.0);
@@ -361,7 +353,7 @@ class PortfolioProjectionServiceTest {
     OpenedPosition opened = new OpenedPosition();
     opened.setAccount(51499241L);
     opened.setSymbol("NFLX.US");
-    opened.setCurrency(CurrencyType.USD);
+    setCurrencies(opened, CurrencyType.USD);
     opened.setType(PositionType.BUY);
     opened.setVolume(10.0);
     opened.setOpenPrice(112.0);
@@ -425,7 +417,7 @@ class PortfolioProjectionServiceTest {
     OpenedPosition opened = new OpenedPosition();
     opened.setAccount(accountId);
     opened.setSymbol("CSPX.UK");
-    opened.setCurrency(CurrencyType.USD);
+    setCurrencies(opened, CurrencyType.USD);
     opened.setType(PositionType.BUY);
     opened.setVolume(10.0);
     opened.setOpenPrice(100.0);
@@ -507,7 +499,7 @@ class PortfolioProjectionServiceTest {
     OpenedPosition opened = new OpenedPosition();
     opened.setAccount(51499241L);
     opened.setSymbol("AAPL.US");
-    opened.setCurrency(CurrencyType.USD);
+    setCurrencies(opened, CurrencyType.USD);
     opened.setType(PositionType.BUY);
     opened.setVolume(10.0);
     opened.setOpenPrice(100.0);
@@ -551,7 +543,7 @@ class PortfolioProjectionServiceTest {
     OpenedPosition opened = new OpenedPosition();
     opened.setAccount(51499241L);
     opened.setSymbol("EMIM.UK");
-    opened.setCurrency(CurrencyType.USD);
+    setCurrencies(opened, CurrencyType.USD);
     opened.setType(PositionType.BUY);
     opened.setVolume(100.0);
     opened.setOpenPrice(40.0);
@@ -595,7 +587,7 @@ class PortfolioProjectionServiceTest {
     OpenedPosition opened = new OpenedPosition();
     opened.setAccount(51499241L);
     opened.setSymbol("AAPL.US");
-    opened.setCurrency(CurrencyType.USD);
+    setCurrencies(opened, CurrencyType.USD);
     opened.setType(PositionType.BUY);
     opened.setVolume(10.0);
     opened.setOpenPrice(100.0);
@@ -656,7 +648,7 @@ class PortfolioProjectionServiceTest {
     OpenedPosition opened = new OpenedPosition();
     opened.setAccount(51499241L);
     opened.setSymbol("AAPL.US");
-    opened.setCurrency(CurrencyType.USD);
+    setCurrencies(opened, CurrencyType.USD);
     opened.setType(PositionType.BUY);
     opened.setVolume(10.0);
     opened.setOpenPrice(100.0);
@@ -717,7 +709,7 @@ class PortfolioProjectionServiceTest {
     OpenedPosition opened = new OpenedPosition();
     opened.setAccount(51499241L);
     opened.setSymbol("DTLA.UK");
-    opened.setCurrency(CurrencyType.USD);
+    setCurrencies(opened, CurrencyType.USD);
     opened.setType(PositionType.BUY);
     opened.setVolume(400.0);
     opened.setOpenPrice(4.7545);
@@ -778,7 +770,7 @@ class PortfolioProjectionServiceTest {
     OpenedPosition opened = new OpenedPosition();
     opened.setAccount(51499241L);
     opened.setSymbol("JGPI.DE");
-    opened.setCurrency(CurrencyType.USD);
+    setCurrencies(opened, CurrencyType.USD);
     opened.setType(PositionType.BUY);
     opened.setVolume(87.0);
     opened.setOpenPrice(2329.205436 / 87.0);
@@ -841,7 +833,7 @@ class PortfolioProjectionServiceTest {
     ClosedPosition closed = new ClosedPosition();
     closed.setAccount(51707603L);
     closed.setSymbol("ETFBW20TR.PL");
-    closed.setCurrency(CurrencyType.PLN);
+    setCurrencies(closed, CurrencyType.PLN);
     closed.setType(PositionType.BUY);
     closed.setVolume(15.0);
     closed.setOpenTime(openDate);
@@ -890,7 +882,7 @@ class PortfolioProjectionServiceTest {
     cfd.setId(2422831730L);
     cfd.setAccount(51499241L);
     cfd.setSymbol("NATGAS");
-    cfd.setCurrency(CurrencyType.USD);
+    setCurrencies(cfd, CurrencyType.USD);
     cfd.setType(PositionType.BUY);
     cfd.setSettlementModel(PositionSettlementModel.RESULT_ONLY);
     cfd.setVolume(0.01);
@@ -955,7 +947,7 @@ class PortfolioProjectionServiceTest {
     OpenedPosition januaryHolding = new OpenedPosition();
     januaryHolding.setAccount(51499241L);
     januaryHolding.setSymbol("AAPL.US");
-    januaryHolding.setCurrency(CurrencyType.USD);
+    setCurrencies(januaryHolding, CurrencyType.USD);
     januaryHolding.setType(PositionType.BUY);
     januaryHolding.setVolume(10.0);
     januaryHolding.setOpenPrice(100.0);
@@ -965,7 +957,7 @@ class PortfolioProjectionServiceTest {
     ClosedPosition februaryRoundTrip = new ClosedPosition();
     februaryRoundTrip.setAccount(51499241L);
     februaryRoundTrip.setSymbol("MSFT.US");
-    februaryRoundTrip.setCurrency(CurrencyType.USD);
+    setCurrencies(februaryRoundTrip, CurrencyType.USD);
     februaryRoundTrip.setType(PositionType.BUY);
     februaryRoundTrip.setVolume(10.0);
     februaryRoundTrip.setOpenPrice(100.0);
@@ -1028,7 +1020,7 @@ class PortfolioProjectionServiceTest {
     OpenedPosition opened = new OpenedPosition();
     opened.setAccount(51551301L);
     opened.setSymbol("PKO.WA");
-    opened.setCurrency(CurrencyType.PLN);
+    setCurrencies(opened, CurrencyType.PLN);
     opened.setType(PositionType.BUY);
     opened.setVolume(10.0);
     opened.setOpenPrice(100.0);
@@ -1200,7 +1192,7 @@ class PortfolioProjectionServiceTest {
     ClosedPosition closedBond = new ClosedPosition();
     closedBond.setAccount(17959259L);
     closedBond.setSymbol("T458022826.US");
-    closedBond.setCurrency(CurrencyType.USD);
+    setCurrencies(closedBond, CurrencyType.USD);
     closedBond.setType(PositionType.BUY);
     closedBond.setVolume(10_000.0);
     closedBond.setOpenTime(depositDate.plusDays(1));
@@ -1599,7 +1591,7 @@ class PortfolioProjectionServiceTest {
     closed.setId(91L);
     closed.setAccount(PortfolioTestData.IBKR_USD_ACCOUNT_ID);
     closed.setSymbol("AAPL.US");
-    closed.setCurrency(CurrencyType.USD);
+    setCurrencies(closed, CurrencyType.USD);
     closed.setType(PositionType.BUY);
     closed.setVolume(1.0);
     closed.setOpenTime(openUtc);
@@ -1640,7 +1632,7 @@ class PortfolioProjectionServiceTest {
     closed.setId(101L);
     closed.setAccount(PortfolioTestData.IBKR_USD_ACCOUNT_ID);
     closed.setSymbol("AAPL.US");
-    closed.setCurrency(CurrencyType.USD);
+    setCurrencies(closed, CurrencyType.USD);
     closed.setType(PositionType.BUY);
     closed.setVolume(2.0);
     closed.setOpenTime(open);
@@ -1969,6 +1961,20 @@ class PortfolioProjectionServiceTest {
         return 1.0;
       }
     };
+  }
+
+  private static void setCurrencies(OpenedPosition position, CurrencyType currency) {
+    position.setPriceCurrency(currency);
+    position.setCostCurrency(currency);
+    position.setProfitCurrency(currency);
+    position.setCommissionCurrency(currency);
+  }
+
+  private static void setCurrencies(ClosedPosition position, CurrencyType currency) {
+    position.setPriceCurrency(currency);
+    position.setCostCurrency(currency);
+    position.setProfitCurrency(currency);
+    position.setCommissionCurrency(currency);
   }
 
   private Double amountInBaseCurrency(CashOperation operation) {

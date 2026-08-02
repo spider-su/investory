@@ -41,6 +41,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -52,6 +53,8 @@ class XtbImportHistoryV2ServiceTest {
   @Mock private CashOperationRepository cashOperationRepository;
   @Mock private AssetPriceHistoryRepository assetPriceHistoryRepository;
   @Mock private AssetRepository assetRepository;
+  @Captor private ArgumentCaptor<Iterable<OpenedPosition>> openedPositionsCaptor;
+  @Captor private ArgumentCaptor<Iterable<ClosedPosition>> closedPositionsCaptor;
 
   private XtbImportV2Service xtbImportV2Service;
 
@@ -123,11 +126,10 @@ class XtbImportHistoryV2ServiceTest {
     verify(closedPositionRepository, atLeastOnce()).saveAll(anyList());
     verify(openedPositionRepository, atLeastOnce()).saveAll(anyList());
 
-    ArgumentCaptor<Iterable<OpenedPosition>> openedCaptor = ArgumentCaptor.forClass(Iterable.class);
-    verify(openedPositionRepository, atLeastOnce()).saveAll(openedCaptor.capture());
+    verify(openedPositionRepository, atLeastOnce()).saveAll(openedPositionsCaptor.capture());
 
     List<OpenedPosition> allOpened = new ArrayList<>();
-    for (Iterable<OpenedPosition> batch : openedCaptor.getAllValues()) {
+    for (Iterable<OpenedPosition> batch : openedPositionsCaptor.getAllValues()) {
       for (OpenedPosition position : batch) {
         allOpened.add(position);
       }
@@ -210,7 +212,9 @@ class XtbImportHistoryV2ServiceTest {
             .active(true)
             .build();
     org.mockito.Mockito.when(assetRepository.findAllBySymbolIn(org.mockito.ArgumentMatchers.anyCollection()))
-        .thenReturn(List.of(), List.of(), List.of(asset));
+        .thenReturn(List.of())
+        .thenReturn(List.of())
+        .thenReturn(List.of(asset));
 
     try (XSSFWorkbook workbook = new XSSFWorkbook()) {
       XSSFSheet cashSheet = workbook.createSheet("Cash Operations");
@@ -299,10 +303,9 @@ class XtbImportHistoryV2ServiceTest {
             "XTB_TRADE_OPEN_OBSERVATION");
     verify(assetRepository).saveAll(anyList());
 
-    ArgumentCaptor<Iterable<ClosedPosition>> closedCaptor = ArgumentCaptor.forClass(Iterable.class);
-    verify(closedPositionRepository).saveAll(closedCaptor.capture());
+    verify(closedPositionRepository).saveAll(closedPositionsCaptor.capture());
     List<ClosedPosition> savedClosed = new ArrayList<>();
-    closedCaptor.getValue().forEach(savedClosed::add);
+    closedPositionsCaptor.getValue().forEach(savedClosed::add);
     assertEquals(1, savedClosed.size(), "Footer row must not become a position");
     assertEquals(CurrencyType.USD, savedClosed.getFirst().getPriceCurrency());
     assertEquals(CurrencyType.PLN, savedClosed.getFirst().getCostCurrency());
@@ -310,10 +313,9 @@ class XtbImportHistoryV2ServiceTest {
     assertEquals(CurrencyType.PLN, savedClosed.getFirst().getCommissionCurrency());
     assertEquals(PositionSettlementModel.CASH_SETTLED, savedClosed.getFirst().getSettlementModel());
 
-    ArgumentCaptor<Iterable<OpenedPosition>> openedCaptor = ArgumentCaptor.forClass(Iterable.class);
-    verify(openedPositionRepository, atLeastOnce()).saveAll(openedCaptor.capture());
+    verify(openedPositionRepository, atLeastOnce()).saveAll(openedPositionsCaptor.capture());
     List<OpenedPosition> savedOpened = new ArrayList<>();
-    for (Iterable<OpenedPosition> batch : openedCaptor.getAllValues()) {
+    for (Iterable<OpenedPosition> batch : openedPositionsCaptor.getAllValues()) {
       for (OpenedPosition position : batch) {
         savedOpened.add(position);
       }
@@ -408,10 +410,9 @@ class XtbImportHistoryV2ServiceTest {
           new ByteArrayInputStream(output.toByteArray()), "PLN_repeated_rows.xlsx");
     }
 
-    ArgumentCaptor<Iterable<ClosedPosition>> captor = ArgumentCaptor.forClass(Iterable.class);
-    verify(closedPositionRepository).saveAll(captor.capture());
+    verify(closedPositionRepository).saveAll(closedPositionsCaptor.capture());
     List<ClosedPosition> positions = new ArrayList<>();
-    captor.getValue().forEach(positions::add);
+    closedPositionsCaptor.getValue().forEach(positions::add);
 
     assertEquals(4, positions.size());
     assertEquals(4, positions.stream().map(ClosedPosition::getId).distinct().count());

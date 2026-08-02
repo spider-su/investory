@@ -56,16 +56,11 @@ public class IbkrImportService {
       Pattern.compile("(?i)transfer\\s+from\\s+(\\d{6,})\\s+to\\s+(\\d{6,})");
 
   private final CashOperationRepository cashOperationRepository;
-  private final OpenedPositionRepository openedPositionRepository;
   private final AssetPriceHistoryRepository assetPriceHistoryRepository;
   private final AssetRepository assetRepository;
   private final AccountRepository accountRepository;
   private final AssetCatalogService assetCatalogService;
   private final IbkrPositionReconstructionService ibkrPositionReconstructionService;
-
-  public ImportExecutionResult importStatement(InputStream csvStream) throws Exception {
-    return importStatement(csvStream, null);
-  }
 
   public ImportExecutionResult importStatement(InputStream csvStream, String fileName) throws Exception {
     List<String[]> rows;
@@ -114,8 +109,7 @@ public class IbkrImportService {
                 symbol,
                 description,
                 parseNumber(value(r, col, "Price", "T. Price", "Trade Price", "Transaction Price")));
-        CurrencyType currency =
-            resolveMonetaryCurrency(r, col, symbol, baseCurrency);
+        CurrencyType currency = resolveMonetaryCurrency(r, col, baseCurrency);
 
         CashOperation op = new CashOperation();
         String key =
@@ -130,7 +124,7 @@ public class IbkrImportService {
         op.setId(syntheticId(key, dedup));
         op.setAccount(account);
         op.setType(mapCashType(type, description));
-        op.setSymbol(shouldKeepCashOperationSymbol(op.getType(), type, rawSymbol, description) ? symbol : null);
+        op.setSymbol(shouldKeepCashOperationSymbol(op.getType(), type) ? symbol : null);
         if (StringUtils.hasText(op.getSymbol())) {
           op.setSourceAssetSymbol(rawSymbol(rawSymbol));
           op.setBrokerSymbol(rawSymbol(rawSymbol));
@@ -161,8 +155,9 @@ public class IbkrImportService {
     List<Long> affectedAccounts =
         cashOps.stream().map(CashOperation::getAccount).filter(Objects::nonNull).distinct().toList();
     List<OpenedPosition> openPositions = new ArrayList<>();
-    if (findSection(rows, "Open Positions", "Positions") != null) {
-      openPositions = importOpenPositions(rows, dedup);
+    String openPositionsSection = findOpenPositionsSection(rows);
+    if (openPositionsSection != null) {
+      openPositions = importOpenPositions(rows, dedup, openPositionsSection);
       ensureAssetsExist(openPositions);
       applyPositionAssetIdentities(openPositions);
       for (Long accountId : affectedAccounts) {
@@ -193,11 +188,7 @@ public class IbkrImportService {
    * Parses the "Open Positions" section (if present) into IBKR opened positions and replaces them.
    */
   private List<OpenedPosition> importOpenPositions(
-      List<String[]> rows, Map<String, Integer> dedup) {
-    String section = findSection(rows, "Open Positions", "Positions");
-    if (section == null) {
-      return List.of();
-    }
+      List<String[]> rows, Map<String, Integer> dedup, String section) {
     Map<String, Integer> col = locateHeader(rows, section);
     Integer cSymbol = colIndex(col, "Symbol");
     Integer cQuantity = colIndex(col, "Quantity");
@@ -234,7 +225,11 @@ public class IbkrImportService {
       p.setSourceAssetSymbol(rawSymbol(at(r, cSymbol)));
       p.setBrokerSymbol(rawSymbol(at(r, cSymbol)));
       p.setType(quantity >= 0 ? PositionType.BUY : PositionType.SELL);
-      p.setCurrency(parseCurrency(at(r, cCurrency)));
+      CurrencyType monetaryCurrency = parseCurrency(at(r, cCurrency));
+      p.setPriceCurrency(monetaryCurrency);
+      p.setCostCurrency(monetaryCurrency);
+      p.setProfitCurrency(monetaryCurrency);
+      p.setCommissionCurrency(monetaryCurrency);
       p.setVolume(Math.abs(quantity));
       p.setOpenTime(now);
       p.setOpenPrice(parseNumber(at(r, cCost)));
@@ -275,12 +270,9 @@ public class IbkrImportService {
     return col;
   }
 
-  /** Returns the actual section name (first column) matching one of the candidate aliases. */
-  private String findSection(List<String[]> rows, String... candidates) {
-    Set<String> wanted = new HashSet<>();
-    for (String c : candidates) {
-      wanted.add(c.toLowerCase());
-    }
+  /** Returns the actual open-position section name used by this statement. */
+  private String findOpenPositionsSection(List<String[]> rows) {
+    Set<String> wanted = Set.of("open positions", "positions");
     for (String[] r : rows) {
       if (r.length > 1
           && "Header".equals(r[1])
@@ -322,24 +314,16 @@ public class IbkrImportService {
   }
 
   /**
-   * Resolves the monetary currency for a cash row. IBKR "Transaction History" statements expose the
-   * amount currency as {@code Price Currency} (USD or EUR for trades); older exports used
-   * {@code Currency}. Rows without a per-row currency (e.g. dividends and withholding carry
-   * {@code "-"}) inherit the listing currency of the corresponding asset. Rows without a symbol
-   * (deposits, withdrawals, interest, FX adjustments) fall back to the statement base currency.
+   * Resolves the currency of {@code Net Amount}, {@code Gross Amount}, and commission. An explicit
+   * amount currency wins. Otherwise IBKR reports these monetary columns in the statement base
+   * currency. {@code Price Currency} belongs only to the per-unit trade price and must never be
+   * used to label cash amounts.
    */
   private CurrencyType resolveMonetaryCurrency(
-      String[] row, Map<String, Integer> col, String canonicalSymbol, CurrencyType baseCurrency) {
-    String raw =
-        value(row, col, "Currency", "Currency Primary", "CurrencyPrimary", "Price Currency");
+      String[] row, Map<String, Integer> col, CurrencyType baseCurrency) {
+    String raw = value(row, col, "Currency", "Currency Primary", "CurrencyPrimary");
     if (StringUtils.hasText(raw) && !"-".equals(raw.trim())) {
       return parseCurrency(raw);
-    }
-    if (StringUtils.hasText(canonicalSymbol)) {
-      AssetCatalogService.AssetSeed seed = assetCatalogService.seedForSymbol(canonicalSymbol, null);
-      if (seed != null && seed.currency() != null) {
-        return seed.currency();
-      }
     }
     if (baseCurrency != null) {
       return baseCurrency;
@@ -365,10 +349,6 @@ public class IbkrImportService {
   }
 
   private static double orZero(Double value) {
-    return value == null ? 0.0 : value;
-  }
-
-  private static double nz(Double value) {
     return value == null ? 0.0 : value;
   }
 
@@ -422,7 +402,7 @@ public class IbkrImportService {
   private void ensureCashOperationAssetsExist(List<CashOperation> cashOperations) {
     List<AssetCatalogService.AssetSeed> assets = new ArrayList<>();
     cashOperations.stream()
-        .filter(operation -> !isPseudoFxCashSymbol(operation))
+        .filter(this::hasResolvableAssetSymbol)
         .map(CashOperation::getSymbol)
         .filter(StringUtils::hasText)
         .map(symbol -> assetCatalogService.seedForSymbol(symbol, CurrencyType.USD))
@@ -437,7 +417,7 @@ public class IbkrImportService {
     Map<String, Long> ids = assetRepository.findAllBySymbolIn(symbols).stream()
         .collect(java.util.stream.Collectors.toMap(Asset::getSymbol, Asset::getId));
     operations.forEach(operation -> {
-      if (StringUtils.hasText(operation.getSymbol()) && !isPseudoFxCashSymbol(operation)) {
+      if (hasResolvableAssetSymbol(operation)) {
         operation.setAssetId(requiredAssetId(operation.getSymbol(), ids));
       }
     });
@@ -459,15 +439,17 @@ public class IbkrImportService {
     return assetId;
   }
 
-  private boolean isPseudoFxCashSymbol(CashOperation operation) {
-    return operation.getType() == CashOperationType.TRANSFER
-        && StringUtils.hasText(operation.getSourceAssetSymbol())
-        && operation.getSourceAssetSymbol().trim().toUpperCase(Locale.ROOT)
-            .matches("^[A-Z]{3}\\.[A-Z]{3}$");
+  private boolean hasResolvableAssetSymbol(CashOperation operation) {
+    boolean pseudoFxSymbol =
+        operation.getType() == CashOperationType.TRANSFER
+            && StringUtils.hasText(operation.getSourceAssetSymbol())
+            && operation.getSourceAssetSymbol().trim().toUpperCase(Locale.ROOT)
+                .matches("^[A-Z]{3}\\.[A-Z]{3}$");
+    return StringUtils.hasText(operation.getSymbol()) && !pseudoFxSymbol;
   }
 
   private boolean shouldKeepCashOperationSymbol(
-      CashOperationType type, String rawType, String rawSymbol, String description) {
+      CashOperationType type, String rawType) {
     return type == CashOperationType.STOCK_PURCHASE
         || type == CashOperationType.STOCK_SELL
         || (type == CashOperationType.TRANSFER
@@ -479,15 +461,17 @@ public class IbkrImportService {
 
   private Double normalizeTradeQuantity(
       String rawSymbol, String canonicalSymbol, String description, Double quantity) {
-    if (quantity == null || !isBondTrade(rawSymbol, canonicalSymbol, description)) {
+    if (quantity == null) {
       return quantity;
     }
-    return quantity / IBKR_BOND_FACE_VALUE_UNIT;
+    return isBondTrade(rawSymbol, canonicalSymbol, description)
+        ? quantity / IBKR_BOND_FACE_VALUE_UNIT
+        : quantity;
   }
 
   private Double normalizeTradePrice(
       String rawSymbol, String canonicalSymbol, String description, Double price) {
-    if (price == null || !isBondTrade(rawSymbol, canonicalSymbol, description)) {
+    if (price == null) {
       return price;
     }
     /*
@@ -499,7 +483,9 @@ public class IbkrImportService {
      *
      * So trade price must become unit price per normalized bond, not fractional percent.
      */
-    return price * (IBKR_BOND_FACE_VALUE_UNIT / 100.0);
+    return isBondTrade(rawSymbol, canonicalSymbol, description)
+        ? price * (IBKR_BOND_FACE_VALUE_UNIT / 100.0)
+        : price;
   }
 
   private boolean isBondTrade(String rawSymbol, String canonicalSymbol, String description) {
@@ -580,7 +566,9 @@ public class IbkrImportService {
         observations.stream().map(IbkrTradePriceObservation::symbol).collect(java.util.stream.Collectors.toSet());
     Map<String, Long> assetIdsBySymbol =
         assetRepository.findAllBySymbolIn(symbols).stream()
-            .collect(java.util.stream.Collectors.toMap(Asset::getSymbol, Asset::getId, (a, b) -> a));
+            .collect(
+                java.util.stream.Collectors.toMap(
+                    Asset::getSymbol, Asset::getId, (existing, ignored) -> existing));
     for (IbkrTradePriceObservation observation : observations) {
       Long assetId = assetIdsBySymbol.get(observation.symbol());
       if (assetId == null) {
