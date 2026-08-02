@@ -272,6 +272,19 @@ WITH classified AS (
                  OR lower(COALESCE(co.comment, '')) LIKE '%ibkrrawtype=forex trade component%'
              )
                 THEN 'FX_CONVERSION'
+            -- Cross-account currency conversion (XTB "... from TA: <src> to: <dst>")
+            -- moves cash between the user's own accounts while switching currency. For
+            -- each account it is a one-sided internal transfer, not a same-account FX
+            -- swap, so classify by sign; otherwise the receiving account books the
+            -- funding as fake profit.
+            WHEN co.operation = 'TRANSFER'
+             AND lower(COALESCE(co.comment, '')) LIKE 'currency conversion,%from ta:%to:%'
+             AND co.amount >= 0
+                THEN 'INTERNAL_TRANSFER_IN'
+            WHEN co.operation = 'TRANSFER'
+             AND lower(COALESCE(co.comment, '')) LIKE 'currency conversion,%from ta:%to:%'
+             AND co.amount < 0
+                THEN 'INTERNAL_TRANSFER_OUT'
             WHEN co.operation = 'TRANSFER'
              AND lower(COALESCE(co.comment, '')) LIKE 'currency conversion,%'
                 THEN 'FX_CONVERSION'
@@ -369,6 +382,9 @@ WITH classified AS (
                  OR lower(COALESCE(co.comment, '')) LIKE '%ibkrrawtype=forex trade component%'
              )
                 THEN 'FX_CONVERSION'
+            WHEN co.operation = 'TRANSFER'
+             AND lower(COALESCE(co.comment, '')) LIKE 'currency conversion,%from ta:%to:%'
+                THEN 'ACCOUNT_TRANSFER'
             WHEN co.operation = 'TRANSFER'
              AND lower(COALESCE(co.comment, '')) LIKE 'currency conversion,%'
                 THEN 'FX_CONVERSION'
@@ -478,6 +494,9 @@ WITH classified AS (
              AND lower(COALESCE(co.comment, '')) LIKE 'transfer in operation on account%'
                 THEN true
             WHEN co.operation = 'TRANSFER'
+             AND lower(COALESCE(co.comment, '')) LIKE 'currency conversion,%from ta:%to:%'
+                THEN true
+            WHEN co.operation = 'TRANSFER'
              AND lower(COALESCE(co.comment, '')) LIKE 'transfer from % to %'
                 THEN true
             WHEN co.operation = 'SUBACCOUNT_TRANSFER'
@@ -491,6 +510,9 @@ WITH classified AS (
                  OR lower(COALESCE(co.comment, '')) LIKE '%ibkrrawtype=forex trade component%'
              )
                 THEN true
+            WHEN co.operation = 'TRANSFER'
+             AND lower(COALESCE(co.comment, '')) LIKE 'currency conversion,%from ta:%to:%'
+                THEN false
             WHEN co.operation = 'TRANSFER'
              AND lower(COALESCE(co.comment, '')) LIKE 'currency conversion,%'
                 THEN true

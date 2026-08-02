@@ -110,15 +110,6 @@ public class AssetCatalogService {
     return compact.substring(0, SYMBOL_LIMIT);
   }
 
-  public String normalizeSymbolForStorage(String rawSymbol) {
-    String symbol = normalizeSymbol(rawSymbol);
-    if (!StringUtils.hasText(symbol)) {
-      return null;
-    }
-    String ticker = deriveTicker(symbol);
-    return selectCanonicalSymbol(symbol, assetRepository.findAllByTickerIn(java.util.List.of(ticker)));
-  }
-
   public Map<String, String> normalizeSymbolsForStorage(Collection<String> rawSymbols) {
     if (CollectionUtils.isEmpty(rawSymbols)) {
       return Map.of();

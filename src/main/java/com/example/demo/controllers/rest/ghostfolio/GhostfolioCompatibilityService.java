@@ -466,12 +466,6 @@ class GhostfolioCompatibilityService {
         return activitiesCountByAccount().values().stream().mapToLong(Long::longValue).sum();
     }
 
-    private Optional<Instant> firstAccountDate(Long accountId) {
-        return accountDailyRepository.findAllByAccountIdOrderByDateAsc(accountId).stream()
-                .findFirst()
-                .map(row -> toInstant(row.getDate()));
-    }
-
     private Optional<Instant> firstActivityInstant() {
         return activityRows(portfolio()).stream()
                 .map(row -> parseInstant(text(row.get("date"))))

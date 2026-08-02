@@ -28,11 +28,6 @@ spring:
     create-schemas: true
     locations: classpath:sql/migration
     out-of-order: true
-  devtools:
-    restart:
-      enabled: true
-    livereload:
-      enabled: true
   thymeleaf:
     prefix: classpath:/static/dashboard/
     suffix: .html
@@ -44,6 +39,9 @@ spring:
     template-resolver-order: 1
 
 app:
+  portfolio:
+    # Detailed issue provenance scans reconstructed history and is slow on large datasets.
+    data-quality-issues-enabled: ${PORTFOLIO_DATA_QUALITY_ISSUES_ENABLED:false}
   api:
     twelve-data-key: ${TWELVEDATA_API_KEY:}
     exchange-rate-key: ${EXCHANGERATE_API_KEY:}
@@ -80,7 +78,6 @@ app:
   notifications:
     enabled: ${NOTIFICATIONS_ENABLED:true}
     drawdown-threshold-pct: ${ALERT_DRAWDOWN_PCT:10}
-    big-move-threshold-pct: ${ALERT_BIG_MOVE_PCT:5}
     concentration-threshold-pct: ${ALERT_CONCENTRATION_PCT:25}
     stale-import-days: ${ALERT_STALE_IMPORT_DAYS:7}
   market:

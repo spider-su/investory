@@ -22,7 +22,7 @@ That's roughly 2-3 days of focused work and clears most of the operational rough
 | Micrometer + Prometheus exporter | M | Quote-fetch latency, FX-refresh failures, rule-fire counts — none are visible today. |
 | Structured request logging (correlation id per import batch) | S | Currently logs are flat; tying log lines to `imports.id` makes triage trivial. |
 | OpenAPI / Swagger UI (`springdoc-openapi-starter-webmvc-ui`) | S | Replaces the hand-written `src/test/manual/api.http`. ~10 lines + auto-docs. |
-| Dedicated `application-prod.yml` (disable devtools, force `notifications.enabled=true`, tighten Hibernate logging) | S | Today a prod run inherits dev defaults. |
+| Tighten production Hibernate and request logging | S | Production logging still uses the shared defaults. |
 
 ## Theme B - Test hardening
 
@@ -61,7 +61,7 @@ That's roughly 2-3 days of focused work and clears most of the operational rough
 | Per-user data scoping (add `owner_id` column to all positional tables + Flyway migration) | L | Today every authenticated user sees the same portfolio. Required before exposing the instance to more than one human. |
 | CSRF for UI POST routes only | S | CSRF is globally off; enable for the dashboard's import form and keep API routes off (Basic auth). |
 | Rate limiting on import endpoints (`bucket4j`) | S | Anyone with admin can DOS the orchestrator with a giant XLSX loop. |
-| ~~Externalise secrets to env / Docker secrets, not yaml defaults~~ | done | `application-prod.yml` now requires explicit `APP_SECURITY_*` overrides and disables devtools in prod. |
+| ~~Externalise secrets to env / Docker secrets, not yaml defaults~~ | done | `application-prod.yml` now requires explicit `APP_SECURITY_*` overrides. |
 
 ## Theme F - Code health & dependencies
 
@@ -73,7 +73,6 @@ That's roughly 2-3 days of focused work and clears most of the operational rough
 | ~~Extract `TaxCalculator` and `CashFlowAggregator` out of `PortfolioService`~~ | done | Both extracted as Spring components with unit tests; `calculateTotalProfitLoss()` is now a thin orchestrator. |
 | ~~Move inline dashboard JS to `static/js/dashboard.js`~~ | done | The Import-statement card now references the external script. |
 | ~~Pin vulnerable telegrambots transitives~~ | done | `commons-io 2.21.0`, `commons-lang3 3.20.0`, `commons-beanutils 1.11.0` pinned in `<dependencyManagement>` to clear three advisories. |
-| ~~Bump `poi-ooxml` 5.2.3 → 5.4.1, `opencsv` 5.7.1 → 5.9, `gson` 2.10.1 → 2.13.2~~ | done | Refreshes direct deps; clears `CVE-2025-31672` on `poi-ooxml`. |
 | Bump `telegrambots` 6.9 → 7.x / 10.x (Boot starter, split artifacts) | M | 6.x is no longer maintained; the 7.x+ line ships a Spring Boot starter (`telegrambots-springboot-longpolling-starter`) and splits client/meta into separate jars. This requires reworking `PortfolioBot` to the newer consumer API. |
 | ~~Tighten `PortfolioBot.detectBroker` heuristic~~ | done | IBKR now matches only explicit `ibkr` names or strict `U\d+\..*\.csv` activity files. |
 | ~~`application-prod.yml` profile + secret hygiene (no `change-me-admin` default)~~ | done | Production config now demands explicit `APP_SECURITY_*` overrides. |

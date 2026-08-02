@@ -10,7 +10,6 @@ import com.example.demo.infrastructure.repository.account.AccountMonthlyPerforma
 import com.example.demo.infrastructure.repository.account.AccountRepository;
 import com.example.demo.infrastructure.repository.account.AccountStatistics;
 import com.example.demo.infrastructure.repository.account.AccountStatisticsRepository;
-import com.example.demo.infrastructure.repository.portfolio.PortfolioAssetAllocation;
 import com.example.demo.infrastructure.repository.portfolio.PortfolioAssetAllocationRepository;
 import com.example.demo.infrastructure.repository.portfolio.PortfolioCurrencyBreakdown;
 import com.example.demo.infrastructure.repository.portfolio.PortfolioCurrencyBreakdownRepository;
@@ -27,6 +26,7 @@ import com.example.demo.services.models.DividendGainer;
 import com.example.demo.services.models.InstrumentPerformance;
 import com.example.demo.services.models.Performance;
 import com.example.demo.services.models.Portfolio;
+import com.example.demo.services.models.PortfolioDataQualityIssue;
 import com.example.demo.testsupport.portfolio.PortfolioBuilders;
 import com.example.demo.testsupport.portfolio.PortfolioTestData;
 import com.example.demo.testsupport.portfolio.PortfolioTestData.AccountDefinition;
@@ -38,8 +38,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalDouble;
@@ -73,12 +71,15 @@ class PortfolioServiceTest {
     @Mock private PortfolioDataQualityRepository dataQualityRepository;
 
     private PortfolioService portfolioService;
+    private PortfolioProperties portfolioProperties;
 
     @BeforeEach
     void setUp() {
         // Use real helpers so the test still exercises end-to-end behaviour after the extraction.
         TaxCalculator taxCalculator = new TaxCalculator(currencyRateService);
         CashFlowAggregator cashFlowAggregator = new CashFlowAggregator(currencyRateService);
+        portfolioProperties = new PortfolioProperties();
+        portfolioProperties.setDataQualityIssuesEnabled(false);
         portfolioService = new PortfolioService(currencyRateService,
                 closedPositionRepository, openedPositionRepository,
                 cashOperationRepository, normalizedCashOperationRepository, accountRepository,
@@ -86,7 +87,7 @@ class PortfolioServiceTest {
                 assetRepository,
                 portfolioCurrencyBreakdownRepository, portfolioKpiSummaryRepository, portfolioMonthlyPerformanceRepository,
                 fallbackReconciliationRepository, dataQualityRepository, symbolPerformanceRepository,
-                taxCalculator, cashFlowAggregator);
+                taxCalculator, cashFlowAggregator, portfolioProperties);
         org.mockito.Mockito.lenient().when(portfolioKpiSummaryRepository.findAll()).thenReturn(List.of());
         org.mockito.Mockito.lenient().when(portfolioAssetAllocationRepository.findAll()).thenReturn(List.of());
         org.mockito.Mockito.lenient().when(portfolioCurrencyBreakdownRepository.findAll()).thenReturn(List.of());
@@ -103,6 +104,38 @@ class PortfolioServiceTest {
         org.mockito.Mockito.lenient()
                 .when(currencyRateService.findRate(any(CurrencyType.class), any(CurrencyType.class)))
                 .thenReturn(OptionalDouble.empty());
+    }
+
+    @Test
+    void calculateTotalProfitLoss_skipsDetailedDataQualityIssuesByDefault() {
+        when(dataQualityRepository.findSnapshot()).thenReturn(List.<Object[]>of(dataQualitySnapshot()));
+
+        Portfolio result = portfolioService.calculateTotalProfitLoss();
+
+        assertTrue(result.getDataQuality().issues().isEmpty());
+        verify(dataQualityRepository, never()).findIssues();
+    }
+
+    @Test
+    void calculateTotalProfitLoss_loadsDetailedDataQualityIssuesWhenEnabled() {
+        portfolioProperties.setDataQualityIssuesEnabled(true);
+        when(dataQualityRepository.findSnapshot()).thenReturn(List.<Object[]>of(dataQualitySnapshot()));
+        when(dataQualityRepository.findIssues()).thenReturn(List.<Object[]>of(new Object[] {
+            "PRICE", 51499241L, 12501L, "STALE_PRICE", 12,
+            java.sql.Date.valueOf("2026-07-20"), "USD", "STALE_CARRY_FORWARD",
+            "HISTORICAL", "WARN", 77L
+        }));
+
+        Portfolio result = portfolioService.calculateTotalProfitLoss();
+
+        assertEquals(1, result.getDataQuality().issues().size());
+        PortfolioDataQualityIssue issue = result.getDataQuality().issues().getFirst();
+        assertEquals("51499241", issue.accountId());
+        assertEquals("12501", issue.assetId());
+        assertEquals("STALE_PRICE", issue.code());
+        assertEquals(LocalDate.of(2026, 7, 20), issue.priceDate());
+        assertEquals(77L, issue.priceHistoryId());
+        verify(dataQualityRepository).findIssues();
     }
 
     @Test
@@ -375,6 +408,14 @@ class PortfolioServiceTest {
             public Double getFxRateToBase() {
                 return 1.0;
             }
+        };
+    }
+
+    private static Object[] dataQualitySnapshot() {
+        return new Object[] {
+            "HEALTHY", 1L, 1L, 1L, 1L, 0L, 0L, 0L, 0L, 0L, 0L, 0L,
+            null, null, java.sql.Date.valueOf("2026-08-01"),
+            java.sql.Date.valueOf("2026-08-01"), null
         };
     }
 
@@ -651,19 +692,6 @@ class PortfolioServiceTest {
     }
 
     @Test
-    void calculateLargestWinLoss_returnsMaxAndMinProfit() {
-        when(closedPositionRepository.findAll()).thenReturn(List.of(
-                closed("A", 100.0, 0.0, 0.0, PortfolioTestData.atNoon(PortfolioTestData.MID_YEAR)),
-                closed("B", -50.0, 0.0, 0.0, PortfolioTestData.atNoon(PortfolioTestData.MID_YEAR)),
-                closed("C", 25.0, 0.0, 0.0, PortfolioTestData.atNoon(PortfolioTestData.MID_YEAR))
-        ));
-
-        Map<String, Double> result = portfolioService.calculateLargestWinLoss();
-        assertEquals(100.0, result.get("largestWin"));
-        assertEquals(-50.0, result.get("largestLoss"));
-    }
-
-    @Test
     void calculatePerformancePerInstrument_includesBothOpenAndClosedPositions() {
         when(symbolPerformanceRepository.findAll()).thenReturn(List.of(
                 new SymbolPerformance("AAPL.US", 100.0, 50.0, 150.0, 0.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now()),
@@ -748,19 +776,6 @@ class PortfolioServiceTest {
         assertEquals(2400.0, perf.getCalculateMonthlyPerformance().get(String.format("%d-01", year)), 0.01);
         assertEquals(82600.0, perf.getMonthlyCashflow().get(String.format("%d-01", year)), 0.01);
         assertEquals(2L, perf.getMonthlyOperationsCount().get(String.format("%d-01", year)));
-    }
-
-    @Test
-    void calculateCashFlowOverTime_groupsByCloseTime() {
-        ZonedDateTime when = PortfolioTestData.atNoon(PortfolioTestData.MID_YEAR);
-        when(closedPositionRepository.findAll()).thenReturn(List.of(
-                closed("A", 10.0, 0.0, 0.0, when),
-                closed("B", 5.0, 0.0, 0.0, when)
-        ));
-
-        Map<String, Double> cashFlow = portfolioService.calculateCashFlowOverTime(CurrencyType.USD);
-        assertEquals(1, cashFlow.size());
-        assertEquals(15.0, cashFlow.values().iterator().next());
     }
 
     private static ClosedPosition closed(String symbol, double profit, double commission, double swap, ZonedDateTime closeTime) {

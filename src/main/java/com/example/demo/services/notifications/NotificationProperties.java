@@ -16,9 +16,6 @@ public class NotificationProperties {
     @Value("${app.notifications.drawdown-threshold-pct:10}")
     private double drawdownThresholdPct;
 
-    @Value("${app.notifications.big-move-threshold-pct:5}")
-    private double bigMoveThresholdPct;
-
     @Value("${app.notifications.concentration-threshold-pct:25}")
     private double concentrationThresholdPct;
 

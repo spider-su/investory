@@ -3,7 +3,6 @@ package com.example.demo.services.openai;
 import java.time.Clock;
 import java.time.LocalDate;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 

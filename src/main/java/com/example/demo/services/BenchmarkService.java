@@ -13,7 +13,6 @@ import com.example.demo.infrastructure.repository.account.AccountStatistics;
 import com.example.demo.infrastructure.repository.account.AccountStatisticsRepository;
 import com.example.demo.infrastructure.repository.benchmark.BenchmarkMonthlyClose;
 import com.example.demo.infrastructure.repository.benchmark.BenchmarkMonthlyCloseRepository;
-import com.example.demo.services.currency.CurrencyRateService;
 import com.example.demo.services.models.Benchmark;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -49,7 +48,6 @@ public class BenchmarkService {
     private final AccountStatisticsRepository accountStatisticsRepository;
     private final NormalizedCashOperationRepository normalizedCashOperationRepository;
     private final BenchmarkMonthlyCloseRepository benchmarkMonthlyCloseRepository;
-    private final CurrencyRateService currencyRateService;
     private final TwelveDataService twelveDataService;
 
     /**
@@ -67,7 +65,6 @@ public class BenchmarkService {
                             AccountStatisticsRepository accountStatisticsRepository,
                             NormalizedCashOperationRepository normalizedCashOperationRepository,
                             BenchmarkMonthlyCloseRepository benchmarkMonthlyCloseRepository,
-                            CurrencyRateService currencyRateService,
                             TwelveDataService twelveDataService,
                             @Value("${app.benchmark.comparison-start:2026-01}") String comparisonStart) {
         this.accountDailyRepository = accountDailyRepository;
@@ -76,7 +73,6 @@ public class BenchmarkService {
         this.accountStatisticsRepository = accountStatisticsRepository;
         this.normalizedCashOperationRepository = normalizedCashOperationRepository;
         this.benchmarkMonthlyCloseRepository = benchmarkMonthlyCloseRepository;
-        this.currencyRateService = currencyRateService;
         this.twelveDataService = twelveDataService;
         this.comparisonStart = YearMonth.parse(comparisonStart);
     }
@@ -467,13 +463,6 @@ public class BenchmarkService {
                         Collectors.groupingBy(
                                 row -> row.getDate().toString(),
                                 Collectors.summingDouble(row -> nz(row.getAmountInBaseCurrency())))));
-    }
-
-    private double convertToBase(double amount, CurrencyType currency, LocalDate date) {
-        if (Math.abs(amount) < 0.000001 || currency == null || currency == BASE_CURRENCY) {
-            return amount;
-        }
-        return currencyRateService.convertToBaseCurrency(amount, BASE_CURRENCY, currency, date);
     }
 
     private CurrencyType parseCurrency(String raw) {

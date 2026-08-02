@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>Investory</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="/favicon.svg" rel="icon" type="image/svg+xml">
     <link href="/css/main.css" rel="stylesheet">
     <style>
         .iv-hero {
@@ -53,8 +54,6 @@
             transition: transform .15s ease, box-shadow .15s ease;
         }
         .iv-btn:hover { transform: translateY(-2px); box-shadow: var(--iv-shadow-hover); }
-        .iv-hero__links { margin-top: 18px; }
-        .iv-hero__links a { color: var(--iv-primary); font-weight: 600; text-decoration: none; }
     </style>
 </head>
 <body>
@@ -63,12 +62,7 @@
         <div class="iv-hero__logo">I</div>
         <h1 class="iv-hero__title">Welcome to Investory</h1>
         <p class="iv-hero__subtitle">Track your portfolio performance across brokers.</p>
-        <a class="iv-btn" href="/oauth2/authorization/google">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
-                 fill="currentColor"><path d="M21.35 11.1H12v2.8h5.35c-.25 1.36-1.5 4-5.35 4a5.9 5.9 0 1 1 0-11.8 5.3 5.3 0 0 1 3.75 1.46l1.9-1.9A8 8 0 1 0 12 20a7.7 7.7 0 0 0 7.85-7.9c0-.53-.06-.7-.5-1z"/></svg>
-            Continue with Google
-        </a>
-        <p class="iv-hero__links"><a href="/dashboard">Open dashboard →</a></p>
+        <a class="iv-btn" href="/dashboard">Open dashboard →</a>
     </div>
 </main>
 </body>

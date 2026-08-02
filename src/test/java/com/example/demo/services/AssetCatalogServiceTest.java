@@ -54,15 +54,6 @@ class AssetCatalogServiceTest {
   }
 
   @Test
-  void normalizeSymbolForStorageUsesExistingTickerAsset() {
-    AssetCatalogService service = new AssetCatalogService(assetRepository);
-    when(assetRepository.findAllByTickerIn(anyCollection()))
-        .thenReturn(List.of(asset("TSLA.US", "TSLA")));
-
-    assertEquals("TSLA.US", service.normalizeSymbolForStorage("TSLA.DE"));
-  }
-
-  @Test
   void normalizeSymbolsForStorageLoadsExistingTickerAssetsOnce() {
     AssetCatalogService service = new AssetCatalogService(assetRepository);
     when(assetRepository.findAllByTickerIn(anyCollection()))

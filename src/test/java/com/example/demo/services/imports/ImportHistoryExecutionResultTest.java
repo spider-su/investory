@@ -7,16 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class ImportHistoryExecutionResultTest {
 
     @Test
-    void unknownSuccess_returnsZeroRowsWithMessage() {
-        ImportExecutionResult result = ImportExecutionResult.unknownSuccess();
-
-        assertEquals(0, result.rowsTotal());
-        assertEquals(0, result.rowsApplied());
-        assertEquals(0, result.rowsFailed());
-        assertEquals("Imported successfully", result.details());
-    }
-
-    @Test
     void recordPreservesAllValues() {
         ImportExecutionResult result = new ImportExecutionResult(10, 9, 1, "ok");
         assertEquals(10, result.rowsTotal());

@@ -12,7 +12,6 @@ import com.example.demo.infrastructure.repository.account.AccountStatisticsRepos
 import com.example.demo.infrastructure.repository.NormalizedCashOperationRepository;
 import com.example.demo.infrastructure.repository.benchmark.BenchmarkMonthlyClose;
 import com.example.demo.infrastructure.repository.benchmark.BenchmarkMonthlyCloseRepository;
-import com.example.demo.services.currency.CurrencyRateService;
 import com.example.demo.services.models.Benchmark;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,7 +46,6 @@ class BenchmarkServiceTest {
     @Mock private AccountStatisticsRepository accountStatisticsRepository;
     @Mock private NormalizedCashOperationRepository normalizedCashOperationRepository;
     @Mock private BenchmarkMonthlyCloseRepository benchmarkMonthlyCloseRepository;
-    @Mock private CurrencyRateService currencyRateService;
     @Mock private TwelveDataService twelveDataService;
 
     private BenchmarkService benchmarkService;
@@ -61,7 +59,6 @@ class BenchmarkServiceTest {
                 accountStatisticsRepository,
                 normalizedCashOperationRepository,
                 benchmarkMonthlyCloseRepository,
-                currencyRateService,
                 twelveDataService,
                 "2026-01");
         org.mockito.Mockito.lenient()

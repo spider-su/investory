@@ -45,7 +45,7 @@ project facts from this file.
   export, Telegram notifications, and optional OpenAI answers/reports.
 - Package boundaries:
   - `controllers`: UI, import/export/admin REST, Telegram bot, and Ghostfolio compatibility.
-  - `services`: portfolio analytics, market/FX sync, projections, reset, tax, cash flow, and
+  - `services`: portfolio analytics, market/FX sync, projections, tax, cash flow, and
     manual prices.
   - `services/imports`: broker parser SPI, XTB/IBKR implementations, and Yahoo export.
   - `services/openai`: Telegram AI replies, dashboard context, and scheduled reports.
@@ -88,8 +88,8 @@ project facts from this file.
   CSRF is currently disabled.
 - Ghostfolio compatibility has a separate, permissive security chain only under the
   `ghostfolio` profile. Do not weaken default security to support it.
-- `application-prod.yml` disables devtools and requires explicit `APP_SECURITY_*` overrides for
-  production credentials; do not rely on the local yaml defaults in prod runs.
+- Devtools is not on the application classpath. `application-prod.yml` requires explicit
+  `APP_SECURITY_*` overrides for production credentials; do not rely on local defaults in prod runs.
 - Telegram wiring is conditional on `app.telegram.enabled=true`.
 - OpenAI chat is configured by `app.openai.*`, uses `gpt-5-mini` by default, and is disabled by
   default. Portfolio context is rendered dashboard text capped by the configured character limit.
@@ -246,6 +246,9 @@ project facts from this file.
   - Dividend popup symbols are plain text, without avatars.
 - Dashboard data quality, risk exposure, daily performance detail, and monthly attribution are
   derived from the current ledger and `account_daily` projection.
+- Detailed data-quality issue provenance is guarded by
+  `app.portfolio.data-quality-issues-enabled` and defaults to `false` because its reconstructed
+  history scan is too slow for normal dashboard loads.
 - Yahoo export emits cash as `USDT-USD` and supports account filtering through
   `app.export.yahoo.accounts`.
 - Telegram rejects unauthorized chats unless `app.telegram.chat-id` matches. It supports broker

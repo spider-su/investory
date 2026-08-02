@@ -76,6 +76,7 @@ public class PortfolioService {
     private final SymbolPerformanceRepository symbolPerformanceRepository;
     private final TaxCalculator taxCalculator;
     private final CashFlowAggregator cashFlowAggregator;
+    private final PortfolioProperties properties;
 
 
     private static double nz(Double value) {
@@ -144,8 +145,9 @@ public class PortfolioService {
     }
 
     private void applyDataQuality(Portfolio portfolio) {
-        // Issue provenance loads on demand. Do not scan reconstructed history during page render.
-        java.util.List<PortfolioDataQualityIssue> issues = java.util.List.of();
+        List<PortfolioDataQualityIssue> issues = properties.isDataQualityIssuesEnabled()
+            ? dataQualityRepository.findIssues().stream().map(this::toDataQualityIssue).toList()
+            : List.of();
         dataQualityRepository.findSnapshot().stream().findFirst().ifPresent(row -> portfolio.setDataQuality(
             new PortfolioDataQuality(
                 String.valueOf(row[0]), number(row[1]).longValue(), number(row[2]).longValue(),
@@ -156,6 +158,21 @@ public class PortfolioService {
                 toLocalDate(row[14]),
                 toLocalDate(row[15]),
                 toOffsetDateTime(row[16]), issues)));
+    }
+
+    private PortfolioDataQualityIssue toDataQualityIssue(Object[] row) {
+        return new PortfolioDataQualityIssue(
+            String.valueOf(row[0]),
+            row[1] == null ? null : String.valueOf(row[1]),
+            row[2] == null ? null : String.valueOf(row[2]),
+            String.valueOf(row[3]),
+            row[4] instanceof Number value ? value.intValue() : null,
+            toLocalDate(row[5]),
+            row[6] == null ? null : String.valueOf(row[6]),
+            row[7] == null ? null : String.valueOf(row[7]),
+            row[8] == null ? null : String.valueOf(row[8]),
+            row[9] == null ? null : String.valueOf(row[9]),
+            row[10] instanceof Number value ? value.longValue() : null);
     }
 
     private LocalDate toLocalDate(Object value) {
@@ -871,27 +888,6 @@ public class PortfolioService {
         return (double) profitablePositions / totalPositions * 100;
     }
 
-    // 5. Largest Win / Largest Loss
-    public Map<String, Double> calculateLargestWinLoss() {
-        List<ClosedPosition> closedPositions = closedPositionRepository.findAll();
-
-        double largestWin = closedPositions.stream()
-                .filter(Objects::nonNull)
-                .mapToDouble(ClosedPosition::getProfit)
-                .filter(profit -> profit > 0)
-                .max()
-                .orElse(0.0);
-
-        double largestLoss = closedPositions.stream()
-                .filter(Objects::nonNull)
-                .mapToDouble(ClosedPosition::getProfit)
-                .filter(profit -> profit < 0)
-                .min()
-                .orElse(0.0);
-
-        return Map.of("largestWin", largestWin, "largestLoss", largestLoss);
-    }
-
     public List<InstrumentPerformance> calculatePerformancePerInstrument(CurrencyType baseCurrency) {
         List<InstrumentPerformance> instrumentPerformances = symbolPerformanceRepository.findAll().stream()
                 .map(row -> new InstrumentPerformance(
@@ -938,26 +934,6 @@ public class PortfolioService {
         }
 
         return major;
-    }
-
-    // 7. Cash Flow Over Time (Daily, Monthly)
-    public Map<String, Double> calculateCashFlowOverTime(CurrencyType baseCurrency) {
-        List<ClosedPosition> closedPositions = closedPositionRepository.findAll();
-
-        return closedPositions.stream()
-                .filter(p -> p.getCloseTime() != null)
-                .collect(Collectors.groupingBy(
-                        // Bucket by ISO date ("yyyy-MM-dd") rather than the full timestamp,
-                        // so multiple trades on the same day collapse into one chart point.
-                        position -> position.getCloseTime().toLocalDate().toString(),
-                        TreeMap::new,
-                        Collectors.summingDouble(position ->
-                                currencyRateService.convertToBaseCurrency(
-                                        nz(position.getProfit()) + nz(position.getSwap()), baseCurrency,
-                                        position.getProfitCurrency(), position.getCloseTime().toLocalDate())
-                                        + currencyRateService.convertToBaseCurrency(
-                                                nz(position.getCommission()), baseCurrency,
-                                                position.getCommissionCurrency(), position.getCloseTime().toLocalDate()))));
     }
 
     // 8. Dividends Received (if modeled)

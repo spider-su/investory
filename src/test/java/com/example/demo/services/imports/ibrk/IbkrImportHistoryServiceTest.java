@@ -58,7 +58,6 @@ class IbkrImportHistoryServiceTest {
             cashOperationRepository, openedPositionRepository, closedPositionRepository);
     service =
         new IbkrImportService(
-            closedPositionRepository,
             cashOperationRepository,
             openedPositionRepository,
             assetPriceHistoryRepository,

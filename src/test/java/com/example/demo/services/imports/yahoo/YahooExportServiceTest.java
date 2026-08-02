@@ -15,7 +15,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.FileReader;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -175,33 +174,6 @@ class YahooExportServiceTest {
       assertTrue(findRowBySymbol(rows, "VWRA").isEmpty(),
           "IBKR bare ticker should be merged into VWRA.L");
     }
-  }
-
-  @Test
-  void extendPortfolioCsvWithAverageOperations_generatesCsvFromDbWithoutReadingInput()
-      throws Exception {
-    Path output = tempDir.resolve("yahoo-export-extended.csv");
-    YahooExportService service = service();
-
-    when(openedPositionRepository.findAll())
-        .thenReturn(
-            List.of(
-                PortfolioBuilders.openPosition(PortfolioTestData.MSFT)
-                    .withId(1L)
-                    .forAccount(51499241L)
-                    .quantity(5.0)
-                    .price(200.0)
-                    .marketPrice(250.0)
-                    .on(PortfolioTestData.YEAR_END)
-                    .build()));
-    stubNoAccountSummaries();
-
-    YahooExportService.ReconcileResult result =
-        service.extendPortfolioCsvWithAverageOperations("ignored-input.csv", output.toString());
-
-    assertTrue(Files.exists(output));
-    assertTrue(result.appendedRows() >= 1);
-    assertEquals("ignored-input.csv", result.inputPath());
   }
 
   @Test

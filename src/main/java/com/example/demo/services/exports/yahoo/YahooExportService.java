@@ -116,18 +116,6 @@ public class YahooExportService {
   }
 
   /**
-   * Kept for endpoint compatibility. The input file is ignored now because export is generated
-   * entirely from DB snapshots.
-   */
-  public ReconcileResult extendPortfolioCsvWithAverageOperations(
-      String inputFilePath, String outputFilePath) throws IOException {
-    CsvExportPayload payload = buildPayloadFromSummary();
-    writeCsv(outputFilePath, payload.rows());
-    return new ReconcileResult(
-        payload.rows().size(), payload.lastSnapshotAt(), inputFilePath, outputFilePath);
-  }
-
-  /**
    * Builds the CSV export payload for Yahoo Finance portfolio tracking.
    *
    * <p>Strategy:
@@ -377,9 +365,6 @@ public class YahooExportService {
         .replaceAll("0+$", "")
         .replaceAll("\\.$", "");
   }
-
-  public record ReconcileResult(
-      int appendedRows, ZonedDateTime lastUpdate, String inputPath, String outputPath) {}
 
   private record CsvExportPayload(List<String[]> rows, ZonedDateTime lastSnapshotAt) {}
 

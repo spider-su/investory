@@ -8,10 +8,6 @@ import com.example.demo.infrastructure.repository.account.Account;
 import com.example.demo.infrastructure.repository.account.AccountRepository;
 import com.example.demo.infrastructure.repository.account.AccountDaily;
 import com.example.demo.infrastructure.repository.account.AccountDailyRepository;
-import com.example.demo.infrastructure.repository.account.AccountMonthlyPerformance;
-import com.example.demo.infrastructure.repository.account.AccountMonthlyPerformanceRepository;
-import com.example.demo.infrastructure.repository.account.AccountStatistics;
-import com.example.demo.infrastructure.repository.account.AccountStatisticsRepository;
 import com.example.demo.infrastructure.repository.Asset;
 import com.example.demo.infrastructure.repository.AssetPriceHistoryRepository;
 import com.example.demo.infrastructure.repository.AssetRepository;
@@ -22,13 +18,9 @@ import com.example.demo.infrastructure.repository.ClosedPositionRepository;
 import com.example.demo.infrastructure.repository.NormalizedCashOperationRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
-import com.example.demo.infrastructure.repository.portfolio.PortfolioAssetAllocation;
 import com.example.demo.infrastructure.repository.portfolio.PortfolioAssetAllocationRepository;
-import com.example.demo.infrastructure.repository.portfolio.PortfolioCurrencyBreakdown;
 import com.example.demo.infrastructure.repository.portfolio.PortfolioCurrencyBreakdownRepository;
-import com.example.demo.infrastructure.repository.portfolio.PortfolioKpiSummary;
 import com.example.demo.infrastructure.repository.portfolio.PortfolioKpiSummaryRepository;
-import com.example.demo.infrastructure.repository.portfolio.SymbolPerformance;
 import com.example.demo.infrastructure.repository.portfolio.SymbolPerformanceRepository;
 import com.example.demo.services.CashOperationNormalizer.NormalizedCategory;
 import com.example.demo.services.currency.CurrencyRateService;
@@ -43,7 +35,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.NavigableMap;
-import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
@@ -59,7 +50,6 @@ import org.springframework.util.StringUtils;
 public class PortfolioProjectionService {
 
   private static final double EPSILON = 1e-9;
-  private static final double NEAR_EMPTY_ACCOUNT_VALUE_THRESHOLD = 50.0;
   private static final long MAX_HISTORICAL_PRICE_STALENESS_DAYS = 10;
   private static final String QUALITY_EXACT_LISTING_MARKET_CLOSE = "EXACT_LISTING_MARKET_CLOSE";
   private static final String QUALITY_EXACT_LISTING_SCALED = "EXACT_LISTING_SCALED";
@@ -72,8 +62,6 @@ public class PortfolioProjectionService {
   private final AccountRepository accountRepository;
   private final AssetPriceHistoryRepository assetPriceHistoryRepository;
   private final AccountDailyRepository accountDailyRepository;
-  private final AccountMonthlyPerformanceRepository accountMonthlyPerformanceRepository;
-  private final AccountStatisticsRepository accountStatisticsRepository;
   private final PortfolioAssetAllocationRepository portfolioAssetAllocationRepository;
   private final PortfolioCurrencyBreakdownRepository portfolioCurrencyBreakdownRepository;
   private final PortfolioKpiSummaryRepository portfolioKpiSummaryRepository;
@@ -629,159 +617,6 @@ public class PortfolioProjectionService {
     return rows;
   }
 
-  private List<AccountMonthlyPerformance> buildAccountMonthlyRows(
-      List<AccountDaily> accountRows, ZonedDateTime now) {
-    Map<Long, List<AccountDaily>> dailyByAccount =
-        accountRows.stream().collect(Collectors.groupingBy(AccountDaily::getAccountId));
-    List<AccountMonthlyPerformance> rows = new ArrayList<>();
-
-    for (Map.Entry<Long, List<AccountDaily>> entry : dailyByAccount.entrySet()) {
-      Long accountId = entry.getKey();
-      Map<LocalDate, List<AccountDaily>> byMonth =
-          entry.getValue().stream()
-              .collect(Collectors.groupingBy(row -> row.getDate().withDayOfMonth(1)));
-      List<LocalDate> months = new ArrayList<>(byMonth.keySet());
-      months.sort(Comparator.naturalOrder());
-      double previousEndEquity = 0.0;
-      double previousDeposits = 0.0;
-      double previousWithdrawals = 0.0;
-
-      for (LocalDate month : months) {
-        List<AccountDaily> monthRows = byMonth.get(month);
-        AccountDaily latestDay =
-            monthRows.stream().max(Comparator.comparing(AccountDaily::getDate)).orElse(null);
-        if (latestDay == null) {
-          continue;
-        }
-        double startEquity = previousEndEquity;
-        double endEquity = nz(latestDay.getEquity());
-        double cumulativeDeposits = nz(latestDay.getDeposits());
-        double cumulativeWithdrawals = nz(latestDay.getWithdrawals());
-        double depositFlow = cumulativeDeposits - previousDeposits;
-        double withdrawalFlow = cumulativeWithdrawals - previousWithdrawals;
-        double netCashflow = depositFlow - withdrawalFlow;
-        double profit =
-            monthRows.stream().mapToDouble(row -> nz(row.getDailyProfitAmount())).sum();
-        double returnPct =
-            Math.abs(startEquity + Math.max(depositFlow, 0.0)) > 0.000001
-                ? profit / (startEquity + Math.max(depositFlow, 0.0))
-                : 0.0;
-
-        rows.add(
-            new AccountMonthlyPerformance(
-                accountId + ":" + month,
-                accountId,
-                month,
-                latestDay.getDate(),
-                startEquity,
-                endEquity,
-                depositFlow,
-                withdrawalFlow,
-                netCashflow,
-                profit,
-                returnPct,
-                now));
-        previousEndEquity = endEquity;
-        previousDeposits = cumulativeDeposits;
-        previousWithdrawals = cumulativeWithdrawals;
-      }
-    }
-
-    rows.sort(Comparator.comparing(AccountMonthlyPerformance::getMonth).thenComparing(AccountMonthlyPerformance::getAccountId));
-    return rows;
-  }
-
-  private List<AccountStatistics> buildAccountStatisticsRows(
-      List<AccountDaily> accountRows,
-      List<CashOperation> cashOperations,
-      List<OpenedPosition> openedPositions,
-      List<ClosedPosition> closedPositions,
-      ZonedDateTime now) {
-    Map<Long, List<AccountDaily>> dailyByAccount =
-        accountRows.stream().collect(Collectors.groupingBy(AccountDaily::getAccountId));
-
-    Set<Long> accounts = new HashSet<>(dailyByAccount.keySet());
-    Map<Long, Integer> activityCounts = new HashMap<>();
-    Map<Long, ZonedDateTime> firstActivityAt = new HashMap<>();
-    Map<Long, ZonedDateTime> lastActivityAt = new HashMap<>();
-    cashOperations.forEach(
-        operation -> recordActivity(activityCounts, firstActivityAt, lastActivityAt, operation.getAccount(), operation.getDate()));
-    openedPositions.forEach(
-        position -> recordActivity(activityCounts, firstActivityAt, lastActivityAt, position.getAccount(), position.getOpenTime()));
-    closedPositions.forEach(
-        position -> recordActivity(activityCounts, firstActivityAt, lastActivityAt, position.getAccount(), position.getCloseTime()));
-
-    List<AccountStatistics> rows = new ArrayList<>();
-    for (Long account : accounts) {
-      List<AccountDaily> daily = dailyByAccount.getOrDefault(account, List.of());
-
-      AccountDaily latestDay =
-          daily.stream()
-              .max(Comparator.comparing(AccountDaily::getDate))
-              .orElse(null);
-
-      double totalDeposit = latestDay != null ? nz(latestDay.getDeposits()) : 0.0;
-      double totalWithdrawal = latestDay != null ? nz(latestDay.getWithdrawals()) : 0.0;
-      double netDeposit = totalDeposit - totalWithdrawal;
-      double realized = latestDay != null ? nz(latestDay.getRealizedProfit()) : 0.0;
-      double dividends = latestDay != null ? nz(latestDay.getDividends()) : 0.0;
-      double interest = latestDay != null ? nz(latestDay.getInterest()) : 0.0;
-      double fees = latestDay != null ? nz(latestDay.getFees()) : 0.0;
-      double taxes = latestDay != null ? nz(latestDay.getTaxes()) : 0.0;
-
-      double cashBalance = latestDay != null ? nz(latestDay.getCashBalance()) : 0.0;
-      double marketValue = latestDay != null ? nz(latestDay.getMarketValue()) : 0.0;
-      double equity = latestDay != null ? nz(latestDay.getEquity()) : cashBalance + marketValue;
-      double unrealized = latestDay != null ? nz(latestDay.getUnrealizedProfit()) : 0.0;
-      if (Math.abs(cashBalance + marketValue) < NEAR_EMPTY_ACCOUNT_VALUE_THRESHOLD) {
-        totalDeposit = 0.0;
-        totalWithdrawal = 0.0;
-        netDeposit = 0.0;
-      }
-
-      double costBase = latestDay != null ? nz(latestDay.getCostBase()) : 0.0;
-
-      rows.add(
-          AccountStatistics.builder()
-              .accountId(account)
-              .totalDeposit(totalDeposit)
-              .totalWithdrawal(totalWithdrawal)
-              .netDeposit(netDeposit)
-              .cashBalance(cashBalance)
-              .marketValue(marketValue)
-              .equity(equity)
-              .costBase(costBase)
-              .realizedProfit(realized)
-              .unrealizedProfit(unrealized)
-              .dividends(dividends)
-              .interest(interest)
-              .fees(fees)
-              .taxes(taxes)
-              .activityCount(activityCounts.getOrDefault(account, 0))
-              .firstActivityAt(firstActivityAt.get(account))
-              .lastActivityAt(lastActivityAt.get(account))
-              .updatedAt(now)
-              .build());
-    }
-
-    rows.sort(Comparator.comparing(AccountStatistics::getAccountId));
-    return rows;
-  }
-
-  private void recordActivity(
-      Map<Long, Integer> activityCounts,
-      Map<Long, ZonedDateTime> firstActivityAt,
-      Map<Long, ZonedDateTime> lastActivityAt,
-      Long accountId,
-      ZonedDateTime timestamp) {
-    if (accountId == null || timestamp == null) {
-      return;
-    }
-    activityCounts.merge(accountId, 1, Integer::sum);
-    firstActivityAt.merge(accountId, timestamp, (left, right) -> left.isBefore(right) ? left : right);
-    lastActivityAt.merge(accountId, timestamp, (left, right) -> left.isAfter(right) ? left : right);
-  }
-
   private void rebuildDerivedSummaries(ZonedDateTime now) {
     accountDailyRepository.refreshReportingViews();
   }
@@ -1019,9 +854,6 @@ public class PortfolioProjectionService {
   }
 
   private record PositionKey(Long accountId, String ticker, CurrencyType currency) {}
-
-  private record PositionProjection(
-      Long accountId, String ticker, double costBasis, double unrealizedProfit) {}
 
   private record AccountTickerKey(Long accountId, String ticker) {}
 
@@ -1378,23 +1210,6 @@ public class PortfolioProjectionService {
       }
     }
 
-  }
-
-  private static final class AssetAllocationAccumulator {
-    double totalVolume;
-    double costBasis;
-    double marketValue;
-    double unrealized;
-  }
-
-  private static final class SymbolPerformanceAccumulator {
-    double closedProfit;
-    double unrealizedProfit;
-    double dividends;
-    double withholdingTax;
-    double totalVolume;
-    double costBasis;
-    double marketValue;
   }
 }
 
