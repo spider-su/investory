@@ -26,7 +26,9 @@ public class AssetPriceChartService {
     ZonedDateTime now = ZonedDateTime.now();
     ZonedDateTime startDate = period.startDate(now);
     LocalDate dateFrom = startDate == null ? null : startDate.toLocalDate();
-    return assetPriceChartRepository.findBestPrices(asset.getId(), dateFrom, now.toLocalDate()).stream()
+    return assetPriceChartRepository
+        .findBestPrices(asset.getId(), dateFrom, now.toLocalDate())
+        .stream()
         .map(
             row ->
                 new AssetPricePointView(
