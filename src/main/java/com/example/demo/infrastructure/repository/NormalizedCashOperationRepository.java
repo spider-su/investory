@@ -13,9 +13,9 @@ public interface NormalizedCashOperationRepository extends Repository<CashOperat
    * Returns the net-deposit data used by the dashboard, aggregated by account, day and category.
    *
    * <p>The dashboard previously loaded every row from {@code normalized_cash_operations} three
-   * times and performed the grouping in Java. Keeping the category and day dimensions preserves
-   * the existing portfolio and benchmark calculations while substantially reducing transferred
-   * rows and projection work.
+   * times and performed the grouping in Java. Keeping the category and day dimensions preserves the
+   * existing portfolio and benchmark calculations while substantially reducing transferred rows and
+   * projection work.
    */
   @Query(
       value =
