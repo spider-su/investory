@@ -20,12 +20,12 @@ WITH latest_position_date AS (
               OR rpd.fx_conversion_status IN ('MISSING', 'MISSING_CURRENCY') THEN 'ERROR'
             ELSE 'WARN'
         END::varchar(16) AS severity,
-        rpd.portfolio_id,
+        account.portfolio_id,
         rpd.account_id,
         rpd.asset_id,
         rpd.valuation_date,
         rpd.price_currency::varchar(3) AS source_currency,
-        rpd.base_currency::varchar(3) AS target_currency,
+        portfolio.base_currency::varchar(3) AS target_currency,
         rpd.selected_price_date AS input_date,
         CASE
             WHEN rpd.selected_price IS NULL THEN NULL
@@ -33,7 +33,7 @@ WITH latest_position_date AS (
         END::integer AS age_days,
         concat_ws(
             '; ',
-            'symbol=' || rpd.asset_symbol,
+            'symbol=' || asset.symbol,
             'price_quality=' || coalesce(rpd.price_quality, 'NULL'),
             'fx_status=' || coalesce(rpd.fx_conversion_status, 'NULL')
         )::text AS details,
@@ -47,6 +47,9 @@ WITH latest_position_date AS (
             ELSE 'Review the stale FX rate before accepting reporting.'
         END::varchar(255) AS required_action
     FROM investory.v_reconstructed_position_daily rpd
+    JOIN investory.accounts account ON account.id = rpd.account_id
+    JOIN investory.portfolios portfolio ON portfolio.id = account.portfolio_id
+    JOIN investory.assets asset ON asset.id = rpd.asset_id
     CROSS JOIN latest_position_date latest
     WHERE rpd.valuation_date = latest.valuation_date
       AND rpd.open_quantity <> 0
