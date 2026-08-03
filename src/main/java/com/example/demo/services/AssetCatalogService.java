@@ -47,7 +47,9 @@ public class AssetCatalogService {
 
     // Skip symbols that already exist
     Set<String> symbols = new HashSet<>(normalizedBySymbol.keySet());
-    assetRepository.findAllBySymbolIn(symbols).forEach(existing -> symbols.remove(existing.getSymbol()));
+    assetRepository
+        .findAllBySymbolIn(symbols)
+        .forEach(existing -> symbols.remove(existing.getSymbol()));
     if (symbols.isEmpty()) {
       return;
     }
@@ -132,7 +134,8 @@ public class AssetCatalogService {
     Map<String, List<Asset>> assetsByTicker =
         assetRepository.findAllByTickerIn(tickers).stream()
             .filter(asset -> StringUtils.hasText(asset.getTicker()))
-            .collect(Collectors.groupingBy(asset -> asset.getTicker().trim().toUpperCase(Locale.ROOT)));
+            .collect(
+                Collectors.groupingBy(asset -> asset.getTicker().trim().toUpperCase(Locale.ROOT)));
 
     Map<String, String> result = new HashMap<>();
     normalizedByRaw.forEach(
@@ -210,7 +213,6 @@ public class AssetCatalogService {
     return 1;
   }
 
-
   private String deriveTicker(String symbol) {
     int dot = symbol.indexOf('.');
     return dot > 0 ? symbol.substring(0, dot) : symbol;
@@ -232,8 +234,7 @@ public class AssetCatalogService {
     String suffix = symbol.substring(dot + 1).toUpperCase(Locale.ROOT);
     return switch (suffix) {
       case "PL" -> CurrencyType.PLN;
-      case "DE", "FR", "NL", "IT", "ES", "FI", "PT", "IE", "AT", "BE" ->
-          CurrencyType.EUR;
+      case "DE", "FR", "NL", "IT", "ES", "FI", "PT", "IE", "AT", "BE" -> CurrencyType.EUR;
       default -> CurrencyType.USD;
     };
   }
@@ -251,7 +252,8 @@ public class AssetCatalogService {
       String normalizedTicker = ticker.trim().toUpperCase(Locale.ROOT);
       String normalizedYahoo = yahoo.trim().toUpperCase(Locale.ROOT);
       String normalizedCountry = country.trim().toUpperCase(Locale.ROOT);
-      String normalizedAssetType = assetType == null ? null : assetType.trim().toUpperCase(Locale.ROOT);
+      String normalizedAssetType =
+          assetType == null ? null : assetType.trim().toUpperCase(Locale.ROOT);
       return new AssetSeed(
           normalizedSymbol,
           normalizedTicker,
@@ -262,4 +264,3 @@ public class AssetCatalogService {
     }
   }
 }
-

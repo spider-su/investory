@@ -28,7 +28,9 @@ public class CashOperationNormalizer {
   private static final Duration INTERNAL_TRANSFER_PAIR_WINDOW = Duration.ofHours(12);
   private static final Duration FX_PAIR_WINDOW = Duration.ofMinutes(10);
   private static final Pattern ACCOUNT_TRANSFER_PATTERN =
-      Pattern.compile("transfer\\s+(in|out)\\s+operation\\s+on\\s+account\\s+with\\s+id\\s+(\\d+)", Pattern.CASE_INSENSITIVE);
+      Pattern.compile(
+          "transfer\\s+(in|out)\\s+operation\\s+on\\s+account\\s+with\\s+id\\s+(\\d+)",
+          Pattern.CASE_INSENSITIVE);
   private static final Pattern ACCOUNT_TO_ACCOUNT_TRANSFER_PATTERN =
       Pattern.compile("transfer\\s+from\\s+(\\d+)\\s+to\\s+(\\d+)", Pattern.CASE_INSENSITIVE);
   private static final Pattern FX_PATTERN =
@@ -47,7 +49,10 @@ public class CashOperationNormalizer {
     pairSubaccountTransfers(normalized);
     pairInternalTransferLedger(normalized);
     pairFxConversions(normalized);
-    return normalized.stream().sorted(Comparator.comparingInt(MutableNormalized::index)).map(MutableNormalized::freeze).toList();
+    return normalized.stream()
+        .sorted(Comparator.comparingInt(MutableNormalized::index))
+        .map(MutableNormalized::freeze)
+        .toList();
   }
 
   private MutableNormalized classifyBase(int index, CashOperation operation) {
@@ -55,8 +60,13 @@ public class CashOperationNormalizer {
     String comment = normalizedComment(operation.getComment());
     double amount = nz(operation.getAmount());
     EconomicDirection direction =
-        amount > EPSILON ? EconomicDirection.INFLOW : amount < -EPSILON ? EconomicDirection.OUTFLOW : EconomicDirection.NEUTRAL;
-    boolean reversalHint = comment.contains("reversal") || comment.contains("reverse") || comment.contains("correction");
+        amount > EPSILON
+            ? EconomicDirection.INFLOW
+            : amount < -EPSILON ? EconomicDirection.OUTFLOW : EconomicDirection.NEUTRAL;
+    boolean reversalHint =
+        comment.contains("reversal")
+            || comment.contains("reverse")
+            || comment.contains("correction");
 
     if (rawType == CashOperationType.DEPOSIT) {
       Optional<AccountTransferHint> hint = parseAccountTransfer(operation.getComment());
@@ -136,10 +146,13 @@ public class CashOperationNormalizer {
           false,
           false,
           false,
-          amount <= 0.0 ? "raw withdrawal sign mapping" : "positive raw withdrawal requires review");
+          amount <= 0.0
+              ? "raw withdrawal sign mapping"
+              : "positive raw withdrawal requires review");
     }
 
-    if (rawType == CashOperationType.TRANSFER && parseFxConversion(operation.getComment()).isPresent()) {
+    if (rawType == CashOperationType.TRANSFER
+        && parseFxConversion(operation.getComment()).isPresent()) {
       return MutableNormalized.of(
           index,
           operation,
@@ -156,12 +169,15 @@ public class CashOperationNormalizer {
     }
 
     if (rawType == CashOperationType.TRANSFER) {
-      Optional<TransferBetweenAccountsHint> hint = parseTransferBetweenAccounts(operation.getComment());
+      Optional<TransferBetweenAccountsHint> hint =
+          parseTransferBetweenAccounts(operation.getComment());
       if (hint.isPresent()) {
         return MutableNormalized.of(
             index,
             operation,
-            amount >= 0.0 ? NormalizedCategory.INTERNAL_TRANSFER_IN : NormalizedCategory.INTERNAL_TRANSFER_OUT,
+            amount >= 0.0
+                ? NormalizedCategory.INTERNAL_TRANSFER_IN
+                : NormalizedCategory.INTERNAL_TRANSFER_OUT,
             "ACCOUNT_TRANSFER",
             direction,
             false,
@@ -229,7 +245,9 @@ public class CashOperationNormalizer {
       return MutableNormalized.of(
           index,
           operation,
-          reversal ? NormalizedCategory.WITHHOLDING_TAX_REVERSAL : NormalizedCategory.WITHHOLDING_TAX,
+          reversal
+              ? NormalizedCategory.WITHHOLDING_TAX_REVERSAL
+              : NormalizedCategory.WITHHOLDING_TAX,
           reversal ? "WITHHOLDING_TAX_REVERSAL" : "WITHHOLDING_TAX",
           direction,
           false,
@@ -411,7 +429,8 @@ public class CashOperationNormalizer {
       if (candidates == null) {
         continue;
       }
-      MutableNormalized match = pollWithinWindow(candidates, current.operation.getDate(), SUBACCOUNT_PAIR_WINDOW);
+      MutableNormalized match =
+          pollWithinWindow(candidates, current.operation.getDate(), SUBACCOUNT_PAIR_WINDOW);
       if (match != null) {
         String groupId = stableGroupId("SUB", match.operation, current.operation);
         current.relatedOperationId = String.valueOf(opId(match.operation));
@@ -432,7 +451,8 @@ public class CashOperationNormalizer {
           && current.category != NormalizedCategory.INTERNAL_TRANSFER_IN) {
         continue;
       }
-      Optional<TransferBetweenAccountsHint> hint = parseTransferBetweenAccounts(current.operation.getComment());
+      Optional<TransferBetweenAccountsHint> hint =
+          parseTransferBetweenAccounts(current.operation.getComment());
       String key =
           hint.map(
                   value ->
@@ -456,8 +476,10 @@ public class CashOperationNormalizer {
       if (candidates == null) {
         continue;
       }
-      MutableNormalized match = pollWithinWindow(candidates, current.operation.getDate(), INTERNAL_TRANSFER_PAIR_WINDOW);
-      if (match != null && !Objects.equals(match.operation.getAccount(), current.operation.getAccount())) {
+      MutableNormalized match =
+          pollWithinWindow(candidates, current.operation.getDate(), INTERNAL_TRANSFER_PAIR_WINDOW);
+      if (match != null
+          && !Objects.equals(match.operation.getAccount(), current.operation.getAccount())) {
         String groupId = stableGroupId("INT", match.operation, current.operation);
         current.relatedOperationId = String.valueOf(opId(match.operation));
         match.relatedOperationId = String.valueOf(opId(current.operation));
@@ -494,8 +516,16 @@ public class CashOperationNormalizer {
       Deque<MutableNormalized> bucket = groups.computeIfAbsent(key, ignored -> new ArrayDeque<>());
       MutableNormalized match =
           bucket.stream()
-              .filter(candidate -> withinWindow(candidate.operation.getDate(), current.operation.getDate(), FX_PAIR_WINDOW))
-              .filter(candidate -> !Objects.equals(candidate.operation.getCurrency(), current.operation.getCurrency()))
+              .filter(
+                  candidate ->
+                      withinWindow(
+                          candidate.operation.getDate(),
+                          current.operation.getDate(),
+                          FX_PAIR_WINDOW))
+              .filter(
+                  candidate ->
+                      !Objects.equals(
+                          candidate.operation.getCurrency(), current.operation.getCurrency()))
               .findFirst()
               .orElse(null);
       if (match == null) {
@@ -553,7 +583,9 @@ public class CashOperationNormalizer {
     }
     return Optional.of(
         new AccountTransferHint(
-            "in".equalsIgnoreCase(matcher.group(1)) ? EconomicDirection.INFLOW : EconomicDirection.OUTFLOW,
+            "in".equalsIgnoreCase(matcher.group(1))
+                ? EconomicDirection.INFLOW
+                : EconomicDirection.OUTFLOW,
             Long.parseLong(matcher.group(2))));
   }
 
@@ -574,7 +606,8 @@ public class CashOperationNormalizer {
             Double.parseDouble(matcher.group(5).replace(',', '.'))));
   }
 
-  private static Optional<TransferBetweenAccountsHint> parseTransferBetweenAccounts(String comment) {
+  private static Optional<TransferBetweenAccountsHint> parseTransferBetweenAccounts(
+      String comment) {
     if (!StringUtils.hasText(comment)) {
       return Optional.empty();
     }
@@ -583,7 +616,8 @@ public class CashOperationNormalizer {
       return Optional.empty();
     }
     return Optional.of(
-        new TransferBetweenAccountsHint(Long.parseLong(matcher.group(1)), Long.parseLong(matcher.group(2))));
+        new TransferBetweenAccountsHint(
+            Long.parseLong(matcher.group(1)), Long.parseLong(matcher.group(2))));
   }
 
   private static String normalizedComment(String comment) {
@@ -624,7 +658,11 @@ public class CashOperationNormalizer {
   private record TransferBetweenAccountsHint(long sourceAccount, long targetAccount) {}
 
   private record FxHint(
-      String sourceCurrency, String targetCurrency, long sourceAccount, long targetAccount, double rate) {}
+      String sourceCurrency,
+      String targetCurrency,
+      long sourceAccount,
+      long targetAccount,
+      double rate) {}
 
   private static final class MutableNormalized {
     private final int index;

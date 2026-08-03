@@ -18,7 +18,8 @@ public record PortfolioTestContext(
     Imports imports,
     Expected expected) {
 
-  public record Accounts(Account ibkrUsd, Account xtbEur, Account polishBondsPln, Account cryptoUsd) {}
+  public record Accounts(
+      Account ibkrUsd, Account xtbEur, Account polishBondsPln, Account cryptoUsd) {}
 
   public record Assets(
       Asset aapl,

@@ -1,7 +1,7 @@
 package com.example.demo.services.imports.xtb;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.atLeastOnce;
@@ -12,11 +12,11 @@ import com.example.demo.infrastructure.CurrencyType;
 import com.example.demo.infrastructure.PositionSettlementModel;
 import com.example.demo.infrastructure.repository.Asset;
 import com.example.demo.infrastructure.repository.AssetPriceHistoryRepository;
+import com.example.demo.infrastructure.repository.AssetRepository;
 import com.example.demo.infrastructure.repository.CashOperation;
 import com.example.demo.infrastructure.repository.CashOperationRepository;
 import com.example.demo.infrastructure.repository.ClosedPosition;
 import com.example.demo.infrastructure.repository.ClosedPositionRepository;
-import com.example.demo.infrastructure.repository.AssetRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
 import com.example.demo.services.AssetCatalogService;
@@ -38,8 +38,8 @@ import java.util.zip.ZipInputStream;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -137,7 +137,8 @@ class XtbImportHistoryV2ServiceTest {
     }
 
     assertFalse(allOpened.isEmpty(), "Open positions should be reconstructed from cash operations");
-    assertTrue(allOpened.stream().allMatch(pos -> pos.getSymbol() != null && !pos.getSymbol().isBlank()));
+    assertTrue(
+        allOpened.stream().allMatch(pos -> pos.getSymbol() != null && !pos.getSymbol().isBlank()));
   }
 
   @Test
@@ -181,7 +182,8 @@ class XtbImportHistoryV2ServiceTest {
   void reconstructOpenedPositionsUsesExistingImportedCashOperationsForPartialHistory() {
     Long account = 51707603L;
     CashOperation existingOpen =
-        cashOperation(1L, account, CashOperationType.STOCK_PURCHASE, "AAPL.US", "OPEN BUY 10 @ 100");
+        cashOperation(
+            1L, account, CashOperationType.STOCK_PURCHASE, "AAPL.US", "OPEN BUY 10 @ 100");
     CashOperation currentClose =
         cashOperation(2L, account, CashOperationType.STOCK_SELL, "AAPL.US", "CLOSE BUY 4 @ 110");
     org.mockito.Mockito.when(cashOperationRepository.findAllByAccount(account))
@@ -212,7 +214,8 @@ class XtbImportHistoryV2ServiceTest {
             .assetType("EQUITY")
             .active(true)
             .build();
-    org.mockito.Mockito.when(assetRepository.findAllBySymbolIn(org.mockito.ArgumentMatchers.anyCollection()))
+    org.mockito.Mockito.when(
+            assetRepository.findAllBySymbolIn(org.mockito.ArgumentMatchers.anyCollection()))
         .thenReturn(List.of())
         .thenReturn(List.of())
         .thenReturn(List.of(asset));
@@ -321,10 +324,16 @@ class XtbImportHistoryV2ServiceTest {
         savedOpened.add(position);
       }
     }
-    assertTrue(savedOpened.stream().allMatch(position -> position.getPriceCurrency() == CurrencyType.USD));
-    assertTrue(savedOpened.stream().allMatch(position -> position.getCostCurrency() == CurrencyType.USD));
-    assertTrue(savedOpened.stream().allMatch(position -> position.getProfitCurrency() == CurrencyType.PLN));
-    assertTrue(savedOpened.stream().allMatch(position -> position.getCommissionCurrency() == CurrencyType.PLN));
+    assertTrue(
+        savedOpened.stream().allMatch(position -> position.getPriceCurrency() == CurrencyType.USD));
+    assertTrue(
+        savedOpened.stream().allMatch(position -> position.getCostCurrency() == CurrencyType.USD));
+    assertTrue(
+        savedOpened.stream()
+            .allMatch(position -> position.getProfitCurrency() == CurrencyType.PLN));
+    assertTrue(
+        savedOpened.stream()
+            .allMatch(position -> position.getCommissionCurrency() == CurrencyType.PLN));
   }
 
   @Test
@@ -343,7 +352,8 @@ class XtbImportHistoryV2ServiceTest {
             .assetType("ETF")
             .active(true)
             .build();
-    org.mockito.Mockito.when(assetRepository.findAllBySymbolIn(org.mockito.ArgumentMatchers.anyCollection()))
+    org.mockito.Mockito.when(
+            assetRepository.findAllBySymbolIn(org.mockito.ArgumentMatchers.anyCollection()))
         .thenReturn(List.of(asset));
 
     try (XSSFWorkbook workbook = new XSSFWorkbook()) {
@@ -417,10 +427,16 @@ class XtbImportHistoryV2ServiceTest {
 
     assertEquals(4, positions.size());
     assertEquals(4, positions.stream().map(ClosedPosition::getId).distinct().count());
-    assertEquals(List.of(1, 2, 3, 4), positions.stream().map(ClosedPosition::getSourceRowOccurrence).toList());
-    assertTrue(positions.stream().allMatch(position -> "2317002593".equals(position.getSourcePositionId())));
-    assertTrue(positions.stream().allMatch(position -> position.getPriceCurrency() == CurrencyType.USD));
-    assertTrue(positions.stream().allMatch(position -> position.getCostCurrency() == CurrencyType.PLN));
+    assertEquals(
+        List.of(1, 2, 3, 4),
+        positions.stream().map(ClosedPosition::getSourceRowOccurrence).toList());
+    assertTrue(
+        positions.stream()
+            .allMatch(position -> "2317002593".equals(position.getSourcePositionId())));
+    assertTrue(
+        positions.stream().allMatch(position -> position.getPriceCurrency() == CurrencyType.USD));
+    assertTrue(
+        positions.stream().allMatch(position -> position.getCostCurrency() == CurrencyType.PLN));
   }
 
   private static CashOperation cashOperation(
@@ -455,6 +471,3 @@ class XtbImportHistoryV2ServiceTest {
     throw new IllegalStateException("No .xlsx entry found in fixture zip");
   }
 }
-
-
-

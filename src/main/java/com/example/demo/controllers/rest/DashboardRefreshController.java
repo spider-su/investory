@@ -1,15 +1,15 @@
 package com.example.demo.controllers.rest;
 
-import com.example.demo.services.MarketService;
 import com.example.demo.services.ManualAssetPriceService;
 import com.example.demo.services.ManualAssetPriceService.ManualAssetPrice;
+import com.example.demo.services.MarketService;
 import com.example.demo.services.PortfolioProjectionService;
 import java.time.ZonedDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -34,7 +34,8 @@ public class DashboardRefreshController {
   RefreshPricesResponse updateHistory() {
     marketService.refreshMarketPricesAndPositions();
     portfolioProjectionService.recalculateAll();
-    return new RefreshPricesResponse("OK", "Market prices refreshed and history rebuilt", ZonedDateTime.now());
+    return new RefreshPricesResponse(
+        "OK", "Market prices refreshed and history rebuilt", ZonedDateTime.now());
   }
 
   @PostMapping("/rebuild-monthly")

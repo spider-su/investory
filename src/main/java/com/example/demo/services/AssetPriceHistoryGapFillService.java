@@ -1,7 +1,6 @@
 package com.example.demo.services;
 
 import com.example.demo.infrastructure.repository.*;
-
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -50,8 +49,8 @@ public class AssetPriceHistoryGapFillService {
 
     List<AssetPriceHistoryRepository.HistoricalAssetPriceRow> rows =
         assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(openSymbols, asOfDate);
-    Map<String, NavigableMap<LocalDate, AssetPriceHistoryRepository.HistoricalAssetPriceRow>> bySymbol =
-        new HashMap<>();
+    Map<String, NavigableMap<LocalDate, AssetPriceHistoryRepository.HistoricalAssetPriceRow>>
+        bySymbol = new HashMap<>();
     for (AssetPriceHistoryRepository.HistoricalAssetPriceRow row : rows) {
       if (!StringUtils.hasText(row.getSymbol())
           || row.getPriceDate() == null
@@ -61,7 +60,8 @@ public class AssetPriceHistoryGapFillService {
       }
       NavigableMap<LocalDate, AssetPriceHistoryRepository.HistoricalAssetPriceRow> datedRows =
           bySymbol.computeIfAbsent(row.getSymbol(), ignored -> new TreeMap<>());
-      AssetPriceHistoryRepository.HistoricalAssetPriceRow existing = datedRows.get(row.getPriceDate());
+      AssetPriceHistoryRepository.HistoricalAssetPriceRow existing =
+          datedRows.get(row.getPriceDate());
       if (existing == null || compareRows(row, existing) < 0) {
         datedRows.put(row.getPriceDate(), row);
       }
@@ -71,7 +71,8 @@ public class AssetPriceHistoryGapFillService {
     for (Map.Entry<String, Asset> entry : assetsBySymbol.entrySet()) {
       String symbol = entry.getKey();
       Asset asset = entry.getValue();
-      NavigableMap<LocalDate, AssetPriceHistoryRepository.HistoricalAssetPriceRow> datedRows = bySymbol.get(symbol);
+      NavigableMap<LocalDate, AssetPriceHistoryRepository.HistoricalAssetPriceRow> datedRows =
+          bySymbol.get(symbol);
       if (datedRows == null || datedRows.isEmpty()) {
         continue;
       }
@@ -102,7 +103,8 @@ public class AssetPriceHistoryGapFillService {
     }
 
     if (inserted > 0) {
-      log.info("Filled {} missing business-day asset_price_history gaps for open symbols", inserted);
+      log.info(
+          "Filled {} missing business-day asset_price_history gaps for open symbols", inserted);
     }
   }
 
@@ -111,7 +113,8 @@ public class AssetPriceHistoryGapFillService {
       AssetPriceHistoryRepository.HistoricalAssetPriceRow right) {
     return Comparator.comparingInt(AssetPriceHistoryGapFillService::priorityRank)
         .thenComparing(
-            row -> row.getQualityScore() == null ? 0 : row.getQualityScore(), Comparator.reverseOrder())
+            row -> row.getQualityScore() == null ? 0 : row.getQualityScore(),
+            Comparator.reverseOrder())
         .thenComparingInt(AssetPriceHistoryGapFillService::tradeObservationTieRank)
         .compare(left, right);
   }

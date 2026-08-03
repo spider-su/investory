@@ -19,16 +19,20 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/auth")
 public class GhostfolioAuthController {
 
-    @PostMapping("/anonymous")
-    public ResponseEntity<Map<String, Object>> anonymous(
-            @RequestBody(required = false) Map<String, Object> ignoredBody) {
-        String token = "investory-dev-" + UUID.randomUUID();
+  @PostMapping("/anonymous")
+  public ResponseEntity<Map<String, Object>> anonymous(
+      @RequestBody(required = false) Map<String, Object> ignoredBody) {
+    String token = "investory-dev-" + UUID.randomUUID();
 
-        return ResponseEntity.ok(
-                Map.of(
-                        "accessToken", token,
-                        "expiresIn", 86400,
-                        "expiresAt", Instant.now().plusSeconds(86400).toString(),
-                        "tokenType", "Bearer"));
-    }
+    return ResponseEntity.ok(
+        Map.of(
+            "accessToken",
+            token,
+            "expiresIn",
+            86400,
+            "expiresAt",
+            Instant.now().plusSeconds(86400).toString(),
+            "tokenType",
+            "Bearer"));
+  }
 }

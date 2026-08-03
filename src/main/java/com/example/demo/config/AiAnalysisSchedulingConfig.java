@@ -6,5 +6,4 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 /** Enables cron-based AI portfolio reports. */
 @Configuration
 @EnableScheduling
-public class AiAnalysisSchedulingConfig {
-}
+public class AiAnalysisSchedulingConfig {}

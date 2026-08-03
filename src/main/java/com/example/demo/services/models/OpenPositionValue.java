@@ -32,7 +32,17 @@ public class OpenPositionValue {
       Double profitLossPercent,
       CurrencyType currency,
       double sharePercent) {
-    this(symbol, volume, costBase, averageOpenPrice, averageOpenPrice, currency,
-        value, unrealized, profitLossPercent, currency, sharePercent);
+    this(
+        symbol,
+        volume,
+        costBase,
+        averageOpenPrice,
+        averageOpenPrice,
+        currency,
+        value,
+        unrealized,
+        profitLossPercent,
+        currency,
+        sharePercent);
   }
 }

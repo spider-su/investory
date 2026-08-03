@@ -9,12 +9,12 @@ import org.testcontainers.containers.PostgreSQLContainer;
 @ActiveProfiles("test-fast")
 public abstract class FastDatabaseTest {
 
-    private static final PostgreSQLContainer<?> DATABASE = FastDatabase.container();
+  private static final PostgreSQLContainer<?> DATABASE = FastDatabase.container();
 
-    @DynamicPropertySource
-    protected static void databaseProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", DATABASE::getJdbcUrl);
-        registry.add("spring.datasource.username", DATABASE::getUsername);
-        registry.add("spring.datasource.password", DATABASE::getPassword);
-    }
+  @DynamicPropertySource
+  protected static void databaseProperties(DynamicPropertyRegistry registry) {
+    registry.add("spring.datasource.url", DATABASE::getJdbcUrl);
+    registry.add("spring.datasource.username", DATABASE::getUsername);
+    registry.add("spring.datasource.password", DATABASE::getPassword);
+  }
 }

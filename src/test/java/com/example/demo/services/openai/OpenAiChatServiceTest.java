@@ -1,18 +1,20 @@
 package com.example.demo.services.openai;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-
 class OpenAiChatServiceTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+  private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @Test
-    void extractOutputText_combinesTextParts() throws Exception {
-        JsonNode response = objectMapper.readTree("""
+  @Test
+  void extractOutputText_combinesTextParts() throws Exception {
+    JsonNode response =
+        objectMapper.readTree(
+            """
                 {
                   "output": [
                     {
@@ -27,20 +29,20 @@ class OpenAiChatServiceTest {
                 }
                 """);
 
-        assertEquals("First\nSecond", OpenAiChatService.extractOutputText(response));
-    }
+    assertEquals("First\nSecond", OpenAiChatService.extractOutputText(response));
+  }
 
-    @Test
-    void buildInput_addsPortfolioContextWhenAvailable() {
-        String input = OpenAiChatService.buildInput("What is my balance?", "Balance $100; Cash $10");
+  @Test
+  void buildInput_addsPortfolioContextWhenAvailable() {
+    String input = OpenAiChatService.buildInput("What is my balance?", "Balance $100; Cash $10");
 
-        org.junit.jupiter.api.Assertions.assertTrue(input.contains("What is my balance?"));
-        org.junit.jupiter.api.Assertions.assertTrue(input.contains("Balance $100; Cash $10"));
-        org.junit.jupiter.api.Assertions.assertTrue(input.contains("source of truth"));
-    }
+    org.junit.jupiter.api.Assertions.assertTrue(input.contains("What is my balance?"));
+    org.junit.jupiter.api.Assertions.assertTrue(input.contains("Balance $100; Cash $10"));
+    org.junit.jupiter.api.Assertions.assertTrue(input.contains("source of truth"));
+  }
 
-    @Test
-    void buildInput_returnsOriginalMessageWithoutContext() {
-        assertEquals("Explain an ETF", OpenAiChatService.buildInput("Explain an ETF", ""));
-    }
+  @Test
+  void buildInput_returnsOriginalMessageWithoutContext() {
+    assertEquals("Explain an ETF", OpenAiChatService.buildInput("Explain an ETF", ""));
+  }
 }

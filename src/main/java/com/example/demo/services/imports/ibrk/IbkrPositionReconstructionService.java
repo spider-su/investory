@@ -87,9 +87,9 @@ public class IbkrPositionReconstructionService {
   }
 
   private CanonicalTrade toCanonicalTrade(CashOperation operation) {
-      if (operation.getAccount() == null) {
-        return null;
-      }
+    if (operation.getAccount() == null) {
+      return null;
+    }
     if (operation.getType() != CashOperationType.STOCK_PURCHASE
         && operation.getType() != CashOperationType.STOCK_SELL
         && operation.getType() != CashOperationType.TRANSFER) {
@@ -104,7 +104,15 @@ public class IbkrPositionReconstructionService {
     Double commission = parseDouble(commentField(operation.getComment(), "ibkrCommission"));
     String rawSymbol = commentField(operation.getComment(), "ibkrRawSymbol");
     return new CanonicalTrade(
-        operation, rawType, symbol, rawSymbol, description, quantity, price, grossAmount, commission);
+        operation,
+        rawType,
+        symbol,
+        rawSymbol,
+        description,
+        quantity,
+        price,
+        grossAmount,
+        commission);
   }
 
   private void applyTrade(
@@ -122,8 +130,13 @@ public class IbkrPositionReconstructionService {
     ReconstructedPosition position =
         positions.computeIfAbsent(
             op.getAccount() + "|" + tx.symbol(),
-            ignored -> new ReconstructedPosition(
-                op.getAccount(), op.getAssetId(), tx.symbol(), op.getSourceAssetSymbol(), op.getCurrency()));
+            ignored ->
+                new ReconstructedPosition(
+                    op.getAccount(),
+                    op.getAssetId(),
+                    tx.symbol(),
+                    op.getSourceAssetSymbol(),
+                    op.getCurrency()));
 
     if (op.getType() == CashOperationType.STOCK_PURCHASE) {
       if (tx.quantity() == null || Math.abs(tx.quantity()) < EPSILON) {
@@ -359,7 +372,8 @@ public class IbkrPositionReconstructionService {
   }
 
   private boolean isBondRedemption(CanonicalTrade tx) {
-    if (tx.operation().getType() != CashOperationType.TRANSFER || !StringUtils.hasText(tx.symbol())) {
+    if (tx.operation().getType() != CashOperationType.TRANSFER
+        || !StringUtils.hasText(tx.symbol())) {
       return false;
     }
     String rawType = tx.rawType() == null ? "" : tx.rawType().trim().toLowerCase(Locale.ROOT);
@@ -388,9 +402,13 @@ public class IbkrPositionReconstructionService {
             validationPositions.computeIfAbsent(
                 positionKey,
                 ignored -> {
-                  ReconstructedPosition seeded = new ReconstructedPosition(
-                      operation.getAccount(), operation.getAssetId(), operation.getSymbol(),
-                      operation.getSourceAssetSymbol(), operation.getCurrency());
+                  ReconstructedPosition seeded =
+                      new ReconstructedPosition(
+                          operation.getAccount(),
+                          operation.getAssetId(),
+                          operation.getSymbol(),
+                          operation.getSourceAssetSymbol(),
+                          operation.getCurrency());
                   ReconstructedPosition existing = positions.get(positionKey);
                   if (existing != null) {
                     seeded.quantity = existing.quantity;
@@ -472,7 +490,8 @@ public class IbkrPositionReconstructionService {
     }
   }
 
-  public record ReconstructionResult(List<OpenedPosition> openedPositions, List<ClosedPosition> closedPositions) {}
+  public record ReconstructionResult(
+      List<OpenedPosition> openedPositions, List<ClosedPosition> closedPositions) {}
 
   private record CanonicalTrade(
       CashOperation operation,
@@ -496,7 +515,11 @@ public class IbkrPositionReconstructionService {
     private double costBasis;
 
     private ReconstructedPosition(
-        Long account, Long assetId, String symbol, String sourceAssetSymbol, CurrencyType currency) {
+        Long account,
+        Long assetId,
+        String symbol,
+        String sourceAssetSymbol,
+        CurrencyType currency) {
       this.account = account;
       this.assetId = Objects.requireNonNull(assetId, "IBKR canonical asset id");
       this.symbol = symbol;

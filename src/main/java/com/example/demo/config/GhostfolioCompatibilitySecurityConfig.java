@@ -19,30 +19,28 @@ import org.springframework.security.web.SecurityFilterChain;
 @Profile("ghostfolio")
 public class GhostfolioCompatibilitySecurityConfig {
 
-    @Bean
-    @Order(1)
-    SecurityFilterChain ghostfolioCompatibilitySecurityFilterChain(HttpSecurity http)
-            throws Exception {
-        return http
-                .securityMatcher(
-                        "/api/v1/info",
-                        "/api/v1/health",
-                        "/api/v1/auth/**",
-                        "/api/v1/user",
-                        "/api/v1/user/**",
-                        "/api/v1/account",
-                        "/api/v1/account/**",
-                        "/api/v1/activities",
-                        "/api/v1/activities/**",
-                        "/api/v1/portfolio/**",
-                        "/api/v2/portfolio/**",
-                        "/api/assets/**")
-                .csrf(csrf -> csrf.disable())
-                .cors(Customizer.withDefaults())
-                .sessionManagement(
-                        session ->
-                                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll())
-                .build();
-    }
+  @Bean
+  @Order(1)
+  SecurityFilterChain ghostfolioCompatibilitySecurityFilterChain(HttpSecurity http)
+      throws Exception {
+    return http.securityMatcher(
+            "/api/v1/info",
+            "/api/v1/health",
+            "/api/v1/auth/**",
+            "/api/v1/user",
+            "/api/v1/user/**",
+            "/api/v1/account",
+            "/api/v1/account/**",
+            "/api/v1/activities",
+            "/api/v1/activities/**",
+            "/api/v1/portfolio/**",
+            "/api/v2/portfolio/**",
+            "/api/assets/**")
+        .csrf(csrf -> csrf.disable())
+        .cors(Customizer.withDefaults())
+        .sessionManagement(
+            session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll())
+        .build();
+  }
 }

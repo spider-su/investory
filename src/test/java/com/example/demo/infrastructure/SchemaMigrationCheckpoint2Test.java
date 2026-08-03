@@ -21,7 +21,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * developer database, so the destructive schema reset below cannot touch real data.
  */
 @Testcontainers
-//TODO: fix
+// TODO: fix
 @Disabled
 class SchemaMigrationCheckpoint2Test {
 
@@ -56,7 +56,8 @@ class SchemaMigrationCheckpoint2Test {
    */
   private void assertDisposableTestDatabase() {
     String url = dbUrl();
-    if (url == null || !url.matches("^jdbc:postgresql://.*/" + TEST_DATABASE_NAME + "(?:\\?.*)?$")) {
+    if (url == null
+        || !url.matches("^jdbc:postgresql://.*/" + TEST_DATABASE_NAME + "(?:\\?.*)?$")) {
       throw new IllegalStateException(
           "Refusing to run migration test against non-disposable database: " + url);
     }
@@ -65,7 +66,6 @@ class SchemaMigrationCheckpoint2Test {
   @BeforeEach
   void recreateDatabaseFromEmptySchema() throws Exception {
     assertDisposableTestDatabase();
-
 
     Flyway flyway =
         Flyway.configure()
@@ -191,18 +191,19 @@ class SchemaMigrationCheckpoint2Test {
       assertTrue(viewExists(statement, "v_position_valuation_validation"));
       assertTrue(viewExists(statement, "v_account_daily_reconciliation"));
       assertTrue(viewExists(statement, "v_non_usd_closed_trade_reconciliation"));
-      assertTrue(
-          materializedViewExists(statement, "reporting_trade_settlement_reconciliation"));
+      assertTrue(materializedViewExists(statement, "reporting_trade_settlement_reconciliation"));
       assertTrue(viewExists(statement, "reporting_trade_settlement_reconciliation_by_account"));
       assertTrue(viewExists(statement, "v_reporting_validation_summary"));
       assertTrue(viewExists(statement, "v_position_currency_validation"));
       assertTrue(columnExists(statement, "v_normalized_daily_price", "selection_priority"));
       assertTrue(columnExists(statement, "v_normalized_daily_price", "selected_price_date"));
-      assertTrue(columnExists(statement, "v_normalized_daily_price", "underlying_observation_date"));
+      assertTrue(
+          columnExists(statement, "v_normalized_daily_price", "underlying_observation_date"));
       assertTrue(columnExists(statement, "v_normalized_daily_price", "price_age_days"));
       assertTrue(columnExists(statement, "v_reconstructed_position_daily", "contract_multiplier"));
       assertTrue(columnExists(statement, "v_reconstructed_position_daily", "selected_price_date"));
-      assertTrue(columnExists(statement, "v_account_daily_reconciliation", "market_value_difference"));
+      assertTrue(
+          columnExists(statement, "v_account_daily_reconciliation", "market_value_difference"));
       assertTrue(columnExists(statement, "v_non_usd_closed_trade_reconciliation", "anomaly_code"));
       assertTrue(
           relationColumnExists(
@@ -218,7 +219,9 @@ class SchemaMigrationCheckpoint2Test {
               statement, "reporting_trade_settlement_reconciliation", "anomaly_code"));
       assertTrue(
           relationColumnExists(
-              statement, "reporting_trade_settlement_reconciliation", "position_close_result_base"));
+              statement,
+              "reporting_trade_settlement_reconciliation",
+              "position_close_result_base"));
       assertTrue(
           relationColumnExists(
               statement, "reporting_trade_settlement_reconciliation", "carried_close_quantity"));
@@ -493,7 +496,11 @@ class SchemaMigrationCheckpoint2Test {
                'BUY', 5, 'USD', 'USD', 'USD', 'USD', timestamptz '2025-07-03 12:00:00+00', 454.716, 2273.58)
           """);
 
-      assertEquals(0, singleInt(statement, """
+      assertEquals(
+          0,
+          singleInt(
+              statement,
+              """
           select count(*)
           from investory.v_position_currency_validation
           where asset_id = (select id from investory.assets where symbol = 'MSFT.US')
@@ -504,14 +511,18 @@ class SchemaMigrationCheckpoint2Test {
 
       assertEquals(
           "USD",
-          singleString(statement, """
+          singleString(
+              statement,
+              """
               select cost_currency
               from investory.positions
               where id = -910002
               """));
       assertEquals(
           "USD",
-          singleString(statement, """
+          singleString(
+              statement,
+              """
               select cost_currency
               from investory.positions
               where id = -910003
@@ -695,9 +706,10 @@ class SchemaMigrationCheckpoint2Test {
               where account_id = -950001
               """));
 
-        assertTrue(exists(
-                statement,
-                """
+      assertTrue(
+          exists(
+              statement,
+              """
                         select 1
                         from investory.account_statistics
                         where account_id = -950001
@@ -715,9 +727,10 @@ class SchemaMigrationCheckpoint2Test {
               where account_id = -950001
               """));
 
-        assertTrue(exists(
-                statement,
-                """
+      assertTrue(
+          exists(
+              statement,
+              """
                         select 1
                         from investory.reporting_account_daily_cashflow_reconciliation
                         where account_id = -950001

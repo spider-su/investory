@@ -16,7 +16,11 @@ public final class PortfolioAssertions {
   public static void expectCashToReconcile(
       double startingCash, List<CashOperation> operations, double expectedEndingCash) {
     double operationTotal =
-        operations.stream().map(CashOperation::getAmount).filter(amount -> amount != null).mapToDouble(Double::doubleValue).sum();
+        operations.stream()
+            .map(CashOperation::getAmount)
+            .filter(amount -> amount != null)
+            .mapToDouble(Double::doubleValue)
+            .sum();
 
     assertEquals(expectedEndingCash, startingCash + operationTotal, EPSILON);
   }
@@ -24,7 +28,11 @@ public final class PortfolioAssertions {
   public static void expectPositionToReconcile(
       double startingQuantity, List<OpenedPosition> openPositions, double expectedEndingQuantity) {
     double openQuantity =
-        openPositions.stream().map(OpenedPosition::getVolume).filter(volume -> volume != null).mapToDouble(Double::doubleValue).sum();
+        openPositions.stream()
+            .map(OpenedPosition::getVolume)
+            .filter(volume -> volume != null)
+            .mapToDouble(Double::doubleValue)
+            .sum();
 
     assertEquals(expectedEndingQuantity, startingQuantity + openQuantity, EPSILON);
   }

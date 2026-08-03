@@ -5,11 +5,6 @@ import com.example.demo.infrastructure.repository.OpenedPositionRepository;
 import com.example.demo.infrastructure.repository.account.AccountStatistics;
 import com.example.demo.infrastructure.repository.account.AccountStatisticsRepository;
 import com.opencsv.CSVWriter;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.io.FileWriter;
 import java.io.IOException;
 import java.time.LocalDate;
@@ -27,6 +22,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
@@ -92,22 +91,18 @@ public class YahooExportService {
   private static final ZoneId DEFAULT_ZONE = ZoneId.of("Europe/Warsaw");
   private static final double EPSILON = 1.0e-6;
 
-  /**
-   * Exchange suffix hints for IBKR bare tickers that have NO XTB counterpart to derive from.
-   */
-  private static final Map<String, String> IBKR_EXCHANGE_HINTS = Map.ofEntries(
-      Map.entry("VWRA", ".L"),
-      Map.entry("CSPX", ".L"),
-      Map.entry("IUVL", ".L"),
-      Map.entry("JGPI", ".MU"),
-      Map.entry("JEPG", ".L"),
-      Map.entry("DTLA", ".L"),
-      Map.entry("BRKB", "")
-  );
+  /** Exchange suffix hints for IBKR bare tickers that have NO XTB counterpart to derive from. */
+  private static final Map<String, String> IBKR_EXCHANGE_HINTS =
+      Map.ofEntries(
+          Map.entry("VWRA", ".L"),
+          Map.entry("CSPX", ".L"),
+          Map.entry("IUVL", ".L"),
+          Map.entry("JGPI", ".MU"),
+          Map.entry("JEPG", ".L"),
+          Map.entry("DTLA", ".L"),
+          Map.entry("BRKB", ""));
 
-  /**
-   * Accounts to include in the Yahoo export. Set to empty to include ALL accounts.
-   */
+  /** Accounts to include in the Yahoo export. Set to empty to include ALL accounts. */
   // Configured via app.export.yahoo.accounts in application.yml
 
   public void exportToYahooCsv(String filePath) throws IOException {
@@ -119,9 +114,10 @@ public class YahooExportService {
    * Builds the CSV export payload for Yahoo Finance portfolio tracking.
    *
    * <p>Strategy:
+   *
    * <ol>
-   *   <li>Open positions grouped by Yahoo symbol → one BUY row per symbol with
-   *       volume-weighted average price and total quantity.
+   *   <li>Open positions grouped by Yahoo symbol → one BUY row per symbol with volume-weighted
+   *       average price and total quantity.
    *   <li>Free cash balance from account summary fields → single USDT-USD BUY row.
    * </ol>
    */
@@ -180,8 +176,7 @@ public class YahooExportService {
     // Cash balance from account summary fields -> USDT-USD
     double totalCashUsd = computeTotalCashBalanceUsd();
     if (totalCashUsd > EPSILON) {
-      rows.add(
-          buildRow(USDT_TICKER, "1.0", currentMonthStart(), 1.0, totalCashUsd));
+      rows.add(buildRow(USDT_TICKER, "1.0", currentMonthStart(), 1.0, totalCashUsd));
     }
 
     rows.sort(Comparator.comparing(row -> row[IDX_SYMBOL]));
@@ -190,16 +185,17 @@ public class YahooExportService {
   }
 
   private double computeTotalCashBalanceUsd() {
-    List<AccountStatistics> statistics = accountStatisticsRepository.findAll().stream()
-        .filter(stat -> stat.getCashBalance() != null)
-        .filter(stat -> exportAccounts.isEmpty()
-            || (stat.getAccountId() != null
-                && exportAccounts.contains(String.valueOf(stat.getAccountId()))))
-        .toList();
+    List<AccountStatistics> statistics =
+        accountStatisticsRepository.findAll().stream()
+            .filter(stat -> stat.getCashBalance() != null)
+            .filter(
+                stat ->
+                    exportAccounts.isEmpty()
+                        || (stat.getAccountId() != null
+                            && exportAccounts.contains(String.valueOf(stat.getAccountId()))))
+            .toList();
     if (!statistics.isEmpty()) {
-      return statistics.stream()
-          .mapToDouble(stat -> safe(stat.getCashBalance()))
-          .sum();
+      return statistics.stream().mapToDouble(stat -> safe(stat.getCashBalance())).sum();
     }
     return 0.0;
   }
@@ -239,9 +235,7 @@ public class YahooExportService {
     }
   }
 
-  /**
-   * Builds a resolution map: DB symbol → canonical Yahoo symbol.
-   */
+  /** Builds a resolution map: DB symbol → canonical Yahoo symbol. */
   private Map<String, String> buildSymbolResolutionMap(List<OpenedPosition> openedPositions) {
     Map<String, String> tickerToYahoo = new HashMap<>();
     Set<String> allDbSymbols = new HashSet<>();
@@ -274,7 +268,6 @@ public class YahooExportService {
     return resolution;
   }
 
-
   private static String resolveSymbol(String dbSymbol, Map<String, String> resolution) {
     if (dbSymbol == null) {
       return "";
@@ -284,11 +277,7 @@ public class YahooExportService {
   }
 
   private String[] buildRow(
-      String symbol,
-      String currentPrice,
-      LocalDate month,
-      double price,
-      double quantity) {
+      String symbol, String currentPrice, LocalDate month, double price, double quantity) {
     String[] row = new String[HEADER.length];
     java.util.Arrays.fill(row, "");
     LocalDateTime rowTime = month.atStartOfDay();
@@ -365,5 +354,4 @@ public class YahooExportService {
   }
 
   private record CsvExportPayload(List<String[]> rows, ZonedDateTime lastSnapshotAt) {}
-
 }

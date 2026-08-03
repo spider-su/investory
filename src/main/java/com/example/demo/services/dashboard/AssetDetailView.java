@@ -2,6 +2,7 @@ package com.example.demo.services.dashboard;
 
 import com.example.demo.infrastructure.CurrencyType;
 import java.time.ZonedDateTime;
+import java.util.List;
 
 public record AssetDetailView(
     Long id,
@@ -15,7 +16,11 @@ public record AssetDetailView(
     Double marketPrice,
     Double marketPriceUsd,
     String priceSource,
-    ZonedDateTime priceUpdatedAt) {
+    ZonedDateTime priceUpdatedAt,
+    List<AssetHoldingView> holdings,
+    double totalQuantity,
+    Double totalMarketValue,
+    Double totalUnrealizedProfitLoss) {
 
   public boolean hasYahooSymbol() {
     return yahooSymbol != null && !yahooSymbol.isBlank();
@@ -23,5 +28,9 @@ public record AssetDetailView(
 
   public String yahooFinanceUrl() {
     return hasYahooSymbol() ? "https://finance.yahoo.com/quote/" + yahooSymbol : null;
+  }
+
+  public boolean hasHoldings() {
+    return holdings != null && !holdings.isEmpty();
   }
 }

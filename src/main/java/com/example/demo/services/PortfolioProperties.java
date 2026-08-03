@@ -10,6 +10,6 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class PortfolioProperties {
 
-    @Value("${app.portfolio.data-quality-issues-enabled:false}")
-    private boolean dataQualityIssuesEnabled;
+  @Value("${app.portfolio.data-quality-issues-enabled:false}")
+  private boolean dataQualityIssuesEnabled;
 }

@@ -1,5 +1,10 @@
 package com.example.demo.services.imports.yahoo;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.when;
+
 import com.example.demo.infrastructure.CurrencyType;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
 import com.example.demo.infrastructure.repository.account.AccountStatistics;
@@ -8,12 +13,6 @@ import com.example.demo.services.exports.yahoo.YahooExportService;
 import com.example.demo.testsupport.portfolio.PortfolioBuilders;
 import com.example.demo.testsupport.portfolio.PortfolioTestData;
 import com.opencsv.CSVReader;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
 import java.io.FileReader;
 import java.nio.file.Path;
 import java.time.LocalDate;
@@ -21,11 +20,11 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.when;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class YahooExportServiceTest {
@@ -171,8 +170,8 @@ class YahooExportServiceTest {
       String[] merged = findRowBySymbol(rows, "VWRA.L").orElseThrow();
       assertEquals("15", merged[11]); // 5 + 10 total shares
       assertEquals("BUY", merged[16]);
-      assertTrue(findRowBySymbol(rows, "VWRA").isEmpty(),
-          "IBKR bare ticker should be merged into VWRA.L");
+      assertTrue(
+          findRowBySymbol(rows, "VWRA").isEmpty(), "IBKR bare ticker should be merged into VWRA.L");
     }
   }
 
@@ -184,9 +183,7 @@ class YahooExportServiceTest {
     when(openedPositionRepository.findAll()).thenReturn(List.of());
     when(accountStatisticsRepository.findAll())
         .thenReturn(
-            List.of(
-                accountStatistics(51499241L, 12699.0),
-                accountStatistics(51548444L, 8000.0)));
+            List.of(accountStatistics(51499241L, 12699.0), accountStatistics(51548444L, 8000.0)));
 
     service.exportToYahooCsv(output.toString());
 
@@ -230,15 +227,14 @@ class YahooExportServiceTest {
   }
 
   private Optional<String[]> findRowBySymbol(List<String[]> rows, String exactSymbol) {
-    return rows.stream()
-        .skip(1)
-        .filter(row -> exactSymbol.equals(row[0]))
-        .findFirst();
+    return rows.stream().skip(1).filter(row -> exactSymbol.equals(row[0])).findFirst();
   }
 
   private static AccountStatistics accountStatistics(Long accountId, Double cashBalance) {
     return PortfolioBuilders.accountStatistics()
-        .account(new PortfolioTestData.AccountDefinition(accountId, "Cash Account", CurrencyType.USD, "Broker"))
+        .account(
+            new PortfolioTestData.AccountDefinition(
+                accountId, "Cash Account", CurrencyType.USD, "Broker"))
         .balances(cashBalance, 0.0, 0.0)
         .build();
   }

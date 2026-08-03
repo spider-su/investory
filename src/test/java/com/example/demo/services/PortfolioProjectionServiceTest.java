@@ -2,8 +2,8 @@ package com.example.demo.services;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -13,10 +13,6 @@ import com.example.demo.infrastructure.CashOperationType;
 import com.example.demo.infrastructure.CurrencyType;
 import com.example.demo.infrastructure.PositionSettlementModel;
 import com.example.demo.infrastructure.PositionType;
-import com.example.demo.infrastructure.repository.account.Account;
-import com.example.demo.infrastructure.repository.account.AccountRepository;
-import com.example.demo.infrastructure.repository.account.AccountDaily;
-import com.example.demo.infrastructure.repository.account.AccountDailyRepository;
 import com.example.demo.infrastructure.repository.Asset;
 import com.example.demo.infrastructure.repository.AssetPriceHistoryRepository;
 import com.example.demo.infrastructure.repository.AssetRepository;
@@ -27,6 +23,10 @@ import com.example.demo.infrastructure.repository.ClosedPositionRepository;
 import com.example.demo.infrastructure.repository.NormalizedCashOperationRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
+import com.example.demo.infrastructure.repository.account.Account;
+import com.example.demo.infrastructure.repository.account.AccountDaily;
+import com.example.demo.infrastructure.repository.account.AccountDailyRepository;
+import com.example.demo.infrastructure.repository.account.AccountRepository;
 import com.example.demo.services.currency.CurrencyRateService;
 import com.example.demo.testsupport.portfolio.PortfolioBuilders;
 import com.example.demo.testsupport.portfolio.PortfolioTestData;
@@ -71,7 +71,8 @@ class PortfolioProjectionServiceTest {
               @SuppressWarnings("unchecked")
               java.util.Collection<Long> accountIds = invocation.getArgument(0);
               return accountRepository.findAll().stream()
-                  .filter(account -> account.getId() != null && accountIds.contains(account.getId()))
+                  .filter(
+                      account -> account.getId() != null && accountIds.contains(account.getId()))
                   .toList();
             });
     org.mockito.Mockito.lenient()
@@ -81,7 +82,8 @@ class PortfolioProjectionServiceTest {
               @SuppressWarnings("unchecked")
               java.util.Collection<Long> accountIds = invocation.getArgument(0);
               return accountRepository.findAll().stream()
-                  .filter(account -> account.getId() != null && accountIds.contains(account.getId()))
+                  .filter(
+                      account -> account.getId() != null && accountIds.contains(account.getId()))
                   .<AccountRepository.AccountPortfolioCurrencyRow>map(
                       account ->
                           new AccountRepository.AccountPortfolioCurrencyRow() {
@@ -104,7 +106,10 @@ class PortfolioProjectionServiceTest {
               @SuppressWarnings("unchecked")
               java.util.Collection<Long> accountIds = invocation.getArgument(0);
               return openedPositionRepository.findAll().stream()
-                  .filter(position -> position.getAccount() != null && accountIds.contains(position.getAccount()))
+                  .filter(
+                      position ->
+                          position.getAccount() != null
+                              && accountIds.contains(position.getAccount()))
                   .toList();
             });
     org.mockito.Mockito.lenient()
@@ -114,7 +119,10 @@ class PortfolioProjectionServiceTest {
               @SuppressWarnings("unchecked")
               java.util.Collection<Long> accountIds = invocation.getArgument(0);
               return closedPositionRepository.findAll().stream()
-                  .filter(position -> position.getAccount() != null && accountIds.contains(position.getAccount()))
+                  .filter(
+                      position ->
+                          position.getAccount() != null
+                              && accountIds.contains(position.getAccount()))
                   .toList();
             });
     org.mockito.Mockito.lenient()
@@ -124,7 +132,10 @@ class PortfolioProjectionServiceTest {
               @SuppressWarnings("unchecked")
               java.util.Collection<Long> accountIds = invocation.getArgument(0);
               return cashOperationRepository.findAll().stream()
-                  .filter(operation -> operation.getAccount() != null && accountIds.contains(operation.getAccount()))
+                  .filter(
+                      operation ->
+                          operation.getAccount() != null
+                              && accountIds.contains(operation.getAccount()))
                   .toList();
             });
     org.mockito.Mockito.lenient()
@@ -133,17 +144,19 @@ class PortfolioProjectionServiceTest {
             invocation -> {
               @SuppressWarnings("unchecked")
               java.util.Collection<Long> accountIds = invocation.getArgument(0);
-              return fallbackNormalizer.normalize(cashOperationRepository.findAllByAccountIn(accountIds)).stream()
+              return fallbackNormalizer
+                  .normalize(cashOperationRepository.findAllByAccountIn(accountIds))
+                  .stream()
                   .map(
                       normalized ->
                           normalizedRow(
                               normalized.operation().getId(),
                               normalized.operation().getAccount(),
-                               accountCurrency(normalized.operation()).name(),
+                              accountCurrency(normalized.operation()).name(),
                               normalized.operation().getCurrency() != null
                                   ? normalized.operation().getCurrency().name()
                                   : null,
-                               defaultPortfolioBaseCurrency(normalized.operation()).name(),
+                              defaultPortfolioBaseCurrency(normalized.operation()).name(),
                               normalized.operation().getType() != null
                                   ? normalized.operation().getType().name()
                                   : null,
@@ -151,7 +164,7 @@ class PortfolioProjectionServiceTest {
                               normalized.operation().getSymbol(),
                               normalized.operation().getAmount(),
                               amountInBaseCurrency(normalized.operation()),
-                               normalized.operation().getAmount(),
+                              normalized.operation().getAmount(),
                               normalized.operation().getComment(),
                               normalized.operation().getDate() != null
                                   ? normalized.operation().getDate().toLocalDate()
@@ -196,12 +209,17 @@ class PortfolioProjectionServiceTest {
     when(closedPositionRepository.findAll()).thenReturn(List.of());
     when(cashOperationRepository.findAll()).thenReturn(List.of(deposit, dividend));
     when(assetRepository.findAll()).thenReturn(List.of(asset));
-    when(currencyRateService.convertToBaseCurrency(org.mockito.ArgumentMatchers.anyDouble(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+    when(currencyRateService.convertToBaseCurrency(
+            org.mockito.ArgumentMatchers.anyDouble(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any()))
         .thenAnswer(invocation -> invocation.getArgument(0));
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> accountDailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDaily>> accountDailyCaptor =
+        ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(accountDailyCaptor.capture());
     verify(accountDailyRepository).refreshReportingViews();
     assertFalse(toList(accountDailyCaptor.getValue()).isEmpty());
@@ -254,7 +272,10 @@ class PortfolioProjectionServiceTest {
     when(cashOperationRepository.findAll()).thenReturn(List.of(deposit));
     when(assetRepository.findAll()).thenReturn(List.of(asset));
     when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
-        .thenReturn(List.of(historicalPrice("AAPL.US", LocalDate.now(ZoneId.of("Europe/Warsaw")), 120.0, "USD", 95)));
+        .thenReturn(
+            List.of(
+                historicalPrice(
+                    "AAPL.US", LocalDate.now(ZoneId.of("Europe/Warsaw")), 120.0, "USD", 95)));
     when(currencyRateService.convertToBaseCurrency(
             org.mockito.ArgumentMatchers.anyDouble(),
             org.mockito.ArgumentMatchers.any(),
@@ -276,7 +297,8 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> accountDailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDaily>> accountDailyCaptor =
+        ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(accountDailyCaptor.capture());
     AccountDaily latest =
         toList(accountDailyCaptor.getValue()).stream()
@@ -287,7 +309,6 @@ class PortfolioProjectionServiceTest {
     assertEquals(120.0, latest.getMarketValue(), 0.01);
     assertEquals(100.0, latest.getCostBase(), 0.01);
     assertEquals(20.0, latest.getUnrealizedProfit(), 0.01);
-
   }
 
   @Test
@@ -458,10 +479,7 @@ class PortfolioProjectionServiceTest {
     when(cashOperationRepository.findAll()).thenReturn(List.of(deposit, purchase, sale));
     when(assetRepository.findAll()).thenReturn(List.of(asset));
     when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
-        .thenReturn(
-            List.of(
-                historicalPrice(
-                    "CSPX.UK", tradeDate.toLocalDate(), 100.0, "USD", 95)));
+        .thenReturn(List.of(historicalPrice("CSPX.UK", tradeDate.toLocalDate(), 100.0, "USD", 95)));
     when(currencyRateService.convertToBaseCurrency(
             org.mockito.ArgumentMatchers.anyDouble(),
             org.mockito.ArgumentMatchers.any(),
@@ -514,8 +532,24 @@ class PortfolioProjectionServiceTest {
     when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
         .thenReturn(
             List.of(
-                historicalPrice("AAPL.US", tradeDate.toLocalDate(), 95.0, "USD", 90, 1.0, "IBKR_TRADE", "IBKR_TRADE_OBSERVATION"),
-                historicalPrice("AAPL.US", tradeDate.toLocalDate(), 110.0, "USD", 95, 1.0, "STOOQ", "EXACT_LISTING_MARKET_CLOSE")));
+                historicalPrice(
+                    "AAPL.US",
+                    tradeDate.toLocalDate(),
+                    95.0,
+                    "USD",
+                    90,
+                    1.0,
+                    "IBKR_TRADE",
+                    "IBKR_TRADE_OBSERVATION"),
+                historicalPrice(
+                    "AAPL.US",
+                    tradeDate.toLocalDate(),
+                    110.0,
+                    "USD",
+                    95,
+                    1.0,
+                    "STOOQ",
+                    "EXACT_LISTING_MARKET_CLOSE")));
     when(currencyRateService.convertToBaseCurrency(
             org.mockito.ArgumentMatchers.anyDouble(),
             org.mockito.ArgumentMatchers.eq(CurrencyType.USD),
@@ -558,7 +592,15 @@ class PortfolioProjectionServiceTest {
     when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
         .thenReturn(
             List.of(
-                historicalPrice("EMIM.UK", tradeDate.toLocalDate(), 4.5, "USD", 95, 10.0, "STOOQ", "EXACT_LISTING_SCALED")));
+                historicalPrice(
+                    "EMIM.UK",
+                    tradeDate.toLocalDate(),
+                    4.5,
+                    "USD",
+                    95,
+                    10.0,
+                    "STOOQ",
+                    "EXACT_LISTING_SCALED")));
     when(currencyRateService.convertToBaseCurrency(
             org.mockito.ArgumentMatchers.anyDouble(),
             org.mockito.ArgumentMatchers.eq(CurrencyType.USD),
@@ -604,7 +646,10 @@ class PortfolioProjectionServiceTest {
     when(cashOperationRepository.findAll()).thenReturn(List.of());
     when(assetRepository.findAll()).thenReturn(List.of(asset));
     when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
-        .thenReturn(List.of(historicalPrice("AAPL.US", LocalDate.now(ZoneId.of("Europe/Warsaw")), 120.0, "USD", 95)));
+        .thenReturn(
+            List.of(
+                historicalPrice(
+                    "AAPL.US", LocalDate.now(ZoneId.of("Europe/Warsaw")), 120.0, "USD", 95)));
     when(currencyRateService.convertToBaseCurrency(
             org.mockito.ArgumentMatchers.anyDouble(),
             org.mockito.ArgumentMatchers.eq(CurrencyType.USD),
@@ -786,7 +831,8 @@ class PortfolioProjectionServiceTest {
     when(cashOperationRepository.findAll()).thenReturn(List.of(deposit, stockPurchase));
     when(assetRepository.findAll()).thenReturn(List.of(asset));
     when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
-        .thenReturn(List.of(historicalPrice("JGPI.DE", LocalDate.parse("2025-03-03"), 26.65, "USD", 95)));
+        .thenReturn(
+            List.of(historicalPrice("JGPI.DE", LocalDate.parse("2025-03-03"), 26.65, "USD", 95)));
     when(currencyRateService.convertToBaseCurrency(
             org.mockito.ArgumentMatchers.anyDouble(),
             org.mockito.ArgumentMatchers.eq(CurrencyType.USD),
@@ -877,12 +923,7 @@ class PortfolioProjectionServiceTest {
                     1.0,
                     "XTB_TRADE_OPEN",
                     "XTB_TRADE_OPEN_OBSERVATION"),
-                historicalPrice(
-                    symbol,
-                    quoteDate.toLocalDate(),
-                    25.0,
-                    "USD",
-                    95),
+                historicalPrice(symbol, quoteDate.toLocalDate(), 25.0, "USD", 95),
                 historicalPrice(
                     symbol,
                     closeDate.toLocalDate(),
@@ -1278,7 +1319,8 @@ class PortfolioProjectionServiceTest {
 
   @Test
   @SuppressWarnings("unchecked")
-  void recalculateAll_excludesIbkrBondCallFromAccountStatisticsNetDepositAndDoesNotDoubleCountCash() {
+  void
+      recalculateAll_excludesIbkrBondCallFromAccountStatisticsNetDepositAndDoesNotDoubleCountCash() {
     ZonedDateTime depositDate = ZonedDateTime.parse("2026-01-05T12:00:00Z");
     ZonedDateTime callDate = ZonedDateTime.parse("2026-02-27T12:00:00Z");
 
@@ -1729,14 +1771,17 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> accountDailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDaily>> accountDailyCaptor =
+        ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(accountDailyCaptor.capture());
     List<AccountDaily> rows = toList(accountDailyCaptor.getValue());
 
     assertEquals(
         LocalDate.of(2026, 1, 16),
         rows.stream()
-            .filter(row -> row.getRealizedProfit() != null && Math.abs(row.getRealizedProfit()) > 0.0001)
+            .filter(
+                row ->
+                    row.getRealizedProfit() != null && Math.abs(row.getRealizedProfit()) > 0.0001)
             .findFirst()
             .orElseThrow()
             .getDate());
@@ -1772,7 +1817,8 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> accountDailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDaily>> accountDailyCaptor =
+        ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(accountDailyCaptor.capture());
     List<AccountDaily> rows = toList(accountDailyCaptor.getValue());
 
@@ -1842,7 +1888,11 @@ class PortfolioProjectionServiceTest {
   }
 
   private static AssetPriceHistoryRepository.HistoricalAssetPriceRow historicalPrice(
-      String symbol, LocalDate priceDate, Double closePrice, String currency, Integer qualityScore) {
+      String symbol,
+      LocalDate priceDate,
+      Double closePrice,
+      String currency,
+      Integer qualityScore) {
     return historicalPrice(
         symbol,
         priceDate,
@@ -1956,10 +2006,12 @@ class PortfolioProjectionServiceTest {
       return CurrencyType.USD;
     }
     return defaultAccounts().stream()
-        .filter(account -> account.getId() != null && account.getId().equals(operation.getAccount()))
+        .filter(
+            account -> account.getId() != null && account.getId().equals(operation.getAccount()))
         .map(Account::getCurrency)
         .findFirst()
-        .orElseGet(() -> operation.getCurrency() != null ? operation.getCurrency() : CurrencyType.USD);
+        .orElseGet(
+            () -> operation.getCurrency() != null ? operation.getCurrency() : CurrencyType.USD);
   }
 
   private static CurrencyType defaultPortfolioBaseCurrency(CashOperation operation) {
@@ -1967,7 +2019,8 @@ class PortfolioProjectionServiceTest {
       return CurrencyType.USD;
     }
     return defaultAccounts().stream()
-        .filter(account -> account.getId() != null && account.getId().equals(operation.getAccount()))
+        .filter(
+            account -> account.getId() != null && account.getId().equals(operation.getAccount()))
         .findFirst()
         .map(PortfolioProjectionServiceTest::defaultPortfolioBaseCurrency)
         .orElse(CurrencyType.USD);
@@ -2137,6 +2190,3 @@ class PortfolioProjectionServiceTest {
     return operation.getAmount();
   }
 }
-
-
-

@@ -19,6 +19,11 @@ public record MonthlyAttribution(
     double valuationAdjustments,
     double unresolvedResidual,
     List<AccountContribution> accounts) {
-    public record AccountContribution(String accountId, double openingValue, double closingValue,
-                                      double netFlow, double monthlyProfit, double contributionPct) {}
+  public record AccountContribution(
+      String accountId,
+      double openingValue,
+      double closingValue,
+      double netFlow,
+      double monthlyProfit,
+      double contributionPct) {}
 }

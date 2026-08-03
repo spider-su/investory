@@ -2,56 +2,55 @@ package com.example.demo.services.openai;
 
 import java.time.Clock;
 import java.time.LocalDate;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
- * Builds decision-oriented portfolio reviews. Investory remains the source of all portfolio
- * values; OpenAI explains changes, risks and possible decisions from the supplied context.
+ * Builds decision-oriented portfolio reviews. Investory remains the source of all portfolio values;
+ * OpenAI explains changes, risks and possible decisions from the supplied context.
  */
 @Service
 public class PortfolioAnalysisService {
 
-    private static final String CONVERSATION_PREFIX = "scheduled-analysis:";
+  private static final String CONVERSATION_PREFIX = "scheduled-analysis:";
 
-    private final OpenAiChatService openAiChatService;
-    private final Clock clock;
+  private final OpenAiChatService openAiChatService;
+  private final Clock clock;
 
-    @Autowired
-    public PortfolioAnalysisService(OpenAiChatService openAiChatService) {
-        this(openAiChatService, Clock.systemDefaultZone());
+  @Autowired
+  public PortfolioAnalysisService(OpenAiChatService openAiChatService) {
+    this(openAiChatService, Clock.systemDefaultZone());
+  }
+
+  public PortfolioAnalysisService(OpenAiChatService openAiChatService, Clock clock) {
+    this.openAiChatService = openAiChatService;
+    this.clock = clock;
+  }
+
+  public String monthlyReport() {
+    return analyze("monthly", monthlyPrompt(LocalDate.now(clock)));
+  }
+
+  public String quarterlyReport() {
+    return analyze("quarterly", quarterlyPrompt(LocalDate.now(clock)));
+  }
+
+  public String annualReport() {
+    return analyze("annual", annualPrompt(LocalDate.now(clock)));
+  }
+
+  private String analyze(String reportType, String prompt) {
+    String conversationId = CONVERSATION_PREFIX + reportType;
+    openAiChatService.resetConversation(conversationId);
+    try {
+      return openAiChatService.reply(conversationId, prompt);
+    } finally {
+      openAiChatService.resetConversation(conversationId);
     }
+  }
 
-    public PortfolioAnalysisService(OpenAiChatService openAiChatService, Clock clock) {
-        this.openAiChatService = openAiChatService;
-        this.clock = clock;
-    }
-
-    public String monthlyReport() {
-        return analyze("monthly", monthlyPrompt(LocalDate.now(clock)));
-    }
-
-    public String quarterlyReport() {
-        return analyze("quarterly", quarterlyPrompt(LocalDate.now(clock)));
-    }
-
-    public String annualReport() {
-        return analyze("annual", annualPrompt(LocalDate.now(clock)));
-    }
-
-    private String analyze(String reportType, String prompt) {
-        String conversationId = CONVERSATION_PREFIX + reportType;
-        openAiChatService.resetConversation(conversationId);
-        try {
-            return openAiChatService.reply(conversationId, prompt);
-        } finally {
-            openAiChatService.resetConversation(conversationId);
-        }
-    }
-
-    static String monthlyPrompt(LocalDate date) {
-        return """
+  static String monthlyPrompt(LocalDate date) {
+    return """
                 Produce the Investory monthly portfolio health report for %s.
 
                 Analyze only facts available in the supplied portfolio context. Do not invent
@@ -65,11 +64,12 @@ public class PortfolioAnalysisService {
                 5. Up to three actions to review. Separate observation from recommendation.
 
                 Be concise. Do not recommend trading merely because prices moved.
-                """.formatted(date);
-    }
+                """
+        .formatted(date);
+  }
 
-    static String quarterlyPrompt(LocalDate date) {
-        return """
+  static String quarterlyPrompt(LocalDate date) {
+    return """
                 Produce the Investory quarterly strategy and risk review for %s.
 
                 Use only the supplied portfolio context. Evaluate whether the portfolio appears
@@ -85,11 +85,12 @@ public class PortfolioAnalysisService {
                 5. Decisions to review next quarter, with evidence and uncertainty.
 
                 Do not issue direct buy/sell instructions and do not fabricate target allocations.
-                """.formatted(date);
-    }
+                """
+        .formatted(date);
+  }
 
-    static String annualPrompt(LocalDate date) {
-        return """
+  static String annualPrompt(LocalDate date) {
+    return """
                 Produce the Investory annual investment-policy review for %s.
 
                 Use only supplied portfolio facts. The investor currently plans no additional
@@ -106,6 +107,7 @@ public class PortfolioAnalysisService {
                 6. A prioritized policy-review checklist for the coming year.
 
                 Distinguish measured facts, reasonable inferences and missing information.
-                """.formatted(date);
-    }
+                """
+        .formatted(date);
+  }
 }

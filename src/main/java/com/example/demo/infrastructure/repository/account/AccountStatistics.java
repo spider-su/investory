@@ -379,4 +379,3 @@ public class AccountStatistics {
     return value == null ? null : value.doubleValue();
   }
 }
-

@@ -13,19 +13,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class GhostfolioActivitiesController {
 
-    private final GhostfolioCompatibilityService compatibilityService;
+  private final GhostfolioCompatibilityService compatibilityService;
 
-    @GetMapping
-    public Map<String, Object> activities(
-            @RequestParam(name = "accounts", required = false) String accounts,
-            @RequestParam(name = "activityTypes", required = false) String activityTypes,
-            @RequestParam(name = "range", required = false) String range,
-            @RequestParam(name = "symbol", required = false) String symbol,
-            @RequestParam(name = "sortColumn", defaultValue = "date") String sortColumn,
-            @RequestParam(name = "sortDirection", defaultValue = "desc") String sortDirection,
-            @RequestParam(name = "take", defaultValue = "50") int take,
-            @RequestParam(name = "skip", defaultValue = "0") int skip) {
-        return compatibilityService.activities(
-                accounts, activityTypes, range, symbol, sortColumn, sortDirection, take, skip);
-    }
+  @GetMapping
+  public Map<String, Object> activities(
+      @RequestParam(name = "accounts", required = false) String accounts,
+      @RequestParam(name = "activityTypes", required = false) String activityTypes,
+      @RequestParam(name = "range", required = false) String range,
+      @RequestParam(name = "symbol", required = false) String symbol,
+      @RequestParam(name = "sortColumn", defaultValue = "date") String sortColumn,
+      @RequestParam(name = "sortDirection", defaultValue = "desc") String sortDirection,
+      @RequestParam(name = "take", defaultValue = "50") int take,
+      @RequestParam(name = "skip", defaultValue = "0") int skip) {
+    return compatibilityService.activities(
+        accounts, activityTypes, range, symbol, sortColumn, sortDirection, take, skip);
+  }
 }

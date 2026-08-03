@@ -1,8 +1,8 @@
 package com.example.demo.infrastructure;
 
-import org.junit.jupiter.api.Test;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import org.junit.jupiter.api.Test;
 
 class CashOperationTypeTest {
 
@@ -29,11 +29,9 @@ class CashOperationTypeTest {
   @Test
   void fromString_handlesFreeFoundsInterestWithoutDate() {
     assertEquals(
-        CashOperationType.FREE_FUNDS_INTEREST,
-        CashOperationType.fromString("free-funds interest"));
+        CashOperationType.FREE_FUNDS_INTEREST, CashOperationType.fromString("free-funds interest"));
     assertEquals(
-        CashOperationType.FREE_FUNDS_INTEREST,
-        CashOperationType.fromString("Free-funds Interest"));
+        CashOperationType.FREE_FUNDS_INTEREST, CashOperationType.fromString("Free-funds Interest"));
   }
 
   @Test
@@ -86,8 +84,10 @@ class CashOperationTypeTest {
 
   @Test
   void fromString_handlesWithholdingTax() {
-    assertEquals(CashOperationType.WITHHOLDING_TAX, CashOperationType.fromString("withholding tax"));
-    assertEquals(CashOperationType.WITHHOLDING_TAX, CashOperationType.fromString("WITHHOLDING TAX"));
+    assertEquals(
+        CashOperationType.WITHHOLDING_TAX, CashOperationType.fromString("withholding tax"));
+    assertEquals(
+        CashOperationType.WITHHOLDING_TAX, CashOperationType.fromString("WITHHOLDING TAX"));
   }
 
   @Test
@@ -99,8 +99,9 @@ class CashOperationTypeTest {
   @Test
   void fromString_handlesStockSellWithBackwardCompatibility() {
     assertEquals(CashOperationType.STOCK_SELL, CashOperationType.fromString("stock sell"));
-    assertEquals(CashOperationType.STOCK_SELL, CashOperationType.fromString("stock sale")); // backward
-                                                                                             // compat
+    assertEquals(
+        CashOperationType.STOCK_SELL, CashOperationType.fromString("stock sale")); // backward
+    // compat
     assertEquals(CashOperationType.STOCK_SELL, CashOperationType.fromString("STOCK SELL"));
     assertEquals(CashOperationType.STOCK_SELL, CashOperationType.fromString("Stock Sale"));
   }

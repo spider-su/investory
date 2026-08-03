@@ -17,35 +17,35 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1")
 public class GhostfolioInfoController {
 
-    private final String applicationVersion;
-    private final String baseCurrency;
+  private final String applicationVersion;
+  private final String baseCurrency;
 
-    public GhostfolioInfoController(
-            @Value("${spring.application.version:dev}") String applicationVersion,
-            @Value("${investory.base-currency:USD}") String baseCurrency) {
-        this.applicationVersion = applicationVersion;
-        this.baseCurrency = baseCurrency;
-    }
+  public GhostfolioInfoController(
+      @Value("${spring.application.version:dev}") String applicationVersion,
+      @Value("${investory.base-currency:USD}") String baseCurrency) {
+    this.applicationVersion = applicationVersion;
+    this.baseCurrency = baseCurrency;
+  }
 
-    @GetMapping("/info")
-    public Map<String, Object> info() {
-        return Map.ofEntries(
-                Map.entry("applicationVersion", applicationVersion),
-                Map.entry("baseCurrency", baseCurrency),
-                Map.entry("currency", baseCurrency),
-                Map.entry("locale", "en-US"),
-                Map.entry("platform", "Investory"),
-                Map.entry("isUserSignupEnabled", false),
-                Map.entry("isSignUpEnabled", false),
-                Map.entry("isDemoMode", false),
-                Map.entry("isPremium", false),
-                Map.entry("authProviders", List.of("ANONYMOUS")),
-                Map.entry("globalPermissions", List.of()),
-                Map.entry(
-                        "features",
-                        Map.of(
-                                "authToken", true,
-                                "oidc", false,
-                                "subscription", false)));
-    }
+  @GetMapping("/info")
+  public Map<String, Object> info() {
+    return Map.ofEntries(
+        Map.entry("applicationVersion", applicationVersion),
+        Map.entry("baseCurrency", baseCurrency),
+        Map.entry("currency", baseCurrency),
+        Map.entry("locale", "en-US"),
+        Map.entry("platform", "Investory"),
+        Map.entry("isUserSignupEnabled", false),
+        Map.entry("isSignUpEnabled", false),
+        Map.entry("isDemoMode", false),
+        Map.entry("isPremium", false),
+        Map.entry("authProviders", List.of("ANONYMOUS")),
+        Map.entry("globalPermissions", List.of()),
+        Map.entry(
+            "features",
+            Map.of(
+                "authToken", true,
+                "oidc", false,
+                "subscription", false)));
+  }
 }

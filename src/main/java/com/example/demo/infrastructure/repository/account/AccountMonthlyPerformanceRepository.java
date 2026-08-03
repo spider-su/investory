@@ -9,5 +9,4 @@ public interface AccountMonthlyPerformanceRepository
     extends JpaRepository<AccountMonthlyPerformance, AccountMonthlyPerformanceId> {
 
   List<AccountMonthlyPerformance> findAllByOrderByMonthAscAccountIdAsc();
-
 }
