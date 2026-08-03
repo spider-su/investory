@@ -22,7 +22,11 @@ public record AssetDetailView(
     Double totalMarketValue,
     Double totalUnrealizedProfitLoss,
     List<AssetTransactionView> transactions,
-    Double totalRealizedProfitLoss) {
+    Double totalRealizedProfitLoss,
+    List<AssetDividendView> dividends,
+    double totalGrossDividends,
+    double totalWithholdingTax,
+    double totalNetDividends) {
 
   public boolean hasYahooSymbol() {
     return yahooSymbol != null && !yahooSymbol.isBlank();
@@ -38,5 +42,9 @@ public record AssetDetailView(
 
   public boolean hasTransactions() {
     return transactions != null && !transactions.isEmpty();
+  }
+
+  public boolean hasDividends() {
+    return dividends != null && !dividends.isEmpty();
   }
 }
