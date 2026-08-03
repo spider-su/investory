@@ -116,14 +116,6 @@ DECLARE
     run_id uuid := gen_random_uuid();
     history_id bigint;
 BEGIN
-    IF EXISTS (
-        SELECT 1
-        FROM investory.reporting_materialized_view_dependencies
-        WHERE materialized_view IS NULL
-    ) THEN
-        RAISE EXCEPTION 'Unable to resolve materialized-view dependency order';
-    END IF;
-
     FOR target IN
         SELECT materialized_view, dependency_level
         FROM investory.reporting_materialized_view_dependencies
@@ -159,14 +151,18 @@ BEGIN
                 status = 'FAILED',
                 error_message = SQLERRM
             WHERE id = history_id;
-            RAISE;
+
+            RAISE WARNING 'Materialized view refresh stopped at investory.%: %',
+                target.materialized_view,
+                SQLERRM;
+            RETURN;
         END;
     END LOOP;
 END;
 $$;
 
 COMMENT ON PROCEDURE investory.refresh_reporting_materialized_views() IS
-    'Refreshes all Investory materialized views in dependency order and records per-view start, finish, status, and error metadata. Uses ordinary refresh because concurrent refresh cannot be safely executed inside this transactional procedure.';
+    'Refreshes all Investory materialized views in dependency order and records per-view start, finish, status, and error metadata. Stops after the first failure so downstream views are not refreshed from stale dependencies. Uses ordinary refresh because concurrent refresh cannot be safely executed inside this transactional procedure.';
 
 COMMENT ON COLUMN investory.assets.asset_type IS
     'Current broad instrument classification. Sector allocation must not be introduced until a canonical sector taxonomy and an explicit asset-to-sector mapping are defined.';
