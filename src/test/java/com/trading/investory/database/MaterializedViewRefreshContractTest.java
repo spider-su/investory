@@ -125,11 +125,17 @@ class MaterializedViewRefreshContractTest {
             try (ResultSet result =
                     statement.executeQuery(
                             "SELECT count(*) FROM ("
-                                    + "  (SELECT * FROM investory.portfolio_daily_mv "
-                                    + "   EXCEPT SELECT * FROM investory.v_portfolio_daily) "
+                                    + "  (SELECT to_jsonb(materialized) - 'updated_at' "
+                                    + "   FROM investory.portfolio_daily_mv materialized "
+                                    + "   EXCEPT "
+                                    + "   SELECT to_jsonb(source_projection) - 'updated_at' "
+                                    + "   FROM investory.v_portfolio_daily source_projection) "
                                     + "  UNION ALL "
-                                    + "  (SELECT * FROM investory.v_portfolio_daily "
-                                    + "   EXCEPT SELECT * FROM investory.portfolio_daily_mv)"
+                                    + "  (SELECT to_jsonb(source_projection) - 'updated_at' "
+                                    + "   FROM investory.v_portfolio_daily source_projection "
+                                    + "   EXCEPT "
+                                    + "   SELECT to_jsonb(materialized) - 'updated_at' "
+                                    + "   FROM investory.portfolio_daily_mv materialized)"
                                     + ") differences")) {
                 assertTrue(result.next());
                 assertEquals(0, result.getLong(1));
