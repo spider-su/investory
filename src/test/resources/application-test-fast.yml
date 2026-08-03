@@ -1,0 +1,19 @@
+spring:
+  flyway:
+    enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: none
+  sql:
+    init:
+      mode: never
+
+app:
+  telegram:
+    enabled: false
+  openai:
+    enabled: false
+    analysis:
+      enabled: false
+  notifications:
+    enabled: false
