@@ -5,6 +5,7 @@
   "workspaceFolder": "/workspaces/investory",
   "shutdownAction": "stopCompose",
   "features": {
+    "ghcr.io/devcontainers/features/maven:1": {},
     "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
   },
   "containerEnv": {

@@ -763,8 +763,9 @@ class SchemaMigrationCheckpoint2Test {
           insert into investory.positions(
               id, account_id, asset_id, source_asset_symbol, operation, settlement_model, volume,
               price_currency, cost_currency, profit_currency, commission_currency,
-              open_time, open_price, close_time, close_price, margin, commission, swap, profit)
-          values
+              open_time, open_price, close_time, close_price, purchase_value, sale_value,
+              commission, swap, profit
+          ) values
               (-200, -200, -200, 'TESTCFD', 'BUY', 'RESULT_ONLY', 10,
                'USD', 'USD', 'USD', 'USD',
                timestamptz '2026-01-01 10:00:00+00', 100,
@@ -856,7 +857,7 @@ class SchemaMigrationCheckpoint2Test {
             ((date_trunc('month', current_date) - interval '1 month')::date, 'TEST', 'PLN', 'USD', 0.25),
             ((date_trunc('month', current_date) - interval '1 month')::date, 'TEST', 'EUR', 'USD', 1.25);
 
-          insert into investory.positions (
+          insert into positions (
             id, account_id, asset_id, source_asset_symbol, operation, volume,
             price_currency, cost_currency, profit_currency, commission_currency,
             open_time, open_price, close_time, close_price, purchase_value, sale_value,
@@ -878,6 +879,13 @@ class SchemaMigrationCheckpoint2Test {
              'AAPL.US', 'BUY', 2, 'USD', 'USD', 'USD', 'USD',
              now() - interval '1 day', 100, null, null, 200, null,
              0, 0, 0);
+
+          update investory.assets
+             set market_price = 150,
+                 market_price_usd = 150,
+                 price_source = 'TEST',
+                 price_updated_at = now()
+           where symbol = 'AAPL.US';
 
           select investory.refresh_reporting_views();
           """);
