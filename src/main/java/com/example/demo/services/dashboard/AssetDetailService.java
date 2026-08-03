@@ -52,8 +52,7 @@ public class AssetDetailService {
     List<AssetHoldingView> holdings = aggregateHoldings(asset, positions);
     List<AssetTransactionView> transactions =
         closedPositions.stream().map(this::toTransaction).toList();
-    List<AssetDividendView> dividends =
-        dividendOperations.stream().map(this::toDividend).toList();
+    List<AssetDividendView> dividends = dividendOperations.stream().map(this::toDividend).toList();
     double totalQuantity = holdings.stream().mapToDouble(AssetHoldingView::quantity).sum();
     Double totalMarketValue =
         holdings.stream().allMatch(holding -> holding.marketValue() != null)
