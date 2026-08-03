@@ -26,7 +26,9 @@ public record AssetDetailView(
     List<AssetDividendView> dividends,
     double totalGrossDividends,
     double totalWithholdingTax,
-    double totalNetDividends) {
+    double totalNetDividends,
+    DashboardPeriod period,
+    AssetPerformanceView performance) {
 
   public boolean hasYahooSymbol() {
     return yahooSymbol != null && !yahooSymbol.isBlank();
@@ -46,5 +48,9 @@ public record AssetDetailView(
 
   public boolean hasDividends() {
     return dividends != null && !dividends.isEmpty();
+  }
+
+  public boolean hasPerformance() {
+    return performance != null;
   }
 }
