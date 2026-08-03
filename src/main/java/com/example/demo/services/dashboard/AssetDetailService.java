@@ -2,6 +2,8 @@ package com.example.demo.services.dashboard;
 
 import com.example.demo.infrastructure.repository.Asset;
 import com.example.demo.infrastructure.repository.AssetRepository;
+import com.example.demo.infrastructure.repository.ClosedPosition;
+import com.example.demo.infrastructure.repository.ClosedPositionRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
 import java.util.Comparator;
@@ -18,6 +20,7 @@ public class AssetDetailService {
 
   private final AssetRepository assetRepository;
   private final OpenedPositionRepository openedPositionRepository;
+  private final ClosedPositionRepository closedPositionRepository;
 
   public AssetDetailView findBySymbol(String rawSymbol) {
     String symbol = normalize(rawSymbol);
@@ -25,11 +28,17 @@ public class AssetDetailService {
         assetRepository
             .findBySymbol(symbol)
             .orElseThrow(() -> new AssetDetailNotFoundException(symbol));
-    return toView(asset, openedPositionRepository.findOpenByAssetId(asset.getId()));
+    return toView(
+        asset,
+        openedPositionRepository.findOpenByAssetId(asset.getId()),
+        closedPositionRepository.findClosedByAssetId(asset.getId()));
   }
 
-  private AssetDetailView toView(Asset asset, List<OpenedPosition> positions) {
+  private AssetDetailView toView(
+      Asset asset, List<OpenedPosition> positions, List<ClosedPosition> closedPositions) {
     List<AssetHoldingView> holdings = aggregateHoldings(asset, positions);
+    List<AssetTransactionView> transactions =
+        closedPositions.stream().map(this::toTransaction).toList();
     double totalQuantity = holdings.stream().mapToDouble(AssetHoldingView::quantity).sum();
     Double totalMarketValue =
         holdings.stream().allMatch(holding -> holding.marketValue() != null)
@@ -38,6 +47,10 @@ public class AssetDetailService {
     Double totalUnrealizedProfitLoss =
         holdings.stream().allMatch(holding -> holding.unrealizedProfitLoss() != null)
             ? holdings.stream().mapToDouble(AssetHoldingView::unrealizedProfitLoss).sum()
+            : null;
+    Double totalRealizedProfitLoss =
+        transactions.stream().allMatch(transaction -> transaction.realizedProfitLoss() != null)
+            ? transactions.stream().mapToDouble(AssetTransactionView::realizedProfitLoss).sum()
             : null;
 
     return new AssetDetailView(
@@ -56,7 +69,9 @@ public class AssetDetailService {
         holdings,
         totalQuantity,
         totalMarketValue,
-        totalUnrealizedProfitLoss);
+        totalUnrealizedProfitLoss,
+        transactions,
+        totalRealizedProfitLoss);
   }
 
   private List<AssetHoldingView> aggregateHoldings(Asset asset, List<OpenedPosition> positions) {
@@ -95,6 +110,24 @@ public class AssetDetailService {
         marketValue,
         unrealizedProfitLoss,
         first.getSettlementModel());
+  }
+
+  private AssetTransactionView toTransaction(ClosedPosition position) {
+    return new AssetTransactionView(
+        position.getId(),
+        position.getAccount(),
+        position.getType(),
+        position.signedQuantity(),
+        position.getOpenTime(),
+        position.getCloseTime(),
+        position.getOpenPrice(),
+        position.getClosePrice(),
+        position.getCommission(),
+        position.getCommissionCurrency(),
+        position.getProfit(),
+        position.getProfitCurrency(),
+        position.getSourcePositionId(),
+        position.getBrokerSymbol());
   }
 
   private double safe(Double value) {
