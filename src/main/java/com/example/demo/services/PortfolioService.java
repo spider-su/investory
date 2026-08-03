@@ -115,8 +115,8 @@ public class PortfolioService {
         // loss carry-forward from prior years (Polish rule: losses deductible over the next 5 years).
         TaxCalculator.TaxSummary tax = taxCalculator.calculate(
                 closedPositionRepository.findAll(), portfolio.getBaseCurrency());
-        portfolio.setCapitalGainsTax(tax.capitalGainsTax());
-        portfolio.setLossCarryForward(tax.lossCarryForward());
+        portfolio.setCapitalGainsTax(tax.capitalGainsTax().doubleValue());
+        portfolio.setLossCarryForward(tax.lossCarryForward().doubleValue());
 
         // Exchange rates for the currencies board (units of each currency per 1 base currency)
         for (CurrencyType currency : CurrencyType.values()) {
@@ -276,7 +276,7 @@ public class PortfolioService {
         if (!CollectionUtils.isEmpty(cashOperations)) {
             CashFlowAggregator.CashFlowSummary cashFlow = cashFlowAggregator.aggregate(
                     cashOperations, portfolio.getBaseCurrency());
-            portfolio.setDividendTax(cashFlow.dividendTax());
+            portfolio.setDividendTax(cashFlow.dividendTax().doubleValue());
         }
     }
 
@@ -337,16 +337,16 @@ public class PortfolioService {
         // Fall back to cash_operations for deposits/withdrawals/interest/tax.
         CashFlowAggregator.CashFlowSummary cashFlow = cashFlowAggregator.aggregate(
                 cashOperations, portfolio.getBaseCurrency());
-        portfolio.setDeposits(cashFlow.deposits());
-        portfolio.setWithdrawals(cashFlow.withdrawals());
-        portfolio.setNetDeposits(cashFlow.netDeposits());
-        portfolio.setInterest(cashFlow.interest());
+        portfolio.setDeposits(cashFlow.deposits().doubleValue());
+        portfolio.setWithdrawals(cashFlow.withdrawals().doubleValue());
+        portfolio.setNetDeposits(cashFlow.netDeposits().doubleValue());
+        portfolio.setInterest(cashFlow.interest().doubleValue());
         // Use summary-derived dividends when available, fall back to cashflow aggregator
-        portfolio.setDividends(dividendsTotal > 0 ? dividendsTotal : cashFlow.dividends());
-        portfolio.setDividendTax(cashFlow.dividendTax());
+        portfolio.setDividends(dividendsTotal > 0 ? dividendsTotal : cashFlow.dividends().doubleValue());
+        portfolio.setDividendTax(cashFlow.dividendTax().doubleValue());
         if (dividendsTotal == 0.0) {
             cashFlow.dividendsByCurrency().forEach(
-                (currency, amount) -> portfolio.getDividendsByCurrency().merge(currency, amount, Double::sum));
+                (currency, amount) -> portfolio.getDividendsByCurrency().merge(currency, amount.doubleValue(), Double::sum));
         }
 
         // Balance breakdown from account_statistics.

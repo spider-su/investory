@@ -7,6 +7,8 @@ import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.ZonedDateTime;
 
 @Data
@@ -45,8 +47,10 @@ public class CashOperation {
     @Transient
     private String symbol;
 
-    @Column(nullable = false)
-    private Double amount;
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
+    @Column(nullable = false, precision = 20, scale = 8)
+    private BigDecimal amount;
 
     @Enumerated(value = EnumType.STRING)
     @Column(name = "currency", nullable = false)
@@ -56,6 +60,26 @@ public class CashOperation {
 
     @Column(nullable = false)
     private ZonedDateTime date;
+
+    public Double getAmount() {
+        return amount == null ? null : amount.doubleValue();
+    }
+
+    public BigDecimal getAmountValue() {
+        return amount;
+    }
+
+    public void setAmount(BigDecimal amount) {
+        this.amount = scaleAmount(amount);
+    }
+
+    public void setAmount(Double amount) {
+        this.amount = amount == null ? null : scaleAmount(BigDecimal.valueOf(amount));
+    }
+
+    public void setAmount(double amount) {
+        setAmount(Double.valueOf(amount));
+    }
 
     public void setSymbol(String symbol) {
         this.symbol = symbol;
@@ -67,6 +91,10 @@ public class CashOperation {
     @PostLoad
     void loadCanonicalSymbol() {
         this.symbol = asset != null ? asset.getSymbol() : sourceAssetSymbol;
+    }
+
+    private static BigDecimal scaleAmount(BigDecimal amount) {
+        return amount == null ? null : amount.setScale(8, RoundingMode.HALF_UP);
     }
 
 }

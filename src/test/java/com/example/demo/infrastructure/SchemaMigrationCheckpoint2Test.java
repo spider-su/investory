@@ -79,7 +79,58 @@ class SchemaMigrationCheckpoint2Test {
   void appliesAllMigrationsAndCreatesCheckpoint2Invariants() throws Exception {
     try (Connection connection = openConnection();
         Statement statement = connection.createStatement()) {
-      assertEquals(5, singleInt(statement, "SELECT count(*) FROM investory.flyway_schema_history"));
+      assertEquals(6, singleInt(statement, "SELECT count(*) FROM investory.flyway_schema_history"));
+      assertTrue(
+          exists(
+              statement,
+              """
+              SELECT 1
+              FROM pg_constraint c
+              JOIN pg_class t ON t.oid = c.conrelid
+              JOIN pg_namespace n ON n.oid = t.relnamespace
+              WHERE n.nspname = 'investory'
+                AND t.relname = 'import_history'
+                AND c.conname = 'chk_import_history_file_sha256_lower_hex_v01004'
+              """));
+      assertTrue(
+          exists(
+              statement,
+              """
+              SELECT 1
+              FROM pg_constraint c
+              JOIN pg_class t ON t.oid = c.conrelid
+              JOIN pg_namespace n ON n.oid = t.relnamespace
+              WHERE n.nspname = 'investory'
+                AND t.relname = 'import_history'
+                AND c.conname = 'chk_import_history_rows_balance_v01004'
+              """));
+      assertTrue(
+          exists(
+              statement,
+              """
+              SELECT 1
+              FROM pg_indexes
+              WHERE schemaname = 'investory'
+                AND indexname = 'ix_import_history_status_finished_at'
+              """));
+      assertTrue(
+          exists(
+              statement,
+              """
+              SELECT 1
+              FROM pg_indexes
+              WHERE schemaname = 'investory'
+                AND indexname = 'ix_cash_operations_account_date'
+              """));
+      assertTrue(
+          exists(
+              statement,
+              """
+              SELECT 1
+              FROM pg_indexes
+              WHERE schemaname = 'investory'
+                AND indexname = 'ix_positions_account_close_time'
+              """));
       assertTrue(
           exists(
               statement,

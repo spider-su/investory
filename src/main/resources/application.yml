@@ -27,7 +27,7 @@ spring:
     default-schema: investory
     create-schemas: true
     locations: classpath:sql/migration
-    out-of-order: true
+    out-of-order: false
   thymeleaf:
     prefix: classpath:/static/dashboard/
     suffix: .html

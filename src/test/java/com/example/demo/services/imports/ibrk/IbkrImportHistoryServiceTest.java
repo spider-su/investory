@@ -24,6 +24,7 @@ import com.example.demo.infrastructure.repository.account.AccountRepository;
 import com.example.demo.services.AssetCatalogService;
 import com.example.demo.services.imports.ImportExecutionResult;
 import java.io.ByteArrayInputStream;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -238,6 +239,25 @@ class IbkrImportHistoryServiceTest {
     assertEquals(CurrencyType.EUR, position.getCostCurrency());
     assertEquals(CurrencyType.EUR, position.getProfitCurrency());
     assertEquals(CurrencyType.EUR, position.getCommissionCurrency());
+  }
+
+  @Test
+  void importStatement_doesNotInflateAppliedRowsWithOpenPositionSnapshot() throws Exception {
+    String csv =
+        String.join(
+            "\n",
+            "Transaction History,Header,Transaction Type,Account,Symbol,Description,Date,Quantity,Price,Price Currency,Net Amount,Currency",
+            "Transaction History,Data,Buy,U17959259,AAPL,AAPL buy,2026-07-01,2,100,USD,-200.00,USD",
+            "Open Positions,Header,Symbol,Quantity,Currency,Cost Price,Cost Basis,Close Price,Unrealized P/L,DataDiscriminator",
+            "Open Positions,Data,AAPL,2,USD,100,200,110,20,Summary");
+
+    ImportExecutionResult result =
+        service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
+
+    assertEquals(1, result.rowsTotal());
+    assertEquals(1, result.rowsApplied());
+    assertEquals(0, result.rowsFailed());
+    assertTrue(result.details().contains("1 open positions"));
   }
 
   @Test
@@ -491,7 +511,12 @@ class IbkrImportHistoryServiceTest {
 
     verify(assetPriceHistoryRepository)
         .upsertIbkrTradeObservation(
-            41L, LocalDate.of(2026, 6, 10), "IUVL.UK", "IUVL", "USD", 18.3577);
+            41L,
+            LocalDate.of(2026, 6, 10),
+            "IUVL.UK",
+            "IUVL",
+            "USD",
+            BigDecimal.valueOf(18.3577));
   }
 
   @Test

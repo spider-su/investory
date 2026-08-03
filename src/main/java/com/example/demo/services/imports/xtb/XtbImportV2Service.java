@@ -20,6 +20,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -638,7 +639,7 @@ public class XtbImportV2Service {
           entry.getKey().symbol(),
           entry.getKey().priceOrigin(),
           entry.getKey().currency().name(),
-          weightedPrice.weightedAverage(),
+          BigDecimal.valueOf(weightedPrice.weightedAverage()),
           90,
           entry.getKey().qualityClass());
     }

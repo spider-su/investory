@@ -5,6 +5,7 @@ import com.example.demo.infrastructure.repository.ClosedPosition;
 import com.example.demo.services.currency.CurrencyRateService;
 import com.example.demo.testsupport.portfolio.PortfolioBuilders;
 import com.example.demo.testsupport.portfolio.PortfolioTestData;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,7 +17,6 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyDouble;
 
 @ExtendWith(MockitoExtension.class)
 class TaxCalculatorTest {
@@ -29,15 +29,15 @@ class TaxCalculatorTest {
     void setUp() {
         taxCalculator = new TaxCalculator(currencyRateService);
         // lenient() because the empty-trades test never triggers FX conversion.
-        org.mockito.Mockito.lenient().when(currencyRateService.convertToBaseCurrency(anyDouble(), any(), any(), any(LocalDate.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0, Double.class));
+        org.mockito.Mockito.lenient().when(currencyRateService.convertToBaseCurrency(any(BigDecimal.class), any(), any(), any(LocalDate.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0, BigDecimal.class));
     }
 
     @Test
     void calculate_returnsZeroWhenThereAreNoTrades() {
         TaxCalculator.TaxSummary tax = taxCalculator.calculate(List.of(), CurrencyType.USD, 2026);
-        assertEquals(0.0, tax.capitalGainsTax());
-        assertEquals(0.0, tax.lossCarryForward());
+        assertEquals(new BigDecimal("0.00"), tax.capitalGainsTax());
+        assertEquals(new BigDecimal("0.00"), tax.lossCarryForward());
     }
 
     @Test
@@ -46,8 +46,8 @@ class TaxCalculatorTest {
                 closed(1000.0, 0.0, 0.0, 2026)
         ), CurrencyType.USD, 2026);
 
-        assertEquals(190.0, tax.capitalGainsTax(), 0.01);
-        assertEquals(0.0, tax.lossCarryForward());
+        assertEquals(new BigDecimal("190.00"), tax.capitalGainsTax());
+        assertEquals(new BigDecimal("0.00"), tax.lossCarryForward());
     }
 
     @Test
@@ -58,8 +58,8 @@ class TaxCalculatorTest {
         ), CurrencyType.USD, 2026);
 
         // Gain (1000) - applied loss (400) = 600 taxable -> 19% = 114.
-        assertEquals(114.0, tax.capitalGainsTax(), 0.01);
-        assertEquals(400.0, tax.lossCarryForward(), 0.01);
+        assertEquals(new BigDecimal("114.00"), tax.capitalGainsTax());
+        assertEquals(new BigDecimal("400.00"), tax.lossCarryForward());
     }
 
     @Test
@@ -70,8 +70,8 @@ class TaxCalculatorTest {
         ), CurrencyType.USD, 2026);
 
         // 2018 loss is outside the 5-year window for 2026 (2026 - 5 = 2021).
-        assertEquals(95.0, tax.capitalGainsTax(), 0.01);
-        assertEquals(0.0, tax.lossCarryForward());
+        assertEquals(new BigDecimal("95.00"), tax.capitalGainsTax());
+        assertEquals(new BigDecimal("0.00"), tax.lossCarryForward());
     }
 
     @Test
@@ -80,7 +80,7 @@ class TaxCalculatorTest {
                 closed(-500.0, 0.0, 0.0, 2026)
         ), CurrencyType.USD, 2026);
 
-        assertEquals(0.0, tax.capitalGainsTax());
+        assertEquals(new BigDecimal("0.00"), tax.capitalGainsTax());
     }
 
     private static ClosedPosition closed(double profit, double commission, double swap, int closeYear) {

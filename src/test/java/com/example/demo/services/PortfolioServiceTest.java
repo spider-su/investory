@@ -36,6 +36,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -101,6 +102,12 @@ class PortfolioServiceTest {
                 .when(currencyRateService.convertToBaseCurrency(
                         anyDouble(), any(CurrencyType.class), any(CurrencyType.class), any(LocalDate.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0, Double.class));
+        org.mockito.Mockito.lenient().when(currencyRateService.convertToBaseCurrency(any(BigDecimal.class), any(), any()))
+                .thenAnswer(invocation -> invocation.getArgument(0, BigDecimal.class));
+        org.mockito.Mockito.lenient()
+                .when(currencyRateService.convertToBaseCurrency(
+                        any(BigDecimal.class), any(CurrencyType.class), any(CurrencyType.class), any(LocalDate.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0, BigDecimal.class));
         org.mockito.Mockito.lenient()
                 .when(currencyRateService.findRate(any(CurrencyType.class), any(CurrencyType.class)))
                 .thenReturn(OptionalDouble.empty());

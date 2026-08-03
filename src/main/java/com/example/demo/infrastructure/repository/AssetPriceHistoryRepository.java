@@ -1,5 +1,6 @@
 package com.example.demo.infrastructure.repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
@@ -100,7 +101,7 @@ public interface AssetPriceHistoryRepository extends Repository<Asset, Long> {
       @Param("sourceSymbol") String sourceSymbol,
       @Param("originalSourceSymbol") String originalSourceSymbol,
       @Param("priceCurrency") String priceCurrency,
-      @Param("priceValue") Double priceValue);
+      @Param("priceValue") BigDecimal priceValue);
 
   @Modifying
   @Query(
@@ -169,7 +170,7 @@ public interface AssetPriceHistoryRepository extends Repository<Asset, Long> {
       @Param("originalSourceSymbol") String originalSourceSymbol,
       @Param("priceOrigin") String priceOrigin,
       @Param("priceCurrency") String priceCurrency,
-      @Param("priceValue") Double priceValue,
+      @Param("priceValue") BigDecimal priceValue,
       @Param("qualityScore") Integer qualityScore,
       @Param("qualityClass") String qualityClass);
 
@@ -241,7 +242,7 @@ public interface AssetPriceHistoryRepository extends Repository<Asset, Long> {
       @Param("sourceSymbol") String sourceSymbol,
       @Param("originalSourceSymbol") String originalSourceSymbol,
       @Param("priceCurrency") String priceCurrency,
-      @Param("priceValue") Double priceValue);
+      @Param("priceValue") BigDecimal priceValue);
 
   interface HistoricalAssetPriceRow {
     String getSymbol();
@@ -256,11 +257,11 @@ public interface AssetPriceHistoryRepository extends Repository<Asset, Long> {
 
     String getOriginalSourceSymbol();
 
-    Double getClosePrice();
+    BigDecimal getClosePrice();
 
     String getPriceCurrency();
 
-    Double getPriceScaleFactor();
+    BigDecimal getPriceScaleFactor();
 
     Integer getQualityScore();
 

@@ -7,9 +7,14 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Data
 @NoArgsConstructor
@@ -29,41 +34,65 @@ public class PortfolioKpiSummary {
   @Column(name = "base_currency", nullable = false)
   private CurrencyType baseCurrency;
 
-  @Column(name = "total_deposits")
-  private Double totalDeposits;
+  @Getter(AccessLevel.NONE)
+  @Setter(AccessLevel.NONE)
+  @Column(name = "total_deposits", precision = 20, scale = 8)
+  private BigDecimal totalDeposits;
 
-  @Column(name = "net_deposits")
-  private Double netDeposits;
+  @Getter(AccessLevel.NONE)
+  @Setter(AccessLevel.NONE)
+  @Column(name = "net_deposits", precision = 20, scale = 8)
+  private BigDecimal netDeposits;
 
-  @Column(name = "total_withdrawals")
-  private Double totalWithdrawals;
+  @Getter(AccessLevel.NONE)
+  @Setter(AccessLevel.NONE)
+  @Column(name = "total_withdrawals", precision = 20, scale = 8)
+  private BigDecimal totalWithdrawals;
 
-  @Column(name = "total_cash")
-  private Double totalCash;
+  @Getter(AccessLevel.NONE)
+  @Setter(AccessLevel.NONE)
+  @Column(name = "total_cash", precision = 20, scale = 8)
+  private BigDecimal totalCash;
 
-  @Column(name = "total_market_value")
-  private Double totalMarketValue;
+  @Getter(AccessLevel.NONE)
+  @Setter(AccessLevel.NONE)
+  @Column(name = "total_market_value", precision = 20, scale = 8)
+  private BigDecimal totalMarketValue;
 
-  @Column(name = "total_equity")
-  private Double totalEquity;
+  @Getter(AccessLevel.NONE)
+  @Setter(AccessLevel.NONE)
+  @Column(name = "total_equity", precision = 20, scale = 8)
+  private BigDecimal totalEquity;
 
-  @Column(name = "total_realized_profit")
-  private Double totalRealizedProfit;
+  @Getter(AccessLevel.NONE)
+  @Setter(AccessLevel.NONE)
+  @Column(name = "total_realized_profit", precision = 20, scale = 8)
+  private BigDecimal totalRealizedProfit;
 
-  @Column(name = "total_unrealized_profit")
-  private Double totalUnrealizedProfit;
+  @Getter(AccessLevel.NONE)
+  @Setter(AccessLevel.NONE)
+  @Column(name = "total_unrealized_profit", precision = 20, scale = 8)
+  private BigDecimal totalUnrealizedProfit;
 
-  @Column(name = "total_dividends")
-  private Double totalDividends;
+  @Getter(AccessLevel.NONE)
+  @Setter(AccessLevel.NONE)
+  @Column(name = "total_dividends", precision = 20, scale = 8)
+  private BigDecimal totalDividends;
 
-  @Column(name = "total_interest")
-  private Double totalInterest;
+  @Getter(AccessLevel.NONE)
+  @Setter(AccessLevel.NONE)
+  @Column(name = "total_interest", precision = 20, scale = 8)
+  private BigDecimal totalInterest;
 
-  @Column(name = "total_fees")
-  private Double totalFees;
+  @Getter(AccessLevel.NONE)
+  @Setter(AccessLevel.NONE)
+  @Column(name = "total_fees", precision = 20, scale = 8)
+  private BigDecimal totalFees;
 
-  @Column(name = "total_taxes")
-  private Double totalTaxes;
+  @Getter(AccessLevel.NONE)
+  @Setter(AccessLevel.NONE)
+  @Column(name = "total_taxes", precision = 20, scale = 8)
+  private BigDecimal totalTaxes;
 
   @Column(name = "activity_count")
   private Integer activityCount;
@@ -91,19 +120,227 @@ public class PortfolioKpiSummary {
     this.portfolioId = portfolioId;
     this.portfolioName = portfolioName;
     this.baseCurrency = baseCurrency;
-    this.totalDeposits = totalDeposits;
-    this.totalWithdrawals = totalDeposits - netDeposits;
-    this.netDeposits = netDeposits;
-    this.totalCash = totalCash;
-    this.totalMarketValue = totalMarketValue;
-    this.totalEquity = totalEquity;
-    this.totalRealizedProfit = totalRealizedProfit;
-    this.totalUnrealizedProfit = totalUnrealizedProfit;
-    this.totalDividends = totalDividends;
-    this.totalInterest = totalInterest;
-    this.totalFees = 0.0;
-    this.totalTaxes = 0.0;
+    this.totalDeposits = scaleDecimal(totalDeposits);
+    this.totalWithdrawals = scaleDecimal(totalDeposits - netDeposits);
+    this.netDeposits = scaleDecimal(netDeposits);
+    this.totalCash = scaleDecimal(totalCash);
+    this.totalMarketValue = scaleDecimal(totalMarketValue);
+    this.totalEquity = scaleDecimal(totalEquity);
+    this.totalRealizedProfit = scaleDecimal(totalRealizedProfit);
+    this.totalUnrealizedProfit = scaleDecimal(totalUnrealizedProfit);
+    this.totalDividends = scaleDecimal(totalDividends);
+    this.totalInterest = scaleDecimal(totalInterest);
+    this.totalFees = scaleDecimal(0.0);
+    this.totalTaxes = scaleDecimal(0.0);
     this.activityCount = 0;
     this.updatedAt = updatedAt;
+  }
+
+  public Double getTotalDeposits() {
+    return asDouble(totalDeposits);
+  }
+
+  public void setTotalDeposits(BigDecimal totalDeposits) {
+    this.totalDeposits = scaleDecimal(totalDeposits);
+  }
+
+  public void setTotalDeposits(Double totalDeposits) {
+    this.totalDeposits = scaleDecimal(totalDeposits);
+  }
+
+  public void setTotalDeposits(double totalDeposits) {
+    this.totalDeposits = scaleDecimal(totalDeposits);
+  }
+
+  public Double getNetDeposits() {
+    return asDouble(netDeposits);
+  }
+
+  public void setNetDeposits(BigDecimal netDeposits) {
+    this.netDeposits = scaleDecimal(netDeposits);
+  }
+
+  public void setNetDeposits(Double netDeposits) {
+    this.netDeposits = scaleDecimal(netDeposits);
+  }
+
+  public void setNetDeposits(double netDeposits) {
+    this.netDeposits = scaleDecimal(netDeposits);
+  }
+
+  public Double getTotalWithdrawals() {
+    return asDouble(totalWithdrawals);
+  }
+
+  public void setTotalWithdrawals(BigDecimal totalWithdrawals) {
+    this.totalWithdrawals = scaleDecimal(totalWithdrawals);
+  }
+
+  public void setTotalWithdrawals(Double totalWithdrawals) {
+    this.totalWithdrawals = scaleDecimal(totalWithdrawals);
+  }
+
+  public void setTotalWithdrawals(double totalWithdrawals) {
+    this.totalWithdrawals = scaleDecimal(totalWithdrawals);
+  }
+
+  public Double getTotalCash() {
+    return asDouble(totalCash);
+  }
+
+  public void setTotalCash(BigDecimal totalCash) {
+    this.totalCash = scaleDecimal(totalCash);
+  }
+
+  public void setTotalCash(Double totalCash) {
+    this.totalCash = scaleDecimal(totalCash);
+  }
+
+  public void setTotalCash(double totalCash) {
+    this.totalCash = scaleDecimal(totalCash);
+  }
+
+  public Double getTotalMarketValue() {
+    return asDouble(totalMarketValue);
+  }
+
+  public void setTotalMarketValue(BigDecimal totalMarketValue) {
+    this.totalMarketValue = scaleDecimal(totalMarketValue);
+  }
+
+  public void setTotalMarketValue(Double totalMarketValue) {
+    this.totalMarketValue = scaleDecimal(totalMarketValue);
+  }
+
+  public void setTotalMarketValue(double totalMarketValue) {
+    this.totalMarketValue = scaleDecimal(totalMarketValue);
+  }
+
+  public Double getTotalEquity() {
+    return asDouble(totalEquity);
+  }
+
+  public void setTotalEquity(BigDecimal totalEquity) {
+    this.totalEquity = scaleDecimal(totalEquity);
+  }
+
+  public void setTotalEquity(Double totalEquity) {
+    this.totalEquity = scaleDecimal(totalEquity);
+  }
+
+  public void setTotalEquity(double totalEquity) {
+    this.totalEquity = scaleDecimal(totalEquity);
+  }
+
+  public Double getTotalRealizedProfit() {
+    return asDouble(totalRealizedProfit);
+  }
+
+  public void setTotalRealizedProfit(BigDecimal totalRealizedProfit) {
+    this.totalRealizedProfit = scaleDecimal(totalRealizedProfit);
+  }
+
+  public void setTotalRealizedProfit(Double totalRealizedProfit) {
+    this.totalRealizedProfit = scaleDecimal(totalRealizedProfit);
+  }
+
+  public void setTotalRealizedProfit(double totalRealizedProfit) {
+    this.totalRealizedProfit = scaleDecimal(totalRealizedProfit);
+  }
+
+  public Double getTotalUnrealizedProfit() {
+    return asDouble(totalUnrealizedProfit);
+  }
+
+  public void setTotalUnrealizedProfit(BigDecimal totalUnrealizedProfit) {
+    this.totalUnrealizedProfit = scaleDecimal(totalUnrealizedProfit);
+  }
+
+  public void setTotalUnrealizedProfit(Double totalUnrealizedProfit) {
+    this.totalUnrealizedProfit = scaleDecimal(totalUnrealizedProfit);
+  }
+
+  public void setTotalUnrealizedProfit(double totalUnrealizedProfit) {
+    this.totalUnrealizedProfit = scaleDecimal(totalUnrealizedProfit);
+  }
+
+  public Double getTotalDividends() {
+    return asDouble(totalDividends);
+  }
+
+  public void setTotalDividends(BigDecimal totalDividends) {
+    this.totalDividends = scaleDecimal(totalDividends);
+  }
+
+  public void setTotalDividends(Double totalDividends) {
+    this.totalDividends = scaleDecimal(totalDividends);
+  }
+
+  public void setTotalDividends(double totalDividends) {
+    this.totalDividends = scaleDecimal(totalDividends);
+  }
+
+  public Double getTotalInterest() {
+    return asDouble(totalInterest);
+  }
+
+  public void setTotalInterest(BigDecimal totalInterest) {
+    this.totalInterest = scaleDecimal(totalInterest);
+  }
+
+  public void setTotalInterest(Double totalInterest) {
+    this.totalInterest = scaleDecimal(totalInterest);
+  }
+
+  public void setTotalInterest(double totalInterest) {
+    this.totalInterest = scaleDecimal(totalInterest);
+  }
+
+  public Double getTotalFees() {
+    return asDouble(totalFees);
+  }
+
+  public void setTotalFees(BigDecimal totalFees) {
+    this.totalFees = scaleDecimal(totalFees);
+  }
+
+  public void setTotalFees(Double totalFees) {
+    this.totalFees = scaleDecimal(totalFees);
+  }
+
+  public void setTotalFees(double totalFees) {
+    this.totalFees = scaleDecimal(totalFees);
+  }
+
+  public Double getTotalTaxes() {
+    return asDouble(totalTaxes);
+  }
+
+  public void setTotalTaxes(BigDecimal totalTaxes) {
+    this.totalTaxes = scaleDecimal(totalTaxes);
+  }
+
+  public void setTotalTaxes(Double totalTaxes) {
+    this.totalTaxes = scaleDecimal(totalTaxes);
+  }
+
+  public void setTotalTaxes(double totalTaxes) {
+    this.totalTaxes = scaleDecimal(totalTaxes);
+  }
+
+  private static BigDecimal scaleDecimal(BigDecimal value) {
+    return value == null ? null : value.setScale(8, RoundingMode.HALF_UP);
+  }
+
+  private static BigDecimal scaleDecimal(Double value) {
+    return value == null ? null : scaleDecimal(BigDecimal.valueOf(value));
+  }
+
+  private static BigDecimal scaleDecimal(double value) {
+    return scaleDecimal(BigDecimal.valueOf(value));
+  }
+
+  private static Double asDouble(BigDecimal value) {
+    return value == null ? null : value.doubleValue();
   }
 }

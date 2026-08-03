@@ -8,6 +8,8 @@ import com.example.demo.testsupport.portfolio.PortfolioBuilders;
 import com.example.demo.testsupport.portfolio.PortfolioScenarios;
 import com.example.demo.testsupport.portfolio.PortfolioTestContext;
 import com.example.demo.testsupport.portfolio.PortfolioTestData;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,7 +21,6 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyDouble;
 
 @ExtendWith(MockitoExtension.class)
 class CashFlowAggregatorTest {
@@ -33,8 +34,8 @@ class CashFlowAggregatorTest {
         aggregator = new CashFlowAggregator(currencyRateService);
         // Identity FX so amounts pass through unchanged. lenient() because the empty-input test
         // never triggers conversion.
-        org.mockito.Mockito.lenient().when(currencyRateService.convertToBaseCurrency(anyDouble(), any(), any(), any(LocalDate.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0, Double.class));
+        org.mockito.Mockito.lenient().when(currencyRateService.convertToBaseCurrency(any(BigDecimal.class), any(), any(), any(LocalDate.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0, BigDecimal.class));
     }
 
     @Test
@@ -55,13 +56,13 @@ class CashFlowAggregatorTest {
                 dividendScenario.operations().aaplWithholdingTax()
         ), CurrencyType.USD);
 
-        assertEquals(1000.0, summary.deposits(), 0.01);
-        assertEquals(-200.0, summary.withdrawals(), 0.01);
-        assertEquals(800.0, summary.netDeposits(), 0.01);
-        assertEquals(10.0, summary.interest(), 0.01);
-        assertEquals(dividendScenario.expected().dividend().netCashIncrease(), summary.dividends(), 0.01);
-        assertEquals(-dividendScenario.expected().dividend().tax(), summary.dividendTax(), 0.01);
-        assertEquals(dividendScenario.expected().dividend().netCashIncrease(), summary.dividendsByCurrency().get(CurrencyType.USD), 0.01);
+        assertEquals(new BigDecimal("1000.00000000"), summary.deposits());
+        assertEquals(new BigDecimal("-200.00000000"), summary.withdrawals());
+        assertEquals(new BigDecimal("800.00000000"), summary.netDeposits());
+        assertEquals(new BigDecimal("10.00000000"), summary.interest());
+        assertEquals(BigDecimal.valueOf(dividendScenario.expected().dividend().netCashIncrease()).setScale(8, RoundingMode.HALF_UP), summary.dividends());
+        assertEquals(BigDecimal.valueOf(-dividendScenario.expected().dividend().tax()).setScale(8, RoundingMode.HALF_UP), summary.dividendTax());
+        assertEquals(BigDecimal.valueOf(dividendScenario.expected().dividend().netCashIncrease()).setScale(8, RoundingMode.HALF_UP), summary.dividendsByCurrency().get(CurrencyType.USD));
     }
 
     @Test
@@ -80,16 +81,16 @@ class CashFlowAggregatorTest {
         ), CurrencyType.USD);
 
         // Currency conversion + sub-account transfers excluded -> only the real wire counts.
-        assertEquals(1000.0, summary.deposits(), 0.01);
-        assertEquals(0.0, summary.withdrawals(), 0.01);
+        assertEquals(new BigDecimal("1000.00000000"), summary.deposits());
+        assertEquals(new BigDecimal("0E-8"), summary.withdrawals());
     }
 
     @Test
     void aggregate_returnsZeroSummaryForEmptyInput() {
         CashFlowAggregator.CashFlowSummary summary = aggregator.aggregate(List.of(), CurrencyType.USD);
-        assertEquals(0.0, summary.deposits());
-        assertEquals(0.0, summary.dividends());
-        assertEquals(0.0, summary.interest());
+        assertEquals(new BigDecimal("0E-8"), summary.deposits());
+        assertEquals(new BigDecimal("0E-8"), summary.dividends());
+        assertEquals(new BigDecimal("0E-8"), summary.interest());
         assertEquals(0, summary.dividendsByCurrency().size());
     }
 

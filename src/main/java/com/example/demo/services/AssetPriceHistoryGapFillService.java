@@ -2,6 +2,7 @@ package com.example.demo.services;
 
 import com.example.demo.infrastructure.repository.*;
 
+import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.Comparator;
@@ -55,7 +56,7 @@ public class AssetPriceHistoryGapFillService {
       if (!StringUtils.hasText(row.getSymbol())
           || row.getPriceDate() == null
           || row.getClosePrice() == null
-          || row.getClosePrice() <= 0.0) {
+          || row.getClosePrice().compareTo(BigDecimal.ZERO) <= 0) {
         continue;
       }
       NavigableMap<LocalDate, AssetPriceHistoryRepository.HistoricalAssetPriceRow> datedRows =

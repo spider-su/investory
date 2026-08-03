@@ -6,6 +6,8 @@ import com.example.demo.services.currency.CurrencyRateService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
@@ -23,6 +25,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class CashFlowAggregator {
 
+    private static final int MONEY_SCALE = 8;
+
     private final CurrencyRateService currencyRateService;
 
     /**
@@ -30,15 +34,15 @@ public class CashFlowAggregator {
      * which is kept in native currencies for the dashboard's per-currency board).
      */
     public record CashFlowSummary(
-            double deposits,
-            double withdrawals,
-            double interest,
-            double dividends,
-            double dividendTax,
-            Map<CurrencyType, Double> dividendsByCurrency) {
+            BigDecimal deposits,
+            BigDecimal withdrawals,
+            BigDecimal interest,
+            BigDecimal dividends,
+            BigDecimal dividendTax,
+            Map<CurrencyType, BigDecimal> dividendsByCurrency) {
 
-        public double netDeposits() {
-            return deposits + withdrawals;
+        public BigDecimal netDeposits() {
+            return scale(deposits.add(withdrawals));
         }
     }
 
@@ -46,60 +50,67 @@ public class CashFlowAggregator {
         Map<CurrencyType, List<CashOperation>> byCurrency = operations.stream()
                 .collect(Collectors.groupingBy(CashOperation::getCurrency));
 
-        double deposits = 0.0;
-        double withdrawals = 0.0;
-        double interest = 0.0;
-        double dividends = 0.0;
-        double dividendTax = 0.0;
-        Map<CurrencyType, Double> dividendsByCurrency = new HashMap<>();
+        BigDecimal deposits = BigDecimal.ZERO;
+        BigDecimal withdrawals = BigDecimal.ZERO;
+        BigDecimal interest = BigDecimal.ZERO;
+        BigDecimal dividends = BigDecimal.ZERO;
+        BigDecimal dividendTax = BigDecimal.ZERO;
+        Map<CurrencyType, BigDecimal> dividendsByCurrency = new HashMap<>();
 
         for (Map.Entry<CurrencyType, List<CashOperation>> entry : byCurrency.entrySet()) {
             CurrencyType currency = entry.getKey();
             List<CashOperation> positions = entry.getValue();
 
-            double grossDividends = 0.0;
-            double withholdingTax = 0.0;
+            BigDecimal grossDividends = BigDecimal.ZERO;
+            BigDecimal withholdingTax = BigDecimal.ZERO;
 
             for (CashOperation op : positions) {
                 if (op.getType() == null) {
                     continue;
                 }
                 LocalDate rateDate = op.getDate() != null ? op.getDate().toLocalDate() : LocalDate.now();
-                double amount = nz(op.getAmount());
-                double base = currencyRateService.convertToBaseCurrency(amount, baseCurrency, currency, rateDate);
+                BigDecimal amount = nz(op.getAmountValue());
+                BigDecimal base = currencyRateService.convertToBaseCurrency(amount, baseCurrency, currency, rateDate);
                 switch (op.getType()) {
                     case DIVIDEND:
-                        grossDividends += amount;
-                        dividends += base;
+                        grossDividends = grossDividends.add(amount);
+                        dividends = dividends.add(base);
                         break;
                     case WITHHOLDING_TAX:
-                        withholdingTax += amount;
-                        dividends += base;
-                        dividendTax += base;
+                        withholdingTax = withholdingTax.add(amount);
+                        dividends = dividends.add(base);
+                        dividendTax = dividendTax.add(base);
                         break;
                     case DEPOSIT:
                         if (isExternalFunding(op)) {
-                            deposits += base;
+                            deposits = deposits.add(base);
                         }
                         break;
                     case WITHDRAWAL:
                         if (isExternalFunding(op)) {
-                            withdrawals += base;
+                            withdrawals = withdrawals.add(base);
                         }
                         break;
                     case FREE_FUNDS_INTEREST:
                     case FREE_FUNDS_INTEREST_TAX:
-                        interest += base;
+                        interest = interest.add(base);
                         break;
                     default:
                         break;
                 }
             }
 
-            dividendsByCurrency.merge(currency, grossDividends + withholdingTax, Double::sum);
+            dividendsByCurrency.merge(currency, grossDividends.add(withholdingTax), BigDecimal::add);
         }
 
-        return new CashFlowSummary(deposits, withdrawals, interest, dividends, dividendTax, dividendsByCurrency);
+        return new CashFlowSummary(
+                scale(deposits),
+                scale(withdrawals),
+                scale(interest),
+                scale(dividends),
+                scale(dividendTax),
+                dividendsByCurrency.entrySet().stream()
+                        .collect(Collectors.toMap(Map.Entry::getKey, entry -> scale(entry.getValue()))));
     }
 
     /**
@@ -122,8 +133,12 @@ public class CashFlowAggregator {
                 || lower.contains("transfer to"));
     }
 
-    private static double nz(Double value) {
-        return value == null ? 0.0 : value;
+    private static BigDecimal nz(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
+    }
+
+    private static BigDecimal scale(BigDecimal value) {
+        return nz(value).setScale(MONEY_SCALE, RoundingMode.HALF_UP);
     }
 }
 

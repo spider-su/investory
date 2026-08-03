@@ -13,6 +13,7 @@ import com.example.demo.services.imports.ImportExecutionResult;
 import com.opencsv.CSVReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDate;
@@ -180,8 +181,9 @@ public class IbkrImportService {
             "IBKR: %d cash operations, %d closed positions, %d open positions, %d skipped",
             cashOps.size(), 0, openPositions.size(), failed);
     log.info(details);
-    return new ImportExecutionResult(
-        total, cashOps.size() + openPositions.size(), failed, details);
+    // Batch audit counters are row-level import metrics, not projection/rebuild output sizes.
+    int applied = Math.max(0, total - failed);
+    return new ImportExecutionResult(total, applied, failed, details);
   }
 
   /**
@@ -580,7 +582,7 @@ public class IbkrImportService {
           observation.symbol(),
           observation.originalSourceSymbol(),
           observation.priceCurrency().name(),
-          observation.priceValue());
+          BigDecimal.valueOf(observation.priceValue()));
     }
   }
 

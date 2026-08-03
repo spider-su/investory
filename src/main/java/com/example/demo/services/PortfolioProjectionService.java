@@ -11,7 +11,6 @@ import com.example.demo.infrastructure.repository.account.AccountDailyRepository
 import com.example.demo.infrastructure.repository.Asset;
 import com.example.demo.infrastructure.repository.AssetPriceHistoryRepository;
 import com.example.demo.infrastructure.repository.AssetRepository;
-import com.example.demo.infrastructure.repository.CashOperation;
 import com.example.demo.infrastructure.repository.CashOperationRepository;
 import com.example.demo.infrastructure.repository.ClosedPosition;
 import com.example.demo.infrastructure.repository.ClosedPositionRepository;
@@ -20,6 +19,7 @@ import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
 import com.example.demo.services.CashOperationNormalizer.NormalizedCategory;
 import com.example.demo.services.currency.CurrencyRateService;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -575,20 +575,20 @@ public class PortfolioProjectionService {
                 .accountId(entry.key().accountId())
                 .date(entry.key().date())
                 .valuationCurrency(portfolioBase.name())
-                .cashBalance(cashBalance)
-                .marketValue(marketValue)
-                .equity(equity)
-                .unrealizedProfit(unrealizedProfit)
-                .costBase(costBase)
-                .realizedProfit(acc.realizedProfit)
-                .dividends(acc.dividends)
-                .interest(acc.interest)
-                .fees(acc.fees)
-                .taxes(acc.taxes)
-                .deposits(acc.deposits)
-                .withdrawals(acc.withdrawals)
-                .dailyProfitAmount(dailyProfit)
-                .dailyReturn(dailyReturn)
+                .cashBalance(BigDecimal.valueOf(cashBalance))
+                .marketValue(BigDecimal.valueOf(marketValue))
+                .equity(BigDecimal.valueOf(equity))
+                .unrealizedProfit(BigDecimal.valueOf(unrealizedProfit))
+                .costBase(BigDecimal.valueOf(costBase))
+                .realizedProfit(BigDecimal.valueOf(acc.realizedProfit))
+                .dividends(BigDecimal.valueOf(acc.dividends))
+                .interest(BigDecimal.valueOf(acc.interest))
+                .fees(BigDecimal.valueOf(acc.fees))
+                .taxes(BigDecimal.valueOf(acc.taxes))
+                .deposits(BigDecimal.valueOf(acc.deposits))
+                .withdrawals(BigDecimal.valueOf(acc.withdrawals))
+                .dailyProfitAmount(BigDecimal.valueOf(dailyProfit))
+                .dailyReturn(BigDecimal.valueOf(dailyReturn))
                 .createdAt(now)
                 .updatedAt(now)
                 .build());
@@ -652,8 +652,9 @@ public class PortfolioProjectionService {
         continue;
       }
       CurrencyType currency = parseCurrency(row.getPriceCurrency());
-      double scaleFactor = row.getPriceScaleFactor() == null ? 1.0 : row.getPriceScaleFactor();
-      double scaledClosePrice = row.getClosePrice() * scaleFactor;
+      BigDecimal scaleFactor = row.getPriceScaleFactor() == null ? BigDecimal.ONE : row.getPriceScaleFactor();
+      BigDecimal scaledClosePriceValue = row.getClosePrice().multiply(scaleFactor);
+      double scaledClosePrice = scaledClosePriceValue.doubleValue();
       if (scaledClosePrice <= EPSILON) {
         continue;
       }

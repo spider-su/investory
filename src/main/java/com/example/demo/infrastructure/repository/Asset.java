@@ -10,11 +10,16 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.ZonedDateTime;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Data
 @Builder(toBuilder = true)
@@ -67,16 +72,72 @@ public class Asset {
   @Column(name = "active")
   private Boolean active;
 
-  @Column(name = "market_price")
-  private Double marketPrice;
+  @Getter(AccessLevel.NONE)
+  @Setter(AccessLevel.NONE)
+  @Column(name = "market_price", precision = 20, scale = 8)
+  private BigDecimal marketPrice;
 
-  @Column(name = "market_price_usd")
-  private Double marketPriceUsd;
+  @Getter(AccessLevel.NONE)
+  @Setter(AccessLevel.NONE)
+  @Column(name = "market_price_usd", precision = 20, scale = 8)
+  private BigDecimal marketPriceUsd;
 
   @Column(name = "price_source")
   private String priceSource;
 
   @Column(name = "price_updated_at")
   private ZonedDateTime priceUpdatedAt;
+
+  public Double getMarketPrice() {
+    return asDouble(marketPrice);
+  }
+
+  public BigDecimal getMarketPriceValue() {
+    return marketPrice;
+  }
+
+  public void setMarketPrice(BigDecimal marketPrice) {
+    this.marketPrice = scaleDecimal(marketPrice);
+  }
+
+  public void setMarketPrice(Double marketPrice) {
+    this.marketPrice = scaleDecimal(marketPrice);
+  }
+
+  public void setMarketPrice(double marketPrice) {
+    setMarketPrice(Double.valueOf(marketPrice));
+  }
+
+  public Double getMarketPriceUsd() {
+    return asDouble(marketPriceUsd);
+  }
+
+  public BigDecimal getMarketPriceUsdValue() {
+    return marketPriceUsd;
+  }
+
+  public void setMarketPriceUsd(BigDecimal marketPriceUsd) {
+    this.marketPriceUsd = scaleDecimal(marketPriceUsd);
+  }
+
+  public void setMarketPriceUsd(Double marketPriceUsd) {
+    this.marketPriceUsd = scaleDecimal(marketPriceUsd);
+  }
+
+  public void setMarketPriceUsd(double marketPriceUsd) {
+    setMarketPriceUsd(Double.valueOf(marketPriceUsd));
+  }
+
+  private static Double asDouble(BigDecimal value) {
+    return value == null ? null : value.doubleValue();
+  }
+
+  private static BigDecimal scaleDecimal(BigDecimal value) {
+    return value == null ? null : value.setScale(8, RoundingMode.HALF_UP);
+  }
+
+  private static BigDecimal scaleDecimal(Double value) {
+    return value == null ? null : scaleDecimal(BigDecimal.valueOf(value));
+  }
 }
 

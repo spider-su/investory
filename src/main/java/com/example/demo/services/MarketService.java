@@ -9,6 +9,7 @@ import com.example.demo.infrastructure.repository.ClosedPositionRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
 import com.example.demo.services.models.StockQuote;
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
@@ -250,7 +251,7 @@ public class MarketService {
                         asset.getSymbol(),
                         "TWELVE_DATA_MARKET_CLOSE",
                         quoteCurrency(asset, quote),
-                        marketPrice,
+                        BigDecimal.valueOf(marketPrice),
                         100,
                         "EXACT_LISTING_MARKET_CLOSE");
             }

@@ -7,6 +7,7 @@ import com.example.demo.infrastructure.repository.AssetRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
 import com.example.demo.services.currency.CurrencyRateService;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -95,7 +96,7 @@ public class AssetPriceFallbackService {
           HistoricalQuote historicalQuote = historicalQuotesBySymbol.get(symbol);
           if (historicalQuote != null
               && historicalQuote.price() != null
-              && historicalQuote.price() > 0.0
+              && historicalQuote.price().compareTo(BigDecimal.ZERO) > 0
               && (fallbackSource || asset.getMarketPrice() == null || asset.getMarketPrice() == 0.0)) {
             CurrencyType historicalCurrency =
                 historicalQuote.currency() != null ? historicalQuote.currency() : currency;
@@ -190,7 +191,7 @@ public class AssetPriceFallbackService {
   private record WeightedPrice(double price, CurrencyType currency) {}
 
   private record HistoricalQuote(
-      Double price,
+      BigDecimal price,
       CurrencyType currency,
       String priceOrigin,
       LocalDate priceDate,

@@ -30,6 +30,7 @@ import com.example.demo.infrastructure.repository.OpenedPositionRepository;
 import com.example.demo.services.currency.CurrencyRateService;
 import com.example.demo.testsupport.portfolio.PortfolioBuilders;
 import com.example.demo.testsupport.portfolio.PortfolioTestData;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -1775,8 +1776,8 @@ class PortfolioProjectionServiceTest {
       }
 
       @Override
-      public Double getClosePrice() {
-        return closePrice;
+      public BigDecimal getClosePrice() {
+        return closePrice == null ? null : BigDecimal.valueOf(closePrice);
       }
 
       @Override
@@ -1785,8 +1786,8 @@ class PortfolioProjectionServiceTest {
       }
 
       @Override
-      public Double getPriceScaleFactor() {
-        return scaleFactor;
+      public BigDecimal getPriceScaleFactor() {
+        return scaleFactor == null ? null : BigDecimal.valueOf(scaleFactor);
       }
 
       @Override

@@ -11,6 +11,7 @@ import com.example.demo.infrastructure.repository.AssetPriceHistoryRepository;
 import com.example.demo.infrastructure.repository.AssetRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
@@ -59,7 +60,7 @@ class AssetPriceHistoryGapFillServiceTest {
             "IUVL",
             "IUVL",
             "USD",
-            18.50);
+            BigDecimal.valueOf(18.50));
     verify(assetPriceHistoryRepository)
         .upsertCarryForwardPrice(
             101L,
@@ -68,7 +69,7 @@ class AssetPriceHistoryGapFillServiceTest {
             "IUVL",
             "IUVL",
             "USD",
-            18.50);
+            BigDecimal.valueOf(18.50));
     verify(assetPriceHistoryRepository)
         .upsertCarryForwardPrice(
             101L,
@@ -77,7 +78,7 @@ class AssetPriceHistoryGapFillServiceTest {
             "IUVL",
             "IUVL",
             "USD",
-            18.50);
+            BigDecimal.valueOf(18.50));
     verify(assetPriceHistoryRepository)
         .upsertCarryForwardPrice(
             101L,
@@ -86,7 +87,7 @@ class AssetPriceHistoryGapFillServiceTest {
             "IUVL",
             "IUVL",
             "USD",
-            18.50);
+            BigDecimal.valueOf(18.50));
   }
 
   @Test
@@ -159,7 +160,7 @@ class AssetPriceHistoryGapFillServiceTest {
             "NFLX.US",
             "NFLX.US",
             "USD",
-            112.98);
+            BigDecimal.valueOf(112.98));
   }
 
   private static AssetPriceHistoryRepository.HistoricalAssetPriceRow row(
@@ -202,8 +203,8 @@ class AssetPriceHistoryGapFillServiceTest {
       }
 
       @Override
-      public Double getClosePrice() {
-        return closePrice;
+      public BigDecimal getClosePrice() {
+        return BigDecimal.valueOf(closePrice);
       }
 
       @Override
@@ -212,8 +213,8 @@ class AssetPriceHistoryGapFillServiceTest {
       }
 
       @Override
-      public Double getPriceScaleFactor() {
-        return 1.0;
+      public BigDecimal getPriceScaleFactor() {
+        return BigDecimal.ONE;
       }
 
       @Override

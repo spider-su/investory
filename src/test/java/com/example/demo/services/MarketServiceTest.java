@@ -13,6 +13,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.PlatformTransactionManager;
 
+import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -137,7 +138,7 @@ class MarketServiceTest {
                 "AAPL.US",
                 "TWELVE_DATA_MARKET_CLOSE",
                 "USD",
-                110.0,
+                BigDecimal.valueOf(110.0),
                 100,
                 "EXACT_LISTING_MARKET_CLOSE");
         verify(statisticsRefreshService).refreshAll();
@@ -172,7 +173,7 @@ class MarketServiceTest {
                 eq("REMX.UK"),
                 eq("TWELVE_DATA_MARKET_CLOSE"),
                 eq("USD"),
-                eq(12.93),
+                eq(BigDecimal.valueOf(12.93)),
                 eq(100),
                 eq("EXACT_LISTING_MARKET_CLOSE"));
     }

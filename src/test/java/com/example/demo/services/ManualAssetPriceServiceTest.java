@@ -16,6 +16,7 @@ import com.example.demo.services.ManualAssetPriceService.ManualAssetPrice;
 import com.example.demo.services.currency.CurrencyRateService;
 import com.example.demo.testsupport.portfolio.PortfolioBuilders;
 import com.example.demo.testsupport.portfolio.PortfolioTestData;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -73,7 +74,7 @@ class ManualAssetPriceServiceTest {
         eq("PKO.PL"),
         eq("MANUAL"),
         eq("PLN"),
-        eq(123.45),
+        eq(BigDecimal.valueOf(123.45)),
         eq(100),
         eq("MANUAL"));
     verify(marketService).syncStocks();

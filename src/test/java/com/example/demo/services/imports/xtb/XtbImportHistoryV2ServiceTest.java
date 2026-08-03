@@ -25,6 +25,7 @@ import com.example.demo.services.imports.ImportExecutionResult;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -298,7 +299,7 @@ class XtbImportHistoryV2ServiceTest {
             "AAPL.US",
             "XTB_TRADE_OPEN",
             "USD",
-            102.0,
+            BigDecimal.valueOf(102.0),
             90,
             "XTB_TRADE_OPEN_OBSERVATION");
     verify(assetRepository).saveAll(anyList());

@@ -6,12 +6,13 @@ import com.example.demo.services.currency.CurrencyRateService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Year;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
 
 /**
  * Estimates Polish capital-gains tax ("Belka", 19 %) for the current tax year, applying loss
@@ -25,14 +26,14 @@ import java.util.stream.Collectors;
 public class TaxCalculator {
 
     /** Polish capital-gains tax rate. */
-    private static final double RATE = 0.19;
+    private static final BigDecimal RATE = new BigDecimal("0.19");
     /** Polish rule: losses deductible against gains for the next 5 years. */
     private static final int LOSS_CARRY_FORWARD_YEARS = 5;
 
     private final CurrencyRateService currencyRateService;
 
     /** Tax result in {@code baseCurrency}, rounded to 2 decimal places. */
-    public record TaxSummary(double capitalGainsTax, double lossCarryForward) {}
+    public record TaxSummary(BigDecimal capitalGainsTax, BigDecimal lossCarryForward) {}
 
     public TaxSummary calculate(List<ClosedPosition> closedPositions, CurrencyType baseCurrency) {
         return calculate(closedPositions, baseCurrency, Year.now().getValue());
@@ -40,37 +41,42 @@ public class TaxCalculator {
 
     /** Year-injectable overload, used by tests so they don't drift across calendar boundaries. */
     public TaxSummary calculate(List<ClosedPosition> closedPositions, CurrencyType baseCurrency, int currentYear) {
-        Map<Integer, Double> realizedByYear = closedPositions.stream()
-                .filter(p -> p.getCloseTime() != null)
-                .collect(Collectors.groupingBy(
-                        p -> p.getCloseTime().getYear(),
-                        Collectors.summingDouble(p -> netProfitInBase(p, baseCurrency))));
+        Map<Integer, BigDecimal> realizedByYear = new TreeMap<>();
+        for (ClosedPosition position : closedPositions) {
+            if (position.getCloseTime() == null) {
+                continue;
+            }
+            realizedByYear.merge(
+                    position.getCloseTime().getYear(),
+                    netProfitInBase(position, baseCurrency),
+                    BigDecimal::add);
+        }
 
         // Walk years chronologically: loss years feed a pool; gain years consume losses from the
         // previous 5 years (oldest first). Only the current year's resulting tax is reported.
-        Map<Integer, Double> lossPool = new TreeMap<>();
-        double currentYearTaxable = 0.0;
-        double appliedToCurrentYear = 0.0;
+        Map<Integer, BigDecimal> lossPool = new TreeMap<>();
+        BigDecimal currentYearTaxable = BigDecimal.ZERO;
+        BigDecimal appliedToCurrentYear = BigDecimal.ZERO;
         for (Integer year : new TreeSet<>(realizedByYear.keySet())) {
-            double net = realizedByYear.getOrDefault(year, 0.0);
-            if (net < 0) {
-                lossPool.merge(year, -net, Double::sum);
+            BigDecimal net = realizedByYear.getOrDefault(year, BigDecimal.ZERO);
+            if (net.compareTo(BigDecimal.ZERO) < 0) {
+                lossPool.merge(year, net.abs(), BigDecimal::add);
                 continue;
             }
-            double remainingGain = net;
-            for (Map.Entry<Integer, Double> loss : lossPool.entrySet()) {
-                if (remainingGain <= 0) {
+            BigDecimal remainingGain = net;
+            for (Map.Entry<Integer, BigDecimal> loss : lossPool.entrySet()) {
+                if (remainingGain.compareTo(BigDecimal.ZERO) <= 0) {
                     break;
                 }
                 int lossYear = loss.getKey();
                 if (lossYear < year - LOSS_CARRY_FORWARD_YEARS || lossYear >= year) {
                     continue; // outside the deduction window
                 }
-                double use = Math.min(remainingGain, loss.getValue());
-                loss.setValue(loss.getValue() - use);
-                remainingGain -= use;
+                BigDecimal use = remainingGain.min(loss.getValue());
+                loss.setValue(loss.getValue().subtract(use));
+                remainingGain = remainingGain.subtract(use);
                 if (year == currentYear) {
-                    appliedToCurrentYear += use;
+                    appliedToCurrentYear = appliedToCurrentYear.add(use);
                 }
             }
             if (year == currentYear) {
@@ -78,26 +84,29 @@ public class TaxCalculator {
             }
         }
         return new TaxSummary(
-                round(currentYearTaxable * RATE),
+                round(currentYearTaxable.multiply(RATE)),
                 round(appliedToCurrentYear));
     }
 
-    private double netProfitInBase(ClosedPosition position, CurrencyType baseCurrency) {
+    private BigDecimal netProfitInBase(ClosedPosition position, CurrencyType baseCurrency) {
         var date = position.getCloseTime().toLocalDate();
         return currencyRateService.convertToBaseCurrency(
-                        nz(position.getProfit()) + nz(position.getSwap()),
+                        nz(position.getProfit()).add(nz(position.getSwap())),
                         baseCurrency, position.getProfitCurrency(), date)
-                + currencyRateService.convertToBaseCurrency(
-                        nz(position.getCommission()),
-                        baseCurrency, position.getCommissionCurrency(), date);
+                .add(
+                        currencyRateService.convertToBaseCurrency(
+                                nz(position.getCommission()),
+                                baseCurrency,
+                                position.getCommissionCurrency(),
+                                date));
     }
 
-    private static double nz(Double value) {
-        return value == null ? 0.0 : value;
+    private static BigDecimal nz(Double value) {
+        return value == null ? BigDecimal.ZERO : BigDecimal.valueOf(value);
     }
 
-    private static double round(double value) {
-        return Math.round(value * 100.0) / 100.0;
+    private static BigDecimal round(BigDecimal value) {
+        return value.setScale(2, RoundingMode.HALF_UP);
     }
 }
 
