@@ -43,19 +43,19 @@ class ValuationInputContractTest {
         try (Connection connection = connection(); Statement statement = connection.createStatement()) {
             statement.execute(
                     "INSERT INTO investory.exchange_rates(month, base, to_currency, rate, source) VALUES "
-                            + "(DATE '2026-01-01', 'EUR', 'USD', 1.10, 'TEST'), "
-                            + "(DATE '2026-02-01', 'EUR', 'USD', 1.20, 'TEST')");
+                            + "(DATE '2098-01-01', 'EUR', 'USD', 1.10, 'TEST'), "
+                            + "(DATE '2098-02-01', 'EUR', 'USD', 1.20, 'TEST')");
 
             try (ResultSet result =
                     statement.executeQuery(
                             "SELECT fx_rate_to_target, source_rate_date, conversion_status "
-                                    + "FROM investory.resolve_fx_rate(DATE '2026-01-15', 'EUR', 'USD')")) {
+                                    + "FROM investory.resolve_fx_rate(DATE '2098-01-15', 'EUR', 'USD')")) {
                 assertTrue(result.next());
                 assertEquals(
                         0,
                         result.getBigDecimal("fx_rate_to_target")
                                 .compareTo(new BigDecimal("1.10000000")));
-                assertEquals("2026-01-01", result.getDate("source_rate_date").toString());
+                assertEquals("2098-01-01", result.getDate("source_rate_date").toString());
                 assertEquals("OK", result.getString("conversion_status"));
             }
         }
