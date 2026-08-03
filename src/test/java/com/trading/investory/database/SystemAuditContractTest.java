@@ -47,7 +47,7 @@ class SystemAuditContractTest {
                     statement.executeQuery(
                             "INSERT INTO investory.import_history("
                                     + "provider, file_name, file_sha256, started_at, status) VALUES ("
-                                    + "'XTB', 'audit-completed.csv', 'audit-completed-sha', now(), 'STARTED') "
+                                    + "'XTB', 'audit-completed.csv', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', now(), 'STARTED') "
                                     + "RETURNING id")) {
                 assertTrue(result.next());
                 importId = result.getLong(1);
@@ -87,7 +87,7 @@ class SystemAuditContractTest {
                             "INSERT INTO investory.import_history("
                                     + "provider, file_name, file_sha256, started_at, finished_at, status, "
                                     + "rows_total, rows_failed, error_message) VALUES ("
-                                    + "'IBKR', 'audit-failed.csv', 'audit-failed-sha', now(), now(), "
+                                    + "'IBKR', 'audit-failed.csv', 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', now(), now(), "
                                     + "'FAILED', 5, 5, 'invalid source row') RETURNING id")) {
                 assertTrue(result.next());
                 importId = result.getLong(1);
@@ -118,7 +118,7 @@ class SystemAuditContractTest {
                             "INSERT INTO investory.import_history("
                                     + "provider, file_name, file_sha256, started_at, finished_at, status, "
                                     + "rows_total, rows_applied, rows_failed) VALUES ("
-                                    + "'XTB', 'audit-partial.csv', 'audit-partial-sha', now(), now(), "
+                                    + "'XTB', 'audit-partial.csv', 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc', now(), now(), "
                                     + "'PARTIAL', 10, 9, 1) RETURNING id")) {
                 assertTrue(result.next());
                 importId = result.getLong(1);
@@ -153,7 +153,7 @@ class SystemAuditContractTest {
                             "INSERT INTO investory.import_history("
                                     + "provider, file_name, file_sha256, started_at, finished_at, status, "
                                     + "rows_total, rows_applied, rows_failed) VALUES ("
-                                    + "'XTB', 'audit-unknown.csv', 'audit-unknown-sha', now(), now(), "
+                                    + "'XTB', 'audit-unknown.csv', 'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd', now(), now(), "
                                     + "'COMPLETED', 1, 1, 0) RETURNING id")) {
                 assertTrue(result.next());
                 importId = result.getLong(1);
