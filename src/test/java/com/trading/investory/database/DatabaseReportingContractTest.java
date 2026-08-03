@@ -15,7 +15,10 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -123,6 +126,124 @@ class DatabaseReportingContractTest {
     }
 
     @Test
+    void everyCashOperationEnumHasAnExplicitClassificationContract() throws SQLException {
+        Map<String, String> expectedCategories = new LinkedHashMap<>();
+        expectedCategories.put("DEPOSIT", "EXTERNAL_DEPOSIT");
+        expectedCategories.put("WITHDRAWAL", "EXTERNAL_WITHDRAWAL");
+        expectedCategories.put("TRANSFER", "EXTERNAL_DEPOSIT");
+        expectedCategories.put("SUBACCOUNT_TRANSFER", "INTERNAL_BOOKKEEPING");
+        expectedCategories.put("STOCK_PURCHASE", "TRADE_PURCHASE");
+        expectedCategories.put("STOCK_SELL", "TRADE_SALE");
+        expectedCategories.put("CLOSE_TRADE", "REALIZED_TRADE_RESULT");
+        expectedCategories.put("CORRECTION", "CORRECTION");
+        expectedCategories.put("ROLLOVER", "REALIZED_TRADE_RESULT");
+        expectedCategories.put("SWAP", "FEE");
+        expectedCategories.put("DIVIDEND", "DIVIDEND");
+        expectedCategories.put("FREE_FUNDS_INTEREST", "INTEREST");
+        expectedCategories.put("COMMISSION", "FEE");
+        expectedCategories.put("SEC_FEE", "FEE");
+        expectedCategories.put("STAMP_DUTY", "OTHER_TAX");
+        expectedCategories.put("TRANSACTION_TAX", "OTHER_TAX");
+        expectedCategories.put("WITHHOLDING_TAX", "WITHHOLDING_TAX");
+        expectedCategories.put("FREE_FUNDS_INTEREST_TAX", "OTHER_TAX");
+        expectedCategories.put("UNKNOWN", "UNCLASSIFIED");
+
+        try (Connection connection = connection()) {
+            List<String> actualEnumValues = enumLabels(connection, "cash_operation_type");
+            assertEquals(
+                    new LinkedHashSet<>(expectedCategories.keySet()),
+                    new LinkedHashSet<>(actualEnumValues),
+                    "Update this classification contract whenever cash_operation_type changes");
+
+            connection.setAutoCommit(false);
+            try {
+                long accountId;
+                String currency;
+                try (Statement statement = connection.createStatement();
+                        ResultSet result =
+                                statement.executeQuery(
+                                        "SELECT id, currency FROM investory.accounts ORDER BY id LIMIT 1")) {
+                    assertTrue(result.next(), "Initial data must contain at least one account");
+                    accountId = result.getLong("id");
+                    currency = result.getString("currency");
+                }
+
+                for (Map.Entry<String, String> classification : expectedCategories.entrySet()) {
+                    String operation = classification.getKey();
+                    BigDecimal amount = canonicalAmount(operation);
+                    String comment =
+                            operation.equals("TRANSFER")
+                                    ? "cash transfer"
+                                    : "classification contract " + operation;
+
+                    long operationId;
+                    try (PreparedStatement statement =
+                            connection.prepareStatement(
+                                    "INSERT INTO investory.cash_operations "
+                                            + "(account_id, operation, amount, currency, comment, date) "
+                                            + "VALUES (?, ?::investory.cash_operation_type, ?, ?, ?, ?) "
+                                            + "RETURNING id")) {
+                        statement.setLong(1, accountId);
+                        statement.setString(2, operation);
+                        statement.setBigDecimal(3, amount);
+                        statement.setString(4, currency);
+                        statement.setString(5, comment);
+                        statement.setObject(6, OffsetDateTime.parse("2026-01-15T12:00:00Z"));
+                        try (ResultSet result = statement.executeQuery()) {
+                            assertTrue(result.next());
+                            operationId = result.getLong(1);
+                        }
+                    }
+
+                    try (PreparedStatement statement =
+                            connection.prepareStatement(
+                                    "SELECT normalized_category "
+                                            + "FROM investory.normalized_cash_operations "
+                                            + "WHERE operation_id = ?")) {
+                        statement.setLong(1, operationId);
+                        try (ResultSet result = statement.executeQuery()) {
+                            assertTrue(result.next(), "Missing normalized row for " + operation);
+                            assertEquals(
+                                    classification.getValue(),
+                                    result.getString("normalized_category"),
+                                    "Unexpected classification for " + operation);
+                        }
+                    }
+                }
+            } finally {
+                connection.rollback();
+            }
+        }
+    }
+
+    @Test
+    void positionOperationEnumAndSignedQuantityRemainExhaustive() throws SQLException {
+        try (Connection connection = connection()) {
+            assertEquals(
+                    List.of("BUY", "SELL"),
+                    enumLabels(connection, "positions_operation_type"),
+                    "Position operations require an explicit signed-quantity contract");
+
+            try (PreparedStatement statement =
+                    connection.prepareStatement(
+                            "SELECT investory.signed_position_quantity("
+                                    + "?::investory.positions_operation_type, 5)")) {
+                statement.setString(1, "BUY");
+                try (ResultSet result = statement.executeQuery()) {
+                    assertTrue(result.next());
+                    assertEquals(0, result.getBigDecimal(1).compareTo(new BigDecimal("5")));
+                }
+
+                statement.setString(1, "SELL");
+                try (ResultSet result = statement.executeQuery()) {
+                    assertTrue(result.next());
+                    assertEquals(0, result.getBigDecimal(1).compareTo(new BigDecimal("-5")));
+                }
+            }
+        }
+    }
+
+    @Test
     void unresolvedCashOperationAppearsInDiagnosticsAndMonthlyReview() throws SQLException {
         try (Connection connection = connection()) {
             connection.setAutoCommit(false);
@@ -206,12 +327,47 @@ class DatabaseReportingContractTest {
         }
     }
 
+    private static BigDecimal canonicalAmount(String operation) {
+        return switch (operation) {
+            case "WITHDRAWAL",
+                    "SWAP",
+                    "COMMISSION",
+                    "SEC_FEE",
+                    "STAMP_DUTY",
+                    "TRANSACTION_TAX",
+                    "WITHHOLDING_TAX",
+                    "FREE_FUNDS_INTEREST_TAX" -> new BigDecimal("-1");
+            default -> new BigDecimal("1");
+        };
+    }
+
     private static Connection connection() throws SQLException {
         Connection connection =
                 DriverManager.getConnection(
                         POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
         assertNotNull(connection);
         return connection;
+    }
+
+    private static List<String> enumLabels(Connection connection, String typeName)
+            throws SQLException {
+        String sql =
+                "SELECT enumlabel "
+                        + "FROM pg_enum e "
+                        + "JOIN pg_type t ON t.oid = e.enumtypid "
+                        + "JOIN pg_namespace n ON n.oid = t.typnamespace "
+                        + "WHERE n.nspname = 'investory' AND t.typname = ? "
+                        + "ORDER BY e.enumsortorder";
+        List<String> labels = new ArrayList<>();
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, typeName);
+            try (ResultSet result = statement.executeQuery()) {
+                while (result.next()) {
+                    labels.add(result.getString(1));
+                }
+            }
+        }
+        return labels;
     }
 
     private static List<String> relationNames(
