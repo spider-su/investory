@@ -22,7 +22,7 @@ import lombok.Setter;
 @Entity
 @IdClass(AccountMonthlyPerformanceId.class)
 @EqualsAndHashCode(of = {"accountId", "month"})
-@Table(name = "account_monthly_mv")
+@Table(name = "account_monthly_benchmark")
 public class AccountMonthlyPerformance {
 
   @Id
@@ -89,7 +89,7 @@ public class AccountMonthlyPerformance {
 
   @Getter(AccessLevel.NONE)
   @Setter(AccessLevel.NONE)
-  @Column(name = "total_profit", nullable = false, precision = 20, scale = 8)
+  @Column(name = "total_profit", precision = 20, scale = 8)
   private BigDecimal profit;
 
   @Getter(AccessLevel.NONE)
