@@ -74,10 +74,7 @@ class AssetPriceFallbackServiceTest {
             currencyRateService);
 
     OpenedPosition position =
-        PortfolioBuilders.openPosition(PortfolioTestData.SPY)
-            .quantity(2.0)
-            .price(100.0)
-            .build();
+        PortfolioBuilders.openPosition(PortfolioTestData.SPY).quantity(2.0).price(100.0).build();
     Asset asset =
         PortfolioBuilders.asset(PortfolioTestData.SPY)
             .withLatestPrice(120.0, 120.0, PortfolioTestData.JANUARY_MONTH_END)

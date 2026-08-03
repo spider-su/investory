@@ -2,12 +2,8 @@ package com.example.demo.services;
 
 import com.example.demo.infrastructure.CashOperationType;
 import com.example.demo.infrastructure.CurrencyType;
-import com.example.demo.infrastructure.PositionType;
 import com.example.demo.infrastructure.PositionSettlementModel;
-import com.example.demo.infrastructure.repository.account.Account;
-import com.example.demo.infrastructure.repository.account.AccountRepository;
-import com.example.demo.infrastructure.repository.account.AccountDaily;
-import com.example.demo.infrastructure.repository.account.AccountDailyRepository;
+import com.example.demo.infrastructure.PositionType;
 import com.example.demo.infrastructure.repository.Asset;
 import com.example.demo.infrastructure.repository.AssetPriceHistoryRepository;
 import com.example.demo.infrastructure.repository.AssetRepository;
@@ -17,6 +13,10 @@ import com.example.demo.infrastructure.repository.ClosedPositionRepository;
 import com.example.demo.infrastructure.repository.NormalizedCashOperationRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
+import com.example.demo.infrastructure.repository.account.Account;
+import com.example.demo.infrastructure.repository.account.AccountDaily;
+import com.example.demo.infrastructure.repository.account.AccountDailyRepository;
+import com.example.demo.infrastructure.repository.account.AccountRepository;
 import com.example.demo.services.CashOperationNormalizer.NormalizedCategory;
 import com.example.demo.services.currency.CurrencyRateService;
 import java.math.BigDecimal;
@@ -84,16 +84,19 @@ public class PortfolioProjectionService {
       return;
     }
 
-    Set<Long> cashOnlyAccounts = accountRepository.findAllById(affectedAccounts).stream()
-        .filter(Account::isCashOnly)
-        .map(Account::getId)
-        .collect(Collectors.toSet());
-    List<OpenedPosition> opened = openedPositionRepository.findAllByAccountIn(affectedAccounts).stream()
-        .filter(position -> !cashOnlyAccounts.contains(position.getAccount()))
-        .toList();
-    List<ClosedPosition> closed = closedPositionRepository.findAllByAccountIn(affectedAccounts).stream()
-        .filter(position -> !cashOnlyAccounts.contains(position.getAccount()))
-        .toList();
+    Set<Long> cashOnlyAccounts =
+        accountRepository.findAllById(affectedAccounts).stream()
+            .filter(Account::isCashOnly)
+            .map(Account::getId)
+            .collect(Collectors.toSet());
+    List<OpenedPosition> opened =
+        openedPositionRepository.findAllByAccountIn(affectedAccounts).stream()
+            .filter(position -> !cashOnlyAccounts.contains(position.getAccount()))
+            .toList();
+    List<ClosedPosition> closed =
+        closedPositionRepository.findAllByAccountIn(affectedAccounts).stream()
+            .filter(position -> !cashOnlyAccounts.contains(position.getAccount()))
+            .toList();
     Map<String, Asset> assets =
         assetRepository.findAll().stream()
             .filter(asset -> StringUtils.hasText(asset.getSymbol()))
@@ -106,7 +109,8 @@ public class PortfolioProjectionService {
     Map<Long, CurrencyType> accountCurrencies =
         accountRepository.findAll().stream()
             .filter(account -> account.getId() != null)
-            .collect(Collectors.toMap(Account::getId, Account::getCurrency, (first, ignored) -> first));
+            .collect(
+                Collectors.toMap(Account::getId, Account::getCurrency, (first, ignored) -> first));
 
     Map<PositionKey, PositionAccumulator> positions = new HashMap<>();
     Map<DayTickerKey, TickerMonthAccumulator> tickerDaily = new HashMap<>();
@@ -134,7 +138,8 @@ public class PortfolioProjectionService {
         positionValuedTickers,
         cashOnlyAccounts);
 
-    HistoricalPriceBook historicalPrices = loadHistoricalPrices(tickerDaily.keySet(), now.toLocalDate());
+    HistoricalPriceBook historicalPrices =
+        loadHistoricalPrices(tickerDaily.keySet(), now.toLocalDate());
 
     List<AccountDaily> accountRows =
         buildAccountDailyRows(
@@ -155,8 +160,7 @@ public class PortfolioProjectionService {
   }
 
   private void replaceAccountDerivedRows(
-      List<AccountDaily> accountRows,
-      Map<Long, LocalDate> dirtyFromByAccount) {
+      List<AccountDaily> accountRows, Map<Long, LocalDate> dirtyFromByAccount) {
     for (Map.Entry<Long, LocalDate> entry : dirtyFromByAccount.entrySet()) {
       Long accountId = entry.getKey();
       LocalDate dirtyFrom = entry.getValue();
@@ -168,15 +172,22 @@ public class PortfolioProjectionService {
             .filter(
                 row ->
                     !row.getDate()
-                        .isBefore(dirtyFromByAccount.getOrDefault(row.getAccountId(), row.getDate())))
+                        .isBefore(
+                            dirtyFromByAccount.getOrDefault(row.getAccountId(), row.getDate())))
             .toList());
   }
 
   private Set<Long> allKnownAccountIds() {
     Set<Long> accountIds = new HashSet<>();
-    openedPositionRepository.findAll().forEach(position -> addAccountId(accountIds, position.getAccount()));
-    closedPositionRepository.findAll().forEach(position -> addAccountId(accountIds, position.getAccount()));
-    cashOperationRepository.findAll().forEach(operation -> addAccountId(accountIds, operation.getAccount()));
+    openedPositionRepository
+        .findAll()
+        .forEach(position -> addAccountId(accountIds, position.getAccount()));
+    closedPositionRepository
+        .findAll()
+        .forEach(position -> addAccountId(accountIds, position.getAccount()));
+    cashOperationRepository
+        .findAll()
+        .forEach(operation -> addAccountId(accountIds, operation.getAccount()));
     return accountIds;
   }
 
@@ -188,23 +199,28 @@ public class PortfolioProjectionService {
 
   private Map<Long, LocalDate> earliestActivityDateByAccount(Set<Long> accountIds) {
     Map<Long, LocalDate> earliest = new HashMap<>();
-    openedPositionRepository.findAllByAccountIn(accountIds)
+    openedPositionRepository
+        .findAllByAccountIn(accountIds)
         .forEach(
             position ->
-                includeEarlier(
-                    earliest, position.getAccount(), toDate(position.getOpenTime())));
-    closedPositionRepository.findAllByAccountIn(accountIds)
+                includeEarlier(earliest, position.getAccount(), toDate(position.getOpenTime())));
+    closedPositionRepository
+        .findAllByAccountIn(accountIds)
         .forEach(
             position -> {
               includeEarlier(earliest, position.getAccount(), toDate(position.getOpenTime()));
               includeEarlier(earliest, position.getAccount(), toDate(position.getCloseTime()));
             });
-    cashOperationRepository.findAllByAccountIn(accountIds)
-        .forEach(operation -> includeEarlier(earliest, operation.getAccount(), toDate(operation.getDate())));
+    cashOperationRepository
+        .findAllByAccountIn(accountIds)
+        .forEach(
+            operation ->
+                includeEarlier(earliest, operation.getAccount(), toDate(operation.getDate())));
     return earliest;
   }
 
-  private static void includeEarlier(Map<Long, LocalDate> earliest, Long accountId, LocalDate candidate) {
+  private static void includeEarlier(
+      Map<Long, LocalDate> earliest, Long accountId, LocalDate candidate) {
     if (accountId == null || candidate == null) {
       return;
     }
@@ -225,8 +241,10 @@ public class PortfolioProjectionService {
         continue;
       }
 
-      CurrencyType costCurrency = requiredCurrency(position.getCostCurrency(), position.getId(), "cost");
-      CurrencyType profitCurrency = requiredCurrency(position.getProfitCurrency(), position.getId(), "profit");
+      CurrencyType costCurrency =
+          requiredCurrency(position.getCostCurrency(), position.getId(), "cost");
+      CurrencyType profitCurrency =
+          requiredCurrency(position.getProfitCurrency(), position.getId(), "profit");
       CurrencyType commissionCurrency =
           requiredCurrency(position.getCommissionCurrency(), position.getId(), "commission");
       LocalDate date = toDate(position.getOpenTime());
@@ -241,21 +259,40 @@ public class PortfolioProjectionService {
       }
 
       PositionKey key = new PositionKey(position.getAccount(), position.getSymbol(), costCurrency);
-      PositionAccumulator acc = positions.computeIfAbsent(key, ignored -> new PositionAccumulator());
+      PositionAccumulator acc =
+          positions.computeIfAbsent(key, ignored -> new PositionAccumulator());
       acc.applyOpen(position.getType(), volume, openValue, date);
-      acc.unrealizedProfit += convertBetween(nz(position.getProfit()) + nz(position.getSwap()), costCurrency, profitCurrency, date)
-          + convertBetween(nz(position.getCommission()), costCurrency, commissionCurrency, date);
-      acc.totalCommission += convertBetween(nz(position.getCommission()), costCurrency, commissionCurrency, date)
-          + convertBetween(nz(position.getSwap()), costCurrency, profitCurrency, date);
+      acc.unrealizedProfit +=
+          convertBetween(
+                  nz(position.getProfit()) + nz(position.getSwap()),
+                  costCurrency,
+                  profitCurrency,
+                  date)
+              + convertBetween(
+                  nz(position.getCommission()), costCurrency, commissionCurrency, date);
+      acc.totalCommission +=
+          convertBetween(nz(position.getCommission()), costCurrency, commissionCurrency, date)
+              + convertBetween(nz(position.getSwap()), costCurrency, profitCurrency, date);
 
       DayTickerKey dayKey = DayTickerKey.of(position.getAccount(), position.getSymbol(), date);
-      TickerMonthAccumulator dayAcc = tickerDaily.computeIfAbsent(dayKey, ignored -> new TickerMonthAccumulator());
+      TickerMonthAccumulator dayAcc =
+          tickerDaily.computeIfAbsent(dayKey, ignored -> new TickerMonthAccumulator());
       if (position.getType() == PositionType.SELL) {
-        double valueBase = convert(openValue, baseCurrency(position.getAccount(), portfolioBaseCurrencies), costCurrency, date);
+        double valueBase =
+            convert(
+                openValue,
+                baseCurrency(position.getAccount(), portfolioBaseCurrencies),
+                costCurrency,
+                date);
         dayAcc.sellQty += volume;
         dayAcc.sellValue += valueBase;
       } else {
-        double valueBase = convert(openValue, baseCurrency(position.getAccount(), portfolioBaseCurrencies), costCurrency, date);
+        double valueBase =
+            convert(
+                openValue,
+                baseCurrency(position.getAccount(), portfolioBaseCurrencies),
+                costCurrency,
+                date);
         dayAcc.buyQty += volume;
         dayAcc.buyValue += valueBase;
       }
@@ -277,8 +314,10 @@ public class PortfolioProjectionService {
         continue;
       }
 
-      CurrencyType costCurrency = requiredCurrency(position.getCostCurrency(), position.getId(), "cost");
-      CurrencyType profitCurrency = requiredCurrency(position.getProfitCurrency(), position.getId(), "profit");
+      CurrencyType costCurrency =
+          requiredCurrency(position.getCostCurrency(), position.getId(), "cost");
+      CurrencyType profitCurrency =
+          requiredCurrency(position.getProfitCurrency(), position.getId(), "profit");
       CurrencyType commissionCurrency =
           requiredCurrency(position.getCommissionCurrency(), position.getId(), "commission");
       LocalDate openDate = toDate(position.getOpenTime());
@@ -296,12 +335,18 @@ public class PortfolioProjectionService {
       if (closeValue <= EPSILON) {
         closeValue = volume * nz(position.getClosePrice());
       }
-      double netRealized = convertBetween(
-              nz(position.getProfit()) + nz(position.getSwap()), costCurrency, profitCurrency, closeDate)
-          + convertBetween(nz(position.getCommission()), costCurrency, commissionCurrency, closeDate);
+      double netRealized =
+          convertBetween(
+                  nz(position.getProfit()) + nz(position.getSwap()),
+                  costCurrency,
+                  profitCurrency,
+                  closeDate)
+              + convertBetween(
+                  nz(position.getCommission()), costCurrency, commissionCurrency, closeDate);
 
       PositionKey key = new PositionKey(position.getAccount(), position.getSymbol(), costCurrency);
-      PositionAccumulator acc = positions.computeIfAbsent(key, ignored -> new PositionAccumulator());
+      PositionAccumulator acc =
+          positions.computeIfAbsent(key, ignored -> new PositionAccumulator());
       if (position.getType() == PositionType.SELL) {
         acc.applyOpen(PositionType.SELL, volume, openValue, openDate);
         acc.applyClose(PositionType.SELL, volume, closeValue, closeDate);
@@ -310,13 +355,17 @@ public class PortfolioProjectionService {
         acc.applyClose(PositionType.BUY, volume, closeValue, closeDate);
       }
       acc.realizedProfit += netRealized;
-      acc.totalCommission += convertBetween(nz(position.getCommission()), costCurrency, commissionCurrency, closeDate)
-          + convertBetween(nz(position.getSwap()), costCurrency, profitCurrency, closeDate);
+      acc.totalCommission +=
+          convertBetween(nz(position.getCommission()), costCurrency, commissionCurrency, closeDate)
+              + convertBetween(nz(position.getSwap()), costCurrency, profitCurrency, closeDate);
 
       DayTickerKey openDay = DayTickerKey.of(position.getAccount(), position.getSymbol(), openDate);
-      DayTickerKey closeDay = DayTickerKey.of(position.getAccount(), position.getSymbol(), closeDate);
-      TickerMonthAccumulator openAcc = tickerDaily.computeIfAbsent(openDay, ignored -> new TickerMonthAccumulator());
-      TickerMonthAccumulator closeAcc = tickerDaily.computeIfAbsent(closeDay, ignored -> new TickerMonthAccumulator());
+      DayTickerKey closeDay =
+          DayTickerKey.of(position.getAccount(), position.getSymbol(), closeDate);
+      TickerMonthAccumulator openAcc =
+          tickerDaily.computeIfAbsent(openDay, ignored -> new TickerMonthAccumulator());
+      TickerMonthAccumulator closeAcc =
+          tickerDaily.computeIfAbsent(closeDay, ignored -> new TickerMonthAccumulator());
       CurrencyType portfolioBase = baseCurrency(position.getAccount(), portfolioBaseCurrencies);
       double openValueBase = convert(openValue, portfolioBase, costCurrency, openDate);
       double closeValueBase = convert(closeValue, portfolioBase, costCurrency, closeDate);
@@ -390,7 +439,8 @@ public class PortfolioProjectionService {
       TickerMonthAccumulator tickerAcc =
           tickerDaily.computeIfAbsent(tickerKey, ignored -> new TickerMonthAccumulator());
 
-      PositionKey positionKey = new PositionKey(normalized.accountId(), normalized.symbol(), currency);
+      PositionKey positionKey =
+          new PositionKey(normalized.accountId(), normalized.symbol(), currency);
       PositionAccumulator positionAcc =
           positions.computeIfAbsent(positionKey, ignored -> new PositionAccumulator());
       positionAcc.touch(date);
@@ -400,10 +450,12 @@ public class PortfolioProjectionService {
         tickerAcc.dividends += amountBase;
         positionAcc.totalDividends += amount;
       }
-      if (!hasPositionValuation && normalized.normalizedCategory() == NormalizedCategory.TRADE_PURCHASE) {
+      if (!hasPositionValuation
+          && normalized.normalizedCategory() == NormalizedCategory.TRADE_PURCHASE) {
         tickerAcc.buyValue += Math.abs(amountBase);
       }
-      if (!hasPositionValuation && normalized.normalizedCategory() == NormalizedCategory.TRADE_SALE) {
+      if (!hasPositionValuation
+          && normalized.normalizedCategory() == NormalizedCategory.TRADE_SALE) {
         tickerAcc.sellValue += Math.abs(amountBase);
       }
       if (isTaxCategory(normalized.normalizedCategory())) {
@@ -456,7 +508,8 @@ public class PortfolioProjectionService {
     for (Map.Entry<DayTickerKey, TickerMonthAccumulator> entry : tickerDaily.entrySet()) {
       DayTickerKey key = entry.getKey();
       byTicker
-          .computeIfAbsent(new AccountTickerKey(key.accountId(), key.ticker()), ignored -> new HashMap<>())
+          .computeIfAbsent(
+              new AccountTickerKey(key.accountId(), key.ticker()), ignored -> new HashMap<>())
           .put(key.date(), entry.getValue());
       accountRanges.computeIfAbsent(key.accountId(), ignored -> new DayRange()).include(key.date());
     }
@@ -470,11 +523,13 @@ public class PortfolioProjectionService {
       List<LocalDate> days = entry.getValue().days();
       accountDays.put(entry.getKey(), days);
       for (LocalDate day : days) {
-        aggregated.computeIfAbsent(new DayAccountKey(entry.getKey(), day), ignored -> new AccountMonthAccumulator());
+        aggregated.computeIfAbsent(
+            new DayAccountKey(entry.getKey(), day), ignored -> new AccountMonthAccumulator());
       }
     }
 
-    for (Map.Entry<AccountTickerKey, Map<LocalDate, TickerMonthAccumulator>> entry : byTicker.entrySet()) {
+    for (Map.Entry<AccountTickerKey, Map<LocalDate, TickerMonthAccumulator>> entry :
+        byTicker.entrySet()) {
       double shares = 0.0;
       double runningCostBasis = 0.0;
       LocalDate holdingStartDate = null;
@@ -558,7 +613,8 @@ public class PortfolioProjectionService {
          */
         double cashBalanceAccountCurrency =
             previousCashAccountCurrency + acc.cashDeltaAccountCurrency;
-        double cashBalance = convert(cashBalanceAccountCurrency, portfolioBase, accountCurrency, entry.key().date());
+        double cashBalance =
+            convert(cashBalanceAccountCurrency, portfolioBase, accountCurrency, entry.key().date());
         double marketValue = acc.endingMarketValue > EPSILON ? acc.endingMarketValue : 0.0;
         double equity = cashBalance + marketValue;
         double previousEquity = previousCash + previousMarket;
@@ -607,7 +663,8 @@ public class PortfolioProjectionService {
       }
     }
 
-    rows.sort(Comparator.comparing(AccountDaily::getAccountId).thenComparing(AccountDaily::getDate));
+    rows.sort(
+        Comparator.comparing(AccountDaily::getAccountId).thenComparing(AccountDaily::getDate));
     return rows;
   }
 
@@ -626,7 +683,8 @@ public class PortfolioProjectionService {
   private Set<Long> accountsWithOpenShares(
       Map<AccountTickerKey, Map<LocalDate, TickerMonthAccumulator>> byTicker) {
     Set<Long> accounts = new HashSet<>();
-    for (Map.Entry<AccountTickerKey, Map<LocalDate, TickerMonthAccumulator>> entry : byTicker.entrySet()) {
+    for (Map.Entry<AccountTickerKey, Map<LocalDate, TickerMonthAccumulator>> entry :
+        byTicker.entrySet()) {
       double shares = 0.0;
       List<LocalDate> days = new ArrayList<>(entry.getValue().keySet());
       days.sort(Comparator.naturalOrder());
@@ -642,7 +700,8 @@ public class PortfolioProjectionService {
     return accounts;
   }
 
-  private HistoricalPriceBook loadHistoricalPrices(Set<DayTickerKey> tickerDays, LocalDate currentDate) {
+  private HistoricalPriceBook loadHistoricalPrices(
+      Set<DayTickerKey> tickerDays, LocalDate currentDate) {
     if (tickerDays.isEmpty()) {
       return emptyHistoricalPriceBook();
     }
@@ -656,11 +715,14 @@ public class PortfolioProjectionService {
     Map<String, NavigableMap<LocalDate, HistoricalPrice>> prices = new HashMap<>();
     for (AssetPriceHistoryRepository.HistoricalAssetPriceRow row :
         assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(symbols, dateTo)) {
-      if (!StringUtils.hasText(row.getSymbol()) || row.getPriceDate() == null || row.getClosePrice() == null) {
+      if (!StringUtils.hasText(row.getSymbol())
+          || row.getPriceDate() == null
+          || row.getClosePrice() == null) {
         continue;
       }
       CurrencyType currency = parseCurrency(row.getPriceCurrency());
-      BigDecimal scaleFactor = row.getPriceScaleFactor() == null ? BigDecimal.ONE : row.getPriceScaleFactor();
+      BigDecimal scaleFactor =
+          row.getPriceScaleFactor() == null ? BigDecimal.ONE : row.getPriceScaleFactor();
       BigDecimal scaledClosePriceValue = row.getClosePrice().multiply(scaleFactor);
       double scaledClosePrice = scaledClosePriceValue.doubleValue();
       if (scaledClosePrice <= EPSILON) {
@@ -689,7 +751,8 @@ public class PortfolioProjectionService {
     return new HistoricalPriceBook(prices);
   }
 
-  private static boolean isBetterHistoricalPrice(HistoricalPrice candidate, HistoricalPrice existing) {
+  private static boolean isBetterHistoricalPrice(
+      HistoricalPrice candidate, HistoricalPrice existing) {
     int candidateRank = valuationPriorityRank(candidate.qualityClass(), candidate.priceOrigin());
     int existingRank = valuationPriorityRank(existing.qualityClass(), existing.priceOrigin());
     if (candidateRank != existingRank) {
@@ -791,10 +854,7 @@ public class PortfolioProjectionService {
   }
 
   private double convert(
-      double amount,
-      CurrencyType targetCurrency,
-      CurrencyType sourceCurrency,
-      LocalDate date) {
+      double amount, CurrencyType targetCurrency, CurrencyType sourceCurrency, LocalDate date) {
     return currencyRateService.convertToBaseCurrency(amount, targetCurrency, sourceCurrency, date);
   }
 
@@ -886,7 +946,8 @@ public class PortfolioProjectionService {
   private final class HistoricalPriceBook {
     private final Map<String, NavigableMap<LocalDate, HistoricalPrice>> pricesBySymbol;
 
-    private HistoricalPriceBook(Map<String, NavigableMap<LocalDate, HistoricalPrice>> pricesBySymbol) {
+    private HistoricalPriceBook(
+        Map<String, NavigableMap<LocalDate, HistoricalPrice>> pricesBySymbol) {
       this.pricesBySymbol = pricesBySymbol;
     }
 
@@ -894,7 +955,7 @@ public class PortfolioProjectionService {
         String symbol,
         double shares,
         LocalDate date,
-         LocalDate valuationDate,
+        LocalDate valuationDate,
         LocalDate holdingStartDate,
         Asset asset,
         CurrencyType portfolioBaseCurrency) {
@@ -910,7 +971,8 @@ public class PortfolioProjectionService {
           && asset != null
           && asset.getMarketPrice() != null
           && asset.getMarketPrice() > EPSILON) {
-        CurrencyType currency = requiredCurrency(asset.getCurrency(), asset.getId(), "market price");
+        CurrencyType currency =
+            requiredCurrency(asset.getCurrency(), asset.getId(), "market price");
         return convert(shares * asset.getMarketPrice(), portfolioBaseCurrency, currency, date);
       }
       NavigableMap<LocalDate, HistoricalPrice> prices = pricesBySymbol.get(symbol);
@@ -969,7 +1031,9 @@ public class PortfolioProjectionService {
            * contract multiplier defaults to 1 and is only changed by explicit metadata.
            */
           double localMarketValue =
-              shares * historicalPrice.normalizedClosePrice() * historicalPrice.contractMultiplier();
+              shares
+                  * historicalPrice.normalizedClosePrice()
+                  * historicalPrice.contractMultiplier();
           return convert(localMarketValue, portfolioBaseCurrency, historicalPrice.currency(), date);
         }
         log.debug(
@@ -1050,7 +1114,8 @@ public class PortfolioProjectionService {
         sharesOwned += volume;
         totalBuyQty += volume;
         totalBuyValue += value;
-        firstBuyDate = firstBuyDate == null ? date : firstBuyDate.isAfter(date) ? date : firstBuyDate;
+        firstBuyDate =
+            firstBuyDate == null ? date : firstBuyDate.isAfter(date) ? date : firstBuyDate;
       }
       touch(date);
     }
@@ -1196,8 +1261,5 @@ public class PortfolioProjectionService {
           break;
       }
     }
-
   }
 }
-
-

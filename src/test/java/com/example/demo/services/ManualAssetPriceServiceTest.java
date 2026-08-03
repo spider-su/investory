@@ -10,8 +10,8 @@ import static org.mockito.Mockito.when;
 
 import com.example.demo.infrastructure.CurrencyType;
 import com.example.demo.infrastructure.repository.Asset;
-import com.example.demo.infrastructure.repository.AssetRepository;
 import com.example.demo.infrastructure.repository.AssetPriceHistoryRepository;
+import com.example.demo.infrastructure.repository.AssetRepository;
 import com.example.demo.services.ManualAssetPriceService.ManualAssetPrice;
 import com.example.demo.services.currency.CurrencyRateService;
 import com.example.demo.testsupport.portfolio.PortfolioBuilders;
@@ -66,17 +66,18 @@ class ManualAssetPriceServiceTest {
     assertEquals("Manual", asset.getPriceSource());
 
     verify(assetRepository).save(asset);
-    verify(assetPriceHistoryRepository).upsertObservedPrice(
-        eq(asset.getId()),
-        any(LocalDate.class),
-        eq("MANUAL"),
-        eq("PKO.PL"),
-        eq("PKO.PL"),
-        eq("MANUAL"),
-        eq("PLN"),
-        eq(BigDecimal.valueOf(123.45)),
-        eq(100),
-        eq("MANUAL"));
+    verify(assetPriceHistoryRepository)
+        .upsertObservedPrice(
+            eq(asset.getId()),
+            any(LocalDate.class),
+            eq("MANUAL"),
+            eq("PKO.PL"),
+            eq("PKO.PL"),
+            eq("MANUAL"),
+            eq("PLN"),
+            eq(BigDecimal.valueOf(123.45)),
+            eq(100),
+            eq("MANUAL"));
     verify(marketService).syncStocks();
     verify(statisticsRefreshService).refreshAll();
   }
@@ -100,8 +101,7 @@ class ManualAssetPriceServiceTest {
     when(assetRepository.findBySymbol("MISSING.US")).thenReturn(Optional.empty());
 
     IllegalArgumentException exception =
-        assertThrows(
-            IllegalArgumentException.class, () -> service.updatePrice("MISSING.US", 10.0));
+        assertThrows(IllegalArgumentException.class, () -> service.updatePrice("MISSING.US", 10.0));
 
     assertEquals("Asset not found: MISSING.US", exception.getMessage());
     verify(assetRepository).findBySymbol("MISSING.US");

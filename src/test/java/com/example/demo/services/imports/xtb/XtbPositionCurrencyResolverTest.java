@@ -1,10 +1,10 @@
 package com.example.demo.services.imports.xtb;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import com.example.demo.infrastructure.CurrencyType;
 import com.example.demo.infrastructure.repository.ClosedPosition;
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 class XtbPositionCurrencyResolverTest {
 
@@ -18,7 +18,7 @@ class XtbPositionCurrencyResolverTest {
         resolver.resolve(position, CurrencyType.PLN, CurrencyType.PLN, CurrencyType.USD);
 
     assertEquals(CurrencyType.USD, result.priceCurrency());
-      assertFalse(result.normalizePricesToAccountCurrency());
+    assertFalse(result.normalizePricesToAccountCurrency());
   }
 
   @Test
@@ -29,7 +29,7 @@ class XtbPositionCurrencyResolverTest {
         resolver.resolve(position, CurrencyType.USD, CurrencyType.PLN, CurrencyType.USD);
 
     assertEquals(CurrencyType.USD, result.priceCurrency());
-      assertFalse(result.normalizePricesToAccountCurrency());
+    assertFalse(result.normalizePricesToAccountCurrency());
   }
 
   @Test
@@ -49,7 +49,7 @@ class XtbPositionCurrencyResolverTest {
         resolver.resolve(position, CurrencyType.USD, CurrencyType.USD, null);
 
     assertEquals(CurrencyType.USD, result.priceCurrency());
-      assertTrue(result.normalizePricesToAccountCurrency());
+    assertTrue(result.normalizePricesToAccountCurrency());
   }
 
   private ClosedPosition position(

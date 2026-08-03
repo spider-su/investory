@@ -42,7 +42,8 @@ class CashOperationNormalizerTest {
 
   @Test
   void normalize_classifiesCurrencyConversionAsInternalFx() {
-    CashOperation pln = cash(10L, 50290466L, CashOperationType.TRANSFER, -20000.0, CurrencyType.PLN);
+    CashOperation pln =
+        cash(10L, 50290466L, CashOperationType.TRANSFER, -20000.0, CurrencyType.PLN);
     pln.setComment(
         "Currency conversion, PLN to USD from TA: 50290466 to: 51499241, Exchange rate:0.250206");
     pln.setDate(ZonedDateTime.parse("2026-01-10T12:00:00Z"));
@@ -54,7 +55,9 @@ class CashOperationNormalizerTest {
 
     List<NormalizedCashOperation> rows = normalizer.normalize(List.of(pln, usd));
 
-    assertTrue(rows.stream().allMatch(row -> row.normalizedCategory() == NormalizedCategory.FX_CONVERSION));
+    assertTrue(
+        rows.stream()
+            .allMatch(row -> row.normalizedCategory() == NormalizedCategory.FX_CONVERSION));
     assertTrue(rows.stream().allMatch(NormalizedCashOperation::internalTransfer));
     assertTrue(rows.stream().allMatch(NormalizedCashOperation::fxConversion));
     assertFalse(rows.stream().anyMatch(NormalizedCashOperation::externalFlow));
@@ -63,12 +66,15 @@ class CashOperationNormalizerTest {
 
   @Test
   void normalize_classifiesDividendAndTaxReversalsBySign() {
-    CashOperation negativeDividend = cash(20L, 51993106L, CashOperationType.DIVIDEND, -12.34, CurrencyType.USD);
+    CashOperation negativeDividend =
+        cash(20L, 51993106L, CashOperationType.DIVIDEND, -12.34, CurrencyType.USD);
     negativeDividend.setComment("Dividend correction");
-    CashOperation positiveTax = cash(21L, 51993106L, CashOperationType.WITHHOLDING_TAX, 15.0, CurrencyType.USD);
+    CashOperation positiveTax =
+        cash(21L, 51993106L, CashOperationType.WITHHOLDING_TAX, 15.0, CurrencyType.USD);
     positiveTax.setComment("Tax reversal");
 
-    List<NormalizedCashOperation> rows = normalizer.normalize(List.of(negativeDividend, positiveTax));
+    List<NormalizedCashOperation> rows =
+        normalizer.normalize(List.of(negativeDividend, positiveTax));
 
     assertEquals(NormalizedCategory.DIVIDEND_REVERSAL, rows.get(0).normalizedCategory());
     assertTrue(rows.get(0).reversal());
@@ -78,16 +84,20 @@ class CashOperationNormalizerTest {
 
   @Test
   void normalize_pairsZeroNetSubaccountTransfers() {
-    CashOperation left = cash(30L, 51548444L, CashOperationType.SUBACCOUNT_TRANSFER, -1250.0, CurrencyType.EUR);
+    CashOperation left =
+        cash(30L, 51548444L, CashOperationType.SUBACCOUNT_TRANSFER, -1250.0, CurrencyType.EUR);
     left.setComment("Transfer from 51548444 to 51551130");
     left.setDate(ZonedDateTime.parse("2024-11-30T00:48:00Z"));
-    CashOperation right = cash(31L, 51548444L, CashOperationType.SUBACCOUNT_TRANSFER, 1250.0, CurrencyType.EUR);
+    CashOperation right =
+        cash(31L, 51548444L, CashOperationType.SUBACCOUNT_TRANSFER, 1250.0, CurrencyType.EUR);
     right.setComment("Transfer from 51548444 to 51551130");
     right.setDate(ZonedDateTime.parse("2024-11-30T00:49:00Z"));
 
     List<NormalizedCashOperation> rows = normalizer.normalize(List.of(left, right));
 
-    assertTrue(rows.stream().allMatch(row -> row.normalizedCategory() == NormalizedCategory.INTERNAL_BOOKKEEPING));
+    assertTrue(
+        rows.stream()
+            .allMatch(row -> row.normalizedCategory() == NormalizedCategory.INTERNAL_BOOKKEEPING));
     assertEquals(rows.get(0).transferGroupId(), rows.get(1).transferGroupId());
     assertFalse(rows.get(0).externalFlow());
     assertFalse(rows.get(1).externalFlow());
@@ -119,7 +129,8 @@ class CashOperationNormalizerTest {
 
   @Test
   void normalize_zeroDepositDoesNotBecomeNormalCapitalFlow() {
-    CashOperation zeroDeposit = cash(42L, 51499241L, CashOperationType.DEPOSIT, 0.0, CurrencyType.USD);
+    CashOperation zeroDeposit =
+        cash(42L, 51499241L, CashOperationType.DEPOSIT, 0.0, CurrencyType.USD);
     zeroDeposit.setComment("zero adjustment");
 
     NormalizedCashOperation row = normalizer.normalize(List.of(zeroDeposit)).getFirst();
@@ -145,7 +156,8 @@ class CashOperationNormalizerTest {
 
   @Test
   void normalize_transferBetweenAccountsUsesAccountCluesNotOnlyAmountAndTime() {
-    CashOperation legA = cash(50L, 51499241L, CashOperationType.TRANSFER, -1000.0, CurrencyType.USD);
+    CashOperation legA =
+        cash(50L, 51499241L, CashOperationType.TRANSFER, -1000.0, CurrencyType.USD);
     legA.setComment("Transfer from 51499241 to 51993106");
     legA.setDate(ZonedDateTime.parse("2026-01-10T10:00:00Z"));
 
@@ -168,10 +180,12 @@ class CashOperationNormalizerTest {
 
   @Test
   void normalize_subaccountTransferPairingIsInputOrderIndependent() {
-    CashOperation left = cash(60L, 51548444L, CashOperationType.SUBACCOUNT_TRANSFER, -1250.0, CurrencyType.EUR);
+    CashOperation left =
+        cash(60L, 51548444L, CashOperationType.SUBACCOUNT_TRANSFER, -1250.0, CurrencyType.EUR);
     left.setComment("Transfer from 51548444 to 51551130");
     left.setDate(ZonedDateTime.parse("2024-11-30T00:48:00Z"));
-    CashOperation right = cash(61L, 51548444L, CashOperationType.SUBACCOUNT_TRANSFER, 1250.0, CurrencyType.EUR);
+    CashOperation right =
+        cash(61L, 51548444L, CashOperationType.SUBACCOUNT_TRANSFER, 1250.0, CurrencyType.EUR);
     right.setComment("Transfer from 51548444 to 51551130");
     right.setDate(ZonedDateTime.parse("2024-11-30T00:49:00Z"));
 
@@ -205,7 +219,8 @@ class CashOperationNormalizerTest {
         cash(72L, 51499241L, CashOperationType.CORRECTION, 0.01, CurrencyType.USD);
     secFeeAdjustment.setComment("corr Sec Fee adj");
 
-    List<NormalizedCashOperation> rows = normalizer.normalize(List.of(commissionRefund, secFeeAdjustment));
+    List<NormalizedCashOperation> rows =
+        normalizer.normalize(List.of(commissionRefund, secFeeAdjustment));
 
     assertEquals(NormalizedCategory.FEE, rows.get(0).normalizedCategory());
     assertTrue(rows.get(0).reversal());

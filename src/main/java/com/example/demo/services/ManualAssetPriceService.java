@@ -2,8 +2,8 @@ package com.example.demo.services;
 
 import com.example.demo.infrastructure.CurrencyType;
 import com.example.demo.infrastructure.repository.Asset;
-import com.example.demo.infrastructure.repository.AssetRepository;
 import com.example.demo.infrastructure.repository.AssetPriceHistoryRepository;
+import com.example.demo.infrastructure.repository.AssetRepository;
 import com.example.demo.services.currency.CurrencyRateService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -68,7 +68,12 @@ public class ManualAssetPriceService {
     statisticsRefreshService.refreshAll();
 
     return new ManualAssetPrice(
-        asset.getSymbol(), marketPrice, marketPriceUsd, currency, asset.getPriceSource(), updatedAt);
+        asset.getSymbol(),
+        marketPrice,
+        marketPriceUsd,
+        currency,
+        asset.getPriceSource(),
+        updatedAt);
   }
 
   public record ManualAssetPrice(

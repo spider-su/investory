@@ -140,4 +140,3 @@ public class Asset {
     return value == null ? null : scaleDecimal(BigDecimal.valueOf(value));
   }
 }
-

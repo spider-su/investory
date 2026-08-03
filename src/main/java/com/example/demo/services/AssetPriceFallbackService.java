@@ -45,8 +45,7 @@ public class AssetPriceFallbackService {
             .collect(
                 Collectors.groupingBy(
                     OpenedPosition::getSymbol,
-                    Collectors.collectingAndThen(
-                        Collectors.toList(), this::weightedOpenPrice)));
+                    Collectors.collectingAndThen(Collectors.toList(), this::weightedOpenPrice)));
 
     weightedPrices.values().removeIf(Objects::isNull);
     if (weightedPrices.isEmpty()) {
@@ -57,10 +56,11 @@ public class AssetPriceFallbackService {
     LocalDate rateDate = now.toLocalDate();
     Map<String, Asset> assetsBySymbol =
         assetRepository.findAllBySymbolIn(weightedPrices.keySet()).stream()
-            .collect(Collectors.toMap(Asset::getSymbol, Function.identity(), (left, right) -> right));
+            .collect(
+                Collectors.toMap(Asset::getSymbol, Function.identity(), (left, right) -> right));
     Map<String, HistoricalQuote> historicalQuotesBySymbol =
-        assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(
-                weightedPrices.keySet(), rateDate)
+        assetPriceHistoryRepository
+            .findHistoricalPricesBySymbolInBefore(weightedPrices.keySet(), rateDate)
             .stream()
             .filter(row -> row.getPriceDate() != null)
             .collect(
@@ -97,13 +97,18 @@ public class AssetPriceFallbackService {
           if (historicalQuote != null
               && historicalQuote.price() != null
               && historicalQuote.price().compareTo(BigDecimal.ZERO) > 0
-              && (fallbackSource || asset.getMarketPrice() == null || asset.getMarketPrice() == 0.0)) {
+              && (fallbackSource
+                  || asset.getMarketPrice() == null
+                  || asset.getMarketPrice() == 0.0)) {
             CurrencyType historicalCurrency =
                 historicalQuote.currency() != null ? historicalQuote.currency() : currency;
             asset.setMarketPrice(historicalQuote.price());
             asset.setMarketPriceUsd(
                 currencyRateService.convertToBaseCurrency(
-                    historicalQuote.price(), BASE_CURRENCY, historicalCurrency, historicalQuote.priceDate()));
+                    historicalQuote.price(),
+                    BASE_CURRENCY,
+                    historicalCurrency,
+                    historicalQuote.priceDate()));
             asset.setPriceSource(
                 StringUtils.hasText(historicalQuote.priceOrigin())
                     ? historicalQuote.priceOrigin()
@@ -117,7 +122,9 @@ public class AssetPriceFallbackService {
             asset.setMarketPrice(weightedPrice.price());
             updated = true;
           }
-          if (fallbackSource || asset.getMarketPriceUsd() == null || asset.getMarketPriceUsd() == 0.0) {
+          if (fallbackSource
+              || asset.getMarketPriceUsd() == null
+              || asset.getMarketPriceUsd() == 0.0) {
             asset.setMarketPriceUsd(
                 currencyRateService.convertToBaseCurrency(
                     weightedPrice.price(), BASE_CURRENCY, currency, rateDate));
@@ -132,7 +139,8 @@ public class AssetPriceFallbackService {
 
     if (!changed.isEmpty()) {
       assetRepository.saveAll(changed);
-      log.info("Seeded {} missing asset prices from open-position weighted averages", changed.size());
+      log.info(
+          "Seeded {} missing asset prices from open-position weighted averages", changed.size());
     }
   }
 
@@ -145,10 +153,11 @@ public class AssetPriceFallbackService {
         positions.stream()
             .mapToDouble(position -> nz(position.getOpenPrice()) * nz(position.getVolume()))
             .sum();
-    java.util.Set<CurrencyType> currencies = positions.stream()
-        .map(OpenedPosition::getPriceCurrency)
-        .filter(Objects::nonNull)
-        .collect(java.util.stream.Collectors.toSet());
+    java.util.Set<CurrencyType> currencies =
+        positions.stream()
+            .map(OpenedPosition::getPriceCurrency)
+            .filter(Objects::nonNull)
+            .collect(java.util.stream.Collectors.toSet());
     // The same instrument can be held across accounts whose reconstruction stamped different
     // position currencies onto price_currency. Do NOT abort the whole backfill for that: a single
     // symbol with mixed/missing currency must not block pricing every other asset (including
@@ -158,7 +167,8 @@ public class AssetPriceFallbackService {
     if (currencies.size() > 1) {
       log.warn(
           "Mixed open-price currencies {} for a reconstructed symbol; deferring to historical/asset"
-              + " currency for the weighted-average fallback", currencies);
+              + " currency for the weighted-average fallback",
+          currencies);
     }
     return new WeightedPrice(weightedValue / volume, currency);
   }
@@ -170,9 +180,11 @@ public class AssetPriceFallbackService {
   private static HistoricalQuote preferHistoricalQuote(
       HistoricalQuote left, HistoricalQuote right) {
     return Comparator.comparing(HistoricalQuote::priceDate)
-            .thenComparing(quote -> quote.qualityScore() == null ? Integer.MIN_VALUE : quote.qualityScore())
-            .compare(left, right)
-        >= 0
+                .thenComparing(
+                    quote ->
+                        quote.qualityScore() == null ? Integer.MIN_VALUE : quote.qualityScore())
+                .compare(left, right)
+            >= 0
         ? left
         : right;
   }

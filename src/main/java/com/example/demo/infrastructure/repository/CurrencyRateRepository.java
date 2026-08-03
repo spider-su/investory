@@ -10,7 +10,8 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface CurrencyRateRepository extends JpaRepository<CurrencyRate, Long> {
 
-    List<CurrencyRate> findAllByOrderByBaseAscToCurrencyAscMonthStartAsc();
+  List<CurrencyRate> findAllByOrderByBaseAscToCurrencyAscMonthStartAsc();
 
-    Optional<CurrencyRate> findByMonthStartAndBaseAndToCurrency(LocalDate monthStart, CurrencyType base, CurrencyType toCurrency);
+  Optional<CurrencyRate> findByMonthStartAndBaseAndToCurrency(
+      LocalDate monthStart, CurrencyType base, CurrencyType toCurrency);
 }

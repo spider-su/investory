@@ -47,8 +47,22 @@ class AssetPriceHistoryGapFillServiceTest {
             Set.of("IUVL"), LocalDate.of(2026, 7, 17)))
         .thenReturn(
             List.of(
-                row("IUVL", LocalDate.of(2026, 7, 10), 18.50, "USD", 80, "STOOQ", "VERIFIED_ALTERNATE_LISTING"),
-                row("IUVL", LocalDate.of(2026, 7, 17), 18.70, "USD", 90, "IBKR_TRADE", "IBKR_TRADE_OBSERVATION")));
+                row(
+                    "IUVL",
+                    LocalDate.of(2026, 7, 10),
+                    18.50,
+                    "USD",
+                    80,
+                    "STOOQ",
+                    "VERIFIED_ALTERNATE_LISTING"),
+                row(
+                    "IUVL",
+                    LocalDate.of(2026, 7, 17),
+                    18.70,
+                    "USD",
+                    90,
+                    "IBKR_TRADE",
+                    "IBKR_TRADE_OBSERVATION")));
 
     service.fillMissingBusinessDayGaps(LocalDate.of(2026, 7, 17));
 
@@ -108,7 +122,14 @@ class AssetPriceHistoryGapFillServiceTest {
     when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
         .thenReturn(
             List.of(
-                row("IUVL", LocalDate.of(2026, 7, 10), 18.50, "USD", 40, "CARRY_FORWARD", "STALE_CARRY_FORWARD")));
+                row(
+                    "IUVL",
+                    LocalDate.of(2026, 7, 10),
+                    18.50,
+                    "USD",
+                    40,
+                    "CARRY_FORWARD",
+                    "STALE_CARRY_FORWARD")));
 
     service.fillMissingBusinessDayGaps(LocalDate.of(2026, 7, 17));
 

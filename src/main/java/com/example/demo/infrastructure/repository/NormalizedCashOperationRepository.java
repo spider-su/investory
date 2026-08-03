@@ -37,7 +37,8 @@ public interface NormalizedCashOperationRepository extends Repository<CashOperat
           order by nco.account_id, nco.date, nco.operation_id
           """,
       nativeQuery = true)
-  List<NormalizedCashOperationRow> findAllByAccountIdIn(@Param("accountIds") Collection<Long> accountIds);
+  List<NormalizedCashOperationRow> findAllByAccountIdIn(
+      @Param("accountIds") Collection<Long> accountIds);
 
   interface NormalizedCashOperationRow {
     Long getOperationId();

@@ -4,13 +4,13 @@ import com.example.demo.infrastructure.CashOperationType;
 import com.example.demo.infrastructure.CurrencyType;
 import com.example.demo.infrastructure.PositionSettlementModel;
 import com.example.demo.infrastructure.PositionType;
+import com.example.demo.infrastructure.repository.Asset;
+import com.example.demo.infrastructure.repository.AssetPriceHistoryRepository;
+import com.example.demo.infrastructure.repository.AssetRepository;
 import com.example.demo.infrastructure.repository.CashOperation;
 import com.example.demo.infrastructure.repository.CashOperationRepository;
 import com.example.demo.infrastructure.repository.ClosedPosition;
 import com.example.demo.infrastructure.repository.ClosedPositionRepository;
-import com.example.demo.infrastructure.repository.Asset;
-import com.example.demo.infrastructure.repository.AssetPriceHistoryRepository;
-import com.example.demo.infrastructure.repository.AssetRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
 import com.example.demo.services.AssetCatalogService;
@@ -100,7 +100,8 @@ public class XtbImportV2Service {
     }
   }
 
-  public ImportExecutionResult importZip(InputStream zipInputStream, String sourceName) throws Exception {
+  public ImportExecutionResult importZip(InputStream zipInputStream, String sourceName)
+      throws Exception {
     int total = 0;
     int files = 0;
     List<String> importedAccounts = new ArrayList<>();
@@ -127,7 +128,10 @@ public class XtbImportV2Service {
     String details =
         String.format(
             "XTB v2 %s: imported %d workbook(s), rows=%d [%s]",
-            sourceName != null ? sourceName : "zip", files, total, String.join(", ", importedAccounts));
+            sourceName != null ? sourceName : "zip",
+            files,
+            total,
+            String.join(", ", importedAccounts));
     return new ImportExecutionResult(total, total, 0, details);
   }
 
@@ -141,7 +145,10 @@ public class XtbImportV2Service {
       Sheet cashSheet = workbook.getSheet("Cash Operations");
       Sheet closedSheet = workbook.getSheet("Closed Positions");
 
-      String accountRaw = firstNonBlank(readHeaderValue(cashSheet, "Account number"), readHeaderValue(closedSheet, "Account"));
+      String accountRaw =
+          firstNonBlank(
+              readHeaderValue(cashSheet, "Account number"),
+              readHeaderValue(closedSheet, "Account"));
       if (!StringUtils.hasText(accountRaw)) {
         throw new IllegalStateException("XTB v2 workbook has no account number: " + sourceName);
       }
@@ -150,15 +157,18 @@ public class XtbImportV2Service {
       Map<String, Integer> cashColumns = findHeader(cashSheet, "Type", "Time", "Amount");
       Map<String, Integer> closedColumns = findHeader(closedSheet, "Ticker", "Type", "Volume");
 
-      List<CashOperation> cashOperations = parseCashOperations(cashSheet, cashColumns, account, sourceName);
-      List<ClosedPosition> closedPositions = parseClosedPositions(closedSheet, closedColumns, account, sourceName);
+      List<CashOperation> cashOperations =
+          parseCashOperations(cashSheet, cashColumns, account, sourceName);
+      List<ClosedPosition> closedPositions =
+          parseClosedPositions(closedSheet, closedColumns, account, sourceName);
       normalizeImportedSymbols(cashOperations, closedPositions);
 
       CurrencyType currency = inferCurrency(sourceName, cashOperations, closedPositions);
       cashOperations.forEach(op -> op.setCurrency(currency));
 
       List<OpenedPosition> openedPositions =
-          reconstructOpenedPositions(operationsForOpenReconstruction(account, cashOperations), account, currency);
+          reconstructOpenedPositions(
+              operationsForOpenReconstruction(account, cashOperations), account, currency);
       openedPositions = deduplicateOpenedPositions(openedPositions);
 
       applyPositionCurrencies(closedPositions, openedPositions, currency);
@@ -185,7 +195,8 @@ public class XtbImportV2Service {
   }
 
   private boolean supports(Workbook workbook) {
-    return workbook.getSheet("Cash Operations") != null && workbook.getSheet("Closed Positions") != null;
+    return workbook.getSheet("Cash Operations") != null
+        && workbook.getSheet("Closed Positions") != null;
   }
 
   private List<CashOperation> parseCashOperations(
@@ -205,7 +216,8 @@ public class XtbImportV2Service {
       CashOperation operation = new CashOperation();
       operation.setId(
           parseLong(cellValue(row, columns.get("ID")))
-              .orElseGet(() -> syntheticId(account + "|cash|" + sourceName + "|" + row.getRowNum())));
+              .orElseGet(
+                  () -> syntheticId(account + "|cash|" + sourceName + "|" + row.getRowNum())));
       operation.setAccount(account);
       String comment = cellValue(row, columns.get("Comment"));
       CashOperationType type = CashOperationType.fromString(cellValue(row, columns.get("Type")));
@@ -243,7 +255,8 @@ public class XtbImportV2Service {
       ZonedDateTime closeTime = parseDate(cell(row, columns.get("Close Time (UTC)")));
       Double openPrice = parseDouble(cellValue(row, columns.get("Open Price"))).orElse(null);
       Double closePrice = parseDouble(cellValue(row, columns.get("Close Price"))).orElse(null);
-      Double purchaseValue = parseDouble(cellValue(row, columns.get("Purchase Value"))).orElse(null);
+      Double purchaseValue =
+          parseDouble(cellValue(row, columns.get("Purchase Value"))).orElse(null);
       Double saleValue = parseDouble(cellValue(row, columns.get("Sale Value"))).orElse(null);
       Double commission = parseDouble(cellValue(row, columns.get("Commission"))).orElse(null);
       Double margin = parseDouble(cellValue(row, columns.get("Margin"))).orElse(null);
@@ -253,7 +266,8 @@ public class XtbImportV2Service {
               .or(() -> parseDouble(cellValue(row, columns.get("Gross Profit"))))
               .orElse(null);
       String product = cellValue(row, columns.get("Product"));
-      String sourcePositionId = normalizeSourcePositionId(cellValue(row, columns.get("Position ID")));
+      String sourcePositionId =
+          normalizeSourcePositionId(cellValue(row, columns.get("Position ID")));
       Double openConversionRate =
           parseDouble(cellValue(row, columns.get("Open Conversion Rate"))).orElse(null);
       Double closeConversionRate =
@@ -370,11 +384,16 @@ public class XtbImportV2Service {
     Map<String, Deque<Lot>> sellLots = new HashMap<>();
 
     cashOperations.stream()
-        .filter(op -> op.getType() == CashOperationType.STOCK_PURCHASE || op.getType() == CashOperationType.STOCK_SELL)
+        .filter(
+            op ->
+                op.getType() == CashOperationType.STOCK_PURCHASE
+                    || op.getType() == CashOperationType.STOCK_SELL)
         .filter(op -> StringUtils.hasText(op.getSymbol()))
         .sorted(
-            Comparator.comparing(CashOperation::getDate, Comparator.nullsLast(Comparator.naturalOrder()))
-                .thenComparing(CashOperation::getId, Comparator.nullsLast(Comparator.naturalOrder())))
+            Comparator.comparing(
+                    CashOperation::getDate, Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(
+                    CashOperation::getId, Comparator.nullsLast(Comparator.naturalOrder())))
         .forEach(
             op -> {
               LotEvent event = parseLotEvent(op.getComment()).orElse(null);
@@ -382,8 +401,10 @@ public class XtbImportV2Service {
                 return;
               }
 
-              Map<String, Deque<Lot>> openLots = event.side == PositionType.BUY ? buyLots : sellLots;
-              Deque<Lot> lots = openLots.computeIfAbsent(op.getSymbol(), ignored -> new ArrayDeque<>());
+              Map<String, Deque<Lot>> openLots =
+                  event.side == PositionType.BUY ? buyLots : sellLots;
+              Deque<Lot> lots =
+                  openLots.computeIfAbsent(op.getSymbol(), ignored -> new ArrayDeque<>());
 
               if (event.actionOpen) {
                 lots.addLast(new Lot(event.volume, event.price, op.getDate()));
@@ -394,7 +415,8 @@ public class XtbImportV2Service {
 
     List<OpenedPosition> openedPositions = new ArrayList<>();
     appendOpenedPositionsForAccount(openedPositions, account, currency, buyLots, PositionType.BUY);
-    appendOpenedPositionsForAccount(openedPositions, account, currency, sellLots, PositionType.SELL);
+    appendOpenedPositionsForAccount(
+        openedPositions, account, currency, sellLots, PositionType.SELL);
     return openedPositions;
   }
 
@@ -519,18 +541,31 @@ public class XtbImportV2Service {
       List<ClosedPosition> closedPositions,
       List<OpenedPosition> openedPositions) {
     Set<String> symbols = new HashSet<>();
-    cashOperations.stream().map(CashOperation::getSymbol).filter(StringUtils::hasText).forEach(symbols::add);
-    closedPositions.stream().map(ClosedPosition::getSymbol).filter(StringUtils::hasText).forEach(symbols::add);
-    openedPositions.stream().map(OpenedPosition::getSymbol).filter(StringUtils::hasText).forEach(symbols::add);
-    Map<String, Long> ids = assetRepository.findAllBySymbolIn(symbols).stream()
-        .collect(java.util.stream.Collectors.toMap(Asset::getSymbol, Asset::getId));
-    cashOperations.forEach(operation -> {
-      if (StringUtils.hasText(operation.getSymbol())) {
-        operation.setAssetId(requiredAssetId(operation.getSymbol(), ids));
-      }
-    });
-    closedPositions.forEach(position -> position.setAssetId(requiredAssetId(position.getSymbol(), ids)));
-    openedPositions.forEach(position -> position.setAssetId(requiredAssetId(position.getSymbol(), ids)));
+    cashOperations.stream()
+        .map(CashOperation::getSymbol)
+        .filter(StringUtils::hasText)
+        .forEach(symbols::add);
+    closedPositions.stream()
+        .map(ClosedPosition::getSymbol)
+        .filter(StringUtils::hasText)
+        .forEach(symbols::add);
+    openedPositions.stream()
+        .map(OpenedPosition::getSymbol)
+        .filter(StringUtils::hasText)
+        .forEach(symbols::add);
+    Map<String, Long> ids =
+        assetRepository.findAllBySymbolIn(symbols).stream()
+            .collect(java.util.stream.Collectors.toMap(Asset::getSymbol, Asset::getId));
+    cashOperations.forEach(
+        operation -> {
+          if (StringUtils.hasText(operation.getSymbol())) {
+            operation.setAssetId(requiredAssetId(operation.getSymbol(), ids));
+          }
+        });
+    closedPositions.forEach(
+        position -> position.setAssetId(requiredAssetId(position.getSymbol(), ids)));
+    openedPositions.forEach(
+        position -> position.setAssetId(requiredAssetId(position.getSymbol(), ids)));
   }
 
   private Long requiredAssetId(String symbol, Map<String, Long> ids) {
@@ -567,11 +602,16 @@ public class XtbImportV2Service {
     for (ClosedPosition position : closedPositions) {
       CurrencyType quoteCurrency =
           resolveTradeObservationCurrency(
-              position.getSymbol(), position.getPriceCurrency(), defaultCurrency, quoteCurrencyBySymbol);
+              position.getSymbol(),
+              position.getPriceCurrency(),
+              defaultCurrency,
+              quoteCurrencyBySymbol);
       Double normalizedOpenPrice =
-          normalizeTradeObservationPrice(position.getOpenPrice(), position.getPurchaseValue(), position.getVolume());
+          normalizeTradeObservationPrice(
+              position.getOpenPrice(), position.getPurchaseValue(), position.getVolume());
       Double normalizedClosePrice =
-          normalizeTradeObservationPrice(position.getClosePrice(), position.getSaleValue(), position.getVolume());
+          normalizeTradeObservationPrice(
+              position.getClosePrice(), position.getSaleValue(), position.getVolume());
       addCheckpoint(
           aggregated,
           position.getSymbol(),
@@ -597,9 +637,13 @@ public class XtbImportV2Service {
     for (OpenedPosition position : openedPositions) {
       CurrencyType quoteCurrency =
           resolveTradeObservationCurrency(
-              position.getSymbol(), position.getPriceCurrency(), defaultCurrency, quoteCurrencyBySymbol);
+              position.getSymbol(),
+              position.getPriceCurrency(),
+              defaultCurrency,
+              quoteCurrencyBySymbol);
       Double normalizedOpenPrice =
-          normalizeTradeObservationPrice(position.getOpenPrice(), position.getPurchaseValue(), position.getVolume());
+          normalizeTradeObservationPrice(
+              position.getOpenPrice(), position.getPurchaseValue(), position.getVolume());
       addCheckpoint(
           aggregated,
           position.getSymbol(),
@@ -620,7 +664,8 @@ public class XtbImportV2Service {
     aggregated.keySet().forEach(key -> aggregatedSymbols.add(key.symbol()));
     Map<String, Long> assetIdsBySymbol =
         assetRepository.findAllBySymbolIn(aggregatedSymbols).stream()
-            .collect(java.util.stream.Collectors.toMap(Asset::getSymbol, Asset::getId, (a, b) -> a));
+            .collect(
+                java.util.stream.Collectors.toMap(Asset::getSymbol, Asset::getId, (a, b) -> a));
 
     for (Map.Entry<PriceCheckpointKey, WeightedPrice> entry : aggregated.entrySet()) {
       Long assetId = assetIdsBySymbol.get(entry.getKey().symbol());
@@ -676,17 +721,25 @@ public class XtbImportV2Service {
   private void normalizeImportedSymbols(
       List<CashOperation> cashOperations, List<ClosedPosition> closedPositions) {
     List<String> rawSymbols = new ArrayList<>();
-    cashOperations.stream().map(CashOperation::getSymbol).filter(StringUtils::hasText).forEach(rawSymbols::add);
-    closedPositions.stream().map(ClosedPosition::getSymbol).filter(StringUtils::hasText).forEach(rawSymbols::add);
+    cashOperations.stream()
+        .map(CashOperation::getSymbol)
+        .filter(StringUtils::hasText)
+        .forEach(rawSymbols::add);
+    closedPositions.stream()
+        .map(ClosedPosition::getSymbol)
+        .filter(StringUtils::hasText)
+        .forEach(rawSymbols::add);
     Map<String, String> normalized = assetCatalogService.normalizeSymbolsForStorage(rawSymbols);
-    cashOperations.forEach(operation -> {
-      operation.setBrokerSymbol(operation.getSourceAssetSymbol());
-      operation.setSymbol(normalizedSymbol(operation.getSymbol(), normalized));
-    });
-    closedPositions.forEach(position -> {
-      position.setBrokerSymbol(position.getSourceAssetSymbol());
-      position.setSymbol(normalizedSymbol(position.getSymbol(), normalized));
-    });
+    cashOperations.forEach(
+        operation -> {
+          operation.setBrokerSymbol(operation.getSourceAssetSymbol());
+          operation.setSymbol(normalizedSymbol(operation.getSymbol(), normalized));
+        });
+    closedPositions.forEach(
+        position -> {
+          position.setBrokerSymbol(position.getSourceAssetSymbol());
+          position.setSymbol(normalizedSymbol(position.getSymbol(), normalized));
+        });
   }
 
   private void applyPositionCurrencies(
@@ -840,13 +893,23 @@ public class XtbImportV2Service {
                 votes.merge(guessed, 1, Integer::sum);
               }
             });
-    return votes.entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse(null);
+    return votes.entrySet().stream()
+        .max(Map.Entry.comparingByValue())
+        .map(Map.Entry::getKey)
+        .orElse(null);
   }
 
-  private Set<String> symbols(List<CashOperation> cashOperations, List<ClosedPosition> closedPositions) {
+  private Set<String> symbols(
+      List<CashOperation> cashOperations, List<ClosedPosition> closedPositions) {
     Set<String> symbols = new HashSet<>();
-    cashOperations.stream().map(CashOperation::getSymbol).filter(StringUtils::hasText).forEach(symbols::add);
-    closedPositions.stream().map(ClosedPosition::getSymbol).filter(StringUtils::hasText).forEach(symbols::add);
+    cashOperations.stream()
+        .map(CashOperation::getSymbol)
+        .filter(StringUtils::hasText)
+        .forEach(symbols::add);
+    closedPositions.stream()
+        .map(ClosedPosition::getSymbol)
+        .filter(StringUtils::hasText)
+        .forEach(symbols::add);
     return symbols;
   }
 
@@ -1047,7 +1110,8 @@ public class XtbImportV2Service {
 
   private long syntheticId(String key) {
     try {
-      byte[] hash = MessageDigest.getInstance("SHA-256").digest(key.getBytes(StandardCharsets.UTF_8));
+      byte[] hash =
+          MessageDigest.getInstance("SHA-256").digest(key.getBytes(StandardCharsets.UTF_8));
       long value = 0L;
       for (int index = 0; index < Long.BYTES; index++) {
         value = (value << 8) | (hash[index] & 0xffL);
@@ -1157,6 +1221,3 @@ public class XtbImportV2Service {
     }
   }
 }
-
-
-

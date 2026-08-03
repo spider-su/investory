@@ -43,10 +43,9 @@ class PortfolioScenariosTest {
   void timestampsUseStableTestZoneAndDates() {
     PortfolioTestContext context = PortfolioScenarios.createLongPositionScenario();
 
+    assertEquals(AAPL_FIRST_BUY_DATE, context.positions().aaplOpen().getOpenTime().toLocalDate());
     assertEquals(
-        AAPL_FIRST_BUY_DATE,
-        context.positions().aaplOpen().getOpenTime().toLocalDate());
-    assertEquals(ZoneId.of("Europe/Warsaw"), context.positions().aaplOpen().getOpenTime().getZone());
+        ZoneId.of("Europe/Warsaw"), context.positions().aaplOpen().getOpenTime().getZone());
   }
 
   @Test

@@ -11,9 +11,7 @@ class PositionSettlementModelServiceTest {
 
   @Test
   void classifiesMarginOnlyXtbPositionAsResultOnly() {
-    assertEquals(
-        PositionSettlementModel.RESULT_ONLY,
-        service.classifyXtb(null, null, 96.36, null));
+    assertEquals(PositionSettlementModel.RESULT_ONLY, service.classifyXtb(null, null, 96.36, null));
   }
 
   @Test
@@ -26,14 +24,11 @@ class PositionSettlementModelServiceTest {
   @Test
   void classifiesCashNotionalXtbPositionAsCashSettled() {
     assertEquals(
-        PositionSettlementModel.CASH_SETTLED,
-        service.classifyXtb(1_000.0, 1_100.0, null, "Stock"));
+        PositionSettlementModel.CASH_SETTLED, service.classifyXtb(1_000.0, 1_100.0, null, "Stock"));
   }
 
   @Test
   void failsClosedForPositionWithoutSettlementEvidence() {
-    assertEquals(
-        PositionSettlementModel.UNCLASSIFIED,
-        service.classifyXtb(null, null, null, null));
+    assertEquals(PositionSettlementModel.UNCLASSIFIED, service.classifyXtb(null, null, null, null));
   }
 }

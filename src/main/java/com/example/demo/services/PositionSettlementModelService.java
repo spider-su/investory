@@ -15,8 +15,7 @@ public class PositionSettlementModelService {
     boolean hasCashNotional = purchaseValue != null || saleValue != null;
     boolean hasMargin = margin != null && Math.abs(margin) > EPSILON;
     boolean explicitCfd =
-        StringUtils.hasText(product)
-            && product.trim().toUpperCase(Locale.ROOT).contains("CFD");
+        StringUtils.hasText(product) && product.trim().toUpperCase(Locale.ROOT).contains("CFD");
 
     if (explicitCfd || (hasMargin && !hasCashNotional)) {
       return PositionSettlementModel.RESULT_ONLY;

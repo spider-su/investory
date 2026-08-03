@@ -21,7 +21,25 @@ public record PortfolioDataQuality(
     java.time.LocalDate latestFxMonth,
     OffsetDateTime latestReportingRefreshAt,
     java.util.List<PortfolioDataQualityIssue> issues) {
-    public static PortfolioDataQuality unknown() {
-        return new PortfolioDataQuality("CRITICAL", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, null, null, null, null, null, java.util.List.of());
-    }
+  public static PortfolioDataQuality unknown() {
+    return new PortfolioDataQuality(
+        "CRITICAL",
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        null,
+        null,
+        null,
+        null,
+        null,
+        java.util.List.of());
+  }
 }

@@ -69,7 +69,8 @@ public final class PortfolioScenarios {
         positions(null, null, null, List.of(), List.of()),
         fxRates(null, null, List.of()),
         imports(null, null),
-        expected(null, null, null, new PortfolioExpected.Valuation(0.0, 0.0, 0.0), null, null, null));
+        expected(
+            null, null, null, new PortfolioExpected.Valuation(0.0, 0.0, 0.0), null, null, null));
   }
 
   /** Creates one funded USD account and no positions. */
@@ -166,7 +167,12 @@ public final class PortfolioScenarios {
 
     return context(
         base.accounts(),
-        base.assets().withAapl(asset(AAPL).withLatestPrice(monthEndPrice, monthEndPrice, PortfolioTestData.FEBRUARY_MONTH_END).build()),
+        base.assets()
+            .withAapl(
+                asset(AAPL)
+                    .withLatestPrice(
+                        monthEndPrice, monthEndPrice, PortfolioTestData.FEBRUARY_MONTH_END)
+                    .build()),
         base.operations(),
         positions(
             base.positions().aaplOpen(),
@@ -178,7 +184,8 @@ public final class PortfolioScenarios {
         base.imports(),
         expected(
             new PortfolioExpected.CashBalance(0.0, endingCash, DEFAULT_USD_DEPOSIT),
-            new PortfolioExpected.Position(quantity, monthEndPrice, marketValue, grossCost, marketValue - grossCost),
+            new PortfolioExpected.Position(
+                quantity, monthEndPrice, marketValue, grossCost, marketValue - grossCost),
             null,
             new PortfolioExpected.Valuation(endingCash, marketValue, endingCash + marketValue),
             null,
@@ -317,7 +324,8 @@ public final class PortfolioScenarios {
             null,
             null,
             funded.expected().valuation(),
-            new PortfolioExpected.Transfer(-INTERNAL_TRANSFER_AMOUNT, INTERNAL_TRANSFER_AMOUNT, 0.0, 0.0),
+            new PortfolioExpected.Transfer(
+                -INTERNAL_TRANSFER_AMOUNT, INTERNAL_TRANSFER_AMOUNT, 0.0, 0.0),
             null,
             null));
   }
@@ -342,8 +350,18 @@ public final class PortfolioScenarios {
             .deposit(DEFAULT_PLN_DEPOSIT, CurrencyType.PLN)
             .on(JANUARY_DEPOSIT_DATE)
             .build();
-    CurrencyRate eurUsd = fxRate().on(PERIOD_START).pair(CurrencyType.EUR, CurrencyType.USD).rate(EUR_USD.get(PERIOD_START)).build();
-    CurrencyRate plnUsd = fxRate().on(PERIOD_START).pair(CurrencyType.PLN, CurrencyType.USD).rate(PLN_USD.get(PERIOD_START)).build();
+    CurrencyRate eurUsd =
+        fxRate()
+            .on(PERIOD_START)
+            .pair(CurrencyType.EUR, CurrencyType.USD)
+            .rate(EUR_USD.get(PERIOD_START))
+            .build();
+    CurrencyRate plnUsd =
+        fxRate()
+            .on(PERIOD_START)
+            .pair(CurrencyType.PLN, CurrencyType.USD)
+            .rate(PLN_USD.get(PERIOD_START))
+            .build();
 
     double eurConverted = DEFAULT_EUR_DEPOSIT * EUR_USD.get(PERIOD_START);
     return context(
@@ -364,8 +382,12 @@ public final class PortfolioScenarios {
         expected(
             new PortfolioExpected.CashBalance(
                 0.0,
-                DEFAULT_USD_DEPOSIT + eurConverted + DEFAULT_PLN_DEPOSIT * PLN_USD.get(PERIOD_START),
-                DEFAULT_USD_DEPOSIT + eurConverted + DEFAULT_PLN_DEPOSIT * PLN_USD.get(PERIOD_START)),
+                DEFAULT_USD_DEPOSIT
+                    + eurConverted
+                    + DEFAULT_PLN_DEPOSIT * PLN_USD.get(PERIOD_START),
+                DEFAULT_USD_DEPOSIT
+                    + eurConverted
+                    + DEFAULT_PLN_DEPOSIT * PLN_USD.get(PERIOD_START)),
             null,
             null,
             null,
@@ -378,8 +400,10 @@ public final class PortfolioScenarios {
   /** Creates two import batches with the same checksum for idempotency tests. */
   public static PortfolioTestContext createDuplicateImportScenario() {
     String checksum = "sha256-deterministic-statement";
-    ImportHistory first = importHistory().id(77L).broker(BrokerType.IBKR).checksum(checksum).build();
-    ImportHistory duplicate = importHistory().id(78L).broker(BrokerType.IBKR).checksum(checksum).build();
+    ImportHistory first =
+        importHistory().id(77L).broker(BrokerType.IBKR).checksum(checksum).build();
+    ImportHistory duplicate =
+        importHistory().id(78L).broker(BrokerType.IBKR).checksum(checksum).build();
 
     return context(
         accounts(),
@@ -408,7 +432,12 @@ public final class PortfolioScenarios {
 
   private static PortfolioTestContext.Assets assets() {
     return new PortfolioTestContext.Assets(
-        asset(AAPL).withLatestPrice(AAPL_PRICES_USD.get(JANUARY_MONTH_END), AAPL_PRICES_USD.get(JANUARY_MONTH_END), JANUARY_MONTH_END).build(),
+        asset(AAPL)
+            .withLatestPrice(
+                AAPL_PRICES_USD.get(JANUARY_MONTH_END),
+                AAPL_PRICES_USD.get(JANUARY_MONTH_END),
+                JANUARY_MONTH_END)
+            .build(),
         asset(MSFT).withLatestPrice(425.0, 425.0, JANUARY_MONTH_END).build(),
         asset(TSLA).withLatestPrice(250.0, 250.0, JANUARY_MONTH_END).build(),
         asset(SPY).withLatestPrice(500.0, 500.0, JANUARY_MONTH_END).build(),
@@ -427,7 +456,8 @@ public final class PortfolioScenarios {
       PortfolioTestContext.FxRates fxRates,
       PortfolioTestContext.Imports imports,
       PortfolioTestContext.Expected expected) {
-    return new PortfolioTestContext(accounts, assets, operations, positions, fxRates, imports, expected);
+    return new PortfolioTestContext(
+        accounts, assets, operations, positions, fxRates, imports, expected);
   }
 
   private static PortfolioTestContext.Operations operations(
@@ -456,7 +486,8 @@ public final class PortfolioScenarios {
       ClosedPosition aaplPartialSale,
       List<OpenedPosition> open,
       List<ClosedPosition> closed) {
-    return new PortfolioTestContext.Positions(aaplOpen, aaplSecondLot, aaplPartialSale, open, closed);
+    return new PortfolioTestContext.Positions(
+        aaplOpen, aaplSecondLot, aaplPartialSale, open, closed);
   }
 
   private static PortfolioTestContext.FxRates fxRates(
@@ -464,7 +495,8 @@ public final class PortfolioScenarios {
     return new PortfolioTestContext.FxRates(eurUsd, plnUsd, all);
   }
 
-  private static PortfolioTestContext.Imports imports(ImportHistory first, ImportHistory duplicate) {
+  private static PortfolioTestContext.Imports imports(
+      ImportHistory first, ImportHistory duplicate) {
     return new PortfolioTestContext.Imports(first, duplicate);
   }
 

@@ -17,4 +17,3 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
 
   List<Asset> findAllByTickerIn(Collection<String> tickers);
 }
-

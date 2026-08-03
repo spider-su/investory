@@ -21,61 +21,71 @@ import org.springframework.util.CollectionUtils;
 @RequiredArgsConstructor
 public class CurrencyRateUpdaterService {
 
-    private final ExchangeRateClient exchangeRateClient;
-    private final CurrencyRateService currencyRateService;
+  private final ExchangeRateClient exchangeRateClient;
+  private final CurrencyRateService currencyRateService;
 
-    @Value("${app.api.exchange-rate-key}")
-    private String apiKey;
+  @Value("${app.api.exchange-rate-key}")
+  private String apiKey;
 
-    public CurrencyRateRefreshResult updateCurrencyRates() {
-        return updateCurrencyRatesForMonth(LocalDate.now());
+  public CurrencyRateRefreshResult updateCurrencyRates() {
+    return updateCurrencyRatesForMonth(LocalDate.now());
+  }
+
+  public CurrencyRateRefreshResult updateCurrencyRatesForMonth(LocalDate month) {
+    LocalDate normalizedMonth = month.withDayOfMonth(1);
+    try {
+      Map<CurrencyType, Double> usdRates = fetchUsdRates();
+      Map<CurrencyType, Map<CurrencyType, Double>> ratesByBase = deriveCrossRates(usdRates);
+      ratesByBase.forEach(
+          (base, rates) -> currencyRateService.updateRates(base, rates, normalizedMonth));
+      return new CurrencyRateRefreshResult(
+          normalizedMonth, List.of("USD", "EUR", "PLN"), List.of());
+    } catch (ExchangeRateException e) {
+      log.warn("Skipping FX refresh: {}", e.getMessage());
+      return new CurrencyRateRefreshResult(
+          normalizedMonth, List.of(), List.of("USD: " + e.getMessage()));
+    } catch (IllegalArgumentException e) {
+      log.warn("Skipping FX refresh: {}", e.getMessage());
+      return new CurrencyRateRefreshResult(
+          normalizedMonth, List.of(), List.of("USD: " + e.getMessage()));
     }
+  }
 
-    public CurrencyRateRefreshResult updateCurrencyRatesForMonth(LocalDate month) {
-        LocalDate normalizedMonth = month.withDayOfMonth(1);
-        try {
-            Map<CurrencyType, Double> usdRates = fetchUsdRates();
-            Map<CurrencyType, Map<CurrencyType, Double>> ratesByBase = deriveCrossRates(usdRates);
-            ratesByBase.forEach((base, rates) -> currencyRateService.updateRates(base, rates, normalizedMonth));
-            return new CurrencyRateRefreshResult(normalizedMonth, List.of("USD", "EUR", "PLN"), List.of());
-        } catch (ExchangeRateException e) {
-            log.warn("Skipping FX refresh: {}", e.getMessage());
-            return new CurrencyRateRefreshResult(normalizedMonth, List.of(), List.of("USD: " + e.getMessage()));
-        } catch (IllegalArgumentException e) {
-            log.warn("Skipping FX refresh: {}", e.getMessage());
-            return new CurrencyRateRefreshResult(normalizedMonth, List.of(), List.of("USD: " + e.getMessage()));
-        }
+  private Map<CurrencyType, Double> fetchUsdRates() {
+    ExchangeRateClient.ExchangeRateResponse response =
+        exchangeRateClient.getLatestRates("USD", "USD,EUR,PLN", apiKey);
+    if (response == null || CollectionUtils.isEmpty(response.getQuotes())) {
+      throw new IllegalArgumentException("empty exchangerate.host response");
     }
-
-    private Map<CurrencyType, Double> fetchUsdRates() {
-        ExchangeRateClient.ExchangeRateResponse response =
-                exchangeRateClient.getLatestRates("USD", "USD,EUR,PLN", apiKey);
-        if (response == null || CollectionUtils.isEmpty(response.getQuotes())) {
-            throw new IllegalArgumentException("empty exchangerate.host response");
-        }
-        Map<CurrencyType, Double> rates = new EnumMap<>(CurrencyType.class);
-        response.getQuotes()
-                .forEach((key, value) -> rates.put(CurrencyType.valueOf(key.substring("USD".length())), value));
-        for (CurrencyType currency : CurrencyType.values()) {
-            if (!rates.containsKey(currency) || rates.get(currency) == null || rates.get(currency) == 0.0) {
-                throw new IllegalArgumentException("missing USD -> " + currency + " rate");
-            }
-        }
-        return rates;
+    Map<CurrencyType, Double> rates = new EnumMap<>(CurrencyType.class);
+    response
+        .getQuotes()
+        .forEach(
+            (key, value) -> rates.put(CurrencyType.valueOf(key.substring("USD".length())), value));
+    for (CurrencyType currency : CurrencyType.values()) {
+      if (!rates.containsKey(currency)
+          || rates.get(currency) == null
+          || rates.get(currency) == 0.0) {
+        throw new IllegalArgumentException("missing USD -> " + currency + " rate");
+      }
     }
+    return rates;
+  }
 
-    private Map<CurrencyType, Map<CurrencyType, Double>> deriveCrossRates(Map<CurrencyType, Double> usdRates) {
-        Map<CurrencyType, Map<CurrencyType, Double>> ratesByBase = new EnumMap<>(CurrencyType.class);
-        for (CurrencyType base : CurrencyType.values()) {
-            Map<CurrencyType, Double> rates = new HashMap<>();
-            double usdToBase = usdRates.get(base);
-            for (CurrencyType target : CurrencyType.values()) {
-                rates.put(target, usdRates.get(target) / usdToBase);
-            }
-            ratesByBase.put(base, rates);
-        }
-        return ratesByBase;
+  private Map<CurrencyType, Map<CurrencyType, Double>> deriveCrossRates(
+      Map<CurrencyType, Double> usdRates) {
+    Map<CurrencyType, Map<CurrencyType, Double>> ratesByBase = new EnumMap<>(CurrencyType.class);
+    for (CurrencyType base : CurrencyType.values()) {
+      Map<CurrencyType, Double> rates = new HashMap<>();
+      double usdToBase = usdRates.get(base);
+      for (CurrencyType target : CurrencyType.values()) {
+        rates.put(target, usdRates.get(target) / usdToBase);
+      }
+      ratesByBase.put(base, rates);
     }
+    return ratesByBase;
+  }
 
-    public record CurrencyRateRefreshResult(LocalDate month, List<String> updated, List<String> failed) {}
+  public record CurrencyRateRefreshResult(
+      LocalDate month, List<String> updated, List<String> failed) {}
 }

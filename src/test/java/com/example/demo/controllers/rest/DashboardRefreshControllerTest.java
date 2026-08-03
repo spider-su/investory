@@ -10,9 +10,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.example.demo.config.MockMvcSecurityTestConfig;
 import com.example.demo.config.SecurityConfig;
 import com.example.demo.infrastructure.CurrencyType;
-import com.example.demo.services.MarketService;
 import com.example.demo.services.ManualAssetPriceService;
 import com.example.demo.services.ManualAssetPriceService.ManualAssetPrice;
+import com.example.demo.services.MarketService;
 import com.example.demo.services.PortfolioProjectionService;
 import java.time.ZonedDateTime;
 import org.junit.jupiter.api.Test;
@@ -46,7 +46,9 @@ class DashboardRefreshControllerTest {
 
   @Test
   void refreshPricesRequiresAuthentication() throws Exception {
-    mockMvc.perform(post("/admin/refresh-prices").with(csrf())).andExpect(status().isUnauthorized());
+    mockMvc
+        .perform(post("/admin/refresh-prices").with(csrf()))
+        .andExpect(status().isUnauthorized());
   }
 
   @Test
@@ -63,7 +65,9 @@ class DashboardRefreshControllerTest {
 
   @Test
   void rebuildMonthlyRequiresAuthentication() throws Exception {
-    mockMvc.perform(post("/admin/rebuild-monthly").with(csrf())).andExpect(status().isUnauthorized());
+    mockMvc
+        .perform(post("/admin/rebuild-monthly").with(csrf()))
+        .andExpect(status().isUnauthorized());
   }
 
   @Test
@@ -72,8 +76,7 @@ class DashboardRefreshControllerTest {
     ZonedDateTime updatedAt = ZonedDateTime.parse("2026-07-16T09:00:00Z");
     when(manualAssetPriceService.updatePrice("SGLD.UK", 15.25))
         .thenReturn(
-            new ManualAssetPrice(
-                "SGLD.UK", 15.25, 15.25, CurrencyType.USD, "Manual", updatedAt));
+            new ManualAssetPrice("SGLD.UK", 15.25, 15.25, CurrencyType.USD, "Manual", updatedAt));
 
     mockMvc
         .perform(

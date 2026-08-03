@@ -13,16 +13,16 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class GhostfolioPortfolioController {
 
-    private final GhostfolioCompatibilityService compatibilityService;
+  private final GhostfolioCompatibilityService compatibilityService;
 
-    @GetMapping("/performance")
-    public Map<String, Object> performance(
-            @RequestParam(name = "range", defaultValue = "max") String range,
-            @RequestParam(name = "accounts", required = false) String accounts) {
-        return compatibilityService.performance(accounts, range);
-    }
+  @GetMapping("/performance")
+  public Map<String, Object> performance(
+      @RequestParam(name = "range", defaultValue = "max") String range,
+      @RequestParam(name = "accounts", required = false) String accounts) {
+    return compatibilityService.performance(accounts, range);
+  }
 
-    static double percentage(double value, double denominator) {
-        return Math.abs(denominator) < 0.0000001d ? 0.0d : value / Math.abs(denominator);
-    }
+  static double percentage(double value, double denominator) {
+    return Math.abs(denominator) < 0.0000001d ? 0.0d : value / Math.abs(denominator);
+  }
 }

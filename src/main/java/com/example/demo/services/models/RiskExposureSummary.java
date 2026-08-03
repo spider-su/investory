@@ -11,8 +11,15 @@ public record RiskExposureSummary(
     double incomeSinceInception,
     String periodLabel,
     List<String> warnings) {
-    public static RiskExposureSummary unavailable(double cash) {
-        return new RiskExposureSummary(null, null, null, null, cash, 0.0,
-            "Current snapshot", List.of("Exposure data unavailable"));
-    }
+  public static RiskExposureSummary unavailable(double cash) {
+    return new RiskExposureSummary(
+        null,
+        null,
+        null,
+        null,
+        cash,
+        0.0,
+        "Current snapshot",
+        List.of("Exposure data unavailable"));
+  }
 }

@@ -16,25 +16,23 @@ import org.springframework.web.server.ResponseStatusException;
 @RequiredArgsConstructor
 public class GhostfolioAccountController {
 
-    private final GhostfolioCompatibilityService compatibilityService;
+  private final GhostfolioCompatibilityService compatibilityService;
 
-    @GetMapping
-    public Map<String, Object> accounts() {
-        return compatibilityService.accounts();
-    }
+  @GetMapping
+  public Map<String, Object> accounts() {
+    return compatibilityService.accounts();
+  }
 
-    @GetMapping("/{accountId}")
-    public Map<String, Object> account(@PathVariable String accountId) {
-        return compatibilityService
-                .account(accountId)
-                .orElseThrow(
-                        () ->
-                                new ResponseStatusException(
-                                        NOT_FOUND, "Unknown Investory account " + accountId));
-    }
+  @GetMapping("/{accountId}")
+  public Map<String, Object> account(@PathVariable String accountId) {
+    return compatibilityService
+        .account(accountId)
+        .orElseThrow(
+            () -> new ResponseStatusException(NOT_FOUND, "Unknown Investory account " + accountId));
+  }
 
-    @GetMapping("/{accountId}/balances")
-    public Map<String, Object> balances(@PathVariable String accountId) {
-        return compatibilityService.accountBalances(accountId);
-    }
+  @GetMapping("/{accountId}/balances")
+  public Map<String, Object> balances(@PathVariable String accountId) {
+    return compatibilityService.accountBalances(accountId);
+  }
 }

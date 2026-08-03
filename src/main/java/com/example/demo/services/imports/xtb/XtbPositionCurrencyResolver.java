@@ -33,7 +33,8 @@ public class XtbPositionCurrencyResolver {
     if (hasSameCurrencyRate) {
       resolution = new Resolution(accountCurrency, false);
     } else {
-      resolution = nonAccountCandidate(position, accountCurrency, configuredCurrency, symbolCurrency);
+      resolution =
+          nonAccountCandidate(position, accountCurrency, configuredCurrency, symbolCurrency);
     }
 
     validateValue(
@@ -60,8 +61,7 @@ public class XtbPositionCurrencyResolver {
     CurrencyType inferred = symbolCurrency == accountCurrency ? null : symbolCurrency;
     if (configured != null && inferred != null && configured != inferred) {
       throw invalid(
-          position,
-          "ambiguous quote currency: configured=" + configured + ", symbol=" + inferred);
+          position, "ambiguous quote currency: configured=" + configured + ", symbol=" + inferred);
     }
     CurrencyType resolved = configured != null ? configured : inferred;
     if (resolved == null) {

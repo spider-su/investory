@@ -13,12 +13,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class GhostfolioHoldingsController {
 
-    private final GhostfolioCompatibilityService compatibilityService;
+  private final GhostfolioCompatibilityService compatibilityService;
 
-    @GetMapping("/holdings")
-    public Map<String, Object> holdings(
-            @RequestParam(name = "accounts", required = false) String accountIds,
-            @RequestParam(name = "symbol", required = false) String symbol) {
-        return compatibilityService.holdings(accountIds, symbol);
-    }
+  @GetMapping("/holdings")
+  public Map<String, Object> holdings(
+      @RequestParam(name = "accounts", required = false) String accountIds,
+      @RequestParam(name = "symbol", required = false) String symbol) {
+    return compatibilityService.holdings(accountIds, symbol);
+  }
 }
