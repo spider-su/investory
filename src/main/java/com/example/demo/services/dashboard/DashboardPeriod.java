@@ -34,8 +34,7 @@ public enum DashboardPeriod {
     return switch (this) {
       case ONE_MONTH -> now.minusMonths(1);
       case THREE_MONTHS -> now.minusMonths(3);
-      case YEAR_TO_DATE ->
-          LocalDate.of(now.getYear(), 1, 1).atStartOfDay(ZoneId.from(now));
+      case YEAR_TO_DATE -> LocalDate.of(now.getYear(), 1, 1).atStartOfDay(ZoneId.from(now));
       case ONE_YEAR -> now.minusYears(1);
       case THREE_YEARS -> now.minusYears(3);
       case FIVE_YEARS -> now.minusYears(5);
