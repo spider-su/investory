@@ -169,7 +169,7 @@ class DatabaseReportingContractTest {
                         ResultSet result =
                                 statement.executeQuery(
                                         "SELECT issue_count FROM investory.reporting_monthly_import_review "
-                                                + "WHERE check_name = 'UNSUPPORTED_TRANSACTION_STATES'")) {
+                                                + "WHERE check_code = 'UNSUPPORTED_TRANSACTION_STATE'")) {
                     assertTrue(result.next());
                     assertTrue(result.getLong("issue_count") >= 1);
                 }
