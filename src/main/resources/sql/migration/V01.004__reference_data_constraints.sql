@@ -1,18 +1,28 @@
 SET search_path TO investory, public;
 
--- The current baseline already enforces the reference contracts raised by the
--- schema review:
---   accounts.currency       -> currencies(id)
---   accounts.provider       -> providers(id)
---   assets.currency         -> currencies(id)
---   assets.asset_type       -> asset_types(id)
---   cash_operations.currency -> currencies(id)
+-- The current baseline already enforces the reference and completeness contracts
+-- raised by the schema review:
+--   accounts.currency        NOT NULL -> currencies(id)
+--   accounts.provider        NOT NULL -> providers(id)
+--   accounts.name            NOT NULL
+--   accounts.owner           NOT NULL
+--   assets.name              NOT NULL
+--   assets.symbol            NOT NULL + unique index
+--   assets.currency          NOT NULL -> currencies(id)
+--   assets.asset_type        NOT NULL -> asset_types(id)
+--   cash_operations.currency NOT NULL -> currencies(id)
 --   cash_operations.operation uses cash_operation_type
---   positions currency columns -> currencies(id)
+--   positions currency columns NOT NULL -> currencies(id)
 --   positions.operation uses positions_operation_type
 -- Cash operations and positions already store timestamptz values.
 -- There is intentionally no separate transactions table: immutable broker events
 -- are represented by cash_operations and lot-level positions.
+
+COMMENT ON COLUMN investory.accounts.provider IS
+    'Required canonical broker/provider code. Values are constrained by providers(id); null or free-text broker labels are not allowed.';
+
+COMMENT ON COLUMN investory.assets.name IS
+    'Required canonical instrument display name. Incomplete unnamed assets are rejected by the NOT NULL constraint.';
 
 COMMENT ON COLUMN investory.positions.open_price IS
     'Per-lot broker open price. This is not an account/instrument average cost and must not be interpreted using FIFO or LIFO.';
@@ -23,9 +33,9 @@ COMMENT ON COLUMN investory.positions.purchase_value IS
 COMMENT ON TABLE investory.positions IS
     'Broker position lots, both active and closed. Multiple rows for one account and asset are valid; reconciliation must operate at source lot/event identity, not enforce one row per account and asset.';
 
--- Exact duplicate lot detector. It does not reject legitimate partial closes or
--- repeated lots. It exposes rows whose complete source identity and economics are
--- duplicated under different primary keys so imports/reconciliation can flag them.
+-- Exact duplicate lot detector. A unique constraint on (account_id, asset_id)
+-- would reject valid multiple lots, partial closes, BUY/SELL pairs, and mixed
+-- settlement models. This view instead detects duplicate rows at full lot identity.
 CREATE OR REPLACE VIEW investory.reporting_position_lot_duplicates AS
 SELECT
     account_id,
