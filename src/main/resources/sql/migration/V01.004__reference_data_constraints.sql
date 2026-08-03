@@ -117,3 +117,46 @@ COMMENT ON COLUMN investory.assets.isin IS
 
 COMMENT ON COLUMN investory.assets.figi IS
     'Optional global security identifier. Nonblank FIGI values are unique across assets.';
+
+-- Minimal future multi-user boundary. Accounts and ledger rows inherit ownership
+-- through portfolios, avoiding redundant user_id columns on every child table.
+CREATE TABLE investory.app_users (
+    id           bigserial PRIMARY KEY,
+    username     varchar(64) NOT NULL UNIQUE,
+    display_name varchar(255) NOT NULL,
+    active       boolean NOT NULL DEFAULT true,
+    created_at   timestamptz NOT NULL DEFAULT now(),
+    updated_at   timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT chk_app_users_username_not_blank CHECK (btrim(username) <> ''),
+    CONSTRAINT chk_app_users_display_name_not_blank CHECK (btrim(display_name) <> '')
+);
+
+INSERT INTO investory.app_users (id, username, display_name)
+VALUES (1, 'alex', 'Alex');
+
+SELECT setval(
+    pg_get_serial_sequence('investory.app_users', 'id'),
+    (SELECT max(id) FROM investory.app_users),
+    true
+);
+
+ALTER TABLE investory.portfolios
+    ADD COLUMN user_id bigint;
+
+UPDATE investory.portfolios
+SET user_id = 1
+WHERE user_id IS NULL;
+
+ALTER TABLE investory.portfolios
+    ALTER COLUMN user_id SET NOT NULL,
+    ADD CONSTRAINT fk_portfolios_user
+        FOREIGN KEY (user_id) REFERENCES investory.app_users(id);
+
+CREATE INDEX ix_portfolios_user_id
+    ON investory.portfolios(user_id);
+
+COMMENT ON TABLE investory.app_users IS
+    'Basic application identity boundary for future multi-user support. Authentication and authorization are intentionally out of scope.';
+
+COMMENT ON COLUMN investory.portfolios.user_id IS
+    'Required portfolio owner. Accounts, cash operations, and position lots inherit user ownership through portfolio_id.';
