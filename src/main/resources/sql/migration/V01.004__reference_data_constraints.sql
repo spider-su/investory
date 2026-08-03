@@ -13,6 +13,10 @@ SELECT DISTINCT upper(currency)
 FROM accounts
 WHERE currency IS NOT NULL AND upper(currency) ~ '^[A-Z]{3}$'
 UNION
+SELECT DISTINCT upper(currency)
+FROM assets
+WHERE currency IS NOT NULL AND upper(currency) ~ '^[A-Z]{3}$'
+UNION
 VALUES ('PLN'), ('USD'), ('EUR');
 
 UPDATE accounts
@@ -62,3 +66,26 @@ WHERE type IS NOT NULL;
 ALTER TABLE accounts
     ADD CONSTRAINT fk_accounts_type
         FOREIGN KEY (type) REFERENCES account_types(code);
+
+-- Assets are the persisted instrument catalogue in the current schema.
+CREATE TABLE instrument_types (
+    code varchar(64) PRIMARY KEY,
+    description varchar(255),
+    CONSTRAINT ck_instrument_types_code_not_blank CHECK (btrim(code) <> '')
+);
+
+INSERT INTO instrument_types (code)
+SELECT DISTINCT upper(btrim(asset_type))
+FROM assets
+WHERE asset_type IS NOT NULL AND btrim(asset_type) <> '';
+
+UPDATE assets
+SET asset_type = upper(btrim(asset_type)),
+    currency = upper(currency)
+WHERE asset_type IS NOT NULL OR currency IS NOT NULL;
+
+ALTER TABLE assets
+    ADD CONSTRAINT fk_assets_instrument_type
+        FOREIGN KEY (asset_type) REFERENCES instrument_types(code),
+    ADD CONSTRAINT fk_assets_currency
+        FOREIGN KEY (currency) REFERENCES currency_codes(code);
