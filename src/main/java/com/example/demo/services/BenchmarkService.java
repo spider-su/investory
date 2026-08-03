@@ -354,10 +354,12 @@ public class BenchmarkService {
             .map(AccountDaily::getAccountId)
             .filter(Objects::nonNull)
             .collect(Collectors.toCollection(TreeSet::new));
-    Map<Long, Map<String, Double>> visibleNetDepositByDay =
-        normalizedNetDepositByDay(availableAccounts);
     Map<Long, Map<String, Double>> portfolioNetDepositByDay =
         normalizedNetDepositByDay(allAccountIdsWithHistory);
+    Map<Long, Map<String, Double>> visibleNetDepositByDay =
+        portfolioNetDepositByDay.entrySet().stream()
+            .filter(entry -> availableAccounts.contains(entry.getKey()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     NavigableMap<Integer, List<AccountDaily>> rowsByYear =
         dailyRows.stream()

@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.ZonedDateTime;
 import lombok.*;
+import org.hibernate.annotations.Formula;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -42,7 +43,9 @@ public class CashOperation {
   @Column(name = "broker_symbol")
   private String brokerSymbol;
 
-  @Transient private String symbol;
+  @Formula(
+      "coalesce((select asset.symbol from investory.assets asset where asset.id = asset_id), source_asset_symbol)")
+  private String symbol;
 
   @Getter(AccessLevel.NONE)
   @Setter(AccessLevel.NONE)
@@ -83,11 +86,6 @@ public class CashOperation {
     if (this.sourceAssetSymbol == null) {
       this.sourceAssetSymbol = symbol;
     }
-  }
-
-  @PostLoad
-  void loadCanonicalSymbol() {
-    this.symbol = asset != null ? asset.getSymbol() : sourceAssetSymbol;
   }
 
   private static BigDecimal scaleAmount(BigDecimal amount) {
