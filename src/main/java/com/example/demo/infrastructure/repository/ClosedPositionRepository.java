@@ -19,6 +19,10 @@ public interface ClosedPositionRepository extends JpaRepository<ClosedPosition, 
       "SELECT cp FROM ClosedPosition cp WHERE cp.closeTime IS NOT NULL AND cp.account IN :accounts")
   List<ClosedPosition> findAllByAccountIn(@Param("accounts") Collection<Long> accounts);
 
+  @Query(
+      "SELECT cp FROM ClosedPosition cp WHERE cp.closeTime IS NOT NULL AND cp.assetId = :assetId ORDER BY cp.closeTime DESC")
+  List<ClosedPosition> findClosedByAssetId(@Param("assetId") Long assetId);
+
   @Modifying
   @Query("DELETE FROM ClosedPosition cp WHERE cp.closeTime IS NOT NULL AND cp.account = :account")
   void deleteByAccount(@Param("account") Long account);
