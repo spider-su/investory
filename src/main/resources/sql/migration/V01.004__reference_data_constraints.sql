@@ -90,3 +90,30 @@ WHERE table_schema = 'investory'
 
 COMMENT ON VIEW investory.reporting_timezone_naive_columns IS
     'Schema diagnostic. Empty result is expected; event and audit instants must use timestamp with time zone. Date-only business periods remain DATE.';
+
+-- assets.symbol remains the stable application/provider-routing identity and may
+-- include an exchange suffix. Standard identifiers and explicit listing identity
+-- provide stronger real-world uniqueness when supplied.
+CREATE UNIQUE INDEX IF NOT EXISTS ux_assets_isin
+    ON investory.assets (upper(isin))
+    WHERE isin IS NOT NULL AND btrim(isin) <> '';
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_assets_figi
+    ON investory.assets (upper(figi))
+    WHERE figi IS NOT NULL AND btrim(figi) <> '';
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_assets_ticker_exchange_mic
+    ON investory.assets (upper(ticker), upper(exchange_mic))
+    WHERE exchange_mic IS NOT NULL AND btrim(exchange_mic) <> '';
+
+COMMENT ON COLUMN investory.assets.symbol IS
+    'Stable canonical application symbol used for display and provider routing. It is not assumed to be a globally unique bare ticker; exchange-qualified symbols are preferred.';
+
+COMMENT ON COLUMN investory.assets.exchange_mic IS
+    'ISO 10383 market identifier used with ticker to identify a concrete exchange listing. When present, ticker plus exchange_mic is unique.';
+
+COMMENT ON COLUMN investory.assets.isin IS
+    'Optional global security identifier. Nonblank ISIN values are unique across assets.';
+
+COMMENT ON COLUMN investory.assets.figi IS
+    'Optional global security identifier. Nonblank FIGI values are unique across assets.';
