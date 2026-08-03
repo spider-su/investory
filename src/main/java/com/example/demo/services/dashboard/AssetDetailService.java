@@ -9,6 +9,9 @@ import com.example.demo.infrastructure.repository.ClosedPosition;
 import com.example.demo.infrastructure.repository.ClosedPositionRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
+import com.example.demo.infrastructure.repository.portfolio.SymbolPerformance;
+import com.example.demo.infrastructure.repository.portfolio.SymbolPerformanceRepository;
+import java.time.ZonedDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -29,26 +32,39 @@ public class AssetDetailService {
   private final OpenedPositionRepository openedPositionRepository;
   private final ClosedPositionRepository closedPositionRepository;
   private final CashOperationRepository cashOperationRepository;
+  private final SymbolPerformanceRepository symbolPerformanceRepository;
 
   public AssetDetailView findBySymbol(String rawSymbol) {
+    return findBySymbol(rawSymbol, DashboardPeriod.ONE_YEAR);
+  }
+
+  public AssetDetailView findBySymbol(String rawSymbol, DashboardPeriod period) {
     String symbol = normalize(rawSymbol);
     Asset asset =
         assetRepository
             .findBySymbol(symbol)
             .orElseThrow(() -> new AssetDetailNotFoundException(symbol));
+    ZonedDateTime startDate = period.startDate(ZonedDateTime.now());
     return toView(
         asset,
         openedPositionRepository.findOpenByAssetId(asset.getId()),
-        closedPositionRepository.findClosedByAssetId(asset.getId()),
-        cashOperationRepository.findAllByAssetIdAndTypeInOrderByDateDescIdDesc(
-            asset.getId(), DIVIDEND_TYPES));
+        filterClosedPositions(
+            closedPositionRepository.findClosedByAssetId(asset.getId()), startDate),
+        filterDividendOperations(
+            cashOperationRepository.findAllByAssetIdAndTypeInOrderByDateDescIdDesc(
+                asset.getId(), DIVIDEND_TYPES),
+            startDate),
+        period,
+        aggregatePerformance(symbolPerformanceRepository.findAllBySymbol(asset.getSymbol())));
   }
 
   private AssetDetailView toView(
       Asset asset,
       List<OpenedPosition> positions,
       List<ClosedPosition> closedPositions,
-      List<CashOperation> dividendOperations) {
+      List<CashOperation> dividendOperations,
+      DashboardPeriod period,
+      AssetPerformanceView performance) {
     List<AssetHoldingView> holdings = aggregateHoldings(asset, positions);
     List<AssetTransactionView> transactions =
         closedPositions.stream().map(this::toTransaction).toList();
@@ -99,7 +115,50 @@ public class AssetDetailService {
         dividends,
         totalGrossDividends,
         totalWithholdingTax,
-        totalGrossDividends - totalWithholdingTax);
+        totalGrossDividends - totalWithholdingTax,
+        period,
+        performance);
+  }
+
+  private List<ClosedPosition> filterClosedPositions(
+      List<ClosedPosition> positions, ZonedDateTime startDate) {
+    if (startDate == null) {
+      return positions;
+    }
+    return positions.stream()
+        .filter(position -> position.getCloseTime() != null)
+        .filter(position -> !position.getCloseTime().isBefore(startDate))
+        .toList();
+  }
+
+  private List<CashOperation> filterDividendOperations(
+      List<CashOperation> operations, ZonedDateTime startDate) {
+    if (startDate == null) {
+      return operations;
+    }
+    return operations.stream()
+        .filter(operation -> operation.getDate() != null)
+        .filter(operation -> !operation.getDate().isBefore(startDate))
+        .toList();
+  }
+
+  private AssetPerformanceView aggregatePerformance(List<SymbolPerformance> rows) {
+    if (rows.isEmpty()) {
+      return null;
+    }
+    return new AssetPerformanceView(
+        rows.stream().mapToDouble(row -> safe(row.getClosedProfit())).sum(),
+        rows.stream().mapToDouble(row -> safe(row.getUnrealizedProfit())).sum(),
+        rows.stream().mapToDouble(row -> safe(row.getTotalProfit())).sum(),
+        rows.stream().mapToDouble(row -> safe(row.getDividends())).sum(),
+        rows.stream().mapToDouble(row -> safe(row.getWithholdingTax())).sum(),
+        rows.stream().mapToDouble(row -> safe(row.getCostBasis())).sum(),
+        rows.stream().mapToDouble(row -> safe(row.getMarketValue())).sum(),
+        rows.stream()
+            .map(SymbolPerformance::getUpdatedAt)
+            .filter(value -> value != null)
+            .max(ZonedDateTime::compareTo)
+            .orElse(null));
   }
 
   private List<AssetHoldingView> aggregateHoldings(Asset asset, List<OpenedPosition> positions) {
