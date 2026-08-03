@@ -221,3 +221,34 @@ CREATE INDEX IF NOT EXISTS ix_positions_account_open_close
 
 COMMENT ON INDEX investory.ix_positions_account_open_close IS
     'Supports point-in-time position scans by account. Large recurring reports should continue to use refreshed account_daily and materialized reporting projections instead of repeatedly reconstructing the full lot history.';
+
+-- Monthly import review contract:
+-- 1. Import broker files and refresh prices, FX, account_daily, and materialized views.
+-- 2. Confirm the diagnostic counts below are zero.
+-- 3. Compare broker account equity, cash, open quantities, realized P/L, and dividends
+--    against Investory reporting for the same month-end date.
+-- 4. Review broker statements for splits, mergers, spin-offs, symbol changes,
+--    rights issues, tender offers, return of capital, and other corporate actions.
+-- 5. Do not patch reporting totals directly. Correct source mappings/import rows,
+--    then rebuild projections so the result remains reproducible.
+CREATE OR REPLACE VIEW investory.reporting_monthly_import_review AS
+SELECT
+    'UNSUPPORTED_TRANSACTION_STATE'::varchar(64) AS check_code,
+    count(*)::bigint AS issue_count,
+    'Review UNKNOWN or UNCLASSIFIED imported ledger states.'::varchar(255) AS required_action
+FROM investory.reporting_unsupported_transaction_states
+UNION ALL
+SELECT
+    'DUPLICATE_POSITION_LOT'::varchar(64),
+    count(*)::bigint,
+    'Review duplicate source lots before trusting position and P/L totals.'::varchar(255)
+FROM investory.reporting_position_lot_duplicates
+UNION ALL
+SELECT
+    'TIMEZONE_NAIVE_COLUMN'::varchar(64),
+    count(*)::bigint,
+    'Convert event or audit timestamps to timestamptz.'::varchar(255)
+FROM investory.reporting_timezone_naive_columns;
+
+COMMENT ON VIEW investory.reporting_monthly_import_review IS
+    'Monthly import-review checklist. All issue_count values should be zero before month-end reporting is accepted. Corporate actions remain a manual broker-statement review because they are not inferred automatically.';
