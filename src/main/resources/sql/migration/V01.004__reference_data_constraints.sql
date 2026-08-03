@@ -76,3 +76,17 @@ HAVING count(*) > 1;
 
 COMMENT ON VIEW investory.reporting_position_lot_duplicates IS
     'Diagnostic view for exact duplicate position lots imported under different IDs. Empty result is the expected healthy state.';
+
+-- Event and audit instants use timestamptz. This diagnostic catches future schema
+-- changes that accidentally introduce timezone-naive timestamp columns.
+CREATE OR REPLACE VIEW investory.reporting_timezone_naive_columns AS
+SELECT
+    table_name,
+    column_name,
+    data_type
+FROM information_schema.columns
+WHERE table_schema = 'investory'
+  AND data_type = 'timestamp without time zone';
+
+COMMENT ON VIEW investory.reporting_timezone_naive_columns IS
+    'Schema diagnostic. Empty result is expected; event and audit instants must use timestamp with time zone. Date-only business periods remain DATE.';
