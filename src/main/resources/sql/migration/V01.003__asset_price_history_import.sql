@@ -29,4 +29,5 @@ insert into investory.assets (name, symbol, ticker, ibkr, yahoo, country, curren
 ('Amazon', 'AMZN.US', 'AMZN', 'AMZN', 'AMZN.US', 'US', 'USD', 'EQUITY', true),
 ('Nvidia', 'NVDA.US', 'NVDA', 'NVDA', 'NVDA.US', 'US', 'USD', 'EQUITY', true),
 ('Western Digital', 'WDC.US', 'WDC', 'WDC', 'WDC.US', 'US', 'USD', 'EQUITY', true),
-('ASML', 'ASML.US', 'ASML', 'ASML', 'ASML.US', 'US', 'USD', 'EQUITY', true);
+('ASML', 'ASML.US', 'ASML', 'ASML', 'ASML.US', 'US', 'USD', 'EQUITY', true)
+on conflict (symbol) do nothing;
