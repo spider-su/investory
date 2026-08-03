@@ -24,6 +24,15 @@ COMMENT ON COLUMN investory.accounts.provider IS
 COMMENT ON COLUMN investory.assets.name IS
     'Required canonical instrument display name. Incomplete unnamed assets are rejected by the NOT NULL constraint.';
 
+COMMENT ON TYPE investory.cash_operation_type IS
+    'Supported raw cash-event vocabulary. PostgreSQL rejects labels outside this enum. UNKNOWN is an explicit quarantine value: it preserves an imported event but excludes it from trusted classification until reviewed.';
+
+COMMENT ON TYPE investory.positions_operation_type IS
+    'Supported position direction vocabulary. Only BUY and SELL are accepted; unsupported labels fail at insert time.';
+
+COMMENT ON TYPE investory.position_settlement_model IS
+    'Position valuation contract. CASH_SETTLED represents owned notional, RESULT_ONLY represents P/L-only contracts, and UNCLASSIFIED is a review-required quarantine state.';
+
 COMMENT ON COLUMN investory.positions.open_price IS
     'Per-lot broker open price. This is not an account/instrument average cost and must not be interpreted using FIFO or LIFO.';
 
@@ -76,6 +85,49 @@ HAVING count(*) > 1;
 
 COMMENT ON VIEW investory.reporting_position_lot_duplicates IS
     'Diagnostic view for exact duplicate position lots imported under different IDs. Empty result is the expected healthy state.';
+
+-- Unsupported enum labels already fail at insert time. Explicit fallback values
+-- remain allowed so imports can preserve source evidence instead of discarding it.
+-- This view is the required review queue for those unresolved states.
+CREATE OR REPLACE VIEW investory.reporting_unsupported_transaction_states AS
+SELECT
+    'cash_operations'::varchar(32) AS source_table,
+    co.id AS row_id,
+    co.account_id,
+    co.asset_id,
+    co.date AS occurred_at,
+    'UNKNOWN_CASH_OPERATION'::varchar(64) AS issue_code,
+    co.operation::text AS raw_state,
+    co.comment AS evidence
+FROM investory.cash_operations co
+WHERE co.operation = 'UNKNOWN'
+UNION ALL
+SELECT
+    'cash_operations'::varchar(32),
+    nco.operation_id,
+    nco.account_id,
+    nco.asset_id,
+    nco.date,
+    'UNCLASSIFIED_CASH_OPERATION'::varchar(64),
+    nco.raw_operation::text,
+    nco.classification_evidence
+FROM investory.normalized_cash_operations nco
+WHERE nco.normalized_category = 'UNCLASSIFIED'
+UNION ALL
+SELECT
+    'positions'::varchar(32),
+    p.id,
+    p.account_id,
+    p.asset_id,
+    p.open_time,
+    'UNCLASSIFIED_SETTLEMENT_MODEL'::varchar(64),
+    p.settlement_model::text,
+    p.broker_product
+FROM investory.positions p
+WHERE p.settlement_model = 'UNCLASSIFIED';
+
+COMMENT ON VIEW investory.reporting_unsupported_transaction_states IS
+    'Required review queue for preserved but unsupported or unresolved ledger states. Empty result is expected before trusted reporting; unknown enum labels are rejected directly by PostgreSQL.';
 
 -- Event and audit instants use timestamptz. This diagnostic catches future schema
 -- changes that accidentally introduce timezone-naive timestamp columns.
