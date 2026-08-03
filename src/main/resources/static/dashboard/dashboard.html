@@ -280,8 +280,10 @@
                                  data-sort-row
                                  th:attr="data-sort-symbol=${position.symbol},data-sort-price=${position.marketPrice},data-sort-value=${position.value},data-sort-unrealized=${position.unrealized},data-sort-pl=${position.profitLossPercent},data-sort-share=${position.sharePercent}">
                                 <span class="iv-position-popover__symbol-cell">
-                                    <span th:classappend="${position.unrealized > -0.01 and position.unrealized < 0.01} ? 'iv-position-popover__symbol--stale'"
-                                          th:text="${position.symbol}">AAPL.US</span>
+                                    <a th:href="@{/dashboard/assets/{symbol}(symbol=${position.symbol})}"
+                                       th:classappend="${position.unrealized > -0.01 and position.unrealized < 0.01} ? 'iv-position-popover__symbol--stale'"
+                                       th:text="${position.symbol}"
+                                       title="Open asset details">AAPL.US</a>
                                     <button type="button"
                                             class="iv-icon-button iv-manual-price-button"
                                             title="Set manual price"
