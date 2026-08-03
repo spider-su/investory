@@ -110,7 +110,7 @@ SELECT
     nco.date,
     'UNCLASSIFIED_CASH_OPERATION'::varchar(64),
     nco.raw_operation::text,
-    nco.classification_evidence
+    nco.comment
 FROM investory.normalized_cash_operations nco
 WHERE nco.normalized_category = 'UNCLASSIFIED'
 UNION ALL
