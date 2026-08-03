@@ -23,9 +23,7 @@ public class AssetDetailController {
 
   @GetMapping("/dashboard/assets/{symbol}")
   public String detail(
-      @PathVariable String symbol,
-      @RequestParam(required = false) String period,
-      Model model) {
+      @PathVariable String symbol, @RequestParam(required = false) String period, Model model) {
     DashboardPeriod selectedPeriod = DashboardPeriod.fromUrlValue(period);
     model.addAttribute("asset", assetDetailService.findBySymbol(symbol, selectedPeriod));
     model.addAttribute("priceHistory", assetPriceChartService.findBySymbol(symbol, selectedPeriod));
