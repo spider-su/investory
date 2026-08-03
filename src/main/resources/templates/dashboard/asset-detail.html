@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${asset.symbol + ' — Investory'}">Asset — Investory</title>
+    <link href="/favicon.svg" rel="icon" type="image/svg+xml">
+    <link href="/css/tabler.min.css" rel="stylesheet">
+    <link href="/css/main.css" rel="stylesheet">
+</head>
+<body>
+<main class="container-xl py-4">
+    <div class="d-flex align-items-center justify-content-between gap-3 mb-4">
+        <div>
+            <a href="/dashboard" class="text-secondary">← Dashboard</a>
+            <h1 class="mt-2 mb-1" th:text="${asset.symbol}">SYMBOL</h1>
+            <p class="text-secondary mb-0" th:text="${asset.name}">Asset name</p>
+        </div>
+        <a th:if="${asset.hasYahooSymbol()}"
+           th:href="${asset.yahooFinanceUrl()}"
+           class="btn btn-outline-primary"
+           target="_blank"
+           rel="noopener noreferrer">Open in Yahoo Finance</a>
+    </div>
+
+    <section class="row row-cards" aria-label="Asset summary">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card"><div class="card-body">
+                <div class="text-secondary">Market price</div>
+                <div class="h2 mb-0" th:text="${asset.marketPrice == null ? 'Unavailable' : #numbers.formatDecimal(asset.marketPrice, 1, 'POINT', 2, 'COMMA') + ' ' + asset.currency}">-</div>
+            </div></div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card"><div class="card-body">
+                <div class="text-secondary">USD price</div>
+                <div class="h2 mb-0" th:text="${asset.marketPriceUsd == null ? 'Unavailable' : #numbers.formatDecimal(asset.marketPriceUsd, 1, 'POINT', 2, 'COMMA') + ' USD'}">-</div>
+            </div></div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card"><div class="card-body">
+                <div class="text-secondary">Asset type</div>
+                <div class="h2 mb-0" th:text="${asset.assetType}">-</div>
+            </div></div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card"><div class="card-body">
+                <div class="text-secondary">Country</div>
+                <div class="h2 mb-0" th:text="${asset.country}">-</div>
+            </div></div>
+        </div>
+    </section>
+
+    <section class="card mt-4" aria-labelledby="quote-details-title">
+        <div class="card-header"><h2 id="quote-details-title" class="card-title">Quote details</h2></div>
+        <div class="table-responsive">
+            <table class="table card-table table-vcenter">
+                <tbody>
+                <tr><th scope="row">Canonical symbol</th><td th:text="${asset.symbol}">-</td></tr>
+                <tr><th scope="row">Provider ticker</th><td th:text="${asset.ticker}">-</td></tr>
+                <tr><th scope="row">Yahoo symbol</th><td th:text="${asset.yahooSymbol}">-</td></tr>
+                <tr><th scope="row">Price source</th><td th:text="${asset.priceSource == null ? 'Unavailable' : asset.priceSource}">-</td></tr>
+                <tr><th scope="row">Price updated</th><td th:text="${asset.priceUpdatedAt == null ? 'Unavailable' : #temporals.format(asset.priceUpdatedAt, 'yyyy-MM-dd HH:mm z')}">-</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="card mt-4">
+        <div class="card-body">
+            <h2 class="card-title">Holdings and performance</h2>
+            <p class="text-secondary mb-0">Account holdings, transaction history, dividends, and performance charts will be added in the next symbol-detail increment.</p>
+        </div>
+    </section>
+</main>
+</body>
+</html>
