@@ -42,9 +42,6 @@ COMMENT ON COLUMN investory.positions.purchase_value IS
 COMMENT ON TABLE investory.positions IS
     'Broker position lots, both active and closed. Multiple rows for one account and asset are valid; reconciliation must operate at source lot/event identity, not enforce one row per account and asset. Position state supports imported BUY/SELL lots, partial closes, explicit settlement models, currencies, commissions, swaps, margin, and realized profit. Corporate actions such as splits, mergers, spin-offs, symbol changes, and tax-lot elections are not inferred unless the broker importer emits explicit adjusted rows.';
 
--- Exact duplicate lot detector. A unique constraint on (account_id, asset_id)
--- would reject valid multiple lots, partial closes, BUY/SELL pairs, and mixed
--- settlement models. This view instead detects duplicate rows at full lot identity.
 CREATE OR REPLACE VIEW investory.reporting_position_lot_duplicates AS
 SELECT
     account_id,
@@ -86,9 +83,6 @@ HAVING count(*) > 1;
 COMMENT ON VIEW investory.reporting_position_lot_duplicates IS
     'Diagnostic view for exact duplicate position lots imported under different IDs. Empty result is the expected healthy state.';
 
--- Unsupported enum labels already fail at insert time. Explicit fallback values
--- remain allowed so imports can preserve source evidence instead of discarding it.
--- This view is the required review queue for those unresolved states.
 CREATE OR REPLACE VIEW investory.reporting_unsupported_transaction_states AS
 SELECT
     'cash_operations'::varchar(32) AS source_table,
@@ -129,8 +123,6 @@ WHERE p.settlement_model = 'UNCLASSIFIED';
 COMMENT ON VIEW investory.reporting_unsupported_transaction_states IS
     'Required review queue for preserved but unsupported or unresolved ledger states. Empty result is expected before trusted reporting; unknown enum labels are rejected directly by PostgreSQL.';
 
--- Event and audit instants use timestamptz. This diagnostic catches future schema
--- changes that accidentally introduce timezone-naive timestamp columns.
 CREATE OR REPLACE VIEW investory.reporting_timezone_naive_columns AS
 SELECT
     table_name,
@@ -143,9 +135,6 @@ WHERE table_schema = 'investory'
 COMMENT ON VIEW investory.reporting_timezone_naive_columns IS
     'Schema diagnostic. Empty result is expected; event and audit instants must use timestamp with time zone. Date-only business periods remain DATE.';
 
--- assets.symbol remains the stable application/provider-routing identity and may
--- include an exchange suffix. Standard identifiers and explicit listing identity
--- provide stronger real-world uniqueness when supplied.
 CREATE UNIQUE INDEX IF NOT EXISTS ux_assets_isin
     ON investory.assets (upper(isin))
     WHERE isin IS NOT NULL AND btrim(isin) <> '';
@@ -170,8 +159,6 @@ COMMENT ON COLUMN investory.assets.isin IS
 COMMENT ON COLUMN investory.assets.figi IS
     'Optional global security identifier. Nonblank FIGI values are unique across assets.';
 
--- Minimal future multi-user boundary. Accounts and ledger rows inherit ownership
--- through portfolios, avoiding redundant user_id columns on every child table.
 CREATE TABLE investory.app_users (
     id           bigserial PRIMARY KEY,
     username     varchar(64) NOT NULL UNIQUE,
@@ -213,11 +200,30 @@ COMMENT ON TABLE investory.app_users IS
 COMMENT ON COLUMN investory.portfolios.user_id IS
     'Required portfolio owner. Accounts, cash operations, and position lots inherit user ownership through portfolio_id.';
 
--- There is no f_get_positions function in the current schema. Point-in-time and
--- current position reporting derives from source lots, account_daily, and refreshed
--- reporting materialized views. This index supports selective account/date lot scans.
 CREATE INDEX IF NOT EXISTS ix_positions_account_open_close
     ON investory.positions (account_id, open_time, close_time);
 
 COMMENT ON INDEX investory.ix_positions_account_open_close IS
     'Supports point-in-time position scans by account. Large recurring reports should continue to use refreshed account_daily and materialized reporting projections instead of repeatedly reconstructing the full lot history.';
+
+CREATE OR REPLACE VIEW investory.reporting_monthly_import_review AS
+SELECT
+    'UNSUPPORTED_TRANSACTION_STATE'::varchar(64) AS check_code,
+    count(*)::bigint AS issue_count,
+    'Review UNKNOWN or UNCLASSIFIED imported ledger states.'::varchar(255) AS required_action
+FROM investory.reporting_unsupported_transaction_states
+UNION ALL
+SELECT
+    'DUPLICATE_POSITION_LOT'::varchar(64),
+    count(*)::bigint,
+    'Review duplicate source lots before trusting position and P/L totals.'::varchar(255)
+FROM investory.reporting_position_lot_duplicates
+UNION ALL
+SELECT
+    'TIMEZONE_NAIVE_COLUMN'::varchar(64),
+    count(*)::bigint,
+    'Convert event or audit timestamps to timestamptz.'::varchar(255)
+FROM investory.reporting_timezone_naive_columns;
+
+COMMENT ON VIEW investory.reporting_monthly_import_review IS
+    'Monthly import-review checklist. All issue_count values should be zero before month-end reporting is accepted. Corporate actions remain a manual broker-statement review because they are not inferred automatically.';
