@@ -21,6 +21,10 @@ public interface OpenedPositionRepository extends JpaRepository<OpenedPosition, 
   @Query("SELECT op FROM OpenedPosition op WHERE op.closeTime IS NULL AND op.account IN :accounts")
   List<OpenedPosition> findAllByAccountIn(@Param("accounts") Collection<Long> accounts);
 
+  @Query(
+      "SELECT op FROM OpenedPosition op WHERE op.closeTime IS NULL AND op.assetId = :assetId ORDER BY op.account, op.openTime")
+  List<OpenedPosition> findOpenByAssetId(@Param("assetId") Long assetId);
+
   @Modifying
   @Query("DELETE FROM OpenedPosition op WHERE op.closeTime IS NULL AND op.account = :account")
   void deleteByAccount(@Param("account") Long account);
