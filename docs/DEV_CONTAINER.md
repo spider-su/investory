@@ -12,24 +12,65 @@ It provides:
 - Docker access for Testcontainers
 - forwarded application and database ports
 
-The environment is intended for VS Code Dev Containers, GitHub Codespaces, DevPod, and other tools that implement the Dev Container specification.
+The environment follows the Dev Container specification and can be used from IntelliJ IDEA, JetBrains Remote Development, VS Code, GitHub Codespaces, DevPod, and compatible clients.
 
 ## Requirements
 
-For local use, install:
+For local IntelliJ IDEA use, install:
 
-- Docker
-- Visual Studio Code
-- the VS Code `Dev Containers` extension
+- Docker Desktop or Docker Engine
+- IntelliJ IDEA with Dev Containers support
+- the Docker plugin, when it is not already enabled
 
-Docker must be running before the container is opened.
+Docker must be running before the container is created.
 
-## Open the project
+## Open locally with IntelliJ IDEA
 
-1. Clone the repository.
-2. Open the repository folder in Visual Studio Code.
-3. Run `Dev Containers: Reopen in Container` from the command palette.
-4. Wait for the image, PostgreSQL service, and Maven dependency cache to initialize.
+### From an already cloned project
+
+1. Clone the repository and check out the required branch.
+2. Open the repository normally in IntelliJ IDEA.
+3. Open `.devcontainer/devcontainer.json` in the editor.
+4. Click the Dev Container gutter action next to the file.
+5. Select **Create Dev Container and Mount Sources**.
+6. Select the IntelliJ IDEA backend and build the container.
+7. Connect after the build finishes.
+
+Mounting sources keeps the working tree on the host. Changes made in the container and on the host use the same files.
+
+### From the IntelliJ IDEA welcome screen
+
+1. Select **Remote Development**.
+2. Select **Create Dev Container**.
+3. Choose the local Docker connection.
+4. Select either the local project or the Git repository.
+5. Let IntelliJ detect `.devcontainer/devcontainer.json`, or specify it manually.
+6. Select the IntelliJ IDEA backend.
+7. Click **Build Container and Continue**.
+
+For IntelliJ IDEA 2025.3 or newer, the project can be opened natively in the same IDE window. This is controlled by:
+
+```text
+Settings | Advanced Settings | Dev Containers | Open devcontainer projects natively
+```
+
+Older or remote workflows open the project through JetBrains Client.
+
+## Open on a remote Docker host
+
+IntelliJ IDEA can build the Dev Container on a remote Linux machine over SSH.
+
+1. Ensure Docker is installed on the remote machine.
+2. Open the IntelliJ IDEA welcome screen.
+3. Select **Remote Development** and then **Create Dev Container**.
+4. Configure an SSH connection to the remote Docker host.
+5. Select the Git repository or the remote path to `.devcontainer/devcontainer.json`.
+6. Select the IntelliJ IDEA backend.
+7. Build and connect.
+
+This is the recommended setup for a persistent Investory agent or remote development machine.
+
+## Container layout
 
 The repository is mounted at:
 
@@ -55,10 +96,16 @@ These credentials are development-only and must not be reused in production.
 
 ## Run Investory
 
-Inside the container terminal:
+Open the IntelliJ terminal inside the Dev Container and run:
 
 ```bash
 mvn spring-boot:run -Dspring-boot.run.profiles=local
+```
+
+Because the container sets `SPRING_PROFILES_ACTIVE=local`, this shorter command also works:
+
+```bash
+mvn spring-boot:run
 ```
 
 Open:
@@ -67,7 +114,58 @@ Open:
 http://localhost:8080
 ```
 
-Port `8080` is forwarded automatically. PostgreSQL is also forwarded to a random available host port. Use the VS Code **Ports** view to see the selected host port.
+Port `8080` is forwarded by the Dev Container client. PostgreSQL port `5432` is also exposed for database tools.
+
+## IntelliJ run configuration
+
+A Maven run configuration can be created with:
+
+```text
+Command line: spring-boot:run
+Profiles: local
+Working directory: project root
+```
+
+The environment already supplies:
+
+```text
+DB_URL=jdbc:postgresql://db:5432/investory
+DB_USERNAME=investory
+DB_PASSWORD=investory
+SPRING_PROFILES_ACTIVE=local
+```
+
+Run the configuration using the JDK and Maven available inside the Dev Container, not host installations.
+
+## Connect IntelliJ Database tools
+
+Create a PostgreSQL data source with:
+
+```text
+Host: db
+Port: 5432
+Database: investory
+User: investory
+Password: investory
+```
+
+Use `db` as the host when the database tool runs inside the Dev Container backend.
+
+When connecting from the host IDE instead, use `localhost` and the host port assigned to PostgreSQL by Docker or the Dev Container client.
+
+From the container terminal:
+
+```bash
+psql -h db -U investory -d investory
+```
+
+Useful checks:
+
+```sql
+SELECT current_database();
+SELECT schema_name FROM information_schema.schemata WHERE schema_name = 'investory';
+SELECT * FROM investory.flyway_schema_history ORDER BY installed_rank;
+```
 
 ## Build and test
 
@@ -83,50 +181,31 @@ Testcontainers uses the host Docker daemon through the `docker-outside-of-docker
 docker version
 ```
 
-## Connect to PostgreSQL
-
-From the application container:
-
-```bash
-psql -h db -U investory -d investory
-```
-
-The password is `investory`.
-
-Useful checks:
-
-```sql
-SELECT current_database();
-SELECT schema_name FROM information_schema.schemata WHERE schema_name = 'investory';
-SELECT * FROM flyway_schema_history ORDER BY installed_rank;
-```
-
 ## Reset the development database
 
 The database is stored in the named Docker volume `postgres-data`, so rebuilding the application container does not remove data.
 
 To remove the database and start from an empty state:
 
-1. Close the Dev Container.
+1. Stop or close the Dev Container.
 2. From the repository root on the Docker host, run:
 
 ```bash
 docker compose -f .devcontainer/compose.yml down -v
 ```
 
-3. Reopen the project in the Dev Container.
-
-Flyway will recreate the `investory` schema when the application starts.
+3. Build or reopen the Dev Container.
+4. Start Investory. Flyway recreates the `investory` schema.
 
 ## Rebuild after configuration changes
 
-After changing `.devcontainer/Dockerfile`, `.devcontainer/compose.yml`, or `.devcontainer/devcontainer.json`, run:
+After changing `.devcontainer/Dockerfile`, `.devcontainer/compose.yml`, or `.devcontainer/devcontainer.json`:
 
-```text
-Dev Containers: Rebuild Container
-```
+1. Open `.devcontainer/devcontainer.json`.
+2. Use the Dev Container gutter action.
+3. rebuild the Dev Container.
 
-Use `Dev Containers: Rebuild Container Without Cache` when the base image or installed operating-system packages must be downloaded again.
+The exact action wording can vary by IntelliJ IDEA version. Existing containers can also be managed from the Dev Containers or Services view.
 
 ## Environment variables and secrets
 
@@ -144,7 +223,7 @@ Provide secrets through the host environment, a local uncommitted environment fi
 
 Use one Git branch or Git worktree per agent. For changes that mutate database state, avoid running multiple agents against the same persistent Dev Container database.
 
-For strict isolation, create a separate Dev Container instance for each worktree. Each instance receives its own Compose project and PostgreSQL volume when the client assigns a unique project name.
+For strict isolation, create a separate Dev Container instance for each worktree. Each instance should use a distinct Docker Compose project and PostgreSQL volume.
 
 Recommended sequence:
 
@@ -154,8 +233,12 @@ investigation -> implementation -> tests -> independent review -> pull request
 
 Do not allow two implementation agents to modify the same branch concurrently.
 
+## Other compatible clients
+
+The `customizations.vscode` section in `devcontainer.json` is ignored by IntelliJ IDEA. It only installs recommended extensions when the same container is opened from VS Code.
+
 ## Files
 
-- `.devcontainer/devcontainer.json`: editor integration, forwarded ports, environment, extensions, and Docker feature
+- `.devcontainer/devcontainer.json`: Dev Container integration, ports, environment, and Docker access
 - `.devcontainer/compose.yml`: application and PostgreSQL services
 - `.devcontainer/Dockerfile`: Java development image and PostgreSQL client
