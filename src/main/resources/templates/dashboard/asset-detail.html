@@ -24,92 +24,82 @@
     </div>
 
     <section class="row row-cards" aria-label="Asset summary">
-        <div class="col-sm-6 col-lg-3">
-            <div class="card"><div class="card-body">
-                <div class="text-secondary">Market price</div>
-                <div class="h2 mb-0" th:text="${asset.marketPrice == null ? 'Unavailable' : #numbers.formatDecimal(asset.marketPrice, 1, 'POINT', 2, 'COMMA') + ' ' + asset.currency}">-</div>
-            </div></div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card"><div class="card-body">
-                <div class="text-secondary">Total quantity</div>
-                <div class="h2 mb-0" th:text="${#numbers.formatDecimal(asset.totalQuantity, 1, 'POINT', 4, 'COMMA')}">-</div>
-            </div></div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card"><div class="card-body">
-                <div class="text-secondary">Market value</div>
-                <div class="h2 mb-0" th:text="${asset.totalMarketValue == null ? 'Unavailable' : #numbers.formatDecimal(asset.totalMarketValue, 1, 'POINT', 2, 'COMMA') + ' ' + asset.currency}">-</div>
-            </div></div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card"><div class="card-body">
-                <div class="text-secondary">Unrealized P/L</div>
-                <div class="h2 mb-0"
-                     th:classappend="${asset.totalUnrealizedProfitLoss != null and asset.totalUnrealizedProfitLoss < 0 ? ' text-danger' : ' text-success'}"
-                     th:text="${asset.totalUnrealizedProfitLoss == null ? 'Unavailable' : #numbers.formatDecimal(asset.totalUnrealizedProfitLoss, 1, 'POINT', 2, 'COMMA') + ' ' + asset.currency}">-</div>
-            </div></div>
-        </div>
+        <div class="col-sm-6 col-lg-3"><div class="card"><div class="card-body">
+            <div class="text-secondary">Market price</div>
+            <div class="h2 mb-0" th:text="${asset.marketPrice == null ? 'Unavailable' : #numbers.formatDecimal(asset.marketPrice, 1, 'POINT', 2, 'COMMA') + ' ' + asset.currency}">-</div>
+        </div></div></div>
+        <div class="col-sm-6 col-lg-3"><div class="card"><div class="card-body">
+            <div class="text-secondary">Total quantity</div>
+            <div class="h2 mb-0" th:text="${#numbers.formatDecimal(asset.totalQuantity, 1, 'POINT', 4, 'COMMA')}">-</div>
+        </div></div></div>
+        <div class="col-sm-6 col-lg-3"><div class="card"><div class="card-body">
+            <div class="text-secondary">Market value</div>
+            <div class="h2 mb-0" th:text="${asset.totalMarketValue == null ? 'Unavailable' : #numbers.formatDecimal(asset.totalMarketValue, 1, 'POINT', 2, 'COMMA') + ' ' + asset.currency}">-</div>
+        </div></div></div>
+        <div class="col-sm-6 col-lg-3"><div class="card"><div class="card-body">
+            <div class="text-secondary">Unrealized P/L</div>
+            <div class="h2 mb-0" th:classappend="${asset.totalUnrealizedProfitLoss != null and asset.totalUnrealizedProfitLoss < 0 ? ' text-danger' : ' text-success'}" th:text="${asset.totalUnrealizedProfitLoss == null ? 'Unavailable' : #numbers.formatDecimal(asset.totalUnrealizedProfitLoss, 1, 'POINT', 2, 'COMMA') + ' ' + asset.currency}">-</div>
+        </div></div></div>
     </section>
 
     <section class="card mt-4" aria-labelledby="holdings-title">
         <div class="card-header"><h2 id="holdings-title" class="card-title">Current holdings</h2></div>
         <div th:if="${asset.hasHoldings()}" class="table-responsive">
             <table class="table card-table table-vcenter">
-                <thead>
-                <tr>
-                    <th>Account</th>
-                    <th class="text-end">Quantity</th>
-                    <th class="text-end">Average cost</th>
-                    <th class="text-end">Market price</th>
-                    <th class="text-end">Market value</th>
-                    <th class="text-end">Unrealized P/L</th>
-                    <th>Settlement</th>
-                </tr>
-                </thead>
-                <tbody>
-                <tr th:each="holding : ${asset.holdings}">
+                <thead><tr><th>Account</th><th class="text-end">Quantity</th><th class="text-end">Average cost</th><th class="text-end">Market price</th><th class="text-end">Market value</th><th class="text-end">Unrealized P/L</th><th>Settlement</th></tr></thead>
+                <tbody><tr th:each="holding : ${asset.holdings}">
                     <td th:text="${holding.accountId}">-</td>
                     <td class="text-end" th:text="${#numbers.formatDecimal(holding.quantity, 1, 'POINT', 4, 'COMMA')}">-</td>
                     <td class="text-end" th:text="${#numbers.formatDecimal(holding.averageCost, 1, 'POINT', 2, 'COMMA') + ' ' + holding.costCurrency}">-</td>
                     <td class="text-end" th:text="${holding.marketPrice == null ? 'Unavailable' : #numbers.formatDecimal(holding.marketPrice, 1, 'POINT', 2, 'COMMA') + ' ' + holding.priceCurrency}">-</td>
                     <td class="text-end" th:text="${holding.marketValue == null ? 'Unavailable' : #numbers.formatDecimal(holding.marketValue, 1, 'POINT', 2, 'COMMA') + ' ' + holding.priceCurrency}">-</td>
-                    <td class="text-end"
-                        th:classappend="${holding.unrealizedProfitLoss != null and holding.unrealizedProfitLoss < 0 ? ' text-danger' : ' text-success'}"
-                        th:text="${holding.unrealizedProfitLoss == null ? 'Unavailable' : #numbers.formatDecimal(holding.unrealizedProfitLoss, 1, 'POINT', 2, 'COMMA') + ' ' + holding.priceCurrency}">-</td>
+                    <td class="text-end" th:classappend="${holding.unrealizedProfitLoss != null and holding.unrealizedProfitLoss < 0 ? ' text-danger' : ' text-success'}" th:text="${holding.unrealizedProfitLoss == null ? 'Unavailable' : #numbers.formatDecimal(holding.unrealizedProfitLoss, 1, 'POINT', 2, 'COMMA') + ' ' + holding.priceCurrency}">-</td>
                     <td th:text="${holding.settlementModel}">-</td>
-                </tr>
-                </tbody>
+                </tr></tbody>
             </table>
         </div>
-        <div th:unless="${asset.hasHoldings()}" class="card-body text-secondary">
-            No open holdings for this symbol.
+        <div th:unless="${asset.hasHoldings()}" class="card-body text-secondary">No open holdings for this symbol.</div>
+    </section>
+
+    <section class="card mt-4" aria-labelledby="transactions-title">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h2 id="transactions-title" class="card-title">Closed transactions</h2>
+            <span class="text-secondary" th:if="${asset.totalRealizedProfitLoss != null}" th:text="${'Realized P/L: ' + #numbers.formatDecimal(asset.totalRealizedProfitLoss, 1, 'POINT', 2, 'COMMA')}">-</span>
         </div>
+        <div th:if="${asset.hasTransactions()}" class="table-responsive">
+            <table class="table card-table table-vcenter">
+                <thead><tr><th>Closed</th><th>Opened</th><th>Account</th><th>Type</th><th class="text-end">Quantity</th><th class="text-end">Open price</th><th class="text-end">Close price</th><th class="text-end">Commission</th><th class="text-end">Realized P/L</th><th>Source</th></tr></thead>
+                <tbody><tr th:each="transaction : ${asset.transactions}">
+                    <td th:text="${#temporals.format(transaction.closeTime, 'yyyy-MM-dd HH:mm')}">-</td>
+                    <td th:text="${#temporals.format(transaction.openTime, 'yyyy-MM-dd HH:mm')}">-</td>
+                    <td th:text="${transaction.accountId}">-</td>
+                    <td th:text="${transaction.type}">-</td>
+                    <td class="text-end" th:text="${#numbers.formatDecimal(transaction.quantity, 1, 'POINT', 4, 'COMMA')}">-</td>
+                    <td class="text-end" th:text="${transaction.openPrice == null ? 'Unavailable' : #numbers.formatDecimal(transaction.openPrice, 1, 'POINT', 2, 'COMMA')}">-</td>
+                    <td class="text-end" th:text="${transaction.closePrice == null ? 'Unavailable' : #numbers.formatDecimal(transaction.closePrice, 1, 'POINT', 2, 'COMMA')}">-</td>
+                    <td class="text-end" th:text="${transaction.commission == null ? 'Unavailable' : #numbers.formatDecimal(transaction.commission, 1, 'POINT', 2, 'COMMA') + ' ' + transaction.commissionCurrency}">-</td>
+                    <td class="text-end" th:classappend="${transaction.realizedProfitLoss != null and transaction.realizedProfitLoss < 0 ? ' text-danger' : ' text-success'}" th:text="${transaction.realizedProfitLoss == null ? 'Unavailable' : #numbers.formatDecimal(transaction.realizedProfitLoss, 1, 'POINT', 2, 'COMMA') + ' ' + transaction.profitCurrency}">-</td>
+                    <td><span th:text="${transaction.brokerSymbol}">-</span><span th:if="${transaction.sourcePositionId != null}" class="text-secondary d-block" th:text="${transaction.sourcePositionId}">-</span></td>
+                </tr></tbody>
+            </table>
+        </div>
+        <div th:unless="${asset.hasTransactions()}" class="card-body text-secondary">No closed transactions for this symbol.</div>
     </section>
 
     <section class="card mt-4" aria-labelledby="quote-details-title">
         <div class="card-header"><h2 id="quote-details-title" class="card-title">Quote details</h2></div>
-        <div class="table-responsive">
-            <table class="table card-table table-vcenter">
-                <tbody>
-                <tr><th scope="row">Canonical symbol</th><td th:text="${asset.symbol}">-</td></tr>
-                <tr><th scope="row">Provider ticker</th><td th:text="${asset.ticker}">-</td></tr>
-                <tr><th scope="row">Yahoo symbol</th><td th:text="${asset.yahooSymbol}">-</td></tr>
-                <tr><th scope="row">Asset type</th><td th:text="${asset.assetType}">-</td></tr>
-                <tr><th scope="row">Country</th><td th:text="${asset.country}">-</td></tr>
-                <tr><th scope="row">Price source</th><td th:text="${asset.priceSource == null ? 'Unavailable' : asset.priceSource}">-</td></tr>
-                <tr><th scope="row">Price updated</th><td th:text="${asset.priceUpdatedAt == null ? 'Unavailable' : #temporals.format(asset.priceUpdatedAt, 'yyyy-MM-dd HH:mm z')}">-</td></tr>
-                </tbody>
-            </table>
-        </div>
+        <div class="table-responsive"><table class="table card-table table-vcenter"><tbody>
+            <tr><th scope="row">Canonical symbol</th><td th:text="${asset.symbol}">-</td></tr>
+            <tr><th scope="row">Provider ticker</th><td th:text="${asset.ticker}">-</td></tr>
+            <tr><th scope="row">Yahoo symbol</th><td th:text="${asset.yahooSymbol}">-</td></tr>
+            <tr><th scope="row">Asset type</th><td th:text="${asset.assetType}">-</td></tr>
+            <tr><th scope="row">Country</th><td th:text="${asset.country}">-</td></tr>
+            <tr><th scope="row">Price source</th><td th:text="${asset.priceSource == null ? 'Unavailable' : asset.priceSource}">-</td></tr>
+            <tr><th scope="row">Price updated</th><td th:text="${asset.priceUpdatedAt == null ? 'Unavailable' : #temporals.format(asset.priceUpdatedAt, 'yyyy-MM-dd HH:mm z')}">-</td></tr>
+        </tbody></table></div>
     </section>
 
-    <section class="card mt-4">
-        <div class="card-body">
-            <h2 class="card-title">History and performance</h2>
-            <p class="text-secondary mb-0">Closed transactions, dividends, and historical performance will follow in the next increment.</p>
-        </div>
-    </section>
+    <section class="card mt-4"><div class="card-body"><h2 class="card-title">Dividends and performance</h2><p class="text-secondary mb-0">Dividend history and historical performance will follow in the next increments.</p></div></section>
 </main>
 </body>
 </html>

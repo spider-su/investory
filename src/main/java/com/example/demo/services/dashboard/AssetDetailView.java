@@ -20,7 +20,9 @@ public record AssetDetailView(
     List<AssetHoldingView> holdings,
     double totalQuantity,
     Double totalMarketValue,
-    Double totalUnrealizedProfitLoss) {
+    Double totalUnrealizedProfitLoss,
+    List<AssetTransactionView> transactions,
+    Double totalRealizedProfitLoss) {
 
   public boolean hasYahooSymbol() {
     return yahooSymbol != null && !yahooSymbol.isBlank();
@@ -32,5 +34,9 @@ public record AssetDetailView(
 
   public boolean hasHoldings() {
     return holdings != null && !holdings.isEmpty();
+  }
+
+  public boolean hasTransactions() {
+    return transactions != null && !transactions.isEmpty();
   }
 }
