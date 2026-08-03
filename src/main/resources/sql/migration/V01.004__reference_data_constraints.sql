@@ -89,3 +89,71 @@ ALTER TABLE assets
         FOREIGN KEY (asset_type) REFERENCES instrument_types(code),
     ADD CONSTRAINT fk_assets_currency
         FOREIGN KEY (currency) REFERENCES currency_codes(code);
+
+-- Transaction type is now lookup-backed. Existing values are retained and normalized.
+CREATE TABLE transaction_types (
+    code varchar(64) PRIMARY KEY,
+    description varchar(255),
+    CONSTRAINT ck_transaction_types_code_not_blank CHECK (btrim(code) <> '')
+);
+
+INSERT INTO transaction_types (code)
+SELECT DISTINCT upper(btrim(type))
+FROM transactions
+WHERE type IS NOT NULL AND btrim(type) <> '';
+
+UPDATE transactions
+SET type = upper(btrim(type))
+WHERE type IS NOT NULL;
+
+ALTER TABLE transactions
+    ADD CONSTRAINT fk_transactions_type
+        FOREIGN KEY (type) REFERENCES transaction_types(code);
+
+-- Side is explicit even when broker-specific type names differ.
+ALTER TABLE transactions
+    ADD COLUMN side varchar(16);
+
+UPDATE transactions
+SET side = CASE
+    WHEN type ~ '(BUY|PURCHASE|OPEN_LONG)' THEN 'BUY'
+    WHEN type ~ '(SELL|SALE|CLOSE_LONG)' THEN 'SELL'
+    WHEN type ~ '(TRANSFER|DEPOSIT|WITHDRAW)' THEN 'TRANSFER'
+    ELSE 'OTHER'
+END;
+
+ALTER TABLE transactions
+    ALTER COLUMN side SET NOT NULL,
+    ADD CONSTRAINT ck_transactions_side
+        CHECK (side IN ('BUY', 'SELL', 'TRANSFER', 'OTHER'));
+
+-- Store an unambiguous instant. Existing date-only values are interpreted as UTC;
+-- importers should provide the broker timestamp and zone for new records.
+ALTER TABLE transactions
+    ADD COLUMN occurred_at timestamptz;
+
+UPDATE transactions
+SET occurred_at = date::timestamp AT TIME ZONE 'UTC'
+WHERE occurred_at IS NULL;
+
+ALTER TABLE transactions
+    ALTER COLUMN occurred_at SET NOT NULL;
+
+-- Persist transaction currency explicitly rather than relying on account/instrument inference.
+ALTER TABLE transactions
+    ADD COLUMN currency varchar(3);
+
+UPDATE transactions t
+SET currency = upper(COALESCE(a.currency, i.currency))
+FROM accounts a
+LEFT JOIN assets i ON i.id = t.asset_id
+WHERE a.id = t.account_id
+  AND t.currency IS NULL;
+
+ALTER TABLE transactions
+    ADD CONSTRAINT fk_transactions_currency
+        FOREIGN KEY (currency) REFERENCES currency_codes(code);
+
+-- No user_id is added: portfolio/account ownership remains the tenancy boundary for
+-- this single-user application. A separate tenant model should be introduced only
+-- together with authorization and row-level access rules.
