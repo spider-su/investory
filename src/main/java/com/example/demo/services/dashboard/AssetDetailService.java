@@ -1,7 +1,10 @@
 package com.example.demo.services.dashboard;
 
+import com.example.demo.infrastructure.CashOperationType;
 import com.example.demo.infrastructure.repository.Asset;
 import com.example.demo.infrastructure.repository.AssetRepository;
+import com.example.demo.infrastructure.repository.CashOperation;
+import com.example.demo.infrastructure.repository.CashOperationRepository;
 import com.example.demo.infrastructure.repository.ClosedPosition;
 import com.example.demo.infrastructure.repository.ClosedPositionRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
@@ -10,6 +13,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,9 +22,13 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class AssetDetailService {
 
+  private static final Set<CashOperationType> DIVIDEND_TYPES =
+      Set.of(CashOperationType.DIVIDEND, CashOperationType.WITHHOLDING_TAX);
+
   private final AssetRepository assetRepository;
   private final OpenedPositionRepository openedPositionRepository;
   private final ClosedPositionRepository closedPositionRepository;
+  private final CashOperationRepository cashOperationRepository;
 
   public AssetDetailView findBySymbol(String rawSymbol) {
     String symbol = normalize(rawSymbol);
@@ -31,14 +39,20 @@ public class AssetDetailService {
     return toView(
         asset,
         openedPositionRepository.findOpenByAssetId(asset.getId()),
-        closedPositionRepository.findClosedByAssetId(asset.getId()));
+        closedPositionRepository.findClosedByAssetId(asset.getId()),
+        cashOperationRepository.findAllByAssetIdAndTypeInOrderByDateDescIdDesc(
+            asset.getId(), DIVIDEND_TYPES));
   }
 
   private AssetDetailView toView(
-      Asset asset, List<OpenedPosition> positions, List<ClosedPosition> closedPositions) {
+      Asset asset,
+      List<OpenedPosition> positions,
+      List<ClosedPosition> closedPositions,
+      List<CashOperation> dividendOperations) {
     List<AssetHoldingView> holdings = aggregateHoldings(asset, positions);
     List<AssetTransactionView> transactions =
         closedPositions.stream().map(this::toTransaction).toList();
+    List<AssetDividendView> dividends = dividendOperations.stream().map(this::toDividend).toList();
     double totalQuantity = holdings.stream().mapToDouble(AssetHoldingView::quantity).sum();
     Double totalMarketValue =
         holdings.stream().allMatch(holding -> holding.marketValue() != null)
@@ -52,6 +66,16 @@ public class AssetDetailService {
         transactions.stream().allMatch(transaction -> transaction.realizedProfitLoss() != null)
             ? transactions.stream().mapToDouble(AssetTransactionView::realizedProfitLoss).sum()
             : null;
+    double totalGrossDividends =
+        dividends.stream()
+            .filter(dividend -> dividend.type() == CashOperationType.DIVIDEND)
+            .mapToDouble(dividend -> safe(dividend.amount()))
+            .sum();
+    double totalWithholdingTax =
+        dividends.stream()
+            .filter(dividend -> dividend.type() == CashOperationType.WITHHOLDING_TAX)
+            .mapToDouble(dividend -> Math.abs(safe(dividend.amount())))
+            .sum();
 
     return new AssetDetailView(
         asset.getId(),
@@ -71,7 +95,11 @@ public class AssetDetailService {
         totalMarketValue,
         totalUnrealizedProfitLoss,
         transactions,
-        totalRealizedProfitLoss);
+        totalRealizedProfitLoss,
+        dividends,
+        totalGrossDividends,
+        totalWithholdingTax,
+        totalGrossDividends - totalWithholdingTax);
   }
 
   private List<AssetHoldingView> aggregateHoldings(Asset asset, List<OpenedPosition> positions) {
@@ -128,6 +156,17 @@ public class AssetDetailService {
         position.getProfitCurrency(),
         position.getSourcePositionId(),
         position.getBrokerSymbol());
+  }
+
+  private AssetDividendView toDividend(CashOperation operation) {
+    return new AssetDividendView(
+        operation.getId(),
+        operation.getAccount(),
+        operation.getType(),
+        operation.getDate(),
+        operation.getAmount(),
+        operation.getCurrency(),
+        operation.getComment());
   }
 
   private double safe(Double value) {
