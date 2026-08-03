@@ -477,10 +477,14 @@ public class PortfolioProjectionService {
     for (Map.Entry<AccountTickerKey, Map<LocalDate, TickerMonthAccumulator>> entry : byTicker.entrySet()) {
       double shares = 0.0;
       double runningCostBasis = 0.0;
+      LocalDate holdingStartDate = null;
       for (LocalDate day : accountDays.getOrDefault(entry.getKey().accountId(), List.of())) {
         TickerMonthAccumulator tickerAcc =
             entry.getValue().getOrDefault(day, new TickerMonthAccumulator());
         if (tickerAcc.buyQty > EPSILON) {
+          if (shares <= EPSILON) {
+            holdingStartDate = day;
+          }
           shares += tickerAcc.buyQty;
           runningCostBasis += tickerAcc.buyValue;
         }
@@ -489,6 +493,9 @@ public class PortfolioProjectionService {
           double sold = Math.min(shares, tickerAcc.sellQty);
           runningCostBasis = Math.max(0.0, runningCostBasis - sold * avg);
           shares = Math.max(0.0, shares - tickerAcc.sellQty);
+          if (shares <= EPSILON) {
+            holdingStartDate = null;
+          }
         }
 
         Asset asset = assets.get(entry.getKey().ticker());
@@ -498,6 +505,7 @@ public class PortfolioProjectionService {
                 shares,
                 day,
                 currentDate,
+                holdingStartDate,
                 asset,
                 baseCurrency(entry.getKey().accountId(), portfolioBaseCurrencies));
 
@@ -752,18 +760,6 @@ public class PortfolioProjectionService {
     return valuationPriorityRank(price.qualityClass(), price.priceOrigin()) > 2;
   }
 
-  private static boolean canCarryForwardValuationPrice(HistoricalPrice price) {
-    if (price == null) {
-      return false;
-    }
-    String quality = price.qualityClass() == null ? "" : price.qualityClass().trim().toUpperCase(Locale.ROOT);
-    String origin = price.priceOrigin() == null ? "" : price.priceOrigin().trim().toUpperCase(Locale.ROOT);
-    return quality.contains("TRADE_OBSERVATION")
-        || origin.contains("TRADE")
-        || quality.contains(QUALITY_STALE_CARRY_FORWARD)
-        || origin.contains("CARRY_FORWARD");
-  }
-
   private static double resolveContractMultiplier(String qualityClass) {
     String quality = qualityClass == null ? "" : qualityClass.trim().toUpperCase(Locale.ROOT);
     if (quality.contains("PERCENT_OF_PAR")) {
@@ -899,6 +895,7 @@ public class PortfolioProjectionService {
         double shares,
         LocalDate date,
          LocalDate valuationDate,
+        LocalDate holdingStartDate,
         Asset asset,
         CurrencyType portfolioBaseCurrency) {
       if (shares <= EPSILON) {
@@ -926,11 +923,14 @@ public class PortfolioProjectionService {
                   ? historicalPrice.observationDate()
                   : price.getKey();
           if (observationDate.plusDays(MAX_HISTORICAL_PRICE_STALENESS_DAYS).isBefore(date)) {
-            if (canCarryForwardValuationPrice(historicalPrice)) {
+            boolean priceObservedDuringHolding =
+                holdingStartDate != null && !price.getKey().isBefore(holdingStartDate);
+            if (priceObservedDuringHolding) {
               log.warn(
-                  "Valuation carries forward stale fallback price: symbol={}, valuationDate={}, selectedPriceDate={}, observationDate={}, qualityClass={}, priceOrigin={}, source={}, sourceSymbol={}",
+                  "Valuation carries forward stale price observed during current holding: symbol={}, valuationDate={}, holdingStartDate={}, selectedPriceDate={}, observationDate={}, qualityClass={}, priceOrigin={}, source={}, sourceSymbol={}",
                   symbol,
                   date,
+                  holdingStartDate,
                   price.getKey(),
                   observationDate,
                   historicalPrice.qualityClass(),
@@ -939,9 +939,10 @@ public class PortfolioProjectionService {
                   historicalPrice.sourceSymbol());
             } else {
               log.debug(
-                  "Valuation uses zero because price is stale: symbol={}, valuationDate={}, selectedPriceDate={}, observationDate={}",
+                  "Valuation uses zero because stale price predates current holding: symbol={}, valuationDate={}, holdingStartDate={}, selectedPriceDate={}, observationDate={}",
                   symbol,
                   date,
+                  holdingStartDate,
                   price.getKey(),
                   observationDate);
               return 0.0;

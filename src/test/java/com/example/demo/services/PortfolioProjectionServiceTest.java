@@ -811,6 +811,125 @@ class PortfolioProjectionServiceTest {
 
   @Test
   @SuppressWarnings("unchecked")
+  void recalculateAll_carriesForwardStalePriceObservedDuringCurrentHolding() {
+    ZonedDateTime depositDate = ZonedDateTime.parse("2025-01-06T12:00:00Z");
+    ZonedDateTime openDate = ZonedDateTime.parse("2025-01-07T12:00:00Z");
+    ZonedDateTime quoteDate = ZonedDateTime.parse("2025-01-17T12:00:00Z");
+    ZonedDateTime closeDate = ZonedDateTime.parse("2025-02-13T12:00:00Z");
+    String symbol = "CSPX.UK";
+
+    CashOperation deposit = new CashOperation();
+    deposit.setAccount(51499241L);
+    deposit.setType(CashOperationType.DEPOSIT);
+    deposit.setAmount(2500.0);
+    deposit.setCurrency(CurrencyType.USD);
+    deposit.setDate(depositDate);
+
+    CashOperation purchase = new CashOperation();
+    purchase.setAccount(51499241L);
+    purchase.setType(CashOperationType.STOCK_PURCHASE);
+    purchase.setAmount(-2500.0);
+    purchase.setCurrency(CurrencyType.USD);
+    purchase.setDate(openDate);
+    purchase.setSymbol(symbol);
+
+    CashOperation sale = new CashOperation();
+    sale.setAccount(51499241L);
+    sale.setType(CashOperationType.STOCK_SELL);
+    sale.setAmount(2600.0);
+    sale.setCurrency(CurrencyType.USD);
+    sale.setDate(closeDate);
+    sale.setSymbol(symbol);
+
+    ClosedPosition closed = new ClosedPosition();
+    closed.setId(9001L);
+    closed.setAccount(51499241L);
+    closed.setSymbol(symbol);
+    setCurrencies(closed, CurrencyType.USD);
+    closed.setType(PositionType.BUY);
+    closed.setVolume(100.0);
+    closed.setOpenTime(openDate);
+    closed.setCloseTime(closeDate);
+    closed.setOpenPrice(25.0);
+    closed.setClosePrice(26.0);
+    closed.setPurchaseValue(2500.0);
+    closed.setSaleValue(2600.0);
+    closed.setProfit(100.0);
+    closed.setCommission(0.0);
+    closed.setSwap(0.0);
+
+    Asset asset = new Asset();
+    asset.setSymbol(symbol);
+
+    when(openedPositionRepository.findAll()).thenReturn(List.of());
+    when(closedPositionRepository.findAll()).thenReturn(List.of(closed));
+    when(cashOperationRepository.findAll()).thenReturn(List.of(deposit, purchase, sale));
+    when(assetRepository.findAll()).thenReturn(List.of(asset));
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+        .thenReturn(
+            List.of(
+                historicalPrice(
+                    symbol,
+                    openDate.toLocalDate(),
+                    25.0,
+                    "USD",
+                    90,
+                    1.0,
+                    "XTB_TRADE_OPEN",
+                    "XTB_TRADE_OPEN_OBSERVATION"),
+                historicalPrice(
+                    symbol,
+                    quoteDate.toLocalDate(),
+                    25.0,
+                    "USD",
+                    95),
+                historicalPrice(
+                    symbol,
+                    closeDate.toLocalDate(),
+                    26.0,
+                    "USD",
+                    90,
+                    1.0,
+                    "XTB_TRADE_CLOSE",
+                    "XTB_TRADE_CLOSE_OBSERVATION")));
+    when(currencyRateService.convertToBaseCurrency(
+            org.mockito.ArgumentMatchers.anyDouble(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    service.recalculateAll();
+
+    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    verify(accountDailyRepository).saveAll(dailyCaptor.capture());
+    List<AccountDaily> rows = toList(dailyCaptor.getValue());
+
+    AccountDaily firstStaleDay =
+        rows.stream()
+            .filter(row -> row.getDate().equals(LocalDate.of(2025, 1, 28)))
+            .findFirst()
+            .orElseThrow();
+    AccountDaily dayBeforeClose =
+        rows.stream()
+            .filter(row -> row.getDate().equals(closeDate.minusDays(1).toLocalDate()))
+            .findFirst()
+            .orElseThrow();
+    AccountDaily closeDay =
+        rows.stream()
+            .filter(row -> row.getDate().equals(closeDate.toLocalDate()))
+            .findFirst()
+            .orElseThrow();
+
+    assertEquals(2500.0, firstStaleDay.getMarketValue(), 0.01);
+    assertEquals(0.0, firstStaleDay.getDailyProfitAmount(), 0.01);
+    assertEquals(2500.0, dayBeforeClose.getMarketValue(), 0.01);
+    assertEquals(0.0, closeDay.getMarketValue(), 0.01);
+    assertEquals(100.0, closeDay.getDailyProfitAmount(), 0.01);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
   void recalculateAll_doesNotCarryCashTradeFallbackAfterValuedPositionCloses() {
     ZonedDateTime openDate = ZonedDateTime.parse("2026-02-06T08:03:29Z");
     ZonedDateTime closeDate = ZonedDateTime.parse("2026-02-25T11:26:38Z");
