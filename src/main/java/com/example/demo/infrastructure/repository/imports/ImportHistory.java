@@ -34,6 +34,7 @@ public class ImportHistory {
 	private BrokerType broker;
 
 	@Column(name = "source_type")
+	@Enumerated(EnumType.STRING)
 	private ImportSourceType sourceType;
 
 	@Column(name = "source_ref")
