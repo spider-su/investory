@@ -3,8 +3,10 @@ package com.trading.investory.database;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -77,7 +79,7 @@ class DatabaseReportingContractTest {
     }
 
     @Test
-    void canonicalFxFunctionHandlesSameCurrencyAndMissingRates() throws SQLException {
+    void canonicalFxFunctionsHandleSameCurrencyAndMissingRates() throws SQLException {
         try (Connection connection = connection()) {
             try (PreparedStatement statement =
                     connection.prepareStatement(
@@ -88,7 +90,9 @@ class DatabaseReportingContractTest {
 
                 try (ResultSet result = statement.executeQuery()) {
                     assertTrue(result.next());
-                    assertEquals(0, result.getBigDecimal("fx_rate_to_target").compareTo(java.math.BigDecimal.ONE));
+                    assertEquals(
+                            0,
+                            result.getBigDecimal("fx_rate_to_target").compareTo(BigDecimal.ONE));
                     assertEquals("SAME_CURRENCY", result.getString("conversion_status"));
                 }
 
@@ -98,8 +102,22 @@ class DatabaseReportingContractTest {
                 try (ResultSet result = statement.executeQuery()) {
                     assertTrue(result.next());
                     assertEquals("MISSING", result.getString("conversion_status"));
-                    assertEquals(null, result.getBigDecimal("fx_rate_to_target"));
+                    assertNull(result.getBigDecimal("fx_rate_to_target"));
                 }
+            }
+
+            try (Statement statement = connection.createStatement();
+                    ResultSet result =
+                            statement.executeQuery(
+                                    "SELECT portfolio_id, fx_rate_to_base, conversion_status "
+                                            + "FROM investory.resolve_portfolio_fx_rate("
+                                            + "(SELECT id FROM investory.portfolios ORDER BY id LIMIT 1), "
+                                            + "DATE '2026-01-31', "
+                                            + "(SELECT base_currency FROM investory.portfolios ORDER BY id LIMIT 1))")) {
+                assertTrue(result.next());
+                assertTrue(result.getLong("portfolio_id") > 0);
+                assertEquals(0, result.getBigDecimal("fx_rate_to_base").compareTo(BigDecimal.ONE));
+                assertEquals("SAME_CURRENCY", result.getString("conversion_status"));
             }
         }
     }
