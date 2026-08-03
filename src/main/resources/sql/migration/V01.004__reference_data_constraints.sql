@@ -31,7 +31,7 @@ COMMENT ON COLUMN investory.positions.purchase_value IS
     'Per-lot broker-reported purchase value. Portfolio cost basis is derived from individual position lots; no aggregate avg_cost convention is stored here.';
 
 COMMENT ON TABLE investory.positions IS
-    'Broker position lots, both active and closed. Multiple rows for one account and asset are valid; reconciliation must operate at source lot/event identity, not enforce one row per account and asset.';
+    'Broker position lots, both active and closed. Multiple rows for one account and asset are valid; reconciliation must operate at source lot/event identity, not enforce one row per account and asset. Position state supports imported BUY/SELL lots, partial closes, explicit settlement models, currencies, commissions, swaps, margin, and realized profit. Corporate actions such as splits, mergers, spin-offs, symbol changes, and tax-lot elections are not inferred unless the broker importer emits explicit adjusted rows.';
 
 -- Exact duplicate lot detector. A unique constraint on (account_id, asset_id)
 -- would reject valid multiple lots, partial closes, BUY/SELL pairs, and mixed
@@ -160,3 +160,12 @@ COMMENT ON TABLE investory.app_users IS
 
 COMMENT ON COLUMN investory.portfolios.user_id IS
     'Required portfolio owner. Accounts, cash operations, and position lots inherit user ownership through portfolio_id.';
+
+-- There is no f_get_positions function in the current schema. Point-in-time and
+-- current position reporting derives from source lots, account_daily, and refreshed
+-- reporting materialized views. This index supports selective account/date lot scans.
+CREATE INDEX IF NOT EXISTS ix_positions_account_open_close
+    ON investory.positions (account_id, open_time, close_time);
+
+COMMENT ON INDEX investory.ix_positions_account_open_close IS
+    'Supports point-in-time position scans by account. Large recurring reports should continue to use refreshed account_daily and materialized reporting projections instead of repeatedly reconstructing the full lot history.';
