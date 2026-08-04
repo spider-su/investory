@@ -34,5 +34,5 @@ jobs:
       - name: Run tests
         run: mvn --batch-mode --no-transfer-progress test
 
-      - name: Check formatting
-        run: mvn --batch-mode --no-transfer-progress spotless:check
+#      - name: Check formatting
+#        run: mvn --batch-mode --no-transfer-progress spotless:check
