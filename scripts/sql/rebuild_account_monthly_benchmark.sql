@@ -17,7 +17,7 @@ WITH daily_equity_in_portfolio_base AS (
         ad.account_id,
         ad.snapshot_date,
         date_trunc('month', ad.snapshot_date)::date AS month,
-        p.base_currency::text AS valuation_currency,
+        p.base_currency::varchar(3) AS valuation_currency,
         ad.equity * fx.fx_rate_to_base AS equity
     FROM investory.account_daily ad
     JOIN investory.accounts a
@@ -38,7 +38,8 @@ monthly_equity AS (
         max(snapshot_date) AS end_date,
         (array_agg(equity ORDER BY snapshot_date ASC))[1] AS opening_equity,
         (array_agg(equity ORDER BY snapshot_date DESC))[1] AS closing_equity,
-        (array_agg(valuation_currency ORDER BY snapshot_date DESC))[1] AS valuation_currency
+        (array_agg(valuation_currency ORDER BY snapshot_date DESC))[1]::varchar(3)
+            AS valuation_currency
     FROM daily_equity_in_portfolio_base
     GROUP BY account_id, month
 ),
@@ -61,7 +62,7 @@ SELECT
     equity.end_date,
     equity.opening_equity,
     equity.closing_equity,
-    equity.valuation_currency,
+    equity.valuation_currency::varchar(3) AS valuation_currency,
     monthly.deposits,
     monthly.withdrawals,
     monthly.dividends,
