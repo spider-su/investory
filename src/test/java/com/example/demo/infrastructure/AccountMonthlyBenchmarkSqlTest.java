@@ -41,11 +41,13 @@ class AccountMonthlyBenchmarkSqlTest {
     String sql = readScript();
 
     assertTrue(sql.contains("ad.equity * fx.fx_rate_to_base AS equity"));
-    assertTrue(sql.contains("p.base_currency::text AS valuation_currency"));
+    assertTrue(sql.contains("p.base_currency::varchar(3) AS valuation_currency"));
+    assertTrue(sql.contains("equity.valuation_currency::varchar(3) AS valuation_currency"));
     assertTrue(sql.contains("amount_in_portfolio_base_currency"));
     assertTrue(sql.contains("'EXTERNAL_DEPOSIT'"));
     assertTrue(sql.contains("'EXTERNAL_WITHDRAWAL'"));
 
+    assertFalse(sql.contains("p.base_currency::text AS valuation_currency"));
     assertFalse(sql.contains("amount_in_account_currency"));
     assertFalse(sql.contains("'FX_CONVERSION'"));
     assertFalse(sql.contains("'INTERNAL_TRANSFER_IN'"));
