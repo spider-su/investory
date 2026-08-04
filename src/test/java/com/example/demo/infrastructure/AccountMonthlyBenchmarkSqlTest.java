@@ -2,14 +2,18 @@ package com.example.demo.infrastructure;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 
 class AccountMonthlyBenchmarkSqlTest {
+
+  private static final Path SCRIPT =
+      Path.of("scripts", "sql", "rebuild_account_monthly_benchmark.sql");
 
   @Test
   void plnAccountFixtureUsesPortfolioBaseEquityAndExternalFlowsOnly() {
@@ -62,16 +66,6 @@ class AccountMonthlyBenchmarkSqlTest {
   }
 
   private String readScript() throws IOException {
-    try (var stream =
-        getClass().getResourceAsStream("/../../../../../../scripts/sql/rebuild_account_monthly_benchmark.sql")) {
-      if (stream != null) {
-        return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
-      }
-    }
-
-    var path =
-        java.nio.file.Path.of("scripts", "sql", "rebuild_account_monthly_benchmark.sql");
-    assertNotNull(path);
-    return java.nio.file.Files.readString(path, StandardCharsets.UTF_8);
+    return Files.readString(SCRIPT, StandardCharsets.UTF_8);
   }
 }
