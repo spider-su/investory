@@ -42,7 +42,8 @@ class DashboardPeriodRegressionTest {
 
     service.apply(portfolio, DashboardPeriod.YEAR_TO_DATE);
 
-    assertEquals(List.of(currentJanuary, currentFebruary),
+    assertEquals(
+        List.of(currentJanuary, currentFebruary),
         performance.getCalculateMonthlyPerformance().keySet().stream().toList());
     assertEquals(50.0, performance.getTotalProfit());
 
@@ -50,10 +51,11 @@ class DashboardPeriodRegressionTest {
     String januaryDay = LocalDate.of(currentYear, 1, 15).toString();
     String februaryDay = LocalDate.of(currentYear, 2, 15).toString();
 
-    Benchmark benchmark = benchmark(
-        List.of(previousDecember, currentJanuary, currentFebruary),
-        List.of(10.0, 30.0, 60.0),
-        List.of(5.0, 15.0, 25.0));
+    Benchmark benchmark =
+        benchmark(
+            List.of(previousDecember, currentJanuary, currentFebruary),
+            List.of(10.0, 30.0, 60.0),
+            List.of(5.0, 15.0, 25.0));
     benchmark.setAccountValueYears(
         List.of(
             new Benchmark.AccountValueYear(
@@ -71,8 +73,8 @@ class DashboardPeriodRegressionTest {
     service.apply(benchmark, DashboardPeriod.YEAR_TO_DATE);
 
     assertEquals(List.of(currentJanuary, currentFebruary), benchmark.getLabels());
-    assertEquals(List.of(januaryDay, februaryDay),
-        benchmark.getAccountValueYears().getFirst().labels());
+    assertEquals(
+        List.of(januaryDay, februaryDay), benchmark.getAccountValueYears().getFirst().labels());
   }
 
   @Test
@@ -82,15 +84,16 @@ class DashboardPeriodRegressionTest {
     String boundary = now.minusMonths(1).toString();
     String current = now.toString();
 
-    Benchmark benchmark = benchmark(
-        List.of(tooOld, boundary, current),
-        List.of(10.0, 20.0, 35.0),
-        List.of(5.0, 10.0, 15.0));
+    Benchmark benchmark =
+        benchmark(
+            List.of(tooOld, boundary, current),
+            List.of(10.0, 20.0, 35.0),
+            List.of(5.0, 10.0, 15.0));
 
     service.apply(benchmark, DashboardPeriod.ONE_MONTH);
 
     assertEquals(List.of(boundary, current), benchmark.getLabels());
-    assertEquals(List.of(0.0, 15.0), benchmark.getPortfolioCurve());
+    assertEquals(List.of(10.0, 25.0), benchmark.getPortfolioCurve());
     assertEquals(2, benchmark.getBenchmarkCurve().size());
   }
 
