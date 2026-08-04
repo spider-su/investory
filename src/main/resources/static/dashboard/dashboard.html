@@ -184,6 +184,19 @@
         <a href="#data-quality">Data quality</a>
     </nav>
 
+    <nav class="iv-page-nav" aria-label="Dashboard period">
+        <span>Period</span>
+        <a th:each="periodOption : ${periods}"
+           th:href="@{/dashboard(period=${periodOption.urlValue()})}"
+           th:text="${periodOption.label()}"
+           th:class="${periodOption == selectedPeriod}
+               ? 'iv-badge iv-badge--pos'
+               : 'iv-badge iv-badge--muted'"
+           th:attr="aria-current=${periodOption == selectedPeriod} ? 'page' : null">
+            1Y
+        </a>
+    </nav>
+
     <div id="overview" class="iv-section-heading">
         <div>
             <span class="iv-section-heading__eyebrow">Portfolio overview</span>
@@ -1251,7 +1264,10 @@
     enableKeyboardChart(benchmarkChart, 'benchmark-chart', () => {});
     enableKeyboardChart(accountValueChart, 'account-value-chart', index => accountValueChart.options.onClick?.({}, [{index}]));
 
-    const ctxMonthly = document.getElementById("monthly-performance-chart").getContext("2d");
+    const monthlyPerformanceEl = document.getElementById("monthly-performance-chart");
+    const ctxMonthly = monthlyPerformanceEl
+        ? monthlyPerformanceEl.getContext("2d")
+        : null;
     function groupedMonthlyData(mode, selectedIds) {
         const buckets = new Map();
         monthlyLabels.forEach((label, index) => {
@@ -1278,6 +1294,7 @@
     }
     let monthlyChart;
     function renderMonthlyChart(mode) {
+        if (!ctxMonthly) return;
         const allMonthlyIds = [...new Set(Object.values(monthlyAttributions).flatMap(a => (a.accounts || []).map(row => Number(row.accountId))))];
         const selectedMonthlyIds = effectiveAccountIds(selectedMonthlyAccountIds(), allMonthlyIds);
         const grouped = groupedMonthlyData(mode, selectedMonthlyIds.size === allMonthlyIds.length ? null : selectedMonthlyIds);

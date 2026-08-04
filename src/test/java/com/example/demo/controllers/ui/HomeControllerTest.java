@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.example.demo.services.BenchmarkService;
 import com.example.demo.services.PortfolioService;
+import com.example.demo.services.dashboard.DashboardPeriodFilterService;
 import com.example.demo.services.models.Benchmark;
 import com.example.demo.services.models.InstrumentPerformance;
 import com.example.demo.services.models.Portfolio;
@@ -34,6 +35,7 @@ class HomeControllerTest {
 
   @Mock private PortfolioService portfolioService;
   @Mock private BenchmarkService benchmarkService;
+  @Mock private DashboardPeriodFilterService dashboardPeriodFilterService;
 
   @InjectMocks private HomeController homeController;
 
@@ -41,6 +43,7 @@ class HomeControllerTest {
 
   @BeforeEach
   void setUp() {
+    // Void Mockito methods do nothing by default, which is sufficient for this controller test.
     // Stub view resolver: rewrites view names so MockMvc doesn't dispatch back to the same URL
     // (avoids "Circular view path" error in standalone setup without real templates).
     InternalResourceViewResolver resolver = new InternalResourceViewResolver();

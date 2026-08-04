@@ -22,7 +22,7 @@ public interface AssetPriceChartRepository extends Repository<Asset, Long> {
                  aph.price_origin as priceOrigin
           from asset_price_history aph
           where aph.asset_id = :assetId
-            and (:dateFrom is null or aph.price_date >= :dateFrom)
+            and (cast(:dateFrom as date) is null or aph.price_date >= cast(:dateFrom as date))
             and aph.price_date <= :dateTo
             and aph.close_price is not null
             and aph.close_price > 0
