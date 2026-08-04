@@ -184,6 +184,15 @@
         <a href="#data-quality">Data quality</a>
     </nav>
 
+    <nav class="iv-page-nav" aria-label="Dashboard period">
+        <span>Period</span>
+        <a th:each="periodOption : ${periods}"
+           th:href="@{/dashboard(period=${periodOption.urlValue()})}"
+           th:text="${periodOption.label()}"
+           th:class="${periodOption == selectedPeriod}
+               ? 'iv-badge iv-badge--pos'
+               : 'iv-badge iv-badge--muted'"
+           th:attr="aria-current=${periodOption == selectedPeriod} ? 'page' : null">
     <div id="overview" class="iv-section-heading">
         <div>
             <span class="iv-section-heading__eyebrow">Portfolio overview</span>
