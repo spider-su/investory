@@ -63,10 +63,7 @@ class DashboardPeriodRegressionTest {
                 List.of(previousDay, januaryDay, februaryDay),
                 List.of(
                     new Benchmark.AccountValueSeries(
-                        1L,
-                        "PLN account",
-                        List.of(1.0, 3.0, 6.0),
-                        List.of(1.0, 3.0, 6.0))),
+                        1L, "PLN account", List.of(1.0, 3.0, 6.0), List.of(1.0, 3.0, 6.0))),
                 List.of(1.0, 3.0, 6.0),
                 List.of(1.0, 3.0, 6.0))));
 
