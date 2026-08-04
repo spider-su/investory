@@ -3,8 +3,10 @@ package com.example.demo.services.dashboard;
 import com.example.demo.services.models.Benchmark;
 import com.example.demo.services.models.Performance;
 import com.example.demo.services.models.Portfolio;
+import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,17 +16,22 @@ import org.springframework.stereotype.Service;
 public class DashboardPeriodFilterService {
 
   public void apply(Portfolio portfolio, DashboardPeriod period) {
-    if (portfolio == null || portfolio.getMonthlyPerformance() == null || period == DashboardPeriod.MAX) {
+    if (portfolio == null
+        || portfolio.getMonthlyPerformance() == null
+        || period == DashboardPeriod.MAX) {
       return;
     }
     Performance performance = portfolio.getMonthlyPerformance();
     YearMonth start = startMonth(period);
-    performance.setCalculateMonthlyPerformance(filter(performance.getCalculateMonthlyPerformance(), start));
+    performance.setCalculateMonthlyPerformance(
+        filter(performance.getCalculateMonthlyPerformance(), start));
     performance.setMonthlyOperationsCount(filter(performance.getMonthlyOperationsCount(), start));
     performance.setMonthlyCashflow(filter(performance.getMonthlyCashflow(), start));
     performance.setMonthlyAttributions(filter(performance.getMonthlyAttributions(), start));
     performance.setTotalProfit(
-        performance.getCalculateMonthlyPerformance().values().stream().mapToDouble(Double::doubleValue).sum());
+        performance.getCalculateMonthlyPerformance().values().stream()
+            .mapToDouble(Double::doubleValue)
+            .sum());
   }
 
   public void apply(Benchmark benchmark, DashboardPeriod period) {
@@ -44,15 +51,19 @@ public class DashboardPeriodFilterService {
             benchmark.getPortfolioCurve(),
             benchmark.getBenchmarkCurve(),
             firstIndex);
-    benchmark.setLabels(List.copyOf(benchmark.getLabels().subList(firstIndex, benchmark.getLabels().size())));
+    benchmark.setLabels(
+        List.copyOf(benchmark.getLabels().subList(firstIndex, benchmark.getLabels().size())));
     benchmark.setPortfolioCurve(total.portfolioCurve());
     benchmark.setBenchmarkCurve(total.benchmarkCurve());
     benchmark.setInvestedCapital(round(total.investedCapital()));
     benchmark.setPortfolioPl(last(total.portfolioCurve()));
     benchmark.setBenchmarkPl(last(total.benchmarkCurve()));
-    benchmark.setPortfolioReturnPct(percent(benchmark.getPortfolioPl(), benchmark.getInvestedCapital()));
-    benchmark.setBenchmarkReturnPct(percent(benchmark.getBenchmarkPl(), benchmark.getInvestedCapital()));
-    benchmark.setAlpha(round(benchmark.getPortfolioReturnPct() - benchmark.getBenchmarkReturnPct()));
+    benchmark.setPortfolioReturnPct(
+        percent(benchmark.getPortfolioPl(), benchmark.getInvestedCapital()));
+    benchmark.setBenchmarkReturnPct(
+        percent(benchmark.getBenchmarkPl(), benchmark.getInvestedCapital()));
+    benchmark.setAlpha(
+        round(benchmark.getPortfolioReturnPct() - benchmark.getBenchmarkReturnPct()));
     benchmark.setAccountSeries(
         benchmark.getAccountSeries().stream()
             .map(
@@ -80,7 +91,9 @@ public class DashboardPeriodFilterService {
             .toList());
     benchmark.setAccountValuesAvailable(!benchmark.getAccountValueYears().isEmpty());
     benchmark.setSelectedAccountValueYear(
-        benchmark.isAccountValuesAvailable() ? benchmark.getAccountValueYears().getFirst().year() : null);
+        benchmark.isAccountValuesAvailable()
+            ? benchmark.getAccountValueYears().getFirst().year()
+            : null);
   }
 
   private Benchmark.AccountValueYear filterAccountValueYear(
@@ -142,7 +155,9 @@ public class DashboardPeriodFilterService {
       return List.of();
     }
     double prior = firstIndex > 0 ? values.get(firstIndex - 1) : 0.0;
-    return values.subList(firstIndex, values.size()).stream().map(value -> round(value - prior)).toList();
+    return values.subList(firstIndex, values.size()).stream()
+        .map(value -> round(value - prior))
+        .toList();
   }
 
   private <T> Map<String, T> filter(Map<String, T> values, YearMonth start) {
@@ -152,7 +167,7 @@ public class DashboardPeriodFilterService {
     Map<String, T> filtered = new LinkedHashMap<>();
     values.forEach(
         (label, value) -> {
-          if (!YearMonth.parse(label).isBefore(start)) {
+          if (!labelMonth(label).isBefore(start)) {
             filtered.put(label, value);
           }
         });
@@ -161,11 +176,19 @@ public class DashboardPeriodFilterService {
 
   private int firstIncludedIndex(List<String> labels, YearMonth start) {
     for (int i = 0; i < labels.size(); i++) {
-      if (!YearMonth.parse(labels.get(i)).isBefore(start)) {
+      if (!labelMonth(labels.get(i)).isBefore(start)) {
         return i;
       }
     }
     return -1;
+  }
+
+  private YearMonth labelMonth(String label) {
+    try {
+      return YearMonth.parse(label);
+    } catch (DateTimeParseException ignored) {
+      return YearMonth.from(LocalDate.parse(label));
+    }
   }
 
   private YearMonth startMonth(DashboardPeriod period) {
