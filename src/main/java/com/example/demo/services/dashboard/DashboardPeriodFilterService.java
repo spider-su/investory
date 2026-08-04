@@ -100,7 +100,8 @@ public class DashboardPeriodFilterService {
       Benchmark.AccountValueYear year, YearMonth start) {
     int firstIndex = firstIncludedIndex(year.labels(), start);
     if (firstIndex < 0) {
-      return new Benchmark.AccountValueYear(year.year(), List.of(), List.of(), List.of(), List.of());
+      return new Benchmark.AccountValueYear(
+          year.year(), List.of(), List.of(), List.of(), List.of());
     }
     return new Benchmark.AccountValueYear(
         year.year(),
