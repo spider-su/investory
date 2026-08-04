@@ -493,9 +493,14 @@ window.closeModal = function() {
     }
 
     // Update navigation state while scrolling.
-    const navLinks = Array.from(document.querySelectorAll('.iv-page-nav a'));
+    const navLinks = Array.from(document.querySelectorAll('.iv-page-nav a'))
+        .filter(function (link) {
+            return (link.getAttribute('href') || '').startsWith('#');
+        });
     const sections = navLinks
-        .map(function (link) { return document.querySelector(link.getAttribute('href')); })
+        .map(function (link) {
+            return document.querySelector(link.getAttribute('href'));
+        })
         .filter(Boolean);
     if ('IntersectionObserver' in window && sections.length) {
         const observer = new IntersectionObserver(function (entries) {

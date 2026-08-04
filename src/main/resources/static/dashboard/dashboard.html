@@ -1260,7 +1260,10 @@
     enableKeyboardChart(benchmarkChart, 'benchmark-chart', () => {});
     enableKeyboardChart(accountValueChart, 'account-value-chart', index => accountValueChart.options.onClick?.({}, [{index}]));
 
-    const ctxMonthly = document.getElementById("monthly-performance-chart").getContext("2d");
+    const monthlyPerformanceEl = document.getElementById("monthly-performance-chart");
+    const ctxMonthly = monthlyPerformanceEl
+        ? monthlyPerformanceEl.getContext("2d")
+        : null;
     function groupedMonthlyData(mode, selectedIds) {
         const buckets = new Map();
         monthlyLabels.forEach((label, index) => {
@@ -1287,6 +1290,7 @@
     }
     let monthlyChart;
     function renderMonthlyChart(mode) {
+        if (!ctxMonthly) return;
         const allMonthlyIds = [...new Set(Object.values(monthlyAttributions).flatMap(a => (a.accounts || []).map(row => Number(row.accountId))))];
         const selectedMonthlyIds = effectiveAccountIds(selectedMonthlyAccountIds(), allMonthlyIds);
         const grouped = groupedMonthlyData(mode, selectedMonthlyIds.size === allMonthlyIds.length ? null : selectedMonthlyIds);
