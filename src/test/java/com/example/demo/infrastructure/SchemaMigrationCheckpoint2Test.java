@@ -4,10 +4,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.stream.Stream;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -82,7 +85,16 @@ class SchemaMigrationCheckpoint2Test {
   void appliesAllMigrationsAndCreatesCheckpoint2Invariants() throws Exception {
     try (Connection connection = openConnection();
         Statement statement = connection.createStatement()) {
-      assertEquals(6, singleInt(statement, "SELECT count(*) FROM investory.flyway_schema_history"));
+      assertEquals(
+          migrationScriptCount(),
+          singleInt(
+              statement,
+              """
+              SELECT count(*)
+              FROM investory.flyway_schema_history
+              WHERE success = true
+                AND version IS NOT NULL
+              """));
       assertTrue(
           exists(
               statement,
@@ -1040,6 +1052,18 @@ class SchemaMigrationCheckpoint2Test {
     try (ResultSet resultSet = statement.executeQuery(sql)) {
       resultSet.next();
       return resultSet.getString(1);
+    }
+  }
+
+  private static int migrationScriptCount() throws Exception {
+    try (Stream<Path> files =
+        Files.list(Path.of("src", "main", "resources", "sql", "migration"))) {
+      return (int)
+          files
+              .map(Path::getFileName)
+              .map(Path::toString)
+              .filter(name -> name.matches("^V\\d+\\.\\d+__.*\\.sql$"))
+              .count();
     }
   }
 }

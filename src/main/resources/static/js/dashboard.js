@@ -492,6 +492,29 @@ window.closeModal = function() {
         });
     }
 
+    // Preserve the current benchmark-account selection when changing dashboard period.
+    const periodLinks = Array.from(
+        document.querySelectorAll('.iv-page-nav[aria-label="Dashboard period"] a')
+    );
+    periodLinks.forEach(function (link) {
+        link.addEventListener('click', function (event) {
+            event.preventDefault();
+
+            const target = new URL(link.href, window.location.origin);
+            target.searchParams.delete('accountIds');
+            target.searchParams.set('benchmarkAccountsSubmitted', 'true');
+
+            document.querySelectorAll('.js-benchmark-account:checked')
+                .forEach(function (account) {
+                    target.searchParams.append('accountIds', account.value);
+                });
+
+            window.location.assign(
+                target.pathname + target.search + target.hash
+            );
+        });
+    });
+
     // Update navigation state while scrolling.
     const navLinks = Array.from(document.querySelectorAll('.iv-page-nav a'))
         .filter(function (link) {
