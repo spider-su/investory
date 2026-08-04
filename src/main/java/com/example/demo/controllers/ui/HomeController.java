@@ -2,6 +2,9 @@ package com.example.demo.controllers.ui;
 
 import com.example.demo.services.BenchmarkService;
 import com.example.demo.services.PortfolioService;
+import com.example.demo.services.dashboard.DashboardPeriod;
+import com.example.demo.services.dashboard.DashboardPeriodFilterService;
+import com.example.demo.services.models.Benchmark;
 import com.example.demo.services.models.InstrumentPerformance;
 import com.example.demo.services.models.Portfolio;
 import java.util.Comparator;
@@ -20,6 +23,7 @@ public class HomeController {
 
   private final PortfolioService portfolioService;
   private final BenchmarkService benchmarkService;
+  private final DashboardPeriodFilterService dashboardPeriodFilterService;
 
   @GetMapping("/")
   public String home() {
@@ -30,13 +34,18 @@ public class HomeController {
   public String getPortfolioDashboard(
       Model model,
       @RequestParam(required = false) List<Long> accountIds,
-      @RequestParam(defaultValue = "false") boolean benchmarkAccountsSubmitted) {
+      @RequestParam(defaultValue = "false") boolean benchmarkAccountsSubmitted,
+      @RequestParam(required = false) String period) {
     long dashboardStartedAt = System.nanoTime();
+    DashboardPeriod selectedPeriod = DashboardPeriod.fromUrlValue(period);
 
     long sectionStartedAt = System.nanoTime();
     Portfolio stats = portfolioService.calculateTotalProfitLoss();
+    dashboardPeriodFilterService.apply(stats, selectedPeriod);
     logSectionTiming("portfolio", sectionStartedAt);
     model.addAttribute("stats", stats);
+    model.addAttribute("selectedPeriod", selectedPeriod);
+    model.addAttribute("periods", DashboardPeriod.values());
 
     sectionStartedAt = System.nanoTime();
     model.addAttribute("topGainers", topGainers(stats.getPerformancePerSymbol()));
@@ -47,11 +56,12 @@ public class HomeController {
     logSectionTiming("top-losers", sectionStartedAt);
 
     sectionStartedAt = System.nanoTime();
-    model.addAttribute(
-        "benchmark",
+    Benchmark benchmark =
         benchmarkAccountsSubmitted
             ? benchmarkService.calculate(accountIds)
-            : benchmarkService.calculate());
+            : benchmarkService.calculate();
+    dashboardPeriodFilterService.apply(benchmark, selectedPeriod);
+    model.addAttribute("benchmark", benchmark);
     logSectionTiming("benchmark", sectionStartedAt);
 
     log.info("Dashboard timing: total={} ms", elapsedMillis(dashboardStartedAt));
