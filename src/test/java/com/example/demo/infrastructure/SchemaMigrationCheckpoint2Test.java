@@ -1056,8 +1056,7 @@ class SchemaMigrationCheckpoint2Test {
   }
 
   private static int migrationScriptCount() throws Exception {
-    try (Stream<Path> files =
-        Files.list(Path.of("src", "main", "resources", "sql", "migration"))) {
+    try (Stream<Path> files = Files.list(Path.of("src", "main", "resources", "sql", "migration"))) {
       return (int)
           files
               .map(Path::getFileName)
