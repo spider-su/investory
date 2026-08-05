@@ -4,10 +4,6 @@
   "service": "app",
   "workspaceFolder": "/workspaces/investory",
   "shutdownAction": "stopCompose",
-  "features": {
-    "ghcr.io/devcontainers/features/maven:1": {},
-    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
-  },
   "containerEnv": {
     "SPRING_PROFILES_ACTIVE": "local",
     "DB_URL": "jdbc:postgresql://db:5432/investory",

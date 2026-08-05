@@ -3,14 +3,23 @@ services:
     build:
       context: ..
       dockerfile: .devcontainer/Dockerfile
-    command: sleep infinity
+      args:
+        DOCKER_GID: "${DOCKER_GID:-999}"
+    command: >
+      bash -lc "
+        sudo mkdir -p /home/vscode/.m2/repository &&
+        sudo chown -R vscode:vscode /home/vscode/.m2 &&
+        exec sleep infinity
+      "
     environment:
       SPRING_PROFILES_ACTIVE: local
       DB_URL: jdbc:postgresql://db:5432/investory
       DB_USERNAME: investory
       DB_PASSWORD: investory
     volumes:
+      - "${INVESTORY_WORKSPACE}:/workspaces/investory"
       - maven-cache:/home/vscode/.m2
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       db:
         condition: service_healthy
