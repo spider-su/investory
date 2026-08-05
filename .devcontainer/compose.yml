@@ -16,6 +16,9 @@ services:
       DB_URL: jdbc:postgresql://db:5432/investory
       DB_USERNAME: investory
       DB_PASSWORD: investory
+      DOCKER_HOST: unix:///var/run/docker.sock
+      DOCKER_API_VERSION: "1.40"
+      TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE: /var/run/docker.sock
     volumes:
       - "${INVESTORY_WORKSPACE}:/workspaces/investory"
       - maven-cache:/home/vscode/.m2
