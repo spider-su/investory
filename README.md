@@ -35,7 +35,7 @@ account state and derive consistent daily and monthly analytics.
 - Cash balance
 - ROI / Total Return
 - Multi-currency support
-- Live FX conversion
+- Multi-currency valuation using scheduled current rates and historical monthly FX rates
 - Multiple broker accounts
 
 ### Performance analytics
@@ -150,8 +150,11 @@ This provides:
 - Internal transfers change account cash but do not change portfolio contributed capital.
 - Currency conversion is not a deposit, withdrawal, or investment profit.
 - Broker corrections and reversals retain their signs.
-- Missing FX or ambiguous valuation inputs are reported as validation issues rather than treated as
-  successful conversions.
+- Current FX rates refresh on weekdays at 15:00 Europe/Warsaw. Rates are stored at the first day
+  of each month and reused for valuations within their supported age window.
+- When no usable FX rate exists, or the newest rate is more than 45 days old, the affected
+  calculation fails with an `FX rate unavailable` error. Investory does not silently treat an
+  unconverted amount as if it were already in the target currency.
 - Returns are compounded from daily returns; percentages are not averaged.
 
 ## Dashboard
