@@ -2,8 +2,8 @@
 
 > Portfolio intelligence for long-term investors.
 >
-> Track investments across brokers, currencies, and asset classes while preserving a complete
-> transaction ledger and producing reproducible portfolio analytics.
+> Track investments across brokers, currencies, and asset classes by importing broker files
+> into a normalized transaction ledger and deriving consistent portfolio analytics.
 
 ## Why Investory?
 
@@ -22,8 +22,10 @@ Investory answers much more:
 - How did currency movements affect my returns?
 - How close am I to simply buying SPY?
 
-Investory combines immutable broker events with market prices and FX rates to reconstruct a canonical
-account state and derive consistent daily and monthly analytics.
+Investory combines normalized broker transactions with market prices and FX rates to reconstruct
+account state and derive consistent daily and monthly analytics. Import batches and available source
+identifiers are retained for traceability; the original broker files are not stored as a complete
+immutable event archive.
 
 ---
 
@@ -81,8 +83,9 @@ Currently implemented:
 - Interactive Brokers (IBKR)
 - XTB
 
-Broker-specific importers preserve source records and map them into a common operational model without
-changing the higher reporting architecture.
+Broker-specific importers map supported statement fields into a common operational model. Imported
+rows retain available broker identifiers and original asset symbols for traceability, while reporting
+uses canonical assets and normalized operations.
 
 ---
 
@@ -102,16 +105,16 @@ changing the higher reporting architecture.
 
 ## Architecture
 
-Investory separates broker events, reconstructed state, and reporting projections.
+Investory separates broker-file ingestion, normalized portfolio data, and reporting projections.
 
 ```text
-Broker Imports
+Broker Files
         │
         ▼
-Immutable Raw Events
+Import Audit + Normalized Ledger
         │
         ▼
-Normalized Operations + Positions
+Positions + Cash Operations + Assets
         │
         ▼
 Historical Prices + FX
@@ -126,6 +129,11 @@ Views / Materialized Views
 Dashboard / APIs / Exports
 ```
 
+`import_history` records each import batch's broker, file name, SHA-256, status, row counts, and failure
+details. Normalized rows retain broker identifiers and source asset symbols where available. Failed
+text payload previews are limited to 8 KB; Investory does not retain every imported file as an
+immutable raw-event store.
+
 `account_daily` is the persisted historical reporting boundary. Each row represents one account on one
 date.
 
@@ -138,9 +146,9 @@ through database views and materialized views.
 
 This provides:
 
-- deterministic calculations
-- reproducible history
-- complete auditability
+- deterministic projection calculations
+- repeatable projection rebuilds from normalized data
+- import traceability through batch metadata and preserved source identifiers
 - easier reconciliation
 - consistent account and portfolio analytics
 - safe monthly aggregation
