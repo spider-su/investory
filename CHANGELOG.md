@@ -1,0 +1,30 @@
+# Changelog
+
+Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains future work only.
+
+## Completed before the current roadmap baseline
+
+### Platform and configuration
+
+- Upgraded the application to Java 25, Spring Boot 4.1.0, and Spring Cloud 2025.1.2.
+- Moved Lombok version management to the Spring Boot BOM.
+- Added a production profile that requires explicit `APP_SECURITY_*` credentials.
+- Removed the unused Google OAuth configuration.
+
+### Portfolio and application structure
+
+- Extracted `TaxCalculator` and `CashFlowAggregator` from `PortfolioService` and added focused tests.
+- Moved dashboard JavaScript from the HTML template to `static/js/dashboard.js`.
+- Tightened Telegram broker-file detection for IBKR imports.
+
+### Build and dependency hygiene
+
+- Configured Spotless with `spotless:apply` and `spotless:check`; lifecycle binding and a pre-commit
+  hook remain roadmap work.
+- Pinned vulnerable Telegram transitive dependencies in Maven dependency management.
+
+### Documentation
+
+- Established `AGENTS.md` as the canonical engineering source of truth.
+- Kept `CLAUDE.md` and `.github/copilot-instructions.md` as thin tool-specific overlays that defer
+  architecture and runtime facts to `AGENTS.md`.

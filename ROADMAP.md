@@ -1,6 +1,8 @@
 # ROADMAP
 
-Living plan of follow-ups based on the current state of the codebase (post Boot 4.1 + Java 25 upgrade, June 2026). Items are sized **S** (≤ half day), **M** (1-2 days), **L** (multi-day). Tackle items in any order, but the next-priorities list is the recommended sequence. Current architecture and invariants live in `AGENTS.md`.
+Future work based on the current codebase. Completed work is recorded in [`CHANGELOG.md`](CHANGELOG.md).
+Items are sized **S** (≤ half day), **M** (1-2 days), and **L** (multi-day). Current architecture and
+invariants live in `AGENTS.md`.
 
 ## Next priorities (high impact, low risk)
 
@@ -11,8 +13,6 @@ Living plan of follow-ups based on the current state of the codebase (post Boot 
 5. **Maven wrapper (`mvnw`)** _(S)_ - vendor and verify the wrapper, then switch CI, Docker, `README.md`, and the build instructions in `AGENTS.md` together. Until that change lands, Maven must be installed and invoked directly.
 
 That's roughly 2-3 days of focused work and clears most of the operational rough edges.
-
-> After pulling the Boot 4.1 upgrade, trigger **Reload All Maven Projects** in IntelliJ so it fetches the two new artifacts pinned in `<dependencyManagement>` (`poi-ooxml:5.4.1`, `commons-beanutils:1.11.0`).
 
 ## Theme A - Observability & ops
 
@@ -57,25 +57,16 @@ That's roughly 2-3 days of focused work and clears most of the operational rough
 
 | Item | Effort | Why |
 |---|---|---|
-| ~~Activate or remove the OAuth2 Google config~~ | done | The dead YAML stub is gone from the default and local configs. Drift removed. |
 | Per-user data scoping (add `owner_id` column to all positional tables + Flyway migration) | L | Today every authenticated user sees the same portfolio. Required before exposing the instance to more than one human. |
 | CSRF for UI POST routes only | S | CSRF is globally off; enable for the dashboard's import form and keep API routes off (Basic auth). |
 | Rate limiting on import endpoints (`bucket4j`) | S | Anyone with admin can DOS the orchestrator with a giant XLSX loop. |
-| ~~Externalise secrets to env / Docker secrets, not yaml defaults~~ | done | `application-prod.yml` now requires explicit `APP_SECURITY_*` overrides. |
 
 ## Theme F - Code health & dependencies
 
 | Item | Effort | Why |
 |---|---|---|
-| ~~Upgrade Spring Boot 3.2.3 → 3.5.x~~ → **Spring Boot 4.1.0 + Spring Cloud 2025.1.2** | done | Java 25, Spring Security 7 idioms (`Customizer.withDefaults`, `AbstractHttpConfigurer::disable`), `@MockBean` → `@MockitoBean` across the suite. |
-| ~~Upgrade Lombok 1.18.30 → latest~~ | done | Now BOM-managed (Boot 4.1 pins Lombok). |
-| ~~Spotless (google-java-format)~~ | partly done | Configured (`mvn spotless:apply` / `spotless:check`), not yet bound to a build phase and no pre-commit hook. Bind to `verify` once the codebase is reformatted once. |
-| ~~Extract `TaxCalculator` and `CashFlowAggregator` out of `PortfolioService`~~ | done | Both extracted as Spring components with unit tests; `calculateTotalProfitLoss()` is now a thin orchestrator. |
-| ~~Move inline dashboard JS to `static/js/dashboard.js`~~ | done | The Import-statement card now references the external script. |
-| ~~Pin vulnerable telegrambots transitives~~ | done | `commons-io 2.21.0`, `commons-lang3 3.20.0`, `commons-beanutils 1.11.0` pinned in `<dependencyManagement>` to clear three advisories. |
+| Bind Spotless to `verify` and add a pre-commit hook | S | Formatting is configured but remains optional and can drift between contributors. |
 | Bump `telegrambots` 6.9 → 7.x / 10.x (Boot starter, split artifacts) | M | 6.x is no longer maintained; the 7.x+ line ships a Spring Boot starter (`telegrambots-springboot-longpolling-starter`) and splits client/meta into separate jars. This requires reworking `PortfolioBot` to the newer consumer API. |
-| ~~Tighten `PortfolioBot.detectBroker` heuristic~~ | done | IBKR now matches only explicit `ibkr` names or strict `U\d+\..*\.csv` activity files. |
-| ~~`application-prod.yml` profile + secret hygiene (no `change-me-admin` default)~~ | done | Production config now demands explicit `APP_SECURITY_*` overrides. |
 
 ## Theme G - UX
 
@@ -89,16 +80,13 @@ That's roughly 2-3 days of focused work and clears most of the operational rough
 
 ## Explicitly deferred
 
-- **Real-time market data (websocket).** TwelveData rest polling is fine for daily snapshots; sockets add complexity without clear payoff.
-- **Migrating off Telegram.** Slack/Discord adapters are easy *after* `NotificationService` learns to push to multiple channels (Theme C), but not before.
-- **Replacing JPA with R2DBC / WebFlux.** No throughput problem to solve.
-- **Yahoo as primary quote source.** The Yahoo unofficial API breaks every few quarters; keep it as the optional CSV-export fallback only.
+- **Real-time market data (websocket).** TwelveData REST polling is sufficient for daily snapshots; sockets add complexity without clear payoff.
+- **Migrating off Telegram.** Slack/Discord adapters are easier after `NotificationService` supports multiple channels.
+- **Replacing JPA with R2DBC / WebFlux.** There is no throughput problem to solve.
+- **Yahoo as primary quote source.** Keep Yahoo as an optional CSV-export target rather than the primary quote provider.
 
 ## How to use this file
 
-- Each line is meant to land as a small PR. Reference the item in the commit subject (e.g. `feat(notifications): persist drawdown peak [Roadmap A.1]`).
-- When something ships, remove it from "Next priorities" and mark it done in the relevant theme or release notes.
-- Keep `AGENTS.md` in sync once a roadmap item changes a documented invariant.
-
-
-
+- Each line should land as a small PR. Reference the item in the commit subject when practical.
+- When work ships, remove it from this file and record it in `CHANGELOG.md`.
+- Keep `AGENTS.md` in sync when a roadmap item changes a documented invariant.
