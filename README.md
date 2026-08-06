@@ -99,9 +99,6 @@ files, JDBC-based database checks, and manual verification. IBKR C1 reconciliati
 C6 dashboard validation is not automated, C7 secondary-surface checks are optional, and the complete
 golden pipeline is not yet enforced as a CI gate.
 
-Broker imports use Hibernate JDBC batching. Asset and `account_daily` IDs use pooled sequence
-allocation; cash operations and positions keep deterministic application-assigned IDs.
-
 ---
 
 ## Supported brokers
@@ -114,6 +111,21 @@ Currently implemented:
 Broker-specific importers map supported statement fields into a common operational model. Imported
 rows retain available broker identifiers and original asset symbols for traceability, while reporting
 uses canonical assets and normalized operations.
+
+## Current scope and operational assumptions
+
+| Area | Current behavior |
+|------|------------------|
+| Statement formats | IBKR `.csv` activity statements and transaction-only exports; XTB `.xlsx` statements and `.zip` packages. Automatic broker detection is based on the file extension. |
+| Duplicate and overlapping imports | An exact previously applied file is skipped using its broker and SHA-256 hash. Different exports with overlapping date ranges can still double-count operations; partial-overlap idempotency is not implemented. |
+| Market data | TwelveData supplies automatic quotes and SPY monthly closes. The scheduled market refresh runs on weekdays at 22:01 Europe/Warsaw and rebuilds portfolio projections. Non-US listings are skipped by default and may need manual prices. |
+| FX data | exchangerate.host supplies USD-based rates; EUR and PLN cross-rates are derived locally. FX refresh runs on weekdays at 15:00 Europe/Warsaw, and rates are stored at month start. |
+| Supported currencies | `USD`, `EUR`, and `PLN` only. |
+| Ownership model | Investory uses one shared portfolio dataset with no per-user data isolation. It is intended for one trusted owner, not as a multi-tenant service. |
+| Retained import data | Investory stores normalized positions, cash operations, assets, import batch metadata, hashes, counts, and available broker identifiers or source symbols. Original broker files are not retained; failed text payload previews are limited to 8 KB. |
+| Backups | Investory has no application-managed backup and restore workflow. Back up PostgreSQL with normal database tooling and retain original broker exports separately. A persistent Docker volume is not a backup. |
+| Benchmark | SPY is the only benchmark. Active accounts and dashboard periods can be selected, but the benchmark symbol cannot. |
+| Tax assumptions | The capital-gains estimate implements the Polish 19% current-year tax assumption and applies eligible losses from the previous five years. Imported dividend withholding and interest taxes use broker data. This is an estimate, not a tax filing. |
 
 ---
 
