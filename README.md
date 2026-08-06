@@ -196,14 +196,8 @@ The dashboard includes:
 
 ## Roadmap
 
-Planned improvements include:
-
-- additional broker integrations
-- factor exposure
-- dividend forecasting
-- portfolio rebalancing suggestions
-- Monte Carlo simulations
-- richer tax reporting
+[`ROADMAP.md`](ROADMAP.md) is the canonical living plan for future work and current priorities.
+Roadmap items are not duplicated here because they change more frequently than the product overview.
 
 ## Running locally
 
