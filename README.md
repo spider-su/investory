@@ -69,7 +69,13 @@ immutable event archive.
 - Manual price overrides
 - Historical price synchronization
 - Yahoo Finance export
-- Portfolio reconciliation tools
+- Developer reconciliation and pipeline-validation tooling
+
+Reconciliation is currently developer-facing rather than an end-user workflow. The staged checks
+in [`docs/pipeline-testing-plan.md`](docs/pipeline-testing-plan.md) use `ReconRunner`, local broker
+files, JDBC-based database checks, and manual verification. IBKR C1 reconciliation is not implemented,
+C6 dashboard validation is not automated, C7 secondary-surface checks are optional, and the complete
+golden pipeline is not yet enforced as a CI gate.
 
 Broker imports use Hibernate JDBC batching. Asset and `account_daily` IDs use pooled sequence
 allocation; cash operations and positions keep deterministic application-assigned IDs.
