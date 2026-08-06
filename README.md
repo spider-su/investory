@@ -31,7 +31,7 @@ period selection are supported; the benchmark symbol is currently fixed.
 - Realized P/L, unrealized P/L, dividends, interest, and a separate capital-gains tax estimate.
 - Monthly performance, historical account value, attribution, currency exposure, and position views.
 - SPY comparison for selected active accounts and dashboard periods.
-- IBKR and XTB statement imports with exact-file duplicate detection.
+- IBKR and XTB statement imports with checksum-based duplicate detection and idempotent exact-file reprocessing.
 - Scheduled market-price and FX refresh, historical price storage, and manual price overrides.
 - Yahoo Finance export and developer reconciliation and pipeline-validation tooling.
 
@@ -43,7 +43,7 @@ gaps.
 
 | Area | Current scope |
 |------|---------------|
-| IBKR | `.csv` activity statements and transaction-only exports. Activity-statement Open Positions and Net Asset Value sections can update reconstructed positions and account summaries. |
+| IBKR | `.csv` activity statements and transaction-only exports. Activity-statement Open Positions sections can update reconstructed positions. Net Asset Value sections are not imported. |
 | XTB | `.xlsx` statements and `.zip` statement packages. |
 | Automatic detection | `.csv` is treated as IBKR; `.xlsx` and `.zip` are treated as XTB. The broker can also be selected explicitly through the import endpoint. |
 | Currencies | `USD`, `EUR`, and `PLN`. |
@@ -78,8 +78,11 @@ headline ROI.
 
 ## Current limitations
 
-- Exact duplicates are skipped using broker plus file SHA-256. Different exports with overlapping date
-  ranges can still double-count operations; partial-overlap idempotency is not implemented.
+- Exact files are detected using broker plus file SHA-256. For IBKR and XTB, an existing successful
+  batch is reused while the parser and derived projections are rerun to repair reconstructed state;
+  no new import batch is created.
+- Overlapping but non-identical exports rely on stable broker identifiers or synthetic row IDs.
+  Partial-overlap idempotency is not a formal guarantee and needs stronger validation.
 - SPY is the only benchmark. Benchmark selection is limited to accounts and dashboard period.
 - Investory uses one shared portfolio dataset. Per-user data isolation is not implemented.
 - Original broker files are not retained. Investory stores normalized portfolio rows, import metadata,
@@ -88,8 +91,10 @@ headline ROI.
 - Backups are operator-managed. Back up PostgreSQL and retain original broker exports separately; a
   persistent Docker volume is not a backup.
 - Reconciliation remains developer tooling based on `ReconRunner`, local broker files, JDBC checks,
-  and manual verification. IBKR C1 is not implemented, dashboard checkpoint C6 is not automated,
-  secondary checkpoint C7 is optional, and the full golden pipeline is not yet a CI gate.
+  and manual verification. The dashboard reconciliation, data-quality, and risk-enrichment branch is
+  currently disabled in `PortfolioService`; it is not an authoritative user-facing status. IBKR C1
+  is not implemented, dashboard checkpoint C6 is not automated, secondary checkpoint C7 is optional,
+  and the full golden pipeline is not yet a CI gate.
 - The capital-gains estimate follows Polish assumptions. Other tax jurisdictions are not modeled.
 
 ## Architecture overview
@@ -229,8 +234,8 @@ curl --fail-with-body \
 ## Security and deployment status
 
 - HTTP Basic uses in-memory `ADMIN` and `USER` credentials.
-- The root page, dashboard, error page, and static resources are currently public. Mutating routes
-  require the administrator role.
+- `POST`, `PUT`, and `DELETE` routes require the `ADMIN` role. All other routes are currently permitted
+  without authentication, including the dashboard and read-only API routes.
 - CSRF protection is currently disabled.
 - All authenticated users see the same portfolio because per-user data scoping is not implemented.
 - The `prod` profile requires explicit database credentials and all four `APP_SECURITY_*` variables.
