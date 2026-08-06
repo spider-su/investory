@@ -5,27 +5,48 @@
 > Track investments across brokers, currencies, and asset classes by importing broker files
 > into a normalized transaction ledger and deriving consistent portfolio analytics.
 
-## Why Investory?
+## The three questions
 
-Most broker dashboards answer only one question:
+Investory is organized around three investor questions.
 
-> **"What is my portfolio worth today?"**
+### How much is my portfolio worth?
 
-Investory answers much more:
+Current portfolio value combines account cash and the market value of open positions in the portfolio
+base currency. Broker accounts remain visible separately, while the headline shows the consolidated
+portfolio.
 
-- How much did I actually earn?
-- What came from dividends?
-- What was realized vs unrealized?
-- What is my after-tax performance?
-- Which broker contributes most?
-- How did each account perform?
-- How did currency movements affect my returns?
-- How close am I to simply buying SPY?
+### How much did I contribute, and how much did investments earn?
+
+External deposits and withdrawals are reported separately from investment results. Internal transfers
+and currency conversions move cash between accounts or currencies but do not change portfolio
+contributed capital. Investment earnings are broken into realized profit, unrealized profit, dividends
+net of recorded withholding tax, and interest.
+
+### How did I perform versus the benchmark?
+
+Investory compares selected active accounts with a benchmark over the dashboard period. The current
+benchmark is SPY; the benchmark symbol itself is not yet selectable.
 
 Investory combines normalized broker transactions with market prices and FX rates to reconstruct
 account state and derive consistent daily and monthly analytics. Import batches and available source
 identifiers are retained for traceability; the original broker files are not stored as a complete
 immutable event archive.
+
+## Calculation semantics
+
+| Metric | Calculation | Period behavior |
+|--------|-------------|-----------------|
+| Portfolio value | Latest account equity: cash plus open-position market value, converted to the portfolio base currency | Current snapshot |
+| Net contributions | External deposits minus external withdrawals; portfolio-level internal transfers and FX conversions are excluded | Since inception |
+| Investment earnings | Realized P/L + unrealized P/L + dividends + recorded dividend withholding tax + net interest | Since inception, with unrealized P/L valued at the current snapshot |
+| Headline ROI | `investment earnings / net contributions × 100` | Since inception; shown as zero when net contributions are not positive; not annualized and not TWR, MWR, or XIRR |
+| Selected-period profit | Sum of monthly portfolio profit from the selected start month | `1M`, `3M`, `YTD`, `1Y` (default), `3Y`, `5Y`, or `MAX`; filtering is month-granular |
+| Benchmark comparison | Cumulative monthly portfolio profit versus the gain or loss from investing each selected account's starting equity in SPY using monthly closes | Rebased to the selected period within the configured comparison history (`app.benchmark.comparison-start`, default `2026-01`); does not simulate later cash-flow-timed SPY purchases |
+| Tax treatment | Recorded dividend withholding is included in investment earnings. Interest is net of recorded interest tax. The estimated 19% current-year capital-gains tax, including eligible loss carry-forward, is displayed separately and is not deducted from headline earnings or ROI | Capital-gains estimate covers the current tax year |
+
+The period selector filters monthly performance and rebases the benchmark comparison. It does not
+change current portfolio value, since-inception contribution totals, headline investment earnings, or
+headline ROI.
 
 ---
 
@@ -35,7 +56,7 @@ immutable event archive.
 
 - Portfolio value
 - Cash balance
-- ROI / Total Return
+- Since-inception investment earnings and ROI
 - Multi-currency support
 - Multi-currency valuation using scheduled current rates and historical monthly FX rates
 - Multiple broker accounts
@@ -46,8 +67,9 @@ immutable event archive.
 - Realized Profit/Loss
 - Unrealized Profit/Loss
 - Dividend Income
-- After-tax estimates
-- Monthly performance
+- Separate current-year capital-gains tax estimate
+- Selected-period monthly performance
+- SPY benchmark comparison
 - Historical portfolio value
 
 ### Position analysis
@@ -169,7 +191,7 @@ This provides:
 - When no usable FX rate exists, or the newest rate is more than 45 days old, the affected
   calculation fails with an `FX rate unavailable` error. Investory does not silently treat an
   unconverted amount as if it were already in the target currency.
-- Returns are compounded from daily returns; percentages are not averaged.
+- Headline ROI is a simple since-inception capital ratio. It is not TWR, MWR, XIRR, or an annualized return.
 
 ## Dashboard
 
@@ -177,7 +199,7 @@ The dashboard includes:
 
 - Portfolio Value
 - Available Cash
-- Total Return
+- Since-inception ROI
 - Profit
 - Unrealized P/L
 - Realized P/L
