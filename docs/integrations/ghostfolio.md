@@ -1,19 +1,28 @@
 # Ghostfolio Compatibility Report
 
-Generated: 2026-07-27
+Last verified: 2026-08-07
 
 Scope: read-only endpoints currently implemented by Investory under `/api/v1`,
 `/api/v2`, and `/api/assets` for the Ghostfolio frontend.
 
 This is a focused compatibility note, not the canonical source of current repository architecture.
-If the HTTP surface or runtime invariants change, update `AGENTS.md` first and then adjust this
-report as needed.
+If the HTTP surface or runtime invariants change, update this report and the relevant architecture or
+security documentation. Update `AGENTS.md` only when agent workflow or documentation routing changes.
+
+## Runtime profile
+
+The compatibility controllers are registered in the normal application. Without the `ghostfolio`
+profile they use the normal Investory security chain, so state-changing compatibility requests still
+follow the ordinary admin rules. Enabling the `ghostfolio` profile installs a higher-priority,
+permissive security chain for the compatibility routes so a local Ghostfolio frontend can bootstrap
+without Investory Basic authentication. The anonymous token is a frontend compatibility envelope, not
+a separately validated authentication credential.
 
 ## Matrix
 
 | Endpoint | Ghostfolio contract | Investory source | Controller | Mapper/orchestrator | Status | Remaining gaps |
 | --- | --- | --- | --- | --- | --- | --- |
-| `POST /api/v1/auth/anonymous` | Auth token envelope | Local dev compatibility profile | `GhostfolioAuthController` | Controller only | Partial | Dev-only token; not a real Ghostfolio auth service. |
+| `POST /api/v1/auth/anonymous` | Auth token envelope | Static development auth shim | `GhostfolioAuthController` | Controller only | Partial | Unauthenticated frontend bootstrap requires the `ghostfolio` profile; the returned token is not a real validated Ghostfolio credential. |
 | `GET /api/v1/user` | Current user with settings/accounts | `GhostfolioCompatibilityService.accounts()` | `GhostfolioUserController` | Controller DTO map | Partial | Single local user only. No Ghostfolio user store, access grants, subscription state, or mutable permissions. Permissions are read-only. |
 | `GET /api/v1/user/settings` | User settings | Investory base-currency config | `GhostfolioUserController` | Controller DTO map | Partial | Only settings required by frontend bootstrap are exposed. |
 | `GET /api/v1/info` | Frontend config | Spring/app config | `GhostfolioInfoController` | Controller DTO map | Partial | Feature flags describe Investory compatibility, not a full Ghostfolio deployment. |

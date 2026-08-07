@@ -14,7 +14,7 @@ Do not duplicate project documentation here.
 - Make the smallest change that solves the task. Do not refactor unrelated code.
 - Repository-local edits, builds, tests, formatting, and verification are pre-approved unless destructive.
 - Schema changes go through versioned Flyway SQL under `src/main/resources/sql/migration`.
-- Use the `local` Spring profile for the local development database.
+- For local runs, use the datasource settings from the current configuration/environment; do not assume a Spring profile changes them.
 - Run targeted tests first. Use broader verification for cross-cutting changes or before merge.
 - Keep the final handoff concise; for material changes, include changed files and verification results.
 - If implementation conflicts with a documented domain contract, report the mismatch. Do not silently rewrite the contract to match the code.
@@ -56,7 +56,7 @@ Package-local `README.md` files are authoritative for the code immediately aroun
 
 - Java 25+ and Maven.
 - Common checks: `mvn test`, `mvn clean verify`, `mvn spotless:check`.
-- Local application: `mvn spring-boot:run -Dspring-boot.run.profiles=local`.
+- Local application: `mvn spring-boot:run`.
 - Do not record exact test counts or dependency versions here when they can be read from the build.
 
 ## Documentation discipline

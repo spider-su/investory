@@ -20,7 +20,7 @@ Fast database tests use PostgreSQL Testcontainers but disable Flyway. The databa
 src/test/resources/db/snapshot/schema.sql
 ```
 
-When the snapshot has not been generated yet, the test support falls back to applying the current SQL migration files directly with `psql`. This keeps the test usable, but generating the snapshot removes that repeated migration work.
+When the snapshot has not been generated yet, the test support dynamically discovers all `sql/migration/*.sql` classpath resources, sorts them by filename, and applies them directly with `psql`. This keeps the fallback aligned when new migrations are added; generating the snapshot still removes that repeated migration work.
 
 Create a Spring integration test by extending `FastDatabaseTest`:
 

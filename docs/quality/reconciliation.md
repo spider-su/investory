@@ -70,7 +70,7 @@ The testing environment and migration/snapshot split are defined in
 
 ## Current tooling
 
-- `tools/ReconRunner.java` provides developer reconciliation support.
+- `tools/ReconRunner.java` enforces C0 completeness for all supplied IBKR/XTB files, implements XTB C1 checks, and checks aggregate IBKR source-to-ledger cash-amount conservation.
 - Shared deterministic portfolio fixtures live under
   `src/test/java/com/example/demo/testsupport/portfolio`; read the package-local `README.md`.
 - `src/test/manual/api.http` remains a manual API smoke surface.
@@ -80,9 +80,10 @@ result into this document.
 
 ## Known gaps
 
-Track implementation gaps in `ROADMAP.md`, not as a growing historical diary here. At the time of this
-documentation reorganization, notable gaps include fuller IBKR source-to-ledger reconciliation,
-automated dashboard checkpoint coverage, and making the complete golden pipeline a reliable CI gate.
+Track implementation gaps in `ROADMAP.md`, not as a growing historical diary here. IBKR C1 currently
+checks aggregate cash-amount conservation only; row counts, operation classes, currencies, and date
+coverage still need fuller source-to-ledger reconciliation. Other notable gaps are automated dashboard
+checkpoint coverage and making the complete golden pipeline a reliable CI gate.
 
 When those ship, update tests/tooling, remove the roadmap item, and record completion in
 `CHANGELOG.md`.

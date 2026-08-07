@@ -62,7 +62,7 @@ The application exposes:
 
 - the Investory dashboard and landing page;
 - broker import, export, and administrative operations;
-- a Ghostfolio-compatible read surface under its dedicated compatibility profile;
+- Ghostfolio-compatible endpoints; the `ghostfolio` profile adds a dedicated permissive security chain for frontend compatibility development;
 - optional Telegram notifications and commands;
 - optional OpenAI-backed analysis/reporting.
 

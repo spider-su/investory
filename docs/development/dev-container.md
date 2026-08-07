@@ -99,14 +99,12 @@ These credentials are development-only and must not be reused in production.
 Open the IntelliJ terminal inside the Dev Container and run:
 
 ```bash
-mvn spring-boot:run -Dspring-boot.run.profiles=local
-```
-
-Because the container sets `SPRING_PROFILES_ACTIVE=local`, this shorter command also works:
-
-```bash
 mvn spring-boot:run
 ```
+
+The container supplies `DB_URL`, `DB_USERNAME`, and `DB_PASSWORD` for its PostgreSQL service. It also
+sets `SPRING_PROFILES_ACTIVE=local` as a development convention; datasource selection comes from the
+`DB_*` variables and does not require the profile.
 
 Open:
 
@@ -122,7 +120,6 @@ A Maven run configuration can be created with:
 
 ```text
 Command line: spring-boot:run
-Profiles: local
 Working directory: project root
 ```
 

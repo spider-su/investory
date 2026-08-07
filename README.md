@@ -49,7 +49,7 @@ implemented tooling, and known gaps.
 | Currencies | `USD`, `EUR`, and `PLN`. |
 | Market data | TwelveData supplies automatic quotes, historical prices, and SPY monthly closes. The scheduled market refresh runs on weekdays at 22:01 Europe/Warsaw. |
 | FX data | exchangerate.host supplies USD-based rates; EUR and PLN cross-rates are derived locally. FX refresh runs on weekdays at 15:00 Europe/Warsaw, and rows are stored at month start. |
-| Asset coverage | Automatic quote coverage depends on TwelveData symbol mappings and plan limits. Non-US listings are skipped by default and may require manual prices. Real-time websocket pricing is not implemented. |
+| Asset coverage | Imported asset symbols must resolve to exactly one existing canonical asset; unknown or ambiguous mappings fail instead of creating guessed assets. Automatic quote coverage depends on TwelveData mappings and plan limits. Non-US listings are skipped by default and may require manual prices. Real-time websocket pricing is not implemented. |
 
 ## How calculations work
 
@@ -96,8 +96,9 @@ headline ROI.
 - Reconciliation remains developer tooling based on `ReconRunner`, local broker files, JDBC checks,
   and manual verification. The dashboard reconciliation, data-quality, and risk-enrichment branch is
   currently disabled in `PortfolioService`; it is not an authoritative user-facing status. IBKR C1
-  is not implemented, dashboard checkpoint C6 is not automated, secondary checkpoint C7 is optional,
-  and the full golden pipeline is not yet a CI gate.
+  currently checks aggregate source-to-ledger cash-amount conservation only; full row/class/currency/date
+  reconciliation is not implemented. Dashboard checkpoint C6 is not automated, secondary checkpoint C7
+  is optional, and the full golden pipeline is not yet a CI gate.
 - The capital-gains estimate follows Polish assumptions. Other tax jurisdictions are not modeled.
 
 ## Architecture overview
@@ -175,14 +176,15 @@ export DB_PASSWORD=postgres
 
 Set different values when your PostgreSQL host, database, or credentials differ.
 
-### 3. Start with the local profile
+### 3. Start the application
 
 ```bash
-mvn spring-boot:run -Dspring-boot.run.profiles=local
+mvn spring-boot:run
 ```
 
-Do not omit the profile outside the Dev Container. Without it, the application can connect to the
-wrong datasource and produce misleading Flyway failures.
+The base configuration reads `DB_URL`, `DB_USERNAME`, and `DB_PASSWORD` and otherwise uses the local
+defaults shown above. The Dev Container also activates the `local` profile as a development convention,
+but that profile is not required to select the local datasource.
 
 On startup, Flyway creates the `investory` schema when needed and applies migrations from
 `src/main/resources/sql/migration`.
@@ -208,6 +210,10 @@ curl --fail-with-body \
 ```
 
 Use `/import/broker/ibkr` or `/import/broker/xtb` to select the broker explicitly.
+
+Asset-bearing rows must resolve to exactly one existing canonical asset. Add or correct the asset
+mapping before retrying an import that reports an unknown or ambiguous source symbol; see
+[`docs/domain/asset-identity-and-money.md`](docs/domain/asset-identity-and-money.md).
 
 ### 5. Refresh market data and projections
 

@@ -17,6 +17,17 @@ Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains fut
 - Removed unused Claude and GitHub Copilot agent overlays; generic coding-agent workflow rules now
   live only in `AGENTS.md`.
 
+### Correctness and safety alignment
+
+- Made broker asset resolution fail closed: imports now require one existing canonical asset mapping
+  instead of creating or guessing asset identities.
+- Made production database URL, username, and password explicit required environment settings.
+- Made reconciliation C0 fail when any supplied IBKR or XTB source file is missing or incomplete.
+- Changed fast-test migration fallback to discover all migration resources dynamically.
+- Added a repository-root default for the Dev Container workspace mount.
+- Synchronized local-run, reconciliation, and Ghostfolio compatibility documentation with the current
+  runtime behavior.
+
 ## Completed before the current roadmap baseline
 
 ### Platform and configuration
