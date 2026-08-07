@@ -7,7 +7,7 @@ import org.apache.poi.ss.usermodel.*;
 
 /**
  * L3 staging reconciliation runner. Implements checkpoints C0 (import completeness)
- * and C1 (files -> cash_operations, XTB) from docs/quality/reconciliation.md.
+ * and C1 (files -> cash_operations) from docs/quality/reconciliation.md.
  *
  * Args: sourceDir jdbcUrl user pass
  * Exit code is non-zero if any checkpoint fails.
@@ -57,21 +57,18 @@ public class ReconRunner {
       String name = p.getFileName().toString();
       ImportRow r = history.get(name);
       boolean imported = r != null && "COMPLETED".equalsIgnoreCase(r.status) && r.rowsFailed == 0;
-      boolean isCsv = name.toLowerCase(Locale.ROOT).endsWith(".csv");
       if (!imported) {
-        // IBKR (csv) not-imported is reported but treated as a known-pending WARN, not a hard fail,
-        // because IBKR C1 is not yet modelled. XTB (zip) missing is a hard fail.
-        pass = pass && isCsv;
+        pass = false;
       }
       System.out.printf(
           "%-62s %-9s %-10s %8s %8s%n",
           truncate(name, 62),
-          imported ? "yes" : (isCsv ? "PENDING" : "NO"),
+          imported ? "yes" : "NO",
           r == null ? "-" : r.status,
           r == null ? "-" : String.valueOf(r.rowsApplied),
           r == null ? "-" : String.valueOf(r.rowsFailed));
     }
-    System.out.println("C0: " + (pass ? "PASS" : "FAIL") + " (csv/IBKR treated as pending)");
+    System.out.println("C0: " + (pass ? "PASS" : "FAIL"));
     System.out.println();
     return pass;
   }

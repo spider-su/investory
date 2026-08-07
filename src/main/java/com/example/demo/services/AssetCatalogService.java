@@ -4,12 +4,11 @@ import com.example.demo.infrastructure.CurrencyType;
 import com.example.demo.infrastructure.repository.Asset;
 import com.example.demo.infrastructure.repository.AssetRepository;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -29,46 +28,35 @@ public class AssetCatalogService {
 
   private final AssetRepository assetRepository;
 
+  /**
+   * Verifies that every requested asset resolves to one existing canonical asset.
+   *
+   * <p>Importers must not create asset identity from an unknown broker/source symbol.
+   */
   public void ensureAssetsExist(Collection<AssetSeed> requestedAssets) {
     if (CollectionUtils.isEmpty(requestedAssets)) {
       return;
     }
 
-    Map<String, AssetSeed> normalizedBySymbol = new HashMap<>();
-    for (AssetSeed asset : requestedAssets) {
-      if (asset == null || !StringUtils.hasText(asset.symbol())) {
-        continue;
+    Set<String> requiredSymbols =
+        requestedAssets.stream()
+            .filter(Objects::nonNull)
+            .map(AssetSeed::symbol)
+            .map(this::normalizeSymbol)
+            .filter(StringUtils::hasText)
+            .collect(Collectors.toSet());
+    Set<String> existingSymbols =
+        assetRepository.findAllBySymbolIn(requiredSymbols).stream()
+            .map(Asset::getSymbol)
+            .filter(StringUtils::hasText)
+            .map(symbol -> symbol.trim().toUpperCase(Locale.ROOT))
+            .collect(Collectors.toSet());
+
+    for (String symbol : requiredSymbols) {
+      if (!existingSymbols.contains(symbol)) {
+        throw unknownAssetMapping(symbol, symbol);
       }
-      normalizedBySymbol.putIfAbsent(asset.symbol().trim(), asset.normalized());
     }
-    if (normalizedBySymbol.isEmpty()) {
-      return;
-    }
-
-    // Skip symbols that already exist
-    Set<String> symbols = new HashSet<>(normalizedBySymbol.keySet());
-    assetRepository
-        .findAllBySymbolIn(symbols)
-        .forEach(existing -> symbols.remove(existing.getSymbol()));
-    if (symbols.isEmpty()) {
-      return;
-    }
-
-    Set<String> tickers =
-        symbols.stream()
-            .map(symbol -> normalizedBySymbol.get(symbol).ticker())
-            .collect(java.util.stream.Collectors.toSet());
-    Set<String> existingTickers =
-        assetRepository.findAllByTickerIn(tickers).stream()
-            .map(Asset::getTicker)
-            .collect(java.util.stream.Collectors.toSet());
-    symbols.removeIf(symbol -> existingTickers.contains(normalizedBySymbol.get(symbol).ticker()));
-    if (symbols.isEmpty()) {
-      return;
-    }
-
-    assetRepository.saveAll(
-        symbols.stream().map(symbol -> toAsset(normalizedBySymbol.get(symbol))).toList());
   }
 
   public AssetSeed seedForSymbol(String rawSymbol, CurrencyType currencyHint) {
@@ -122,20 +110,39 @@ public class AssetCatalogService {
         .filter(StringUtils::hasText)
         .distinct()
         .forEach(raw -> normalizedByRaw.put(raw, normalizeSymbol(raw)));
-    Set<String> tickers =
+
+    Set<String> normalizedSymbols =
         normalizedByRaw.values().stream()
             .filter(StringUtils::hasText)
-            .map(this::deriveTicker)
             .collect(Collectors.toSet());
-    if (tickers.isEmpty()) {
+    if (normalizedSymbols.isEmpty()) {
       return Map.of();
     }
 
-    Map<String, List<Asset>> assetsByTicker =
-        assetRepository.findAllByTickerIn(tickers).stream()
-            .filter(asset -> StringUtils.hasText(asset.getTicker()))
+    Map<String, Asset> exactBySymbol =
+        assetRepository.findAllBySymbolIn(normalizedSymbols).stream()
+            .filter(asset -> StringUtils.hasText(asset.getSymbol()))
             .collect(
-                Collectors.groupingBy(asset -> asset.getTicker().trim().toUpperCase(Locale.ROOT)));
+                Collectors.toMap(
+                    asset -> asset.getSymbol().trim().toUpperCase(Locale.ROOT),
+                    asset -> asset,
+                    (left, right) -> left));
+
+    Set<String> unresolvedTickers =
+        normalizedSymbols.stream()
+            .filter(symbol -> !exactBySymbol.containsKey(symbol))
+            .filter(symbol -> !isQualifiedSymbol(symbol))
+            .map(this::deriveTicker)
+            .collect(Collectors.toSet());
+
+    Map<String, List<Asset>> assetsByTicker =
+        unresolvedTickers.isEmpty()
+            ? Map.of()
+            : assetRepository.findAllByTickerIn(unresolvedTickers).stream()
+                .filter(asset -> StringUtils.hasText(asset.getTicker()))
+                .collect(
+                    Collectors.groupingBy(
+                        asset -> asset.getTicker().trim().toUpperCase(Locale.ROOT)));
 
     Map<String, String> result = new HashMap<>();
     normalizedByRaw.forEach(
@@ -144,30 +151,9 @@ public class AssetCatalogService {
             result.put(raw, null);
             return;
           }
-          result.put(
-              raw,
-              selectCanonicalSymbol(
-                  symbol, assetsByTicker.getOrDefault(deriveTicker(symbol), List.of())));
+          result.put(raw, resolveCanonicalSymbol(raw, symbol, exactBySymbol, assetsByTicker));
         });
     return result;
-  }
-
-  private String selectCanonicalSymbol(String symbol, List<Asset> matches) {
-    if (CollectionUtils.isEmpty(matches)) {
-      return symbol;
-    }
-    return matches.stream()
-        .filter(asset -> symbol.equalsIgnoreCase(asset.getSymbol()))
-        .findFirst()
-        .or(
-            () ->
-                matches.stream()
-                    .filter(asset -> StringUtils.hasText(asset.getSymbol()))
-                    .max(
-                        Comparator.comparing((Asset asset) -> preferredBySuffix(asset.getSymbol()))
-                            .thenComparing(asset -> asset.getSymbol().length())))
-        .map(Asset::getSymbol)
-        .orElse(symbol);
   }
 
   public String mapIbkrSymbolToCanonical(String rawIbkrSymbol) {
@@ -175,42 +161,94 @@ public class AssetCatalogService {
     if (!StringUtils.hasText(ibkrSymbol)) {
       return null;
     }
-    var matches = assetRepository.findAllByIbrkIgnoreCase(ibkrSymbol);
-    if (CollectionUtils.isEmpty(matches)) {
-      return ibkrSymbol.contains(".") ? ibkrSymbol : ibkrSymbol + ".US";
+
+    List<Asset> brokerMatches =
+        assetRepository.findAllByIbrkIgnoreCase(ibkrSymbol).stream()
+            .filter(asset -> StringUtils.hasText(asset.getSymbol()))
+            .toList();
+    if (brokerMatches.size() == 1) {
+      return brokerMatches.getFirst().getSymbol();
     }
-    return matches.stream()
-        .filter(asset -> StringUtils.hasText(asset.getSymbol()))
-        .max(
-            Comparator.comparing((Asset asset) -> preferredBySuffix(asset.getSymbol()))
-                .thenComparing(asset -> asset.getSymbol().length()))
-        .map(Asset::getSymbol)
-        .orElse(ibkrSymbol);
+    if (brokerMatches.size() > 1) {
+      throw ambiguousAssetMapping(rawIbkrSymbol, ibkrSymbol, brokerMatches);
+    }
+
+    var exact = assetRepository.findBySymbol(ibkrSymbol);
+    if (exact.isPresent() && StringUtils.hasText(exact.get().getSymbol())) {
+      return exact.get().getSymbol();
+    }
+    if (isQualifiedSymbol(ibkrSymbol)) {
+      throw unknownAssetMapping(rawIbkrSymbol, ibkrSymbol);
+    }
+
+    List<Asset> tickerMatches =
+        assetRepository.findAllByTickerIn(Set.of(deriveTicker(ibkrSymbol))).stream()
+            .filter(asset -> StringUtils.hasText(asset.getSymbol()))
+            .toList();
+    if (tickerMatches.size() == 1) {
+      return tickerMatches.getFirst().getSymbol();
+    }
+    if (tickerMatches.size() > 1) {
+      throw ambiguousAssetMapping(rawIbkrSymbol, ibkrSymbol, tickerMatches);
+    }
+    throw unknownAssetMapping(rawIbkrSymbol, ibkrSymbol);
   }
 
-  private Asset toAsset(AssetSeed seed) {
-    return Asset.builder()
-        .name(seed.ticker())
-        .symbol(seed.symbol())
-        .ticker(seed.ticker())
-        .ibrk(seed.ticker())
-        .yahoo(seed.yahoo())
-        .country(seed.country())
-        .currency(seed.currency())
-        .assetType(seed.assetType())
-        .active(Boolean.TRUE)
-        .build();
+  private String resolveCanonicalSymbol(
+      String rawSymbol,
+      String normalizedSymbol,
+      Map<String, Asset> exactBySymbol,
+      Map<String, List<Asset>> assetsByTicker) {
+    Asset exact = exactBySymbol.get(normalizedSymbol);
+    if (exact != null && StringUtils.hasText(exact.getSymbol())) {
+      return exact.getSymbol();
+    }
+    if (isQualifiedSymbol(normalizedSymbol)) {
+      throw unknownAssetMapping(rawSymbol, normalizedSymbol);
+    }
+
+    List<Asset> tickerMatches =
+        assetsByTicker.getOrDefault(deriveTicker(normalizedSymbol), List.of()).stream()
+            .filter(asset -> StringUtils.hasText(asset.getSymbol()))
+            .toList();
+    if (tickerMatches.size() == 1) {
+      return tickerMatches.getFirst().getSymbol();
+    }
+    if (tickerMatches.size() > 1) {
+      throw ambiguousAssetMapping(rawSymbol, normalizedSymbol, tickerMatches);
+    }
+    throw unknownAssetMapping(rawSymbol, normalizedSymbol);
   }
 
-  private int preferredBySuffix(String symbol) {
-    String upper = symbol.toUpperCase(Locale.ROOT);
-    if (upper.endsWith(".US")) {
-      return 3;
-    }
-    if (upper.contains(".")) {
-      return 2;
-    }
-    return 1;
+  private IllegalArgumentException unknownAssetMapping(String rawSymbol, String normalizedSymbol) {
+    return new IllegalArgumentException(
+        "Unknown asset mapping for source symbol '"
+            + rawSymbol
+            + "' (normalized '"
+            + normalizedSymbol
+            + "'). Add the canonical asset mapping before importing.");
+  }
+
+  private IllegalArgumentException ambiguousAssetMapping(
+      String rawSymbol, String normalizedSymbol, List<Asset> matches) {
+    String candidates =
+        matches.stream()
+            .map(Asset::getSymbol)
+            .filter(StringUtils::hasText)
+            .distinct()
+            .sorted()
+            .collect(Collectors.joining(", "));
+    return new IllegalArgumentException(
+        "Ambiguous asset mapping for source symbol '"
+            + rawSymbol
+            + "' (normalized '"
+            + normalizedSymbol
+            + "'): "
+            + candidates);
+  }
+
+  private boolean isQualifiedSymbol(String symbol) {
+    return symbol.contains(".");
   }
 
   private String deriveTicker(String symbol) {
@@ -245,22 +283,5 @@ public class AssetCatalogService {
       CurrencyType currency,
       String yahoo,
       String country,
-      String assetType) {
-
-    private AssetSeed normalized() {
-      String normalizedSymbol = symbol.trim().toUpperCase(Locale.ROOT);
-      String normalizedTicker = ticker.trim().toUpperCase(Locale.ROOT);
-      String normalizedYahoo = yahoo.trim().toUpperCase(Locale.ROOT);
-      String normalizedCountry = country.trim().toUpperCase(Locale.ROOT);
-      String normalizedAssetType =
-          assetType == null ? null : assetType.trim().toUpperCase(Locale.ROOT);
-      return new AssetSeed(
-          normalizedSymbol,
-          normalizedTicker,
-          currency == null ? CurrencyType.USD : currency,
-          normalizedYahoo,
-          normalizedCountry,
-          normalizedAssetType);
-    }
-  }
+      String assetType) {}
 }

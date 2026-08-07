@@ -2,7 +2,10 @@ package com.investory.testsupport;
 
 import java.io.IOException;
 import java.net.URL;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.testcontainers.containers.Container;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.utility.MountableFile;
@@ -12,12 +15,7 @@ public final class FastDatabase {
 
   private static final String SNAPSHOT = "db/snapshot/schema.sql";
   private static final String REFERENCE_DATA = "db/snapshot/reference-data.sql";
-  private static final List<String> MIGRATION_FALLBACK =
-      List.of(
-          "sql/migration/V01.000__Initial_schema.sql",
-          "sql/migration/V01.001__Initial_data.sql",
-          "sql/migration/V01.002__checks_and_views.sql",
-          "sql/migration/V01.003__asset_price_history_import.sql");
+  private static final String MIGRATION_PATTERN = "classpath*:sql/migration/*.sql";
 
   private static final PostgreSQLContainer<?> POSTGRES = startDatabase();
 
@@ -39,9 +37,10 @@ public final class FastDatabase {
     if (resourceExists(SNAPSHOT)) {
       executeResource(postgres, SNAPSHOT, "/tmp/investory-schema.sql");
     } else {
-      for (int index = 0; index < MIGRATION_FALLBACK.size(); index++) {
-        String migration = MIGRATION_FALLBACK.get(index);
-        executeResource(postgres, migration, "/tmp/investory-migration-" + index + ".sql");
+      List<String> migrations = migrationResources();
+      for (int index = 0; index < migrations.size(); index++) {
+        executeResource(
+            postgres, migrations.get(index), "/tmp/investory-migration-" + index + ".sql");
       }
     }
 
@@ -50,6 +49,26 @@ public final class FastDatabase {
     }
 
     return postgres;
+  }
+
+  private static List<String> migrationResources() {
+    try {
+      List<String> migrations =
+          Arrays.stream(new PathMatchingResourcePatternResolver().getResources(MIGRATION_PATTERN))
+              .map(resource -> resource.getFilename())
+              .filter(Objects::nonNull)
+              .distinct()
+              .sorted()
+              .map(fileName -> "sql/migration/" + fileName)
+              .toList();
+      if (migrations.isEmpty()) {
+        throw new IllegalStateException("No Flyway migrations found for " + MIGRATION_PATTERN);
+      }
+      return migrations;
+    } catch (IOException exception) {
+      throw new IllegalStateException(
+          "Cannot discover Flyway migrations for fast database initialization", exception);
+    }
   }
 
   private static boolean resourceExists(String resource) {

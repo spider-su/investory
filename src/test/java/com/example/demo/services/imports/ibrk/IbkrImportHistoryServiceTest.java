@@ -93,7 +93,13 @@ class IbkrImportHistoryServiceTest {
         .thenReturn(List.of());
     org.mockito.Mockito.lenient()
         .when(assetRepository.findAllByIbrkIgnoreCase(org.mockito.ArgumentMatchers.anyString()))
-        .thenReturn(List.of());
+        .thenAnswer(
+            invocation -> {
+              String brokerSymbol = invocation.getArgument(0);
+              String canonicalSymbol =
+                  brokerSymbol.contains(".") ? brokerSymbol : brokerSymbol + ".US";
+              return List.of(asset(canonicalSymbol));
+            });
   }
 
   private static Asset asset(String symbol) {
@@ -315,25 +321,23 @@ class IbkrImportHistoryServiceTest {
   }
 
   @Test
-  void importStatement_bootstrapsMissingAssetsBeforeAssigningIds() throws Exception {
+  void importStatement_rejectsUnknownAssetInsteadOfBootstrapping() throws Exception {
+    when(assetRepository.findAllByIbrkIgnoreCase("NVDA")).thenReturn(List.of());
+
     String csv =
         String.join(
             "\n",
             "Transaction History,Header,Transaction Type,Account,Symbol,Description,Date,Quantity,Price,Net Amount,Currency",
             "Transaction History,Data,Buy,U17959259,NVDA,Nvidia buy,2026-07-01,1,100,-100.00,USD");
 
-    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
+    ImportExecutionResult result =
+        service.importStatement(
+            new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
 
-    @SuppressWarnings("unchecked")
-    ArgumentCaptor<Iterable<CashOperation>> cashCaptor =
-        (ArgumentCaptor<Iterable<CashOperation>>)
-            (ArgumentCaptor<?>) ArgumentCaptor.forClass(Iterable.class);
-    verify(cashOperationRepository).saveAll(cashCaptor.capture());
-    List<CashOperation> operations = toList(cashCaptor.getValue());
-
-    assertEquals(1, operations.size());
-    assertEquals("NVDA.US", operations.getFirst().getSymbol());
-    assertTrue(operations.getFirst().getAssetId() > 0);
+    assertEquals(1, result.rowsTotal());
+    assertEquals(0, result.rowsApplied());
+    assertEquals(1, result.rowsFailed());
+    assertTrue(persistedCashOperations.isEmpty());
   }
 
   @Test

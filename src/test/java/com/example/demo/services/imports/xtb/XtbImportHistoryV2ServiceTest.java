@@ -68,8 +68,10 @@ class XtbImportHistoryV2ServiceTest {
         .thenAnswer(
             invocation ->
                 invocation.<java.util.Collection<String>>getArgument(0).stream()
-                    .map(storedAssets::get)
-                    .filter(java.util.Objects::nonNull)
+                    .map(
+                        symbol ->
+                            storedAssets.computeIfAbsent(
+                                symbol, key -> catalogAsset(key, assetIds.incrementAndGet())))
                     .toList());
     org.mockito.Mockito.lenient()
         .when(assetRepository.findAllByTickerIn(org.mockito.ArgumentMatchers.anyCollection()))
@@ -79,20 +81,6 @@ class XtbImportHistoryV2ServiceTest {
               return storedAssets.values().stream()
                   .filter(asset -> tickers.contains(asset.getTicker()))
                   .toList();
-            });
-    org.mockito.Mockito.lenient()
-        .when(assetRepository.saveAll(org.mockito.ArgumentMatchers.<List<Asset>>any()))
-        .thenAnswer(
-            invocation -> {
-              List<Asset> assets = invocation.getArgument(0);
-              assets.forEach(
-                  asset -> {
-                    if (asset.getId() == null) {
-                      asset.setId(assetIds.incrementAndGet());
-                    }
-                    storedAssets.put(asset.getSymbol(), asset);
-                  });
-              return assets;
             });
     xtbImportV2Service =
         new XtbImportV2Service(
@@ -104,6 +92,30 @@ class XtbImportHistoryV2ServiceTest {
             new AssetCatalogService(assetRepository),
             new PositionSettlementModelService(),
             new XtbPositionCurrencyResolver());
+  }
+
+  private static Asset catalogAsset(String symbol, long id) {
+    int dot = symbol.lastIndexOf('.');
+    String ticker = dot > 0 ? symbol.substring(0, dot) : symbol;
+    String suffix = dot > 0 && dot < symbol.length() - 1 ? symbol.substring(dot + 1) : "US";
+    CurrencyType currency =
+        switch (suffix) {
+          case "PL" -> CurrencyType.PLN;
+          case "DE", "FR", "NL", "IT", "ES", "FI", "PT", "IE", "AT", "BE" -> CurrencyType.EUR;
+          default -> CurrencyType.USD;
+        };
+    return Asset.builder()
+        .id(id)
+        .name(ticker)
+        .symbol(symbol)
+        .ticker(ticker)
+        .ibrk(ticker)
+        .yahoo(symbol)
+        .country(suffix)
+        .currency(currency)
+        .assetType("EQUITY")
+        .active(true)
+        .build();
   }
 
   @Test
@@ -200,7 +212,7 @@ class XtbImportHistoryV2ServiceTest {
   }
 
   @Test
-  void importWorkbook_createsMissingAssetSkipsFooterAndWritesTradeCheckpoints() throws Exception {
+  void importWorkbook_usesExistingAssetSkipsFooterAndWritesTradeCheckpoints() throws Exception {
     Asset asset =
         Asset.builder()
             .id(77L)
@@ -216,8 +228,6 @@ class XtbImportHistoryV2ServiceTest {
             .build();
     org.mockito.Mockito.when(
             assetRepository.findAllBySymbolIn(org.mockito.ArgumentMatchers.anyCollection()))
-        .thenReturn(List.of())
-        .thenReturn(List.of())
         .thenReturn(List.of(asset));
 
     try (XSSFWorkbook workbook = new XSSFWorkbook()) {
@@ -305,8 +315,6 @@ class XtbImportHistoryV2ServiceTest {
             BigDecimal.valueOf(102.0),
             90,
             "XTB_TRADE_OPEN_OBSERVATION");
-    verify(assetRepository).saveAll(anyList());
-
     verify(closedPositionRepository).saveAll(closedPositionsCaptor.capture());
     List<ClosedPosition> savedClosed = new ArrayList<>();
     closedPositionsCaptor.getValue().forEach(savedClosed::add);

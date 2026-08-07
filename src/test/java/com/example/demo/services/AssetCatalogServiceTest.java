@@ -1,6 +1,7 @@
 package com.example.demo.services;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -11,9 +12,9 @@ import com.example.demo.infrastructure.CurrencyType;
 import com.example.demo.infrastructure.repository.Asset;
 import com.example.demo.infrastructure.repository.AssetRepository;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -23,47 +24,63 @@ class AssetCatalogServiceTest {
   @Mock private AssetRepository assetRepository;
 
   @Test
-  void ensureAssetsExistCreatesRequestedSymbolWhenTickerDoesNotExist() {
+  void ensureAssetsExistAcceptsExistingExactSymbol() {
     AssetCatalogService service = new AssetCatalogService(assetRepository);
-    when(assetRepository.findAllBySymbolIn(anyCollection())).thenReturn(List.of());
-    when(assetRepository.findAllByTickerIn(anyCollection())).thenReturn(List.of());
+    when(assetRepository.findAllBySymbolIn(anyCollection()))
+        .thenReturn(List.of(asset("ASML.NL", "ASML")));
 
     service.ensureAssetsExist(List.of(service.seedForSymbol("ASML.NL", CurrencyType.EUR)));
-
-    @SuppressWarnings("unchecked")
-    ArgumentCaptor<Iterable<Asset>> captor =
-        (ArgumentCaptor<Iterable<Asset>>)
-            (ArgumentCaptor<?>) ArgumentCaptor.forClass(Iterable.class);
-    verify(assetRepository).saveAll(captor.capture());
-    Asset asset = captor.getValue().iterator().next();
-    assertEquals("ASML.NL", asset.getSymbol());
-    assertEquals("ASML", asset.getTicker());
-    assertEquals(CurrencyType.EUR, asset.getCurrency());
-  }
-
-  @Test
-  void ensureAssetsExistSkipsRequestedSymbolWhenTickerAlreadyExists() {
-    AssetCatalogService service = new AssetCatalogService(assetRepository);
-    when(assetRepository.findAllBySymbolIn(anyCollection())).thenReturn(List.of());
-    when(assetRepository.findAllByTickerIn(anyCollection()))
-        .thenReturn(List.of(asset("TSLA.US", "TSLA")));
-
-    service.ensureAssetsExist(List.of(service.seedForSymbol("TSLA.DE", CurrencyType.EUR)));
 
     verify(assetRepository, never()).saveAll(org.mockito.ArgumentMatchers.any());
   }
 
   @Test
-  void normalizeSymbolsForStorageLoadsExistingTickerAssetsOnce() {
+  void ensureAssetsExistRejectsUnknownQualifiedSymbol() {
     AssetCatalogService service = new AssetCatalogService(assetRepository);
+    when(assetRepository.findAllBySymbolIn(anyCollection())).thenReturn(List.of());
+
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> service.ensureAssetsExist(List.of(service.seedForSymbol("TSLA.DE", CurrencyType.EUR))));
+
+    verify(assetRepository, never()).saveAll(org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
+  void normalizeSymbolsForStorageRejectsUnknownQualifiedSymbol() {
+    AssetCatalogService service = new AssetCatalogService(assetRepository);
+    when(assetRepository.findAllBySymbolIn(anyCollection())).thenReturn(List.of());
+
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> service.normalizeSymbolsForStorage(List.of("TSLA.DE")));
+
+    verify(assetRepository, never()).findAllByTickerIn(anyCollection());
+  }
+
+  @Test
+  void normalizeSymbolsForStorageResolvesUniqueBareTicker() {
+    AssetCatalogService service = new AssetCatalogService(assetRepository);
+    when(assetRepository.findAllBySymbolIn(anyCollection())).thenReturn(List.of());
     when(assetRepository.findAllByTickerIn(anyCollection()))
         .thenReturn(List.of(asset("TSLA.US", "TSLA")));
 
-    var normalized = service.normalizeSymbolsForStorage(List.of("TSLA.DE", "TSLA.DE", "AAPL.US"));
+    var normalized = service.normalizeSymbolsForStorage(List.of("TSLA", "TSLA"));
 
-    assertEquals("TSLA.US", normalized.get("TSLA.DE"));
-    assertEquals("AAPL.US", normalized.get("AAPL.US"));
+    assertEquals("TSLA.US", normalized.get("TSLA"));
     verify(assetRepository, times(1)).findAllByTickerIn(anyCollection());
+  }
+
+  @Test
+  void normalizeSymbolsForStorageRejectsAmbiguousBareTicker() {
+    AssetCatalogService service = new AssetCatalogService(assetRepository);
+    when(assetRepository.findAllBySymbolIn(anyCollection())).thenReturn(List.of());
+    when(assetRepository.findAllByTickerIn(anyCollection()))
+        .thenReturn(List.of(asset("TSLA.US", "TSLA"), asset("TSLA.DE", "TSLA")));
+
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> service.normalizeSymbolsForStorage(List.of("TSLA")));
   }
 
   @Test
@@ -76,11 +93,45 @@ class AssetCatalogServiceTest {
   }
 
   @Test
-  void mapIbkrSymbolToCanonicalAddsUsSuffixForUnknownBareIbkrSymbol() {
+  void mapIbkrSymbolToCanonicalUsesExactCanonicalSymbol() {
+    AssetCatalogService service = new AssetCatalogService(assetRepository);
+    Asset pg = asset("PG.US", "PG");
+    when(assetRepository.findAllByIbrkIgnoreCase("PG.US")).thenReturn(List.of());
+    when(assetRepository.findBySymbol("PG.US")).thenReturn(Optional.of(pg));
+
+    assertEquals("PG.US", service.mapIbkrSymbolToCanonical("PG.US"));
+  }
+
+  @Test
+  void mapIbkrSymbolToCanonicalUsesUniqueExistingTicker() {
     AssetCatalogService service = new AssetCatalogService(assetRepository);
     when(assetRepository.findAllByIbrkIgnoreCase("PG")).thenReturn(List.of());
+    when(assetRepository.findBySymbol("PG")).thenReturn(Optional.empty());
+    when(assetRepository.findAllByTickerIn(anyCollection()))
+        .thenReturn(List.of(asset("PG.US", "PG")));
 
     assertEquals("PG.US", service.mapIbkrSymbolToCanonical("PG"));
+  }
+
+  @Test
+  void mapIbkrSymbolToCanonicalRejectsUnknownSymbol() {
+    AssetCatalogService service = new AssetCatalogService(assetRepository);
+    when(assetRepository.findAllByIbrkIgnoreCase("PG")).thenReturn(List.of());
+    when(assetRepository.findBySymbol("PG")).thenReturn(Optional.empty());
+    when(assetRepository.findAllByTickerIn(anyCollection())).thenReturn(List.of());
+
+    assertThrows(
+        IllegalArgumentException.class, () -> service.mapIbkrSymbolToCanonical("PG"));
+  }
+
+  @Test
+  void mapIbkrSymbolToCanonicalRejectsAmbiguousBrokerMapping() {
+    AssetCatalogService service = new AssetCatalogService(assetRepository);
+    when(assetRepository.findAllByIbrkIgnoreCase("ABC"))
+        .thenReturn(List.of(asset("ABC.US", "ABC"), asset("ABC.UK", "ABC")));
+
+    assertThrows(
+        IllegalArgumentException.class, () -> service.mapIbkrSymbolToCanonical("ABC"));
   }
 
   @Test
