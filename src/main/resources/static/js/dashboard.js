@@ -422,6 +422,9 @@ window.closeModal = function() {
         document.addEventListener('DOMContentLoaded', moveHeaderRailItems);
     } else {
         moveHeaderRailItems();
+    }
+})();
+
 // Dashboard usability enhancements.
 (function () {
     'use strict';
@@ -564,7 +567,7 @@ window.closeModal = function() {
 
     // Preserve the current benchmark-account selection when changing dashboard period.
     const periodLinks = Array.from(
-        document.querySelectorAll('.iv-page-nav[aria-label="Dashboard period"] a')
+        document.querySelectorAll('.iv-period-nav[aria-label="Dashboard period"] a')
     );
     periodLinks.forEach(function (link) {
         link.addEventListener('click', function (event) {
@@ -623,3 +626,44 @@ document.addEventListener('DOMContentLoaded', () => {
         reconciledTime.textContent = hours === 0 ? 'Last reconciled: just now' : `Last reconciled: ${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
     }
 });
+
+// Keep the section navigation docked in the header initially, then float it
+// at the top once its original slot scrolls out of view.
+(function () {
+    function wireFloatingSectionNav() {
+        const slot = document.querySelector('.iv-page-nav-slot');
+        const nav = slot && slot.querySelector('.iv-page-nav');
+        if (!slot || !nav) return;
+
+        function update() {
+            if (window.innerWidth <= 1200) {
+                nav.classList.remove('is-floating');
+                nav.style.left = '';
+                nav.style.width = '';
+                return;
+            }
+
+            const rect = slot.getBoundingClientRect();
+            const shouldFloat = rect.top <= 8;
+
+            nav.classList.toggle('is-floating', shouldFloat);
+            if (shouldFloat) {
+                nav.style.left = rect.left + 'px';
+                nav.style.width = rect.width + 'px';
+            } else {
+                nav.style.left = '';
+                nav.style.width = '';
+            }
+        }
+
+        window.addEventListener('scroll', update, { passive: true });
+        window.addEventListener('resize', update);
+        update();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', wireFloatingSectionNav);
+    } else {
+        wireFloatingSectionNav();
+    }
+})();

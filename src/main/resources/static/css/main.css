@@ -2343,24 +2343,25 @@ body.iv-modal-open { overflow: hidden; }
 
     .iv-header-rail__right {
         justify-content: stretch;
+    }
 
     /* Small final header bug fixes */
     @media (min-width: 1201px) {
         /* Keep the period selector on one clean line without clipping "Max". */
         .iv-period-nav {
-            gap: 6px;
+            gap: 4px;
             flex-wrap: nowrap;
-            overflow: hidden;
+            overflow: visible;
         }
 
         .iv-period-nav > span {
-            margin-right: 2px;
-            font-size: .78rem;
+            margin-right: 1px;
+            font-size: .76rem;
         }
 
         .iv-period-nav a {
-            padding: 7px 11px;
-            font-size: .82rem;
+            padding: 6px 8px;
+            font-size: .80rem;
         }
 
         /* Restore correct metric geometry in the middle card:
@@ -2430,3 +2431,74 @@ body.iv-modal-open { overflow: hidden; }
             background: rgba(220, 53, 69, .12);
             border-color: rgba(220, 53, 69, .45);
             color: #ff8f98;
+        }
+
+        .iv-header-rail__quality > .iv-balance-popover__trigger.iv-badge--neg::before {
+            content: "⚠";
+            font-size: .95rem;
+            line-height: 1;
+        }
+    }
+
+    .iv-header-rail__accounts,
+    .iv-header-rail__quality {
+        margin: 0;
+    }
+
+    .iv-header-rail__quality {
+        width: 100%;
+    }
+
+    .iv-header-rail__quality > .iv-balance-popover__trigger {
+        width: 100%;
+    }
+
+    .iv-page-nav-slot {
+        position: relative;
+        width: 100%;
+        height: 46px;
+        min-height: 46px;
+        min-width: 0;
+    }
+
+    .iv-page-nav-slot > .iv-page-nav {
+        position: relative;
+        top: auto;
+        z-index: 220;
+        width: 100%;
+        height: 46px;
+        min-height: 46px;
+        margin: 0;
+        box-sizing: border-box;
+    }
+
+    .iv-page-nav-slot > .iv-page-nav.is-floating {
+        position: fixed;
+        top: 8px;
+        z-index: 1200;
+        box-shadow: var(--iv-shadow-hover);
+        backdrop-filter: blur(18px);
+    }
+}
+
+@media (max-width: 1200px) {
+    .iv-header-rail {
+        display: grid;
+        grid-template-columns: 1fr;
+        row-gap: 10px;
+        margin: 12px 0 18px;
+        padding: 0;
+    }
+
+    .iv-header-rail__left,
+    .iv-header-rail__right,
+    .iv-page-nav-slot,
+    .iv-page-nav-slot > .iv-page-nav {
+        width: 100%;
+    }
+
+    .iv-page-nav-slot > .iv-page-nav {
+        position: relative;
+        top: auto;
+    }
+}
