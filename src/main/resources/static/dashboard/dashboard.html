@@ -226,9 +226,11 @@
     </header>
     <div class="iv-header-rail">
         <div id="iv-header-rail-left" class="iv-header-rail__left"></div>
-        <nav class="iv-page-nav" aria-label="Dashboard sections">
-            <a href="#overview">Overview</a><a href="#performance">Performance</a><a href="#positions">Positions</a><a href="#cash-flows">Cash flows</a><a href="#data-quality">Data quality</a>
-        </nav>
+        <div class="iv-page-nav-slot">
+            <nav class="iv-page-nav" aria-label="Dashboard sections">
+                <a href="#overview">Overview</a><a href="#performance">Performance</a><a href="#positions">Positions</a><a href="#cash-flows">Cash flows</a><a href="#data-quality">Data quality</a>
+            </nav>
+        </div>
         <div id="iv-header-rail-right" class="iv-header-rail__right"></div>
     </div>
 
@@ -804,18 +806,21 @@
     /*<![CDATA[*/
     /* global Chart */
     const dataQualityDetails = document.getElementById('data-quality');
-    const topbarMeta = document.querySelector('.iv-topbar__meta');
-    if (dataQualityDetails && topbarMeta) {
-        dataQualityDetails.classList.add('iv-topbar-quality');
-        topbarMeta.appendChild(dataQualityDetails);
+    const headerRailRight = document.getElementById('iv-header-rail-right');
+    if (dataQualityDetails && headerRailRight) {
+        dataQualityDetails.classList.remove('iv-topbar-quality');
+        dataQualityDetails.classList.add('iv-header-rail__quality');
+        headerRailRight.appendChild(dataQualityDetails);
     }
-    const accountBalanceDetails = document.querySelector(
-        '.iv-topbar-summary > .iv-balance > .iv-balance-popover:not(.iv-data-quality-popover)');
-    const brandContent = document.querySelector('.iv-brand__content');
-    if (accountBalanceDetails && brandContent) {
-        accountBalanceDetails.classList.add('iv-brand-accounts');
-        brandContent.appendChild(accountBalanceDetails);
+
+    const accountBalanceDetails = document.getElementById('view-accounts');
+    const headerRailLeft = document.getElementById('iv-header-rail-left');
+    if (accountBalanceDetails && headerRailLeft) {
+        accountBalanceDetails.classList.remove('iv-brand-accounts');
+        accountBalanceDetails.classList.add('iv-header-rail__accounts');
+        headerRailLeft.appendChild(accountBalanceDetails);
     }
+
     const monthlyPerformanceData = [[${stats.monthlyPerformance.calculateMonthlyPerformance}]];
     const monthlyLabels = Object.keys(monthlyPerformanceData);
     const monthlyData = Object.values(monthlyPerformanceData);

@@ -449,6 +449,46 @@ window.closeModal = function() {
         }, 4200);
     };
 
+
+// Float only the section navigation after its header slot scrolls past the viewport top.
+    (function () {
+        function wireFloatingSectionNav() {
+            const slot = document.querySelector('.iv-page-nav-slot');
+            const nav = slot && slot.querySelector('.iv-page-nav');
+            if (!slot || !nav) return;
+
+            function update() {
+                if (window.innerWidth <= 1200) {
+                    nav.classList.remove('is-floating');
+                    nav.style.left = '';
+                    nav.style.width = '';
+                    return;
+                }
+
+                const rect = slot.getBoundingClientRect();
+                const shouldFloat = rect.top <= 8;
+
+                nav.classList.toggle('is-floating', shouldFloat);
+                if (shouldFloat) {
+                    nav.style.left = rect.left + 'px';
+                    nav.style.width = rect.width + 'px';
+                } else {
+                    nav.style.left = '';
+                    nav.style.width = '';
+                }
+            }
+
+            window.addEventListener('scroll', update, { passive: true });
+            window.addEventListener('resize', update);
+            update();
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', wireFloatingSectionNav);
+        } else {
+            wireFloatingSectionNav();
+        }
+
     function setModalState(modal, open) {
         if (!modal) return;
         modal.style.display = open ? 'flex' : 'none';

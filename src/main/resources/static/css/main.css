@@ -2053,6 +2053,7 @@ body.iv-modal-open { overflow: hidden; }
     .iv-header-rail {
         margin-bottom: 14px;
     }
+}
 
 
 /* Keep the three headline metrics on one visual baseline. */
@@ -2125,3 +2126,220 @@ body.iv-modal-open { overflow: hidden; }
     order: 2;
     line-height: 1;
 }
+
+/* -------------------------------------------------------------------------
+   Dashboard header repair and final desktop geometry.
+   ------------------------------------------------------------------------- */
+
+@media (min-width: 1201px) {
+    .iv-topbar,
+    .iv-header-rail {
+        grid-template-columns:
+            minmax(290px, 1fr)
+            minmax(620px, 1.85fr)
+            minmax(430px, 1.1fr);
+        column-gap: 26px;
+    }
+
+    .iv-topbar {
+        position: relative;
+        align-items: start;
+        min-height: 190px;
+        padding: 18px 20px 66px;
+        margin-bottom: 0;
+    }
+
+    /* Upper-left */
+    .iv-brand {
+        align-self: stretch;
+        height: 108px;
+        min-height: 108px;
+    }
+
+    .iv-brand__content {
+        display: flex;
+        height: 100%;
+        min-height: 0;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        gap: 18px;
+    }
+
+    .iv-brand__title-row {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+    }
+
+    .iv-theme-toggle--brand {
+        width: 28px;
+        height: 28px;
+        min-height: 28px;
+        flex: 0 0 28px;
+        padding: 0;
+        border-radius: 50%;
+    }
+
+    .iv-period-nav {
+        margin: 0;
+    }
+
+    /* Upper center and upper right are exactly the same height. */
+    .iv-topbar-summary,
+    .iv-topbar__meta {
+        box-sizing: border-box;
+        height: 108px;
+        min-height: 108px;
+        max-height: 108px;
+    }
+
+    .iv-topbar-summary {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        align-items: stretch;
+        padding: 8px 10px;
+    }
+
+    .iv-topbar-summary .iv-cash-flow-popover,
+    .iv-topbar-summary #investment-gain,
+    .iv-topbar-summary > .iv-balance {
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        margin: 0;
+        padding: 0 18px;
+        box-sizing: border-box;
+        text-align: center;
+    }
+
+    /* Values are one row, labels are one row below. */
+    .iv-topbar-summary .iv-cash-flow-popover > summary,
+    .iv-topbar-summary > .iv-balance {
+        display: grid;
+        grid-template-rows: 1fr auto;
+        align-items: end;
+        justify-items: center;
+        row-gap: 9px;
+        height: 100%;
+        padding: 13px 0 12px;
+    }
+
+    .iv-topbar-summary .iv-cash-flow-popover > summary .iv-brand__summary-row {
+        display: contents;
+    }
+
+    .iv-topbar-summary .iv-cash-flow-popover > summary .iv-cash-flow-violet,
+    .iv-topbar-summary > .iv-balance .iv-balance__value {
+        grid-row: 1;
+        align-self: end;
+        order: initial;
+        margin: 0;
+        font-size: 1.58rem;
+        font-weight: 800;
+        line-height: 1;
+    }
+
+    .iv-topbar-summary .iv-cash-flow-popover > summary .iv-topbar-metric__label,
+    .iv-topbar-summary > .iv-balance .iv-topbar-metric__label {
+        grid-row: 2;
+        order: initial;
+        margin: 0;
+        line-height: 1;
+    }
+
+    .iv-topbar-summary #investment-gain {
+        display: grid;
+        place-items: center;
+        border-left: 1px solid var(--iv-border);
+        border-right: 1px solid var(--iv-border);
+    }
+
+    .iv-topbar-summary #investment-gain .iv-kpi__value-row {
+        display: grid;
+        grid-template-columns: auto auto;
+        grid-template-areas:
+            "value percent"
+            "label label";
+        align-items: end;
+        justify-content: center;
+        column-gap: 8px;
+        row-gap: 9px;
+        white-space: nowrap;
+    }
+
+    .iv-topbar-summary #investment-gain .iv-kpi__value {
+        grid-area: value;
+        margin: 0;
+        font-size: clamp(1.7rem, 2.35vw, 2.05rem);
+        line-height: 1;
+    }
+
+    .iv-topbar-summary #investment-gain .iv-kpi__percent {
+        grid-area: percent;
+        align-self: start;
+        margin: 2px 0 0;
+        line-height: 1;
+    }
+
+    .iv-topbar-summary #investment-gain .iv-topbar-metric__label {
+        grid-area: label;
+        justify-self: center;
+        margin: 0;
+        color: var(--iv-text-muted);
+        line-height: 1;
+    }
+
+    /* Right upper utility grid */
+    .iv-topbar__meta {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-areas:
+            "import toolbar"
+            "export update";
+        grid-template-rows: repeat(2, 1fr);
+        align-content: stretch;
+        gap: 8px;
+        padding: 0;
+    }
+
+    .iv-topbar__meta .iv-topbar-action-button,
+    .iv-topbar__meta .iv-topbar-fx-popover,
+    .iv-topbar__meta .iv-topbar-fx-popover__trigger,
+    .iv-topbar__meta .iv-topbar__toolbar,
+    .iv-topbar__meta form {
+        height: 100%;
+        min-height: 0;
+    }
+
+    /* Lower row, visually docked in the reserved header bottom. */
+    .iv-header-rail {
+        position: relative;
+        z-index: 210;
+        display: grid;
+        align-items: center;
+        min-height: 46px;
+        padding: 0 20px;
+        margin: -56px 0 20px;
+    }
+
+    .iv-header-rail__left,
+    .iv-header-rail__right,
+    .iv-page-nav-slot {
+        height: 46px;
+        min-height: 46px;
+        min-width: 0;
+    }
+
+    .iv-header-rail__left,
+    .iv-header-rail__right {
+        display: flex;
+        align-items: center;
+    }
+
+    .iv-header-rail__left {
+        justify-content: flex-start;
+    }
+
+    .iv-header-rail__right {
+        justify-content: stretch;
