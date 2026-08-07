@@ -15,17 +15,28 @@
     <!-- Topbar -->
     <header class="iv-topbar">
         <div class="iv-brand">
-            <div class="iv-brand__logo">I</div>
             <div class="iv-brand__content">
                 <h1 class="iv-brand__title">Investory</h1>
-                <p class="iv-brand__subtitle">Portfolio intelligence across brokers and accounts</p>
+                <nav class="iv-period-nav" aria-label="Dashboard period">
+                    <span>Period</span>
+                    <a th:each="periodOption : ${periods}"
+                       th:if="${periodOption.urlValue() != '3Y'}"
+                       th:href="@{/dashboard(period=${periodOption.urlValue()})}"
+                       th:text="${periodOption.label()}"
+                       th:class="${periodOption == selectedPeriod}
+                           ? 'iv-badge iv-badge--pos'
+                           : 'iv-badge iv-badge--muted'"
+                       th:attr="aria-current=${periodOption == selectedPeriod} ? 'page' : null">
+                        1Y
+                    </a>
+                </nav>
             </div>
         </div>
         <div class="iv-topbar-summary">
             <details id="cash-flows" class="iv-brand__summary iv-cash-flow-popover">
                 <summary class="iv-brand__summary-block">
                     <span class="iv-brand__summary-row">
-                        <span>Cash flow</span>
+                        <span>Invested:</span>
                         <span class="iv-cash-flow-violet"
                               th:text="${#numbers.formatDecimal(stats.netDeposits, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
                     </span>
@@ -63,7 +74,6 @@
                    th:classappend="${stats.totalProfit >= 0} ? 'iv-pos' : 'iv-neg'"
                    th:text="${#numbers.formatDecimal(stats.totalProfit, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</p>
                 <div class="iv-kpi__meta">
-                    <span>Since inception · gross</span>
                     <div class="iv-kpi__actions">
                         <details class="iv-balance-popover iv-position-popover iv-dividend-popover">
                             <summary class="iv-balance-popover__trigger">Realized P/L</summary>
@@ -103,7 +113,7 @@
             </div>
 
             <div class="iv-balance">
-            <span class="iv-balance__label">Portfolio value</span>
+            <span class="iv-balance__label">Balance</span>
             <span class="iv-balance__value"
                   th:text="${#numbers.formatDecimal(stats.balance, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
             <div class="iv-trust-line" aria-label="Portfolio data quality">
@@ -263,19 +273,6 @@
         <a href="#positions">Positions</a>
         <a href="#cash-flows">Cash flows</a>
         <a href="#data-quality">Data quality</a>
-    </nav>
-
-    <nav class="iv-page-nav" aria-label="Dashboard period">
-        <span>Period</span>
-        <a th:each="periodOption : ${periods}"
-           th:href="@{/dashboard(period=${periodOption.urlValue()})}"
-           th:text="${periodOption.label()}"
-           th:class="${periodOption == selectedPeriod}
-               ? 'iv-badge iv-badge--pos'
-               : 'iv-badge iv-badge--muted'"
-           th:attr="aria-current=${periodOption == selectedPeriod} ? 'page' : null">
-            1Y
-        </a>
     </nav>
 
     <div id="overview" class="iv-section-heading">
@@ -834,8 +831,11 @@
     /*<![CDATA[*/
     /* global Chart */
     const dataQualityDetails = document.getElementById('data-quality');
-    const brandContent = document.querySelector('.iv-brand__content');
-    if (dataQualityDetails && brandContent) brandContent.appendChild(dataQualityDetails);
+    const topbarMeta = document.querySelector('.iv-topbar__meta');
+    if (dataQualityDetails && topbarMeta) {
+        dataQualityDetails.classList.add('iv-topbar-quality');
+        topbarMeta.appendChild(dataQualityDetails);
+    }
     const accountBalanceDetails = document.querySelector(
         '.iv-topbar-summary > .iv-balance > .iv-balance-popover:not(.iv-data-quality-popover)');
     const investmentActions = document.querySelector('#investment-gain .iv-kpi__actions');
