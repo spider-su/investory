@@ -1643,6 +1643,128 @@ body.iv-modal-open { overflow: hidden; }
     }
 }
 
+/* Final header grid polish: strict 3-column x 2-row alignment */
+.iv-topbar,
+.iv-header-rail {
+    grid-template-columns: minmax(290px, 1fr) minmax(620px, 1.85fr) minmax(430px, 1.1fr);
+    column-gap: 26px;
+}
+
+.iv-topbar {
+    align-items: start;
+    padding-bottom: 12px;
+    margin-bottom: 0;
+}
+
+.iv-brand,
+.iv-topbar-summary,
+.iv-topbar__meta {
+    min-height: 136px;
+}
+
+.iv-brand {
+    display: flex;
+    align-items: stretch;
+}
+
+.iv-brand__content {
+    min-height: 136px;
+    display: grid;
+    align-content: space-between;
+    justify-items: start;
+    gap: 12px;
+}
+
+.iv-period-nav {
+    margin-top: 0;
+}
+
+.iv-topbar-summary {
+    min-height: 136px;
+    padding: 10px 12px;
+    align-items: stretch;
+}
+
+.iv-topbar-summary .iv-cash-flow-popover > summary,
+.iv-topbar-summary > .iv-balance {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding-inline: 24px;
+    text-align: center;
+}
+
+.iv-topbar-summary .iv-cash-flow-popover > summary .iv-brand__summary-row {
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+}
+
+.iv-topbar-summary .iv-cash-flow-popover > summary .iv-cash-flow-violet,
+.iv-topbar-summary > .iv-balance .iv-balance__value {
+    font-size: 1.58rem;
+    line-height: 1;
+}
+
+.iv-topbar-summary #investment-gain {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding-inline: 24px;
+}
+
+.iv-topbar-summary #investment-gain .iv-kpi__value-row {
+    display: grid;
+    grid-template-columns: auto auto;
+    grid-template-areas:
+        "value percent"
+        "label label";
+    align-items: end;
+    justify-content: center;
+    column-gap: 8px;
+    row-gap: 10px;
+    white-space: nowrap;
+}
+
+.iv-topbar-summary #investment-gain .iv-kpi__value {
+    grid-area: value;
+    line-height: 1;
+}
+
+.iv-topbar-summary #investment-gain .iv-kpi__percent {
+    grid-area: percent;
+    align-self: start;
+    margin: 0;
+    line-height: 1;
+}
+
+.iv-topbar-summary #investment-gain .iv-topbar-metric__label {
+    grid-area: label;
+    justify-self: center;
+}
+
+.iv-topbar-summary > .iv-balance {
+    flex-direction: column;
+    gap: 10px;
+}
+
+.iv-topbar__meta {
+    min-height: 136px;
+    align-content: stretch;
+    grid-auto-rows: 1fr;
+}
+
+.iv-topbar__toolbar,
+.iv-topbar-actions form,
+.iv-topbar-actions button {
+    min-height: 44px;
+}
+
 /* Header final polish */
 .iv-badge--selected {
     background: var(--iv-primary-soft);
