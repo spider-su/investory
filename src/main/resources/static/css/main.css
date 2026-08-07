@@ -1642,3 +1642,132 @@ body.iv-modal-open { overflow: hidden; }
         text-align: left;
     }
 }
+
+/* Header final polish */
+.iv-badge--selected {
+    background: var(--iv-primary-soft);
+    color: var(--iv-primary);
+}
+
+.iv-period-nav a.iv-badge--selected:hover,
+.iv-period-nav a.iv-badge--selected:focus-visible {
+    background: var(--iv-primary-soft);
+    color: var(--iv-primary);
+}
+
+.iv-topbar {
+    padding: 14px 16px;
+}
+
+.iv-topbar-summary {
+    min-height: 94px;
+    padding: 6px 10px;
+}
+
+.iv-topbar-metric__label {
+    margin: 0;
+    color: var(--iv-text-muted);
+    font-size: .68rem;
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.iv-topbar-summary .iv-cash-flow-popover > summary {
+    gap: 5px;
+    padding-inline: 18px;
+}
+
+.iv-topbar-summary .iv-cash-flow-popover > summary .iv-brand__summary-row {
+    gap: 5px;
+}
+
+.iv-topbar-summary .iv-cash-flow-popover > summary
+    .iv-brand__summary-row > .iv-topbar-metric__label {
+    align-self: center;
+}
+
+.iv-topbar-summary .iv-cash-flow-popover > summary .iv-cash-flow-violet,
+.iv-topbar-summary > .iv-balance .iv-balance__value {
+    font-size: 1.42rem;
+    font-weight: 800;
+    line-height: 1.08;
+}
+
+.iv-topbar-summary #investment-gain {
+    gap: 3px;
+    padding-inline: 20px;
+}
+
+.iv-topbar-summary #investment-gain .iv-kpi__label {
+    margin: 0;
+    font-size: .68rem;
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: .06em;
+}
+
+.iv-topbar-summary #investment-gain .iv-kpi__value {
+    font-size: clamp(1.7rem, 2.45vw, 2.05rem);
+    line-height: 1.02;
+}
+
+.iv-topbar-summary #investment-gain .iv-kpi__percent {
+    margin-top: 2px;
+    font-size: .75rem;
+}
+
+.iv-topbar-summary > .iv-balance {
+    gap: 5px;
+    padding-inline: 18px;
+}
+
+.iv-brand-accounts {
+    margin-top: 5px;
+}
+
+.iv-topbar-action-button,
+.iv-topbar-fx-popover__trigger {
+    height: 36px;
+    min-height: 36px;
+    border: 1px solid var(--iv-border);
+    background: var(--iv-surface-muted);
+    color: var(--iv-text-muted);
+    box-shadow: none;
+    font-size: .82rem;
+    font-weight: 700;
+}
+
+.iv-topbar-fx-popover {
+    flex: 1 1 auto;
+    height: 36px;
+}
+
+.iv-topbar-fx-popover__trigger {
+    width: 100%;
+    justify-content: center;
+    border-radius: 6px;
+}
+
+.iv-topbar__toolbar {
+    min-height: 36px;
+}
+
+.iv-theme-toggle {
+    height: 36px;
+    min-height: 36px;
+}
+
+.iv-topbar-quality > .iv-balance-popover__trigger {
+    min-height: 36px;
+}
+
+@media (max-width: 760px) {
+    .iv-topbar {
+        padding: 12px;
+    }
+    .iv-topbar-summary {
+        padding-block: 4px;
+    }
+}

@@ -132,20 +132,23 @@ if (fileInput) {
                     }
                     if (yahooGenerateBtn) yahooGenerateBtn.disabled = false;
                     if (refreshPricesBtn) refreshPricesBtn.disabled = false;
+                    if (fileNameBadge) {
+                        fileNameBadge.textContent = '';
+                        fileNameBadge.style.display = 'none';
+                    }
                 });
      }
    });
  }
  // Yahoo Portfolio — Generate & Download
  const yahooGenerateBtn = document.getElementById('yahoo-generate-btn');
- const yahooExportStatus = document.getElementById('yahoo-export-status');
 
  if (yahooGenerateBtn) {
      yahooGenerateBtn.addEventListener('click', function () {
+         const originalExportHtml = yahooGenerateBtn.innerHTML;
          yahooGenerateBtn.disabled = true;
-         yahooExportStatus.innerText = '⏳ Generating…';
-         yahooExportStatus.className = 'iv-badge iv-badge--muted';
-         yahooExportStatus.style.display = 'inline-block';
+         yahooGenerateBtn.setAttribute('aria-busy', 'true');
+         yahooGenerateBtn.innerHTML = '<span class="iv-spinner" aria-hidden="true"></span> Exporting…';
 
          fetch('/export/generate', {
              method: 'GET',
@@ -172,16 +175,20 @@ if (fileInput) {
                  window.URL.revokeObjectURL(url);
                  document.body.removeChild(a);
 
-                 yahooExportStatus.innerText = '✓ Downloaded: ' + fileName;
-                 yahooExportStatus.className = 'iv-badge iv-badge--pos';
+                 if (window.ivNotify) {
+                     window.ivNotify('Downloaded: ' + fileName, 'success');
+                 }
              })
              .catch(error => {
                  console.error('Yahoo export error:', error);
-                 yahooExportStatus.innerText = '✗ Error: ' + error.message;
-                 yahooExportStatus.className = 'iv-badge iv-badge--neg';
+                 if (window.ivNotify) {
+                     window.ivNotify('Export failed: ' + error.message, 'error');
+                 }
              })
              .finally(() => {
                  yahooGenerateBtn.disabled = false;
+                 yahooGenerateBtn.removeAttribute('aria-busy');
+                 yahooGenerateBtn.innerHTML = originalExportHtml;
              });
      });
  }
@@ -194,18 +201,15 @@ if (fileInput) {
  }
 
  function runDashboardMaintenance(button, url, loadingText, fallbackSuccess, errorLabel) {
-     if (!button || !yahooExportStatus) return;
+     if (!button) return;
      button.disabled = true;
+     button.setAttribute('aria-busy', 'true');
      const originalButtonHtml = button.innerHTML;
      const startedAt = Date.now();
      const timer = window.setInterval(function () {
-         yahooExportStatus.innerHTML = elapsedLabel(loadingText, startedAt);
          button.innerHTML = elapsedLabel(loadingText, startedAt);
      }, 1000);
-     yahooExportStatus.innerHTML = elapsedLabel(loadingText, startedAt);
      button.innerHTML = elapsedLabel(loadingText, startedAt);
-     yahooExportStatus.className = 'iv-badge iv-badge--muted';
-     yahooExportStatus.style.display = 'inline-block';
 
      fetch(url, {
          method: 'POST',
@@ -218,20 +222,23 @@ if (fileInput) {
              return response.json();
          })
          .then(data => {
-             yahooExportStatus.innerText = '✓ ' + (data.message || fallbackSuccess);
-             yahooExportStatus.className = 'iv-badge iv-badge--pos';
+             if (window.ivNotify) {
+                 window.ivNotify(data.message || fallbackSuccess, 'success');
+             }
              window.setTimeout(function () {
                  window.location.reload();
-             }, 500);
+             }, 700);
          })
          .catch(error => {
              console.error(errorLabel + ' error:', error);
-             yahooExportStatus.innerText = '✗ Error: ' + error.message;
-             yahooExportStatus.className = 'iv-badge iv-badge--neg';
+             if (window.ivNotify) {
+                 window.ivNotify(errorLabel + ' failed: ' + error.message, 'error');
+             }
          })
          .finally(() => {
              window.clearInterval(timer);
              button.disabled = false;
+             button.removeAttribute('aria-busy');
              button.innerHTML = originalButtonHtml;
          });
  }

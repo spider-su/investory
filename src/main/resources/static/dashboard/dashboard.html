@@ -24,7 +24,7 @@
                        th:href="@{/dashboard(period=${periodOption.urlValue()})}"
                        th:text="${periodOption.label()}"
                        th:class="${periodOption == selectedPeriod}
-                           ? 'iv-badge iv-badge--pos'
+                           ? 'iv-badge iv-badge--selected'
                            : 'iv-badge iv-badge--muted'"
                        th:attr="aria-current=${periodOption == selectedPeriod} ? 'page' : null">
                         1Y
@@ -36,7 +36,7 @@
             <details id="cash-flows" class="iv-brand__summary iv-cash-flow-popover">
                 <summary class="iv-brand__summary-block">
                     <span class="iv-brand__summary-row">
-                        <span>Invested</span>
+                        <span class="iv-topbar-metric__label">INVESTED</span>
                         <span class="iv-cash-flow-violet"
                               th:text="${#numbers.formatDecimal(stats.netDeposits, 1, 'POINT', 0, 'COMMA')}">0</span>
                     </span>
@@ -62,14 +62,14 @@
 
             <div id="investment-gain" class="iv-kpi iv-kpi--popover"
                  th:with="gainPct=${stats.netDeposits > 0 ? stats.totalProfit * 100.0 / stats.netDeposits : null}">
-                <p class="iv-kpi__label">
+                <p class="iv-kpi__label iv-topbar-metric__label">
                     <span class="iv-kpi__icon">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M3 3v18h18"/><path d="M19 9l-5 5-4-4-3 3"/>
                         </svg>
                     </span>
-                    Investment gain
+                    INVESTMENT GAIN
                 </p>
                 <p class="iv-kpi__value"
                    th:classappend="${stats.totalProfit >= 0} ? 'iv-pos' : 'iv-neg'"
@@ -81,7 +81,7 @@
             </div>
 
             <div class="iv-balance">
-            <span class="iv-balance__label">Balance</span>
+            <span class="iv-balance__label iv-topbar-metric__label">BALANCE</span>
             <span class="iv-balance__value"
                   th:text="${#numbers.formatDecimal(stats.balance, 1, 'POINT', 0, 'COMMA')}">0</span>
             <div class="iv-trust-line" aria-label="Portfolio data quality">
@@ -89,7 +89,7 @@
             <details id="data-quality" class="iv-balance-popover iv-data-quality-popover">
                 <summary class="iv-balance-popover__trigger"
                          th:classappend="${stats.dataQuality.state == 'HEALTHY'} ? ' iv-badge--pos' : (${stats.dataQuality.state == 'CRITICAL'} ? ' iv-badge--neg' : ' iv-badge--muted')"
-                         th:text="'Valuation confidence details: ' + ${stats.dataQuality.state}">Valuation confidence details: HEALTHY</summary>
+                         th:text="'Valuation confidence: ' + ${stats.dataQuality.state}">Valuation confidence: HEALTHY</summary>
                 <div class="iv-balance-popover__panel">
                     <div class="iv-position-popover__row"><span>Accounts reconciled</span><span th:text="${stats.dataQuality.reconciledAccounts} + '/' + ${stats.dataQuality.totalAccounts}">0/0</span></div>
                     <div class="iv-position-popover__row"><span>Open positions priced</span><span th:text="${stats.dataQuality.pricedOpenPositions} + '/' + ${stats.dataQuality.totalOpenPositions}">0/0</span></div>
@@ -228,7 +228,6 @@
                 </button>
             </div>
             <span id="file-chosen-name" class="iv-badge iv-badge--muted" style="display:none; margin-top:8px;"></span>
-            <span id="yahoo-export-status" class="iv-badge iv-badge--muted" style="display:none; margin-top:8px;"></span>
         </div>
     </header>
 
