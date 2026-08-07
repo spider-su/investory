@@ -1442,3 +1442,203 @@ body.iv-modal-open { overflow: hidden; }
 :root[data-theme="dark"] .container-xl .text-secondary {
     color: var(--iv-text-muted) !important;
 }
+
+/* Header information architecture refinement */
+.iv-period-nav a,
+.iv-topbar-action-button,
+.iv-topbar-fx-popover__trigger,
+.iv-brand-accounts > .iv-balance-popover__trigger {
+    height: 36px;
+    min-height: 36px;
+}
+
+.iv-period-nav a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 11px;
+}
+
+.iv-topbar-action-button {
+    padding: 0 14px;
+    border: 1px solid var(--iv-border);
+    border-radius: 6px;
+    background: var(--iv-surface-muted);
+    color: var(--iv-text-muted);
+    box-shadow: none;
+    cursor: pointer;
+    font-size: .82rem;
+    font-weight: 700;
+}
+.iv-topbar-action-button:hover,
+.iv-topbar-action-button:focus-visible {
+    border-color: var(--iv-text-soft);
+    background: var(--iv-surface);
+    color: var(--iv-text);
+}
+
+.iv-topbar-fx-popover__trigger {
+    justify-content: center;
+    padding: 0 14px;
+    border-radius: 6px;
+    background: var(--iv-surface-muted);
+    box-shadow: none;
+}
+.iv-topbar-fx-popover[open] .iv-topbar-fx-popover__trigger {
+    background: var(--iv-surface);
+}
+
+.iv-topbar-quality > .iv-balance-popover__trigger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    border-radius: 6px;
+    background: var(--iv-surface-muted);
+    font-size: .72rem;
+}
+.iv-topbar-quality > .iv-balance-popover__trigger.iv-badge--neg {
+    border-color: rgba(220, 38, 38, .38);
+    background: var(--iv-red-soft);
+    color: var(--iv-red);
+}
+.iv-topbar-quality > .iv-balance-popover__trigger.iv-badge--neg::before {
+    content: "⚠";
+    margin-right: 7px;
+    font-size: .9rem;
+    line-height: 1;
+}
+.iv-topbar-quality > .iv-balance-popover__trigger.iv-badge--pos {
+    border-color: rgba(22, 163, 74, .28);
+    background: var(--iv-green-soft);
+    color: var(--iv-green);
+}
+
+.iv-brand-accounts {
+    position: relative;
+    width: fit-content;
+    margin-top: 8px;
+}
+.iv-brand-accounts > .iv-balance-popover__trigger {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 12px;
+}
+.iv-brand-accounts > .iv-balance-popover__panel {
+    left: 0;
+    right: auto;
+    transform: none;
+}
+
+.iv-topbar-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    min-height: 104px;
+    padding: 10px 12px;
+}
+.iv-topbar-summary .iv-cash-flow-popover {
+    display: flex;
+    align-items: stretch;
+}
+.iv-topbar-summary .iv-cash-flow-popover > summary {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: auto;
+    padding: 0 20px;
+    text-align: center;
+}
+.iv-topbar-summary .iv-cash-flow-popover > summary .iv-brand__summary-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    font-size: .72rem;
+}
+.iv-topbar-summary .iv-cash-flow-popover > summary .iv-brand__summary-row > span:first-child {
+    align-self: auto;
+}
+.iv-topbar-summary .iv-cash-flow-popover > summary .iv-cash-flow-violet {
+    align-self: auto;
+    font-size: 1.45rem;
+    line-height: 1.1;
+}
+
+.iv-topbar-summary #investment-gain {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 0 24px;
+    border-left: 1px solid rgba(148, 160, 184, .14);
+    border-right: 1px solid rgba(148, 160, 184, .14);
+}
+.iv-topbar-summary #investment-gain .iv-kpi__label {
+    margin: 0 0 4px;
+}
+.iv-topbar-summary #investment-gain .iv-kpi__value {
+    font-size: clamp(1.85rem, 2.8vw, 2.3rem);
+    line-height: 1.05;
+}
+.iv-topbar-summary #investment-gain .iv-kpi__percent {
+    margin-top: 5px;
+    font-size: .78rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.iv-topbar-summary > .iv-balance {
+    display: flex;
+    height: auto;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 20px;
+}
+.iv-topbar-summary > .iv-balance > .iv-balance__label {
+    align-self: auto;
+}
+.iv-topbar-summary > .iv-balance .iv-balance__value {
+    align-self: auto;
+    font-size: 1.45rem;
+    line-height: 1.1;
+}
+.iv-topbar-summary > .iv-balance .iv-trust-line {
+    display: none;
+}
+
+@media (max-width: 760px) {
+    .iv-topbar-summary .iv-cash-flow-popover > summary {
+        align-items: flex-start;
+        padding: 12px 0;
+        text-align: left;
+    }
+    .iv-topbar-summary .iv-cash-flow-popover > summary .iv-brand__summary-row {
+        align-items: flex-start;
+    }
+    .iv-topbar-summary #investment-gain {
+        align-items: flex-start;
+        padding: 12px 0;
+        border-left: 0;
+        border-right: 0;
+        border-top: 1px solid var(--iv-border);
+        border-bottom: 1px solid var(--iv-border);
+        text-align: left;
+    }
+    .iv-topbar-summary #investment-gain .iv-kpi__label {
+        justify-content: flex-start;
+    }
+    .iv-topbar-summary > .iv-balance {
+        align-items: flex-start;
+        padding: 12px 0;
+    }
+    .iv-topbar-quality > .iv-balance-popover__trigger {
+        justify-content: flex-start;
+        text-align: left;
+    }
+}

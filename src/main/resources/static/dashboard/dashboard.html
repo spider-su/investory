@@ -36,9 +36,9 @@
             <details id="cash-flows" class="iv-brand__summary iv-cash-flow-popover">
                 <summary class="iv-brand__summary-block">
                     <span class="iv-brand__summary-row">
-                        <span>Invested:</span>
+                        <span>Invested</span>
                         <span class="iv-cash-flow-violet"
-                              th:text="${#numbers.formatDecimal(stats.netDeposits, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
+                              th:text="${#numbers.formatDecimal(stats.netDeposits, 1, 'POINT', 0, 'COMMA')}">0</span>
                     </span>
                 </summary>
                 <div class="iv-balance-popover__panel">
@@ -60,7 +60,8 @@
                 </div>
             </details>
 
-            <div id="investment-gain" class="iv-kpi iv-kpi--popover">
+            <div id="investment-gain" class="iv-kpi iv-kpi--popover"
+                 th:with="gainPct=${stats.netDeposits > 0 ? stats.totalProfit * 100.0 / stats.netDeposits : null}">
                 <p class="iv-kpi__label">
                     <span class="iv-kpi__icon">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
@@ -72,50 +73,17 @@
                 </p>
                 <p class="iv-kpi__value"
                    th:classappend="${stats.totalProfit >= 0} ? 'iv-pos' : 'iv-neg'"
-                   th:text="${#numbers.formatDecimal(stats.totalProfit, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</p>
-                <div class="iv-kpi__meta">
-                    <div class="iv-kpi__actions">
-                        <details class="iv-balance-popover iv-position-popover iv-dividend-popover">
-                            <summary class="iv-balance-popover__trigger">Realized P/L</summary>
-                            <div class="iv-balance-popover__panel iv-position-popover__panel">
-                                <div class="iv-position-popover__row iv-dividend-popover__row iv-balance-popover__row--head">
-                                    <span>Total profit tax</span>
-                                    <span>Amount</span>
-                                </div>
-                                <div class="iv-position-popover__row iv-dividend-popover__row">
-                                    <span>Formula</span>
-                                    <span>Portfolio value − net deposits</span>
-                                </div>
-                                <div class="iv-position-popover__row iv-dividend-popover__row">
-                                    <span>Total profit <span class="iv-muted">(gross)</span></span>
-                                    <span th:classappend="${stats.totalProfit >= 0} ? 'iv-pos' : 'iv-neg'"
-                                          th:text="${#numbers.formatDecimal(stats.totalProfit, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
-                                </div>
-                                <div class="iv-position-popover__row iv-dividend-popover__row" th:if="${stats.lossCarryForward > 0}">
-                                    <span>Loss carry-forward applied</span>
-                                    <span th:text="${#numbers.formatDecimal(stats.lossCarryForward, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
-                                </div>
-                                <div class="iv-position-popover__row iv-dividend-popover__row">
-                                    <span>Capital gains tax <span class="iv-muted">(19% · this year)</span></span>
-                                    <span class="iv-neg"
-                                          th:text="'-' + ${#numbers.formatDecimal(stats.capitalGainsTax, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
-                                </div>
-                                <div class="iv-position-popover__row iv-dividend-popover__row">
-                                    <span>Investment gain <span class="iv-muted">(net)</span></span>
-                                    <span th:with="netGain=${stats.totalProfit - stats.capitalGainsTax}"
-                                          th:classappend="${netGain >= 0} ? 'iv-pos' : 'iv-neg'"
-                                          th:text="${#numbers.formatDecimal(netGain, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
-                                </div>
-                            </div>
-                        </details>
-                    </div>
-                </div>
+                   th:text="${#numbers.formatDecimal(stats.totalProfit, 1, 'POINT', 0, 'COMMA')}">0</p>
+                <span class="iv-kpi__percent"
+                      th:if="${gainPct != null}"
+                      th:classappend="${gainPct >= 0} ? ' iv-pos' : ' iv-neg'"
+                      th:text="${(gainPct >= 0 ? '+' : '') + #numbers.formatDecimal(gainPct, 1, 'POINT', 2, 'COMMA') + '%'}">+0,00%</span>
             </div>
 
             <div class="iv-balance">
             <span class="iv-balance__label">Balance</span>
             <span class="iv-balance__value"
-                  th:text="${#numbers.formatDecimal(stats.balance, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
+                  th:text="${#numbers.formatDecimal(stats.balance, 1, 'POINT', 0, 'COMMA')}">0</span>
             <div class="iv-trust-line" aria-label="Portfolio data quality">
             </div>
             <details id="data-quality" class="iv-balance-popover iv-data-quality-popover">
@@ -245,20 +213,17 @@
                 <form id="xtb-upload-form" action="/import" method="POST" enctype="multipart/form-data" style="margin:0;">
                     <button type="button"
                             id="import-statement-btn"
-                            class="iv-topbar-action-button iv-badge iv-badge--muted"
-                            style="padding:8px 14px; cursor:pointer; font-size:0.85rem; border:none; border-radius:6px; color: var(--iv-primary);">
+                            class="iv-topbar-action-button iv-badge iv-badge--muted">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7 9m5-5 5 5"/><path d="M5 13v6h14v-6"/></svg> Import
                     </button>
                     <input type="file" id="xtb-file-input" name="file" accept=".xlsx,.zip,.csv" style="display: none;" />
                 </form>
                 <button id="refresh-prices-btn"
-                        class="iv-topbar-action-button iv-badge iv-badge--muted"
-                        style="padding:8px 14px; cursor:pointer; font-size:0.85rem; border:none; border-radius:6px;">
+                        class="iv-topbar-action-button iv-badge iv-badge--muted">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0 1 4"/><path d="M20 4v7h-7"/></svg> Update History
                 </button>
                 <button id="yahoo-generate-btn"
-                        class="iv-topbar-action-button iv-badge iv-badge--pos"
-                        style="padding:8px 14px; cursor:pointer; font-size:0.85rem; border:none; border-radius:6px;">
+                        class="iv-topbar-action-button iv-badge iv-badge--muted">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12m0 0-5-5m5 5 5-5"/><path d="M5 20h14"/></svg> Export
                 </button>
             </div>
@@ -392,21 +357,37 @@
                         <summary class="iv-balance-popover__trigger">Details</summary>
                         <div class="iv-balance-popover__panel iv-position-popover__panel">
                             <div class="iv-position-popover__row iv-dividend-popover__row iv-balance-popover__row--head">
-                                <span>Closed positions</span>
+                                <span>Investment result</span>
                                 <span>Amount</span>
                             </div>
                             <div class="iv-position-popover__row iv-dividend-popover__row">
-                                <span>Closed positions <span class="iv-muted">(gross)</span></span>
-                                <span th:text="${#numbers.formatDecimal(stats.realizedProfit, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
+                                <span>Formula</span>
+                                <span>Balance − invested</span>
+                            </div>
+                            <div class="iv-position-popover__row iv-dividend-popover__row">
+                                <span>Investment gain <span class="iv-muted">(gross)</span></span>
+                                <span th:classappend="${stats.totalProfit >= 0} ? 'iv-pos' : 'iv-neg'"
+                                      th:text="${#numbers.formatDecimal(stats.totalProfit, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
+                            </div>
+                            <div class="iv-position-popover__row iv-dividend-popover__row">
+                                <span>Realized P/L <span class="iv-muted">(gross)</span></span>
+                                <span th:classappend="${stats.realizedProfit >= 0} ? 'iv-pos' : 'iv-neg'"
+                                      th:text="${#numbers.formatDecimal(stats.realizedProfit, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
+                            </div>
+                            <div class="iv-position-popover__row iv-dividend-popover__row" th:if="${stats.lossCarryForward > 0}">
+                                <span>Loss carry-forward applied</span>
+                                <span th:text="${#numbers.formatDecimal(stats.lossCarryForward, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
                             </div>
                             <div class="iv-position-popover__row iv-dividend-popover__row">
                                 <span>Capital gains tax <span class="iv-muted">(19% · this year)</span></span>
                                 <span class="iv-neg"
                                       th:text="'-' + ${#numbers.formatDecimal(stats.capitalGainsTax, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
                             </div>
-                            <div class="iv-position-popover__row iv-dividend-popover__row" th:if="${stats.lossCarryForward > 0}">
-                                <span>Loss carry-forward applied</span>
-                                <span th:text="${#numbers.formatDecimal(stats.lossCarryForward, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
+                            <div class="iv-position-popover__row iv-dividend-popover__row">
+                                <span>Investment gain <span class="iv-muted">(net)</span></span>
+                                <span th:with="netGain=${stats.totalProfit - stats.capitalGainsTax}"
+                                      th:classappend="${netGain >= 0} ? 'iv-pos' : 'iv-neg'"
+                                      th:text="${#numbers.formatDecimal(netGain, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
                             </div>
                         </div>
                     </details>
@@ -838,10 +819,10 @@
     }
     const accountBalanceDetails = document.querySelector(
         '.iv-topbar-summary > .iv-balance > .iv-balance-popover:not(.iv-data-quality-popover)');
-    const investmentActions = document.querySelector('#investment-gain .iv-kpi__actions');
-    if (accountBalanceDetails && investmentActions) {
-        accountBalanceDetails.classList.add('iv-investment-accounts');
-        investmentActions.appendChild(accountBalanceDetails);
+    const brandContent = document.querySelector('.iv-brand__content');
+    if (accountBalanceDetails && brandContent) {
+        accountBalanceDetails.classList.add('iv-brand-accounts');
+        brandContent.appendChild(accountBalanceDetails);
     }
     const monthlyPerformanceData = [[${stats.monthlyPerformance.calculateMonthlyPerformance}]];
     const monthlyLabels = Object.keys(monthlyPerformanceData);
