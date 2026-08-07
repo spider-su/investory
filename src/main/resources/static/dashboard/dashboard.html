@@ -836,6 +836,13 @@
     const dataQualityDetails = document.getElementById('data-quality');
     const brandContent = document.querySelector('.iv-brand__content');
     if (dataQualityDetails && brandContent) brandContent.appendChild(dataQualityDetails);
+    const accountBalanceDetails = document.querySelector(
+        '.iv-topbar-summary > .iv-balance > .iv-balance-popover:not(.iv-data-quality-popover)');
+    const investmentActions = document.querySelector('#investment-gain .iv-kpi__actions');
+    if (accountBalanceDetails && investmentActions) {
+        accountBalanceDetails.classList.add('iv-investment-accounts');
+        investmentActions.appendChild(accountBalanceDetails);
+    }
     const monthlyPerformanceData = [[${stats.monthlyPerformance.calculateMonthlyPerformance}]];
     const monthlyLabels = Object.keys(monthlyPerformanceData);
     const monthlyData = Object.values(monthlyPerformanceData);

@@ -149,14 +149,20 @@ body {
 }
 
 .iv-topbar__meta {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+        "import toolbar"
+        "export update";
+    align-items: center;
+    align-content: space-between;
     gap: 8px;
-    justify-content: flex-start;
+    min-height: 104px;
+    padding: 8px 0;
     white-space: normal;
 }
 .iv-topbar__toolbar {
+    grid-area: toolbar;
     display: flex;
     align-items: center;
     justify-content: flex-end;
@@ -164,15 +170,16 @@ body {
     width: 100%;
 }
 .iv-topbar-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-    width: 100%;
+    display: contents;
 }
-.iv-topbar-actions form { display: block; width: 100%; }
+.iv-topbar-actions form { grid-area: import; display: block; width: 100%; }
+.iv-topbar-actions #refresh-prices-btn { grid-area: update; }
+.iv-topbar-actions #yahoo-generate-btn { grid-area: export; }
 .iv-topbar-actions button { width: 100%; white-space: nowrap; }
 .iv-topbar-action-button { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
 .iv-topbar-action-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+#file-chosen-name,
+#yahoo-export-status { grid-column: 1 / -1; }
 
 
 .iv-topbar-fx-popover { margin-top: 0; }
@@ -918,11 +925,12 @@ body { background-color: #f3f5f9; }
     position: relative;
     display: grid;
     grid-template-columns: minmax(105px, .8fr) minmax(190px, 1.35fr) minmax(140px, 1fr);
-    align-items: center;
-    gap: 12px;
+    align-items: stretch;
+    gap: 0;
     min-width: 0;
     width: 100%;
-    padding: 10px 12px;
+    min-height: 104px;
+    padding: 8px 12px;
     border: 1px solid rgba(79,70,229,.18);
     border-radius: 14px;
     background: var(--iv-surface);
@@ -930,23 +938,37 @@ body { background-color: #f3f5f9; }
 }
 .iv-topbar-summary .iv-cash-flow-popover {
     min-width: 0;
+    height: 100%;
     margin: 0;
 }
 .iv-topbar-summary .iv-cash-flow-popover > summary {
-    padding: 4px 6px;
+    display: grid;
+    grid-template-rows: 18px 34px 1fr 34px;
+    align-items: center;
+    height: 100%;
+    padding: 0 14px 0 4px;
 }
 .iv-topbar-summary .iv-cash-flow-popover > summary .iv-brand__summary-row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
+    display: contents;
     font-size: .7rem;
 }
+.iv-topbar-summary .iv-cash-flow-popover > summary .iv-brand__summary-row > span:first-child {
+    grid-row: 1;
+    align-self: end;
+}
 .iv-topbar-summary .iv-cash-flow-popover > summary .iv-cash-flow-violet {
+    grid-row: 2;
+    align-self: start;
     font-size: 1rem;
+    line-height: 34px;
 }
 .iv-topbar-summary #investment-gain {
     min-height: 0;
-    padding: 0 12px;
+    height: 100%;
+    display: grid;
+    grid-template-rows: 18px 34px 1fr 34px;
+    align-items: center;
+    padding: 0 16px;
     border: 0;
     border-left: 1px solid var(--iv-border);
     border-right: 1px solid var(--iv-border);
@@ -962,39 +984,69 @@ body { background-color: #f3f5f9; }
 }
 .iv-topbar-summary #investment-gain .iv-kpi__icon { display: none; }
 .iv-topbar-summary #investment-gain .iv-kpi__label {
+    grid-row: 1;
     justify-content: center;
-    margin-bottom: 2px;
+    align-self: end;
+    margin: 0;
     font-size: .68rem;
 }
 .iv-topbar-summary #investment-gain .iv-kpi__value {
+    grid-row: 2;
+    align-self: start;
     font-size: clamp(1.7rem, 2.6vw, 2.15rem);
+    line-height: 34px;
 }
 .iv-topbar-summary #investment-gain .iv-kpi__meta {
-    justify-content: center;
-    align-items: center;
-    margin-top: 4px;
-    gap: 4px 8px;
+    display: contents;
+}
+.iv-topbar-summary #investment-gain .iv-kpi__meta > span {
+    grid-row: 3;
+    align-self: start;
+    justify-self: center;
+    line-height: 1.2;
 }
 .iv-topbar-summary #investment-gain .iv-kpi__actions {
-    width: auto;
+    grid-row: 4;
+    align-self: end;
+    width: 100%;
     justify-content: center;
+    gap: 8px;
+}
+.iv-topbar-summary #investment-gain .iv-kpi__actions .iv-balance-popover__trigger {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
 }
 .iv-topbar-summary #investment-gain .iv-balance-popover__panel {
     left: 50%;
     right: auto;
     transform: translateX(-50%);
 }
+.iv-investment-accounts { margin-top: 0; }
 .iv-topbar-summary > .iv-balance {
-    align-items: flex-end;
-    gap: 2px;
-    padding: 0 6px;
+    height: 100%;
+    display: grid;
+    grid-template-rows: 18px 34px 1fr 34px;
+    align-items: center;
+    justify-items: end;
+    gap: 0;
+    padding: 0 4px 0 16px;
     border: 0;
     background: transparent;
     box-shadow: none;
 }
-.iv-topbar-summary > .iv-balance .iv-balance__value {
-    font-size: 1.2rem;
+.iv-topbar-summary > .iv-balance > .iv-balance__label {
+    grid-row: 1;
+    align-self: end;
 }
+.iv-topbar-summary > .iv-balance .iv-balance__value {
+    grid-row: 2;
+    align-self: start;
+    font-size: 1.2rem;
+    line-height: 34px;
+}
+.iv-topbar-summary > .iv-balance .iv-trust-line { grid-row: 3; }
+.iv-topbar-summary > .iv-balance > .iv-balance-popover { display: none; }
 .iv-topbar-summary > .iv-balance > .iv-balance-popover .iv-balance-popover__panel {
     left: auto;
     right: 0;
@@ -1074,7 +1126,18 @@ body.iv-modal-open { overflow: hidden; }
     .iv-topbar { grid-template-columns: 1fr; }
     .iv-topbar { gap: 10px; }
     .iv-balance { width: 100%; align-items: flex-start; }
-    .iv-topbar__meta { width: 100%; justify-content: flex-start; }
+    .iv-topbar__meta {
+        width: 100%;
+        min-height: 0;
+        padding: 0;
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "toolbar"
+            "import"
+            "update"
+            "export";
+        align-content: normal;
+    }
     .iv-topbar__toolbar { justify-content: flex-start; }
     .iv-action-menu__panel { left: 0; right: auto; }
     .iv-topbar { padding: 14px; }
@@ -1082,6 +1145,7 @@ body.iv-modal-open { overflow: hidden; }
     .iv-topbar-summary {
         grid-template-columns: 1fr;
         width: 100%;
+        min-height: 0;
     }
     .iv-topbar-summary #investment-gain {
         padding: 10px 0;
