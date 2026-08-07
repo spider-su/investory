@@ -1,12 +1,8 @@
 # CLAUDE.md
 
-Read and follow `AGENTS.md`; it is the canonical source for project architecture, runtime
-behavior, invariants, and build guidance.
+Read and follow `AGENTS.md`. It is the agent working protocol and context router.
 
-## Claude-Specific Overlay
-
-- Before proposing a change, inspect the referenced implementation and tests rather than relying
-  on remembered repository state.
-- Keep explanations concise, but include exact file references and verification results for
-  material changes.
-- Do not restate project facts here. If a fact changes, update `AGENTS.md`.
+- Load only the canonical documents routed by `AGENTS.md` for the task at hand.
+- Inspect current implementation and tests before proposing material changes.
+- Keep explanations concise and include verification results for material changes.
+- Do not duplicate project facts in this file.

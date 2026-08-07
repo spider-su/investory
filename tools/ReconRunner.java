@@ -7,7 +7,7 @@ import org.apache.poi.ss.usermodel.*;
 
 /**
  * L3 staging reconciliation runner. Implements checkpoints C0 (import completeness)
- * and C1 (files -> cash_operations, XTB) from docs/pipeline-testing-plan.md.
+ * and C1 (files -> cash_operations, XTB) from docs/quality/reconciliation.md.
  *
  * Args: sourceDir jdbcUrl user pass
  * Exit code is non-zero if any checkpoint fails.

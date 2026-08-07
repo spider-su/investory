@@ -36,8 +36,8 @@ period selection are supported; the benchmark symbol is currently fixed.
 - Yahoo Finance export and developer reconciliation and pipeline-validation tooling.
 
 Reconciliation is currently developer-facing rather than an end-user workflow. See
-[`docs/pipeline-testing-plan.md`](docs/pipeline-testing-plan.md) for implemented checkpoints and known
-gaps.
+[`docs/quality/reconciliation.md`](docs/quality/reconciliation.md) for the validation contract,
+implemented tooling, and known gaps.
 
 ## Supported brokers, currencies, and asset limitations
 
@@ -52,6 +52,9 @@ gaps.
 | Asset coverage | Automatic quote coverage depends on TwelveData symbol mappings and plan limits. Non-US listings are skipped by default and may require manual prices. Real-time websocket pricing is not implemented. |
 
 ## How calculations work
+
+The concise table below is an overview. The canonical financial contract is
+[`docs/domain/portfolio-accounting.md`](docs/domain/portfolio-accounting.md).
 
 | Metric | Calculation | Period behavior |
 |--------|-------------|-----------------|
@@ -130,8 +133,10 @@ combines end-of-day state with that day's flows. Monthly and portfolio summaries
 through database views and materialized views.
 
 The application stack is Java 25, Spring Boot 4.1, PostgreSQL, Spring Data JPA, Thymeleaf, Chart.js,
-and Maven. Detailed architecture, database invariants, and implementation rules live in
-[`AGENTS.md`](AGENTS.md).
+and Maven. Stable architecture and reporting data lineage live in
+[`docs/architecture/`](docs/architecture/); financial semantics live in
+[`docs/domain/`](docs/domain/). [`AGENTS.md`](AGENTS.md) is intentionally small and routes coding
+agents to the relevant source of truth.
 
 ## Exact local setup
 
@@ -142,7 +147,7 @@ Requirements:
 - Maven
 
 For a reproducible Java, Maven, and PostgreSQL environment, use the Dev Container described in
-[`docs/DEV_CONTAINER.md`](docs/DEV_CONTAINER.md).
+[`docs/development/dev-container.md`](docs/development/dev-container.md).
 
 ### 1. Clone the repository
 
@@ -261,12 +266,17 @@ Use deployment secrets or a secret manager. Do not commit credentials.
 ## Documentation links
 
 - [`README.md`](README.md): product scope, calculations, limitations, and setup.
-- [`AGENTS.md`](AGENTS.md): canonical engineering guide for architecture, database invariants, runtime
-  behavior, API surface, and development workflow.
-- [`docs/README.md`](docs/README.md): index of focused supporting documents.
+- [`AGENTS.md`](AGENTS.md): concise agent working rules and task-to-document router.
+- [`docs/README.md`](docs/README.md): complete documentation index and source-of-truth map.
+- [`docs/domain/`](docs/domain/): canonical financial/domain contracts.
+- [`docs/architecture/`](docs/architecture/): stable architecture and reporting data flow.
+- [`docs/development/`](docs/development/): testing and development environment procedures.
+- [`docs/quality/`](docs/quality/): reconciliation and validation contracts.
+- [`docs/integrations/`](docs/integrations/): integration-specific compatibility contracts.
+- [`ROADMAP.md`](ROADMAP.md): future work and current priorities.
 - [`CHANGELOG.md`](CHANGELOG.md): completed work and documentation history.
 - [`CLAUDE.md`](CLAUDE.md) and [`.github/copilot-instructions.md`](.github/copilot-instructions.md):
-  tool-specific overlays that defer canonical project facts to `AGENTS.md`.
+  thin tool-specific overlays that defer project facts to the routed canonical documents.
 
 ## Roadmap
 

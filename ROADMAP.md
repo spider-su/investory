@@ -1,8 +1,9 @@
 # ROADMAP
 
 Future work based on the current codebase. Completed work is recorded in [`CHANGELOG.md`](CHANGELOG.md).
-Items are sized **S** (≤ half day), **M** (1-2 days), and **L** (multi-day). Current architecture and
-invariants live in `AGENTS.md`.
+Items are sized **S** (≤ half day), **M** (1-2 days), and **L** (multi-day). Current financial
+contracts live in `docs/domain/`; stable architecture lives in `docs/architecture/`. `AGENTS.md`
+only routes coding agents to those sources.
 
 ## Next priorities (high impact, low risk)
 
@@ -94,4 +95,5 @@ That's roughly 3-5 days of focused work and addresses the largest trust and CI g
 
 - Each line should land as a small PR. Reference the item in the commit subject when practical.
 - When work ships, remove it from this file and record it in `CHANGELOG.md`.
-- Keep `AGENTS.md` in sync when a roadmap item changes a documented invariant.
+- When work changes a domain contract or stable architecture boundary, update its canonical document.
+- Update `AGENTS.md` only when agent workflow or documentation routing changes.

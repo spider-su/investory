@@ -2,6 +2,20 @@
 
 Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains future work only.
 
+## 2026-08-07
+
+### Documentation architecture
+
+- Replaced the short-lived sibling `AGENTS.backend.md` / `AGENTS.sql.md` / `AGENTS.frontend.md`
+  split with a concise `AGENTS.md` protocol and task-to-document router.
+- Split canonical documentation by concern: domain contracts, architecture, development, quality,
+  and integrations.
+- Made portfolio accounting, asset/money semantics, and FX normalization explicit domain contracts.
+- Replaced the investigation-style pipeline plan with a current reconciliation specification.
+- Moved the superseded scoped-agent files and historical pipeline/test-refactor notes under
+  `docs/archive/`; routing and ignore files keep that archive out of normal agent context.
+- Kept `CLAUDE.md` and `.github/copilot-instructions.md` as thin tool-specific overlays.
+
 ## Completed before the current roadmap baseline
 
 ### Platform and configuration
@@ -25,6 +39,5 @@ Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains fut
 
 ### Documentation
 
-- Established `AGENTS.md` as the canonical engineering source of truth.
-- Kept `CLAUDE.md` and `.github/copilot-instructions.md` as thin tool-specific overlays that defer
-  architecture and runtime facts to `AGENTS.md`.
+- The initial documentation model used `AGENTS.md` as the canonical engineering source.
+- `CLAUDE.md` and `.github/copilot-instructions.md` were kept as thin tool-specific overlays.
