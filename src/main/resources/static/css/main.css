@@ -1846,6 +1846,93 @@ body.iv-modal-open { overflow: hidden; }
     }
 }
 
+/* Final header geometry: upper row (brand/summary/actions), lower row (accounts/nav/quality). */
+.iv-topbar,
+.iv-header-rail {
+    grid-template-columns: minmax(270px, 1fr) minmax(540px, 1.8fr) minmax(390px, 1.15fr);
+    column-gap: 22px;
+}
+
+.iv-topbar {
+    align-items: start;
+    margin-bottom: 10px;
+}
+
+.iv-brand {
+    align-self: start;
+}
+
+.iv-brand__content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+}
+
+.iv-period-nav {
+    margin-top: 0;
+}
+
+.iv-header-rail {
+    display: grid;
+    align-items: center;
+    margin: 0 0 18px;
+}
+
+.iv-header-rail__left,
+.iv-header-rail__right {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+}
+
+.iv-header-rail__left {
+    justify-content: flex-start;
+}
+
+.iv-header-rail__right {
+    justify-content: stretch;
+}
+
+.iv-header-rail__accounts,
+.iv-header-rail__quality {
+    width: 100%;
+    margin: 0;
+}
+
+.iv-header-rail__accounts > .iv-balance-popover__trigger {
+    display: inline-flex;
+}
+
+.iv-header-rail__quality > .iv-balance-popover__trigger {
+    width: 100%;
+}
+
+.iv-page-nav {
+    margin: 0;
+    width: 100%;
+    justify-self: stretch;
+    position: sticky;
+    top: 8px;
+    z-index: 120;
+}
+
+.iv-page-nav a {
+    white-space: nowrap;
+}
+
+@media (max-width: 1200px) {
+    .iv-topbar,
+    .iv-header-rail {
+        grid-template-columns: 1fr;
+        row-gap: 10px;
+    }
+
+    .iv-header-rail {
+        margin-bottom: 14px;
+    }
+
+
 /* Keep the three headline metrics on one visual baseline. */
 .iv-topbar-summary .iv-cash-flow-popover > summary {
     display: flex;

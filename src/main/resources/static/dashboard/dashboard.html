@@ -114,7 +114,7 @@
                     </div>
                 </div>
             </details>
-            <details class="iv-balance-popover" th:if="${stats.accountBalances != null and !stats.accountBalances.isEmpty()}">
+            <details id="view-accounts" class="iv-balance-popover" th:if="${stats.accountBalances != null and !stats.accountBalances.isEmpty()}">
                 <summary class="iv-balance-popover__trigger">View accounts</summary>
                 <div class="iv-balance-popover__panel iv-sortable-grid">
                     <div class="iv-balance-popover__row iv-balance-popover__row--head">
@@ -224,14 +224,13 @@
             <span id="file-chosen-name" class="iv-badge iv-badge--muted" style="display:none; margin-top:8px;"></span>
         </div>
     </header>
-
-    <nav class="iv-page-nav" aria-label="Dashboard sections">
-        <a href="#overview">Overview</a>
-        <a href="#performance">Performance</a>
-        <a href="#positions">Positions</a>
-        <a href="#cash-flows">Cash flows</a>
-        <a href="#data-quality">Data quality</a>
-    </nav>
+    <div class="iv-header-rail">
+        <div id="iv-header-rail-left" class="iv-header-rail__left"></div>
+        <nav class="iv-page-nav" aria-label="Dashboard sections">
+            <a href="#overview">Overview</a><a href="#performance">Performance</a><a href="#positions">Positions</a><a href="#cash-flows">Cash flows</a><a href="#data-quality">Data quality</a>
+        </nav>
+        <div id="iv-header-rail-right" class="iv-header-rail__right"></div>
+    </div>
 
     <div id="overview" class="iv-section-heading">
         <div>

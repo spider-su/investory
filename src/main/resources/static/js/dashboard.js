@@ -399,6 +399,29 @@ window.closeModal = function() {
     });
 })();
 
+// Align dashboard header controls into a deliberate two-row grid.
+(function () {
+    function moveHeaderRailItems() {
+        var leftDock = document.getElementById('iv-header-rail-left');
+        var rightDock = document.getElementById('iv-header-rail-right');
+        var viewAccounts = document.getElementById('view-accounts');
+        var dataQuality = document.getElementById('data-quality');
+
+        if (leftDock && viewAccounts && viewAccounts.parentElement !== leftDock) {
+            viewAccounts.classList.add('iv-header-rail__accounts');
+            leftDock.appendChild(viewAccounts);
+        }
+
+        if (rightDock && dataQuality && dataQuality.parentElement !== rightDock) {
+            dataQuality.classList.add('iv-header-rail__quality');
+            rightDock.appendChild(dataQuality);
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', moveHeaderRailItems);
+    } else {
+        moveHeaderRailItems();
 // Dashboard usability enhancements.
 (function () {
     'use strict';
