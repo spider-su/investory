@@ -1771,3 +1771,148 @@ body.iv-modal-open { overflow: hidden; }
         padding-block: 4px;
     }
 }
+
+/* Header metric alignment and brand theme control */
+.iv-brand__title-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.iv-theme-toggle--brand {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    min-height: 28px;
+    padding: 0;
+    flex: 0 0 28px;
+    border: 1px solid var(--iv-border);
+    border-radius: 50%;
+    background: transparent;
+    color: var(--iv-text-muted);
+    box-shadow: none;
+    cursor: pointer;
+}
+
+.iv-theme-toggle--brand:hover,
+.iv-theme-toggle--brand:focus-visible {
+    border-color: rgba(79, 70, 229, .35);
+    background: var(--iv-primary-soft);
+    color: var(--iv-primary);
+}
+
+.iv-theme-toggle--brand .iv-theme-toggle__icon {
+    width: 15px;
+    height: 15px;
+}
+
+.iv-topbar__toolbar .iv-topbar-fx-popover {
+    width: 100%;
+}
+
+.iv-topbar-summary #investment-gain {
+    justify-content: center;
+}
+
+.iv-topbar-summary #investment-gain .iv-kpi__label {
+    min-height: 14px;
+}
+
+.iv-topbar-summary #investment-gain .iv-kpi__value-row {
+    display: inline-flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 7px;
+    white-space: nowrap;
+}
+
+.iv-topbar-summary #investment-gain .iv-kpi__value-row .iv-kpi__value {
+    color: inherit;
+}
+
+.iv-topbar-summary #investment-gain .iv-kpi__percent {
+    margin: 0;
+    color: inherit;
+    font-size: .72rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+@media (max-width: 760px) {
+    .iv-topbar-summary #investment-gain .iv-kpi__value-row {
+        justify-content: flex-start;
+    }
+}
+
+/* Keep the three headline metrics on one visual baseline. */
+.iv-topbar-summary .iv-cash-flow-popover > summary {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    height: 100%;
+    padding-inline: 18px;
+}
+
+.iv-topbar-summary .iv-cash-flow-popover > summary .iv-brand__summary-row {
+    display: inline-flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 8px;
+    width: auto;
+}
+
+.iv-topbar-summary .iv-cash-flow-popover > summary .iv-cash-flow-violet {
+    order: 2;
+    font-size: 1.42rem;
+    line-height: 1;
+}
+
+.iv-topbar-summary .iv-cash-flow-popover > summary .iv-topbar-metric__label {
+    order: 1;
+}
+
+.iv-topbar-summary #investment-gain {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-inline: 18px;
+}
+
+.iv-topbar-summary #investment-gain .iv-kpi__label {
+    display: none;
+}
+
+.iv-topbar-summary #investment-gain .iv-kpi__value-row {
+    display: inline-flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 8px;
+}
+
+.iv-topbar-summary #investment-gain .iv-topbar-metric__label {
+    color: var(--iv-text-muted);
+}
+
+.iv-topbar-summary #investment-gain .iv-kpi__value {
+    line-height: 1;
+}
+
+.iv-topbar-summary #investment-gain .iv-kpi__percent {
+    line-height: 1;
+}
+
+.iv-topbar-summary > .iv-balance {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: center;
+    gap: 8px;
+    padding-inline: 18px;
+}
+
+.iv-topbar-summary > .iv-balance .iv-balance__value {
+    order: 2;
+    line-height: 1;
+}
