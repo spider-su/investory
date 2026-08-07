@@ -14,8 +14,8 @@ Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains fut
 - Replaced the investigation-style pipeline plan with a current reconciliation specification.
 - Moved the superseded scoped-agent files and historical pipeline/test-refactor notes under
   `docs/archive/`; routing and ignore files keep that archive out of normal agent context.
-- Removed the unused `CLAUDE.md`; generic agent workflow rules now live only in `AGENTS.md`.
-- Kept `.github/copilot-instructions.md` as an optional thin Copilot-specific overlay.
+- Removed unused Claude and GitHub Copilot agent overlays; generic coding-agent workflow rules now
+  live only in `AGENTS.md`.
 
 ## Completed before the current roadmap baseline
 

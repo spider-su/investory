@@ -10,6 +10,7 @@ Do not duplicate project documentation here.
 - Do not read all documentation up front. Use the routing table below and expand only when evidence requires it.
 - Before material changes, inspect the current implementation and relevant tests rather than relying on remembered state.
 - Prefer the existing Java/Spring/PostgreSQL/Flyway/Thymeleaf stack and nearby implementation patterns.
+- Read dependency and framework versions from the current build/source; do not guess them.
 - Make the smallest change that solves the task. Do not refactor unrelated code.
 - Repository-local edits, builds, tests, formatting, and verification are pre-approved unless destructive.
 - Schema changes go through versioned Flyway SQL under `src/main/resources/sql/migration`.

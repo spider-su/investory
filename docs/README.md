@@ -59,8 +59,8 @@ code. In particular:
 ## Archive
 
 `archive/` contains historical snapshots and investigation notes retained for comparison during the
-documentation reorganization. It is not current project context, is listed in the repository AI/Copilot
-ignore files, and should not be loaded unless historical investigation is requested.
+documentation reorganization. It is not current project context, is listed in the repository AI ignore
+file, and should not be loaded unless historical investigation is requested.
 Git history remains the long-term history source.
 
 ## Documentation rules

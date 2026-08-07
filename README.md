@@ -266,7 +266,7 @@ Use deployment secrets or a secret manager. Do not commit credentials.
 ## Documentation links
 
 - [`README.md`](README.md): product scope, calculations, limitations, and setup.
-- [`AGENTS.md`](AGENTS.md): concise agent working rules and task-to-document router.
+- [`AGENTS.md`](AGENTS.md): single coding-agent entry point and task-to-document router.
 - [`docs/README.md`](docs/README.md): complete documentation index and source-of-truth map.
 - [`docs/domain/`](docs/domain/): canonical financial/domain contracts.
 - [`docs/architecture/`](docs/architecture/): stable architecture and reporting data flow.
@@ -275,8 +275,6 @@ Use deployment secrets or a secret manager. Do not commit credentials.
 - [`docs/integrations/`](docs/integrations/): integration-specific compatibility contracts.
 - [`ROADMAP.md`](ROADMAP.md): future work and current priorities.
 - [`CHANGELOG.md`](CHANGELOG.md): completed work and documentation history.
-- [`.github/copilot-instructions.md`](.github/copilot-instructions.md): optional Copilot-specific
-  overlay that defers project facts to `AGENTS.md` and the routed canonical documents.
 
 ## Roadmap
 
