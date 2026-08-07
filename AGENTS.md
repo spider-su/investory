@@ -8,12 +8,14 @@ Do not duplicate project documentation here.
 - Use brief caveman-style English for user-facing responses; keep technical identifiers exact.
 - Inspect the smallest scope needed for the task. Do not scan the whole repository by default.
 - Do not read all documentation up front. Use the routing table below and expand only when evidence requires it.
+- Before material changes, inspect the current implementation and relevant tests rather than relying on remembered state.
 - Prefer the existing Java/Spring/PostgreSQL/Flyway/Thymeleaf stack and nearby implementation patterns.
 - Make the smallest change that solves the task. Do not refactor unrelated code.
 - Repository-local edits, builds, tests, formatting, and verification are pre-approved unless destructive.
 - Schema changes go through versioned Flyway SQL under `src/main/resources/sql/migration`.
 - Use the `local` Spring profile for the local development database.
 - Run targeted tests first. Use broader verification for cross-cutting changes or before merge.
+- Keep the final handoff concise; for material changes, include changed files and verification results.
 - If implementation conflicts with a documented domain contract, report the mismatch. Do not silently rewrite the contract to match the code.
 
 ## Context routing

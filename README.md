@@ -275,8 +275,8 @@ Use deployment secrets or a secret manager. Do not commit credentials.
 - [`docs/integrations/`](docs/integrations/): integration-specific compatibility contracts.
 - [`ROADMAP.md`](ROADMAP.md): future work and current priorities.
 - [`CHANGELOG.md`](CHANGELOG.md): completed work and documentation history.
-- [`CLAUDE.md`](CLAUDE.md) and [`.github/copilot-instructions.md`](.github/copilot-instructions.md):
-  thin tool-specific overlays that defer project facts to the routed canonical documents.
+- [`.github/copilot-instructions.md`](.github/copilot-instructions.md): optional Copilot-specific
+  overlay that defers project facts to `AGENTS.md` and the routed canonical documents.
 
 ## Roadmap
 
