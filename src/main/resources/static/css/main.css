@@ -2343,3 +2343,90 @@ body.iv-modal-open { overflow: hidden; }
 
     .iv-header-rail__right {
         justify-content: stretch;
+
+    /* Small final header bug fixes */
+    @media (min-width: 1201px) {
+        /* Keep the period selector on one clean line without clipping "Max". */
+        .iv-period-nav {
+            gap: 6px;
+            flex-wrap: nowrap;
+            overflow: hidden;
+        }
+
+        .iv-period-nav > span {
+            margin-right: 2px;
+            font-size: .78rem;
+        }
+
+        .iv-period-nav a {
+            padding: 7px 11px;
+            font-size: .82rem;
+        }
+
+        /* Restore correct metric geometry in the middle card:
+           values on one line, PROFIT/LOSS directly below the gain value. */
+        .iv-topbar-summary #investment-gain {
+            overflow: hidden;
+            align-items: center;
+        }
+
+        .iv-topbar-summary #investment-gain .iv-kpi__value-row {
+            display: grid;
+            grid-template-columns: auto auto;
+            grid-template-areas:
+        "value percent"
+        "label label";
+            align-items: end;
+            justify-content: center;
+            column-gap: 8px;
+            row-gap: 10px;
+            white-space: nowrap;
+            max-width: 100%;
+        }
+
+        .iv-topbar-summary #investment-gain .iv-kpi__value-row > .iv-topbar-metric__label {
+            grid-area: label;
+            justify-self: center;
+            margin: 0;
+            line-height: 1;
+            color: var(--iv-text-muted);
+        }
+
+        .iv-topbar-summary #investment-gain .iv-kpi__value {
+            grid-area: value;
+            margin: 0;
+            line-height: 1;
+        }
+
+        .iv-topbar-summary #investment-gain .iv-kpi__percent {
+            grid-area: percent;
+            align-self: start;
+            margin: 2px 0 0;
+            line-height: 1;
+        }
+
+        /* Make the lower-row controls match the same height. */
+        .iv-header-rail__accounts > .iv-balance-popover__trigger,
+        .iv-page-nav-slot > .iv-page-nav,
+        .iv-header-rail__quality > .iv-balance-popover__trigger {
+            height: 46px;
+            min-height: 46px;
+            box-sizing: border-box;
+        }
+
+        .iv-header-rail__accounts > .iv-balance-popover__trigger {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding-inline: 18px;
+        }
+
+        /* Restore alert styling for CRITICAL valuation confidence. */
+        .iv-header-rail__quality > .iv-balance-popover__trigger.iv-badge--neg {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: rgba(220, 53, 69, .12);
+            border-color: rgba(220, 53, 69, .45);
+            color: #ff8f98;
