@@ -491,6 +491,7 @@ window.closeModal = function() {
         } else {
             wireFloatingSectionNav();
         }
+    })();
 
     function setModalState(modal, open) {
         if (!modal) return;

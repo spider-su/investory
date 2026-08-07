@@ -2249,7 +2249,6 @@ body.iv-modal-open { overflow: hidden; }
     }
 
     .iv-topbar-summary #investment-gain {
-        display: grid;
         place-items: center;
         border-left: 1px solid var(--iv-border);
         border-right: 1px solid var(--iv-border);
