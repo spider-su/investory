@@ -1,13 +1,8 @@
--- Generated historical asset price import.
--- Generated at: 2026-07-19T11:20:00+00:00
--- Stooq folder: src/main/resources/stooq
--- Covered period: 2024-07-02..2026-07-02
--- Mapping rows: 234
--- Price rows: 117812
--- Generator version: 2026-07-safe-matching-v2
+-- Compact price-reference seed for a fresh database.
+-- Contains reviewed provider-symbol mappings and representative observed valuation
+-- prices only; it intentionally does not embed the former bulk price-history load.
+-- Mapping rows: 234. Price rows below are compact seed observations.
 -- Source precedence: exact Stooq observed > scaled/alternate observed > XTB trade observations > interpolated estimates.
--- This bulk load is kept in Flyway temporarily because the database is recreated from scratch.
--- It should eventually move into a dedicated bulk import process outside normal schema migration.
 
 
 

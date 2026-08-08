@@ -962,19 +962,6 @@ public class PortfolioProjectionService {
       if (shares <= EPSILON) {
         return 0.0;
       }
-      // Canonical current-quote rule: for the current valuation date, value open
-      // positions from the canonical assets.market_price column. This keeps the
-      // account_daily projection, the header KPI rollup, and the open-position popup
-      // (investory.v_open_position_values) resolving today's price from a single
-      // source. Prior dates remain on observed historical prices.
-      if (date.equals(valuationDate)
-          && asset != null
-          && asset.getMarketPrice() != null
-          && asset.getMarketPrice() > EPSILON) {
-        CurrencyType currency =
-            requiredCurrency(asset.getCurrency(), asset.getId(), "market price");
-        return convert(shares * asset.getMarketPrice(), portfolioBaseCurrency, currency, date);
-      }
       NavigableMap<LocalDate, HistoricalPrice> prices = pricesBySymbol.get(symbol);
       if (prices != null) {
         Map.Entry<LocalDate, HistoricalPrice> price = prices.floorEntry(date);
@@ -1000,6 +987,12 @@ public class PortfolioProjectionService {
                   historicalPrice.source(),
                   historicalPrice.sourceSymbol());
             } else {
+              Double fallbackValue =
+                  currentMarketValueFallback(
+                      shares, date, valuationDate, asset, portfolioBaseCurrency);
+              if (fallbackValue != null) {
+                return fallbackValue;
+              }
               log.debug(
                   "Valuation uses zero because stale price predates current holding: symbol={}, valuationDate={}, holdingStartDate={}, selectedPriceDate={}, observationDate={}",
                   symbol,
@@ -1040,13 +1033,33 @@ public class PortfolioProjectionService {
             "Valuation uses zero because no historical price row exists: symbol={}, date={}",
             symbol,
             date);
-        return 0.0;
+      }
+      Double fallbackValue =
+          currentMarketValueFallback(shares, date, valuationDate, asset, portfolioBaseCurrency);
+      if (fallbackValue != null) {
+        return fallbackValue;
       }
       log.debug(
-          "Valuation uses zero because symbol has no historical price book: symbol={}, date={}",
+          "Valuation uses zero because no current or historical price is available: symbol={}, date={}",
           symbol,
           date);
       return 0.0;
+    }
+
+    private Double currentMarketValueFallback(
+        double shares,
+        LocalDate date,
+        LocalDate valuationDate,
+        Asset asset,
+        CurrencyType portfolioBaseCurrency) {
+      if (!date.equals(valuationDate)
+          || asset == null
+          || asset.getMarketPrice() == null
+          || asset.getMarketPrice() <= EPSILON) {
+        return null;
+      }
+      CurrencyType currency = requiredCurrency(asset.getCurrency(), asset.getId(), "market price");
+      return convert(shares * asset.getMarketPrice(), portfolioBaseCurrency, currency, date);
     }
   }
 

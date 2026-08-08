@@ -213,7 +213,7 @@ VALUES
     ('Microsoft Corp.', 'MSF.DE', 'MSF', 'MSF', 'MSF.DE', 'DE', 'EUR', 'EQUITY', false),
     ('Microsoft Corp.', 'MSFT.US', 'MSFT', 'MSFT', 'MSFT.US', 'US', 'USD', 'EQUITY', true),
     ('Micron Technology, Inc.', 'MU.US', 'MU', 'MU', 'MU.US', 'US', 'USD', 'EQUITY', true),
-    ('NATGAS', 'NATGAS', 'NATGAS', 'NATGAS', 'NATGAS', 'US', 'USD', 'EQUITY', false),
+    ('NATGAS', 'NATGAS', 'NATGAS', 'NATGAS', 'NATGAS', 'US', 'USD', 'COMMODITY', false),
     ('WisdomTree Uranium and Nuclear Energy UCITS ETF USD Acc', 'NCLR.UK', 'NCLR', 'NCLR', 'NCLR.L', 'UK', 'USD', 'ETF', false),
     ('Aurubis AG', 'NDA.FI', 'NDA', 'NDA', 'NDA.FI', 'FI', 'EUR', 'EQUITY', false),
     ('NextEra Energy, Inc.', 'NEE.US', 'NEE', 'NEE', 'NEE.US', 'US', 'USD', 'EQUITY', false),
@@ -296,7 +296,6 @@ VALUES
     ('iShares Nikkei 225 UCITS ETF (Acc)', 'SXRZ.DE', 'SXRZ', 'SXRZ', 'SXRZ.DE', 'DE', 'EUR', 'ETF', false),
     ('Synaptics Incorporated', 'SYNA.US', 'SYNA', 'SYNA', 'SYNA.US', 'US', 'USD', 'EQUITY', false),
     ('AT&T Inc.', 'T.US', 'T', 'T', 'T.US', 'US', 'USD', 'EQUITY', true),
-    ('T458022826', 'T458022826', 'T458022826', 'T458022826', 'T458022826', 'US', 'USD', 'EQUITY', false),
     ('Ten Square Games S.A.', 'TEN.PL', 'TEN', 'TEN', 'TEN.PL', 'PL', 'PLN', 'EQUITY', false),
     ('Target Corporation', 'TGT.US', 'TGT', 'TGT', 'TGT.US', 'US', 'USD', 'EQUITY', false),
     ('Hanover Insurance Group, Inc.', 'THG.US', 'THG', 'THG', 'THG.US', 'US', 'USD', 'EQUITY', false),
@@ -320,7 +319,7 @@ VALUES
     ('Vanguard FTSE All-World High Dividend Yield UCITS ETF', 'VHYA.UK', 'VHYA', 'VHYL', 'VHYA.L', 'UK', 'USD', 'ETF', false),
     ('Vanguard Funds Public Limited Company - Vanguard FTSE All-World High Dividend Yield UCITS ETF', 'VHYD.UK', 'VHYD', 'VHYD', 'VHYD.L', 'UK', 'USD', 'ETF', true),
     ('Vici Properties Inc.', 'VICI.US', 'VICI', 'VICI', 'VICI.US', 'US', 'USD', 'EQUITY', true),
-    ('VIX', 'VIX', 'VIX', 'VIX', 'VIX', 'US', 'USD', 'EQUITY', false),
+    ('VIX', 'VIX', 'VIX', 'VIX', 'VIX', 'US', 'USD', 'INDEX', false),
     ('Valero Energy Corporation', 'VLO.US', 'VLO', 'VLO', 'VLO.US', 'US', 'USD', 'EQUITY', false),
     ('VOLCARB', 'VOLCARB.SE', 'VOLCARB', 'VOLCARB', 'VOLCARB.SE', 'SE', 'USD', 'EQUITY', false),
     ('VOW1', 'VOW1.DE', 'VOW1', 'VOW1', 'VOW1.DE', 'DE', 'EUR', 'EQUITY', false),
@@ -351,7 +350,7 @@ VALUES
     ('iShares Russell 2000 ETF','IWM.US', 'IWM', 'IWM', 'IWM.US','US', 'USD', 'ETF', false),
     ('iShares MSCI India UCITS ETF USD (Acc)','NDIA.UK', 'NDIA', 'NDIA', 'NDIA.L','UK', 'USD', 'ETF', false),
     ('VanEck Semiconductor UCITS ETF','SMH.UK', 'SMH', 'SMH', 'SMH.L','UK', 'USD', 'ETF', false),
-    ('Unknown XTB instrument T458022826','T458022826.US', 'T458022826', 'T458022826', 'T458022826.US','US', 'USD', 'EQUITY', false),
+    ('United States Treasury 4 5/8 02/28/26','T458022826.US', 'T458022826', 'T458022826', 'T458022826.US','US', 'USD', 'BOND', false),
     ('W. P. Carey Inc.','WPC.US', 'WPC', 'WPC', 'WPC.US','US', 'USD', 'EQUITY', false)
 ON CONFLICT (symbol) DO UPDATE SET
     name = EXCLUDED.name,
@@ -362,6 +361,10 @@ ON CONFLICT (symbol) DO UPDATE SET
     currency = EXCLUDED.currency,
     asset_type = EXCLUDED.asset_type,
     active = EXCLUDED.active;
+
+UPDATE investory.assets
+SET isin = 'US91282CKB62'
+WHERE symbol = 'T458022826.US';
 
 UPDATE investory.assets
 SET exclude_from_import = true

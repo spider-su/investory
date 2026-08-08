@@ -147,7 +147,7 @@ public class IbkrImportService {
             .ifPresent(tradePriceObservations::add);
       } catch (Exception e) {
         failed++;
-        log.warn("Skipping IBKR row: {}", e.getMessage());
+        log.warn("Skipping IBKR row {}: {}", total, e.getMessage());
       }
     }
 

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -95,6 +96,104 @@ class ValuationInputContractTest {
         assertTrue(result.next());
         assertEquals("2030-01-02", result.getDate("price_date").toString());
         assertEquals(0, result.getBigDecimal("close_price").compareTo(new BigDecimal("100")));
+      }
+    }
+  }
+
+  @Test
+  void currentPriceUsesFreshObservedHistoryThenNativeAssetFallback() throws SQLException {
+    try (Connection connection = connection();
+        Statement statement = connection.createStatement()) {
+      statement.execute(
+          "INSERT INTO investory.assets "
+              + "(name, symbol, ticker, ibkr, yahoo, country, currency, asset_type, market_price) VALUES "
+              + "('Current price contract', 'CURPRICE.US', 'CURPRICE', 'CURPRICE', 'CURPRICE.US', "
+              + "'US', 'USD', 'EQUITY', 60)");
+      statement.execute(
+          "INSERT INTO investory.asset_source_symbols "
+              + "(asset_id, source, source_symbol, price_currency) "
+              + "SELECT id, 'TESTMAP', 'curprice.us', 'USD' "
+              + "FROM investory.assets WHERE symbol = 'CURPRICE.US'");
+      statement.execute(
+          "INSERT INTO investory.asset_price_history "
+              + "(asset_id, price_date, source, source_symbol, price_origin, price_currency, "
+              + "close_price, estimated, quality_score, quality_class, is_observed, is_proxy) "
+              + "SELECT id, CURRENT_DATE, 'TESTMAP', 'curprice.us', 'MARKET_CLOSE', 'USD', "
+              + "100, false, 100, 'EXACT_LISTING_MARKET_CLOSE', true, false "
+              + "FROM investory.assets WHERE symbol = 'CURPRICE.US'");
+
+      try (ResultSet result =
+          statement.executeQuery(
+              "SELECT selected_price, price_currency, source_mapping_id IS NOT NULL AS mapped "
+                  + "FROM investory.v_current_asset_price "
+                  + "WHERE asset_id = (SELECT id FROM investory.assets WHERE symbol = 'CURPRICE.US')")) {
+        assertTrue(result.next());
+        assertEquals(0, result.getBigDecimal("selected_price").compareTo(new BigDecimal("100")));
+        assertEquals("USD", result.getString("price_currency"));
+        assertTrue(result.getBoolean("mapped"));
+      }
+
+      statement.execute(
+          "UPDATE investory.asset_price_history SET price_date = CURRENT_DATE - 11 "
+              + "WHERE source = 'TESTMAP' AND source_symbol = 'curprice.us'");
+
+      try (ResultSet result =
+          statement.executeQuery(
+              "SELECT selected_price, price_currency, price_selection_source "
+                  + "FROM investory.v_current_asset_price "
+                  + "WHERE asset_id = (SELECT id FROM investory.assets WHERE symbol = 'CURPRICE.US')")) {
+        assertTrue(result.next());
+        assertEquals(0, result.getBigDecimal("selected_price").compareTo(new BigDecimal("60")));
+        assertEquals("USD", result.getString("price_currency"));
+        assertEquals("ASSET_CURRENT_FALLBACK", result.getString("price_selection_source"));
+      }
+    }
+  }
+
+  @Test
+  void noDotCanonicalSymbolsDoNotUseUnjustifiedSecurityTaxonomy() throws SQLException {
+    try (Connection connection = connection();
+        PreparedStatement statement =
+            connection.prepareStatement(
+                "SELECT symbol, asset_type FROM investory.assets "
+                    + "WHERE symbol NOT LIKE '%.%' "
+                    + "AND asset_type IN ('EQUITY', 'ETF', 'REIT', 'FUND') "
+                    + "ORDER BY symbol")) {
+      try (ResultSet result = statement.executeQuery()) {
+        assertTrue(
+            !result.next(),
+            "No-dot canonical symbols classified as securities require explicit taxonomy justification");
+      }
+    }
+  }
+
+  @Test
+  void ibkrIdentifiersResolveToOneCanonicalAsset() throws SQLException {
+    try (Connection connection = connection();
+        Statement statement = connection.createStatement();
+        ResultSet result =
+            statement.executeQuery(
+                "SELECT ibkr, count(*) FROM investory.assets "
+                    + "WHERE btrim(ibkr) <> '' GROUP BY ibkr HAVING count(*) > 1")) {
+      assertTrue(!result.next(), "An IBKR identifier must not map to multiple assets");
+    }
+  }
+
+  @Test
+  void seededTreasuryHasOneCanonicalBondIdentity() throws SQLException {
+    try (Connection connection = connection();
+        PreparedStatement statement =
+            connection.prepareStatement(
+                "SELECT symbol, ticker, ibkr, isin, asset_type "
+                    + "FROM investory.assets WHERE ibkr = 'T458022826'")) {
+      try (ResultSet result = statement.executeQuery()) {
+        assertTrue(result.next());
+        assertEquals("T458022826.US", result.getString("symbol"));
+        assertEquals("T458022826", result.getString("ticker"));
+        assertEquals("T458022826", result.getString("ibkr"));
+        assertEquals("US91282CKB62", result.getString("isin"));
+        assertEquals("BOND", result.getString("asset_type"));
+        assertTrue(!result.next(), "Treasury IBKR identity must have one canonical row");
       }
     }
   }

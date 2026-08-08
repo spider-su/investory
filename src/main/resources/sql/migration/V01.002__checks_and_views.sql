@@ -225,6 +225,7 @@ SELECT DISTINCT ON (aph.asset_id, aph.price_date)
     aph.source_symbol,
     aph.price_origin,
     aph.price_currency,
+    aph.source_mapping_id,
     aph.open_price,
     aph.high_price,
     aph.low_price,
@@ -236,6 +237,8 @@ SELECT DISTINCT ON (aph.asset_id, aph.price_date)
     aph.quality_class,
     aph.is_observed,
     aph.is_proxy,
+    aph.price_scale_factor,
+    aph.source_date,
     aph.imported_at
 FROM investory.asset_price_history aph
 ORDER BY
@@ -251,6 +254,111 @@ ORDER BY
     END,
     aph.imported_at DESC,
     aph.source;
+
+CREATE OR REPLACE VIEW investory.v_current_asset_price AS
+WITH latest_observed_price AS (
+    SELECT DISTINCT ON (cp.asset_id)
+        cp.asset_id,
+        cp.price_date,
+        cp.source,
+        cp.source_symbol,
+        cp.source_mapping_id,
+        cp.price_origin,
+        cp.price_currency,
+        cp.close_price * cp.price_scale_factor AS selected_price,
+        cp.quality_score,
+        cp.quality_class,
+        cp.is_proxy,
+        cp.source_date,
+        cp.imported_at
+    FROM investory.v_canonical_asset_daily_price cp
+    WHERE cp.is_observed
+      AND cp.estimated = false
+      AND cp.close_price > 0
+      AND cp.price_origin <> 'STALE_CARRY_FORWARD'
+      AND cp.price_date >= CURRENT_DATE - 10
+    ORDER BY cp.asset_id, cp.price_date DESC, cp.imported_at DESC, cp.source
+)
+SELECT
+    a.id AS asset_id,
+    COALESCE(lp.selected_price, a.market_price) AS selected_price,
+    CASE WHEN lp.asset_id IS NOT NULL THEN lp.price_currency ELSE a.currency::varchar(3) END AS price_currency,
+    CASE WHEN lp.asset_id IS NOT NULL THEN 'HISTORICAL' ELSE 'ASSET_CURRENT_FALLBACK' END::varchar(32) AS price_selection_source,
+    lp.price_date AS selected_price_date,
+    lp.source_date AS underlying_observation_date,
+    lp.source AS price_source,
+    lp.source_symbol,
+    lp.source_mapping_id,
+    lp.price_origin,
+    lp.quality_score,
+    lp.quality_class,
+    lp.is_proxy,
+    lp.imported_at
+FROM investory.assets a
+LEFT JOIN latest_observed_price lp
+    ON lp.asset_id = a.id;
+
+COMMENT ON VIEW investory.v_current_asset_price IS
+    'Authoritative current price selection: latest observed canonical historical price no older than ten days (scaled once), then assets.market_price in assets.currency, otherwise unavailable. Price and currency always come from the same source.';
+
+CREATE OR REPLACE VIEW investory.v_current_open_position_rows AS
+SELECT
+    pf.id AS portfolio_id,
+    pf.base_currency::varchar(3) AS base_currency,
+    a.id AS account_id,
+    a.currency::varchar(3) AS account_currency,
+    asset.id AS asset_id,
+    asset.symbol AS asset_symbol,
+    p.id AS position_id,
+    p.cost_currency::varchar(3) AS cost_basis_currency,
+    investory.signed_position_quantity(p.operation, p.volume) AS volume,
+    COALESCE(p.purchase_value, p.volume * p.open_price, 0) AS cost_basis_native,
+    price.selected_price AS market_price,
+    price.price_currency::varchar(3) AS market_price_currency,
+    price.price_selection_source,
+    price.selected_price_date,
+    price.price_source,
+    price.source_symbol AS market_price_source_symbol,
+    cost_fx.fx_rate_to_target AS cost_basis_to_base_rate,
+    cost_fx.conversion_status AS cost_basis_fx_status,
+    market_fx.fx_rate_to_target AS market_price_to_base_rate,
+    market_fx.conversion_status AS market_price_fx_status,
+    CASE
+        WHEN cost_fx.conversion_status IN ('OK', 'SAME_CURRENCY')
+            THEN COALESCE(p.purchase_value, p.volume * p.open_price, 0) * cost_fx.fx_rate_to_target
+        ELSE NULL::numeric
+    END AS cost_basis_in_base_currency,
+    CASE
+        WHEN price.selected_price IS NOT NULL
+         AND market_fx.conversion_status IN ('OK', 'SAME_CURRENCY')
+            THEN investory.signed_position_quantity(p.operation, p.volume)
+                 * price.selected_price * market_fx.fx_rate_to_target
+        ELSE NULL::numeric
+    END AS market_value_in_base_currency
+FROM investory.positions p
+JOIN investory.accounts a
+    ON a.id = p.account_id
+JOIN investory.portfolios pf
+    ON pf.id = a.portfolio_id
+JOIN investory.assets asset
+    ON asset.id = p.asset_id
+LEFT JOIN investory.v_current_asset_price price
+    ON price.asset_id = asset.id
+LEFT JOIN LATERAL investory.resolve_fx_rate(
+    CURRENT_DATE,
+    p.cost_currency::varchar(3),
+    pf.base_currency::varchar(3)
+) cost_fx ON true
+LEFT JOIN LATERAL investory.resolve_fx_rate(
+    CURRENT_DATE,
+    price.price_currency::varchar(3),
+    pf.base_currency::varchar(3)
+) market_fx ON true
+WHERE p.close_time IS NULL
+  AND COALESCE(p.volume, 0) > 0;
+
+COMMENT ON VIEW investory.v_current_open_position_rows IS
+    'Shared current open-position valuation rows. Uses v_current_asset_price and resolve_fx_rate(CURRENT_DATE, ...); stale or missing FX yields null converted values.';
 
 CREATE OR REPLACE VIEW investory.v_activity_events AS
 SELECT
@@ -1027,125 +1135,43 @@ WITH latest_daily AS (
     FROM investory.account_daily ad
     ORDER BY ad.account_id, ad.snapshot_date DESC, ad.id DESC
 ),
-canonical_fx AS (
-    SELECT DISTINCT ON (er.base, er.to_currency)
-        er.base::varchar(3) AS base,
-        er.to_currency::varchar(3) AS to_currency,
-        er.rate
-    FROM investory.exchange_rates er
-    ORDER BY er.base, er.to_currency, er.month DESC, er.imported_at DESC, er.source
-),
 latest_daily_in_base AS (
     SELECT
         ld.account_id,
         ld.snapshot_date,
         pf.base_currency::varchar(3) AS valuation_currency,
-        ld.cash_balance * rates.rate AS cash_balance,
-        ld.market_value * rates.rate AS market_value,
-        ld.equity * rates.rate AS equity,
-        ld.cost_base * rates.rate AS cost_base,
-        ld.unrealized_profit * rates.rate AS unrealized_profit,
-        ld.realized_profit * rates.rate AS realized_profit,
+        CASE WHEN fx.conversion_status IN ('OK', 'SAME_CURRENCY') THEN ld.cash_balance * fx.fx_rate_to_target END AS cash_balance,
+        CASE WHEN fx.conversion_status IN ('OK', 'SAME_CURRENCY') THEN ld.market_value * fx.fx_rate_to_target END AS market_value,
+        CASE WHEN fx.conversion_status IN ('OK', 'SAME_CURRENCY') THEN ld.equity * fx.fx_rate_to_target END AS equity,
+        CASE WHEN fx.conversion_status IN ('OK', 'SAME_CURRENCY') THEN ld.cost_base * fx.fx_rate_to_target END AS cost_base,
+        CASE WHEN fx.conversion_status IN ('OK', 'SAME_CURRENCY') THEN ld.unrealized_profit * fx.fx_rate_to_target END AS unrealized_profit,
+        CASE WHEN fx.conversion_status IN ('OK', 'SAME_CURRENCY') THEN ld.realized_profit * fx.fx_rate_to_target END AS realized_profit,
         ld.daily_return_pct
     FROM latest_daily ld
     JOIN investory.accounts a ON a.id = ld.account_id
     JOIN investory.portfolios pf ON pf.id = a.portfolio_id
-    LEFT JOIN canonical_fx direct
-      ON direct.base = ld.valuation_currency
-     AND direct.to_currency = pf.base_currency
-    LEFT JOIN canonical_fx inverse
-      ON inverse.base = pf.base_currency
-     AND inverse.to_currency = ld.valuation_currency
-    CROSS JOIN LATERAL (
-        SELECT CASE
-            WHEN ld.valuation_currency = pf.base_currency THEN 1::numeric
-            WHEN direct.rate IS NOT NULL THEN direct.rate
-            WHEN inverse.rate IS NOT NULL THEN 1::numeric / NULLIF(inverse.rate, 0)
-            ELSE NULL::numeric
-        END AS rate
-    ) rates
-),
-latest_market_price AS (
-    SELECT DISTINCT ON (cp.asset_id)
-        cp.asset_id,
-        cp.price_currency::varchar(3) AS market_price_currency,
-        cp.close_price AS market_price
-    FROM investory.v_canonical_asset_daily_price cp
-    ORDER BY cp.asset_id, cp.price_date DESC, cp.imported_at DESC, cp.source
+    LEFT JOIN LATERAL investory.resolve_fx_rate(
+        ld.snapshot_date,
+        ld.valuation_currency::varchar(3),
+        pf.base_currency::varchar(3)
+    ) fx ON true
 ),
 open_position_totals AS (
     SELECT
-        a.id AS account_id,
-        SUM(
-            COALESCE(p.purchase_value, p.volume * p.open_price, 0)
-            * CASE
-                WHEN p.cost_currency::varchar(3) = pf.base_currency::varchar(3) THEN 1::numeric
-                WHEN direct_cost.rate IS NOT NULL THEN direct_cost.rate
-                WHEN inverse_cost.rate IS NOT NULL THEN 1::numeric / inverse_cost.rate
-                ELSE NULL::numeric
-              END
-        ) AS cost_base,
-        SUM(
-            investory.signed_position_quantity(p.operation, p.volume)
-                * COALESCE(lmp.market_price, asset.market_price, 0)
-            * CASE
-                WHEN COALESCE(lmp.market_price_currency, asset.currency::varchar(3)) = pf.base_currency::varchar(3) THEN 1::numeric
-                WHEN direct_market.rate IS NOT NULL THEN direct_market.rate
-                WHEN inverse_market.rate IS NOT NULL THEN 1::numeric / inverse_market.rate
-                ELSE NULL::numeric
-              END
-        ) AS market_value,
-        SUM(
-            (
-                investory.signed_position_quantity(p.operation, p.volume)
-                    * COALESCE(lmp.market_price, asset.market_price, 0)
-                * CASE
-                    WHEN COALESCE(lmp.market_price_currency, asset.currency::varchar(3)) = pf.base_currency::varchar(3) THEN 1::numeric
-                    WHEN direct_market.rate IS NOT NULL THEN direct_market.rate
-                    WHEN inverse_market.rate IS NOT NULL THEN 1::numeric / inverse_market.rate
-                    ELSE NULL::numeric
-                  END
-            ) - (
-                COALESCE(p.purchase_value, p.volume * p.open_price, 0)
-                * CASE
-                    WHEN p.cost_currency::varchar(3) = pf.base_currency::varchar(3) THEN 1::numeric
-                    WHEN direct_cost.rate IS NOT NULL THEN direct_cost.rate
-                    WHEN inverse_cost.rate IS NOT NULL THEN 1::numeric / inverse_cost.rate
-                    ELSE NULL::numeric
-                  END
-            )
-        ) AS unrealized_profit,
-        COUNT(*) FILTER (WHERE
-            (p.cost_currency::varchar(3) <> pf.base_currency::varchar(3)
-                AND direct_cost.rate IS NULL AND inverse_cost.rate IS NULL)
-            OR (COALESCE(lmp.market_price_currency, asset.currency::varchar(3)) <> pf.base_currency::varchar(3)
-                AND direct_market.rate IS NULL AND inverse_market.rate IS NULL)
+        value.account_id,
+        CASE WHEN COUNT(*) FILTER (WHERE value.cost_basis_in_base_currency IS NULL) > 0 THEN NULL::numeric
+             ELSE SUM(value.cost_basis_in_base_currency) END AS cost_base,
+        CASE WHEN COUNT(*) FILTER (WHERE value.market_value_in_base_currency IS NULL) > 0 THEN NULL::numeric
+             ELSE SUM(value.market_value_in_base_currency) END AS market_value,
+        CASE WHEN COUNT(*) FILTER (
+            WHERE value.cost_basis_in_base_currency IS NULL OR value.market_value_in_base_currency IS NULL
+        ) > 0 THEN NULL::numeric
+             ELSE SUM(value.market_value_in_base_currency - value.cost_basis_in_base_currency) END AS unrealized_profit,
+        COUNT(*) FILTER (
+            WHERE value.cost_basis_in_base_currency IS NULL OR value.market_value_in_base_currency IS NULL
         )::bigint AS missing_fx_count
-    FROM investory.positions p
-    JOIN investory.accounts a
-      ON a.id = p.account_id
-    JOIN investory.portfolios pf
-      ON pf.id = a.portfolio_id
-    JOIN investory.assets asset
-      ON asset.id = p.asset_id
-    LEFT JOIN latest_market_price lmp
-      ON lmp.asset_id = asset.id
-    LEFT JOIN canonical_fx direct_cost
-      ON direct_cost.base = p.cost_currency::varchar(3)
-     AND direct_cost.to_currency = pf.base_currency::varchar(3)
-    LEFT JOIN canonical_fx inverse_cost
-      ON inverse_cost.base = pf.base_currency::varchar(3)
-     AND inverse_cost.to_currency = p.cost_currency::varchar(3)
-    LEFT JOIN canonical_fx direct_market
-      ON direct_market.base = COALESCE(lmp.market_price_currency, asset.currency::varchar(3))
-     AND direct_market.to_currency = pf.base_currency::varchar(3)
-    LEFT JOIN canonical_fx inverse_market
-      ON inverse_market.base = pf.base_currency::varchar(3)
-     AND inverse_market.to_currency = COALESCE(lmp.market_price_currency, asset.currency::varchar(3))
-    WHERE p.close_time IS NULL
-      AND p.asset_id IS NOT NULL
-      AND COALESCE(p.volume, 0) > 0
-    GROUP BY a.id
+    FROM investory.v_current_open_position_rows value
+    GROUP BY value.account_id
 ),
 closed_position_components AS (
     SELECT
@@ -1476,6 +1502,9 @@ latest_account_stats AS (
         a.portfolio_id,
         SUM(ast.missing_fx_count)::bigint AS missing_fx_count,
         SUM(ast.converted_cash_subtotal) AS converted_cash_subtotal,
+        SUM(ast.cash_balance) AS total_cash,
+        SUM(ast.market_value) AS total_market_value,
+        SUM(ast.equity) AS total_equity,
         SUM(ast.total_deposit) AS total_deposits,
         SUM(ast.total_withdrawal) AS total_withdrawals,
         SUM(ast.total_deposit - ast.total_withdrawal) AS net_deposits,
@@ -1500,9 +1529,9 @@ SELECT
     CASE WHEN COALESCE(las.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(las.total_deposits, 0) END AS total_deposits,
     CASE WHEN COALESCE(las.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(las.total_withdrawals, 0) END AS total_withdrawals,
     CASE WHEN COALESCE(las.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(las.net_deposits, 0) END AS net_deposits,
-    CASE WHEN COALESCE(lpd.is_complete, true) THEN COALESCE(lpd.cash_balance, 0) END AS total_cash,
-    CASE WHEN COALESCE(lpd.is_complete, true) THEN COALESCE(lpd.market_value, 0) END AS total_market_value,
-    CASE WHEN COALESCE(lpd.is_complete, true) THEN COALESCE(lpd.equity, 0) END AS total_equity,
+    CASE WHEN COALESCE(las.missing_fx_count, 0) = 0 THEN COALESCE(las.total_cash, 0) END AS total_cash,
+    CASE WHEN COALESCE(las.missing_fx_count, 0) = 0 THEN COALESCE(las.total_market_value, 0) END AS total_market_value,
+    CASE WHEN COALESCE(las.missing_fx_count, 0) = 0 THEN COALESCE(las.total_equity, 0) END AS total_equity,
     CASE WHEN COALESCE(las.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(las.total_realized_profit, 0) END AS total_realized_profit,
     CASE WHEN COALESCE(las.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(las.total_unrealized_profit, 0) END AS total_unrealized_profit,
     CASE WHEN COALESCE(las.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(las.total_dividends, 0) END AS total_dividends,
@@ -1511,8 +1540,8 @@ SELECT
     CASE WHEN COALESCE(las.missing_fx_count, 0) > 0 THEN NULL ELSE COALESCE(las.total_taxes, 0) END AS total_taxes,
     COALESCE(las.converted_cash_subtotal, 0) AS converted_cash_subtotal,
     COALESCE(lpd.converted_equity_subtotal, 0) AS converted_equity_subtotal,
-    COALESCE(las.missing_fx_count, 0) + COALESCE(lpd.missing_fx_count, 0) AS missing_fx_count,
-    COALESCE(las.missing_fx_count, 0) = 0 AND COALESCE(lpd.is_complete, true) AS is_complete,
+    COALESCE(las.missing_fx_count, 0) AS missing_fx_count,
+    COALESCE(las.missing_fx_count, 0) = 0 AS is_complete,
     COALESCE(las.activity_count, 0) AS activity_count,
     las.first_activity_at,
     las.last_activity_at,
@@ -2023,84 +2052,13 @@ WHERE pr.anomaly_code <> 'OK'
 
 DROP VIEW IF EXISTS investory.v_open_position_values;
 CREATE VIEW investory.v_open_position_values AS
-WITH canonical_fx AS (
-    SELECT DISTINCT ON (er.base, er.to_currency)
-        er.base::varchar(3) AS base,
-        er.to_currency::varchar(3) AS to_currency,
-        er.rate
-    FROM investory.exchange_rates er
-    ORDER BY er.base, er.to_currency, er.month DESC, er.imported_at DESC, er.source
-),
-     latest_market_price AS (
-         SELECT DISTINCT ON (cp.asset_id)
-             cp.asset_id,
-             cp.price_currency::varchar(3) AS market_price_currency,
-             cp.close_price AS market_price
-         FROM investory.v_canonical_asset_daily_price cp
-         ORDER BY cp.asset_id, cp.price_date DESC, cp.imported_at DESC, cp.source
-     ),
-     position_rows AS (
-         SELECT
-             pf.id AS portfolio_id,
-             pf.base_currency::varchar(3) AS portfolio_base_currency,
-             a.id AS account_id,
-             a.currency::varchar(3) AS account_currency,
-             asset.id AS asset_id,
-             asset.symbol AS asset_symbol,
-             asset.currency::varchar(3) AS asset_currency,
-             p.id AS position_id,
-             p.cost_currency::varchar(3) AS cost_basis_currency,
-             investory.signed_position_quantity(p.operation, p.volume) AS volume,
-             p.open_price,
-             COALESCE(p.purchase_value, p.volume * p.open_price, 0) AS cost_basis_native,
-             -- Canonical current-quote rule: value open positions from the canonical
-             -- assets.market_price column so the popup, header KPI rollup, and the
-             -- account_daily projection all resolve today's price from one source.
-             asset.market_price AS market_price,
-             asset.currency::varchar(3) AS market_price_currency
-         FROM investory.positions p
-                  JOIN investory.accounts a
-                       ON a.id = p.account_id
-                  JOIN investory.portfolios pf
-                       ON pf.id = a.portfolio_id
-                  JOIN investory.assets asset
-                       ON asset.id = p.asset_id
-                  LEFT JOIN latest_market_price lmp
-                            ON lmp.asset_id = asset.id
-         WHERE p.close_time IS NULL
-           AND p.asset_id IS NOT NULL
-           AND COALESCE(p.volume, 0) > 0
+WITH position_rows AS (
+         SELECT *
+         FROM investory.v_current_open_position_rows
      ),
      position_rows_with_fx AS (
-         SELECT
-             pr.*,
-             CASE
-                 WHEN pr.cost_basis_currency IS NULL THEN NULL::numeric
-                 WHEN pr.cost_basis_currency = pr.portfolio_base_currency THEN 1::numeric
-                 WHEN direct_cost.rate IS NOT NULL THEN direct_cost.rate
-                 WHEN inverse_cost.rate IS NOT NULL THEN 1::numeric / inverse_cost.rate
-                 ELSE NULL::numeric
-                 END AS cost_basis_to_base_rate,
-             CASE
-                 WHEN pr.market_price_currency IS NULL THEN NULL::numeric
-                 WHEN pr.market_price_currency = pr.portfolio_base_currency THEN 1::numeric
-                 WHEN direct_market.rate IS NOT NULL THEN direct_market.rate
-                 WHEN inverse_market.rate IS NOT NULL THEN 1::numeric / inverse_market.rate
-                 ELSE NULL::numeric
-                 END AS market_price_to_base_rate
-         FROM position_rows pr
-                  LEFT JOIN canonical_fx direct_cost
-                            ON direct_cost.base = pr.cost_basis_currency
-                                AND direct_cost.to_currency = pr.portfolio_base_currency
-                  LEFT JOIN canonical_fx inverse_cost
-                            ON inverse_cost.base = pr.portfolio_base_currency
-                                AND inverse_cost.to_currency = pr.cost_basis_currency
-                  LEFT JOIN canonical_fx direct_market
-                            ON direct_market.base = pr.market_price_currency
-                                AND direct_market.to_currency = pr.portfolio_base_currency
-                  LEFT JOIN canonical_fx inverse_market
-                            ON inverse_market.base = pr.portfolio_base_currency
-                                AND inverse_market.to_currency = pr.market_price_currency
+         SELECT *
+         FROM position_rows
      ),
      row_values AS (
          SELECT
@@ -2108,21 +2066,13 @@ WITH canonical_fx AS (
              CASE
                  WHEN pr.market_price IS NULL THEN NULL::numeric
                  ELSE pr.volume * pr.market_price
-                 END AS market_value_native,
-             CASE
-                 WHEN pr.cost_basis_to_base_rate IS NULL THEN NULL::numeric
-                 ELSE pr.cost_basis_native * pr.cost_basis_to_base_rate
-                 END AS cost_basis_in_base_currency,
-             CASE
-                 WHEN pr.market_price IS NULL OR pr.market_price_to_base_rate IS NULL THEN NULL::numeric
-                 ELSE pr.volume * pr.market_price * pr.market_price_to_base_rate
-                 END AS market_value_in_base_currency
+                 END AS market_value_native
          FROM position_rows_with_fx pr
      ),
      rollup AS (
          SELECT
              rv.portfolio_id,
-             rv.portfolio_base_currency AS base_currency,
+             rv.base_currency,
              rv.account_id,
              rv.account_currency,
              rv.asset_id,
@@ -2161,7 +2111,7 @@ WITH canonical_fx AS (
              SUM(rv.cost_basis_in_base_currency) AS cost_basis_in_base_currency,
              SUM(rv.market_value_in_base_currency) AS market_value_in_base_currency
          FROM row_values rv
-         GROUP BY rv.portfolio_id, rv.portfolio_base_currency, rv.account_id, rv.account_currency, rv.asset_id
+         GROUP BY rv.portfolio_id, rv.base_currency, rv.account_id, rv.account_currency, rv.asset_id
      ),
      issue_counts AS (
          SELECT
@@ -2216,129 +2166,6 @@ FROM (
                             ON ic.account_id = rollup.account_id
                                 AND ic.asset_id = rollup.asset_id
      ) r;
-
-/* Reporting materialized views are defined once below, after currency repair runs.
-CREATE MATERIALIZED VIEW investory.portfolio_asset_allocation AS
-SELECT
-    v.portfolio_id,
-    v.base_currency,
-    v.asset_id,
-    asset.symbol AS asset_symbol,
-    SUM(v.volume) AS total_volume,
-    SUM(v.cost_basis_in_base_currency) AS cost_basis_in_base_currency,
-    SUM(v.market_value_in_base_currency) AS total_value_in_base_currency,
-    SUM(v.unrealized_pl_in_base_currency) AS unrealized_pl_in_base_currency,
-    NOW() AS updated_at
-FROM investory.v_open_position_values v
-JOIN investory.assets asset
-    ON asset.id = v.asset_id
-GROUP BY v.portfolio_id, v.base_currency, v.asset_id
-       , asset.symbol
-WITH DATA;
-
-CREATE UNIQUE INDEX ux_mv_portfolio_asset_allocation_key
-    ON investory.portfolio_asset_allocation(portfolio_id, asset_id);
-
-CREATE MATERIALIZED VIEW investory.symbol_performance AS
-WITH latest_positions AS (
-    SELECT
-        v.portfolio_id,
-        v.asset_id,
-        SUM(v.unrealized_pl_in_base_currency) AS unrealized_profit,
-        SUM(v.cost_basis_in_base_currency) AS cost_basis,
-        SUM(v.market_value_in_base_currency) AS market_value,
-        SUM(v.volume) AS total_volume
-    FROM investory.v_open_position_values v
-    GROUP BY v.portfolio_id, v.asset_id
-),
-closed_position_components AS (
-    SELECT
-        a.portfolio_id,
-        asset.id AS asset_id,
-        p.profit_currency::varchar(3) AS source_currency,
-        pf.base_currency::varchar(3) AS base_currency,
-        p.close_time::date AS valuation_date,
-        COALESCE(p.profit, 0) + COALESCE(p.swap, 0) AS amount_native
-    FROM investory.positions p
-    JOIN investory.accounts a
-        ON a.id = p.account_id
-    JOIN investory.portfolios pf
-        ON pf.id = a.portfolio_id
-    JOIN investory.assets asset
-        ON asset.id = p.asset_id
-    WHERE p.close_time IS NOT NULL
-      AND p.asset_id IS NOT NULL
-    GROUP BY a.portfolio_id, asset.id, p.profit_currency, pf.base_currency, date_trunc('month', p.close_time)::date
-),
-closed_positions AS (
-    SELECT
-        cpr.portfolio_id,
-        cpr.asset_id,
-        SUM(
-            CASE
-                WHEN cpr.position_currency = cpr.base_currency THEN cpr.closed_profit_native
-                WHEN direct.rate IS NOT NULL AND direct.rate <> 0 THEN cpr.closed_profit_native / direct.rate
-                WHEN inverse.rate IS NOT NULL THEN cpr.closed_profit_native * inverse.rate
-                ELSE NULL::numeric
-            END
-        ) AS closed_profit
-    FROM closed_positions_raw cpr
-    LEFT JOIN investory.exchange_rates direct
-        ON direct.month = cpr.rate_month
-       AND direct.base::varchar(3) = cpr.base_currency
-       AND direct.to_currency::varchar(3) = cpr.position_currency
-    LEFT JOIN investory.exchange_rates inverse
-        ON inverse.month = cpr.rate_month
-       AND inverse.base::varchar(3) = cpr.position_currency
-       AND inverse.to_currency::varchar(3) = cpr.base_currency
-    GROUP BY cpr.portfolio_id, cpr.asset_id
-),
-cash_dividends AS (
-    SELECT
-        a.portfolio_id,
-        asset.id AS asset_id,
-        SUM(CASE WHEN nco.normalized_category IN ('DIVIDEND', 'DIVIDEND_REVERSAL')
-            THEN nco.amount_in_portfolio_base_currency ELSE 0 END) AS dividends,
-        SUM(CASE WHEN nco.normalized_category IN ('WITHHOLDING_TAX', 'WITHHOLDING_TAX_REVERSAL')
-            THEN -nco.amount_in_portfolio_base_currency ELSE 0 END) AS withholding_tax
-    FROM investory.normalized_cash_operations nco
-    JOIN investory.accounts a
-        ON a.id = nco.account_id
-    JOIN investory.assets asset
-        ON asset.id = nco.asset_id
-    WHERE nco.asset_id IS NOT NULL
-    GROUP BY a.portfolio_id, asset.id
-)
-SELECT
-    COALESCE(lp.portfolio_id, cp.portfolio_id, cd.portfolio_id) AS portfolio_id,
-    COALESCE(lp.asset_id, cp.asset_id, cd.asset_id) AS asset_id,
-    asset.symbol AS symbol,
-    COALESCE(cp.closed_profit, 0) AS closed_profit,
-    COALESCE(lp.unrealized_profit, 0) AS unrealized_profit,
-    COALESCE(cp.closed_profit, 0)
-        + COALESCE(lp.unrealized_profit, 0)
-        + COALESCE(cd.dividends, 0)
-        - COALESCE(cd.withholding_tax, 0) AS total_profit,
-    COALESCE(cd.dividends, 0) AS dividends,
-    COALESCE(cd.withholding_tax, 0) AS withholding_tax,
-    COALESCE(lp.total_volume, 0) AS total_volume,
-    COALESCE(lp.cost_basis, 0) AS cost_basis,
-    COALESCE(lp.market_value, 0) AS market_value,
-    NOW() AS updated_at
-FROM latest_positions lp
-FULL OUTER JOIN closed_positions cp
-    ON cp.portfolio_id = lp.portfolio_id
-   AND cp.asset_id = lp.asset_id
-FULL OUTER JOIN cash_dividends cd
-    ON cd.portfolio_id = COALESCE(lp.portfolio_id, cp.portfolio_id)
-   AND cd.asset_id = COALESCE(lp.asset_id, cp.asset_id)
-JOIN investory.assets asset
-    ON asset.id = COALESCE(lp.asset_id, cp.asset_id, cd.asset_id)
-WITH DATA;
-
-CREATE UNIQUE INDEX ux_mv_symbol_performance_key
-    ON investory.symbol_performance(portfolio_id, asset_id);
-*/
 
 CREATE OR REPLACE VIEW investory.reporting_account_daily_cashflow_reconciliation AS
 WITH ledger_daily AS (
@@ -4016,6 +3843,8 @@ SELECT
     v.asset_id,
     v.asset_symbol,
     SUM(v.volume) AS total_volume,
+    CASE WHEN COUNT(DISTINCT v.market_currency) = 1 THEN MIN(v.market_price) END AS market_price,
+    CASE WHEN COUNT(DISTINCT v.market_currency) = 1 THEN MIN(v.market_currency) END AS market_price_currency,
     CASE WHEN COUNT(*) FILTER (WHERE NOT v.fx_rate_available) > 0 THEN NULL::numeric
          ELSE SUM(v.cost_basis_in_base_currency) END AS cost_basis_in_base_currency,
     CASE WHEN COUNT(*) FILTER (WHERE NOT v.fx_rate_available) > 0 THEN NULL::numeric

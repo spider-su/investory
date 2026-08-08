@@ -113,10 +113,21 @@ CREATE TABLE IF NOT EXISTS investory.assets(
     price_updated_at timestamptz
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_assets_symbol ON investory.assets(symbol);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_assets_ibkr ON investory.assets(ibkr);
 COMMENT ON TABLE investory.assets IS 'Stocks and ETFs as element of portfolio';
 COMMENT ON COLUMN investory.assets.symbol IS 'Symbol used in the broker system, e.g. "AAPL.US" for Apple Inc. stock or "SPY.US" for SPDR S&P 500 ETF';
 COMMENT ON COLUMN investory.assets.ibkr IS 'IBKR identifier for the asset';
 COMMENT ON COLUMN investory.assets.yahoo IS 'Yahoo Finance identifier for the asset';
+COMMENT ON COLUMN investory.assets.currency IS
+    'Canonical native quote currency of assets.market_price. Historical rows retain their own observed price_currency and are converted directly from that currency during valuation.';
+COMMENT ON COLUMN investory.assets.ibkr IS
+    'Primary IBKR contract or symbol used by transaction import identity resolution. Each nonblank identifier resolves to one canonical asset; it is not a generalized price-provider mapping.';
+COMMENT ON COLUMN investory.assets.yahoo IS
+    'Preferred Yahoo/export symbol. It is not a generalized price-provider mapping.';
+COMMENT ON COLUMN investory.assets.market_price IS
+    'Explicit current native quote fallback in assets.currency. Reporting prefers v_current_asset_price historical observations when available.';
+COMMENT ON COLUMN investory.assets.market_price_usd IS
+    'Legacy USD cache for UI/export compatibility. It is not an authoritative valuation input; reporting converts the selected native price exactly once.';
 COMMENT ON COLUMN investory.assets.country IS 'Country used in the broker system, e.g. "US" for United States or "PL" for Poland';
 COMMENT ON COLUMN investory.assets.exclude_from_import IS
     'When true, exclude this asset from external market-price imports while retaining the asset and its positions.';
@@ -133,6 +144,7 @@ COMMENT ON COLUMN investory.assets.figi IS
 ALTER SEQUENCE IF EXISTS investory.assets_id_seq INCREMENT BY 50;
 
 CREATE TABLE IF NOT EXISTS investory.asset_source_symbols (
+    id                        bigserial PRIMARY KEY,
     asset_id                  bigint NOT NULL REFERENCES investory.assets(id) ON DELETE CASCADE,
     source                    varchar(32) NOT NULL,
     source_symbol             varchar(64) NOT NULL,
@@ -160,26 +172,32 @@ CREATE TABLE IF NOT EXISTS investory.asset_source_symbols (
     scale_dispersion          numeric(20,8),
     manual_approval_status    varchar(32) NOT NULL DEFAULT 'UNREVIEWED',
     substitution_reason       varchar(511),
-    PRIMARY KEY (asset_id, source, source_symbol),
+    CONSTRAINT uq_asset_source_symbols_asset_source_symbol UNIQUE (asset_id, source, source_symbol),
+    CONSTRAINT chk_asset_source_symbols_source_code
+        CHECK (source ~ '^[A-Z][A-Z0-9_]{0,31}$'),
+    CONSTRAINT chk_asset_source_symbols_source_symbol_not_blank
+        CHECK (btrim(source_symbol) <> ''),
     CONSTRAINT chk_asset_source_symbols_price_scale_factor_positive
         CHECK (price_scale_factor > 0),
     CONSTRAINT chk_asset_source_symbols_scale_observation_count_non_negative
         CHECK (scale_observation_count IS NULL OR scale_observation_count >= 0)
 );
-CREATE INDEX IF NOT EXISTS ix_asset_source_symbols_source_symbol ON investory.asset_source_symbols(source, source_symbol);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_asset_source_symbols_source_symbol_ci
+    ON investory.asset_source_symbols(source, upper(source_symbol));
 COMMENT ON TABLE investory.asset_source_symbols IS 'Explicit deterministic mapping between internal assets and provider/source symbols used for historical price imports.';
 COMMENT ON COLUMN investory.asset_source_symbols.source_symbol IS 'Provider-native symbol, for example STOOQ aapl.us or cdr.pl.';
-COMMENT ON COLUMN investory.asset_source_symbols.price_currency IS 'Currency/unit used by the provider price file.';
+COMMENT ON COLUMN investory.asset_source_symbols.price_currency IS 'Expected raw provider quote currency before any source-specific normalization. asset_price_history.price_currency records the currency of the stored valuation row.';
 COMMENT ON COLUMN investory.asset_source_symbols.match_method IS 'How the provider symbol was selected, for example EXACT_SYMBOL or MANUAL_ALTERNATE_LISTING.';
 COMMENT ON COLUMN investory.asset_source_symbols.match_status IS 'Validation status of the provider symbol mapping.';
 COMMENT ON COLUMN investory.asset_source_symbols.is_alternate_listing IS 'True when provider data is a reviewed alternate listing proxy rather than exact exchange history.';
-COMMENT ON COLUMN investory.asset_source_symbols.requires_fx_conversion IS 'True when provider price currency differs from the imported asset/listing currency and valuation must use FX for the valuation date.';
+COMMENT ON COLUMN investory.asset_source_symbols.requires_fx_conversion IS 'True when this mapping intentionally supplies a quote in a currency different from assets.currency. Valuation always converts the selected row price_currency directly to its target.';
 
 CREATE TABLE IF NOT EXISTS investory.asset_price_history (
     asset_id                 bigint NOT NULL REFERENCES investory.assets(id) ON DELETE CASCADE,
     price_date               date NOT NULL,
     source                   varchar(32) NOT NULL,
     source_symbol            varchar(64) NOT NULL,
+    source_mapping_id        bigint REFERENCES investory.asset_source_symbols(id) ON DELETE RESTRICT,
     price_origin             varchar(32) NOT NULL,
     price_currency           varchar(3) NOT NULL REFERENCES investory.currencies(id),
     open_price               numeric(20,8),
@@ -203,6 +221,14 @@ CREATE TABLE IF NOT EXISTS investory.asset_price_history (
     scale_reason             varchar(255),
     original_source_symbol   varchar(64),
     PRIMARY KEY (asset_id, price_date, source),
+    CONSTRAINT chk_asset_price_history_source_code
+        CHECK (source ~ '^[A-Z][A-Z0-9_]{0,31}$'),
+    CONSTRAINT chk_asset_price_history_source_symbol_not_blank
+        CHECK (btrim(source_symbol) <> ''),
+    CONSTRAINT chk_asset_price_history_price_origin_code
+        CHECK (price_origin ~ '^[A-Z][A-Z0-9_]{0,31}$'),
+    CONSTRAINT chk_asset_price_history_quality_class_code
+        CHECK (quality_class ~ '^[A-Z][A-Z0-9_]{0,63}$'),
     CONSTRAINT chk_asset_price_history_close_positive
         CHECK (close_price > 0),
     CONSTRAINT chk_asset_price_history_quality_score_range
@@ -252,6 +278,9 @@ CREATE INDEX IF NOT EXISTS ix_asset_price_history_date
     ON investory.asset_price_history(price_date);
 CREATE INDEX IF NOT EXISTS ix_asset_price_history_source_symbol
     ON investory.asset_price_history(source, source_symbol);
+CREATE INDEX IF NOT EXISTS ix_asset_price_history_source_mapping
+    ON investory.asset_price_history(source_mapping_id)
+    WHERE source_mapping_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS ix_asset_price_history_estimated
     ON investory.asset_price_history(asset_id, price_date)
     WHERE estimated;
@@ -259,12 +288,56 @@ CREATE INDEX IF NOT EXISTS ix_asset_price_history_quality
     ON investory.asset_price_history(asset_id, price_date, quality_score DESC);
 COMMENT ON TABLE investory.asset_price_history IS 'Historical asset prices with explicit source provenance. Observed rows and interpolated estimates are intentionally stored separately.';
 COMMENT ON COLUMN investory.asset_price_history.source IS 'Price source namespace such as STOOQ or XTB.';
+COMMENT ON COLUMN investory.asset_price_history.source_mapping_id IS 'Approved asset_source_symbols mapping used for this row when one exists. Unmapped manual/import rows remain explicit and nullable.';
 COMMENT ON COLUMN investory.asset_price_history.price_origin IS 'Specific origin/provenance of the row. Interpolated rows are never represented as observed market data.';
 COMMENT ON COLUMN investory.asset_price_history.estimated IS 'True only for generated estimates between two observed XTB trade-price checkpoints.';
 COMMENT ON COLUMN investory.asset_price_history.adjusted_close_price IS 'Provider adjusted close when available. Stooq daily files in this import do not provide a separate adjusted close, so this is usually null.';
 COMMENT ON COLUMN investory.asset_price_history.quality_score IS 'Relative source quality. Higher values should win over lower-quality generated rows.';
 COMMENT ON COLUMN investory.asset_price_history.quality_class IS 'Quality/provenance class such as EXACT_LISTING_MARKET_CLOSE, EXACT_LISTING_SCALED, XTB_TRADE_OBSERVATION, or INTERPOLATED_XTB.';
-COMMENT ON COLUMN investory.asset_price_history.price_scale_factor IS 'Scale applied to provider prices before writing close/open/high/low values.';
+COMMENT ON COLUMN investory.asset_price_history.price_scale_factor IS 'Multiplier applied once by canonical price-selection views before valuation.';
+
+CREATE OR REPLACE FUNCTION investory.bind_asset_price_history_source_mapping()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    resolved_mapping_id bigint;
+BEGIN
+    SELECT ass.id
+    INTO resolved_mapping_id
+    FROM investory.asset_source_symbols ass
+    WHERE ass.asset_id = NEW.asset_id
+      AND ass.source = NEW.source
+      AND upper(ass.source_symbol) = upper(NEW.source_symbol);
+
+    IF resolved_mapping_id IS NOT NULL THEN
+        IF NEW.source_mapping_id IS NULL THEN
+            NEW.source_mapping_id := resolved_mapping_id;
+        ELSIF NEW.source_mapping_id <> resolved_mapping_id THEN
+            RAISE EXCEPTION 'asset price source mapping % does not match asset %, source %, symbol %',
+                NEW.source_mapping_id, NEW.asset_id, NEW.source, NEW.source_symbol;
+        END IF;
+    ELSIF NEW.source_mapping_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1
+        FROM investory.asset_source_symbols ass
+        WHERE ass.id = NEW.source_mapping_id
+          AND ass.asset_id = NEW.asset_id
+          AND ass.source = NEW.source
+          AND upper(ass.source_symbol) = upper(NEW.source_symbol)
+    ) THEN
+        RAISE EXCEPTION 'asset price source mapping % does not match asset %, source %, symbol %',
+            NEW.source_mapping_id, NEW.asset_id, NEW.source, NEW.source_symbol;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_asset_price_history_bind_source_mapping
+BEFORE INSERT OR UPDATE OF asset_id, source, source_symbol, source_mapping_id
+ON investory.asset_price_history
+FOR EACH ROW
+EXECUTE FUNCTION investory.bind_asset_price_history_source_mapping();
 
 -- Summary tables - the main operation tables for portfolio management and reporting, used for calculations and analysis
 CREATE TABLE IF NOT EXISTS investory.exchange_rates (
@@ -421,6 +494,8 @@ CREATE TABLE IF NOT EXISTS investory.positions (
     swap            numeric(20,8),
     profit          numeric(20,8),
     CONSTRAINT chk_positions_volume_non_negative CHECK (volume >= 0),
+    CONSTRAINT chk_positions_source_row_occurrence_one_based
+        CHECK (source_row_occurrence >= 1),
     CONSTRAINT chk_positions_open_price_non_negative CHECK (open_price >= 0),
     CONSTRAINT chk_positions_close_price_non_negative
         CHECK (close_price IS NULL OR close_price >= 0),
@@ -533,7 +608,11 @@ CREATE TABLE IF NOT EXISTS investory.benchmark_monthly_closes (
     symbol          varchar(32) NOT NULL,
     month           date NOT NULL,
     close_price     numeric(20,8) NOT NULL,
-    fetched_at      timestamptz NOT NULL DEFAULT now()
+    fetched_at      timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT chk_benchmark_monthly_closes_month_first_day
+        CHECK (month = date_trunc('month', month)::date),
+    CONSTRAINT chk_benchmark_monthly_closes_close_price_positive
+        CHECK (close_price > 0)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_benchmark_monthly_closes_symbol_month
     ON investory.benchmark_monthly_closes(symbol, month);

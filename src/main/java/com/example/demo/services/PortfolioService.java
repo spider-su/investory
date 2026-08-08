@@ -616,11 +616,6 @@ public class PortfolioService {
         allocations.stream()
             .mapToDouble(allocation -> nz(allocation.getTotalValueInBaseCurrency()))
             .sum();
-    Map<String, Asset> assetsBySymbol =
-        assetRepository.findAll().stream()
-            .filter(asset -> asset.getSymbol() != null)
-            .collect(Collectors.toMap(Asset::getSymbol, asset -> asset, (left, ignored) -> left));
-
     return allocations.stream()
         .filter(allocation -> Math.abs(nz(allocation.getTotalValueInBaseCurrency())) > 0.005)
         .sorted(
@@ -630,16 +625,6 @@ public class PortfolioService {
                 .reversed())
         .map(
             allocation -> {
-              Asset asset = assetsBySymbol.get(allocation.getAssetSymbol());
-              CurrencyType marketPriceCurrency =
-                  assetQuoteCurrency(asset, allocation.getAssetSymbol());
-              double marketPrice =
-                  asset != null && asset.getMarketPrice() != null
-                      ? asset.getMarketPrice()
-                      : (nz(allocation.getTotalVolume()) > 0.005
-                          ? nz(allocation.getTotalValueInBaseCurrency())
-                              / nz(allocation.getTotalVolume())
-                          : 0.0);
               return new OpenPositionValue(
                   allocation.getAssetSymbol(),
                   nz(allocation.getTotalVolume()),
@@ -648,8 +633,8 @@ public class PortfolioService {
                       ? nz(allocation.getCostBasisInBaseCurrency())
                           / nz(allocation.getTotalVolume())
                       : 0.0,
-                  marketPrice,
-                  marketPriceCurrency,
+                  nz(allocation.getMarketPrice()),
+                  allocation.getMarketPriceCurrency(),
                   nz(allocation.getTotalValueInBaseCurrency()),
                   nz(allocation.getUnrealizedPlInBaseCurrency()),
                   positionProfitLossPercent(
@@ -869,27 +854,6 @@ public class PortfolioService {
             unrealized, positions.stream().mapToDouble(OpenPositionValue::getCostBase).sum()),
         baseCurrency,
         100.0);
-  }
-
-  private CurrencyType assetQuoteCurrency(Asset asset, String symbol) {
-    // Listing suffix is the final guard. Account/position currency may be PLN
-    // while a US quote stays USD, and imported asset metadata can be stale.
-    if (symbol != null && symbol.endsWith(".US")) {
-      return CurrencyType.USD;
-    }
-    if (symbol != null && symbol.endsWith(".PL")) {
-      return CurrencyType.PLN;
-    }
-    if (symbol != null && symbol.equals("REMX.UK")) {
-      return CurrencyType.USD;
-    }
-    if (symbol != null && symbol.endsWith(".DE")) {
-      return CurrencyType.EUR;
-    }
-    if (asset != null && asset.getCurrency() != null) {
-      return asset.getCurrency();
-    }
-    return CurrencyType.USD;
   }
 
   private Set<Long> cashOnlyAccountIds() {

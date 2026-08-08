@@ -38,6 +38,13 @@ public class PortfolioAssetAllocation {
   @Column(name = "total_volume")
   private Double totalVolume;
 
+  @Column(name = "market_price")
+  private Double marketPrice;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "market_price_currency")
+  private CurrencyType marketPriceCurrency;
+
   @Column(name = "cost_basis_in_base_currency")
   private Double costBasisInBaseCurrency;
 

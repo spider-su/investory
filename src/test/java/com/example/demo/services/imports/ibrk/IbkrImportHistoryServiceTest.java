@@ -520,7 +520,7 @@ class IbkrImportHistoryServiceTest {
                 service.importStatement(
                     new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null));
 
-    assertTrue(exception.getMessage().contains("Unknown or ambiguous IBKR asset symbol"));
+    assertTrue(exception.getMessage().contains("Unknown asset mapping"));
   }
 
   @Test

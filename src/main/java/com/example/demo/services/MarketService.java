@@ -257,8 +257,8 @@ public class MarketService {
           for (Asset asset : assets) {
             double marketPrice = normalizeMarketPrice(asset, quote.getClose());
             asset.setMarketPrice(marketPrice);
-            // If the asset currency matches base USD the usd price is the same;
-            // otherwise callers can convert; store raw quote price for now.
+            // Legacy UI/export cache only. Reporting selects price and currency from
+            // v_current_asset_price, then performs the one required FX conversion.
             asset.setMarketPriceUsd(marketPrice);
             asset.setPriceSource("TwelveData");
             asset.setPriceUpdatedAt(now);
