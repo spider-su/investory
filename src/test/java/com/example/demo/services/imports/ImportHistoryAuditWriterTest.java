@@ -29,6 +29,25 @@ class ImportHistoryAuditWriterTest {
   @InjectMocks private ImportBatchAuditWriter auditWriter;
 
   @Test
+  void findExistingAppliedBatch_ignoresNewerFailedAttempt() {
+    ImportHistory completed = new ImportHistory();
+    completed.setId(10L);
+    completed.setBroker(BrokerType.IBKR);
+    completed.setFileSha256("abc");
+    completed.setAttemptNo(1);
+    completed.setStatus(ImportBatchStatus.COMPLETED);
+
+    when(
+            importRepository.findFirstByBrokerAndFileSha256AndStatusOrderByAttemptNoDesc(
+                BrokerType.IBKR, "abc", ImportBatchStatus.COMPLETED))
+        .thenReturn(Optional.of(completed));
+
+    Optional<ImportHistory> result = auditWriter.findExistingAppliedBatch(BrokerType.IBKR, "abc");
+
+    assertEquals(Optional.of(completed), result);
+  }
+
+  @Test
   void startBatch_persistsReceivedRowWithMetadata() {
     when(importRepository.save(any(ImportHistory.class)))
         .thenAnswer(
@@ -64,7 +83,7 @@ class ImportHistoryAuditWriterTest {
     failed.setErrorMessage("old error");
     failed.setFinishedAt(java.time.ZonedDateTime.now());
 
-    when(importRepository.findFirstByBrokerAndFileSha256OrderByIdDesc(BrokerType.IBKR, "abc"))
+    when(importRepository.findFirstByBrokerAndFileSha256OrderByAttemptNoDesc(BrokerType.IBKR, "abc"))
         .thenReturn(Optional.of(failed));
     when(importRepository.save(any(ImportHistory.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
@@ -145,20 +164,26 @@ class ImportHistoryAuditWriterTest {
     original.setFileSha256("a".repeat(64));
     original.setSourceType(ImportSourceType.MANUAL);
     original.setAttemptNo(1);
+    ImportHistory failed = new ImportHistory();
+    failed.setId(11L);
+    failed.setBroker(BrokerType.IBKR);
+    failed.setFileSha256(original.getFileSha256());
+    failed.setAttemptNo(2);
+    failed.setStatus(ImportBatchStatus.FAILED);
     when(importRepository.findFirstByBrokerAndFileSha256OrderByAttemptNoDesc(
             BrokerType.IBKR, original.getFileSha256()))
-        .thenReturn(Optional.of(original));
+        .thenReturn(Optional.of(failed));
     when(importRepository.save(any(ImportHistory.class)))
         .thenAnswer(invocation -> {
           ImportHistory saved = invocation.getArgument(0);
-          saved.setId(11L);
+          saved.setId(12L);
           return saved;
         });
 
     ImportHistory reprocess = auditWriter.startReprocessBatch(original);
 
-    assertEquals(11L, reprocess.getId());
-    assertEquals(2, reprocess.getAttemptNo());
+    assertEquals(12L, reprocess.getId());
+    assertEquals(3, reprocess.getAttemptNo());
     assertEquals(10L, reprocess.getReprocessOf());
     assertEquals(ImportBatchStatus.STARTED, reprocess.getStatus());
   }

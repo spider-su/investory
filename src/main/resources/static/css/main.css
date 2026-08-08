@@ -1658,6 +1658,21 @@ body.iv-modal-open { overflow: hidden; }
     column-gap: 26px;
 }
 
+/* Keep metric popovers above the navigation rail while open. */
+.iv-topbar {
+    position: relative;
+    z-index: 200;
+}
+
+.iv-header-rail {
+    position: relative;
+    z-index: 210;
+}
+
+.iv-topbar:has(#cash-flows[open]) {
+    z-index: 300;
+}
+
 .iv-topbar {
     align-items: start;
     padding-bottom: 12px;
@@ -2032,6 +2047,8 @@ body.iv-modal-open { overflow: hidden; }
 
 .iv-header-rail__accounts > .iv-balance-popover__trigger {
     display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
 }
 
 .iv-header-rail__quality > .iv-balance-popover__trigger {
@@ -2278,7 +2295,7 @@ body.iv-modal-open { overflow: hidden; }
     .iv-topbar-summary #investment-gain .iv-kpi__value {
         grid-area: value;
         margin: 0;
-        font-size: clamp(1.7rem, 2.35vw, 2.05rem);
+        font-size: 1.58rem;
         line-height: 1;
     }
 

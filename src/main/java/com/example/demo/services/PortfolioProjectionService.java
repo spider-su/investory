@@ -469,7 +469,7 @@ public class PortfolioProjectionService {
 
   private List<CanonicalNormalizedCashOperation> loadNormalizedCashOperations(
       Set<Long> affectedAccounts) {
-    return normalizedCashOperationRepository.findAllByAccountIdIn(affectedAccounts).stream()
+    return normalizedCashOperationRepository.findAllDetailedByAccountIdIn(affectedAccounts).stream()
         .map(
             row ->
                 new CanonicalNormalizedCashOperation(

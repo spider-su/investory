@@ -139,7 +139,7 @@ class PortfolioProjectionServiceTest {
                   .toList();
             });
     org.mockito.Mockito.lenient()
-        .when(normalizedCashOperationRepository.findAllByAccountIdIn(any()))
+        .when(normalizedCashOperationRepository.findAllDetailedByAccountIdIn(any()))
         .thenAnswer(
             invocation -> {
               @SuppressWarnings("unchecked")

@@ -33,8 +33,8 @@ public class ImportBatchAuditWriter {
   @Transactional(readOnly = true)
   public Optional<ImportHistory> findExistingAppliedBatch(BrokerType broker, String sha256) {
     return importRepository
-        .findFirstByBrokerAndFileSha256OrderByIdDesc(broker, sha256)
-        .filter(batch -> batch.getStatus() == ImportBatchStatus.COMPLETED);
+        .findFirstByBrokerAndFileSha256AndStatusOrderByAttemptNoDesc(
+            broker, sha256, ImportBatchStatus.COMPLETED);
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -45,7 +45,7 @@ public class ImportBatchAuditWriter {
       String fileName,
       String sha256) {
     Optional<ImportHistory> existing =
-        importRepository.findFirstByBrokerAndFileSha256OrderByIdDesc(broker, sha256);
+        importRepository.findFirstByBrokerAndFileSha256OrderByAttemptNoDesc(broker, sha256);
     ImportHistory batch = new ImportHistory();
     batch.setBroker(broker);
     batch.setSourceType(sourceType);

@@ -381,6 +381,31 @@ class SchemaMigrationCheckpoint2Test {
   }
 
   @Test
+  void priceHistoryContractDiagnosticsAreEmptyAfterSeedRepair() throws Exception {
+    try (Connection connection = openConnection();
+        Statement statement = connection.createStatement()) {
+      assertEquals(
+          0,
+          singleInt(
+              statement,
+              "SELECT count(*) FROM investory.reporting_price_history_contract_issues"));
+      assertEquals(
+          "USD",
+          singleString(
+              statement,
+              """
+              SELECT price_currency
+              FROM investory.asset_price_history
+              WHERE asset_id = (SELECT id FROM investory.assets WHERE symbol = 'EMIM.UK')
+                AND source = 'STOOQ'
+                AND source_symbol = 'emim.uk'
+              ORDER BY price_date DESC
+              LIMIT 1
+              """));
+    }
+  }
+
+  @Test
   void advancesPortfolioSequencePastSeededIds() throws Exception {
     try (Connection connection = openConnection();
         Statement statement = connection.createStatement()) {

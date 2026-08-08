@@ -151,6 +151,76 @@ class ValuationInputContractTest {
   }
 
   @Test
+  void emimGeneratorRowsUseNormalizedScaleMetadata() throws SQLException {
+    try (Connection connection = connection();
+        PreparedStatement statement =
+            connection.prepareStatement(
+                "SELECT ass.price_scale_factor, aph.price_scale_factor, aph.close_price, "
+                    + "aph.price_currency "
+                    + "FROM investory.asset_source_symbols ass "
+                    + "JOIN investory.asset_price_history aph "
+                    + "  ON aph.asset_id = ass.asset_id "
+                    + " AND aph.source = ass.source "
+                    + " AND lower(aph.source_symbol) = lower(ass.source_symbol) "
+                    + "WHERE ass.asset_id = (SELECT id FROM investory.assets WHERE symbol = 'EMIM.UK') "
+                    + "  AND ass.source = 'STOOQ' "
+                    + "  AND lower(ass.source_symbol) = 'emim.uk' "
+                    + "ORDER BY aph.price_date DESC LIMIT 1")) {
+      try (ResultSet result = statement.executeQuery()) {
+        assertTrue(result.next());
+        assertEquals(0, result.getBigDecimal("price_scale_factor").compareTo(new BigDecimal("0.01")));
+        assertEquals(0, result.getBigDecimal(2).compareTo(new BigDecimal("0.01")));
+        assertEquals(0, result.getBigDecimal("close_price").compareTo(new BigDecimal("2724")));
+        assertEquals("USD", result.getString("price_currency"));
+      }
+    }
+  }
+
+  @Test
+  void currentPriceAppliesScaleExactlyOnceForScaledAndUnscaledRows() throws SQLException {
+    try (Connection connection = connection();
+        Statement statement = connection.createStatement()) {
+      statement.execute(
+          "INSERT INTO investory.assets "
+              + "(name, symbol, ticker, ibkr, yahoo, country, currency, asset_type, market_price) VALUES "
+              + "('Scaled contract', 'SCALECONTRACT.US', 'SCALECONTRACT', 'SCALECONTRACT', 'SCALECONTRACT.US', "
+              + "'US', 'USD', 'EQUITY', 1), "
+              + "('Unscaled contract', 'UNSCALECONTRACT.US', 'UNSCALECONTRACT', 'UNSCALECONTRACT', 'UNSCALECONTRACT.US', "
+              + "'US', 'USD', 'EQUITY', 1)");
+      statement.execute(
+          "INSERT INTO investory.asset_source_symbols "
+              + "(asset_id, source, source_symbol, price_currency, price_scale_factor) "
+              + "SELECT id, 'TESTSCALE', lower(symbol), 'USD', "
+              + "CASE WHEN symbol = 'SCALECONTRACT.US' THEN 0.01 ELSE 1 END "
+              + "FROM investory.assets WHERE symbol IN ('SCALECONTRACT.US', 'UNSCALECONTRACT.US')");
+      statement.execute(
+          "INSERT INTO investory.asset_price_history "
+              + "(asset_id, price_date, source, source_symbol, price_origin, price_currency, close_price, "
+              + "estimated, quality_score, quality_class, is_observed, is_proxy, price_scale_factor) "
+              + "SELECT id, CURRENT_DATE, 'TESTSCALE', lower(symbol), 'MARKET_CLOSE', 'USD', "
+              + "CASE WHEN symbol = 'SCALECONTRACT.US' THEN 2724 ELSE 100 END, "
+              + "false, 100, 'EXACT_LISTING_MARKET_CLOSE', true, false, "
+              + "CASE WHEN symbol = 'SCALECONTRACT.US' THEN 0.01 ELSE 1 END "
+              + "FROM investory.assets WHERE symbol IN ('SCALECONTRACT.US', 'UNSCALECONTRACT.US')");
+
+      try (ResultSet result =
+          statement.executeQuery(
+              "SELECT a.symbol, p.selected_price "
+                  + "FROM investory.v_current_asset_price p "
+                  + "JOIN investory.assets a ON a.id = p.asset_id "
+                  + "WHERE a.symbol IN ('SCALECONTRACT.US', 'UNSCALECONTRACT.US') "
+                  + "ORDER BY a.symbol")) {
+        assertTrue(result.next());
+        assertEquals("SCALECONTRACT.US", result.getString("symbol"));
+        assertEquals(0, result.getBigDecimal("selected_price").compareTo(new BigDecimal("27.24")));
+        assertTrue(result.next());
+        assertEquals("UNSCALECONTRACT.US", result.getString("symbol"));
+        assertEquals(0, result.getBigDecimal("selected_price").compareTo(new BigDecimal("100")));
+      }
+    }
+  }
+
+  @Test
   void noDotCanonicalSymbolsDoNotUseUnjustifiedSecurityTaxonomy() throws SQLException {
     try (Connection connection = connection();
         PreparedStatement statement =

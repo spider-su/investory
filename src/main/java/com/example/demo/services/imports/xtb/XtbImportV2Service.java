@@ -848,9 +848,6 @@ public class XtbImportV2Service {
       CurrencyType positionCurrency,
       CurrencyType defaultCurrency,
       Map<String, CurrencyType> quoteCurrencyBySymbol) {
-    if (positionCurrency != null) {
-      return positionCurrency;
-    }
     if (StringUtils.hasText(symbol)) {
       CurrencyType quoteCurrency = quoteCurrencyBySymbol.get(symbol);
       if (quoteCurrency != null) {

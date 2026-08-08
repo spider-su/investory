@@ -132,6 +132,42 @@ class ImportHistoryOrchestratorServiceTest {
   }
 
   @Test
+  void importFile_reprocessesCompletedAttemptAfterNewerFailedAttempt() throws Exception {
+    ImportHistory completed = batch(77L, ImportBatchStatus.COMPLETED, "ok", 12, 12, 0);
+    completed.setAttemptNo(1);
+    ImportHistory failed = batch(78L, ImportBatchStatus.FAILED, "boom", 12, 0, 1);
+    failed.setAttemptNo(2);
+    ImportHistory reprocess = batch(79L, ImportBatchStatus.STARTED, null, 0, 0, 0);
+    reprocess.setAttemptNo(3);
+    reprocess.setReprocessOf(completed.getId());
+    ImportHistory applied = batch(79L, ImportBatchStatus.COMPLETED, "ok", 12, 12, 0);
+    applied.setAttemptNo(3);
+    applied.setReprocessOf(completed.getId());
+    when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
+        .thenReturn(Optional.of(completed));
+    when(auditWriter.startReprocessBatch(completed)).thenReturn(reprocess);
+    ImportExecutionResult result = new ImportExecutionResult(12, 12, 0, "ok");
+    when(xtbParser.importFile(any(), eq("file.xlsx"))).thenReturn(result);
+    when(auditWriter.finalizeApplied(79L, result)).thenReturn(applied);
+
+    ImportBatchResponse response =
+        importOrchestratorService.importFile(
+            BrokerType.XTB,
+            "same-file".getBytes(StandardCharsets.UTF_8),
+            "file.xlsx",
+            ImportSourceType.MANUAL,
+            null);
+
+    assertEquals(79L, response.batchId());
+    assertEquals(ImportBatchStatus.COMPLETED, response.status());
+    assertEquals(3, applied.getAttemptNo());
+    assertEquals(ImportBatchStatus.COMPLETED, completed.getStatus());
+    assertEquals(ImportBatchStatus.FAILED, failed.getStatus());
+    verify(auditWriter).startReprocessBatch(completed);
+    verify(auditWriter).finalizeApplied(79L, result);
+  }
+
+  @Test
   void importFile_reprocessesDuplicateXtbFileWithoutMutatingExistingBatch() throws Exception {
     ImportHistory existing = batch(77L, ImportBatchStatus.COMPLETED, "ok", 12, 12, 0);
     ImportHistory reprocess = batch(78L, ImportBatchStatus.STARTED, null, 0, 0, 0);

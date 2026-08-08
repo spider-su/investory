@@ -163,7 +163,7 @@ class DatabaseReportingContractTest {
 
       insertPrice(connection, usdAssetId, firstDate, "XTB_TRADE_OPEN", "USD", 100, 1, false);
       insertPrice(connection, eurAssetId, firstDate, "XTB_TRADE_OPEN", "EUR", 100, 1, false);
-      insertPrice(connection, scaledAssetId, firstDate, "XTB_TRADE_OPEN", "EUR", 100, 0.01, false);
+      insertPrice(connection, scaledAssetId, firstDate, "XTB_TRADE_OPEN", "EUR", 2724, 0.01, false);
       insertPrice(connection, baseAssetId, firstDate, "XTB_TRADE_OPEN", "USD", 100, 1, false);
       insertPrice(connection, transitionAssetId, firstDate, "XTB_TRADE_OPEN", "EUR", 100, 1, false);
       insertPrice(
@@ -219,7 +219,21 @@ class DatabaseReportingContractTest {
           assertValuation(
               values.get(eurAssetId).getFirst(), "EUR", 100, 1.165 * 3.955, 200 * 1.165 * 3.955);
           assertValuation(
-              values.get(scaledAssetId).getFirst(), "EUR", 1, 1.165 * 3.955, 2 * 1.165 * 3.955);
+              values.get(scaledAssetId).getFirst(), "EUR", 27.24, 1.165 * 3.955, 2 * 27.24 * 1.165 * 3.955);
+
+          try (PreparedStatement normalizedQuery =
+              connection.prepareStatement(
+                  "SELECT selected_price FROM investory.v_normalized_daily_price "
+                      + "WHERE asset_id = ? AND valuation_date = ?")) {
+            normalizedQuery.setLong(1, scaledAssetId);
+            normalizedQuery.setObject(2, firstDate);
+            try (ResultSet normalized = normalizedQuery.executeQuery()) {
+              assertTrue(normalized.next());
+              assertEquals(
+                  0,
+                  normalized.getBigDecimal("selected_price").compareTo(new BigDecimal("27.24")));
+            }
+          }
           assertValuation(values.get(baseAssetId).getFirst(), "USD", 100, 1, 200.0);
 
           List<Map<String, Object>> transitions = values.get(transitionAssetId);
