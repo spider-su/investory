@@ -97,8 +97,7 @@ public class PortfolioService {
         accountBalancesTotal(
             portfolio.getAccountBalances(),
             portfolio.getBaseCurrency(),
-            portfolio.getNetDeposits(),
-            portfolio.getTotalProfit()));
+            portfolio.getNetDeposits()));
     List<OpenPositionValue> openPositionValues = calculateOpenPositionValues();
     portfolio.setOpenPositionValues(openPositionValues);
     portfolio.setOpenPositionValuesTotal(
@@ -549,12 +548,11 @@ public class PortfolioService {
   private AccountBalance accountBalancesTotal(
       List<AccountBalance> accounts,
       CurrencyType baseCurrency,
-      double canonicalNetDeposit,
-      double canonicalProfit) {
+      double canonicalNetDeposit) {
     double balance = accounts.stream().mapToDouble(AccountBalance::getBalance).sum();
     double cash = accounts.stream().mapToDouble(AccountBalance::getCash).sum();
     double netDeposit = canonicalNetDeposit;
-    double profit = canonicalProfit;
+    double profit = balance - netDeposit;
     Double roi =
         Math.abs(netDeposit) >= ACCOUNT_VISIBILITY_MIN_VALUE
             ? (balance - netDeposit) / netDeposit * 100.0

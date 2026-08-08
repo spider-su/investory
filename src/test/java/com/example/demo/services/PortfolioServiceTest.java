@@ -407,7 +407,18 @@ class PortfolioServiceTest {
     assertEquals(7527.63, result.getAccountBalances().getFirst().getProfit(), 0.01);
     assertEquals(21670.90, result.getNetDeposits(), 0.01);
     assertEquals(21670.90, result.getAccountBalancesTotal().getNetDeposit(), 0.01);
-    assertEquals(0.0, result.getAccountBalancesTotal().getProfit(), 0.01);
+    assertEquals(8329.10, result.getAccountBalancesTotal().getProfit(), 0.01);
+    assertEquals(
+        result.getAccountBalancesTotal().getBalance()
+            - result.getAccountBalancesTotal().getNetDeposit(),
+        result.getAccountBalancesTotal().getProfit(),
+        0.01);
+    assertEquals(
+        result.getAccountBalancesTotal().getProfit()
+            / result.getAccountBalancesTotal().getNetDeposit()
+            * 100.0,
+        result.getAccountBalancesTotal().getProfitLossPercent(),
+        0.01);
   }
 
   @Test

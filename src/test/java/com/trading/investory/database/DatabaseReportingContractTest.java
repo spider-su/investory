@@ -560,6 +560,61 @@ class DatabaseReportingContractTest {
     }
   }
 
+  @Test
+  void scopedSubaccountTransfersCountOnlyTheDirectionalAccountEffect() throws SQLException {
+    try (Connection connection = connection()) {
+      connection.setAutoCommit(false);
+      try {
+        long targetNegative = insertSubaccountTransfer(connection, 51499241L, -801.47, "Transfer from 51993106 to 51499241");
+        long targetPositive = insertSubaccountTransfer(connection, 51499241L, 801.47, "Transfer from 51993106 to 51499241");
+        assertFlowSums(connection, targetNegative, targetPositive, 801.47, 0.0);
+
+        long sourceNegative = insertSubaccountTransfer(connection, 51993106L, -801.47, "Transfer from 51499241 to 51993106");
+        long sourcePositive = insertSubaccountTransfer(connection, 51993106L, 801.47, "Transfer from 51499241 to 51993106");
+        assertFlowSums(connection, sourceNegative, sourcePositive, -801.47, 0.0);
+      } finally {
+        connection.rollback();
+      }
+    }
+  }
+
+  private static long insertSubaccountTransfer(
+      Connection connection, long accountId, double amount, String comment) throws SQLException {
+    try (PreparedStatement statement =
+        connection.prepareStatement(
+            "INSERT INTO investory.cash_operations "
+                + "(account_id, operation, amount, currency, comment, date) "
+                + "VALUES (?, 'SUBACCOUNT_TRANSFER'::investory.cash_operation_type, ?, 'USD', ?, "
+                + "TIMESTAMPTZ '2026-01-31 12:00:00+00') RETURNING id")) {
+      statement.setLong(1, accountId);
+      statement.setDouble(2, amount);
+      statement.setString(3, comment);
+      try (ResultSet result = statement.executeQuery()) {
+        assertTrue(result.next());
+        return result.getLong(1);
+      }
+    }
+  }
+
+  private static void assertFlowSums(
+      Connection connection, long firstOperationId, long secondOperationId,
+      double expectedAccountFlow, double expectedPortfolioFlow) throws SQLException {
+    try (PreparedStatement statement =
+        connection.prepareStatement(
+            "SELECT COALESCE(SUM(account_flow_amount), 0), "
+                + "COALESCE(SUM(portfolio_flow_amount), 0) "
+                + "FROM investory.normalized_cash_operation_flows "
+                + "WHERE operation_id IN (?, ?)")) {
+      statement.setLong(1, firstOperationId);
+      statement.setLong(2, secondOperationId);
+      try (ResultSet result = statement.executeQuery()) {
+        assertTrue(result.next());
+        assertEquals(expectedAccountFlow, result.getBigDecimal(1).doubleValue(), 0.001);
+        assertEquals(expectedPortfolioFlow, result.getBigDecimal(2).doubleValue(), 0.001);
+      }
+    }
+  }
+
   private static BigDecimal canonicalAmount(String operation) {
     return switch (operation) {
       case "WITHDRAWAL",
