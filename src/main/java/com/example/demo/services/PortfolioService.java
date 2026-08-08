@@ -77,6 +77,7 @@ public class PortfolioService {
   private final SymbolPerformanceRepository symbolPerformanceRepository;
   private final TaxCalculator taxCalculator;
   private final CashFlowAggregator cashFlowAggregator;
+  private final CashOperationNormalizer cashOperationNormalizer;
   private final PortfolioProperties properties;
 
   private static double nz(Double value) {
@@ -93,7 +94,11 @@ public class PortfolioService {
     }
     portfolio.setAccountBalances(calculateAccountBalances(portfolio.getBaseCurrency()));
     portfolio.setAccountBalancesTotal(
-        accountBalancesTotal(portfolio.getAccountBalances(), portfolio.getBaseCurrency()));
+        accountBalancesTotal(
+            portfolio.getAccountBalances(),
+            portfolio.getBaseCurrency(),
+            portfolio.getNetDeposits(),
+            portfolio.getTotalProfit()));
     List<OpenPositionValue> openPositionValues = calculateOpenPositionValues();
     portfolio.setOpenPositionValues(openPositionValues);
     portfolio.setOpenPositionValuesTotal(
@@ -482,18 +487,15 @@ public class PortfolioService {
     List<AccountStatistics> stats = accountStatisticsRepository.findAll();
     Set<Long> cashOnlyAccounts = cashOnlyAccountIds();
     if (!CollectionUtils.isEmpty(stats)) {
-      Map<Long, AccountNetDeposit> netDepositsByAccount =
-          accountNetDeposits(
-              stats.stream()
-                  .map(AccountStatistics::getAccountId)
-                  .filter(Objects::nonNull)
-                  .collect(Collectors.toSet()));
       Map<Long, Account> accountsById =
           accountsById(
               stats.stream()
                   .map(AccountStatistics::getAccountId)
                   .filter(Objects::nonNull)
                   .collect(Collectors.toSet()));
+      Map<Long, AccountNetDeposit> netDepositsByAccount =
+          accountNetDeposits(
+              accountsById.keySet(), accountsById, baseCurrency);
       return stats.stream()
           .sorted(Comparator.comparing(AccountStatistics::getAccountId))
           .filter(stat -> !cashOnlyAccounts.contains(stat.getAccountId()))
@@ -545,12 +547,14 @@ public class PortfolioService {
   }
 
   private AccountBalance accountBalancesTotal(
-      List<AccountBalance> accounts, CurrencyType baseCurrency) {
-    double netDeposit =
-        accounts.stream().mapToDouble(account -> nz(account.getBaseNetDeposit())).sum();
+      List<AccountBalance> accounts,
+      CurrencyType baseCurrency,
+      double canonicalNetDeposit,
+      double canonicalProfit) {
     double balance = accounts.stream().mapToDouble(AccountBalance::getBalance).sum();
-    double profit = accounts.stream().mapToDouble(account -> nz(account.getProfit())).sum();
     double cash = accounts.stream().mapToDouble(AccountBalance::getCash).sum();
+    double netDeposit = canonicalNetDeposit;
+    double profit = canonicalProfit;
     Double roi =
         Math.abs(netDeposit) >= ACCOUNT_VISIBILITY_MIN_VALUE
             ? (balance - netDeposit) / netDeposit * 100.0
@@ -577,11 +581,13 @@ public class PortfolioService {
         || Math.abs(nz(stat.getNetDeposit())) >= ACCOUNT_VISIBILITY_MIN_VALUE;
   }
 
-  private Map<Long, AccountNetDeposit> accountNetDeposits(Collection<Long> accountIds) {
+  private Map<Long, AccountNetDeposit> accountNetDeposits(
+      Collection<Long> accountIds, Map<Long, Account> accountsById, CurrencyType baseCurrency) {
     if (CollectionUtils.isEmpty(accountIds)) {
       return Map.of();
     }
-    return normalizedCashOperationRepository.findAllByAccountIdIn(accountIds).stream()
+    Map<Long, AccountNetDeposit> deposits =
+        normalizedCashOperationRepository.findAllByAccountIdIn(accountIds).stream()
         .filter(row -> row.getAccountId() != null)
         .filter(row -> ACCOUNT_NET_DEPOSIT_CATEGORIES.contains(row.getNormalizedCategory()))
         .collect(
@@ -595,6 +601,22 @@ public class PortfolioService {
                             rows.stream()
                                 .mapToDouble(row -> nz(row.getAmountInBaseCurrency()))
                                 .sum()))));
+    Map<Long, Double> adjustments =
+        new XtbAccountFundingCalculator(cashOperationNormalizer)
+            .calculate(cashOperationRepository.findAllByAccountIn(accountIds), accountsById);
+    adjustments.forEach(
+        (accountId, adjustment) -> {
+          Account account = accountsById.get(accountId);
+          double baseAdjustment =
+              currencyRateService.convertToBaseCurrency(
+                  adjustment, baseCurrency, account.getCurrency(), LocalDate.now());
+          AccountNetDeposit current = deposits.getOrDefault(accountId, new AccountNetDeposit(0, 0));
+          deposits.put(
+              accountId,
+              new AccountNetDeposit(
+                  current.localAmount() + adjustment, current.baseAmount() + baseAdjustment));
+        });
+    return deposits;
   }
 
   private Double profitLossPercent(double balance, double netDeposit) {

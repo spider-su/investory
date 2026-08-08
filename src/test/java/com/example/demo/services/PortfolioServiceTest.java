@@ -102,6 +102,7 @@ class PortfolioServiceTest {
             symbolPerformanceRepository,
             taxCalculator,
             cashFlowAggregator,
+            new CashOperationNormalizer(),
             portfolioProperties);
     org.mockito.Mockito.lenient()
         .when(portfolioKpiSummaryRepository.findAll())
@@ -355,6 +356,61 @@ class PortfolioServiceTest {
   }
 
   @Test
+  void xtbUsdSubaccountTransferAdjustsAccountBasisNotPortfolioBasis() {
+    Account account = new Account();
+    account.setId(51499241L);
+    account.setName("XTB USD");
+    account.setProvider("XTB");
+    account.setCurrency(CurrencyType.USD);
+    when(portfolioKpiSummaryRepository.findAll())
+        .thenReturn(
+            List.of(
+                new PortfolioKpiSummary(
+                    1L,
+                    "Portfolio",
+                    CurrencyType.USD,
+                    21670.90,
+                    21670.90,
+                    30000.0,
+                    0.0,
+                    30000.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    ZonedDateTime.now())));
+    when(accountStatisticsRepository.findAll())
+        .thenReturn(
+            List.of(
+                PortfolioBuilders.accountStatistics()
+                    .account(new AccountDefinition(51499241L, "XTB USD", CurrencyType.USD, "XTB"))
+                    .netDeposits(21670.90, 21670.90)
+                    .balances(0.0, 30000.0, 30000.0)
+                    .build()));
+    when(accountRepository.findMapByIdIn(any())).thenReturn(Map.of(51499241L, account));
+    when(normalizedCashOperationRepository.findAllByAccountIdIn(any()))
+        .thenReturn(
+            List.of(
+                normalizedCashOperationRow(
+                    51499241L, "EXTERNAL_DEPOSIT", 21670.90, 21670.90)));
+    when(cashOperationRepository.findAllByAccountIn(any()))
+        .thenReturn(
+            List.of(
+                subaccountTransfer(1L, -801.47, "Transfer from 51993106 to 51499241"),
+                subaccountTransfer(2L, 801.47, "Transfer from 51993106 to 51499241")));
+    when(closedPositionRepository.findAll()).thenReturn(List.of());
+    when(cashOperationRepository.findAll()).thenReturn(List.of());
+
+    Portfolio result = portfolioService.calculateTotalProfitLoss();
+
+    assertEquals(22472.37, result.getAccountBalances().getFirst().getNetDeposit(), 0.01);
+    assertEquals(7527.63, result.getAccountBalances().getFirst().getProfit(), 0.01);
+    assertEquals(21670.90, result.getNetDeposits(), 0.01);
+    assertEquals(21670.90, result.getAccountBalancesTotal().getNetDeposit(), 0.01);
+    assertEquals(0.0, result.getAccountBalancesTotal().getProfit(), 0.01);
+  }
+
+  @Test
   void calculateTotalProfitLoss_usesNonThrowingFxLookupForExchangeRateBoard() {
     when(portfolioKpiSummaryRepository.findAll())
         .thenReturn(
@@ -389,6 +445,12 @@ class PortfolioServiceTest {
 
   private static NormalizedCashOperationRepository.NormalizedCashOperationRow
       normalizedCashOperationRow(String category, double amount, double amountInBaseCurrency) {
+    return normalizedCashOperationRow(51747407L, category, amount, amountInBaseCurrency);
+  }
+
+  private static NormalizedCashOperationRepository.NormalizedCashOperationRow
+      normalizedCashOperationRow(
+          Long accountId, String category, double amount, double amountInBaseCurrency) {
     return new NormalizedCashOperationRepository.NormalizedCashOperationRow() {
       @Override
       public Long getOperationId() {
@@ -397,7 +459,7 @@ class PortfolioServiceTest {
 
       @Override
       public Long getAccountId() {
-        return 51747407L;
+        return accountId;
       }
 
       @Override
@@ -1004,6 +1066,14 @@ class PortfolioServiceTest {
         .comment(comment)
         .on(PortfolioTestData.MID_YEAR)
         .build();
+  }
+
+  private static CashOperation subaccountTransfer(long id, double amount, String comment) {
+    CashOperation operation = cash(CashOperationType.SUBACCOUNT_TRANSFER, amount, comment);
+    operation.setId(id);
+    operation.setAccount(51499241L);
+    operation.setDate(ZonedDateTime.parse("2026-01-01T12:00:00Z").plusMinutes(id));
+    return operation;
   }
 
   private static CashOperation dividend() {

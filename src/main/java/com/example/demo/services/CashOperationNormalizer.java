@@ -415,12 +415,16 @@ public class CashOperationNormalizer {
       if (current.category != NormalizedCategory.INTERNAL_BOOKKEEPING) {
         continue;
       }
+      Optional<SubaccountTransferHint> hint =
+          parseSubaccountTransfer(current.operation.getComment());
       String key =
           current.operation.getAccount()
               + "|"
-              + roundedAbsAmount(current.operation.getAmount())
+              + hint.map(value -> value.sourceAccount() + "|" + value.targetAccount()).orElse("?")
               + "|"
-              + normalizedComment(current.operation.getComment());
+              + current.operation.getCurrency()
+              + "|"
+              + roundedAbsAmount(current.operation.getAmount());
       if (current.direction == EconomicDirection.OUTFLOW) {
         outflows.computeIfAbsent(key, ignored -> new ArrayDeque<>()).addLast(current);
         continue;
@@ -620,6 +624,19 @@ public class CashOperationNormalizer {
             Long.parseLong(matcher.group(1)), Long.parseLong(matcher.group(2))));
   }
 
+  public static Optional<SubaccountTransferHint> parseSubaccountTransfer(String comment) {
+    if (!StringUtils.hasText(comment)) {
+      return Optional.empty();
+    }
+    Matcher matcher = ACCOUNT_TO_ACCOUNT_TRANSFER_PATTERN.matcher(comment);
+    if (!matcher.find()) {
+      return Optional.empty();
+    }
+    return Optional.of(
+        new SubaccountTransferHint(
+            Long.parseLong(matcher.group(1)), Long.parseLong(matcher.group(2))));
+  }
+
   private static String normalizedComment(String comment) {
     return comment == null ? "" : comment.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
   }
@@ -656,6 +673,8 @@ public class CashOperationNormalizer {
   private record AccountTransferHint(EconomicDirection direction, long accountId) {}
 
   private record TransferBetweenAccountsHint(long sourceAccount, long targetAccount) {}
+
+  public record SubaccountTransferHint(long sourceAccount, long targetAccount) {}
 
   private record FxHint(
       String sourceCurrency,
