@@ -82,7 +82,7 @@ VALUES
     ('Broadcom Inc.', 'AVGO.US', 'AVGO', 'AVGO', 'AVGO.US', 'US', 'USD', 'EQUITY', true),
     ('Avery Dennison Corporation', 'AVY.US', 'AVY', 'AVY', 'AVY.US', 'US', 'USD', 'EQUITY', false),
     ('BARRICK MINING CORP Common Stock (ABR0)', 'B.US', 'B', 'GOLD', 'B.US', 'US', 'USD', 'EQUITY', false),
-    ('BAE Systems plc', 'BA.UK', 'BA', 'BA', 'BA.L', 'UK', 'USD', 'EQUITY', false),
+    ('BAE Systems plc', 'BA.US', 'BA', 'BA', 'BA.L', 'UK', 'USD', 'EQUITY', false),
     ('Alibaba Group Holding Limited SP ADR', 'BABA.US', 'BABA', 'BABA', 'BABA.US', 'US', 'USD', 'EQUITY', true),
     ('Bank of America Corporation', 'BAC.US', 'BAC', 'BAC', 'BAC.US', 'US', 'USD', 'EQUITY', false),
     ('Benefit Systems S.A.', 'BFT.PL', 'BFT', 'BFT', 'BFT.PL', 'PL', 'PLN', 'EQUITY', false),
