@@ -1,60 +1,12 @@
 /* Dashboard companion script. Only progressive-enhancement code that does not need Thymeleaf
    inlining belongs here (chart blocks stay in dashboard.html so they can read `${stats}`). */
 
-// Generic spinner for any classic page-submit form on the dashboard.
-document.addEventListener("DOMContentLoaded", function () {
-    const form = document.querySelector("form");
-    const content = document.getElementById("content");
-    const spinner = document.getElementById("spinner");
-
-    if (form && content && spinner) {
-        form.addEventListener("submit", function () {
-            content.classList.add("d-none");
-            spinner.classList.remove("d-none");
-        });
-    }
-});
-
-// Async XLSX/CSV uploader for the "Import statement" card.
-(function () {
-    var form = document.getElementById('iv-import-form');
-    if (!form) return;
-    var status = document.getElementById('iv-import-status');
-
-    form.addEventListener('submit', function (e) {
-        e.preventDefault();
-        var broker = document.getElementById('iv-import-broker').value;
-        var fileInput = document.getElementById('iv-import-file');
-        if (!fileInput.files || !fileInput.files[0]) {
-            status.textContent = 'Pick a file first.';
-            return;
-        }
-        var fd = new FormData();
-        fd.append('file', fileInput.files[0]);
-        status.textContent = 'Uploading...';
-
-        fetch('/import/broker/' + encodeURIComponent(broker), {
-            method: 'POST',
-            body: fd,
-            credentials: 'same-origin'
-        }).then(function (r) {
-            return r.json().then(function (body) { return { ok: r.ok, body: body }; })
-                .catch(function () { return { ok: r.ok, body: null }; });
-        }).then(function (res) {
-            if (!res.ok) {
-                status.textContent = 'Import failed.';
-                return;
-            }
-            var b = res.body || {};
-            status.textContent = (b.duplicate ? 'Already imported. ' : 'Imported. ')
-                + 'Rows ' + (b.rowsApplied || 0) + '/' + (b.rowsTotal || 0)
-                + (b.rowsFailed ? (', failed ' + b.rowsFailed) : '')
-                + ' (' + (b.status || '') + ')';
-        }).catch(function (err) {
-            status.textContent = 'Import error: ' + err;
-        });
-    });
-})();
+function setModalState(modal, open) {
+    if (!modal) return;
+    modal.style.display = open ? 'flex' : 'none';
+    modal.setAttribute('aria-hidden', String(!open));
+    document.body.classList.toggle('iv-modal-open', open);
+}
 
 const fileInput = document.getElementById('xtb-file-input');
 const uploadForm = document.getElementById('xtb-upload-form');
@@ -118,7 +70,7 @@ if (fileInput) {
                     }
 
                     // Reveal Modal overlay
-                    document.getElementById('status-modal').style.display = 'flex';
+                    setModalState(document.getElementById('status-modal'), true);
                 })
                 .catch(error => {
                     console.error('Error:', error);
@@ -282,7 +234,7 @@ if (fileInput) {
      }
 
      function closeManualPriceModal() {
-         modal.style.display = 'none';
+         setModalState(modal, false);
          status.textContent = '';
          averageOpenInput.value = '';
          priceInput.value = '';
@@ -294,7 +246,7 @@ if (fileInput) {
              averageOpenInput.value = formatPrice(button.getAttribute('data-average-open-price'));
              priceInput.value = '';
              status.textContent = '';
-             modal.style.display = 'flex';
+             setModalState(modal, true);
              window.setTimeout(function () { priceInput.focus(); }, 0);
          });
      });
@@ -346,7 +298,7 @@ if (fileInput) {
 
  // Modal Close Function helper
 window.closeModal = function() {
-    document.getElementById('status-modal').style.display = 'none';
+    setModalState(document.getElementById('status-modal'), false);
 };
 
 // Sort account and open-position popover rows without moving their total rows.
@@ -493,13 +445,6 @@ window.closeModal = function() {
         }
     })();
 
-    function setModalState(modal, open) {
-        if (!modal) return;
-        modal.style.display = open ? 'flex' : 'none';
-        modal.setAttribute('aria-hidden', String(!open));
-        document.body.classList.toggle('iv-modal-open', open);
-    }
-
     document.querySelectorAll('.iv-modal').forEach(function (modal) {
         modal.setAttribute('role', 'dialog');
         modal.setAttribute('aria-modal', 'true');
@@ -627,44 +572,3 @@ document.addEventListener('DOMContentLoaded', () => {
         reconciledTime.textContent = hours === 0 ? 'Last reconciled: just now' : `Last reconciled: ${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
     }
 });
-
-// Keep the section navigation docked in the header initially, then float it
-// at the top once its original slot scrolls out of view.
-(function () {
-    function wireFloatingSectionNav() {
-        const slot = document.querySelector('.iv-page-nav-slot');
-        const nav = slot && slot.querySelector('.iv-page-nav');
-        if (!slot || !nav) return;
-
-        function update() {
-            if (window.innerWidth <= 1200) {
-                nav.classList.remove('is-floating');
-                nav.style.left = '';
-                nav.style.width = '';
-                return;
-            }
-
-            const rect = slot.getBoundingClientRect();
-            const shouldFloat = rect.top <= 8;
-
-            nav.classList.toggle('is-floating', shouldFloat);
-            if (shouldFloat) {
-                nav.style.left = rect.left + 'px';
-                nav.style.width = rect.width + 'px';
-            } else {
-                nav.style.left = '';
-                nav.style.width = '';
-            }
-        }
-
-        window.addEventListener('scroll', update, { passive: true });
-        window.addEventListener('resize', update);
-        update();
-    }
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', wireFloatingSectionNav);
-    } else {
-        wireFloatingSectionNav();
-    }
-})();

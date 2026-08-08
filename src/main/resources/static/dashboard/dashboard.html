@@ -805,22 +805,6 @@
 <script th:inline="javascript">
     /*<![CDATA[*/
     /* global Chart */
-    const dataQualityDetails = document.getElementById('data-quality');
-    const headerRailRight = document.getElementById('iv-header-rail-right');
-    if (dataQualityDetails && headerRailRight) {
-        dataQualityDetails.classList.remove('iv-topbar-quality');
-        dataQualityDetails.classList.add('iv-header-rail__quality');
-        headerRailRight.appendChild(dataQualityDetails);
-    }
-
-    const accountBalanceDetails = document.getElementById('view-accounts');
-    const headerRailLeft = document.getElementById('iv-header-rail-left');
-    if (accountBalanceDetails && headerRailLeft) {
-        accountBalanceDetails.classList.remove('iv-brand-accounts');
-        accountBalanceDetails.classList.add('iv-header-rail__accounts');
-        headerRailLeft.appendChild(accountBalanceDetails);
-    }
-
     const monthlyPerformanceData = [[${stats.monthlyPerformance.calculateMonthlyPerformance}]];
     const monthlyLabels = Object.keys(monthlyPerformanceData);
     const monthlyData = Object.values(monthlyPerformanceData);
@@ -927,10 +911,24 @@
     const signedValue = value => (Number(value) >= 0 ? '+' : '') + Number(value || 0).toLocaleString(undefined, {maximumFractionDigits: 0});
     function renderTable(id, headers, rows) {
         const el = document.getElementById(id); if (!el) return;
-        el.innerHTML = '<table class="iv-table iv-chart-table__table"><thead><tr>'
-            + headers.map(h => '<th>' + h + '</th>').join('') + '</tr></thead><tbody>'
-            + rows.map(row => '<tr>' + row.map(value => '<td>' + value + '</td>').join('') + '</tr>').join('')
-            + '</tbody></table>';
+        const table = document.createElement('table');
+        table.className = 'iv-table iv-chart-table__table';
+        const thead = table.createTHead();
+        const headerRow = thead.insertRow();
+        headers.forEach(header => {
+            const cell = document.createElement('th');
+            cell.textContent = header;
+            headerRow.appendChild(cell);
+        });
+        const tbody = table.createTBody();
+        rows.forEach(row => {
+            const tableRow = tbody.insertRow();
+            row.forEach(value => {
+                const cell = tableRow.insertCell();
+                cell.textContent = value;
+            });
+        });
+        el.replaceChildren(table);
     }
     function enableKeyboardChart(chart, canvasId, activate) {
         const canvas = document.getElementById(canvasId); if (!canvas) return;
@@ -1148,9 +1146,7 @@
     }
 
     function effectiveAccountIds(selectedIds, allIds) {
-        return selectedIds.size === 0 || selectedIds.size === allIds.length
-            ? new Set(allIds)
-            : selectedIds;
+        return selectedIds.size === allIds.length ? new Set(allIds) : selectedIds;
     }
 
     function selectedAccountValueYear() {
@@ -1195,7 +1191,7 @@
 
         const effectiveIds = effectiveAccountIds(selectedIds, year.accountSeries.map(series => Number(series.id)));
         const selectedSeries = year.accountSeries.filter(series => effectiveIds.has(Number(series.id)));
-        const allAccountsShown = selectedIds.size === 0 || selectedIds.size === year.accountSeries.length;
+        const allAccountsShown = selectedIds.size === year.accountSeries.length;
         const total = allAccountsShown
             ? (mode === 'percent' ? (year.totalProfitPctValues || []) : (year.totalProfitValues || []))
             : (year.labels || []).map((_, index) => selectedSeries.reduce(
@@ -1246,17 +1242,26 @@
                 const response = await fetch('/dashboard/daily-attribution?date=' + encodeURIComponent(date) + '&accountIds=' + encodeURIComponent(ids));
                 const a = await response.json();
                 const money = value => signedUsdFormatter.format(Math.round(Number(value || 0))) + ' $';
-                panel.innerHTML = '<strong>' + a.date + ' · Daily P/L ' + money(a.dailyProfit) + '</strong>'
-                    + '<div>Daily return: ' + Number(a.dailyReturnPct || 0).toFixed(2) + '%</div>'
-                    + '<div>Opening equity: ' + money(a.openingEquity) + '</div>'
-                    + '<div>Closing equity: ' + money(a.closingEquity) + '</div>'
-                    + '<div>Deposits: ' + money(a.deposits) + ' · Withdrawals: -' + money(a.withdrawals) + '</div>'
-                    + '<div>Dividends: ' + money(a.dividends) + ' · Interest: ' + money(a.interest) + '</div>'
-                    + '<div>Fees: ' + money(a.fees) + ' · Taxes: ' + money(a.taxes) + '</div>'
-                    + '<div>Combined market/FX movement: ' + money(a.unresolvedResidual) + '</div>'
-                    + '<hr><strong>Accounts</strong>'
-                    + (a.accounts || []).map(row => '<div>' + row.accountId + ': ' + money(row.dailyProfit) + ' · flow ' + money(row.deposits - row.withdrawals) + '</div>').join('')
-                    + '<p class="iv-muted">' + a.attributionNote + '</p>';
+                panel.replaceChildren();
+                const appendLine = (tag, text) => {
+                    const element = document.createElement(tag);
+                    element.textContent = text;
+                    panel.appendChild(element);
+                };
+                appendLine('strong', a.date + ' · Daily P/L ' + money(a.dailyProfit));
+                appendLine('div', 'Daily return: ' + Number(a.dailyReturnPct || 0).toFixed(2) + '%');
+                appendLine('div', 'Opening equity: ' + money(a.openingEquity));
+                appendLine('div', 'Closing equity: ' + money(a.closingEquity));
+                appendLine('div', 'Deposits: ' + money(a.deposits) + ' · Withdrawals: -' + money(a.withdrawals));
+                appendLine('div', 'Dividends: ' + money(a.dividends) + ' · Interest: ' + money(a.interest));
+                appendLine('div', 'Fees: ' + money(a.fees) + ' · Taxes: ' + money(a.taxes));
+                appendLine('div', 'Combined market/FX movement: ' + money(a.unresolvedResidual));
+                appendLine('strong', 'Accounts');
+                (a.accounts || []).forEach(row => appendLine('div', row.accountId + ': ' + money(row.dailyProfit) + ' · flow ' + money(row.deposits - row.withdrawals)));
+                const note = document.createElement('p');
+                note.className = 'iv-muted';
+                note.textContent = a.attributionNote || '';
+                panel.appendChild(note);
             } catch (error) { panel.textContent = 'Daily attribution unavailable.'; }
         };
         accountValueChart.update();
@@ -1310,7 +1315,7 @@
             const key = mode === 'annual' ? year : mode === 'quarterly' ? year + '-Q' + Math.ceil(month / 3) : label;
             const attribution = monthlyAttributions[label];
             const rows = attribution?.accounts || [];
-            const partial = selectedIds && selectedIds.size > 0;
+            const partial = selectedIds !== null;
             const selectedRows = partial ? rows.filter(row => selectedIds.has(Number(row.accountId))) : rows;
             const value = partial
                 ? selectedRows.reduce((sum, row) => sum + Number(row.monthlyProfit || 0), 0)
@@ -1318,10 +1323,11 @@
             const flow = partial
                 ? selectedRows.reduce((sum, row) => sum + Number(row.netFlow || 0), 0)
                 : Number(monthlyCashflow[index] || 0);
-            const bucket = buckets.get(key) || { value: 0, count: 0, flow: 0 };
+            const bucket = buckets.get(key) || { value: 0, count: 0, flow: 0, sourceLabels: [] };
             bucket.value += value;
             bucket.count += partial ? new Set(selectedRows.map(row => row.accountId)).size : Number(monthlyCounts[index] || 0);
             bucket.flow += flow;
+            bucket.sourceLabels.push(label);
             buckets.set(key, bucket);
         });
         return { labels: [...buckets.keys()], values: [...buckets.values()] };
@@ -1342,6 +1348,8 @@
             monthlyChart.data.datasets[0].hoverBackgroundColor = values.map(val => val >= 0 ? '#15803d' : '#b91c1c');
             monthlyChart._periodCounts = counts;
             monthlyChart._periodFlows = flows;
+            monthlyChart._periodSourceLabels = grouped.values.map(row => row.sourceLabels);
+            monthlyChart._selectedAccountIds = selectedMonthlyIds.size === allMonthlyIds.length ? null : selectedMonthlyIds;
             monthlyChart.update();
             renderTable('monthly-table', ['Period', 'P/L USD'], grouped.labels.map((label, i) => [label, signedValue(values[i]) + ' USD']));
             return;
@@ -1407,29 +1415,54 @@
         });
         monthlyChart._periodCounts = counts;
         monthlyChart._periodFlows = flows;
+        monthlyChart._periodSourceLabels = grouped.values.map(row => row.sourceLabels);
+        monthlyChart._selectedAccountIds = selectedMonthlyIds.size === allMonthlyIds.length ? null : selectedMonthlyIds;
         monthlyChart.update();
         renderTable('monthly-table', ['Period', 'P/L USD'], grouped.labels.map((label, i) => [label, signedValue(values[i]) + ' USD']));
         monthlyChart.options.onClick = function (event, elements) {
             if (!elements.length) return;
             const label = monthlyChart.data.labels[elements[0].index];
-            const a = monthlyAttributions[label];
-            if (!a) return;
+            const sourceLabels = monthlyChart._periodSourceLabels?.[elements[0].index] || [label];
+            const attributions = sourceLabels.map(sourceLabel => monthlyAttributions[sourceLabel]).filter(Boolean);
+            if (!attributions.length) return;
             const money = value => signedUsdFormatter.format(Math.round(Number(value || 0))) + ' $';
-            const accountRows = (a.accounts || []).map(row => '<div>' + row.accountId + ': ' + money(row.monthlyProfit) + ' · flow ' + money(row.netFlow) + '</div>').join('');
-            document.getElementById('monthly-attribution-panel').innerHTML =
-                '<strong>' + label + ' · ' + money(a.totalProfit) + '</strong>'
-                + '<div>Opening equity: ' + money(a.openingEquity) + '</div>'
-                + '<div>Closing equity: ' + money(a.closingEquity) + '</div>'
-                + '<div>External deposits: ' + money(a.deposits) + '</div>'
-                + '<div>External withdrawals: -' + money(a.withdrawals) + '</div>'
-                + '<hr><div>Market and FX movement: ' + money(a.marketAndFxMovement) + '</div>'
-                + '<div>Realized trading result: ' + money(a.realizedTradingResult) + '</div>'
-                + '<div>Dividends: ' + money(a.dividends) + '</div>'
-                + '<div>Cash interest: ' + money(a.cashInterest) + '</div>'
-                + '<div>Fees: ' + money(a.fees) + '</div>'
-                + '<div>Taxes: ' + money(a.taxes) + '</div>'
-                + '<div>Unresolved residual: ' + money(a.unresolvedResidual) + '</div>'
-                + '<hr><strong>By account</strong>' + accountRows;
+            const selectedAccountIds = monthlyChart._selectedAccountIds;
+            const filteredAttributions = attributions.map(attribution => ({
+                ...attribution,
+                accounts: (attribution.accounts || []).filter(row =>
+                    selectedAccountIds === null || selectedAccountIds.has(Number(row.accountId)))
+            }));
+            const sum = field => filteredAttributions.reduce((total, attribution) => total + Number(attribution[field] || 0), 0);
+            const accountRows = new Map();
+            filteredAttributions.forEach(attribution => (attribution.accounts || []).forEach(row => {
+                const account = accountRows.get(row.accountId) || { profit: 0, flow: 0 };
+                account.profit += Number(row.monthlyProfit || 0);
+                account.flow += Number(row.netFlow || 0);
+                accountRows.set(row.accountId, account);
+            }));
+            const panel = document.getElementById('monthly-attribution-panel');
+            panel.replaceChildren();
+            const appendLine = (tag, text) => {
+                const element = document.createElement(tag);
+                element.textContent = text;
+                panel.appendChild(element);
+            };
+            appendLine('strong', label + ' · ' + money(monthlyChart.data.datasets[0].data[elements[0].index]));
+            if (selectedAccountIds === null) {
+                appendLine('div', 'Opening equity: ' + money(filteredAttributions[0].openingEquity));
+                appendLine('div', 'Closing equity: ' + money(filteredAttributions[filteredAttributions.length - 1].closingEquity));
+                appendLine('div', 'External deposits: ' + money(sum('deposits')));
+                appendLine('div', 'External withdrawals: -' + money(sum('withdrawals')));
+                appendLine('div', 'Market and FX movement: ' + money(sum('marketAndFxMovement')));
+                appendLine('div', 'Realized trading result: ' + money(sum('realizedTradingResult')));
+                appendLine('div', 'Dividends: ' + money(sum('dividends')));
+                appendLine('div', 'Cash interest: ' + money(sum('cashInterest')));
+                appendLine('div', 'Fees: ' + money(sum('fees')));
+                appendLine('div', 'Taxes: ' + money(sum('taxes')));
+                appendLine('div', 'Unresolved residual: ' + money(sum('unresolvedResidual')));
+            }
+            appendLine('strong', 'By account');
+            accountRows.forEach((account, accountId) => appendLine('div', accountId + ': ' + money(account.profit) + ' · flow ' + money(account.flow)));
             document.getElementById('monthly-attribution-details').open = true;
         };
     }
