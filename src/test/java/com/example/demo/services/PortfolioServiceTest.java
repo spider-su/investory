@@ -30,6 +30,7 @@ import com.example.demo.infrastructure.repository.portfolio.SymbolPerformance;
 import com.example.demo.infrastructure.repository.portfolio.SymbolPerformanceRepository;
 import com.example.demo.services.currency.CurrencyRateService;
 import com.example.demo.services.models.DividendGainer;
+import com.example.demo.services.models.AccountBalance;
 import com.example.demo.services.models.InstrumentPerformance;
 import com.example.demo.services.models.Performance;
 import com.example.demo.services.models.Portfolio;
@@ -419,6 +420,56 @@ class PortfolioServiceTest {
             * 100.0,
         result.getAccountBalancesTotal().getProfitLossPercent(),
         0.01);
+  }
+
+  @Test
+  void calculateTotalProfitLoss_derivesDashboardTotalProfitFromBalanceAndNetDeposit() {
+    Account account = new Account();
+    account.setId(51499241L);
+    account.setName("Trading USD");
+    account.setCurrency(CurrencyType.USD);
+    when(portfolioKpiSummaryRepository.findAll())
+        .thenReturn(
+            List.of(
+                new PortfolioKpiSummary(
+                    1L,
+                    "Portfolio",
+                    CurrencyType.USD,
+                    143694.0,
+                    143694.0,
+                    162745.0,
+                    0.0,
+                    162745.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    ZonedDateTime.now())));
+    when(accountStatisticsRepository.findAll())
+        .thenReturn(
+            List.of(
+                PortfolioBuilders.accountStatistics()
+                    .account(new AccountDefinition(51499241L, "Trading USD", CurrencyType.USD, "XTB"))
+                    .netDeposits(143694.0, 143694.0)
+                    .balances(0.0, 162745.0, 162745.0)
+                    .build()));
+    when(accountRepository.findMapByIdIn(any())).thenReturn(Map.of(51499241L, account));
+    when(closedPositionRepository.findAll()).thenReturn(List.of());
+    when(cashOperationRepository.findAllByAccountIn(any())).thenReturn(List.of());
+    when(cashOperationRepository.findAll()).thenReturn(List.of());
+
+    Portfolio result = portfolioService.calculateTotalProfitLoss();
+    AccountBalance total = result.getAccountBalancesTotal();
+
+    assertEquals(143694.0, total.getNetDeposit(), 0.01);
+    assertEquals(162745.0, total.getBalance(), 0.01);
+    assertEquals(19051.0, total.getProfit(), 0.01);
+    assertEquals(13.26, total.getProfitLossPercent(), 0.01);
+    assertEquals(total.getBalance() - total.getNetDeposit(), total.getProfit(), 0.01);
+    assertEquals(
+        total.getProfit() / total.getNetDeposit() * 100.0,
+        total.getProfitLossPercent(),
+        0.0001);
   }
 
   @Test

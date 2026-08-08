@@ -569,8 +569,8 @@ class DatabaseReportingContractTest {
         long targetPositive = insertSubaccountTransfer(connection, 51499241L, 801.47, "Transfer from 51993106 to 51499241");
         assertFlowSums(connection, targetNegative, targetPositive, 801.47, 0.0);
 
-        long sourceNegative = insertSubaccountTransfer(connection, 51993106L, -801.47, "Transfer from 51499241 to 51993106");
-        long sourcePositive = insertSubaccountTransfer(connection, 51993106L, 801.47, "Transfer from 51499241 to 51993106");
+        long sourceNegative = insertSubaccountTransfer(connection, 51499241L, -801.47, "Transfer from 51499241 to 51993106");
+        long sourcePositive = insertSubaccountTransfer(connection, 51499241L, 801.47, "Transfer from 51499241 to 51993106");
         assertFlowSums(connection, sourceNegative, sourcePositive, -801.47, 0.0);
       } finally {
         connection.rollback();
