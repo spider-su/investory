@@ -156,6 +156,7 @@ public class AssetCatalogService {
     return result;
   }
 
+  @Transactional(readOnly = true, noRollbackFor = IllegalArgumentException.class)
   public String mapIbkrSymbolToCanonical(String rawIbkrSymbol) {
     String ibkrSymbol = normalizeSymbol(rawIbkrSymbol);
     if (!StringUtils.hasText(ibkrSymbol)) {

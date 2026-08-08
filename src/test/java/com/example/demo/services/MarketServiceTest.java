@@ -244,6 +244,20 @@ class MarketServiceTest {
   }
 
   @Test
+  void updateStocksSkipsAssetsMarkedExcludedFromImportBeforeHttpCall() {
+    marketService = marketService(false, "");
+    Asset excluded = newAsset("AIGI.UK", "AIGI", true);
+    excluded.setExcludeFromImport(true);
+    when(assetRepository.findAll()).thenReturn(List.of(excluded));
+    when(openedPositionRepository.findAll()).thenReturn(List.of(openPosition("AIGI.UK")));
+
+    marketService.updateStocks();
+
+    verify(twelveDataService, never()).fetchStockQuotes(anyString());
+    verify(statisticsRefreshService).refreshAll();
+  }
+
+  @Test
   void updateStocks_continuesWhenFetchFailsAndLogsTheChunk() {
     Asset a = newAsset("A.US", "A", true);
     Asset b = newAsset("B.US", "B", true);

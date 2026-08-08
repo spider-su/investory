@@ -94,7 +94,11 @@ public class AssetPriceHistoryGapFillService {
                 source.getSymbol(),
                 source.getSymbol(),
                 source.getPriceCurrency(),
-                source.getClosePrice());
+                source.getClosePrice(),
+                source.getPriceScaleFactor() == null
+                    ? BigDecimal.ONE
+                    : source.getPriceScaleFactor(),
+                source.getQualityClass());
             inserted++;
           }
           day = day.plusDays(1);

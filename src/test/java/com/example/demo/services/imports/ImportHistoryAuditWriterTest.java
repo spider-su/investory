@@ -125,6 +125,24 @@ class ImportHistoryAuditWriterTest {
   }
 
   @Test
+  void finalizeFailed_setsTotalWhenParserFailsBeforeReturningCounters() {
+    ImportHistory existing = new ImportHistory();
+    existing.setId(9L);
+    existing.setRowsTotal(0);
+    existing.setRowsApplied(0);
+    existing.setRowsFailed(0);
+    when(importRepository.getById(9L)).thenReturn(existing);
+    when(importRepository.save(any(ImportHistory.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    ImportHistory failed = auditWriter.finalizeFailed(9L, "boom", null);
+
+    assertEquals(1, failed.getRowsTotal());
+    assertEquals(0, failed.getRowsApplied());
+    assertEquals(1, failed.getRowsFailed());
+  }
+
+  @Test
   void finalizeFailed_keepsShortPayloadInline() {
     ImportHistory existing = new ImportHistory();
     existing.setId(8L);

@@ -1229,6 +1229,14 @@ body.iv-modal-open { overflow: hidden; }
     *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
 .iv-page-nav a.is-active { color: var(--iv-primary); background: var(--iv-primary-soft); }
+.iv-report-page__content { width: min(100% - 32px, 1440px); margin: 0 auto; padding: 30px 0 56px; }
+.iv-report-page__subtitle { margin: 4px 0 0; color: var(--iv-text-muted); font-size: .82rem; }
+.iv-report-page__topbar { align-items: center; }
+.iv-report-metrics { margin-bottom: var(--iv-gutter); }
+.iv-report-card { margin-bottom: var(--iv-gutter); }
+.iv-report-table__sub { display: block; color: var(--iv-text-muted); font-size: .72rem; margin-top: 3px; }
+.iv-report-card .iv-table { min-width: 980px; }
+:root[data-theme="dark"] .iv-report-page__subtitle { color: var(--iv-text-soft); }
 
 
 /* Trust, localization and chart-causality enhancements */

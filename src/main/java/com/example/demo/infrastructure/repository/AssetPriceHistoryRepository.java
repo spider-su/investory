@@ -213,8 +213,8 @@ public interface AssetPriceHistoryRepository extends Repository<Asset, Long> {
               'STALE_CARRY_FORWARD',
               true,
               false,
-              1,
-              'Filled missing business-day gap from previous known price',
+              :priceScaleFactor,
+              :scaleReason,
               :originalSourceSymbol
           )
           on conflict (asset_id, price_date, source) do update
@@ -242,7 +242,9 @@ public interface AssetPriceHistoryRepository extends Repository<Asset, Long> {
       @Param("sourceSymbol") String sourceSymbol,
       @Param("originalSourceSymbol") String originalSourceSymbol,
       @Param("priceCurrency") String priceCurrency,
-      @Param("priceValue") BigDecimal priceValue);
+      @Param("priceValue") BigDecimal priceValue,
+      @Param("priceScaleFactor") BigDecimal priceScaleFactor,
+      @Param("scaleReason") String scaleReason);
 
   interface HistoricalAssetPriceRow {
     String getSymbol();

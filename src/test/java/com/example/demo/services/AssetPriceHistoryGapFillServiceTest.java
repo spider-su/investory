@@ -74,7 +74,9 @@ class AssetPriceHistoryGapFillServiceTest {
             "IUVL",
             "IUVL",
             "USD",
-            BigDecimal.valueOf(18.50));
+            BigDecimal.valueOf(18.50),
+            BigDecimal.ONE,
+            "VERIFIED_ALTERNATE_LISTING");
     verify(assetPriceHistoryRepository)
         .upsertCarryForwardPrice(
             101L,
@@ -83,7 +85,9 @@ class AssetPriceHistoryGapFillServiceTest {
             "IUVL",
             "IUVL",
             "USD",
-            BigDecimal.valueOf(18.50));
+            BigDecimal.valueOf(18.50),
+            BigDecimal.ONE,
+            "VERIFIED_ALTERNATE_LISTING");
     verify(assetPriceHistoryRepository)
         .upsertCarryForwardPrice(
             101L,
@@ -92,7 +96,9 @@ class AssetPriceHistoryGapFillServiceTest {
             "IUVL",
             "IUVL",
             "USD",
-            BigDecimal.valueOf(18.50));
+            BigDecimal.valueOf(18.50),
+            BigDecimal.ONE,
+            "VERIFIED_ALTERNATE_LISTING");
     verify(assetPriceHistoryRepository)
         .upsertCarryForwardPrice(
             101L,
@@ -101,7 +107,9 @@ class AssetPriceHistoryGapFillServiceTest {
             "IUVL",
             "IUVL",
             "USD",
-            BigDecimal.valueOf(18.50));
+            BigDecimal.valueOf(18.50),
+            BigDecimal.ONE,
+            "VERIFIED_ALTERNATE_LISTING");
   }
 
   @Test
@@ -134,7 +142,7 @@ class AssetPriceHistoryGapFillServiceTest {
     service.fillMissingBusinessDayGaps(LocalDate.of(2026, 7, 17));
 
     verify(assetPriceHistoryRepository, never())
-        .upsertCarryForwardPrice(any(), any(), any(), any(), any(), any(), any());
+        .upsertCarryForwardPrice(any(), any(), any(), any(), any(), any(), any(), any(), any());
   }
 
   @Test
@@ -181,7 +189,59 @@ class AssetPriceHistoryGapFillServiceTest {
             "NFLX.US",
             "NFLX.US",
             "USD",
-            BigDecimal.valueOf(112.98));
+            BigDecimal.valueOf(112.98),
+            BigDecimal.ONE,
+            "XTB_TRADE_OPEN_OBSERVATION");
+  }
+
+  @Test
+  void fillMissingBusinessDayGaps_copiesCurrencyAndScaleMetadata() {
+    AssetPriceHistoryGapFillService service =
+        new AssetPriceHistoryGapFillService(
+            openedPositionRepository, assetRepository, assetPriceHistoryRepository);
+
+    OpenedPosition opened = new OpenedPosition();
+    opened.setSymbol("VWCE.DE");
+    Asset asset = new Asset();
+    asset.setId(303L);
+    asset.setSymbol("VWCE.DE");
+
+    when(openedPositionRepository.findAll()).thenReturn(List.of(opened));
+    when(assetRepository.findAllBySymbolIn(Set.of("VWCE.DE"))).thenReturn(List.of(asset));
+    when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
+        .thenReturn(
+            List.of(
+                scaledRow(
+                    "VWCE.DE",
+                    LocalDate.of(2026, 7, 10),
+                    139.8,
+                    "EUR",
+                    BigDecimal.valueOf(0.01),
+                    60,
+                    "XTB_TRADE_OPEN",
+                    "XTB_TRADE_OPEN_OBSERVATION"),
+                row(
+                    "VWCE.DE",
+                    LocalDate.of(2026, 7, 17),
+                    141.0,
+                    "EUR",
+                    90,
+                    "IBKR_TRADE",
+                    "IBKR_TRADE_OBSERVATION")));
+
+    service.fillMissingBusinessDayGaps(LocalDate.of(2026, 7, 17));
+
+    verify(assetPriceHistoryRepository)
+        .upsertCarryForwardPrice(
+            303L,
+            LocalDate.of(2026, 7, 13),
+            LocalDate.of(2026, 7, 10),
+            "VWCE.DE",
+            "VWCE.DE",
+            "EUR",
+            BigDecimal.valueOf(139.8),
+            BigDecimal.valueOf(0.01),
+            "XTB_TRADE_OPEN_OBSERVATION");
   }
 
   private static AssetPriceHistoryRepository.HistoricalAssetPriceRow row(
@@ -251,6 +311,80 @@ class AssetPriceHistoryGapFillServiceTest {
       @Override
       public String getPriceOrigin() {
         return origin;
+      }
+    };
+  }
+
+  private static AssetPriceHistoryRepository.HistoricalAssetPriceRow scaledRow(
+      String symbol,
+      LocalDate date,
+      double closePrice,
+      String currency,
+      BigDecimal scaleFactor,
+      int qualityScore,
+      String origin,
+      String qualityClass) {
+    AssetPriceHistoryRepository.HistoricalAssetPriceRow base =
+        row(symbol, date, closePrice, currency, qualityScore, origin, qualityClass);
+    return new AssetPriceHistoryRepository.HistoricalAssetPriceRow() {
+      @Override
+      public String getSymbol() {
+        return base.getSymbol();
+      }
+
+      @Override
+      public LocalDate getPriceDate() {
+        return base.getPriceDate();
+      }
+
+      @Override
+      public LocalDate getSourceDate() {
+        return base.getSourceDate();
+      }
+
+      @Override
+      public String getSource() {
+        return base.getSource();
+      }
+
+      @Override
+      public String getSourceSymbol() {
+        return base.getSourceSymbol();
+      }
+
+      @Override
+      public String getOriginalSourceSymbol() {
+        return base.getOriginalSourceSymbol();
+      }
+
+      @Override
+      public BigDecimal getClosePrice() {
+        return base.getClosePrice();
+      }
+
+      @Override
+      public String getPriceCurrency() {
+        return base.getPriceCurrency();
+      }
+
+      @Override
+      public BigDecimal getPriceScaleFactor() {
+        return scaleFactor;
+      }
+
+      @Override
+      public Integer getQualityScore() {
+        return base.getQualityScore();
+      }
+
+      @Override
+      public String getQualityClass() {
+        return base.getQualityClass();
+      }
+
+      @Override
+      public String getPriceOrigin() {
+        return base.getPriceOrigin();
       }
     };
   }

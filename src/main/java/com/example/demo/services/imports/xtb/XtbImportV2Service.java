@@ -162,6 +162,9 @@ public class XtbImportV2Service {
       List<ClosedPosition> closedPositions =
           parseClosedPositions(closedSheet, closedColumns, account, sourceName);
       normalizeImportedSymbols(cashOperations, closedPositions);
+      Set<String> excludedSymbols = excludedAssetSymbols(symbols(cashOperations, closedPositions));
+      cashOperations.removeIf(operation -> isExcluded(operation.getSymbol(), excludedSymbols));
+      closedPositions.removeIf(position -> isExcluded(position.getSymbol(), excludedSymbols));
 
       CurrencyType currency = inferCurrency(sourceName, cashOperations, closedPositions);
       cashOperations.forEach(op -> op.setCurrency(currency));
@@ -574,6 +577,23 @@ public class XtbImportV2Service {
       throw new IllegalArgumentException("Unknown or ambiguous XTB asset symbol: " + symbol);
     }
     return assetId;
+  }
+
+  private Set<String> excludedAssetSymbols(Set<String> symbols) {
+    if (symbols.isEmpty()) {
+      return Set.of();
+    }
+    return assetRepository.findAllBySymbolIn(symbols).stream()
+        .filter(asset -> Boolean.TRUE.equals(asset.getExcludeFromImport()))
+        .map(Asset::getSymbol)
+        .filter(StringUtils::hasText)
+        .map(symbol -> symbol.trim().toUpperCase(Locale.ROOT))
+        .collect(java.util.stream.Collectors.toSet());
+  }
+
+  private boolean isExcluded(String symbol, Set<String> excludedSymbols) {
+    return StringUtils.hasText(symbol)
+        && excludedSymbols.contains(symbol.trim().toUpperCase(Locale.ROOT));
   }
 
   private void persistTradePriceHistory(

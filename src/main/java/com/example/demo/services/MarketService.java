@@ -114,6 +114,7 @@ public class MarketService {
     Map<String, List<Asset>> assetsByTicker =
         assetRepository.findAll().stream()
             .filter(a -> Boolean.TRUE.equals(a.getActive()))
+            .filter(a -> !Boolean.TRUE.equals(a.getExcludeFromImport()))
             .filter(this::isSupportedForPriceUpdate)
             .collect(
                 Collectors.groupingBy(

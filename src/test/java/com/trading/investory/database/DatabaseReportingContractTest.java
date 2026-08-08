@@ -13,6 +13,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -121,6 +122,225 @@ class DatabaseReportingContractTest {
         assertEquals("SAME_CURRENCY", result.getString("conversion_status"));
       }
     }
+  }
+
+  @Test
+  void reconstructedValuationUsesNormalizedPriceCurrencyAndOneFxConversion() throws SQLException {
+    long plnPortfolioId = 910013L;
+    long plnAccountId = 910013L;
+    long usdPortfolioId = 910014L;
+    long usdAccountId = 910014L;
+    LocalDate firstDate = java.time.LocalDate.of(2026, 1, 15);
+
+    try (Connection connection = connection();
+        Statement statement = connection.createStatement()) {
+      statement.execute("DELETE FROM investory.portfolios WHERE id IN (910013, 910014)");
+      statement.execute(
+          "INSERT INTO investory.portfolios (id, name, base_currency, owner, user_id) VALUES "
+              + "(910013, 'Currency semantics PLN', 'PLN', 'contract', 1), "
+              + "(910014, 'Currency semantics USD', 'USD', 'contract', 1)");
+      statement.execute(
+          "INSERT INTO investory.accounts (id, currency, provider, name, owner, portfolio_id, cash_only) VALUES "
+              + "(910013, 'PLN', 'XTB', 'Currency semantics PLN', 'contract', 910013, false), "
+              + "(910014, 'USD', 'IBKR', 'Currency semantics USD', 'contract', 910014, false)");
+
+      long usdAssetId = insertAsset(connection, "SEMUSD.US", "USD");
+      long eurAssetId = insertAsset(connection, "SEMEUR.DE", "EUR");
+      long scaledAssetId = insertAsset(connection, "SEMSCALED.DE", "EUR");
+      long transitionAssetId = insertAsset(connection, "SEMTRANS.DE", "EUR");
+      long baseAssetId = insertAsset(connection, "SEMBASE.US", "USD");
+
+      insertPosition(connection, plnAccountId, usdAssetId, "USD", firstDate);
+      insertPosition(connection, plnAccountId, eurAssetId, "EUR", firstDate);
+      insertPosition(connection, plnAccountId, scaledAssetId, "EUR", firstDate);
+      insertPosition(connection, plnAccountId, transitionAssetId, "EUR", firstDate);
+      insertPosition(connection, usdAccountId, baseAssetId, "USD", firstDate);
+
+      for (int day = 0; day < 4; day++) {
+        insertAccountDay(connection, plnAccountId, firstDate.plusDays(day), "PLN");
+      }
+      insertAccountDay(connection, usdAccountId, firstDate, "USD");
+
+      insertPrice(connection, usdAssetId, firstDate, "XTB_TRADE_OPEN", "USD", 100, 1, false);
+      insertPrice(connection, eurAssetId, firstDate, "XTB_TRADE_OPEN", "EUR", 100, 1, false);
+      insertPrice(connection, scaledAssetId, firstDate, "XTB_TRADE_OPEN", "EUR", 100, 0.01, false);
+      insertPrice(connection, baseAssetId, firstDate, "XTB_TRADE_OPEN", "USD", 100, 1, false);
+      insertPrice(connection, transitionAssetId, firstDate, "XTB_TRADE_OPEN", "EUR", 100, 1, false);
+      insertPrice(
+          connection,
+          transitionAssetId,
+          firstDate.plusDays(1),
+          "INTERPOLATED_XTB",
+          "EUR",
+          100,
+          1,
+          true);
+      insertPrice(
+          connection,
+          transitionAssetId,
+          firstDate.plusDays(2),
+          "STALE_CARRY_FORWARD",
+          "EUR",
+          100,
+          1,
+          false);
+      insertPrice(
+          connection,
+          transitionAssetId,
+          firstDate.plusDays(3),
+          "INTERPOLATED_XTB",
+          "EUR",
+          100,
+          1,
+          true);
+
+      try (PreparedStatement query =
+          connection.prepareStatement(
+              "SELECT account_id, asset_id, valuation_date, selected_price, price_currency, "
+                  + "fx_rate_to_base, reconstructed_market_value_base "
+                  + "FROM investory.v_reconstructed_position_daily "
+                  + "WHERE account_id IN (910013, 910014) ORDER BY account_id, asset_id, valuation_date")) {
+        try (ResultSet rows = query.executeQuery()) {
+          Map<Long, List<Map<String, Object>>> values = new LinkedHashMap<>();
+          while (rows.next()) {
+            values
+                .computeIfAbsent(rows.getLong("asset_id"), ignored -> new ArrayList<>())
+                .add(
+                    Map.of(
+                        "account", rows.getLong("account_id"),
+                        "date", rows.getObject("valuation_date", java.time.LocalDate.class),
+                        "price", rows.getBigDecimal("selected_price"),
+                        "currency", rows.getString("price_currency"),
+                        "fx", rows.getBigDecimal("fx_rate_to_base"),
+                        "market", rows.getBigDecimal("reconstructed_market_value_base")));
+          }
+
+          assertValuation(values.get(usdAssetId).getFirst(), "USD", 100, 3.955, 791.0);
+          assertValuation(
+              values.get(eurAssetId).getFirst(), "EUR", 100, 1.165 * 3.955, 200 * 1.165 * 3.955);
+          assertValuation(
+              values.get(scaledAssetId).getFirst(), "EUR", 1, 1.165 * 3.955, 2 * 1.165 * 3.955);
+          assertValuation(values.get(baseAssetId).getFirst(), "USD", 100, 1, 200.0);
+
+          List<Map<String, Object>> transitions = values.get(transitionAssetId);
+          assertEquals(4, transitions.size());
+          BigDecimal expectedMarket = BigDecimal.valueOf(200 * 1.165 * 3.955);
+          for (Map<String, Object> transition : transitions) {
+            assertEquals("EUR", transition.get("currency"));
+            assertEquals(
+                0, ((BigDecimal) transition.get("price")).compareTo(BigDecimal.valueOf(100)));
+            assertEquals(
+                expectedMarket.doubleValue(),
+                ((BigDecimal) transition.get("market")).doubleValue(),
+                0.0001);
+            assertEquals(1.165 * 3.955, ((BigDecimal) transition.get("fx")).doubleValue(), 0.0001);
+          }
+        }
+      } finally {
+        statement.execute("DELETE FROM investory.portfolios WHERE id IN (910013, 910014)");
+      }
+    }
+  }
+
+  private static long insertAsset(Connection connection, String symbol, String currency)
+      throws SQLException {
+    try (PreparedStatement statement =
+        connection.prepareStatement(
+            "INSERT INTO investory.assets (name, symbol, ticker, ibkr, yahoo, country, currency, asset_type, active) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, 'ETF', true) RETURNING id")) {
+      statement.setString(1, symbol);
+      statement.setString(2, symbol);
+      statement.setString(3, symbol.substring(0, symbol.indexOf('.')));
+      statement.setString(4, symbol);
+      statement.setString(5, symbol);
+      statement.setString(6, symbol.endsWith(".DE") ? "DE" : "US");
+      statement.setString(7, currency);
+      try (ResultSet result = statement.executeQuery()) {
+        result.next();
+        return result.getLong(1);
+      }
+    }
+  }
+
+  private static void insertPosition(
+      Connection connection, long accountId, long assetId, String currency, LocalDate openDate)
+      throws SQLException {
+    try (PreparedStatement statement =
+        connection.prepareStatement(
+            "INSERT INTO investory.positions "
+                + "(account_id, asset_id, source_asset_symbol, operation, settlement_model, volume, "
+                + "price_currency, cost_currency, profit_currency, commission_currency, open_time, "
+                + "open_price, purchase_value) VALUES (?, ?, 'contract', 'BUY', 'CASH_SETTLED', 2, ?, ?, ?, ?, ?, 100, 200)")) {
+      statement.setLong(1, accountId);
+      statement.setLong(2, assetId);
+      statement.setString(3, currency);
+      statement.setString(4, currency);
+      statement.setString(5, currency);
+      statement.setString(6, currency);
+      statement.setObject(7, openDate.atStartOfDay(java.time.ZoneOffset.UTC).toOffsetDateTime());
+      statement.executeUpdate();
+    }
+  }
+
+  private static void insertAccountDay(
+      Connection connection, long accountId, LocalDate date, String currency) throws SQLException {
+    try (PreparedStatement statement =
+        connection.prepareStatement(
+            "INSERT INTO investory.account_daily (account_id, snapshot_date, valuation_currency) VALUES (?, ?, ?)")) {
+      statement.setLong(1, accountId);
+      statement.setObject(2, date);
+      statement.setString(3, currency);
+      statement.executeUpdate();
+    }
+  }
+
+  private static void insertPrice(
+      Connection connection,
+      long assetId,
+      LocalDate date,
+      String origin,
+      String currency,
+      double close,
+      double scale,
+      boolean interpolated)
+      throws SQLException {
+    try (PreparedStatement statement =
+        connection.prepareStatement(
+            "INSERT INTO investory.asset_price_history "
+                + "(asset_id, price_date, source, source_symbol, price_origin, price_currency, close_price, "
+                + "estimated, interpolation_method, interpolation_left_date, interpolation_right_date, "
+                + "quality_score, quality_class, is_observed, price_scale_factor) "
+                + "VALUES (?, ?, ?, 'contract', ?, ?, ?, ?, ?, ?, ?, 90, ?, ?, ?)")) {
+      statement.setLong(1, assetId);
+      statement.setObject(2, date);
+      statement.setString(3, origin.equals("STALE_CARRY_FORWARD") ? "CARRY_FORWARD" : "XTB");
+      statement.setString(4, origin);
+      statement.setString(5, currency);
+      statement.setDouble(6, close);
+      statement.setBoolean(7, interpolated);
+      statement.setString(8, interpolated ? "LINEAR_BUSINESS_DAY" : null);
+      statement.setObject(9, interpolated ? date.minusDays(1) : null);
+      statement.setObject(10, interpolated ? date.plusDays(1) : null);
+      statement.setString(
+          11,
+          origin.equals("STALE_CARRY_FORWARD") ? "STALE_CARRY_FORWARD" : origin + "_OBSERVATION");
+      statement.setBoolean(12, !interpolated);
+      statement.setDouble(13, scale);
+      statement.executeUpdate();
+    }
+  }
+
+  private static void assertValuation(
+      Map<String, Object> value,
+      String currency,
+      double selectedPrice,
+      double fx,
+      double marketValue) {
+    assertNotNull(value);
+    assertEquals(currency, value.get("currency"));
+    assertEquals(selectedPrice, ((BigDecimal) value.get("price")).doubleValue(), 0.0001);
+    assertEquals(fx, ((BigDecimal) value.get("fx")).doubleValue(), 0.0001);
+    assertEquals(marketValue, ((BigDecimal) value.get("market")).doubleValue(), 0.0001);
   }
 
   @Test

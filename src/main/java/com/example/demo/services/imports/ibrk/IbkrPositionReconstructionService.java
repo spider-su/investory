@@ -80,9 +80,11 @@ public class IbkrPositionReconstructionService {
     closedPositionRepository.deleteByAccount(accountId);
     if (!closed.isEmpty()) {
       closedPositionRepository.saveAll(closed);
+      closedPositionRepository.flush();
     }
     if (!open.isEmpty()) {
       openedPositionRepository.saveAll(open);
+      openedPositionRepository.flush();
     }
   }
 

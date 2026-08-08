@@ -72,6 +72,10 @@ public class Asset {
   @Column(name = "active")
   private Boolean active;
 
+  @Column(name = "exclude_from_import", nullable = false)
+  @Builder.Default
+  private Boolean excludeFromImport = false;
+
   @Getter(AccessLevel.NONE)
   @Setter(AccessLevel.NONE)
   @Column(name = "market_price", precision = 20, scale = 8)

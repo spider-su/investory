@@ -21,6 +21,7 @@ import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -150,6 +151,20 @@ public class IbkrImportService {
       }
     }
 
+    Set<String> importedSymbols = new HashSet<>();
+    cashOps.stream()
+        .map(CashOperation::getSymbol)
+        .filter(StringUtils::hasText)
+        .forEach(importedSymbols::add);
+    tradePriceObservations.stream()
+        .map(IbkrTradePriceObservation::symbol)
+        .filter(StringUtils::hasText)
+        .forEach(importedSymbols::add);
+    Set<String> excludedSymbols = excludedAssetSymbols(importedSymbols);
+    cashOps.removeIf(operation -> isExcluded(operation.getSymbol(), excludedSymbols));
+    tradePriceObservations.removeIf(
+        observation -> isExcluded(observation.symbol(), excludedSymbols));
+
     ensureCashOperationAssetsExist(cashOps);
     ensureIbkrAccountExists(cashOps, List.of());
     applyCashOperationAssetIdentities(cashOps);
@@ -170,6 +185,13 @@ public class IbkrImportService {
     String openPositionsSection = findOpenPositionsSection(rows);
     if (openPositionsSection != null) {
       openPositions = importOpenPositions(rows, dedup, openPositionsSection);
+      Set<String> excludedPositionSymbols =
+          excludedAssetSymbols(
+              openPositions.stream()
+                  .map(OpenedPosition::getSymbol)
+                  .filter(StringUtils::hasText)
+                  .collect(Collectors.toSet()));
+      openPositions.removeIf(position -> isExcluded(position.getSymbol(), excludedPositionSymbols));
       ensureAssetsExist(openPositions);
       applyPositionAssetIdentities(openPositions);
       for (Long accountId : affectedAccounts) {
@@ -460,6 +482,23 @@ public class IbkrImportService {
       throw new IllegalArgumentException("Unknown or ambiguous IBKR asset symbol: " + symbol);
     }
     return assetId;
+  }
+
+  private Set<String> excludedAssetSymbols(Set<String> symbols) {
+    if (symbols.isEmpty()) {
+      return Set.of();
+    }
+    return assetRepository.findAllBySymbolIn(symbols).stream()
+        .filter(asset -> Boolean.TRUE.equals(asset.getExcludeFromImport()))
+        .map(Asset::getSymbol)
+        .filter(StringUtils::hasText)
+        .map(symbol -> symbol.trim().toUpperCase(Locale.ROOT))
+        .collect(Collectors.toSet());
+  }
+
+  private boolean isExcluded(String symbol, Set<String> excludedSymbols) {
+    return StringUtils.hasText(symbol)
+        && excludedSymbols.contains(symbol.trim().toUpperCase(Locale.ROOT));
   }
 
   private boolean hasResolvableAssetSymbol(CashOperation operation) {

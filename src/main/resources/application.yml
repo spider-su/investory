@@ -29,7 +29,7 @@ spring:
     locations: classpath:sql/migration
     out-of-order: false
   thymeleaf:
-    prefix: classpath:/static/dashboard/
+    prefix: classpath:/templates/
     suffix: .html
     mode: HTML
     cache: false

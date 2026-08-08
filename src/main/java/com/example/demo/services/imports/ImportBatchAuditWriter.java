@@ -93,6 +93,10 @@ public class ImportBatchAuditWriter {
   public ImportHistory finalizeFailed(Long batchId, String message, byte[] rawPayload) {
     ImportHistory batch = importRepository.getById(batchId);
     batch.setStatus(ImportBatchStatus.FAILED);
+    if (batch.getRowsTotal() == null || batch.getRowsTotal() < 1) {
+      batch.setRowsTotal(1);
+    }
+    batch.setRowsApplied(0);
     batch.setRowsFailed(1);
     String payloadPreview = truncate(rawPayload);
     batch.setErrorMessage(

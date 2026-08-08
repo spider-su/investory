@@ -157,6 +157,33 @@ class IbkrImportHistoryServiceTest {
   }
 
   @Test
+  void importStatement_skipsAssetMarkedExcludedFromImport() throws Exception {
+    Asset excluded = asset("AIGI.UK");
+    excluded.setExcludeFromImport(true);
+    when(assetRepository.findAllByIbrkIgnoreCase("AIGI")).thenReturn(List.of(excluded));
+    when(assetRepository.findAllBySymbolIn(org.mockito.ArgumentMatchers.anyCollection()))
+        .thenReturn(List.of(excluded));
+
+    String csv =
+        String.join(
+            "\n",
+            "Transaction History,Header,Transaction Type,Account,Symbol,Description,Date,Quantity,Price,Net Amount,Currency",
+            "Transaction History,Data,Buy,U17959259,AIGI,AIGI buy,2026-07-01,1,100,-100.00,USD");
+
+    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
+
+    assertTrue(persistedCashOperations.isEmpty());
+    verify(assetPriceHistoryRepository, org.mockito.Mockito.never())
+        .upsertIbkrTradeObservation(
+            org.mockito.ArgumentMatchers.anyLong(),
+            org.mockito.ArgumentMatchers.any(LocalDate.class),
+            org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.any(BigDecimal.class));
+  }
+
+  @Test
   void importStatement_keepsAssetIdForStockSell() throws Exception {
     String csv =
         String.join(

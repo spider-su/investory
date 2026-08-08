@@ -345,6 +345,76 @@ class XtbImportHistoryV2ServiceTest {
   }
 
   @Test
+  void importWorkbook_skipsAssetMarkedExcludedFromImport() throws Exception {
+    Asset excluded =
+        Asset.builder()
+            .id(78L)
+            .name("AIGI")
+            .symbol("AIGI.UK")
+            .ticker("AIGI")
+            .ibrk("AIGI")
+            .yahoo("AIGI.L")
+            .country("UK")
+            .currency(CurrencyType.USD)
+            .assetType("ETF")
+            .active(true)
+            .excludeFromImport(true)
+            .build();
+    org.mockito.Mockito.when(
+            assetRepository.findAllBySymbolIn(org.mockito.ArgumentMatchers.anyCollection()))
+        .thenReturn(List.of(excluded));
+
+    try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+      XSSFSheet cashSheet = workbook.createSheet("Cash Operations");
+      Row account = cashSheet.createRow(0);
+      account.createCell(0).setCellValue("Account number");
+      account.createCell(1).setCellValue("51707603");
+      Row header = cashSheet.createRow(1);
+      header.createCell(0).setCellValue("ID");
+      header.createCell(1).setCellValue("Type");
+      header.createCell(2).setCellValue("Ticker");
+      header.createCell(3).setCellValue("Time");
+      header.createCell(4).setCellValue("Amount");
+      header.createCell(5).setCellValue("Comment");
+      Row data = cashSheet.createRow(2);
+      data.createCell(0).setCellValue(1);
+      data.createCell(1).setCellValue("Stock purchase");
+      data.createCell(2).setCellValue("AIGI.UK");
+      data.createCell(3).setCellValue("2026-07-10 10:00:00");
+      data.createCell(4).setCellValue(-1000);
+      data.createCell(5).setCellValue("OPEN BUY 10 @ 100");
+
+      XSSFSheet closedSheet = workbook.createSheet("Closed Positions");
+      Row closedAccount = closedSheet.createRow(0);
+      closedAccount.createCell(0).setCellValue("Account");
+      closedAccount.createCell(1).setCellValue("51707603");
+      Row closedHeader = closedSheet.createRow(1);
+      closedHeader.createCell(0).setCellValue("Ticker");
+      closedHeader.createCell(1).setCellValue("Type");
+      closedHeader.createCell(2).setCellValue("Volume");
+
+      ByteArrayOutputStream out = new ByteArrayOutputStream();
+      workbook.write(out);
+      xtbImportV2Service.importWorkbook(
+          new ByteArrayInputStream(out.toByteArray()), "PLN_test.xlsx");
+    }
+
+    verify(assetPriceHistoryRepository, org.mockito.Mockito.never())
+        .upsertObservedPrice(
+            org.mockito.ArgumentMatchers.anyLong(),
+            org.mockito.ArgumentMatchers.any(LocalDate.class),
+            org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.any(BigDecimal.class),
+            org.mockito.ArgumentMatchers.anyInt(),
+            org.mockito.ArgumentMatchers.anyString());
+    verify(openedPositionRepository, org.mockito.Mockito.never()).saveAll(anyList());
+  }
+
+  @Test
   void importWorkbook_preservesIdenticalPartialCloseRowsAndBrokerCurrencyEvidence()
       throws Exception {
     Asset asset =

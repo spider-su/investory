@@ -26,9 +26,8 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.servlet.view.InternalResourceViewResolver;
 
 /**
- * Standalone setup: skips view rendering (the production Thymeleaf prefix points to
- * /static/dashboard/, while home.html lives under /templates/, so full rendering would fail in
- * tests). We only verify routing, model wiring and downstream service invocation.
+ * Standalone setup skips view rendering. It verifies routing, model wiring and downstream service
+ * invocation.
  */
 @ExtendWith(MockitoExtension.class)
 class HomeControllerTest {

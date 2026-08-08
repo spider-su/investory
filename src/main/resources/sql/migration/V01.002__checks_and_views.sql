@@ -2523,7 +2523,7 @@ ranked_prices AS (
 SELECT
     rp.asset_id,
     rp.valuation_date,
-    rp.close_price AS selected_price,
+    rp.close_price * COALESCE(rp.price_scale_factor, 1) AS selected_price,
     rp.price_date AS selected_price_date,
     COALESCE(rp.source_date, rp.price_date) AS underlying_observation_date,
     GREATEST(0, (rp.valuation_date - COALESCE(rp.source_date, rp.price_date)))::integer AS price_age_days,
@@ -2561,7 +2561,7 @@ FROM ranked_prices rp
 WHERE rp.rn = 1;
 
 COMMENT ON VIEW investory.v_normalized_daily_price IS
-    'Independent deterministic valuation-price selector. selected_price uses stored close_price as the canonical normalized number and exposes price_scale_factor only as audit metadata, so any double scaling shows up as a reconciliation gap instead of being hidden.';
+    'Independent deterministic valuation-price selector. selected_price is close_price multiplied by price_scale_factor exactly once and carries the price_currency of that normalized number.';
 
 CREATE OR REPLACE VIEW investory.v_reconstructed_position_daily AS
 WITH active_position_dates AS (
