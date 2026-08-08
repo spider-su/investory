@@ -49,7 +49,6 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DataFormatter;
@@ -66,7 +65,6 @@ import org.springframework.util.StringUtils;
 @Service
 @Transactional
 @RequiredArgsConstructor
-@Slf4j
 public class XtbImportV2Service {
 
   private static final DataFormatter DATA_FORMATTER = new DataFormatter(Locale.ROOT);
@@ -104,6 +102,7 @@ public class XtbImportV2Service {
     }
   }
 
+  /** Imports the whole ZIP as one transaction; one workbook failure rolls back the ZIP. */
   public ImportExecutionResult importZip(InputStream zipInputStream, String sourceName)
       throws Exception {
     int total = 0;
@@ -163,21 +162,27 @@ public class XtbImportV2Service {
         throw new IllegalStateException("XTB v2 workbook has no account number: " + sourceName);
       }
       Long account = parseAccountId(accountRaw);
+      Account accountConfiguration = accountConfiguration(account, sourceName);
+      boolean cashOnly = accountConfiguration.isCashOnly();
 
       Map<String, Integer> cashColumns = findHeader(cashSheet, "Type", "Time", "Amount");
       Map<String, Integer> closedColumns = findHeader(closedSheet, "Ticker", "Type", "Volume");
 
       List<CashOperation> cashOperations =
-          parseCashOperations(cashSheet, cashColumns, account, sourceName);
+          parseCashOperations(cashSheet, cashColumns, account, sourceName, cashOnly);
       List<ClosedPosition> closedPositions =
-          parseClosedPositions(closedSheet, closedColumns, account, sourceName);
+          cashOnly
+              ? List.of()
+              : parseClosedPositions(closedSheet, closedColumns, account, sourceName);
       normalizeImportedSymbols(cashOperations, closedPositions);
-      CurrencyType currency = accountCurrency(account, sourceName);
+      CurrencyType currency = accountConfiguration.getCurrency();
       cashOperations.forEach(op -> op.setCurrency(currency));
 
       List<OpenedPosition> openedPositions =
-          reconstructOpenedPositions(
-              operationsForOpenReconstruction(account, cashOperations), account, currency);
+          cashOnly
+              ? List.of()
+              : reconstructOpenedPositions(
+                  operationsForOpenReconstruction(account, cashOperations), account, currency);
       openedPositions = deduplicateOpenedPositions(openedPositions);
 
       applyPositionCurrencies(closedPositions, openedPositions, currency);
@@ -209,16 +214,26 @@ public class XtbImportV2Service {
   }
 
   private List<CashOperation> parseCashOperations(
-      Sheet sheet, Map<String, Integer> columns, Long account, String sourceName) {
+      Sheet sheet,
+      Map<String, Integer> columns,
+      Long account,
+      String sourceName,
+      boolean cashOnly) {
     if (sheet == null || CollectionUtils.isEmpty(columns)) {
       return List.of();
     }
 
     List<CashOperation> operations = new ArrayList<>();
     for (Row row : dataRows(sheet, columns)) {
+      if (cashOnly && StringUtils.hasText(cellValue(row, columns.get("Ticker")))) {
+        continue;
+      }
       ZonedDateTime operationDate = parseDate(cell(row, columns.get("Time")));
-      // Skip rows with no date (typically footer/total rows)
       if (operationDate == null) {
+        if (hasCashRowData(row, columns)) {
+          throw new IllegalArgumentException(
+              "XTB cash row " + row.getRowNum() + " has no valid timestamp");
+        }
         continue;
       }
 
@@ -232,6 +247,10 @@ public class XtbImportV2Service {
       CashOperationType type = CashOperationType.fromString(cellValue(row, columns.get("Type")));
       if (type == CashOperationType.UNKNOWN && comment != null) {
         type = CashOperationType.fromString(comment);
+      }
+      if (type == CashOperationType.UNKNOWN) {
+        throw new IllegalArgumentException(
+            "Unknown XTB cash operation type at row " + row.getRowNum());
       }
       operation.setType(type);
       operation.setSymbol(cellValue(row, columns.get("Ticker")));
@@ -282,6 +301,11 @@ public class XtbImportV2Service {
       Double closeConversionRate =
           parseDouble(cellValue(row, columns.get("Close Conversion Rate"))).orElse(null);
 
+      if (openTime == null || closeTime == null) {
+        throw new IllegalArgumentException(
+            "XTB closed-position row " + row.getRowNum() + " has an invalid timestamp");
+      }
+
       String businessKey =
           closedPositionBusinessKey(
               account,
@@ -309,7 +333,7 @@ public class XtbImportV2Service {
       position.setSourcePositionId(sourcePositionId);
       position.setSourceRowOccurrence(sourceRowOccurrence);
       position.setSymbol(symbol);
-      position.setType(PositionType.fromBrokerSideOrBuy(typeText));
+      position.setType(parsePositionType(typeText, row.getRowNum()));
       position.setVolume(volume);
       position.setOpenTime(openTime);
       position.setOpenPrice(openPrice);
@@ -515,9 +539,9 @@ public class XtbImportV2Service {
     }
 
     boolean open = "OPEN".equalsIgnoreCase(matcher.group(1));
-    PositionType side = PositionType.fromBrokerSideOrBuy(matcher.group(2));
-    double volume = parseDouble(matcher.group(3)).orElse(0.0);
-    double price = parseDouble(matcher.group(4)).orElse(0.0);
+    PositionType side = parsePositionType(matcher.group(2), -1);
+    double volume = parseDouble(matcher.group(3)).orElseThrow();
+    double price = parseDouble(matcher.group(4)).orElseThrow();
     return Optional.of(new LotEvent(open, side, volume, price));
   }
 
@@ -886,7 +910,7 @@ public class XtbImportV2Service {
     return first != null ? first : second;
   }
 
-  private CurrencyType accountCurrency(Long accountId, String sourceName) {
+  private Account accountConfiguration(Long accountId, String sourceName) {
     Account account =
         accountRepository
             .findById(accountId)
@@ -908,14 +932,17 @@ public class XtbImportV2Service {
     }
     CurrencyType filenameCurrency = inferCurrencyFromSourceName(sourceName);
     if (filenameCurrency != null && filenameCurrency != configuredCurrency) {
-      log.warn(
-          "XTB filename currency {} disagrees with account {} currency {} for {}",
-          filenameCurrency,
-          accountId,
-          configuredCurrency,
-          sourceName);
+      throw new IllegalArgumentException(
+          "XTB filename currency "
+              + filenameCurrency
+              + " disagrees with account "
+              + accountId
+              + " currency "
+              + configuredCurrency
+              + " for "
+              + sourceName);
     }
-    return configuredCurrency;
+    return account;
   }
 
   private CurrencyType inferCurrencyFromSourceName(String sourceName) {
@@ -1051,7 +1078,7 @@ public class XtbImportV2Service {
         // Try next known date format.
       }
     }
-    return null;
+    throw new IllegalArgumentException("Malformed XTB date: " + text);
   }
 
   private Optional<Long> parseLong(String value) {
@@ -1060,9 +1087,37 @@ public class XtbImportV2Service {
     }
     try {
       return Optional.of((long) Double.parseDouble(value.replace(',', '.')));
-    } catch (NumberFormatException ignored) {
-      return Optional.empty();
+    } catch (NumberFormatException exception) {
+      throw new IllegalArgumentException("Malformed XTB number: " + value, exception);
     }
+  }
+
+  private PositionType parsePositionType(String value, int rowNumber) {
+    if (!StringUtils.hasText(value)) {
+      throw new IllegalArgumentException("Missing XTB position side at row " + rowNumber);
+    }
+    String normalized = value.trim().toUpperCase(Locale.ROOT);
+    if (normalized.contains("SELL") || normalized.contains("SHORT")) {
+      return PositionType.SELL;
+    }
+    if (normalized.contains("BUY") || normalized.contains("LONG")) {
+      return PositionType.BUY;
+    }
+    throw new IllegalArgumentException("Unknown XTB position side: " + value);
+  }
+
+  private boolean hasCashRowData(Row row, Map<String, Integer> columns) {
+    String type = cellValue(row, columns.get("Type"));
+    String id = cellValue(row, columns.get("ID"));
+    if (!StringUtils.hasText(id)
+        && StringUtils.hasText(type)
+        && Set.of("TOTAL", "SUMMARY").contains(type.trim().toUpperCase(Locale.ROOT))) {
+      return false;
+    }
+    return List.of("ID", "Type", "Ticker", "Comment").stream()
+        .map(columns::get)
+        .map(index -> index == null ? null : value(row.getCell(index)))
+        .anyMatch(StringUtils::hasText);
   }
 
   private Long parseAccountId(String value) {
@@ -1079,8 +1134,8 @@ public class XtbImportV2Service {
     }
     try {
       return Optional.of(Double.parseDouble(value.replace(',', '.')));
-    } catch (NumberFormatException ignored) {
-      return Optional.empty();
+    } catch (NumberFormatException exception) {
+      throw new IllegalArgumentException("Malformed XTB number: " + value, exception);
     }
   }
 

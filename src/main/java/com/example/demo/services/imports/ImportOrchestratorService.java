@@ -70,16 +70,33 @@ public class ImportOrchestratorService {
     Optional<ImportHistory> existing = auditWriter.findExistingAppliedBatch(broker, checksum);
     if (existing.isPresent()) {
       if (shouldReprocessDuplicate(broker)) {
-        ImportHistory batch = existing.get();
-        reprocessDuplicate(parser, fileBytes, fileName, batch);
-        ImportHistory reloaded =
-            auditWriter.findExistingAppliedBatch(broker, checksum).orElse(batch);
-        return toBatchResponse(
-            reloaded,
-            combineMessage(
-                "Duplicate " + broker + " file reprocessed to rebuild open positions",
-                reloaded.getErrorMessage()),
-            false);
+        ImportHistory original = existing.get();
+        ImportHistory batch = auditWriter.startReprocessBatch(original);
+        ImportHistory reloaded;
+        try {
+          ImportExecutionResult result =
+              parser.importFile(new ByteArrayInputStream(fileBytes), fileName);
+          reloaded = auditWriter.finalizeApplied(batch.getId(), result);
+          String refreshWarning = refreshDerivedData(reloaded);
+          return toBatchResponse(
+              reloaded,
+              combineMessage(
+                  "Duplicate " + broker + " file reprocessed as audit attempt " + batch.getId(),
+                  combineMessage(reloaded.getErrorMessage(), refreshWarning)),
+              false);
+        } catch (Exception e) {
+          String errorMessage = exceptionMessage(e);
+          log.warn("Duplicate import repair failed for batchId={}: {}", batch.getId(), errorMessage, e);
+          ImportHistory failed = auditWriter.finalizeFailed(batch.getId(), errorMessage, fileBytes);
+          throw new ImportFailedException(
+              "Failed to reprocess duplicate import for broker "
+                  + broker
+                  + " (batchId="
+                  + failed.getId()
+                  + "): "
+                  + errorMessage,
+              e);
+        }
       }
       // Duplicate is a per-request observation; do NOT mutate the original successful
       // batch's row in the database (used to overwrite errorMessage and poison the
@@ -118,25 +135,6 @@ public class ImportOrchestratorService {
 
   private boolean shouldReprocessDuplicate(BrokerType broker) {
     return broker == BrokerType.IBKR || broker == BrokerType.XTB;
-  }
-
-  private void reprocessDuplicate(
-      BrokerImportParser parser, byte[] fileBytes, String fileName, ImportHistory batch) {
-    try {
-      parser.importFile(new ByteArrayInputStream(fileBytes), fileName);
-      refreshDerivedData(batch);
-    } catch (Exception e) {
-      String errorMessage = exceptionMessage(e);
-      log.warn("Duplicate import repair failed for batchId={}: {}", batch.getId(), errorMessage, e);
-      throw new ImportFailedException(
-          "Failed to reprocess duplicate import for broker "
-              + batch.getBroker()
-              + " (batchId="
-              + batch.getId()
-              + "): "
-              + errorMessage,
-          e);
-    }
   }
 
   private static String exceptionMessage(Exception e) {

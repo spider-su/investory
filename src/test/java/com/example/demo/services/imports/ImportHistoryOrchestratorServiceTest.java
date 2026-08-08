@@ -74,8 +74,13 @@ class ImportHistoryOrchestratorServiceTest {
             portfolioProjectionService);
     PortfolioTestContext duplicateScenario = PortfolioScenarios.createDuplicateImportScenario();
     ImportHistory existing = duplicateScenario.imports().firstImport();
+    ImportHistory reprocess = batch(88L, ImportBatchStatus.STARTED, null, 0, 0, 0);
     when(auditWriter.findExistingAppliedBatch(eq(BrokerType.IBKR), anyString()))
         .thenReturn(Optional.of(existing));
+    when(auditWriter.startReprocessBatch(existing)).thenReturn(reprocess);
+    ImportHistory applied = batch(88L, ImportBatchStatus.COMPLETED, "repaired", 1, 1, 0);
+    when(auditWriter.finalizeApplied(88L, new ImportExecutionResult(1, 1, 0, "repaired")))
+        .thenReturn(applied);
     when(ibkrParser.importFile(any(), eq("ibkr.csv")))
         .thenReturn(new ImportExecutionResult(1, 1, 0, "repaired"));
 
@@ -88,6 +93,7 @@ class ImportHistoryOrchestratorServiceTest {
             null);
 
     assertFalse(response.duplicate());
+    assertEquals(88L, response.batchId());
     verify(ibkrParser).importFile(any(), eq("ibkr.csv"));
     verify(assetPriceFallbackService).populateMissingPricesFromOpenPositions();
     verify(portfolioProjectionService).recalculateAll();
@@ -97,10 +103,15 @@ class ImportHistoryOrchestratorServiceTest {
   @Test
   void importFile_reprocessesDuplicateXtbFileAndReturnsReloadedBatchState() throws Exception {
     ImportHistory existing = batch(77L, ImportBatchStatus.COMPLETED, "stale", 12, 12, 0);
-    ImportHistory refreshed = batch(77L, ImportBatchStatus.COMPLETED, "refreshed", 12, 12, 0);
+    ImportHistory reprocess = batch(78L, ImportBatchStatus.STARTED, null, 0, 0, 0);
+    ImportHistory refreshed = batch(78L, ImportBatchStatus.COMPLETED, "refreshed", 12, 12, 0);
     when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
         .thenReturn(Optional.of(existing))
-        .thenReturn(Optional.of(refreshed));
+        .thenReturn(Optional.of(existing));
+    when(auditWriter.startReprocessBatch(existing)).thenReturn(reprocess);
+    ImportExecutionResult result = new ImportExecutionResult(12, 12, 0, "refreshed");
+    when(xtbParser.importFile(any(), eq("file.xlsx"))).thenReturn(result);
+    when(auditWriter.finalizeApplied(78L, result)).thenReturn(refreshed);
 
     ImportBatchResponse response =
         importOrchestratorService.importFile(
@@ -110,20 +121,27 @@ class ImportHistoryOrchestratorServiceTest {
             ImportSourceType.MANUAL,
             null);
 
-    assertEquals(77L, response.batchId());
+    assertEquals(78L, response.batchId());
     assertFalse(response.duplicate());
     assertEquals(
-        "Duplicate XTB file reprocessed to rebuild open positions | refreshed", response.message());
+        "Duplicate XTB file reprocessed as audit attempt 78 | refreshed", response.message());
     verify(auditWriter, never()).startBatch(any(), any(), any(), anyString(), anyString());
-    verify(auditWriter, never()).finalizeApplied(any(), any());
+    verify(auditWriter).startReprocessBatch(existing);
+    verify(auditWriter).finalizeApplied(78L, result);
     verify(xtbParser).importFile(any(), eq("file.xlsx"));
   }
 
   @Test
   void importFile_reprocessesDuplicateXtbFileWithoutMutatingExistingBatch() throws Exception {
     ImportHistory existing = batch(77L, ImportBatchStatus.COMPLETED, "ok", 12, 12, 0);
+    ImportHistory reprocess = batch(78L, ImportBatchStatus.STARTED, null, 0, 0, 0);
     when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
         .thenReturn(Optional.of(existing));
+    when(auditWriter.startReprocessBatch(existing)).thenReturn(reprocess);
+    ImportExecutionResult result = new ImportExecutionResult(12, 12, 0, "ok");
+    when(xtbParser.importFile(any(), eq("file.xlsx"))).thenReturn(result);
+    when(auditWriter.finalizeApplied(78L, result))
+        .thenReturn(batch(78L, ImportBatchStatus.COMPLETED, "ok", 12, 12, 0));
 
     ImportBatchResponse response =
         importOrchestratorService.importFile(
@@ -133,11 +151,11 @@ class ImportHistoryOrchestratorServiceTest {
             ImportSourceType.MANUAL,
             null);
 
-    assertEquals(77L, response.batchId());
+    assertEquals(78L, response.batchId());
     assertFalse(response.duplicate());
-    // Crucial: must NOT touch the existing batch metadata while repairing derived state.
+    // Crucial: the immutable original is not mutated; the repair gets its own attempt.
     verify(auditWriter, never()).startBatch(any(), any(), any(), anyString(), anyString());
-    verify(auditWriter, never()).finalizeApplied(any(), any());
+    verify(auditWriter).finalizeApplied(78L, result);
     verify(xtbParser).importFile(any(), eq("file.xlsx"));
     verify(assetPriceFallbackService).populateMissingPricesFromOpenPositions();
     verify(portfolioProjectionService).recalculateAll();

@@ -10,6 +10,9 @@ public interface ImportRepository extends JpaRepository<ImportHistory, Long> {
   Optional<ImportHistory> findFirstByBrokerAndFileSha256OrderByIdDesc(
       BrokerType broker, String fileSha256);
 
+  Optional<ImportHistory> findFirstByBrokerAndFileSha256OrderByAttemptNoDesc(
+      BrokerType broker, String fileSha256);
+
   Optional<ImportHistory> findFirstByOrderByIdDesc();
 
   @SuppressWarnings("deprecation")

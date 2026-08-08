@@ -2,8 +2,10 @@ package com.example.demo.services.imports.xtb;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 
@@ -57,6 +59,7 @@ class XtbImportHistoryV2ServiceTest {
   @Mock private AssetPriceHistoryRepository assetPriceHistoryRepository;
   @Mock private AssetRepository assetRepository;
   @Mock private AccountRepository accountRepository;
+  @Captor private ArgumentCaptor<Iterable<CashOperation>> cashOperationsCaptor;
   @Captor private ArgumentCaptor<Iterable<OpenedPosition>> openedPositionsCaptor;
   @Captor private ArgumentCaptor<Iterable<ClosedPosition>> closedPositionsCaptor;
 
@@ -103,7 +106,14 @@ class XtbImportHistoryV2ServiceTest {
               Account account = new Account();
               account.setId(invocation.getArgument(0));
               account.setProvider("XTB");
-              account.setCurrency(CurrencyType.PLN);
+              Long accountId = invocation.getArgument(0);
+              account.setCurrency(
+                  switch (accountId.intValue()) {
+                    case 51548444, 51747407 -> CurrencyType.EUR;
+                    case 51499241, 51822121, 51993106, 53582946 -> CurrencyType.USD;
+                    default -> CurrencyType.PLN;
+                  });
+              account.setCashOnly(accountId == 51548444L);
               return java.util.Optional.of(account);
             });
   }
@@ -188,6 +198,106 @@ class XtbImportHistoryV2ServiceTest {
       assertTrue(result.details().contains("acc=53582946"));
       assertTrue(result.details().contains("acc=51729109"));
     }
+  }
+
+  @Test
+  void importWorkbook_cashOnlyKeepsOnlyAccountCashAndSkipsUnknownAssetsAndPositions()
+      throws Exception {
+    try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+      XSSFSheet cashSheet = workbook.createSheet("Cash Operations");
+      Row account = cashSheet.createRow(0);
+      account.createCell(0).setCellValue("Account number");
+      account.createCell(1).setCellValue("51548444");
+      Row header = cashSheet.createRow(1);
+      String[] cashHeaders = {"ID", "Type", "Ticker", "Time", "Amount", "Comment"};
+      for (int index = 0; index < cashHeaders.length; index++) {
+        header.createCell(index).setCellValue(cashHeaders[index]);
+      }
+      cashRow(cashSheet, 2, 1, "Transfer", "", 100.0, "Transfer in");
+      cashRow(cashSheet, 3, 2, "Subaccount transfer", "", -25.0, "Transfer to subaccount");
+      cashRow(cashSheet, 4, 3, "Stock purchase", "TSLA.DE", -500.0, "OPEN BUY 1 @ 500");
+
+      XSSFSheet closedSheet = workbook.createSheet("Closed Positions");
+      Row closedAccount = closedSheet.createRow(0);
+      closedAccount.createCell(0).setCellValue("Account");
+      closedAccount.createCell(1).setCellValue("51548444");
+      Row closedHeader = closedSheet.createRow(1);
+      closedHeader.createCell(0).setCellValue("Ticker");
+      closedHeader.createCell(1).setCellValue("Type");
+      closedHeader.createCell(2).setCellValue("Volume");
+      Row closedRow = closedSheet.createRow(2);
+      closedRow.createCell(0).setCellValue("ASML.NL");
+      closedRow.createCell(1).setCellValue("BUY");
+      closedRow.createCell(2).setCellValue(1);
+
+      ByteArrayOutputStream output = new ByteArrayOutputStream();
+      workbook.write(output);
+      xtbImportV2Service.importWorkbook(
+          new ByteArrayInputStream(output.toByteArray()), "EUR_cash_only.xlsx");
+    }
+
+    verify(cashOperationRepository).saveAll(cashOperationsCaptor.capture());
+    List<CashOperation> savedCash = new ArrayList<>();
+    cashOperationsCaptor.getValue().forEach(savedCash::add);
+    assertEquals(2, savedCash.size());
+    assertTrue(savedCash.stream().allMatch(operation -> operation.getSymbol() == null));
+    verify(closedPositionRepository).saveAll(org.mockito.ArgumentMatchers.anyList());
+    verify(openedPositionRepository).deleteByAccount(51548444L);
+    verify(assetRepository, atLeastOnce())
+        .findAllBySymbolIn(
+            argThat(symbols -> !symbols.contains("TSLA.DE") && !symbols.contains("ASML.NL")));
+  }
+
+  @Test
+  void importWorkbook_rejectsFilenameCurrencyThatDisagreesWithConfiguredAccount() throws Exception {
+    try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+      addMinimalSheetHeaders(workbook, "51729109");
+      ByteArrayOutputStream output = new ByteArrayOutputStream();
+      workbook.write(output);
+
+      assertThrows(
+          IllegalArgumentException.class,
+          () ->
+              xtbImportV2Service.importWorkbook(
+                  new ByteArrayInputStream(output.toByteArray()), "USD_51729109.xlsx"));
+    }
+  }
+
+  private void addMinimalSheetHeaders(XSSFWorkbook workbook, String accountId) {
+    XSSFSheet cashSheet = workbook.createSheet("Cash Operations");
+    Row cashAccount = cashSheet.createRow(0);
+    cashAccount.createCell(0).setCellValue("Account number");
+    cashAccount.createCell(1).setCellValue(accountId);
+    Row cashHeader = cashSheet.createRow(1);
+    cashHeader.createCell(0).setCellValue("Type");
+    cashHeader.createCell(1).setCellValue("Time");
+    cashHeader.createCell(2).setCellValue("Amount");
+
+    XSSFSheet closedSheet = workbook.createSheet("Closed Positions");
+    Row closedAccount = closedSheet.createRow(0);
+    closedAccount.createCell(0).setCellValue("Account");
+    closedAccount.createCell(1).setCellValue(accountId);
+    Row closedHeader = closedSheet.createRow(1);
+    closedHeader.createCell(0).setCellValue("Ticker");
+    closedHeader.createCell(1).setCellValue("Type");
+    closedHeader.createCell(2).setCellValue("Volume");
+  }
+
+  private void cashRow(
+      XSSFSheet sheet,
+      int rowNumber,
+      int id,
+      String type,
+      String ticker,
+      double amount,
+      String comment) {
+    Row row = sheet.createRow(rowNumber);
+    row.createCell(0).setCellValue(id);
+    row.createCell(1).setCellValue(type);
+    row.createCell(2).setCellValue(ticker);
+    row.createCell(3).setCellValue("2026-07-10 10:00:00");
+    row.createCell(4).setCellValue(amount);
+    row.createCell(5).setCellValue(comment);
   }
 
   @Test

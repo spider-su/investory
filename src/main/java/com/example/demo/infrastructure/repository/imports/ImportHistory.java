@@ -65,4 +65,10 @@ public class ImportHistory {
 
   @Column(name = "error_message")
   private String errorMessage;
+
+  @Column(name = "attempt_no", nullable = false)
+  private Integer attemptNo = 1;
+
+  @Column(name = "reprocess_of")
+  private Long reprocessOf;
 }

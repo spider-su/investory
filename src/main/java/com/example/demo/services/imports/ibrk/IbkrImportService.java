@@ -45,11 +45,6 @@ public class IbkrImportService {
 
   private static final java.time.ZoneId ZONE = ReportingDateHelper.REPORTING_ZONE;
   private static final String SECTION = "Transaction History";
-  private static final Long IBKR_ACCOUNT = 17959259L;
-  private static final Long DEFAULT_PORTFOLIO_ID = 1L;
-  private static final String DEFAULT_ACCOUNT_PROVIDER = "IBKR";
-  private static final String DEFAULT_ACCOUNT_NAME = "IBKR";
-  private static final String DEFAULT_ACCOUNT_OWNER = "Investory";
   private static final double IBKR_BOND_FACE_VALUE_UNIT = 1000.0;
   private static final Pattern COMPACT_BOND_SYMBOL_PATTERN =
       Pattern.compile("^T\\d{6,}(?:\\.[A-Z]{2})?$");
@@ -65,6 +60,7 @@ public class IbkrImportService {
   private final AssetCatalogService assetCatalogService;
   private final IbkrPositionReconstructionService ibkrPositionReconstructionService;
 
+  /** Imports one statement atomically; valid rows may report PARTIAL when other source rows fail. */
   public ImportExecutionResult importStatement(InputStream csvStream, String fileName)
       throws Exception {
     List<String[]> rows;
@@ -73,10 +69,11 @@ public class IbkrImportService {
       rows = reader.readAll();
     }
     Long accountIdFromFilename = parseAccountIdFromFilename(fileName);
-    CurrencyType baseCurrency = parseStatementBaseCurrency(rows);
+    CurrencyType statementBaseCurrency = parseStatementBaseCurrency(rows);
 
     Map<String, Integer> col = locateHeader(rows, SECTION);
     Map<String, Integer> dedup = new HashMap<>();
+    Map<Long, Account> configuredAccounts = new HashMap<>();
     List<CashOperation> cashOps = new ArrayList<>();
     List<IbkrTradePriceObservation> tradePriceObservations = new ArrayList<>();
     int total = 0;
@@ -92,6 +89,20 @@ public class IbkrImportService {
         Long account =
             resolveIbkrAccountId(
                 accountIdFromFilename, value(r, col, "Account", "Account ID", "AccountId"));
+        Account configuredAccount =
+            configuredAccounts.computeIfAbsent(account, this::requireIbkrAccount);
+        CurrencyType baseCurrency =
+            statementBaseCurrency != null ? statementBaseCurrency : configuredAccount.getCurrency();
+        if (statementBaseCurrency != null
+            && statementBaseCurrency != configuredAccount.getCurrency()) {
+          throw new IllegalArgumentException(
+              "IBKR statement base currency "
+                  + statementBaseCurrency
+                  + " disagrees with account "
+                  + account
+                  + " currency "
+                  + configuredAccount.getCurrency());
+        }
         String description = value(r, col, "Description");
         String rawSymbol = value(r, col, "Symbol");
         String symbol = cleanSymbol(rawSymbol);
@@ -118,6 +129,10 @@ public class IbkrImportService {
                     value(r, col, "Price", "T. Price", "Trade Price", "Transaction Price")));
         CurrencyType currency = resolveMonetaryCurrency(r, col, baseCurrency);
 
+        if (net == null) {
+          throw new IllegalArgumentException("IBKR row has no net amount");
+        }
+
         CashOperation op = new CashOperation();
         String key =
             String.join(
@@ -136,14 +151,22 @@ public class IbkrImportService {
           op.setSourceAssetSymbol(rawSymbol(rawSymbol));
           op.setBrokerSymbol(rawSymbol(rawSymbol));
         }
-        op.setAmount(net != null ? net : 0.0);
+        op.setAmount(net);
         op.setCurrency(currency);
         op.setComment(
             buildOperationComment(
                 type, rawSymbol, description, quantity, price, grossAmount, commission));
         op.setDate(date);
+        if (op.getType() == CashOperationType.UNKNOWN) {
+          throw new IllegalArgumentException("Unknown IBKR transaction type: " + type);
+        }
+        String normalizedType = normalizeOperationType(type);
+        if (("buy".equals(normalizedType) || "sell".equals(normalizedType))
+            && (quantity == null || price == null)) {
+          throw new IllegalArgumentException("IBKR trade row has no quantity or price");
+        }
         cashOps.add(op);
-        maybeBuildTradePriceObservation(r, col, type, symbol, date, price)
+        maybeBuildTradePriceObservation(r, col, type, symbol, date, price, currency)
             .ifPresent(tradePriceObservations::add);
       } catch (Exception e) {
         failed++;
@@ -151,22 +174,10 @@ public class IbkrImportService {
       }
     }
 
-    Set<String> importedSymbols = new HashSet<>();
-    cashOps.stream()
-        .map(CashOperation::getSymbol)
-        .filter(StringUtils::hasText)
-        .forEach(importedSymbols::add);
-    tradePriceObservations.stream()
-        .map(IbkrTradePriceObservation::symbol)
-        .filter(StringUtils::hasText)
-        .forEach(importedSymbols::add);
-    Set<String> excludedSymbols = excludedAssetSymbols(importedSymbols);
-    cashOps.removeIf(operation -> isExcluded(operation.getSymbol(), excludedSymbols));
-    tradePriceObservations.removeIf(
-        observation -> isExcluded(observation.symbol(), excludedSymbols));
-
     ensureCashOperationAssetsExist(cashOps);
-    ensureIbkrAccountExists(cashOps, List.of());
+    if (configuredAccounts.isEmpty()) {
+      throw new IllegalArgumentException("IBKR statement has no resolvable account");
+    }
     applyCashOperationAssetIdentities(cashOps);
     persistTradePriceHistory(tradePriceObservations);
     cashOperationRepository.saveAll(cashOps);
@@ -182,16 +193,16 @@ public class IbkrImportService {
             .distinct()
             .toList();
     List<OpenedPosition> openPositions = new ArrayList<>();
+    int reconstructedClosedPositions = 0;
     String openPositionsSection = findOpenPositionsSection(rows);
     if (openPositionsSection != null) {
-      openPositions = importOpenPositions(rows, dedup, openPositionsSection);
-      Set<String> excludedPositionSymbols =
-          excludedAssetSymbols(
-              openPositions.stream()
-                  .map(OpenedPosition::getSymbol)
-                  .filter(StringUtils::hasText)
-                  .collect(Collectors.toSet()));
-      openPositions.removeIf(position -> isExcluded(position.getSymbol(), excludedPositionSymbols));
+      Long openPositionsAccount =
+          affectedAccounts.size() == 1 ? affectedAccounts.getFirst() : accountIdFromFilename;
+      if (openPositionsAccount == null) {
+        throw new IllegalArgumentException("IBKR open positions have no resolvable account");
+      }
+      openPositions =
+          importOpenPositions(rows, dedup, openPositionsSection, openPositionsAccount);
       ensureAssetsExist(openPositions);
       applyPositionAssetIdentities(openPositions);
       for (Long accountId : affectedAccounts) {
@@ -199,21 +210,24 @@ public class IbkrImportService {
             openPositions.stream()
                 .filter(position -> Objects.equals(position.getAccount(), accountId))
                 .toList();
-        ibkrPositionReconstructionService.rebuildFromCanonicalHistory(
-            accountId, snapshotForAccount);
+        IbkrPositionReconstructionService.ReconstructionResult rebuild =
+            ibkrPositionReconstructionService.rebuildFromCanonicalHistory(
+                accountId, snapshotForAccount);
+        reconstructedClosedPositions += rebuild.closedPositions().size();
       }
     } else {
       for (Long accountId : affectedAccounts) {
         IbkrPositionReconstructionService.ReconstructionResult rebuild =
             ibkrPositionReconstructionService.rebuildFromCanonicalHistory(accountId, null);
         openPositions.addAll(rebuild.openedPositions());
+        reconstructedClosedPositions += rebuild.closedPositions().size();
       }
     }
 
     String details =
         String.format(
-            "IBKR: %d cash operations, %d closed positions, %d open positions, %d skipped",
-            cashOps.size(), 0, openPositions.size(), failed);
+            "IBKR: %d source cash operations, %d reconstructed closed positions, %d open positions, %d skipped",
+            cashOps.size(), reconstructedClosedPositions, openPositions.size(), failed);
     log.info(details);
     // Batch audit counters are row-level import metrics, not projection/rebuild output sizes.
     int applied = Math.max(0, total - failed);
@@ -224,7 +238,7 @@ public class IbkrImportService {
    * Parses the "Open Positions" section (if present) into IBKR opened positions and replaces them.
    */
   private List<OpenedPosition> importOpenPositions(
-      List<String[]> rows, Map<String, Integer> dedup, String section) {
+      List<String[]> rows, Map<String, Integer> dedup, String section, Long accountId) {
     Map<String, Integer> col = locateHeader(rows, section);
     Integer cSymbol = colIndex(col, "Symbol");
     Integer cQuantity = colIndex(col, "Quantity");
@@ -255,8 +269,8 @@ public class IbkrImportService {
         continue;
       }
       OpenedPosition p = new OpenedPosition();
-      p.setId(syntheticId("POS|" + IBKR_ACCOUNT + "|" + symbol, dedup));
-      p.setAccount(IBKR_ACCOUNT);
+      p.setId(syntheticId("POS|" + accountId + "|" + symbol, dedup));
+      p.setAccount(accountId);
       p.setSymbol(symbol);
       p.setSourceAssetSymbol(rawSymbol(at(r, cSymbol)));
       p.setBrokerSymbol(rawSymbol(at(r, cSymbol)));
@@ -367,21 +381,17 @@ public class IbkrImportService {
     throw new IllegalArgumentException("IBKR row has no monetary currency");
   }
 
-  /** Reads the statement base currency from the {@code Summary} section, defaulting to USD. */
+  /** Reads the statement base currency from the {@code Summary} section. */
   private CurrencyType parseStatementBaseCurrency(List<String[]> rows) {
     for (String[] r : rows) {
       if (r.length > 3
           && "Summary".equals(r[0])
           && "Data".equals(r[1])
           && "Base Currency".equalsIgnoreCase(r[2] == null ? null : r[2].trim())) {
-        try {
-          return parseCurrency(r[3]);
-        } catch (RuntimeException ignored) {
-          // fall through to default
-        }
+        return parseCurrency(r[3]);
       }
     }
-    return CurrencyType.USD;
+    return null;
   }
 
   private static double orZero(Double value) {
@@ -484,23 +494,6 @@ public class IbkrImportService {
     return assetId;
   }
 
-  private Set<String> excludedAssetSymbols(Set<String> symbols) {
-    if (symbols.isEmpty()) {
-      return Set.of();
-    }
-    return assetRepository.findAllBySymbolIn(symbols).stream()
-        .filter(asset -> Boolean.TRUE.equals(asset.getExcludeFromImport()))
-        .map(Asset::getSymbol)
-        .filter(StringUtils::hasText)
-        .map(symbol -> symbol.trim().toUpperCase(Locale.ROOT))
-        .collect(Collectors.toSet());
-  }
-
-  private boolean isExcluded(String symbol, Set<String> excludedSymbols) {
-    return StringUtils.hasText(symbol)
-        && excludedSymbols.contains(symbol.trim().toUpperCase(Locale.ROOT));
-  }
-
   private boolean hasResolvableAssetSymbol(CashOperation operation) {
     boolean pseudoFxSymbol =
         operation.getType() == CashOperationType.TRANSFER
@@ -520,7 +513,8 @@ public class IbkrImportService {
             && normalizeOperationType(rawType) != null
             && normalizeOperationType(rawType).startsWith("corporate action"))
         || type == CashOperationType.DIVIDEND
-        || type == CashOperationType.WITHHOLDING_TAX;
+        || type == CashOperationType.WITHHOLDING_TAX
+        || type == CashOperationType.FREE_FUNDS_INTEREST;
   }
 
   private Double normalizeTradeQuantity(
@@ -556,17 +550,9 @@ public class IbkrImportService {
     if (isKnownBondAsset(canonicalSymbol)) {
       return true;
     }
-    String raw = rawSymbol == null ? "" : rawSymbol.trim().toUpperCase(Locale.ROOT);
     String canonical =
         canonicalSymbol == null ? "" : canonicalSymbol.trim().toUpperCase(Locale.ROOT);
-    String text = description == null ? "" : description.trim().toLowerCase(Locale.ROOT);
-    return raw.contains(" 1/") // treasury coupon style like T 4 5/8 02/28/26
-        || raw.contains(" 5/8 ")
-        || text.contains("treasury")
-        || text.contains(" per bond")
-        || text.contains("bond ")
-        || COMPACT_BOND_SYMBOL_PATTERN.matcher(canonical).matches()
-        || COMPACT_BOND_SYMBOL_PATTERN.matcher(raw).matches();
+    return COMPACT_BOND_SYMBOL_PATTERN.matcher(canonical).matches();
   }
 
   private boolean isKnownBondAsset(String symbol) {
@@ -577,33 +563,20 @@ public class IbkrImportService {
         .anyMatch(asset -> "BOND".equalsIgnoreCase(asset.getAssetType()));
   }
 
-  private void ensureIbkrAccountExists(
-      List<CashOperation> cashOperations, List<OpenedPosition> reconstructedOpenPositions) {
-    Set<Long> accountIds = new LinkedHashSet<>();
-    cashOperations.stream()
-        .map(CashOperation::getAccount)
-        .filter(Objects::nonNull)
-        .forEach(accountIds::add);
-    reconstructedOpenPositions.stream()
-        .map(OpenedPosition::getAccount)
-        .filter(Objects::nonNull)
-        .forEach(accountIds::add);
-    if (accountIds.isEmpty()) {
-      accountIds.add(IBKR_ACCOUNT);
+  private Account requireIbkrAccount(Long accountId) {
+    Account account =
+        accountRepository
+            .findById(accountId)
+            .orElseThrow(
+                () -> new IllegalArgumentException("IBKR account is not configured: " + accountId));
+    if (!"IBKR".equalsIgnoreCase(account.getProvider())) {
+      throw new IllegalArgumentException(
+          "Account " + accountId + " is configured for provider " + account.getProvider() + ", not IBKR");
     }
-    for (Long accountId : accountIds) {
-      if (accountRepository.existsById(accountId)) {
-        continue;
-      }
-      Account account = new Account();
-      account.setId(accountId);
-      account.setCurrency(CurrencyType.USD);
-      account.setProvider(DEFAULT_ACCOUNT_PROVIDER);
-      account.setName(accountId.equals(IBKR_ACCOUNT) ? DEFAULT_ACCOUNT_NAME : "IBKR " + accountId);
-      account.setOwner(DEFAULT_ACCOUNT_OWNER);
-      account.setPortfolioId(DEFAULT_PORTFOLIO_ID);
-      accountRepository.save(account);
+    if (account.getCurrency() == null) {
+      throw new IllegalArgumentException("IBKR account has no configured currency: " + accountId);
     }
+    return account;
   }
 
   private Optional<IbkrTradePriceObservation> maybeBuildTradePriceObservation(
@@ -612,7 +585,8 @@ public class IbkrImportService {
       String transactionType,
       String symbol,
       ZonedDateTime tradeDate,
-      Double price) {
+      Double price,
+      CurrencyType monetaryCurrency) {
     String normalizedType = normalizeOperationType(transactionType);
     if (!"buy".equals(normalizedType) && !"sell".equals(normalizedType)) {
       return Optional.empty();
@@ -620,7 +594,11 @@ public class IbkrImportService {
     if (!StringUtils.hasText(symbol) || tradeDate == null || price == null || price <= 0.0) {
       return Optional.empty();
     }
-    CurrencyType priceCurrency = parseCurrency(value(row, col, "Price Currency"));
+    String rawPriceCurrency = value(row, col, "Price Currency");
+    CurrencyType priceCurrency =
+        StringUtils.hasText(rawPriceCurrency) && !"-".equals(rawPriceCurrency)
+            ? parseCurrency(rawPriceCurrency)
+            : monetaryCurrency;
     return Optional.of(
         new IbkrTradePriceObservation(
             symbol,
@@ -665,7 +643,7 @@ public class IbkrImportService {
     try {
       return Double.valueOf(raw.replace(",", ""));
     } catch (NumberFormatException e) {
-      return null;
+      throw new IllegalArgumentException("Malformed IBKR number: " + raw, e);
     }
   }
 
@@ -692,23 +670,33 @@ public class IbkrImportService {
   }
 
   private Long normalizeIbkrAccountId(String raw) {
-    String source = orDefault(raw, "U" + IBKR_ACCOUNT);
-    String trimmed = source.trim();
-    if (trimmed.startsWith("U") || trimmed.startsWith("u")) {
-      trimmed = trimmed.substring(1);
+    if (!StringUtils.hasText(raw) || "-".equals(raw.trim())) {
+      throw new IllegalArgumentException("IBKR row has no account id");
     }
-    String digits = trimmed.replaceAll("\\D+", "");
-    if (!StringUtils.hasText(digits)) {
-      return IBKR_ACCOUNT;
+    String trimmed = raw.trim();
+    if (!trimmed.matches("(?i)U?\\d{6,}")) {
+      throw new IllegalArgumentException("Malformed IBKR account id: " + raw);
     }
-    return Long.valueOf(digits);
+    return Long.valueOf(trimmed.replaceFirst("(?i)^U", ""));
   }
 
   private Long resolveIbkrAccountId(Long accountIdFromFilename, String accountColumnValue) {
     if (accountIdFromFilename != null) {
+      if (StringUtils.hasText(accountColumnValue)
+          && accountColumnValue.trim().matches("(?i)U?\\d{6,}")) {
+        Long accountIdFromRow = normalizeIbkrAccountId(accountColumnValue);
+        if (!accountIdFromFilename.equals(accountIdFromRow)) {
+          throw new IllegalArgumentException(
+              "IBKR filename account "
+                  + accountIdFromFilename
+                  + " disagrees with statement account "
+                  + accountIdFromRow);
+        }
+      }
       return accountIdFromFilename;
     }
-    return normalizeIbkrAccountId(accountColumnValue);
+    Long accountIdFromRow = normalizeIbkrAccountId(accountColumnValue);
+    return accountIdFromRow;
   }
 
   private Long parseAccountIdFromFilename(String fileName) {
@@ -751,7 +739,7 @@ public class IbkrImportService {
       parts.add("ibkrGrossAmount=" + grossAmount);
     }
     if (commission != null) {
-      parts.add("ibkrCommission=" + Math.abs(commission));
+      parts.add("ibkrCommission=" + (-Math.abs(commission)));
     }
     if (isForexTradeComponent(rawType, rawSymbol, description)) {
       Matcher matcher = INTERNAL_TRANSFER_PATTERN.matcher(orDefault(description, ""));

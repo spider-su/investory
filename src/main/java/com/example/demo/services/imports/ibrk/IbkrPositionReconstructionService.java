@@ -146,10 +146,8 @@ public class IbkrPositionReconstructionService {
       }
       double qty = Math.abs(tx.quantity());
       double value =
-          Math.abs(nz(op.getAmount())) > EPSILON
-              ? Math.abs(nz(op.getAmount()))
-              : qty * nz(tx.price());
-      position.addLot(op.getDate(), qty, value);
+          grossTradeValue(tx) > EPSILON ? grossTradeValue(tx) : qty * nz(tx.price());
+      position.addLot(op.getDate(), qty, value, Math.abs(nz(tx.commission())));
       return;
     }
 
@@ -203,7 +201,7 @@ public class IbkrPositionReconstructionService {
         position.setOpenTime(lot.openDate);
         position.setPurchaseValue(lot.costBasis);
         position.setOpenPrice(lot.quantity <= EPSILON ? 0.0 : lot.costBasis / lot.quantity);
-        position.setCommission(0.0);
+        position.setCommission(-lot.commissionCostBasis);
         position.setSwap(0.0);
         position.setProfit(0.0);
         position.setComment("IBKR reconstructed from canonical cash history");
@@ -272,7 +270,7 @@ public class IbkrPositionReconstructionService {
     }
     CashOperation op = tx.operation();
     double totalClosedQuantity = closedSlices.stream().mapToDouble(ClosedSlice::quantity).sum();
-    double totalSaleValue = Math.abs(nz(op.getAmount()));
+    double totalSaleValue = grossTradeValue(tx);
     if (totalSaleValue <= EPSILON) {
       totalSaleValue = totalClosedQuantity * nz(tx.price());
     }
@@ -281,7 +279,7 @@ public class IbkrPositionReconstructionService {
           totalClosedQuantity <= EPSILON
               ? 0.0
               : totalSaleValue * closed.quantity() / totalClosedQuantity;
-      double allocatedCommission =
+      double allocatedClosingCommission =
           totalClosedQuantity <= EPSILON
               ? 0.0
               : Math.abs(nz(tx.commission())) * closed.quantity() / totalClosedQuantity;
@@ -317,7 +315,8 @@ public class IbkrPositionReconstructionService {
       row.setClosePrice(closed.quantity() <= EPSILON ? 0.0 : saleValue / closed.quantity());
       row.setPurchaseValue(closed.costBasis());
       row.setSaleValue(saleValue);
-      row.setCommission(allocatedCommission);
+      row.setCommission(
+          -(closed.openingCommission() + allocatedClosingCommission));
       row.setSwap(0.0);
       row.setMargin(0.0);
       row.setProfit(saleValue - closed.costBasis());
@@ -327,19 +326,38 @@ public class IbkrPositionReconstructionService {
 
   private List<ClosedSlice> closeReconstructedPosition(
       ReconstructedPosition position, double requestedQuantity) {
-    double remaining = Math.min(Math.abs(requestedQuantity), position.quantity);
+    if (requestedQuantity > position.quantity + EPSILON) {
+      throw new IllegalStateException(
+          "IBKR sell exceeds reconstructed long inventory for "
+              + position.symbol
+              + ": requested="
+              + requestedQuantity
+              + ", available="
+              + position.quantity);
+    }
+    double remaining = Math.abs(requestedQuantity);
     List<ClosedSlice> slices = new ArrayList<>();
     while (remaining > EPSILON && !position.lots.isEmpty()) {
       ReconstructedLot lot = position.lots.peekFirst();
       double closeQuantity = Math.min(remaining, lot.quantity);
       double averageCost = lot.quantity <= EPSILON ? 0.0 : lot.costBasis / lot.quantity;
+      double averageOpeningCommission =
+          lot.quantity <= EPSILON ? 0.0 : lot.commissionCostBasis / lot.quantity;
       double closedCostBasis = averageCost * closeQuantity;
+      double closedOpeningCommission = averageOpeningCommission * closeQuantity;
       lot.quantity -= closeQuantity;
       lot.costBasis -= closedCostBasis;
+      lot.commissionCostBasis -= closedOpeningCommission;
       position.quantity -= closeQuantity;
       position.costBasis -= closedCostBasis;
       remaining -= closeQuantity;
-      slices.add(new ClosedSlice(closeQuantity, closedCostBasis, averageCost, lot.openDate));
+      slices.add(
+          new ClosedSlice(
+              closeQuantity,
+              closedCostBasis,
+              averageCost,
+              closedOpeningCommission,
+              lot.openDate));
       if (lot.quantity <= EPSILON) {
         position.lots.removeFirst();
       }
@@ -351,13 +369,29 @@ public class IbkrPositionReconstructionService {
   private double inferredBondRedemptionQuantity(ReconstructedPosition position, CanonicalTrade tx) {
     Double redemptionPrice = parseBondCallPrice(tx.description());
     if (redemptionPrice != null && redemptionPrice > 0.0) {
-      return Math.abs(tx.operation().getAmount()) / redemptionPrice;
+      double quantity = Math.abs(tx.operation().getAmount()) / redemptionPrice;
+      return isKnownBondAsset(tx.symbol()) ? quantity / 1000.0 : quantity;
     }
     if (position.quantity <= EPSILON || position.costBasis <= EPSILON) {
       return 0.0;
     }
     double averageCost = position.costBasis / position.quantity;
-    return averageCost <= EPSILON ? 0.0 : Math.abs(tx.operation().getAmount()) / averageCost;
+    double quantity = averageCost <= EPSILON ? 0.0 : Math.abs(tx.operation().getAmount()) / averageCost;
+    return isKnownBondAsset(tx.symbol()) ? quantity / 1000.0 : quantity;
+  }
+
+  private double grossTradeValue(CanonicalTrade tx) {
+    if (Math.abs(nz(tx.grossAmount())) > EPSILON) {
+      return Math.abs(tx.grossAmount());
+    }
+    double net = Math.abs(nz(tx.operation().getAmount()));
+    return Math.max(0.0, net - Math.abs(nz(tx.commission())));
+  }
+
+  private boolean isKnownBondAsset(String symbol) {
+    return StringUtils.hasText(symbol)
+        && symbol.toUpperCase(Locale.ROOT).startsWith("T")
+        && symbol.matches("T\\d{6,}(?:\\.[A-Z]{2})?");
   }
 
   private Double parseBondCallPrice(String description) {
@@ -427,7 +461,11 @@ public class IbkrPositionReconstructionService {
     }
     for (Map.Entry<String, Double> entry : netByPosition.entrySet()) {
       if (entry.getValue() < -EPSILON) {
-        continue;
+        throw new IllegalStateException(
+            "IBKR transaction history contains an unsupported short/oversell for "
+                + entry.getKey()
+                + ": netQuantity="
+                + entry.getValue());
       }
       ReconstructedPosition position = positions.get(entry.getKey());
       double reconstructed = position == null ? 0.0 : position.quantity;
@@ -529,8 +567,9 @@ public class IbkrPositionReconstructionService {
       this.currency = Objects.requireNonNull(currency, "IBKR monetary currency");
     }
 
-    private void addLot(ZonedDateTime openDate, double quantity, double costBasis) {
-      lots.addLast(new ReconstructedLot(openDate, quantity, costBasis));
+    private void addLot(
+        ZonedDateTime openDate, double quantity, double costBasis, double commissionCostBasis) {
+      lots.addLast(new ReconstructedLot(openDate, quantity, costBasis, commissionCostBasis));
       this.quantity += quantity;
       this.costBasis += costBasis;
     }
@@ -548,11 +587,17 @@ public class IbkrPositionReconstructionService {
     private final ZonedDateTime openDate;
     private double quantity;
     private double costBasis;
+    private double commissionCostBasis;
 
-    private ReconstructedLot(ZonedDateTime openDate, double quantity, double costBasis) {
+    private ReconstructedLot(
+        ZonedDateTime openDate,
+        double quantity,
+        double costBasis,
+        double commissionCostBasis) {
       this.openDate = openDate;
       this.quantity = quantity;
       this.costBasis = costBasis;
+      this.commissionCostBasis = commissionCostBasis;
     }
 
     private ZonedDateTime openDate() {
@@ -561,5 +606,9 @@ public class IbkrPositionReconstructionService {
   }
 
   private record ClosedSlice(
-      double quantity, double costBasis, double averageCost, ZonedDateTime openDate) {}
+      double quantity,
+      double costBasis,
+      double averageCost,
+      double openingCommission,
+      ZonedDateTime openDate) {}
 }

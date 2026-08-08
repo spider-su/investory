@@ -46,23 +46,6 @@ public class ImportBatchAuditWriter {
       String sha256) {
     Optional<ImportHistory> existing =
         importRepository.findFirstByBrokerAndFileSha256OrderByIdDesc(broker, sha256);
-    if (existing.isPresent() && existing.get().getStatus() != ImportBatchStatus.COMPLETED) {
-      ImportHistory batch = existing.get();
-      batch.setBroker(broker);
-      batch.setSourceType(sourceType);
-      batch.setSourceRef(sourceRef);
-      batch.setFileName(fileName);
-      batch.setFileSha256(sha256);
-      batch.setStartedAt(ZonedDateTime.now());
-      batch.setFinishedAt(null);
-      batch.setStatus(ImportBatchStatus.STARTED);
-      batch.setRowsTotal(0);
-      batch.setRowsApplied(0);
-      batch.setRowsFailed(0);
-      batch.setErrorMessage(null);
-      return importRepository.save(batch);
-    }
-
     ImportHistory batch = new ImportHistory();
     batch.setBroker(broker);
     batch.setSourceType(sourceType);
@@ -74,6 +57,34 @@ public class ImportBatchAuditWriter {
     batch.setRowsTotal(0);
     batch.setRowsApplied(0);
     batch.setRowsFailed(0);
+    batch.setAttemptNo(
+        existing
+            .map(previous -> previous.getAttemptNo() == null ? 2 : previous.getAttemptNo() + 1)
+            .orElse(1));
+    existing.map(ImportHistory::getId).ifPresent(batch::setReprocessOf);
+    return importRepository.save(batch);
+  }
+
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  public ImportHistory startReprocessBatch(ImportHistory original) {
+    ImportHistory latest =
+        importRepository
+            .findFirstByBrokerAndFileSha256OrderByAttemptNoDesc(
+                original.getBroker(), original.getFileSha256())
+            .orElse(original);
+    ImportHistory batch = new ImportHistory();
+    batch.setBroker(original.getBroker());
+    batch.setSourceType(original.getSourceType());
+    batch.setSourceRef(original.getSourceRef());
+    batch.setFileName(original.getFileName());
+    batch.setFileSha256(original.getFileSha256());
+    batch.setStartedAt(ZonedDateTime.now());
+    batch.setStatus(ImportBatchStatus.STARTED);
+    batch.setRowsTotal(0);
+    batch.setRowsApplied(0);
+    batch.setRowsFailed(0);
+    batch.setAttemptNo((latest.getAttemptNo() == null ? 1 : latest.getAttemptNo()) + 1);
+    batch.setReprocessOf(original.getId());
     return importRepository.save(batch);
   }
 
@@ -81,7 +92,9 @@ public class ImportBatchAuditWriter {
   public ImportHistory finalizeApplied(Long batchId, ImportExecutionResult result) {
     ImportHistory batch = importRepository.getById(batchId);
     batch.setStatus(
-        result.rowsFailed() > 0 ? ImportBatchStatus.PARTIAL : ImportBatchStatus.COMPLETED);
+        result.rowsFailed() == 0 && result.rowsApplied() == result.rowsTotal()
+            ? ImportBatchStatus.COMPLETED
+            : result.rowsApplied() > 0 ? ImportBatchStatus.PARTIAL : ImportBatchStatus.FAILED);
     batch.setRowsTotal(result.rowsTotal());
     batch.setRowsApplied(result.rowsApplied());
     batch.setRowsFailed(result.rowsFailed());

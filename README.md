@@ -82,8 +82,8 @@ headline ROI.
 ## Current limitations
 
 - Exact files are detected using broker plus file SHA-256. For IBKR and XTB, an existing successful
-  batch is reused while the parser and derived projections are rerun to repair reconstructed state;
-  no new import batch is created.
+  batch creates a new linked reprocess attempt while the parser and derived projections are rerun
+  to repair reconstructed state; the original attempt remains immutable.
 - Overlapping but non-identical exports rely on stable broker identifiers or synthetic row IDs.
   Partial-overlap idempotency is not a formal guarantee and needs stronger validation.
 - SPY is the only benchmark. Benchmark selection is limited to accounts and dashboard period.

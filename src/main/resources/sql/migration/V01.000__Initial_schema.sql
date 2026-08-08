@@ -401,6 +401,8 @@ CREATE TABLE IF NOT EXISTS investory.import_history (
     source_type     text,
     source_ref      text,
     rows_applied    integer,
+    attempt_no      integer NOT NULL DEFAULT 1,
+    reprocess_of    bigint REFERENCES investory.import_history(id),
     CONSTRAINT chk_import_history_status
         CHECK (status IS NULL OR status IN ('STARTED', 'COMPLETED', 'PARTIAL', 'FAILED')),
     CONSTRAINT chk_import_history_rows_total_non_negative
@@ -422,6 +424,10 @@ CREATE TABLE IF NOT EXISTS investory.import_history (
             rows_total IS NULL
             OR COALESCE(rows_applied, 0) + COALESCE(rows_failed, 0) <= rows_total
         ),
+    CONSTRAINT chk_import_history_attempt_no_positive
+        CHECK (attempt_no >= 1),
+    CONSTRAINT chk_import_history_reprocess_not_self
+        CHECK (reprocess_of IS NULL OR reprocess_of <> id),
     CONSTRAINT chk_import_history_source_type_known_v01004
         CHECK (source_type IS NULL OR source_type IN ('MANUAL', 'API', 'TELEGRAM')),
     CONSTRAINT chk_import_history_status_started_lifecycle_v01004
@@ -436,8 +442,8 @@ CREATE TABLE IF NOT EXISTS investory.import_history (
     CONSTRAINT chk_import_history_status_failed_lifecycle_v01004
         CHECK (status IS DISTINCT FROM 'FAILED' OR finished_at IS NOT NULL)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS ux_import_history_provider_sha256
-    ON investory.import_history (provider, file_sha256);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_import_history_provider_sha256_attempt
+    ON investory.import_history (provider, file_sha256, attempt_no);
 COMMENT ON TABLE investory.import_history IS 'History of imports from providers to the system';
 
 CREATE TABLE investory.cash_operations (

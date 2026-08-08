@@ -53,7 +53,7 @@ class ImportHistoryAuditWriterTest {
   }
 
   @Test
-  void startBatch_reusesFailedBatchForSameChecksum() {
+  void startBatch_createsLinkedAttemptForSameChecksumAfterFailure() {
     ImportHistory failed = new ImportHistory();
     failed.setId(55L);
     failed.setBroker(BrokerType.IBKR);
@@ -73,7 +73,7 @@ class ImportHistoryAuditWriterTest {
         auditWriter.startBatch(
             BrokerType.IBKR, ImportSourceType.MANUAL, "ref2", "retry.csv", "abc");
 
-    assertEquals(55L, batch.getId());
+    assertEquals(55L, batch.getReprocessOf());
     assertEquals(ImportBatchStatus.STARTED, batch.getStatus());
     assertEquals(0, batch.getRowsTotal());
     assertEquals(0, batch.getRowsApplied());
@@ -122,6 +122,45 @@ class ImportHistoryAuditWriterTest {
     org.junit.jupiter.api.Assertions.assertTrue(
         failed.getErrorMessage().startsWith("boom\n[truncated to 8192 of 9216 bytes]"));
     assertEquals(1, failed.getRowsFailed());
+  }
+
+  @Test
+  void finalizeApplied_marksZeroAppliedRowsAsFailed() {
+    ImportHistory existing = new ImportHistory();
+    existing.setId(6L);
+    when(importRepository.getById(6L)).thenReturn(existing);
+    when(importRepository.save(any(ImportHistory.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    ImportHistory result = auditWriter.finalizeApplied(6L, new ImportExecutionResult(1, 0, 1, "bad"));
+
+    assertEquals(ImportBatchStatus.FAILED, result.getStatus());
+  }
+
+  @Test
+  void startReprocessBatchCreatesNewAttemptLinkedToOriginal() {
+    ImportHistory original = new ImportHistory();
+    original.setId(10L);
+    original.setBroker(BrokerType.IBKR);
+    original.setFileSha256("a".repeat(64));
+    original.setSourceType(ImportSourceType.MANUAL);
+    original.setAttemptNo(1);
+    when(importRepository.findFirstByBrokerAndFileSha256OrderByAttemptNoDesc(
+            BrokerType.IBKR, original.getFileSha256()))
+        .thenReturn(Optional.of(original));
+    when(importRepository.save(any(ImportHistory.class)))
+        .thenAnswer(invocation -> {
+          ImportHistory saved = invocation.getArgument(0);
+          saved.setId(11L);
+          return saved;
+        });
+
+    ImportHistory reprocess = auditWriter.startReprocessBatch(original);
+
+    assertEquals(11L, reprocess.getId());
+    assertEquals(2, reprocess.getAttemptNo());
+    assertEquals(10L, reprocess.getReprocessOf());
+    assertEquals(ImportBatchStatus.STARTED, reprocess.getStatus());
   }
 
   @Test

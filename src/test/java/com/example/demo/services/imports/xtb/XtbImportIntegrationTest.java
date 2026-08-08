@@ -22,6 +22,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.TimeZone;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.DateUtil;
@@ -84,9 +85,17 @@ class XtbImportIntegrationTest {
     Asset quotedAsset = assetRepository.findBySymbol("META.US").orElseThrow();
     assertTrue(Boolean.TRUE.equals(excludedAsset.getExcludeFromImport()));
 
-    ImportExecutionResult result =
-        xtbImportV2Service.importWorkbook(
-            new ByteArrayInputStream(workbookBytes()), "IKE_51729109_2025-12-31_2026-07-31.xlsx");
+    TimeZone originalTimeZone = TimeZone.getDefault();
+    ImportExecutionResult result;
+    try {
+      TimeZone.setDefault(TimeZone.getTimeZone("America/Los_Angeles"));
+      result =
+          xtbImportV2Service.importWorkbook(
+              new ByteArrayInputStream(workbookBytes()),
+              "IKE_51729109_2025-12-31_2026-07-31.xlsx");
+    } finally {
+      TimeZone.setDefault(originalTimeZone);
+    }
 
     assertEquals(3, result.rowsTotal());
     assertEquals(3, result.rowsApplied());

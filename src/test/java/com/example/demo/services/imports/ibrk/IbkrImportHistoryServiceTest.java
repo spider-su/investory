@@ -21,6 +21,7 @@ import com.example.demo.infrastructure.repository.ClosedPositionRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
 import com.example.demo.infrastructure.repository.account.AccountRepository;
+import com.example.demo.infrastructure.repository.account.Account;
 import com.example.demo.services.AssetCatalogService;
 import com.example.demo.services.imports.ImportExecutionResult;
 import java.io.ByteArrayInputStream;
@@ -100,6 +101,16 @@ class IbkrImportHistoryServiceTest {
                   brokerSymbol.contains(".") ? brokerSymbol : brokerSymbol + ".US";
               return List.of(asset(canonicalSymbol));
             });
+    org.mockito.Mockito.lenient()
+        .when(accountRepository.findById(org.mockito.ArgumentMatchers.anyLong()))
+        .thenAnswer(
+            invocation -> {
+              Account account = new Account();
+              account.setId(invocation.getArgument(0));
+              account.setProvider("IBKR");
+              account.setCurrency(CurrencyType.USD);
+              return java.util.Optional.of(account);
+            });
   }
 
   private static Asset asset(String symbol) {
@@ -140,7 +151,7 @@ class IbkrImportHistoryServiceTest {
             "\n",
             "Transaction History,Header,Transaction"
                 + " Type,Account,Symbol,Description,Date,Quantity,Price,Net Amount,Currency",
-            "Transaction History,Data,Buy,U1,O,Realty Income buy,2026-07-01,1,50,-50.00,USD");
+            "Transaction History,Data,Buy,U17959259,O,Realty Income buy,2026-07-01,1,50,-50.00,USD");
 
     service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
 
@@ -157,7 +168,7 @@ class IbkrImportHistoryServiceTest {
   }
 
   @Test
-  void importStatement_skipsAssetMarkedExcludedFromImport() throws Exception {
+  void importStatement_keepsAssetMarkedExcludedFromImport() throws Exception {
     Asset excluded = asset("AIGI.UK");
     excluded.setExcludeFromImport(true);
     when(assetRepository.findAllByIbrkIgnoreCase("AIGI")).thenReturn(List.of(excluded));
@@ -172,19 +183,56 @@ class IbkrImportHistoryServiceTest {
 
     service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
 
-    assertTrue(persistedCashOperations.isEmpty());
-    verify(assetPriceHistoryRepository, org.mockito.Mockito.never())
-        .upsertIbkrTradeObservation(
-            org.mockito.ArgumentMatchers.anyLong(),
-            org.mockito.ArgumentMatchers.any(LocalDate.class),
-            org.mockito.ArgumentMatchers.anyString(),
-            org.mockito.ArgumentMatchers.anyString(),
-            org.mockito.ArgumentMatchers.anyString(),
-            org.mockito.ArgumentMatchers.any(BigDecimal.class));
+    assertEquals(1, persistedCashOperations.size());
+    assertEquals(excluded.getId(), persistedCashOperations.getFirst().getAssetId());
   }
 
   @Test
-  void importStatement_keepsAssetIdForStockSell() throws Exception {
+  void importStatement_preservesAssetIdentityForInvestmentInterest() throws Exception {
+    String csv =
+        String.join(
+            "\n",
+            "Transaction History,Header,Transaction Type,Account,Symbol,Description,Date,Net Amount,Currency",
+            "Transaction History,Data,Investment Interest Received,U17959259,AAPL,Security interest,2026-07-01,2.50,USD");
+
+    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
+
+    assertEquals(1, persistedCashOperations.size());
+    CashOperation operation = persistedCashOperations.getFirst();
+    assertEquals(CashOperationType.FREE_FUNDS_INTEREST, operation.getType());
+    assertEquals("AAPL.US", operation.getSymbol());
+    assertEquals("AAPL", operation.getSourceAssetSymbol());
+    assertEquals("AAPL", operation.getBrokerSymbol());
+    assertTrue(operation.getAssetId() > 0);
+  }
+
+  @Test
+  void importStatement_doesNotNormalizeBondEtfFromTreasuryDescription() throws Exception {
+    Asset etf = asset("DTLA.UK");
+    etf.setAssetType("ETF");
+    when(assetRepository.findAllByIbrkIgnoreCase("DTLA")).thenReturn(List.of(etf));
+
+    String csv =
+        String.join(
+            "\n",
+            "Transaction History,Header,Transaction Type,Account,Symbol,Description,Date,Quantity,Price,Net Amount,Currency",
+            "Transaction History,Data,Buy,U17959259,DTLA,US Treasury Bond ETF,2026-07-01,1000,100,-100000,USD");
+
+    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Iterable<OpenedPosition>> positionCaptor =
+        (ArgumentCaptor<Iterable<OpenedPosition>>)
+            (ArgumentCaptor<?>) ArgumentCaptor.forClass(Iterable.class);
+    verify(openedPositionRepository).saveAll(positionCaptor.capture());
+    List<OpenedPosition> positions = toList(positionCaptor.getValue());
+    assertEquals(1, positions.size());
+    assertEquals(1000.0, positions.getFirst().getVolume(), 0.0001);
+    assertEquals(100.0, positions.getFirst().getOpenPrice(), 0.0001);
+  }
+
+  @Test
+  void importStatement_rejectsStockSellWithoutInventory() throws Exception {
     String csv =
         String.join(
             "\n",
@@ -192,18 +240,11 @@ class IbkrImportHistoryServiceTest {
                 + " Type,Account,Symbol,Description,Date,Quantity,Price,Net Amount,Currency",
             "Transaction History,Data,Sell,U17959259,AAPL,AAPL sell,2026-07-01,1,200,200.00,USD");
 
-    service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
-
-    @SuppressWarnings("unchecked")
-    ArgumentCaptor<Iterable<CashOperation>> cashCaptor =
-        (ArgumentCaptor<Iterable<CashOperation>>)
-            (ArgumentCaptor<?>) ArgumentCaptor.forClass(Iterable.class);
-    verify(cashOperationRepository).saveAll(cashCaptor.capture());
-    List<CashOperation> operations = toList(cashCaptor.getValue());
-
-    assertEquals(1, operations.size());
-    assertEquals(CashOperationType.STOCK_SELL, operations.getFirst().getType());
-    assertEquals("AAPL.US", operations.getFirst().getSymbol());
+    assertThrows(
+        IllegalStateException.class,
+        () ->
+            service.importStatement(
+                new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null));
   }
 
   @Test
@@ -563,8 +604,8 @@ class IbkrImportHistoryServiceTest {
             "\n",
             "Transaction History,Header,Transaction"
                 + " Type,Account,Symbol,Description,Date,Quantity,Price,Net Amount,Currency",
-            "Transaction History,Data,Corporate Action,U1,TLT,Bond redemption,2026-07-01,,,100.00,USD",
-            "Transaction History,Data,Adjustment,U1,,Manual correction,2026-07-02,,,-5.00,USD");
+            "Transaction History,Data,Corporate Action,U17959259,TLT,Bond redemption,2026-07-01,,,100.00,USD",
+            "Transaction History,Data,Adjustment,U17959259,,Manual correction,2026-07-02,,,-5.00,USD");
 
     ImportExecutionResult result =
         service.importStatement(
@@ -616,7 +657,7 @@ class IbkrImportHistoryServiceTest {
             "\n",
             "Transaction History,Header,Date,Account,Description,Transaction"
                 + " Type,Symbol,Quantity,Price,Net Amount,Currency",
-            "Transaction History,Data,2026-05-08,Alex&Olga,Net Amount in Base from Forex Trade:"
+            "Transaction History,Data,2026-05-08,U17959259,Net Amount in Base from Forex Trade:"
                 + " -3.32 EUR.USD,Forex Trade Component,EUR.USD,-3.32,1.17382,-0.0158696,USD");
 
     service.importStatement(
@@ -646,7 +687,7 @@ class IbkrImportHistoryServiceTest {
             "\n",
             "Transaction History,Header,Date,Account,Description,Transaction"
                 + " Type,Symbol,Quantity,Price,Net Amount,Currency",
-            "Transaction History,Data,2025-05-06,Alex&Olga,T 4 5/8 02/28/26,Buy,T 4 5/8"
+            "Transaction History,Data,2025-05-06,U17959259,T 4 5/8 02/28/26,Buy,T 4 5/8"
                 + " 02/28/26,8000.0,100.42611625,-8039.09,USD");
 
     service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
@@ -673,16 +714,16 @@ class IbkrImportHistoryServiceTest {
             "\n",
             "Transaction History,Header,Date,Account,Description,Transaction"
                 + " Type,Symbol,Quantity,Price,Price Currency,Gross Amount ,Commission,Net Amount,Currency",
-            "Transaction History,Data,2026-02-27,Alex&Olga,\"(US91282CKB62) Full Call / Early"
+            "Transaction History,Data,2026-02-27,U17959259,\"(US91282CKB62) Full Call / Early"
                 + " Redemption for USD 1.00 per Bond (T 4 5/8 02/28/26, T 4 5/8 02/28/26,"
                 + " US91282CKB62)\",Corporate Action,T 4 5/8 02/28/26,-,-,-,10000.0,-,10000.0,USD",
-            "Transaction History,Data,2026-02-11,Alex&Olga,VANG FTSE AW USDA,Buy,VWRA,"
+            "Transaction History,Data,2026-02-11,U17959259,VANG FTSE AW USDA,Buy,VWRA,"
                 + "2.0,177.0,USD,-354.0,-4.0,-358.0,USD",
-            "Transaction History,Data,2025-05-06,Alex&Olga,T 4 5/8 02/28/26,Buy,T 4 5/8"
+            "Transaction History,Data,2025-05-06,U17959259,T 4 5/8 02/28/26,Buy,T 4 5/8"
                 + " 02/28/26,8000.0,100.42611625,USD,-8034.09,-5.0,-8039.09,USD",
-            "Transaction History,Data,2025-04-17,Alex&Olga,T 4 5/8 02/28/26,Buy,T 4 5/8"
+            "Transaction History,Data,2025-04-17,U17959259,T 4 5/8 02/28/26,Buy,T 4 5/8"
                 + " 02/28/26,1000.0,100.484375,USD,-1004.84,-5.0,-1009.84,USD",
-            "Transaction History,Data,2025-03-26,Alex&Olga,T 4 5/8 02/28/26,Buy,T 4 5/8"
+            "Transaction History,Data,2025-03-26,U17959259,T 4 5/8 02/28/26,Buy,T 4 5/8"
                 + " 02/28/26,1000.0,100.41049125,USD,-1004.1,-5.0,-1009.1,USD");
 
     service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
@@ -724,10 +765,10 @@ class IbkrImportHistoryServiceTest {
             "\n",
             "Transaction History,Header,Date,Account,Description,Transaction"
                 + " Type,Symbol,Quantity,Price,Price Currency,Gross Amount ,Commission,Net Amount,Currency",
-            "Transaction History,Data,2026-02-27,Alex&Olga,\"(US91282CKB62) Full Call / Early"
+            "Transaction History,Data,2026-02-27,U17959259,\"(US91282CKB62) Full Call / Early"
                 + " Redemption for USD 1.00 per Bond (T 4 5/8 02/28/26, T 4 5/8 02/28/26,"
                 + " US91282CKB62)\",Corporate Action,T 4 5/8 02/28/26,-,-,-,10000.0,-,10000.0,USD",
-            "Transaction History,Data,2025-05-06,Alex&Olga,T 4 5/8 02/28/26,Buy,T 4 5/8"
+            "Transaction History,Data,2025-05-06,U17959259,T 4 5/8 02/28/26,Buy,T 4 5/8"
                 + " 02/28/26,10000.0,100.42611625,USD,-10042.61,-5.0,-10047.61,USD");
 
     service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
@@ -741,7 +782,7 @@ class IbkrImportHistoryServiceTest {
         String.join(
             "\n",
             "Transaction History,Header,Date,Account,Description,Transaction Type,Currency,Net Amount",
-            "Transaction History,Data,2026-06-03,Alex&Olga,USD deposit,Deposit,USD,100.00");
+            "Transaction History,Data,2026-06-03,U17959259,USD deposit,Deposit,USD,100.00");
 
     service.importStatement(
         new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)),
@@ -826,9 +867,9 @@ class IbkrImportHistoryServiceTest {
     verify(closedPositionRepository).saveAll(closedCaptor.capture());
     List<ClosedPosition> closed = toList(closedCaptor.getValue());
     assertEquals(1, closed.size());
-    assertEquals(7.0, closed.getFirst().getCommission(), 0.0001);
-    assertEquals(1093.0, closed.getFirst().getSaleValue(), 0.0001);
-    assertEquals(88.0, closed.getFirst().getProfit(), 0.0001);
+    assertEquals(-12.0, closed.getFirst().getCommission(), 0.0001);
+    assertEquals(1100.0, closed.getFirst().getSaleValue(), 0.0001);
+    assertEquals(100.0, closed.getFirst().getProfit(), 0.0001);
   }
 
   @Test
@@ -867,14 +908,7 @@ class IbkrImportHistoryServiceTest {
   }
 
   @Test
-  void importStatement_rebuildIsDeterministicForReverseImportOrder() throws Exception {
-    String fileA =
-        String.join(
-            "\n",
-            "Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quantity,Price,Net Amount,Currency",
-            "Transaction History,Data,2026-02-11,U17959259,JGPI buy,Buy,JGPI,404,10,-4040.00,USD",
-            "Transaction History,Data,2026-02-12,U17959259,VWRA buy,Buy,VWRA,82,100,-8200.00,USD",
-            "Transaction History,Data,2026-02-13,U17959259,IUVL buy,Buy,IUVL,610,20,-12200.00,USD");
+  void importStatement_rejectsSellWithoutHistoricalInventory() throws Exception {
     String fileB =
         String.join(
             "\n",
@@ -884,21 +918,11 @@ class IbkrImportHistoryServiceTest {
             "Transaction History,Data,2026-06-10,U17959259,VWRA buy,Buy,VWRA,32,103,-3296.00,USD",
             "Transaction History,Data,2026-06-11,U17959259,IUVL sell,Sell,IUVL,610,21,12810.00,USD");
 
-    service.importStatement(
-        new ByteArrayInputStream(fileB.getBytes(StandardCharsets.UTF_8)), "B.csv");
-    service.importStatement(
-        new ByteArrayInputStream(fileA.getBytes(StandardCharsets.UTF_8)), "A.csv");
-
-    @SuppressWarnings("unchecked")
-    ArgumentCaptor<Iterable<OpenedPosition>> openCaptor =
-        (ArgumentCaptor<Iterable<OpenedPosition>>)
-            (ArgumentCaptor<?>) ArgumentCaptor.forClass(Iterable.class);
-    verify(openedPositionRepository, atLeastOnce()).saveAll(openCaptor.capture());
-    List<OpenedPosition> latest = toList(openCaptor.getAllValues().getLast());
-
-    assertEquals(404.0, volumeFor(latest, "JGPI.US"), 0.0001);
-    assertEquals(146.0, volumeFor(latest, "VWRA.US"), 0.0001);
-    assertEquals(0.0, volumeFor(latest, "IUVL.UK"), 0.0001);
+    assertThrows(
+        IllegalStateException.class,
+        () ->
+            service.importStatement(
+                new ByteArrayInputStream(fileB.getBytes(StandardCharsets.UTF_8)), "B.csv"));
   }
 
   @Test
