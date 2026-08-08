@@ -164,6 +164,59 @@ $$;
 COMMENT ON FUNCTION investory.resolve_portfolio_fx_rate(bigint, date, varchar) IS
     'Portfolio-aware canonical FX resolver. Portfolio base currency is derived from portfolios.id; callers cannot supply it.';
 
+
+CREATE OR REPLACE VIEW investory.reporting_position_lot_duplicates AS
+SELECT
+    account_id,
+    asset_id,
+    source_position_id,
+    source_row_occurrence,
+    operation,
+    settlement_model,
+    open_time,
+    close_time,
+    volume,
+    open_price,
+    purchase_value,
+    price_currency,
+    cost_currency,
+    profit_currency,
+    commission_currency,
+    count(*) AS duplicate_count,
+    array_agg(id ORDER BY id) AS position_ids
+FROM investory.positions
+GROUP BY
+    account_id,
+    asset_id,
+    source_position_id,
+    source_row_occurrence,
+    operation,
+    settlement_model,
+    open_time,
+    close_time,
+    volume,
+    open_price,
+    purchase_value,
+    price_currency,
+    cost_currency,
+    profit_currency,
+    commission_currency
+HAVING count(*) > 1;
+COMMENT ON VIEW investory.reporting_position_lot_duplicates IS
+    'Diagnostic view for exact duplicate position lots imported under different IDs. Empty result is the expected healthy state.';
+
+CREATE OR REPLACE VIEW investory.reporting_timezone_naive_columns AS
+SELECT
+    table_name,
+    column_name,
+    data_type
+FROM information_schema.columns
+WHERE table_schema = 'investory'
+  AND data_type = 'timestamp without time zone';
+COMMENT ON VIEW investory.reporting_timezone_naive_columns IS
+    'Schema diagnostic. Empty result is expected; event and audit instants must use timestamp with time zone. Date-only business periods remain DATE.';
+
+
 CREATE OR REPLACE VIEW investory.v_canonical_asset_daily_price AS
 SELECT DISTINCT ON (aph.asset_id, aph.price_date)
     aph.asset_id,
@@ -4331,3 +4384,497 @@ SELECT (SELECT MAX(finished_at) FROM investory.import_history WHERE status = 'CO
 
 COMMENT ON VIEW investory.v_portfolio_data_quality_refresh IS
     'Separate timestamps for import, price, FX, projection, and reporting stages.';
+
+CREATE OR REPLACE VIEW investory.reporting_unsupported_transaction_states AS
+SELECT
+    'cash_operations'::varchar(32) AS source_table,
+    co.id AS row_id,
+    co.account_id,
+    co.asset_id,
+    co.date AS occurred_at,
+    'UNKNOWN_CASH_OPERATION'::varchar(64) AS issue_code,
+    co.operation::text AS raw_state,
+    co.comment AS evidence
+FROM investory.cash_operations co
+WHERE co.operation = 'UNKNOWN'
+UNION ALL
+SELECT
+    'cash_operations'::varchar(32),
+    nco.operation_id,
+    nco.account_id,
+    nco.asset_id,
+    nco.date,
+    'UNCLASSIFIED_CASH_OPERATION'::varchar(64),
+    nco.raw_operation::text,
+    nco.comment
+FROM investory.normalized_cash_operations nco
+WHERE nco.normalized_category = 'UNCLASSIFIED'
+UNION ALL
+SELECT
+    'positions'::varchar(32),
+    p.id,
+    p.account_id,
+    p.asset_id,
+    p.open_time,
+    'UNCLASSIFIED_SETTLEMENT_MODEL'::varchar(64),
+    p.settlement_model::text,
+    p.broker_product
+FROM investory.positions p
+WHERE p.settlement_model = 'UNCLASSIFIED';
+
+COMMENT ON VIEW investory.reporting_unsupported_transaction_states IS
+    'Required review queue for preserved but unsupported or unresolved ledger states. Empty result is expected before trusted reporting; unknown enum labels are rejected directly by PostgreSQL.';
+
+CREATE OR REPLACE VIEW investory.account_monthly_benchmark AS
+WITH portfolio_base_flows AS (
+    SELECT
+        nco.account_id,
+        date_trunc('month', nco.date)::date AS month,
+        SUM(nco.amount_in_portfolio_base_currency) AS net_external_flow
+    FROM investory.normalized_cash_operations nco
+    WHERE nco.normalized_category IN (
+        'EXTERNAL_DEPOSIT',
+        'EXTERNAL_WITHDRAWAL',
+        'INTERNAL_TRANSFER_IN',
+        'INTERNAL_TRANSFER_OUT',
+        'INTERNAL_BOOKKEEPING',
+        'FX_CONVERSION',
+        'CORRECTION'
+    )
+    GROUP BY nco.account_id, date_trunc('month', nco.date)::date
+)
+SELECT
+    monthly.account_id,
+    monthly.month,
+    monthly.first_date,
+    monthly.end_date,
+    monthly.opening_equity,
+    monthly.closing_equity,
+    monthly.valuation_currency,
+    monthly.deposits,
+    monthly.withdrawals,
+    monthly.dividends,
+    monthly.interest,
+    monthly.fees,
+    monthly.taxes,
+    monthly.realized_profit,
+    monthly.closing_equity
+        - monthly.opening_equity
+        - COALESCE(flows.net_external_flow, 0) AS total_profit,
+    CASE
+        WHEN monthly.opening_equity = 0 THEN NULL::numeric
+        ELSE (
+            monthly.closing_equity
+            - monthly.opening_equity
+            - COALESCE(flows.net_external_flow, 0)
+        ) / monthly.opening_equity
+    END AS compounded_monthly_return,
+    monthly.updated_at
+FROM investory.account_monthly_mv monthly
+LEFT JOIN portfolio_base_flows flows
+    ON flows.account_id = monthly.account_id
+   AND flows.month = monthly.month;
+
+COMMENT ON VIEW investory.account_monthly_benchmark IS
+    'Benchmark-safe monthly account performance. Monthly P/L uses portfolio-base equity minus portfolio-base normalized cash flows, preventing PLN or other account-native amounts from leaking into USD benchmark returns.';
+
+CREATE TABLE investory.materialized_view_refresh_history (
+    id                bigserial PRIMARY KEY,
+    refresh_run_id    uuid NOT NULL,
+    materialized_view varchar(128) NOT NULL,
+    dependency_level  integer NOT NULL,
+    started_at        timestamptz NOT NULL,
+    finished_at       timestamptz,
+    status            varchar(16) NOT NULL,
+    error_message     text,
+    CONSTRAINT chk_mv_refresh_status
+        CHECK (status IN ('STARTED', 'COMPLETED', 'FAILED')),
+    CONSTRAINT chk_mv_refresh_dependency_level_non_negative
+        CHECK (dependency_level >= 0),
+    CONSTRAINT chk_mv_refresh_finished_after_started
+        CHECK (finished_at IS NULL OR finished_at >= started_at)
+);
+
+CREATE INDEX ix_mv_refresh_history_view_finished
+    ON investory.materialized_view_refresh_history(materialized_view, finished_at DESC);
+
+COMMENT ON TABLE investory.materialized_view_refresh_history IS
+    'Audit history for ordered reporting materialized-view refreshes. A row is written for every view in every refresh run.';
+
+CREATE OR REPLACE VIEW investory.reporting_materialized_view_dependencies AS
+WITH RECURSIVE materialized_views AS (
+    SELECT c.oid, c.relname
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'investory'
+      AND c.relkind = 'm'
+), dependency_edges AS (
+    SELECT DISTINCT
+        dependent.oid AS dependent_oid,
+        dependent.relname AS dependent_view,
+        referenced.oid AS referenced_oid,
+        referenced.relname AS referenced_view
+    FROM pg_depend d
+    JOIN pg_rewrite rw ON rw.oid = d.objid
+    JOIN materialized_views dependent ON dependent.oid = rw.ev_class
+    JOIN materialized_views referenced ON referenced.oid = d.refobjid
+    WHERE dependent.oid <> referenced.oid
+), dependency_walk AS (
+    SELECT mv.oid, mv.relname, 0 AS dependency_level
+    FROM materialized_views mv
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM dependency_edges edge
+        WHERE edge.dependent_oid = mv.oid
+    )
+    UNION ALL
+    SELECT edge.dependent_oid, edge.dependent_view, walk.dependency_level + 1
+    FROM dependency_walk walk
+    JOIN dependency_edges edge ON edge.referenced_oid = walk.oid
+), levels AS (
+    SELECT mv.oid, mv.relname, COALESCE(max(walk.dependency_level), 0)::integer AS dependency_level
+    FROM materialized_views mv
+    LEFT JOIN dependency_walk walk ON walk.oid = mv.oid
+    GROUP BY mv.oid, mv.relname
+), concurrent_eligibility AS (
+    SELECT
+        mv.oid,
+        EXISTS (
+            SELECT 1
+            FROM pg_index idx
+            WHERE idx.indrelid = mv.oid
+              AND idx.indisunique
+              AND idx.indisvalid
+              AND idx.indpred IS NULL
+              AND idx.indexprs IS NULL
+        ) AS concurrent_refresh_eligible
+    FROM materialized_views mv
+)
+SELECT
+    levels.relname::varchar(128) AS materialized_view,
+    levels.dependency_level,
+    eligibility.concurrent_refresh_eligible,
+    array_remove(array_agg(edge.referenced_view ORDER BY edge.referenced_view), NULL)::varchar[] AS depends_on
+FROM levels
+JOIN concurrent_eligibility eligibility ON eligibility.oid = levels.oid
+LEFT JOIN dependency_edges edge ON edge.dependent_oid = levels.oid
+GROUP BY levels.relname, levels.dependency_level, eligibility.concurrent_refresh_eligible;
+
+COMMENT ON VIEW investory.reporting_materialized_view_dependencies IS
+    'Dependency order and concurrent-refresh eligibility for Investory materialized views. Concurrent eligibility requires a valid, unconditional, non-expression unique index.';
+
+CREATE OR REPLACE VIEW investory.reporting_materialized_view_refresh_status AS
+SELECT
+    dependencies.materialized_view,
+    dependencies.dependency_level,
+    dependencies.depends_on,
+    dependencies.concurrent_refresh_eligible,
+    latest.refresh_run_id,
+    latest.started_at AS last_refresh_started_at,
+    latest.finished_at AS last_refresh_finished_at,
+    latest.status AS last_refresh_status,
+    latest.error_message AS last_refresh_error
+FROM investory.reporting_materialized_view_dependencies dependencies
+LEFT JOIN LATERAL (
+    SELECT history.*
+    FROM investory.materialized_view_refresh_history history
+    WHERE history.materialized_view = dependencies.materialized_view
+    ORDER BY history.started_at DESC, history.id DESC
+    LIMIT 1
+) latest ON true;
+
+COMMENT ON VIEW investory.reporting_materialized_view_refresh_status IS
+    'Current refresh status, last successful or failed refresh timestamp, dependency level, and concurrent-refresh eligibility for every reporting materialized view.';
+
+COMMENT ON COLUMN investory.assets.asset_type IS
+    'Current broad instrument classification. Sector allocation must not be introduced until a canonical sector taxonomy and an explicit asset-to-sector mapping are defined.';
+
+-- Consolidated actionable queue for valuation inputs. Existing valuation views
+-- remain fail-closed: missing or stale inputs produce NULL totals and explicit
+-- status fields rather than silently dropping rows or substituting zero.
+CREATE OR REPLACE VIEW investory.reporting_valuation_input_issues AS
+WITH latest_position_date AS (
+    SELECT max(valuation_date) AS valuation_date
+    FROM investory.v_reconstructed_position_daily
+), position_issues AS (
+    SELECT
+        CASE
+            WHEN rpd.selected_price IS NULL THEN 'MISSING_PRICE'
+            WHEN rpd.price_age_days > 10 THEN 'STALE_PRICE'
+            WHEN rpd.fx_conversion_status IN ('MISSING', 'MISSING_CURRENCY') THEN 'MISSING_FX'
+            WHEN rpd.fx_conversion_status = 'STALE' THEN 'STALE_FX'
+        END::varchar(64) AS issue_code,
+        CASE
+            WHEN rpd.selected_price IS NULL
+              OR rpd.fx_conversion_status IN ('MISSING', 'MISSING_CURRENCY') THEN 'ERROR'
+            ELSE 'WARN'
+        END::varchar(16) AS severity,
+        account.portfolio_id,
+        rpd.account_id,
+        rpd.asset_id,
+        rpd.valuation_date,
+        rpd.price_currency::varchar(3) AS source_currency,
+        portfolio.base_currency::varchar(3) AS target_currency,
+        rpd.selected_price_date AS input_date,
+        CASE
+            WHEN rpd.selected_price IS NULL THEN NULL
+            ELSE rpd.price_age_days
+        END::integer AS age_days,
+        concat_ws(
+            '; ',
+            'symbol=' || asset.symbol,
+            'price_quality=' || coalesce(rpd.price_quality, 'NULL'),
+            'fx_status=' || coalesce(rpd.fx_conversion_status, 'NULL')
+        )::text AS details,
+        CASE
+            WHEN rpd.selected_price IS NULL
+                THEN 'Import a canonical price on or before the valuation date, then rebuild reporting.'
+            WHEN rpd.price_age_days > 10
+                THEN 'Review whether the last available price is valid for this instrument and valuation date.'
+            WHEN rpd.fx_conversion_status IN ('MISSING', 'MISSING_CURRENCY')
+                THEN 'Import the required FX rate, then rebuild reporting.'
+            ELSE 'Review the stale FX rate before accepting reporting.'
+        END::varchar(255) AS required_action
+    FROM investory.v_reconstructed_position_daily rpd
+    JOIN investory.accounts account ON account.id = rpd.account_id
+    JOIN investory.portfolios portfolio ON portfolio.id = account.portfolio_id
+    JOIN investory.assets asset ON asset.id = rpd.asset_id
+    CROSS JOIN latest_position_date latest
+    WHERE rpd.valuation_date = latest.valuation_date
+      AND rpd.open_quantity <> 0
+      AND (
+          rpd.selected_price IS NULL
+          OR rpd.price_age_days > 10
+          OR rpd.fx_conversion_status NOT IN ('OK', 'SAME_CURRENCY')
+      )
+), cash_fx_issues AS (
+    SELECT
+        CASE
+            WHEN nco.portfolio_conversion_status IN ('MISSING', 'MISSING_CURRENCY') THEN 'MISSING_FX'
+            ELSE 'STALE_FX'
+        END::varchar(64) AS issue_code,
+        CASE
+            WHEN nco.portfolio_conversion_status IN ('MISSING', 'MISSING_CURRENCY') THEN 'ERROR'
+            ELSE 'WARN'
+        END::varchar(16) AS severity,
+        nco.portfolio_id,
+        nco.account_id,
+        nco.asset_id,
+        nco.date::date AS valuation_date,
+        nco.currency::varchar(3) AS source_currency,
+        nco.base_currency::varchar(3) AS target_currency,
+        nco.portfolio_source_rate_date AS input_date,
+        nco.portfolio_fx_age_days::integer AS age_days,
+        concat_ws(
+            '; ',
+            'operation_id=' || nco.operation_id,
+            'operation=' || nco.raw_operation,
+            'category=' || nco.normalized_category,
+            'fx_status=' || nco.portfolio_conversion_status
+        )::text AS details,
+        CASE
+            WHEN nco.portfolio_conversion_status IN ('MISSING', 'MISSING_CURRENCY')
+                THEN 'Import the required FX rate, then rebuild reporting.'
+            ELSE 'Review the stale FX rate before accepting reporting.'
+        END::varchar(255) AS required_action
+    FROM investory.normalized_cash_operations nco
+    WHERE nco.portfolio_conversion_status NOT IN ('OK', 'SAME_CURRENCY')
+)
+SELECT * FROM position_issues WHERE issue_code IS NOT NULL
+UNION ALL
+SELECT * FROM cash_fx_issues;
+
+COMMENT ON VIEW investory.reporting_valuation_input_issues IS
+    'Actionable queue for missing or stale prices and FX. ERROR rows are truly missing required inputs; WARN rows use an as-of input that exceeded the accepted age threshold.';
+
+CREATE OR REPLACE VIEW investory.reporting_monthly_import_review AS
+SELECT
+    'UNSUPPORTED_TRANSACTION_STATE'::varchar(64) AS check_code,
+    count(*)::bigint AS issue_count,
+    'Review UNKNOWN or UNCLASSIFIED imported ledger states.'::varchar(255) AS required_action
+FROM investory.reporting_unsupported_transaction_states
+UNION ALL
+SELECT
+    'DUPLICATE_POSITION_LOT'::varchar(64),
+    count(*)::bigint,
+    'Review duplicate source lots before trusting position and P/L totals.'::varchar(255)
+FROM investory.reporting_position_lot_duplicates
+UNION ALL
+SELECT
+    'TIMEZONE_NAIVE_COLUMN'::varchar(64),
+    count(*)::bigint,
+    'Convert event or audit timestamps to timestamptz.'::varchar(255)
+FROM investory.reporting_timezone_naive_columns
+UNION ALL
+SELECT
+    'VALUATION_INPUT_ERROR'::varchar(64),
+    count(*)::bigint,
+    'Import missing prices or FX rates and rebuild reporting.'::varchar(255)
+FROM investory.reporting_valuation_input_issues
+WHERE severity = 'ERROR'
+UNION ALL
+SELECT
+    'VALUATION_INPUT_WARNING'::varchar(64),
+    count(*)::bigint,
+    'Review stale price or FX inputs before accepting month-end reporting.'::varchar(255)
+FROM investory.reporting_valuation_input_issues
+WHERE severity = 'WARN';
+
+COMMENT ON VIEW investory.reporting_monthly_import_review IS
+    'Monthly import-review checklist. Error counts must be zero before reporting is accepted; warnings require review. Corporate actions remain a manual broker-statement review.';
+
+
+CREATE OR REPLACE PROCEDURE investory.refresh_reporting_materialized_views(
+    p_fail_on_missing_inputs boolean DEFAULT false
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    target record;
+    run_id uuid := gen_random_uuid();
+    history_id bigint;
+    missing_input_count bigint;
+BEGIN
+    IF p_fail_on_missing_inputs THEN
+        SELECT count(*)
+        INTO missing_input_count
+        FROM investory.reporting_valuation_input_issues
+        WHERE severity = 'ERROR';
+
+        IF missing_input_count > 0 THEN
+            RAISE EXCEPTION
+                'Reporting refresh blocked: % missing required valuation inputs. Review investory.reporting_valuation_input_issues.',
+                missing_input_count;
+        END IF;
+    END IF;
+
+    FOR target IN
+        SELECT materialized_view, dependency_level
+        FROM investory.reporting_materialized_view_dependencies
+        ORDER BY dependency_level, materialized_view
+    LOOP
+        INSERT INTO investory.materialized_view_refresh_history (
+            refresh_run_id,
+            materialized_view,
+            dependency_level,
+            started_at,
+            status
+        ) VALUES (
+            run_id,
+            target.materialized_view,
+            target.dependency_level,
+            clock_timestamp(),
+            'STARTED'
+        ) RETURNING id INTO history_id;
+
+        BEGIN
+            EXECUTE format('REFRESH MATERIALIZED VIEW investory.%I', target.materialized_view);
+
+            UPDATE investory.materialized_view_refresh_history
+            SET finished_at = clock_timestamp(),
+                status = 'COMPLETED'
+            WHERE id = history_id;
+        EXCEPTION WHEN OTHERS THEN
+            UPDATE investory.materialized_view_refresh_history
+            SET finished_at = clock_timestamp(),
+                status = 'FAILED',
+                error_message = SQLERRM
+            WHERE id = history_id;
+            RAISE WARNING 'Materialized-view refresh stopped at %: %', target.materialized_view, SQLERRM;
+            RETURN;
+        END;
+    END LOOP;
+END;
+$$;
+
+CREATE OR REPLACE VIEW investory.reporting_reconciliation_position_issues AS
+WITH reconstructed AS (
+    SELECT
+        account_id,
+        asset_id,
+        valuation_date,
+        SUM(COALESCE(open_quantity, 0)) AS open_quantity,
+        SUM(COALESCE(reconstructed_cost_base_base, 0)) AS reconstructed_cost_base_base,
+        MAX(selected_price_date) AS selected_price_date,
+        MAX(underlying_observation_date) AS underlying_observation_date,
+        MAX(price_age_days) AS price_age_days,
+        STRING_AGG(DISTINCT price_currency, ', ' ORDER BY price_currency) AS price_currency,
+        MAX(fx_rate_to_base) AS fx_rate_to_base,
+        STRING_AGG(DISTINCT fx_conversion_status, ', ' ORDER BY fx_conversion_status) AS fx_conversion_status,
+        STRING_AGG(DISTINCT price_origin, ', ' ORDER BY price_origin) AS price_origin,
+        STRING_AGG(DISTINCT price_quality, ', ' ORDER BY price_quality) AS price_quality,
+        MAX(selection_priority) AS selection_priority,
+        CASE
+            WHEN BOOL_OR(reconstruction_status = 'FAIL') THEN 'FAIL'
+            WHEN BOOL_OR(reconstruction_status = 'WARN') THEN 'WARN'
+            ELSE 'PASS'
+        END::varchar(16) AS reconstruction_status,
+        STRING_AGG(DISTINCT reconstruction_message, ' | ' ORDER BY reconstruction_message)
+            AS reconstruction_message
+    FROM investory.v_reconstructed_position_daily
+    GROUP BY account_id, asset_id, valuation_date
+)
+SELECT
+    vpv.account_id,
+    account.name AS account_name,
+    account.provider,
+    vpv.asset_id,
+    asset.symbol,
+    vpv.valuation_date,
+    vpv.severity,
+    vpv.validation_code,
+    CASE
+        WHEN vpv.validation_code IN ('MISSING_PRICE', 'MISSING_MULTIPLIER', 'MISSING_FX')
+            THEN 'INCOMPLETE_INPUT'
+        WHEN vpv.validation_code IN (
+            'PRICE_RATIO_100X',
+            'TRADE_OBSERVATION_SELECTED',
+            'INTERPOLATED_PRICE_SELECTED',
+            'ALTERNATE_LISTING_SELECTED'
+        ) THEN 'LIKELY_PRICE_OR_SCALE'
+        WHEN vpv.validation_code IN (
+            'ZERO_QUANTITY_NONZERO_VALUE',
+            'NONZERO_QUANTITY_ZERO_PRICE'
+        ) THEN 'LIKELY_POSITION_OR_SETTLEMENT'
+        ELSE 'REVIEW'
+    END::varchar(64) AS suspected_source,
+    vpv.expected_value AS selected_price,
+    vpv.actual_value AS reconstructed_market_value_base,
+    vpv.difference,
+    vpv.relative_difference,
+    vpv.message,
+    rpd.open_quantity,
+    rpd.reconstructed_cost_base_base,
+    rpd.selected_price_date,
+    rpd.underlying_observation_date,
+    rpd.price_age_days,
+    rpd.price_currency,
+    rpd.fx_rate_to_base,
+    rpd.fx_conversion_status,
+    rpd.price_origin,
+    rpd.price_quality,
+    rpd.selection_priority,
+    rpd.reconstruction_status,
+    rpd.reconstruction_message,
+    adr.status AS account_reconciliation_status,
+    adr.market_value_difference AS account_market_value_difference,
+    adr.cash_difference AS account_cash_difference,
+    adr.equity_difference AS account_equity_difference
+FROM investory.v_position_valuation_validation vpv
+JOIN investory.accounts account
+  ON account.id = vpv.account_id
+JOIN investory.assets asset
+  ON asset.id = vpv.asset_id
+LEFT JOIN reconstructed rpd
+  ON rpd.account_id = vpv.account_id
+ AND rpd.asset_id = vpv.asset_id
+ AND rpd.valuation_date = vpv.valuation_date
+LEFT JOIN investory.v_account_daily_reconciliation adr
+  ON adr.account_id = vpv.account_id
+ AND adr.valuation_date = vpv.valuation_date;
+
+COMMENT ON VIEW investory.reporting_reconciliation_position_issues IS
+    'Read-only position reconciliation diagnostics grouped into the same input, price/scale, and position/settlement categories used by the fake-jump investigation script.';
+
+COMMENT ON PROCEDURE investory.refresh_reporting_materialized_views(boolean) IS
+    'Refreshes reporting MVs in dependency order. When fail_on_missing_inputs is true, truly missing prices or FX block refresh; stale as-of inputs remain warnings.';

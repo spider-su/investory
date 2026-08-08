@@ -36,14 +36,41 @@ INSERT INTO investory.asset_types (id) VALUES
     ('OTHER')
 ON CONFLICT (id) DO NOTHING;
 
+CREATE TABLE IF NOT EXISTS investory.app_users (
+    id           bigserial PRIMARY KEY,
+    username     varchar(64) NOT NULL UNIQUE,
+    display_name varchar(255) NOT NULL,
+    active       boolean NOT NULL DEFAULT true,
+    created_at   timestamptz NOT NULL DEFAULT now(),
+    updated_at   timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT chk_app_users_username_not_blank CHECK (btrim(username) <> ''),
+    CONSTRAINT chk_app_users_display_name_not_blank CHECK (btrim(display_name) <> '')
+);
+
+COMMENT ON TABLE investory.app_users IS
+    'Basic application identity boundary for future multi-user support. Authentication and authorization are intentionally out of scope.';
+
+INSERT INTO investory.app_users (id, username, display_name)
+VALUES (1, 'alex', 'Alex')
+ON CONFLICT (id) DO NOTHING;
+
+SELECT setval(
+    pg_get_serial_sequence('investory.app_users', 'id'),
+    COALESCE((SELECT max(id) FROM investory.app_users), 1),
+    true
+);
+
 CREATE TABLE IF NOT EXISTS investory.portfolios (
     id              bigserial PRIMARY KEY,
     name            varchar(255) NOT NULL,
     base_currency   varchar(3) NOT NULL REFERENCES investory.currencies(id),
     owner           varchar(255),
+    user_id         bigint NOT NULL REFERENCES investory.app_users(id),
     created_at      timestamptz NOT NULL DEFAULT now()
 );
 COMMENT ON TABLE investory.portfolios IS 'Full portfolio of accounts, can be used for reporting and analysis';
+COMMENT ON COLUMN investory.portfolios.user_id IS
+    'Required portfolio owner. Accounts, cash operations, and position lots inherit user ownership through portfolio_id.';
 COMMENT ON COLUMN investory.portfolios.base_currency IS 'Base currency of the portfolio, used for converting accounts currencies';
 
 CREATE TABLE IF NOT EXISTS investory.accounts (
@@ -61,6 +88,8 @@ COMMENT ON COLUMN investory.accounts.id IS 'Unique real identifier for the accou
 COMMENT ON COLUMN investory.accounts.portfolio_id IS 'Reference to the portfolio this account belongs to';
 COMMENT ON COLUMN investory.accounts.cash_only IS
     'When true, this account contributes cash operations only. Position trades and position valuation are excluded from projections and trading reports.';
+COMMENT ON COLUMN investory.accounts.provider IS
+    'Required canonical broker/provider code. Values are constrained by providers(id); null or free-text broker labels are not allowed.';
 CREATE INDEX IF NOT EXISTS ix_accounts_cash_only ON investory.accounts(cash_only) WHERE cash_only;
 
 CREATE TABLE IF NOT EXISTS investory.assets(
@@ -76,7 +105,8 @@ CREATE TABLE IF NOT EXISTS investory.assets(
     isin             varchar(12),
     figi             varchar(16),
     exchange_mic     varchar(4),
-    active           boolean DEFAULT true,
+    active           boolean NOT NULL DEFAULT true,
+    exclude_from_import boolean NOT NULL DEFAULT false,
     market_price     numeric(20,8),
     market_price_usd numeric(20,8),
     price_source     varchar(255),
@@ -88,6 +118,19 @@ COMMENT ON COLUMN investory.assets.symbol IS 'Symbol used in the broker system, 
 COMMENT ON COLUMN investory.assets.ibkr IS 'IBKR identifier for the asset';
 COMMENT ON COLUMN investory.assets.yahoo IS 'Yahoo Finance identifier for the asset';
 COMMENT ON COLUMN investory.assets.country IS 'Country used in the broker system, e.g. "US" for United States or "PL" for Poland';
+COMMENT ON COLUMN investory.assets.exclude_from_import IS
+    'When true, exclude this asset from external market-price imports while retaining the asset and its positions.';
+COMMENT ON COLUMN investory.assets.name IS
+    'Required canonical instrument display name. Incomplete unnamed assets are rejected by the NOT NULL constraint.';
+COMMENT ON COLUMN investory.assets.symbol IS
+    'Stable canonical application symbol used for display and provider routing. It is not assumed to be a globally unique bare ticker; exchange-qualified symbols are preferred.';
+COMMENT ON COLUMN investory.assets.exchange_mic IS
+    'ISO 10383 market identifier used with ticker to identify a concrete exchange listing. When present, ticker plus exchange_mic is unique.';
+COMMENT ON COLUMN investory.assets.isin IS
+    'Optional global security identifier. Nonblank ISIN values are unique across assets.';
+COMMENT ON COLUMN investory.assets.figi IS
+    'Optional global security identifier. Nonblank FIGI values are unique across assets.';
+ALTER SEQUENCE IF EXISTS investory.assets_id_seq INCREMENT BY 50;
 
 CREATE TABLE IF NOT EXISTS investory.asset_source_symbols (
     asset_id                  bigint NOT NULL REFERENCES investory.assets(id) ON DELETE CASCADE,
@@ -231,7 +274,10 @@ CREATE TABLE IF NOT EXISTS investory.exchange_rates (
     to_currency     varchar(3) NOT NULL REFERENCES investory.currencies(id),
     rate            numeric(20,8) NOT NULL,
     source          varchar(32) NOT NULL DEFAULT 'MANUAL',
-    imported_at     timestamptz NOT NULL DEFAULT now()
+    imported_at     timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT chk_exchange_rates_rate_positive CHECK (rate > 0),
+    CONSTRAINT chk_exchange_rates_month_first_day CHECK (month = date_trunc('month', month)::date),
+    CONSTRAINT chk_exchange_rates_base_differs_from_to_currency CHECK (base <> to_currency)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_currencies_base_to_currency_month
     ON investory.exchange_rates (month, base, to_currency);
@@ -291,7 +337,31 @@ CREATE TABLE IF NOT EXISTS investory.import_history (
     CONSTRAINT chk_import_history_rows_applied_non_negative
         CHECK (rows_applied IS NULL OR rows_applied >= 0),
     CONSTRAINT chk_import_history_finished_after_started
-        CHECK (finished_at IS NULL OR finished_at >= started_at)
+        CHECK (finished_at IS NULL OR finished_at >= started_at),
+    CONSTRAINT chk_import_history_file_sha256_lower_hex_v01004
+        CHECK (file_sha256 ~ '^[0-9a-f]{64}$'),
+    CONSTRAINT chk_import_history_rows_applied_le_rows_total_v01004
+        CHECK (rows_total IS NULL OR rows_applied IS NULL OR rows_applied <= rows_total),
+    CONSTRAINT chk_import_history_rows_failed_le_rows_total_v01004
+        CHECK (rows_total IS NULL OR rows_failed IS NULL OR rows_failed <= rows_total),
+    CONSTRAINT chk_import_history_rows_balance_v01004
+        CHECK (
+            rows_total IS NULL
+            OR COALESCE(rows_applied, 0) + COALESCE(rows_failed, 0) <= rows_total
+        ),
+    CONSTRAINT chk_import_history_source_type_known_v01004
+        CHECK (source_type IS NULL OR source_type IN ('MANUAL', 'API', 'TELEGRAM')),
+    CONSTRAINT chk_import_history_status_started_lifecycle_v01004
+        CHECK (status IS DISTINCT FROM 'STARTED' OR finished_at IS NULL),
+    CONSTRAINT chk_import_history_status_completed_lifecycle_v01004
+        CHECK (status IS DISTINCT FROM 'COMPLETED' OR finished_at IS NOT NULL),
+    CONSTRAINT chk_import_history_status_partial_lifecycle_v01004
+        CHECK (
+            status IS DISTINCT FROM 'PARTIAL'
+            OR (finished_at IS NOT NULL AND COALESCE(rows_failed, 0) > 0)
+        ),
+    CONSTRAINT chk_import_history_status_failed_lifecycle_v01004
+        CHECK (status IS DISTINCT FROM 'FAILED' OR finished_at IS NOT NULL)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_import_history_provider_sha256
     ON investory.import_history (provider, file_sha256);
@@ -349,7 +419,17 @@ CREATE TABLE IF NOT EXISTS investory.positions (
     margin          numeric(20,8),
     commission      numeric(20,8),
     swap            numeric(20,8),
-    profit          numeric(20,8)
+    profit          numeric(20,8),
+    CONSTRAINT chk_positions_volume_non_negative CHECK (volume >= 0),
+    CONSTRAINT chk_positions_open_price_non_negative CHECK (open_price >= 0),
+    CONSTRAINT chk_positions_close_price_non_negative
+        CHECK (close_price IS NULL OR close_price >= 0),
+    CONSTRAINT chk_positions_close_time_after_open_time
+        CHECK (
+            close_time IS NULL
+            OR open_time IS NULL
+            OR close_time >= open_time
+        )
 );
 CREATE INDEX IF NOT EXISTS ix_positions_source_position_id
     ON investory.positions(account_id, source_position_id)
@@ -446,6 +526,7 @@ COMMENT ON COLUMN investory.account_daily.realized_profit IS 'Realized trading p
 COMMENT ON COLUMN investory.account_daily.daily_profit_amount IS 'Daily total profit contribution in valuation currency after flows, realized P/L and mark-to-market effects.';
 COMMENT ON COLUMN investory.account_daily.daily_return_pct IS 'Daily return ratio for the account snapshot. Stored as decimal ratio, not percent points.';
 COMMENT ON COLUMN investory.account_daily.portfolio_weight IS 'Share of account equity within its portfolio on snapshot_date, stored as decimal ratio.';
+ALTER SEQUENCE IF EXISTS investory.account_daily_id_seq INCREMENT BY 50;
 
 CREATE TABLE IF NOT EXISTS investory.benchmark_monthly_closes (
     id              bigserial PRIMARY KEY,
@@ -458,86 +539,36 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_benchmark_monthly_closes_symbol_month
     ON investory.benchmark_monthly_closes(symbol, month);
 COMMENT ON TABLE investory.benchmark_monthly_closes IS 'Persistent cache for benchmark monthly close prices used by benchmark comparisons.';
 
-DO $$
-    BEGIN
-        -- Exchange rates
-        IF NOT EXISTS (
-            SELECT 1
-            FROM pg_constraint
-            WHERE conname = 'chk_exchange_rates_rate_positive'
-        ) THEN
-            ALTER TABLE investory.exchange_rates
-                ADD CONSTRAINT chk_exchange_rates_rate_positive
-                    CHECK (rate > 0);
-        END IF;
+CREATE INDEX IF NOT EXISTS ix_portfolios_user_id
+    ON investory.portfolios(user_id);
+CREATE INDEX IF NOT EXISTS ix_accounts_portfolio_id
+    ON investory.accounts(portfolio_id);
+CREATE INDEX IF NOT EXISTS ix_cash_operations_account_date
+    ON investory.cash_operations(account_id, date);
+CREATE INDEX IF NOT EXISTS ix_cash_operations_asset_id
+    ON investory.cash_operations(asset_id)
+    WHERE asset_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS ix_cash_operations_account_operation_date
+    ON investory.cash_operations(account_id, operation, date);
+CREATE INDEX IF NOT EXISTS ix_positions_account_close_time
+    ON investory.positions(account_id, close_time);
+CREATE INDEX IF NOT EXISTS ix_positions_asset_close_time
+    ON investory.positions(asset_id, close_time);
+CREATE INDEX IF NOT EXISTS ix_positions_account_open_time
+    ON investory.positions(account_id, open_time);
+CREATE INDEX IF NOT EXISTS ix_positions_account_asset_close_time
+    ON investory.positions(account_id, asset_id, close_time);
+CREATE INDEX IF NOT EXISTS ix_import_history_status_finished_at
+    ON investory.import_history(status, finished_at);
+CREATE INDEX IF NOT EXISTS ix_account_daily_account_snapshot_date_desc
+    ON investory.account_daily(account_id, snapshot_date DESC);
 
-        IF NOT EXISTS (
-            SELECT 1
-            FROM pg_constraint
-            WHERE conname = 'chk_exchange_rates_month_first_day'
-        ) THEN
-            ALTER TABLE investory.exchange_rates
-                ADD CONSTRAINT chk_exchange_rates_month_first_day
-                    CHECK (month = date_trunc('month', month)::date);
-        END IF;
-
-        IF NOT EXISTS (
-            SELECT 1
-            FROM pg_constraint
-            WHERE conname = 'chk_exchange_rates_base_differs_from_to_currency'
-        ) THEN
-            ALTER TABLE investory.exchange_rates
-                ADD CONSTRAINT chk_exchange_rates_base_differs_from_to_currency
-                    CHECK (base <> to_currency);
-        END IF;
-
-        -- Positions
-        IF NOT EXISTS (
-            SELECT 1
-            FROM pg_constraint
-            WHERE conname = 'chk_positions_volume_non_negative'
-        ) THEN
-            ALTER TABLE investory.positions
-                ADD CONSTRAINT chk_positions_volume_non_negative
-                    CHECK (volume >= 0);
-        END IF;
-
-        IF NOT EXISTS (
-            SELECT 1
-            FROM pg_constraint
-            WHERE conname = 'chk_positions_open_price_non_negative'
-        ) THEN
-            ALTER TABLE investory.positions
-                ADD CONSTRAINT chk_positions_open_price_non_negative
-                    CHECK (open_price >= 0);
-        END IF;
-
-        IF NOT EXISTS (
-            SELECT 1
-            FROM pg_constraint
-            WHERE conname = 'chk_positions_close_price_non_negative'
-        ) THEN
-            ALTER TABLE investory.positions
-                ADD CONSTRAINT chk_positions_close_price_non_negative
-                    CHECK (close_price IS NULL OR close_price >= 0);
-        END IF;
-
-        IF NOT EXISTS (
-            SELECT 1
-            FROM pg_constraint
-            WHERE conname = 'chk_positions_close_time_after_open_time'
-        ) THEN
-            ALTER TABLE investory.positions
-                ADD CONSTRAINT chk_positions_close_time_after_open_time
-                    CHECK (
-                        close_time IS NULL
-                        OR open_time IS NULL
-                        OR close_time >= open_time
-                    );
-        END IF;
-    END
-$$;
-
--- Match Hibernate's pooled ID allocation for faster bulk imports.
-ALTER SEQUENCE IF EXISTS investory.assets_id_seq INCREMENT BY 50;
-ALTER SEQUENCE IF EXISTS investory.account_daily_id_seq INCREMENT BY 50;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_assets_isin
+    ON investory.assets (upper(isin))
+    WHERE isin IS NOT NULL AND btrim(isin) <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS ux_assets_figi
+    ON investory.assets (upper(figi))
+    WHERE figi IS NOT NULL AND btrim(figi) <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS ux_assets_ticker_exchange_mic
+    ON investory.assets (upper(ticker), upper(exchange_mic))
+    WHERE exchange_mic IS NOT NULL AND btrim(exchange_mic) <> '';

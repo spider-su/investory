@@ -1,18 +1,3 @@
--- Restore the canonical listing currency used by AssetCatalogService for legacy rows.
--- Qualified symbols without a supported euro-area suffix use USD by application contract.
-UPDATE investory.assets
-SET currency = CASE
-    WHEN upper(symbol) LIKE '%.PL' THEN 'PLN'
-    WHEN right(upper(symbol), 3) IN ('.DE', '.FR', '.NL', '.IT', '.ES', '.FI', '.PT', '.IE', '.AT', '.BE') THEN 'EUR'
-    ELSE 'USD'
-END
-WHERE symbol IS NOT NULL
-  AND currency IS DISTINCT FROM CASE
-    WHEN upper(symbol) LIKE '%.PL' THEN 'PLN'
-    WHEN right(upper(symbol), 3) IN ('.DE', '.FR', '.NL', '.IT', '.ES', '.FI', '.PT', '.IE', '.AT', '.BE') THEN 'EUR'
-    ELSE 'USD'
-END;
-
 -- XTB trade observations, their interpolations, stale carry-forwards, and reviewed
 -- alternate listings must carry the currency of the normalized asset price.
 UPDATE investory.asset_price_history aph
@@ -40,20 +25,6 @@ UPDATE investory.asset_price_history
 SET price_scale_factor = 1
 WHERE scale_reason = 'Normalized Nordic quote currency to USD from trade values'
   AND price_scale_factor IS DISTINCT FROM 1;
-
--- A source marked as not requiring FX must use the asset's normalized currency.
-UPDATE investory.asset_source_symbols ass
-SET price_currency = a.currency,
-    original_currency = a.currency,
-    matched_currency = a.currency
-FROM investory.assets a
-WHERE ass.asset_id = a.id
-  AND ass.requires_fx_conversion = false
-  AND (
-      ass.price_currency IS DISTINCT FROM a.currency
-      OR ass.original_currency IS DISTINCT FROM a.currency
-      OR ass.matched_currency IS DISTINCT FROM a.currency
-  );
 
 COMMENT ON VIEW investory.v_normalized_daily_price IS
     'Price rows are valued as quantity * (close_price * price_scale_factor) in price_currency, then converted once to portfolio base currency.';
