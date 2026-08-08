@@ -115,9 +115,7 @@ public interface NormalizedCashOperationRepository extends Repository<CashOperat
 
     Double getAmountInPortfolioBaseCurrency();
 
-    default Double getAccountFlowAmountInPortfolioBaseCurrency() {
-      return null;
-    }
+    Double getAccountFlowAmountInPortfolioBaseCurrency();
 
     default Double getAmountInBaseCurrency() {
       return getAmountInPortfolioBaseCurrency();

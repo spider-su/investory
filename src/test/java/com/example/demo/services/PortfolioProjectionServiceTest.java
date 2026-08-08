@@ -2100,6 +2100,11 @@ class PortfolioProjectionServiceTest {
       }
 
       @Override
+      public Double getAccountFlowAmountInPortfolioBaseCurrency() {
+        return null;
+      }
+
+      @Override
       public String getPortfolioConversionStatus() {
         return "OK";
       }
