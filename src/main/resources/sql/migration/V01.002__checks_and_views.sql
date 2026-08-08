@@ -360,32 +360,6 @@ WHERE p.close_time IS NULL
 COMMENT ON VIEW investory.v_current_open_position_rows IS
     'Shared current open-position valuation rows. Uses v_current_asset_price and resolve_fx_rate(CURRENT_DATE, ...); stale or missing FX yields null converted values.';
 
-CREATE OR REPLACE VIEW investory.v_activity_events AS
-SELECT
-    ad.account_id,
-    ad.snapshot_date::timestamptz AS occurred_at,
-    'ACCOUNT_DAILY'::varchar(32) AS activity_source,
-    CASE
-        WHEN COALESCE(ad.deposits, 0) <> 0 THEN 'DEPOSIT'
-        WHEN COALESCE(ad.withdrawals, 0) <> 0 THEN 'WITHDRAWAL'
-        WHEN COALESCE(ad.dividends, 0) <> 0 THEN 'DIVIDEND'
-        WHEN COALESCE(ad.interest, 0) <> 0 THEN 'INTEREST'
-        WHEN COALESCE(ad.fees, 0) <> 0 THEN 'FEE'
-        WHEN COALESCE(ad.taxes, 0) <> 0 THEN 'TAX'
-        WHEN COALESCE(ad.realized_profit, 0) <> 0 THEN 'REALIZED_PROFIT'
-        ELSE 'SNAPSHOT'
-    END::varchar(64) AS activity_type,
-    (ad.account_id::varchar || ':' || ad.snapshot_date::varchar)::varchar(128) AS activity_key
-FROM investory.account_daily ad
-WHERE
-    COALESCE(ad.deposits, 0) <> 0
-    OR COALESCE(ad.withdrawals, 0) <> 0
-    OR COALESCE(ad.dividends, 0) <> 0
-    OR COALESCE(ad.interest, 0) <> 0
-    OR COALESCE(ad.fees, 0) <> 0
-    OR COALESCE(ad.taxes, 0) <> 0
-    OR COALESCE(ad.realized_profit, 0) <> 0;
-
 CREATE OR REPLACE VIEW investory.normalized_cash_operations AS
 WITH classified AS (
     SELECT
@@ -877,9 +851,6 @@ WITH DATA;
 CREATE UNIQUE INDEX ux_mv_account_monthly_account_month
     ON investory.account_monthly_mv(account_id, month);
 
-CREATE OR REPLACE VIEW investory.account_monthly AS
-SELECT * FROM investory.account_monthly_mv;
-
 CREATE OR REPLACE VIEW investory.reporting_account_monthly_profit_reconciliation AS
 WITH monthly_daily_sums AS (
     SELECT
@@ -1042,16 +1013,6 @@ SELECT
 FROM account_rows ar
 GROUP BY ar.portfolio_id, ar.snapshot_date, ar.base_currency;
 
-CREATE MATERIALIZED VIEW investory.portfolio_daily_mv AS
-SELECT * FROM investory.v_portfolio_daily
-WITH DATA;
-
-CREATE UNIQUE INDEX ux_mv_portfolio_daily_portfolio_date
-    ON investory.portfolio_daily_mv(portfolio_id, snapshot_date);
-
-CREATE OR REPLACE VIEW investory.portfolio_daily AS
-SELECT * FROM investory.portfolio_daily_mv;
-
 CREATE MATERIALIZED VIEW investory.portfolio_monthly_mv AS
 WITH month_rows AS (
     SELECT
@@ -1115,9 +1076,6 @@ WITH DATA;
 
 CREATE UNIQUE INDEX ux_mv_portfolio_monthly_portfolio_month
     ON investory.portfolio_monthly_mv(portfolio_id, month);
-
-CREATE OR REPLACE VIEW investory.portfolio_monthly AS
-SELECT * FROM investory.portfolio_monthly_mv;
 
 CREATE MATERIALIZED VIEW investory.account_statistics AS
 WITH latest_daily AS (
@@ -2112,15 +2070,6 @@ WITH position_rows AS (
              SUM(rv.market_value_in_base_currency) AS market_value_in_base_currency
          FROM row_values rv
          GROUP BY rv.portfolio_id, rv.base_currency, rv.account_id, rv.account_currency, rv.asset_id
-     ),
-     issue_counts AS (
-         SELECT
-             account_id,
-             asset_id,
-             COUNT(*) AS validation_issue_count
-         FROM investory.v_position_currency_validation
-         WHERE close_time IS NULL
-         GROUP BY account_id, asset_id
      )
 SELECT
     r.portfolio_id,
@@ -2134,7 +2083,6 @@ SELECT
     r.position_row_count,
     r.cost_basis_currency_count,
     r.market_price_currency_count,
-    r.validation_issue_count,
     r.volume,
     r.average_open_price,
     r.cost_basis,
@@ -2157,15 +2105,7 @@ SELECT
         r.cost_basis_in_base_currency IS NOT NULL
             AND r.market_value_in_base_currency IS NOT NULL
         ) AS fx_rate_available
-FROM (
-         SELECT
-             rollup.*,
-             COALESCE(ic.validation_issue_count, 0) AS validation_issue_count
-         FROM rollup
-                  LEFT JOIN issue_counts ic
-                            ON ic.account_id = rollup.account_id
-                                AND ic.asset_id = rollup.asset_id
-     ) r;
+FROM rollup r;
 
 CREATE OR REPLACE VIEW investory.reporting_account_daily_cashflow_reconciliation AS
 WITH ledger_daily AS (
@@ -2294,26 +2234,6 @@ CROSS JOIN LATERAL investory.resolve_portfolio_fx_rate(
 
 COMMENT ON VIEW investory.v_portfolio_daily_fx_rate IS
     'Canonical portfolio-aware and date-aware FX layer. amount_in_base = amount_in_source_currency * fx_rate_to_base. STALE and MISSING rows are diagnostic only.';
-
-CREATE OR REPLACE VIEW investory.v_reporting_daily_fx_rate AS
-SELECT
-    portfolio_id,
-    valuation_date,
-    source_currency,
-    source_currency AS from_currency,
-    base_currency,
-    fx_rate_to_base,
-    source,
-    source AS fx_source,
-    source_rate_date,
-    age_days,
-    conversion_status,
-    CASE WHEN conversion_status IN ('OK', 'SAME_CURRENCY') THEN 'PASS' ELSE 'FAIL' END::varchar(16)
-        AS validation_status
-FROM investory.v_portfolio_daily_fx_rate;
-
-COMMENT ON VIEW investory.v_reporting_daily_fx_rate IS
-    'Compatibility reporting view over v_portfolio_daily_fx_rate. New joins must include portfolio_id.';
 
 CREATE OR REPLACE VIEW investory.v_normalized_daily_price AS
 WITH position_dates AS (
@@ -2472,10 +2392,10 @@ WITH active_position_dates AS (
             p.close_time IS NULL
             OR d.snapshot_date < p.close_time::date
        )
-    LEFT JOIN investory.v_reporting_daily_fx_rate acq
+    LEFT JOIN investory.v_portfolio_daily_fx_rate acq
         ON acq.portfolio_id = account.portfolio_id
        AND acq.valuation_date = COALESCE(p.open_time::date, d.snapshot_date)
-       AND acq.from_currency = p.cost_currency::varchar(3)
+       AND acq.source_currency = p.cost_currency::varchar(3)
     GROUP BY
         p.account_id,
         account.portfolio_id,
@@ -2573,10 +2493,10 @@ SELECT
         ELSE 'reconstructed from positions + selected daily price + FX'
     END::text AS reconstruction_message
 FROM priced p
-LEFT JOIN investory.v_reporting_daily_fx_rate val
+LEFT JOIN investory.v_portfolio_daily_fx_rate val
     ON val.portfolio_id = p.portfolio_id
    AND val.valuation_date = p.valuation_date
-   AND val.from_currency = p.price_currency;
+   AND val.source_currency = p.price_currency;
 
 COMMENT ON VIEW investory.v_reconstructed_position_daily IS
     'Independent end-of-day position valuation reconstruction from canonical positions, selected prices, and FX. It does not read account_daily market or cost values.';
@@ -2694,10 +2614,10 @@ SELECT
         ELSE 'cash reconstructed from normalized cash ledger'
     END::text AS validation_message
 FROM cash_legs cl
-LEFT JOIN investory.v_reporting_daily_fx_rate fx
+LEFT JOIN investory.v_portfolio_daily_fx_rate fx
     ON fx.portfolio_id = cl.portfolio_id
    AND fx.valuation_date = cl.valuation_date
-   AND fx.from_currency = cl.operation_currency;
+   AND fx.source_currency = cl.operation_currency;
 
 COMMENT ON VIEW investory.v_reconstructed_cash_daily IS
     'Independent cash reconstruction from normalized_cash_operations. Foreign-currency cash is revalued to base currency using canonical FX for each valuation date.';
@@ -3129,18 +3049,18 @@ WITH closed_lots AS (
     FROM investory.positions p
     JOIN investory.accounts account ON account.id = p.account_id
     JOIN investory.assets asset ON asset.id = p.asset_id
-    LEFT JOIN investory.v_reporting_daily_fx_rate cost_fx
+    LEFT JOIN investory.v_portfolio_daily_fx_rate cost_fx
       ON cost_fx.portfolio_id = account.portfolio_id
      AND cost_fx.valuation_date = p.close_time::date
-     AND cost_fx.from_currency = p.cost_currency::varchar(3)
-    LEFT JOIN investory.v_reporting_daily_fx_rate profit_fx
+     AND cost_fx.source_currency = p.cost_currency::varchar(3)
+    LEFT JOIN investory.v_portfolio_daily_fx_rate profit_fx
       ON profit_fx.portfolio_id = account.portfolio_id
      AND profit_fx.valuation_date = p.close_time::date
-     AND profit_fx.from_currency = p.profit_currency::varchar(3)
-    LEFT JOIN investory.v_reporting_daily_fx_rate commission_fx
+     AND profit_fx.source_currency = p.profit_currency::varchar(3)
+    LEFT JOIN investory.v_portfolio_daily_fx_rate commission_fx
       ON commission_fx.portfolio_id = account.portfolio_id
      AND commission_fx.valuation_date = p.close_time::date
-     AND commission_fx.from_currency = p.commission_currency::varchar(3)
+     AND commission_fx.source_currency = p.commission_currency::varchar(3)
     WHERE p.close_time IS NOT NULL
 ), closed_group AS (
     SELECT
@@ -3200,10 +3120,10 @@ WITH closed_lots AS (
       ON target.account_id = p.account_id
      AND target.asset_id = p.asset_id
      AND target.valuation_date = p.open_time::date
-    LEFT JOIN investory.v_reporting_daily_fx_rate fx
+    LEFT JOIN investory.v_portfolio_daily_fx_rate fx
       ON fx.portfolio_id = account.portfolio_id
      AND fx.valuation_date = p.open_time::date
-     AND fx.from_currency = p.cost_currency::varchar(3)
+     AND fx.source_currency = p.cost_currency::varchar(3)
 ), opened_group AS (
     SELECT
         ol.account_id,
@@ -3243,10 +3163,10 @@ WITH closed_lots AS (
      AND co.asset_id = target.asset_id
      AND co.date::date = target.valuation_date
      AND co.operation IN ('STOCK_PURCHASE', 'STOCK_SELL', 'CLOSE_TRADE')
-    LEFT JOIN investory.v_reporting_daily_fx_rate fx
+    LEFT JOIN investory.v_portfolio_daily_fx_rate fx
       ON fx.portfolio_id = target.portfolio_id
      AND fx.valuation_date = target.valuation_date
-     AND fx.from_currency = co.currency::varchar(3)
+     AND fx.source_currency = co.currency::varchar(3)
 ), ledger_group AS (
     SELECT
         lr.account_id,
@@ -3375,10 +3295,10 @@ WITH closed_lots AS (
             aph.imported_at DESC
         LIMIT 1
     ) previous_price ON true
-    LEFT JOIN investory.v_reporting_daily_fx_rate previous_fx
+    LEFT JOIN investory.v_portfolio_daily_fx_rate previous_fx
       ON previous_fx.portfolio_id = target.portfolio_id
      AND previous_fx.valuation_date = pd.previous_valuation_date
-     AND previous_fx.from_currency = previous_price.price_currency::varchar(3)
+     AND previous_fx.source_currency = previous_price.price_currency::varchar(3)
     LEFT JOIN LATERAL (
         SELECT SUM(investory.signed_position_quantity(p.operation, p.volume)) AS open_quantity
         FROM investory.positions p
@@ -3414,10 +3334,10 @@ WITH closed_lots AS (
             aph.imported_at DESC
         LIMIT 1
     ) current_price ON true
-    LEFT JOIN investory.v_reporting_daily_fx_rate current_fx
+    LEFT JOIN investory.v_portfolio_daily_fx_rate current_fx
       ON current_fx.portfolio_id = target.portfolio_id
      AND current_fx.valuation_date = target.valuation_date
-     AND current_fx.from_currency = current_price.price_currency::varchar(3)
+     AND current_fx.source_currency = current_price.price_currency::varchar(3)
 ), account_daily_with_previous AS (
     SELECT
         ad.*,
@@ -4108,14 +4028,12 @@ CREATE OR REPLACE FUNCTION investory.refresh_reporting_views()
 RETURNS VOID AS $$
 BEGIN
     REFRESH MATERIALIZED VIEW investory.account_monthly_mv;
-    REFRESH MATERIALIZED VIEW investory.portfolio_daily_mv;
     REFRESH MATERIALIZED VIEW investory.portfolio_monthly_mv;
     REFRESH MATERIALIZED VIEW investory.account_statistics;
-    REFRESH MATERIALIZED VIEW investory.portfolio_kpi_summary;
     REFRESH MATERIALIZED VIEW investory.portfolio_currency_breakdown;
     REFRESH MATERIALIZED VIEW investory.portfolio_asset_allocation;
     REFRESH MATERIALIZED VIEW investory.symbol_performance;
-    REFRESH MATERIALIZED VIEW investory.reporting_trade_settlement_reconciliation;
+    REFRESH MATERIALIZED VIEW investory.portfolio_kpi_summary;
 END;
 $$ LANGUAGE plpgsql;
 

@@ -62,12 +62,12 @@ class AccountMonthlyBenchmarkSqlTest {
     assertTrue(
         sql.contains(
             "equity.closing_equity\n        - equity.opening_equity\n        - coalesce(flows.net_external_flow, 0) AS total_profit"));
-    assertTrue(sql.contains("JOIN investory.v_reporting_daily_fx_rate fx"));
-    assertTrue(sql.contains("fx.from_currency = ad.valuation_currency"));
+    assertTrue(sql.contains("JOIN investory.v_portfolio_daily_fx_rate fx"));
+    assertTrue(sql.contains("fx.source_currency = ad.valuation_currency"));
     assertTrue(sql.contains("fx.valuation_date = ad.snapshot_date"));
   }
 
   private String readScript() throws IOException {
-    return Files.readString(SCRIPT, StandardCharsets.UTF_8);
+    return Files.readString(SCRIPT, StandardCharsets.UTF_8).replace("\r\n", "\n");
   }
 }

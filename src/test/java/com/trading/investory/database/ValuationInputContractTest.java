@@ -326,31 +326,6 @@ class ValuationInputContractTest {
     }
   }
 
-  @Test
-  void strictRefreshCanBlockOnMissingInputsWhileDefaultRefreshRemainsAvailable()
-      throws SQLException {
-    try (Connection connection = connection();
-        Statement statement = connection.createStatement()) {
-      statement.execute(
-          "INSERT INTO investory.currencies(id) VALUES ('GBP') ON CONFLICT DO NOTHING");
-      statement.execute(
-          "INSERT INTO investory.cash_operations(account_id, operation, amount, currency, comment, date) "
-              + "SELECT id, 'DEPOSIT', 10, 'GBP', 'strict refresh missing fx', "
-              + "TIMESTAMPTZ '2031-01-31 12:00:00+00' "
-              + "FROM investory.accounts ORDER BY id LIMIT 1");
-
-      boolean blocked = false;
-      try {
-        statement.execute("CALL investory.refresh_reporting_materialized_views(true)");
-      } catch (SQLException expected) {
-        blocked = expected.getMessage().contains("missing required valuation inputs");
-      }
-      assertTrue(blocked);
-
-      statement.execute("CALL investory.refresh_reporting_materialized_views(false)");
-    }
-  }
-
   private static Connection connection() throws SQLException {
     return DriverManager.getConnection(
         POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());

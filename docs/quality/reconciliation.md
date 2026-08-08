@@ -68,6 +68,11 @@ Keep explicit regression coverage for defect classes already observed in this pr
 The testing environment and migration/snapshot split are defined in
 `docs/development/testing.md`.
 
+Reconciliation has a separate SQL boundary. Production calculations live in `V01.002`; independent
+reconstruction and diagnostics live in `V01.008`; persisted audit tables, triggers, and reports live
+in `V01.009`. Normal reporting refresh uses an explicit production-MV order and never refreshes the
+trade-settlement reconciliation MV. Reconciliation refresh is explicit/on demand.
+
 ## Current tooling
 
 - `tools/ReconRunner.java` enforces C0 completeness for all supplied IBKR/XTB files, implements XTB C1 checks, and checks aggregate IBKR source-to-ledger cash-amount conservation.

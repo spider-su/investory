@@ -1,41 +1,39 @@
--- Price-history contract after V01.003:
--- * asset_source_symbols stores raw provider quote currency and raw-unit scale.
--- * asset_price_history stores raw provider OHLC and the same scale factor.
--- * canonical views apply price_scale_factor exactly once.
---
--- V01.003 bulk rows were generated after applying source-unit normalization to
--- their OHLC values while retaining the mapping factor. Restore raw units for
--- every such scaled row without naming a symbol-specific exception.
-UPDATE investory.asset_price_history aph
-SET open_price = aph.open_price / NULLIF(aph.price_scale_factor, 0),
-    high_price = aph.high_price / NULLIF(aph.price_scale_factor, 0),
-    low_price = aph.low_price / NULLIF(aph.price_scale_factor, 0),
-    close_price = aph.close_price / NULLIF(aph.price_scale_factor, 0),
-    adjusted_close_price =
-        aph.adjusted_close_price / NULLIF(aph.price_scale_factor, 0)
-WHERE aph.source = 'STOOQ'
-  AND aph.price_scale_factor IS DISTINCT FROM 1
-  AND aph.scale_reason IS NOT NULL
-  AND aph.source_mapping_id IS NOT NULL;
+SET search_path TO investory, public;
 
--- A scaled price is still denominated in the provider quote currency. Repair
--- generated history from its bound mapping rather than from account currency or
--- the canonical asset fallback.
-UPDATE investory.asset_price_history aph
-SET price_currency = ass.price_currency,
-    price_scale_factor = ass.price_scale_factor
-FROM investory.asset_source_symbols ass
-WHERE aph.source_mapping_id = ass.id
-  AND aph.source = 'STOOQ';
+-- Read-only reconciliation and diagnostic objects. These verify production
+-- reporting results but are not inputs to the production refresh contract.
+COMMENT ON VIEW investory.v_portfolio_daily_fx_rate IS
+    'Reconciliation FX layer. Production calculations use resolve_fx_rate directly; this view supports independent reconstruction checks.';
 
--- XTB trade observations are quote-price observations, not cash-ledger rows.
--- Older generated rows copied the account currency; use the canonical asset
--- quote currency for all XTB observations without changing broker ledger data.
-UPDATE investory.asset_price_history aph
-SET price_currency = asset.currency
-FROM investory.assets asset
-WHERE aph.asset_id = asset.id
-  AND aph.source IN ('XTB_TRADE_OPEN', 'XTB_TRADE_CLOSE', 'INTERPOLATED_XTB');
+CREATE OR REPLACE FUNCTION investory.refresh_reconciliation_views()
+RETURNS VOID AS $$
+BEGIN
+    REFRESH MATERIALIZED VIEW investory.reporting_trade_settlement_reconciliation;
+END;
+$$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION investory.refresh_reconciliation_views() IS
+    'Refreshes reconciliation materialized views on demand. Reconciliation objects are excluded from refresh_reporting_views().';
+
+-- These objects were historical compatibility or diagnostic surfaces with no
+-- live production consumer. Do not retain them for test-only references.
+DROP VIEW IF EXISTS investory.v_activity_events;
+DROP VIEW IF EXISTS investory.reporting_validation_issue;
+DROP VIEW IF EXISTS investory.v_portfolio_data_quality;
+DROP VIEW IF EXISTS investory.v_portfolio_data_quality_refresh;
+DROP VIEW IF EXISTS investory.v_reporting_daily_fx_rate;
+DROP VIEW IF EXISTS investory.account_monthly;
+DROP VIEW IF EXISTS investory.portfolio_monthly;
+DROP VIEW IF EXISTS investory.portfolio_daily;
+DROP MATERIALIZED VIEW IF EXISTS investory.portfolio_daily_mv;
+
+-- The generic discovery/history subsystem is intentionally removed. Production
+-- refresh uses the explicit order in refresh_reporting_views().
+DROP PROCEDURE IF EXISTS investory.refresh_reporting_materialized_views(boolean);
+DROP VIEW IF EXISTS investory.reporting_materialized_view_refresh_status;
+DROP VIEW IF EXISTS investory.reporting_materialized_view_dependencies;
+DROP TABLE IF EXISTS investory.materialized_view_refresh_history;
+
 
 CREATE OR REPLACE VIEW investory.reporting_price_history_contract_issues AS
 WITH mapped_history AS (
@@ -56,8 +54,8 @@ WITH mapped_history AS (
         ass.price_currency AS mapping_price_currency,
         ass.price_scale_factor AS mapping_scale_factor
     FROM investory.asset_price_history aph
-    JOIN investory.assets asset ON asset.id = aph.asset_id
-    LEFT JOIN investory.asset_source_symbols ass ON ass.id = aph.source_mapping_id
+             JOIN investory.assets asset ON asset.id = aph.asset_id
+             LEFT JOIN investory.asset_source_symbols ass ON ass.id = aph.source_mapping_id
 )
 SELECT
     asset_id,
@@ -70,11 +68,11 @@ SELECT
 FROM mapped_history
 WHERE source_mapping_id IS NOT NULL
   AND (
-      mapping_id IS NULL
-      OR mapping_asset_id IS DISTINCT FROM asset_id
-      OR mapping_source IS DISTINCT FROM source
-      OR lower(mapping_source_symbol) IS DISTINCT FROM lower(source_symbol)
-  )
+    mapping_id IS NULL
+        OR mapping_asset_id IS DISTINCT FROM asset_id
+        OR mapping_source IS DISTINCT FROM source
+        OR lower(mapping_source_symbol) IS DISTINCT FROM lower(source_symbol)
+    )
 UNION ALL
 SELECT
     asset_id,
@@ -134,3 +132,4 @@ COMMENT ON VIEW investory.reporting_price_history_contract_issues IS
 -- 2. every STOOQ row has a valid source_mapping_id;
 -- 3. price_scale_factor and price_currency follow the mapping contract;
 -- 4. no duplicate (asset_id, price_date, source) exists.
+

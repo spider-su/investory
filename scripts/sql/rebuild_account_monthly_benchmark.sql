@@ -24,10 +24,10 @@ WITH daily_equity_in_portfolio_base AS (
       ON a.id = ad.account_id
     JOIN investory.portfolios p
       ON p.id = a.portfolio_id
-    JOIN investory.v_reporting_daily_fx_rate fx
+    JOIN investory.v_portfolio_daily_fx_rate fx
       ON fx.portfolio_id = a.portfolio_id
      AND fx.valuation_date = ad.snapshot_date
-     AND fx.from_currency = ad.valuation_currency
+     AND fx.source_currency = ad.valuation_currency
     WHERE fx.fx_rate_to_base IS NOT NULL
 ),
 monthly_equity AS (

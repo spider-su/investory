@@ -53,6 +53,18 @@ be refreshed after inputs that affect valuation or classification change.
 
 For exact current view names and definitions, inspect `src/main/resources/sql/migration`.
 
+## SQL migration boundaries
+
+`V01.002__checks_and_views.sql` contains production calculation functions, views, and the seven
+production materialized views: `account_monthly_mv`, `portfolio_monthly_mv`, `account_statistics`,
+`portfolio_kpi_summary`, `portfolio_currency_breakdown`, `portfolio_asset_allocation`, and
+`symbol_performance`. `refresh_reporting_views()` refreshes only those objects in explicit order.
+
+`V01.004__reconciliation_views.sql` contains read-only reconstruction and diagnostic objects.
+`refresh_reconciliation_views()` refreshes reconciliation materializations on demand; they are not
+production refresh dependencies. `V01.005__persisted_system_audit.sql` remains the persisted audit
+subsystem and consumes reconciliation review data.
+
 ## Current versus historical prices
 
 Current open-position valuation uses the canonical current asset quote maintained by market/manual

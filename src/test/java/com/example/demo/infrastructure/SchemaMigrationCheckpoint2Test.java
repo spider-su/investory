@@ -625,10 +625,10 @@ class SchemaMigrationCheckpoint2Test {
               statement,
               """
               select conversion_status
-              from investory.v_reporting_daily_fx_rate
+              from investory.v_portfolio_daily_fx_rate
               where portfolio_id = -940001
                 and valuation_date = date '2025-01-15'
-                and from_currency = 'USD'
+                and source_currency = 'USD'
               """));
 
       assertEquals(
@@ -637,10 +637,10 @@ class SchemaMigrationCheckpoint2Test {
               statement,
               """
               select trim(to_char(round(fx_rate_to_base::numeric, 8), 'FM9999999990.00000000'))
-              from investory.v_reporting_daily_fx_rate
+              from investory.v_portfolio_daily_fx_rate
               where portfolio_id = -940001
                 and valuation_date = date '2025-01-15'
-                and from_currency = 'EUR'
+                and source_currency = 'EUR'
               """));
 
       assertEquals(
@@ -649,10 +649,10 @@ class SchemaMigrationCheckpoint2Test {
               statement,
               """
               select trim(to_char(round(fx_rate_to_base::numeric, 8), 'FM9999999990.00000000'))
-              from investory.v_reporting_daily_fx_rate
+              from investory.v_portfolio_daily_fx_rate
               where portfolio_id = -940002
                 and valuation_date = date '2025-01-15'
-                and from_currency = 'USD'
+                and source_currency = 'USD'
               """));
 
       assertEquals(
@@ -661,10 +661,10 @@ class SchemaMigrationCheckpoint2Test {
               statement,
               """
               select trim(to_char(round(fx_rate_to_base::numeric, 8), 'FM9999999990.00000000'))
-              from investory.v_reporting_daily_fx_rate
+              from investory.v_portfolio_daily_fx_rate
               where portfolio_id = -940002
                 and valuation_date = date '2025-01-15'
-                and from_currency = 'PLN'
+                and source_currency = 'PLN'
               """));
 
       assertEquals(
@@ -673,10 +673,10 @@ class SchemaMigrationCheckpoint2Test {
               statement,
               """
               select conversion_status
-              from investory.v_reporting_daily_fx_rate
+              from investory.v_portfolio_daily_fx_rate
               where portfolio_id = -940001
                 and valuation_date = date '2025-04-20'
-                and from_currency = 'EUR'
+                and source_currency = 'EUR'
               """));
 
       assertEquals(
@@ -685,10 +685,10 @@ class SchemaMigrationCheckpoint2Test {
               statement,
               """
               select conversion_status
-              from investory.v_reporting_daily_fx_rate
+              from investory.v_portfolio_daily_fx_rate
               where portfolio_id = -940001
                 and valuation_date = date '2024-01-10'
-                and from_currency = 'EUR'
+                and source_currency = 'EUR'
               """));
     }
   }
