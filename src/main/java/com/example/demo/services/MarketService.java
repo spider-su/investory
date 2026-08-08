@@ -53,6 +53,7 @@ public class MarketService {
 
   /** Default inter-chunk pause matching the free-tier rate window. */
   static final long DEFAULT_CHUNK_PAUSE_MS = 120_000L;
+  static final Duration QUOTE_FRESHNESS = Duration.ofHours(4);
 
   private static final String REMX_UK_SYMBOL = "REMX.UK";
   // TwelveData has only the NYSE REMX quote. Calibrate that proxy to the London
@@ -126,6 +127,11 @@ public class MarketService {
             .collect(
                 Collectors.groupingBy(
                     this::twelveDataSymbol, LinkedHashMap::new, Collectors.toList()));
+    ZonedDateTime quoteFreshnessCutoff = ZonedDateTime.now().minus(QUOTE_FRESHNESS);
+    assetsByTicker.entrySet().removeIf(
+        entry ->
+            entry.getValue().stream()
+                .allMatch(asset -> isQuoteFresh(asset, quoteFreshnessCutoff)));
 
     // For inactive assets (fully closed positions), keep a meaningful last-known price
     // from the latest closed deal so portfolio views do not show null/zero prices.
@@ -284,6 +290,11 @@ public class MarketService {
           }
         });
     assetRepository.saveAll(toSave);
+  }
+
+  private boolean isQuoteFresh(Asset asset, ZonedDateTime cutoff) {
+    ZonedDateTime updatedAt = asset.getPriceUpdatedAt();
+    return updatedAt != null && !updatedAt.isBefore(cutoff);
   }
 
   private LocalDate quoteDate(StockQuote quote) {

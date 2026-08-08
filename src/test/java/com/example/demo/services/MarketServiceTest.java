@@ -206,6 +206,20 @@ class MarketServiceTest {
   }
 
   @Test
+  void updateStocks_skipsQuotesUpdatedWithinFourHours() {
+    Asset recent = newAsset("AAPL.US", "AAPL", true);
+    recent.setPriceUpdatedAt(java.time.ZonedDateTime.now().minusHours(3));
+    when(assetRepository.findAll()).thenReturn(List.of(recent));
+    when(openedPositionRepository.findAll()).thenReturn(List.of(openPosition("AAPL.US")));
+
+    marketService.updateStocks();
+
+    verify(twelveDataService, never()).fetchStockQuotes(anyString());
+    verify(assetRepository, never()).saveAll(org.mockito.ArgumentMatchers.any());
+    verify(statisticsRefreshService).refreshAll();
+  }
+
+  @Test
   void updateStocksAppliesManualRemxUkPriceAdjustment() {
     marketService = marketService(false, "");
     Asset remx = newAsset("REMX.UK", "REMX", true);
