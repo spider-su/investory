@@ -430,6 +430,7 @@ public class PortfolioProjectionService {
           normalized,
           amountBase,
           amountAccountCurrency,
+          normalized.accountFlowAmountInPortfolioBaseCurrency(),
           cashOnlyAccounts.contains(normalized.accountId()));
 
       if (!StringUtils.hasText(normalized.symbol())) {
@@ -482,11 +483,27 @@ public class PortfolioProjectionService {
                     nz(row.getAmount()),
                     row.getAmountInPortfolioBaseCurrency(),
                     row.getPortfolioConversionStatus(),
+                    accountFlowAmount(row, parseCategory(row.getNormalizedCategory())),
                     row.getAmountInAccountCurrency(),
                     row.getAccountConversionStatus(),
                     row.getDate(),
                     row.getComment()))
         .toList();
+  }
+
+  private static Double accountFlowAmount(
+      NormalizedCashOperationRepository.NormalizedCashOperationRow row,
+      NormalizedCategory category) {
+    if (row.getAccountFlowAmountInPortfolioBaseCurrency() != null) {
+      return row.getAccountFlowAmountInPortfolioBaseCurrency();
+    }
+    return switch (category) {
+      case EXTERNAL_DEPOSIT,
+          EXTERNAL_WITHDRAWAL,
+          INTERNAL_TRANSFER_IN,
+          INTERNAL_TRANSFER_OUT -> row.getAmountInPortfolioBaseCurrency();
+      default -> null;
+    };
   }
 
   private List<AccountDaily> buildAccountDailyRows(
@@ -630,9 +647,9 @@ public class PortfolioProjectionService {
          * taxes, and realized trade rows already affect equity through the canonical cash
          * ledger and/or market valuation, so they must not be added again here.
          */
-        double dailyProfit = equity - previousEquity - acc.deposits + acc.withdrawals;
-        double denominator = Math.abs(previousEquity) + Math.max(0.0, acc.deposits);
-        double dailyReturn = Math.abs(denominator) > EPSILON ? dailyProfit / denominator : 0.0;
+        double dailyProfit = ModifiedDietzCalculator.profit(previousEquity, equity, acc.netFlow);
+        double dailyReturn =
+            ModifiedDietzCalculator.returnRate(previousEquity, equity, List.of(acc.netFlow));
 
         rows.add(
             AccountDaily.builder()
@@ -927,6 +944,7 @@ public class PortfolioProjectionService {
       double amount,
       Double amountInPortfolioBaseCurrency,
       String portfolioConversionStatus,
+      Double accountFlowAmountInPortfolioBaseCurrency,
       Double amountInAccountCurrency,
       String accountConversionStatus,
       LocalDate date,
@@ -1166,6 +1184,7 @@ public class PortfolioProjectionService {
   private static final class AccountMonthAccumulator {
     double deposits;
     double withdrawals;
+    double netFlow;
     double buys;
     double sells;
     double dividends;
@@ -1184,25 +1203,27 @@ public class PortfolioProjectionService {
         CanonicalNormalizedCashOperation normalized,
         double amountBase,
         double amountAccountCurrency,
+        Double accountFlowAmountInPortfolioBaseCurrency,
         boolean cashOnlyAccount) {
       cashDeltaAccountCurrency += amountAccountCurrency;
+      if (accountFlowAmountInPortfolioBaseCurrency != null) {
+        netFlow += accountFlowAmountInPortfolioBaseCurrency;
+        if (accountFlowAmountInPortfolioBaseCurrency >= 0.0) {
+          deposits += accountFlowAmountInPortfolioBaseCurrency;
+        } else {
+          withdrawals -= accountFlowAmountInPortfolioBaseCurrency;
+        }
+      }
       switch (normalized.normalizedCategory()) {
         case EXTERNAL_DEPOSIT:
-          deposits += Math.abs(amountBase);
           break;
         case EXTERNAL_WITHDRAWAL:
-          withdrawals += Math.abs(amountBase);
           break;
         case INTERNAL_TRANSFER_IN:
         case INTERNAL_TRANSFER_OUT:
           // Internal transfers are excluded from portfolio net flows because the
           // matching in/out rows cancel across accounts. They are still account-level
           // flows, otherwise the receiving account reports the transfer as fake profit.
-          if (amountBase >= 0.0) {
-            deposits += Math.abs(amountBase);
-          } else {
-            withdrawals += Math.abs(amountBase);
-          }
           break;
         case INTERNAL_BOOKKEEPING:
         case FX_CONVERSION:
@@ -1255,8 +1276,9 @@ public class PortfolioProjectionService {
            * boundary. Its trade cash must cross that same boundary: buying an excluded asset is
            * a withdrawal, while selling it is a deposit. Otherwise the cash movement becomes a
            * fake investment loss or gain in account_daily and every monthly aggregate above it.
-           */
+          */
           if (cashOnlyAccount) {
+            netFlow += amountBase;
             if (normalized.normalizedCategory() == NormalizedCategory.TRADE_PURCHASE) {
               withdrawals += Math.abs(amountBase);
             } else {

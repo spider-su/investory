@@ -586,8 +586,10 @@ public class PortfolioService {
     if (CollectionUtils.isEmpty(accountIds)) {
       return Map.of();
     }
+    List<NormalizedCashOperationRepository.NormalizedCashOperationRow> flowRows =
+        normalizedCashOperationRepository.findAllByAccountIdIn(accountIds);
     Map<Long, AccountNetDeposit> deposits =
-        normalizedCashOperationRepository.findAllByAccountIdIn(accountIds).stream()
+        flowRows.stream()
         .filter(row -> row.getAccountId() != null)
         .filter(row -> ACCOUNT_NET_DEPOSIT_CATEGORIES.contains(row.getNormalizedCategory()))
         .collect(
@@ -601,21 +603,27 @@ public class PortfolioService {
                             rows.stream()
                                 .mapToDouble(row -> nz(row.getAmountInBaseCurrency()))
                                 .sum()))));
-    Map<Long, Double> adjustments =
-        new XtbAccountFundingCalculator(cashOperationNormalizer)
-            .calculate(cashOperationRepository.findAllByAccountIn(accountIds), accountsById);
-    adjustments.forEach(
-        (accountId, adjustment) -> {
-          Account account = accountsById.get(accountId);
-          double baseAdjustment =
-              currencyRateService.convertToBaseCurrency(
-                  adjustment, baseCurrency, account.getCurrency(), LocalDate.now());
-          AccountNetDeposit current = deposits.getOrDefault(accountId, new AccountNetDeposit(0, 0));
-          deposits.put(
-              accountId,
-              new AccountNetDeposit(
-                  current.localAmount() + adjustment, current.baseAmount() + baseAdjustment));
-        });
+    boolean canonicalFlowsPresent =
+        flowRows.stream()
+            .anyMatch(row -> row.getAccountFlowAmountInPortfolioBaseCurrency() != null);
+    if (!canonicalFlowsPresent) {
+      Map<Long, Double> adjustments =
+          new XtbAccountFundingCalculator(cashOperationNormalizer)
+              .calculate(cashOperationRepository.findAllByAccountIn(accountIds), accountsById);
+      adjustments.forEach(
+          (accountId, adjustment) -> {
+            Account account = accountsById.get(accountId);
+            double baseAdjustment =
+                currencyRateService.convertToBaseCurrency(
+                    adjustment, baseCurrency, account.getCurrency(), LocalDate.now());
+            AccountNetDeposit current =
+                deposits.getOrDefault(accountId, new AccountNetDeposit(0, 0));
+            deposits.put(
+                accountId,
+                new AccountNetDeposit(
+                    current.localAmount() + adjustment, current.baseAmount() + baseAdjustment));
+          });
+    }
     return deposits;
   }
 

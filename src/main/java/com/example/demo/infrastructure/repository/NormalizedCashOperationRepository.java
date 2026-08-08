@@ -30,16 +30,17 @@ public interface NormalizedCashOperationRepository extends Repository<CashOperat
               nco.normalized_category as normalizedCategory,
               null::bigint as assetId,
               null::text as symbol,
-              sum(nco.amount) as amount,
-              sum(nco.amount_in_portfolio_base_currency) as amountInPortfolioBaseCurrency,
+              sum(nco.account_flow_amount) as amount,
+              sum(nco.account_flow_amount_in_portfolio_base_currency) as amountInPortfolioBaseCurrency,
+              sum(nco.account_flow_amount_in_portfolio_base_currency) as accountFlowAmountInPortfolioBaseCurrency,
               null::text as portfolioConversionStatus,
-              sum(nco.amount_in_account_currency) as amountInAccountCurrency,
+              sum(nco.account_flow_amount_in_account_currency) as amountInAccountCurrency,
               null::text as accountConversionStatus,
               null::text as comment,
               nco.date::date as date,
               min(nco.rate_month) as rateMonth,
               null::double precision as fxRateToBase
-          from investory.normalized_cash_operations nco
+          from investory.normalized_cash_operation_flows nco
           where nco.account_id in (:accountIds)
             and nco.normalized_category in (
                 'EXTERNAL_DEPOSIT',
@@ -72,6 +73,7 @@ public interface NormalizedCashOperationRepository extends Repository<CashOperat
               asset.symbol as symbol,
               nco.amount as amount,
               nco.amount_in_portfolio_base_currency as amountInPortfolioBaseCurrency,
+              nco.account_flow_amount_in_portfolio_base_currency as accountFlowAmountInPortfolioBaseCurrency,
               nco.portfolio_conversion_status as portfolioConversionStatus,
               nco.amount_in_account_currency as amountInAccountCurrency,
               nco.account_conversion_status as accountConversionStatus,
@@ -79,7 +81,7 @@ public interface NormalizedCashOperationRepository extends Repository<CashOperat
               nco.date::date as date,
               nco.rate_month as rateMonth,
               nco.fx_rate_to_base as fxRateToBase
-          from investory.normalized_cash_operations nco
+          from investory.normalized_cash_operation_flows nco
           left join investory.assets asset on asset.id = nco.asset_id
           where nco.account_id in (:accountIds)
           order by nco.account_id, nco.date, nco.operation_id
@@ -112,6 +114,10 @@ public interface NormalizedCashOperationRepository extends Repository<CashOperat
     Double getAmount();
 
     Double getAmountInPortfolioBaseCurrency();
+
+    default Double getAccountFlowAmountInPortfolioBaseCurrency() {
+      return null;
+    }
 
     default Double getAmountInBaseCurrency() {
       return getAmountInPortfolioBaseCurrency();
