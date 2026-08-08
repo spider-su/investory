@@ -12,6 +12,8 @@ import static org.mockito.Mockito.when;
 import com.example.demo.clients.market.TwelveDataService;
 import com.example.demo.infrastructure.CurrencyType;
 import com.example.demo.infrastructure.repository.*;
+import com.example.demo.infrastructure.repository.account.Account;
+import com.example.demo.infrastructure.repository.account.AccountRepository;
 import com.example.demo.services.models.StockQuote;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
@@ -31,6 +33,7 @@ class MarketServiceTest {
 
   @Mock private TwelveDataService twelveDataService;
   @Mock private OpenedPositionRepository openedPositionRepository;
+  @Mock private AccountRepository accountRepository;
   @Mock private ClosedPositionRepository closedPositionRepository;
   @Mock private AssetRepository assetRepository;
   @Mock private AssetPriceHistoryRepository assetPriceHistoryRepository;
@@ -88,7 +91,10 @@ class MarketServiceTest {
     Asset price = newAsset("AAPL", "AAPL", true);
     price.setMarketPrice(180.0);
 
-    when(openedPositionRepository.findAllByAccount(17959259L)).thenReturn(List.of(ibkr));
+    when(accountRepository.findAllByProviderIgnoreCase("IBKR"))
+        .thenReturn(List.of(account(17959259L, "IBKR")));
+    when(openedPositionRepository.findAllByAccountIn(List.of(17959259L)))
+        .thenReturn(List.of(ibkr));
     when(assetRepository.findAllBySymbolIn(java.util.Set.of("AAPL"))).thenReturn(List.of(price));
 
     marketService.syncIbkrPositions();
@@ -100,11 +106,67 @@ class MarketServiceTest {
 
   @Test
   void syncIbkrPositions_isNoopWhenNoPositions() {
-    when(openedPositionRepository.findAllByAccount(17959259L)).thenReturn(List.of());
+    when(accountRepository.findAllByProviderIgnoreCase("IBKR"))
+        .thenReturn(List.of(account(17959259L, "IBKR")));
+    when(openedPositionRepository.findAllByAccountIn(List.of(17959259L))).thenReturn(List.of());
 
     marketService.syncIbkrPositions();
 
     verify(openedPositionRepository, never()).saveAll(org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
+  void repairXtbReconstructedPositionProfitsResetsOnlyXtbReconstructedRows() {
+    OpenedPosition xtb = new OpenedPosition();
+    xtb.setAccount(51551301L);
+    xtb.setComment("Reconstructed from Cash Operations");
+    xtb.setProfit(243.94);
+    OpenedPosition secondXtb = new OpenedPosition();
+    secondXtb.setAccount(51499241L);
+    secondXtb.setComment("Reconstructed from Cash Operations");
+    secondXtb.setProfit(-12.5);
+    OpenedPosition ibkr = new OpenedPosition();
+    ibkr.setAccount(17959259L);
+    ibkr.setComment("IBKR position snapshot");
+    ibkr.setProfit(243.94);
+
+    when(accountRepository.findAllByProviderIgnoreCase("XTB"))
+        .thenReturn(List.of(account(51551301L, "XTB"), account(51499241L, "XTB")));
+    when(openedPositionRepository.findAllByAccountIn(List.of(51551301L, 51499241L)))
+        .thenReturn(List.of(xtb, secondXtb));
+
+    assertEquals(2, marketService.repairXtbReconstructedPositionProfits());
+    assertEquals(0.0, xtb.getProfit());
+    assertEquals(0.0, secondXtb.getProfit());
+    assertEquals(243.94, ibkr.getProfit());
+    verify(openedPositionRepository).saveAll(List.of(xtb, secondXtb));
+  }
+
+  @Test
+  void syncIbkrPositionsPreservesProfitWhenCurrenciesDiffer() {
+    OpenedPosition ibkr = new OpenedPosition();
+    ibkr.setId(42L);
+    ibkr.setSymbol("GOOGL.US");
+    ibkr.setAccount(17959259L);
+    ibkr.setPriceCurrency(CurrencyType.USD);
+    ibkr.setProfitCurrency(CurrencyType.PLN);
+    ibkr.setVolume(2.0);
+    ibkr.setOpenPrice(300.0);
+    ibkr.setProfit(17.0);
+    Asset price = newAsset("GOOGL.US", "GOOGL", true);
+    price.setMarketPrice(320.0);
+
+    when(accountRepository.findAllByProviderIgnoreCase("IBKR"))
+        .thenReturn(List.of(account(17959259L, "IBKR")));
+    when(openedPositionRepository.findAllByAccountIn(List.of(17959259L)))
+        .thenReturn(List.of(ibkr));
+    when(assetRepository.findAllBySymbolIn(java.util.Set.of("GOOGL.US")))
+        .thenReturn(List.of(price));
+
+    marketService.syncIbkrPositions();
+
+    assertEquals(320.0, ibkr.getMarketPrice());
+    assertEquals(17.0, ibkr.getProfit());
   }
 
   @Test
@@ -312,7 +374,9 @@ class MarketServiceTest {
   void fullPortfolioUpdate_refreshesStatisticsAfterSync() {
     when(assetRepository.findAll()).thenReturn(List.of());
     when(openedPositionRepository.findAll()).thenReturn(List.of());
-    when(openedPositionRepository.findAllByAccount(eq(17959259L))).thenReturn(List.of());
+    when(accountRepository.findAllByProviderIgnoreCase("IBKR"))
+        .thenReturn(List.of(account(17959259L, "IBKR")));
+    when(openedPositionRepository.findAllByAccountIn(List.of(17959259L))).thenReturn(List.of());
 
     marketService.fullPortfolioUpdate();
 
@@ -332,6 +396,7 @@ class MarketServiceTest {
     return new MarketService(
         twelveDataService,
         openedPositionRepository,
+        accountRepository,
         closedPositionRepository,
         assetRepository,
         assetPriceHistoryRepository,
@@ -347,6 +412,13 @@ class MarketServiceTest {
     OpenedPosition position = new OpenedPosition();
     position.setSymbol(symbol);
     return position;
+  }
+
+  private static Account account(long id, String provider) {
+    Account account = new Account();
+    account.setId(id);
+    account.setProvider(provider);
+    return account;
   }
 
   private static <T> List<T> toList(Iterable<T> iterable) {

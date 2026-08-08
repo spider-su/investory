@@ -8,6 +8,8 @@ import com.example.demo.infrastructure.repository.ClosedPosition;
 import com.example.demo.infrastructure.repository.ClosedPositionRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
+import com.example.demo.infrastructure.repository.account.Account;
+import com.example.demo.infrastructure.repository.account.AccountRepository;
 import com.example.demo.services.models.StockQuote;
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -39,7 +41,9 @@ import org.springframework.util.StringUtils;
 public class MarketService {
 
   public static final Set<String> NOT_SUPPORTED_SYMBOLS = Set.of("CSPX");
-  private static final Long IBKR_ACCOUNT = 17959259L;
+  private static final String IBKR_PROVIDER = "IBKR";
+  private static final String XTB_PROVIDER = "XTB";
+  private static final String XTB_RECONSTRUCTED_COMMENT = "Reconstructed from Cash Operations";
 
   /**
    * TwelveData free tier allows 8 calls per minute. Group the symbol fetches into chunks of that
@@ -62,6 +66,7 @@ public class MarketService {
 
   private final TwelveDataService twelveDataService;
   private final OpenedPositionRepository openedPositionRepository;
+  private final AccountRepository accountRepository;
   private final ClosedPositionRepository closedPositionRepository;
   private final AssetRepository assetRepository;
   private final AssetPriceHistoryRepository assetPriceHistoryRepository;
@@ -75,6 +80,7 @@ public class MarketService {
   public MarketService(
       TwelveDataService twelveDataService,
       OpenedPositionRepository openedPositionRepository,
+      AccountRepository accountRepository,
       ClosedPositionRepository closedPositionRepository,
       AssetRepository assetRepository,
       AssetPriceHistoryRepository assetPriceHistoryRepository,
@@ -86,6 +92,7 @@ public class MarketService {
       @Value("${app.market.excluded-symbols:}") String excludedSymbolsCsv) {
     this.twelveDataService = twelveDataService;
     this.openedPositionRepository = openedPositionRepository;
+    this.accountRepository = accountRepository;
     this.closedPositionRepository = closedPositionRepository;
     this.assetRepository = assetRepository;
     this.assetPriceHistoryRepository = assetPriceHistoryRepository;
@@ -425,35 +432,9 @@ public class MarketService {
     return chunks;
   }
 
-  public void syncStocks() {
-    Map<String, List<OpenedPosition>> openedPositions =
-        openedPositionRepository.findAll().stream()
-            .collect(Collectors.groupingBy(OpenedPosition::getSymbol));
-
-    Map<String, Asset> assetsBySymbol =
-        assetRepository.findAllBySymbolIn(openedPositions.keySet()).stream()
-            .collect(Collectors.toMap(Asset::getSymbol, asset -> asset, (a, b) -> b));
-
-    openedPositions.forEach(
-        (symbol, positions) -> {
-          Asset asset = assetsBySymbol.get(symbol);
-          if (asset == null || asset.getMarketPrice() == null) {
-            return;
-          }
-          positions.forEach(
-              position -> {
-                position.setMarketPrice(asset.getMarketPrice());
-                position.setProfit(
-                    position.signedQuantity() * (asset.getMarketPrice() - position.getOpenPrice()));
-              });
-          openedPositionRepository.saveAll(positions);
-        });
-  }
-
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public void refreshMarketPricesAndPositions() {
     updateStocks(false);
-    syncStocks();
     syncIbkrPositions();
   }
 
@@ -464,11 +445,19 @@ public class MarketService {
   }
 
   /**
-   * Applies the latest fetched market prices to IBKR open positions so their unrealized P/L
-   * reflects current value (XTB positions keep their imported snapshot and are left untouched).
+   * Applies the latest fetched market prices to IBKR open positions. XTB rows remain imported
+   * state; reporting derives their live valuation from the asset price and explicit currencies.
    */
   public void syncIbkrPositions() {
-    List<OpenedPosition> positions = openedPositionRepository.findAllByAccount(IBKR_ACCOUNT);
+    List<Long> ibkrAccounts =
+        accountRepository.findAllByProviderIgnoreCase(IBKR_PROVIDER).stream()
+            .map(Account::getId)
+            .filter(java.util.Objects::nonNull)
+            .toList();
+    if (ibkrAccounts.isEmpty()) {
+      return;
+    }
+    List<OpenedPosition> positions = openedPositionRepository.findAllByAccountIn(ibkrAccounts);
     if (positions.isEmpty()) {
       return;
     }
@@ -488,12 +477,42 @@ public class MarketService {
       }
       double openPrice = position.getOpenPrice() != null ? position.getOpenPrice() : 0.0;
       position.setMarketPrice(asset.getMarketPrice());
-      position.setProfit(position.signedQuantity() * (asset.getMarketPrice() - openPrice));
+      if (position.getPriceCurrency() == position.getProfitCurrency()) {
+        position.setProfit(position.signedQuantity() * (asset.getMarketPrice() - openPrice));
+      } else {
+        log.warn(
+            "Preserving IBKR position {} profit: price currency {} differs from profit currency {}",
+            position.getId(),
+            position.getPriceCurrency(),
+            position.getProfitCurrency());
+      }
     }
     openedPositionRepository.saveAll(positions);
 
     // Account cash/equity is broker-imported state. Quote refresh must not rewrite it:
     // account statistics will combine broker cash with current market value from assets.
+  }
+
+  /** Restores reconstructed XTB open-position profit to its canonical imported value. */
+  public int repairXtbReconstructedPositionProfits() {
+    List<Long> xtbAccounts =
+        accountRepository.findAllByProviderIgnoreCase(XTB_PROVIDER).stream()
+            .map(Account::getId)
+            .filter(java.util.Objects::nonNull)
+            .toList();
+    if (xtbAccounts.isEmpty()) {
+      return 0;
+    }
+    List<OpenedPosition> repaired =
+        openedPositionRepository.findAllByAccountIn(xtbAccounts).stream()
+            .filter(position -> XTB_RECONSTRUCTED_COMMENT.equals(position.getComment()))
+            .filter(position -> position.getProfit() == null || position.getProfit() != 0.0)
+            .peek(position -> position.setProfit(0.0))
+            .toList();
+    if (!repaired.isEmpty()) {
+      openedPositionRepository.saveAll(repaired);
+    }
+    return repaired.size();
   }
 
   private void refreshStatisticsIfNeeded(boolean refreshAfterUpdate) {

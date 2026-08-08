@@ -78,7 +78,7 @@ class ManualAssetPriceServiceTest {
             eq(BigDecimal.valueOf(123.45)),
             eq(100),
             eq("MANUAL"));
-    verify(marketService).syncStocks();
+    verify(marketService).syncIbkrPositions();
     verify(statisticsRefreshService).refreshAll();
   }
 

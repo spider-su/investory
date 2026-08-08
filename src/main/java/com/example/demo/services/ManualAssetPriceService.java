@@ -64,7 +64,7 @@ public class ManualAssetPriceService {
         100,
         "MANUAL");
 
-    marketService.syncStocks();
+    marketService.syncIbkrPositions();
     statisticsRefreshService.refreshAll();
 
     return new ManualAssetPrice(
