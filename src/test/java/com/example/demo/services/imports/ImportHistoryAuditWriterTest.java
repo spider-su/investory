@@ -97,7 +97,7 @@ class ImportHistoryAuditWriterTest {
     ImportHistory result =
         auditWriter.finalizeApplied(5L, new ImportExecutionResult(10, 9, 1, "done"));
 
-    assertEquals(ImportBatchStatus.COMPLETED, result.getStatus());
+    assertEquals(ImportBatchStatus.PARTIAL, result.getStatus());
     assertEquals(10, result.getRowsTotal());
     assertEquals(9, result.getRowsApplied());
     assertEquals(1, result.getRowsFailed());

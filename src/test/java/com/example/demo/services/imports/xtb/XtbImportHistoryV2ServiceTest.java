@@ -19,6 +19,8 @@ import com.example.demo.infrastructure.repository.ClosedPosition;
 import com.example.demo.infrastructure.repository.ClosedPositionRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
+import com.example.demo.infrastructure.repository.account.Account;
+import com.example.demo.infrastructure.repository.account.AccountRepository;
 import com.example.demo.services.AssetCatalogService;
 import com.example.demo.services.PositionSettlementModelService;
 import com.example.demo.services.imports.ImportExecutionResult;
@@ -54,6 +56,7 @@ class XtbImportHistoryV2ServiceTest {
   @Mock private CashOperationRepository cashOperationRepository;
   @Mock private AssetPriceHistoryRepository assetPriceHistoryRepository;
   @Mock private AssetRepository assetRepository;
+  @Mock private AccountRepository accountRepository;
   @Captor private ArgumentCaptor<Iterable<OpenedPosition>> openedPositionsCaptor;
   @Captor private ArgumentCaptor<Iterable<ClosedPosition>> closedPositionsCaptor;
 
@@ -89,9 +92,20 @@ class XtbImportHistoryV2ServiceTest {
             cashOperationRepository,
             assetPriceHistoryRepository,
             assetRepository,
+            accountRepository,
             new AssetCatalogService(assetRepository),
             new PositionSettlementModelService(),
             new XtbPositionCurrencyResolver());
+    org.mockito.Mockito.lenient()
+        .when(accountRepository.findById(org.mockito.ArgumentMatchers.anyLong()))
+        .thenAnswer(
+            invocation -> {
+              Account account = new Account();
+              account.setId(invocation.getArgument(0));
+              account.setProvider("XTB");
+              account.setCurrency(CurrencyType.PLN);
+              return java.util.Optional.of(account);
+            });
   }
 
   private static Asset catalogAsset(String symbol, long id) {
@@ -345,7 +359,7 @@ class XtbImportHistoryV2ServiceTest {
   }
 
   @Test
-  void importWorkbook_skipsAssetMarkedExcludedFromImport() throws Exception {
+  void importWorkbook_keepsAssetMarkedExcludedFromImport() throws Exception {
     Asset excluded =
         Asset.builder()
             .id(78L)
@@ -399,9 +413,11 @@ class XtbImportHistoryV2ServiceTest {
           new ByteArrayInputStream(out.toByteArray()), "PLN_test.xlsx");
     }
 
-    verify(assetPriceHistoryRepository, org.mockito.Mockito.never())
+    verify(cashOperationRepository).saveAll(anyList());
+    verify(openedPositionRepository, atLeastOnce()).saveAll(anyList());
+    verify(assetPriceHistoryRepository)
         .upsertObservedPrice(
-            org.mockito.ArgumentMatchers.anyLong(),
+            org.mockito.ArgumentMatchers.eq(78L),
             org.mockito.ArgumentMatchers.any(LocalDate.class),
             org.mockito.ArgumentMatchers.anyString(),
             org.mockito.ArgumentMatchers.anyString(),
@@ -411,7 +427,6 @@ class XtbImportHistoryV2ServiceTest {
             org.mockito.ArgumentMatchers.any(BigDecimal.class),
             org.mockito.ArgumentMatchers.anyInt(),
             org.mockito.ArgumentMatchers.anyString());
-    verify(openedPositionRepository, org.mockito.Mockito.never()).saveAll(anyList());
   }
 
   @Test

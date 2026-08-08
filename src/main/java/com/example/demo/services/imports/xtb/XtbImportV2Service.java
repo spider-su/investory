@@ -13,6 +13,8 @@ import com.example.demo.infrastructure.repository.ClosedPosition;
 import com.example.demo.infrastructure.repository.ClosedPositionRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
+import com.example.demo.infrastructure.repository.account.Account;
+import com.example.demo.infrastructure.repository.account.AccountRepository;
 import com.example.demo.services.AssetCatalogService;
 import com.example.demo.services.PositionSettlementModelService;
 import com.example.demo.services.imports.ImportExecutionResult;
@@ -34,7 +36,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Deque;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -48,6 +49,7 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DataFormatter;
@@ -64,6 +66,7 @@ import org.springframework.util.StringUtils;
 @Service
 @Transactional
 @RequiredArgsConstructor
+@Slf4j
 public class XtbImportV2Service {
 
   private static final DataFormatter DATA_FORMATTER = new DataFormatter(Locale.ROOT);
@@ -84,6 +87,7 @@ public class XtbImportV2Service {
   private final CashOperationRepository cashOperationRepository;
   private final AssetPriceHistoryRepository assetPriceHistoryRepository;
   private final AssetRepository assetRepository;
+  private final AccountRepository accountRepository;
   private final AssetCatalogService assetCatalogService;
   private final PositionSettlementModelService positionSettlementModelService;
   private final XtbPositionCurrencyResolver positionCurrencyResolver;
@@ -103,6 +107,8 @@ public class XtbImportV2Service {
   public ImportExecutionResult importZip(InputStream zipInputStream, String sourceName)
       throws Exception {
     int total = 0;
+    int applied = 0;
+    int failed = 0;
     int files = 0;
     List<String> importedAccounts = new ArrayList<>();
 
@@ -115,7 +121,9 @@ public class XtbImportV2Service {
         byte[] workbookBytes = readAllBytes(zip);
         ImportExecutionResult partial =
             importWorkbook(new ByteArrayInputStream(workbookBytes), entry.getName());
-        total += partial.rowsApplied();
+        total += partial.rowsTotal();
+        applied += partial.rowsApplied();
+        failed += partial.rowsFailed();
         files++;
         importedAccounts.add(partial.details());
       }
@@ -127,12 +135,14 @@ public class XtbImportV2Service {
 
     String details =
         String.format(
-            "XTB v2 %s: imported %d workbook(s), rows=%d [%s]",
+            "XTB v2 %s: imported %d workbook(s), rows=%d applied=%d failed=%d [%s]",
             sourceName != null ? sourceName : "zip",
             files,
             total,
+            applied,
+            failed,
             String.join(", ", importedAccounts));
-    return new ImportExecutionResult(total, total, 0, details);
+    return new ImportExecutionResult(total, applied, failed, details);
   }
 
   public ImportExecutionResult importWorkbook(InputStream xlsxInputStream, String sourceName)
@@ -162,11 +172,7 @@ public class XtbImportV2Service {
       List<ClosedPosition> closedPositions =
           parseClosedPositions(closedSheet, closedColumns, account, sourceName);
       normalizeImportedSymbols(cashOperations, closedPositions);
-      Set<String> excludedSymbols = excludedAssetSymbols(symbols(cashOperations, closedPositions));
-      cashOperations.removeIf(operation -> isExcluded(operation.getSymbol(), excludedSymbols));
-      closedPositions.removeIf(position -> isExcluded(position.getSymbol(), excludedSymbols));
-
-      CurrencyType currency = inferCurrency(sourceName, cashOperations, closedPositions);
+      CurrencyType currency = accountCurrency(account, sourceName);
       cashOperations.forEach(op -> op.setCurrency(currency));
 
       List<OpenedPosition> openedPositions =
@@ -188,7 +194,7 @@ public class XtbImportV2Service {
         openedPositionRepository.removeAllByAccountNotIn(account, openedPositions);
         openedPositionRepository.saveAll(openedPositions);
       }
-      int total = cashOperations.size() + closedPositions.size() + openedPositions.size();
+      int total = cashOperations.size() + closedPositions.size();
       String details =
           String.format(
               "acc=%s cash=%d closed=%d open=%d",
@@ -579,23 +585,6 @@ public class XtbImportV2Service {
     return assetId;
   }
 
-  private Set<String> excludedAssetSymbols(Set<String> symbols) {
-    if (symbols.isEmpty()) {
-      return Set.of();
-    }
-    return assetRepository.findAllBySymbolIn(symbols).stream()
-        .filter(asset -> Boolean.TRUE.equals(asset.getExcludeFromImport()))
-        .map(Asset::getSymbol)
-        .filter(StringUtils::hasText)
-        .map(symbol -> symbol.trim().toUpperCase(Locale.ROOT))
-        .collect(java.util.stream.Collectors.toSet());
-  }
-
-  private boolean isExcluded(String symbol, Set<String> excludedSymbols) {
-    return StringUtils.hasText(symbol)
-        && excludedSymbols.contains(symbol.trim().toUpperCase(Locale.ROOT));
-  }
-
   private void persistTradePriceHistory(
       List<ClosedPosition> closedPositions,
       List<OpenedPosition> openedPositions,
@@ -897,40 +886,36 @@ public class XtbImportV2Service {
     return first != null ? first : second;
   }
 
-  private CurrencyType inferCurrency(
-      String sourceName, List<CashOperation> cashOperations, List<ClosedPosition> closedPositions) {
-    CurrencyType fromName = inferCurrencyFromSourceName(sourceName);
-    if (fromName != null) {
-      return fromName;
+  private CurrencyType accountCurrency(Long accountId, String sourceName) {
+    Account account =
+        accountRepository
+            .findById(accountId)
+            .orElseThrow(
+                () ->
+                    new IllegalStateException(
+                        "XTB account " + accountId + " is not configured: " + sourceName));
+    if (!"XTB".equalsIgnoreCase(account.getProvider())) {
+      throw new IllegalStateException(
+          "Account "
+              + accountId
+              + " is configured for provider "
+              + account.getProvider()
+              + ", not XTB");
     }
-
-    Map<CurrencyType, Integer> votes = new EnumMap<>(CurrencyType.class);
-    symbols(cashOperations, closedPositions)
-        .forEach(
-            symbol -> {
-              CurrencyType guessed = currencyForSuffix(symbol);
-              if (guessed != null) {
-                votes.merge(guessed, 1, Integer::sum);
-              }
-            });
-    return votes.entrySet().stream()
-        .max(Map.Entry.comparingByValue())
-        .map(Map.Entry::getKey)
-        .orElse(null);
-  }
-
-  private Set<String> symbols(
-      List<CashOperation> cashOperations, List<ClosedPosition> closedPositions) {
-    Set<String> symbols = new HashSet<>();
-    cashOperations.stream()
-        .map(CashOperation::getSymbol)
-        .filter(StringUtils::hasText)
-        .forEach(symbols::add);
-    closedPositions.stream()
-        .map(ClosedPosition::getSymbol)
-        .filter(StringUtils::hasText)
-        .forEach(symbols::add);
-    return symbols;
+    CurrencyType configuredCurrency = account.getCurrency();
+    if (configuredCurrency == null) {
+      throw new IllegalStateException("XTB account " + accountId + " has no configured currency");
+    }
+    CurrencyType filenameCurrency = inferCurrencyFromSourceName(sourceName);
+    if (filenameCurrency != null && filenameCurrency != configuredCurrency) {
+      log.warn(
+          "XTB filename currency {} disagrees with account {} currency {} for {}",
+          filenameCurrency,
+          accountId,
+          configuredCurrency,
+          sourceName);
+    }
+    return configuredCurrency;
   }
 
   private CurrencyType inferCurrencyFromSourceName(String sourceName) {
@@ -1050,7 +1035,7 @@ public class XtbImportV2Service {
       return null;
     }
     if (cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
-      return cell.getDateCellValue().toInstant().atZone(UTC);
+      return cell.getLocalDateTimeCellValue().atZone(UTC);
     }
 
     String text = value(cell);

@@ -80,7 +80,8 @@ public class ImportBatchAuditWriter {
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public ImportHistory finalizeApplied(Long batchId, ImportExecutionResult result) {
     ImportHistory batch = importRepository.getById(batchId);
-    batch.setStatus(ImportBatchStatus.COMPLETED);
+    batch.setStatus(
+        result.rowsFailed() > 0 ? ImportBatchStatus.PARTIAL : ImportBatchStatus.COMPLETED);
     batch.setRowsTotal(result.rowsTotal());
     batch.setRowsApplied(result.rowsApplied());
     batch.setRowsFailed(result.rowsFailed());

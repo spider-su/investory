@@ -10,7 +10,6 @@ import com.example.demo.infrastructure.repository.CashOperation;
 import com.example.demo.infrastructure.repository.CashOperationRepository;
 import com.example.demo.infrastructure.repository.ClosedPosition;
 import com.example.demo.infrastructure.repository.ClosedPositionRepository;
-import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
 import com.example.demo.services.imports.ImportExecutionResult;
 import java.io.ByteArrayInputStream;
