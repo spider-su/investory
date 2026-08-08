@@ -572,6 +572,18 @@ class DatabaseReportingContractTest {
         long sourceNegative = insertSubaccountTransfer(connection, 51499241L, -801.47, "Transfer from 51499241 to 51993106");
         long sourcePositive = insertSubaccountTransfer(connection, 51499241L, 801.47, "Transfer from 51499241 to 51993106");
         assertFlowSums(connection, sourceNegative, sourcePositive, -801.47, 0.0);
+
+        long virtualDepositNegative =
+            insertSubaccountTransfer(connection, 51499241L, -801.47, "Transfer from 99999999 to 51499241");
+        long virtualDepositPositive =
+            insertSubaccountTransfer(connection, 51499241L, 801.47, "Transfer from 99999999 to 51499241");
+        assertFlowSums(connection, virtualDepositNegative, virtualDepositPositive, 801.47, 801.47);
+
+        long virtualWithdrawalNegative =
+            insertSubaccountTransfer(connection, 51499241L, -801.47, "Transfer from 51499241 to 99999999");
+        long virtualWithdrawalPositive =
+            insertSubaccountTransfer(connection, 51499241L, 801.47, "Transfer from 51499241 to 99999999");
+        assertFlowSums(connection, virtualWithdrawalNegative, virtualWithdrawalPositive, -801.47, -801.47);
       } finally {
         connection.rollback();
       }

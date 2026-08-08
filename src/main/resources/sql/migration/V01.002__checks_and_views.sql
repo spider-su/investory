@@ -4660,6 +4660,22 @@ WITH parsed AS (
         CASE
             WHEN normalized_category IN ('EXTERNAL_DEPOSIT', 'EXTERNAL_WITHDRAWAL')
                 THEN amount
+            WHEN normalized_category = 'INTERNAL_BOOKKEEPING'
+             AND transfer_target_account = account_id
+             AND amount > 0
+             AND NOT EXISTS (
+                 SELECT 1
+                 FROM investory.accounts counterparty
+                 WHERE counterparty.id = transfer_source_account
+             ) THEN amount
+            WHEN normalized_category = 'INTERNAL_BOOKKEEPING'
+             AND transfer_source_account = account_id
+             AND amount < 0
+             AND NOT EXISTS (
+                 SELECT 1
+                 FROM investory.accounts counterparty
+                 WHERE counterparty.id = transfer_target_account
+             ) THEN amount
             ELSE 0::numeric
         END AS portfolio_flow_amount
     FROM parsed
@@ -4678,7 +4694,7 @@ SELECT
 FROM effects;
 
 COMMENT ON VIEW investory.normalized_cash_operation_flows IS
-    'Single scoped-flow contract. Account flows include external and internal funding effects; portfolio flows include external deposits/withdrawals only. Paired XTB subaccount rows contribute once by parsed source/target direction.';
+    'Single scoped-flow contract. Account flows include external and internal funding effects; portfolio flows include external deposits/withdrawals plus directional XTB transfer legs whose counterparty is outside the configured portfolio. Paired configured-account transfers remain portfolio-neutral.';
 
 CREATE OR REPLACE VIEW investory.v_portfolio_daily AS
 WITH account_rows_with_fx AS (
