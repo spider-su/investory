@@ -118,6 +118,8 @@ CREATE OR REPLACE FUNCTION investory.resolve_fx_rate(
     target_currency varchar(3),
     fx_rate_to_target numeric,
     source varchar(64),
+    rate_method varchar(32),
+    rate_source varchar(32),
     source_rate_date date,
     age_days integer,
     conversion_status varchar(32)
@@ -131,6 +133,8 @@ WITH edges AS (
         edge_target,
         edge_rate,
         edge_source_name,
+        edge_method,
+        edge_rate_source,
         rate_date
     FROM (
         SELECT
@@ -138,11 +142,13 @@ WITH edges AS (
             er.to_currency::varchar(3) AS edge_target,
             er.rate AS edge_rate,
             ('DIRECT:' || er.source)::varchar(64) AS edge_source_name,
-            er.month AS rate_date,
+            er.method AS edge_method,
+            er.source AS edge_rate_source,
+            er.rate_date AS rate_date,
             1 AS direction_priority,
             er.imported_at
         FROM investory.exchange_rates er
-        WHERE er.month <= p_valuation_date
+        WHERE er.rate_date <= p_valuation_date
           AND er.rate > 0
         UNION ALL
         SELECT
@@ -150,18 +156,29 @@ WITH edges AS (
             er.base::varchar(3) AS edge_target,
             1::numeric / er.rate AS edge_rate,
             ('INVERSE:' || er.source)::varchar(64) AS edge_source_name,
-            er.month AS rate_date,
+            er.method AS edge_method,
+            er.source AS edge_rate_source,
+            er.rate_date AS rate_date,
             2 AS direction_priority,
             er.imported_at
         FROM investory.exchange_rates er
-        WHERE er.month <= p_valuation_date
+        WHERE er.rate_date <= p_valuation_date
           AND er.rate > 0
     ) available_edges
-    ORDER BY edge_source, edge_target, rate_date DESC, direction_priority, imported_at DESC
+    ORDER BY edge_source, edge_target,
+        CASE edge_method
+            WHEN 'MARKET_DAILY' THEN 1
+            WHEN 'IBKR_DAILY_REFERENCE' THEN 2
+            WHEN 'HISTORICAL_MONTHLY' THEN 3
+            ELSE 4
+        END,
+        rate_date DESC, direction_priority, imported_at DESC
 ), candidates AS (
     SELECT
         e.edge_rate AS candidate_rate,
         e.edge_source_name AS candidate_source,
+        e.edge_method AS candidate_method,
+        e.edge_rate_source AS candidate_rate_source,
         e.rate_date AS candidate_rate_date,
         1 AS candidate_priority
     FROM edges e
@@ -171,6 +188,8 @@ WITH edges AS (
     SELECT
         first_leg.edge_rate * second_leg.edge_rate,
         ('TRIANGULATED:' || first_leg.edge_target)::varchar(64),
+        CASE WHEN first_leg.edge_method = second_leg.edge_method THEN first_leg.edge_method ELSE 'TRIANGULATED' END,
+        first_leg.edge_rate_source,
         LEAST(first_leg.rate_date, second_leg.rate_date),
         2
     FROM edges first_leg
@@ -197,6 +216,14 @@ SELECT
         ELSE selected.candidate_source
     END,
     CASE
+        WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY'::varchar(32)
+        ELSE selected.candidate_method
+    END,
+    CASE
+        WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY'::varchar(32)
+        ELSE selected.candidate_rate_source
+    END,
+    CASE
         WHEN p_source_currency = p_target_currency THEN p_valuation_date
         ELSE selected.candidate_rate_date
     END,
@@ -209,7 +236,8 @@ SELECT
         WHEN p_source_currency IS NULL OR p_target_currency IS NULL THEN 'MISSING_CURRENCY'
         WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY'
         WHEN selected.candidate_rate IS NULL THEN 'MISSING'
-        WHEN p_valuation_date - selected.candidate_rate_date > 45 THEN 'STALE'
+        WHEN selected.candidate_method = 'HISTORICAL_MONTHLY' AND p_valuation_date - selected.candidate_rate_date > 4 THEN 'ESTIMATED'
+        WHEN p_valuation_date - selected.candidate_rate_date > 4 THEN 'STALE'
         ELSE 'OK'
     END::varchar(32)
 FROM (SELECT 1) anchor
@@ -230,6 +258,8 @@ CREATE OR REPLACE FUNCTION investory.resolve_portfolio_fx_rate(
     base_currency varchar(3),
     fx_rate_to_base numeric,
     source varchar(64),
+    rate_method varchar(32),
+    rate_source varchar(32),
     source_rate_date date,
     age_days integer,
     conversion_status varchar(32)
@@ -244,6 +274,8 @@ SELECT
     p.base_currency::varchar(3),
     resolved.fx_rate_to_target,
     resolved.source,
+    resolved.rate_method,
+    resolved.rate_source,
     resolved.source_rate_date,
     resolved.age_days,
     resolved.conversion_status
@@ -2422,6 +2454,8 @@ SELECT
     resolved.base_currency,
     resolved.fx_rate_to_base,
     resolved.source,
+    resolved.rate_method,
+    resolved.rate_source,
     resolved.source_rate_date,
     resolved.age_days,
     resolved.conversion_status
@@ -4447,7 +4481,7 @@ quality AS (
            (SELECT MAX(finished_at) FROM investory.import_history WHERE status = 'COMPLETED') AS latest_broker_reconciliation_at,
            (SELECT MAX(finished_at) FROM investory.import_history WHERE status = 'COMPLETED') AS latest_import_at,
            pq.latest_price_date,
-           (SELECT MAX(month) FROM investory.exchange_rates) AS latest_fx_month,
+           (SELECT MAX(rate_date) FROM investory.exchange_rates) AS latest_fx_month,
            (SELECT MAX(updated_at) FROM investory.account_daily) AS latest_reporting_refresh_at
     FROM active_accounts aa CROSS JOIN account_recon ar CROSS JOIN position_quality pq CROSS JOIN currency_quality cq CROSS JOIN cash_quality cqo
 )

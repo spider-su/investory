@@ -25,8 +25,11 @@ public class CurrencyRate {
   @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "exchange_rates_id_seq")
   private Long id;
 
-  @Column(name = "month", nullable = false)
-  private LocalDate monthStart;
+  @Column(name = "rate_date", nullable = false)
+  private LocalDate rateDate;
+
+  @Column(name = "month")
+  private LocalDate legacyMonth;
 
   @Enumerated(value = EnumType.STRING)
   @Column(nullable = false)
@@ -41,11 +44,29 @@ public class CurrencyRate {
   @Column(nullable = false, precision = 20, scale = 8)
   private BigDecimal rate;
 
-  @Column(name = "source", nullable = false, length = 32, insertable = false, updatable = false)
+  @Column(name = "source", nullable = false, length = 32)
   private String source;
+
+  @Column(name = "method", nullable = false, length = 32)
+  private String method;
+
+  @Column(name = "observed_at")
+  private ZonedDateTime observedAt;
+
+  @Column(name = "source_reference", length = 256)
+  private String sourceReference;
 
   @Column(name = "imported_at", nullable = false, insertable = false, updatable = false)
   private ZonedDateTime importedAt;
+
+  @PrePersist
+  @PreUpdate
+  void applyDefaults() {
+    if (source == null) source = "MANUAL";
+    if (method == null) method = "HISTORICAL_MONTHLY";
+    if (rateDate == null) rateDate = legacyMonth;
+    if (legacyMonth == null) legacyMonth = rateDate;
+  }
 
   public double getRate() {
     return rate == null ? 0.0 : rate.doubleValue();
@@ -70,4 +91,7 @@ public class CurrencyRate {
   private static BigDecimal scaleRate(BigDecimal rate) {
     return rate == null ? null : rate.setScale(8, RoundingMode.HALF_UP);
   }
+
+  public LocalDate getMonthStart() { return rateDate; }
+  public void setMonthStart(LocalDate date) { this.rateDate = date; this.legacyMonth = date; }
 }

@@ -342,18 +342,33 @@ EXECUTE FUNCTION investory.bind_asset_price_history_source_mapping();
 -- Summary tables - the main operation tables for portfolio management and reporting, used for calculations and analysis
 CREATE TABLE IF NOT EXISTS investory.exchange_rates (
     id              bigserial PRIMARY KEY,
-    month           date NOT NULL,
+    rate_date       date NOT NULL,
+    month           date,
     base            varchar(3) NOT NULL REFERENCES investory.currencies(id),
     to_currency     varchar(3) NOT NULL REFERENCES investory.currencies(id),
     rate            numeric(20,8) NOT NULL,
-    source          varchar(32) NOT NULL DEFAULT 'MANUAL',
+    source          varchar(32) NOT NULL DEFAULT 'STATIC_BOOTSTRAP',
+    method          varchar(32) NOT NULL DEFAULT 'HISTORICAL_MONTHLY',
+    observed_at     timestamptz,
+    source_reference varchar(256),
     imported_at     timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT chk_exchange_rates_rate_positive CHECK (rate > 0),
-    CONSTRAINT chk_exchange_rates_month_first_day CHECK (month = date_trunc('month', month)::date),
-    CONSTRAINT chk_exchange_rates_base_differs_from_to_currency CHECK (base <> to_currency)
+    CONSTRAINT chk_exchange_rates_base_differs_from_to_currency CHECK (base <> to_currency),
+    CONSTRAINT chk_exchange_rates_source CHECK (source IN ('NBP','ECB','EXCHANGERATE_HOST','IBKR','XTB','STATIC_BOOTSTRAP','MANUAL','TEST')),
+    CONSTRAINT chk_exchange_rates_method CHECK (method IN ('MARKET_DAILY','IBKR_DAILY_REFERENCE','IBKR_EXECUTION','XTB_EXECUTION','HISTORICAL_MONTHLY','INTERPOLATED','CARRY_FORWARD'))
 );
-CREATE UNIQUE INDEX IF NOT EXISTS ux_currencies_base_to_currency_month
-    ON investory.exchange_rates (month, base, to_currency);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_exchange_rates_observation
+    ON investory.exchange_rates (rate_date, base, to_currency, source, method, COALESCE(source_reference, ''));
+CREATE OR REPLACE FUNCTION investory.sync_exchange_rate_legacy_month()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.rate_date IS NULL THEN NEW.rate_date := NEW.month; END IF;
+    IF NEW.month IS NULL THEN NEW.month := NEW.rate_date; END IF;
+    RETURN NEW;
+END $$;
+CREATE TRIGGER trg_exchange_rates_legacy_month
+BEFORE INSERT OR UPDATE ON investory.exchange_rates
+FOR EACH ROW EXECUTE FUNCTION investory.sync_exchange_rate_legacy_month();
 COMMENT ON TABLE investory.exchange_rates IS 'Historical exchange rates for USD/EUR/PLN currencies, used for reporting and analysis';
 
 CREATE TYPE investory.cash_operation_type AS ENUM (

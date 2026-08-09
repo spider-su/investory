@@ -3,7 +3,7 @@ SET search_path TO investory, public;
 -- Read-only reconciliation and diagnostic objects. These verify production
 -- reporting results but are not inputs to the production refresh contract.
 COMMENT ON VIEW investory.v_portfolio_daily_fx_rate IS
-    'Reconciliation FX layer. Production calculations use resolve_fx_rate directly; this view supports independent reconstruction checks.';
+    'Reconciliation FX layer. Production calculations use the centralized date-aware resolver.';
 
 CREATE OR REPLACE FUNCTION investory.refresh_reconciliation_views()
 RETURNS VOID AS $$

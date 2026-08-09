@@ -48,7 +48,7 @@ implemented tooling, and known gaps.
 | Automatic detection | `.csv` is treated as IBKR; `.xlsx` and `.zip` are treated as XTB. The broker can also be selected explicitly through the import endpoint. |
 | Currencies | `USD`, `EUR`, and `PLN`. |
 | Market data | TwelveData supplies automatic quotes, historical prices, and SPY monthly closes. The scheduled market refresh runs on weekdays at 22:01 Europe/Warsaw. |
-| FX data | exchangerate.host supplies USD-based rates; EUR and PLN cross-rates are derived locally. FX refresh runs on weekdays at 15:00 Europe/Warsaw, and rows are stored at month start. |
+| FX data | exchangerate.host supplies USD-based daily rates; EUR and PLN cross-rates are derived locally. Each observation keeps its provider date and provenance. |
 | Asset coverage | Imported asset symbols must resolve to exactly one existing canonical asset; unknown or ambiguous mappings fail instead of creating guessed assets. Automatic quote coverage depends on TwelveData mappings and plan limits. Non-US listings are skipped by default and may require manual prices. Real-time websocket pricing is not implemented. |
 
 ## How calculations work

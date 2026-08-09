@@ -23,7 +23,7 @@ insert into accounts (id, currency, provider, name, owner, portfolio_id, cash_on
     ('51707603', 'PLN', 'XTB', 'PLN - Empty',  'Ooo', 1, true),
     ('17959259', 'USD', 'IBKR', 'IBKR', 'AaaaOoo', 1, false)
 on conflict (id) do nothing;
-INSERT INTO investory.exchange_rates (month, base, to_currency, rate) VALUES
+INSERT INTO investory.exchange_rates (rate_date, base, to_currency, rate) VALUES
 ('2024-08-01', 'EUR', 'USD', 1.082239), -- NBP 2024-07-31
 ('2024-09-01', 'EUR', 'USD', 1.107494), -- NBP 2024-08-30
 ('2024-10-01', 'EUR', 'USD', 1.120389), -- NBP 2024-09-30
@@ -82,9 +82,15 @@ INSERT INTO investory.exchange_rates (month, base, to_currency, rate) VALUES
 ('2026-06-01', 'USD', 'PLN', 3.6395), -- NBP 2026-05-29
 ('2026-07-01', 'USD', 'PLN', 3.7708), -- NBP 2026-06-30
 ('2026-08-01', 'USD', 'PLN', 3.7425)  -- NBP 2026-07-31
-ON CONFLICT (month, base, to_currency)
+ON CONFLICT (rate_date, base, to_currency, source, method, COALESCE(source_reference, ''))
     DO UPDATE SET
     rate = EXCLUDED.rate;
+
+UPDATE investory.exchange_rates
+SET rate_date = rate_date - 1,
+    month = rate_date - 1
+WHERE source = 'STATIC_BOOTSTRAP'
+  AND method = 'HISTORICAL_MONTHLY';
 
 INSERT INTO investory.assets (name, symbol, ticker, ibkr, yahoo, country, currency, asset_type, active)
 VALUES

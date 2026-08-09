@@ -18,6 +18,7 @@ import com.example.demo.infrastructure.repository.account.AccountRepository;
 import com.example.demo.services.AssetCatalogService;
 import com.example.demo.services.PositionSettlementModelService;
 import com.example.demo.services.imports.ImportExecutionResult;
+import com.example.demo.services.currency.CurrencyRateService;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -89,6 +90,7 @@ public class XtbImportV2Service {
   private final AssetCatalogService assetCatalogService;
   private final PositionSettlementModelService positionSettlementModelService;
   private final XtbPositionCurrencyResolver positionCurrencyResolver;
+  private final CurrencyRateService currencyRateService;
 
   public boolean isZipReport(String fileName) {
     return fileName != null && fileName.trim().toLowerCase(Locale.ROOT).endsWith(".zip");
@@ -192,6 +194,7 @@ public class XtbImportV2Service {
       persistTradePriceHistory(closedPositions, openedPositions, currency);
 
       cashOperationRepository.saveAll(cashOperations);
+      currencyRateService.harvestXtbExecutionRates(cashOperations);
       closedPositionRepository.saveAll(closedPositions);
       if (openedPositions.isEmpty()) {
         openedPositionRepository.deleteByAccount(account);

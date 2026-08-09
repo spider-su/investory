@@ -11,6 +11,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -105,6 +106,7 @@ public class ExchangeRateClient {
   @JsonIgnoreProperties(ignoreUnknown = true)
   public static class ExchangeRateResponse {
     private Map<String, Double> quotes;
+    private LocalDate date;
 
     public Map<String, Double> getQuotes() {
       return quotes;
@@ -113,5 +115,8 @@ public class ExchangeRateClient {
     public void setQuotes(Map<String, Double> quotes) {
       this.quotes = quotes;
     }
+
+    public LocalDate getDate() { return date; }
+    public void setDate(LocalDate date) { this.date = date; }
   }
 }

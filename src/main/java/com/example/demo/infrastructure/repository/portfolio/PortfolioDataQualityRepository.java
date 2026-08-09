@@ -20,7 +20,7 @@ public class PortfolioDataQualityRepository {
                 + "FROM investory.positions x LEFT JOIN investory.assets a ON a.id=x.asset_id WHERE x.close_time IS NULL AND COALESCE(x.volume,0)<>0), "
                 + "s AS (SELECT COUNT(*) total_accounts, COUNT(*) FILTER (WHERE account_id IS NOT NULL) reconciled FROM investory.account_statistics), "
                 + "d AS (SELECT MAX(price_updated_at) latest_price FROM investory.assets), "
-                + "f AS (SELECT MAX(month) latest_fx FROM investory.exchange_rates), "
+                + "f AS (SELECT MAX(rate_date) latest_fx FROM investory.exchange_rates), "
                 + "i AS (SELECT MAX(finished_at) latest_import FROM investory.import_history WHERE status='COMPLETED'), "
                 + "r AS (SELECT MAX(updated_at) latest_refresh FROM investory.account_daily) "
                 + "SELECT CASE WHEN p.missing>0 OR s.reconciled<s.total_accounts THEN 'CRITICAL' WHEN p.total>0 AND p.priced<p.total THEN 'REVIEW' ELSE 'HEALTHY' END, "

@@ -15,6 +15,10 @@ import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.time.ZonedDateTime;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import com.example.demo.infrastructure.repository.CashOperation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,13 +31,16 @@ import org.springframework.util.CollectionUtils;
 @RequiredArgsConstructor
 public class CurrencyRateService {
 
-  public static final long MAX_FX_AGE_DAYS = 45;
+  private static final Pattern XTB_EXECUTION = Pattern.compile(
+      "(?i)currency conversion,\\s*([A-Z]{3})\\s+to\\s+([A-Z]{3}).*?exchange rate:\\s*([0-9]+(?:[\\.,][0-9]+)?)");
+
+  public static final long MAX_FX_AGE_DAYS = 4;
   private static final int FX_SCALE = 8;
   private static final MathContext FX_MATH_CONTEXT = new MathContext(20, RoundingMode.HALF_UP);
 
   private final CurrencyRateRepository currencyRateRepository;
 
-  private static final Map<CurrencyType, Map<CurrencyType, NavigableMap<LocalDate, BigDecimal>>>
+  private static final Map<CurrencyType, Map<CurrencyType, NavigableMap<LocalDate, CachedRate>>>
       exchangeRateCache = new ConcurrentHashMap<>();
 
   public double convertToBaseCurrency(
@@ -82,31 +89,58 @@ public class CurrencyRateService {
     List<CurrencyRate> rates =
         currencyRateRepository.findAllByOrderByBaseAscToCurrencyAscMonthStartAsc();
     for (CurrencyRate rate : rates) {
-      cacheRate(rate.getBase(), rate.getToCurrency(), rate.getMonthStart(), rate.getRateValue());
+      cacheRate(rate.getBase(), rate.getToCurrency(), rate.getRateDate(), rate.getRateValue(), rate.getMethod(), rate.getSource());
     }
   }
 
   public void updateRates(CurrencyType base, Map<CurrencyType, Double> rates, LocalDate date) {
-    LocalDate rateMonth = toMonthStart(date);
     rates.forEach(
         (toCurrency, rate) -> {
           CurrencyRate currencyRate =
               currencyRateRepository
-                  .findByMonthStartAndBaseAndToCurrency(rateMonth, base, toCurrency)
+                  .findByMonthStartAndBaseAndToCurrency(date, base, toCurrency)
                   .orElseGet(
                       () -> {
                         CurrencyRate newRate = new CurrencyRate();
-                        newRate.setMonthStart(rateMonth);
+                        newRate.setRateDate(date);
                         newRate.setBase(base);
                         newRate.setToCurrency(toCurrency);
+                        newRate.setSource("EXCHANGERATE_HOST");
+                        newRate.setMethod("MARKET_DAILY");
                         return newRate;
                       });
 
-          currencyRate.setMonthStart(rateMonth);
+          currencyRate.setRateDate(date);
+          currencyRate.setSource("EXCHANGERATE_HOST");
+          currencyRate.setMethod("MARKET_DAILY");
           currencyRate.setRate(rate);
           currencyRateRepository.save(currencyRate);
-          cacheRate(base, toCurrency, rateMonth, BigDecimal.valueOf(rate));
+          cacheRate(base, toCurrency, date, BigDecimal.valueOf(rate), "MARKET_DAILY", "EXCHANGERATE_HOST");
         });
+  }
+
+  public void harvestXtbExecutionRates(List<CashOperation> operations) {
+    if (operations == null) return;
+    operations.forEach(operation -> {
+      if (operation.getComment() == null || operation.getDate() == null) return;
+      Matcher matcher = XTB_EXECUTION.matcher(operation.getComment());
+      if (!matcher.find()) return;
+      CurrencyType base = CurrencyType.valueOf(matcher.group(1).toUpperCase());
+      CurrencyType target = CurrencyType.valueOf(matcher.group(2).toUpperCase());
+      BigDecimal rate = new BigDecimal(matcher.group(3).replace(',', '.'));
+      String sourceReference = "XTB:" + base + ":" + target + ":" + operation.getDate().toLocalDate() + ":" + rate;
+      CurrencyRate observation = currencyRateRepository.findBySourceReference(sourceReference)
+          .orElseGet(CurrencyRate::new);
+      observation.setRateDate(operation.getDate().toLocalDate());
+      observation.setBase(base);
+      observation.setToCurrency(target);
+      observation.setRate(rate);
+      observation.setSource("XTB");
+      observation.setMethod("XTB_EXECUTION");
+      observation.setObservedAt(operation.getDate());
+      observation.setSourceReference(sourceReference);
+      currencyRateRepository.save(observation);
+    });
   }
 
   public double getRate(CurrencyType base, CurrencyType toCurrency) {
@@ -153,7 +187,7 @@ public class CurrencyRateService {
                         + " to "
                         + toCurrency
                         + " at "
-                        + toMonthStart(date)));
+                        + date));
   }
 
   public FxRateResolution resolveRate(
@@ -170,7 +204,7 @@ public class CurrencyRateService {
 
     RateObservation direct = findCachedRate(sourceCurrency, targetCurrency, effectiveDate);
     if (direct != null) {
-      return resolution(direct.rate(), "DIRECT", direct.rateDate(), effectiveDate);
+      return resolution(direct.rate(), "DIRECT", direct.rateDate(), effectiveDate, direct.method());
     }
     RateObservation inverse = findCachedRate(targetCurrency, sourceCurrency, effectiveDate);
     if (inverse != null && inverse.rate().compareTo(BigDecimal.ZERO) != 0) {
@@ -178,7 +212,7 @@ public class CurrencyRateService {
           BigDecimal.ONE.divide(inverse.rate(), FX_SCALE, RoundingMode.HALF_UP),
           "INVERSE",
           inverse.rateDate(),
-          effectiveDate);
+          effectiveDate, inverse.method());
     }
     for (CurrencyType pivot : CurrencyType.values()) {
       if (pivot == sourceCurrency || pivot == targetCurrency) {
@@ -196,7 +230,7 @@ public class CurrencyRateService {
                 .setScale(FX_SCALE, RoundingMode.HALF_UP),
             "TRIANGULATED:" + pivot,
             sourceDate,
-            effectiveDate);
+            effectiveDate, "TRIANGULATED");
       }
     }
     return new FxRateResolution(
@@ -214,47 +248,44 @@ public class CurrencyRateService {
       return null;
     }
     return new RateObservation(
-        BigDecimal.ONE.divide(inverse.rate(), FX_SCALE, RoundingMode.HALF_UP), inverse.rateDate());
+        BigDecimal.ONE.divide(inverse.rate(), FX_SCALE, RoundingMode.HALF_UP), inverse.rateDate(), inverse.method());
   }
 
   private FxRateResolution resolution(
-      BigDecimal rate, String source, LocalDate sourceRateDate, LocalDate valuationDate) {
+      BigDecimal rate, String source, LocalDate sourceRateDate, LocalDate valuationDate, String method) {
     int ageDays = Math.toIntExact(ChronoUnit.DAYS.between(sourceRateDate, valuationDate));
-    String status = ageDays > MAX_FX_AGE_DAYS ? "STALE" : "OK";
+    String status = ageDays > MAX_FX_AGE_DAYS
+        ? ("HISTORICAL_MONTHLY".equals(method) ? "ESTIMATED" : "STALE") : "OK";
     return new FxRateResolution(
         rate.setScale(FX_SCALE, RoundingMode.HALF_UP), source, sourceRateDate, ageDays, status);
   }
 
   private RateObservation findCachedRate(
       CurrencyType base, CurrencyType toCurrency, LocalDate date) {
-    Map<CurrencyType, NavigableMap<LocalDate, BigDecimal>> byBase = exchangeRateCache.get(base);
+    Map<CurrencyType, NavigableMap<LocalDate, CachedRate>> byBase = exchangeRateCache.get(base);
     if (byBase == null) {
       return null;
     }
-    NavigableMap<LocalDate, BigDecimal> byPair = byBase.get(toCurrency);
+    NavigableMap<LocalDate, CachedRate> byPair = byBase.get(toCurrency);
     if (CollectionUtils.isEmpty(byPair)) {
       return null;
     }
 
     LocalDate effectiveDate = date == null ? LocalDate.now() : date;
-    Map.Entry<LocalDate, BigDecimal> floor = byPair.floorEntry(effectiveDate);
-    return floor == null ? null : new RateObservation(floor.getValue(), floor.getKey());
+    Map.Entry<LocalDate, CachedRate> floor = byPair.floorEntry(effectiveDate);
+    return floor == null ? null : new RateObservation(floor.getValue().rate(), floor.getKey(), floor.getValue().method());
   }
 
   private void cacheRate(
-      CurrencyType base, CurrencyType toCurrency, LocalDate date, BigDecimal rate) {
+      CurrencyType base, CurrencyType toCurrency, LocalDate date, BigDecimal rate, String method, String source) {
     exchangeRateCache
         .computeIfAbsent(base, ignored -> new ConcurrentHashMap<>())
         .computeIfAbsent(toCurrency, ignored -> new ConcurrentSkipListMap<>())
-        .put(date, rate.setScale(FX_SCALE, RoundingMode.HALF_UP));
+        .put(date, new CachedRate(rate.setScale(FX_SCALE, RoundingMode.HALF_UP), method, source));
   }
 
-  private LocalDate toMonthStart(LocalDate date) {
-    LocalDate effectiveDate = date == null ? LocalDate.now() : date;
-    return effectiveDate.withDayOfMonth(1);
-  }
-
-  private record RateObservation(BigDecimal rate, LocalDate rateDate) {}
+  private record CachedRate(BigDecimal rate, String method, String source) {}
+  private record RateObservation(BigDecimal rate, LocalDate rateDate, String method) {}
 
   public record FxRateResolution(
       BigDecimal fxRateToTarget,
@@ -263,7 +294,9 @@ public class CurrencyRateService {
       Integer ageDays,
       String conversionStatus) {
     public boolean isUsable() {
-      return "OK".equals(conversionStatus) || "SAME_CURRENCY".equals(conversionStatus);
+      return "OK".equals(conversionStatus)
+          || "ESTIMATED".equals(conversionStatus)
+          || "SAME_CURRENCY".equals(conversionStatus);
     }
   }
 }

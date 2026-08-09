@@ -34,12 +34,15 @@ public class CurrencyRateUpdaterService {
   public CurrencyRateRefreshResult updateCurrencyRatesForMonth(LocalDate month) {
     LocalDate normalizedMonth = month.withDayOfMonth(1);
     try {
-      Map<CurrencyType, Double> usdRates = fetchUsdRates();
+      ExchangeRateClient.ExchangeRateResponse response =
+          exchangeRateClient.getLatestRates("USD", "USD,EUR,PLN", apiKey);
+      Map<CurrencyType, Double> usdRates = parseUsdRates(response);
+      LocalDate effectiveDate = response.getDate() != null ? response.getDate() : month;
       Map<CurrencyType, Map<CurrencyType, Double>> ratesByBase = deriveCrossRates(usdRates);
       ratesByBase.forEach(
-          (base, rates) -> currencyRateService.updateRates(base, rates, normalizedMonth));
+          (base, rates) -> currencyRateService.updateRates(base, rates, effectiveDate));
       return new CurrencyRateRefreshResult(
-          normalizedMonth, List.of("USD", "EUR", "PLN"), List.of());
+          effectiveDate, List.of("USD", "EUR", "PLN"), List.of());
     } catch (ExchangeRateException e) {
       log.warn("Skipping FX refresh: {}", e.getMessage());
       return new CurrencyRateRefreshResult(
@@ -51,9 +54,7 @@ public class CurrencyRateUpdaterService {
     }
   }
 
-  private Map<CurrencyType, Double> fetchUsdRates() {
-    ExchangeRateClient.ExchangeRateResponse response =
-        exchangeRateClient.getLatestRates("USD", "USD,EUR,PLN", apiKey);
+  private Map<CurrencyType, Double> parseUsdRates(ExchangeRateClient.ExchangeRateResponse response) {
     if (response == null || CollectionUtils.isEmpty(response.getQuotes())) {
       throw new IllegalArgumentException("empty exchangerate.host response");
     }
