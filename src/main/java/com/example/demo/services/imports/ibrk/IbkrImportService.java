@@ -9,6 +9,7 @@ import com.example.demo.infrastructure.repository.account.Account;
 import com.example.demo.infrastructure.repository.account.AccountRepository;
 import com.example.demo.services.AssetCatalogService;
 import com.example.demo.services.ReportingDateHelper;
+import com.example.demo.services.currency.CurrencyRateService;
 import com.example.demo.services.imports.ImportExecutionResult;
 import com.opencsv.CSVReader;
 import java.io.InputStream;
@@ -57,6 +58,9 @@ public class IbkrImportService {
   private final AssetCatalogService assetCatalogService;
   private final IbkrPositionReconstructionService ibkrPositionReconstructionService;
 
+  @org.springframework.beans.factory.annotation.Autowired
+  private CurrencyRateService currencyRateService;
+
   /** Imports one statement atomically; valid rows may report PARTIAL when other source rows fail. */
   public ImportExecutionResult importStatement(InputStream csvStream, String fileName)
       throws Exception {
@@ -67,6 +71,7 @@ public class IbkrImportService {
     }
     Long accountIdFromFilename = parseAccountIdFromFilename(fileName);
     CurrencyType statementBaseCurrency = parseStatementBaseCurrency(rows);
+    harvestReferenceRates(rows, statementBaseCurrency);
 
     Map<String, Integer> col = locateHeader(rows, SECTION);
     Map<String, Integer> dedup = new HashMap<>();
@@ -118,6 +123,13 @@ public class IbkrImportService {
 
         if (net == null) {
           throw new IllegalArgumentException("IBKR row has no net amount");
+        }
+
+        if (currencyRateService != null
+            && isForexTradeComponent(type, rawSymbol, description)
+            && price != null) {
+          currencyRateService.harvestIbkrExecutionRate(
+              date, rawSymbol, BigDecimal.valueOf(price), "IBKR:EXECUTION:" + isoDate(date) + ":" + rawSymbol + ":" + price);
         }
 
         CashOperation op = new CashOperation();
@@ -700,6 +712,70 @@ public class IbkrImportService {
       }
     }
     return String.join(" | ", parts);
+  }
+
+  private void harvestReferenceRates(List<String[]> rows, CurrencyType statementBaseCurrency) {
+    if (currencyRateService == null) return;
+    for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
+      String[] headerRow = rows.get(rowIndex);
+      if (headerRow.length < 3 || !"Header".equalsIgnoreCase(valueAt(headerRow, 1))) continue;
+      String section = valueAt(headerRow, 0);
+      Map<String, Integer> columns = new HashMap<>();
+      for (int index = 2; index < headerRow.length; index++) {
+        if (StringUtils.hasText(headerRow[index])) columns.put(headerRow[index].trim(), index);
+      }
+      String rateColumn = firstColumn(columns, "FX Rate", "FX Rate To Base", "Exchange Rate", "Conversion Rate");
+      if (rateColumn == null) continue;
+      Integer dataRow = rowIndex + 1;
+      while (dataRow < rows.size() && section.equals(valueAt(rows.get(dataRow), 0))) {
+        String[] row = rows.get(dataRow);
+        if ("Data".equalsIgnoreCase(valueAt(row, 1))) {
+          ZonedDateTime observedAt = parseDate(value(row, columns, "Date", "Report Date", "Date/Time", "Trade Date"));
+          BigDecimal rate = decimal(value(row, columns, rateColumn));
+          CurrencyType base = currency(value(row, columns, "From Currency", "Base Currency", "Source Currency"));
+          CurrencyType target = currency(value(row, columns, "To Currency", "Quote Currency", "Target Currency"));
+          if (base == null) base = currency(value(row, columns, "Currency"));
+          if (target == null && rateColumn.toLowerCase(Locale.ROOT).contains("to base")) target = statementBaseCurrency;
+          if (base != null && target != null && observedAt != null && rate != null) {
+            currencyRateService.harvestIbkrDailyReference(
+                observedAt, base, target, rate, "IBKR:REFERENCE:" + section + ":" + dataRow);
+          }
+        }
+        dataRow++;
+      }
+    }
+  }
+
+  private String value(String[] row, Map<String, Integer> columns, String column) {
+    Integer index = columns.get(column);
+    return index == null ? null : at(row, index);
+  }
+
+  private String firstColumn(Map<String, Integer> columns, String... aliases) {
+    for (String alias : aliases) {
+      for (String name : columns.keySet()) {
+        if (alias.equalsIgnoreCase(name)) return name;
+      }
+    }
+    return null;
+  }
+
+  private static String valueAt(String[] row, int index) {
+    return row != null && index < row.length && row[index] != null ? row[index].trim() : "";
+  }
+
+  private BigDecimal decimal(String value) {
+    Double parsed = parseNumber(value);
+    return parsed == null ? null : BigDecimal.valueOf(parsed);
+  }
+
+  private static CurrencyType currency(String value) {
+    if (!StringUtils.hasText(value)) return null;
+    try {
+      return CurrencyType.valueOf(value.trim().toUpperCase(Locale.ROOT));
+    } catch (IllegalArgumentException ignored) {
+      return null;
+    }
   }
 
   private boolean isForexTradeComponent(String rawType, String rawSymbol, String description) {

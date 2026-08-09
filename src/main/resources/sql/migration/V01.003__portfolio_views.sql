@@ -108,7 +108,8 @@ COMMENT ON COLUMN investory.assets.currency IS
 -- Canonical FX contract:
 --   amount_in_target_currency = amount_in_source_currency * fx_rate_to_target
 -- Stored exchange_rates follow the same mathematical direction: base -> to_currency.
--- A rate older than 45 days is exposed for diagnostics but is not authoritative.
+-- Daily FX starts at the deployment boundary. Older gaps may be reconstructed, but
+-- reconstructed values never become observed source rows.
 CREATE OR REPLACE FUNCTION investory.resolve_fx_rate(
     p_valuation_date date,
     p_source_currency varchar(3),
@@ -198,6 +199,50 @@ WITH edges AS (
      AND second_leg.edge_target = p_target_currency
     WHERE first_leg.edge_source = p_source_currency
       AND first_leg.edge_target NOT IN (p_source_currency, p_target_currency)
+    UNION ALL
+    SELECT
+        lower.rate + (upper.rate - lower.rate)
+            * ((p_valuation_date - lower.rate_date)::numeric
+            / (upper.rate_date - lower.rate_date)::numeric),
+        'INTERPOLATED'::varchar(64),
+        'INTERPOLATED'::varchar(32),
+        lower.source::varchar(32),
+        p_valuation_date,
+        1
+    FROM investory.exchange_rates lower
+    JOIN investory.exchange_rates upper
+      ON upper.base = lower.base
+     AND upper.to_currency = lower.to_currency
+     AND upper.source = lower.source
+     AND upper.method = lower.method
+     AND upper.rate_date > p_valuation_date
+    WHERE lower.base = p_source_currency
+      AND lower.to_currency = p_target_currency
+      AND lower.method = 'HISTORICAL_MONTHLY'
+      AND lower.rate_date < p_valuation_date
+      AND p_valuation_date < DATE '2026-08-01'
+    UNION ALL
+    SELECT
+        1::numeric / (lower.rate + (upper.rate - lower.rate)
+            * ((p_valuation_date - lower.rate_date)::numeric
+            / (upper.rate_date - lower.rate_date)::numeric)),
+        'INTERPOLATED'::varchar(64),
+        'INTERPOLATED'::varchar(32),
+        lower.source::varchar(32),
+        p_valuation_date,
+        1
+    FROM investory.exchange_rates lower
+    JOIN investory.exchange_rates upper
+      ON upper.base = lower.base
+     AND upper.to_currency = lower.to_currency
+     AND upper.source = lower.source
+     AND upper.method = lower.method
+     AND upper.rate_date > p_valuation_date
+    WHERE lower.base = p_target_currency
+      AND lower.to_currency = p_source_currency
+      AND lower.method = 'HISTORICAL_MONTHLY'
+      AND lower.rate_date < p_valuation_date
+      AND p_valuation_date < DATE '2026-08-01'
 ), selected AS (
     SELECT *
     FROM candidates
@@ -217,6 +262,10 @@ SELECT
     END,
     CASE
         WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY'::varchar(32)
+        WHEN selected.candidate_method IN ('MARKET_DAILY', 'IBKR_DAILY_REFERENCE')
+             AND selected.candidate_rate_date < p_valuation_date
+             AND EXTRACT(ISODOW FROM p_valuation_date) IN (6, 7)
+          THEN 'CARRY_FORWARD'::varchar(32)
         ELSE selected.candidate_method
     END,
     CASE
@@ -225,18 +274,24 @@ SELECT
     END,
     CASE
         WHEN p_source_currency = p_target_currency THEN p_valuation_date
+        WHEN selected.candidate_method = 'INTERPOLATED' THEN NULL
         ELSE selected.candidate_rate_date
     END,
     CASE
         WHEN p_source_currency = p_target_currency THEN 0
+        WHEN selected.candidate_method = 'INTERPOLATED' THEN NULL
         WHEN selected.candidate_rate_date IS NULL THEN NULL
         ELSE (p_valuation_date - selected.candidate_rate_date)::integer
     END,
     CASE
         WHEN p_source_currency IS NULL OR p_target_currency IS NULL THEN 'MISSING_CURRENCY'
         WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY'
-        WHEN selected.candidate_rate IS NULL THEN 'MISSING'
-        WHEN selected.candidate_method = 'HISTORICAL_MONTHLY' AND p_valuation_date - selected.candidate_rate_date > 4 THEN 'ESTIMATED'
+        WHEN selected.candidate_rate IS NULL THEN 'MISSING_RATE'
+        WHEN selected.candidate_method = 'INTERPOLATED' THEN 'ESTIMATED'
+        WHEN selected.candidate_method = 'HISTORICAL_MONTHLY'
+             AND selected.candidate_rate_source IN ('NBP', 'STATIC_BOOTSTRAP')
+             AND p_valuation_date < DATE '2026-08-01'
+             AND p_valuation_date - selected.candidate_rate_date > 4 THEN 'ESTIMATED'
         WHEN p_valuation_date - selected.candidate_rate_date > 4 THEN 'STALE'
         ELSE 'OK'
     END::varchar(32)
@@ -245,7 +300,75 @@ LEFT JOIN selected ON true
 $$;
 
 COMMENT ON FUNCTION investory.resolve_fx_rate(date, varchar, varchar) IS
-    'Canonical date-aware FX resolver. amount_target = amount_source * fx_rate_to_target. Uses same-currency, direct, inverse, then one-currency triangulation. Rates older than 45 days are STALE.';
+    'Canonical valuation FX resolver. Market daily and IBKR reference rates outrank broker execution rates. Historical gaps are explicitly estimated.';
+
+CREATE OR REPLACE FUNCTION investory.resolve_fx_rate(
+    p_valuation_date date,
+    p_source_currency varchar(3),
+    p_target_currency varchar(3),
+    p_purpose varchar(16)
+) RETURNS TABLE (
+    source_currency varchar(3),
+    target_currency varchar(3),
+    fx_rate_to_target numeric,
+    source varchar(64),
+    rate_method varchar(32),
+    rate_source varchar(32),
+    source_rate_date date,
+    age_days integer,
+    conversion_status varchar(32)
+)
+LANGUAGE sql
+STABLE
+AS $$
+WITH execution_candidates AS (
+    SELECT er.base::varchar(3) AS source_currency,
+           er.to_currency::varchar(3) AS target_currency,
+           er.rate AS fx_rate_to_target,
+           er.method::varchar(32) AS rate_method,
+           er.source::varchar(32) AS rate_source,
+           er.rate_date AS source_rate_date,
+           er.observed_at,
+           1 AS direction_priority
+    FROM investory.exchange_rates er
+    WHERE er.rate_date = p_valuation_date
+      AND er.method IN ('XTB_EXECUTION', 'IBKR_EXECUTION')
+      AND er.base = p_source_currency
+      AND er.to_currency = p_target_currency
+    UNION ALL
+    SELECT er.to_currency::varchar(3), er.base::varchar(3), 1 / er.rate,
+           er.method::varchar(32), er.source::varchar(32), er.rate_date,
+           er.observed_at, 2
+    FROM investory.exchange_rates er
+    WHERE er.rate_date = p_valuation_date
+      AND er.method IN ('XTB_EXECUTION', 'IBKR_EXECUTION')
+      AND er.base = p_target_currency
+      AND er.to_currency = p_source_currency
+), selected_execution AS (
+    SELECT * FROM execution_candidates
+    WHERE source_currency = p_source_currency
+      AND target_currency = p_target_currency
+    ORDER BY observed_at DESC NULLS LAST, direction_priority
+    LIMIT 1
+)
+SELECT r.*
+FROM investory.resolve_fx_rate(p_valuation_date, p_source_currency, p_target_currency) r
+WHERE upper(p_purpose) = 'VALUATION'
+UNION ALL
+SELECT p_source_currency, p_target_currency, 1, 'SAME_CURRENCY', 'SAME_CURRENCY', 'SAME_CURRENCY', p_valuation_date, 0, 'SAME_CURRENCY'
+WHERE upper(p_purpose) = 'TRANSACTION' AND p_source_currency = p_target_currency
+UNION ALL
+SELECT e.source_currency, e.target_currency, e.fx_rate_to_target,
+       ('EXECUTION:' || e.rate_source)::varchar(64), e.rate_method, e.rate_source,
+       e.source_rate_date, 0, 'OK'
+FROM selected_execution e
+WHERE upper(p_purpose) = 'TRANSACTION'
+UNION ALL
+SELECT p_source_currency, p_target_currency, NULL, 'MISSING', NULL, NULL, NULL, NULL, 'MISSING_RATE'
+WHERE upper(p_purpose) = 'TRANSACTION'
+  AND p_source_currency <> p_target_currency
+  AND NOT EXISTS (SELECT 1 FROM selected_execution);
+$$;
 
 CREATE OR REPLACE FUNCTION investory.resolve_portfolio_fx_rate(
     p_portfolio_id bigint,
@@ -509,13 +632,13 @@ SELECT
     market_fx.fx_rate_to_target AS market_price_to_base_rate,
     market_fx.conversion_status AS market_price_fx_status,
     CASE
-        WHEN cost_fx.conversion_status IN ('OK', 'SAME_CURRENCY')
+        WHEN cost_fx.conversion_status IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')
             THEN COALESCE(p.purchase_value, p.volume * p.open_price, 0) * cost_fx.fx_rate_to_target
         ELSE NULL::numeric
     END AS cost_basis_in_base_currency,
     CASE
         WHEN price.selected_price IS NOT NULL
-         AND market_fx.conversion_status IN ('OK', 'SAME_CURRENCY')
+         AND market_fx.conversion_status IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')
             THEN investory.signed_position_quantity(p.operation, p.volume)
                  * price.selected_price * market_fx.fx_rate_to_target
         ELSE NULL::numeric
@@ -865,11 +988,16 @@ WITH classified AS (
 fx AS (
     SELECT
         c.*,
-        portfolio_fx.fx_rate_to_base,
-        portfolio_fx.source AS portfolio_fx_source,
-        portfolio_fx.source_rate_date AS portfolio_source_rate_date,
-        portfolio_fx.age_days AS portfolio_fx_age_days,
-        portfolio_fx.conversion_status AS portfolio_conversion_status,
+        CASE WHEN c.is_fx_conversion AND transaction_fx.conversion_status = 'OK'
+             THEN transaction_fx.fx_rate_to_target ELSE portfolio_fx.fx_rate_to_base END AS fx_rate_to_base,
+        CASE WHEN c.is_fx_conversion AND transaction_fx.conversion_status = 'OK'
+             THEN transaction_fx.source ELSE portfolio_fx.source END AS portfolio_fx_source,
+        CASE WHEN c.is_fx_conversion AND transaction_fx.conversion_status = 'OK'
+             THEN transaction_fx.source_rate_date ELSE portfolio_fx.source_rate_date END AS portfolio_source_rate_date,
+        CASE WHEN c.is_fx_conversion AND transaction_fx.conversion_status = 'OK'
+             THEN transaction_fx.age_days ELSE portfolio_fx.age_days END AS portfolio_fx_age_days,
+        CASE WHEN c.is_fx_conversion AND transaction_fx.conversion_status = 'OK'
+             THEN transaction_fx.conversion_status ELSE portfolio_fx.conversion_status END AS portfolio_conversion_status,
         account_fx.fx_rate_to_target AS fx_rate_to_account_currency,
         account_fx.source AS account_fx_source,
         account_fx.source_rate_date AS account_source_rate_date,
@@ -886,6 +1014,12 @@ fx AS (
         c.currency,
         c.account_currency
     ) account_fx
+    CROSS JOIN LATERAL investory.resolve_fx_rate(
+        c.date::date,
+        c.currency,
+        c.base_currency,
+        'TRANSACTION'
+    ) transaction_fx
 )
 SELECT
     operation_id,
@@ -1171,39 +1305,39 @@ account_rows AS (
         snapshot_date,
         account_id,
         conversion_status,
-        CASE WHEN conversion_status IN ('OK', 'SAME_CURRENCY') THEN cash_balance * valuation_to_base_rate END AS cash_balance,
-        CASE WHEN conversion_status IN ('OK', 'SAME_CURRENCY') THEN market_value * valuation_to_base_rate END AS market_value,
-        CASE WHEN conversion_status IN ('OK', 'SAME_CURRENCY') THEN equity * valuation_to_base_rate END AS equity,
-        CASE WHEN conversion_status IN ('OK', 'SAME_CURRENCY') THEN deposits * valuation_to_base_rate END AS deposits,
-        CASE WHEN conversion_status IN ('OK', 'SAME_CURRENCY') THEN withdrawals * valuation_to_base_rate END AS withdrawals,
-        CASE WHEN conversion_status IN ('OK', 'SAME_CURRENCY') THEN dividends * valuation_to_base_rate END AS dividends,
-        CASE WHEN conversion_status IN ('OK', 'SAME_CURRENCY') THEN interest * valuation_to_base_rate END AS interest,
-        CASE WHEN conversion_status IN ('OK', 'SAME_CURRENCY') THEN fees * valuation_to_base_rate END AS fees,
-        CASE WHEN conversion_status IN ('OK', 'SAME_CURRENCY') THEN taxes * valuation_to_base_rate END AS taxes,
-        CASE WHEN conversion_status IN ('OK', 'SAME_CURRENCY') THEN realized_profit * valuation_to_base_rate END AS realized_profit,
-        CASE WHEN conversion_status IN ('OK', 'SAME_CURRENCY') THEN daily_profit_amount * valuation_to_base_rate END AS daily_profit_amount
+        CASE WHEN conversion_status IN ('OK', 'ESTIMATED', 'SAME_CURRENCY') THEN cash_balance * valuation_to_base_rate END AS cash_balance,
+        CASE WHEN conversion_status IN ('OK', 'ESTIMATED', 'SAME_CURRENCY') THEN market_value * valuation_to_base_rate END AS market_value,
+        CASE WHEN conversion_status IN ('OK', 'ESTIMATED', 'SAME_CURRENCY') THEN equity * valuation_to_base_rate END AS equity,
+        CASE WHEN conversion_status IN ('OK', 'ESTIMATED', 'SAME_CURRENCY') THEN deposits * valuation_to_base_rate END AS deposits,
+        CASE WHEN conversion_status IN ('OK', 'ESTIMATED', 'SAME_CURRENCY') THEN withdrawals * valuation_to_base_rate END AS withdrawals,
+        CASE WHEN conversion_status IN ('OK', 'ESTIMATED', 'SAME_CURRENCY') THEN dividends * valuation_to_base_rate END AS dividends,
+        CASE WHEN conversion_status IN ('OK', 'ESTIMATED', 'SAME_CURRENCY') THEN interest * valuation_to_base_rate END AS interest,
+        CASE WHEN conversion_status IN ('OK', 'ESTIMATED', 'SAME_CURRENCY') THEN fees * valuation_to_base_rate END AS fees,
+        CASE WHEN conversion_status IN ('OK', 'ESTIMATED', 'SAME_CURRENCY') THEN taxes * valuation_to_base_rate END AS taxes,
+        CASE WHEN conversion_status IN ('OK', 'ESTIMATED', 'SAME_CURRENCY') THEN realized_profit * valuation_to_base_rate END AS realized_profit,
+        CASE WHEN conversion_status IN ('OK', 'ESTIMATED', 'SAME_CURRENCY') THEN daily_profit_amount * valuation_to_base_rate END AS daily_profit_amount
     FROM account_rows_with_fx
 )
 SELECT
     ar.portfolio_id,
     ar.snapshot_date,
     ar.base_currency,
-    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.cash_balance) END AS cash_balance,
-    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.market_value) END AS market_value,
-    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.equity) END AS equity,
-    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.deposits) END AS deposits,
-    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.withdrawals) END AS withdrawals,
-    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.dividends) END AS dividends,
-    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.interest) END AS interest,
-    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.fees) END AS fees,
-    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.taxes) END AS taxes,
-    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.realized_profit) END AS realized_profit,
-    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.daily_profit_amount) END AS total_profit,
+    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.cash_balance) END AS cash_balance,
+    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.market_value) END AS market_value,
+    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.equity) END AS equity,
+    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.deposits) END AS deposits,
+    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.withdrawals) END AS withdrawals,
+    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.dividends) END AS dividends,
+    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.interest) END AS interest,
+    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.fees) END AS fees,
+    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.taxes) END AS taxes,
+    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.realized_profit) END AS realized_profit,
+    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.daily_profit_amount) END AS total_profit,
     SUM(ar.equity) AS converted_equity_subtotal,
-    COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'SAME_CURRENCY'))::bigint AS missing_fx_count,
-    COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'SAME_CURRENCY')) = 0 AS is_complete,
+    COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'ESTIMATED', 'SAME_CURRENCY'))::bigint AS missing_fx_count,
+    COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')) = 0 AS is_complete,
     CASE
-        WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'SAME_CURRENCY')) > 0
+        WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')) > 0
             THEN NULL::numeric
         WHEN LAG(SUM(ar.equity)) OVER (PARTITION BY ar.portfolio_id ORDER BY ar.snapshot_date) IS NULL
             THEN NULL::numeric
@@ -2523,7 +2657,7 @@ CROSS JOIN LATERAL investory.resolve_portfolio_fx_rate(
 ) resolved;
 
 COMMENT ON VIEW investory.v_portfolio_daily_fx_rate IS
-    'Canonical portfolio-aware and date-aware FX layer. amount_in_base = amount_in_source_currency * fx_rate_to_base. STALE and MISSING rows are diagnostic only.';
+    'Canonical portfolio-aware and date-aware FX layer. Amount conversion exposes source, method, date, age, and explicit stale/missing status.';
 
 CREATE OR REPLACE VIEW investory.v_normalized_daily_price AS
 WITH position_dates AS (
@@ -2685,7 +2819,7 @@ WITH active_position_dates AS (
         SUM(COALESCE(p.purchase_value, COALESCE(p.volume, 0) * COALESCE(p.open_price, 0), 0)) AS reconstructed_cost_base_local,
         SUM(
             CASE
-                WHEN acq.conversion_status NOT IN ('OK', 'SAME_CURRENCY') THEN NULL::numeric
+                WHEN acq.conversion_status NOT IN ('OK', 'ESTIMATED', 'SAME_CURRENCY') THEN NULL::numeric
                 ELSE COALESCE(p.purchase_value, COALESCE(p.volume, 0) * COALESCE(p.open_price, 0), 0) * acq.fx_rate_to_base
             END
         ) AS reconstructed_cost_base_base
@@ -2770,14 +2904,14 @@ SELECT
         WHEN p.open_quantity = 0 THEN 0::numeric
         WHEN p.selected_price IS NULL THEN NULL::numeric
         WHEN p.contract_multiplier IS NULL THEN NULL::numeric
-        WHEN val.conversion_status NOT IN ('OK', 'SAME_CURRENCY') THEN NULL::numeric
+        WHEN val.conversion_status NOT IN ('OK', 'ESTIMATED', 'SAME_CURRENCY') THEN NULL::numeric
         ELSE p.open_quantity * p.selected_price * p.contract_multiplier * val.fx_rate_to_base
     END AS reconstructed_market_value_base,
     CASE
         WHEN p.open_quantity = 0 THEN 0::numeric
         WHEN p.selected_price IS NULL THEN NULL::numeric
         WHEN p.contract_multiplier IS NULL THEN NULL::numeric
-        WHEN val.conversion_status NOT IN ('OK', 'SAME_CURRENCY') THEN NULL::numeric
+        WHEN val.conversion_status NOT IN ('OK', 'ESTIMATED', 'SAME_CURRENCY') THEN NULL::numeric
         WHEN p.reconstructed_cost_base_base IS NULL THEN NULL::numeric
         ELSE p.open_quantity * p.selected_price * p.contract_multiplier * val.fx_rate_to_base
              - p.reconstructed_cost_base_base
@@ -4551,7 +4685,7 @@ quality AS (
            (SELECT MAX(finished_at) FROM investory.import_history WHERE status = 'COMPLETED') AS latest_broker_reconciliation_at,
            (SELECT MAX(finished_at) FROM investory.import_history WHERE status = 'COMPLETED') AS latest_import_at,
            pq.latest_price_date,
-           (SELECT MAX(rate_date) FROM investory.exchange_rates) AS latest_fx_month,
+           (SELECT MAX(rate_date) FROM investory.exchange_rates) AS latest_fx_date,
            (SELECT MAX(updated_at) FROM investory.account_daily) AS latest_reporting_refresh_at
     FROM active_accounts aa CROSS JOIN account_recon ar CROSS JOIN position_quality pq CROSS JOIN currency_quality cq CROSS JOIN cash_quality cqo
 )
@@ -4811,12 +4945,12 @@ WITH latest_position_date AS (
         CASE
             WHEN rpd.selected_price IS NULL THEN 'MISSING_PRICE'
             WHEN rpd.price_age_days > 10 THEN 'STALE_PRICE'
-            WHEN rpd.fx_conversion_status IN ('MISSING', 'MISSING_CURRENCY') THEN 'MISSING_FX'
+        WHEN rpd.fx_conversion_status IN ('MISSING_RATE', 'MISSING_CURRENCY') THEN 'MISSING_FX'
             WHEN rpd.fx_conversion_status = 'STALE' THEN 'STALE_FX'
         END::varchar(64) AS issue_code,
         CASE
             WHEN rpd.selected_price IS NULL
-              OR rpd.fx_conversion_status IN ('MISSING', 'MISSING_CURRENCY') THEN 'ERROR'
+              OR rpd.fx_conversion_status IN ('MISSING_RATE', 'MISSING_CURRENCY') THEN 'ERROR'
             ELSE 'WARN'
         END::varchar(16) AS severity,
         account.portfolio_id,
@@ -4841,7 +4975,7 @@ WITH latest_position_date AS (
                 THEN 'Import a canonical price on or before the valuation date, then rebuild reporting.'
             WHEN rpd.price_age_days > 10
                 THEN 'Review whether the last available price is valid for this instrument and valuation date.'
-            WHEN rpd.fx_conversion_status IN ('MISSING', 'MISSING_CURRENCY')
+            WHEN rpd.fx_conversion_status IN ('MISSING_RATE', 'MISSING_CURRENCY')
                 THEN 'Import the required FX rate, then rebuild reporting.'
             ELSE 'Review the stale FX rate before accepting reporting.'
         END::varchar(255) AS required_action
@@ -4860,11 +4994,11 @@ WITH latest_position_date AS (
 ), cash_fx_issues AS (
     SELECT
         CASE
-            WHEN nco.portfolio_conversion_status IN ('MISSING', 'MISSING_CURRENCY') THEN 'MISSING_FX'
+            WHEN nco.portfolio_conversion_status IN ('MISSING_RATE', 'MISSING_CURRENCY') THEN 'MISSING_FX'
             ELSE 'STALE_FX'
         END::varchar(64) AS issue_code,
         CASE
-            WHEN nco.portfolio_conversion_status IN ('MISSING', 'MISSING_CURRENCY') THEN 'ERROR'
+            WHEN nco.portfolio_conversion_status IN ('MISSING_RATE', 'MISSING_CURRENCY') THEN 'ERROR'
             ELSE 'WARN'
         END::varchar(16) AS severity,
         nco.portfolio_id,
@@ -4883,7 +5017,7 @@ WITH latest_position_date AS (
             'fx_status=' || nco.portfolio_conversion_status
         )::text AS details,
         CASE
-            WHEN nco.portfolio_conversion_status IN ('MISSING', 'MISSING_CURRENCY')
+        WHEN nco.portfolio_conversion_status IN ('MISSING_RATE', 'MISSING_CURRENCY')
                 THEN 'Import the required FX rate, then rebuild reporting.'
             ELSE 'Review the stale FX rate before accepting reporting.'
         END::varchar(255) AS required_action
@@ -5198,14 +5332,14 @@ WITH account_rows_with_fx AS (
 ), account_rows AS (
     SELECT
         portfolio_id, base_currency, snapshot_date, account_id, conversion_status,
-        CASE WHEN conversion_status IN ('OK', 'SAME_CURRENCY') THEN cash_balance * valuation_to_base_rate END AS cash_balance,
-        CASE WHEN conversion_status IN ('OK', 'SAME_CURRENCY') THEN market_value * valuation_to_base_rate END AS market_value,
-        CASE WHEN conversion_status IN ('OK', 'SAME_CURRENCY') THEN equity * valuation_to_base_rate END AS equity,
-        CASE WHEN conversion_status IN ('OK', 'SAME_CURRENCY') THEN dividends * valuation_to_base_rate END AS dividends,
-        CASE WHEN conversion_status IN ('OK', 'SAME_CURRENCY') THEN interest * valuation_to_base_rate END AS interest,
-        CASE WHEN conversion_status IN ('OK', 'SAME_CURRENCY') THEN fees * valuation_to_base_rate END AS fees,
-        CASE WHEN conversion_status IN ('OK', 'SAME_CURRENCY') THEN taxes * valuation_to_base_rate END AS taxes,
-        CASE WHEN conversion_status IN ('OK', 'SAME_CURRENCY') THEN realized_profit * valuation_to_base_rate END AS realized_profit
+        CASE WHEN conversion_status IN ('OK', 'ESTIMATED', 'SAME_CURRENCY') THEN cash_balance * valuation_to_base_rate END AS cash_balance,
+        CASE WHEN conversion_status IN ('OK', 'ESTIMATED', 'SAME_CURRENCY') THEN market_value * valuation_to_base_rate END AS market_value,
+        CASE WHEN conversion_status IN ('OK', 'ESTIMATED', 'SAME_CURRENCY') THEN equity * valuation_to_base_rate END AS equity,
+        CASE WHEN conversion_status IN ('OK', 'ESTIMATED', 'SAME_CURRENCY') THEN dividends * valuation_to_base_rate END AS dividends,
+        CASE WHEN conversion_status IN ('OK', 'ESTIMATED', 'SAME_CURRENCY') THEN interest * valuation_to_base_rate END AS interest,
+        CASE WHEN conversion_status IN ('OK', 'ESTIMATED', 'SAME_CURRENCY') THEN fees * valuation_to_base_rate END AS fees,
+        CASE WHEN conversion_status IN ('OK', 'ESTIMATED', 'SAME_CURRENCY') THEN taxes * valuation_to_base_rate END AS taxes,
+        CASE WHEN conversion_status IN ('OK', 'ESTIMATED', 'SAME_CURRENCY') THEN realized_profit * valuation_to_base_rate END AS realized_profit
     FROM account_rows_with_fx
 ), external_flows AS (
     SELECT
@@ -5225,16 +5359,16 @@ SELECT
     ar.portfolio_id,
     ar.snapshot_date,
     ar.base_currency,
-    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.cash_balance) END AS cash_balance,
-    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.market_value) END AS market_value,
-    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.equity) END AS equity,
+    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.cash_balance) END AS cash_balance,
+    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.market_value) END AS market_value,
+    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.equity) END AS equity,
     CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'SAME_CURRENCY')) > 0 OR MAX(COALESCE(ef.missing_flow_fx_count, 0)) > 0 THEN NULL ELSE SUM(COALESCE(ef.deposits, 0)) END AS deposits,
     CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'SAME_CURRENCY')) > 0 OR MAX(COALESCE(ef.missing_flow_fx_count, 0)) > 0 THEN NULL ELSE SUM(COALESCE(ef.withdrawals, 0)) END AS withdrawals,
-    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.dividends) END AS dividends,
-    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.interest) END AS interest,
-    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.fees) END AS fees,
-    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.taxes) END AS taxes,
-    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.realized_profit) END AS realized_profit,
+    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.dividends) END AS dividends,
+    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.interest) END AS interest,
+    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.fees) END AS fees,
+    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.taxes) END AS taxes,
+    CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')) > 0 THEN NULL ELSE SUM(ar.realized_profit) END AS realized_profit,
     CASE WHEN COUNT(*) FILTER (WHERE ar.conversion_status NOT IN ('OK', 'SAME_CURRENCY')) > 0 OR MAX(COALESCE(ef.missing_flow_fx_count, 0)) > 0 THEN NULL ELSE
         SUM(ar.equity) - LAG(SUM(ar.equity)) OVER (PARTITION BY ar.portfolio_id ORDER BY ar.snapshot_date)
         - SUM(COALESCE(ef.deposits, 0)) + SUM(COALESCE(ef.withdrawals, 0)) END AS total_profit,

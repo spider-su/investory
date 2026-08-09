@@ -2,6 +2,7 @@ package com.example.demo.services.imports.xtb;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.example.demo.infrastructure.CurrencyType;
@@ -142,6 +143,33 @@ class XtbImportIntegrationTest {
     assertNotNull(position.getAssetId());
   }
 
+  @Test
+  void treatsXtbThreePlaceholderAsMissingTickerOnCashOnlyRows() throws Exception {
+    ImportExecutionResult result =
+        xtbImportV2Service.importWorkbook(
+            new ByteArrayInputStream(cashOnlyPlaceholderWorkbookBytes()),
+            "PLN_50290466_2025-12-31_2026-07-31.xlsx");
+
+    assertEquals(1, result.rowsTotal());
+    assertEquals(1, result.rowsApplied());
+    assertEquals(0, result.rowsFailed());
+
+    CashOperation deposit =
+        cashOperationRepository.findAllByAccount(50290466L).stream()
+            .filter(operation -> operation.getId() == 99101L)
+            .findFirst()
+            .orElseThrow();
+
+    assertEquals(CurrencyType.PLN, deposit.getCurrency());
+    assertEquals(0, deposit.getAmountValue().compareTo(BigDecimal.valueOf(14_200)));
+    assertNull(deposit.getSymbol());
+    assertNull(deposit.getAssetId());
+
+    assertTrue(
+        assetRepository.findBySymbol("3").isEmpty(),
+        "XTB N/A placeholder must never create or require an asset named '3'");
+  }
+
   private byte[] workbookBytes() throws Exception {
     try (XSSFWorkbook workbook = new XSSFWorkbook()) {
       CellStyle dateStyle = workbook.createCellStyle();
@@ -209,6 +237,54 @@ class XtbImportIntegrationTest {
       closedRow.createCell(14).setCellValue(35.902);
       closedRow.createCell(15).setCellValue("META");
       closedRow.createCell(16).setCellValue(99001);
+
+      ByteArrayOutputStream output = new ByteArrayOutputStream();
+      workbook.write(output);
+      return output.toByteArray();
+    }
+  }
+
+  private byte[] cashOnlyPlaceholderWorkbookBytes() throws Exception {
+    try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+      CellStyle dateStyle = workbook.createCellStyle();
+      dateStyle.setDataFormat(
+          workbook.getCreationHelper().createDataFormat().getFormat("yyyy-mm-dd hh:mm:ss.000"));
+
+      XSSFSheet cash = workbook.createSheet("Cash Operations");
+      cash.createRow(0).createCell(0).setCellValue("Account number");
+      cash.getRow(0).createCell(1).setCellValue("50290466");
+      String[] cashHeaders = {
+        "Type",
+        "Instrument",
+        "Ticker",
+        "Category",
+        "Time",
+        "Amount",
+        "ID",
+        "Comment",
+        "Product",
+        "Position ID"
+      };
+      writeHeader(cash.createRow(1), cashHeaders);
+
+      Row deposit = cash.createRow(2);
+      deposit.createCell(0).setCellValue("Deposit");
+      deposit.createCell(1).setCellValue("3");
+      deposit.createCell(2).setCellValue("3");
+      deposit.createCell(3).setCellValue("3");
+      setExcelDate(deposit.createCell(4), dateStyle, LocalDateTime.of(2026, 3, 6, 11, 0));
+      deposit.createCell(5).setCellValue(14_200);
+      deposit.createCell(6).setCellValue(99101);
+      deposit.createCell(7).setCellValue("eWallet golden placeholder regression");
+      deposit.createCell(8).setCellValue("My Trades");
+      deposit.createCell(9).setCellValue("3");
+
+      XSSFSheet closed = workbook.createSheet("Closed Positions");
+      closed.createRow(0).createCell(0).setCellValue("Account");
+      closed.getRow(0).createCell(1).setCellValue("50290466");
+      writeHeader(
+          closed.createRow(1),
+          new String[] {"Ticker", "Type", "Volume", "Open Time (UTC)", "Close Time (UTC)"});
 
       ByteArrayOutputStream output = new ByteArrayOutputStream();
       workbook.write(output);

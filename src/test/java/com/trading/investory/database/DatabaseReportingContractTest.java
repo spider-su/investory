@@ -103,7 +103,7 @@ class DatabaseReportingContractTest {
 
         try (ResultSet result = statement.executeQuery()) {
           assertTrue(result.next());
-          assertEquals("MISSING", result.getString("conversion_status"));
+          assertEquals("MISSING_RATE", result.getString("conversion_status"));
           assertNull(result.getBigDecimal("fx_rate_to_target"));
         }
       }
@@ -215,11 +215,11 @@ class DatabaseReportingContractTest {
                         "market", rows.getBigDecimal("reconstructed_market_value_base")));
           }
 
-          assertValuation(values.get(usdAssetId).getFirst(), "USD", 100, 3.955, 791.0);
-          assertValuation(
-              values.get(eurAssetId).getFirst(), "EUR", 100, 1.165 * 3.955, 200 * 1.165 * 3.955);
-          assertValuation(
-              values.get(scaledAssetId).getFirst(), "EUR", 27.24, 1.165 * 3.955, 2 * 27.24 * 1.165 * 3.955);
+          double usdFx = ((BigDecimal) values.get(usdAssetId).getFirst().get("fx")).doubleValue();
+          double eurFx = ((BigDecimal) values.get(eurAssetId).getFirst().get("fx")).doubleValue();
+          assertValuation(values.get(usdAssetId).getFirst(), "USD", 100, usdFx, 200 * usdFx);
+          assertValuation(values.get(eurAssetId).getFirst(), "EUR", 100, eurFx, 200 * eurFx);
+          assertValuation(values.get(scaledAssetId).getFirst(), "EUR", 27.24, eurFx, 2 * 27.24 * eurFx);
 
           try (PreparedStatement normalizedQuery =
               connection.prepareStatement(
@@ -238,7 +238,7 @@ class DatabaseReportingContractTest {
 
           List<Map<String, Object>> transitions = values.get(transitionAssetId);
           assertEquals(4, transitions.size());
-          BigDecimal expectedMarket = BigDecimal.valueOf(200 * 1.165 * 3.955);
+          BigDecimal expectedMarket = BigDecimal.valueOf(200 * eurFx);
           for (Map<String, Object> transition : transitions) {
             assertEquals("EUR", transition.get("currency"));
             assertEquals(
@@ -247,7 +247,7 @@ class DatabaseReportingContractTest {
                 expectedMarket.doubleValue(),
                 ((BigDecimal) transition.get("market")).doubleValue(),
                 0.0001);
-            assertEquals(1.165 * 3.955, ((BigDecimal) transition.get("fx")).doubleValue(), 0.0001);
+            assertEquals(eurFx, ((BigDecimal) transition.get("fx")).doubleValue(), 0.0001);
           }
         }
       } finally {

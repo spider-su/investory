@@ -778,10 +778,10 @@ class SchemaMigrationCheckpoint2Test {
           insert into investory.accounts(id, currency, provider, name, owner, portfolio_id)
           values (-440000, 'USD', 'IBKR', 'Cost basis FX test', 'Test', -440000);
           insert into investory.exchange_rates(
-              rate_date, month, base, to_currency, rate, source, method)
+              rate_date, base, to_currency, rate, source, method)
           values
-              (current_date - 1, current_date - 1, 'EUR', 'USD', 1.10, 'TEST', 'MARKET_DAILY'),
-              (current_date, current_date, 'EUR', 'USD', 2.00, 'TEST', 'MARKET_DAILY');
+              (current_date - 1, 'EUR', 'USD', 1.10, 'TEST', 'MARKET_DAILY'),
+              (current_date, 'EUR', 'USD', 2.00, 'TEST', 'MARKET_DAILY');
           insert into investory.positions(
               id, account_id, asset_id, source_asset_symbol, operation, settlement_model, volume,
               price_currency, cost_currency, profit_currency, commission_currency,
@@ -838,7 +838,7 @@ class SchemaMigrationCheckpoint2Test {
           """);
 
       assertEquals(
-          "144.92753623",
+          "143.93737648",
           singleString(
               statement,
               """
@@ -998,10 +998,10 @@ class SchemaMigrationCheckpoint2Test {
           """
           delete from investory.exchange_rates;
 
-          insert into investory.exchange_rates (month, source, base, to_currency, rate)
+          insert into investory.exchange_rates (rate_date, source, base, to_currency, rate, method)
           values
-            (date '2025-01-01', 'TEST', 'USD', 'EUR', 0.8),
-            (date '2025-01-01', 'TEST', 'USD', 'PLN', 4.0);
+            (date '2025-01-01', 'TEST', 'USD', 'EUR', 0.8, 'MARKET_DAILY'),
+            (date '2025-01-01', 'TEST', 'USD', 'PLN', 4.0, 'MARKET_DAILY');
 
           insert into investory.portfolios (id, name, base_currency, user_id)
           values (-940001, 'USD FX test portfolio', 'USD', 1),
@@ -1081,7 +1081,7 @@ class SchemaMigrationCheckpoint2Test {
               """));
 
       assertEquals(
-          "MISSING",
+          "MISSING_RATE",
           singleString(
               statement,
               """
@@ -1101,7 +1101,7 @@ class SchemaMigrationCheckpoint2Test {
       statement.execute(
           """
           delete from investory.exchange_rates;
-          insert into investory.exchange_rates (month, source, base, to_currency, rate)
+          insert into investory.exchange_rates (rate_date, source, base, to_currency, rate)
           values (date '2025-01-01', 'TEST', 'USD', 'EUR', 0.8);
 
           insert into investory.portfolios (id, name, base_currency, user_id)
@@ -1132,7 +1132,7 @@ class SchemaMigrationCheckpoint2Test {
               select count(*)
               from investory.normalized_cash_operations
               where account_id = -950001
-                and portfolio_conversion_status = 'MISSING'
+                and portfolio_conversion_status = 'MISSING_RATE'
               """));
 
       assertEquals(
@@ -1337,7 +1337,7 @@ class SchemaMigrationCheckpoint2Test {
           values
             (-960000, 'PLN', 'XTB', 'Mixed currency PLN account', 'Test', -96, false),
             (-960004, 'USD', 'XTB', 'Mixed currency USD account', 'Test', -96, false);
-          insert into investory.exchange_rates (month, source, base, to_currency, rate)
+          insert into investory.exchange_rates (rate_date, source, base, to_currency, rate)
           values
             ((date_trunc('month', current_date) - interval '1 month')::date, 'TEST', 'PLN', 'USD', 0.25),
             ((date_trunc('month', current_date) - interval '1 month')::date, 'TEST', 'EUR', 'USD', 1.25);

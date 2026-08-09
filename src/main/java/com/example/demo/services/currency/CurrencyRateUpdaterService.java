@@ -28,29 +28,32 @@ public class CurrencyRateUpdaterService {
   private String apiKey;
 
   public CurrencyRateRefreshResult updateCurrencyRates() {
-    return updateCurrencyRatesForMonth(LocalDate.now());
+    return updateCurrencyRatesForDate(LocalDate.now());
   }
 
-  public CurrencyRateRefreshResult updateCurrencyRatesForMonth(LocalDate month) {
-    LocalDate normalizedMonth = month.withDayOfMonth(1);
+  public CurrencyRateRefreshResult updateCurrencyRatesForDate(LocalDate effectiveDate) {
+    return refresh(effectiveDate);
+  }
+
+  private CurrencyRateRefreshResult refresh(LocalDate effectiveDate) {
     try {
       ExchangeRateClient.ExchangeRateResponse response =
           exchangeRateClient.getLatestRates("USD", "USD,EUR,PLN", apiKey);
       Map<CurrencyType, Double> usdRates = parseUsdRates(response);
-      LocalDate effectiveDate = response.getDate() != null ? response.getDate() : month;
+      LocalDate providerDate = response.getDate() != null ? response.getDate() : effectiveDate;
       Map<CurrencyType, Map<CurrencyType, Double>> ratesByBase = deriveCrossRates(usdRates);
       ratesByBase.forEach(
-          (base, rates) -> currencyRateService.updateRates(base, rates, effectiveDate));
+          (base, rates) -> currencyRateService.updateRates(base, rates, providerDate));
       return new CurrencyRateRefreshResult(
-          effectiveDate, List.of("USD", "EUR", "PLN"), List.of());
+          providerDate, List.of("USD", "EUR", "PLN"), List.of());
     } catch (ExchangeRateException e) {
       log.warn("Skipping FX refresh: {}", e.getMessage());
       return new CurrencyRateRefreshResult(
-          normalizedMonth, List.of(), List.of("USD: " + e.getMessage()));
+          effectiveDate, List.of(), List.of("USD: " + e.getMessage()));
     } catch (IllegalArgumentException e) {
       log.warn("Skipping FX refresh: {}", e.getMessage());
       return new CurrencyRateRefreshResult(
-          normalizedMonth, List.of(), List.of("USD: " + e.getMessage()));
+          effectiveDate, List.of(), List.of("USD: " + e.getMessage()));
     }
   }
 
@@ -88,5 +91,7 @@ public class CurrencyRateUpdaterService {
   }
 
   public record CurrencyRateRefreshResult(
-      LocalDate month, List<String> updated, List<String> failed) {}
+      LocalDate rateDate, List<String> updated, List<String> failed) {
+    public LocalDate month() { return rateDate; }
+  }
 }

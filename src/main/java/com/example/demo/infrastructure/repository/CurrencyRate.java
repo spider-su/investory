@@ -28,9 +28,6 @@ public class CurrencyRate {
   @Column(name = "rate_date", nullable = false)
   private LocalDate rateDate;
 
-  @Column(name = "month")
-  private LocalDate legacyMonth;
-
   @Enumerated(value = EnumType.STRING)
   @Column(nullable = false)
   private CurrencyType base;
@@ -64,8 +61,7 @@ public class CurrencyRate {
   void applyDefaults() {
     if (source == null) source = "MANUAL";
     if (method == null) method = "HISTORICAL_MONTHLY";
-    if (rateDate == null) rateDate = legacyMonth;
-    if (legacyMonth == null) legacyMonth = rateDate;
+    if (rateDate == null) throw new IllegalStateException("rateDate is required");
   }
 
   public double getRate() {
@@ -92,6 +88,4 @@ public class CurrencyRate {
     return rate == null ? null : rate.setScale(8, RoundingMode.HALF_UP);
   }
 
-  public LocalDate getMonthStart() { return rateDate; }
-  public void setMonthStart(LocalDate date) { this.rateDate = date; this.legacyMonth = date; }
 }

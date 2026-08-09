@@ -44,7 +44,7 @@ class ValuationInputContractTest {
     try (Connection connection = connection();
         Statement statement = connection.createStatement()) {
       statement.execute(
-          "INSERT INTO investory.exchange_rates(month, base, to_currency, rate, source) VALUES "
+          "INSERT INTO investory.exchange_rates(rate_date, base, to_currency, rate, source) VALUES "
               + "(DATE '2098-01-01', 'EUR', 'USD', 1.10, 'TEST'), "
               + "(DATE '2098-02-01', 'EUR', 'USD', 1.20, 'TEST')");
 

@@ -18,7 +18,7 @@ This is a deliberately small regression corpus built from real IBKR and XTB rows
 
 - `ibkr/U17959259.GOLDEN.csv` — transaction-only IBKR fixture.
 - `xtb/investory_xtb_golden.zip` — four reduced XTB workbooks importable as one ZIP.
-- `reference/exchange_rates.csv` — minimal real monthly FX rows for deterministic offline tests.
+- `reference/exchange_rates.csv` — minimal historical FX checkpoint rows for deterministic offline tests.
 - `expected/checkpoints.json` — semantic assertions to enforce.
 - `expected/provenance.json` — source SHA-256 values and exact source row numbers retained.
 

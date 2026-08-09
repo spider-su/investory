@@ -10,14 +10,28 @@ Canonical conversion direction used by SQL and Java:
 Resolution order:
 
 1. same-currency (`rate = 1`),
-2. direct stored edge,
-3. inverse stored edge,
-4. one-hop triangulation.
+2. exact-date `MARKET_DAILY`,
+3. exact-date `IBKR_DAILY_REFERENCE`,
+4. direct/inverse daily edge,
+5. one-hop triangulation,
+6. recent carry-forward,
+7. pre-deployment historical interpolation.
+
+`VALUATION` and `TRANSACTION` are separate resolver purposes. Valuation uses neutral
+market/reference rates. Transaction accounting uses an exact `XTB_EXECUTION` or
+`IBKR_EXECUTION` observation when the broker supplied one; execution spreads are not
+used as neutral portfolio valuation rates.
 
 Statuses:
 
-- `OK` and `SAME_CURRENCY` are usable in authoritative totals,
-- `STALE` and `MISSING` are diagnostic only.
+- `OK`, `ESTIMATED`, and `SAME_CURRENCY` are usable, with estimated provenance visible,
+- `CARRY_FORWARD` is exposed as a method and remains `OK` within the safety window,
+- `STALE` and `MISSING_RATE` are not silently accepted.
+
+Daily history begins at `app.fx.daily-history-start` (default `2026-08-01`). Before
+that boundary, gaps between historical checkpoints may be linearly interpolated and
+are marked `ESTIMATED`. After it, missing coverage is stale or missing rather than
+being hidden by an old monthly checkpoint.
 
 Fail-closed policy:
 

@@ -71,19 +71,19 @@ class CurrencyRateUpdaterServiceTest {
     assertEquals(
         1.0 / 0.9, java.util.Objects.requireNonNull(eurRates).get(CurrencyType.USD), 0.000001);
     assertEquals(4.0 / 0.9, eurRates.get(CurrencyType.PLN), 0.000001);
-    assertEquals(1, monthCaptor.getAllValues().getFirst().getDayOfMonth());
+    assertEquals(LocalDate.now(), monthCaptor.getAllValues().getFirst());
     assertEquals(List.of("USD", "EUR", "PLN"), result.updated());
     assertTrue(result.failed().isEmpty());
     verify(exchangeRateClient).getLatestRates("USD", "USD,EUR,PLN", "test-key");
   }
 
   @Test
-  void updateCurrencyRatesForMonth_writesOnlyThatMonthStart() {
+  void updateCurrencyRatesForDate_writesOnlyThatDate() {
     when(exchangeRateClient.getLatestRates("USD", "USD,EUR,PLN", "test-key"))
         .thenReturn(response(Map.of("USDUSD", 1.0, "USDEUR", 0.9, "USDPLN", 4.0)));
 
     CurrencyRateRefreshResult result =
-        updater.updateCurrencyRatesForMonth(LocalDate.of(2026, 8, 17));
+        updater.updateCurrencyRatesForDate(LocalDate.of(2026, 8, 17));
 
     ArgumentCaptor<LocalDate> monthCaptor = ArgumentCaptor.forClass(LocalDate.class);
     verify(currencyRateService, org.mockito.Mockito.times(3))
@@ -92,9 +92,9 @@ class CurrencyRateUpdaterServiceTest {
             org.mockito.ArgumentMatchers.any(),
             monthCaptor.capture());
     assertEquals(
-        List.of(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 1)),
+        List.of(LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17)),
         monthCaptor.getAllValues());
-    assertEquals(LocalDate.of(2026, 8, 1), result.month());
+    assertEquals(LocalDate.of(2026, 8, 17), result.rateDate());
   }
 
   @Test

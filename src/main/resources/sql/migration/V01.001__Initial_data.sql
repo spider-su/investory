@@ -87,8 +87,7 @@ ON CONFLICT (rate_date, base, to_currency, source, method, COALESCE(source_refer
     rate = EXCLUDED.rate;
 
 UPDATE investory.exchange_rates
-SET rate_date = rate_date - 1,
-    month = rate_date - 1
+SET rate_date = rate_date - 1
 WHERE source = 'STATIC_BOOTSTRAP'
   AND method = 'HISTORICAL_MONTHLY';
 

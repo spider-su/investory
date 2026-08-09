@@ -343,7 +343,6 @@ EXECUTE FUNCTION investory.bind_asset_price_history_source_mapping();
 CREATE TABLE IF NOT EXISTS investory.exchange_rates (
     id              bigserial PRIMARY KEY,
     rate_date       date NOT NULL,
-    month           date,
     base            varchar(3) NOT NULL REFERENCES investory.currencies(id),
     to_currency     varchar(3) NOT NULL REFERENCES investory.currencies(id),
     rate            numeric(20,8) NOT NULL,
@@ -359,16 +358,6 @@ CREATE TABLE IF NOT EXISTS investory.exchange_rates (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_exchange_rates_observation
     ON investory.exchange_rates (rate_date, base, to_currency, source, method, COALESCE(source_reference, ''));
-CREATE OR REPLACE FUNCTION investory.sync_exchange_rate_legacy_month()
-RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN
-    IF NEW.rate_date IS NULL THEN NEW.rate_date := NEW.month; END IF;
-    IF NEW.month IS NULL THEN NEW.month := NEW.rate_date; END IF;
-    RETURN NEW;
-END $$;
-CREATE TRIGGER trg_exchange_rates_legacy_month
-BEFORE INSERT OR UPDATE ON investory.exchange_rates
-FOR EACH ROW EXECUTE FUNCTION investory.sync_exchange_rate_legacy_month();
 COMMENT ON TABLE investory.exchange_rates IS 'Historical exchange rates for USD/EUR/PLN currencies, used for reporting and analysis';
 
 CREATE TYPE investory.cash_operation_type AS ENUM (

@@ -156,12 +156,11 @@ class GoldenRebuildIT {
         jdbc.update(
             """
             insert into investory.exchange_rates(
-                rate_date, month, base, to_currency, rate,
+                rate_date, base, to_currency, rate,
                 source, method, source_reference
-            ) values (?, ?, ?, ?, ?, 'TEST', 'HISTORICAL_MONTHLY', ?)
+            ) values (?, ?, ?, ?, 'TEST', 'HISTORICAL_MONTHLY', ?)
             on conflict do nothing
             """,
-            date,
             date,
             base,
             target,

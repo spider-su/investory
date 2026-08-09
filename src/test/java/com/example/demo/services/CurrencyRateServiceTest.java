@@ -10,6 +10,9 @@ import com.example.demo.infrastructure.repository.CurrencyRateRepository;
 import com.example.demo.services.currency.CurrencyRateService;
 import com.example.demo.services.currency.FxRateUnavailableException;
 import java.time.LocalDate;
+import java.time.ZonedDateTime;
+import java.time.ZoneOffset;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -30,7 +33,7 @@ class CurrencyRateServiceTest {
   @BeforeEach
   void setUp() {
     service = new CurrencyRateService(currencyRateRepository);
-    when(currencyRateRepository.findAllByOrderByBaseAscToCurrencyAscMonthStartAsc())
+    when(currencyRateRepository.findAllByOrderByBaseAscToCurrencyAscRateDateAsc())
         .thenReturn(
             List.of(
                 rate(CurrencyType.USD, CurrencyType.EUR, LocalDate.of(2026, 6, 1), 0.9),
@@ -66,7 +69,7 @@ class CurrencyRateServiceTest {
 
   @Test
   void convertToBaseCurrency_usesInverseRateWhenDirectMissing() {
-    when(currencyRateRepository.findAllByOrderByBaseAscToCurrencyAscMonthStartAsc())
+    when(currencyRateRepository.findAllByOrderByBaseAscToCurrencyAscRateDateAsc())
         .thenReturn(
             List.of(rate(CurrencyType.EUR, CurrencyType.USD, LocalDate.of(2026, 6, 1), 1.1)));
     CurrencyRateService freshService = new CurrencyRateService(currencyRateRepository);
@@ -81,7 +84,7 @@ class CurrencyRateServiceTest {
 
   @Test
   void convertToBaseCurrency_throwsWhenRateMissing() {
-    when(currencyRateRepository.findAllByOrderByBaseAscToCurrencyAscMonthStartAsc())
+    when(currencyRateRepository.findAllByOrderByBaseAscToCurrencyAscRateDateAsc())
         .thenReturn(List.of());
     CurrencyRateService freshService = new CurrencyRateService(currencyRateRepository);
     freshService.preloadExchangeRates();
@@ -94,8 +97,12 @@ class CurrencyRateServiceTest {
 
   @Test
   void updateRates_persistsNewRateWhenAbsent() {
-    when(currencyRateRepository.findByMonthStartAndBaseAndToCurrency(
-            LocalDate.of(2026, 7, 1), CurrencyType.USD, CurrencyType.EUR))
+    when(currencyRateRepository.findFirstByRateDateAndBaseAndToCurrencyAndSourceAndMethod(
+            LocalDate.of(2026, 7, 5),
+            CurrencyType.USD,
+            CurrencyType.EUR,
+            "EXCHANGERATE_HOST",
+            "MARKET_DAILY"))
         .thenReturn(Optional.empty());
 
     service.updateRates(CurrencyType.USD, Map.of(CurrencyType.EUR, 0.95), LocalDate.of(2026, 7, 5));
@@ -103,7 +110,7 @@ class CurrencyRateServiceTest {
     ArgumentCaptor<CurrencyRate> captor = ArgumentCaptor.forClass(CurrencyRate.class);
     verify(currencyRateRepository).save(captor.capture());
     CurrencyRate saved = captor.getValue();
-    assertEquals(LocalDate.of(2026, 7, 1), saved.getMonthStart());
+    assertEquals(LocalDate.of(2026, 7, 5), saved.getRateDate());
     assertEquals(CurrencyType.USD, saved.getBase());
     assertEquals(CurrencyType.EUR, saved.getToCurrency());
     assertEquals(0.95, saved.getRate());
@@ -111,21 +118,25 @@ class CurrencyRateServiceTest {
 
   @Test
   void updateRates_updatesExistingRate() {
-    CurrencyRate existing = rate(CurrencyType.USD, CurrencyType.EUR, LocalDate.of(2026, 7, 1), 0.8);
-    when(currencyRateRepository.findByMonthStartAndBaseAndToCurrency(
-            LocalDate.of(2026, 7, 1), CurrencyType.USD, CurrencyType.EUR))
+    CurrencyRate existing = rate(CurrencyType.USD, CurrencyType.EUR, LocalDate.of(2026, 7, 5), 0.8);
+    when(currencyRateRepository.findFirstByRateDateAndBaseAndToCurrencyAndSourceAndMethod(
+            LocalDate.of(2026, 7, 5),
+            CurrencyType.USD,
+            CurrencyType.EUR,
+            "EXCHANGERATE_HOST",
+            "MARKET_DAILY"))
         .thenReturn(Optional.of(existing));
 
     service.updateRates(CurrencyType.USD, Map.of(CurrencyType.EUR, 0.92), LocalDate.of(2026, 7, 5));
 
     verify(currencyRateRepository).save(existing);
-    assertEquals(LocalDate.of(2026, 7, 1), existing.getMonthStart());
+    assertEquals(LocalDate.of(2026, 7, 5), existing.getRateDate());
     assertEquals(0.92, existing.getRate());
   }
 
   @Test
   void getRate_returnsPersistedRate() {
-    when(currencyRateRepository.findAllByOrderByBaseAscToCurrencyAscMonthStartAsc())
+    when(currencyRateRepository.findAllByOrderByBaseAscToCurrencyAscRateDateAsc())
         .thenReturn(
             List.of(rate(CurrencyType.USD, CurrencyType.EUR, LocalDate.of(2026, 7, 1), 0.91)));
     CurrencyRateService freshService = new CurrencyRateService(currencyRateRepository);
@@ -137,7 +148,7 @@ class CurrencyRateServiceTest {
 
   @Test
   void getRate_throwsWhenMissing() {
-    when(currencyRateRepository.findAllByOrderByBaseAscToCurrencyAscMonthStartAsc())
+    when(currencyRateRepository.findAllByOrderByBaseAscToCurrencyAscRateDateAsc())
         .thenReturn(List.of());
     CurrencyRateService freshService = new CurrencyRateService(currencyRateRepository);
     freshService.preloadExchangeRates();
@@ -146,13 +157,52 @@ class CurrencyRateServiceTest {
         () -> freshService.getRate(CurrencyType.USD, CurrencyType.PLN, LocalDate.of(2026, 7, 5)));
   }
 
+  @Test
+  void harvestXtbExecutionRatePreservesPairDateAndMethod() {
+    com.example.demo.infrastructure.repository.CashOperation operation =
+        new com.example.demo.infrastructure.repository.CashOperation();
+    operation.setId(42L);
+    operation.setDate(ZonedDateTime.of(2026, 1, 2, 19, 54, 12, 0, ZoneOffset.UTC));
+    operation.setComment("Currency conversion, USD to PLN, Exchange rate:3.573631");
+
+    service.harvestXtbExecutionRates(List.of(operation));
+
+    ArgumentCaptor<CurrencyRate> captor = ArgumentCaptor.forClass(CurrencyRate.class);
+    verify(currencyRateRepository).save(captor.capture());
+    CurrencyRate saved = captor.getValue();
+    assertEquals(LocalDate.of(2026, 1, 2), saved.getRateDate());
+    assertEquals(CurrencyType.USD, saved.getBase());
+    assertEquals(CurrencyType.PLN, saved.getToCurrency());
+    assertEquals(new BigDecimal("3.57363100"), saved.getRateValue());
+    assertEquals("XTB_EXECUTION", saved.getMethod());
+  }
+
+  @Test
+  void transactionResolverUsesExecutionRateBeforeValuationRate() {
+    CurrencyRate execution = rate(CurrencyType.USD, CurrencyType.PLN, LocalDate.of(2026, 1, 2), 3.573631);
+    execution.setMethod("XTB_EXECUTION");
+    execution.setSource("XTB");
+    execution.setObservedAt(ZonedDateTime.of(2026, 1, 2, 19, 54, 12, 0, ZoneOffset.UTC));
+    when(currencyRateRepository.findAllByMethodInAndObservedAtIsNotNullOrderByObservedAtDesc(List.of("XTB_EXECUTION", "IBKR_EXECUTION")))
+        .thenReturn(List.of(execution));
+
+    CurrencyRateService.FxRateResolution result = service.resolveTransactionRate(
+        ZonedDateTime.of(2026, 1, 2, 20, 0, 0, 0, ZoneOffset.UTC), CurrencyType.USD, CurrencyType.PLN);
+
+    assertEquals("XTB_EXECUTION", result.rateMethod());
+    assertEquals("OK", result.conversionStatus());
+    assertEquals(3.573631, result.fxRateToTarget().doubleValue(), 1e-8);
+  }
+
   private static CurrencyRate rate(
       CurrencyType base, CurrencyType to, LocalDate date, double value) {
     CurrencyRate r = new CurrencyRate();
-    r.setMonthStart(date);
+    r.setRateDate(date);
     r.setBase(base);
     r.setToCurrency(to);
     r.setRate(value);
+    r.setSource("STATIC_BOOTSTRAP");
+    r.setMethod("HISTORICAL_MONTHLY");
     return r;
   }
 }

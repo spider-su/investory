@@ -358,11 +358,16 @@ WITH classified AS (
 ), fx AS (
     SELECT
         c.*,
-        portfolio_fx.fx_rate_to_base,
-        portfolio_fx.source AS portfolio_fx_source,
-        portfolio_fx.source_rate_date AS portfolio_source_rate_date,
-        portfolio_fx.age_days AS portfolio_fx_age_days,
-        portfolio_fx.conversion_status AS portfolio_conversion_status,
+        CASE WHEN c.is_fx_conversion AND transaction_fx.conversion_status = 'OK'
+             THEN transaction_fx.fx_rate_to_target ELSE portfolio_fx.fx_rate_to_base END AS fx_rate_to_base,
+        CASE WHEN c.is_fx_conversion AND transaction_fx.conversion_status = 'OK'
+             THEN transaction_fx.source ELSE portfolio_fx.source END AS portfolio_fx_source,
+        CASE WHEN c.is_fx_conversion AND transaction_fx.conversion_status = 'OK'
+             THEN transaction_fx.source_rate_date ELSE portfolio_fx.source_rate_date END AS portfolio_source_rate_date,
+        CASE WHEN c.is_fx_conversion AND transaction_fx.conversion_status = 'OK'
+             THEN transaction_fx.age_days ELSE portfolio_fx.age_days END AS portfolio_fx_age_days,
+        CASE WHEN c.is_fx_conversion AND transaction_fx.conversion_status = 'OK'
+             THEN transaction_fx.conversion_status ELSE portfolio_fx.conversion_status END AS portfolio_conversion_status,
         account_fx.fx_rate_to_target AS fx_rate_to_account_currency,
         account_fx.source AS account_fx_source,
         account_fx.source_rate_date AS account_source_rate_date,
@@ -379,6 +384,12 @@ WITH classified AS (
         c.currency,
         c.account_currency
     ) account_fx
+    CROSS JOIN LATERAL investory.resolve_fx_rate(
+        (c.date AT TIME ZONE 'Europe/Warsaw')::date,
+        c.currency,
+        c.base_currency,
+        'TRANSACTION'
+    ) transaction_fx
 )
 SELECT
     operation_id,
@@ -400,11 +411,11 @@ SELECT
     is_reversal,
     asset_id,
     amount,
-    CASE WHEN portfolio_conversion_status IN ('OK', 'SAME_CURRENCY')
+    CASE WHEN portfolio_conversion_status IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')
         THEN amount * fx_rate_to_base END AS amount_in_portfolio_base_currency,
-    CASE WHEN portfolio_conversion_status IN ('OK', 'SAME_CURRENCY')
+    CASE WHEN portfolio_conversion_status IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')
         THEN amount * fx_rate_to_base END AS amount_in_base_currency,
-    CASE WHEN account_conversion_status IN ('OK', 'SAME_CURRENCY')
+    CASE WHEN account_conversion_status IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')
         THEN amount * fx_rate_to_account_currency END AS amount_in_account_currency,
     comment,
     date,

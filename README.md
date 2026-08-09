@@ -75,7 +75,7 @@ headline ROI.
 - Internal transfers change account cash but do not change portfolio contributed capital.
 - Currency conversion is not a deposit, withdrawal, or investment profit.
 - Broker corrections and reversals retain their imported signs.
-- When no usable FX rate exists, or the newest rate is more than 45 days old, the affected calculation
+- When no usable FX rate exists, or a daily/reference rate is outside the four-day safety window, the affected calculation
   fails with an `FX rate unavailable` error. An unconverted amount is not silently treated as target
   currency.
 

@@ -507,7 +507,7 @@ public final class PortfolioBuilders {
 
     public CurrencyRate build() {
       CurrencyRate currencyRate = new CurrencyRate();
-      currencyRate.setMonthStart(monthStart);
+      currencyRate.setRateDate(monthStart);
       currencyRate.setBase(base);
       currencyRate.setToCurrency(toCurrency);
       currencyRate.setRate(rate);

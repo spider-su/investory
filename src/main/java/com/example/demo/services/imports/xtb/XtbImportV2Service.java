@@ -228,7 +228,8 @@ public class XtbImportV2Service {
 
     List<CashOperation> operations = new ArrayList<>();
     for (Row row : dataRows(sheet, columns)) {
-      if (cashOnly && StringUtils.hasText(cellValue(row, columns.get("Ticker")))) {
+      String symbol = sourceTicker(row, columns);
+      if (cashOnly && StringUtils.hasText(symbol)) {
         continue;
       }
       ZonedDateTime operationDate = parseDate(cell(row, columns.get("Time")));
@@ -256,7 +257,7 @@ public class XtbImportV2Service {
             "Unknown XTB cash operation type at row " + row.getRowNum());
       }
       operation.setType(type);
-      operation.setSymbol(cellValue(row, columns.get("Ticker")));
+      operation.setSymbol(symbol);
       operation.setAmount(parseDouble(cellValue(row, columns.get("Amount"))).orElse(null));
       operation.setComment(comment);
       operation.setDate(operationDate);
@@ -274,7 +275,7 @@ public class XtbImportV2Service {
     List<ClosedPosition> positions = new ArrayList<>();
     Map<String, Integer> sourceRowOccurrences = new HashMap<>();
     for (Row row : dataRows(sheet, columns)) {
-      String symbol = cellValue(row, columns.get("Ticker"));
+      String symbol = sourceTicker(row, columns);
       // XTB sheets can end with a totals/footer row. It contains numeric values in
       // known columns but is not a position and has no ticker.
       if (!StringUtils.hasText(symbol)) {
@@ -1138,6 +1139,44 @@ public class XtbImportV2Service {
     } catch (NumberFormatException exception) {
       throw new IllegalArgumentException("Malformed XTB number: " + value, exception);
     }
+  }
+
+  /**
+   * Reads an optional XTB security ticker while preserving the broker's real export semantics.
+   *
+   * <p>Current XTB v2 workbooks use the literal value {@code "3"} as an N/A placeholder on
+   * non-instrument cash rows. In those rows Instrument, Ticker, Category and Position ID are all
+   * {@code "3"}. Treating that placeholder as a real ticker makes fresh imports try to resolve an
+   * asset named {@code "3"}; on cash-only accounts it also incorrectly drops deposits, transfers,
+   * interest and taxes because the account filter thinks the row references a security.
+   *
+   * <p>Only collapse {@code "3"} when the workbook exposes the accompanying XTB metadata columns
+   * and all of them also look like N/A placeholders. A genuine ticker named {@code "3"} in a
+   * different source shape is therefore left untouched.
+   */
+  private String sourceTicker(Row row, Map<String, Integer> columns) {
+    String ticker = cellValue(row, columns.get("Ticker"));
+    if (!StringUtils.hasText(ticker) || !"3".equals(ticker.trim())) {
+      return ticker;
+    }
+
+    boolean hasXtbPlaceholderShape =
+        columns.containsKey("Instrument")
+            || columns.containsKey("Category")
+            || columns.containsKey("Position ID");
+    if (!hasXtbPlaceholderShape) {
+      return ticker;
+    }
+
+    return isXtbBlankSentinel(cellValue(row, columns.get("Instrument")))
+            && isXtbBlankSentinel(cellValue(row, columns.get("Category")))
+            && isXtbBlankSentinel(cellValue(row, columns.get("Position ID")))
+        ? null
+        : ticker;
+  }
+
+  private boolean isXtbBlankSentinel(String value) {
+    return !StringUtils.hasText(value) || "3".equals(value.trim());
   }
 
   private String cellValue(Row row, Integer index) {
