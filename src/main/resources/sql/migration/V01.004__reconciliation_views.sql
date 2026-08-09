@@ -49,6 +49,8 @@ WITH mapped_history AS (
         aph.price_date,
         aph.source,
         aph.source_symbol,
+        aph.price_origin,
+        aph.estimated,
         aph.source_mapping_id,
         aph.price_currency,
         aph.price_scale_factor,
@@ -129,6 +131,19 @@ SELECT
     'XTB price observation currency differs from the canonical asset quote currency'::text
 FROM mapped_history
 WHERE source IN ('XTB_TRADE_OPEN', 'XTB_TRADE_CLOSE', 'INTERPOLATED_XTB')
+  AND price_currency IS DISTINCT FROM asset_currency
+
+UNION ALL
+SELECT
+    asset_id,
+    asset_symbol,
+    price_date,
+    source,
+    source_symbol,
+    'GENERATED_PRICE_CURRENCY_MISMATCH'::varchar(64),
+    'generated price currency differs from the canonical asset quote currency'::text
+FROM mapped_history
+WHERE (price_origin = 'STALE_CARRY_FORWARD' OR estimated)
   AND price_currency IS DISTINCT FROM asset_currency;
 
 COMMENT ON VIEW investory.reporting_price_history_contract_issues IS

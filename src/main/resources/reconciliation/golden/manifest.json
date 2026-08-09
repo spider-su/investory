@@ -1,0 +1,64 @@
+{
+  "fixture_version": 1,
+  "ibkr_data_rows": 19,
+  "xtb": {
+    "51993106_cash_rows": 24,
+    "51993106_closed_rows": 7,
+    "51499241_cash_rows": 4,
+    "51499241_closed_rows": 1,
+    "51551301_cash_rows": 7,
+    "50290466_cash_rows": 4
+  },
+  "files": [
+    {
+      "path": "ibkr/U17959259.GOLDEN.csv",
+      "sha256": "be5a6047ade6c72eeb086682c1a25799d400887a2bd56bea086e5d8dd5128152",
+      "size_bytes": 2997
+    },
+    {
+      "path": "xtb/investory_xtb_golden.zip",
+      "sha256": "cad7fed0ec31b157b598089f5caf256c4077b6346fcb91ce98f89af81050e412",
+      "size_bytes": 22234
+    },
+    {
+      "path": "xtb/USD_51993106_GOLDEN.xlsx",
+      "sha256": "f86589858177cba38ae3b568f3e83c2e63d3a615e1a6cb66cc1c8ae099889c8e",
+      "size_bytes": 7871
+    },
+    {
+      "path": "xtb/USD_51499241_GOLDEN.xlsx",
+      "sha256": "1ac8b8aa26cf22fb38353279fdfefe447955896c2d89176e785c7d291acadc35",
+      "size_bytes": 5597
+    },
+    {
+      "path": "xtb/IKE_51551301_GOLDEN.xlsx",
+      "sha256": "0d8a04758c6c9a17e690a7e90a822a9a42697a705bc6d97f777002b26f14917f",
+      "size_bytes": 5733
+    },
+    {
+      "path": "xtb/PLN_50290466_CASH_ONLY_GOLDEN.xlsx",
+      "sha256": "042dc84090b20f5890cadb1a3cd38edca16c68b738930f416d6efd675b80496b",
+      "size_bytes": 5486
+    },
+    {
+      "path": "reference/exchange_rates.csv",
+      "sha256": "96e71e87b63bdf7becf801de6e53fe709827737f6da5437f9d265db77e29a786",
+      "size_bytes": 340
+    },
+    {
+      "path": "expected/checkpoints.json",
+      "sha256": "5c2c8f38c9f842504bb9ffffe7c51d98f65d2ee2f7eff04b3cc81e1b17763fca",
+      "size_bytes": 3201
+    },
+    {
+      "path": "expected/provenance.json",
+      "sha256": "e8e22b6fdcf665d6696c37f3df74c9ae46824afa6072a75c114d5a624c312005",
+      "size_bytes": 8928
+    },
+    {
+      "path": "README.md",
+      "sha256": "19a3ea323ff753ffd56aea1b9f90b2084514a55784002cc41cf130cdc21b4979",
+      "size_bytes": 1804
+    }
+  ]
+}

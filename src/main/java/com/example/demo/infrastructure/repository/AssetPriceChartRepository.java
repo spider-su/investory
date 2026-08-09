@@ -20,7 +20,7 @@ public interface AssetPriceChartRepository extends Repository<Asset, Long> {
                  aph.quality_score as qualityScore,
                  aph.quality_class as qualityClass,
                  aph.price_origin as priceOrigin
-          from asset_price_history aph
+          from v_canonical_asset_daily_price aph
           where aph.asset_id = :assetId
             and (cast(:dateFrom as date) is null or aph.price_date >= cast(:dateFrom as date))
             and aph.price_date <= :dateTo

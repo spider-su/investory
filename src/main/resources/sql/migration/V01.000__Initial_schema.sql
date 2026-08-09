@@ -672,3 +672,19 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_assets_figi
 CREATE UNIQUE INDEX IF NOT EXISTS ux_assets_ticker_exchange_mic
     ON investory.assets (upper(ticker), upper(exchange_mic))
     WHERE exchange_mic IS NOT NULL AND btrim(exchange_mic) <> '';
+
+ALTER TABLE investory.assets
+    ADD CONSTRAINT chk_assets_symbol_not_blank_v01011
+        CHECK (btrim(symbol) <> ''),
+    ADD CONSTRAINT chk_assets_ticker_not_blank_v01011
+        CHECK (btrim(ticker) <> ''),
+    ADD CONSTRAINT chk_assets_ibkr_not_blank_v01011
+        CHECK (btrim(ibkr) <> ''),
+    ADD CONSTRAINT chk_assets_yahoo_not_blank_v01011
+        CHECK (btrim(yahoo) <> ''),
+    ADD CONSTRAINT chk_assets_isin_format_v01011
+        CHECK (isin IS NULL OR upper(btrim(isin)) ~ '^[A-Z]{2}[A-Z0-9]{9}[0-9]$'),
+    ADD CONSTRAINT chk_assets_figi_format_v01011
+        CHECK (figi IS NULL OR upper(btrim(figi)) ~ '^[A-Z0-9]{12}$'),
+    ADD CONSTRAINT chk_assets_exchange_mic_format_v01011
+        CHECK (exchange_mic IS NULL OR upper(btrim(exchange_mic)) ~ '^[A-Z0-9]{4}$');

@@ -29,7 +29,7 @@ public interface AssetPriceHistoryRepository extends Repository<Asset, Long> {
                  aph.estimated as estimated,
                  aph.interpolation_left_date as interpolationLeftDate,
                  aph.interpolation_right_date as interpolationRightDate
-          from asset_price_history aph
+          from v_canonical_asset_daily_price aph
           join assets a on a.id = aph.asset_id
           where a.exclude_from_import = false
             and a.symbol in (:symbols)

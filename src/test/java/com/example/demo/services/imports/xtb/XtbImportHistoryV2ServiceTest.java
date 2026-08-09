@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.example.demo.infrastructure.CashOperationType;
@@ -26,6 +27,7 @@ import com.example.demo.infrastructure.repository.account.AccountRepository;
 import com.example.demo.services.AssetCatalogService;
 import com.example.demo.services.PositionSettlementModelService;
 import com.example.demo.services.imports.ImportExecutionResult;
+import com.example.demo.services.currency.CurrencyRateService;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -59,6 +61,7 @@ class XtbImportHistoryV2ServiceTest {
   @Mock private AssetPriceHistoryRepository assetPriceHistoryRepository;
   @Mock private AssetRepository assetRepository;
   @Mock private AccountRepository accountRepository;
+  @Mock private CurrencyRateService currencyRateService;
   @Captor private ArgumentCaptor<Iterable<CashOperation>> cashOperationsCaptor;
   @Captor private ArgumentCaptor<Iterable<OpenedPosition>> openedPositionsCaptor;
   @Captor private ArgumentCaptor<Iterable<ClosedPosition>> closedPositionsCaptor;
@@ -98,7 +101,8 @@ class XtbImportHistoryV2ServiceTest {
             accountRepository,
             new AssetCatalogService(assetRepository),
             new PositionSettlementModelService(),
-            new XtbPositionCurrencyResolver());
+            new XtbPositionCurrencyResolver(),
+            currencyRateService);
     org.mockito.Mockito.lenient()
         .when(accountRepository.findById(org.mockito.ArgumentMatchers.anyLong()))
         .thenAnswer(
@@ -525,7 +529,7 @@ class XtbImportHistoryV2ServiceTest {
 
     verify(cashOperationRepository).saveAll(anyList());
     verify(openedPositionRepository, atLeastOnce()).saveAll(anyList());
-    verify(assetPriceHistoryRepository)
+    verify(assetPriceHistoryRepository, never())
         .upsertObservedPrice(
             org.mockito.ArgumentMatchers.eq(78L),
             org.mockito.ArgumentMatchers.any(LocalDate.class),

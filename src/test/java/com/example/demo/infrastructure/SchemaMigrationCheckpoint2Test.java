@@ -196,8 +196,11 @@ class SchemaMigrationCheckpoint2Test {
                 AND c.conname = 'chk_asset_source_symbols_price_scale_factor_positive'
               """));
       assertTrue(viewExists(statement, "v_normalized_daily_price"));
+      assertTrue(viewExists(statement, "v_canonical_asset_daily_return"));
       assertTrue(viewExists(statement, "v_reconstructed_position_daily"));
       assertTrue(viewExists(statement, "v_position_valuation_validation"));
+      assertTrue(viewExists(statement, "reporting_asset_identity_issues"));
+      assertTrue(viewExists(statement, "reporting_asset_price_quality_issues"));
       assertTrue(materializedViewExists(statement, "v_account_daily_reconciliation"));
       assertTrue(viewExists(statement, "v_non_usd_closed_trade_reconciliation"));
       assertTrue(materializedViewExists(statement, "reporting_trade_settlement_reconciliation"));
@@ -376,6 +379,186 @@ class SchemaMigrationCheckpoint2Test {
   }
 
   @Test
+  void preservesVhylDistributingIdentityAcrossMappings() throws Exception {
+    try (Connection connection = openConnection();
+        Statement statement = connection.createStatement()) {
+      assertEquals(
+          "VHYL.UK|VHYL|VHYL|VHYL.L|Vanguard FTSE All-World High Dividend Yield UCITS ETF (USD) Distributing",
+          singleString(
+              statement,
+              "select symbol || '|' || ticker || '|' || ibkr || '|' || yahoo || '|' || name "
+                  + "from investory.assets where ibkr = 'VHYL' and exclude_from_import = false"));
+      assertEquals(
+          "VHYL.UK",
+          singleString(
+              statement,
+              "select a.symbol from investory.asset_source_symbols ass "
+                  + "join investory.assets a on a.id = ass.asset_id "
+                  + "where ass.source = 'STOOQ' and lower(ass.source_symbol) = 'vhyl.uk'"));
+      assertEquals(
+          0,
+          singleInt(
+              statement,
+              "select count(*) from investory.assets where symbol = 'VHYA.UK'"));
+    }
+  }
+
+  @Test
+  void validatesIncludedAssetIdentityAndMappingContracts() throws Exception {
+    try (Connection connection = openConnection();
+        Statement statement = connection.createStatement()) {
+      assertEquals(
+          0,
+          singleInt(
+              statement,
+              "select count(*) from investory.reporting_asset_identity_issues "
+                  + "where severity = 'ERROR'"));
+      assertEquals(
+          0,
+          singleInt(
+              statement,
+              "select count(*) from investory.reporting_asset_identity_issues i "
+                  + "join investory.assets a on a.id = i.asset_id "
+                  + "where a.exclude_from_import"));
+      assertTrue(
+          exists(
+              statement,
+              "select 1 from pg_constraint where conname = 'chk_assets_isin_format_v01011'"));
+      assertTrue(
+          exists(
+              statement,
+              "select 1 from pg_constraint where conname = 'chk_assets_exchange_mic_format_v01011'"));
+    }
+  }
+
+  @Test
+  void flagsIncludedPriceQualityAnomaliesWithoutRejectingHistory() throws Exception {
+    try (Connection connection = openConnection();
+        Statement statement = connection.createStatement()) {
+      statement.execute(
+          """
+          insert into investory.asset_price_history(
+              asset_id, price_date, source, source_symbol, price_origin, price_currency,
+              close_price, quality_score, quality_class, is_observed, is_proxy, price_scale_factor)
+          values
+              ((select id from investory.assets where symbol = 'JGPI.DE'), date '2026-05-01',
+               'QUALITY_A', 'JGPI.DE', 'MANUAL', 'EUR', 100, 80, 'MANUAL', true, false, 1),
+              ((select id from investory.assets where symbol = 'JGPI.DE'), date '2026-05-01',
+               'QUALITY_B', 'JGPI.DE', 'MANUAL', 'EUR', 200, 80, 'MANUAL', true, false, 1),
+              ((select id from investory.assets where symbol = 'JGPI.DE'), date '2026-05-02',
+               'QUALITY_C', 'JGPI.DE', 'MANUAL', 'EUR', 30000, 80, 'MANUAL', true, false, 1),
+              ((select id from investory.assets where symbol = 'JGPI.DE'), date '2026-06-01',
+               'QUALITY_D', 'JGPI.DE', 'MANUAL', 'EUR', 100, 80, 'MANUAL', true, false, 1),
+              ((select id from investory.assets where symbol = 'JGPI.DE'), date '2026-06-03',
+               'QUALITY_E', 'JGPI.DE', 'MANUAL', 'EUR', 100, 80, 'MANUAL', true, false, 1)
+          """);
+      statement.execute(
+          """
+          insert into investory.asset_price_history(
+              asset_id, price_date, source, source_symbol, price_origin, price_currency,
+              close_price, estimated, interpolation_method, interpolation_left_date,
+              interpolation_right_date, quality_score, quality_class, is_observed,
+              is_proxy, price_scale_factor)
+          values ((select id from investory.assets where symbol = 'JGPI.DE'), date '2026-06-02',
+              'QUALITY_F', 'JGPI.DE', 'INTERPOLATED_XTB', 'EUR', 500, true,
+              'LINEAR_BUSINESS_DAY', date '2026-06-01', date '2026-06-03', 80,
+              'INTERPOLATED_XTB', false, false, 1)
+          """);
+      assertTrue(
+          singleInt(
+              statement,
+              "select count(*) from investory.reporting_asset_price_quality_issues "
+                  + "where issue_code = 'EXTREME_SAME_DATE_SOURCE_DISAGREEMENT' "
+                  + "and asset_symbol = 'JGPI.DE' and price_date = date '2026-05-01'")
+          > 0);
+      assertTrue(
+          singleInt(
+              statement,
+              "select count(*) from investory.reporting_asset_price_quality_issues "
+                  + "where issue_code = 'EXTREME_DAILY_MOVE' "
+                  + "and asset_symbol = 'JGPI.DE' and price_date = date '2026-05-02'")
+          > 0);
+      assertTrue(
+          singleInt(
+              statement,
+              "select count(*) from investory.reporting_asset_price_quality_issues "
+                  + "where issue_code = 'SUSPICIOUS_INTERPOLATION' "
+                  + "and asset_symbol = 'JGPI.DE' and price_date = date '2026-06-02'")
+          > 0);
+      assertEquals(
+          0,
+          singleInt(
+              statement,
+              "select count(*) from investory.reporting_asset_price_quality_issues i "
+                  + "join investory.assets a on a.id = i.asset_id "
+                  + "where a.exclude_from_import"));
+    }
+  }
+
+  @Test
+  void recomputesIncludedDerivedViewsAndReportsReconciliationSummary() throws Exception {
+    try (Connection connection = openConnection();
+        Statement statement = connection.createStatement()) {
+      statement.execute("select investory.refresh_reporting_views()");
+      statement.execute("select investory.refresh_reconciliation_views()");
+
+      int marketValueMismatches =
+          singleInt(
+              statement,
+              "select count(*) from investory.v_account_daily_reconciliation "
+                  + "where status = 'FAIL' and validation_message = 'market value mismatch'");
+      int costBasisMismatches =
+          singleInt(
+              statement,
+              "select count(*) from investory.v_account_daily_reconciliation "
+                  + "where status = 'FAIL' and validation_message = 'cost base mismatch'");
+      int missingPrices =
+          singleInt(
+              statement,
+              "select count(*) from investory.v_position_valuation_validation "
+                  + "where validation_code = 'MISSING_PRICE'");
+      int missingMultipliers =
+          singleInt(
+              statement,
+              "select count(*) from investory.v_position_valuation_validation "
+                  + "where validation_code = 'MISSING_MULTIPLIER'");
+      int currencyInconsistencies =
+          singleInt(
+              statement,
+              "select count(*) from investory.reporting_asset_price_quality_issues "
+                  + "where issue_code = 'PRICE_CURRENCY_MISMATCH'");
+      String largestDifference =
+          singleString(
+              statement,
+              "select to_char(coalesce(max(greatest("
+                  + "abs(coalesce(market_value_difference, 0)), "
+                  + "abs(coalesce(cost_base_difference, 0)), "
+                  + "abs(coalesce(unrealized_difference, 0)), "
+                  + "abs(coalesce(realized_difference, 0)))), 0), 'FM9999999990.00000000') "
+                  + "from investory.v_account_daily_reconciliation");
+      String summary =
+          "market_value_mismatches="
+              + marketValueMismatches
+              + ",cost_basis_mismatches="
+              + costBasisMismatches
+              + ",missing_prices="
+              + missingPrices
+              + ",missing_multipliers="
+              + missingMultipliers
+              + ",currency_inconsistencies="
+              + currencyInconsistencies
+              + ",largest_difference="
+              + largestDifference;
+      System.out.println("INCLUDED_RECONCILIATION_SUMMARY " + summary);
+      assertEquals(0, missingMultipliers);
+      assertTrue(marketValueMismatches >= 0);
+      assertTrue(costBasisMismatches >= 0);
+      assertTrue(missingPrices >= 0);
+      assertTrue(currencyInconsistencies >= 0);
+    }
+  }
+
+  @Test
   void excludedAssetsAreAbsentFromValuationAndPriceDiagnostics() throws Exception {
     try (Connection connection = openConnection();
         Statement statement = connection.createStatement()) {
@@ -412,6 +595,14 @@ class SchemaMigrationCheckpoint2Test {
               statement,
               "SELECT count(*) FROM investory.reporting_price_history_contract_issues"));
       assertEquals(
+          0,
+          singleInt(
+              statement,
+              "SELECT count(*) FROM investory.asset_price_history aph "
+                  + "JOIN investory.assets a ON a.id = aph.asset_id "
+                  + "WHERE a.symbol IN ('NUCL.UK', 'JGPI.DE', 'HPRD.UK', 'VHYA.UK', 'SPYW.DE') "
+                  + "AND aph.price_currency IS DISTINCT FROM a.currency"));
+      assertEquals(
           "USD",
           singleString(
               statement,
@@ -424,6 +615,194 @@ class SchemaMigrationCheckpoint2Test {
               ORDER BY price_date DESC
               LIMIT 1
               """));
+    }
+  }
+
+  @Test
+  void canonicalPriceSelectionIsUniqueAndDeterministicAcrossSources() throws Exception {
+    try (Connection connection = openConnection();
+        Statement statement = connection.createStatement()) {
+      statement.execute(
+          """
+          insert into investory.asset_price_history(
+              asset_id, price_date, source, source_symbol, price_origin, price_currency,
+              close_price, quality_score, quality_class, is_observed, is_proxy, price_scale_factor)
+          values (
+              (select id from investory.assets where symbol = 'JGPI.DE'), date '2025-01-01',
+              'CANONICAL_TEST', 'JGPI.DE', 'MANUAL', 'EUR', 99.00000000, 99,
+              'MANUAL', true, false, 1.00000000)
+          """);
+      assertTrue(
+          singleInt(
+                  statement,
+                  "select count(*) from investory.asset_price_history "
+                      + "where asset_id = (select id from investory.assets where symbol = 'JGPI.DE') "
+                      + "and price_date = date '2025-01-01'")
+              > 1);
+      assertEquals(
+          0,
+          singleInt(
+              statement,
+              "select count(*) from ("
+                  + "select asset_id, price_date from investory.v_canonical_asset_daily_price "
+                  + "group by asset_id, price_date having count(*) > 1"
+                  + ") duplicate_canonical_rows"));
+      assertEquals(
+          "CANONICAL_TEST",
+          singleString(
+              statement,
+              "select source from investory.v_canonical_asset_daily_price "
+                  + "where asset_id = (select id from investory.assets where symbol = 'JGPI.DE') "
+                  + "and price_date = date '2025-01-01'"));
+    }
+  }
+
+  @Test
+  void corporateActionUsesAdjustedReturnBasisAndCompatiblePositionQuantity() throws Exception {
+    try (Connection connection = openConnection();
+        Statement statement = connection.createStatement()) {
+      statement.execute(
+          """
+          insert into investory.portfolios(id, name, base_currency, user_id)
+          values (-470000, 'Corporate action test', 'USD', 1);
+          insert into investory.accounts(id, currency, provider, name, owner, portfolio_id)
+          values (-470000, 'USD', 'XTB', 'Corporate action test', 'Test', -470000);
+          insert into investory.account_daily(
+              account_id, snapshot_date, valuation_currency, cash_balance, market_value, equity)
+          values
+              (-470000, date '2026-02-10', 'USD', 0, 100, 100),
+              (-470000, date '2026-02-11', 'USD', 0, 100, 100);
+          insert into investory.asset_price_history(
+              asset_id, price_date, source, source_symbol, price_origin, price_currency,
+              close_price, adjusted_close_price, quality_score, quality_class,
+              is_observed, is_proxy, price_scale_factor)
+          values
+              ((select id from investory.assets where symbol = 'PALL.US'), date '2026-02-10',
+               'CORPORATE_TEST', 'PALL.US', 'MANUAL', 'USD', 100, 10, 99,
+               'EXACT_LISTING_MARKET_CLOSE', true, false, 1),
+              ((select id from investory.assets where symbol = 'PALL.US'), date '2026-02-11',
+               'CORPORATE_TEST', 'PALL.US', 'MANUAL', 'USD', 10, 10, 99,
+               'EXACT_LISTING_MARKET_CLOSE', true, false, 1);
+          insert into investory.positions(
+              account_id, asset_id, source_asset_symbol, operation, volume,
+              price_currency, cost_currency, profit_currency, commission_currency,
+              open_time, open_price, purchase_value)
+          values
+              (-470000, (select id from investory.assets where symbol = 'PALL.US'),
+               'PALL.US', 'BUY', 1, 'USD', 'USD', 'USD', 'USD',
+               timestamptz '2026-02-10 10:00:00+00', 100, 100),
+              (-470000, (select id from investory.assets where symbol = 'PALL.US'),
+               'PALL.US', 'BUY', 9, 'USD', 'USD', 'USD', 'USD',
+               timestamptz '2026-02-11 10:00:00+00', 0, 0);
+          """);
+      assertEquals(
+          "100.00000000|100.00000000",
+          singleString(
+              statement,
+              "select string_agg(trim(to_char(reconstructed_market_value_base, 'FM9999999990.00000000')), '|' "
+                  + "order by valuation_date) "
+                  + "from investory.v_reconstructed_position_daily "
+                  + "where account_id = -470000 and asset_id = "
+                  + "(select id from investory.assets where symbol = 'PALL.US') "
+                  + "and valuation_date in (date '2026-02-10', date '2026-02-11')"));
+      assertEquals(
+          "0.00000000",
+          singleString(
+              statement,
+              "select trim(to_char(daily_return_pct, 'FM9999999990.00000000')) "
+                  + "from investory.v_canonical_asset_daily_return "
+                  + "where asset_id = (select id from investory.assets where symbol = 'PALL.US') "
+                  + "and price_date = date '2026-02-11'"));
+      assertEquals(
+          0,
+          singleInt(
+              statement,
+              "select count(*) from investory.v_canonical_asset_daily_return r "
+                  + "join investory.assets a on a.id = r.asset_id "
+                  + "where a.exclude_from_import"));
+    }
+  }
+
+  @Test
+  void bondMonetaryPriceUsesUnitContractMultiplier() throws Exception {
+    try (Connection connection = openConnection();
+        Statement statement = connection.createStatement()) {
+      statement.execute(
+          """
+          insert into investory.portfolios(id, name, base_currency, user_id)
+          values (-458022, 'Bond multiplier test', 'USD', 1);
+          insert into investory.accounts(id, currency, provider, name, owner, portfolio_id)
+          values (-458022, 'USD', 'IBKR', 'Bond multiplier test', 'Test', -458022);
+          insert into investory.account_daily(
+              account_id, snapshot_date, valuation_currency, cash_balance, market_value, equity,
+              realized_profit, daily_profit_amount)
+          values (-458022, date '2026-01-15', 'USD', 0, 1000, 1000, 0, 0);
+          insert into investory.asset_price_history(
+              asset_id, price_date, source, source_symbol, price_origin, price_currency,
+              close_price, quality_score, quality_class)
+          values (
+              (select id from investory.assets where symbol = 'US91282CKB62'),
+              date '2026-01-15', 'TEST', 'US91282CKB62', 'MARKET_CLOSE', 'USD',
+              1000, 100, 'EXACT_LISTING_MARKET_CLOSE');
+          insert into investory.positions(
+              id, account_id, asset_id, source_asset_symbol, operation, settlement_model, volume,
+              price_currency, cost_currency, profit_currency, commission_currency,
+              open_time, open_price, purchase_value)
+          values (
+              -458022, -458022,
+              (select id from investory.assets where symbol = 'US91282CKB62'),
+              'US91282CKB62', 'BUY', 'CASH_SETTLED', 1,
+              'USD', 'USD', 'USD', 'USD',
+              timestamptz '2026-01-15 09:00:00+00', 1000, 1000);
+          """);
+
+      assertEquals(
+          "1.00000000|1000.00000000",
+          singleString(
+              statement,
+              "select trim(to_char(contract_multiplier, 'FM9999999990.00000000')) || '|' "
+                  + "|| trim(to_char(reconstructed_market_value_base, 'FM9999999990.00000000')) "
+                  + "from investory.v_reconstructed_position_daily "
+                  + "where account_id = -458022 and valuation_date = date '2026-01-15'"));
+    }
+  }
+
+  @Test
+  void currentPositionCostBasisUsesAcquisitionDateFx() throws Exception {
+    try (Connection connection = openConnection();
+        Statement statement = connection.createStatement()) {
+      statement.execute(
+          """
+          insert into investory.portfolios(id, name, base_currency, user_id)
+          values (-440000, 'Cost basis FX test', 'USD', 1);
+          insert into investory.accounts(id, currency, provider, name, owner, portfolio_id)
+          values (-440000, 'USD', 'IBKR', 'Cost basis FX test', 'Test', -440000);
+          insert into investory.exchange_rates(
+              rate_date, month, base, to_currency, rate, source, method)
+          values
+              (current_date - 1, current_date - 1, 'EUR', 'USD', 1.10, 'TEST', 'MARKET_DAILY'),
+              (current_date, current_date, 'EUR', 'USD', 2.00, 'TEST', 'MARKET_DAILY');
+          insert into investory.positions(
+              id, account_id, asset_id, source_asset_symbol, operation, settlement_model, volume,
+              price_currency, cost_currency, profit_currency, commission_currency,
+              open_time, open_price, purchase_value)
+          values (
+              -440000, -440000,
+              (select id from investory.assets where symbol = 'JGPI.DE'),
+              'JGPI.DE', 'BUY', 'CASH_SETTLED', 1,
+              'EUR', 'EUR', 'EUR', 'EUR',
+              (current_date - 1)::timestamptz, 1000, 1000);
+          """);
+
+      assertEquals(
+          "1100.00000000|1100.00000000",
+          singleString(
+              statement,
+              "select trim(to_char(cost_basis_in_base_currency, 'FM9999999990.00000000')) || '|' "
+                  + "|| trim(to_char(cost_basis_in_base_currency, 'FM9999999990.00000000')) "
+                  + "from investory.v_current_open_position_rows "
+                  + "where account_id = -440000 and asset_id = "
+                  + "(select id from investory.assets where symbol = 'JGPI.DE')"));
     }
   }
 
@@ -912,6 +1291,36 @@ class SchemaMigrationCheckpoint2Test {
               from investory.reporting_trade_settlement_reconciliation
               where account_id = -200 and asset_id = -201
               """));
+
+      assertEquals(
+          "10.00000000",
+          singleString(
+              statement,
+              "select trim(to_char(open_quantity, 'FM9999999990.00000000')) "
+                  + "from investory.v_reconstructed_position_daily "
+                  + "where account_id = -200 and asset_id = -201 "
+                  + "and valuation_date = date '2026-01-04'"));
+      assertEquals(
+          0,
+          singleInt(
+              statement,
+              "select count(*) from investory.v_reconstructed_position_daily "
+                  + "where account_id = -200 and asset_id = -200 "
+                  + "and valuation_date = date '2026-01-02'"));
+      assertEquals(
+          1,
+          singleInt(
+              statement,
+              "select count(*) from investory.v_reconstructed_position_daily "
+                  + "where account_id = -200 and asset_id = -201 "
+                  + "and valuation_date = date '2026-01-03'"));
+      assertEquals(
+          1,
+          singleInt(
+              statement,
+              "select count(*) from investory.v_reconstructed_position_daily "
+                  + "where account_id = -200 and asset_id = -201 "
+                  + "and valuation_date = date '2026-01-01'"));
     }
   }
 

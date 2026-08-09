@@ -365,7 +365,7 @@ VALUES
     ('Global X Uranium ETF', 'URA.US', 'URA', 'URA', 'URA.US', 'US', 'USD', 'ETF', false),
     ('Visa Inc. Class A', 'V.US', 'V', 'V', 'V.US', 'US', 'USD', 'EQUITY', false),
     ('Vanguard FTSE All-World High Dividend Yield UCITS ETF (USD) Distributing', 'VGWD.DE', 'VGWD', 'VGWD', 'VGWD.DE', 'DE', 'EUR', 'ETF', false),
-    ('Vanguard FTSE All-World High Dividend Yield UCITS ETF', 'VHYA.UK', 'VHYA', 'VHYL', 'VHYA.L', 'UK', 'USD', 'ETF', false),
+    ('Vanguard FTSE All-World High Dividend Yield UCITS ETF (USD) Distributing', 'VHYL.UK', 'VHYL', 'VHYL', 'VHYL.L', 'UK', 'USD', 'ETF', false),
     ('Vanguard Funds Public Limited Company - Vanguard FTSE All-World High Dividend Yield UCITS ETF', 'VHYD.UK', 'VHYD', 'VHYD', 'VHYD.L', 'UK', 'USD', 'ETF', true),
     ('Vici Properties Inc.', 'VICI.US', 'VICI', 'VICI', 'VICI.US', 'US', 'USD', 'EQUITY', true),
     ('VIX', 'VIX', 'VIX', 'VIX', 'VIX', 'US', 'USD', 'INDEX', false),

@@ -353,6 +353,9 @@ SELECT DISTINCT ON (aph.asset_id, aph.price_date)
     aph.price_origin,
     aph.price_currency,
     aph.source_mapping_id,
+    aph.interpolation_method,
+    aph.interpolation_left_date,
+    aph.interpolation_right_date,
     aph.open_price,
     aph.high_price,
     aph.low_price,
@@ -365,6 +368,8 @@ SELECT DISTINCT ON (aph.asset_id, aph.price_date)
     aph.is_observed,
     aph.is_proxy,
     aph.price_scale_factor,
+    aph.scale_reason,
+    aph.original_source_symbol,
     aph.source_date,
     aph.imported_at
 FROM investory.asset_price_history aph
@@ -384,6 +389,39 @@ ORDER BY
     END,
     aph.imported_at DESC,
     aph.source;
+
+CREATE OR REPLACE VIEW investory.v_canonical_asset_daily_return AS
+WITH canonical_prices AS (
+    SELECT
+        cp.asset_id,
+        cp.price_date,
+        COALESCE(cp.adjusted_close_price, cp.close_price)
+            * COALESCE(cp.price_scale_factor, 1) AS return_price
+    FROM investory.v_canonical_asset_daily_price cp
+    WHERE COALESCE(cp.adjusted_close_price, cp.close_price) > 0
+), with_previous AS (
+    SELECT
+        asset_id,
+        price_date,
+        return_price,
+        LAG(return_price) OVER (
+            PARTITION BY asset_id ORDER BY price_date
+        ) AS previous_return_price
+    FROM canonical_prices
+)
+SELECT
+    asset_id,
+    price_date,
+    return_price,
+    CASE
+        WHEN previous_return_price > 0
+            THEN return_price / previous_return_price - 1
+        ELSE NULL::numeric
+    END AS daily_return_pct
+FROM with_previous;
+
+COMMENT ON VIEW investory.v_canonical_asset_daily_return IS
+    'Canonical return basis: provider adjusted_close_price when present, otherwise close_price, with the source price_scale_factor applied once. Position valuation uses raw close_price and broker-reported quantity; corporate-action quantity changes must be represented by the position source.';
 
 CREATE OR REPLACE VIEW investory.v_current_asset_price AS
 WITH latest_observed_price AS (
@@ -492,7 +530,7 @@ JOIN investory.assets asset
 LEFT JOIN investory.v_current_asset_price price
     ON price.asset_id = asset.id
 LEFT JOIN LATERAL investory.resolve_fx_rate(
-    CURRENT_DATE,
+    COALESCE(p.open_time::date, CURRENT_DATE),
     p.cost_currency::varchar(3),
     pf.base_currency::varchar(3)
 ) cost_fx ON true
@@ -2545,7 +2583,7 @@ price_candidates AS (
             ELSE 9
         END AS selection_priority
     FROM position_dates pd
-    JOIN investory.asset_price_history aph
+    JOIN investory.v_canonical_asset_daily_price aph
         ON aph.asset_id = pd.asset_id
        AND aph.price_date <= pd.valuation_date
        AND (
@@ -2702,7 +2740,7 @@ priced AS (
         CASE
             WHEN ndp.quality_class LIKE '%PERCENT_OF_PAR%' THEN 0.01::numeric
             WHEN apd.asset_type IN ('EQUITY', 'ETF', 'INDEX', 'CRYPTOCURRENCY', 'COMMODITY') THEN 1::numeric
-            WHEN apd.asset_type = 'BOND' THEN NULL::numeric
+            WHEN apd.asset_type = 'BOND' THEN 1::numeric
             ELSE 1::numeric
         END AS contract_multiplier
     FROM active_position_dates apd
@@ -3616,7 +3654,7 @@ WITH closed_lots AS (
     ) previous_quantity ON true
     LEFT JOIN LATERAL (
         SELECT aph.close_price, aph.price_scale_factor, aph.price_currency, aph.quality_class
-        FROM investory.asset_price_history aph
+        FROM investory.v_canonical_asset_daily_price aph
         WHERE aph.asset_id = target.asset_id
           AND aph.price_date <= pd.previous_valuation_date
         ORDER BY
@@ -3655,7 +3693,7 @@ WITH closed_lots AS (
     ) current_quantity ON true
     LEFT JOIN LATERAL (
         SELECT aph.close_price, aph.price_scale_factor, aph.price_currency, aph.quality_class
-        FROM investory.asset_price_history aph
+        FROM investory.v_canonical_asset_daily_price aph
         WHERE aph.asset_id = target.asset_id
           AND aph.price_date <= target.valuation_date
         ORDER BY
@@ -5276,3 +5314,162 @@ LEFT JOIN flows f
 
 COMMENT ON VIEW investory.reporting_account_daily_performance_flow IS
     'Explains account_daily performance using separate account funding, performance, and portfolio flow semantics. Performance flow excludes INTERNAL_BOOKKEEPING, FX_CONVERSION, and ambiguous CORRECTION rows.';
+
+CREATE OR REPLACE VIEW investory.reporting_asset_identity_issues AS
+SELECT
+    'SOURCE_MAPPING_CURRENCY_MISMATCH'::varchar(64) AS issue_code,
+    'ERROR'::varchar(16) AS severity,
+    a.id AS asset_id,
+    a.symbol AS asset_symbol,
+    ass.source,
+    ass.source_symbol,
+    ('mapping currency ' || ass.price_currency || ' differs from asset currency ' || a.currency)::text AS details
+FROM investory.asset_source_symbols ass
+JOIN investory.assets a ON a.id = ass.asset_id
+WHERE a.exclude_from_import = false
+  AND ass.active
+  AND ass.price_currency IS DISTINCT FROM a.currency
+  AND ass.requires_fx_conversion = false
+UNION ALL
+SELECT
+    'ALTERNATE_LISTING_NOT_MARKED',
+    'WARN',
+    a.id,
+    a.symbol,
+    ass.source,
+    ass.source_symbol,
+    ('mapping market ' || COALESCE(ass.matched_exchange, ass.source_market)
+        || ' differs from asset country ' || a.country)::text
+FROM investory.asset_source_symbols ass
+JOIN investory.assets a ON a.id = ass.asset_id
+WHERE a.exclude_from_import = false
+  AND ass.active
+  AND COALESCE(ass.matched_exchange, ass.source_market) IS NOT NULL
+  AND upper(COALESCE(ass.matched_exchange, ass.source_market)) <> upper(a.country)
+  AND ass.is_alternate_listing = false
+UNION ALL
+SELECT
+    'TICKER_COLLISION_WITHOUT_STABLE_IDENTIFIER',
+    'WARN',
+    a.id,
+    a.symbol,
+    NULL::varchar(32),
+    NULL::varchar(64),
+    ('ticker ' || a.ticker || ' is shared by multiple included assets without ISIN/FIGI')::text
+FROM investory.assets a
+WHERE a.exclude_from_import = false
+  AND a.isin IS NULL
+  AND a.figi IS NULL
+  AND EXISTS (
+      SELECT 1
+      FROM investory.assets other
+      WHERE other.exclude_from_import = false
+        AND other.id <> a.id
+        AND upper(other.ticker) = upper(a.ticker)
+        AND other.currency IS DISTINCT FROM a.currency
+  );
+
+COMMENT ON VIEW investory.reporting_asset_identity_issues IS
+    'Included-asset identity diagnostics. ISIN/FIGI are optional, but supplied identifiers are format-checked; mapping currency and suspicious multi-listing/share-class collisions require review.';
+
+INSERT INTO investory.reconciliation_parameters(parameter_name, numeric_value, description)
+VALUES
+    ('reconciliation_source_disagreement_ratio', 1.25, 'Price-source disagreement ratio that requires review.'),
+    ('reconciliation_interpolation_deviation_ratio', 0.25, 'Interpolation deviation ratio that requires review.')
+ON CONFLICT (parameter_name) DO NOTHING;
+
+CREATE OR REPLACE VIEW investory.reporting_asset_price_quality_issues AS
+WITH included_history AS (
+    SELECT aph.asset_id, a.symbol AS asset_symbol, aph.price_date, aph.source,
+           aph.source_symbol, aph.price_currency,
+           aph.close_price * aph.price_scale_factor AS normalized_price,
+           aph.estimated, aph.interpolation_left_date, aph.interpolation_right_date,
+           ass.requires_fx_conversion, a.currency AS asset_currency
+    FROM investory.asset_price_history aph
+    JOIN investory.assets a ON a.id = aph.asset_id
+    LEFT JOIN investory.asset_source_symbols ass ON ass.id = aph.source_mapping_id
+    WHERE a.exclude_from_import = false
+), source_disagreement AS (
+    SELECT asset_id, asset_symbol, price_date, MIN(normalized_price) AS minimum_price,
+           MAX(normalized_price) AS maximum_price, COUNT(*) AS observation_count
+    FROM included_history
+    GROUP BY asset_id, asset_symbol, price_date
+    HAVING COUNT(*) > 1 AND MIN(normalized_price) > 0
+       AND MAX(normalized_price) / MIN(normalized_price)
+           >= investory.reconciliation_parameter('reconciliation_source_disagreement_ratio')
+), canonical_prices AS (
+    SELECT cp.asset_id, cp.price_date, cp.source, cp.source_symbol,
+           cp.close_price * cp.price_scale_factor AS normalized_price,
+           LAG(cp.close_price * cp.price_scale_factor) OVER (
+               PARTITION BY cp.asset_id ORDER BY cp.price_date) AS previous_normalized_price
+    FROM investory.v_canonical_asset_daily_price cp
+), interpolation_checks AS (
+    SELECT current.asset_id, current.asset_symbol, current.price_date, current.source,
+           current.source_symbol, current.normalized_price,
+           left_price.normalized_price AS left_normalized_price,
+           right_price.normalized_price AS right_normalized_price,
+           left_price.price_date AS left_date, right_price.price_date AS right_date
+    FROM included_history current
+    LEFT JOIN LATERAL (
+        SELECT cp.price_date, cp.close_price * cp.price_scale_factor AS normalized_price
+        FROM investory.v_canonical_asset_daily_price cp
+        WHERE cp.asset_id = current.asset_id AND cp.price_date = current.interpolation_left_date
+    ) left_price ON true
+    LEFT JOIN LATERAL (
+        SELECT cp.price_date, cp.close_price * cp.price_scale_factor AS normalized_price
+        FROM investory.v_canonical_asset_daily_price cp
+        WHERE cp.asset_id = current.asset_id AND cp.price_date = current.interpolation_right_date
+    ) right_price ON true
+    WHERE current.estimated
+), interpolation_deviation AS (
+    SELECT *, left_normalized_price
+        + (right_normalized_price - left_normalized_price)
+          * (price_date - left_date)::numeric / NULLIF(right_date - left_date, 0)
+        AS expected_normalized_price
+    FROM interpolation_checks
+    WHERE left_normalized_price > 0 AND right_normalized_price > 0
+)
+SELECT 'PRICE_CURRENCY_MISMATCH'::varchar(64) AS issue_code,
+       'ERROR'::varchar(16) AS severity,
+       asset_id, asset_symbol, price_date, source, source_symbol,
+       ('price currency ' || price_currency || ' differs from asset currency ' || asset_currency)::text
+FROM included_history
+WHERE price_currency IS DISTINCT FROM asset_currency
+  AND COALESCE(requires_fx_conversion, false) = false
+UNION ALL
+SELECT 'EXTREME_SAME_DATE_SOURCE_DISAGREEMENT', 'WARN', asset_id, asset_symbol, price_date,
+       NULL, NULL, ('source prices range from ' || minimum_price || ' to ' || maximum_price
+       || ' across ' || observation_count || ' rows')::text
+FROM source_disagreement
+UNION ALL
+SELECT 'SUSPICIOUS_INTERPOLATION', 'WARN', asset_id, asset_symbol, price_date,
+       source, source_symbol,
+       ('interpolated price ' || normalized_price || ' differs from expected ' || expected_normalized_price)::text
+FROM interpolation_deviation
+WHERE ABS(normalized_price - expected_normalized_price) / NULLIF(expected_normalized_price, 0)
+      >= investory.reconciliation_parameter('reconciliation_interpolation_deviation_ratio')
+UNION ALL
+SELECT 'EXTREME_DAILY_MOVE', 'WARN', asset_id,
+       (SELECT symbol FROM investory.assets a WHERE a.id = canonical_prices.asset_id),
+       price_date, source, source_symbol,
+       ('canonical price moved from ' || previous_normalized_price || ' to ' || normalized_price)::text
+FROM canonical_prices
+WHERE previous_normalized_price > 0
+  AND (normalized_price / previous_normalized_price
+       >= investory.reconciliation_parameter('reconciliation_price_jump_upper_ratio')
+       OR normalized_price / previous_normalized_price
+       <= investory.reconciliation_parameter('reconciliation_price_jump_lower_ratio'))
+UNION ALL
+SELECT 'PRICE_SCALE_MAPPING_MISMATCH', 'ERROR', h.asset_id, h.asset_symbol, h.price_date,
+       h.source, h.source_symbol,
+       'source price scale or currency does not match its explicit mapping'::text
+FROM included_history h
+JOIN investory.asset_price_history aph
+  ON aph.asset_id = h.asset_id AND aph.price_date = h.price_date
+ AND aph.source = h.source AND aph.source_symbol = h.source_symbol
+JOIN investory.asset_source_symbols ass ON ass.id = aph.source_mapping_id
+WHERE aph.price_scale_factor IS DISTINCT FROM ass.price_scale_factor
+   OR (ass.requires_fx_conversion = false AND aph.price_currency IS DISTINCT FROM ass.price_currency);
+
+COMMENT ON VIEW investory.reporting_asset_price_quality_issues IS
+    'Non-destructive included-asset price-quality checks. Invalid price/OHLC/scale rows are rejected by table constraints; this view flags currency, source disagreement, interpolation, and extreme-move anomalies for review.';
