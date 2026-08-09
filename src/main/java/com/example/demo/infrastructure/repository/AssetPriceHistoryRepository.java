@@ -74,7 +74,10 @@ public interface AssetPriceHistoryRepository extends Repository<Asset, Long> {
               :priceValue,
               :priceDate,
               90,
-              'IBKR_TRADE_OBSERVATION',
+              CASE WHEN EXISTS (
+                  SELECT 1 FROM assets WHERE id = :assetId AND asset_type = 'BOND'
+              ) THEN 'IBKR_TRADE_OBSERVATION_PERCENT_OF_PAR'
+                   ELSE 'IBKR_TRADE_OBSERVATION' END,
               true,
               false,
               1,

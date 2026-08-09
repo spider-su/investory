@@ -83,7 +83,7 @@ class IbkrTreasuryImportIntegrationTest {
     List<Asset> treasuryAssets = assetRepository.findAllByIbrkIgnoreCase("T458022826");
     assertEquals(1, treasuryAssets.size());
     Asset treasury = treasuryAssets.getFirst();
-    assertEquals("T458022826.US", treasury.getSymbol());
+    assertEquals("US91282CKB62", treasury.getSymbol());
     assertEquals("BOND", treasury.getAssetType());
 
     ImportExecutionResult result =
@@ -117,7 +117,7 @@ class IbkrTreasuryImportIntegrationTest {
 
     List<ClosedPosition> closed = closedPositionRepository.findClosedByAssetId(treasury.getId());
     assertEquals(3, closed.size());
-    assertEquals(10.0, closed.stream().mapToDouble(ClosedPosition::getVolume).sum(), 0.000001);
+    assertEquals(10000.0, closed.stream().mapToDouble(ClosedPosition::getVolume).sum(), 0.000001);
     assertEquals(10000.0, closed.stream().mapToDouble(ClosedPosition::getSaleValue).sum(), 0.000001);
     assertEquals(0, openedPositionRepository.findOpenByAssetId(treasury.getId()).size());
   }

@@ -154,7 +154,8 @@ public class PortfolioProjectionService {
             historicalPrices,
             accountCurrencies,
             portfolioBaseCurrencies,
-            now);
+            now,
+            cashOnlyAccounts);
     replaceAccountDerivedRows(accountRows, dirtyFromByAccount);
     rebuildDerivedSummaries();
 
@@ -535,7 +536,8 @@ public class PortfolioProjectionService {
       HistoricalPriceBook historicalPrices,
       Map<Long, CurrencyType> accountCurrencies,
       Map<Long, CurrencyType> portfolioBaseCurrencies,
-      ZonedDateTime now) {
+      ZonedDateTime now,
+      Set<Long> cashOnlyAccounts) {
     Map<DayAccountKey, AccountMonthAccumulator> aggregated = new HashMap<>(accountDaily);
 
     Map<Long, DayRange> accountRanges = new HashMap<>();
@@ -553,6 +555,9 @@ public class PortfolioProjectionService {
       accountRanges.computeIfAbsent(key.accountId(), ignored -> new DayRange()).include(key.date());
     }
     LocalDate currentDate = now.toLocalDate();
+    for (Long accountId : cashOnlyAccounts) {
+      accountRanges.computeIfAbsent(accountId, ignored -> new DayRange()).include(currentDate);
+    }
     for (Long accountId : accountsWithOpenShares(byTicker)) {
       accountRanges.computeIfAbsent(accountId, ignored -> new DayRange()).include(currentDate);
     }
@@ -1293,6 +1298,8 @@ public class PortfolioProjectionService {
         case INTERNAL_BOOKKEEPING:
         case FX_CONVERSION:
           cashAdjustments += amountBase;
+          break;
+        case BOND_REDEMPTION:
           break;
         case DIVIDEND:
         case DIVIDEND_REVERSAL:

@@ -45,9 +45,6 @@ public class IbkrImportService {
 
   private static final java.time.ZoneId ZONE = ReportingDateHelper.REPORTING_ZONE;
   private static final String SECTION = "Transaction History";
-  private static final double IBKR_BOND_FACE_VALUE_UNIT = 1000.0;
-  private static final Pattern COMPACT_BOND_SYMBOL_PATTERN =
-      Pattern.compile("^T\\d{6,}(?:\\.[A-Z]{2})?$");
   private static final Pattern IBKR_FILENAME_ACCOUNT_PATTERN =
       Pattern.compile("(?i)\\bU?(\\d{6,})\\.(?:TRANSACTIONS|ACTIVITY)");
   private static final Pattern INTERNAL_TRANSFER_PATTERN =
@@ -114,19 +111,9 @@ public class IbkrImportService {
         Double grossAmount =
             parseNumber(value(r, col, "Gross Amount", "Gross Amount ", "Gross Cash", "Proceeds"));
         Double commission = parseNumber(value(r, col, "Commission", "Comm/Fee", "Commission/Fee"));
-        Double quantity =
-            normalizeTradeQuantity(
-                rawSymbol,
-                symbol,
-                description,
-                parseNumber(value(r, col, "Quantity", "Qty", "Shares")));
+        Double quantity = parseNumber(value(r, col, "Quantity", "Qty", "Shares"));
         Double price =
-            normalizeTradePrice(
-                rawSymbol,
-                symbol,
-                description,
-                parseNumber(
-                    value(r, col, "Price", "T. Price", "Trade Price", "Transaction Price")));
+            parseNumber(value(r, col, "Price", "T. Price", "Trade Price", "Transaction Price"));
         CurrencyType currency = resolveMonetaryCurrency(r, col, baseCurrency);
 
         if (net == null) {
@@ -517,52 +504,6 @@ public class IbkrImportService {
         || type == CashOperationType.FREE_FUNDS_INTEREST;
   }
 
-  private Double normalizeTradeQuantity(
-      String rawSymbol, String canonicalSymbol, String description, Double quantity) {
-    if (quantity == null) {
-      return quantity;
-    }
-    return isBondTrade(rawSymbol, canonicalSymbol, description)
-        ? quantity / IBKR_BOND_FACE_VALUE_UNIT
-        : quantity;
-  }
-
-  private Double normalizeTradePrice(
-      String rawSymbol, String canonicalSymbol, String description, Double price) {
-    if (price == null) {
-      return price;
-    }
-    /*
-     * IBKR bond trades come as percent-of-par quotes.
-     * Example: 100.426116 means 100.426116% of 1,000 face value = 1,004.26116 per bond.
-     *
-     * Quantity is normalized above from face-value units into bond units:
-     *   10,000 face value -> 10 bonds
-     *
-     * So trade price must become unit price per normalized bond, not fractional percent.
-     */
-    return isBondTrade(rawSymbol, canonicalSymbol, description)
-        ? price * (IBKR_BOND_FACE_VALUE_UNIT / 100.0)
-        : price;
-  }
-
-  private boolean isBondTrade(String rawSymbol, String canonicalSymbol, String description) {
-    if (isKnownBondAsset(canonicalSymbol)) {
-      return true;
-    }
-    String canonical =
-        canonicalSymbol == null ? "" : canonicalSymbol.trim().toUpperCase(Locale.ROOT);
-    return COMPACT_BOND_SYMBOL_PATTERN.matcher(canonical).matches();
-  }
-
-  private boolean isKnownBondAsset(String symbol) {
-    if (!StringUtils.hasText(symbol)) {
-      return false;
-    }
-    return assetRepository.findAllBySymbolIn(List.of(symbol)).stream()
-        .anyMatch(asset -> "BOND".equalsIgnoreCase(asset.getAssetType()));
-  }
-
   private Account requireIbkrAccount(Long accountId) {
     Account account =
         accountRepository
@@ -651,7 +592,16 @@ public class IbkrImportService {
     if (!StringUtils.hasText(raw)) {
       throw new IllegalArgumentException("Missing date");
     }
-    return LocalDate.parse(raw.trim().substring(0, 10)).atStartOfDay(ZONE);
+    String value = raw.trim();
+    try {
+      return ZonedDateTime.parse(value).withZoneSameInstant(ZONE);
+    } catch (java.time.format.DateTimeParseException ignored) {
+      try {
+        return java.time.OffsetDateTime.parse(value).atZoneSameInstant(ZONE);
+      } catch (java.time.format.DateTimeParseException ignoredOffset) {
+        return LocalDate.parse(value.substring(0, 10)).atStartOfDay(ZONE);
+      }
+    }
   }
 
   private String isoDate(ZonedDateTime date) {

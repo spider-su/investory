@@ -258,8 +258,8 @@ class ValuationInputContractTest {
                     + "FROM investory.assets WHERE ibkr = 'T458022826'")) {
       try (ResultSet result = statement.executeQuery()) {
         assertTrue(result.next());
-        assertEquals("T458022826.US", result.getString("symbol"));
-        assertEquals("T458022826", result.getString("ticker"));
+        assertEquals("US91282CKB62", result.getString("symbol"));
+        assertEquals("US91282CKB62", result.getString("ticker"));
         assertEquals("T458022826", result.getString("ibkr"));
         assertEquals("US91282CKB62", result.getString("isin"));
         assertEquals("BOND", result.getString("asset_type"));

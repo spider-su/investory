@@ -37,6 +37,10 @@ import org.springframework.util.StringUtils;
 public class IbkrPositionReconstructionService {
 
   private static final double EPSILON = 0.000001d;
+  private static final java.util.regex.Pattern COMPACT_BOND_SYMBOL_PATTERN =
+      java.util.regex.Pattern.compile("^T\\d{6,}(?:\\.[A-Z]{2})?$");
+  private static final java.util.regex.Pattern ISIN_PATTERN =
+      java.util.regex.Pattern.compile("^[A-Z]{2}[A-Z0-9]{9}[0-9]$");
 
   private final CashOperationRepository cashOperationRepository;
   private final OpenedPositionRepository openedPositionRepository;
@@ -370,14 +374,14 @@ public class IbkrPositionReconstructionService {
     Double redemptionPrice = parseBondCallPrice(tx.description());
     if (redemptionPrice != null && redemptionPrice > 0.0) {
       double quantity = Math.abs(tx.operation().getAmount()) / redemptionPrice;
-      return isKnownBondAsset(tx.symbol()) ? quantity / 1000.0 : quantity;
+      return quantity;
     }
     if (position.quantity <= EPSILON || position.costBasis <= EPSILON) {
       return 0.0;
     }
     double averageCost = position.costBasis / position.quantity;
     double quantity = averageCost <= EPSILON ? 0.0 : Math.abs(tx.operation().getAmount()) / averageCost;
-    return isKnownBondAsset(tx.symbol()) ? quantity / 1000.0 : quantity;
+    return quantity;
   }
 
   private double grossTradeValue(CanonicalTrade tx) {
@@ -389,9 +393,12 @@ public class IbkrPositionReconstructionService {
   }
 
   private boolean isKnownBondAsset(String symbol) {
-    return StringUtils.hasText(symbol)
-        && symbol.toUpperCase(Locale.ROOT).startsWith("T")
-        && symbol.matches("T\\d{6,}(?:\\.[A-Z]{2})?");
+    if (!StringUtils.hasText(symbol)) {
+      return false;
+    }
+    String normalized = symbol.trim().toUpperCase(Locale.ROOT);
+    return COMPACT_BOND_SYMBOL_PATTERN.matcher(normalized).matches()
+        || ISIN_PATTERN.matcher(normalized).matches();
   }
 
   private Double parseBondCallPrice(String description) {

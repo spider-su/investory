@@ -513,6 +513,11 @@ class PortfolioProjectionServiceTest {
             .filter(row -> row.getDate().equals(tradeDate.plusDays(1).toLocalDate()))
             .findFirst()
             .orElseThrow();
+    AccountDaily currentDay =
+        toList(dailyCaptor.getValue()).stream()
+            .filter(row -> row.getDate().equals(ReportingDateHelper.today()))
+            .findFirst()
+            .orElseThrow();
 
     assertEquals(0.0, tradeDay.getMarketValue(), 0.01);
     assertEquals(1000.0, tradeDay.getWithdrawals(), 0.01);
@@ -520,6 +525,9 @@ class PortfolioProjectionServiceTest {
     assertEquals(0.0, saleDay.getMarketValue(), 0.01);
     assertEquals(1100.0, saleDay.getDeposits(), 0.01);
     assertEquals(0.0, saleDay.getDailyProfitAmount(), 0.01);
+    assertEquals(1100.0, currentDay.getCashBalance(), 0.01);
+    assertEquals(1100.0, currentDay.getEquity(), 0.01);
+    assertEquals(0.0, currentDay.getDailyProfitAmount(), 0.01);
   }
 
   @Test
@@ -1350,7 +1358,7 @@ class PortfolioProjectionServiceTest {
     bondPurchase.setAmount(-10_000.0);
     bondPurchase.setCurrency(CurrencyType.USD);
     bondPurchase.setDate(depositDate.plusDays(1));
-    bondPurchase.setSymbol("T458022826.US");
+    bondPurchase.setSymbol("US91282CKB62");
     bondPurchase.setComment("T 4 5/8 02/28/26");
 
     CashOperation bondCall = new CashOperation();
@@ -1365,7 +1373,7 @@ class PortfolioProjectionServiceTest {
 
     ClosedPosition closedBond = new ClosedPosition();
     closedBond.setAccount(17959259L);
-    closedBond.setSymbol("T458022826.US");
+    closedBond.setSymbol("US91282CKB62");
     setCurrencies(closedBond, CurrencyType.USD);
     closedBond.setType(PositionType.BUY);
     closedBond.setVolume(10_000.0);

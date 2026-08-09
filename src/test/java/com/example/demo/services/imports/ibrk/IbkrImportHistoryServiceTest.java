@@ -114,17 +114,19 @@ class IbkrImportHistoryServiceTest {
   }
 
   private static Asset asset(String symbol) {
-    String ticker = symbol.contains(".") ? symbol.substring(0, symbol.indexOf('.')) : symbol;
+    boolean treasury = "T458022826".equals(symbol) || "T458022826.US".equals(symbol);
+    String canonical = treasury ? "US91282CKB62" : symbol;
+    String ticker = treasury ? "T458022826" : (symbol.contains(".") ? symbol.substring(0, symbol.indexOf('.')) : symbol);
     return Asset.builder()
-        .id((long) Math.abs(symbol.hashCode()) + 1L)
+        .id((long) Math.abs(canonical.hashCode()) + 1L)
         .name(ticker)
-        .symbol(symbol)
+        .symbol(canonical)
         .ticker(ticker)
         .ibrk(ticker)
-        .yahoo(symbol)
+        .yahoo(canonical)
         .country("US")
         .currency(CurrencyType.USD)
-        .assetType("EQUITY")
+        .assetType(treasury ? "BOND" : "EQUITY")
         .active(true)
         .build();
   }
@@ -699,10 +701,10 @@ class IbkrImportHistoryServiceTest {
     verify(openedPositionRepository).saveAll(positionCaptor.capture());
     List<OpenedPosition> positions = toList(positionCaptor.getValue());
     assertEquals(1, positions.size());
-    assertEquals("T458022826.US", positions.getFirst().getSymbol());
-    assertEquals(8.0, positions.getFirst().getVolume(), 0.01);
+    assertEquals("US91282CKB62", positions.getFirst().getSymbol());
+    assertEquals(8000.0, positions.getFirst().getVolume(), 0.01);
     assertEquals(8039.09, positions.getFirst().getPurchaseValue(), 0.01);
-    assertEquals(1004.88625, positions.getFirst().getOpenPrice(), 0.00000001);
+    assertEquals(1.00488625, positions.getFirst().getOpenPrice(), 0.00000001);
     assertEquals("T 4 5/8 02/28/26", positions.getFirst().getSourceAssetSymbol());
     assertTrue(positions.getFirst().getAssetId() > 0);
   }
@@ -738,7 +740,7 @@ class IbkrImportHistoryServiceTest {
     assertEquals(2.0, positions.stream().mapToDouble(OpenedPosition::getVolume).sum(), 0.01);
     assertTrue(positions.stream().allMatch(position -> "VWRA.US".equals(position.getSymbol())));
     assertFalse(
-        positions.stream().anyMatch(position -> "T458022826.US".equals(position.getSymbol())));
+        positions.stream().anyMatch(position -> "US91282CKB62".equals(position.getSymbol())));
 
     @SuppressWarnings("unchecked")
     ArgumentCaptor<Iterable<ClosedPosition>> closedCaptor =
@@ -747,8 +749,8 @@ class IbkrImportHistoryServiceTest {
     verify(closedPositionRepository).saveAll(closedCaptor.capture());
     List<ClosedPosition> closed = toList(closedCaptor.getValue());
     assertEquals(3, closed.size());
-    assertTrue(closed.stream().allMatch(position -> "T458022826.US".equals(position.getSymbol())));
-    assertEquals(10.0, closed.stream().mapToDouble(ClosedPosition::getVolume).sum(), 0.01);
+    assertTrue(closed.stream().allMatch(position -> "US91282CKB62".equals(position.getSymbol())));
+    assertEquals(10000.0, closed.stream().mapToDouble(ClosedPosition::getVolume).sum(), 0.01);
     assertEquals(10000.0, closed.stream().mapToDouble(ClosedPosition::getSaleValue).sum(), 0.01);
     assertEquals(
         Set.of(LocalDate.of(2025, 3, 26), LocalDate.of(2025, 4, 17), LocalDate.of(2025, 5, 6)),

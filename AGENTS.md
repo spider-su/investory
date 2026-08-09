@@ -15,6 +15,7 @@ Do not duplicate project documentation here.
 - Repository-local edits, builds, tests, formatting, and verification are pre-approved unless destructive.
 - Schema changes go through versioned Flyway SQL under `src/main/resources/sql/migration`.
 - For local runs, use the datasource settings from the current configuration/environment; do not assume a Spring profile changes them.
+- For live database debugging, always use the JDBC driver and connection settings from the local profile; do not use `psql` or guessed database credentials.
 - Run targeted tests first. Use broader verification for cross-cutting changes or before merge.
 - Keep the final handoff concise; for material changes, include changed files and verification results.
 - If implementation conflicts with a documented domain contract, report the mismatch. Do not silently rewrite the contract to match the code.

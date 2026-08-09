@@ -210,6 +210,21 @@ class CashOperationNormalizerTest {
   }
 
   @Test
+  void normalize_ibkrBondRedemptionIsSettlementNotFunding() {
+    CashOperation redemption =
+        cash(75L, 17959259L, CashOperationType.TRANSFER, 10_000.0, CurrencyType.USD);
+    redemption.setComment(
+        "(US91282CKB62) Full Call / Early Redemption for USD 1.00 per Bond");
+
+    NormalizedCashOperation row = normalizer.normalize(List.of(redemption)).getFirst();
+
+    assertEquals(NormalizedCategory.BOND_REDEMPTION, row.normalizedCategory());
+    assertFalse(row.externalFlow());
+    assertFalse(row.internalTransfer());
+    assertTrue(row.tradeCashFlow());
+  }
+
+  @Test
   void normalize_feeCorrectionsBecomeFeeReversals() {
     CashOperation commissionRefund =
         cash(71L, 51499241L, CashOperationType.CORRECTION, 5.00, CurrencyType.USD);

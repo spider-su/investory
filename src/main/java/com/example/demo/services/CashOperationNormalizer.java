@@ -168,6 +168,22 @@ public class CashOperationNormalizer {
           "currency conversion comment");
     }
 
+    if (rawType == CashOperationType.TRANSFER && isBondRedemption(comment)) {
+      return MutableNormalized.of(
+          index,
+          operation,
+          NormalizedCategory.BOND_REDEMPTION,
+          "BOND_REDEMPTION",
+          direction,
+          false,
+          false,
+          false,
+          true,
+          false,
+          false,
+          "IBKR fixed-income redemption settlement");
+    }
+
     if (rawType == CashOperationType.TRANSFER) {
       Optional<TransferBetweenAccountsHint> hint =
           parseTransferBetweenAccounts(operation.getComment());
@@ -646,6 +662,15 @@ public class CashOperationNormalizer {
         && FEE_CORRECTION_PATTERN.matcher(normalizedComment).find();
   }
 
+  private static boolean isBondRedemption(String normalizedComment) {
+    if (!StringUtils.hasText(normalizedComment) || !normalizedComment.contains("per bond")) {
+      return false;
+    }
+    return normalizedComment.contains("full call")
+        || normalizedComment.contains("early redemption")
+        || normalizedComment.contains("redemption");
+  }
+
   private static long roundedAbsAmount(Double amount) {
     return Math.round(Math.abs(nz(amount)) * 100.0d);
   }
@@ -811,6 +836,7 @@ public class CashOperationNormalizer {
     TRADE_PURCHASE,
     TRADE_SALE,
     REALIZED_TRADE_RESULT,
+    BOND_REDEMPTION,
     DIVIDEND,
     DIVIDEND_REVERSAL,
     INTEREST,
