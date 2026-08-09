@@ -1179,8 +1179,34 @@ closed_position_totals AS (
         c.base_currency
     ) fx ON true
     GROUP BY c.account_id
-),
-flow_totals AS (
+), portfolio_flow_rows AS (
+    SELECT
+        nco.*,
+        CASE
+            WHEN nco.normalized_category IN ('EXTERNAL_DEPOSIT', 'EXTERNAL_WITHDRAWAL')
+                THEN nco.amount_in_portfolio_base_currency
+            WHEN nco.normalized_category = 'INTERNAL_BOOKKEEPING'
+             AND nco.comment ~* 'transfer from [0-9]+ to [0-9]+'
+             AND substring(nco.comment from '(?i)to ([0-9]+)')::bigint = nco.account_id
+             AND nco.amount > 0
+             AND NOT EXISTS (
+                 SELECT 1
+                 FROM investory.accounts counterparty
+                 WHERE counterparty.id = substring(nco.comment from '(?i)transfer from ([0-9]+)')::bigint
+             ) THEN nco.amount_in_portfolio_base_currency
+            WHEN nco.normalized_category = 'INTERNAL_BOOKKEEPING'
+             AND nco.comment ~* 'transfer from [0-9]+ to [0-9]+'
+             AND substring(nco.comment from '(?i)transfer from ([0-9]+)')::bigint = nco.account_id
+             AND nco.amount < 0
+             AND NOT EXISTS (
+                 SELECT 1
+                 FROM investory.accounts counterparty
+                 WHERE counterparty.id = substring(nco.comment from '(?i)to ([0-9]+)')::bigint
+             ) THEN nco.amount_in_portfolio_base_currency
+            ELSE 0::numeric
+        END AS scoped_portfolio_flow_amount_in_portfolio_base_currency
+    FROM investory.normalized_cash_operations nco
+), flow_totals AS (
     SELECT
         nco.account_id,
         COUNT(*) FILTER (WHERE nco.portfolio_conversion_status NOT IN ('OK', 'SAME_CURRENCY'))::bigint
@@ -1189,18 +1215,16 @@ flow_totals AS (
             AS account_missing_fx_count,
         SUM(nco.amount_in_portfolio_base_currency) FILTER (
             WHERE nco.portfolio_conversion_status IN ('OK', 'SAME_CURRENCY')) AS converted_subtotal,
-        SUM(CASE
-            WHEN nco.normalized_category = 'EXTERNAL_DEPOSIT' THEN nco.amount_in_base_currency
-            ELSE NULL::numeric
-        END) AS total_deposit,
+        SUM(nco.scoped_portfolio_flow_amount_in_portfolio_base_currency)
+            FILTER (WHERE nco.scoped_portfolio_flow_amount_in_portfolio_base_currency > 0)
+            AS total_deposit,
         SUM(CASE
             WHEN nco.normalized_category = 'EXTERNAL_DEPOSIT' THEN nco.amount_in_account_currency
             ELSE NULL::numeric
         END) AS total_deposit_account_currency,
-        SUM(CASE
-            WHEN nco.normalized_category = 'EXTERNAL_WITHDRAWAL' THEN ABS(nco.amount_in_base_currency)
-            ELSE NULL::numeric
-        END) AS total_withdrawal,
+        SUM(-nco.scoped_portfolio_flow_amount_in_portfolio_base_currency)
+            FILTER (WHERE nco.scoped_portfolio_flow_amount_in_portfolio_base_currency < 0)
+            AS total_withdrawal,
         SUM(CASE
             WHEN nco.normalized_category = 'EXTERNAL_WITHDRAWAL' THEN ABS(nco.amount_in_account_currency)
             ELSE NULL::numeric
@@ -1257,7 +1281,7 @@ flow_totals AS (
             ) THEN nco.amount_in_account_currency
             ELSE NULL::numeric
         END) AS total_cash_result_account_currency
-    FROM investory.normalized_cash_operations nco
+    FROM portfolio_flow_rows nco
     GROUP BY nco.account_id
 ),
 activity_meta AS (
@@ -1380,52 +1404,52 @@ SELECT
     ld.valuation_currency AS latest_daily_currency,
     ast.latest_snapshot_date AS statistics_snapshot_date,
     ld.snapshot_date AS latest_daily_snapshot_date,
-    COALESCE(ast.cash_balance, 0) AS statistics_cash_balance,
-    COALESCE(ld.cash_balance, 0) AS latest_daily_cash_balance,
-    COALESCE(ast.cash_balance, 0) - COALESCE(ld.cash_balance, 0) AS cash_balance_difference,
-    COALESCE(ast.market_value, 0) AS statistics_market_value,
-    COALESCE(ld.market_value, 0) AS latest_daily_market_value,
-    COALESCE(ast.market_value, 0) - COALESCE(ld.market_value, 0) AS market_value_difference,
-    COALESCE(ast.equity, 0) AS statistics_equity,
-    COALESCE(ld.equity, 0) AS latest_daily_equity,
-    COALESCE(ast.equity, 0) - COALESCE(ld.equity, 0) AS equity_difference,
-    COALESCE(ast.cost_base, 0) AS statistics_cost_base,
-    COALESCE(ld.cost_base, 0) AS latest_daily_cost_base,
-    COALESCE(ast.cost_base, 0) - COALESCE(ld.cost_base, 0) AS cost_base_difference,
-    COALESCE(ast.realized_profit, 0) AS statistics_realized_profit,
-    COALESCE(dft.realized_profit, 0) AS cumulative_daily_realized_profit,
-    COALESCE(ast.realized_profit, 0) - COALESCE(dft.realized_profit, 0) AS realized_profit_difference,
-    COALESCE(ast.unrealized_profit, 0) AS statistics_unrealized_profit,
-    COALESCE(ld.unrealized_profit, 0) AS latest_daily_unrealized_profit,
-    COALESCE(ast.unrealized_profit, 0) - COALESCE(ld.unrealized_profit, 0) AS unrealized_profit_difference,
-    COALESCE(ast.dividends, 0) AS statistics_dividends,
-    COALESCE(dft.dividends, 0) AS cumulative_daily_dividends,
-    COALESCE(ast.dividends, 0) - COALESCE(dft.dividends, 0) AS dividends_difference,
-    COALESCE(ast.interest, 0) AS statistics_interest,
-    COALESCE(dft.interest, 0) AS cumulative_daily_interest,
-    COALESCE(ast.interest, 0) - COALESCE(dft.interest, 0) AS interest_difference,
-    COALESCE(ast.fees, 0) AS statistics_fees,
-    COALESCE(dft.fees, 0) AS cumulative_daily_fees,
-    COALESCE(ast.fees, 0) - COALESCE(dft.fees, 0) AS fees_difference,
-    COALESCE(ast.taxes, 0) AS statistics_taxes,
-    COALESCE(dft.taxes, 0) AS cumulative_daily_taxes,
-    COALESCE(ast.taxes, 0) - COALESCE(dft.taxes, 0) AS taxes_difference,
-    COALESCE(ast.net_deposit, 0) AS statistics_net_deposit,
-    COALESCE(ast.account_net_deposit, 0) AS statistics_account_net_deposit,
+    ROUND(COALESCE(ast.cash_balance, 0), 0) AS statistics_cash_balance,
+    ROUND(COALESCE(ld.cash_balance, 0), 0) AS latest_daily_cash_balance,
+    ROUND(COALESCE(ast.cash_balance, 0) - COALESCE(ld.cash_balance, 0), 0) AS cash_balance_difference,
+    ROUND(COALESCE(ast.market_value, 0), 0) AS statistics_market_value,
+    ROUND(COALESCE(ld.market_value, 0), 0) AS latest_daily_market_value,
+    ROUND(COALESCE(ast.market_value, 0) - COALESCE(ld.market_value, 0), 0) AS market_value_difference,
+    ROUND(COALESCE(ast.equity, 0), 0) AS statistics_equity,
+    ROUND(COALESCE(ld.equity, 0), 0) AS latest_daily_equity,
+    ROUND(COALESCE(ast.equity, 0) - COALESCE(ld.equity, 0), 0) AS equity_difference,
+    ROUND(COALESCE(ast.cost_base, 0), 0) AS statistics_cost_base,
+    ROUND(COALESCE(ld.cost_base, 0), 0) AS latest_daily_cost_base,
+    ROUND(COALESCE(ast.cost_base, 0) - COALESCE(ld.cost_base, 0), 0) AS cost_base_difference,
+    ROUND(COALESCE(ast.realized_profit, 0), 0) AS statistics_realized_profit,
+    ROUND(COALESCE(dft.realized_profit, 0), 0) AS cumulative_daily_realized_profit,
+    ROUND(COALESCE(ast.realized_profit, 0) - COALESCE(dft.realized_profit, 0), 0) AS realized_profit_difference,
+    ROUND(COALESCE(ast.unrealized_profit, 0), 0) AS statistics_unrealized_profit,
+    ROUND(COALESCE(ld.unrealized_profit, 0), 0) AS latest_daily_unrealized_profit,
+    ROUND(COALESCE(ast.unrealized_profit, 0) - COALESCE(ld.unrealized_profit, 0), 0) AS unrealized_profit_difference,
+    ROUND(COALESCE(ast.dividends, 0), 0) AS statistics_dividends,
+    ROUND(COALESCE(dft.dividends, 0), 0) AS cumulative_daily_dividends,
+    ROUND(COALESCE(ast.dividends, 0) - COALESCE(dft.dividends, 0), 0) AS dividends_difference,
+    ROUND(COALESCE(ast.interest, 0), 0) AS statistics_interest,
+    ROUND(COALESCE(dft.interest, 0), 0) AS cumulative_daily_interest,
+    ROUND(COALESCE(ast.interest, 0) - COALESCE(dft.interest, 0), 0) AS interest_difference,
+    ROUND(COALESCE(ast.fees, 0), 0) AS statistics_fees,
+    ROUND(COALESCE(dft.fees, 0), 0) AS cumulative_daily_fees,
+    ROUND(COALESCE(ast.fees, 0) - COALESCE(dft.fees, 0), 0) AS fees_difference,
+    ROUND(COALESCE(ast.taxes, 0), 0) AS statistics_taxes,
+    ROUND(COALESCE(dft.taxes, 0), 0) AS cumulative_daily_taxes,
+    ROUND(COALESCE(ast.taxes, 0) - COALESCE(dft.taxes, 0), 0) AS taxes_difference,
+    ROUND(COALESCE(ast.net_deposit, 0), 0) AS statistics_net_deposit,
+    ROUND(COALESCE(ast.account_net_deposit, 0), 0) AS statistics_account_net_deposit,
     CASE
         WHEN ast.latest_snapshot_date IS NULL AND ld.snapshot_date IS NULL THEN 'NO_DATA'
         WHEN ast.latest_snapshot_date IS NULL OR ld.snapshot_date IS NULL THEN 'MISSING_SIDE'
         WHEN ast.latest_snapshot_date <> ld.snapshot_date THEN 'SNAPSHOT_DATE_MISMATCH'
-        WHEN ABS(COALESCE(ast.cash_balance, 0) - COALESCE(ld.cash_balance, 0)) > 0.01
-          OR ABS(COALESCE(ast.market_value, 0) - COALESCE(ld.market_value, 0)) > 0.01
-          OR ABS(COALESCE(ast.equity, 0) - COALESCE(ld.equity, 0)) > 0.01
-          OR ABS(COALESCE(ast.cost_base, 0) - COALESCE(ld.cost_base, 0)) > 0.01
-          OR ABS(COALESCE(ast.realized_profit, 0) - COALESCE(dft.realized_profit, 0)) > 0.01
-          OR ABS(COALESCE(ast.unrealized_profit, 0) - COALESCE(ld.unrealized_profit, 0)) > 0.01
-          OR ABS(COALESCE(ast.dividends, 0) - COALESCE(dft.dividends, 0)) > 0.01
-          OR ABS(COALESCE(ast.interest, 0) - COALESCE(dft.interest, 0)) > 0.01
-          OR ABS(COALESCE(ast.fees, 0) - COALESCE(dft.fees, 0)) > 0.01
-          OR ABS(COALESCE(ast.taxes, 0) - COALESCE(dft.taxes, 0)) > 0.01
+        WHEN ABS(COALESCE(ast.cash_balance, 0) - COALESCE(ld.cash_balance, 0)) > 10
+          OR ABS(COALESCE(ast.market_value, 0) - COALESCE(ld.market_value, 0)) > 10
+          OR ABS(COALESCE(ast.equity, 0) - COALESCE(ld.equity, 0)) > 10
+          OR ABS(COALESCE(ast.cost_base, 0) - COALESCE(ld.cost_base, 0)) > 10
+          OR ABS(COALESCE(ast.realized_profit, 0) - COALESCE(dft.realized_profit, 0)) > 10
+          OR ABS(COALESCE(ast.unrealized_profit, 0) - COALESCE(ld.unrealized_profit, 0)) > 10
+          OR ABS(COALESCE(ast.dividends, 0) - COALESCE(dft.dividends, 0)) > 10
+          OR ABS(COALESCE(ast.interest, 0) - COALESCE(dft.interest, 0)) > 10
+          OR ABS(COALESCE(ast.fees, 0) - COALESCE(dft.fees, 0)) > 10
+          OR ABS(COALESCE(ast.taxes, 0) - COALESCE(dft.taxes, 0)) > 10
         THEN 'VALUE_MISMATCH'
         ELSE 'OK'
     END AS reconciliation_status
@@ -1438,7 +1462,7 @@ LEFT JOIN daily_flow_totals dft
     ON dft.account_id = a.id;
 
 COMMENT ON VIEW investory.reporting_account_statistics_vs_daily_reconciliation IS
-    'Current per-account reconciliation between account_statistics and the latest account_daily snapshot.';
+    'Current per-account reconciliation between account_statistics and the latest account_daily snapshot; monetary values are rounded to whole dollars and VALUE_MISMATCH uses a 10-dollar tolerance.';
 
 CREATE MATERIALIZED VIEW investory.portfolio_kpi_summary AS
 WITH latest_portfolio_daily AS (
