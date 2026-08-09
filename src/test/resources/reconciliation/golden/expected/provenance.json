@@ -1,0 +1,369 @@
+{
+  "generated_from_real_user_files": true,
+  "generation_policy": "Keep exact broker row values; remove unrelated rows; preserve identifiers needed by importer/reconciliation.",
+  "source_files": [
+    {
+      "name": "U17959259.TRANSACTIONS.20250211.20260612.csv",
+      "sha256": "6bb8a5728d32c8e6dcb00a848b530f6f971a9fda56c2b8d80ffa5b79f30573e6",
+      "size_bytes": 39393
+    },
+    {
+      "name": "USD_51993106_2025-12-31_2026-07-31.xlsx",
+      "sha256": "01835f9994ac46d60fea75f15ed0632346e3546a07dabd4950dbb5f08e89fb6f",
+      "size_bytes": 184634
+    },
+    {
+      "name": "USD_51499241_2023-12-31_2025-12-31.xlsx",
+      "sha256": "8fdd2caa459e8232dced2e89b0a826f8bfc05e6e9cff0ee4d0c2f83ab94f5a47",
+      "size_bytes": 930147
+    },
+    {
+      "name": "USD_51499241_2025-12-31_2026-07-31.xlsx",
+      "sha256": "2c3a87b220b3282e36e357b80636546d4c9be862075b9cfba52e961c119c7d33",
+      "size_bytes": 570086
+    },
+    {
+      "name": "IKE_51551301_2025-12-31_2026-07-31.xlsx",
+      "sha256": "d93d257618e8bd657911d4ac3b4472782277b701d95c99a1a6933045d224b0cc",
+      "size_bytes": 66033
+    },
+    {
+      "name": "PLN_50290466_2025-12-31_2026-07-31.xlsx",
+      "sha256": "413c837ab9cdda106a98e73d30a4ebae48d9364a2ace45d67482c46302a905ea",
+      "size_bytes": 14142
+    },
+    {
+      "name": "exchange_rates(1).csv",
+      "sha256": "514a70eb79498aea8a70acd62d015f14e3efd9814a2d22b16c7f7a9580b3ac1e",
+      "size_bytes": 3593
+    }
+  ],
+  "selected_rows": {
+    "ibkr": [
+      {
+        "row": 14,
+        "reason": "income_and_tax"
+      },
+      {
+        "row": 15,
+        "reason": "income_and_tax"
+      },
+      {
+        "row": 16,
+        "reason": "income_and_tax"
+      },
+      {
+        "row": 17,
+        "reason": "multicurrency_interest"
+      },
+      {
+        "row": 18,
+        "reason": "multicurrency_interest"
+      },
+      {
+        "row": 32,
+        "reason": "business_date_deposit"
+      },
+      {
+        "row": 33,
+        "reason": "cross_currency_trade_and_fx"
+      },
+      {
+        "row": 34,
+        "reason": "cross_currency_trade_and_fx"
+      },
+      {
+        "row": 35,
+        "reason": "cross_currency_trade_and_fx"
+      },
+      {
+        "row": 36,
+        "reason": "cross_currency_trade_and_fx"
+      },
+      {
+        "row": 49,
+        "reason": "treasury_coupon"
+      },
+      {
+        "row": 50,
+        "reason": "treasury_redemption"
+      },
+      {
+        "row": 137,
+        "reason": "treasury_coupon"
+      },
+      {
+        "row": 198,
+        "reason": "treasury_purchase_and_accrued_interest"
+      },
+      {
+        "row": 200,
+        "reason": "treasury_purchase_and_accrued_interest"
+      },
+      {
+        "row": 213,
+        "reason": "treasury_purchase_and_accrued_interest"
+      },
+      {
+        "row": 214,
+        "reason": "treasury_purchase_and_accrued_interest"
+      },
+      {
+        "row": 223,
+        "reason": "treasury_purchase_and_accrued_interest"
+      },
+      {
+        "row": 225,
+        "reason": "treasury_purchase_and_accrued_interest"
+      }
+    ],
+    "xtb_51993106": [
+      {
+        "sheet": "Cash Operations",
+        "row": 119,
+        "reason": "new_vhyd_rebook_open"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 120,
+        "reason": "new_vhyd_rebook_open"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 121,
+        "reason": "new_vhyd_rebook_open"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 122,
+        "reason": "new_vhyd_rebook_open"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 123,
+        "reason": "subaccount_rebooking_pair"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 124,
+        "reason": "subaccount_rebooking_pair"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 125,
+        "reason": "old_vhyd_lifecycle"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 126,
+        "reason": "old_vhyd_lifecycle"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 127,
+        "reason": "old_vhyd_lifecycle"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 128,
+        "reason": "old_vhyd_lifecycle"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 129,
+        "reason": "old_vhyd_lifecycle"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 130,
+        "reason": "old_vhyd_lifecycle"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 141,
+        "reason": "old_vhyd_lifecycle"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 142,
+        "reason": "old_vhyd_lifecycle"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 146,
+        "reason": "old_vhyd_lifecycle"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 147,
+        "reason": "old_vhyd_lifecycle"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 183,
+        "reason": "old_vhyd_lifecycle"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 184,
+        "reason": "old_vhyd_lifecycle"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 251,
+        "reason": "old_vhyd_lifecycle"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 271,
+        "reason": "old_vhyd_lifecycle"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 272,
+        "reason": "old_vhyd_lifecycle"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 612,
+        "reason": "old_vhyd_lifecycle"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 613,
+        "reason": "old_vhyd_lifecycle"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 616,
+        "reason": "true_interaccount_transfer_out"
+      },
+      {
+        "sheet": "Closed Positions",
+        "row": 47,
+        "reason": "old_vhyd_closed_lots"
+      },
+      {
+        "sheet": "Closed Positions",
+        "row": 48,
+        "reason": "old_vhyd_closed_lots"
+      },
+      {
+        "sheet": "Closed Positions",
+        "row": 49,
+        "reason": "old_vhyd_closed_lots"
+      },
+      {
+        "sheet": "Closed Positions",
+        "row": 50,
+        "reason": "old_vhyd_closed_lots"
+      },
+      {
+        "sheet": "Closed Positions",
+        "row": 51,
+        "reason": "old_vhyd_closed_lots"
+      },
+      {
+        "sheet": "Closed Positions",
+        "row": 52,
+        "reason": "old_vhyd_closed_lots"
+      },
+      {
+        "sheet": "Closed Positions",
+        "row": 87,
+        "reason": "old_vhyd_closed_lots"
+      }
+    ],
+    "xtb_51499241": [
+      {
+        "source": "USD_51499241_2023-12-31_2025-12-31.xlsx",
+        "sheet": "Cash Operations",
+        "row": 2718,
+        "reason": "natgas_result_only_cash"
+      },
+      {
+        "source": "USD_51499241_2023-12-31_2025-12-31.xlsx",
+        "sheet": "Cash Operations",
+        "row": 2719,
+        "reason": "natgas_result_only_cash"
+      },
+      {
+        "source": "USD_51499241_2023-12-31_2025-12-31.xlsx",
+        "sheet": "Cash Operations",
+        "row": 2720,
+        "reason": "natgas_result_only_cash"
+      },
+      {
+        "source": "USD_51499241_2025-12-31_2026-07-31.xlsx",
+        "sheet": "Cash Operations",
+        "row": 1689,
+        "reason": "true_interaccount_transfer_in"
+      },
+      {
+        "source": "USD_51499241_2023-12-31_2025-12-31.xlsx",
+        "sheet": "Closed Positions",
+        "row": 1485,
+        "reason": "natgas_result_only_closed_position"
+      }
+    ],
+    "xtb_51551301": [
+      {
+        "sheet": "Cash Operations",
+        "row": 192,
+        "reason": "ike_fx_and_income_case"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 193,
+        "reason": "ike_fx_and_income_case"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 194,
+        "reason": "ike_fx_and_income_case"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 195,
+        "reason": "ike_fx_and_income_case"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 197,
+        "reason": "ike_fx_and_income_case"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 198,
+        "reason": "ike_fx_and_income_case"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 239,
+        "reason": "ike_fx_and_income_case"
+      }
+    ],
+    "xtb_50290466": [
+      {
+        "sheet": "Cash Operations",
+        "row": 10,
+        "reason": "cash_only_funding_and_interest"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 11,
+        "reason": "cash_only_funding_and_interest"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 16,
+        "reason": "cash_only_funding_and_interest"
+      },
+      {
+        "sheet": "Cash Operations",
+        "row": 17,
+        "reason": "cash_only_funding_and_interest"
+      }
+    ]
+  }
+}
