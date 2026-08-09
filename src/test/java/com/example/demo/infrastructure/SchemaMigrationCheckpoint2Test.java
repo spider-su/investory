@@ -13,7 +13,6 @@ import java.sql.Statement;
 import java.util.stream.Stream;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -24,8 +23,6 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * developer database, so the destructive schema reset below cannot touch real data.
  */
 @Testcontainers
-// TODO: fix
-@Disabled
 class SchemaMigrationCheckpoint2Test {
 
   private static final String TEST_DATABASE_NAME = "investory_migration_test";
@@ -283,13 +280,12 @@ class SchemaMigrationCheckpoint2Test {
                   select count(*)
                   from investory.asset_price_history aph
                   join investory.assets a on a.id = aph.asset_id
-                  where a.symbol = 'JGPI'
-                    and aph.price_origin in
-                        ('XTB_TRADE_OPEN', 'XTB_TRADE_CLOSE', 'INTERPOLATED_XTB')
+                  where a.symbol = 'JGPI.DE'
+                    and aph.price_origin = 'MANUAL_WEEKLY'
                   """)
               > 0);
       assertEquals(
-          "Apple",
+          "Apple Inc.",
           singleString(
               statement,
               """
@@ -342,40 +338,29 @@ class SchemaMigrationCheckpoint2Test {
   }
 
   @Test
-  void storesJgpiAsUsdAcrossAssetMappingAndHistory() throws Exception {
+  void storesJgpiWithDeclaredCurrencyAcrossAssetHistory() throws Exception {
     try (Connection connection = openConnection();
         Statement statement = connection.createStatement()) {
       assertEquals(
-          "USD",
+          "EUR",
           singleString(
               statement,
               """
               select currency
               from investory.assets
-              where symbol = 'JGPI.US'
+              where symbol = 'JGPI.DE'
               """));
       assertEquals(
-          "USD",
-          singleString(
-              statement,
-              """
-              select price_currency
-              from investory.asset_source_symbols
-              where asset_id = (select id from investory.assets where symbol = 'JGPI.US')
-                and source = 'STOOQ'
-                and source_symbol = 'jgpi.us'
-              """));
-      assertEquals(
-          "USD",
+          "EUR",
           singleString(
               statement,
               """
               select price_currency
               from investory.asset_price_history
-              where asset_id = (select id from investory.assets where symbol = 'JGPI.US')
-                and source = 'STOOQ'
-                and source_symbol = 'jgpi.us'
-                and price_date = date '2025-11-26'
+              where asset_id = (select id from investory.assets where symbol = 'JGPI.DE')
+                and source = 'MANUAL'
+                and source_symbol = 'jgpi.de'
+                and price_date = date '2025-01-01'
               """));
     }
   }
@@ -414,8 +399,8 @@ class SchemaMigrationCheckpoint2Test {
           singleInt(
               statement,
               """
-              insert into investory.portfolios (name, base_currency)
-              values ('Sequence regression portfolio', 'USD')
+              insert into investory.portfolios (name, base_currency, user_id)
+              values ('Sequence regression portfolio', 'USD', 1)
               returning id
               """));
     }
@@ -427,8 +412,8 @@ class SchemaMigrationCheckpoint2Test {
         Statement statement = connection.createStatement()) {
       statement.execute(
           """
-          insert into investory.portfolios (id, name, base_currency)
-          values (-920001, 'EUR reporting portfolio', 'EUR');
+          insert into investory.portfolios (id, name, base_currency, user_id)
+          values (-920001, 'EUR reporting portfolio', 'EUR', 1);
           insert into investory.accounts (id, currency, provider, name, owner, portfolio_id)
           values (-920001, 'USD', 'IBKR', 'USD account', 'Test', -920001);
           insert into investory.account_daily (
@@ -479,8 +464,8 @@ class SchemaMigrationCheckpoint2Test {
         Statement statement = connection.createStatement()) {
       statement.execute(
           """
-          insert into investory.portfolios (id, name, base_currency)
-          values (-930001, 'USD FX regression portfolio', 'USD');
+          insert into investory.portfolios (id, name, base_currency, user_id)
+          values (-930001, 'USD FX regression portfolio', 'USD', 1);
           insert into investory.accounts (id, currency, provider, name, owner, portfolio_id)
           values (-930001, 'USD', 'IBKR', 'USD account', 'Test', -930001);
           insert into investory.positions (
@@ -602,9 +587,9 @@ class SchemaMigrationCheckpoint2Test {
             (date '2025-01-01', 'TEST', 'USD', 'EUR', 0.8),
             (date '2025-01-01', 'TEST', 'USD', 'PLN', 4.0);
 
-          insert into investory.portfolios (id, name, base_currency)
-          values (-940001, 'USD FX test portfolio', 'USD'),
-                 (-940002, 'EUR FX test portfolio', 'EUR');
+          insert into investory.portfolios (id, name, base_currency, user_id)
+          values (-940001, 'USD FX test portfolio', 'USD', 1),
+                 (-940002, 'EUR FX test portfolio', 'EUR', 1);
 
           insert into investory.accounts (id, currency, provider, name, owner, portfolio_id)
           values (-940001, 'USD', 'IBKR', 'USD FX account', 'Test', -940001),
@@ -703,8 +688,8 @@ class SchemaMigrationCheckpoint2Test {
           insert into investory.exchange_rates (month, source, base, to_currency, rate)
           values (date '2025-01-01', 'TEST', 'USD', 'EUR', 0.8);
 
-          insert into investory.portfolios (id, name, base_currency)
-          values (-950001, 'Missing FX portfolio', 'USD');
+          insert into investory.portfolios (id, name, base_currency, user_id)
+          values (-950001, 'Missing FX portfolio', 'USD', 1);
 
           insert into investory.accounts (id, currency, provider, name, owner, portfolio_id)
           values (-950001, 'USD', 'IBKR', 'Missing FX account', 'Test', -950001);
@@ -783,8 +768,8 @@ class SchemaMigrationCheckpoint2Test {
         Statement statement = connection.createStatement()) {
       statement.execute(
           """
-          insert into investory.portfolios(id, name, base_currency)
-          values (-200, 'Reconciliation Test', 'USD');
+          insert into investory.portfolios(id, name, base_currency, user_id)
+          values (-200, 'Reconciliation Test', 'USD', 1);
 
           insert into investory.accounts(id, currency, provider, name, owner, portfolio_id)
           values (-200, 'USD', 'XTB', 'Reconciliation Test', 'Test', -200);
@@ -822,19 +807,19 @@ class SchemaMigrationCheckpoint2Test {
               (-200, -200, -200, 'TESTCFD', 'BUY', 'RESULT_ONLY', 10,
                'USD', 'USD', 'USD', 'USD',
                timestamptz '2026-01-01 10:00:00+00', 100,
-               timestamptz '2026-01-02 10:00:00+00', 105, 100, 0, -2, 50),
+               timestamptz '2026-01-02 10:00:00+00', 105, 100, 0, -2, 0, 50),
               (-201, -200, -201, 'TESTCASH.US', 'BUY', 'CASH_SETTLED', 1,
                'USD', 'USD', 'USD', 'USD',
                timestamptz '2026-01-01 10:00:00+00', 100,
-               timestamptz '2026-01-04 10:00:00+00', 100, null, 0, 0, 0),
+               timestamptz '2026-01-04 10:00:00+00', 100, null, 0, 0, 0, 0),
               (-202, -200, -201, 'TESTCASH.US', 'BUY', 'CASH_SETTLED', 9,
                'USD', 'USD', 'USD', 'USD',
                timestamptz '2026-01-04 09:00:00+00', 100,
-               timestamptz '2026-01-04 11:00:00+00', 100, null, 0, 0, 0),
+               timestamptz '2026-01-04 11:00:00+00', 100, null, 0, 0, 0, 0),
               (-203, -200, -201, 'TESTCASH.US', 'BUY', 'CASH_SETTLED', 10,
                'USD', 'USD', 'USD', 'USD',
                timestamptz '2026-01-04 12:00:00+00', 100,
-               null, null, null, 0, 0, 0);
+               null, null, null, 0, 0, 0, 0);
 
           update investory.positions
           set purchase_value = 100, sale_value = 100
@@ -899,8 +884,8 @@ class SchemaMigrationCheckpoint2Test {
       statement.execute(
           """
           delete from investory.exchange_rates;
-          insert into investory.portfolios (id, name, base_currency, owner)
-          values (-96, 'Mixed currency test', 'USD', 'Test');
+          insert into investory.portfolios (id, name, base_currency, owner, user_id)
+          values (-96, 'Mixed currency test', 'USD', 'Test', 1);
           insert into investory.accounts (id, currency, provider, name, owner, portfolio_id, cash_only)
           values
             (-960000, 'PLN', 'XTB', 'Mixed currency PLN account', 'Test', -96, false),
@@ -910,7 +895,7 @@ class SchemaMigrationCheckpoint2Test {
             ((date_trunc('month', current_date) - interval '1 month')::date, 'TEST', 'PLN', 'USD', 0.25),
             ((date_trunc('month', current_date) - interval '1 month')::date, 'TEST', 'EUR', 'USD', 1.25);
 
-          insert into positions (
+          insert into investory.positions (
             id, account_id, asset_id, source_asset_symbol, operation, volume,
             price_currency, cost_currency, profit_currency, commission_currency,
             open_time, open_price, close_time, close_price, purchase_value, sale_value,

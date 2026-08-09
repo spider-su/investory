@@ -110,14 +110,19 @@ class DashboardPeriodRegressionTest {
     String migration;
     try (var stream =
         getClass()
-            .getResourceAsStream(
-                "/sql/migration/V01.010__benchmark_portfolio_base_cashflows.sql")) {
-      assertTrue(stream != null, "benchmark migration must be present");
+            .getResourceAsStream("/sql/migration/V01.002__checks_and_views.sql")) {
+      assertTrue(stream != null, "checks and views migration must be present");
       migration = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
     }
 
-    assertTrue(migration.contains("amount_in_portfolio_base_currency"));
-    assertFalse(migration.contains("amount_in_account_currency"));
+    int benchmarkStart =
+        migration.indexOf("CREATE OR REPLACE VIEW investory.account_monthly_benchmark");
+    int benchmarkEnd = migration.indexOf("CREATE TABLE investory.materialized_view_refresh_history");
+    assertTrue(benchmarkStart >= 0, "benchmark view must be present");
+    assertTrue(benchmarkEnd > benchmarkStart, "benchmark view section must be bounded");
+    String benchmarkView = migration.substring(benchmarkStart, benchmarkEnd);
+    assertTrue(benchmarkView.contains("amount_in_portfolio_base_currency"));
+    assertFalse(benchmarkView.contains("amount_in_account_currency"));
   }
 
   private Benchmark benchmark(
