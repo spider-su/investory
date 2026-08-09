@@ -1187,6 +1187,12 @@ class SchemaMigrationCheckpoint2Test {
               """));
 
       assertEquals(
+          "0.000001",
+          singleString(
+              statement,
+              "select trim(to_char(investory.reconciliation_parameter('reconciliation_quantity_tolerance'), 'FM999999990.000000'))"));
+
+      assertEquals(
           "true|true|false",
           singleString(
               statement,
@@ -1213,12 +1219,13 @@ class SchemaMigrationCheckpoint2Test {
           """);
 
       assertEquals(
-          "100.00|100.00|false",
+          "100.00|100.00|100.004|100.000|false",
           singleString(
               statement,
               """
-              select to_char(round(100.004, investory.reconciliation_parameter('reconciliation_reporting_scale')::integer), 'FM999999990.00') || '|'
-                  || to_char(round(100.000, investory.reconciliation_parameter('reconciliation_reporting_scale')::integer), 'FM999999990.00') || '|'
+              select to_char(investory.reconciliation_display_value(100.004), 'FM999999990.00') || '|'
+                  || to_char(investory.reconciliation_display_value(100.000), 'FM999999990.00') || '|'
+                  || '100.004' || '|100.000|'
                   || investory.reconciliation_values_match(100.004, 100.000)::text
               """));
     }

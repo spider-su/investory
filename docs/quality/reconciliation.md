@@ -65,6 +65,15 @@ PASS when abs(difference) <= effective_tolerance
 PASS/FAIL. Generic numeric tolerances are separate from named domain anomaly thresholds such as
 carrying-value, market-bridge, reorganization, and price-jump rules.
 
+Classify reconciliation constants before changing them:
+
+- numeric precision/tolerance belongs in `reconciliation_parameters` and uses the shared comparison
+  rule (for example, monetary and quantity tolerances);
+- domain anomaly thresholds stay separately named because they describe suspicious economic events,
+  not insignificant numeric noise (for example, sale-vs-carrying-value outliers over 20%);
+- display limits and data-quality ages are operational/business rules, not numeric comparison
+  tolerances.
+
 ## Regression classes
 
 Keep explicit regression coverage for defect classes already observed in this project:

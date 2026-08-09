@@ -11,6 +11,7 @@ VALUES
     ('reconciliation_reporting_scale', 2, 'Decimal places used for displayed reconciliation values.'),
     ('reconciliation_absolute_tolerance', 0.05, 'Shared absolute monetary tolerance.'),
     ('reconciliation_relative_tolerance', 0.00001, 'Shared relative monetary tolerance.'),
+    ('reconciliation_quantity_tolerance', 0.000001, 'Tolerance for signed quantity matching; not a monetary tolerance.'),
     ('reconciliation_trade_cash_absolute_tolerance', 5, 'Domain threshold for trade cash settlement differences.'),
     ('reconciliation_trade_cash_relative_tolerance', 0.05, 'Domain threshold for trade cash settlement differences.'),
     ('reconciliation_carrying_value_absolute_threshold', 250, 'Domain threshold for carrying-value outliers.'),
@@ -2764,12 +2765,27 @@ SELECT
          ) THEN 'PRICE_RATIO_100X'
         ELSE 'OK'
     END::varchar(64) AS validation_code,
-    n.selected_price AS expected_value,
+    comparison.expected_value,
     n.reconstructed_market_value_base AS actual_value,
-    NULL::numeric AS difference,
-    NULL::numeric AS relative_difference,
+    n.reconstructed_market_value_base - comparison.expected_value AS difference,
+    (n.reconstructed_market_value_base - comparison.expected_value)
+        / NULLIF(ABS(comparison.expected_value), 0) AS relative_difference,
     n.reconstruction_message AS message
 FROM neighboring n
+CROSS JOIN LATERAL (
+    SELECT CASE
+        WHEN n.prev_selected_price IS NULL
+          OR n.open_quantity IS NULL
+          OR n.contract_multiplier IS NULL
+          OR n.fx_conversion_status NOT IN ('OK', 'SAME_CURRENCY')
+          OR n.fx_rate_to_base IS NULL
+            THEN NULL::numeric
+        ELSE n.open_quantity
+            * n.prev_selected_price
+            * n.contract_multiplier
+            * n.fx_rate_to_base
+    END AS expected_value
+) comparison
 WHERE
     n.reconstruction_status <> 'PASS'
     OR n.selection_priority >= 3
@@ -3915,7 +3931,7 @@ SELECT
              )
             THEN 'REORGANIZATION_VALUE_JUMP'
         WHEN r.settlement_model = 'REORGANIZATION' THEN 'OK'
-        WHEN r.unmatched_close_quantity > 0.000001
+        WHEN r.unmatched_close_quantity > investory.reconciliation_parameter('reconciliation_quantity_tolerance')
             THEN 'UNMATCHED_CLOSE_QUANTITY'
         WHEN ABS(COALESCE(r.settlement_cash_difference_base, 0))
              > GREATEST(
@@ -4885,6 +4901,8 @@ WITH reconstructed AS (
         valuation_date,
         SUM(COALESCE(open_quantity, 0)) AS open_quantity,
         SUM(COALESCE(reconstructed_cost_base_base, 0)) AS reconstructed_cost_base_base,
+        MAX(selected_price) AS selected_price,
+        MAX(reconstructed_market_value_base) AS reconstructed_market_value_base,
         MAX(selected_price_date) AS selected_price_date,
         MAX(underlying_observation_date) AS underlying_observation_date,
         MAX(price_age_days) AS price_age_days,
@@ -4928,8 +4946,8 @@ SELECT
         ) THEN 'LIKELY_POSITION_OR_SETTLEMENT'
         ELSE 'REVIEW'
     END::varchar(64) AS suspected_source,
-    vpv.expected_value AS selected_price,
-    vpv.actual_value AS reconstructed_market_value_base,
+    rpd.selected_price,
+    rpd.reconstructed_market_value_base,
     vpv.difference,
     vpv.relative_difference,
     vpv.message,
