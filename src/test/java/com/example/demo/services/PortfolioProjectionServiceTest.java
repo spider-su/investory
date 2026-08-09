@@ -1899,6 +1899,62 @@ class PortfolioProjectionServiceTest {
     assertEquals(0.0, secondDay.getDailyProfitAmount(), 0.0001);
   }
 
+  @Test
+  @SuppressWarnings("unchecked")
+  void recalculateAll_excludesBookkeepingRebookingFromPerformanceFlow() {
+    ZonedDateTime day1 = ZonedDateTime.parse("2026-06-16T12:00:00Z");
+    ZonedDateTime day2 = ZonedDateTime.parse("2026-06-17T12:00:00Z");
+
+    CashOperation deposit = new CashOperation();
+    deposit.setAccount(17959259L);
+    deposit.setType(CashOperationType.DEPOSIT);
+    deposit.setAmount(10000.0);
+    deposit.setCurrency(CurrencyType.USD);
+    deposit.setDate(day1);
+
+    CashOperation bookkeeping = new CashOperation();
+    bookkeeping.setAccount(17959259L);
+    bookkeeping.setType(CashOperationType.SUBACCOUNT_TRANSFER);
+    bookkeeping.setAmount(6044.12);
+    bookkeeping.setCurrency(CurrencyType.USD);
+    bookkeeping.setComment("Transfer from 51993106 to 17959259");
+    bookkeeping.setDate(day2);
+
+    CashOperation rebookedPurchase = new CashOperation();
+    rebookedPurchase.setAccount(17959259L);
+    rebookedPurchase.setType(CashOperationType.STOCK_PURCHASE);
+    rebookedPurchase.setAmount(-6044.12);
+    rebookedPurchase.setCurrency(CurrencyType.USD);
+    rebookedPurchase.setSymbol("VHYD");
+    rebookedPurchase.setDate(day2);
+
+    when(accountRepository.findAll()).thenReturn(List.of(account(17959259L, CurrencyType.USD)));
+    when(openedPositionRepository.findAll()).thenReturn(List.of());
+    when(closedPositionRepository.findAll()).thenReturn(List.of());
+    when(cashOperationRepository.findAll()).thenReturn(List.of(deposit, bookkeeping, rebookedPurchase));
+    when(assetRepository.findAll()).thenReturn(List.of());
+    when(currencyRateService.convertToBaseCurrency(
+            org.mockito.ArgumentMatchers.anyDouble(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    service.recalculateAll();
+
+    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    verify(accountDailyRepository).saveAll(dailyCaptor.capture());
+    AccountDaily rebookingDay =
+        toList(dailyCaptor.getValue()).stream()
+            .filter(row -> row.getAccountId().equals(17959259L))
+            .filter(row -> row.getDate().equals(day2.toLocalDate()))
+            .findFirst()
+            .orElseThrow();
+
+    assertEquals(10000.0, rebookingDay.getEquity(), 0.0001);
+    assertEquals(0.0, rebookingDay.getDailyProfitAmount(), 0.0001);
+  }
+
   private static AssetPriceHistoryRepository.HistoricalAssetPriceRow historicalPrice(
       String symbol,
       LocalDate priceDate,
@@ -2113,6 +2169,11 @@ class PortfolioProjectionServiceTest {
 
       @Override
       public Double getAccountFlowAmountInPortfolioBaseCurrency() {
+        return null;
+      }
+
+      @Override
+      public Double getPerformanceFlowAmountInPortfolioBaseCurrency() {
         return null;
       }
 

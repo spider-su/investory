@@ -33,6 +33,7 @@ public interface NormalizedCashOperationRepository extends Repository<CashOperat
               sum(nco.account_flow_amount) as amount,
               sum(nco.account_flow_amount_in_portfolio_base_currency) as amountInPortfolioBaseCurrency,
               sum(nco.account_flow_amount_in_portfolio_base_currency) as accountFlowAmountInPortfolioBaseCurrency,
+              sum(nco.performance_flow_amount_in_portfolio_base_currency) as performanceFlowAmountInPortfolioBaseCurrency,
               null::text as portfolioConversionStatus,
               sum(nco.account_flow_amount_in_account_currency) as amountInAccountCurrency,
               null::text as accountConversionStatus,
@@ -74,6 +75,7 @@ public interface NormalizedCashOperationRepository extends Repository<CashOperat
               nco.amount as amount,
               nco.amount_in_portfolio_base_currency as amountInPortfolioBaseCurrency,
               nco.account_flow_amount_in_portfolio_base_currency as accountFlowAmountInPortfolioBaseCurrency,
+              nco.performance_flow_amount_in_portfolio_base_currency as performanceFlowAmountInPortfolioBaseCurrency,
               nco.portfolio_conversion_status as portfolioConversionStatus,
               nco.amount_in_account_currency as amountInAccountCurrency,
               nco.account_conversion_status as accountConversionStatus,
@@ -116,6 +118,8 @@ public interface NormalizedCashOperationRepository extends Repository<CashOperat
     Double getAmountInPortfolioBaseCurrency();
 
     Double getAccountFlowAmountInPortfolioBaseCurrency();
+
+    Double getPerformanceFlowAmountInPortfolioBaseCurrency();
 
     default Double getAmountInBaseCurrency() {
       return getAmountInPortfolioBaseCurrency();

@@ -5019,6 +5019,13 @@ WITH parsed AS (
             ELSE 0::numeric
         END AS account_flow_amount,
         CASE
+            WHEN normalized_category IN (
+                'EXTERNAL_DEPOSIT', 'EXTERNAL_WITHDRAWAL',
+                'INTERNAL_TRANSFER_IN', 'INTERNAL_TRANSFER_OUT'
+            ) THEN amount
+            ELSE 0::numeric
+        END AS performance_flow_amount,
+        CASE
             WHEN normalized_category IN ('EXTERNAL_DEPOSIT', 'EXTERNAL_WITHDRAWAL')
                 THEN amount
             WHEN normalized_category = 'INTERNAL_BOOKKEEPING'
@@ -5050,12 +5057,15 @@ SELECT
         THEN account_flow_amount * fx_rate_to_account_currency END
         AS account_flow_amount_in_account_currency,
     CASE WHEN portfolio_conversion_status IN ('OK', 'SAME_CURRENCY')
+        THEN performance_flow_amount * fx_rate_to_base END
+        AS performance_flow_amount_in_portfolio_base_currency,
+    CASE WHEN portfolio_conversion_status IN ('OK', 'SAME_CURRENCY')
         THEN portfolio_flow_amount * fx_rate_to_base END
         AS portfolio_flow_amount_in_portfolio_base_currency
 FROM effects;
 
 COMMENT ON VIEW investory.normalized_cash_operation_flows IS
-    'Single scoped-flow contract. Account flows include external and internal funding effects; portfolio flows include external deposits/withdrawals plus directional XTB transfer legs whose counterparty is outside the configured portfolio. Paired configured-account transfers remain portfolio-neutral.';
+    'Flow contract with separate account funding, performance-neutralizing, and portfolio-scoped values. INTERNAL_BOOKKEEPING remains cash/account-funding diagnostic data but is not performance flow; external and genuine tracked-account transfers are performance flow at account level and cancel when aggregated within a portfolio.';
 
 CREATE OR REPLACE VIEW investory.v_portfolio_daily AS
 WITH account_rows_with_fx AS (
@@ -5097,10 +5107,10 @@ WITH account_rows_with_fx AS (
     SELECT
         account_id,
         date::date AS snapshot_date,
-        SUM(portfolio_flow_amount_in_portfolio_base_currency)
-            FILTER (WHERE portfolio_flow_amount_in_portfolio_base_currency > 0) AS deposits,
-        SUM(-portfolio_flow_amount_in_portfolio_base_currency)
-            FILTER (WHERE portfolio_flow_amount_in_portfolio_base_currency < 0) AS withdrawals,
+        SUM(performance_flow_amount_in_portfolio_base_currency)
+            FILTER (WHERE performance_flow_amount_in_portfolio_base_currency > 0) AS deposits,
+        SUM(-performance_flow_amount_in_portfolio_base_currency)
+            FILTER (WHERE performance_flow_amount_in_portfolio_base_currency < 0) AS withdrawals,
         COUNT(*) FILTER (
             WHERE portfolio_conversion_status NOT IN ('OK', 'SAME_CURRENCY')
         ) AS missing_flow_fx_count
@@ -5140,3 +5150,63 @@ SELECT
 FROM account_rows ar
 LEFT JOIN external_flows ef ON ef.account_id = ar.account_id AND ef.snapshot_date = ar.snapshot_date
 GROUP BY ar.portfolio_id, ar.snapshot_date, ar.base_currency;
+
+CREATE OR REPLACE VIEW investory.reporting_account_daily_performance_flow AS
+WITH account_days AS (
+    SELECT
+        ad.account_id,
+        ad.snapshot_date,
+        LAG(ad.equity, 1, 0::numeric) OVER (
+            PARTITION BY ad.account_id
+            ORDER BY ad.snapshot_date
+        ) AS previous_equity,
+        ad.equity,
+        ad.daily_profit_amount
+    FROM investory.account_daily ad
+), flows AS (
+    SELECT
+        nco.account_id,
+        nco.date::date AS snapshot_date,
+        CASE
+            WHEN COUNT(*) FILTER (
+                WHERE nco.portfolio_conversion_status NOT IN ('OK', 'SAME_CURRENCY')
+            ) > 0 THEN NULL::numeric
+            ELSE SUM(COALESCE(nco.account_flow_amount_in_portfolio_base_currency, 0))
+        END AS account_funding_flow,
+        CASE
+            WHEN COUNT(*) FILTER (
+                WHERE nco.portfolio_conversion_status NOT IN ('OK', 'SAME_CURRENCY')
+            ) > 0 THEN NULL::numeric
+            ELSE SUM(COALESCE(nco.performance_flow_amount_in_portfolio_base_currency, 0))
+        END AS performance_flow,
+        CASE
+            WHEN COUNT(*) FILTER (
+                WHERE nco.portfolio_conversion_status NOT IN ('OK', 'SAME_CURRENCY')
+            ) > 0 THEN NULL::numeric
+            ELSE SUM(COALESCE(nco.portfolio_flow_amount_in_portfolio_base_currency, 0))
+        END AS portfolio_flow
+    FROM investory.normalized_cash_operation_flows nco
+    GROUP BY nco.account_id, nco.date::date
+)
+SELECT
+    ad.account_id,
+    ad.snapshot_date,
+    ad.previous_equity,
+    ad.equity,
+    ad.equity - ad.previous_equity AS daily_equity_change,
+    f.account_funding_flow,
+    f.performance_flow,
+    f.portfolio_flow,
+    ad.daily_profit_amount AS reported_daily_profit,
+    ad.equity - ad.previous_equity - COALESCE(f.performance_flow, 0)
+        AS derived_daily_profit,
+    ad.daily_profit_amount
+        - (ad.equity - ad.previous_equity - COALESCE(f.performance_flow, 0))
+        AS daily_profit_difference
+FROM account_days ad
+LEFT JOIN flows f
+  ON f.account_id = ad.account_id
+ AND f.snapshot_date = ad.snapshot_date;
+
+COMMENT ON VIEW investory.reporting_account_daily_performance_flow IS
+    'Explains account_daily performance using separate account funding, performance, and portfolio flow semantics. Performance flow excludes INTERNAL_BOOKKEEPING, FX_CONVERSION, and ambiguous CORRECTION rows.';

@@ -570,6 +570,11 @@ class PortfolioServiceTest {
       }
 
       @Override
+      public Double getPerformanceFlowAmountInPortfolioBaseCurrency() {
+        return null;
+      }
+
+      @Override
       public String getPortfolioConversionStatus() {
         return "OK";
       }

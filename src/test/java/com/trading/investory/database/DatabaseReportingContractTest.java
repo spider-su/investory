@@ -567,25 +567,133 @@ class DatabaseReportingContractTest {
       try {
         long targetNegative = insertSubaccountTransfer(connection, 51499241L, -801.47, "Transfer from 51993106 to 51499241");
         long targetPositive = insertSubaccountTransfer(connection, 51499241L, 801.47, "Transfer from 51993106 to 51499241");
-        assertFlowSums(connection, targetNegative, targetPositive, 801.47, 0.0);
+        assertFlowSums(connection, targetNegative, targetPositive, 801.47, 0.0, 0.0);
 
         long sourceNegative = insertSubaccountTransfer(connection, 51499241L, -801.47, "Transfer from 51499241 to 51993106");
         long sourcePositive = insertSubaccountTransfer(connection, 51499241L, 801.47, "Transfer from 51499241 to 51993106");
-        assertFlowSums(connection, sourceNegative, sourcePositive, -801.47, 0.0);
+        assertFlowSums(connection, sourceNegative, sourcePositive, -801.47, 0.0, 0.0);
 
         long virtualDepositNegative =
             insertSubaccountTransfer(connection, 51499241L, -801.47, "Transfer from 99999999 to 51499241");
         long virtualDepositPositive =
             insertSubaccountTransfer(connection, 51499241L, 801.47, "Transfer from 99999999 to 51499241");
-        assertFlowSums(connection, virtualDepositNegative, virtualDepositPositive, 801.47, 801.47);
+        assertFlowSums(
+            connection, virtualDepositNegative, virtualDepositPositive, 801.47, 801.47, 0.0);
 
         long virtualWithdrawalNegative =
             insertSubaccountTransfer(connection, 51499241L, -801.47, "Transfer from 51499241 to 99999999");
         long virtualWithdrawalPositive =
             insertSubaccountTransfer(connection, 51499241L, 801.47, "Transfer from 51499241 to 99999999");
-        assertFlowSums(connection, virtualWithdrawalNegative, virtualWithdrawalPositive, -801.47, -801.47);
+        assertFlowSums(
+            connection, virtualWithdrawalNegative, virtualWithdrawalPositive, -801.47, -801.47, 0.0);
       } finally {
         connection.rollback();
+      }
+    }
+  }
+
+  @Test
+  void performanceFlowSeparatesCapitalFromBookkeepingCashEffects() throws SQLException {
+    try (Connection connection = connection()) {
+      connection.setAutoCommit(false);
+      try {
+        long externalDeposit =
+            insertCashOperation(connection, "DEPOSIT", 51499241L, 100.0, "external funding");
+        long externalWithdrawal =
+            insertCashOperation(connection, "WITHDRAWAL", 51499241L, -50.0, "external funding");
+        long internalTransferIn =
+            insertCashOperation(
+                connection,
+                "DEPOSIT",
+                51499241L,
+                25.0,
+                "Transfer in operation on account 51499241");
+        long internalTransferOut =
+            insertCashOperation(
+                connection,
+                "DEPOSIT",
+                51499241L,
+                -25.0,
+                "Transfer out operation on account 51499241");
+        long trackedTransferOut =
+            insertCashOperation(
+                connection,
+                "DEPOSIT",
+                51499241L,
+                -40.0,
+                "Transfer out operation on account 51993106");
+        long trackedTransferIn =
+            insertCashOperation(
+                connection,
+                "DEPOSIT",
+                51993106L,
+                40.0,
+                "Transfer in operation on account 51499241");
+        long bookkeeping =
+            insertCashOperation(
+                connection,
+                "SUBACCOUNT_TRANSFER",
+                51499241L,
+                6044.12,
+                "Transfer from 51993106 to 51499241");
+        long fxConversion =
+            insertCashOperation(
+                connection,
+                "TRANSFER",
+                51499241L,
+                75.0,
+                "Currency conversion, USD to EUR, exchange rate: 1.1");
+        long correction =
+            insertCashOperation(
+                connection, "CORRECTION", 51499241L, 30.0, "bookkeeping correction");
+
+        assertPerformanceFlow(connection, externalDeposit, 100.0);
+        assertPerformanceFlow(connection, externalWithdrawal, -50.0);
+        assertPerformanceFlow(connection, internalTransferIn, 25.0);
+        assertPerformanceFlow(connection, internalTransferOut, -25.0);
+        assertPerformanceFlow(connection, trackedTransferOut, -40.0);
+        assertPerformanceFlow(connection, trackedTransferIn, 40.0);
+        assertFlowSums(connection, trackedTransferOut, trackedTransferIn, 0.0, 0.0, 0.0);
+        assertPerformanceFlow(connection, bookkeeping, 0.0);
+        assertPerformanceFlow(connection, fxConversion, 0.0);
+        assertPerformanceFlow(connection, correction, 0.0);
+      } finally {
+        connection.rollback();
+      }
+    }
+  }
+
+  private static void assertPerformanceFlow(
+      Connection connection, long operationId, double expected) throws SQLException {
+    try (PreparedStatement statement =
+        connection.prepareStatement(
+            "SELECT performance_flow_amount "
+                + "FROM investory.normalized_cash_operation_flows "
+                + "WHERE operation_id = ?")) {
+      statement.setLong(1, operationId);
+      try (ResultSet result = statement.executeQuery()) {
+        assertTrue(result.next());
+        assertEquals(expected, result.getBigDecimal(1).doubleValue(), 0.001);
+      }
+    }
+  }
+
+  private static long insertCashOperation(
+      Connection connection, String operation, long accountId, double amount, String comment)
+      throws SQLException {
+    try (PreparedStatement statement =
+        connection.prepareStatement(
+            "INSERT INTO investory.cash_operations "
+                + "(account_id, operation, amount, currency, comment, date) "
+                + "VALUES (?, ?::investory.cash_operation_type, ?, 'USD', ?, "
+                + "TIMESTAMPTZ '2026-01-31 12:00:00+00') RETURNING id")) {
+      statement.setLong(1, accountId);
+      statement.setString(2, operation);
+      statement.setDouble(3, amount);
+      statement.setString(4, comment);
+      try (ResultSet result = statement.executeQuery()) {
+        assertTrue(result.next());
+        return result.getLong(1);
       }
     }
   }
@@ -610,11 +718,13 @@ class DatabaseReportingContractTest {
 
   private static void assertFlowSums(
       Connection connection, long firstOperationId, long secondOperationId,
-      double expectedAccountFlow, double expectedPortfolioFlow) throws SQLException {
+      double expectedAccountFlow, double expectedPortfolioFlow, double expectedPerformanceFlow)
+      throws SQLException {
     try (PreparedStatement statement =
         connection.prepareStatement(
             "SELECT COALESCE(SUM(account_flow_amount), 0), "
-                + "COALESCE(SUM(portfolio_flow_amount), 0) "
+                + "COALESCE(SUM(portfolio_flow_amount), 0), "
+                + "COALESCE(SUM(performance_flow_amount), 0) "
                 + "FROM investory.normalized_cash_operation_flows "
                 + "WHERE operation_id IN (?, ?)")) {
       statement.setLong(1, firstOperationId);
@@ -623,6 +733,7 @@ class DatabaseReportingContractTest {
         assertTrue(result.next());
         assertEquals(expectedAccountFlow, result.getBigDecimal(1).doubleValue(), 0.001);
         assertEquals(expectedPortfolioFlow, result.getBigDecimal(2).doubleValue(), 0.001);
+        assertEquals(expectedPerformanceFlow, result.getBigDecimal(3).doubleValue(), 0.001);
       }
     }
   }

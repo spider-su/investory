@@ -25,6 +25,19 @@ external deposits - external withdrawals
 Internal transfers and currency conversions move value between accounts/currencies but do not change
 portfolio-level contributed capital.
 
+Reporting keeps three flow concepts separate:
+
+- cash effect: every ledger operation that changes reconstructed cash;
+- account funding flow: account-level allocation/funding reporting, including genuine tracked-account
+  transfers and other contract-approved bookkeeping allocations;
+- performance flow: only external funding and genuine tracked-account transfers that must be removed
+  from account-level investment performance. `INTERNAL_BOOKKEEPING`, `FX_CONVERSION`, and ambiguous
+  `CORRECTION` rows are not performance flow by default.
+
+At portfolio scope, tracked-account performance flows cancel when both sides are in the portfolio.
+Bookkeeping cash effects remain visible to cash reconstruction without becoming investment profit or
+loss.
+
 A cash movement must not become investment profit merely because it is not classified as an external
 flow.
 

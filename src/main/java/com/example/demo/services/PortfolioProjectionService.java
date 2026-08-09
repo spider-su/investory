@@ -436,6 +436,7 @@ public class PortfolioProjectionService {
           amountBase,
           amountAccountCurrency,
           normalized.accountFlowAmountInPortfolioBaseCurrency(),
+          normalized.performanceFlowAmountInPortfolioBaseCurrency(),
           cashOnlyAccounts.contains(normalized.accountId()));
 
       if (!StringUtils.hasText(normalized.symbol())) {
@@ -489,6 +490,7 @@ public class PortfolioProjectionService {
                     row.getAmountInPortfolioBaseCurrency(),
                     row.getPortfolioConversionStatus(),
                     accountFlowAmount(row, parseCategory(row.getNormalizedCategory())),
+                    performanceFlowAmount(row, parseCategory(row.getNormalizedCategory())),
                     row.getAmountInAccountCurrency(),
                     row.getAccountConversionStatus(),
                     row.getDate(),
@@ -501,6 +503,21 @@ public class PortfolioProjectionService {
       NormalizedCategory category) {
     if (row.getAccountFlowAmountInPortfolioBaseCurrency() != null) {
       return row.getAccountFlowAmountInPortfolioBaseCurrency();
+    }
+    return switch (category) {
+      case EXTERNAL_DEPOSIT,
+          EXTERNAL_WITHDRAWAL,
+          INTERNAL_TRANSFER_IN,
+          INTERNAL_TRANSFER_OUT -> row.getAmountInPortfolioBaseCurrency();
+      default -> null;
+    };
+  }
+
+  private static Double performanceFlowAmount(
+      NormalizedCashOperationRepository.NormalizedCashOperationRow row,
+      NormalizedCategory category) {
+    if (row.getPerformanceFlowAmountInPortfolioBaseCurrency() != null) {
+      return row.getPerformanceFlowAmountInPortfolioBaseCurrency();
     }
     return switch (category) {
       case EXTERNAL_DEPOSIT,
@@ -646,15 +663,18 @@ public class PortfolioProjectionService {
          * Canonical daily profit must reconcile to the same boundary formula used by
          * account_monthly_mv:
          *
-         *   daily profit = closing equity - opening equity - external deposits + external withdrawals
+         *   daily profit = closing equity - opening equity - performance flow
          *
-         * Internal transfers, FX conversion, trade settlement, dividends, interest, fees,
-         * taxes, and realized trade rows already affect equity through the canonical cash
-         * ledger and/or market valuation, so they must not be added again here.
+         * Performance flow includes external funding and genuine tracked-account transfers.
+         * Internal bookkeeping, FX conversion, trade settlement, dividends, interest, fees, taxes,
+         * and realized trade rows already affect equity through the canonical cash ledger and/or
+         * market valuation, so they must not be added again here.
          */
-        double dailyProfit = ModifiedDietzCalculator.profit(previousEquity, equity, acc.netFlow);
+        double dailyProfit =
+            ModifiedDietzCalculator.profit(previousEquity, equity, acc.performanceFlow);
         double dailyReturn =
-            ModifiedDietzCalculator.returnRate(previousEquity, equity, List.of(acc.netFlow));
+            ModifiedDietzCalculator.returnRate(
+                previousEquity, equity, List.of(acc.performanceFlow));
 
         rows.add(
             AccountDaily.builder()
@@ -975,6 +995,7 @@ public class PortfolioProjectionService {
       Double amountInPortfolioBaseCurrency,
       String portfolioConversionStatus,
       Double accountFlowAmountInPortfolioBaseCurrency,
+      Double performanceFlowAmountInPortfolioBaseCurrency,
       Double amountInAccountCurrency,
       String accountConversionStatus,
       LocalDate date,
@@ -1225,7 +1246,7 @@ public class PortfolioProjectionService {
   private static final class AccountMonthAccumulator {
     double deposits;
     double withdrawals;
-    double netFlow;
+    double performanceFlow;
     double buys;
     double sells;
     double dividends;
@@ -1245,15 +1266,18 @@ public class PortfolioProjectionService {
         double amountBase,
         double amountAccountCurrency,
         Double accountFlowAmountInPortfolioBaseCurrency,
+        Double performanceFlowAmountInPortfolioBaseCurrency,
         boolean cashOnlyAccount) {
       cashDeltaAccountCurrency += amountAccountCurrency;
       if (accountFlowAmountInPortfolioBaseCurrency != null) {
-        netFlow += accountFlowAmountInPortfolioBaseCurrency;
         if (accountFlowAmountInPortfolioBaseCurrency >= 0.0) {
           deposits += accountFlowAmountInPortfolioBaseCurrency;
         } else {
           withdrawals -= accountFlowAmountInPortfolioBaseCurrency;
         }
+      }
+      if (performanceFlowAmountInPortfolioBaseCurrency != null) {
+        performanceFlow += performanceFlowAmountInPortfolioBaseCurrency;
       }
       switch (normalized.normalizedCategory()) {
         case EXTERNAL_DEPOSIT:
@@ -1319,7 +1343,7 @@ public class PortfolioProjectionService {
            * fake investment loss or gain in account_daily and every monthly aggregate above it.
           */
           if (cashOnlyAccount) {
-            netFlow += amountBase;
+            performanceFlow += amountBase;
             if (normalized.normalizedCategory() == NormalizedCategory.TRADE_PURCHASE) {
               withdrawals += Math.abs(amountBase);
             } else {

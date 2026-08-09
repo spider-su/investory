@@ -43,6 +43,8 @@ with internal transfers/conversions handled according to portfolio scope.
 Also check:
 
 - no cash classification creates unexplained profit;
+- account funding flow, performance flow, and portfolio flow remain distinct in daily performance
+  diagnostics;
 - open-position value uses the canonical current/historical pricing rule;
 - result-only positions are not valued at full notional;
 - broker truth is used as an independent oracle where the broker export provides it;
