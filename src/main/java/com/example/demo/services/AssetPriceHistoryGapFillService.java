@@ -40,6 +40,7 @@ public class AssetPriceHistoryGapFillService {
 
     Map<String, Asset> assetsBySymbol =
         assetRepository.findAllBySymbolIn(openSymbols).stream()
+            .filter(asset -> !Boolean.TRUE.equals(asset.getExcludeFromImport()))
             .collect(
                 java.util.stream.Collectors.toMap(
                     Asset::getSymbol, asset -> asset, (existing, ignored) -> existing));

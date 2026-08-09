@@ -31,7 +31,8 @@ public interface AssetPriceHistoryRepository extends Repository<Asset, Long> {
                  aph.interpolation_right_date as interpolationRightDate
           from asset_price_history aph
           join assets a on a.id = aph.asset_id
-          where a.symbol in (:symbols)
+          where a.exclude_from_import = false
+            and a.symbol in (:symbols)
             and aph.price_date <= :dateTo
           order by a.symbol, aph.price_date, aph.quality_score desc, aph.imported_at desc, aph.source
           """,

@@ -38,6 +38,9 @@ public class ManualAssetPriceService {
         assetRepository
             .findBySymbol(symbol)
             .orElseThrow(() -> new IllegalArgumentException("Asset not found: " + symbol));
+    if (Boolean.TRUE.equals(asset.getExcludeFromImport())) {
+      throw new IllegalArgumentException("Asset is excluded from Investory calculations: " + symbol);
+    }
 
     CurrencyType currency = asset.getCurrency() != null ? asset.getCurrency() : BASE_CURRENCY;
     double marketPriceUsd =

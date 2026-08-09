@@ -700,6 +700,7 @@ public class XtbImportV2Service {
     aggregated.keySet().forEach(key -> aggregatedSymbols.add(key.symbol()));
     Map<String, Long> assetIdsBySymbol =
         assetRepository.findAllBySymbolIn(aggregatedSymbols).stream()
+            .filter(asset -> !Boolean.TRUE.equals(asset.getExcludeFromImport()))
             .collect(
                 java.util.stream.Collectors.toMap(Asset::getSymbol, Asset::getId, (a, b) -> a));
 

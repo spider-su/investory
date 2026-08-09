@@ -94,17 +94,25 @@ public class PortfolioProjectionService {
             .filter(Account::isCashOnly)
             .map(Account::getId)
             .collect(Collectors.toSet());
+    Set<Long> excludedAssetIds =
+        assetRepository.findAll().stream()
+            .filter(asset -> Boolean.TRUE.equals(asset.getExcludeFromImport()))
+            .map(Asset::getId)
+            .collect(Collectors.toSet());
     List<OpenedPosition> opened =
         openedPositionRepository.findAllByAccountIn(affectedAccounts).stream()
             .filter(position -> !cashOnlyAccounts.contains(position.getAccount()))
+            .filter(position -> !excludedAssetIds.contains(position.getAssetId()))
             .toList();
     List<ClosedPosition> closed =
         closedPositionRepository.findAllByAccountIn(affectedAccounts).stream()
             .filter(position -> !cashOnlyAccounts.contains(position.getAccount()))
+            .filter(position -> !excludedAssetIds.contains(position.getAssetId()))
             .toList();
     Map<String, Asset> assets =
         assetRepository.findAll().stream()
             .filter(asset -> StringUtils.hasText(asset.getSymbol()))
+            .filter(asset -> !Boolean.TRUE.equals(asset.getExcludeFromImport()))
             .collect(
                 Collectors.toMap(
                     Asset::getSymbol,

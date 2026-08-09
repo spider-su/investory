@@ -369,7 +369,9 @@ public class MarketService {
   }
 
   private boolean isSupportedForPriceUpdate(Asset asset) {
-    if (asset == null || !StringUtils.hasText(asset.getTicker())) {
+    if (asset == null
+        || Boolean.TRUE.equals(asset.getExcludeFromImport())
+        || !StringUtils.hasText(asset.getTicker())) {
       return false;
     }
     String ticker = asset.getTicker().trim().toUpperCase(Locale.ROOT);

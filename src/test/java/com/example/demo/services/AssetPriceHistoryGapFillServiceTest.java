@@ -146,6 +146,30 @@ class AssetPriceHistoryGapFillServiceTest {
   }
 
   @Test
+  void fillMissingBusinessDayGaps_ignoresExcludedAsset() {
+    AssetPriceHistoryGapFillService service =
+        new AssetPriceHistoryGapFillService(
+            openedPositionRepository, assetRepository, assetPriceHistoryRepository);
+
+    OpenedPosition opened = new OpenedPosition();
+    opened.setSymbol("EXCLUDED.US");
+    Asset asset = new Asset();
+    asset.setId(404L);
+    asset.setSymbol("EXCLUDED.US");
+    asset.setExcludeFromImport(true);
+
+    when(openedPositionRepository.findAll()).thenReturn(List.of(opened));
+    when(assetRepository.findAllBySymbolIn(Set.of("EXCLUDED.US"))).thenReturn(List.of(asset));
+
+    service.fillMissingBusinessDayGaps(LocalDate.of(2026, 7, 17));
+
+    verify(assetPriceHistoryRepository, never())
+        .findHistoricalPricesBySymbolInBefore(any(), any());
+    verify(assetPriceHistoryRepository, never())
+        .upsertCarryForwardPrice(any(), any(), any(), any(), any(), any(), any(), any(), any());
+  }
+
+  @Test
   void fillMissingBusinessDayGaps_prefersOpenLotPriceWhenSplitObservationsTie() {
     AssetPriceHistoryGapFillService service =
         new AssetPriceHistoryGapFillService(

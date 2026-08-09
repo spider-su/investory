@@ -61,6 +61,7 @@ WITH mapped_history AS (
         ass.price_scale_factor AS mapping_scale_factor
     FROM investory.asset_price_history aph
              JOIN investory.assets asset ON asset.id = aph.asset_id
+             AND asset.exclude_from_import = false
              LEFT JOIN investory.asset_source_symbols ass ON ass.id = aph.source_mapping_id
 )
 SELECT

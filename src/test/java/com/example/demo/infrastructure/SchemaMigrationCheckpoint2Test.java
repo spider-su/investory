@@ -376,6 +376,33 @@ class SchemaMigrationCheckpoint2Test {
   }
 
   @Test
+  void excludedAssetsAreAbsentFromValuationAndPriceDiagnostics() throws Exception {
+    try (Connection connection = openConnection();
+        Statement statement = connection.createStatement()) {
+      assertEquals(
+          0,
+          singleInt(
+              statement,
+              "SELECT count(*) FROM investory.v_canonical_asset_daily_price cp "
+                  + "JOIN investory.assets a ON a.id = cp.asset_id "
+                  + "WHERE a.exclude_from_import"));
+      assertEquals(
+          0,
+          singleInt(
+              statement,
+              "SELECT count(*) FROM investory.reporting_price_history_contract_issues i "
+                  + "JOIN investory.assets a ON a.id = i.asset_id "
+                  + "WHERE a.exclude_from_import"));
+      assertEquals(
+          0,
+          singleInt(
+              statement,
+              "SELECT count(*) FROM investory.v_current_asset_price "
+                  + "WHERE asset_id IN (SELECT id FROM investory.assets WHERE exclude_from_import)"));
+    }
+  }
+
+  @Test
   void priceHistoryContractDiagnosticsAreEmptyAfterSeedRepair() throws Exception {
     try (Connection connection = openConnection();
         Statement statement = connection.createStatement()) {

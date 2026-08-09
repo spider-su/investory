@@ -368,6 +368,9 @@ SELECT DISTINCT ON (aph.asset_id, aph.price_date)
     aph.source_date,
     aph.imported_at
 FROM investory.asset_price_history aph
+JOIN investory.assets asset
+  ON asset.id = aph.asset_id
+ AND asset.exclude_from_import = false
 ORDER BY
     aph.asset_id,
     aph.price_date,
@@ -439,7 +442,8 @@ SELECT
     lp.imported_at
 FROM investory.assets a
 LEFT JOIN latest_observed_price lp
-    ON lp.asset_id = a.id;
+    ON lp.asset_id = a.id
+WHERE a.exclude_from_import = false;
 
 COMMENT ON VIEW investory.v_current_asset_price IS
     'Authoritative current price selection: latest observed canonical historical price whose effective source observation is no older than ten days (scaled once), then assets.market_price in assets.currency, otherwise unavailable. Price and currency always come from the same source.';
@@ -498,6 +502,7 @@ LEFT JOIN LATERAL investory.resolve_fx_rate(
     pf.base_currency::varchar(3)
 ) market_fx ON true
 WHERE p.close_time IS NULL
+  AND asset.exclude_from_import = false
   AND COALESCE(p.volume, 0) > 0;
 
 COMMENT ON VIEW investory.v_current_open_position_rows IS
@@ -1770,6 +1775,7 @@ duplicate_prices AS (
     FROM investory.asset_price_history aph
     JOIN investory.assets a
       ON a.id = aph.asset_id
+     AND a.exclude_from_import = false
     GROUP BY aph.asset_id, a.symbol, aph.price_date, aph.source
     HAVING COUNT(*) > 1
 ),
@@ -1788,6 +1794,9 @@ duplicate_positions AS (
         COUNT(*)::numeric AS actual_value,
         ('duplicate business-key positions=' || COUNT(*))::text AS details
     FROM investory.positions p
+    JOIN investory.assets asset
+      ON asset.id = p.asset_id
+     AND asset.exclude_from_import = false
     GROUP BY
         p.account_id,
         p.asset_id,
@@ -1828,6 +1837,7 @@ missing_price AS (
     FROM investory.positions p
     JOIN investory.assets a
       ON a.id = p.asset_id
+     AND a.exclude_from_import = false
     JOIN (
         SELECT DISTINCT account_id, snapshot_date
         FROM investory.account_daily
@@ -2184,6 +2194,7 @@ WITH per_row AS (
                   ON portfolio.id = a.portfolio_id
              LEFT JOIN investory.assets asset
                        ON asset.id = p.asset_id
+                      AND asset.exclude_from_import = false
     WHERE p.asset_id IS NOT NULL
 ),
      mixed_groups AS (
@@ -2194,6 +2205,12 @@ WITH per_row AS (
          FROM investory.positions p
          WHERE p.close_time IS NULL
            AND p.asset_id IS NOT NULL
+           AND EXISTS (
+               SELECT 1
+               FROM investory.assets asset
+               WHERE asset.id = p.asset_id
+                 AND asset.exclude_from_import = false
+           )
            AND COALESCE(p.volume, 0) > 0
          GROUP BY p.account_id, p.asset_id
          HAVING COUNT(DISTINCT p.cost_currency) > 1
@@ -2478,6 +2495,7 @@ WITH position_dates AS (
     FROM investory.positions p
     JOIN investory.assets a
         ON a.id = p.asset_id
+       AND a.exclude_from_import = false
     JOIN (
         SELECT DISTINCT snapshot_date
         FROM investory.account_daily
@@ -2636,6 +2654,7 @@ WITH active_position_dates AS (
     FROM investory.positions p
     JOIN investory.assets a
         ON a.id = p.asset_id
+       AND a.exclude_from_import = false
     JOIN investory.accounts account
         ON account.id = p.account_id
     JOIN investory.account_daily d
@@ -2908,6 +2927,8 @@ WITH trade_components AS (
     FROM investory.positions p
     JOIN investory.accounts a ON a.id = p.account_id
     JOIN investory.portfolios pf ON pf.id = a.portfolio_id
+    JOIN investory.assets asset ON asset.id = p.asset_id
+                               AND asset.exclude_from_import = false
     WHERE p.close_time IS NOT NULL
     UNION ALL
     SELECT p.account_id, p.close_time::date, pf.base_currency::varchar(3),
@@ -2915,6 +2936,8 @@ WITH trade_components AS (
     FROM investory.positions p
     JOIN investory.accounts a ON a.id = p.account_id
     JOIN investory.portfolios pf ON pf.id = a.portfolio_id
+    JOIN investory.assets asset ON asset.id = p.asset_id
+                              AND asset.exclude_from_import = false
     WHERE p.close_time IS NOT NULL
     UNION ALL
     SELECT p.account_id, p.close_time::date, pf.base_currency::varchar(3),
@@ -2922,6 +2945,8 @@ WITH trade_components AS (
     FROM investory.positions p
     JOIN investory.accounts a ON a.id = p.account_id
     JOIN investory.portfolios pf ON pf.id = a.portfolio_id
+    JOIN investory.assets asset ON asset.id = p.asset_id
+                              AND asset.exclude_from_import = false
     WHERE p.close_time IS NOT NULL
 ), converted_trade_components AS (
     SELECT tc.*, fx.fx_rate_to_target, fx.conversion_status
@@ -4199,6 +4224,7 @@ closed_position_components AS (
         ON pf.id = a.portfolio_id
     JOIN investory.assets asset
         ON asset.id = p.asset_id
+       AND asset.exclude_from_import = false
     WHERE p.close_time IS NOT NULL
       AND p.asset_id IS NOT NULL
     UNION ALL
@@ -4216,6 +4242,7 @@ closed_position_components AS (
         ON pf.id = a.portfolio_id
     JOIN investory.assets asset
         ON asset.id = p.asset_id
+       AND asset.exclude_from_import = false
     WHERE p.close_time IS NOT NULL
       AND p.asset_id IS NOT NULL
 ),
@@ -4255,6 +4282,7 @@ cash_dividends AS (
       ON a.id = nco.account_id
     JOIN investory.assets asset
       ON asset.id = nco.asset_id
+     AND asset.exclude_from_import = false
     GROUP BY a.portfolio_id, asset.id
 )
 SELECT
@@ -4320,6 +4348,8 @@ WITH position_components AS (
     FROM investory.positions pos
     JOIN investory.accounts acc ON acc.id = pos.account_id
     JOIN investory.portfolios pf ON pf.id = acc.portfolio_id
+    JOIN investory.assets asset ON asset.id = pos.asset_id
+                               AND asset.exclude_from_import = false
     UNION ALL
     SELECT
         pf.id AS portfolio_id,
@@ -4331,6 +4361,8 @@ WITH position_components AS (
     FROM investory.positions pos
     JOIN investory.accounts acc ON acc.id = pos.account_id
     JOIN investory.portfolios pf ON pf.id = acc.portfolio_id
+    JOIN investory.assets asset ON asset.id = pos.asset_id
+                               AND asset.exclude_from_import = false
 ), converted_position_components AS (
     SELECT pc.*, fx.fx_rate_to_target, fx.conversion_status
     FROM position_components pc

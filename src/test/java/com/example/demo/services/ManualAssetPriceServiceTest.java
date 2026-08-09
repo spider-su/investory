@@ -107,4 +107,18 @@ class ManualAssetPriceServiceTest {
     verify(assetRepository).findBySymbol("MISSING.US");
     verifyNoInteractions(currencyRateService, marketService, statisticsRefreshService);
   }
+
+  @Test
+  void updatePriceRejectsExcludedAssetWithoutChangingHistory() {
+    Asset asset = PortfolioBuilders.asset(PortfolioTestData.PKO_WA).build();
+    asset.setExcludeFromImport(true);
+    when(assetRepository.findBySymbol("PKO.PL")).thenReturn(Optional.of(asset));
+
+    IllegalArgumentException exception =
+        assertThrows(IllegalArgumentException.class, () -> service.updatePrice("PKO.PL", 10.0));
+
+    assertEquals("Asset is excluded from Investory calculations: PKO.PL", exception.getMessage());
+    verifyNoInteractions(currencyRateService, assetPriceHistoryRepository, marketService,
+        statisticsRefreshService);
+  }
 }

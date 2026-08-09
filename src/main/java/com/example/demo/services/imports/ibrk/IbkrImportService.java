@@ -559,6 +559,7 @@ public class IbkrImportService {
             .collect(java.util.stream.Collectors.toSet());
     Map<String, Long> assetIdsBySymbol =
         assetRepository.findAllBySymbolIn(symbols).stream()
+            .filter(asset -> !Boolean.TRUE.equals(asset.getExcludeFromImport()))
             .collect(
                 java.util.stream.Collectors.toMap(
                     Asset::getSymbol, Asset::getId, (existing, ignored) -> existing));
