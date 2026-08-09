@@ -349,18 +349,6 @@ public class BenchmarkService {
       return List.of();
     }
 
-    Set<Long> allAccountIdsWithHistory =
-        dailyRows.stream()
-            .map(AccountDaily::getAccountId)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toCollection(TreeSet::new));
-    Map<Long, Map<String, Double>> portfolioNetDepositByDay =
-        normalizedNetDepositByDay(allAccountIdsWithHistory);
-    Map<Long, Map<String, Double>> visibleNetDepositByDay =
-        portfolioNetDepositByDay.entrySet().stream()
-            .filter(entry -> availableAccounts.contains(entry.getKey()))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
     NavigableMap<Integer, List<AccountDaily>> rowsByYear =
         dailyRows.stream()
             .filter(row -> row.getDate() != null)
@@ -379,20 +367,10 @@ public class BenchmarkService {
                   accountsById.values().stream()
                       .map(
                           account ->
-                              dailyAccountValueSeries(
-                                  account,
-                                  rows,
-                                  labels,
-                                  visibleNetDepositByDay.getOrDefault(account.getId(), Map.of())))
+                              dailyAccountValueSeries(account, rows, labels))
                       .toList();
               if (!accountSeries.isEmpty()) {
-                List<AccountDaily> allRowsForYear =
-                    dailyRows.stream()
-                        .filter(row -> row.getDate() != null)
-                        .filter(row -> row.getDate().getYear() == year)
-                        .toList();
-                Benchmark.AccountValueSeries totalSeries =
-                    portfolioAccountValueSeries(allRowsForYear, labels, portfolioNetDepositByDay);
+                Benchmark.AccountValueSeries totalSeries = sumAccountValueSeries(accountSeries);
                 years.add(
                     new Benchmark.AccountValueYear(
                         year,
@@ -406,10 +384,7 @@ public class BenchmarkService {
   }
 
   private Benchmark.AccountValueSeries dailyAccountValueSeries(
-      Account account,
-      List<AccountDaily> rows,
-      List<String> labels,
-      Map<String, Double> netDepositByDay) {
+      Account account, List<AccountDaily> rows, List<String> labels) {
     Map<String, AccountDaily> valuesByDay =
         rows.stream()
             .filter(row -> account.getId().equals(row.getAccountId()))
@@ -424,76 +399,41 @@ public class BenchmarkService {
                                 .orElse(null))));
     List<Double> profitValues = new ArrayList<>();
     List<Double> profitPctValues = new ArrayList<>();
-    Double startingEquity = null;
-    double cumulativeNetDeposit = 0.0;
+    double cumulativeProfit = 0.0;
+    double cumulativeReturnFactor = 1.0;
     for (String label : labels) {
       AccountDaily point = valuesByDay.get(label);
-      double profit = profitValues.isEmpty() ? 0.0 : profitValues.getLast();
-      cumulativeNetDeposit += netDepositByDay.getOrDefault(label, 0.0);
       if (point != null) {
-        double equity = nz(point.getEquity());
-        if (startingEquity == null
-            && Math.abs(equity - cumulativeNetDeposit) > ACTIVE_ACCOUNT_MIN_VALUE) {
-          startingEquity = equity - cumulativeNetDeposit;
-        }
-        if (startingEquity != null) {
-          profit = equity - startingEquity - cumulativeNetDeposit;
+        cumulativeProfit += nz(point.getDailyProfitAmount());
+        Double dailyReturn = point.getDailyReturn();
+        if (dailyReturn != null && dailyReturn >= -1.0) {
+          cumulativeReturnFactor *= 1.0 + dailyReturn;
         }
       }
-      double profitPct =
-          startingEquity == null || Math.abs(startingEquity) <= ACTIVE_ACCOUNT_MIN_VALUE
-              ? 0.0
-              : profit / startingEquity * 100.0;
-      profitValues.add(round(profit));
-      profitPctValues.add(round(profitPct));
+      profitValues.add(round(cumulativeProfit));
+      profitPctValues.add(round((cumulativeReturnFactor - 1.0) * 100.0));
     }
     return new Benchmark.AccountValueSeries(
         account.getId(), account.getName(), profitValues, profitPctValues);
   }
 
-  private Benchmark.AccountValueSeries portfolioAccountValueSeries(
-      List<AccountDaily> rows,
-      List<String> labels,
-      Map<Long, Map<String, Double>> netDepositByDay) {
-    Map<String, Double> equityByDay =
-        rows.stream()
-            .collect(
-                Collectors.groupingBy(
-                    row -> row.getDate().toString(),
-                    TreeMap::new,
-                    Collectors.summingDouble(row -> nz(row.getEquity()))));
-
-    Map<String, Double> portfolioNetDepositByDay = new HashMap<>();
-    netDepositByDay
-        .values()
-        .forEach(
-            byDay ->
-                byDay.forEach(
-                    (day, amount) -> portfolioNetDepositByDay.merge(day, amount, Double::sum)));
-
+  private Benchmark.AccountValueSeries sumAccountValueSeries(
+      List<Benchmark.AccountValueSeries> accountSeries) {
+    int size = accountSeries.getFirst().profitValues().size();
     List<Double> profitValues = new ArrayList<>();
     List<Double> profitPctValues = new ArrayList<>();
-    Double startingEquity = null;
-    double cumulativeNetDeposit = 0.0;
-    for (String label : labels) {
-      double profit = profitValues.isEmpty() ? 0.0 : profitValues.getLast();
-      cumulativeNetDeposit += portfolioNetDepositByDay.getOrDefault(label, 0.0);
-      Double equity = equityByDay.get(label);
-      if (equity != null) {
-        if (startingEquity == null
-            && Math.abs(equity - cumulativeNetDeposit) > ACTIVE_ACCOUNT_MIN_VALUE) {
-          startingEquity = equity - cumulativeNetDeposit;
-        }
-        if (startingEquity != null) {
-          profit = equity - startingEquity - cumulativeNetDeposit;
-        }
-      }
-      double profitPct =
-          startingEquity == null || Math.abs(startingEquity) <= ACTIVE_ACCOUNT_MIN_VALUE
-              ? 0.0
-              : profit / startingEquity * 100.0;
-      profitValues.add(round(profit));
-      profitPctValues.add(round(profitPct));
+    for (int index = 0; index < size; index++) {
+      int valueIndex = index;
+      profitValues.add(
+          round(
+              accountSeries.stream()
+                  .mapToDouble(series -> series.profitValues().get(valueIndex))
+                  .sum()));
+      profitPctValues.add(
+          round(
+              accountSeries.stream()
+                  .mapToDouble(series -> series.profitPctValues().get(valueIndex))
+                  .sum()));
     }
     return new Benchmark.AccountValueSeries(0L, "Portfolio total", profitValues, profitPctValues);
   }

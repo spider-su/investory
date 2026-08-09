@@ -858,7 +858,7 @@ class SchemaMigrationCheckpoint2Test {
           """);
 
       assertEquals(
-          "PASS|OK|null|52.00000000|0.00000000",
+          "PASS|OK|null|52.00000000|0.00",
           singleString(
               statement,
               """
@@ -871,7 +871,7 @@ class SchemaMigrationCheckpoint2Test {
               """));
 
       assertEquals(
-          "PASS|OK|1.00000000|9.00000000|0.00000000|100.0000000000000000|900.0000000000000000|0.00000000000000000000000000000000",
+          "PASS|OK|1.00000000|9.00000000|0.00000000|100.0000000000000000|900.0000000000000000|0.00",
           singleString(
               statement,
               """
@@ -995,6 +995,231 @@ class SchemaMigrationCheckpoint2Test {
               select trim(to_char(round(cost_basis_in_base_currency::numeric, 8), 'FM9999999990.00000000'))
               from investory.portfolio_asset_allocation
               where portfolio_id = -96 and asset_symbol = 'AAPL.US'
+              """));
+    }
+  }
+
+  @Test
+  void normalizedDailyPricePrefersFreshEffectiveObservationAndRejectsFutureData() throws Exception {
+    try (Connection connection = openConnection();
+        Statement statement = connection.createStatement()) {
+      statement.execute(
+          """
+          insert into investory.portfolios (id, name, base_currency, user_id)
+          values (-970001, 'Price precedence test', 'USD', 1);
+          insert into investory.accounts (id, currency, provider, name, owner, portfolio_id)
+          values (-970001, 'USD', 'IBKR', 'Price precedence account', 'Test', -970001);
+          insert into investory.assets(
+              id, name, symbol, ticker, ibkr, yahoo, country, currency, asset_type)
+          values
+              (-970001, 'Price precedence asset', 'PRICE_PRECEDENCE_TEST.US',
+               'PRICE_PRECEDENCE_TEST', 'PRICE_PRECEDENCE_TEST', 'PRICE_PRECEDENCE_TEST',
+               'US', 'USD', 'EQUITY'),
+              (-970002, 'Carry-forward asset', 'CARRY_FORWARD_TEST.US',
+               'CARRY_FORWARD_TEST', 'CARRY_FORWARD_TEST', 'CARRY_FORWARD_TEST',
+               'US', 'USD', 'EQUITY');
+          insert into investory.positions (
+              id, account_id, asset_id, source_asset_symbol, operation, volume,
+              price_currency, cost_currency, profit_currency, commission_currency,
+              open_time, open_price
+          ) values
+              (-970001, -970001, -970001, 'PRICE_PRECEDENCE_TEST.US', 'BUY', 1,
+               'USD', 'USD', 'USD', 'USD', timestamptz '2029-12-01 00:00:00+00', 100),
+              (-970002, -970001, -970002, 'CARRY_FORWARD_TEST.US', 'BUY', 1,
+               'USD', 'USD', 'USD', 'USD', timestamptz '2029-12-01 00:00:00+00', 100);
+          insert into investory.account_daily (
+              account_id, snapshot_date, valuation_currency, cash_balance, market_value, equity
+          ) values (-970001, date '2030-01-10', 'USD', 0, 0, 0);
+          insert into investory.asset_price_history (
+              asset_id, price_date, source, source_symbol, price_origin, price_currency,
+              close_price, source_date, quality_score, quality_class
+          ) values
+              (-970001, date '2030-01-02', 'TEST_EXACT', 'PRICE_PRECEDENCE_TEST.US',
+               'MARKET_CLOSE', 'USD', 506.70, date '2030-01-02', 100,
+               'EXACT_LISTING_MARKET_CLOSE'),
+              (-970001, date '2030-01-08', 'TEST_TRADE', 'PRICE_PRECEDENCE_TEST.US',
+               'TRADE_OBSERVATION', 'USD', 401.95, date '2030-01-08', 10,
+               'TRADE_OBSERVATION'),
+              (-970001, date '2030-01-08', 'TEST_TRADE_ALT', 'PRICE_PRECEDENCE_TEST.US',
+               'TRADE_OBSERVATION', 'USD', 402.95, date '2030-01-08', 20,
+               'TRADE_OBSERVATION'),
+              (-970001, date '2030-01-11', 'TEST_FUTURE', 'PRICE_PRECEDENCE_TEST.US',
+               'MARKET_CLOSE', 'USD', 999.99, date '2030-01-11', 100,
+               'EXACT_LISTING_MARKET_CLOSE'),
+              (-970002, date '2030-01-09', 'TEST_CARRY', 'CARRY_FORWARD_TEST.US',
+               'STALE_CARRY_FORWARD', 'USD', 399.00, date '2030-01-08', 10,
+               'STALE_CARRY_FORWARD');
+          """);
+
+      assertEquals(
+          "402.95000000|2030-01-08|2030-01-08|2",
+          singleString(
+              statement,
+              """
+              select trim(to_char(selected_price, 'FM9999999990.00000000')) || '|'
+                  || selected_price_date::text || '|'
+                  || underlying_observation_date::text || '|'
+                  || price_age_days::text
+              from investory.v_normalized_daily_price
+              where asset_id = -970001
+                and valuation_date = date '2030-01-10'
+              """));
+
+      assertEquals(
+          "399.00000000|2030-01-09|2030-01-08|2",
+          singleString(
+              statement,
+              """
+              select trim(to_char(selected_price, 'FM9999999990.00000000')) || '|'
+                  || selected_price_date::text || '|'
+                  || underlying_observation_date::text || '|'
+                  || price_age_days::text
+              from investory.v_normalized_daily_price
+              where asset_id = -970002
+                and valuation_date = date '2030-01-10'
+              """));
+    }
+  }
+
+  @Test
+  void accountDailyReconciliationUsesTotalSignedRealizedResult() throws Exception {
+    try (Connection connection = openConnection();
+        Statement statement = connection.createStatement()) {
+      statement.execute(
+          """
+          insert into investory.portfolios (id, name, base_currency, user_id)
+          values (-971001, 'Realized result test', 'USD', 1);
+          insert into investory.accounts (id, currency, provider, name, owner, portfolio_id)
+          values (-971001, 'USD', 'IBKR', 'Realized result account', 'Test', -971001);
+          insert into investory.positions (
+              id, account_id, asset_id, source_asset_symbol, operation, volume,
+              price_currency, cost_currency, profit_currency, commission_currency,
+              open_time, open_price, close_time, close_price, purchase_value, sale_value,
+              commission, swap, profit
+          ) values (
+              -971001, -971001, (select id from investory.assets where symbol = 'AAPL.US'),
+              'AAPL.US', 'BUY', 1, 'USD', 'USD', 'USD', 'USD',
+              timestamptz '2030-02-01 00:00:00+00', 100,
+              timestamptz '2030-02-02 00:00:00+00', 110, 100, 110,
+              -2, -10, 100
+          );
+          insert into investory.cash_operations (
+              id, account_id, operation, amount, currency, date, comment
+          ) values (
+              -971101, -971001, 'SWAP', -10, 'USD',
+              timestamptz '2030-02-02 00:00:01+00', 'signed swap cash row'
+          );
+          insert into investory.account_daily (
+              account_id, snapshot_date, valuation_currency, cash_balance, market_value,
+              equity, realized_profit
+          ) values (-971001, date '2030-02-02', 'USD', -10, 0, -10, 88);
+          select investory.refresh_reconciliation_views();
+          """);
+
+      assertEquals(
+          "88.00000000|10.00000000",
+          singleString(
+              statement,
+              """
+              select trim(to_char(reconstructed_total_realized_result, 'FM9999999990.00000000')) || '|'
+                  || trim(to_char(cash_swap_component, 'FM9999999990.00000000'))
+              from investory.v_realized_result_reconciliation
+              where account_id = -971001
+                and valuation_date = date '2030-02-02'
+              """));
+
+      assertEquals(
+          "88.00000000|0.00000000|PASS",
+          singleString(
+              statement,
+              """
+              select trim(to_char(reconstructed_total_realized_result, 'FM9999999990.00000000')) || '|'
+                  || trim(to_char(realized_difference, 'FM9999999990.00000000')) || '|'
+                  || status
+              from investory.v_account_daily_reconciliation
+              where account_id = -971001
+                and valuation_date = date '2030-02-02'
+              """));
+    }
+  }
+
+  @Test
+  void statisticsReconciliationLabelsDifferentAsOfDatesExplicitly() throws Exception {
+    try (Connection connection = openConnection();
+        Statement statement = connection.createStatement()) {
+      statement.execute(
+          """
+          insert into investory.portfolios (id, name, base_currency, user_id)
+          values (-972001, 'Statistics as-of test', 'USD', 1);
+          insert into investory.accounts (id, currency, provider, name, owner, portfolio_id)
+          values (-972001, 'USD', 'IBKR', 'Statistics as-of account', 'Test', -972001);
+          insert into investory.account_daily (
+              account_id, snapshot_date, valuation_currency, cash_balance, market_value, equity
+          ) values (-972001, current_date - 1, 'USD', 100, 0, 100);
+          select investory.refresh_reporting_views();
+          select investory.refresh_reconciliation_views();
+          """);
+
+      assertEquals(
+          "VALUATION_ASOF_DIFFERENCE",
+          singleString(
+              statement,
+              """
+              select reconciliation_status
+              from investory.reporting_account_statistics_vs_daily_reconciliation
+              where account_id = -972001
+              """));
+    }
+  }
+
+  @Test
+  void reconciliationToleranceUsesFullPrecisionAndConfiguredDisplayScale() throws Exception {
+    try (Connection connection = openConnection();
+        Statement statement = connection.createStatement()) {
+      assertEquals(
+          "2|0.05000000|0.00001000",
+          singleString(
+              statement,
+              """
+              select investory.reconciliation_parameter('reconciliation_reporting_scale')::integer::text || '|'
+                  || trim(to_char(investory.reconciliation_parameter('reconciliation_absolute_tolerance'), 'FM999999990.00000000')) || '|'
+                  || trim(to_char(investory.reconciliation_parameter('reconciliation_relative_tolerance'), 'FM999999990.00000000'))
+              """));
+
+      assertEquals(
+          "true|true|false",
+          singleString(
+              statement,
+              """
+              select investory.reconciliation_values_match(100, 100.049)::text || '|'
+                  || investory.reconciliation_values_match(100, 100.05)::text || '|'
+                  || investory.reconciliation_values_match(100, 100.051)::text
+              """));
+
+      assertEquals(
+          "true|false",
+          singleString(
+              statement,
+              """
+              select investory.reconciliation_values_match(100000, 100000.5)::text || '|'
+                  || investory.reconciliation_values_match(100000, 100001.01)::text
+              """));
+
+      statement.execute(
+          """
+          update investory.reconciliation_parameters
+             set numeric_value = 0.001
+           where parameter_name = 'reconciliation_absolute_tolerance';
+          """);
+
+      assertEquals(
+          "100.00|100.00|false",
+          singleString(
+              statement,
+              """
+              select to_char(round(100.004, investory.reconciliation_parameter('reconciliation_reporting_scale')::integer), 'FM999999990.00') || '|'
+                  || to_char(round(100.000, investory.reconciliation_parameter('reconciliation_reporting_scale')::integer), 'FM999999990.00') || '|'
+                  || investory.reconciliation_values_match(100.004, 100.000)::text
               """));
     }
   }

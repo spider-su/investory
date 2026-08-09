@@ -25,7 +25,10 @@ public interface AssetPriceHistoryRepository extends Repository<Asset, Long> {
                  aph.price_scale_factor as priceScaleFactor,
                  aph.quality_score as qualityScore,
                  aph.quality_class as qualityClass,
-                 aph.price_origin as priceOrigin
+                 aph.price_origin as priceOrigin,
+                 aph.estimated as estimated,
+                 aph.interpolation_left_date as interpolationLeftDate,
+                 aph.interpolation_right_date as interpolationRightDate
           from asset_price_history aph
           join assets a on a.id = aph.asset_id
           where a.symbol in (:symbols)
@@ -270,5 +273,17 @@ public interface AssetPriceHistoryRepository extends Repository<Asset, Long> {
     String getQualityClass();
 
     String getPriceOrigin();
+
+    default Boolean getEstimated() {
+      return false;
+    }
+
+    default LocalDate getInterpolationLeftDate() {
+      return null;
+    }
+
+    default LocalDate getInterpolationRightDate() {
+      return null;
+    }
   }
 }

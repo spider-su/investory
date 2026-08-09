@@ -1,5 +1,99 @@
 SET search_path TO investory, public;
 
+CREATE TABLE IF NOT EXISTS investory.reconciliation_parameters (
+    parameter_name varchar(96) PRIMARY KEY,
+    numeric_value numeric(30,12) NOT NULL,
+    description varchar(255) NOT NULL
+);
+
+INSERT INTO investory.reconciliation_parameters(parameter_name, numeric_value, description)
+VALUES
+    ('reconciliation_reporting_scale', 2, 'Decimal places used for displayed reconciliation values.'),
+    ('reconciliation_absolute_tolerance', 0.05, 'Shared absolute monetary tolerance.'),
+    ('reconciliation_relative_tolerance', 0.00001, 'Shared relative monetary tolerance.'),
+    ('reconciliation_trade_cash_absolute_tolerance', 5, 'Domain threshold for trade cash settlement differences.'),
+    ('reconciliation_trade_cash_relative_tolerance', 0.05, 'Domain threshold for trade cash settlement differences.'),
+    ('reconciliation_carrying_value_absolute_threshold', 250, 'Domain threshold for carrying-value outliers.'),
+    ('reconciliation_carrying_value_relative_threshold', 0.50, 'Domain threshold for carrying-value outliers.'),
+    ('reconciliation_reorganization_absolute_threshold', 250, 'Domain threshold for reorganization value jumps.'),
+    ('reconciliation_reorganization_relative_threshold', 0.20, 'Domain threshold for reorganization value jumps.'),
+    ('reconciliation_market_bridge_absolute_threshold', 250, 'Domain threshold for market-value bridge outliers.'),
+    ('reconciliation_market_bridge_relative_threshold', 0.20, 'Domain threshold for market-value bridge outliers.'),
+    ('reconciliation_position_input_absolute_tolerance', 0.05, 'Input validation tolerance for position notional reconstruction.'),
+    ('reconciliation_position_input_relative_tolerance', 0.15, 'Input validation tolerance for position notional reconstruction.'),
+    ('reconciliation_local_sale_price_relative_threshold', 0.05, 'Domain threshold for local sale-vs-carrying-value comparison.'),
+    ('reconciliation_local_flat_base_jump_relative_threshold', 0.15, 'Domain threshold for local-flat/base-currency valuation jumps.'),
+    ('reconciliation_price_jump_upper_ratio', 100, 'Domain threshold for extreme upward price jumps.'),
+    ('reconciliation_price_jump_lower_ratio', 0.01, 'Domain threshold for extreme downward price jumps.'),
+    ('reconciliation_valuation_jump_upper_ratio', 5, 'Domain threshold for valuation-jump detection.'),
+    ('reconciliation_valuation_jump_lower_ratio', 0.20, 'Domain threshold for valuation-jump detection.'),
+    ('reconciliation_valuation_jump_trade_multiplier', 1.25, 'Domain threshold for valuation-jump trade allowance.'),
+    ('reconciliation_valuation_jump_absolute_threshold', 250, 'Domain threshold for valuation-jump detection.')
+ON CONFLICT (parameter_name) DO NOTHING;
+
+CREATE OR REPLACE FUNCTION investory.reconciliation_parameter(p_parameter_name varchar(96))
+RETURNS numeric
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT numeric_value
+    FROM investory.reconciliation_parameters
+    WHERE parameter_name = p_parameter_name
+$$;
+
+CREATE OR REPLACE FUNCTION investory.reconciliation_effective_tolerance(
+    p_expected numeric,
+    p_actual numeric
+) RETURNS numeric
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT CASE
+        WHEN p_expected IS NULL OR p_actual IS NULL THEN NULL::numeric
+        ELSE GREATEST(
+            investory.reconciliation_parameter('reconciliation_absolute_tolerance'),
+            investory.reconciliation_parameter('reconciliation_relative_tolerance')
+                * GREATEST(ABS(p_expected), ABS(p_actual))
+        )
+    END
+$$;
+
+CREATE OR REPLACE FUNCTION investory.reconciliation_values_match(
+    p_expected numeric,
+    p_actual numeric
+) RETURNS boolean
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT p_expected IS NOT NULL
+       AND p_actual IS NOT NULL
+       AND ABS(p_actual - p_expected)
+           <= investory.reconciliation_effective_tolerance(p_expected, p_actual)
+$$;
+
+CREATE OR REPLACE FUNCTION investory.reconciliation_display_value(p_value numeric)
+RETURNS numeric
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT CASE
+        WHEN p_value IS NULL THEN NULL::numeric
+        ELSE ROUND(
+            p_value,
+            investory.reconciliation_parameter('reconciliation_reporting_scale')::integer
+        )
+    END
+$$;
+
+COMMENT ON TABLE investory.reconciliation_parameters IS
+    'Central reconciliation display precision, numeric tolerances, and explicitly named domain anomaly thresholds. Status uses full precision; reporting values are rounded only for presentation.';
+COMMENT ON FUNCTION investory.reconciliation_effective_tolerance(numeric, numeric) IS
+    'Shared numeric rule: max(absolute tolerance, relative tolerance * max(abs(expected), abs(actual))).';
+COMMENT ON FUNCTION investory.reconciliation_values_match(numeric, numeric) IS
+    'Full-precision reconciliation comparison. NULL values never match.';
+COMMENT ON FUNCTION investory.reconciliation_display_value(numeric) IS
+    'Rounds a reconciliation value for presentation only. It is never used for status decisions.';
+
 -- Currency semantics used by all reporting:
 -- accounts.currency  = cash-account denomination.
 -- assets.currency    = instrument listing/quote denomination.
@@ -276,8 +370,24 @@ WITH latest_observed_price AS (
       AND cp.estimated = false
       AND cp.close_price > 0
       AND cp.price_origin <> 'STALE_CARRY_FORWARD'
-      AND cp.price_date >= CURRENT_DATE - 10
-    ORDER BY cp.asset_id, cp.price_date DESC, cp.imported_at DESC, cp.source
+      AND COALESCE(cp.source_date, cp.price_date) >= CURRENT_DATE - 10
+      AND COALESCE(cp.source_date, cp.price_date) <= CURRENT_DATE
+    ORDER BY cp.asset_id,
+             COALESCE(cp.source_date, cp.price_date) DESC,
+             CASE
+                 WHEN cp.quality_class = 'EXACT_LISTING_MARKET_CLOSE' THEN 1
+                 WHEN cp.quality_class = 'EXACT_LISTING_SCALED' THEN 2
+                 WHEN cp.quality_class LIKE '%ALTERNATE%' OR cp.is_proxy THEN 3
+                 WHEN cp.price_origin = 'MANUAL' THEN 4
+                 WHEN cp.estimated OR cp.quality_class LIKE 'INTERPOLATED%' THEN 5
+                 WHEN cp.quality_class LIKE '%TRADE_OBSERVATION%' OR cp.price_origin LIKE '%TRADE%' THEN 6
+                 WHEN cp.quality_class LIKE '%STALE%' OR cp.price_origin = 'STALE_CARRY_FORWARD' THEN 7
+                 ELSE 9
+             END,
+             cp.quality_score DESC,
+             cp.price_date DESC,
+             cp.imported_at DESC,
+             cp.source
 )
 SELECT
     a.id AS asset_id,
@@ -299,7 +409,7 @@ LEFT JOIN latest_observed_price lp
     ON lp.asset_id = a.id;
 
 COMMENT ON VIEW investory.v_current_asset_price IS
-    'Authoritative current price selection: latest observed canonical historical price no older than ten days (scaled once), then assets.market_price in assets.currency, otherwise unavailable. Price and currency always come from the same source.';
+    'Authoritative current price selection: latest observed canonical historical price whose effective source observation is no older than ten days (scaled once), then assets.market_price in assets.currency, otherwise unavailable. Price and currency always come from the same source.';
 
 CREATE OR REPLACE VIEW investory.v_current_open_position_rows AS
 SELECT
@@ -876,45 +986,63 @@ SELECT
     am.realized_profit,
     am.total_profit AS monthly_boundary_profit,
     COALESCE(mds.summed_daily_profit, 0) AS summed_daily_profit,
-    (
+    investory.reconciliation_display_value(
         COALESCE(am.closing_equity, 0)
         - COALESCE(am.opening_equity, 0)
         - COALESCE(am.deposits, 0)
         + COALESCE(am.withdrawals, 0)
     ) AS expected_boundary_profit,
-    am.total_profit
+    investory.reconciliation_display_value(am.total_profit
         - (
             COALESCE(am.closing_equity, 0)
             - COALESCE(am.opening_equity, 0)
             - COALESCE(am.deposits, 0)
             + COALESCE(am.withdrawals, 0)
-        ) AS monthly_vs_boundary_difference,
-    COALESCE(mds.summed_daily_profit, 0)
+        )) AS monthly_vs_boundary_difference,
+    investory.reconciliation_display_value(COALESCE(mds.summed_daily_profit, 0)
         - (
             COALESCE(am.closing_equity, 0)
             - COALESCE(am.opening_equity, 0)
             - COALESCE(am.deposits, 0)
             + COALESCE(am.withdrawals, 0)
-        ) AS daily_sum_vs_boundary_difference,
+        )) AS daily_sum_vs_boundary_difference,
+    investory.reconciliation_display_value(investory.reconciliation_effective_tolerance(
+        am.total_profit,
+        (
+            COALESCE(am.closing_equity, 0)
+            - COALESCE(am.opening_equity, 0)
+            - COALESCE(am.deposits, 0)
+            + COALESCE(am.withdrawals, 0)
+        )
+    )) AS monthly_effective_tolerance,
+    investory.reconciliation_display_value(investory.reconciliation_effective_tolerance(
+        COALESCE(mds.summed_daily_profit, 0),
+        (
+            COALESCE(am.closing_equity, 0)
+            - COALESCE(am.opening_equity, 0)
+            - COALESCE(am.deposits, 0)
+            + COALESCE(am.withdrawals, 0)
+        )
+    )) AS daily_sum_effective_tolerance,
     CASE
-        WHEN ABS(
-            am.total_profit
-            - (
+        WHEN NOT investory.reconciliation_values_match(
+            am.total_profit,
+            (
                 COALESCE(am.closing_equity, 0)
                 - COALESCE(am.opening_equity, 0)
                 - COALESCE(am.deposits, 0)
                 + COALESCE(am.withdrawals, 0)
             )
-        ) > 0.01 THEN 'MONTHLY_VIEW_MISMATCH'
-        WHEN ABS(
-            COALESCE(mds.summed_daily_profit, 0)
-            - (
+        ) THEN 'MONTHLY_VIEW_MISMATCH'
+        WHEN NOT investory.reconciliation_values_match(
+            COALESCE(mds.summed_daily_profit, 0),
+            (
                 COALESCE(am.closing_equity, 0)
                 - COALESCE(am.opening_equity, 0)
                 - COALESCE(am.deposits, 0)
                 + COALESCE(am.withdrawals, 0)
             )
-        ) > 0.01 THEN 'DAILY_SUM_MISMATCH'
+        ) THEN 'DAILY_SUM_MISMATCH'
         ELSE 'OK'
     END AS reconciliation_status
 FROM investory.account_monthly_mv am
@@ -1403,56 +1531,71 @@ SELECT
     a.id AS account_id,
     a.name AS account_name,
     a.currency::varchar(3) AS account_currency,
+    CURRENT_DATE AS statistics_valuation_date,
     ast.valuation_currency AS statistics_currency,
     ld.valuation_currency AS latest_daily_currency,
     ast.latest_snapshot_date AS statistics_snapshot_date,
     ld.snapshot_date AS latest_daily_snapshot_date,
-    ROUND(COALESCE(ast.cash_balance, 0), 0) AS statistics_cash_balance,
-    ROUND(COALESCE(ld.cash_balance, 0), 0) AS latest_daily_cash_balance,
-    ROUND(COALESCE(ast.cash_balance, 0) - COALESCE(ld.cash_balance, 0), 0) AS cash_balance_difference,
-    ROUND(COALESCE(ast.market_value, 0), 0) AS statistics_market_value,
-    ROUND(COALESCE(ld.market_value, 0), 0) AS latest_daily_market_value,
-    ROUND(COALESCE(ast.market_value, 0) - COALESCE(ld.market_value, 0), 0) AS market_value_difference,
-    ROUND(COALESCE(ast.equity, 0), 0) AS statistics_equity,
-    ROUND(COALESCE(ld.equity, 0), 0) AS latest_daily_equity,
-    ROUND(COALESCE(ast.equity, 0) - COALESCE(ld.equity, 0), 0) AS equity_difference,
-    ROUND(COALESCE(ast.cost_base, 0), 0) AS statistics_cost_base,
-    ROUND(COALESCE(ld.cost_base, 0), 0) AS latest_daily_cost_base,
-    ROUND(COALESCE(ast.cost_base, 0) - COALESCE(ld.cost_base, 0), 0) AS cost_base_difference,
-    ROUND(COALESCE(ast.realized_profit, 0), 0) AS statistics_realized_profit,
-    ROUND(COALESCE(dft.realized_profit, 0), 0) AS cumulative_daily_realized_profit,
-    ROUND(COALESCE(ast.realized_profit, 0) - COALESCE(dft.realized_profit, 0), 0) AS realized_profit_difference,
-    ROUND(COALESCE(ast.unrealized_profit, 0), 0) AS statistics_unrealized_profit,
-    ROUND(COALESCE(ld.unrealized_profit, 0), 0) AS latest_daily_unrealized_profit,
-    ROUND(COALESCE(ast.unrealized_profit, 0) - COALESCE(ld.unrealized_profit, 0), 0) AS unrealized_profit_difference,
-    ROUND(COALESCE(ast.dividends, 0), 0) AS statistics_dividends,
-    ROUND(COALESCE(dft.dividends, 0), 0) AS cumulative_daily_dividends,
-    ROUND(COALESCE(ast.dividends, 0) - COALESCE(dft.dividends, 0), 0) AS dividends_difference,
-    ROUND(COALESCE(ast.interest, 0), 0) AS statistics_interest,
-    ROUND(COALESCE(dft.interest, 0), 0) AS cumulative_daily_interest,
-    ROUND(COALESCE(ast.interest, 0) - COALESCE(dft.interest, 0), 0) AS interest_difference,
-    ROUND(COALESCE(ast.fees, 0), 0) AS statistics_fees,
-    ROUND(COALESCE(dft.fees, 0), 0) AS cumulative_daily_fees,
-    ROUND(COALESCE(ast.fees, 0) - COALESCE(dft.fees, 0), 0) AS fees_difference,
-    ROUND(COALESCE(ast.taxes, 0), 0) AS statistics_taxes,
-    ROUND(COALESCE(dft.taxes, 0), 0) AS cumulative_daily_taxes,
-    ROUND(COALESCE(ast.taxes, 0) - COALESCE(dft.taxes, 0), 0) AS taxes_difference,
-    ROUND(COALESCE(ast.net_deposit, 0), 0) AS statistics_net_deposit,
-    ROUND(COALESCE(ast.account_net_deposit, 0), 0) AS statistics_account_net_deposit,
+    ROUND(COALESCE(ast.cash_balance, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS statistics_cash_balance,
+    ROUND(COALESCE(ld.cash_balance, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS latest_daily_cash_balance,
+    ROUND(COALESCE(ast.cash_balance, 0) - COALESCE(ld.cash_balance, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS cash_balance_difference,
+    ROUND(COALESCE(ast.market_value, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS statistics_market_value,
+    ROUND(COALESCE(ld.market_value, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS latest_daily_market_value,
+    ROUND(COALESCE(ast.market_value, 0) - COALESCE(ld.market_value, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS market_value_difference,
+    ROUND(COALESCE(ast.equity, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS statistics_equity,
+    ROUND(COALESCE(ld.equity, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS latest_daily_equity,
+    ROUND(COALESCE(ast.equity, 0) - COALESCE(ld.equity, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS equity_difference,
+    ROUND(COALESCE(ast.cost_base, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS statistics_cost_base,
+    ROUND(COALESCE(ld.cost_base, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS latest_daily_cost_base,
+    ROUND(COALESCE(ast.cost_base, 0) - COALESCE(ld.cost_base, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS cost_base_difference,
+    ROUND(COALESCE(ast.realized_profit, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS statistics_realized_profit,
+    ROUND(COALESCE(dft.realized_profit, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS cumulative_daily_realized_profit,
+    ROUND(COALESCE(ast.realized_profit, 0) - COALESCE(dft.realized_profit, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS realized_profit_difference,
+    ROUND(COALESCE(ast.unrealized_profit, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS statistics_unrealized_profit,
+    ROUND(COALESCE(ld.unrealized_profit, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS latest_daily_unrealized_profit,
+    ROUND(COALESCE(ast.unrealized_profit, 0) - COALESCE(ld.unrealized_profit, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS unrealized_profit_difference,
+    ROUND(COALESCE(ast.dividends, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS statistics_dividends,
+    ROUND(COALESCE(dft.dividends, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS cumulative_daily_dividends,
+    ROUND(COALESCE(ast.dividends, 0) - COALESCE(dft.dividends, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS dividends_difference,
+    ROUND(COALESCE(ast.interest, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS statistics_interest,
+    ROUND(COALESCE(dft.interest, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS cumulative_daily_interest,
+    ROUND(COALESCE(ast.interest, 0) - COALESCE(dft.interest, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS interest_difference,
+    ROUND(COALESCE(ast.fees, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS statistics_fees,
+    ROUND(COALESCE(dft.fees, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS cumulative_daily_fees,
+    ROUND(COALESCE(ast.fees, 0) - COALESCE(dft.fees, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS fees_difference,
+    ROUND(COALESCE(ast.taxes, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS statistics_taxes,
+    ROUND(COALESCE(dft.taxes, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS cumulative_daily_taxes,
+    ROUND(COALESCE(ast.taxes, 0) - COALESCE(dft.taxes, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS taxes_difference,
+    ROUND(COALESCE(ast.net_deposit, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS statistics_net_deposit,
+    ROUND(COALESCE(ast.account_net_deposit, 0), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS statistics_account_net_deposit,
+    ROUND(GREATEST(
+        investory.reconciliation_effective_tolerance(ast.cash_balance, ld.cash_balance),
+        investory.reconciliation_effective_tolerance(ast.market_value, ld.market_value),
+        investory.reconciliation_effective_tolerance(ast.equity, ld.equity),
+        investory.reconciliation_effective_tolerance(ast.cost_base, ld.cost_base),
+        investory.reconciliation_effective_tolerance(ast.realized_profit, dft.realized_profit),
+        investory.reconciliation_effective_tolerance(ast.unrealized_profit, ld.unrealized_profit),
+        investory.reconciliation_effective_tolerance(ast.dividends, dft.dividends),
+        investory.reconciliation_effective_tolerance(ast.interest, dft.interest),
+        investory.reconciliation_effective_tolerance(ast.fees, dft.fees),
+        investory.reconciliation_effective_tolerance(ast.taxes, dft.taxes)
+    ), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS effective_tolerance,
     CASE
         WHEN ast.latest_snapshot_date IS NULL AND ld.snapshot_date IS NULL THEN 'NO_DATA'
         WHEN ast.latest_snapshot_date IS NULL OR ld.snapshot_date IS NULL THEN 'MISSING_SIDE'
-        WHEN ast.latest_snapshot_date <> ld.snapshot_date THEN 'SNAPSHOT_DATE_MISMATCH'
-        WHEN ABS(COALESCE(ast.cash_balance, 0) - COALESCE(ld.cash_balance, 0)) > 10
-          OR ABS(COALESCE(ast.market_value, 0) - COALESCE(ld.market_value, 0)) > 10
-          OR ABS(COALESCE(ast.equity, 0) - COALESCE(ld.equity, 0)) > 10
-          OR ABS(COALESCE(ast.cost_base, 0) - COALESCE(ld.cost_base, 0)) > 10
-          OR ABS(COALESCE(ast.realized_profit, 0) - COALESCE(dft.realized_profit, 0)) > 10
-          OR ABS(COALESCE(ast.unrealized_profit, 0) - COALESCE(ld.unrealized_profit, 0)) > 10
-          OR ABS(COALESCE(ast.dividends, 0) - COALESCE(dft.dividends, 0)) > 10
-          OR ABS(COALESCE(ast.interest, 0) - COALESCE(dft.interest, 0)) > 10
-          OR ABS(COALESCE(ast.fees, 0) - COALESCE(dft.fees, 0)) > 10
-          OR ABS(COALESCE(ast.taxes, 0) - COALESCE(dft.taxes, 0)) > 10
+        WHEN ast.valuation_currency IS DISTINCT FROM ld.valuation_currency THEN 'CURRENCY_MISMATCH'
+        WHEN ast.latest_snapshot_date IS DISTINCT FROM ld.snapshot_date THEN 'VALUATION_ASOF_DIFFERENCE'
+        WHEN CURRENT_DATE <> ld.snapshot_date THEN 'VALUATION_ASOF_DIFFERENCE'
+        WHEN NOT investory.reconciliation_values_match(ast.cash_balance, ld.cash_balance)
+          OR NOT investory.reconciliation_values_match(ast.market_value, ld.market_value)
+          OR NOT investory.reconciliation_values_match(ast.equity, ld.equity)
+          OR NOT investory.reconciliation_values_match(ast.cost_base, ld.cost_base)
+          OR NOT investory.reconciliation_values_match(ast.realized_profit, dft.realized_profit)
+          OR NOT investory.reconciliation_values_match(ast.unrealized_profit, ld.unrealized_profit)
+          OR NOT investory.reconciliation_values_match(ast.dividends, dft.dividends)
+          OR NOT investory.reconciliation_values_match(ast.interest, dft.interest)
+          OR NOT investory.reconciliation_values_match(ast.fees, dft.fees)
+          OR NOT investory.reconciliation_values_match(ast.taxes, dft.taxes)
         THEN 'VALUE_MISMATCH'
         ELSE 'OK'
     END AS reconciliation_status
@@ -1468,7 +1611,7 @@ CREATE UNIQUE INDEX ux_mv_recon_account_stats_account
     ON investory.reporting_account_statistics_vs_daily_reconciliation(account_id);
 
 COMMENT ON MATERIALIZED VIEW investory.reporting_account_statistics_vs_daily_reconciliation IS
-    'Current per-account reconciliation between account_statistics and the latest account_daily snapshot; monetary values are rounded to whole dollars and VALUE_MISMATCH uses a 10-dollar tolerance.';
+    'Current per-account reconciliation between account_statistics and the latest account_daily snapshot; monetary values use reconciliation_reporting_scale, status uses full-precision shared tolerance, and currency/as-of differences are reported explicitly.';
 
 CREATE MATERIALIZED VIEW investory.portfolio_kpi_summary AS
 WITH latest_portfolio_daily AS (
@@ -1551,34 +1694,34 @@ WITH equity_check AS (
         ad.account_id,
         ad.snapshot_date,
         'EQUITY_MISMATCH'::varchar(64) AS issue_type,
-        CASE
-            WHEN ABS(ad.equity - (ad.cash_balance + ad.market_value)) > 1 THEN 'ERROR'
-            ELSE 'WARN'
-        END::varchar(16) AS severity,
+        'ERROR'::varchar(16) AS severity,
         NULL::bigint AS asset_id,
         NULL::bigint AS operation_id,
         (ad.cash_balance + ad.market_value)::numeric AS expected_value,
         ad.equity::numeric AS actual_value,
         ('equity=' || ad.equity || ', cash+market=' || (ad.cash_balance + ad.market_value))::text AS details
     FROM investory.account_daily ad
-    WHERE ABS(ad.equity - (ad.cash_balance + ad.market_value)) > 0.01
+    WHERE NOT investory.reconciliation_values_match(
+        ad.cash_balance + ad.market_value,
+        ad.equity
+    )
 ),
 unrealized_check AS (
     SELECT
         ad.account_id,
         ad.snapshot_date,
         'UNREALIZED_MISMATCH'::varchar(64) AS issue_type,
-        CASE
-            WHEN ABS(ad.unrealized_profit - (ad.market_value - ad.cost_base)) > 1 THEN 'ERROR'
-            ELSE 'WARN'
-        END::varchar(16) AS severity,
+        'ERROR'::varchar(16) AS severity,
         NULL::bigint AS asset_id,
         NULL::bigint AS operation_id,
         (ad.market_value - ad.cost_base)::numeric AS expected_value,
         ad.unrealized_profit::numeric AS actual_value,
         ('unrealized=' || ad.unrealized_profit || ', market-cost=' || (ad.market_value - ad.cost_base))::text AS details
     FROM investory.account_daily ad
-    WHERE ABS(ad.unrealized_profit - (ad.market_value - ad.cost_base)) > 0.01
+    WHERE NOT investory.reconciliation_values_match(
+        ad.market_value - ad.cost_base,
+        ad.unrealized_profit
+    )
 ),
 duplicate_prices AS (
     SELECT
@@ -1725,8 +1868,15 @@ valuation_jump AS (
      AND t.snapshot_date = x.snapshot_date
     WHERE x.prev_market_value IS NOT NULL
       AND x.prev_market_value > 0
-      AND (x.market_value / x.prev_market_value > 5 OR x.market_value / x.prev_market_value < 0.2)
-      AND ABS(x.market_value - x.prev_market_value) > COALESCE(t.trade_notional, 0) * 1.25 + 250
+      AND (
+          x.market_value / x.prev_market_value
+              > investory.reconciliation_parameter('reconciliation_valuation_jump_upper_ratio')
+          OR x.market_value / x.prev_market_value
+              < investory.reconciliation_parameter('reconciliation_valuation_jump_lower_ratio')
+      )
+      AND ABS(x.market_value - x.prev_market_value) > COALESCE(t.trade_notional, 0)
+          * investory.reconciliation_parameter('reconciliation_valuation_jump_trade_multiplier')
+          + investory.reconciliation_parameter('reconciliation_valuation_jump_absolute_threshold')
 ),
 unclassified_cash AS (
     SELECT
@@ -1962,14 +2112,22 @@ WITH per_row AS (
                  (
                      p.volume > 0 AND p.open_price > 0 AND p.purchase_value > 0
                      AND ABS(ABS(p.purchase_value / NULLIF(p.volume, 0)) - p.open_price)
-                         <= GREATEST(0.05, ABS(p.open_price) * 0.15)
+                         <= GREATEST(
+                             investory.reconciliation_parameter('reconciliation_position_input_absolute_tolerance'),
+                             ABS(p.open_price)
+                                 * investory.reconciliation_parameter('reconciliation_position_input_relative_tolerance')
+                         )
                  )
                  OR
                  (
                      p.close_time IS NOT NULL AND p.volume > 0 AND p.close_price > 0
                      AND p.sale_value > 0
                      AND ABS(ABS(p.sale_value / NULLIF(p.volume, 0)) - p.close_price)
-                         <= GREATEST(0.05, ABS(p.close_price) * 0.15)
+                         <= GREATEST(
+                             investory.reconciliation_parameter('reconciliation_position_input_absolute_tolerance'),
+                             ABS(p.close_price)
+                                 * investory.reconciliation_parameter('reconciliation_position_input_relative_tolerance')
+                         )
                  )
              ) THEN 'POSITION_ASSET_CURRENCY_MISMATCH'
             ELSE 'OK'
@@ -2191,41 +2349,50 @@ SELECT
     ld.account_currency,
     COALESCE(ld.base_currency, ad.valuation_currency) AS ledger_base_currency,
     ad.valuation_currency,
-    ad.previous_cash_balance,
-    ad.cash_balance,
-    ad.cash_balance - COALESCE(ad.previous_cash_balance, 0) AS account_daily_cash_delta,
+    investory.reconciliation_display_value(ad.previous_cash_balance) AS previous_cash_balance,
+    investory.reconciliation_display_value(ad.cash_balance) AS cash_balance,
+    investory.reconciliation_display_value(ad.cash_balance - COALESCE(ad.previous_cash_balance, 0)) AS account_daily_cash_delta,
     ld.ledger_cash_native,
     ld.ledger_cash_base,
     ld.missing_fx_count,
     ld.is_complete,
     CASE
         WHEN ld.account_currency = COALESCE(ld.base_currency, ad.valuation_currency)
-            THEN ld.ledger_cash_base
+            THEN investory.reconciliation_display_value(ld.ledger_cash_base)
         ELSE NULL::numeric
     END AS expected_cash_delta_base_for_same_currency_account,
     CASE
         WHEN ld.account_currency = COALESCE(ld.base_currency, ad.valuation_currency)
-            THEN (ad.cash_balance - COALESCE(ad.previous_cash_balance, 0)) - COALESCE(ld.ledger_cash_base, 0)
+            THEN investory.reconciliation_display_value((ad.cash_balance - COALESCE(ad.previous_cash_balance, 0)) - COALESCE(ld.ledger_cash_base, 0))
         ELSE NULL::numeric
     END AS same_currency_cash_delta_gap,
-    ad.deposits AS account_daily_deposits,
-    ld.ledger_deposits,
-    ad.deposits - COALESCE(ld.ledger_deposits, 0) AS deposits_gap,
-    ad.withdrawals AS account_daily_withdrawals,
-    ld.ledger_withdrawals,
-    ad.withdrawals - COALESCE(ld.ledger_withdrawals, 0) AS withdrawals_gap,
-    ad.dividends AS account_daily_dividends,
-    ld.ledger_dividends,
-    ad.dividends - COALESCE(ld.ledger_dividends, 0) AS dividends_gap,
-    ad.interest AS account_daily_interest,
-    ld.ledger_interest,
-    ad.interest - COALESCE(ld.ledger_interest, 0) AS interest_gap,
-    ad.fees AS account_daily_fees,
-    ld.ledger_fees,
-    ad.fees - COALESCE(ld.ledger_fees, 0) AS fees_gap,
-    ad.taxes AS account_daily_taxes,
-    ld.ledger_taxes,
-    ad.taxes - COALESCE(ld.ledger_taxes, 0) AS taxes_gap
+    investory.reconciliation_display_value(ad.deposits) AS account_daily_deposits,
+    investory.reconciliation_display_value(ld.ledger_deposits) AS ledger_deposits,
+    investory.reconciliation_display_value(ad.deposits - COALESCE(ld.ledger_deposits, 0)) AS deposits_gap,
+    investory.reconciliation_display_value(ad.withdrawals) AS account_daily_withdrawals,
+    investory.reconciliation_display_value(ld.ledger_withdrawals) AS ledger_withdrawals,
+    investory.reconciliation_display_value(ad.withdrawals - COALESCE(ld.ledger_withdrawals, 0)) AS withdrawals_gap,
+    investory.reconciliation_display_value(ad.dividends) AS account_daily_dividends,
+    investory.reconciliation_display_value(ld.ledger_dividends) AS ledger_dividends,
+    investory.reconciliation_display_value(ad.dividends - COALESCE(ld.ledger_dividends, 0)) AS dividends_gap,
+    investory.reconciliation_display_value(ad.interest) AS account_daily_interest,
+    investory.reconciliation_display_value(ld.ledger_interest) AS ledger_interest,
+    investory.reconciliation_display_value(ad.interest - COALESCE(ld.ledger_interest, 0)) AS interest_gap,
+    investory.reconciliation_display_value(ad.fees) AS account_daily_fees,
+    investory.reconciliation_display_value(ld.ledger_fees) AS ledger_fees,
+    investory.reconciliation_display_value(ad.fees - COALESCE(ld.ledger_fees, 0)) AS fees_gap,
+    investory.reconciliation_display_value(ad.taxes) AS account_daily_taxes,
+    investory.reconciliation_display_value(ld.ledger_taxes) AS ledger_taxes,
+    investory.reconciliation_display_value(ad.taxes - COALESCE(ld.ledger_taxes, 0)) AS taxes_gap,
+    investory.reconciliation_display_value(investory.reconciliation_effective_tolerance(
+        ad.cash_balance - COALESCE(ad.previous_cash_balance, 0), ld.ledger_cash_base
+    )) AS cash_delta_effective_tolerance,
+    investory.reconciliation_display_value(investory.reconciliation_effective_tolerance(ad.deposits, ld.ledger_deposits)) AS deposits_effective_tolerance,
+    investory.reconciliation_display_value(investory.reconciliation_effective_tolerance(ad.withdrawals, ld.ledger_withdrawals)) AS withdrawals_effective_tolerance,
+    investory.reconciliation_display_value(investory.reconciliation_effective_tolerance(ad.dividends, ld.ledger_dividends)) AS dividends_effective_tolerance,
+    investory.reconciliation_display_value(investory.reconciliation_effective_tolerance(ad.interest, ld.ledger_interest)) AS interest_effective_tolerance,
+    investory.reconciliation_display_value(investory.reconciliation_effective_tolerance(ad.fees, ld.ledger_fees)) AS fees_effective_tolerance,
+    investory.reconciliation_display_value(investory.reconciliation_effective_tolerance(ad.taxes, ld.ledger_taxes)) AS taxes_effective_tolerance
 FROM daily_with_prev ad
 LEFT JOIN ledger_daily ld
     ON ld.account_id = ad.account_id
@@ -2286,7 +2453,7 @@ WITH position_dates AS (
             OR d.snapshot_date < p.close_time::date
        )
 ),
-ranked_prices AS (
+price_candidates AS (
     SELECT
         pd.asset_id,
         pd.valuation_date,
@@ -2305,61 +2472,79 @@ ranked_prices AS (
         aph.estimated,
         aph.is_proxy,
         CASE
+            WHEN aph.estimated AND aph.interpolation_left_date IS NOT NULL
+                THEN aph.interpolation_left_date
+            ELSE COALESCE(aph.source_date, aph.price_date)
+        END AS effective_observation_date,
+        CASE
+            WHEN aph.estimated AND aph.interpolation_right_date IS NOT NULL
+                THEN aph.interpolation_right_date
+            ELSE NULL::date
+        END AS interpolation_right_date,
+        CASE
             WHEN aph.quality_class = 'EXACT_LISTING_MARKET_CLOSE' THEN 1
             WHEN aph.quality_class = 'EXACT_LISTING_SCALED' THEN 2
             WHEN aph.quality_class LIKE '%ALTERNATE%' OR aph.is_proxy THEN 3
             WHEN aph.price_origin = 'MANUAL' THEN 4
             WHEN aph.estimated OR aph.quality_class LIKE 'INTERPOLATED%' THEN 5
             WHEN aph.quality_class LIKE '%TRADE_OBSERVATION%' OR aph.price_origin LIKE '%TRADE%' THEN 6
+            WHEN aph.quality_class LIKE '%STALE%' OR aph.price_origin = 'STALE_CARRY_FORWARD' THEN 7
             ELSE 9
-        END AS selection_priority,
-        ROW_NUMBER() OVER (
-            PARTITION BY pd.asset_id, pd.valuation_date
-            ORDER BY
-                CASE
-                    WHEN aph.price_date = pd.valuation_date THEN 0
-                    ELSE 1
-                END,
-                CASE
-                    WHEN aph.quality_class = 'EXACT_LISTING_MARKET_CLOSE' THEN 1
-                    WHEN aph.quality_class = 'EXACT_LISTING_SCALED' THEN 2
-                    WHEN aph.quality_class LIKE '%ALTERNATE%' OR aph.is_proxy THEN 3
-                    WHEN aph.price_origin = 'MANUAL' THEN 4
-                    WHEN aph.estimated OR aph.quality_class LIKE 'INTERPOLATED%' THEN 5
-                    WHEN aph.quality_class LIKE '%TRADE_OBSERVATION%' OR aph.price_origin LIKE '%TRADE%' THEN 6
-                    ELSE 9
-                END,
-                aph.price_date DESC,
-                aph.quality_score DESC,
-                CASE aph.price_origin
-                    WHEN 'XTB_TRADE_OPEN' THEN 0
-                    WHEN 'XTB_TRADE_CLOSE' THEN 2
-                    ELSE 1
-                END,
-                aph.imported_at DESC,
-                aph.source,
-                aph.source_symbol
-        ) AS rn,
-        COUNT(*) FILTER (
-            WHERE aph.price_date = (
-                SELECT MAX(aph2.price_date)
-                FROM investory.asset_price_history aph2
-                WHERE aph2.asset_id = pd.asset_id
-                  AND aph2.price_date <= pd.valuation_date
-            )
-        ) OVER (PARTITION BY pd.asset_id, pd.valuation_date) AS candidate_count_same_price_date
+        END AS selection_priority
     FROM position_dates pd
     JOIN investory.asset_price_history aph
         ON aph.asset_id = pd.asset_id
        AND aph.price_date <= pd.valuation_date
+       AND (
+            NOT aph.estimated
+            OR aph.interpolation_right_date IS NULL
+            OR aph.interpolation_right_date <= pd.valuation_date
+       )
+    WHERE CASE
+              WHEN aph.estimated AND aph.interpolation_left_date IS NOT NULL
+                  THEN aph.interpolation_left_date
+              ELSE COALESCE(aph.source_date, aph.price_date)
+          END <= pd.valuation_date
+),
+ranked_prices AS (
+    SELECT
+        pc.*,
+        ROW_NUMBER() OVER (
+            PARTITION BY pc.asset_id, pc.valuation_date
+            ORDER BY
+                CASE
+                    WHEN pc.effective_observation_date IS NULL THEN 1
+                    ELSE 0
+                END,
+                pc.effective_observation_date DESC,
+                pc.selection_priority,
+                pc.quality_score DESC,
+                pc.price_date DESC,
+                CASE pc.price_origin
+                    WHEN 'XTB_TRADE_OPEN' THEN 0
+                    WHEN 'XTB_TRADE_CLOSE' THEN 2
+                    ELSE 1
+                END,
+                pc.source,
+                pc.source_symbol
+        ) AS rn,
+        COUNT(*) FILTER (
+            WHERE pc.price_date = (
+                SELECT MAX(pc2.price_date)
+                FROM price_candidates pc2
+                WHERE pc2.asset_id = pc.asset_id
+                  AND pc2.valuation_date = pc.valuation_date
+            )
+        ) OVER (PARTITION BY pc.asset_id, pc.valuation_date) AS candidate_count_same_price_date
+    FROM price_candidates pc
 )
 SELECT
     rp.asset_id,
     rp.valuation_date,
     rp.close_price * COALESCE(rp.price_scale_factor, 1) AS selected_price,
     rp.price_date AS selected_price_date,
-    COALESCE(rp.source_date, rp.price_date) AS underlying_observation_date,
-    GREATEST(0, (rp.valuation_date - COALESCE(rp.source_date, rp.price_date)))::integer AS price_age_days,
+    rp.effective_observation_date AS underlying_observation_date,
+    GREATEST(0, (rp.valuation_date - rp.effective_observation_date))::integer AS price_age_days,
     rp.price_currency,
     (rp.asset_id::varchar || ':' || rp.price_date::varchar || ':' || rp.source)::varchar(255) AS selected_price_history_id,
     rp.price_origin,
@@ -2394,7 +2579,7 @@ FROM ranked_prices rp
 WHERE rp.rn = 1;
 
 COMMENT ON VIEW investory.v_normalized_daily_price IS
-    'Independent deterministic valuation-price selector. selected_price is close_price multiplied by price_scale_factor exactly once and carries the price_currency of that normalized number.';
+    'Independent deterministic valuation-price selector. Future observations are excluded; effective observation age uses source_date or interpolation_left_date, then freshness precedes quality/source priority. selected_price is close_price multiplied by price_scale_factor exactly once and carries the price_currency of that normalized number.';
 
 CREATE OR REPLACE VIEW investory.v_reconstructed_position_daily AS
 WITH active_position_dates AS (
@@ -2553,8 +2738,10 @@ SELECT
         WHEN n.prev_selected_price IS NOT NULL
          AND n.prev_selected_price > 0
          AND (
-            n.selected_price / n.prev_selected_price >= 100
-            OR n.selected_price / n.prev_selected_price <= 0.01
+            n.selected_price / n.prev_selected_price
+                >= investory.reconciliation_parameter('reconciliation_price_jump_upper_ratio')
+            OR n.selected_price / n.prev_selected_price
+                <= investory.reconciliation_parameter('reconciliation_price_jump_lower_ratio')
          ) THEN 'WARN'
         ELSE 'INFO'
     END::varchar(16) AS severity,
@@ -2570,8 +2757,10 @@ SELECT
         WHEN n.prev_selected_price IS NOT NULL
          AND n.prev_selected_price > 0
          AND (
-            n.selected_price / n.prev_selected_price >= 100
-            OR n.selected_price / n.prev_selected_price <= 0.01
+            n.selected_price / n.prev_selected_price
+                >= investory.reconciliation_parameter('reconciliation_price_jump_upper_ratio')
+            OR n.selected_price / n.prev_selected_price
+                <= investory.reconciliation_parameter('reconciliation_price_jump_lower_ratio')
          ) THEN 'PRICE_RATIO_100X'
         ELSE 'OK'
     END::varchar(64) AS validation_code,
@@ -2587,8 +2776,10 @@ WHERE
     OR (n.prev_selected_price IS NOT NULL
         AND n.prev_selected_price > 0
         AND (
-            n.selected_price / n.prev_selected_price >= 100
-            OR n.selected_price / n.prev_selected_price <= 0.01
+            n.selected_price / n.prev_selected_price
+                >= investory.reconciliation_parameter('reconciliation_price_jump_upper_ratio')
+            OR n.selected_price / n.prev_selected_price
+                <= investory.reconciliation_parameter('reconciliation_price_jump_lower_ratio')
         ));
 
 COMMENT ON VIEW investory.v_position_valuation_validation IS
@@ -2776,55 +2967,95 @@ realized_side AS (
     SELECT
         r.account_id,
         r.valuation_date,
-        SUM(COALESCE(r.realized_trade_profit, 0)) AS reconstructed_realized_trade_profit
+        CASE
+            WHEN COUNT(*) FILTER (
+                WHERE NOT COALESCE(r.is_complete, false)
+                   OR r.reconstructed_total_realized_result IS NULL
+            ) > 0 THEN NULL::numeric
+            ELSE SUM(r.reconstructed_total_realized_result)
+        END AS reconstructed_total_realized_result,
+        MAX(CASE WHEN NOT COALESCE(r.is_complete, false) THEN 1 ELSE 0 END) AS has_realized_fail
     FROM investory.v_realized_result_reconciliation r
     GROUP BY r.account_id, r.valuation_date
 )
 SELECT
     ad.account_id,
     ad.snapshot_date AS valuation_date,
-    ad.cash_balance AS reported_cash_balance,
-    COALESCE(cs.reconstructed_cash_balance, 0) AS reconstructed_cash_balance,
-    ad.cash_balance - COALESCE(cs.reconstructed_cash_balance, 0) AS cash_difference,
-    ad.market_value AS reported_market_value,
-    COALESCE(ms.reconstructed_market_value, 0) AS reconstructed_market_value,
-    ad.market_value - COALESCE(ms.reconstructed_market_value, 0) AS market_value_difference,
-    ad.cost_base AS reported_cost_base,
-    COALESCE(ms.reconstructed_cost_base, 0) AS reconstructed_cost_base,
-    ad.cost_base - COALESCE(ms.reconstructed_cost_base, 0) AS cost_base_difference,
-    ad.unrealized_profit AS reported_unrealized_profit,
-    COALESCE(ms.reconstructed_unrealized_profit, 0) AS reconstructed_unrealized_profit,
-    ad.unrealized_profit - COALESCE(ms.reconstructed_unrealized_profit, 0) AS unrealized_difference,
-    ad.equity AS reported_equity,
-    COALESCE(cs.reconstructed_cash_balance, 0) + COALESCE(ms.reconstructed_market_value, 0) AS reconstructed_equity,
-    ad.equity - (COALESCE(cs.reconstructed_cash_balance, 0) + COALESCE(ms.reconstructed_market_value, 0)) AS equity_difference,
-    ad.realized_profit AS reported_realized_profit,
-    COALESCE(rs.reconstructed_realized_trade_profit, 0) AS reconstructed_realized_trade_profit,
-    ad.realized_profit - COALESCE(rs.reconstructed_realized_trade_profit, 0) AS realized_difference,
+    investory.reconciliation_display_value(ad.cash_balance) AS reported_cash_balance,
+    investory.reconciliation_display_value(COALESCE(cs.reconstructed_cash_balance, 0)) AS reconstructed_cash_balance,
+    investory.reconciliation_display_value(ad.cash_balance - COALESCE(cs.reconstructed_cash_balance, 0)) AS cash_difference,
+    investory.reconciliation_display_value(ad.market_value) AS reported_market_value,
+    investory.reconciliation_display_value(COALESCE(ms.reconstructed_market_value, 0)) AS reconstructed_market_value,
+    investory.reconciliation_display_value(ad.market_value - COALESCE(ms.reconstructed_market_value, 0)) AS market_value_difference,
+    investory.reconciliation_display_value(ad.cost_base) AS reported_cost_base,
+    investory.reconciliation_display_value(COALESCE(ms.reconstructed_cost_base, 0)) AS reconstructed_cost_base,
+    investory.reconciliation_display_value(ad.cost_base - COALESCE(ms.reconstructed_cost_base, 0)) AS cost_base_difference,
+    investory.reconciliation_display_value(ad.unrealized_profit) AS reported_unrealized_profit,
+    investory.reconciliation_display_value(COALESCE(ms.reconstructed_unrealized_profit, 0)) AS reconstructed_unrealized_profit,
+    investory.reconciliation_display_value(ad.unrealized_profit - COALESCE(ms.reconstructed_unrealized_profit, 0)) AS unrealized_difference,
+    investory.reconciliation_display_value(ad.equity) AS reported_equity,
+    investory.reconciliation_display_value(COALESCE(cs.reconstructed_cash_balance, 0) + COALESCE(ms.reconstructed_market_value, 0)) AS reconstructed_equity,
+    investory.reconciliation_display_value(ad.equity - (COALESCE(cs.reconstructed_cash_balance, 0) + COALESCE(ms.reconstructed_market_value, 0))) AS equity_difference,
+    investory.reconciliation_display_value(ad.realized_profit) AS reported_realized_profit,
     CASE
-        WHEN COALESCE(ms.has_market_fail, 0) = 1 OR COALESCE(cs.has_cash_fail, 0) = 1 THEN 'FAIL'
-        WHEN ABS(ad.market_value - COALESCE(ms.reconstructed_market_value, 0)) > 0.01
-          OR ABS(ad.cash_balance - COALESCE(cs.reconstructed_cash_balance, 0)) > 0.01
-          OR ABS(ad.equity - (COALESCE(cs.reconstructed_cash_balance, 0) + COALESCE(ms.reconstructed_market_value, 0))) > 0.01
-          OR ABS(ad.cost_base - COALESCE(ms.reconstructed_cost_base, 0)) > 0.01
-          OR ABS(ad.unrealized_profit - COALESCE(ms.reconstructed_unrealized_profit, 0)) > 0.01
+        WHEN COALESCE(rs.has_realized_fail, 0) = 1 THEN NULL::numeric
+        ELSE investory.reconciliation_display_value(COALESCE(rs.reconstructed_total_realized_result, 0))
+    END AS reconstructed_total_realized_result,
+    CASE
+        WHEN COALESCE(rs.has_realized_fail, 0) = 1
+          OR (rs.reconstructed_total_realized_result IS NULL AND rs.account_id IS NOT NULL)
+            THEN NULL::numeric
+        ELSE investory.reconciliation_display_value(ad.realized_profit - COALESCE(rs.reconstructed_total_realized_result, 0))
+    END AS realized_difference,
+    ROUND(investory.reconciliation_effective_tolerance(
+        ad.market_value, COALESCE(ms.reconstructed_market_value, 0)
+    ), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS market_value_effective_tolerance,
+    ROUND(investory.reconciliation_effective_tolerance(
+        ad.cash_balance, COALESCE(cs.reconstructed_cash_balance, 0)
+    ), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS cash_effective_tolerance,
+    ROUND(investory.reconciliation_effective_tolerance(
+        ad.equity, COALESCE(cs.reconstructed_cash_balance, 0) + COALESCE(ms.reconstructed_market_value, 0)
+    ), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS equity_effective_tolerance,
+    ROUND(investory.reconciliation_effective_tolerance(
+        ad.cost_base, COALESCE(ms.reconstructed_cost_base, 0)
+    ), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS cost_base_effective_tolerance,
+    ROUND(investory.reconciliation_effective_tolerance(
+        ad.unrealized_profit, COALESCE(ms.reconstructed_unrealized_profit, 0)
+    ), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS unrealized_effective_tolerance,
+    ROUND(investory.reconciliation_effective_tolerance(
+        ad.realized_profit, COALESCE(rs.reconstructed_total_realized_result, 0)
+    ), investory.reconciliation_parameter('reconciliation_reporting_scale')::integer) AS realized_effective_tolerance,
+    CASE
+        WHEN COALESCE(ms.has_market_fail, 0) = 1
+          OR COALESCE(cs.has_cash_fail, 0) = 1
+          OR COALESCE(rs.has_realized_fail, 0) = 1 THEN 'FAIL'
+        WHEN NOT investory.reconciliation_values_match(ad.market_value, COALESCE(ms.reconstructed_market_value, 0))
+          OR NOT investory.reconciliation_values_match(ad.cash_balance, COALESCE(cs.reconstructed_cash_balance, 0))
+          OR NOT investory.reconciliation_values_match(ad.equity, COALESCE(cs.reconstructed_cash_balance, 0) + COALESCE(ms.reconstructed_market_value, 0))
+          OR NOT investory.reconciliation_values_match(ad.cost_base, COALESCE(ms.reconstructed_cost_base, 0))
+          OR NOT investory.reconciliation_values_match(ad.unrealized_profit, COALESCE(ms.reconstructed_unrealized_profit, 0))
+          OR NOT investory.reconciliation_values_match(ad.realized_profit, COALESCE(rs.reconstructed_total_realized_result, 0))
           THEN 'FAIL'
         WHEN COALESCE(ms.has_market_warn, 0) = 1 THEN 'WARN'
         ELSE 'PASS'
     END::varchar(16) AS status,
     CASE
-        WHEN COALESCE(ms.has_market_fail, 0) = 1 OR COALESCE(cs.has_cash_fail, 0) = 1 THEN 'ERROR'
+        WHEN COALESCE(ms.has_market_fail, 0) = 1
+          OR COALESCE(cs.has_cash_fail, 0) = 1
+          OR COALESCE(rs.has_realized_fail, 0) = 1 THEN 'ERROR'
         WHEN COALESCE(ms.has_market_warn, 0) = 1 THEN 'WARN'
         ELSE 'INFO'
     END::varchar(16) AS severity,
     CASE
         WHEN COALESCE(ms.has_market_fail, 0) = 1 THEN 'position reconstruction failed'
         WHEN COALESCE(cs.has_cash_fail, 0) = 1 THEN 'cash reconstruction failed'
-        WHEN ABS(ad.market_value - COALESCE(ms.reconstructed_market_value, 0)) > 0.01 THEN 'market value mismatch'
-        WHEN ABS(ad.cash_balance - COALESCE(cs.reconstructed_cash_balance, 0)) > 0.01 THEN 'cash mismatch'
-        WHEN ABS(ad.equity - (COALESCE(cs.reconstructed_cash_balance, 0) + COALESCE(ms.reconstructed_market_value, 0))) > 0.01 THEN 'equity mismatch'
-        WHEN ABS(ad.cost_base - COALESCE(ms.reconstructed_cost_base, 0)) > 0.01 THEN 'cost base mismatch'
-        WHEN ABS(ad.unrealized_profit - COALESCE(ms.reconstructed_unrealized_profit, 0)) > 0.01 THEN 'unrealized mismatch'
+        WHEN COALESCE(rs.has_realized_fail, 0) = 1 THEN 'realized result reconstruction failed'
+        WHEN NOT investory.reconciliation_values_match(ad.market_value, COALESCE(ms.reconstructed_market_value, 0)) THEN 'market value mismatch'
+        WHEN NOT investory.reconciliation_values_match(ad.cash_balance, COALESCE(cs.reconstructed_cash_balance, 0)) THEN 'cash mismatch'
+        WHEN NOT investory.reconciliation_values_match(ad.equity, COALESCE(cs.reconstructed_cash_balance, 0) + COALESCE(ms.reconstructed_market_value, 0)) THEN 'equity mismatch'
+        WHEN NOT investory.reconciliation_values_match(ad.cost_base, COALESCE(ms.reconstructed_cost_base, 0)) THEN 'cost base mismatch'
+        WHEN NOT investory.reconciliation_values_match(ad.unrealized_profit, COALESCE(ms.reconstructed_unrealized_profit, 0)) THEN 'unrealized mismatch'
+        WHEN NOT investory.reconciliation_values_match(ad.realized_profit, COALESCE(rs.reconstructed_total_realized_result, 0)) THEN 'realized result mismatch'
         WHEN COALESCE(ms.has_market_warn, 0) = 1 THEN 'valuation used lower-quality price source'
         ELSE 'reconciliation passed'
     END::text AS validation_message
@@ -2843,7 +3074,7 @@ CREATE UNIQUE INDEX ux_mv_v_account_daily_reconciliation_key
     ON investory.v_account_daily_reconciliation(account_id, valuation_date);
 
 COMMENT ON MATERIALIZED VIEW investory.v_account_daily_reconciliation IS
-    'Independent account-level reconciliation of account_daily against reconstructed cash, reconstructed market value, reconstructed cost base, and reconstructed realized trade profit.';
+    'Independent account-level reconciliation of account_daily against reconstructed cash, reconstructed market value, reconstructed cost base, and reconstructed total realized result including signed swap and commission.';
 
 CREATE OR REPLACE VIEW investory.v_non_usd_closed_trade_reconciliation AS
 WITH closed_positions AS (
@@ -3001,7 +3232,9 @@ SELECT
         WHEN psv.previous_valuation_date IS NULL THEN 'MISSING_PREVIOUS_DAY'
         WHEN COALESCE(psv.previous_open_quantity, 0) = 0 THEN 'MISSING_PREVIOUS_POSITION'
         WHEN psv.previous_selected_price_local IS NULL THEN 'MISSING_PREVIOUS_PRICE'
-        WHEN ABS(cp.sale_value_local - (cp.close_quantity * COALESCE(psv.previous_selected_price_local, 0))) <= 0.05 * GREATEST(1, ABS(cp.sale_value_local))
+        WHEN ABS(cp.sale_value_local - (cp.close_quantity * COALESCE(psv.previous_selected_price_local, 0)))
+             <= investory.reconciliation_parameter('reconciliation_local_sale_price_relative_threshold')
+                * GREATEST(1, ABS(cp.sale_value_local))
              AND ABS(
                  COALESCE(
                      CASE
@@ -3017,7 +3250,8 @@ SELECT
                      END,
                      0
                  )
-             ) > 0.15 * GREATEST(
+             ) > investory.reconciliation_parameter('reconciliation_local_flat_base_jump_relative_threshold')
+                 * GREATEST(
                  1,
                  ABS(
                      COALESCE(
@@ -3421,7 +3655,8 @@ WITH closed_lots AS (
             WHEN COALESCE(og.opened_quantity, 0) > 0
              AND ABS(COALESCE(og.position_open_notional_base, 0)
                      - COALESCE(cg.position_close_notional_base, 0))
-                 <= 0.20 * GREATEST(1, ABS(COALESCE(cg.position_close_notional_base, 0)))
+                 <= investory.reconciliation_parameter('reconciliation_reorganization_relative_threshold')
+                    * GREATEST(1, ABS(COALESCE(cg.position_close_notional_base, 0)))
                 THEN 'REORGANIZATION'
             ELSE 'UNCLASSIFIED'
         END::varchar(32) AS settlement_model
@@ -3588,29 +3823,73 @@ SELECT
     r.account_market_value_delta_base,
     r.account_equity_delta_base,
     r.daily_profit_amount AS reported_daily_profit_base,
-    r.settlement_cash_difference_base,
-    r.result_settlement_difference_base,
-    r.sale_vs_previous_market_value_difference_base,
-    r.symbol_market_bridge_difference_base,
+    investory.reconciliation_display_value(r.settlement_cash_difference_base) AS settlement_cash_difference_base,
+    investory.reconciliation_display_value(r.result_settlement_difference_base) AS result_settlement_difference_base,
+    investory.reconciliation_display_value(r.sale_vs_previous_market_value_difference_base) AS sale_vs_previous_market_value_difference_base,
+    investory.reconciliation_display_value(r.symbol_market_bridge_difference_base) AS symbol_market_bridge_difference_base,
+    investory.reconciliation_display_value(
+        investory.reconciliation_effective_tolerance(
+            r.position_close_result_base,
+            r.ledger_close_result_base
+        )
+    ) AS result_effective_tolerance,
+    investory.reconciliation_display_value(GREATEST(
+        investory.reconciliation_parameter('reconciliation_trade_cash_absolute_tolerance'),
+        investory.reconciliation_parameter('reconciliation_trade_cash_relative_tolerance')
+            * ABS(COALESCE(r.position_close_notional_base, 0))
+    )) AS settlement_cash_effective_tolerance,
+    investory.reconciliation_display_value(GREATEST(
+        investory.reconciliation_parameter('reconciliation_carrying_value_absolute_threshold'),
+        investory.reconciliation_parameter('reconciliation_carrying_value_relative_threshold')
+            * ABS(COALESCE(r.allocated_previous_market_value_base, 0))
+    )) AS carrying_value_effective_threshold,
+    investory.reconciliation_display_value(GREATEST(
+        investory.reconciliation_parameter('reconciliation_market_bridge_absolute_threshold'),
+        investory.reconciliation_parameter('reconciliation_market_bridge_relative_threshold')
+            * ABS(COALESCE(r.previous_symbol_market_value_base, 0))
+    )) AS market_bridge_effective_threshold,
+    investory.reconciliation_display_value(GREATEST(
+        investory.reconciliation_parameter('reconciliation_reorganization_absolute_threshold'),
+        investory.reconciliation_parameter('reconciliation_reorganization_relative_threshold')
+            * ABS(COALESCE(r.previous_symbol_market_value_base, 0))
+    )) AS reorganization_effective_threshold,
     r.missing_fx_count,
     r.is_complete,
     CASE
         WHEN NOT r.is_complete THEN 'INCOMPLETE'
         WHEN r.settlement_model = 'RESULT_ONLY'
-         AND ABS(COALESCE(r.result_settlement_difference_base, 0))
-             <= GREATEST(0.05, 0.01 * ABS(COALESCE(r.position_close_result_base, 0)))
+         AND investory.reconciliation_values_match(
+             r.position_close_result_base,
+             r.ledger_close_result_base
+         )
             THEN 'PASS'
         WHEN r.settlement_model = 'REORGANIZATION'
          AND ABS(r.symbol_market_value_delta_base)
-             <= GREATEST(250, 0.20 * ABS(COALESCE(r.previous_symbol_market_value_base, 0)))
+             <= GREATEST(
+                 investory.reconciliation_parameter('reconciliation_reorganization_absolute_threshold'),
+                 investory.reconciliation_parameter('reconciliation_reorganization_relative_threshold')
+                     * ABS(COALESCE(r.previous_symbol_market_value_base, 0))
+             )
             THEN 'PASS'
         WHEN r.settlement_model = 'CASH_SETTLED'
          AND ABS(COALESCE(r.settlement_cash_difference_base, 0))
-             <= GREATEST(5, 0.05 * ABS(COALESCE(r.position_close_notional_base, 0)))
+             <= GREATEST(
+                 investory.reconciliation_parameter('reconciliation_trade_cash_absolute_tolerance'),
+                 investory.reconciliation_parameter('reconciliation_trade_cash_relative_tolerance')
+                     * ABS(COALESCE(r.position_close_notional_base, 0))
+             )
          AND ABS(COALESCE(r.sale_vs_previous_market_value_difference_base, 0))
-             <= GREATEST(250, 0.50 * ABS(COALESCE(r.allocated_previous_market_value_base, 0)))
+             <= GREATEST(
+                 investory.reconciliation_parameter('reconciliation_carrying_value_absolute_threshold'),
+                 investory.reconciliation_parameter('reconciliation_carrying_value_relative_threshold')
+                     * ABS(COALESCE(r.allocated_previous_market_value_base, 0))
+             )
          AND ABS(COALESCE(r.symbol_market_bridge_difference_base, 0))
-             <= GREATEST(250, 0.20 * ABS(COALESCE(r.previous_symbol_market_value_base, 0)))
+             <= GREATEST(
+                 investory.reconciliation_parameter('reconciliation_market_bridge_absolute_threshold'),
+                 investory.reconciliation_parameter('reconciliation_market_bridge_relative_threshold')
+                     * ABS(COALESCE(r.previous_symbol_market_value_base, 0))
+             )
             THEN 'PASS'
         ELSE 'REVIEW'
     END::varchar(16) AS reconciliation_status,
@@ -3619,27 +3898,45 @@ SELECT
         WHEN NOT r.is_complete AND r.previous_valuation_date IS NULL THEN 'MISSING_PREVIOUS_VALUATION'
         WHEN NOT r.is_complete THEN 'VALUATION_RECONSTRUCTION_FAILED'
         WHEN r.settlement_model = 'RESULT_ONLY'
-         AND ABS(COALESCE(r.result_settlement_difference_base, 0))
-             > GREATEST(0.05, 0.01 * ABS(COALESCE(r.position_close_result_base, 0)))
+         AND NOT investory.reconciliation_values_match(
+             r.position_close_result_base,
+             r.ledger_close_result_base
+         )
             THEN 'RESULT_ONLY_CASH_MISMATCH'
         WHEN r.settlement_model = 'RESULT_ONLY' THEN 'OK'
         WHEN r.settlement_model = 'MIXED' THEN 'MIXED_SETTLEMENT_MODEL'
         WHEN r.settlement_model = 'UNCLASSIFIED' THEN 'UNCLASSIFIED_SETTLEMENT_MODEL'
         WHEN r.settlement_model = 'REORGANIZATION'
          AND ABS(r.symbol_market_value_delta_base)
-             > GREATEST(250, 0.20 * ABS(COALESCE(r.previous_symbol_market_value_base, 0)))
+             > GREATEST(
+                 investory.reconciliation_parameter('reconciliation_reorganization_absolute_threshold'),
+                 investory.reconciliation_parameter('reconciliation_reorganization_relative_threshold')
+                     * ABS(COALESCE(r.previous_symbol_market_value_base, 0))
+             )
             THEN 'REORGANIZATION_VALUE_JUMP'
         WHEN r.settlement_model = 'REORGANIZATION' THEN 'OK'
         WHEN r.unmatched_close_quantity > 0.000001
             THEN 'UNMATCHED_CLOSE_QUANTITY'
         WHEN ABS(COALESCE(r.settlement_cash_difference_base, 0))
-             > GREATEST(5, 0.05 * ABS(COALESCE(r.position_close_notional_base, 0)))
+             > GREATEST(
+                 investory.reconciliation_parameter('reconciliation_trade_cash_absolute_tolerance'),
+                 investory.reconciliation_parameter('reconciliation_trade_cash_relative_tolerance')
+                     * ABS(COALESCE(r.position_close_notional_base, 0))
+             )
             THEN 'SALE_CASH_MISMATCH'
         WHEN ABS(COALESCE(r.sale_vs_previous_market_value_difference_base, 0))
-             > GREATEST(250, 0.50 * ABS(COALESCE(r.allocated_previous_market_value_base, 0)))
+             > GREATEST(
+                 investory.reconciliation_parameter('reconciliation_carrying_value_absolute_threshold'),
+                 investory.reconciliation_parameter('reconciliation_carrying_value_relative_threshold')
+                     * ABS(COALESCE(r.allocated_previous_market_value_base, 0))
+             )
             THEN 'SALE_VS_CARRYING_VALUE_OUTLIER'
         WHEN ABS(COALESCE(r.symbol_market_bridge_difference_base, 0))
-             > GREATEST(250, 0.20 * ABS(COALESCE(r.previous_symbol_market_value_base, 0)))
+             > GREATEST(
+                 investory.reconciliation_parameter('reconciliation_market_bridge_absolute_threshold'),
+                 investory.reconciliation_parameter('reconciliation_market_bridge_relative_threshold')
+                     * ABS(COALESCE(r.previous_symbol_market_value_base, 0))
+             )
             THEN 'MARKET_VALUE_BRIDGE_OUTLIER'
         ELSE 'OK'
     END::varchar(64) AS anomaly_code
@@ -4046,12 +4343,22 @@ SELECT
     COALESCE(rp.fallback_position_fx_missing_count, 0) = 0 AND COALESCE(rc.fallback_cash_is_complete, true) AS is_complete,
     CASE WHEN COALESCE(rp.fallback_position_fx_missing_count, 0) = 0
            AND COALESCE(rc.fallback_cash_is_complete, true)
-           AND ABS((CASE WHEN rp.portfolio_id IS NULL THEN 0 ELSE rp.fallback_realized_profit END)
-               - pk.total_realized_profit) <= 0.01
-           AND ABS((CASE WHEN rp.portfolio_id IS NULL THEN 0 ELSE rp.fallback_unrealized_profit END)
-               - pk.total_unrealized_profit) <= 0.01
-           AND ABS(COALESCE(rc.fallback_dividends, 0) - pk.total_dividends) <= 0.01
-           AND ABS(COALESCE(rc.fallback_interest, 0) - pk.total_interest) <= 0.01
+           AND investory.reconciliation_values_match(
+               pk.total_realized_profit,
+               CASE WHEN rp.portfolio_id IS NULL THEN 0 ELSE rp.fallback_realized_profit END
+           )
+           AND investory.reconciliation_values_match(
+               pk.total_unrealized_profit,
+               CASE WHEN rp.portfolio_id IS NULL THEN 0 ELSE rp.fallback_unrealized_profit END
+           )
+           AND investory.reconciliation_values_match(
+               pk.total_dividends,
+               COALESCE(rc.fallback_dividends, 0)
+           )
+           AND investory.reconciliation_values_match(
+               pk.total_interest,
+               COALESCE(rc.fallback_interest, 0)
+           )
          THEN 'MATCH' ELSE 'REVIEW' END AS fallback_reconciliation_status
 FROM investory.portfolio_kpi_summary pk
 LEFT JOIN raw_position_totals rp ON rp.portfolio_id = pk.portfolio_id

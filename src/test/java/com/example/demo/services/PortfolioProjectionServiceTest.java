@@ -345,7 +345,19 @@ class PortfolioProjectionServiceTest {
     when(cashOperationRepository.findAll()).thenReturn(List.of(deposit));
     when(assetRepository.findAll()).thenReturn(List.of(asset));
     when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
-        .thenReturn(List.of(historicalPrice("AAPL.US", tradeDate.toLocalDate(), 110.0, "USD", 95)));
+        .thenReturn(
+            List.of(
+                historicalPrice(
+                    "AAPL.US", tradeDate.toLocalDate().minusDays(8), 506.70, "USD", 100),
+                historicalPrice(
+                    "AAPL.US",
+                    tradeDate.toLocalDate(),
+                    401.95,
+                    "USD",
+                    10,
+                    1.0,
+                    "TRADE_OBSERVATION",
+                    "TRADE_OBSERVATION")));
     when(currencyRateService.convertToBaseCurrency(
             org.mockito.ArgumentMatchers.anyDouble(),
             org.mockito.ArgumentMatchers.eq(CurrencyType.USD),
@@ -363,8 +375,8 @@ class PortfolioProjectionServiceTest {
             .findFirst()
             .orElseThrow();
 
-    assertEquals(1100.0, tradeDay.getMarketValue(), 0.01);
-    assertEquals(100.0, tradeDay.getUnrealizedProfit(), 0.01);
+    assertEquals(4019.5, tradeDay.getMarketValue(), 0.01);
+    assertEquals(3019.5, tradeDay.getUnrealizedProfit(), 0.01);
   }
 
   @Test
@@ -1789,7 +1801,7 @@ class PortfolioProjectionServiceTest {
 
   @Test
   @SuppressWarnings("unchecked")
-  void recalculateAll_projectsClosedPositionRealizedProfitOnCloseDate() {
+  void recalculateAll_projectsSignedProfitSwapAndCommissionOnCloseDate() {
     ZonedDateTime open = ZonedDateTime.of(2026, 7, 10, 10, 0, 0, 0, ZoneId.of("UTC"));
     ZonedDateTime close = ZonedDateTime.of(2026, 7, 24, 16, 0, 0, 0, ZoneId.of("UTC"));
 
@@ -1804,9 +1816,9 @@ class PortfolioProjectionServiceTest {
     closed.setCloseTime(close);
     closed.setPurchaseValue(200.0);
     closed.setSaleValue(240.0);
-    closed.setProfit(35.0);
-    closed.setCommission(-3.0);
-    closed.setSwap(0.0);
+    closed.setProfit(100.0);
+    closed.setCommission(-2.0);
+    closed.setSwap(-10.0);
 
     when(openedPositionRepository.findAll()).thenReturn(List.of());
     when(closedPositionRepository.findAll()).thenReturn(List.of(closed));
@@ -1829,7 +1841,7 @@ class PortfolioProjectionServiceTest {
             .findFirst()
             .orElseThrow();
 
-    assertEquals(32.0, closeDay.getRealizedProfit(), 0.0001);
+    assertEquals(88.0, closeDay.getRealizedProfit(), 0.0001);
   }
 
   @Test

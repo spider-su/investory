@@ -411,11 +411,11 @@ class BenchmarkServiceTest {
     when(accountDailyRepository.findAll())
         .thenReturn(
             List.of(
-                monthly(1L, "2025-12-29", 0.0, 900.0),
-                monthly(1L, "2026-01-05", 0.0, 1000.0),
-                monthly(1L, "2026-01-06", 0.0, 1200.0),
-                monthly(2L, "2026-01-05", 0.0, 500.0),
-                monthly(2L, "2026-01-06", 0.0, 700.0)));
+                daily(1L, "2025-12-29", 0.0, 900.0, null),
+                daily(1L, "2026-01-05", 0.0, 1000.0, null),
+                daily(1L, "2026-01-06", 200.0, 1200.0, null),
+                daily(2L, "2026-01-05", 0.0, 500.0, null),
+                daily(2L, "2026-01-06", 200.0, 700.0, null)));
     Benchmark benchmark = benchmarkService.calculate();
 
     assertTrue(benchmark.isAccountValuesAvailable());
@@ -446,9 +446,9 @@ class BenchmarkServiceTest {
     when(accountDailyRepository.findAll())
         .thenReturn(
             List.of(
-                monthly(1L, "2026-01-05", 0.0, 1000.0),
-                monthly(1L, "2026-01-06", 0.0, 1050.0),
-                monthly(2L, "2026-01-06", 0.0, 500.0)));
+                daily(1L, "2026-01-05", 0.0, 1000.0, null),
+                daily(1L, "2026-01-06", 50.0, 1050.0, null),
+                daily(2L, "2026-01-06", 0.0, 500.0, null)));
     Benchmark benchmark = benchmarkService.calculate();
 
     assertTrue(benchmark.isAccountValuesAvailable());
@@ -456,7 +456,7 @@ class BenchmarkServiceTest {
     assertEquals(List.of("2026-01-05", "2026-01-06"), year2026.labels());
     assertEquals(List.of(0.0, 50.0), year2026.accountSeries().getFirst().profitValues());
     assertEquals(List.of(0.0, 0.0), year2026.accountSeries().get(1).profitValues());
-    assertEquals(List.of(0.0, 550.0), year2026.totalProfitValues());
+    assertEquals(List.of(0.0, 50.0), year2026.totalProfitValues());
   }
 
   @Test
@@ -491,6 +491,27 @@ class BenchmarkServiceTest {
     assertEquals(2, benchmark.getAccountValueYears().getFirst().accountSeries().size());
   }
 
+  @Test
+  void calculate_ignoresBookkeepingAndOtherCashMovementsInCanonicalAccountProfit() {
+    when(accountRepository.findMapByIdIn(any()))
+        .thenAnswer(
+            invocation ->
+                requestedAccounts(invocation.getArgument(0), Map.of(1L, account(1L, "Main"))));
+    when(accountDailyRepository.findAll())
+        .thenReturn(
+            List.of(
+                daily(1L, "2026-01-01", 0.0, 1_000.0, 0.0),
+                daily(1L, "2026-01-02", 0.0, 101_000.0, 0.0),
+                daily(1L, "2026-01-03", 0.0, 1_000.0, 0.0),
+                daily(1L, "2026-01-04", 25.0, 1_025.0, 0.1)));
+
+    Benchmark.AccountValueSeries series =
+        benchmarkService.calculate().getAccountValueYears().getFirst().accountSeries().getFirst();
+
+    assertEquals(List.of(0.0, 0.0, 0.0, 25.0), series.profitValues());
+    assertEquals(List.of(0.0, 0.0, 0.0, 10.0), series.profitPctValues());
+  }
+
   private static AccountDaily monthly(
       Long accountId, String month, double netCashFlow, double portfolioValue) {
     AccountDaily row = new AccountDaily();
@@ -499,6 +520,14 @@ class BenchmarkServiceTest {
     row.setDeposits(Math.max(netCashFlow, 0.0));
     row.setWithdrawals(Math.min(netCashFlow, 0.0));
     row.setEquity(portfolioValue);
+    return row;
+  }
+
+  private static AccountDaily daily(
+      Long accountId, String date, double dailyProfit, double equity, Double dailyReturn) {
+    AccountDaily row = monthly(accountId, date, 0.0, equity);
+    row.setDailyProfitAmount(dailyProfit);
+    row.setDailyReturn(dailyReturn);
     return row;
   }
 

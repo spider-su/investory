@@ -71,7 +71,8 @@ class DashboardPeriodRegressionTest {
 
     assertEquals(List.of(currentJanuary, currentFebruary), benchmark.getLabels());
     assertEquals(
-        List.of(januaryDay, februaryDay), benchmark.getAccountValueYears().getFirst().labels());
+        List.of(previousDay, januaryDay, februaryDay),
+        benchmark.getAccountValueYears().getFirst().labels());
   }
 
   @Test

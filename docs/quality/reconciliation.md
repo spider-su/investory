@@ -49,6 +49,22 @@ Also check:
 - missing/stale FX follows `docs/domain/fx-normalization.md`;
 - dashboard and adapter totals trace back to the same reporting lineage.
 
+## Numeric comparison contract
+
+Reconciliation parameters are stored in `investory.reconciliation_parameters` and read by the
+reconciliation views. Monetary status decisions use full precision:
+
+```text
+difference = actual - expected
+effective_tolerance = max(absolute_tolerance,
+                          relative_tolerance * max(abs(expected), abs(actual)))
+PASS when abs(difference) <= effective_tolerance
+```
+
+`reconciliation_reporting_scale` controls display rounding only; rounded values must never decide
+PASS/FAIL. Generic numeric tolerances are separate from named domain anomaly thresholds such as
+carrying-value, market-bridge, reorganization, and price-jump rules.
+
 ## Regression classes
 
 Keep explicit regression coverage for defect classes already observed in this project:

@@ -617,7 +617,7 @@
         <div class="iv-card">
             <div class="iv-card__head">
                 <h3 class="iv-card__title">Cumulative P/L by account</h3>
-                <span class="iv-card__hint" id="account-value-hint">External cash flows excluded · cumulative daily P/L · base USD</span>
+                <span class="iv-card__hint" id="account-value-hint">Calendar year · external cash flows excluded · cumulative daily P/L · base USD</span>
                 <div class="iv-event-legend" aria-label="Chart event markers">
                     <span><i class="iv-event-dot iv-event-dot--deposit"></i>Deposit</span>
                     <span><i class="iv-event-dot iv-event-dot--dividend"></i>Dividend</span>
@@ -1174,8 +1174,8 @@
         const hintEl = document.getElementById('account-value-hint');
         if (!hintEl) return;
         hintEl.textContent = mode === 'percent'
-            ? 'External cash flows excluded · cumulative daily P/L · %'
-            : 'External cash flows excluded · cumulative daily P/L · base USD';
+            ? 'Calendar year · external cash flows excluded · cumulative daily P/L · %'
+            : 'Calendar year · external cash flows excluded · cumulative daily P/L · base USD';
     }
 
     function updateAccountValueChart(selectedIds) {

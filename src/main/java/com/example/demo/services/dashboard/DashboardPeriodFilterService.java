@@ -84,11 +84,7 @@ public class DashboardPeriodFilterService {
                 })
             .filter(series -> !series.portfolioCurve().isEmpty())
             .toList());
-    benchmark.setAccountValueYears(
-        benchmark.getAccountValueYears().stream()
-            .map(year -> filterAccountValueYear(year, start))
-            .filter(year -> !year.labels().isEmpty())
-            .toList());
+    // Account value years are calendar-year charts and do not follow the global period.
     benchmark.setAccountValuesAvailable(!benchmark.getAccountValueYears().isEmpty());
     benchmark.setSelectedAccountValueYear(
         benchmark.isAccountValuesAvailable()

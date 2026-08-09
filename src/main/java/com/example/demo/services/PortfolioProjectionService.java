@@ -762,7 +762,10 @@ public class PortfolioProjectionService {
               row.getPriceOrigin(),
               row.getQualityClass(),
               row.getQualityScore() == null ? 0 : row.getQualityScore(),
-              resolveContractMultiplier(row.getQualityClass()));
+              resolveContractMultiplier(row.getQualityClass()),
+              Boolean.TRUE.equals(row.getEstimated()),
+              row.getInterpolationLeftDate(),
+              row.getInterpolationRightDate());
       NavigableMap<LocalDate, HistoricalPrice> symbolPrices =
           prices.computeIfAbsent(row.getSymbol(), ignored -> new TreeMap<>());
       HistoricalPrice existing = symbolPrices.get(row.getPriceDate());
@@ -775,6 +778,11 @@ public class PortfolioProjectionService {
 
   private static boolean isBetterHistoricalPrice(
       HistoricalPrice candidate, HistoricalPrice existing) {
+    int dateComparison =
+        candidate.effectiveObservationDate().compareTo(existing.effectiveObservationDate());
+    if (dateComparison != 0) {
+      return dateComparison > 0;
+    }
     int candidateRank = valuationPriorityRank(candidate.qualityClass(), candidate.priceOrigin());
     int existingRank = valuationPriorityRank(existing.qualityClass(), existing.priceOrigin());
     if (candidateRank != existingRank) {
@@ -937,7 +945,24 @@ public class PortfolioProjectionService {
       String priceOrigin,
       String qualityClass,
       int qualityScore,
-      double contractMultiplier) {}
+      double contractMultiplier,
+      boolean estimated,
+      LocalDate interpolationLeftDate,
+      LocalDate interpolationRightDate) {
+    private LocalDate effectiveObservationDate() {
+      if (estimated && interpolationLeftDate != null) {
+        return interpolationLeftDate;
+      }
+      return observationDate != null ? observationDate : valuationPriceDate;
+    }
+
+    private boolean isAdmissibleOn(LocalDate valuationDate) {
+      return !effectiveObservationDate().isAfter(valuationDate)
+          && (!estimated
+              || interpolationRightDate == null
+              || !interpolationRightDate.isAfter(valuationDate));
+    }
+  }
 
   private record CanonicalNormalizedCashOperation(
       Long operationId,
@@ -987,23 +1012,34 @@ public class PortfolioProjectionService {
       }
       NavigableMap<LocalDate, HistoricalPrice> prices = pricesBySymbol.get(symbol);
       if (prices != null) {
-        Map.Entry<LocalDate, HistoricalPrice> price = prices.floorEntry(date);
-        if (price != null) {
-          HistoricalPrice historicalPrice = price.getValue();
-          LocalDate observationDate =
-              historicalPrice.observationDate() != null
-                  ? historicalPrice.observationDate()
-                  : price.getKey();
+        HistoricalPrice historicalPrice =
+            prices.headMap(date, true).values().stream()
+                .filter(price -> price.isAdmissibleOn(date))
+                .max(
+                    Comparator.comparing(HistoricalPrice::effectiveObservationDate)
+                        .thenComparingInt(
+                            price ->
+                                -valuationPriorityRank(
+                                    price.qualityClass(), price.priceOrigin()))
+                        .thenComparingInt(HistoricalPrice::qualityScore)
+                        .thenComparing(HistoricalPrice::valuationPriceDate)
+                        .thenComparingInt(
+                            price -> -tradeObservationTieRank(price.priceOrigin()))
+                        .thenComparing(HistoricalPrice::source)
+                        .thenComparing(HistoricalPrice::sourceSymbol))
+                .orElse(null);
+        if (historicalPrice != null) {
+          LocalDate observationDate = historicalPrice.effectiveObservationDate();
           if (observationDate.plusDays(MAX_HISTORICAL_PRICE_STALENESS_DAYS).isBefore(date)) {
             boolean priceObservedDuringHolding =
-                holdingStartDate != null && !price.getKey().isBefore(holdingStartDate);
+                holdingStartDate != null && !observationDate.isBefore(holdingStartDate);
             if (priceObservedDuringHolding) {
               log.warn(
                   "Valuation carries forward stale price observed during current holding: symbol={}, valuationDate={}, holdingStartDate={}, selectedPriceDate={}, observationDate={}, qualityClass={}, priceOrigin={}, source={}, sourceSymbol={}",
                   symbol,
                   date,
                   holdingStartDate,
-                  price.getKey(),
+                  historicalPrice.valuationPriceDate(),
                   observationDate,
                   historicalPrice.qualityClass(),
                   historicalPrice.priceOrigin(),
@@ -1021,7 +1057,7 @@ public class PortfolioProjectionService {
                   symbol,
                   date,
                   holdingStartDate,
-                  price.getKey(),
+                  historicalPrice.valuationPriceDate(),
                   observationDate);
               return 0.0;
             }
