@@ -97,6 +97,7 @@ class ImportHistoryOrchestratorServiceTest {
     verify(ibkrParser).importFile(any(), eq("ibkr.csv"));
     verify(assetPriceFallbackService).populateMissingPricesFromOpenPositions();
     verify(portfolioProjectionService).recalculateAll();
+    verify(portfolioProjectionService).refreshReconciliationViews();
     verify(auditWriter, never()).startBatch(any(), any(), any(), anyString(), anyString());
   }
 
@@ -195,6 +196,7 @@ class ImportHistoryOrchestratorServiceTest {
     verify(xtbParser).importFile(any(), eq("file.xlsx"));
     verify(assetPriceFallbackService).populateMissingPricesFromOpenPositions();
     verify(portfolioProjectionService).recalculateAll();
+    verify(portfolioProjectionService).refreshReconciliationViews();
     assertEquals("ok", existing.getErrorMessage(), "existing batch must not be mutated");
   }
 
@@ -228,6 +230,7 @@ class ImportHistoryOrchestratorServiceTest {
     verify(xtbParser, times(1)).importFile(any(), eq("file.xlsx"));
     verify(assetPriceFallbackService).populateMissingPricesFromOpenPositions();
     verify(portfolioProjectionService).recalculateAll();
+    verify(portfolioProjectionService).refreshReconciliationViews();
   }
 
   @Test

@@ -198,9 +198,18 @@ class SchemaMigrationCheckpoint2Test {
       assertTrue(viewExists(statement, "v_normalized_daily_price"));
       assertTrue(viewExists(statement, "v_reconstructed_position_daily"));
       assertTrue(viewExists(statement, "v_position_valuation_validation"));
-      assertTrue(viewExists(statement, "v_account_daily_reconciliation"));
+      assertTrue(materializedViewExists(statement, "v_account_daily_reconciliation"));
       assertTrue(viewExists(statement, "v_non_usd_closed_trade_reconciliation"));
       assertTrue(materializedViewExists(statement, "reporting_trade_settlement_reconciliation"));
+      assertTrue(
+          materializedViewExists(
+              statement, "reporting_account_monthly_profit_reconciliation"));
+      assertTrue(
+          materializedViewExists(
+              statement, "reporting_account_statistics_vs_daily_reconciliation"));
+      assertTrue(
+          materializedViewExists(
+              statement, "reporting_account_daily_cashflow_reconciliation"));
       assertTrue(viewExists(statement, "reporting_trade_settlement_reconciliation_by_account"));
       assertTrue(viewExists(statement, "v_reporting_validation_summary"));
       assertTrue(viewExists(statement, "v_position_currency_validation"));
@@ -212,7 +221,8 @@ class SchemaMigrationCheckpoint2Test {
       assertTrue(columnExists(statement, "v_reconstructed_position_daily", "contract_multiplier"));
       assertTrue(columnExists(statement, "v_reconstructed_position_daily", "selected_price_date"));
       assertTrue(
-          columnExists(statement, "v_account_daily_reconciliation", "market_value_difference"));
+          relationColumnExists(
+              statement, "v_account_daily_reconciliation", "market_value_difference"));
       assertTrue(columnExists(statement, "v_non_usd_closed_trade_reconciliation", "anomaly_code"));
       assertTrue(
           relationColumnExists(
@@ -705,6 +715,7 @@ class SchemaMigrationCheckpoint2Test {
           ) values (-950001, date '2025-01-15', 'USD', 0, 0, 0);
 
           select investory.refresh_reporting_views();
+          select investory.refresh_reconciliation_views();
           """);
 
       assertEquals(

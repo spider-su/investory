@@ -851,7 +851,7 @@ WITH DATA;
 CREATE UNIQUE INDEX ux_mv_account_monthly_account_month
     ON investory.account_monthly_mv(account_id, month);
 
-CREATE OR REPLACE VIEW investory.reporting_account_monthly_profit_reconciliation AS
+CREATE MATERIALIZED VIEW investory.reporting_account_monthly_profit_reconciliation AS
 WITH monthly_daily_sums AS (
     SELECT
         ad.account_id,
@@ -922,7 +922,10 @@ LEFT JOIN monthly_daily_sums mds
     ON mds.account_id = am.account_id
    AND mds.month = am.month;
 
-COMMENT ON VIEW investory.reporting_account_monthly_profit_reconciliation IS
+CREATE UNIQUE INDEX ux_mv_reporting_account_monthly_profit_reconciliation_key
+    ON investory.reporting_account_monthly_profit_reconciliation(account_id, month);
+
+COMMENT ON MATERIALIZED VIEW investory.reporting_account_monthly_profit_reconciliation IS
     'Compares monthly profit from month-boundary formula vs summed daily profit for each account and month.';
 
 CREATE OR REPLACE VIEW investory.v_portfolio_daily AS
@@ -1371,7 +1374,7 @@ WITH DATA;
 CREATE UNIQUE INDEX ux_mv_account_statistics_account
     ON investory.account_statistics(account_id);
 
-CREATE OR REPLACE VIEW investory.reporting_account_statistics_vs_daily_reconciliation AS
+CREATE MATERIALIZED VIEW investory.reporting_account_statistics_vs_daily_reconciliation AS
 WITH latest_daily AS (
     SELECT DISTINCT ON (ad.account_id)
         ad.account_id,
@@ -1461,7 +1464,10 @@ LEFT JOIN latest_daily ld
 LEFT JOIN daily_flow_totals dft
     ON dft.account_id = a.id;
 
-COMMENT ON VIEW investory.reporting_account_statistics_vs_daily_reconciliation IS
+CREATE UNIQUE INDEX ux_mv_recon_account_stats_account
+    ON investory.reporting_account_statistics_vs_daily_reconciliation(account_id);
+
+COMMENT ON MATERIALIZED VIEW investory.reporting_account_statistics_vs_daily_reconciliation IS
     'Current per-account reconciliation between account_statistics and the latest account_daily snapshot; monetary values are rounded to whole dollars and VALUE_MISMATCH uses a 10-dollar tolerance.';
 
 CREATE MATERIALIZED VIEW investory.portfolio_kpi_summary AS
@@ -2131,7 +2137,7 @@ SELECT
         ) AS fx_rate_available
 FROM rollup r;
 
-CREATE OR REPLACE VIEW investory.reporting_account_daily_cashflow_reconciliation AS
+CREATE MATERIALIZED VIEW investory.reporting_account_daily_cashflow_reconciliation AS
 WITH ledger_daily AS (
     SELECT
         nco.account_id,
@@ -2225,7 +2231,10 @@ LEFT JOIN ledger_daily ld
     ON ld.account_id = ad.account_id
    AND ld.snapshot_date = ad.snapshot_date;
 
-COMMENT ON VIEW investory.reporting_account_daily_cashflow_reconciliation IS
+CREATE UNIQUE INDEX ux_mv_reporting_account_daily_cashflow_reconciliation_key
+    ON investory.reporting_account_daily_cashflow_reconciliation(account_id, snapshot_date);
+
+COMMENT ON MATERIALIZED VIEW investory.reporting_account_daily_cashflow_reconciliation IS
     'DB-side reconciliation of account_daily daily flow fields against canonical normalized_cash_operations. For same-currency/base-currency accounts, account_daily cash delta should equal ledger cash delta. For non-base-currency accounts, stored base-currency cash delta also includes FX revaluation of the opening native cash balance.';
 
 CREATE OR REPLACE VIEW investory.v_portfolio_daily_fx_rate AS
@@ -2741,7 +2750,7 @@ FULL OUTER JOIN cash_components cc
 COMMENT ON VIEW investory.v_realized_result_reconciliation IS
     'Independent decomposition of realized result into trade profit, swap, commission, fee-like cash rows, rollover, and corrections.';
 
-CREATE OR REPLACE VIEW investory.v_account_daily_reconciliation AS
+CREATE MATERIALIZED VIEW investory.v_account_daily_reconciliation AS
 WITH market_side AS (
     SELECT
         rpd.account_id,
@@ -2830,7 +2839,10 @@ LEFT JOIN realized_side rs
     ON rs.account_id = ad.account_id
    AND rs.valuation_date = ad.snapshot_date;
 
-COMMENT ON VIEW investory.v_account_daily_reconciliation IS
+CREATE UNIQUE INDEX ux_mv_v_account_daily_reconciliation_key
+    ON investory.v_account_daily_reconciliation(account_id, valuation_date);
+
+COMMENT ON MATERIALIZED VIEW investory.v_account_daily_reconciliation IS
     'Independent account-level reconciliation of account_daily against reconstructed cash, reconstructed market value, reconstructed cost base, and reconstructed realized trade profit.';
 
 CREATE OR REPLACE VIEW investory.v_non_usd_closed_trade_reconciliation AS

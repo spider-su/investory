@@ -34,6 +34,7 @@ public class DashboardRefreshController {
   RefreshPricesResponse updateHistory() {
     marketService.refreshMarketPricesAndPositions();
     portfolioProjectionService.recalculateAll();
+    portfolioProjectionService.refreshReconciliationViews();
     return new RefreshPricesResponse(
         "OK", "Market prices refreshed and history rebuilt", ZonedDateTime.now());
   }
@@ -41,6 +42,7 @@ public class DashboardRefreshController {
   @PostMapping("/rebuild-monthly")
   RefreshPricesResponse rebuildMonthly() {
     portfolioProjectionService.recalculateAll();
+    portfolioProjectionService.refreshReconciliationViews();
     return new RefreshPricesResponse("OK", "Account stats rebuilt", ZonedDateTime.now());
   }
 

@@ -34,6 +34,14 @@ class MaterializedViewRefreshContractTest {
           "portfolio_asset_allocation",
           "symbol_performance");
 
+  private static final Set<String> RECONCILIATION_MVS =
+      Set.of(
+          "reporting_account_monthly_profit_reconciliation",
+          "reporting_account_statistics_vs_daily_reconciliation",
+          "reporting_account_daily_cashflow_reconciliation",
+          "v_account_daily_reconciliation",
+          "reporting_trade_settlement_reconciliation");
+
   @BeforeAll
   static void migrateDatabase() {
     POSTGRES.start();
@@ -58,7 +66,12 @@ class MaterializedViewRefreshContractTest {
       try (ResultSet result =
           statement.executeQuery(
               "SELECT matviewname FROM pg_matviews WHERE schemaname = 'investory' "
-                  + "AND matviewname <> 'reporting_trade_settlement_reconciliation'")) {
+                  + "AND matviewname NOT IN ("
+                  + "'reporting_account_monthly_profit_reconciliation',"
+                  + "'reporting_account_statistics_vs_daily_reconciliation',"
+                  + "'reporting_account_daily_cashflow_reconciliation',"
+                  + "'v_account_daily_reconciliation',"
+                  + "'reporting_trade_settlement_reconciliation')")) {
         Set<String> actual = new java.util.HashSet<>();
         while (result.next()) {
           actual.add(result.getString(1));
@@ -93,7 +106,9 @@ class MaterializedViewRefreshContractTest {
         Statement statement = connection.createStatement()) {
       statement.execute("SELECT investory.refresh_reporting_views()");
       statement.execute("SELECT investory.refresh_reconciliation_views()");
-      assertTrue(relationExists(statement, "reporting_trade_settlement_reconciliation"));
+      for (String materializedView : RECONCILIATION_MVS) {
+        assertTrue(relationExists(statement, materializedView));
+      }
     }
   }
 

@@ -61,6 +61,7 @@ class DashboardRefreshControllerTest {
         .andExpect(jsonPath("$.message").value("Account stats rebuilt"));
 
     verify(portfolioProjectionService).recalculateAll();
+    verify(portfolioProjectionService).refreshReconciliationViews();
   }
 
   @Test

@@ -8,6 +8,10 @@ COMMENT ON VIEW investory.v_portfolio_daily_fx_rate IS
 CREATE OR REPLACE FUNCTION investory.refresh_reconciliation_views()
 RETURNS VOID AS $$
 BEGIN
+    REFRESH MATERIALIZED VIEW investory.reporting_account_monthly_profit_reconciliation;
+    REFRESH MATERIALIZED VIEW investory.reporting_account_statistics_vs_daily_reconciliation;
+    REFRESH MATERIALIZED VIEW investory.reporting_account_daily_cashflow_reconciliation;
+    REFRESH MATERIALIZED VIEW investory.v_account_daily_reconciliation;
     REFRESH MATERIALIZED VIEW investory.reporting_trade_settlement_reconciliation;
 END;
 $$ LANGUAGE plpgsql;

@@ -70,6 +70,11 @@ public class PortfolioProjectionService {
   }
 
   @Transactional
+  public void refreshReconciliationViews() {
+    accountDailyRepository.refreshReconciliationViews();
+  }
+
+  @Transactional
   public void recalculateAccounts(Set<Long> accountIds) {
     ZonedDateTime now = ReportingDateHelper.now();
     if (accountIds == null || accountIds.isEmpty()) {

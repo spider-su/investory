@@ -30,4 +30,7 @@ public interface AccountDailyRepository extends JpaRepository<AccountDaily, Long
 
   @Query(value = "SELECT investory.refresh_reporting_views()", nativeQuery = true)
   Object refreshReportingViews();
+
+  @Query(value = "SELECT investory.refresh_reconciliation_views()", nativeQuery = true)
+  Object refreshReconciliationViews();
 }

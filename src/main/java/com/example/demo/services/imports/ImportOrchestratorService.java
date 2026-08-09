@@ -146,6 +146,7 @@ public class ImportOrchestratorService {
 
   private String refreshDerivedData(ImportHistory batch) {
     StringBuilder warnings = new StringBuilder();
+    boolean projectionSucceeded = false;
     try {
       assetPriceFallbackService.populateMissingPricesFromOpenPositions();
     } catch (Exception e) {
@@ -158,6 +159,7 @@ public class ImportOrchestratorService {
 
     try {
       portfolioProjectionService.recalculateAll();
+      projectionSucceeded = true;
     } catch (Exception e) {
       log.warn(
           "Projection recalculation failed after import (batchId={}): {}",
@@ -167,6 +169,21 @@ public class ImportOrchestratorService {
         warnings.append("; ");
       }
       warnings.append("projection recalculation failed: ").append(exceptionMessage(e));
+    }
+
+    if (projectionSucceeded) {
+      try {
+        portfolioProjectionService.refreshReconciliationViews();
+      } catch (Exception e) {
+        log.warn(
+            "Reconciliation refresh failed after import (batchId={}): {}",
+            batch.getId(),
+            e.getMessage());
+        if (!warnings.isEmpty()) {
+          warnings.append("; ");
+        }
+        warnings.append("reconciliation refresh failed: ").append(exceptionMessage(e));
+      }
     }
 
     return warnings.isEmpty() ? null : warnings.toString();
