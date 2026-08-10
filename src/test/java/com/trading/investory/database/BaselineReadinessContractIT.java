@@ -52,7 +52,7 @@ class BaselineReadinessContractIT {
 
   @Test
   @Order(1)
-  void emptyMigrationProducesFinalBaselineContract() throws SQLException {
+  void migratedBaselineProducesFinalSchemaAndSampleDataContract() throws SQLException {
     try (Connection connection = connection();
         Statement statement = connection.createStatement()) {
       assertEquals(
@@ -60,18 +60,17 @@ class BaselineReadinessContractIT {
           singleInt(
               statement,
               "SELECT count(*) FROM investory.flyway_schema_history WHERE success AND version IS NOT NULL"));
-      for (String table :
-          new String[] {
-            "app_users",
-            "portfolios",
-            "accounts",
-            "assets",
-            "exchange_rates",
-            "asset_source_symbols",
-            "asset_price_history"
-          }) {
-        assertEquals(0, singleInt(statement, "SELECT count(*) FROM investory." + table), table);
+      assertEquals("aaaa.bbbb|Aaaa Bbbb", singleString(statement, "SELECT username || '|' || display_name FROM investory.app_users WHERE id = 1"));
+      assertEquals("Sample Portfolio|USD|1|aaaa.bbbb", singleString(statement, "SELECT p.name || '|' || p.base_currency || '|' || p.user_id || '|' || u.username FROM investory.portfolios p JOIN investory.app_users u ON u.id = p.user_id WHERE p.id = 1"));
+      assertEquals(11, singleInt(statement, "SELECT count(*) FROM investory.accounts WHERE portfolio_id = 1"));
+      for (String accountName : new String[] {"Sample PLN Account", "Sample USD Account", "Sample EUR Account", "Sample Metals Account", "Sample Retirement Account", "Sample PLN Cash Account", "Sample USD Trading Account", "Sample EUR Cash Account", "Sample Income Account", "Sample PLN Reserve Account", "Sample IBKR Account"}) {
+        assertTrue(exists(statement, "SELECT 1 FROM investory.accounts WHERE portfolio_id = 1 AND name = '" + accountName + "'"));
       }
+      for (String currency : new String[] {"USD", "EUR", "PLN"}) assertTrue(exists(statement, "SELECT 1 FROM investory.currencies WHERE id = '" + currency + "'"));
+      for (String provider : new String[] {"XTB", "IBKR"}) assertTrue(exists(statement, "SELECT 1 FROM investory.providers WHERE id = '" + provider + "'"));
+      assertTrue(exists(statement, "SELECT 1 FROM investory.asset_types WHERE id = 'EQUITY'"));
+      assertTrue(exists(statement, "SELECT 1 FROM investory.assets WHERE symbol = 'AAPL.US'"));
+      for (String table : new String[] {"cash_operations", "positions", "import_history", "account_daily"}) assertEquals(0, singleInt(statement, "SELECT count(*) FROM investory." + table), table);
 
       assertEquals(
           1,
@@ -181,9 +180,8 @@ class BaselineReadinessContractIT {
               + "(DATE '2026-08-10', 'USD', 'PLN', 6, 'TEST', 'MARKET_DAILY')");
       assertEquals("6.00000000|OK", resolverValue(statement, "2026-08-10", "USD", "PLN"));
 
-      assertEquals("0.25000000|STALE", resolverValue(statement, "2026-08-10", "PLN", "USD"));
-      assertEquals(
-          "null|MISSING_RATE", resolverValue(statement, "2026-08-10", "EUR", "USD"));
+      assertEquals("0.16666667|OK", resolverValue(statement, "2026-08-10", "PLN", "USD"));
+      assertEquals("0.12500000|STALE", resolverValue(statement, "2026-08-10", "EUR", "USD"));
     }
   }
 

@@ -77,6 +77,7 @@ public class ImportOrchestratorService {
           ImportExecutionResult result =
               parser.importFile(new ByteArrayInputStream(fileBytes), fileName);
           reloaded = auditWriter.finalizeApplied(batch.getId(), result);
+          throwIfFailed(reloaded);
           String refreshFailure = refreshDerivedData(reloaded);
           if (refreshFailure != null) {
             reloaded = auditWriter.finalizeNotReady(batch.getId(), result, refreshFailure);
@@ -134,6 +135,7 @@ public class ImportOrchestratorService {
     }
 
     ImportHistory finalized = auditWriter.finalizeApplied(batch.getId(), result);
+    throwIfFailed(finalized);
 
     String refreshFailure = refreshDerivedData(finalized);
     if (refreshFailure != null) {
@@ -204,6 +206,14 @@ public class ImportOrchestratorService {
     }
 
     return failures.isEmpty() ? null : failures.toString();
+  }
+
+  private static void throwIfFailed(ImportHistory batch) {
+    if (batch.getStatus() == com.example.demo.infrastructure.ImportBatchStatus.FAILED) {
+      throw new ImportFailedException(
+          "Import broker data was rejected (batchId=" + batch.getId() + "): " + batch.getErrorMessage(),
+          null);
+    }
   }
 
   private String combineMessage(String primary, String secondary) {

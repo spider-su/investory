@@ -85,6 +85,8 @@ Keep scenario-specific data in focused test fixtures and load it with `@Sql`. Do
 
 Migration tests must continue to start from an empty PostgreSQL database with Flyway enabled. They verify that production schema history still works and catch drift between migrations and the generated snapshot.
 
+The Flyway baseline contains anonymized sample portfolio configuration plus public/reference market data. Integration tests execute the same migration chain as production. Tests requiring an empty business dataset explicitly remove the necessary sample data after migration instead of skipping migrations.
+
 Run full verification before opening or merging a pull request:
 
 ```bash

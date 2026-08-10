@@ -235,6 +235,30 @@ class ImportHistoryOrchestratorServiceTest {
   }
 
   @Test
+  void importFile_rejectsZeroAppliedResultWithoutRefreshingDerivedData() throws Exception {
+    when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
+        .thenReturn(Optional.empty());
+    ImportHistory started = batch(95L, ImportBatchStatus.STARTED, null, 0, 0, 0);
+    ImportExecutionResult result = new ImportExecutionResult(10, 0, 10, "10 rejected rows");
+    ImportHistory failed = batch(95L, ImportBatchStatus.FAILED, "10 rejected rows", 10, 0, 10);
+    when(auditWriter.startBatch(any(), any(), any(), anyString(), anyString())).thenReturn(started);
+    when(xtbParser.importFile(any(), anyString())).thenReturn(result);
+    when(auditWriter.finalizeApplied(95L, result)).thenReturn(failed);
+
+    ImportFailedException exception =
+        assertThrows(
+            ImportFailedException.class,
+            () ->
+                importOrchestratorService.importFile(
+                    BrokerType.XTB, "rejected".getBytes(), "file.xlsx", ImportSourceType.MANUAL, null));
+
+    assertTrue(exception.getMessage().contains("rejected"));
+    verify(assetPriceFallbackService, never()).populateMissingPricesFromOpenPositions();
+    verify(portfolioProjectionService, never()).recalculateAll();
+    verify(portfolioProjectionService, never()).refreshReconciliationViews();
+  }
+
+  @Test
   void importFile_retriesSameChecksumAfterFailedBatch() throws Exception {
     when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
         .thenReturn(Optional.empty());
