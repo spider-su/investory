@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import com.example.demo.infrastructure.CurrencyType;
 import com.example.demo.infrastructure.repository.CurrencyRate;
 import com.example.demo.infrastructure.repository.CurrencyRateRepository;
+import com.example.demo.infrastructure.repository.FxRateResolutionRow;
 import com.example.demo.services.currency.CurrencyRateService;
 import com.example.demo.services.currency.FxRateUnavailableException;
 import java.time.LocalDate;
@@ -53,6 +54,10 @@ class CurrencyRateServiceTest {
 
   @Test
   void convertToBaseCurrency_usesHistoricalRateForRequestedDate() {
+    when(currencyRateRepository.resolveFxRate(LocalDate.of(2026, 6, 15), "EUR", "USD", "VALUATION"))
+        .thenReturn(Optional.of(resolution("EUR", "USD", "1.1", "HISTORICAL_MONTHLY", "NBP", "2026-06-01", "ESTIMATED")));
+    when(currencyRateRepository.resolveFxRate(LocalDate.of(2026, 7, 5), "EUR", "USD", "VALUATION"))
+        .thenReturn(Optional.of(resolution("EUR", "USD", "1.1", "HISTORICAL_MONTHLY", "NBP", "2026-06-01", "ESTIMATED")));
     // Direct EUR->USD rate exists for 2026-06-01, so direct wins over inverse USD->EUR.
     assertEquals(
         99.0,
@@ -69,6 +74,8 @@ class CurrencyRateServiceTest {
 
   @Test
   void convertToBaseCurrency_usesInverseRateWhenDirectMissing() {
+    when(currencyRateRepository.resolveFxRate(LocalDate.of(2026, 6, 15), "EUR", "USD", "VALUATION"))
+        .thenReturn(Optional.of(resolution("EUR", "USD", "1.1", "INVERSE", "STATIC_BOOTSTRAP", "2026-06-01", "OK")));
     when(currencyRateRepository.findAllByOrderByBaseAscToCurrencyAscRateDateAsc())
         .thenReturn(
             List.of(rate(CurrencyType.EUR, CurrencyType.USD, LocalDate.of(2026, 6, 1), 1.1)));
@@ -136,6 +143,8 @@ class CurrencyRateServiceTest {
 
   @Test
   void getRate_returnsPersistedRate() {
+    when(currencyRateRepository.resolveFxRate(LocalDate.of(2026, 7, 5), "USD", "EUR", "VALUATION"))
+        .thenReturn(Optional.of(resolution("USD", "EUR", "0.91", "DIRECT", "EXCHANGERATE_HOST", "2026-07-01", "OK")));
     when(currencyRateRepository.findAllByOrderByBaseAscToCurrencyAscRateDateAsc())
         .thenReturn(
             List.of(rate(CurrencyType.USD, CurrencyType.EUR, LocalDate.of(2026, 7, 1), 0.91)));
@@ -175,23 +184,40 @@ class CurrencyRateServiceTest {
     assertEquals(CurrencyType.PLN, saved.getToCurrency());
     assertEquals(new BigDecimal("3.57363100"), saved.getRateValue());
     assertEquals("XTB_EXECUTION", saved.getMethod());
+    assertEquals(CurrencyType.USD, operation.getExecutionFxBase());
+    assertEquals(CurrencyType.PLN, operation.getExecutionFxToCurrency());
+    assertEquals(new BigDecimal("3.573631"), operation.getExecutionFxRate());
   }
 
   @Test
-  void transactionResolverUsesExecutionRateBeforeValuationRate() {
+  void harvestXtbExecutionRatesKeepDifferentSameDayRatesAttachedToTheirOperations() {
+    com.example.demo.infrastructure.repository.CashOperation first = new com.example.demo.infrastructure.repository.CashOperation();
+    first.setId(100L);
+    first.setDate(ZonedDateTime.of(2026, 1, 2, 10, 0, 0, 0, ZoneOffset.UTC));
+    first.setComment("Currency conversion, USD to PLN, Exchange rate:3.50");
+    com.example.demo.infrastructure.repository.CashOperation second = new com.example.demo.infrastructure.repository.CashOperation();
+    second.setId(101L);
+    second.setDate(ZonedDateTime.of(2026, 1, 2, 15, 0, 0, 0, ZoneOffset.UTC));
+    second.setComment("Currency conversion, USD to PLN, Exchange rate:3.60");
+
+    service.harvestXtbExecutionRates(List.of(first, second));
+
+    assertEquals(new BigDecimal("3.50"), first.getExecutionFxRate());
+    assertEquals(new BigDecimal("3.60"), second.getExecutionFxRate());
+    assertEquals("XTB:OPERATION:100", first.getExecutionFxReference());
+    assertEquals("XTB:OPERATION:101", second.getExecutionFxReference());
+  }
+
+  @Test
+  void transactionResolverDoesNotBorrowUnboundExecutionRate() {
     CurrencyRate execution = rate(CurrencyType.USD, CurrencyType.PLN, LocalDate.of(2026, 1, 2), 3.573631);
     execution.setMethod("XTB_EXECUTION");
     execution.setSource("XTB");
     execution.setObservedAt(ZonedDateTime.of(2026, 1, 2, 19, 54, 12, 0, ZoneOffset.UTC));
-    when(currencyRateRepository.findAllByMethodInAndObservedAtIsNotNullOrderByObservedAtDesc(List.of("XTB_EXECUTION", "IBKR_EXECUTION")))
-        .thenReturn(List.of(execution));
-
     CurrencyRateService.FxRateResolution result = service.resolveTransactionRate(
         ZonedDateTime.of(2026, 1, 2, 20, 0, 0, 0, ZoneOffset.UTC), CurrencyType.USD, CurrencyType.PLN);
 
-    assertEquals("XTB_EXECUTION", result.rateMethod());
-    assertEquals("OK", result.conversionStatus());
-    assertEquals(3.573631, result.fxRateToTarget().doubleValue(), 1e-8);
+    assertEquals("MISSING_RATE", result.conversionStatus());
   }
 
   private static CurrencyRate rate(
@@ -204,5 +230,21 @@ class CurrencyRateServiceTest {
     r.setSource("STATIC_BOOTSTRAP");
     r.setMethod("HISTORICAL_MONTHLY");
     return r;
+  }
+
+  private static FxRateResolutionRow resolution(
+      String source, String target, String rate, String method, String rateSource,
+      String date, String status) {
+    return new FxRateResolutionRow() {
+      public String getSourceCurrency() { return source; }
+      public String getTargetCurrency() { return target; }
+      public BigDecimal getFxRateToTarget() { return new BigDecimal(rate); }
+      public String getSource() { return method; }
+      public String getRateMethod() { return method; }
+      public String getRateSource() { return rateSource; }
+      public LocalDate getSourceRateDate() { return LocalDate.parse(date); }
+      public Integer getAgeDays() { return 0; }
+      public String getConversionStatus() { return status; }
+    };
   }
 }

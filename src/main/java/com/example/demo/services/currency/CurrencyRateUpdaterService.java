@@ -83,7 +83,9 @@ public class CurrencyRateUpdaterService {
       Map<CurrencyType, Double> rates = new HashMap<>();
       double usdToBase = usdRates.get(base);
       for (CurrencyType target : CurrencyType.values()) {
-        rates.put(target, usdRates.get(target) / usdToBase);
+        if (target != base) {
+          rates.put(target, usdRates.get(target) / usdToBase);
+        }
       }
       ratesByBase.put(base, rates);
     }

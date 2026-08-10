@@ -220,7 +220,7 @@ WITH edges AS (
       AND lower.to_currency = p_target_currency
       AND lower.method = 'HISTORICAL_MONTHLY'
       AND lower.rate_date < p_valuation_date
-      AND p_valuation_date < DATE '2026-08-01'
+      AND p_valuation_date < (SELECT config_value::date FROM investory.fx_configuration WHERE config_key = 'daily_history_start')
     UNION ALL
     SELECT
         1::numeric / (lower.rate + (upper.rate - lower.rate)
@@ -242,7 +242,7 @@ WITH edges AS (
       AND lower.to_currency = p_source_currency
       AND lower.method = 'HISTORICAL_MONTHLY'
       AND lower.rate_date < p_valuation_date
-      AND p_valuation_date < DATE '2026-08-01'
+      AND p_valuation_date < (SELECT config_value::date FROM investory.fx_configuration WHERE config_key = 'daily_history_start')
 ), selected AS (
     SELECT *
     FROM candidates
@@ -290,7 +290,7 @@ SELECT
         WHEN selected.candidate_method = 'INTERPOLATED' THEN 'ESTIMATED'
         WHEN selected.candidate_method = 'HISTORICAL_MONTHLY'
              AND selected.candidate_rate_source IN ('NBP', 'STATIC_BOOTSTRAP')
-             AND p_valuation_date < DATE '2026-08-01'
+             AND p_valuation_date < (SELECT config_value::date FROM investory.fx_configuration WHERE config_key = 'daily_history_start')
              AND p_valuation_date - selected.candidate_rate_date > 4 THEN 'ESTIMATED'
         WHEN p_valuation_date - selected.candidate_rate_date > 4 THEN 'STALE'
         ELSE 'OK'
@@ -683,6 +683,11 @@ WITH classified AS (
         co.amount,
         co.comment,
         co.date,
+        co.execution_fx_base,
+        co.execution_fx_to_currency,
+        co.execution_fx_rate,
+        co.execution_fx_observed_at,
+        co.execution_fx_source,
         date_trunc('month', co.date)::date AS rate_month,
         CASE
             WHEN co.operation = 'DEPOSIT'
@@ -1014,12 +1019,26 @@ fx AS (
         c.currency,
         c.account_currency
     ) account_fx
-    CROSS JOIN LATERAL investory.resolve_fx_rate(
-        c.date::date,
-        c.currency,
-        c.base_currency,
-        'TRANSACTION'
-    ) transaction_fx
+    LEFT JOIN LATERAL (
+        SELECT c.execution_fx_rate AS fx_rate_to_target,
+               ('EXECUTION:' || c.execution_fx_source)::varchar(64) AS source,
+               c.execution_fx_observed_at::date AS source_rate_date,
+               0::integer AS age_days,
+               'OK'::varchar(32) AS conversion_status
+        WHERE c.execution_fx_base = c.currency
+          AND c.execution_fx_to_currency = c.base_currency
+          AND c.execution_fx_rate > 0
+        UNION ALL
+        SELECT 1 / c.execution_fx_rate,
+               ('EXECUTION:' || c.execution_fx_source)::varchar(64),
+               c.execution_fx_observed_at::date,
+               0::integer,
+               'OK'::varchar(32)
+        WHERE c.execution_fx_base = c.base_currency
+          AND c.execution_fx_to_currency = c.currency
+          AND c.execution_fx_rate > 0
+        LIMIT 1
+    ) transaction_fx ON true
 )
 SELECT
     operation_id,
@@ -5607,3 +5626,104 @@ WHERE aph.price_scale_factor IS DISTINCT FROM ass.price_scale_factor
 
 COMMENT ON VIEW investory.reporting_asset_price_quality_issues IS
     'Non-destructive included-asset price-quality checks. Invalid price/OHLC/scale rows are rejected by table constraints; this view flags currency, source disagreement, interpolation, and extreme-move anomalies for review.';
+
+-- Final canonical valuation resolver. Java calls this function directly; no Java-side
+-- candidate selection is allowed. Daily/reference freshness outranks stale observations.
+CREATE OR REPLACE FUNCTION investory.resolve_fx_rate(
+    p_valuation_date date,
+    p_source_currency varchar(3),
+    p_target_currency varchar(3)
+) RETURNS TABLE (
+    source_currency varchar(3), target_currency varchar(3), fx_rate_to_target numeric,
+    source varchar(64), rate_method varchar(32), rate_source varchar(32),
+    source_rate_date date, age_days integer, conversion_status varchar(32)
+) LANGUAGE sql STABLE AS $$
+WITH cfg AS (
+    SELECT max(config_value::integer) FILTER (WHERE config_key = 'max_age_days') AS max_age,
+           max(config_value::date) FILTER (WHERE config_key = 'daily_history_start') AS daily_start
+    FROM investory.fx_configuration
+), edges AS (
+    SELECT er.base::varchar(3) AS edge_source, er.to_currency::varchar(3) AS edge_target,
+           er.rate AS edge_rate, er.source::varchar(32) AS edge_rate_source,
+           er.method::varchar(32) AS edge_method, er.rate_date,
+           CASE WHEN er.rate_date = p_valuation_date
+                     AND er.method IN ('MARKET_DAILY','IBKR_DAILY_REFERENCE') THEN 1
+                WHEN er.method IN ('MARKET_DAILY','IBKR_DAILY_REFERENCE')
+                     AND p_valuation_date - er.rate_date <= cfg.max_age THEN 2
+                WHEN er.method = 'HISTORICAL_MONTHLY' THEN 4 ELSE 3 END AS rank
+    FROM investory.exchange_rates er CROSS JOIN cfg
+    WHERE er.base <> er.to_currency AND er.rate > 0
+      AND er.rate_date <= p_valuation_date
+      AND er.method NOT IN ('XTB_EXECUTION','IBKR_EXECUTION','INTERPOLATED')
+    UNION ALL
+    SELECT er.to_currency, er.base, 1 / er.rate, er.source, er.method, er.rate_date,
+           CASE WHEN er.rate_date = p_valuation_date
+                     AND er.method IN ('MARKET_DAILY','IBKR_DAILY_REFERENCE') THEN 1
+                WHEN er.method IN ('MARKET_DAILY','IBKR_DAILY_REFERENCE')
+                     AND p_valuation_date - er.rate_date <= cfg.max_age THEN 2
+                WHEN er.method = 'HISTORICAL_MONTHLY' THEN 4 ELSE 3 END
+    FROM investory.exchange_rates er CROSS JOIN cfg
+    WHERE er.base <> er.to_currency AND er.rate > 0
+      AND er.rate_date <= p_valuation_date
+      AND er.method NOT IN ('XTB_EXECUTION','IBKR_EXECUTION','INTERPOLATED')
+), candidates AS (
+    SELECT edge_rate AS rate, ('DIRECT:' || edge_rate_source)::varchar(64) AS chosen_source,
+           edge_method AS chosen_method, edge_rate_source AS chosen_rate_source,
+           rate_date AS chosen_date, rank AS chosen_rank
+    FROM edges WHERE edge_source = p_source_currency AND edge_target = p_target_currency
+    UNION ALL
+    SELECT a.edge_rate * b.edge_rate, ('TRIANGULATED:' || a.edge_target)::varchar(64),
+           CASE WHEN a.edge_method = b.edge_method THEN a.edge_method ELSE 'TRIANGULATED' END,
+           a.edge_rate_source, LEAST(a.rate_date, b.rate_date), GREATEST(a.rank, b.rank)
+    FROM edges a JOIN edges b ON b.edge_source = a.edge_target
+                              AND b.edge_target = p_target_currency
+    WHERE a.edge_source = p_source_currency
+      AND a.edge_target NOT IN (p_source_currency, p_target_currency)
+), historical AS (
+    SELECT lower.rate + (upper.rate - lower.rate)
+             * ((p_valuation_date - lower.rate_date)::numeric
+             / (upper.rate_date - lower.rate_date)::numeric) AS rate,
+           ('INTERPOLATED:' || lower.source)::varchar(64) AS chosen_source,
+           'INTERPOLATED'::varchar(32) AS chosen_method,
+           lower.source::varchar(32) AS chosen_rate_source,
+           NULL::date AS chosen_date, 4 AS chosen_rank
+    FROM cfg
+    CROSS JOIN LATERAL (
+      SELECT er.* FROM investory.exchange_rates er
+      WHERE er.base = p_source_currency AND er.to_currency = p_target_currency
+        AND er.method = 'HISTORICAL_MONTHLY' AND er.rate_date < p_valuation_date
+      ORDER BY er.rate_date DESC LIMIT 1) lower
+    CROSS JOIN LATERAL (
+      SELECT er.* FROM investory.exchange_rates er
+      WHERE er.base = p_source_currency AND er.to_currency = p_target_currency
+        AND er.method = 'HISTORICAL_MONTHLY' AND er.rate_date > p_valuation_date
+      ORDER BY er.rate_date LIMIT 1) upper
+    WHERE p_valuation_date < cfg.daily_start
+), selected AS (
+    SELECT * FROM candidates
+    UNION ALL SELECT * FROM historical
+    ORDER BY chosen_rank, chosen_date DESC NULLS LAST, chosen_source
+    LIMIT 1
+)
+SELECT p_source_currency, p_target_currency,
+       CASE WHEN p_source_currency = p_target_currency THEN 1 ELSE selected.rate END,
+       CASE WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY' ELSE selected.chosen_source END,
+       CASE WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY'
+            WHEN selected.chosen_method IN ('MARKET_DAILY','IBKR_DAILY_REFERENCE')
+                 AND selected.chosen_date < p_valuation_date
+                 AND EXTRACT(ISODOW FROM p_valuation_date) IN (6,7) THEN 'CARRY_FORWARD'
+            ELSE selected.chosen_method END,
+       CASE WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY' ELSE selected.chosen_rate_source END,
+       CASE WHEN p_source_currency = p_target_currency THEN p_valuation_date
+            ELSE selected.chosen_date END,
+       CASE WHEN p_source_currency = p_target_currency THEN 0
+            WHEN selected.chosen_date IS NULL THEN NULL
+            ELSE (p_valuation_date - selected.chosen_date)::integer END,
+       CASE WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY'
+            WHEN selected.rate IS NULL THEN 'MISSING_RATE'
+            WHEN selected.chosen_method = 'INTERPOLATED' THEN 'ESTIMATED'
+            WHEN selected.chosen_method = 'HISTORICAL_MONTHLY' THEN 'ESTIMATED'
+            WHEN p_valuation_date - selected.chosen_date > cfg.max_age THEN 'STALE'
+            ELSE 'OK' END
+FROM cfg LEFT JOIN selected ON true;
+$$;

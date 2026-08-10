@@ -61,6 +61,24 @@ public class CashOperation {
   @Column(nullable = false)
   private ZonedDateTime date;
 
+  @Column(name = "execution_fx_base")
+  private CurrencyType executionFxBase;
+
+  @Column(name = "execution_fx_to_currency")
+  private CurrencyType executionFxToCurrency;
+
+  @Column(name = "execution_fx_rate", precision = 20, scale = 8)
+  private BigDecimal executionFxRate;
+
+  @Column(name = "execution_fx_observed_at")
+  private ZonedDateTime executionFxObservedAt;
+
+  @Column(name = "execution_fx_source")
+  private String executionFxSource;
+
+  @Column(name = "execution_fx_reference")
+  private String executionFxReference;
+
   public Double getAmount() {
     return amount == null ? null : amount.doubleValue();
   }

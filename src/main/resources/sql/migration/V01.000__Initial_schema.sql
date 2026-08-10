@@ -360,6 +360,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_exchange_rates_observation
     ON investory.exchange_rates (rate_date, base, to_currency, source, method, COALESCE(source_reference, ''));
 COMMENT ON TABLE investory.exchange_rates IS 'Historical exchange rates for USD/EUR/PLN currencies, used for reporting and analysis';
 
+CREATE TABLE investory.fx_configuration (
+    config_key varchar(64) PRIMARY KEY,
+    config_value varchar(64) NOT NULL
+);
+INSERT INTO investory.fx_configuration(config_key, config_value) VALUES
+    ('daily_history_start', '2026-08-01'),
+    ('max_age_days', '4');
+
 CREATE TYPE investory.cash_operation_type AS ENUM (
     -- Cash movements
     'DEPOSIT',
@@ -460,7 +468,13 @@ CREATE TABLE investory.cash_operations (
     amount       numeric(20,8) NOT NULL,
     currency     varchar(3) NOT NULL REFERENCES investory.currencies(id),
     comment      varchar(1023),
-    date         timestamp with time zone NOT NULL
+    date         timestamp with time zone NOT NULL,
+    execution_fx_base varchar(3),
+    execution_fx_to_currency varchar(3),
+    execution_fx_rate numeric(20,8),
+    execution_fx_observed_at timestamp with time zone,
+    execution_fx_source varchar(32),
+    execution_fx_reference varchar(256)
 );
 -- drop index if exists ux_cash_operations;
 -- create unique index if not exists ux_cash_operations on cash_operations (account_id, date, asset_id);

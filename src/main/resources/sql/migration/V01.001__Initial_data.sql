@@ -24,33 +24,33 @@ insert into accounts (id, currency, provider, name, owner, portfolio_id, cash_on
     ('17959259', 'USD', 'IBKR', 'IBKR', 'AaaaOoo', 1, false)
 on conflict (id) do nothing;
 INSERT INTO investory.exchange_rates (rate_date, base, to_currency, rate) VALUES
-('2024-08-01', 'EUR', 'USD', 1.082239), -- NBP 2024-07-31
-('2024-09-01', 'EUR', 'USD', 1.107494), -- NBP 2024-08-30
-('2024-10-01', 'EUR', 'USD', 1.120389), -- NBP 2024-09-30
-('2024-11-01', 'EUR', 'USD', 1.086647), -- NBP 2024-10-31
-('2024-12-01', 'EUR', 'USD', 1.055752), -- NBP 2024-11-29
+('2024-07-31', 'EUR', 'USD', 1.082239),
+('2024-08-30', 'EUR', 'USD', 1.107494),
+('2024-09-30', 'EUR', 'USD', 1.120389),
+('2024-10-31', 'EUR', 'USD', 1.086647),
+('2024-11-29', 'EUR', 'USD', 1.055752),
 
-('2025-01-01', 'EUR', 'USD', 1.041890), -- NBP 2024-12-31
-('2025-02-01', 'EUR', 'USD', 1.038299), -- NBP 2025-01-31
-('2025-03-01', 'EUR', 'USD', 1.039557), -- NBP 2025-02-28
-('2025-04-01', 'EUR', 'USD', 1.082706), -- NBP 2025-03-31
-('2025-05-01', 'EUR', 'USD', 1.137199), -- NBP 2025-04-30
-('2025-06-01', 'EUR', 'USD', 1.132403), -- NBP 2025-05-30
-('2025-07-01', 'EUR', 'USD', 1.172962), -- NBP 2025-06-30
-('2025-08-01', 'EUR', 'USD', 1.145047), -- NBP 2025-07-31
-('2025-09-01', 'EUR', 'USD', 1.167537), -- NBP 2025-08-29
-('2025-10-01', 'EUR', 'USD', 1.175602), -- NBP 2025-09-30
-('2025-11-01', 'EUR', 'USD', 1.157601), -- NBP 2025-10-31
-('2025-12-01', 'EUR', 'USD', 1.156864), -- NBP 2025-11-28
+('2024-12-31', 'EUR', 'USD', 1.041890),
+('2025-01-31', 'EUR', 'USD', 1.038299),
+('2025-02-28', 'EUR', 'USD', 1.039557),
+('2025-03-31', 'EUR', 'USD', 1.082706),
+('2025-04-30', 'EUR', 'USD', 1.137199),
+('2025-05-30', 'EUR', 'USD', 1.132403),
+('2025-06-30', 'EUR', 'USD', 1.172962),
+('2025-07-31', 'EUR', 'USD', 1.145047),
+('2025-08-29', 'EUR', 'USD', 1.167537),
+('2025-09-30', 'EUR', 'USD', 1.175602),
+('2025-10-31', 'EUR', 'USD', 1.157601),
+('2025-11-28', 'EUR', 'USD', 1.156864),
 
-('2026-01-01', 'EUR', 'USD', 1.173562), -- NBP 2025-12-31
-('2026-02-01', 'EUR', 'USD', 1.190848), -- NBP 2026-01-30
-('2026-03-01', 'EUR', 'USD', 1.179561), -- NBP 2026-02-27
-('2026-04-01', 'EUR', 'USD', 1.146653), -- NBP 2026-03-31
-('2026-05-01', 'EUR', 'USD', 1.168102), -- NBP 2026-04-30
-('2026-06-01', 'EUR', 'USD', 1.162852), -- NBP 2026-05-29
-('2026-07-01', 'EUR', 'USD', 1.139360), -- NBP 2026-06-30
-('2026-08-01', 'EUR', 'USD', 1.152385), -- NBP 2026-07-31
+('2025-12-31', 'EUR', 'USD', 1.173562),
+('2026-01-30', 'EUR', 'USD', 1.190848),
+('2026-02-27', 'EUR', 'USD', 1.179561),
+('2026-03-31', 'EUR', 'USD', 1.146653),
+('2026-04-30', 'EUR', 'USD', 1.168102),
+('2026-05-29', 'EUR', 'USD', 1.162852),
+('2026-06-30', 'EUR', 'USD', 1.139360),
+('2026-07-31', 'EUR', 'USD', 1.152385),
 
 
 -- USD -> PLN
@@ -87,9 +87,36 @@ ON CONFLICT (rate_date, base, to_currency, source, method, COALESCE(source_refer
     rate = EXCLUDED.rate;
 
 UPDATE investory.exchange_rates
-SET rate_date = rate_date - 1
-WHERE source = 'STATIC_BOOTSTRAP'
-  AND method = 'HISTORICAL_MONTHLY';
+SET source = 'NBP',
+    method = 'HISTORICAL_MONTHLY',
+    rate_date = CASE rate_date
+        WHEN DATE '2024-08-01' THEN DATE '2024-07-31'
+        WHEN DATE '2024-09-01' THEN DATE '2024-08-30'
+        WHEN DATE '2024-10-01' THEN DATE '2024-09-30'
+        WHEN DATE '2024-11-01' THEN DATE '2024-10-31'
+        WHEN DATE '2024-12-01' THEN DATE '2024-11-29'
+        WHEN DATE '2025-01-01' THEN DATE '2024-12-31'
+        WHEN DATE '2025-02-01' THEN DATE '2025-01-31'
+        WHEN DATE '2025-03-01' THEN DATE '2025-02-28'
+        WHEN DATE '2025-04-01' THEN DATE '2025-03-31'
+        WHEN DATE '2025-05-01' THEN DATE '2025-04-30'
+        WHEN DATE '2025-06-01' THEN DATE '2025-05-30'
+        WHEN DATE '2025-07-01' THEN DATE '2025-06-30'
+        WHEN DATE '2025-08-01' THEN DATE '2025-07-31'
+        WHEN DATE '2025-09-01' THEN DATE '2025-08-29'
+        WHEN DATE '2025-10-01' THEN DATE '2025-09-30'
+        WHEN DATE '2025-11-01' THEN DATE '2025-10-31'
+        WHEN DATE '2025-12-01' THEN DATE '2025-11-28'
+        WHEN DATE '2026-01-01' THEN DATE '2025-12-31'
+        WHEN DATE '2026-02-01' THEN DATE '2026-01-30'
+        WHEN DATE '2026-03-01' THEN DATE '2026-02-27'
+        WHEN DATE '2026-04-01' THEN DATE '2026-03-31'
+        WHEN DATE '2026-05-01' THEN DATE '2026-04-30'
+        WHEN DATE '2026-06-01' THEN DATE '2026-05-29'
+        WHEN DATE '2026-07-01' THEN DATE '2026-06-30'
+        WHEN DATE '2026-08-01' THEN DATE '2026-07-31'
+        ELSE rate_date END
+WHERE source = 'STATIC_BOOTSTRAP';
 
 INSERT INTO investory.assets (name, symbol, ticker, ibkr, yahoo, country, currency, asset_type, active)
 VALUES

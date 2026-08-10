@@ -38,8 +38,6 @@ spring:
     template-resolver-order: 1
 
 app:
-  fx:
-    daily-history-start: ${APP_FX_DAILY_HISTORY_START:2026-08-01}
   portfolio:
     # Detailed issue provenance scans reconstructed history and is slow on large datasets.
     data-quality-issues-enabled: ${PORTFOLIO_DATA_QUALITY_ISSUES_ENABLED:false}

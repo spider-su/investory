@@ -66,6 +66,11 @@ WITH classified AS (
         co.amount,
         co.comment,
         co.date,
+        co.execution_fx_base,
+        co.execution_fx_to_currency,
+        co.execution_fx_rate,
+        co.execution_fx_observed_at,
+        co.execution_fx_source,
         date_trunc('month', co.date AT TIME ZONE 'Europe/Warsaw')::date AS rate_month,
         CASE
             WHEN co.operation = 'DEPOSIT'
@@ -384,12 +389,26 @@ WITH classified AS (
         c.currency,
         c.account_currency
     ) account_fx
-    CROSS JOIN LATERAL investory.resolve_fx_rate(
-        (c.date AT TIME ZONE 'Europe/Warsaw')::date,
-        c.currency,
-        c.base_currency,
-        'TRANSACTION'
-    ) transaction_fx
+    LEFT JOIN LATERAL (
+        SELECT c.execution_fx_rate AS fx_rate_to_target,
+               ('EXECUTION:' || c.execution_fx_source)::varchar(64) AS source,
+               c.execution_fx_observed_at::date AS source_rate_date,
+               0::integer AS age_days,
+               'OK'::varchar(32) AS conversion_status
+        WHERE c.execution_fx_base = c.currency
+          AND c.execution_fx_to_currency = c.base_currency
+          AND c.execution_fx_rate > 0
+        UNION ALL
+        SELECT 1 / c.execution_fx_rate,
+               ('EXECUTION:' || c.execution_fx_source)::varchar(64),
+               c.execution_fx_observed_at::date,
+               0::integer,
+               'OK'::varchar(32)
+        WHERE c.execution_fx_base = c.base_currency
+          AND c.execution_fx_to_currency = c.currency
+          AND c.execution_fx_rate > 0
+        LIMIT 1
+    ) transaction_fx ON true
 )
 SELECT
     operation_id,

@@ -46,7 +46,9 @@ SELECT r.source_currency,
           AND e.base::varchar(3) = r.source_currency
           AND e.to_currency::varchar(3) = r.target_currency) AS interpolated_observation_count,
        (SELECT count(*) FROM investory.exchange_rates e
-        WHERE e.method = 'XTB_EXECUTION') AS broker_fx_observation_count
+        WHERE e.method = 'XTB_EXECUTION') AS xtb_execution_observation_count,
+       (SELECT count(*) FROM investory.exchange_rates e
+        WHERE e.method = 'IBKR_EXECUTION') AS ibkr_execution_observation_count
 FROM resolved r
 LEFT JOIN latest l
   ON l.source_currency = r.source_currency
@@ -75,12 +77,12 @@ UNION ALL
 SELECT 'DAILY_COVERAGE_GAP', base::varchar(3), to_currency::varchar(3), CURRENT_DATE, NULL,
        'No recent market/reference observation after daily-history boundary'::text
 FROM (VALUES ('USD'::varchar(3), 'EUR'::varchar(3)), ('USD', 'PLN'), ('EUR', 'USD'), ('EUR', 'PLN'), ('PLN', 'USD'), ('PLN', 'EUR')) pairs(base, to_currency)
-WHERE CURRENT_DATE >= DATE '2026-08-01'
+WHERE CURRENT_DATE >= (SELECT config_value::date FROM investory.fx_configuration WHERE config_key = 'daily_history_start')
   AND NOT EXISTS (
       SELECT 1 FROM investory.exchange_rates er
       WHERE er.base = pairs.base AND er.to_currency = pairs.to_currency
         AND er.method IN ('MARKET_DAILY', 'IBKR_DAILY_REFERENCE')
-        AND er.rate_date >= CURRENT_DATE - 4);
+        AND er.rate_date >= CURRENT_DATE - (SELECT config_value::integer FROM investory.fx_configuration WHERE config_key = 'max_age_days'));
 
 CREATE OR REPLACE VIEW investory.v_fx_consistency_check AS
 SELECT 'RECIPROCAL_MISMATCH'::varchar(32) AS issue_code,

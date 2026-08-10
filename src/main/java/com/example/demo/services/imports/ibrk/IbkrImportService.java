@@ -125,13 +125,6 @@ public class IbkrImportService {
           throw new IllegalArgumentException("IBKR row has no net amount");
         }
 
-        if (currencyRateService != null
-            && isForexTradeComponent(type, rawSymbol, description)
-            && price != null) {
-          currencyRateService.harvestIbkrExecutionRate(
-              date, rawSymbol, BigDecimal.valueOf(price), "IBKR:EXECUTION:" + isoDate(date) + ":" + rawSymbol + ":" + price);
-        }
-
         CashOperation op = new CashOperation();
         String key =
             String.join(
@@ -156,6 +149,13 @@ public class IbkrImportService {
             buildOperationComment(
                 type, rawSymbol, description, quantity, price, grossAmount, commission));
         op.setDate(date);
+        if (currencyRateService != null
+            && isForexTradeComponent(type, rawSymbol, description)
+            && price != null) {
+          currencyRateService.bindIbkrExecutionRate(
+              op, rawSymbol, BigDecimal.valueOf(price),
+              "IBKR:OPERATION:" + op.getId());
+        }
         if (op.getType() == CashOperationType.UNKNOWN) {
           throw new IllegalArgumentException("Unknown IBKR transaction type: " + type);
         }
