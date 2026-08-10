@@ -28,7 +28,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 
 @ActiveProfiles("test-fast")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
-class IbkrTreasuryImportIntegrationTest {
+class IbkrTreasuryImportIT {
 
   private static final PostgreSQLContainer<?> POSTGRES =
       new PostgreSQLContainer<>("postgres:17-alpine")

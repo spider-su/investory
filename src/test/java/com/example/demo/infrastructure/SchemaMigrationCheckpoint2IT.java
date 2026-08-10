@@ -23,13 +23,13 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * developer database, so the destructive schema reset below cannot touch real data.
  */
 @Testcontainers
-class SchemaMigrationCheckpoint2Test {
+class SchemaMigrationCheckpoint2IT {
 
   private static final String TEST_DATABASE_NAME = "investory_migration_test";
 
   @Container
   private final PostgreSQLContainer<?> postgres =
-      new PostgreSQLContainer<>("postgres:16-alpine")
+      new PostgreSQLContainer<>("postgres:17-alpine")
           .withDatabaseName(TEST_DATABASE_NAME)
           .withUsername("investory_test")
           .withPassword("investory_test");

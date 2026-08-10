@@ -43,7 +43,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 
 @ActiveProfiles("test-fast")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
-class XtbImportIntegrationTest {
+class XtbImportIT {
 
   private static final long ACCOUNT_ID = 51729109L;
   private static final PostgreSQLContainer<?> POSTGRES =
