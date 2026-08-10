@@ -114,6 +114,37 @@ class SystemAuditContractIT {
   }
 
   @Test
+  void auditRunsAreRetainedAndFinishedTimestampChangesDoNotRerunAudit() throws SQLException {
+    try (Connection connection = connection();
+        Statement statement = connection.createStatement()) {
+      long importId;
+      try (ResultSet result =
+          statement.executeQuery(
+              "INSERT INTO investory.import_history("
+                  + "provider, file_name, file_sha256, started_at, finished_at, status, "
+                  + "rows_total, rows_applied, rows_failed) VALUES ("
+                  + "'XTB', 'audit-history.csv', 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', now(), now(), "
+                  + "'COMPLETED', 1, 1, 0) RETURNING id")) {
+        assertTrue(result.next());
+        importId = result.getLong(1);
+      }
+
+      statement.execute(
+          "UPDATE investory.import_history SET finished_at = finished_at + interval '1 second' "
+              + "WHERE id = "
+              + importId);
+      assertEquals(1, auditCount(statement, importId));
+
+      try (ResultSet result =
+          statement.executeQuery(
+              "SELECT investory.run_system_audit(" + importId + ", 'MANUAL')")) {
+        assertTrue(result.next());
+      }
+      assertEquals(2, auditCount(statement, importId));
+    }
+  }
+
+  @Test
   void partialImportProducesPersistedWarningWhenNoErrorOverridesIt() throws SQLException {
     try (Connection connection = connection();
         Statement statement = connection.createStatement()) {

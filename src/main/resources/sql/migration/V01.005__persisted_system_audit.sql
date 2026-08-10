@@ -21,8 +21,8 @@ CREATE TABLE investory.system_audit_runs (
     )
 );
 
-CREATE UNIQUE INDEX ux_system_audit_runs_import
-    ON investory.system_audit_runs(import_history_id)
+CREATE INDEX ix_system_audit_runs_import_started
+    ON investory.system_audit_runs(import_history_id, started_at DESC)
     WHERE import_history_id IS NOT NULL;
 CREATE INDEX ix_system_audit_runs_status_finished
     ON investory.system_audit_runs(status, finished_at DESC);
@@ -56,6 +56,8 @@ DECLARE
     import_row investory.import_history%ROWTYPE;
     errors bigint;
     warnings bigint;
+    error_checks bigint;
+    warning_checks bigint;
     final_status varchar(16);
     notification varchar(32);
     payload jsonb;
@@ -65,8 +67,6 @@ BEGIN
         FROM investory.import_history
         WHERE id = p_import_history_id;
 
-        DELETE FROM investory.system_audit_runs
-        WHERE import_history_id = p_import_history_id;
     END IF;
 
     INSERT INTO investory.system_audit_runs(
@@ -88,7 +88,8 @@ BEGIN
                 'TIMEZONE_NAIVE_COLUMN',
                 'VALUATION_INPUT_ERROR'
             ) THEN 'ERROR'
-            ELSE 'WARN'
+            WHEN review.check_code = 'VALUATION_INPUT_WARNING' THEN 'WARN'
+            ELSE 'ERROR'
         END,
         review.issue_count,
         review.required_action,
@@ -131,9 +132,11 @@ BEGIN
     END IF;
 
     SELECT
+        COALESCE(sum(issue_count) FILTER (WHERE severity = 'ERROR'), 0)::bigint,
+        COALESCE(sum(issue_count) FILTER (WHERE severity = 'WARN'), 0)::bigint,
         count(*) FILTER (WHERE severity = 'ERROR'),
         count(*) FILTER (WHERE severity = 'WARN')
-    INTO errors, warnings
+    INTO errors, warnings, error_checks, warning_checks
     FROM investory.system_audit_issues
     WHERE audit_run_id = audit_id;
 
@@ -154,8 +157,10 @@ BEGIN
         'trigger_source', p_trigger_source,
         'status', final_status,
         'notification_status', notification,
-        'error_checks', errors,
-        'warning_checks', warnings,
+        'error_count', errors,
+        'warning_count', warnings,
+        'error_checks', error_checks,
+        'warning_checks', warning_checks,
         'issues', COALESCE(jsonb_agg(
             jsonb_build_object(
                 'check_code', issue.check_code,
@@ -195,8 +200,10 @@ BEGIN
     IF NEW.status IN ('COMPLETED', 'PARTIAL', 'FAILED', 'NOT_READY')
        AND (
            TG_OP = 'INSERT'
-           OR OLD.status IS DISTINCT FROM NEW.status
-           OR OLD.finished_at IS DISTINCT FROM NEW.finished_at
+           OR (
+               OLD.status IS DISTINCT FROM NEW.status
+               AND (OLD.status IS NULL OR OLD.status = 'STARTED')
+           )
        ) THEN
         PERFORM investory.run_system_audit(NEW.id, 'IMPORT_FINALIZED');
     END IF;
@@ -205,9 +212,24 @@ END;
 $$;
 
 CREATE TRIGGER trg_import_history_system_audit
-AFTER INSERT OR UPDATE OF status, finished_at ON investory.import_history
+AFTER INSERT OR UPDATE OF status ON investory.import_history
 FOR EACH ROW
 EXECUTE FUNCTION investory.audit_finalized_import();
+
+DO $$
+DECLARE
+    import_id bigint;
+BEGIN
+    FOR import_id IN
+        SELECT id
+        FROM investory.import_history
+        WHERE status IN ('COMPLETED', 'PARTIAL', 'FAILED', 'NOT_READY')
+        ORDER BY id
+    LOOP
+        PERFORM investory.run_system_audit(import_id, 'MIGRATION_BACKFILL');
+    END LOOP;
+END;
+$$;
 
 CREATE OR REPLACE VIEW investory.reporting_system_audit AS
 SELECT
