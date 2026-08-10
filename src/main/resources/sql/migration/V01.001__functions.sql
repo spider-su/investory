@@ -558,7 +558,8 @@ WITH cfg AS (
            er.rate AS edge_rate,
            er.source::varchar(32) AS edge_rate_source,
            er.method::varchar(32) AS edge_method,
-           er.rate_date
+           er.rate_date,
+           false AS is_inverse
     FROM investory.exchange_rates er
     WHERE er.method = 'HISTORICAL_MONTHLY' AND er.rate > 0
     UNION ALL
@@ -567,13 +568,21 @@ WITH cfg AS (
            1 / er.rate,
            er.source::varchar(32),
            er.method::varchar(32),
-           er.rate_date
+           er.rate_date,
+           true AS is_inverse
     FROM investory.exchange_rates er
     WHERE er.method = 'HISTORICAL_MONTHLY' AND er.rate > 0
 ), historical AS (
-    SELECT lower.edge_rate + (upper.edge_rate - lower.edge_rate)
-             * ((p_valuation_date - lower.rate_date)::numeric
-             / (upper.rate_date - lower.rate_date)::numeric) AS rate,
+    SELECT CASE
+             WHEN lower.is_inverse THEN 1 / NULLIF(
+                 (1 / lower.edge_rate) + ((1 / upper.edge_rate) - (1 / lower.edge_rate))
+                     * ((p_valuation_date - lower.rate_date)::numeric
+                     / (upper.rate_date - lower.rate_date)::numeric),
+                 0)
+             ELSE lower.edge_rate + (upper.edge_rate - lower.edge_rate)
+                 * ((p_valuation_date - lower.rate_date)::numeric
+                 / (upper.rate_date - lower.rate_date)::numeric)
+           END AS rate,
            ('INTERPOLATED:' || lower.edge_rate_source)::varchar(64) AS chosen_source,
            'INTERPOLATED'::varchar(32) AS chosen_method,
            lower.edge_rate_source::varchar(32) AS chosen_rate_source,
