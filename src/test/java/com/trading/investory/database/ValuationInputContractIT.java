@@ -11,36 +11,10 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import com.investory.testsupport.TestDatabaseFixtures;
-import org.flywaydb.core.Flyway;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
+import com.investory.testsupport.FastDatabase;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.containers.PostgreSQLContainer;
 
 class ValuationInputContractIT {
-
-  private static final PostgreSQLContainer<?> POSTGRES =
-      new PostgreSQLContainer<>("postgres:17-alpine")
-          .withDatabaseName("investory_valuation_test")
-          .withUsername("investory")
-          .withPassword("investory");
-
-  @BeforeAll
-  static void migrateDatabase() {
-    POSTGRES.start();
-    Flyway.configure()
-        .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
-        .locations("classpath:sql/migration")
-        .load()
-        .migrate();
-    TestDatabaseFixtures.loadPersonalBootstrap(POSTGRES);
-  }
-
-  @AfterAll
-  static void stopDatabase() {
-    POSTGRES.stop();
-  }
 
   @Test
   void fxResolverUsesLatestAvailableRateOnOrBeforeValuationDate() throws SQLException {
@@ -325,7 +299,7 @@ class ValuationInputContractIT {
       statement.execute("INSERT INTO investory.currencies(id) VALUES ('GBP')");
       statement.execute(
           "INSERT INTO investory.accounts(id, external_account_id, currency, provider, name, owner, portfolio_id) "
-              + "SELECT 999999, '999999', 'GBP', 'XTB', 'Missing FX test', 'Alex', id "
+              + "SELECT 999999, '999999', 'GBP', 'XTB', 'Missing FX test', 'Sample User', id "
               + "FROM investory.portfolios ORDER BY id LIMIT 1");
       statement.execute(
           "INSERT INTO investory.account_daily("
@@ -377,7 +351,12 @@ class ValuationInputContractIT {
   }
 
   private static Connection connection() throws SQLException {
-    return DriverManager.getConnection(
-        POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+    Connection connection =
+        DriverManager.getConnection(
+            FastDatabase.container().getJdbcUrl(),
+            FastDatabase.container().getUsername(),
+            FastDatabase.container().getPassword());
+    connection.setAutoCommit(false);
+    return connection;
   }
 }

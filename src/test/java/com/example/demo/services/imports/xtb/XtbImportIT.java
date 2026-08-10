@@ -15,7 +15,7 @@ import com.example.demo.infrastructure.repository.ClosedPositionRepository;
 import com.example.demo.infrastructure.repository.OpenedPosition;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
 import com.example.demo.services.imports.ImportExecutionResult;
-import com.investory.testsupport.TestDatabaseFixtures;
+import com.investory.testsupport.FastDatabaseTest;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
@@ -31,56 +31,21 @@ import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.flywaydb.core.Flyway;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.springframework.transaction.annotation.Transactional;
 
-@ActiveProfiles("test-fast")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
-class XtbImportIT {
+@Transactional
+class XtbImportIT extends FastDatabaseTest {
 
   private static final long ACCOUNT_ID = 51729109L;
-  private static final PostgreSQLContainer<?> POSTGRES =
-      new PostgreSQLContainer<>("postgres:17-alpine")
-          .withDatabaseName("investory_xtb_test")
-          .withUsername("investory")
-          .withPassword("investory");
-
   @Autowired private AssetRepository assetRepository;
   @Autowired private CashOperationRepository cashOperationRepository;
   @Autowired private ClosedPositionRepository closedPositionRepository;
   @Autowired private OpenedPositionRepository openedPositionRepository;
   @Autowired private XtbImportV2Service xtbImportV2Service;
-
-  @BeforeAll
-  static void migrateDatabase() {
-    POSTGRES.start();
-    Flyway.configure()
-        .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
-        .locations("classpath:sql/migration")
-        .load()
-        .migrate();
-    TestDatabaseFixtures.loadPersonalBootstrap(POSTGRES);
-  }
-
-  @AfterAll
-  static void stopDatabase() {
-    POSTGRES.stop();
-  }
-
-  @DynamicPropertySource
-  static void databaseProperties(DynamicPropertyRegistry registry) {
-    registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-    registry.add("spring.datasource.username", POSTGRES::getUsername);
-    registry.add("spring.datasource.password", POSTGRES::getPassword);
-  }
 
   @Test
   void usesConfiguredAccountCurrencyKeepsExcludedHistoryAndPreservesUtc() throws Exception {

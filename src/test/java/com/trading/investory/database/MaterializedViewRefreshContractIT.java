@@ -10,20 +10,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Set;
-import com.investory.testsupport.TestDatabaseFixtures;
-import org.flywaydb.core.Flyway;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
+import com.investory.testsupport.FastDatabase;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.containers.PostgreSQLContainer;
 
 class MaterializedViewRefreshContractIT {
-
-  private static final PostgreSQLContainer<?> POSTGRES =
-      new PostgreSQLContainer<>("postgres:17-alpine")
-          .withDatabaseName("investory_mv_test")
-          .withUsername("investory")
-          .withPassword("investory");
 
   private static final Set<String> PRODUCTION_MVS =
       Set.of(
@@ -42,22 +32,6 @@ class MaterializedViewRefreshContractIT {
           "reporting_account_daily_cashflow_reconciliation",
           "v_account_daily_reconciliation",
           "reporting_trade_settlement_reconciliation");
-
-  @BeforeAll
-  static void migrateDatabase() {
-    POSTGRES.start();
-    Flyway.configure()
-        .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
-        .locations("classpath:sql/migration")
-        .load()
-        .migrate();
-    TestDatabaseFixtures.loadPersonalBootstrap(POSTGRES);
-  }
-
-  @AfterAll
-  static void stopDatabase() {
-    POSTGRES.stop();
-  }
 
   @Test
   void explicitProductionRefreshLeavesAllExpectedMvsQueryable() throws SQLException {
@@ -194,6 +168,9 @@ class MaterializedViewRefreshContractIT {
   }
 
   private static Connection connection() throws SQLException {
-    return DriverManager.getConnection(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+    return DriverManager.getConnection(
+        FastDatabase.container().getJdbcUrl(),
+        FastDatabase.container().getUsername(),
+        FastDatabase.container().getPassword());
   }
 }

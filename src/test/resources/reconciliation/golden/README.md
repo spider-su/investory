@@ -1,6 +1,6 @@
 # Investory golden reconciliation corpus
 
-Small, deterministic regression corpus reduced from real IBKR and XTB exports.
+Small, deterministic regression corpus reduced from anonymized IBKR and XTB scenarios.
 
 The corpus is intentionally not a complete portfolio archive. It exists to preserve previously
 observed edge cases while keeping the clean-database verification fast enough to run repeatedly.
@@ -20,5 +20,6 @@ Covered cases:
 `expected/checkpoints.json` is the semantic contract for future expansion. `GoldenRebuildIT`
 implements the high-value assertions directly so a failure produces useful SQL diagnostics.
 
-The golden test must remain offline. Do not add live market/FX calls. The full private broker archive
-belongs to a separate archive-verification mode.
+The golden test must remain offline. Do not add live market/FX calls. Committed broker-derived
+fixtures must be reduced, deterministic, anonymized, credential-free, and limited to data needed for
+regression semantics.

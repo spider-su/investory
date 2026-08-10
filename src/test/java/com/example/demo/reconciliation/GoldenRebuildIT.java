@@ -35,7 +35,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 
 /**
- * Clean-database golden reconciliation built from heavily reduced real broker exports.
+ * Clean-database golden reconciliation built from reduced, anonymized broker-derived fixtures.
  *
  * <p>This test deliberately crosses importer -> normalized cash semantics -> position reconstruction
  * -> account_daily -> independent reconciliation views. It must not call live market-data or FX

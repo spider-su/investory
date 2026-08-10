@@ -2,7 +2,7 @@
 SET search_path TO investory, public;
 
 INSERT INTO investory.app_users (id, username, display_name)
-VALUES (1, 'aaaa.bbbb', 'Aaaa Bbbb')
+VALUES (1, 'sample.user', 'Sample User')
 ON CONFLICT (id) DO UPDATE
     SET username = EXCLUDED.username,
         display_name = EXCLUDED.display_name;
@@ -14,7 +14,7 @@ SELECT setval(
        );
 
 INSERT INTO investory.portfolios (id, name, base_currency, owner, user_id) VALUES
-    (1, 'Sample Portfolio', 'USD', 'Aaaa Bbbb', 1)
+    (1, 'Sample Portfolio', 'USD', 'Sample User', 1)
 on conflict do nothing;
 
 SELECT setval(
@@ -24,17 +24,17 @@ SELECT setval(
        );
 
 insert into accounts (id, external_account_id, currency, provider, name, owner, portfolio_id, cash_only) values
-    ('51551301', '51551301', 'PLN', 'XTB', 'Sample PLN Account', 'Aaaa Bbbb', 1, false),
-    ('51822121', '51822121', 'USD', 'XTB', 'Sample USD Account', 'Aaaa Bbbb', 1, false),
-    ('51747407', '51747407', 'EUR', 'XTB', 'Sample EUR Account', 'Aaaa Bbbb', 1, true),
-    ('53582946', '53582946', 'USD', 'XTB', 'Sample Metals Account', 'Aaaa Bbbb', 1, false),
-    ('51729109', '51729109', 'PLN', 'XTB', 'Sample Retirement Account', 'Aaaa Bbbb', 1, false),
-    ('50290466', '50290466', 'PLN', 'XTB', 'Sample PLN Cash Account', 'Aaaa Bbbb', 1, true),
-    ('51499241', '51499241', 'USD', 'XTB', 'Sample USD Trading Account', 'Aaaa Bbbb', 1, false),
-    ('51548444', '51548444', 'EUR', 'XTB', 'Sample EUR Cash Account', 'Aaaa Bbbb', 1, true),
-    ('51993106', '51993106', 'USD', 'XTB', 'Sample Income Account', 'Aaaa Bbbb', 1, false),
-    ('51707603', '51707603', 'PLN', 'XTB', 'Sample PLN Reserve Account', 'Aaaa Bbbb', 1, true),
-    ('17959259', '17959259', 'USD', 'IBKR', 'Sample IBKR Account', 'Aaaa Bbbb', 1, false);
+    ('51551301', '51551301', 'PLN', 'XTB', 'Sample PLN Account', 'Sample User', 1, false),
+    ('51822121', '51822121', 'USD', 'XTB', 'Sample USD Account', 'Sample User', 1, false),
+    ('51747407', '51747407', 'EUR', 'XTB', 'Sample EUR Account', 'Sample User', 1, true),
+    ('53582946', '53582946', 'USD', 'XTB', 'Sample Metals Account', 'Sample User', 1, false),
+    ('51729109', '51729109', 'PLN', 'XTB', 'Sample Retirement Account', 'Sample User', 1, false),
+    ('50290466', '50290466', 'PLN', 'XTB', 'Sample PLN Cash Account', 'Sample User', 1, true),
+    ('51499241', '51499241', 'USD', 'XTB', 'Sample USD Trading Account', 'Sample User', 1, false),
+    ('51548444', '51548444', 'EUR', 'XTB', 'Sample EUR Cash Account', 'Sample User', 1, true),
+    ('51993106', '51993106', 'USD', 'XTB', 'Sample Income Account', 'Sample User', 1, false),
+    ('51707603', '51707603', 'PLN', 'XTB', 'Sample PLN Reserve Account', 'Sample User', 1, true),
+    ('17959259', '17959259', 'USD', 'IBKR', 'Sample IBKR Account', 'Sample User', 1, false);
 
 INSERT INTO investory.exchange_rates (rate_date, base, to_currency, rate) VALUES
     ('2024-07-31', 'EUR', 'USD', 1.082239),

@@ -10,36 +10,10 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import com.investory.testsupport.TestDatabaseFixtures;
-import org.flywaydb.core.Flyway;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
+import com.investory.testsupport.FastDatabase;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.containers.PostgreSQLContainer;
 
 class SystemAuditContractIT {
-
-  private static final PostgreSQLContainer<?> POSTGRES =
-      new PostgreSQLContainer<>("postgres:17-alpine")
-          .withDatabaseName("investory_audit_test")
-          .withUsername("investory")
-          .withPassword("investory");
-
-  @BeforeAll
-  static void migrateDatabase() {
-    POSTGRES.start();
-    Flyway.configure()
-        .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
-        .locations("classpath:sql/migration")
-        .load()
-        .migrate();
-    TestDatabaseFixtures.loadPersonalBootstrap(POSTGRES);
-  }
-
-  @AfterAll
-  static void stopDatabase() {
-    POSTGRES.stop();
-  }
 
   @Test
   void auditIsMandatoryWhenImportTransitionsToCompleted() throws SQLException {
@@ -249,7 +223,10 @@ class SystemAuditContractIT {
   private static Connection connection() throws SQLException {
     Connection connection =
         DriverManager.getConnection(
-            POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+            FastDatabase.container().getJdbcUrl(),
+            FastDatabase.container().getUsername(),
+            FastDatabase.container().getPassword());
+    connection.setAutoCommit(false);
     assertFalse(connection.isClosed());
     return connection;
   }

@@ -7,55 +7,24 @@ import static org.mockito.ArgumentMatchers.eq;
 
 import com.example.demo.clients.currency.ExchangeRateClient;
 import com.example.demo.infrastructure.CurrencyType;
-import com.investory.testsupport.TestDatabaseFixtures;
+import com.investory.testsupport.FastDatabaseTest;
 import java.time.LocalDate;
 import java.util.Map;
-import org.flywaydb.core.Flyway;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.springframework.transaction.annotation.Transactional;
 
-@ActiveProfiles("test-fast")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
-class CurrencyRateUpdaterPostgresIT {
-
-  private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:17-alpine")
-      .withDatabaseName("investory_fx_test")
-      .withUsername("investory")
-      .withPassword("investory");
+@Transactional
+class CurrencyRateUpdaterPostgresIT extends FastDatabaseTest {
 
   @Autowired private CurrencyRateUpdaterService updater;
   @Autowired private JdbcTemplate jdbc;
   @Autowired private CurrencyRateService currencyRateService;
   @MockitoBean private ExchangeRateClient client;
-
-  @BeforeAll
-  static void migrateDatabase() {
-    POSTGRES.start();
-    Flyway.configure().dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
-        .locations("classpath:sql/migration").load().migrate();
-    TestDatabaseFixtures.loadPersonalBootstrap(POSTGRES);
-  }
-
-  @AfterAll
-  static void stopDatabase() {
-    POSTGRES.stop();
-  }
-
-  @DynamicPropertySource
-  static void databaseProperties(DynamicPropertyRegistry registry) {
-    registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-    registry.add("spring.datasource.username", POSTGRES::getUsername);
-    registry.add("spring.datasource.password", POSTGRES::getPassword);
-  }
 
   @Test
   void persistsProviderDateWithoutIdentityRowsAndIsIdempotent() {

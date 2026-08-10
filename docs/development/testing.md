@@ -20,7 +20,8 @@ Fast database tests use PostgreSQL Testcontainers but disable Flyway. The databa
 src/test/resources/db/snapshot/schema.sql
 ```
 
-When the snapshot has not been generated yet, the test support dynamically discovers all `sql/migration/*.sql` classpath resources, sorts them by filename, and applies them directly with `psql`. This keeps the fallback aligned when new migrations are added; generating the snapshot still removes that repeated migration work.
+The snapshot is required. If it is missing, fast-test support fails with instructions to regenerate it;
+it never executes migrations itself.
 
 Create a Spring integration test by extending `FastDatabaseTest`:
 
@@ -36,8 +37,7 @@ The base class:
 - starts one shared PostgreSQL 17 container for the test JVM;
 - activates the `test-fast` profile;
 - disables Flyway;
-- loads the committed snapshot when present;
-- loads optional deterministic reference data;
+- loads the committed snapshot;
 - supplies the container JDBC properties to Spring.
 
 Do not use this base class for tests whose purpose is migration validation.
@@ -71,15 +71,12 @@ git commit -m "Update fast test database snapshot"
 
 Review the generated SQL before committing it.
 
-## Reference and fixture data
+## Fixture data
 
-Shared non-sensitive reference rows can be placed in:
-
-```text
-src/test/resources/db/snapshot/reference-data.sql
-```
-
-Keep scenario-specific data in focused test fixtures and load it with `@Sql`. Do not put broker exports, personal positions, account identifiers, API keys, or production credentials into test resources.
+Keep scenario-specific data in focused test fixtures and load it with `@Sql`. Committed
+broker-derived fixtures are allowed only when they are reduced, deterministic, anonymized, free of
+credentials and identity-bearing personal data, and limited to regression semantics. Account IDs may
+remain where a regression fixture requires them.
 
 ## Full migration verification
 

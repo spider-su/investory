@@ -9,42 +9,15 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import com.investory.testsupport.TestDatabaseFixtures;
-import org.flywaydb.core.Flyway;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
+import com.investory.testsupport.FastDatabase;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.containers.PostgreSQLContainer;
 
 /**
- * Enforces benchmark correctness against the migrated PostgreSQL database, not only the text of
- * {@code scripts/sql/rebuild_account_monthly_benchmark.sql}. The production contract is that
+ * Enforces benchmark correctness against the PostgreSQL database. The production contract is that
  * {@code account_monthly_benchmark} is a thin projection of {@code account_monthly_mv} and never
  * recalculates profit from boundary equity independently.
  */
 class AccountMonthlyBenchmarkContractIT {
-
-  private static final PostgreSQLContainer<?> POSTGRES =
-      new PostgreSQLContainer<>("postgres:17-alpine")
-          .withDatabaseName("investory_benchmark_test")
-          .withUsername("investory")
-          .withPassword("investory");
-
-  @BeforeAll
-  static void migrateDatabase() {
-    POSTGRES.start();
-    Flyway.configure()
-        .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
-        .locations("classpath:sql/migration")
-        .load()
-        .migrate();
-    TestDatabaseFixtures.loadPersonalBootstrap(POSTGRES);
-  }
-
-  @AfterAll
-  static void stopDatabase() {
-    POSTGRES.stop();
-  }
 
   @Test
   void benchmarkIsAPlainViewDelegatingToCanonicalMonthlyProjection() throws SQLException {
@@ -110,7 +83,9 @@ class AccountMonthlyBenchmarkContractIT {
 
   private static Connection connection() throws SQLException {
     return DriverManager.getConnection(
-        POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+        FastDatabase.container().getJdbcUrl(),
+        FastDatabase.container().getUsername(),
+        FastDatabase.container().getPassword());
   }
 }
 

@@ -11,7 +11,6 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.stream.Stream;
-import com.investory.testsupport.TestDatabaseFixtures;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -69,7 +68,7 @@ class SchemaMigrationCheckpoint2IT {
     assertDisposableTestDatabase();
 
     Flyway flyway =
-    Flyway.configure()
+        Flyway.configure()
             .cleanDisabled(true)
             .dataSource(dbUrl(), dbUsername(), dbPassword())
             .schemas("investory")
@@ -78,12 +77,6 @@ class SchemaMigrationCheckpoint2IT {
             .load();
     flyway.migrate();
     try (Connection connection = openConnection(); Statement statement = connection.createStatement()) {
-      try (ResultSet result = statement.executeQuery("SELECT count(*) = 0 FROM investory.accounts")) {
-        result.next();
-        if (result.getBoolean(1)) {
-          TestDatabaseFixtures.loadPersonalBootstrap(postgres);
-        }
-      }
       statement.execute(
           "INSERT INTO investory.app_users (id, username, display_name) VALUES "
               + "(2, 'migration-test', 'Migration Test') ON CONFLICT (id) DO NOTHING");

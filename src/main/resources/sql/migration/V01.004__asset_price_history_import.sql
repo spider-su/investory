@@ -1,7 +1,6 @@
 SET search_path TO investory, public;
 
--- Installation-specific asset mappings and price observations are loaded explicitly by
--- scripts/bootstrap-personal-data.sql or an import fixture.
+-- Sample/public asset mappings and price observations required by the baseline are seeded here.
 
 insert into investory.asset_source_symbols (asset_id, source, source_symbol, source_market, price_currency, xtb_symbol, match_method, match_status, confidence, is_exact_listing, is_alternate_listing, original_exchange, matched_exchange, original_currency, matched_currency, requires_fx_conversion, price_scale_factor, scale_reason, scale_confidence, scale_observation_count, scale_median_ratio, scale_dispersion, manual_approval_status, substitution_reason) values
 ((select id from investory.assets where symbol = 'COST.US' or ticker = 'COST' or ibkr = 'COST' order by case when symbol = 'COST.US' then 0 else 1 end limit 1), 'STOOQ', 'cost.us', 'us/nasdaq stocks/1', 'USD', 'COST.US', 'EXACT_SYMBOL', 'ACCEPTED_EXACT', 'HIGH', true, false, 'US', 'US', 'USD', 'USD', false, 1.00000000, NULL, 'HIGH', 60, 0.99915206, 0.00362756, 'AUTO_ACCEPTED', NULL),

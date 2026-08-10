@@ -1,3 +1,0 @@
--- Optional deterministic reference rows for fast integration tests.
--- Keep this file free of personal portfolio data and production credentials.
--- Test-specific business fixtures should remain in focused @Sql resources.

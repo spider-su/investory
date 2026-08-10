@@ -1,21 +1,21 @@
 Summary,Data,Base Currency,USD
 Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quantity,Price,Price Currency,Gross Amount ,Commission,Net Amount
-Transaction History,Data,2026-06-05,Alex&Olga,Withholding @ 20% on Credit Interest for May-2026,Foreign Tax Withholding,-,-,-,-,-0.48,-,-0.48
-Transaction History,Data,2026-06-05,Alex&Olga,Withholding @ 20% on Credit Interest for May-2026,Foreign Tax Withholding,-,-,-,-,-0.33413799999999994,-,-0.33413799999999994
-Transaction History,Data,2026-06-05,Alex&Olga,JGPI(IE0003UVYC20) Cash Dividend USD 0.3244 per Share (Mixed Income),Dividend,JGPI,-,-,-,131.06,-,131.06
-Transaction History,Data,2026-06-03,Alex&Olga,EUR Credit Interest for May-2026,Credit Interest,-,-,-,-,1.7049059999999998,-,1.7049059999999998
-Transaction History,Data,2026-06-03,Alex&Olga,USD Credit Interest for May-2026,Credit Interest,-,-,-,-,2.38,-,2.38
-Transaction History,Data,2026-05-07,Alex&Olga,Electronic Fund Transfer,Deposit,-,-,-,-,8793.0,-,8793.0
-Transaction History,Data,2026-04-15,Alex&Olga,Electronic Fund Transfer,Deposit,-,-,-,-,10029.15,-,10029.15
-Transaction History,Data,2026-04-15,Alex&Olga,JPM GB EQ PR IN ACT UT E-U D,Buy,JGPI,45.0,22.54,EUR,-1196.7725699999999,-3.5397,-1200.31227
-Transaction History,Data,2026-04-15,Alex&Olga,"Net Amount in Base from Forex Trade: -2,069.27 EUR.USD",Forex Trade Component,EUR.USD,-2069.27,1.17714,USD,-5.711185199999818,-,-5.711185199999818
-Transaction History,Data,2026-04-15,Alex&Olga,VANG FTSE AW USDA,Buy,VWRA,18.0,177.0612,USD,-3187.1,-4.0,-3191.1
-Transaction History,Data,2026-03-02,Alex&Olga,Bond Coupon Payment (T 4 5/8 02/28/26 - United States Treasury T 4 5/8 02/28/26),Investment Interest Received,T 4 5/8 02/28/26,-,-,-,231.25,-,231.25
-Transaction History,Data,2026-02-27,Alex&Olga,"(US91282CKB62) Full Call / Early Redemption for USD 1.00 per Bond (T 4 5/8 02/28/26, T 4 5/8 02/28/26, US91282CKB62)",Corporate Action,T 4 5/8 02/28/26,-,-,-,10000.0,-,10000.0
-Transaction History,Data,2025-08-31,Alex&Olga,Bond Coupon Payment (T 4 5/8 02/28/26 - United States Treasury T 4 5/8 02/28/26),Investment Interest Received,T 4 5/8 02/28/26,-,-,-,231.25,-,231.25
-Transaction History,Data,2025-05-06,Alex&Olga,T 4 5/8 02/28/26,Buy,T 4 5/8 02/28/26,8000.0,100.42611625,USD,-8034.09,-5.0,-8039.09
-Transaction History,Data,2025-05-06,Alex&Olga,Purchase Accrued Interest T 4 5/8 02/28/26,Investment Interest Paid,T 4 5/8 02/28/26,-,-,-,-68.37,-,-68.37
-Transaction History,Data,2025-04-17,Alex&Olga,Purchase Accrued Interest T 4 5/8 02/28/26,Investment Interest Paid,T 4 5/8 02/28/26,-,-,-,-6.54,-,-6.54
-Transaction History,Data,2025-04-17,Alex&Olga,T 4 5/8 02/28/26,Buy,T 4 5/8 02/28/26,1000.0,100.484375,USD,-1004.84,-5.0,-1009.84
-Transaction History,Data,2025-03-26,Alex&Olga,Purchase Accrued Interest T 4 5/8 02/28/26,Investment Interest Paid,T 4 5/8 02/28/26,-,-,-,-3.39,-,-3.39
-Transaction History,Data,2025-03-26,Alex&Olga,T 4 5/8 02/28/26,Buy,T 4 5/8 02/28/26,1000.0,100.41049125,USD,-1004.1,-5.0,-1009.1
+Transaction History,Data,2026-06-05,Sample Broker User,Withholding @ 20% on Credit Interest for May-2026,Foreign Tax Withholding,-,-,-,-,-0.48,-,-0.48
+Transaction History,Data,2026-06-05,Sample Broker User,Withholding @ 20% on Credit Interest for May-2026,Foreign Tax Withholding,-,-,-,-,-0.33413799999999994,-,-0.33413799999999994
+Transaction History,Data,2026-06-05,Sample Broker User,JGPI(IE0003UVYC20) Cash Dividend USD 0.3244 per Share (Mixed Income),Dividend,JGPI,-,-,-,131.06,-,131.06
+Transaction History,Data,2026-06-03,Sample Broker User,EUR Credit Interest for May-2026,Credit Interest,-,-,-,-,1.7049059999999998,-,1.7049059999999998
+Transaction History,Data,2026-06-03,Sample Broker User,USD Credit Interest for May-2026,Credit Interest,-,-,-,-,2.38,-,2.38
+Transaction History,Data,2026-05-07,Sample Broker User,Electronic Fund Transfer,Deposit,-,-,-,-,8793.0,-,8793.0
+Transaction History,Data,2026-04-15,Sample Broker User,Electronic Fund Transfer,Deposit,-,-,-,-,10029.15,-,10029.15
+Transaction History,Data,2026-04-15,Sample Broker User,JPM GB EQ PR IN ACT UT E-U D,Buy,JGPI,45.0,22.54,EUR,-1196.7725699999999,-3.5397,-1200.31227
+Transaction History,Data,2026-04-15,Sample Broker User,"Net Amount in Base from Forex Trade: -2,069.27 EUR.USD",Forex Trade Component,EUR.USD,-2069.27,1.17714,USD,-5.711185199999818,-,-5.711185199999818
+Transaction History,Data,2026-04-15,Sample Broker User,VANG FTSE AW USDA,Buy,VWRA,18.0,177.0612,USD,-3187.1,-4.0,-3191.1
+Transaction History,Data,2026-03-02,Sample Broker User,Bond Coupon Payment (T 4 5/8 02/28/26 - United States Treasury T 4 5/8 02/28/26),Investment Interest Received,T 4 5/8 02/28/26,-,-,-,231.25,-,231.25
+Transaction History,Data,2026-02-27,Sample Broker User,"(US91282CKB62) Full Call / Early Redemption for USD 1.00 per Bond (T 4 5/8 02/28/26, T 4 5/8 02/28/26, US91282CKB62)",Corporate Action,T 4 5/8 02/28/26,-,-,-,10000.0,-,10000.0
+Transaction History,Data,2025-08-31,Sample Broker User,Bond Coupon Payment (T 4 5/8 02/28/26 - United States Treasury T 4 5/8 02/28/26),Investment Interest Received,T 4 5/8 02/28/26,-,-,-,231.25,-,231.25
+Transaction History,Data,2025-05-06,Sample Broker User,T 4 5/8 02/28/26,Buy,T 4 5/8 02/28/26,8000.0,100.42611625,USD,-8034.09,-5.0,-8039.09
+Transaction History,Data,2025-05-06,Sample Broker User,Purchase Accrued Interest T 4 5/8 02/28/26,Investment Interest Paid,T 4 5/8 02/28/26,-,-,-,-68.37,-,-68.37
+Transaction History,Data,2025-04-17,Sample Broker User,Purchase Accrued Interest T 4 5/8 02/28/26,Investment Interest Paid,T 4 5/8 02/28/26,-,-,-,-6.54,-,-6.54
+Transaction History,Data,2025-04-17,Sample Broker User,T 4 5/8 02/28/26,Buy,T 4 5/8 02/28/26,1000.0,100.484375,USD,-1004.84,-5.0,-1009.84
+Transaction History,Data,2025-03-26,Sample Broker User,Purchase Accrued Interest T 4 5/8 02/28/26,Investment Interest Paid,T 4 5/8 02/28/26,-,-,-,-3.39,-,-3.39
+Transaction History,Data,2025-03-26,Sample Broker User,T 4 5/8 02/28/26,Buy,T 4 5/8 02/28/26,1000.0,100.41049125,USD,-1004.1,-5.0,-1009.1

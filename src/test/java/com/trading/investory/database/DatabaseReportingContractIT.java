@@ -20,37 +20,10 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import com.investory.testsupport.TestDatabaseFixtures;
-import org.flywaydb.core.Flyway;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
+import com.investory.testsupport.FastDatabase;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.containers.PostgreSQLContainer;
 
 class DatabaseReportingContractIT {
-
-  private static final PostgreSQLContainer<?> POSTGRES =
-      new PostgreSQLContainer<>("postgres:17-alpine")
-          .withDatabaseName("investory_test")
-          .withUsername("investory")
-          .withPassword("investory");
-
-  @BeforeAll
-  static void migrateDatabase() {
-    POSTGRES.start();
-
-    Flyway.configure()
-        .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
-        .locations("classpath:sql/migration")
-        .load()
-        .migrate();
-    TestDatabaseFixtures.loadPersonalBootstrap(POSTGRES);
-  }
-
-  @AfterAll
-  static void stopDatabase() {
-    POSTGRES.stop();
-  }
 
   @Test
   void everyViewCanBePlanned() throws SQLException {
@@ -542,8 +515,8 @@ class DatabaseReportingContractIT {
           statement.executeQuery(
               "SELECT username, display_name FROM investory.app_users WHERE id = 1")) {
         assertTrue(result.next());
-        assertEquals("alex", result.getString("username"));
-        assertEquals("Alex", result.getString("display_name"));
+        assertEquals("sample.user", result.getString("username"));
+        assertEquals("Sample User", result.getString("display_name"));
       }
 
       try (ResultSet result =
@@ -758,7 +731,9 @@ class DatabaseReportingContractIT {
   private static Connection connection() throws SQLException {
     Connection connection =
         DriverManager.getConnection(
-            POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+            FastDatabase.container().getJdbcUrl(),
+            FastDatabase.container().getUsername(),
+            FastDatabase.container().getPassword());
     assertNotNull(connection);
     return connection;
   }
