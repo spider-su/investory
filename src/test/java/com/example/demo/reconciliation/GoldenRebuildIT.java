@@ -9,6 +9,7 @@ import com.example.demo.services.currency.CurrencyRateService;
 import com.example.demo.services.imports.ImportExecutionResult;
 import com.example.demo.services.imports.ibrk.IbkrImportService;
 import com.example.demo.services.imports.xtb.XtbImportV2Service;
+import com.investory.testsupport.TestDatabaseFixtures;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,7 +43,9 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * providers.
  */
 @ActiveProfiles("test-fast")
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.NONE,
+    properties = "spring.jpa.hibernate.ddl-auto=validate")
 class GoldenRebuildIT {
 
   private static final String ROOT = "/reconciliation/golden/";
@@ -71,6 +74,7 @@ class GoldenRebuildIT {
         .locations("classpath:sql/migration")
         .load()
         .migrate();
+    TestDatabaseFixtures.loadPersonalBootstrap(POSTGRES);
   }
 
   @AfterAll

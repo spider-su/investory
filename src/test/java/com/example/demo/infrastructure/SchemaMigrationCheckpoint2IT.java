@@ -11,6 +11,7 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.stream.Stream;
+import com.investory.testsupport.TestDatabaseFixtures;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -68,7 +69,7 @@ class SchemaMigrationCheckpoint2IT {
     assertDisposableTestDatabase();
 
     Flyway flyway =
-        Flyway.configure()
+    Flyway.configure()
             .cleanDisabled(true)
             .dataSource(dbUrl(), dbUsername(), dbPassword())
             .schemas("investory")
@@ -76,6 +77,17 @@ class SchemaMigrationCheckpoint2IT {
             .locations("classpath:sql/migration")
             .load();
     flyway.migrate();
+    try (Connection connection = openConnection(); Statement statement = connection.createStatement()) {
+      try (ResultSet result = statement.executeQuery("SELECT count(*) = 0 FROM investory.accounts")) {
+        result.next();
+        if (result.getBoolean(1)) {
+          TestDatabaseFixtures.loadPersonalBootstrap(postgres);
+        }
+      }
+      statement.execute(
+          "INSERT INTO investory.app_users (id, username, display_name) VALUES "
+              + "(2, 'migration-test', 'Migration Test') ON CONFLICT (id) DO NOTHING");
+    }
   }
 
   @Test
@@ -704,8 +716,8 @@ class SchemaMigrationCheckpoint2IT {
           """
           insert into investory.portfolios(id, name, base_currency, user_id)
           values (-470000, 'Corporate action test', 'USD', 1);
-          insert into investory.accounts(id, currency, provider, name, owner, portfolio_id)
-          values (-470000, 'USD', 'XTB', 'Corporate action test', 'Test', -470000);
+          insert into investory.accounts(id, external_account_id, currency, provider, name, owner, portfolio_id)
+          values (-470000, '470000', 'USD', 'XTB', 'Corporate action test', 'Test', -470000);
           insert into investory.account_daily(
               account_id, snapshot_date, valuation_currency, cash_balance, market_value, equity)
           values
@@ -770,8 +782,8 @@ class SchemaMigrationCheckpoint2IT {
           """
           insert into investory.portfolios(id, name, base_currency, user_id)
           values (-458022, 'Bond multiplier test', 'USD', 1);
-          insert into investory.accounts(id, currency, provider, name, owner, portfolio_id)
-          values (-458022, 'USD', 'IBKR', 'Bond multiplier test', 'Test', -458022);
+          insert into investory.accounts(id, external_account_id, currency, provider, name, owner, portfolio_id)
+          values (-458022, '458022', 'USD', 'IBKR', 'Bond multiplier test', 'Test', -458022);
           insert into investory.account_daily(
               account_id, snapshot_date, valuation_currency, cash_balance, market_value, equity,
               realized_profit, daily_profit_amount)
@@ -814,8 +826,8 @@ class SchemaMigrationCheckpoint2IT {
           """
           insert into investory.portfolios(id, name, base_currency, user_id)
           values (-440000, 'Cost basis FX test', 'USD', 1);
-          insert into investory.accounts(id, currency, provider, name, owner, portfolio_id)
-          values (-440000, 'USD', 'IBKR', 'Cost basis FX test', 'Test', -440000);
+          insert into investory.accounts(id, external_account_id, currency, provider, name, owner, portfolio_id)
+          values (-440000, '440000', 'USD', 'IBKR', 'Cost basis FX test', 'Test', -440000);
           insert into investory.exchange_rates(
               rate_date, base, to_currency, rate, source, method)
           values
@@ -869,8 +881,8 @@ class SchemaMigrationCheckpoint2IT {
           """
           insert into investory.portfolios (id, name, base_currency, user_id)
           values (-920001, 'EUR reporting portfolio', 'EUR', 1);
-          insert into investory.accounts (id, currency, provider, name, owner, portfolio_id)
-          values (-920001, 'USD', 'IBKR', 'USD account', 'Test', -920001);
+          insert into investory.accounts (id, external_account_id, currency, provider, name, owner, portfolio_id)
+          values (-920001, '920001', 'USD', 'IBKR', 'USD account', 'Test', -920001);
           insert into investory.account_daily (
               account_id, snapshot_date, valuation_currency, cash_balance, market_value, equity
           ) values (-920001, date '2025-01-15', 'USD', 100, 50, 150)
@@ -921,8 +933,8 @@ class SchemaMigrationCheckpoint2IT {
           """
           insert into investory.portfolios (id, name, base_currency, user_id)
           values (-930001, 'USD FX regression portfolio', 'USD', 1);
-          insert into investory.accounts (id, currency, provider, name, owner, portfolio_id)
-          values (-930001, 'USD', 'IBKR', 'USD account', 'Test', -930001);
+          insert into investory.accounts (id, external_account_id, currency, provider, name, owner, portfolio_id)
+          values (-930001, '930001', 'USD', 'IBKR', 'USD account', 'Test', -930001);
           insert into investory.positions (
               id, account_id, asset_id, source_asset_symbol, operation, volume,
               price_currency, cost_currency, profit_currency, commission_currency,
@@ -1046,9 +1058,9 @@ class SchemaMigrationCheckpoint2IT {
           values (-940001, 'USD FX test portfolio', 'USD', 1),
                  (-940002, 'EUR FX test portfolio', 'EUR', 1);
 
-          insert into investory.accounts (id, currency, provider, name, owner, portfolio_id)
-          values (-940001, 'USD', 'IBKR', 'USD FX account', 'Test', -940001),
-                 (-940002, 'EUR', 'IBKR', 'EUR FX account', 'Test', -940002);
+          insert into investory.accounts (id, external_account_id, currency, provider, name, owner, portfolio_id)
+          values (-940001, '940001', 'USD', 'IBKR', 'USD FX account', 'Test', -940001),
+                 (-940002, '940002', 'EUR', 'IBKR', 'EUR FX account', 'Test', -940002);
 
           insert into investory.account_daily (
             account_id, snapshot_date, valuation_currency, cash_balance, market_value, equity
@@ -1146,8 +1158,8 @@ class SchemaMigrationCheckpoint2IT {
           insert into investory.portfolios (id, name, base_currency, user_id)
           values (-950001, 'Missing FX portfolio', 'USD', 1);
 
-          insert into investory.accounts (id, currency, provider, name, owner, portfolio_id)
-          values (-950001, 'USD', 'IBKR', 'Missing FX account', 'Test', -950001);
+          insert into investory.accounts (id, external_account_id, currency, provider, name, owner, portfolio_id)
+          values (-950001, '950001', 'USD', 'IBKR', 'Missing FX account', 'Test', -950001);
 
           insert into investory.cash_operations (id, account_id, operation, asset_id, amount, currency, comment, date)
           values
@@ -1227,8 +1239,8 @@ class SchemaMigrationCheckpoint2IT {
           insert into investory.portfolios(id, name, base_currency, user_id)
           values (-200, 'Reconciliation Test', 'USD', 1);
 
-          insert into investory.accounts(id, currency, provider, name, owner, portfolio_id)
-          values (-200, 'USD', 'XTB', 'Reconciliation Test', 'Test', -200);
+          insert into investory.accounts(id, external_account_id, currency, provider, name, owner, portfolio_id)
+          values (-200, '200', 'USD', 'XTB', 'Reconciliation Test', 'Test', -200);
 
           insert into investory.assets(
               id, name, symbol, ticker, ibkr, yahoo, country, currency, asset_type)
@@ -1372,10 +1384,10 @@ class SchemaMigrationCheckpoint2IT {
           delete from investory.exchange_rates;
           insert into investory.portfolios (id, name, base_currency, owner, user_id)
           values (-96, 'Mixed currency test', 'USD', 'Test', 1);
-          insert into investory.accounts (id, currency, provider, name, owner, portfolio_id, cash_only)
+          insert into investory.accounts (id, external_account_id, currency, provider, name, owner, portfolio_id, cash_only)
           values
-            (-960000, 'PLN', 'XTB', 'Mixed currency PLN account', 'Test', -96, false),
-            (-960004, 'USD', 'XTB', 'Mixed currency USD account', 'Test', -96, false);
+            (-960000, '960000', 'PLN', 'XTB', 'Mixed currency PLN account', 'Test', -96, false),
+            (-960004, '960004', 'USD', 'XTB', 'Mixed currency USD account', 'Test', -96, false);
           insert into investory.exchange_rates (rate_date, source, base, to_currency, rate)
           values
             (current_date - interval '1 day', 'TEST', 'PLN', 'USD', 0.25),
@@ -1482,8 +1494,8 @@ class SchemaMigrationCheckpoint2IT {
           """
           insert into investory.portfolios (id, name, base_currency, user_id)
           values (-970001, 'Price precedence test', 'USD', 1);
-          insert into investory.accounts (id, currency, provider, name, owner, portfolio_id)
-          values (-970001, 'USD', 'IBKR', 'Price precedence account', 'Test', -970001);
+          insert into investory.accounts (id, external_account_id, currency, provider, name, owner, portfolio_id)
+          values (-970001, '970001', 'USD', 'IBKR', 'Price precedence account', 'Test', -970001);
           insert into investory.assets(
               id, name, symbol, ticker, ibkr, yahoo, country, currency, asset_type)
           values
@@ -1564,8 +1576,8 @@ class SchemaMigrationCheckpoint2IT {
           """
           insert into investory.portfolios (id, name, base_currency, user_id)
           values (-971001, 'Realized result test', 'USD', 1);
-          insert into investory.accounts (id, currency, provider, name, owner, portfolio_id)
-          values (-971001, 'USD', 'IBKR', 'Realized result account', 'Test', -971001);
+          insert into investory.accounts (id, external_account_id, currency, provider, name, owner, portfolio_id)
+          values (-971001, '971001', 'USD', 'IBKR', 'Realized result account', 'Test', -971001);
           insert into investory.positions (
               id, account_id, asset_id, source_asset_symbol, operation, volume,
               price_currency, cost_currency, profit_currency, commission_currency,
@@ -1626,8 +1638,8 @@ class SchemaMigrationCheckpoint2IT {
           """
           insert into investory.portfolios (id, name, base_currency, user_id)
           values (-972001, 'Statistics as-of test', 'USD', 1);
-          insert into investory.accounts (id, currency, provider, name, owner, portfolio_id)
-          values (-972001, 'USD', 'IBKR', 'Statistics as-of account', 'Test', -972001);
+          insert into investory.accounts (id, external_account_id, currency, provider, name, owner, portfolio_id)
+          values (-972001, '972001', 'USD', 'IBKR', 'Statistics as-of account', 'Test', -972001);
           insert into investory.account_daily (
               account_id, snapshot_date, valuation_currency, cash_balance, market_value, equity
           ) values (-972001, current_date - 1, 'USD', 100, 0, 100);

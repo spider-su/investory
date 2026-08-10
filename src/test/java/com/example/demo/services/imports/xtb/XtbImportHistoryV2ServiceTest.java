@@ -104,13 +104,16 @@ class XtbImportHistoryV2ServiceTest {
             new XtbPositionCurrencyResolver(),
             currencyRateService);
     org.mockito.Mockito.lenient()
-        .when(accountRepository.findById(org.mockito.ArgumentMatchers.anyLong()))
+        .when(accountRepository.findByProviderIgnoreCaseAndExternalAccountId(
+            org.mockito.ArgumentMatchers.eq("XTB"), org.mockito.ArgumentMatchers.anyString()))
         .thenAnswer(
             invocation -> {
               Account account = new Account();
-              account.setId(invocation.getArgument(0));
+              String externalAccountId = invocation.getArgument(1);
+              Long accountId = Long.valueOf(externalAccountId);
+              account.setId(accountId);
+              account.setExternalAccountId(externalAccountId);
               account.setProvider("XTB");
-              Long accountId = invocation.getArgument(0);
               account.setCurrency(
                   switch (accountId.intValue()) {
                     case 51548444, 51747407 -> CurrencyType.EUR;

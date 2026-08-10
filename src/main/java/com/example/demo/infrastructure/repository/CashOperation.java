@@ -61,9 +61,11 @@ public class CashOperation {
   @Column(nullable = false)
   private ZonedDateTime date;
 
+  @Enumerated(value = EnumType.STRING)
   @Column(name = "execution_fx_base")
   private CurrencyType executionFxBase;
 
+  @Enumerated(value = EnumType.STRING)
   @Column(name = "execution_fx_to_currency")
   private CurrencyType executionFxToCurrency;
 

@@ -16,6 +16,9 @@ public class Account {
 
   @Id private Long id;
 
+  @Column(name = "external_account_id", nullable = false)
+  private String externalAccountId;
+
   @Enumerated(EnumType.STRING)
   @Column(name = "currency", nullable = false)
   private CurrencyType currency;

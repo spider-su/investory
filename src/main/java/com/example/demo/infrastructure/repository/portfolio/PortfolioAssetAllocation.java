@@ -11,6 +11,8 @@ import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Data
 @NoArgsConstructor
@@ -36,9 +38,11 @@ public class PortfolioAssetAllocation {
   private String assetSymbol;
 
   @Column(name = "total_volume")
+  @JdbcTypeCode(SqlTypes.NUMERIC)
   private Double totalVolume;
 
   @Column(name = "market_price")
+  @JdbcTypeCode(SqlTypes.NUMERIC)
   private Double marketPrice;
 
   @Enumerated(EnumType.STRING)
@@ -46,12 +50,15 @@ public class PortfolioAssetAllocation {
   private CurrencyType marketPriceCurrency;
 
   @Column(name = "cost_basis_in_base_currency")
+  @JdbcTypeCode(SqlTypes.NUMERIC)
   private Double costBasisInBaseCurrency;
 
   @Column(name = "total_value_in_base_currency")
+  @JdbcTypeCode(SqlTypes.NUMERIC)
   private Double totalValueInBaseCurrency;
 
   @Column(name = "unrealized_pl_in_base_currency")
+  @JdbcTypeCode(SqlTypes.NUMERIC)
   private Double unrealizedPlInBaseCurrency;
 
   @Column(name = "updated_at", nullable = false)

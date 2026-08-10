@@ -10,6 +10,7 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import com.investory.testsupport.TestDatabaseFixtures;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -32,6 +33,7 @@ class SystemAuditContractIT {
         .locations("classpath:sql/migration")
         .load()
         .migrate();
+    TestDatabaseFixtures.loadPersonalBootstrap(POSTGRES);
   }
 
   @AfterAll

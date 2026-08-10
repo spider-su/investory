@@ -88,11 +88,12 @@ public class IbkrImportService {
       total++;
       try {
         String type = value(r, col, "Transaction Type", "Type");
-        Long account =
+        Long externalAccountId =
             resolveIbkrAccountId(
                 accountIdFromFilename, value(r, col, "Account", "Account ID", "AccountId"));
         Account configuredAccount =
-            configuredAccounts.computeIfAbsent(account, this::requireIbkrAccount);
+            configuredAccounts.computeIfAbsent(externalAccountId, this::requireIbkrAccount);
+        Long account = configuredAccount.getId();
         CurrencyType baseCurrency = statementBaseCurrency;
         String description = value(r, col, "Description");
         String rawSymbol = value(r, col, "Symbol");
@@ -185,7 +186,11 @@ public class IbkrImportService {
     String openPositionsSection = findOpenPositionsSection(rows);
     if (openPositionsSection != null) {
       Long openPositionsAccount =
-          affectedAccounts.size() == 1 ? affectedAccounts.getFirst() : accountIdFromFilename;
+          affectedAccounts.size() == 1
+              ? affectedAccounts.getFirst()
+              : Optional.ofNullable(configuredAccounts.get(accountIdFromFilename))
+                  .map(Account::getId)
+                  .orElse(null);
       if (openPositionsAccount == null) {
         throw new IllegalArgumentException("IBKR open positions have no resolvable account");
       }
@@ -505,18 +510,26 @@ public class IbkrImportService {
         || type == CashOperationType.FREE_FUNDS_INTEREST;
   }
 
-  private Account requireIbkrAccount(Long accountId) {
+  private Account requireIbkrAccount(Long externalAccountId) {
     Account account =
         accountRepository
-            .findById(accountId)
+            .findByProviderIgnoreCaseAndExternalAccountId(
+                "IBKR", String.valueOf(externalAccountId))
             .orElseThrow(
-                () -> new IllegalArgumentException("IBKR account is not configured: " + accountId));
+                () ->
+                    new IllegalArgumentException(
+                        "IBKR account is not configured: " + externalAccountId));
     if (!"IBKR".equalsIgnoreCase(account.getProvider())) {
       throw new IllegalArgumentException(
-          "Account " + accountId + " is configured for provider " + account.getProvider() + ", not IBKR");
+          "Account "
+              + externalAccountId
+              + " is configured for provider "
+              + account.getProvider()
+              + ", not IBKR");
     }
     if (account.getCurrency() == null) {
-      throw new IllegalArgumentException("IBKR account has no configured currency: " + accountId);
+      throw new IllegalArgumentException(
+          "IBKR account has no configured currency: " + externalAccountId);
     }
     return account;
   }

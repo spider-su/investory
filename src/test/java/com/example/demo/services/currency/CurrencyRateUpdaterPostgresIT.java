@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 
 import com.example.demo.clients.currency.ExchangeRateClient;
 import com.example.demo.infrastructure.CurrencyType;
+import com.investory.testsupport.TestDatabaseFixtures;
 import java.time.LocalDate;
 import java.util.Map;
 import org.flywaydb.core.Flyway;
@@ -41,6 +42,7 @@ class CurrencyRateUpdaterPostgresIT {
     POSTGRES.start();
     Flyway.configure().dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
         .locations("classpath:sql/migration").load().migrate();
+    TestDatabaseFixtures.loadPersonalBootstrap(POSTGRES);
   }
 
   @AfterAll

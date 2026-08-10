@@ -163,8 +163,9 @@ public class XtbImportV2Service {
       if (!StringUtils.hasText(accountRaw)) {
         throw new IllegalStateException("XTB v2 workbook has no account number: " + sourceName);
       }
-      Long account = parseAccountId(accountRaw);
-      Account accountConfiguration = accountConfiguration(account, sourceName);
+      Long externalAccountId = parseAccountId(accountRaw);
+      Account accountConfiguration = accountConfiguration(externalAccountId, sourceName);
+      Long account = accountConfiguration.getId();
       boolean cashOnly = accountConfiguration.isCashOnly();
 
       Map<String, Integer> cashColumns = findHeader(cashSheet, "Type", "Time", "Amount");
@@ -961,25 +962,26 @@ public class XtbImportV2Service {
     return first != null ? first : second;
   }
 
-  private Account accountConfiguration(Long accountId, String sourceName) {
+  private Account accountConfiguration(Long externalAccountId, String sourceName) {
     Account account =
         accountRepository
-            .findById(accountId)
+            .findByProviderIgnoreCaseAndExternalAccountId("XTB", String.valueOf(externalAccountId))
             .orElseThrow(
                 () ->
                     new IllegalStateException(
-                        "XTB account " + accountId + " is not configured: " + sourceName));
+                        "XTB account " + externalAccountId + " is not configured: " + sourceName));
     if (!"XTB".equalsIgnoreCase(account.getProvider())) {
       throw new IllegalStateException(
           "Account "
-              + accountId
+              + externalAccountId
               + " is configured for provider "
               + account.getProvider()
               + ", not XTB");
     }
     CurrencyType configuredCurrency = account.getCurrency();
     if (configuredCurrency == null) {
-      throw new IllegalStateException("XTB account " + accountId + " has no configured currency");
+      throw new IllegalStateException(
+          "XTB account " + externalAccountId + " has no configured currency");
     }
     return account;
   }

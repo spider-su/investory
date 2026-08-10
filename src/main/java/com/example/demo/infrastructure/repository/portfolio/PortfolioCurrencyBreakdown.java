@@ -11,6 +11,8 @@ import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Data
 @NoArgsConstructor
@@ -38,9 +40,11 @@ public class PortfolioCurrencyBreakdown {
   private CurrencyType currency;
 
   @Column(name = "amount_local")
+  @JdbcTypeCode(SqlTypes.NUMERIC)
   private Double amountLocal;
 
   @Column(name = "amount_in_base_currency")
+  @JdbcTypeCode(SqlTypes.NUMERIC)
   private Double amountInBaseCurrency;
 
   @Column(name = "updated_at", nullable = false)

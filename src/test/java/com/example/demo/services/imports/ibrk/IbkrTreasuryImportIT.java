@@ -12,6 +12,7 @@ import com.example.demo.infrastructure.repository.ClosedPosition;
 import com.example.demo.infrastructure.repository.ClosedPositionRepository;
 import com.example.demo.infrastructure.repository.OpenedPositionRepository;
 import com.example.demo.services.imports.ImportExecutionResult;
+import com.investory.testsupport.TestDatabaseFixtures;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -64,6 +65,7 @@ class IbkrTreasuryImportIT {
         .locations("classpath:sql/migration")
         .load()
         .migrate();
+    TestDatabaseFixtures.loadPersonalBootstrap(POSTGRES);
   }
 
   @AfterAll

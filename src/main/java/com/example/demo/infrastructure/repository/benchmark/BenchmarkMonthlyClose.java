@@ -14,6 +14,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Data
 @Builder(toBuilder = true)
@@ -40,6 +42,7 @@ public class BenchmarkMonthlyClose {
   private LocalDate monthDate;
 
   @Column(name = "close_price", nullable = false)
+  @JdbcTypeCode(SqlTypes.NUMERIC)
   private Double closePrice;
 
   @Column(name = "fetched_at", nullable = false)

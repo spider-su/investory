@@ -48,6 +48,8 @@ public final class FastDatabase {
       executeResource(postgres, REFERENCE_DATA, "/tmp/investory-reference-data.sql");
     }
 
+    TestDatabaseFixtures.loadPersonalBootstrap(postgres);
+
     return postgres;
   }
 

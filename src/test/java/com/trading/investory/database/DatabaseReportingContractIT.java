@@ -20,6 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import com.investory.testsupport.TestDatabaseFixtures;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -43,6 +44,7 @@ class DatabaseReportingContractIT {
         .locations("classpath:sql/migration")
         .load()
         .migrate();
+    TestDatabaseFixtures.loadPersonalBootstrap(POSTGRES);
   }
 
   @AfterAll
@@ -140,9 +142,9 @@ class DatabaseReportingContractIT {
               + "(910013, 'Currency semantics PLN', 'PLN', 'contract', 1), "
               + "(910014, 'Currency semantics USD', 'USD', 'contract', 1)");
       statement.execute(
-          "INSERT INTO investory.accounts (id, currency, provider, name, owner, portfolio_id, cash_only) VALUES "
-              + "(910013, 'PLN', 'XTB', 'Currency semantics PLN', 'contract', 910013, false), "
-              + "(910014, 'USD', 'IBKR', 'Currency semantics USD', 'contract', 910014, false)");
+          "INSERT INTO investory.accounts (id, external_account_id, currency, provider, name, owner, portfolio_id, cash_only) VALUES "
+              + "(910013, '910013', 'PLN', 'XTB', 'Currency semantics PLN', 'contract', 910013, false), "
+              + "(910014, '910014', 'USD', 'IBKR', 'Currency semantics USD', 'contract', 910014, false)");
 
       long usdAssetId = insertAsset(connection, "SEMUSD.US", "USD");
       long eurAssetId = insertAsset(connection, "SEMEUR.DE", "EUR");

@@ -102,11 +102,14 @@ class IbkrImportHistoryServiceTest {
               return List.of(asset(canonicalSymbol));
             });
     org.mockito.Mockito.lenient()
-        .when(accountRepository.findById(org.mockito.ArgumentMatchers.anyLong()))
+        .when(accountRepository.findByProviderIgnoreCaseAndExternalAccountId(
+            org.mockito.ArgumentMatchers.eq("IBKR"), org.mockito.ArgumentMatchers.anyString()))
         .thenAnswer(
             invocation -> {
               Account account = new Account();
-              account.setId(invocation.getArgument(0));
+              String externalAccountId = invocation.getArgument(1);
+              account.setId(Long.valueOf(externalAccountId));
+              account.setExternalAccountId(externalAccountId);
               account.setProvider("IBKR");
               account.setCurrency(CurrencyType.USD);
               return java.util.Optional.of(account);

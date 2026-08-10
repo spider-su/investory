@@ -12,6 +12,9 @@ public interface AccountRepository extends JpaRepository<Account, Long>, Account
 
   List<Account> findAllByProviderIgnoreCase(String provider);
 
+  java.util.Optional<Account> findByProviderIgnoreCaseAndExternalAccountId(
+      String provider, String externalAccountId);
+
   @Query(
       value =
           """
