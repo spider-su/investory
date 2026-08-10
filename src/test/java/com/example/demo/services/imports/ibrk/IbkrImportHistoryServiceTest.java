@@ -418,6 +418,7 @@ class IbkrImportHistoryServiceTest {
             "\n",
             "Transaction History,Header,Date,Account,Description,Transaction"
                 + " Type,Symbol,Quantity,Price,Price Currency,Net Amount",
+            "Summary,Data,Base Currency,USD",
             "Transaction History,Data,2026-06-03,U17959259,EUR-priced ETF buy,Buy,JGPI,1,22.54,"
                 + "EUR,-26.45");
 
@@ -464,6 +465,7 @@ class IbkrImportHistoryServiceTest {
             "\n",
             "Transaction History,Header,Date,Account,Description,Transaction"
                 + " Type,Symbol,Quantity,Price,Price Currency,Net Amount",
+            "Summary,Data,Base Currency,USD",
             "Transaction History,Data,2026-06-03,U17959259,XDWL cash dividend,Dividend,XDWL,-,-,-,3.99");
 
     ImportExecutionResult result =
@@ -493,6 +495,7 @@ class IbkrImportHistoryServiceTest {
             "\n",
             "Transaction History,Header,Date,Account,Description,Transaction"
                 + " Type,Symbol,Quantity,Price,Price Currency,Net Amount",
+            "Summary,Data,Base Currency,USD",
             "Transaction History,Data,2026-06-03,U17959259,O cash dividend,Dividend,O,-,-,-,14.28");
 
     ImportExecutionResult result =
@@ -545,6 +548,24 @@ class IbkrImportHistoryServiceTest {
     assertEquals(CashOperationType.FREE_FUNDS_INTEREST, operations.getFirst().getType());
     assertEquals(CurrencyType.USD, operations.getFirst().getCurrency());
     assertEquals(0.10, operations.getFirst().getAmount(), 0.0001);
+  }
+
+  @Test
+  void importStatement_doesNotUseConfiguredAccountCurrencyWithoutStatementCurrency() throws Exception {
+    String csv =
+        String.join(
+            "\n",
+            "Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quantity,Price,Price Currency,Net Amount",
+            "Transaction History,Data,2026-06-04,U17959259,Interest,Credit Interest,-,-,-,0.10");
+
+    ImportExecutionResult result =
+        service.importStatement(
+            new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
+
+    assertEquals(1, result.rowsTotal());
+    assertEquals(0, result.rowsApplied());
+    assertEquals(1, result.rowsFailed());
+    assertTrue(persistedCashOperations.isEmpty());
   }
 
   @Test

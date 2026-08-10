@@ -178,7 +178,6 @@ public class XtbImportV2Service {
               : parseClosedPositions(closedSheet, closedColumns, account, sourceName);
       normalizeImportedSymbols(cashOperations, closedPositions);
       CurrencyType currency = accountConfiguration.getCurrency();
-      cashOperations.forEach(op -> op.setCurrency(currency));
 
       List<OpenedPosition> openedPositions =
           cashOnly
@@ -258,12 +257,61 @@ public class XtbImportV2Service {
       }
       operation.setType(type);
       operation.setSymbol(symbol);
-      operation.setAmount(parseDouble(cellValue(row, columns.get("Amount"))).orElse(null));
+      Double amount = parseDouble(cellValue(row, columns.get("Amount"))).orElse(null);
+      operation.setAmount(amount);
       operation.setComment(comment);
+      operation.setCurrency(
+          resolveCashOperationCurrency(row, columns, comment, sourceName, amount, row.getRowNum()));
       operation.setDate(operationDate);
       operations.add(operation);
     }
     return operations;
+  }
+
+  private CurrencyType resolveCashOperationCurrency(
+      Row row,
+      Map<String, Integer> columns,
+      String comment,
+      String sourceName,
+      Double amount,
+      int rowNumber) {
+    CurrencyType rowCurrency =
+        parseCurrency(
+            firstNonBlank(
+                cellValue(row, columns.get("Currency")),
+                firstNonBlank(
+                    cellValue(row, columns.get("Amount Currency")),
+                    cellValue(row, columns.get("Currency of amount")))));
+    if (rowCurrency != null) {
+      return rowCurrency;
+    }
+    Matcher conversion =
+        Pattern.compile("(?i)currency conversion,?\\s*([A-Z]{3})\\s+to\\s+([A-Z]{3})")
+            .matcher(comment == null ? "" : comment);
+    if (conversion.find()) {
+      CurrencyType source = parseCurrency(conversion.group(1));
+      CurrencyType target = parseCurrency(conversion.group(2));
+      if (source != null && target != null && amount != null && amount != 0.0) {
+        return amount < 0.0 ? source : target;
+      }
+    }
+    CurrencyType reportCurrency = inferCurrencyFromSourceName(sourceName);
+    if (reportCurrency != null) {
+      return reportCurrency;
+    }
+    throw new IllegalArgumentException(
+        "XTB cash row " + rowNumber + " has no source monetary currency");
+  }
+
+  private CurrencyType parseCurrency(String value) {
+    if (!StringUtils.hasText(value)) {
+      return null;
+    }
+    try {
+      return CurrencyType.valueOf(value.trim().toUpperCase(Locale.ROOT));
+    } catch (IllegalArgumentException ignored) {
+      return null;
+    }
   }
 
   private List<ClosedPosition> parseClosedPositions(
@@ -933,18 +981,6 @@ public class XtbImportV2Service {
     if (configuredCurrency == null) {
       throw new IllegalStateException("XTB account " + accountId + " has no configured currency");
     }
-    CurrencyType filenameCurrency = inferCurrencyFromSourceName(sourceName);
-    if (filenameCurrency != null && filenameCurrency != configuredCurrency) {
-      throw new IllegalArgumentException(
-          "XTB filename currency "
-              + filenameCurrency
-              + " disagrees with account "
-              + accountId
-              + " currency "
-              + configuredCurrency
-              + " for "
-              + sourceName);
-    }
     return account;
   }
 
@@ -963,6 +999,7 @@ public class XtbImportV2Service {
       case "USD" -> CurrencyType.USD;
       case "EUR" -> CurrencyType.EUR;
       case "PLN" -> CurrencyType.PLN;
+      case "IKE" -> CurrencyType.PLN;
       default -> null;
     };
   }

@@ -253,18 +253,22 @@ class XtbImportHistoryV2ServiceTest {
   }
 
   @Test
-  void importWorkbook_rejectsFilenameCurrencyThatDisagreesWithConfiguredAccount() throws Exception {
+  void importWorkbook_usesReportCurrencyInsteadOfAccountCurrency() throws Exception {
     try (XSSFWorkbook workbook = new XSSFWorkbook()) {
       addMinimalSheetHeaders(workbook, "51729109");
+      Row cash = workbook.getSheet("Cash Operations").createRow(2);
+      cash.createCell(0).setCellValue("Transfer");
+      cash.createCell(1).setCellValue("2026-07-10 10:00:00");
+      cash.createCell(2).setCellValue(100.0);
       ByteArrayOutputStream output = new ByteArrayOutputStream();
       workbook.write(output);
 
-      assertThrows(
-          IllegalArgumentException.class,
-          () ->
-              xtbImportV2Service.importWorkbook(
-                  new ByteArrayInputStream(output.toByteArray()), "USD_51729109.xlsx"));
+      xtbImportV2Service.importWorkbook(
+          new ByteArrayInputStream(output.toByteArray()), "USD_51729109.xlsx");
     }
+    verify(cashOperationRepository).saveAll(cashOperationsCaptor.capture());
+    CashOperation saved = cashOperationsCaptor.getValue().iterator().next();
+    assertEquals(CurrencyType.USD, saved.getCurrency());
   }
 
   private void addMinimalSheetHeaders(XSSFWorkbook workbook, String accountId) {

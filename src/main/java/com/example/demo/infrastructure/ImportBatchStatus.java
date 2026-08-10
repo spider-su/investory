@@ -4,5 +4,6 @@ public enum ImportBatchStatus {
   STARTED,
   COMPLETED,
   PARTIAL,
-  FAILED
+  FAILED,
+  NOT_READY
 }

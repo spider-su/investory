@@ -416,7 +416,7 @@ CREATE TABLE IF NOT EXISTS investory.import_history (
     attempt_no      integer NOT NULL DEFAULT 1,
     reprocess_of    bigint REFERENCES investory.import_history(id),
     CONSTRAINT chk_import_history_status
-        CHECK (status IS NULL OR status IN ('STARTED', 'COMPLETED', 'PARTIAL', 'FAILED')),
+        CHECK (status IS NULL OR status IN ('STARTED', 'COMPLETED', 'PARTIAL', 'FAILED', 'NOT_READY')),
     CONSTRAINT chk_import_history_rows_total_non_negative
         CHECK (rows_total IS NULL OR rows_total >= 0),
     CONSTRAINT chk_import_history_rows_failed_non_negative
@@ -452,7 +452,9 @@ CREATE TABLE IF NOT EXISTS investory.import_history (
             OR (finished_at IS NOT NULL AND COALESCE(rows_failed, 0) > 0)
         ),
     CONSTRAINT chk_import_history_status_failed_lifecycle_v01004
-        CHECK (status IS DISTINCT FROM 'FAILED' OR finished_at IS NOT NULL)
+        CHECK (status IS DISTINCT FROM 'FAILED' OR finished_at IS NOT NULL),
+    CONSTRAINT chk_import_history_status_not_ready_lifecycle
+        CHECK (status IS DISTINCT FROM 'NOT_READY' OR finished_at IS NOT NULL)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_import_history_provider_sha256_attempt
     ON investory.import_history (provider, file_sha256, attempt_no);

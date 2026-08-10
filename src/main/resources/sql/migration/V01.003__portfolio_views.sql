@@ -5636,8 +5636,8 @@ WITH cfg AS (
            CASE WHEN er.rate_date = p_valuation_date AND er.method = 'MARKET_DAILY' THEN 1
                 WHEN er.rate_date = p_valuation_date AND er.method = 'IBKR_DAILY_REFERENCE' THEN 2
                 WHEN er.method IN ('MARKET_DAILY','IBKR_DAILY_REFERENCE')
-                     AND p_valuation_date - er.rate_date <= cfg.max_age THEN 3
-                WHEN er.method = 'HISTORICAL_MONTHLY' THEN 7 ELSE 4 END AS rank
+                     AND p_valuation_date - er.rate_date <= cfg.max_age THEN 4
+                WHEN er.method = 'HISTORICAL_MONTHLY' THEN 9 ELSE 9 END AS rank
     FROM investory.exchange_rates er CROSS JOIN cfg
     WHERE er.base <> er.to_currency AND er.rate > 0
       AND er.rate_date <= p_valuation_date
@@ -5647,8 +5647,8 @@ WITH cfg AS (
            CASE WHEN er.rate_date = p_valuation_date AND er.method = 'MARKET_DAILY' THEN 1
                 WHEN er.rate_date = p_valuation_date AND er.method = 'IBKR_DAILY_REFERENCE' THEN 2
                 WHEN er.method IN ('MARKET_DAILY','IBKR_DAILY_REFERENCE')
-                     AND p_valuation_date - er.rate_date <= cfg.max_age THEN 3
-                WHEN er.method = 'HISTORICAL_MONTHLY' THEN 7 ELSE 4 END
+                     AND p_valuation_date - er.rate_date <= cfg.max_age THEN 4
+                WHEN er.method = 'HISTORICAL_MONTHLY' THEN 9 ELSE 9 END
     FROM investory.exchange_rates er CROSS JOIN cfg
     WHERE er.base <> er.to_currency AND er.rate > 0
       AND er.rate_date <= p_valuation_date
@@ -5661,7 +5661,7 @@ WITH cfg AS (
     UNION ALL
     SELECT a.edge_rate * b.edge_rate, ('TRIANGULATED:' || a.edge_target)::varchar(64),
            CASE WHEN a.edge_method = b.edge_method THEN a.edge_method ELSE 'TRIANGULATED' END,
-           a.edge_rate_source, LEAST(a.rate_date, b.rate_date), GREATEST(a.rank, b.rank)
+           a.edge_rate_source, LEAST(a.rate_date, b.rate_date), 5
     FROM edges a JOIN edges b ON b.edge_source = a.edge_target
                               AND b.edge_target = p_target_currency
     WHERE a.edge_source = p_source_currency
@@ -5673,7 +5673,7 @@ WITH cfg AS (
            ('INTERPOLATED:' || lower.source)::varchar(64) AS chosen_source,
            'INTERPOLATED'::varchar(32) AS chosen_method,
            lower.source::varchar(32) AS chosen_rate_source,
-           NULL::date AS chosen_date, 6 AS chosen_rank
+           NULL::date AS chosen_date, 7 AS chosen_rank
     FROM cfg
     CROSS JOIN LATERAL (
       SELECT er.* FROM investory.exchange_rates er
@@ -5698,7 +5698,7 @@ SELECT p_source_currency, p_target_currency,
        CASE WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY'
             WHEN selected.chosen_method IN ('MARKET_DAILY','IBKR_DAILY_REFERENCE')
                  AND selected.chosen_date < p_valuation_date
-                 AND EXTRACT(ISODOW FROM p_valuation_date) IN (6,7) THEN 'CARRY_FORWARD'
+                 THEN 'CARRY_FORWARD'
             ELSE selected.chosen_method END,
        CASE WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY' ELSE selected.chosen_rate_source END,
        CASE WHEN p_source_currency = p_target_currency THEN p_valuation_date
@@ -5707,9 +5707,11 @@ SELECT p_source_currency, p_target_currency,
             WHEN selected.chosen_date IS NULL THEN NULL
             ELSE (p_valuation_date - selected.chosen_date)::integer END,
        CASE WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY'
-            WHEN selected.rate IS NULL THEN 'MISSING_RATE'
-            WHEN selected.chosen_method = 'INTERPOLATED' THEN 'ESTIMATED'
-            WHEN selected.chosen_method = 'HISTORICAL_MONTHLY'
+           WHEN selected.rate IS NULL THEN 'MISSING_RATE'
+           WHEN selected.chosen_method = 'INTERPOLATED' THEN 'ESTIMATED'
+           WHEN selected.chosen_method = 'HISTORICAL_MONTHLY'
+                AND p_valuation_date >= cfg.daily_start THEN 'STALE'
+           WHEN selected.chosen_method = 'HISTORICAL_MONTHLY'
                  AND selected.chosen_rate_source <> 'TEST' THEN 'ESTIMATED'
             WHEN p_valuation_date - selected.chosen_date > cfg.max_age THEN 'STALE'
             ELSE 'OK' END

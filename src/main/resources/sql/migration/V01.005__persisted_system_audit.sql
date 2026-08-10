@@ -96,7 +96,7 @@ BEGIN
     FROM investory.reporting_monthly_import_review review
     WHERE review.issue_count > 0;
 
-    IF p_import_history_id IS NOT NULL AND import_row.status = 'FAILED' THEN
+    IF p_import_history_id IS NOT NULL AND import_row.status IN ('FAILED', 'NOT_READY') THEN
         INSERT INTO investory.system_audit_issues(
             audit_run_id, check_code, severity, issue_count, required_action, details
         ) VALUES (
@@ -192,7 +192,7 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    IF NEW.status IN ('COMPLETED', 'PARTIAL', 'FAILED')
+    IF NEW.status IN ('COMPLETED', 'PARTIAL', 'FAILED', 'NOT_READY')
        AND (
            TG_OP = 'INSERT'
            OR OLD.status IS DISTINCT FROM NEW.status

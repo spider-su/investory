@@ -1,6 +1,7 @@
 package com.trading.investory.database;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
@@ -96,6 +97,53 @@ class ValuationInputContractTest {
         assertTrue(result.next());
         assertEquals("2030-01-02", result.getDate("price_date").toString());
         assertEquals(0, result.getBigDecimal("close_price").compareTo(new BigDecimal("100")));
+      }
+    }
+  }
+
+  @Test
+  void valuationFxUsesDocumentedSourceAndFreshnessPrecedence() throws SQLException {
+    try (Connection connection = connection(); Statement statement = connection.createStatement()) {
+      statement.execute(
+          "INSERT INTO investory.exchange_rates(rate_date, base, to_currency, rate, source, method) VALUES "
+              + "(DATE '2099-01-05', 'EUR', 'USD', 1.10, 'TEST', 'MARKET_DAILY'), "
+              + "(DATE '2099-01-10', 'EUR', 'USD', 1.20, 'TEST', 'IBKR_DAILY_REFERENCE'), "
+              + "(DATE '2099-01-10', 'EUR', 'USD', 1.30, 'TEST', 'MARKET_DAILY'), "
+              + "(DATE '2099-01-10', 'USD', 'PLN', 4.00, 'TEST', 'IBKR_EXECUTION')");
+
+      try (ResultSet result = statement.executeQuery(
+          "SELECT fx_rate_to_target, rate_method, conversion_status FROM investory.resolve_fx_rate(DATE '2099-01-10', 'EUR', 'USD')")) {
+        assertTrue(result.next());
+        assertEquals(0, result.getBigDecimal("fx_rate_to_target").compareTo(new BigDecimal("1.30")));
+        assertEquals("MARKET_DAILY", result.getString("rate_method"));
+        assertEquals("OK", result.getString("conversion_status"));
+      }
+
+      try (ResultSet result = statement.executeQuery(
+          "SELECT fx_rate_to_target, rate_method, conversion_status FROM investory.resolve_fx_rate(DATE '2099-01-10', 'USD', 'PLN')")) {
+        assertTrue(result.next());
+        assertNotEquals("IBKR_EXECUTION", result.getString("rate_method"));
+      }
+
+      statement.execute(
+          "INSERT INTO investory.exchange_rates(rate_date, base, to_currency, rate, source, method) VALUES "
+              + "(DATE '2099-01-12', 'EUR', 'USD', 1.15, 'TEST', 'MARKET_DAILY'), "
+              + "(DATE '2099-01-05', 'EUR', 'PLN', 4.10, 'TEST', 'MARKET_DAILY')");
+      try (ResultSet result = statement.executeQuery(
+          "SELECT rate_method, conversion_status FROM investory.resolve_fx_rate(DATE '2099-01-14', 'EUR', 'USD')")) {
+        assertTrue(result.next());
+        assertEquals("CARRY_FORWARD", result.getString("rate_method"));
+        assertEquals("OK", result.getString("conversion_status"));
+      }
+      try (ResultSet result = statement.executeQuery(
+          "SELECT conversion_status FROM investory.resolve_fx_rate(DATE '2099-01-10', 'EUR', 'PLN')")) {
+        assertTrue(result.next());
+        assertEquals("STALE", result.getString("conversion_status"));
+      }
+      try (ResultSet result = statement.executeQuery(
+          "SELECT rate_method FROM investory.resolve_fx_rate(DATE '2099-01-10', 'USD', 'PLN')")) {
+        assertTrue(result.next());
+        assertNotEquals("IBKR_EXECUTION", result.getString("rate_method"));
       }
     }
   }

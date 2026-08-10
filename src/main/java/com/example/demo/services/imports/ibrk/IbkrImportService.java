@@ -93,18 +93,7 @@ public class IbkrImportService {
                 accountIdFromFilename, value(r, col, "Account", "Account ID", "AccountId"));
         Account configuredAccount =
             configuredAccounts.computeIfAbsent(account, this::requireIbkrAccount);
-        CurrencyType baseCurrency =
-            statementBaseCurrency != null ? statementBaseCurrency : configuredAccount.getCurrency();
-        if (statementBaseCurrency != null
-            && statementBaseCurrency != configuredAccount.getCurrency()) {
-          throw new IllegalArgumentException(
-              "IBKR statement base currency "
-                  + statementBaseCurrency
-                  + " disagrees with account "
-                  + account
-                  + " currency "
-                  + configuredAccount.getCurrency());
-        }
+        CurrencyType baseCurrency = statementBaseCurrency;
         String description = value(r, col, "Description");
         String rawSymbol = value(r, col, "Symbol");
         String symbol = cleanSymbol(rawSymbol);

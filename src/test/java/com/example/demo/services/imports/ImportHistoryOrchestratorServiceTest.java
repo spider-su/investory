@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -262,6 +263,82 @@ class ImportHistoryOrchestratorServiceTest {
             eq(BrokerType.XTB), eq(ImportSourceType.MANUAL), any(), eq("file.xlsx"), anyString());
     verify(xtbParser).importFile(any(), eq("file.xlsx"));
     verify(auditWriter).finalizeApplied(7L, parserResult);
+  }
+
+  @Test
+  void importFile_marksBatchNotReadyWhenProjectionRefreshFails() throws Exception {
+    when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
+        .thenReturn(Optional.empty());
+    ImportHistory started = batch(90L, ImportBatchStatus.STARTED, null, 0, 0, 0);
+    ImportExecutionResult result = new ImportExecutionResult(1, 1, 0, "imported");
+    ImportHistory applied = batch(90L, ImportBatchStatus.COMPLETED, "imported", 1, 1, 0);
+    ImportHistory notReady = batch(90L, ImportBatchStatus.NOT_READY, "projection failed", 1, 1, 0);
+    when(auditWriter.startBatch(any(), any(), any(), anyString(), anyString())).thenReturn(started);
+    when(xtbParser.importFile(any(), anyString())).thenReturn(result);
+    when(auditWriter.finalizeApplied(90L, result)).thenReturn(applied);
+    when(auditWriter.finalizeNotReady(eq(90L), eq(result), anyString())).thenReturn(notReady);
+    org.mockito.Mockito.doThrow(new IllegalStateException("projection failed"))
+        .when(portfolioProjectionService)
+        .recalculateAll();
+
+    ImportFailedException failure =
+        assertThrows(
+            ImportFailedException.class,
+            () ->
+                importOrchestratorService.importFile(
+                    BrokerType.XTB, "not-ready".getBytes(), "file.xlsx", ImportSourceType.MANUAL, null));
+
+    assertTrue(failure.getMessage().contains("not ready"));
+    verify(auditWriter).finalizeNotReady(eq(90L), eq(result), contains("projection recalculation"));
+  }
+
+  @Test
+  void importFile_marksBatchNotReadyWhenReconciliationRefreshFails() throws Exception {
+    when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
+        .thenReturn(Optional.empty());
+    ImportHistory started = batch(91L, ImportBatchStatus.STARTED, null, 0, 0, 0);
+    ImportExecutionResult result = new ImportExecutionResult(1, 1, 0, "imported");
+    when(auditWriter.startBatch(any(), any(), any(), anyString(), anyString())).thenReturn(started);
+    when(xtbParser.importFile(any(), anyString())).thenReturn(result);
+    when(auditWriter.finalizeApplied(91L, result))
+        .thenReturn(batch(91L, ImportBatchStatus.COMPLETED, "imported", 1, 1, 0));
+    when(auditWriter.finalizeNotReady(eq(91L), eq(result), anyString()))
+        .thenReturn(batch(91L, ImportBatchStatus.NOT_READY, "reconciliation failed", 1, 1, 0));
+    org.mockito.Mockito.doThrow(new IllegalStateException("reconciliation failed"))
+        .when(portfolioProjectionService)
+        .refreshReconciliationViews();
+
+    assertThrows(
+        ImportFailedException.class,
+        () ->
+            importOrchestratorService.importFile(
+                BrokerType.XTB, "not-ready-reconciliation".getBytes(), "file.xlsx", ImportSourceType.MANUAL, null));
+    verify(auditWriter).finalizeNotReady(eq(91L), eq(result), contains("reconciliation refresh"));
+  }
+
+  @Test
+  void duplicateReprocessAlsoBecomesNotReadyWhenDerivedRefreshFails() throws Exception {
+    ImportHistory existing = batch(92L, ImportBatchStatus.COMPLETED, "old", 1, 1, 0);
+    ImportHistory started = batch(93L, ImportBatchStatus.STARTED, null, 0, 0, 0);
+    ImportExecutionResult result = new ImportExecutionResult(1, 1, 0, "reprocessed");
+    when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
+        .thenReturn(Optional.of(existing));
+    when(auditWriter.startReprocessBatch(existing)).thenReturn(started);
+    when(xtbParser.importFile(any(), anyString())).thenReturn(result);
+    when(auditWriter.finalizeApplied(93L, result))
+        .thenReturn(batch(93L, ImportBatchStatus.COMPLETED, "reprocessed", 1, 1, 0));
+    when(auditWriter.finalizeNotReady(eq(93L), eq(result), anyString()))
+        .thenReturn(batch(93L, ImportBatchStatus.NOT_READY, "projection failed", 1, 1, 0));
+    org.mockito.Mockito.doThrow(new IllegalStateException("projection failed"))
+        .when(portfolioProjectionService)
+        .recalculateAll();
+
+    assertThrows(
+        ImportFailedException.class,
+        () ->
+            importOrchestratorService.importFile(
+                BrokerType.XTB, "duplicate-not-ready".getBytes(), "file.xlsx", ImportSourceType.MANUAL, null));
+    verify(auditWriter).finalizeNotReady(eq(93L), eq(result), contains("projection recalculation"));
   }
 
   @Test

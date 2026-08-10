@@ -77,14 +77,22 @@ public class ImportOrchestratorService {
           ImportExecutionResult result =
               parser.importFile(new ByteArrayInputStream(fileBytes), fileName);
           reloaded = auditWriter.finalizeApplied(batch.getId(), result);
-          String refreshWarning = refreshDerivedData(reloaded);
+          String refreshFailure = refreshDerivedData(reloaded);
+          if (refreshFailure != null) {
+            reloaded = auditWriter.finalizeNotReady(batch.getId(), result, refreshFailure);
+            throw new ImportFailedException(
+                "Duplicate import is not ready: " + refreshFailure, null);
+          }
           return toBatchResponse(
               reloaded,
               combineMessage(
                   "Duplicate " + broker + " file reprocessed as audit attempt " + batch.getId(),
-                  combineMessage(reloaded.getErrorMessage(), refreshWarning)),
+                  reloaded.getErrorMessage()),
               false);
         } catch (Exception e) {
+          if (e instanceof ImportFailedException importFailedException) {
+            throw importFailedException;
+          }
           String errorMessage = exceptionMessage(e);
           log.warn("Duplicate import repair failed for batchId={}: {}", batch.getId(), errorMessage, e);
           ImportHistory failed = auditWriter.finalizeFailed(batch.getId(), errorMessage, fileBytes);
@@ -127,10 +135,19 @@ public class ImportOrchestratorService {
 
     ImportHistory finalized = auditWriter.finalizeApplied(batch.getId(), result);
 
-    String refreshWarning = refreshDerivedData(finalized);
+    String refreshFailure = refreshDerivedData(finalized);
+    if (refreshFailure != null) {
+      ImportHistory notReady = auditWriter.finalizeNotReady(batch.getId(), result, refreshFailure);
+      throw new ImportFailedException(
+          "Import broker data applied but pipeline is not ready (batchId="
+              + notReady.getId()
+              + "): "
+              + refreshFailure,
+          null);
+    }
 
     return toBatchResponse(
-        finalized, combineMessage(finalized.getErrorMessage(), refreshWarning), false);
+        finalized, finalized.getErrorMessage(), false);
   }
 
   private boolean shouldReprocessDuplicate(BrokerType broker) {
@@ -145,7 +162,7 @@ public class ImportOrchestratorService {
   }
 
   private String refreshDerivedData(ImportHistory batch) {
-    StringBuilder warnings = new StringBuilder();
+    StringBuilder failures = new StringBuilder();
     boolean projectionSucceeded = false;
     try {
       assetPriceFallbackService.populateMissingPricesFromOpenPositions();
@@ -154,7 +171,7 @@ public class ImportOrchestratorService {
           "Asset price fallback population failed after import (batchId={}): {}",
           batch.getId(),
           e.getMessage());
-      warnings.append("asset price fallback failed: ").append(exceptionMessage(e));
+      failures.append("asset price fallback failed: ").append(exceptionMessage(e));
     }
 
     try {
@@ -165,10 +182,10 @@ public class ImportOrchestratorService {
           "Projection recalculation failed after import (batchId={}): {}",
           batch.getId(),
           e.getMessage());
-      if (!warnings.isEmpty()) {
-        warnings.append("; ");
+      if (!failures.isEmpty()) {
+        failures.append("; ");
       }
-      warnings.append("projection recalculation failed: ").append(exceptionMessage(e));
+      failures.append("projection recalculation failed: ").append(exceptionMessage(e));
     }
 
     if (projectionSucceeded) {
@@ -179,14 +196,14 @@ public class ImportOrchestratorService {
             "Reconciliation refresh failed after import (batchId={}): {}",
             batch.getId(),
             e.getMessage());
-        if (!warnings.isEmpty()) {
-          warnings.append("; ");
+        if (!failures.isEmpty()) {
+          failures.append("; ");
         }
-        warnings.append("reconciliation refresh failed: ").append(exceptionMessage(e));
+        failures.append("reconciliation refresh failed: ").append(exceptionMessage(e));
       }
     }
 
-    return warnings.isEmpty() ? null : warnings.toString();
+    return failures.isEmpty() ? null : failures.toString();
   }
 
   private String combineMessage(String primary, String secondary) {

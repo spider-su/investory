@@ -128,6 +128,7 @@ class GoldenRebuildIT {
     assertTrackedAccountTransferIsPerformanceFlowButPortfolioNeutral();
     assertCashOnlyFundingAndIkeAllocation();
     assertResultOnlyCfd();
+    assertImportedMoneyAndDerivedDataAreReady();
     assertCoreIndependentReconciliation();
 
     System.out.println("GOLDEN REBUILD: READY");
@@ -469,6 +470,34 @@ class GoldenRebuildIT {
         limit 20
         """
             .formatted(CORE_RECON_ACCOUNTS));
+  }
+
+  private void assertImportedMoneyAndDerivedDataAreReady() {
+    assertNoRows(
+        "cash operation currency blockers",
+        "select id from investory.cash_operations where currency is null limit 20");
+    assertNoRows(
+        "position currency blockers",
+        """
+        select id
+        from investory.positions
+        where account_id in (%s)
+          and (price_currency is null or cost_currency is null or profit_currency is null
+               or commission_currency is null)
+        limit 20
+        """.formatted(CORE_RECON_ACCOUNTS));
+    for (String view :
+        List.of(
+            "account_monthly_mv",
+            "portfolio_monthly_mv",
+            "account_statistics",
+            "portfolio_currency_breakdown",
+            "portfolio_asset_allocation",
+            "symbol_performance",
+            "portfolio_kpi_summary")) {
+      Integer rows = jdbc.queryForObject("select count(*) from investory." + view, Integer.class);
+      assertNotNull(rows, view + " refresh result missing");
+    }
   }
 
   private void assertNoDuplicateLots() {

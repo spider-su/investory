@@ -1,3 +1,4 @@
+Summary,Data,Base Currency,USD
 Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quantity,Price,Price Currency,Gross Amount ,Commission,Net Amount
 Transaction History,Data,2026-06-05,Alex&Olga,Withholding @ 20% on Credit Interest for May-2026,Foreign Tax Withholding,-,-,-,-,-0.48,-,-0.48
 Transaction History,Data,2026-06-05,Alex&Olga,Withholding @ 20% on Credit Interest for May-2026,Foreign Tax Withholding,-,-,-,-,-0.33413799999999994,-,-0.33413799999999994

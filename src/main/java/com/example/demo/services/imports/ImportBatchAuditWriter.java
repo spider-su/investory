@@ -122,6 +122,18 @@ public class ImportBatchAuditWriter {
     return batch;
   }
 
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  public ImportHistory finalizeNotReady(Long batchId, ImportExecutionResult result, String message) {
+    ImportHistory batch = importRepository.getById(batchId);
+    batch.setStatus(ImportBatchStatus.NOT_READY);
+    batch.setRowsTotal(result.rowsTotal());
+    batch.setRowsApplied(result.rowsApplied());
+    batch.setRowsFailed(result.rowsFailed());
+    batch.setErrorMessage(message);
+    batch.setFinishedAt(ZonedDateTime.now());
+    return importRepository.save(batch);
+  }
+
   static String truncate(byte[] rawPayload) {
     if (rawPayload == null || rawPayload.length == 0) {
       return null;

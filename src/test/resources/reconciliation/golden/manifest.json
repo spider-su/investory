@@ -18,8 +18,8 @@
     },
     {
       "path": "ibkr/U17959259.TRANSACTIONS.GOLDEN.csv",
-      "sha256": "be5a6047ade6c72eeb086682c1a25799d400887a2bd56bea086e5d8dd5128152",
-      "size_bytes": 2997
+      "sha256": "ac5636834fd6c8251e2bade31818fb4e33d7cb1f8205a3f5d8606339e7ad4ec2",
+      "size_bytes": 3027
     },
     {
       "path": "reference/exchange_rates.csv",
