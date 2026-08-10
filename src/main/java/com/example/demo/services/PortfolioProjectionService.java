@@ -89,13 +89,16 @@ public class PortfolioProjectionService {
       return;
     }
 
+    List<Account> allAccounts = accountRepository.findAll();
     Set<Long> cashOnlyAccounts =
-        accountRepository.findAllById(affectedAccounts).stream()
+        allAccounts.stream()
+            .filter(account -> affectedAccounts.contains(account.getId()))
             .filter(Account::isCashOnly)
             .map(Account::getId)
             .collect(Collectors.toSet());
+    List<Asset> allAssets = assetRepository.findAll();
     Set<Long> excludedAssetIds =
-        assetRepository.findAll().stream()
+        allAssets.stream()
             .filter(asset -> Boolean.TRUE.equals(asset.getExcludeFromImport()))
             .map(Asset::getId)
             .collect(Collectors.toSet());
@@ -110,7 +113,7 @@ public class PortfolioProjectionService {
             .filter(position -> !excludedAssetIds.contains(position.getAssetId()))
             .toList();
     Map<String, Asset> assets =
-        assetRepository.findAll().stream()
+        allAssets.stream()
             .filter(asset -> StringUtils.hasText(asset.getSymbol()))
             .filter(asset -> !Boolean.TRUE.equals(asset.getExcludeFromImport()))
             .collect(
@@ -120,7 +123,7 @@ public class PortfolioProjectionService {
                     (first, ignored) -> first,
                     LinkedHashMap::new));
     Map<Long, CurrencyType> accountCurrencies =
-        accountRepository.findAll().stream()
+        allAccounts.stream()
             .filter(account -> account.getId() != null)
             .collect(
                 Collectors.toMap(Account::getId, Account::getCurrency, (first, ignored) -> first));

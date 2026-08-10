@@ -28,8 +28,9 @@ Statuses:
 - `CARRY_FORWARD` is exposed as a method and remains `OK` within the safety window,
 - `STALE` and `MISSING_RATE` are not silently accepted.
 
-Daily history begins at `investory.fx_configuration.daily_history_start` (seeded as
-`2026-08-01`). Before that boundary, gaps between historical checkpoints may be linearly interpolated and
+Daily history begins at `investory.fx_configuration.daily_history_start`, which is advanced only after a
+successful full neutral daily/reference refresh establishes coverage for every configured currency. Until then
+it is `9999-12-31`, so historical estimates remain available rather than creating a coverage hole. Before that boundary, gaps between historical checkpoints may be linearly interpolated and
 are marked `ESTIMATED`. After it, missing coverage is stale or missing rather than
 being hidden by an old monthly checkpoint.
 

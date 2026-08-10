@@ -118,7 +118,6 @@ class GoldenRebuildIT {
     // Importers may add deterministic execution-rate observations. Rebuild the local cache after all
     // imports, then project only the fixture accounts. recalculateAll() is intentionally not used:
     // it invokes market-data gap filling, which would make this test network/environment dependent.
-    currencyRateService.preloadExchangeRates();
     portfolioProjectionService.recalculateAccounts(GOLDEN_ACCOUNTS);
     portfolioProjectionService.refreshReconciliationViews();
 

@@ -74,6 +74,7 @@ class CurrencyRateUpdaterServiceTest {
     assertEquals(LocalDate.now(), monthCaptor.getAllValues().getFirst());
     assertEquals(List.of("USD", "EUR", "PLN"), result.updated());
     assertTrue(result.failed().isEmpty());
+    verify(currencyRateService).activateDailyHistoryAt(LocalDate.now());
     verify(exchangeRateClient).getLatestRates("USD", "USD,EUR,PLN", "test-key");
   }
 
@@ -95,6 +96,7 @@ class CurrencyRateUpdaterServiceTest {
         List.of(LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17), LocalDate.of(2026, 8, 17)),
         monthCaptor.getAllValues());
     assertEquals(LocalDate.of(2026, 8, 17), result.rateDate());
+    verify(currencyRateService).activateDailyHistoryAt(LocalDate.of(2026, 8, 17));
   }
 
   @Test

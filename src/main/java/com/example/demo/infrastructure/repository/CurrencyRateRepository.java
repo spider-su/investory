@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
@@ -20,7 +21,11 @@ public interface CurrencyRateRepository extends JpaRepository<CurrencyRate, Long
       @Param("targetCurrency") String targetCurrency,
       @Param("purpose") String purpose);
 
-  List<CurrencyRate> findAllByOrderByBaseAscToCurrencyAscRateDateAsc();
+  @Modifying
+  @Query(
+      value = "UPDATE investory.fx_configuration SET config_value = to_char(CAST(:firstSupportedDate AS timestamp), 'YYYY-MM-DD') WHERE config_key = 'daily_history_start'",
+      nativeQuery = true)
+  void setDailyHistoryStart(@Param("firstSupportedDate") LocalDate firstSupportedDate);
 
   Optional<CurrencyRate> findFirstByRateDateAndBaseAndToCurrencyAndSourceAndMethod(
       LocalDate rateDate, CurrencyType base, CurrencyType toCurrency, String source, String method);

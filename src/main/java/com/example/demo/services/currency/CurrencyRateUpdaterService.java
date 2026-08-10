@@ -44,6 +44,7 @@ public class CurrencyRateUpdaterService {
       Map<CurrencyType, Map<CurrencyType, Double>> ratesByBase = deriveCrossRates(usdRates);
       ratesByBase.forEach(
           (base, rates) -> currencyRateService.updateRates(base, rates, providerDate));
+      currencyRateService.activateDailyHistoryAt(providerDate);
       return new CurrencyRateRefreshResult(
           providerDate, List.of("USD", "EUR", "PLN"), List.of());
     } catch (ExchangeRateException e) {

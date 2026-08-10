@@ -1,6 +1,7 @@
 package com.example.demo.services.currency;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.dao.DataAccessException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,6 +50,16 @@ class CurrencyRateUpdaterPostgresIT extends FastDatabaseTest {
     assertEquals(4.0, jdbc.queryForObject(
         "select rate from investory.exchange_rates where base = 'USD' and to_currency = 'PLN' and rate_date = date '2026-08-20'",
         Double.class));
+    assertEquals(
+        "2026-08-20",
+        jdbc.queryForObject(
+            "select config_value from investory.fx_configuration where config_key = 'daily_history_start'",
+            String.class));
+    assertThrows(
+        DataAccessException.class,
+        () ->
+            jdbc.update(
+                "update investory.fx_configuration set config_value = '2026-08-19' where config_key = 'daily_history_start'"));
 
     for (CurrencyType source : CurrencyType.values()) {
       for (CurrencyType target : CurrencyType.values()) {

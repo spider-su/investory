@@ -10,11 +10,9 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
-import java.util.NavigableMap;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListMap;
 import java.time.ZonedDateTime;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -38,8 +36,8 @@ public class CurrencyRateService {
 
   private final CurrencyRateRepository currencyRateRepository;
 
-  private static final Map<CurrencyType, Map<CurrencyType, NavigableMap<LocalDate, CachedRate>>>
-      exchangeRateCache = new ConcurrentHashMap<>();
+  private final Map<FxResolutionKey, FxRateResolution> valuationResolutionCache =
+      new ConcurrentHashMap<>();
 
   public double convertToBaseCurrency(
       double amount, CurrencyType baseCurrency, CurrencyType positionCurrency) {
@@ -67,10 +65,6 @@ public class CurrencyRateService {
       LocalDate rateDate) {
     FxRateResolution resolution = resolveRate(positionCurrency, baseCurrency, rateDate);
     if (!resolution.isUsable()) {
-      preloadExchangeRates();
-      resolution = resolveRate(positionCurrency, baseCurrency, rateDate);
-    }
-    if (!resolution.isUsable()) {
       throw new FxRateUnavailableException(
           positionCurrency, baseCurrency, rateDate, resolution.conversionStatus());
     }
@@ -80,21 +74,6 @@ public class CurrencyRateService {
     return amount
         .multiply(resolution.fxRateToTarget(), FX_MATH_CONTEXT)
         .setScale(FX_SCALE, RoundingMode.HALF_UP);
-  }
-
-  public void preloadExchangeRates() {
-    exchangeRateCache.clear();
-    List<CurrencyRate> rates =
-        currencyRateRepository.findAllByOrderByBaseAscToCurrencyAscRateDateAsc();
-    for (CurrencyRate rate : rates) {
-      cacheRate(
-          rate.getBase(),
-          rate.getToCurrency(),
-          rate.getRateDate(),
-          rate.getRateValue(),
-          rate.getMethod() == null ? "HISTORICAL_MONTHLY" : rate.getMethod(),
-          rate.getSource());
-    }
   }
 
   public void updateRates(CurrencyType base, Map<CurrencyType, Double> rates, LocalDate date) {
@@ -120,8 +99,18 @@ public class CurrencyRateService {
           currencyRate.setMethod("MARKET_DAILY");
           currencyRate.setRate(rate);
           currencyRateRepository.save(currencyRate);
-          cacheRate(base, toCurrency, date, BigDecimal.valueOf(rate), "MARKET_DAILY", "EXCHANGERATE_HOST");
         });
+    clearValuationResolutionCache();
+  }
+
+  public void activateDailyHistoryAt(LocalDate firstSupportedDate) {
+    currencyRateRepository.flush();
+    currencyRateRepository.setDailyHistoryStart(firstSupportedDate);
+    clearValuationResolutionCache();
+  }
+
+  public void clearValuationResolutionCache() {
+    valuationResolutionCache.clear();
   }
 
   public void harvestXtbExecutionRates(List<CashOperation> operations) {
@@ -149,6 +138,7 @@ public class CurrencyRateService {
         log.debug("Ignoring unsupported XTB FX pair in operation {}", operation.getId());
       }
     });
+    clearValuationResolutionCache();
   }
 
   public void harvestIbkrExecutionRate(
@@ -224,6 +214,7 @@ public class CurrencyRateService {
     observation.setObservedAt(observedAt);
     observation.setSourceReference(reference);
     currencyRateRepository.save(observation);
+    clearValuationResolutionCache();
   }
 
   public FxRateResolution resolveTransactionRate(
@@ -285,10 +276,6 @@ public class CurrencyRateService {
       CurrencyType base, CurrencyType toCurrency, LocalDate date) {
     FxRateResolution resolution = resolveRate(base, toCurrency, date);
     if (!resolution.isUsable()) {
-      preloadExchangeRates();
-      resolution = resolveRate(base, toCurrency, date);
-    }
-    if (!resolution.isUsable()) {
       return Optional.empty();
     }
     return Optional.of(resolution.fxRateToTarget());
@@ -318,8 +305,21 @@ public class CurrencyRateService {
       return new FxRateResolution(BigDecimal.ONE.setScale(FX_SCALE), "SAME_CURRENCY", effectiveDate,
           0, "SAME_CURRENCY", "SAME_CURRENCY", "SAME_CURRENCY");
     }
+    FxResolutionKey key = new FxResolutionKey(effectiveDate, sourceCurrency, targetCurrency);
+    FxRateResolution cached = valuationResolutionCache.get(key);
+    if (cached != null) {
+      return cached;
+    }
+    FxRateResolution resolved = resolveCanonicalValuationRate(key);
+    if (resolved.isUsable()) {
+      valuationResolutionCache.putIfAbsent(key, resolved);
+    }
+    return resolved;
+  }
+
+  private FxRateResolution resolveCanonicalValuationRate(FxResolutionKey key) {
     Optional<FxRateResolutionRow> row = currencyRateRepository.resolveFxRate(
-        effectiveDate, sourceCurrency.name(), targetCurrency.name(), "VALUATION");
+        key.valuationDate(), key.sourceCurrency().name(), key.targetCurrency().name(), "VALUATION");
     if (row.isEmpty()) {
       return new FxRateResolution(BigDecimal.ZERO.setScale(FX_SCALE, RoundingMode.HALF_UP),
           "MISSING", null, null, "MISSING_RATE", null, null);
@@ -329,16 +329,8 @@ public class CurrencyRateService {
         value.getAgeDays(), value.getConversionStatus(), value.getRateMethod(), value.getRateSource());
   }
 
-  private void cacheRate(
-      CurrencyType base, CurrencyType toCurrency, LocalDate date, BigDecimal rate, String method, String source) {
-    if ("XTB_EXECUTION".equals(method) || "IBKR_EXECUTION".equals(method)) return;
-    exchangeRateCache
-        .computeIfAbsent(base, ignored -> new ConcurrentHashMap<>())
-        .computeIfAbsent(toCurrency, ignored -> new ConcurrentSkipListMap<>())
-        .put(date, new CachedRate(rate.setScale(FX_SCALE, RoundingMode.HALF_UP), method, source));
-  }
-
-  private record CachedRate(BigDecimal rate, String method, String source) {}
+  private record FxResolutionKey(
+      LocalDate valuationDate, CurrencyType sourceCurrency, CurrencyType targetCurrency) {}
 
   public static boolean isUsableStatus(String status) {
     return "OK".equals(status)
