@@ -32,7 +32,7 @@ public class XtbBrokerImportParser implements BrokerImportParser {
       return xtbImportV2Service.importWorkbook(new ByteArrayInputStream(payload), fileName);
     }
     throw new IllegalArgumentException(
-        "Unsupported XTB statement format for V2 importer: " + fileName);
+        "Unsupported XTB statement format: " + fileName);
   }
 
   private byte[] readAll(InputStream inputStream) throws IOException {

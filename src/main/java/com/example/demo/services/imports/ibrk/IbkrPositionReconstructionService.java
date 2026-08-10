@@ -81,6 +81,7 @@ public class IbkrPositionReconstructionService {
   private void replaceDerivedPositions(
       Long accountId, List<OpenedPosition> open, List<ClosedPosition> closed) {
     openedPositionRepository.deleteByAccount(accountId);
+    closedPositionRepository.deleteByAccount(accountId);
     if (!closed.isEmpty()) {
       closedPositionRepository.saveAll(closed);
       closedPositionRepository.flush();

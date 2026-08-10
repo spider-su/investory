@@ -25,7 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class ImportBatchAuditWriter {
 
-  /** Cap the raw payload we copy into {@code import_row_error.raw_payload}. */
+  /** Cap raw text copied into the import batch diagnostic. */
   static final int RAW_PAYLOAD_LIMIT = 8 * 1024;
 
   private final ImportRepository importRepository;

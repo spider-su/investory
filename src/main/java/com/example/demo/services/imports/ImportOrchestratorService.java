@@ -17,11 +17,11 @@ import org.springframework.stereotype.Service;
 
 /**
  * Coordinates broker imports: dedup -> persist a STARTED batch -> run the parser -> persist the
- * COMPLETED or FAILED outcome (with the failing row's payload truncated).
+ * COMPLETED, PARTIAL, FAILED, or NOT_READY outcome.
  *
  * <p>The orchestrator deliberately is not transactional; audit writes go through {@link
  * ImportBatchAuditWriter} which uses {@code REQUIRES_NEW} so that a parser-side rollback does not
- * erase the FAILED batch + {@code import_row_error} rows.
+ * erase the FAILED batch audit record.
  */
 @Slf4j
 @Service

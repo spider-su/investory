@@ -18,15 +18,13 @@ import com.example.demo.infrastructure.repository.account.AccountRepository;
 import com.example.demo.services.AssetCatalogService;
 import com.example.demo.services.PositionSettlementModelService;
 import com.example.demo.services.imports.ImportExecutionResult;
+import com.example.demo.services.imports.BrokerSourceRowIdentity;
 import com.example.demo.services.currency.CurrencyRateService;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -227,6 +225,7 @@ public class XtbImportV2Service {
     }
 
     List<CashOperation> operations = new ArrayList<>();
+    Map<String, Integer> sourceRowOccurrences = new HashMap<>();
     for (Row row : dataRows(sheet, columns)) {
       String symbol = sourceTicker(row, columns);
       if (cashOnly && StringUtils.hasText(symbol)) {
@@ -242,10 +241,7 @@ public class XtbImportV2Service {
       }
 
       CashOperation operation = new CashOperation();
-      operation.setId(
-          parseLong(cellValue(row, columns.get("ID")))
-              .orElseGet(
-                  () -> syntheticId(account + "|cash|" + sourceName + "|" + row.getRowNum())));
+      String brokerId = cellValue(row, columns.get("ID"));
       operation.setAccount(account);
       String comment = cellValue(row, columns.get("Comment"));
       CashOperationType type = CashOperationType.fromString(cellValue(row, columns.get("Type")));
@@ -264,9 +260,29 @@ public class XtbImportV2Service {
       operation.setCurrency(
           resolveCashOperationCurrency(row, columns, comment, sourceName, amount, row.getRowNum()));
       operation.setDate(operationDate);
+      String sourceFingerprint =
+          cashSourceFingerprint(
+              account, type, symbol, operationDate, amount, operation.getCurrency(), comment, brokerId);
+      operation.setId(
+          parseLong(brokerId)
+              .orElseGet(
+                  () ->
+                      BrokerSourceRowIdentity.id(
+                          sourceFingerprint,
+                          sourceRowOccurrences.merge(sourceFingerprint, 1, Integer::sum))));
       operations.add(operation);
     }
     return operations;
+  }
+
+  private String cashSourceFingerprint(
+      Long account, CashOperationType type, String symbol, ZonedDateTime timestamp, Double amount,
+      CurrencyType currency, String comment, String brokerId) {
+    return String.join(
+        "|", "XTB", BrokerSourceRowIdentity.part(account), BrokerSourceRowIdentity.part(type),
+        BrokerSourceRowIdentity.part(symbol), BrokerSourceRowIdentity.part(timestamp),
+        BrokerSourceRowIdentity.part(amount), BrokerSourceRowIdentity.part(currency),
+        BrokerSourceRowIdentity.part(comment), BrokerSourceRowIdentity.part(brokerId));
   }
 
   private CurrencyType resolveCashOperationCurrency(
@@ -360,29 +376,12 @@ public class XtbImportV2Service {
             "XTB closed-position row " + row.getRowNum() + " has an invalid timestamp");
       }
 
-      String businessKey =
-          closedPositionBusinessKey(
-              account,
-              symbol,
-              typeText,
-              volume,
-              openTime,
-              openPrice,
-              closeTime,
-              closePrice,
-              purchaseValue,
-              saleValue,
-              commission,
-              margin,
-              swap,
-              profit,
-              product);
-      String sourceIdentity =
-          account + "|" + firstNonBlank(sourcePositionId, "NO_POSITION_ID") + "|" + businessKey;
+      String sourceIdentity = closedPositionSourceIdentity(
+          account, sourcePositionId, symbol, typeText, volume, openTime, closeTime, product);
       int sourceRowOccurrence = sourceRowOccurrences.merge(sourceIdentity, 1, Integer::sum);
 
       ClosedPosition position = new ClosedPosition();
-      position.setId(syntheticId(sourceIdentity + "|occurrence=" + sourceRowOccurrence));
+      position.setId(BrokerSourceRowIdentity.id(sourceIdentity, sourceRowOccurrence));
       position.setAccount(account);
       position.setSourcePositionId(sourcePositionId);
       position.setSourceRowOccurrence(sourceRowOccurrence);
@@ -425,44 +424,14 @@ public class XtbImportV2Service {
     return new ArrayList<>(unique.values());
   }
 
-  private String closedPositionBusinessKey(
-      Long account,
-      String symbol,
-      String typeText,
-      Double volume,
-      ZonedDateTime openTime,
-      Double openPrice,
-      ZonedDateTime closeTime,
-      Double closePrice,
-      Double purchaseValue,
-      Double saleValue,
-      Double commission,
-      Double margin,
-      Double swap,
-      Double profit,
-      String product) {
-    return String.format(
-        Locale.ROOT,
-        "%s|closed|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s",
-        account,
-        normalizeKeyPart(symbol),
-        normalizeKeyPart(typeText),
-        normalizeKeyPart(volume),
-        normalizeKeyPart(openTime),
-        normalizeKeyPart(openPrice),
-        normalizeKeyPart(closeTime),
-        normalizeKeyPart(closePrice),
-        normalizeKeyPart(purchaseValue),
-        normalizeKeyPart(saleValue),
-        normalizeKeyPart(commission),
-        normalizeKeyPart(margin),
-        normalizeKeyPart(swap),
-        normalizeKeyPart(profit),
-        normalizeKeyPart(product));
-  }
-
-  private String normalizeKeyPart(Object value) {
-    return value == null ? "" : value.toString().trim();
+  private String closedPositionSourceIdentity(
+      Long account, String sourcePositionId, String symbol, String typeText, Double volume,
+      ZonedDateTime openTime, ZonedDateTime closeTime, String product) {
+    return String.join("|", "XTB", "CLOSED", BrokerSourceRowIdentity.part(account),
+        BrokerSourceRowIdentity.part(sourcePositionId), BrokerSourceRowIdentity.part(symbol),
+        BrokerSourceRowIdentity.part(typeText), BrokerSourceRowIdentity.part(volume),
+        BrokerSourceRowIdentity.part(openTime), BrokerSourceRowIdentity.part(closeTime),
+        BrokerSourceRowIdentity.part(product));
   }
 
   List<OpenedPosition> reconstructOpenedPositions(
@@ -548,7 +517,7 @@ public class XtbImportV2Service {
                 lotIndex++);
 
         OpenedPosition position = new OpenedPosition();
-        position.setId(syntheticId(idKey));
+        position.setId(BrokerSourceRowIdentity.id(idKey, 1));
         position.setAccount(accountId);
         position.setSymbol(symbol);
         position.setType(type);
@@ -1248,20 +1217,6 @@ public class XtbImportV2Service {
     return output.toByteArray();
   }
 
-  private long syntheticId(String key) {
-    try {
-      byte[] hash =
-          MessageDigest.getInstance("SHA-256").digest(key.getBytes(StandardCharsets.UTF_8));
-      long value = 0L;
-      for (int index = 0; index < Long.BYTES; index++) {
-        value = (value << 8) | (hash[index] & 0xffL);
-      }
-      value &= Long.MAX_VALUE;
-      return value == 0L ? -1L : -value;
-    } catch (NoSuchAlgorithmException exception) {
-      throw new IllegalStateException("Cannot hash XTB row id", exception);
-    }
-  }
 
   private void normalizePositionPricesToAccountCurrency(ClosedPosition position) {
     position.setOpenPrice(

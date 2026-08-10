@@ -11,12 +11,12 @@ import com.example.demo.services.AssetCatalogService;
 import com.example.demo.services.ReportingDateHelper;
 import com.example.demo.services.currency.CurrencyRateService;
 import com.example.demo.services.imports.ImportExecutionResult;
+import com.example.demo.services.imports.BrokerSourceRowIdentity;
 import com.opencsv.CSVReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.*;
@@ -35,8 +35,7 @@ import org.springframework.util.StringUtils;
  * <p>IBKR exports a flat cash ledger rather than XTB's position-based sheets. All rows (Buy, Sell,
  * dividends, interest, withholding, deposits, withdrawals, forex, corporate actions) are stored as
  * {@code cash_operations} in their original ledger form without FIFO matching. IBKR rows have no
- * broker id, so stable <b>negative</b> synthetic ids are generated (XTB uses positive ids) to keep
- * re-imports idempotent.
+ * broker id, so importer-owned source fingerprints provide deterministic, provider-neutral IDs.
  */
 @Slf4j
 @Service
@@ -116,15 +115,13 @@ public class IbkrImportService {
         }
 
         CashOperation op = new CashOperation();
-        String key =
-            String.join(
-                "|",
-                String.valueOf(account),
-                isoDate(date),
-                type,
-                String.valueOf(symbol),
-                String.valueOf(net),
-                description);
+        String key = String.join("|", "IBKR", BrokerSourceRowIdentity.part(account),
+            BrokerSourceRowIdentity.part(date), BrokerSourceRowIdentity.part(type),
+            BrokerSourceRowIdentity.part(rawSymbol), BrokerSourceRowIdentity.part(description),
+            BrokerSourceRowIdentity.part(quantity), BrokerSourceRowIdentity.part(price),
+            BrokerSourceRowIdentity.part(value(r, col, "Currency", "Price Currency")),
+            BrokerSourceRowIdentity.part(grossAmount), BrokerSourceRowIdentity.part(commission),
+            BrokerSourceRowIdentity.part(net), BrokerSourceRowIdentity.part(currency));
         op.setId(syntheticId(key, dedup));
         op.setAccount(account);
         op.setType(mapCashType(type, description));
@@ -242,7 +239,7 @@ public class IbkrImportService {
     Integer cUnrealized = colIndex(col, "Unrealized P/L", "Unrealized P&L", "Fifo P/L Unrealized");
     Integer cDiscriminator = colIndex(col, "DataDiscriminator");
 
-    ZonedDateTime now = ZonedDateTime.now();
+    ZonedDateTime snapshotEffectiveDate = statementEffectiveDate(rows);
     List<OpenedPosition> positions = new ArrayList<>();
     for (String[] r : rows) {
       if (r.length <= 2 || !section.equals(r[0]) || !"Data".equals(r[1])) {
@@ -274,7 +271,7 @@ public class IbkrImportService {
       p.setProfitCurrency(monetaryCurrency);
       p.setCommissionCurrency(monetaryCurrency);
       p.setVolume(Math.abs(quantity));
-      p.setOpenTime(now);
+      p.setOpenTime(snapshotEffectiveDate);
       p.setOpenPrice(parseNumber(at(r, cCost)));
       p.setMarketPrice(parseNumber(at(r, cClose)));
       p.setPurchaseValue(parseNumber(at(r, cBasis)));
@@ -619,6 +616,24 @@ public class IbkrImportService {
     }
   }
 
+  /** Snapshot positions are bootstrap state; this is the report effective date, not trade time. */
+  private ZonedDateTime statementEffectiveDate(List<String[]> rows) {
+    return rows.stream()
+        .flatMap(row -> Arrays.stream(row == null ? new String[0] : row))
+        .map(this::tryParseDate)
+        .filter(Objects::nonNull)
+        .max(Comparator.naturalOrder())
+        .orElse(ZonedDateTime.of(LocalDate.of(1970, 1, 1).atStartOfDay(), ZONE));
+  }
+
+  private ZonedDateTime tryParseDate(String value) {
+    try {
+      return parseDate(value);
+    } catch (RuntimeException ignored) {
+      return null;
+    }
+  }
+
   private String isoDate(ZonedDateTime date) {
     return date == null ? "" : date.toLocalDate().toString();
   }
@@ -788,23 +803,9 @@ public class IbkrImportService {
     return StringUtils.hasText(rawSymbol) || StringUtils.hasText(description);
   }
 
-  /** Stable negative id from content hash; an occurrence counter disambiguates identical rows. */
+  /** Stable source hash; an occurrence counter disambiguates genuinely identical source rows. */
   private long syntheticId(String key, Map<String, Integer> dedup) {
-    key = key == null ? "" : key.trim().replaceAll("\\s+", " ");
-    int occurrence = dedup.merge(key, 1, Integer::sum);
-    try {
-      byte[] hash =
-          MessageDigest.getInstance("SHA-256")
-              .digest((key + "#" + occurrence).getBytes(StandardCharsets.UTF_8));
-      long value = 0L;
-      for (int i = 0; i < 8; i++) {
-        value = (value << 8) | (hash[i] & 0xffL);
-      }
-      value &= Long.MAX_VALUE; // non-negative
-      return -(value == 0 ? 1 : value); // negative -> never collides with positive XTB ids
-    } catch (Exception e) {
-      throw new IllegalStateException("Cannot hash IBKR row id", e);
-    }
+    return BrokerSourceRowIdentity.id(key, dedup.merge(key, 1, Integer::sum));
   }
 
   private record IbkrTradePriceObservation(

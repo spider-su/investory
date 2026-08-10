@@ -2,6 +2,41 @@ CREATE SCHEMA IF NOT EXISTS investory;
 
 SET search_path TO investory, public;
 
+CREATE TABLE investory.reconciliation_parameters (
+    parameter_name varchar(96) PRIMARY KEY,
+    numeric_value numeric(30,12) NOT NULL,
+    description varchar(255) NOT NULL
+);
+
+INSERT INTO investory.reconciliation_parameters(parameter_name, numeric_value, description)
+VALUES
+    ('reconciliation_reporting_scale', 0, 'Decimal places used for displayed reconciliation values.'),
+    ('reconciliation_absolute_tolerance', 0.05, 'Shared absolute monetary tolerance.'),
+    ('reconciliation_relative_tolerance', 0.00001, 'Shared relative monetary tolerance.'),
+    ('reconciliation_quantity_tolerance', 0.000001, 'Tolerance for signed quantity matching; not a monetary tolerance.'),
+    ('reconciliation_trade_cash_absolute_tolerance', 5, 'Domain threshold for trade cash settlement differences.'),
+    ('reconciliation_trade_cash_relative_tolerance', 0.05, 'Domain threshold for trade cash settlement differences.'),
+    ('reconciliation_carrying_value_absolute_threshold', 250, 'Domain threshold for carrying-value outliers.'),
+    ('reconciliation_carrying_value_relative_threshold', 0.50, 'Domain threshold for carrying-value outliers.'),
+    ('reconciliation_reorganization_absolute_threshold', 250, 'Domain threshold for reorganization value jumps.'),
+    ('reconciliation_reorganization_relative_threshold', 0.20, 'Domain threshold for reorganization value jumps.'),
+    ('reconciliation_market_bridge_absolute_threshold', 250, 'Domain threshold for market-value bridge outliers.'),
+    ('reconciliation_market_bridge_relative_threshold', 0.20, 'Domain threshold for market-value bridge outliers.'),
+    ('reconciliation_position_input_absolute_tolerance', 0.05, 'Input validation tolerance for position notional reconstruction.'),
+    ('reconciliation_position_input_relative_tolerance', 0.15, 'Input validation tolerance for position notional reconstruction.'),
+    ('reconciliation_local_sale_price_relative_threshold', 0.05, 'Domain threshold for local sale-vs-carrying-value comparison.'),
+    ('reconciliation_local_flat_base_jump_relative_threshold', 0.15, 'Domain threshold for local-flat/base-currency valuation jumps.'),
+    ('reconciliation_price_jump_upper_ratio', 100, 'Domain threshold for extreme upward price jumps.'),
+    ('reconciliation_price_jump_lower_ratio', 0.01, 'Domain threshold for extreme downward price jumps.'),
+    ('reconciliation_valuation_jump_upper_ratio', 5, 'Domain threshold for valuation-jump detection.'),
+    ('reconciliation_valuation_jump_lower_ratio', 0.20, 'Domain threshold for valuation-jump detection.'),
+    ('reconciliation_valuation_jump_trade_multiplier', 1.25, 'Domain threshold for valuation-jump trade allowance.'),
+    ('reconciliation_valuation_jump_absolute_threshold', 250, 'Domain threshold for valuation-jump detection.')
+;
+
+COMMENT ON TABLE investory.reconciliation_parameters IS
+    'Central reconciliation display precision, numeric tolerances, and explicitly named domain anomaly thresholds. Status uses full precision; reporting values are rounded only for presentation.';
+
 -- Reference tables - the skeleton of the database for portfolio management and reporting
 CREATE TABLE investory.currencies (
     id varchar(3) PRIMARY KEY,
@@ -289,49 +324,6 @@ COMMENT ON COLUMN investory.asset_price_history.quality_score IS 'Relative sourc
 COMMENT ON COLUMN investory.asset_price_history.quality_class IS 'Quality/provenance class such as EXACT_LISTING_MARKET_CLOSE, EXACT_LISTING_SCALED, XTB_TRADE_OBSERVATION, or INTERPOLATED_XTB.';
 COMMENT ON COLUMN investory.asset_price_history.price_scale_factor IS 'Multiplier applied once by canonical price-selection views before valuation.';
 
-CREATE OR REPLACE FUNCTION investory.bind_asset_price_history_source_mapping()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-DECLARE
-    resolved_mapping_id bigint;
-BEGIN
-    SELECT ass.id
-    INTO resolved_mapping_id
-    FROM investory.asset_source_symbols ass
-    WHERE ass.asset_id = NEW.asset_id
-      AND ass.source = NEW.source
-      AND upper(ass.source_symbol) = upper(NEW.source_symbol);
-
-    IF resolved_mapping_id IS NOT NULL THEN
-        IF NEW.source_mapping_id IS NULL THEN
-            NEW.source_mapping_id := resolved_mapping_id;
-        ELSIF NEW.source_mapping_id <> resolved_mapping_id THEN
-            RAISE EXCEPTION 'asset price source mapping % does not match asset %, source %, symbol %',
-                NEW.source_mapping_id, NEW.asset_id, NEW.source, NEW.source_symbol;
-        END IF;
-    ELSIF NEW.source_mapping_id IS NOT NULL AND NOT EXISTS (
-        SELECT 1
-        FROM investory.asset_source_symbols ass
-        WHERE ass.id = NEW.source_mapping_id
-          AND ass.asset_id = NEW.asset_id
-          AND ass.source = NEW.source
-          AND upper(ass.source_symbol) = upper(NEW.source_symbol)
-    ) THEN
-        RAISE EXCEPTION 'asset price source mapping % does not match asset %, source %, symbol %',
-            NEW.source_mapping_id, NEW.asset_id, NEW.source, NEW.source_symbol;
-    END IF;
-
-    RETURN NEW;
-END;
-$$;
-
-CREATE TRIGGER trg_asset_price_history_bind_source_mapping
-BEFORE INSERT OR UPDATE OF asset_id, source, source_symbol, source_mapping_id
-ON investory.asset_price_history
-FOR EACH ROW
-EXECUTE FUNCTION investory.bind_asset_price_history_source_mapping();
-
 -- Summary tables - the main operation tables for portfolio management and reporting, used for calculations and analysis
 CREATE TABLE investory.exchange_rates (
     id              bigserial PRIMARY KEY,
@@ -562,19 +554,6 @@ COMMENT ON COLUMN investory.cash_operations.asset_id IS 'Optional canonical appl
 COMMENT ON COLUMN investory.cash_operations.source_asset_symbol IS 'Unmodified source symbol when the cash row names an instrument.';
 COMMENT ON COLUMN investory.cash_operations.currency IS 'Currency of amount. This is independent from accounts.currency and asset quote currency.';
 
-CREATE OR REPLACE FUNCTION investory.signed_position_quantity(
-    operation investory.positions_operation_type,
-    volume numeric
-) RETURNS numeric
-LANGUAGE sql
-IMMUTABLE
-RETURNS NULL ON NULL INPUT
-AS $$
-    SELECT CASE WHEN operation = 'SELL' THEN -ABS(volume) ELSE ABS(volume) END
-$$;
-COMMENT ON FUNCTION investory.signed_position_quantity(investory.positions_operation_type, numeric) IS
-    'Canonical position quantity: BUY is positive and SELL is negative while stored positions.volume remains non-negative.';
-
 CREATE TABLE investory.account_daily (
     id                  bigserial PRIMARY KEY,
     account_id          bigint NOT NULL REFERENCES investory.accounts(id) ON DELETE CASCADE,
@@ -687,3 +666,47 @@ ALTER TABLE investory.assets
     ADD CONSTRAINT chk_assets_exchange_mic_format_v01011
         CHECK (exchange_mic IS NULL OR upper(btrim(exchange_mic)) ~ '^[A-Z0-9]{4}$');
 
+CREATE TABLE investory.system_audit_runs (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    import_history_id bigint REFERENCES investory.import_history(id) ON DELETE SET NULL,
+    trigger_source varchar(32) NOT NULL,
+    started_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    finished_at timestamptz,
+    status varchar(16) NOT NULL,
+    error_count bigint NOT NULL DEFAULT 0,
+    warning_count bigint NOT NULL DEFAULT 0,
+    notification_status varchar(32) NOT NULL,
+    summary jsonb,
+    CONSTRAINT chk_system_audit_status CHECK (status IN ('STARTED', 'HEALTHY', 'WARN', 'ERROR')),
+    CONSTRAINT chk_system_audit_notification_status CHECK (
+        notification_status IN ('NONE', 'READY_WARNING', 'READY_ERROR')
+    ),
+    CONSTRAINT chk_system_audit_counts_non_negative CHECK (error_count >= 0 AND warning_count >= 0),
+    CONSTRAINT chk_system_audit_finished_after_started CHECK (
+        finished_at IS NULL OR finished_at >= started_at
+    )
+);
+
+CREATE INDEX ix_system_audit_runs_import_started
+    ON investory.system_audit_runs(import_history_id, started_at DESC)
+    WHERE import_history_id IS NOT NULL;
+CREATE INDEX ix_system_audit_runs_status_finished
+    ON investory.system_audit_runs(status, finished_at DESC);
+
+CREATE TABLE investory.system_audit_issues (
+    id bigserial PRIMARY KEY,
+    audit_run_id uuid NOT NULL REFERENCES investory.system_audit_runs(id) ON DELETE CASCADE,
+    check_code varchar(64) NOT NULL,
+    severity varchar(16) NOT NULL,
+    issue_count bigint NOT NULL,
+    required_action varchar(255) NOT NULL,
+    details jsonb,
+    CONSTRAINT chk_system_audit_issue_severity CHECK (severity IN ('WARN', 'ERROR')),
+    CONSTRAINT chk_system_audit_issue_count_positive CHECK (issue_count > 0),
+    UNIQUE (audit_run_id, check_code)
+);
+
+COMMENT ON TABLE investory.system_audit_runs IS
+    'Persisted system-level validation result created automatically whenever an import reaches a terminal status.';
+COMMENT ON TABLE investory.system_audit_issues IS
+    'Non-zero actionable checks captured for one system audit run. Stable check codes are suitable for notifications and structured logging.';

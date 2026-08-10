@@ -120,20 +120,6 @@ WHERE eur_usd.base = 'EUR' AND eur_usd.to_currency = 'USD'
 COMMENT ON VIEW investory.v_fx_consistency_check IS
     'Diagnostic reciprocal and cross-rate checks. Rows are flagged, never automatically rejected.';
 
-CREATE OR REPLACE FUNCTION investory.refresh_reconciliation_views()
-RETURNS VOID AS $$
-BEGIN
-    REFRESH MATERIALIZED VIEW investory.reporting_account_monthly_profit_reconciliation;
-    REFRESH MATERIALIZED VIEW investory.reporting_account_statistics_vs_daily_reconciliation;
-    REFRESH MATERIALIZED VIEW investory.reporting_account_daily_cashflow_reconciliation;
-    REFRESH MATERIALIZED VIEW investory.v_account_daily_reconciliation;
-    REFRESH MATERIALIZED VIEW investory.reporting_trade_settlement_reconciliation;
-END;
-$$ LANGUAGE plpgsql;
-
-COMMENT ON FUNCTION investory.refresh_reconciliation_views() IS
-    'Refreshes reconciliation materialized views on demand. Reconciliation objects are excluded from refresh_reporting_views().';
-
 
 CREATE OR REPLACE VIEW investory.reporting_price_history_contract_issues AS
 WITH mapped_history AS (
@@ -244,42 +230,11 @@ COMMENT ON VIEW investory.reporting_price_history_contract_issues IS
     'Deterministic price-history contract diagnostics. Empty result is required before copying asset_price_history_tmp into asset_price_history.';
 
 -- FX usability is defined once by investory.fx_status_usable() in
--- V01.003__portfolio_views.sql and called directly inside every production view
+-- V01.005__portfolio_views.sql and called directly inside every production view
 -- and materialized view. No post-hoc view-text rewriting is required here.
 
 COMMENT ON COLUMN investory.fx_configuration.config_value IS
     'Runtime FX policy value. daily_history_start is the immutable migration boundary used by SQL and Java resolver calls.';
-
--- Public naming contract: app_v_* is consumed by production application code;
--- recon_v_* is independent validation or reconciliation output. The original
--- names remain as compatibility surfaces for existing SQL clients.
-CREATE OR REPLACE FUNCTION investory.refresh_app_views()
-RETURNS VOID AS $$
-BEGIN
-    PERFORM investory.refresh_reporting_views();
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION investory.refresh_recon_views()
-RETURNS VOID AS $$
-BEGIN
-    PERFORM investory.refresh_reconciliation_views();
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION investory.application_display_value(p_value numeric)
-RETURNS numeric
-LANGUAGE sql
-IMMUTABLE
-AS $$
-    SELECT CASE
-        WHEN p_value IS NULL THEN NULL::numeric
-        ELSE ROUND(p_value, 2)
-    END
-$$;
-
-COMMENT ON FUNCTION investory.application_display_value(numeric) IS
-    'Rounds final application-facing monetary values to cents. Canonical tables and derived calculations retain full precision.';
 
 DO $$
 DECLARE

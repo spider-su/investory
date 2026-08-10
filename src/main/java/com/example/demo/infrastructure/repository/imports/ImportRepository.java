@@ -8,9 +8,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface ImportRepository extends JpaRepository<ImportHistory, Long> {
-  Optional<ImportHistory> findFirstByBrokerAndFileSha256OrderByIdDesc(
-      BrokerType broker, String fileSha256);
-
   Optional<ImportHistory> findFirstByBrokerAndFileSha256AndStatusOrderByAttemptNoDesc(
       BrokerType broker, String fileSha256, ImportBatchStatus status);
 
