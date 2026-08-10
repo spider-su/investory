@@ -14,11 +14,13 @@ import lombok.Data;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.Immutable;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
+@Immutable
 @IdClass(SymbolPerformanceId.class)
 @Table(name = "app_v_symbol_performance")
 public class SymbolPerformance {

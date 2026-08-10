@@ -602,7 +602,7 @@ class BenchmarkServiceTest {
     return BenchmarkMonthlyClose.builder()
         .symbol("SPY")
         .monthDate(LocalDate.parse(month + "-01"))
-        .closePrice(close)
+        .closePrice(java.math.BigDecimal.valueOf(close))
         .build();
   }
 }

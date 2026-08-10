@@ -45,6 +45,9 @@ public class Asset {
   private String ticker;
 
   @Column(name = "ibkr", nullable = false, length = 64)
+  private String ibkr;
+
+  @jakarta.persistence.Transient
   private String ibrk;
 
   @Column(name = "yahoo", nullable = false, length = 64)
@@ -69,8 +72,9 @@ public class Asset {
   @Column(name = "exchange_mic", length = 4)
   private String exchangeMic;
 
-  @Column(name = "active")
-  private Boolean active;
+  @Column(name = "active", nullable = false)
+  @Builder.Default
+  private boolean active = true;
 
   @Column(name = "exclude_from_import", nullable = false)
   @Builder.Default
@@ -91,6 +95,10 @@ public class Asset {
 
   @Column(name = "price_updated_at")
   private ZonedDateTime priceUpdatedAt;
+
+  public void setIbrk(String value) { this.ibkr = value; this.ibrk = value; }
+  public String getIbrk() { return ibkr; }
+  public boolean getActive() { return active; }
 
   public Double getMarketPrice() {
     return asDouble(marketPrice);

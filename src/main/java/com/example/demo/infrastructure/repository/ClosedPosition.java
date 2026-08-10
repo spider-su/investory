@@ -32,13 +32,13 @@ public class ClosedPosition {
   @JoinColumn(name = "asset_id", insertable = false, updatable = false)
   private Asset asset;
 
-  @Column(name = "source_asset_symbol", nullable = false)
+  @Column(name = "source_asset_symbol", nullable = false, length = 128)
   private String sourceAssetSymbol;
 
-  @Column(name = "broker_symbol")
+  @Column(name = "broker_symbol", length = 128)
   private String brokerSymbol;
 
-  @Column(name = "source_position_id")
+  @Column(name = "source_position_id", length = 128)
   private String sourcePositionId;
 
   @Builder.Default
@@ -62,19 +62,19 @@ public class ClosedPosition {
   private PositionSettlementModel settlementModel = PositionSettlementModel.CASH_SETTLED;
 
   @Enumerated(value = EnumType.STRING)
-  @Column(name = "profit_currency", nullable = false)
+  @Column(name = "profit_currency", nullable = false, length = 3)
   private CurrencyType profitCurrency;
 
   @Enumerated(value = EnumType.STRING)
-  @Column(name = "price_currency", nullable = false)
+  @Column(name = "price_currency", nullable = false, length = 3)
   private CurrencyType priceCurrency;
 
   @Enumerated(value = EnumType.STRING)
-  @Column(name = "cost_currency", nullable = false)
+  @Column(name = "cost_currency", nullable = false, length = 3)
   private CurrencyType costCurrency;
 
   @Enumerated(value = EnumType.STRING)
-  @Column(name = "commission_currency", nullable = false)
+  @Column(name = "commission_currency", nullable = false, length = 3)
   private CurrencyType commissionCurrency;
 
   @Getter(AccessLevel.NONE)
@@ -105,7 +105,7 @@ public class ClosedPosition {
 
   @Getter(AccessLevel.NONE)
   @Setter(AccessLevel.NONE)
-  @Column(precision = 20, scale = 8)
+  @Column(name = "close_price", precision = 20, scale = 8)
   private BigDecimal closePrice;
 
   @Getter(AccessLevel.NONE)
@@ -148,8 +148,16 @@ public class ClosedPosition {
   @Column(precision = 20, scale = 8)
   private BigDecimal profit;
 
-  @Column(name = "broker_product")
-  private String comment;
+  @Column(name = "broker_product", length = 255)
+  private String brokerProduct;
+
+  @Transient private String comment;
+
+  @Column(name = "base_value", precision = 20, scale = 8)
+  private BigDecimal baseValue;
+
+  public String getComment() { return brokerProduct; }
+  public void setComment(String comment) { this.comment = comment; this.brokerProduct = comment; }
 
   public Double getVolume() {
     return asDouble(volume);

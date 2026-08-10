@@ -210,7 +210,11 @@ public class CurrencyRateService {
       String sourceReference) {
     if (base == target || rate.signum() <= 0) return;
     String reference = sourceReference == null ? source + ":" + observedAt + ":" + base + ":" + target : sourceReference;
-    CurrencyRate observation = currencyRateRepository.findBySourceReference(reference).orElseGet(CurrencyRate::new);
+    CurrencyRate observation =
+        currencyRateRepository
+            .findByRateDateAndBaseAndToCurrencyAndSourceAndMethodAndSourceReference(
+                observedAt.toLocalDate(), base, target, source, method, reference)
+            .orElseGet(CurrencyRate::new);
     observation.setRateDate(observedAt.toLocalDate());
     observation.setBase(base);
     observation.setToCurrency(target);

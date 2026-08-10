@@ -11,7 +11,11 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
 
   Optional<Asset> findBySymbol(String symbol);
 
-  List<Asset> findAllByIbrkIgnoreCase(String ibrk);
+  default List<Asset> findAllByIbrkIgnoreCase(String ibrk) {
+    return findAllByIbkrIgnoreCase(ibrk);
+  }
+
+  List<Asset> findAllByIbkrIgnoreCase(String ibkr);
 
   List<Asset> findAllBySymbolIn(Collection<String> symbols);
 

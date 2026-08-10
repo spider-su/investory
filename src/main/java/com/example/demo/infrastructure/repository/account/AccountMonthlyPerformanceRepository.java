@@ -1,12 +1,12 @@
 package com.example.demo.infrastructure.repository.account;
 
 import java.util.List;
-import org.springframework.data.jpa.repository.JpaRepository;
+import com.example.demo.infrastructure.repository.ReadOnlyRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
 public interface AccountMonthlyPerformanceRepository
-    extends JpaRepository<AccountMonthlyPerformance, AccountMonthlyPerformanceId> {
+    extends ReadOnlyRepository<AccountMonthlyPerformance, AccountMonthlyPerformanceId> {
 
   List<AccountMonthlyPerformance> findAllByOrderByMonthAscAccountIdAsc();
 }

@@ -44,7 +44,7 @@ class BaselineReadinessContractIT {
   void emptyMigrationProducesFinalBaselineContract() throws SQLException {
     try (Connection connection = connection();
         Statement statement = connection.createStatement()) {
-      assertEquals(6, singleInt(statement, "SELECT count(*) FROM investory.flyway_schema_history"));
+      assertEquals(6, singleInt(statement, "SELECT count(*) FROM public.flyway_schema_history"));
       for (String table :
           new String[] {
             "app_users",
@@ -194,6 +194,47 @@ class BaselineReadinessContractIT {
     }
   }
 
+  @Test
+  void estimatedCashFxIsIncludedAndKeepsAggregateComplete() throws SQLException {
+    try (Connection connection = connection();
+        Statement statement = connection.createStatement()) {
+      statement.execute(
+          "INSERT INTO investory.app_users(id, username, display_name) "
+              + "VALUES (-800002, 'estimated-fx-test', 'Estimated FX Test')");
+      statement.execute(
+          "INSERT INTO investory.portfolios(id, name, base_currency, user_id) "
+              + "VALUES (-800002, 'Estimated FX Test', 'USD', -800002)");
+      statement.execute(
+          "INSERT INTO investory.accounts "
+              + "(id, external_account_id, currency, provider, name, owner, portfolio_id) "
+              + "VALUES (-800002, 'estimated-fx-account', 'EUR', 'XTB', 'Estimated FX Test', 'Test', -800002)");
+      statement.execute(
+          "INSERT INTO investory.exchange_rates "
+              + "(rate_date, base, to_currency, rate, source, method) VALUES "
+              + "(DATE '2025-01-10', 'EUR', 'USD', 2, 'TEST', 'HISTORICAL_MONTHLY'), "
+              + "(DATE '2025-01-20', 'EUR', 'USD', 4, 'TEST', 'HISTORICAL_MONTHLY')");
+      statement.execute(
+          "INSERT INTO investory.cash_operations "
+              + "(id, account_id, operation, amount, currency, date) "
+              + "VALUES (-800002, -800002, 'DEPOSIT', 10, 'EUR', TIMESTAMP WITH TIME ZONE '2025-01-15 00:00:00+00')");
+
+      assertEquals(
+          "30.00000000|ESTIMATED",
+          singleString(
+              statement,
+              "SELECT round(amount_in_portfolio_base_currency, 8)::text || '|' || portfolio_conversion_status "
+                  + "FROM investory.normalized_cash_operations WHERE operation_id = -800002"));
+
+      statement.execute("SELECT investory.refresh_reporting_views()");
+      assertEquals(
+          "30.00000000|0|true",
+          singleString(
+              statement,
+              "SELECT round(converted_cash_subtotal, 8)::text || '|' || missing_fx_count || '|' || is_complete "
+                  + "FROM investory.account_statistics WHERE account_id = -800002"));
+    }
+  }
+
   private Connection connection() throws SQLException {
     return DriverManager.getConnection(
         POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
@@ -214,7 +255,7 @@ class BaselineReadinessContractIT {
                 + "')")) {
       assertTrue(result.next());
       String rate = result.getBigDecimal(1) == null ? "null" : result.getBigDecimal(1).toPlainString();
-      return String.format("%s|%s", rate, result.getString(9));
+      return String.format("%s|%s", rate, result.getString(2));
     }
   }
 

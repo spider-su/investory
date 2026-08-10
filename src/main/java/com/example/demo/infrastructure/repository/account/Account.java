@@ -5,6 +5,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Data;
@@ -14,22 +16,24 @@ import lombok.Data;
 @Table(name = "accounts")
 public class Account {
 
-  @Id private Long id;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
 
-  @Column(name = "external_account_id", nullable = false)
+  @Column(name = "external_account_id", nullable = false, length = 128)
   private String externalAccountId;
 
   @Enumerated(EnumType.STRING)
-  @Column(name = "currency", nullable = false)
+  @Column(name = "currency", nullable = false, length = 3)
   private CurrencyType currency;
 
-  @Column(name = "provider", nullable = false)
+  @Column(name = "provider", nullable = false, length = 7)
   private String provider;
 
-  @Column(name = "name", nullable = false)
+  @Column(name = "name", nullable = false, length = 255)
   private String name;
 
-  @Column(name = "owner", nullable = false)
+  @Column(name = "owner", nullable = false, length = 255)
   private String owner;
 
   @Column(name = "portfolio_id", nullable = false)

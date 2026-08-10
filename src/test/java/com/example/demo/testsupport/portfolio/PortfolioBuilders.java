@@ -353,7 +353,7 @@ public final class PortfolioBuilders {
       position.setAccount(PortfolioTestData.IBKR_USD_ACCOUNT_ID);
       position.setSymbol(asset.symbol());
       setCurrencies(position, asset.currency());
-      position.setType(PositionType.CLOSED);
+      position.setType(PositionType.BUY);
       position.setVolume(10.0);
       position.setOpenPrice(100.0);
       position.setClosePrice(110.0);

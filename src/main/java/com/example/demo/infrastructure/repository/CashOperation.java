@@ -37,10 +37,10 @@ public class CashOperation {
   @JoinColumn(name = "asset_id", insertable = false, updatable = false)
   private Asset asset;
 
-  @Column(name = "source_asset_symbol")
+  @Column(name = "source_asset_symbol", length = 128)
   private String sourceAssetSymbol;
 
-  @Column(name = "broker_symbol")
+  @Column(name = "broker_symbol", length = 128)
   private String brokerSymbol;
 
   @Formula(
@@ -53,20 +53,21 @@ public class CashOperation {
   private BigDecimal amount;
 
   @Enumerated(value = EnumType.STRING)
-  @Column(name = "currency", nullable = false)
+  @Column(name = "currency", nullable = false, length = 3)
   private CurrencyType currency;
 
+  @Column(name = "comment", length = 1023)
   private String comment;
 
   @Column(nullable = false)
   private ZonedDateTime date;
 
   @Enumerated(value = EnumType.STRING)
-  @Column(name = "execution_fx_base")
+  @Column(name = "execution_fx_base", length = 3)
   private CurrencyType executionFxBase;
 
   @Enumerated(value = EnumType.STRING)
-  @Column(name = "execution_fx_to_currency")
+  @Column(name = "execution_fx_to_currency", length = 3)
   private CurrencyType executionFxToCurrency;
 
   @Column(name = "execution_fx_rate", precision = 20, scale = 8)
@@ -75,10 +76,10 @@ public class CashOperation {
   @Column(name = "execution_fx_observed_at")
   private ZonedDateTime executionFxObservedAt;
 
-  @Column(name = "execution_fx_source")
+  @Column(name = "execution_fx_source", length = 32)
   private String executionFxSource;
 
-  @Column(name = "execution_fx_reference")
+  @Column(name = "execution_fx_reference", length = 256)
   private String executionFxReference;
 
   public Double getAmount() {

@@ -19,11 +19,13 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.Immutable;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
+@Immutable
 @IdClass(PortfolioMonthlyPerformanceId.class)
 @EqualsAndHashCode(of = {"portfolioId", "month"})
 @Table(name = "app_v_portfolio_monthly")

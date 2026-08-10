@@ -29,7 +29,7 @@ public class ImportHistory {
   private Long id;
 
   @Enumerated(EnumType.STRING)
-  @Column(name = "provider")
+  @Column(name = "provider", nullable = false, length = 16)
   private BrokerType broker;
 
   @Column(name = "source_type")
@@ -42,10 +42,10 @@ public class ImportHistory {
   @Column(name = "file_name")
   private String fileName;
 
-  @Column(name = "file_sha256")
+  @Column(name = "file_sha256", nullable = false, length = 255)
   private String fileSha256;
 
-  @Column(name = "started_at")
+  @Column(name = "started_at", nullable = false)
   private ZonedDateTime startedAt;
 
   @Column(name = "finished_at")

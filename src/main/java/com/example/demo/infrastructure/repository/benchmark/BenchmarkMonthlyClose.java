@@ -9,6 +9,7 @@ import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
+import java.math.BigDecimal;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -43,8 +44,12 @@ public class BenchmarkMonthlyClose {
 
   @Column(name = "close_price", nullable = false)
   @JdbcTypeCode(SqlTypes.NUMERIC)
-  private Double closePrice;
+  private BigDecimal closePrice;
 
   @Column(name = "fetched_at", nullable = false)
   private ZonedDateTime fetchedAt;
+
+  public void setClosePrice(Double closePrice) {
+    this.closePrice = closePrice == null ? null : BigDecimal.valueOf(closePrice);
+  }
 }

@@ -531,7 +531,8 @@ public class BenchmarkService {
     for (BenchmarkMonthlyClose row :
         benchmarkMonthlyCloseRepository.findBySymbolOrderByMonthDateAsc(BENCHMARK_SYMBOL)) {
       if (row.getMonthDate() != null && row.getClosePrice() != null) {
-        closes.put(YearMonth.from(row.getMonthDate()).toString(), row.getClosePrice());
+        closes.put(
+            YearMonth.from(row.getMonthDate()).toString(), row.getClosePrice().doubleValue());
       }
     }
     return closes;

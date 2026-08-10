@@ -58,8 +58,10 @@ For exact current view names and definitions, inspect `src/main/resources/sql/mi
 `V01.000__Initial_schema.sql` defines the core schema: reference tables, enums, raw ledger tables
 (`accounts`, `positions`, `cash_operations`), import provenance, price/FX tables, and base functions.
 
-`V01.001__Initial_data.sql` and `V01.002__asset_price_history_import.sql` currently seed reference and
-installation-specific data (see data/bootstrap separation below).
+`V01.001__Initial_data.sql` and `V01.002__asset_price_history_import.sql` are empty baseline extension
+points. Installation-specific users, portfolios, accounts, assets, FX observations, source mappings,
+and price observations are loaded explicitly by `scripts/bootstrap-personal-data.sql` or a test fixture;
+they are not required for schema creation.
 
 `V01.003__portfolio_views.sql` contains the production calculation layer: the FX resolver
 `resolve_fx_rate()`, the canonical FX usable-status helper `fx_status_usable()`, production
@@ -72,6 +74,12 @@ those objects in explicit order.
 public naming aliases. `refresh_reconciliation_views()` refreshes reconciliation materializations on
 demand; they are not production refresh dependencies. `V01.005__persisted_system_audit.sql` remains the
 persisted audit subsystem and consumes reconciliation review data.
+
+Application-facing aliases use the `app_v_` prefix. Reconciliation and diagnostic aliases use
+`recon_v_`; neither alias family is a financial source of truth. `accounts.id` is an internal generated
+identity. Broker identifiers are stored in `accounts.external_account_id` and are unique by provider.
+Raw account, position, and cash-ledger history is protected from account or portfolio deletion; derived
+projection rows may be deleted and rebuilt.
 
 ## FX usable-status contract
 

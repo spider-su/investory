@@ -164,7 +164,7 @@ public class AssetCatalogService {
     }
 
     List<Asset> brokerMatches =
-        assetRepository.findAllByIbrkIgnoreCase(ibkrSymbol).stream()
+        assetRepository.findAllByIbkrIgnoreCase(ibkrSymbol).stream()
             .filter(asset -> StringUtils.hasText(asset.getSymbol()))
             .toList();
     if (brokerMatches.size() == 1) {

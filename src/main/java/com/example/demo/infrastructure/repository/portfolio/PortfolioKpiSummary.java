@@ -15,11 +15,13 @@ import lombok.Data;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.Immutable;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
+@Immutable
 @Table(name = "app_v_portfolio_kpi_summary")
 public class PortfolioKpiSummary {
 

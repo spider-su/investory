@@ -29,8 +29,8 @@ public interface AssetPriceHistoryRepository extends Repository<Asset, Long> {
                  aph.estimated as estimated,
                  aph.interpolation_left_date as interpolationLeftDate,
                  aph.interpolation_right_date as interpolationRightDate
-          from v_canonical_asset_daily_price aph
-          join assets a on a.id = aph.asset_id
+          from investory.v_canonical_asset_daily_price aph
+          join investory.assets a on a.id = aph.asset_id
           where a.exclude_from_import = false
             and a.symbol in (:symbols)
             and aph.price_date <= :dateTo
@@ -44,7 +44,7 @@ public interface AssetPriceHistoryRepository extends Repository<Asset, Long> {
   @Query(
       value =
           """
-          insert into asset_price_history (
+          insert into investory.asset_price_history AS aph (
               asset_id,
               price_date,
               source,
@@ -76,7 +76,7 @@ public interface AssetPriceHistoryRepository extends Repository<Asset, Long> {
               :priceDate,
               90,
               CASE WHEN EXISTS (
-                  SELECT 1 FROM assets WHERE id = :assetId AND asset_type = 'BOND'
+                  SELECT 1 FROM investory.assets WHERE id = :assetId AND asset_type = 'BOND'
               ) THEN 'IBKR_TRADE_OBSERVATION_PERCENT_OF_PAR'
                    ELSE 'IBKR_TRADE_OBSERVATION' END,
               true,
@@ -99,7 +99,7 @@ public interface AssetPriceHistoryRepository extends Repository<Asset, Long> {
               is_proxy = excluded.is_proxy,
               price_scale_factor = excluded.price_scale_factor,
               original_source_symbol = excluded.original_source_symbol
-          where excluded.quality_score >= asset_price_history.quality_score
+          where excluded.quality_score >= aph.quality_score
           """,
       nativeQuery = true)
   void upsertIbkrTradeObservation(
@@ -114,7 +114,7 @@ public interface AssetPriceHistoryRepository extends Repository<Asset, Long> {
   @Query(
       value =
           """
-          insert into asset_price_history (
+          insert into investory.asset_price_history AS aph (
               asset_id,
               price_date,
               source,
@@ -166,7 +166,7 @@ public interface AssetPriceHistoryRepository extends Repository<Asset, Long> {
               is_proxy = excluded.is_proxy,
               price_scale_factor = excluded.price_scale_factor,
               original_source_symbol = excluded.original_source_symbol
-          where excluded.quality_score >= asset_price_history.quality_score
+          where excluded.quality_score >= aph.quality_score
           """,
       nativeQuery = true)
   void upsertObservedPrice(
@@ -185,7 +185,7 @@ public interface AssetPriceHistoryRepository extends Repository<Asset, Long> {
   @Query(
       value =
           """
-          insert into asset_price_history (
+          insert into investory.asset_price_history AS aph (
               asset_id,
               price_date,
               source,

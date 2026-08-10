@@ -16,12 +16,14 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.Immutable;
 
 @Data
 @Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
+@Immutable
 @EqualsAndHashCode(of = "accountId")
 @Table(name = "app_v_account_statistics")
 public class AccountStatistics {

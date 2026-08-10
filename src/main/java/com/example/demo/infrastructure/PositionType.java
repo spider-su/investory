@@ -2,19 +2,26 @@ package com.example.demo.infrastructure;
 
 public enum PositionType {
   BUY,
-  SELL,
-  CLOSED,
-  UNKNOWN;
+  SELL;
 
   public static PositionType fromString(String value) {
     if (value == null) {
-      return UNKNOWN;
+      return BUY;
     }
     return switch (value.toUpperCase()) {
       case "BUY" -> BUY;
       case "SELL" -> SELL;
-      case "CLOSED" -> CLOSED;
-      default -> UNKNOWN;
+      default -> BUY;
+    };
+  }
+
+  public static PositionParseState parseState(String value) {
+    if (value == null) return PositionParseState.UNKNOWN;
+    return switch (value.trim().toUpperCase()) {
+      case "BUY" -> PositionParseState.BUY;
+      case "SELL" -> PositionParseState.SELL;
+      case "CLOSED" -> PositionParseState.CLOSED;
+      default -> PositionParseState.UNKNOWN;
     };
   }
 

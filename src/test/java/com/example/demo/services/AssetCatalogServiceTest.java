@@ -86,7 +86,7 @@ class AssetCatalogServiceTest {
   @Test
   void mapIbkrSymbolToCanonicalUsesExistingIbkrMapping() {
     AssetCatalogService service = new AssetCatalogService(assetRepository);
-    when(assetRepository.findAllByIbrkIgnoreCase("IUVL"))
+    when(assetRepository.findAllByIbkrIgnoreCase("IUVL"))
         .thenReturn(List.of(asset("IUVL.UK", "IUVL")));
 
     assertEquals("IUVL.UK", service.mapIbkrSymbolToCanonical("IUVL"));
@@ -96,7 +96,7 @@ class AssetCatalogServiceTest {
   void mapIbkrSymbolToCanonicalUsesExactCanonicalSymbol() {
     AssetCatalogService service = new AssetCatalogService(assetRepository);
     Asset pg = asset("PG.US", "PG");
-    when(assetRepository.findAllByIbrkIgnoreCase("PG.US")).thenReturn(List.of());
+    when(assetRepository.findAllByIbkrIgnoreCase("PG.US")).thenReturn(List.of());
     when(assetRepository.findBySymbol("PG.US")).thenReturn(Optional.of(pg));
 
     assertEquals("PG.US", service.mapIbkrSymbolToCanonical("PG.US"));
@@ -105,7 +105,7 @@ class AssetCatalogServiceTest {
   @Test
   void mapIbkrSymbolToCanonicalUsesUniqueExistingTicker() {
     AssetCatalogService service = new AssetCatalogService(assetRepository);
-    when(assetRepository.findAllByIbrkIgnoreCase("PG")).thenReturn(List.of());
+    when(assetRepository.findAllByIbkrIgnoreCase("PG")).thenReturn(List.of());
     when(assetRepository.findBySymbol("PG")).thenReturn(Optional.empty());
     when(assetRepository.findAllByTickerIn(anyCollection()))
         .thenReturn(List.of(asset("PG.US", "PG")));
@@ -116,7 +116,7 @@ class AssetCatalogServiceTest {
   @Test
   void mapIbkrSymbolToCanonicalRejectsUnknownSymbol() {
     AssetCatalogService service = new AssetCatalogService(assetRepository);
-    when(assetRepository.findAllByIbrkIgnoreCase("PG")).thenReturn(List.of());
+    when(assetRepository.findAllByIbkrIgnoreCase("PG")).thenReturn(List.of());
     when(assetRepository.findBySymbol("PG")).thenReturn(Optional.empty());
     when(assetRepository.findAllByTickerIn(anyCollection())).thenReturn(List.of());
 
@@ -127,7 +127,7 @@ class AssetCatalogServiceTest {
   @Test
   void mapIbkrSymbolToCanonicalRejectsAmbiguousBrokerMapping() {
     AssetCatalogService service = new AssetCatalogService(assetRepository);
-    when(assetRepository.findAllByIbrkIgnoreCase("ABC"))
+    when(assetRepository.findAllByIbkrIgnoreCase("ABC"))
         .thenReturn(List.of(asset("ABC.US", "ABC"), asset("ABC.UK", "ABC")));
 
     assertThrows(

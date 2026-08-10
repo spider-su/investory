@@ -95,10 +95,12 @@ Keep explicit regression coverage for defect classes already observed in this pr
 The testing environment and migration/snapshot split are defined in
 `docs/development/testing.md`.
 
-Reconciliation has a separate SQL boundary. Production calculations live in `V01.002`; independent
-reconstruction and diagnostics live in `V01.008`; persisted audit tables, triggers, and reports live
-in `V01.009`. Normal reporting refresh uses an explicit production-MV order and never refreshes the
-trade-settlement reconciliation MV. Reconciliation refresh is explicit/on demand.
+Reconciliation has a separate SQL boundary. Production calculations live in
+`V01.003__portfolio_views.sql`; independent reconstruction and diagnostics live in
+`V01.004__reconciliation_views.sql`; persisted audit tables, triggers, and reports live in
+`V01.005__persisted_system_audit.sql`. Normal reporting refresh uses an explicit production-MV order
+and never refreshes the trade-settlement reconciliation MV. Reconciliation refresh is explicit/on
+demand. Estimated FX is usable for authoritative conversion; stale and missing FX fail closed.
 
 ## Current tooling
 
