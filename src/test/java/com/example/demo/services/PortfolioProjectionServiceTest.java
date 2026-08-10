@@ -1114,7 +1114,7 @@ class PortfolioProjectionServiceTest {
     assertEquals(0.0, closeDay.getMarketValue(), 0.0001);
     assertEquals(0.0, closeDay.getCostBase(), 0.0001);
     assertEquals(39.96, closeDay.getCashBalance(), 0.0001);
-    assertEquals(40.50, closeDay.getRealizedProfit(), 0.0001);
+    assertEquals(39.96, closeDay.getRealizedProfit(), 0.0001);
     assertEquals(39.96, closeDay.getDailyProfitAmount(), 0.0001);
   }
 

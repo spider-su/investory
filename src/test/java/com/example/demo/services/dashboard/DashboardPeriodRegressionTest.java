@@ -111,7 +111,7 @@ class DashboardPeriodRegressionTest {
     String migration;
     try (var stream =
         getClass()
-            .getResourceAsStream("/sql/migration/V01.002__checks_and_views.sql")) {
+            .getResourceAsStream("/sql/migration/V01.003__portfolio_views.sql")) {
       assertTrue(stream != null, "checks and views migration must be present");
       migration = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
     }
