@@ -55,15 +55,33 @@ For exact current view names and definitions, inspect `src/main/resources/sql/mi
 
 ## SQL migration boundaries
 
-`V01.002__checks_and_views.sql` contains production calculation functions, views, and the seven
-production materialized views: `account_monthly_mv`, `portfolio_monthly_mv`, `account_statistics`,
-`portfolio_kpi_summary`, `portfolio_currency_breakdown`, `portfolio_asset_allocation`, and
-`symbol_performance`. `refresh_reporting_views()` refreshes only those objects in explicit order.
+`V01.000__Initial_schema.sql` defines the core schema: reference tables, enums, raw ledger tables
+(`accounts`, `positions`, `cash_operations`), import provenance, price/FX tables, and base functions.
 
-`V01.004__reconciliation_views.sql` contains read-only reconstruction and diagnostic objects.
-`refresh_reconciliation_views()` refreshes reconciliation materializations on demand; they are not
-production refresh dependencies. `V01.005__persisted_system_audit.sql` remains the persisted audit
-subsystem and consumes reconciliation review data.
+`V01.001__Initial_data.sql` and `V01.002__asset_price_history_import.sql` currently seed reference and
+installation-specific data (see data/bootstrap separation below).
+
+`V01.003__portfolio_views.sql` contains the production calculation layer: the FX resolver
+`resolve_fx_rate()`, the canonical FX usable-status helper `fx_status_usable()`, production
+calculation views, and the seven production materialized views: `account_monthly_mv`,
+`portfolio_monthly_mv`, `account_statistics`, `portfolio_kpi_summary`, `portfolio_currency_breakdown`,
+`portfolio_asset_allocation`, and `symbol_performance`. `refresh_reporting_views()` refreshes only
+those objects in explicit order.
+
+`V01.004__reconciliation_views.sql` contains read-only reconstruction and diagnostic objects and the
+public naming aliases. `refresh_reconciliation_views()` refreshes reconciliation materializations on
+demand; they are not production refresh dependencies. `V01.005__persisted_system_audit.sql` remains the
+persisted audit subsystem and consumes reconciliation review data.
+
+## FX usable-status contract
+
+Authoritative monetary conversion uses a single helper, `investory.fx_status_usable(status)`, defined in
+`V01.003__portfolio_views.sql`. It treats `OK`, `ESTIMATED`, and `SAME_CURRENCY` as usable and
+`STALE`, `MISSING_RATE`, `MISSING_CURRENCY` as not usable. The usable-status list is not duplicated or
+patched after the fact; production views and materialized views call the helper directly. Historical
+interpolation in `resolve_fx_rate()` is bracketed deterministically by the nearest observation strictly
+before and strictly after the valuation date within one source/method series, and only before the
+`fx_configuration.daily_history_start` boundary.
 
 ## Current versus historical prices
 
