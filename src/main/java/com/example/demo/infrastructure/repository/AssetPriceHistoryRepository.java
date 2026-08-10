@@ -278,16 +278,10 @@ public interface AssetPriceHistoryRepository extends Repository<Asset, Long> {
 
     String getPriceOrigin();
 
-    default Boolean getEstimated() {
-      return false;
-    }
+    Boolean getEstimated();
 
-    default LocalDate getInterpolationLeftDate() {
-      return null;
-    }
+    LocalDate getInterpolationLeftDate();
 
-    default LocalDate getInterpolationRightDate() {
-      return null;
-    }
+    LocalDate getInterpolationRightDate();
   }
 }

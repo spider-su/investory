@@ -2,28 +2,25 @@ package com.example.demo.infrastructure.repository;
 
 import java.util.Collection;
 import java.util.List;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.BeanUtils;
+import org.springframework.stereotype.Component;
 
-@Repository
-public interface ClosedPositionRepository extends JpaRepository<ClosedPosition, Long> {
+/** @deprecated Read/write compatibility adapter. Persistence belongs to {@link PositionRepository}. */
+@Deprecated
+@Component
+@RequiredArgsConstructor
+public class ClosedPositionRepository {
+  private final PositionRepository positionRepository;
 
-  @Override
-  @Query("SELECT cp FROM ClosedPosition cp WHERE cp.closeTime IS NOT NULL")
-  List<ClosedPosition> findAll();
+  public List<ClosedPosition> findAll() { return positionRepository.findClosed().stream().map(ClosedPositionRepository::copy).toList(); }
+  public List<ClosedPosition> findAllByAccountIn(Collection<Long> accounts) { return positionRepository.findClosedByAccountIn(accounts).stream().map(ClosedPositionRepository::copy).toList(); }
+  public List<ClosedPosition> findClosedByAssetId(Long assetId) { return positionRepository.findClosedByAssetId(assetId).stream().map(ClosedPositionRepository::copy).toList(); }
+  public void deleteByAccount(Long account) { positionRepository.deleteClosedByAccount(account); }
+  public void flush() { positionRepository.flush(); }
+  public List<ClosedPosition> saveAll(Iterable<ClosedPosition> positions) { List<Position> saved = positionRepository.saveAll(toPositions(positions)); return saved.stream().map(ClosedPositionRepository::copy).toList(); }
 
-  @Query(
-      "SELECT cp FROM ClosedPosition cp WHERE cp.closeTime IS NOT NULL AND cp.account IN :accounts")
-  List<ClosedPosition> findAllByAccountIn(@Param("accounts") Collection<Long> accounts);
-
-  @Query(
-      "SELECT cp FROM ClosedPosition cp WHERE cp.closeTime IS NOT NULL AND cp.assetId = :assetId ORDER BY cp.closeTime DESC")
-  List<ClosedPosition> findClosedByAssetId(@Param("assetId") Long assetId);
-
-  @Modifying
-  @Query("DELETE FROM ClosedPosition cp WHERE cp.closeTime IS NOT NULL AND cp.account = :account")
-  void deleteByAccount(@Param("account") Long account);
+  private static List<Position> toPositions(Iterable<ClosedPosition> positions) { java.util.ArrayList<Position> result = new java.util.ArrayList<>(); positions.forEach(position -> result.add(copyToPosition(position))); return result; }
+  private static Position copyToPosition(ClosedPosition source) { Position target = new Position(); BeanUtils.copyProperties(source, target); return target; }
+  private static ClosedPosition copy(Position source) { ClosedPosition target = new ClosedPosition(); BeanUtils.copyProperties(source, target); return target; }
 }

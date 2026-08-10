@@ -334,8 +334,16 @@ SELECT
         WHEN selected.candidate_method = 'HISTORICAL_MONTHLY'
              AND selected.candidate_rate_source IN ('NBP', 'STATIC_BOOTSTRAP')
              AND p_valuation_date < (SELECT config_value::date FROM investory.fx_configuration WHERE config_key = 'daily_history_start')
-             AND p_valuation_date - selected.candidate_rate_date > 4 THEN 'ESTIMATED'
-        WHEN p_valuation_date - selected.candidate_rate_date > 4 THEN 'STALE'
+             AND p_valuation_date - selected.candidate_rate_date > (
+                 SELECT config_value::integer
+                 FROM investory.fx_configuration
+                 WHERE config_key = 'max_age_days'
+             ) THEN 'ESTIMATED'
+        WHEN p_valuation_date - selected.candidate_rate_date > (
+            SELECT config_value::integer
+            FROM investory.fx_configuration
+            WHERE config_key = 'max_age_days'
+        ) THEN 'STALE'
         ELSE 'OK'
     END::varchar(32)
 FROM (SELECT 1) anchor

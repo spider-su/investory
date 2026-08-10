@@ -32,7 +32,7 @@ jobs:
           cache: maven
 
       - name: Run tests
-        run: mvn --batch-mode --no-transfer-progress test
+        run: mvn --batch-mode --no-transfer-progress verify
 
 #      - name: Check formatting
 #        run: mvn --batch-mode --no-transfer-progress spotless:check

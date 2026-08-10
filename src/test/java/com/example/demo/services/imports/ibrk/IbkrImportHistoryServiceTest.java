@@ -93,7 +93,7 @@ class IbkrImportHistoryServiceTest {
         .when(assetRepository.findAllByTickerIn(org.mockito.ArgumentMatchers.anyCollection()))
         .thenReturn(List.of());
     org.mockito.Mockito.lenient()
-        .when(assetRepository.findAllByIbrkIgnoreCase(org.mockito.ArgumentMatchers.anyString()))
+        .when(assetRepository.findAllByIbkrIgnoreCase(org.mockito.ArgumentMatchers.anyString()))
         .thenAnswer(
             invocation -> {
               String brokerSymbol = invocation.getArgument(0);
@@ -149,7 +149,7 @@ class IbkrImportHistoryServiceTest {
             .assetType("EQUITY")
             .active(true)
             .build();
-    when(assetRepository.findAllByIbrkIgnoreCase("O")).thenReturn(List.of(canonical));
+    when(assetRepository.findAllByIbkrIgnoreCase("O")).thenReturn(List.of(canonical));
 
     String csv =
         String.join(
@@ -176,7 +176,7 @@ class IbkrImportHistoryServiceTest {
   void importStatement_keepsAssetMarkedExcludedFromImport() throws Exception {
     Asset excluded = asset("AIGI.UK");
     excluded.setExcludeFromImport(true);
-    when(assetRepository.findAllByIbrkIgnoreCase("AIGI")).thenReturn(List.of(excluded));
+    when(assetRepository.findAllByIbkrIgnoreCase("AIGI")).thenReturn(List.of(excluded));
     when(assetRepository.findAllBySymbolIn(org.mockito.ArgumentMatchers.anyCollection()))
         .thenReturn(List.of(excluded));
 
@@ -215,7 +215,7 @@ class IbkrImportHistoryServiceTest {
   void importStatement_doesNotNormalizeBondEtfFromTreasuryDescription() throws Exception {
     Asset etf = asset("DTLA.UK");
     etf.setAssetType("ETF");
-    when(assetRepository.findAllByIbrkIgnoreCase("DTLA")).thenReturn(List.of(etf));
+    when(assetRepository.findAllByIbkrIgnoreCase("DTLA")).thenReturn(List.of(etf));
 
     String csv =
         String.join(
@@ -395,7 +395,7 @@ class IbkrImportHistoryServiceTest {
 
   @Test
   void importStatement_rejectsUnknownAssetInsteadOfBootstrapping() throws Exception {
-    when(assetRepository.findAllByIbrkIgnoreCase("NVDA")).thenReturn(List.of());
+    when(assetRepository.findAllByIbkrIgnoreCase("NVDA")).thenReturn(List.of());
 
     String csv =
         String.join(
@@ -460,7 +460,7 @@ class IbkrImportHistoryServiceTest {
             .assetType("ETF")
             .active(true)
             .build();
-    when(assetRepository.findAllByIbrkIgnoreCase("XDWL")).thenReturn(List.of(eurListed));
+    when(assetRepository.findAllByIbkrIgnoreCase("XDWL")).thenReturn(List.of(eurListed));
     when(assetRepository.findAllBySymbolIn(Set.of("XDWL.DE"))).thenReturn(List.of(eurListed));
 
     String csv =
@@ -605,7 +605,7 @@ class IbkrImportHistoryServiceTest {
             .assetType("ETF")
             .active(true)
             .build();
-    when(assetRepository.findAllByIbrkIgnoreCase("IUVL")).thenReturn(List.of(asset));
+    when(assetRepository.findAllByIbkrIgnoreCase("IUVL")).thenReturn(List.of(asset));
     when(assetRepository.findAllBySymbolIn(Set.of("IUVL.UK"))).thenReturn(List.of(asset));
 
     String csv =

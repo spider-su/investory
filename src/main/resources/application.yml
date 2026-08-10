@@ -5,7 +5,7 @@ spring:
       max-request-size: 60MB
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
-    hibernate.ddl-auto: none
+    hibernate.ddl-auto: validate
     generate-ddl: false
     show-sql: false
     open-in-view: false

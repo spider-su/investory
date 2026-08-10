@@ -2049,6 +2049,10 @@ class PortfolioProjectionServiceTest {
       public String getPriceOrigin() {
         return priceOrigin;
       }
+
+      @Override public Boolean getEstimated() { return false; }
+      @Override public LocalDate getInterpolationLeftDate() { return null; }
+      @Override public LocalDate getInterpolationRightDate() { return null; }
     };
   }
 

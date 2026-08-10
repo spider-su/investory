@@ -27,7 +27,7 @@ public class Account {
   @Column(name = "currency", nullable = false, length = 3)
   private CurrencyType currency;
 
-  @Column(name = "provider", nullable = false, length = 7)
+  @Column(name = "provider", nullable = false, length = 32)
   private String provider;
 
   @Column(name = "name", nullable = false, length = 255)

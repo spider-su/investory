@@ -29,7 +29,7 @@ public class ImportHistory {
   private Long id;
 
   @Enumerated(EnumType.STRING)
-  @Column(name = "provider", nullable = false, length = 16)
+  @Column(name = "provider", nullable = false, length = 32)
   private BrokerType broker;
 
   @Column(name = "source_type")

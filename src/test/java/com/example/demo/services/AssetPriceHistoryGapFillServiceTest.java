@@ -336,6 +336,10 @@ class AssetPriceHistoryGapFillServiceTest {
       public String getPriceOrigin() {
         return origin;
       }
+
+      @Override public Boolean getEstimated() { return false; }
+      @Override public LocalDate getInterpolationLeftDate() { return null; }
+      @Override public LocalDate getInterpolationRightDate() { return null; }
     };
   }
 
@@ -410,6 +414,10 @@ class AssetPriceHistoryGapFillServiceTest {
       public String getPriceOrigin() {
         return base.getPriceOrigin();
       }
+
+      @Override public Boolean getEstimated() { return base.getEstimated(); }
+      @Override public LocalDate getInterpolationLeftDate() { return base.getInterpolationLeftDate(); }
+      @Override public LocalDate getInterpolationRightDate() { return base.getInterpolationRightDate(); }
     };
   }
 }

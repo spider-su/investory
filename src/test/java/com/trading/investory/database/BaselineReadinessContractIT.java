@@ -11,12 +11,19 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.stream.Stream;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.testcontainers.containers.PostgreSQLContainer;
 
+@TestMethodOrder(OrderAnnotation.class)
 class BaselineReadinessContractIT {
 
   private static final PostgreSQLContainer<?> POSTGRES =
@@ -30,6 +37,9 @@ class BaselineReadinessContractIT {
     POSTGRES.start();
     Flyway.configure()
         .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
+        .schemas("investory")
+        .defaultSchema("investory")
+        .createSchemas(true)
         .locations("classpath:sql/migration")
         .load()
         .migrate();
@@ -41,10 +51,15 @@ class BaselineReadinessContractIT {
   }
 
   @Test
+  @Order(1)
   void emptyMigrationProducesFinalBaselineContract() throws SQLException {
     try (Connection connection = connection();
         Statement statement = connection.createStatement()) {
-      assertEquals(6, singleInt(statement, "SELECT count(*) FROM public.flyway_schema_history"));
+      assertEquals(
+          migrationScriptCount(),
+          singleInt(
+              statement,
+              "SELECT count(*) FROM investory.flyway_schema_history WHERE success AND version IS NOT NULL"));
       for (String table :
           new String[] {
             "app_users",
@@ -69,6 +84,17 @@ class BaselineReadinessContractIT {
           exists(
               statement,
               "SELECT 1 FROM pg_constraint WHERE conname = 'ux_accounts_provider_external_account'"));
+      for (String table : new String[] {"cash_operations", "positions"}) {
+        assertEquals(
+            1,
+            singleInt(
+                statement,
+                "SELECT count(*) FROM information_schema.columns "
+                    + "WHERE table_schema = 'investory' AND table_name = '"
+                    + table
+                    + "' AND column_name = 'id' AND column_default IS NULL AND is_identity = 'NO'"),
+            table + " IDs must be importer-owned");
+      }
       assertEquals(
           0,
           singleInt(
@@ -121,6 +147,7 @@ class BaselineReadinessContractIT {
   }
 
   @Test
+  @Order(2)
   void resolverUsesNearestHistoricalBracketAndNeutralPrecedence() throws SQLException {
     try (Connection connection = connection();
         Statement statement = connection.createStatement()) {
@@ -161,6 +188,7 @@ class BaselineReadinessContractIT {
   }
 
   @Test
+  @Order(3)
   void rawLedgerDeletionIsRestrictedButDerivedRowsCanBeRemoved() throws SQLException {
     try (Connection connection = connection();
         Statement statement = connection.createStatement()) {
@@ -195,6 +223,7 @@ class BaselineReadinessContractIT {
   }
 
   @Test
+  @Order(4)
   void estimatedCashFxIsIncludedAndKeepsAggregateComplete() throws SQLException {
     try (Connection connection = connection();
         Statement statement = connection.createStatement()) {
@@ -294,6 +323,19 @@ class BaselineReadinessContractIT {
             "SELECT to_regclass('investory." + relation.replace("'", "''") + "') IS NOT NULL")) {
       assertTrue(result.next());
       return result.getBoolean(1);
+    }
+  }
+
+  private static int migrationScriptCount() throws SQLException {
+    try (Stream<Path> files = Files.list(Path.of("src", "main", "resources", "sql", "migration"))) {
+      return (int)
+          files
+              .map(Path::getFileName)
+              .map(Path::toString)
+              .filter(name -> name.matches("^V\\d+\\.\\d+__.*\\.sql$"))
+              .count();
+    } catch (java.io.IOException exception) {
+      throw new SQLException("Cannot list Flyway migrations", exception);
     }
   }
 }
