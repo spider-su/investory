@@ -12,10 +12,10 @@ Resolution order:
 1. same-currency (`rate = 1`),
 2. exact-date `MARKET_DAILY`,
 3. exact-date `IBKR_DAILY_REFERENCE`,
-4. direct/inverse daily edge,
+4. direct/inverse neutral daily edge,
 5. one-hop triangulation,
-6. recent carry-forward,
-7. pre-deployment historical interpolation.
+6. permitted recent carry-forward,
+7. pre-daily-history historical interpolation.
 
 `VALUATION` and `TRANSACTION` are separate resolver purposes. Valuation uses neutral
 market/reference rates. Transaction accounting uses an exact `XTB_EXECUTION` or
@@ -28,10 +28,15 @@ Statuses:
 - `CARRY_FORWARD` is exposed as a method and remains `OK` within the safety window,
 - `STALE` and `MISSING_RATE` are not silently accepted.
 
-Daily history begins at `app.fx.daily-history-start` (default `2026-08-01`). Before
-that boundary, gaps between historical checkpoints may be linearly interpolated and
+Daily history begins at `investory.fx_configuration.daily_history_start` (seeded as
+`2026-08-01`). Before that boundary, gaps between historical checkpoints may be linearly interpolated and
 are marked `ESTIMATED`. After it, missing coverage is stale or missing rather than
 being hidden by an old monthly checkpoint.
+
+The database value `investory.fx_configuration.daily_history_start` is the authoritative
+runtime value for this boundary; application code must resolve through the database contract.
+Execution observations are transaction-only and must match the transaction's local date and
+occur no later than its timestamp.
 
 Fail-closed policy:
 

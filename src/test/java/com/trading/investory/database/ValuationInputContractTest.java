@@ -56,7 +56,7 @@ class ValuationInputContractTest {
         assertEquals(
             0, result.getBigDecimal("fx_rate_to_target").compareTo(new BigDecimal("1.10000000")));
         assertEquals("2098-01-01", result.getDate("source_rate_date").toString());
-        assertEquals("OK", result.getString("conversion_status"));
+        assertEquals("STALE", result.getString("conversion_status"));
       }
     }
   }

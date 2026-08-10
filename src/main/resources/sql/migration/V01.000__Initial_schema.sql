@@ -130,7 +130,7 @@ COMMENT ON COLUMN investory.assets.market_price_usd IS
     'Legacy USD cache for UI/export compatibility. It is not an authoritative valuation input; reporting converts the selected native price exactly once.';
 COMMENT ON COLUMN investory.assets.country IS 'Country used in the broker system, e.g. "US" for United States or "PL" for Poland';
 COMMENT ON COLUMN investory.assets.exclude_from_import IS
-    'When true, exclude this asset from external market-price imports while retaining the asset and its positions.';
+    'When true, retain raw imported rows but exclude the asset and all asset-linked derived valuation, P/L, statistics, reconciliation, and normalized cash calculations.';
 COMMENT ON COLUMN investory.assets.name IS
     'Required canonical instrument display name. Incomplete unnamed assets are rejected by the NOT NULL constraint.';
 COMMENT ON COLUMN investory.assets.symbol IS

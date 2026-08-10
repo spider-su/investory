@@ -52,6 +52,64 @@ WHERE asset_id = (
 COMMENT ON COLUMN investory.assets.symbol IS
     'Canonical asset identity. Direct IBKR fixed-income assets use the security identifier when no exchange ticker exists.';
 
+CREATE OR REPLACE FUNCTION investory.resolve_transaction_fx_rate(
+    p_transaction_time timestamptz,
+    p_source_currency varchar(3),
+    p_target_currency varchar(3),
+    p_purpose varchar(16)
+) RETURNS TABLE (
+    source_currency varchar(3), target_currency varchar(3), fx_rate_to_target numeric,
+    source varchar(64), rate_method varchar(32), rate_source varchar(32),
+    source_rate_date date, age_days integer, conversion_status varchar(32)
+) LANGUAGE sql STABLE AS $$
+WITH selected AS (
+    SELECT er.base::varchar(3) AS source_currency,
+           er.to_currency::varchar(3) AS target_currency,
+           er.rate AS fx_rate_to_target,
+           er.method::varchar(32) AS rate_method,
+           er.source::varchar(32) AS rate_source,
+           er.rate_date AS source_rate_date,
+           0::integer AS age_days,
+           0 AS direction_priority,
+           er.observed_at,
+           er.source_reference
+    FROM investory.exchange_rates er
+    WHERE upper(p_purpose) = 'TRANSACTION'
+      AND er.method IN ('XTB_EXECUTION', 'IBKR_EXECUTION')
+      AND er.rate_date = (p_transaction_time AT TIME ZONE 'Europe/Warsaw')::date
+      AND er.observed_at <= p_transaction_time
+      AND er.base = p_source_currency
+      AND er.to_currency = p_target_currency
+    UNION ALL
+    SELECT er.to_currency::varchar(3), er.base::varchar(3), 1 / er.rate,
+           er.method::varchar(32), er.source::varchar(32), er.rate_date,
+           0::integer, 1, er.observed_at, er.source_reference
+    FROM investory.exchange_rates er
+    WHERE upper(p_purpose) = 'TRANSACTION'
+      AND er.method IN ('XTB_EXECUTION', 'IBKR_EXECUTION')
+      AND er.rate_date = (p_transaction_time AT TIME ZONE 'Europe/Warsaw')::date
+      AND er.observed_at <= p_transaction_time
+      AND er.base = p_target_currency
+      AND er.to_currency = p_source_currency
+    ORDER BY direction_priority, observed_at DESC NULLS LAST, source_reference ASC NULLS LAST
+    LIMIT 1
+)
+SELECT p_source_currency, p_target_currency, 1, 'SAME_CURRENCY', 'SAME_CURRENCY',
+       'SAME_CURRENCY', (p_transaction_time AT TIME ZONE 'Europe/Warsaw')::date, 0, 'SAME_CURRENCY'
+WHERE upper(p_purpose) = 'TRANSACTION' AND p_source_currency = p_target_currency
+UNION ALL
+SELECT s.source_currency, s.target_currency, s.fx_rate_to_target,
+       ('EXECUTION:' || s.rate_source)::varchar(64), s.rate_method, s.rate_source,
+       s.source_rate_date, s.age_days, 'OK'
+FROM selected s
+WHERE upper(p_purpose) = 'TRANSACTION'
+UNION ALL
+SELECT p_source_currency, p_target_currency, NULL, 'MISSING', NULL, NULL, NULL, NULL, 'MISSING_RATE'
+WHERE upper(p_purpose) = 'TRANSACTION'
+  AND p_source_currency <> p_target_currency
+  AND NOT EXISTS (SELECT 1 FROM selected);
+$$;
+
 CREATE OR REPLACE VIEW investory.normalized_cash_operations AS
 WITH classified AS (
     SELECT
@@ -360,18 +418,20 @@ WITH classified AS (
     FROM investory.cash_operations co
     JOIN investory.accounts a ON a.id = co.account_id
     JOIN investory.portfolios p ON p.id = a.portfolio_id
+    LEFT JOIN investory.assets excluded_asset ON excluded_asset.id = co.asset_id
+    WHERE co.asset_id IS NULL OR excluded_asset.exclude_from_import = false
 ), fx AS (
     SELECT
         c.*,
-        CASE WHEN c.is_fx_conversion AND transaction_fx.conversion_status = 'OK'
+        CASE WHEN c.is_fx_conversion
              THEN transaction_fx.fx_rate_to_target ELSE portfolio_fx.fx_rate_to_base END AS fx_rate_to_base,
-        CASE WHEN c.is_fx_conversion AND transaction_fx.conversion_status = 'OK'
+        CASE WHEN c.is_fx_conversion
              THEN transaction_fx.source ELSE portfolio_fx.source END AS portfolio_fx_source,
-        CASE WHEN c.is_fx_conversion AND transaction_fx.conversion_status = 'OK'
+        CASE WHEN c.is_fx_conversion
              THEN transaction_fx.source_rate_date ELSE portfolio_fx.source_rate_date END AS portfolio_source_rate_date,
-        CASE WHEN c.is_fx_conversion AND transaction_fx.conversion_status = 'OK'
+        CASE WHEN c.is_fx_conversion
              THEN transaction_fx.age_days ELSE portfolio_fx.age_days END AS portfolio_fx_age_days,
-        CASE WHEN c.is_fx_conversion AND transaction_fx.conversion_status = 'OK'
+        CASE WHEN c.is_fx_conversion
              THEN transaction_fx.conversion_status ELSE portfolio_fx.conversion_status END AS portfolio_conversion_status,
         account_fx.fx_rate_to_target AS fx_rate_to_account_currency,
         account_fx.source AS account_fx_source,
@@ -389,26 +449,8 @@ WITH classified AS (
         c.currency,
         c.account_currency
     ) account_fx
-    LEFT JOIN LATERAL (
-        SELECT c.execution_fx_rate AS fx_rate_to_target,
-               ('EXECUTION:' || c.execution_fx_source)::varchar(64) AS source,
-               c.execution_fx_observed_at::date AS source_rate_date,
-               0::integer AS age_days,
-               'OK'::varchar(32) AS conversion_status
-        WHERE c.execution_fx_base = c.currency
-          AND c.execution_fx_to_currency = c.base_currency
-          AND c.execution_fx_rate > 0
-        UNION ALL
-        SELECT 1 / c.execution_fx_rate,
-               ('EXECUTION:' || c.execution_fx_source)::varchar(64),
-               c.execution_fx_observed_at::date,
-               0::integer,
-               'OK'::varchar(32)
-        WHERE c.execution_fx_base = c.base_currency
-          AND c.execution_fx_to_currency = c.currency
-          AND c.execution_fx_rate > 0
-        LIMIT 1
-    ) transaction_fx ON true
+    LEFT JOIN LATERAL investory.resolve_transaction_fx_rate(
+        c.date, c.currency, c.base_currency, 'TRANSACTION') transaction_fx ON true
 )
 SELECT
     operation_id,

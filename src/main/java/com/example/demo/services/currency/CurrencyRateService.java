@@ -224,11 +224,40 @@ public class CurrencyRateService {
 
   public FxRateResolution resolveTransactionRate(
       ZonedDateTime transactionTime, CurrencyType sourceCurrency, CurrencyType targetCurrency) {
+    if (transactionTime == null || sourceCurrency == null || targetCurrency == null) {
+      return missingTransactionRate(transactionTime);
+    }
     if (sourceCurrency == targetCurrency) {
       return new FxRateResolution(BigDecimal.ONE.setScale(FX_SCALE), "SAME_CURRENCY", transactionTime.toLocalDate(), 0, "SAME_CURRENCY", "SAME_CURRENCY", "SAME_CURRENCY");
     }
-    return new FxRateResolution(BigDecimal.ZERO.setScale(FX_SCALE), "MISSING", null, null,
-        "MISSING_RATE", null, null);
+    Optional<CurrencyRate> observation =
+        currencyRateRepository.findExecutionRateAtOrBefore(
+            transactionTime, sourceCurrency.name(), targetCurrency.name());
+    if (observation.isEmpty()) {
+      return missingTransactionRate(transactionTime);
+    }
+    CurrencyRate rate = observation.get();
+    boolean direct = rate.getBase() == sourceCurrency && rate.getToCurrency() == targetCurrency;
+    BigDecimal resolvedRate = direct ? rate.getRateValue() : BigDecimal.ONE.divide(rate.getRateValue(), FX_MATH_CONTEXT);
+    return new FxRateResolution(
+        resolvedRate.setScale(FX_SCALE, RoundingMode.HALF_UP),
+        "EXECUTION:" + rate.getSource(),
+        rate.getRateDate(),
+        0,
+        "OK",
+        rate.getMethod(),
+        rate.getSource());
+  }
+
+  private FxRateResolution missingTransactionRate(ZonedDateTime transactionTime) {
+    return new FxRateResolution(
+        BigDecimal.ZERO.setScale(FX_SCALE),
+        "MISSING",
+        null,
+        null,
+        "MISSING_RATE",
+        null,
+        null);
   }
 
   public double getRate(CurrencyType base, CurrencyType toCurrency) {
@@ -307,6 +336,12 @@ public class CurrencyRateService {
 
   private record CachedRate(BigDecimal rate, String method, String source) {}
 
+  public static boolean isUsableStatus(String status) {
+    return "OK".equals(status)
+        || "ESTIMATED".equals(status)
+        || "SAME_CURRENCY".equals(status);
+  }
+
   public record FxRateResolution(
       BigDecimal fxRateToTarget,
       String source,
@@ -314,11 +349,9 @@ public class CurrencyRateService {
       Integer ageDays,
       String conversionStatus,
       String rateMethod,
-      String rateSource) {
+    String rateSource) {
     public boolean isUsable() {
-      return "OK".equals(conversionStatus)
-          || "ESTIMATED".equals(conversionStatus)
-          || "SAME_CURRENCY".equals(conversionStatus);
+      return isUsableStatus(conversionStatus);
     }
   }
 }

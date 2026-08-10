@@ -2,6 +2,7 @@ package com.example.demo.infrastructure.repository;
 
 import com.example.demo.infrastructure.CurrencyType;
 import java.time.LocalDate;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -25,5 +26,25 @@ public interface CurrencyRateRepository extends JpaRepository<CurrencyRate, Long
       LocalDate rateDate, CurrencyType base, CurrencyType toCurrency, String source, String method);
 
   Optional<CurrencyRate> findBySourceReference(String sourceReference);
+
+  @Query(
+      value = """
+          SELECT *
+          FROM investory.exchange_rates
+          WHERE method IN ('XTB_EXECUTION', 'IBKR_EXECUTION')
+            AND rate_date = CAST(:transactionTime AS date)
+            AND observed_at <= :transactionTime
+            AND ((base = :sourceCurrency AND to_currency = :targetCurrency)
+              OR (base = :targetCurrency AND to_currency = :sourceCurrency))
+          ORDER BY CASE WHEN base = :sourceCurrency THEN 0 ELSE 1 END,
+                   observed_at DESC NULLS LAST,
+                   source_reference ASC NULLS LAST
+          LIMIT 1
+          """,
+      nativeQuery = true)
+  Optional<CurrencyRate> findExecutionRateAtOrBefore(
+      @Param("transactionTime") ZonedDateTime transactionTime,
+      @Param("sourceCurrency") String sourceCurrency,
+      @Param("targetCurrency") String targetCurrency);
 
 }

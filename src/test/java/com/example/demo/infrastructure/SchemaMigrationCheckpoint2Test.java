@@ -551,10 +551,10 @@ class SchemaMigrationCheckpoint2Test {
               + largestDifference;
       System.out.println("INCLUDED_RECONCILIATION_SUMMARY " + summary);
       assertEquals(0, missingMultipliers);
-      assertTrue(marketValueMismatches >= 0);
-      assertTrue(costBasisMismatches >= 0);
-      assertTrue(missingPrices >= 0);
-      assertTrue(currencyInconsistencies >= 0);
+      assertEquals(0, marketValueMismatches, summary);
+      assertEquals(0, costBasisMismatches, summary);
+      assertEquals(0, missingPrices, summary);
+      assertEquals(0, currencyInconsistencies, summary);
     }
   }
 
@@ -562,6 +562,45 @@ class SchemaMigrationCheckpoint2Test {
   void excludedAssetsAreAbsentFromValuationAndPriceDiagnostics() throws Exception {
     try (Connection connection = openConnection();
         Statement statement = connection.createStatement()) {
+      long excludedAssetId =
+          singleLong(
+              statement,
+              "SELECT id FROM investory.assets WHERE exclude_from_import ORDER BY id LIMIT 1");
+      String excludedCurrency =
+          singleString(
+              statement,
+              "SELECT currency FROM investory.assets WHERE id = " + excludedAssetId);
+      statement.execute(
+          """
+          insert into investory.cash_operations
+              (id, account_id, operation, asset_id, amount, currency, comment, date)
+          values
+              (-910001, 17959259, 'DIVIDEND', %d, 12.00, '%s', 'excluded dividend', timestamptz '2026-01-02 00:00:00+01:00'),
+              (-910002, 17959259, 'COMMISSION', %d, -1.00, '%s', 'excluded fee', timestamptz '2026-01-02 00:00:01+01:00'),
+              (-910003, 17959259, 'STOCK_PURCHASE', %d, -100.00, '%s', 'excluded trade-linked cash', timestamptz '2026-01-02 00:00:02+01:00'),
+              (-910004, 17959259, 'DEPOSIT', null, 50.00, 'USD', 'account-level deposit', timestamptz '2026-01-02 00:00:03+01:00')
+          """.formatted(
+              excludedAssetId,
+              excludedCurrency,
+              excludedAssetId,
+              excludedCurrency,
+              excludedAssetId,
+              excludedCurrency));
+      assertEquals(
+          4,
+          singleInt(
+              statement,
+              "SELECT count(*) FROM investory.cash_operations WHERE id BETWEEN -910004 AND -910001"));
+      assertEquals(
+          1,
+          singleInt(
+              statement,
+              "SELECT count(*) FROM investory.normalized_cash_operations WHERE operation_id BETWEEN -910004 AND -910001"));
+      assertEquals(
+          1,
+          singleInt(
+              statement,
+              "SELECT count(*) FROM investory.normalized_cash_operations WHERE operation_id = -910004"));
       assertEquals(
           0,
           singleInt(
@@ -838,7 +877,7 @@ class SchemaMigrationCheckpoint2Test {
           """);
 
       assertEquals(
-          "143.93737648",
+          "143.96913302",
           singleString(
               statement,
               """
@@ -1102,7 +1141,7 @@ class SchemaMigrationCheckpoint2Test {
           """
           delete from investory.exchange_rates;
           insert into investory.exchange_rates (rate_date, source, base, to_currency, rate)
-          values (date '2025-01-01', 'TEST', 'USD', 'EUR', 0.8);
+          values (date '2025-01-15', 'TEST', 'USD', 'EUR', 0.8);
 
           insert into investory.portfolios (id, name, base_currency, user_id)
           values (-950001, 'Missing FX portfolio', 'USD', 1);
@@ -1339,8 +1378,8 @@ class SchemaMigrationCheckpoint2Test {
             (-960004, 'USD', 'XTB', 'Mixed currency USD account', 'Test', -96, false);
           insert into investory.exchange_rates (rate_date, source, base, to_currency, rate)
           values
-            ((date_trunc('month', current_date) - interval '1 month')::date, 'TEST', 'PLN', 'USD', 0.25),
-            ((date_trunc('month', current_date) - interval '1 month')::date, 'TEST', 'EUR', 'USD', 1.25);
+            (current_date - interval '1 day', 'TEST', 'PLN', 'USD', 0.25),
+            (current_date - interval '1 day', 'TEST', 'EUR', 'USD', 1.25);
 
           insert into investory.positions (
             id, account_id, asset_id, source_asset_symbol, operation, volume,
@@ -1734,6 +1773,13 @@ class SchemaMigrationCheckpoint2Test {
     try (ResultSet resultSet = statement.executeQuery(sql)) {
       resultSet.next();
       return resultSet.getInt(1);
+    }
+  }
+
+  private static long singleLong(Statement statement, String sql) throws Exception {
+    try (ResultSet resultSet = statement.executeQuery(sql)) {
+      resultSet.next();
+      return resultSet.getLong(1);
     }
   }
 

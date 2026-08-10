@@ -297,7 +297,8 @@ public class XtbImportV2Service {
           parseDouble(cellValue(row, columns.get("Profit/Loss")))
               .or(() -> parseDouble(cellValue(row, columns.get("Gross Profit"))))
               .orElse(null);
-      String product = cellValue(row, columns.get("Product"));
+      String product =
+          firstNonBlank(cellValue(row, columns.get("Category")), cellValue(row, columns.get("Product")));
       String sourcePositionId =
           normalizeSourcePositionId(cellValue(row, columns.get("Position ID")));
       Double openConversionRate =

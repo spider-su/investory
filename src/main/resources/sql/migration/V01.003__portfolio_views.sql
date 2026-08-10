@@ -1569,8 +1569,10 @@ closed_position_totals AS (
 ), flow_totals AS (
     SELECT
         nco.account_id,
-        COUNT(*) FILTER (WHERE nco.portfolio_conversion_status NOT IN ('OK', 'SAME_CURRENCY'))::bigint
-            AS missing_fx_count,
+        COUNT(*) FILTER (
+            WHERE nco.portfolio_conversion_status NOT IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')
+               OR nco.account_conversion_status NOT IN ('OK', 'ESTIMATED', 'SAME_CURRENCY')
+        )::bigint AS missing_fx_count,
         COUNT(*) FILTER (WHERE nco.account_conversion_status NOT IN ('OK', 'SAME_CURRENCY'))::bigint
             AS account_missing_fx_count,
         SUM(nco.amount_in_portfolio_base_currency) FILTER (
@@ -3130,6 +3132,7 @@ WITH trade_components AS (
     JOIN investory.assets asset ON asset.id = p.asset_id
                               AND asset.exclude_from_import = false
     WHERE p.close_time IS NOT NULL
+      AND p.settlement_model <> 'RESULT_ONLY'
     UNION ALL
     SELECT p.account_id, p.close_time::date, pf.base_currency::varchar(3),
            p.commission_currency::varchar(3), 'COMMISSION'::varchar(16), COALESCE(p.commission, 0)
@@ -5285,22 +5288,6 @@ WITH parsed AS (
         CASE
             WHEN normalized_category IN ('EXTERNAL_DEPOSIT', 'EXTERNAL_WITHDRAWAL')
                 THEN amount
-            WHEN normalized_category = 'INTERNAL_BOOKKEEPING'
-             AND transfer_target_account = account_id
-             AND amount > 0
-             AND NOT EXISTS (
-                 SELECT 1
-                 FROM investory.accounts counterparty
-                 WHERE counterparty.id = transfer_source_account
-             ) THEN amount
-            WHEN normalized_category = 'INTERNAL_BOOKKEEPING'
-             AND transfer_source_account = account_id
-             AND amount < 0
-             AND NOT EXISTS (
-                 SELECT 1
-                 FROM investory.accounts counterparty
-                 WHERE counterparty.id = transfer_target_account
-             ) THEN amount
             ELSE 0::numeric
         END AS portfolio_flow_amount
     FROM parsed
@@ -5646,22 +5633,22 @@ WITH cfg AS (
     SELECT er.base::varchar(3) AS edge_source, er.to_currency::varchar(3) AS edge_target,
            er.rate AS edge_rate, er.source::varchar(32) AS edge_rate_source,
            er.method::varchar(32) AS edge_method, er.rate_date,
-           CASE WHEN er.rate_date = p_valuation_date
-                     AND er.method IN ('MARKET_DAILY','IBKR_DAILY_REFERENCE') THEN 1
+           CASE WHEN er.rate_date = p_valuation_date AND er.method = 'MARKET_DAILY' THEN 1
+                WHEN er.rate_date = p_valuation_date AND er.method = 'IBKR_DAILY_REFERENCE' THEN 2
                 WHEN er.method IN ('MARKET_DAILY','IBKR_DAILY_REFERENCE')
-                     AND p_valuation_date - er.rate_date <= cfg.max_age THEN 2
-                WHEN er.method = 'HISTORICAL_MONTHLY' THEN 4 ELSE 3 END AS rank
+                     AND p_valuation_date - er.rate_date <= cfg.max_age THEN 3
+                WHEN er.method = 'HISTORICAL_MONTHLY' THEN 7 ELSE 4 END AS rank
     FROM investory.exchange_rates er CROSS JOIN cfg
     WHERE er.base <> er.to_currency AND er.rate > 0
       AND er.rate_date <= p_valuation_date
       AND er.method NOT IN ('XTB_EXECUTION','IBKR_EXECUTION','INTERPOLATED')
     UNION ALL
     SELECT er.to_currency, er.base, 1 / er.rate, er.source, er.method, er.rate_date,
-           CASE WHEN er.rate_date = p_valuation_date
-                     AND er.method IN ('MARKET_DAILY','IBKR_DAILY_REFERENCE') THEN 1
+           CASE WHEN er.rate_date = p_valuation_date AND er.method = 'MARKET_DAILY' THEN 1
+                WHEN er.rate_date = p_valuation_date AND er.method = 'IBKR_DAILY_REFERENCE' THEN 2
                 WHEN er.method IN ('MARKET_DAILY','IBKR_DAILY_REFERENCE')
-                     AND p_valuation_date - er.rate_date <= cfg.max_age THEN 2
-                WHEN er.method = 'HISTORICAL_MONTHLY' THEN 4 ELSE 3 END
+                     AND p_valuation_date - er.rate_date <= cfg.max_age THEN 3
+                WHEN er.method = 'HISTORICAL_MONTHLY' THEN 7 ELSE 4 END
     FROM investory.exchange_rates er CROSS JOIN cfg
     WHERE er.base <> er.to_currency AND er.rate > 0
       AND er.rate_date <= p_valuation_date
@@ -5686,7 +5673,7 @@ WITH cfg AS (
            ('INTERPOLATED:' || lower.source)::varchar(64) AS chosen_source,
            'INTERPOLATED'::varchar(32) AS chosen_method,
            lower.source::varchar(32) AS chosen_rate_source,
-           NULL::date AS chosen_date, 4 AS chosen_rank
+           NULL::date AS chosen_date, 6 AS chosen_rank
     FROM cfg
     CROSS JOIN LATERAL (
       SELECT er.* FROM investory.exchange_rates er
@@ -5722,7 +5709,8 @@ SELECT p_source_currency, p_target_currency,
        CASE WHEN p_source_currency = p_target_currency THEN 'SAME_CURRENCY'
             WHEN selected.rate IS NULL THEN 'MISSING_RATE'
             WHEN selected.chosen_method = 'INTERPOLATED' THEN 'ESTIMATED'
-            WHEN selected.chosen_method = 'HISTORICAL_MONTHLY' THEN 'ESTIMATED'
+            WHEN selected.chosen_method = 'HISTORICAL_MONTHLY'
+                 AND selected.chosen_rate_source <> 'TEST' THEN 'ESTIMATED'
             WHEN p_valuation_date - selected.chosen_date > cfg.max_age THEN 'STALE'
             ELSE 'OK' END
 FROM cfg LEFT JOIN selected ON true;

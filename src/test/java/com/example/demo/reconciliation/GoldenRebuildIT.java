@@ -14,11 +14,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
+import java.security.MessageDigest;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -46,10 +49,7 @@ class GoldenRebuildIT {
   private static final Set<Long> GOLDEN_ACCOUNTS =
       Set.of(17959259L, 51499241L, 51993106L, 51551301L, 50290466L);
 
-  // The strongest full-history reconciliation gate is intentionally limited to USD accounts.
-  // The reduced PLN fixture keeps only a few real FX observations and is used for semantic checks,
-  // not as a complete historical FX-quality corpus.
-  private static final String CORE_RECON_ACCOUNTS = "17959259,51499241,51993106";
+  private static final String CORE_RECON_ACCOUNTS = "17959259,51499241,51993106,51551301,50290466";
 
   private static final PostgreSQLContainer<?> POSTGRES =
       new PostgreSQLContainer<>("postgres:17-alpine")
@@ -83,6 +83,28 @@ class GoldenRebuildIT {
     registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
     registry.add("spring.datasource.username", POSTGRES::getUsername);
     registry.add("spring.datasource.password", POSTGRES::getPassword);
+  }
+
+  @Test
+  void manifestMatchesEveryGoldenFixture() throws Exception {
+    String manifest = new String(resource("manifest.json").readAllBytes(), StandardCharsets.UTF_8);
+    Matcher matcher = Pattern.compile(
+            "\\\"path\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"\\s*,\\s*\\\"sha256\\\"\\s*:\\s*\\\"([0-9a-f]+)\\\"\\s*,\\s*\\\"size_bytes\\\"\\s*:\\s*(\\d+)")
+        .matcher(manifest);
+    int entries = 0;
+    while (matcher.find()) {
+      entries++;
+      byte[] content;
+      try (InputStream input = resource(matcher.group(1))) {
+        content = input.readAllBytes();
+      }
+      byte[] digest = MessageDigest.getInstance("SHA-256").digest(content);
+      StringBuilder actualHash = new StringBuilder();
+      for (byte value : digest) actualHash.append(String.format("%02x", value));
+      assertEquals(matcher.group(2), actualHash.toString(), matcher.group(1));
+      assertEquals(Long.parseLong(matcher.group(3)), content.length, matcher.group(1));
+    }
+    assertEquals(6, entries);
   }
 
   @Test
@@ -158,14 +180,21 @@ class GoldenRebuildIT {
             insert into investory.exchange_rates(
                 rate_date, base, to_currency, rate,
                 source, method, source_reference
-            ) values (?, ?, ?, ?, 'TEST', 'HISTORICAL_MONTHLY', ?)
+            )
+            select day::date, ?, ?, ?, 'TEST', 'MARKET_DAILY', ? || ':' || day::date
+            from generate_series(
+                ?,
+                (date_trunc('month', ?::date + interval '1 month') - interval '1 day')::date,
+                interval '3 days'
+            ) day
             on conflict do nothing
             """,
-            date,
             base,
             target,
             rate,
-            reference);
+            reference,
+            date,
+            date);
       }
     }
   }
@@ -242,7 +271,9 @@ class GoldenRebuildIT {
     assertClose(10_000.0, number(redemption.get("amount")), 0.000001, "redemption principal");
     assertClose(0.0, number(redemption.get("performance_flow")), 0.000001, "redemption performance flow");
     assertClose(0.0, number(redemption.get("portfolio_flow")), 0.000001, "redemption portfolio flow");
-    assertEquals(LocalDate.of(2026, 2, 27), redemption.get("business_date"));
+    assertEquals(
+        LocalDate.of(2026, 2, 27),
+        ((java.sql.Date) redemption.get("business_date")).toLocalDate());
 
     Double coupon =
         jdbc.queryForObject(

@@ -141,6 +141,18 @@ public class PortfolioProjectionService {
         tickerDaily.keySet().stream()
             .map(key -> new AccountTickerKey(key.accountId(), key.ticker()))
             .collect(Collectors.toSet());
+    Set<AccountTickerKey> resultOnlyTickers =
+        opened.stream()
+            .filter(position -> position.getSettlementModel() == PositionSettlementModel.RESULT_ONLY)
+            .filter(position -> position.getAccount() != null && StringUtils.hasText(position.getSymbol()))
+            .map(position -> new AccountTickerKey(position.getAccount(), position.getSymbol()))
+            .collect(Collectors.toSet());
+    resultOnlyTickers.addAll(
+        closed.stream()
+            .filter(position -> position.getSettlementModel() == PositionSettlementModel.RESULT_ONLY)
+            .filter(position -> position.getAccount() != null && StringUtils.hasText(position.getSymbol()))
+            .map(position -> new AccountTickerKey(position.getAccount(), position.getSymbol()))
+            .collect(Collectors.toSet()));
     List<CanonicalNormalizedCashOperation> normalizedCash =
         loadNormalizedCashOperations(affectedAccounts);
     processCash(
@@ -149,6 +161,7 @@ public class PortfolioProjectionService {
         tickerDaily,
         accountDaily,
         positionValuedTickers,
+        resultOnlyTickers,
         cashOnlyAccounts);
 
     HistoricalPriceBook historicalPrices =
@@ -163,7 +176,9 @@ public class PortfolioProjectionService {
             accountCurrencies,
             portfolioBaseCurrencies,
             now,
-            cashOnlyAccounts);
+            cashOnlyAccounts,
+            opened,
+            closed);
     replaceAccountDerivedRows(accountRows, dirtyFromByAccount);
     rebuildDerivedSummaries();
 
@@ -404,6 +419,7 @@ public class PortfolioProjectionService {
       Map<DayTickerKey, TickerMonthAccumulator> tickerDaily,
       Map<DayAccountKey, AccountMonthAccumulator> accountDaily,
       Set<AccountTickerKey> positionValuedTickers,
+      Set<AccountTickerKey> resultOnlyTickers,
       Set<Long> cashOnlyAccounts) {
     for (CanonicalNormalizedCashOperation normalized : cash) {
       if (normalized.accountId() == null || normalized.normalizedCategory() == null) {
@@ -447,6 +463,12 @@ public class PortfolioProjectionService {
           normalized.accountFlowAmountInPortfolioBaseCurrency(),
           normalized.performanceFlowAmountInPortfolioBaseCurrency(),
           cashOnlyAccounts.contains(normalized.accountId()));
+
+      if (CashOperationType.SWAP.name().equals(normalized.rawOperation())
+          && resultOnlyTickers.contains(
+              new AccountTickerKey(normalized.accountId(), normalized.symbol()))) {
+        accountAcc.realizedProfit += amountBase;
+      }
 
       if (!StringUtils.hasText(normalized.symbol())) {
         continue;
@@ -545,7 +567,9 @@ public class PortfolioProjectionService {
       Map<Long, CurrencyType> accountCurrencies,
       Map<Long, CurrencyType> portfolioBaseCurrencies,
       ZonedDateTime now,
-      Set<Long> cashOnlyAccounts) {
+      Set<Long> cashOnlyAccounts,
+      List<OpenedPosition> opened,
+      List<ClosedPosition> closed) {
     Map<DayAccountKey, AccountMonthAccumulator> aggregated = new HashMap<>(accountDaily);
 
     Map<Long, DayRange> accountRanges = new HashMap<>();
@@ -625,6 +649,15 @@ public class PortfolioProjectionService {
         acc.realizedProfit += tickerAcc.realizedProfit;
         acc.endingMarketValue += marketValue;
         acc.costBase += runningCostBasis;
+      }
+    }
+
+    Map<DayAccountKey, Double> canonicalPositionCosts =
+        canonicalPositionCostsByDay(opened, closed, accountDays, portfolioBaseCurrencies);
+    for (Map.Entry<DayAccountKey, AccountMonthAccumulator> entry : aggregated.entrySet()) {
+      Double canonicalCost = canonicalPositionCosts.get(entry.getKey());
+      if (canonicalCost != null) {
+        entry.getValue().costBase = canonicalCost;
       }
     }
 
@@ -721,6 +754,69 @@ public class PortfolioProjectionService {
     rows.sort(
         Comparator.comparing(AccountDaily::getAccountId).thenComparing(AccountDaily::getDate));
     return rows;
+  }
+
+  private Map<DayAccountKey, Double> canonicalPositionCostsByDay(
+      List<OpenedPosition> opened,
+      List<ClosedPosition> closed,
+      Map<Long, List<LocalDate>> accountDays,
+      Map<Long, CurrencyType> portfolioBaseCurrencies) {
+    Map<DayAccountKey, Double> costs = new HashMap<>();
+    opened.forEach(
+        position ->
+            addCanonicalPositionCost(
+                costs,
+                accountDays,
+                portfolioBaseCurrencies,
+                position.getAccount(),
+                position.getCostCurrency(),
+                position.getPurchaseValue(),
+                position.getVolume(),
+                position.getOpenPrice(),
+                position.getOpenTime() == null ? null : toDate(position.getOpenTime()),
+                null));
+    closed.forEach(
+        position ->
+            addCanonicalPositionCost(
+                costs,
+                accountDays,
+                portfolioBaseCurrencies,
+                position.getAccount(),
+                position.getCostCurrency(),
+                position.getPurchaseValue(),
+                position.getVolume(),
+                position.getOpenPrice(),
+                position.getOpenTime() == null ? null : toDate(position.getOpenTime()),
+                position.getCloseTime() == null ? null : toDate(position.getCloseTime())));
+    return costs;
+  }
+
+  private void addCanonicalPositionCost(
+      Map<DayAccountKey, Double> costs,
+      Map<Long, List<LocalDate>> accountDays,
+      Map<Long, CurrencyType> portfolioBaseCurrencies,
+      Long accountId,
+      CurrencyType costCurrency,
+      Double purchaseValue,
+      Double volume,
+      Double openPrice,
+      LocalDate openDate,
+      LocalDate closeDate) {
+    if (accountId == null || costCurrency == null || openDate == null) {
+      return;
+    }
+    double nativeCost = nz(purchaseValue);
+    if (nativeCost <= EPSILON) {
+      nativeCost = Math.abs(nz(volume)) * nz(openPrice);
+    }
+    double baseCost =
+        convert(nativeCost, baseCurrency(accountId, portfolioBaseCurrencies), costCurrency, openDate);
+    for (LocalDate day : accountDays.getOrDefault(accountId, List.of())) {
+      if (day.isBefore(openDate) || (closeDate != null && !day.isBefore(closeDate))) {
+        continue;
+      }
+      costs.merge(new DayAccountKey(accountId, day), baseCost, Double::sum);
+    }
   }
 
   private void rebuildDerivedSummaries() {
@@ -1021,7 +1117,7 @@ public class PortfolioProjectionService {
     }
 
     private static boolean isUsable(String status) {
-      return "OK".equals(status) || "SAME_CURRENCY".equals(status);
+      return CurrencyRateService.isUsableStatus(status);
     }
   }
 

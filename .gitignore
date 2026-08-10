@@ -5,6 +5,7 @@
 *.xlsx
 *.csv
 *.zip
+!src/test/resources/reconciliation/golden/**
 src/main/resources/application-local.yml
 src/main/resources/application-k3s.yml
 .env
