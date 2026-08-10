@@ -9,7 +9,6 @@ import com.example.demo.services.currency.CurrencyRateService;
 import com.example.demo.services.imports.ImportExecutionResult;
 import com.example.demo.services.imports.ibrk.IbkrImportService;
 import com.example.demo.services.imports.xtb.XtbImportV2Service;
-import com.investory.testsupport.TestDatabaseFixtures;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -74,7 +73,6 @@ class GoldenRebuildIT {
         .locations("classpath:sql/migration")
         .load()
         .migrate();
-    TestDatabaseFixtures.loadPersonalBootstrap(POSTGRES);
   }
 
   @AfterAll
