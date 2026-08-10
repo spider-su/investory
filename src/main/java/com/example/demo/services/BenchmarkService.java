@@ -161,6 +161,8 @@ public class BenchmarkService {
       if (spyBase == null || spyBase == 0.0) {
         return benchmark; // not enough data to compare
       }
+      List<Double> portfolioReturnCurve = canonicalReturnCurve(selectedRows, labels);
+      List<Double> benchmarkReturnValues = benchmarkReturnCurve(labels, closes, spyBase);
 
       List<Benchmark.AccountSeries> accountSeries =
           monthlyRows.stream()
@@ -204,11 +206,13 @@ public class BenchmarkService {
       benchmark.setLabels(labels);
       benchmark.setPortfolioCurve(portfolioCurve);
       benchmark.setBenchmarkCurve(benchmarkCurve);
+      benchmark.setPortfolioReturnCurve(portfolioReturnCurve);
+      benchmark.setBenchmarkReturnCurve(benchmarkReturnValues);
       benchmark.setInvestedCapital(round(investedCapital));
       benchmark.setPortfolioPl(portfolioPl);
       benchmark.setBenchmarkPl(benchmarkPl);
-      benchmark.setPortfolioReturnPct(round(portfolioPl / investedCapital * 100.0));
-      benchmark.setBenchmarkReturnPct(round(benchmarkPl / investedCapital * 100.0));
+      benchmark.setPortfolioReturnPct(last(portfolioReturnCurve));
+      benchmark.setBenchmarkReturnPct(last(benchmarkReturnValues));
       benchmark.setAlpha(
           round(benchmark.getPortfolioReturnPct() - benchmark.getBenchmarkReturnPct()));
       benchmark.setAvailable(true);
@@ -415,6 +419,47 @@ public class BenchmarkService {
     }
     return new Benchmark.AccountValueSeries(
         account.getId(), account.getName(), profitValues, profitPctValues);
+  }
+
+  private List<Double> canonicalReturnCurve(
+      List<AccountMonthlyPerformance> rows, List<String> labels) {
+    List<Double> curve = new ArrayList<>();
+    double factor = 1.0;
+    for (String label : labels) {
+      List<AccountMonthlyPerformance> monthRows =
+          rows.stream().filter(row -> label.equals(YearMonth.from(row.getMonth()).toString())).toList();
+      double capital = monthRows.stream().mapToDouble(row -> nz(row.getStartEquity())).sum();
+      if (capital == 0.0 || monthRows.stream().anyMatch(row -> row.getReturnPct() == null)) {
+        curve.add(null);
+        continue;
+      }
+      double monthReturn =
+          monthRows.stream()
+              .mapToDouble(row -> nz(row.getStartEquity()) * nz(row.getReturnPct()))
+              .sum()
+              / capital;
+      if (monthReturn <= -1.0) {
+        factor = 0.0;
+      } else {
+        factor *= 1.0 + monthReturn;
+      }
+      curve.add(round((factor - 1.0) * 100.0));
+    }
+    return curve;
+  }
+
+  private List<Double> benchmarkReturnCurve(
+      List<String> labels, NavigableMap<String, Double> closes, double baseClose) {
+    return labels.stream()
+        .map(label -> {
+          Double close = exactCloseFor(closes, label);
+          return close == null || baseClose == 0.0 ? null : round((close / baseClose - 1.0) * 100.0);
+        })
+        .toList();
+  }
+
+  private double last(List<Double> values) {
+    return values.isEmpty() || values.getLast() == null ? 0.0 : values.getLast();
   }
 
   private Benchmark.AccountValueSeries sumAccountValueSeries(

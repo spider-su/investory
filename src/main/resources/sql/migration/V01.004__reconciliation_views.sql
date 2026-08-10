@@ -297,6 +297,156 @@ END $$;
 COMMENT ON COLUMN investory.fx_configuration.config_value IS
     'Runtime FX policy value. daily_history_start is the immutable migration boundary used by SQL and Java resolver calls.';
 
+-- Public naming contract: app_v_* is consumed by production application code;
+-- recon_v_* is independent validation or reconciliation output. The original
+-- names remain as compatibility surfaces for existing SQL clients.
+CREATE OR REPLACE FUNCTION investory.refresh_app_views()
+RETURNS VOID AS $$
+BEGIN
+    PERFORM investory.refresh_reporting_views();
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION investory.refresh_recon_views()
+RETURNS VOID AS $$
+BEGIN
+    PERFORM investory.refresh_reconciliation_views();
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION investory.application_display_value(p_value numeric)
+RETURNS numeric
+LANGUAGE sql
+IMMUTABLE
+AS $$
+    SELECT CASE
+        WHEN p_value IS NULL THEN NULL::numeric
+        ELSE ROUND(p_value, 2)
+    END
+$$;
+
+COMMENT ON FUNCTION investory.application_display_value(numeric) IS
+    'Rounds final application-facing monetary values to cents. Canonical tables and derived calculations retain full precision.';
+
+DO $$
+DECLARE
+    alias_row record;
+    select_list text;
+BEGIN
+    FOR alias_row IN
+        SELECT * FROM (VALUES
+            ('app_v_current_asset_price', 'v_current_asset_price'),
+            ('app_v_current_open_position_rows', 'v_current_open_position_rows'),
+            ('app_v_normalized_cash_operations', 'normalized_cash_operations'),
+            ('app_v_normalized_cash_operation_flows', 'normalized_cash_operation_flows'),
+            ('app_v_reconstructed_position_daily', 'v_reconstructed_position_daily'),
+            ('app_v_reconstructed_cash_daily', 'v_reconstructed_cash_daily'),
+            ('app_v_portfolio_daily', 'v_portfolio_daily'),
+            ('app_v_portfolio_daily_fx_rate', 'v_portfolio_daily_fx_rate'),
+            ('app_v_account_monthly', 'account_monthly_mv'),
+            ('app_v_portfolio_monthly', 'portfolio_monthly_mv'),
+            ('app_v_account_statistics', 'account_statistics'),
+            ('app_v_portfolio_kpi_summary', 'portfolio_kpi_summary'),
+            ('app_v_portfolio_currency_breakdown', 'portfolio_currency_breakdown'),
+            ('app_v_portfolio_asset_allocation', 'portfolio_asset_allocation'),
+            ('app_v_symbol_performance', 'symbol_performance'),
+            ('app_v_account_monthly_benchmark', 'account_monthly_benchmark'),
+            ('recon_v_fx', 'v_fx_reconciliation'),
+            ('recon_v_fx_data_quality', 'v_fx_data_quality'),
+            ('recon_v_fx_consistency', 'v_fx_consistency_check'),
+            ('recon_v_account_daily', 'v_account_daily_reconciliation'),
+            ('recon_v_account_monthly_profit', 'reporting_account_monthly_profit_reconciliation'),
+            ('recon_v_account_statistics_vs_daily', 'reporting_account_statistics_vs_daily_reconciliation'),
+            ('recon_v_account_daily_cashflow', 'reporting_account_daily_cashflow_reconciliation'),
+            ('recon_v_trade_settlement', 'reporting_trade_settlement_reconciliation'),
+            ('recon_v_realized_result', 'v_realized_result_reconciliation'),
+            ('recon_v_non_usd_closed_trade', 'v_non_usd_closed_trade_reconciliation'),
+            ('recon_v_position_valuation_validation', 'v_position_valuation_validation'),
+            ('recon_v_reporting_validation_summary', 'v_reporting_validation_summary'),
+            ('recon_v_portfolio_service_fallback', 'v_portfolio_service_fallback_reconciliation'),
+            ('recon_v_portfolio_data_quality', 'v_portfolio_data_quality'),
+            ('recon_v_portfolio_data_quality_issue', 'v_portfolio_data_quality_issue'),
+            ('recon_v_portfolio_data_quality_refresh', 'v_portfolio_data_quality_refresh'),
+            ('recon_v_reporting_monthly_import_review', 'reporting_monthly_import_review'),
+            ('recon_v_asset_identity_issues', 'reporting_asset_identity_issues'),
+            ('recon_v_asset_price_quality_issues', 'reporting_asset_price_quality_issues'),
+            ('recon_v_position_currency_validation', 'v_position_currency_validation'),
+            ('recon_v_position_lot_duplicates', 'reporting_position_lot_duplicates'),
+            ('recon_v_timezone_naive_columns', 'reporting_timezone_naive_columns'),
+            ('recon_v_unsupported_transaction_states', 'reporting_unsupported_transaction_states'),
+            ('recon_v_price_history_contract_issues', 'reporting_price_history_contract_issues')
+        ) AS aliases(alias_name, source_name)
+    LOOP
+        IF to_regclass('investory.' || alias_row.source_name) IS NOT NULL THEN
+            IF alias_row.alias_name IN (
+                'app_v_account_monthly',
+                'app_v_account_monthly_benchmark',
+                'app_v_portfolio_daily',
+                'app_v_portfolio_monthly',
+                'app_v_account_statistics',
+                'app_v_portfolio_kpi_summary',
+                'app_v_portfolio_currency_breakdown',
+                'app_v_portfolio_asset_allocation',
+                'app_v_symbol_performance'
+            ) THEN
+                SELECT string_agg(
+                    CASE
+                        WHEN source_column.attname = ANY (ARRAY[
+                            'cash_balance', 'market_value', 'equity', 'cost_base',
+                            'unrealized_profit', 'realized_profit', 'dividends',
+                            'interest', 'fees', 'taxes', 'deposits', 'withdrawals',
+                            'daily_profit_amount', 'total_profit', 'opening_equity',
+                            'closing_equity', 'total_deposit', 'total_withdrawal',
+                            'net_deposit', 'account_net_deposit',
+                            'converted_cash_subtotal', 'converted_equity_subtotal',
+                            'total_deposits', 'total_withdrawals', 'net_deposits',
+                            'total_cash', 'total_market_value', 'total_equity',
+                            'total_realized_profit', 'total_unrealized_profit',
+                            'total_dividends', 'total_interest', 'total_fees',
+                            'total_taxes', 'amount_local', 'amount_in_base_currency',
+                            'closed_profit', 'withholding_tax', 'cost_basis',
+                            'cost_basis_in_base_currency', 'total_value_in_base_currency',
+                            'unrealized_pl_in_base_currency'
+                        ]) THEN format(
+                            'investory.application_display_value(src.%I) AS %I',
+                            source_column.attname,
+                            source_column.attname)
+                        ELSE format('src.%I', source_column.attname)
+                    END,
+                    ', ' ORDER BY source_column.attnum)
+                INTO select_list
+                FROM pg_attribute source_column
+                JOIN pg_class source_relation
+                    ON source_relation.oid = source_column.attrelid
+                JOIN pg_namespace source_schema
+                    ON source_schema.oid = source_relation.relnamespace
+                WHERE source_schema.nspname = 'investory'
+                  AND source_relation.relname = alias_row.source_name
+                  AND source_column.attnum > 0
+                  AND NOT source_column.attisdropped;
+
+                EXECUTE format(
+                    'CREATE OR REPLACE VIEW investory.%I AS SELECT %s FROM investory.%I src',
+                    alias_row.alias_name,
+                    select_list,
+                    alias_row.source_name);
+            ELSE
+                EXECUTE format(
+                    'CREATE OR REPLACE VIEW investory.%I AS SELECT * FROM investory.%I',
+                    alias_row.alias_name,
+                    alias_row.source_name);
+            END IF;
+            EXECUTE format(
+                'COMMENT ON VIEW investory.%I IS %L',
+                alias_row.alias_name,
+                CASE WHEN alias_row.alias_name LIKE 'app_%'
+                     THEN 'Application-facing derived view. Compatibility source: investory.' || alias_row.source_name
+                     ELSE 'Reconciliation or diagnostic view. Not an application input. Compatibility source: investory.' || alias_row.source_name
+                END);
+        END IF;
+    END LOOP;
+END $$;
+
 -- 1. asset_id is non-null for every row;
 -- 2. every STOOQ row has a valid source_mapping_id;
 -- 3. price_scale_factor and price_currency follow the mapping contract;

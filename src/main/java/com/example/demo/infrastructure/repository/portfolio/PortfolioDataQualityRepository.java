@@ -18,7 +18,7 @@ public class PortfolioDataQualityRepository {
                 + "COUNT(*) FILTER (WHERE a.market_price IS NOT NULL) priced, "
                 + "COUNT(*) FILTER (WHERE a.market_price IS NULL) missing "
                 + "FROM investory.positions x LEFT JOIN investory.assets a ON a.id=x.asset_id WHERE x.close_time IS NULL AND COALESCE(x.volume,0)<>0), "
-                + "s AS (SELECT COUNT(*) total_accounts, COUNT(*) FILTER (WHERE account_id IS NOT NULL) reconciled FROM investory.account_statistics), "
+                + "s AS (SELECT COUNT(*) total_accounts, COUNT(*) FILTER (WHERE account_id IS NOT NULL) reconciled FROM investory.app_v_account_statistics), "
                 + "d AS (SELECT MAX(price_updated_at) latest_price FROM investory.assets), "
                 + "f AS (SELECT MAX(rate_date) latest_fx FROM investory.exchange_rates), "
                 + "i AS (SELECT MAX(finished_at) latest_import FROM investory.import_history WHERE status='COMPLETED'), "
@@ -34,7 +34,7 @@ public class PortfolioDataQualityRepository {
         .createNativeQuery(
             "SELECT issue_type, account_id, asset_id, issue_code, price_age_days, "
                 + "selected_price_date, price_currency, price_quality, price_origin, reconstruction_status, selected_price_history_id "
-                + "FROM investory.v_portfolio_data_quality_issue ORDER BY issue_code, account_id, asset_id LIMIT 100")
+                + "FROM investory.recon_v_portfolio_data_quality_issue ORDER BY issue_code, account_id, asset_id LIMIT 100")
         .getResultList();
   }
 }

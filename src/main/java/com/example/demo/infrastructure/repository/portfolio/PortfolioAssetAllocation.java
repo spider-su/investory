@@ -17,7 +17,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Entity
 @IdClass(PortfolioAssetAllocationId.class)
-@Table(name = "portfolio_asset_allocation")
+@Table(name = "app_v_portfolio_asset_allocation")
 public class PortfolioAssetAllocation {
 
   @Id

@@ -23,7 +23,7 @@ import lombok.Setter;
 @AllArgsConstructor
 @Entity
 @EqualsAndHashCode(of = "accountId")
-@Table(name = "account_statistics")
+@Table(name = "app_v_account_statistics")
 public class AccountStatistics {
 
   @Id

@@ -62,6 +62,15 @@ class MaterializedViewRefreshContractTest {
     try (Connection connection = connection();
         Statement statement = connection.createStatement()) {
       statement.execute("SELECT investory.refresh_reporting_views()");
+      statement.execute("SELECT investory.refresh_app_views()");
+      for (String applicationView :
+          Set.of(
+              "app_v_current_asset_price",
+              "app_v_normalized_cash_operations",
+              "app_v_account_statistics",
+              "app_v_portfolio_kpi_summary")) {
+        assertTrue(relationExists(statement, applicationView), applicationView);
+      }
 
       try (ResultSet result =
           statement.executeQuery(
@@ -106,8 +115,54 @@ class MaterializedViewRefreshContractTest {
         Statement statement = connection.createStatement()) {
       statement.execute("SELECT investory.refresh_reporting_views()");
       statement.execute("SELECT investory.refresh_reconciliation_views()");
+      statement.execute("SELECT investory.refresh_recon_views()");
+      for (String reconciliationView :
+          Set.of("recon_v_fx", "recon_v_account_daily", "recon_v_realized_result")) {
+        assertTrue(relationExists(statement, reconciliationView), reconciliationView);
+      }
       for (String materializedView : RECONCILIATION_MVS) {
         assertTrue(relationExists(statement, materializedView));
+      }
+    }
+  }
+
+  @Test
+  void applicationPresentationRoundingIsSeparateFromReconciliationDecisions() throws SQLException {
+    try (Connection connection = connection();
+        Statement statement = connection.createStatement();
+        ResultSet result =
+            statement.executeQuery(
+                "SELECT investory.application_display_value(123.456), "
+                    + "investory.reconciliation_display_value(123.456), "
+                    + "investory.reconciliation_values_match(100, 100.049), "
+                    + "investory.reconciliation_values_match(100, 100.051)")) {
+      assertTrue(result.next());
+      assertEquals("123.46", result.getBigDecimal(1).toPlainString());
+      assertEquals("123", result.getBigDecimal(2).toPlainString());
+      assertTrue(result.getBoolean(3));
+      assertFalse(result.getBoolean(4));
+    }
+
+    try (Connection connection = connection();
+        Statement statement = connection.createStatement()) {
+      for (String applicationView :
+          Set.of(
+              "app_v_account_monthly",
+              "app_v_account_monthly_benchmark",
+              "app_v_portfolio_daily",
+              "app_v_portfolio_monthly",
+              "app_v_account_statistics",
+              "app_v_portfolio_kpi_summary")) {
+        assertTrue(relationExists(statement, applicationView), applicationView);
+      }
+
+      try (ResultSet result =
+          statement.executeQuery(
+              "SELECT pg_get_viewdef('investory.app_v_account_statistics'::regclass, true), "
+                  + "pg_get_viewdef('investory.app_v_portfolio_monthly'::regclass, true)")) {
+        assertTrue(result.next());
+        assertTrue(result.getString(1).contains("application_display_value"));
+        assertTrue(result.getString(2).contains("application_display_value"));
       }
     }
   }

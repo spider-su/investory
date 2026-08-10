@@ -23,6 +23,10 @@ public class Benchmark {
   /** Cumulative P/L if each account's starting value had tracked SPY, in base USD. */
   private List<Double> benchmarkCurve = new ArrayList<>();
 
+  /** Geometrically linked canonical portfolio and benchmark returns for each label. */
+  private List<Double> portfolioReturnCurve = new ArrayList<>();
+  private List<Double> benchmarkReturnCurve = new ArrayList<>();
+
   private double investedCapital;
   private double portfolioPl;
   private double benchmarkPl;

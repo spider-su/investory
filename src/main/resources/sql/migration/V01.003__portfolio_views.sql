@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS investory.reconciliation_parameters (
 
 INSERT INTO investory.reconciliation_parameters(parameter_name, numeric_value, description)
 VALUES
-    ('reconciliation_reporting_scale', 2, 'Decimal places used for displayed reconciliation values.'),
+    ('reconciliation_reporting_scale', 0, 'Decimal places used for displayed reconciliation values.'),
     ('reconciliation_absolute_tolerance', 0.05, 'Shared absolute monetary tolerance.'),
     ('reconciliation_relative_tolerance', 0.00001, 'Shared relative monetary tolerance.'),
     ('reconciliation_quantity_tolerance', 0.000001, 'Tolerance for signed quantity matching; not a monetary tolerance.'),
@@ -1116,6 +1116,7 @@ WITH month_rows AS (
         ad.fees,
         ad.taxes,
         ad.realized_profit,
+        ad.daily_profit_amount,
         ad.daily_return_pct,
         ad.valuation_currency,
         ROW_NUMBER() OVER (
@@ -1143,6 +1144,7 @@ monthly AS (
         COALESCE(SUM(mr.fees), 0) AS fees,
         COALESCE(SUM(mr.taxes), 0) AS taxes,
         COALESCE(SUM(mr.realized_profit), 0) AS realized_profit,
+        COALESCE(SUM(mr.daily_profit_amount), 0) AS canonical_profit,
         CASE
             WHEN COUNT(mr.daily_return_pct) = 0 THEN NULL::numeric
             -- A day at or below -100% means account ruin for the month.
@@ -1177,13 +1179,7 @@ SELECT
     m.fees,
     m.taxes,
     m.realized_profit,
-    m.closing_equity
-        - COALESCE(
-            LAG(m.closing_equity) OVER (PARTITION BY m.account_id ORDER BY m.month),
-            0
-        )
-        - m.deposits
-        + m.withdrawals AS total_profit,
+        m.canonical_profit AS total_profit,
     m.compounded_monthly_return,
     NOW() AS updated_at
 FROM monthly m
@@ -1215,7 +1211,7 @@ SELECT
     am.fees,
     am.taxes,
     am.realized_profit,
-    am.total_profit AS monthly_boundary_profit,
+    COALESCE(mds.summed_daily_profit, 0) AS canonical_profit,
     COALESCE(mds.summed_daily_profit, 0) AS summed_daily_profit,
     investory.reconciliation_display_value(
         COALESCE(am.closing_equity, 0)
@@ -1223,13 +1219,19 @@ SELECT
         - COALESCE(am.deposits, 0)
         + COALESCE(am.withdrawals, 0)
     ) AS expected_boundary_profit,
-    investory.reconciliation_display_value(am.total_profit
+    investory.reconciliation_display_value(
+        COALESCE(am.closing_equity, 0)
+        - COALESCE(am.opening_equity, 0)
+        - COALESCE(am.deposits, 0)
+        + COALESCE(am.withdrawals, 0)
+    ) AS boundary_profit,
+    investory.reconciliation_display_value(COALESCE(mds.summed_daily_profit, 0)
         - (
             COALESCE(am.closing_equity, 0)
             - COALESCE(am.opening_equity, 0)
             - COALESCE(am.deposits, 0)
             + COALESCE(am.withdrawals, 0)
-        )) AS monthly_vs_boundary_difference,
+        )) AS difference,
     investory.reconciliation_display_value(COALESCE(mds.summed_daily_profit, 0)
         - (
             COALESCE(am.closing_equity, 0)
@@ -1238,7 +1240,7 @@ SELECT
             + COALESCE(am.withdrawals, 0)
         )) AS daily_sum_vs_boundary_difference,
     investory.reconciliation_display_value(investory.reconciliation_effective_tolerance(
-        am.total_profit,
+        COALESCE(mds.summed_daily_profit, 0),
         (
             COALESCE(am.closing_equity, 0)
             - COALESCE(am.opening_equity, 0)
@@ -1257,14 +1259,14 @@ SELECT
     )) AS daily_sum_effective_tolerance,
     CASE
         WHEN NOT investory.reconciliation_values_match(
-            am.total_profit,
+            COALESCE(mds.summed_daily_profit, 0),
             (
                 COALESCE(am.closing_equity, 0)
                 - COALESCE(am.opening_equity, 0)
                 - COALESCE(am.deposits, 0)
                 + COALESCE(am.withdrawals, 0)
             )
-        ) THEN 'MONTHLY_VIEW_MISMATCH'
+        ) THEN 'MISMATCH'
         WHEN NOT investory.reconciliation_values_match(
             COALESCE(mds.summed_daily_profit, 0),
             (
@@ -1285,7 +1287,7 @@ CREATE UNIQUE INDEX ux_mv_reporting_account_monthly_profit_reconciliation_key
     ON investory.reporting_account_monthly_profit_reconciliation(account_id, month);
 
 COMMENT ON MATERIALIZED VIEW investory.reporting_account_monthly_profit_reconciliation IS
-    'Compares monthly profit from month-boundary formula vs summed daily profit for each account and month.';
+    'Canonical profit is summed daily profit. boundary_profit is an independent reconciliation calculation only.';
 
 CREATE OR REPLACE VIEW investory.v_portfolio_daily AS
 WITH account_rows_with_fx AS (
@@ -4794,23 +4796,6 @@ COMMENT ON VIEW investory.reporting_unsupported_transaction_states IS
     'Required review queue for preserved but unsupported or unresolved ledger states. Empty result is expected before trusted reporting; unknown enum labels are rejected directly by PostgreSQL.';
 
 CREATE OR REPLACE VIEW investory.account_monthly_benchmark AS
-WITH portfolio_base_flows AS (
-    SELECT
-        nco.account_id,
-        date_trunc('month', nco.date)::date AS month,
-        SUM(nco.amount_in_portfolio_base_currency) AS net_external_flow
-    FROM investory.normalized_cash_operations nco
-    WHERE nco.normalized_category IN (
-        'EXTERNAL_DEPOSIT',
-        'EXTERNAL_WITHDRAWAL',
-        'INTERNAL_TRANSFER_IN',
-        'INTERNAL_TRANSFER_OUT',
-        'INTERNAL_BOOKKEEPING',
-        'FX_CONVERSION',
-        'CORRECTION'
-    )
-    GROUP BY nco.account_id, date_trunc('month', nco.date)::date
-)
 SELECT
     monthly.account_id,
     monthly.month,
@@ -4826,25 +4811,13 @@ SELECT
     monthly.fees,
     monthly.taxes,
     monthly.realized_profit,
-    monthly.closing_equity
-        - monthly.opening_equity
-        - COALESCE(flows.net_external_flow, 0) AS total_profit,
-    CASE
-        WHEN monthly.opening_equity = 0 THEN NULL::numeric
-        ELSE (
-            monthly.closing_equity
-            - monthly.opening_equity
-            - COALESCE(flows.net_external_flow, 0)
-        ) / monthly.opening_equity
-    END AS compounded_monthly_return,
+    monthly.total_profit,
+    monthly.compounded_monthly_return,
     monthly.updated_at
-FROM investory.account_monthly_mv monthly
-LEFT JOIN portfolio_base_flows flows
-    ON flows.account_id = monthly.account_id
-   AND flows.month = monthly.month;
+FROM investory.account_monthly_mv monthly;
 
 COMMENT ON VIEW investory.account_monthly_benchmark IS
-    'Benchmark-safe monthly account performance. Monthly P/L uses portfolio-base equity minus portfolio-base normalized cash flows, preventing PLN or other account-native amounts from leaking into USD benchmark returns.';
+    'Benchmark monthly account performance projection. Portfolio P/L and return come from account_monthly_mv, whose canonical source is account_daily; boundary equity and flows remain reconciliation data.';
 
 CREATE TABLE investory.materialized_view_refresh_history (
     id                bigserial PRIMARY KEY,

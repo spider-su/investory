@@ -1652,7 +1652,7 @@ class SchemaMigrationCheckpoint2Test {
     try (Connection connection = openConnection();
         Statement statement = connection.createStatement()) {
       assertEquals(
-          "2|0.05000000|0.00001000",
+          "0|0.05000000|0.00001000",
           singleString(
               statement,
               """

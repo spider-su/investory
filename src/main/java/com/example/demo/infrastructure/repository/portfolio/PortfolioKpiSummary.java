@@ -20,7 +20,7 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "portfolio_kpi_summary")
+@Table(name = "app_v_portfolio_kpi_summary")
 public class PortfolioKpiSummary {
 
   @Id

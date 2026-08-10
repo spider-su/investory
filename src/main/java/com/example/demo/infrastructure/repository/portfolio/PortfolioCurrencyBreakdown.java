@@ -17,7 +17,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Entity
 @IdClass(PortfolioCurrencyBreakdownId.class)
-@Table(name = "portfolio_currency_breakdown")
+@Table(name = "app_v_portfolio_currency_breakdown")
 public class PortfolioCurrencyBreakdown {
 
   @Id

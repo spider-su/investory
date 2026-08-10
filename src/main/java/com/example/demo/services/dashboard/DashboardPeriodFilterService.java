@@ -55,13 +55,30 @@ public class DashboardPeriodFilterService {
         List.copyOf(benchmark.getLabels().subList(firstIndex, benchmark.getLabels().size())));
     benchmark.setPortfolioCurve(total.portfolioCurve());
     benchmark.setBenchmarkCurve(total.benchmarkCurve());
+    if (benchmark.getPortfolioReturnCurve().size() == benchmark.getLabels().size()) {
+      benchmark.setPortfolioReturnCurve(
+          new java.util.ArrayList<>(
+              benchmark
+                  .getPortfolioReturnCurve()
+                  .subList(firstIndex, benchmark.getPortfolioReturnCurve().size())));
+    }
+    if (benchmark.getBenchmarkReturnCurve().size() == benchmark.getLabels().size()) {
+      benchmark.setBenchmarkReturnCurve(
+          new java.util.ArrayList<>(
+              benchmark
+                  .getBenchmarkReturnCurve()
+                  .subList(firstIndex, benchmark.getBenchmarkReturnCurve().size())));
+    }
     benchmark.setInvestedCapital(round(total.investedCapital()));
     benchmark.setPortfolioPl(last(total.portfolioCurve()));
     benchmark.setBenchmarkPl(last(total.benchmarkCurve()));
-    benchmark.setPortfolioReturnPct(
-        percent(benchmark.getPortfolioPl(), benchmark.getInvestedCapital()));
-    benchmark.setBenchmarkReturnPct(
-        percent(benchmark.getBenchmarkPl(), benchmark.getInvestedCapital()));
+    if (!benchmark.getPortfolioReturnCurve().isEmpty()) {
+      benchmark.setPortfolioReturnPct(last(benchmark.getPortfolioReturnCurve()));
+      benchmark.setBenchmarkReturnPct(last(benchmark.getBenchmarkReturnCurve()));
+    } else {
+      benchmark.setPortfolioReturnPct(percent(benchmark.getPortfolioPl(), benchmark.getInvestedCapital()));
+      benchmark.setBenchmarkReturnPct(percent(benchmark.getBenchmarkPl(), benchmark.getInvestedCapital()));
+    }
     benchmark.setAlpha(
         round(benchmark.getPortfolioReturnPct() - benchmark.getBenchmarkReturnPct()));
     benchmark.setAccountSeries(

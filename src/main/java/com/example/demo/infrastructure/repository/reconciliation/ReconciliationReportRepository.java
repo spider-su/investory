@@ -71,7 +71,7 @@ public interface ReconciliationReportRepository extends Repository<AccountDaily,
               adr.equity_difference AS "equityDifference",
               adr.cost_base_difference AS "costBaseDifference",
               adr.unrealized_difference AS "unrealizedDifference"
-          FROM investory.v_account_daily_reconciliation adr
+          FROM investory.recon_v_account_daily adr
           JOIN investory.accounts account ON account.id = adr.account_id
           WHERE adr.status <> 'PASS'
           ORDER BY
@@ -91,7 +91,7 @@ public interface ReconciliationReportRepository extends Repository<AccountDaily,
               COUNT(*) FILTER (WHERE adr.status = 'FAIL') AS "failures",
               COUNT(*) FILTER (WHERE adr.status = 'WARN') AS "warnings",
               COUNT(DISTINCT adr.account_id) AS "affectedAccounts"
-          FROM investory.v_account_daily_reconciliation adr
+          FROM investory.recon_v_account_daily adr
           WHERE adr.status <> 'PASS'
           """,
       nativeQuery = true)

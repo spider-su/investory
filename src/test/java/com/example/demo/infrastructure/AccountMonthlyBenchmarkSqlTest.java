@@ -37,34 +37,20 @@ class AccountMonthlyBenchmarkSqlTest {
   }
 
   @Test
-  void scriptKeepsEquityAndCashFlowsInPortfolioBaseCurrency() throws IOException {
+  void scriptDelegatesPerformanceToCanonicalMonthlyProjection() throws IOException {
     String sql = readScript();
 
-    assertTrue(sql.contains("ad.equity * fx.fx_rate_to_base AS equity"));
-    assertTrue(sql.contains("p.base_currency::varchar(3) AS valuation_currency"));
-    assertTrue(sql.contains("equity.valuation_currency::varchar(3) AS valuation_currency"));
-    assertTrue(sql.contains("amount_in_portfolio_base_currency"));
-    assertTrue(sql.contains("'EXTERNAL_DEPOSIT'"));
-    assertTrue(sql.contains("'EXTERNAL_WITHDRAWAL'"));
-
-    assertFalse(sql.contains("p.base_currency::text AS valuation_currency"));
-    assertFalse(sql.contains("amount_in_account_currency"));
-    assertFalse(sql.contains("'FX_CONVERSION'"));
-    assertFalse(sql.contains("'INTERNAL_TRANSFER_IN'"));
-    assertFalse(sql.contains("'INTERNAL_TRANSFER_OUT'"));
-    assertFalse(sql.contains("'INTERNAL_BOOKKEEPING'"));
+    assertTrue(sql.contains("FROM investory.account_monthly_mv monthly"));
+    assertTrue(sql.contains("monthly.*"));
+    assertFalse(sql.contains("closing_equity\n        - opening_equity"));
   }
 
   @Test
-  void scriptCalculatesProfitFromConvertedEquityAndConvertedExternalFlow() throws IOException {
+  void scriptDoesNotRecalculateProfitFromBoundaryEquity() throws IOException {
     String sql = readScript();
 
-    assertTrue(
-        sql.contains(
-            "equity.closing_equity\n        - equity.opening_equity\n        - coalesce(flows.net_external_flow, 0) AS total_profit"));
-    assertTrue(sql.contains("JOIN investory.v_portfolio_daily_fx_rate fx"));
-    assertTrue(sql.contains("fx.source_currency = ad.valuation_currency"));
-    assertTrue(sql.contains("fx.valuation_date = ad.snapshot_date"));
+    assertTrue(sql.contains("account_monthly_mv"));
+    assertFalse(sql.contains("AS total_profit"));
   }
 
   private String readScript() throws IOException {

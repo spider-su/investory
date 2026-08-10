@@ -16,7 +16,7 @@ public class PortfolioFallbackReconciliationRepository {
         .createNativeQuery(
             "SELECT fallback_reconciliation_status, realized_profit_difference, "
                 + "unrealized_profit_difference, dividends_difference, interest_difference "
-                + "FROM investory.v_portfolio_service_fallback_reconciliation")
+                + "FROM investory.recon_v_portfolio_service_fallback")
         .getResultList();
   }
 }

@@ -28,9 +28,9 @@ public interface AccountDailyRepository extends JpaRepository<AccountDaily, Long
   void deleteByAccountIdAndDateGreaterThanEqual(
       @Param("accountId") Long accountId, @Param("date") LocalDate date);
 
-  @Query(value = "SELECT investory.refresh_reporting_views()", nativeQuery = true)
+  @Query(value = "SELECT investory.refresh_app_views()", nativeQuery = true)
   Object refreshReportingViews();
 
-  @Query(value = "SELECT investory.refresh_reconciliation_views()", nativeQuery = true)
+  @Query(value = "SELECT investory.refresh_recon_views()", nativeQuery = true)
   Object refreshReconciliationViews();
 }

@@ -22,7 +22,7 @@ import lombok.Setter;
 @Entity
 @IdClass(AccountMonthlyPerformanceId.class)
 @EqualsAndHashCode(of = {"accountId", "month"})
-@Table(name = "account_monthly_benchmark")
+@Table(name = "app_v_account_monthly_benchmark")
 public class AccountMonthlyPerformance {
 
   @Id

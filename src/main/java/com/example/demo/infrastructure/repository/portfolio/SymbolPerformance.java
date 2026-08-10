@@ -20,7 +20,7 @@ import lombok.Setter;
 @AllArgsConstructor
 @Entity
 @IdClass(SymbolPerformanceId.class)
-@Table(name = "symbol_performance")
+@Table(name = "app_v_symbol_performance")
 public class SymbolPerformance {
 
   @Id

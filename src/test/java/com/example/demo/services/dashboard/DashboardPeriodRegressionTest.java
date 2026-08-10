@@ -122,8 +122,9 @@ class DashboardPeriodRegressionTest {
     assertTrue(benchmarkStart >= 0, "benchmark view must be present");
     assertTrue(benchmarkEnd > benchmarkStart, "benchmark view section must be bounded");
     String benchmarkView = migration.substring(benchmarkStart, benchmarkEnd);
-    assertTrue(benchmarkView.contains("amount_in_portfolio_base_currency"));
-    assertFalse(benchmarkView.contains("amount_in_account_currency"));
+    assertTrue(benchmarkView.contains("monthly.total_profit"));
+    assertTrue(benchmarkView.contains("monthly.compounded_monthly_return"));
+    assertFalse(benchmarkView.contains("closing_equity\n        - monthly.opening_equity"));
   }
 
   private Benchmark benchmark(

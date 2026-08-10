@@ -26,7 +26,7 @@ import lombok.Setter;
 @Entity
 @IdClass(PortfolioMonthlyPerformanceId.class)
 @EqualsAndHashCode(of = {"portfolioId", "month"})
-@Table(name = "portfolio_monthly_mv")
+@Table(name = "app_v_portfolio_monthly")
 public class PortfolioMonthlyPerformance {
 
   @Id

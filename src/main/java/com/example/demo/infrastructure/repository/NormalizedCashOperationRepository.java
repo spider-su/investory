@@ -41,7 +41,7 @@ public interface NormalizedCashOperationRepository extends Repository<CashOperat
               nco.date::date as date,
               min(nco.rate_month) as rateMonth,
               null::double precision as fxRateToBase
-          from investory.normalized_cash_operation_flows nco
+          from investory.app_v_normalized_cash_operation_flows nco
           where nco.account_id in (:accountIds)
             and nco.normalized_category in (
                 'EXTERNAL_DEPOSIT',
@@ -83,7 +83,7 @@ public interface NormalizedCashOperationRepository extends Repository<CashOperat
               nco.date::date as date,
               nco.rate_month as rateMonth,
               nco.fx_rate_to_base as fxRateToBase
-          from investory.normalized_cash_operation_flows nco
+          from investory.app_v_normalized_cash_operation_flows nco
           left join investory.assets asset on asset.id = nco.asset_id
           where nco.account_id in (:accountIds)
           order by nco.account_id, nco.date, nco.operation_id
