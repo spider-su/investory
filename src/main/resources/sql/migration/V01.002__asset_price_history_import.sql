@@ -663,4 +663,79 @@ insert into investory.asset_price_history (asset_id, price_date, source, source_
 ((select id from investory.assets where symbol = 'XOM.US' or ticker = 'XOM' order by case when symbol = 'XOM.US' then 0 else 1 end limit 1), DATE '2025-01-01', 'STOOQ', 'xom.us', 'STOOQ', 'USD', 106.17000000, 107.90000000, 105.78000000, 107.57000000, NULL, 12387756.00000000, false, NULL, NULL, NULL, 1, DATE '2024-12-31', 95, 'EXACT_LISTING_MARKET_CLOSE', true, false, 1.00000000, NULL, 'xom.us'),
 ((select id from investory.assets where symbol = 'XPEV.US' or ticker = 'XPEV' order by case when symbol = 'XPEV.US' then 0 else 1 end limit 1), DATE '2025-01-01', 'STOOQ', 'xpev.us', 'STOOQ', 'USD', 12.04000000, 12.45500000, 11.82000000, 11.82000000, NULL, 6423615.00000000, false, NULL, NULL, NULL, 1, DATE '2024-12-31', 95, 'EXACT_LISTING_MARKET_CLOSE', true, false, 1.00000000, NULL, 'xpev.us'),
 ((select id from investory.assets where symbol = 'XTB.PL' or ticker = 'XTB' order by case when symbol = 'XTB.PL' then 0 else 1 end limit 1), DATE '2025-01-01', 'STOOQ', 'xtb', 'STOOQ', 'PLN', 63.62690000, 65.58050000, 62.99950000, 65.27580000, NULL, 408382.29735140, false, NULL, NULL, NULL, 1, DATE '2025-01-02', 95, 'EXACT_LISTING_MARKET_CLOSE', true, false, 1.00000000, NULL, 'xtb')
-on conflict (asset_id, price_date, source) do nothing;
+ on conflict (asset_id, price_date, source) do nothing;
+
+
+
+-- Price currency contract:
+-- * assets.currency is the native currency of the explicit assets.market_price fallback.
+-- * asset_price_history.price_currency is the currency of close_price after applying
+--   price_scale_factor once.
+-- * asset_source_symbols.price_currency is the expected provider quote currency.
+-- Valuation converts the selected historical/current price directly to its target;
+-- it never normalizes a price through assets.currency first.
+
+-- Rebind provenance after a manual/bulk history load that did not provide the
+-- optional mapping id. The trigger in V01.000 applies the same rule for new rows.
+UPDATE investory.asset_price_history aph
+SET source_mapping_id = ass.id
+FROM investory.asset_source_symbols ass
+WHERE aph.source_mapping_id IS NULL
+  AND ass.asset_id = aph.asset_id
+  AND ass.source = aph.source
+  AND upper(ass.source_symbol) = upper(aph.source_symbol);
+
+-- Legacy bulk imports already multiplied these close prices. Keep the scale at one
+-- so v_current_asset_price and v_normalized_daily_price do not scale twice.
+UPDATE investory.asset_price_history
+SET price_scale_factor = 1
+WHERE scale_reason = 'Normalized Nordic quote currency to USD from trade values'
+  AND price_scale_factor IS DISTINCT FROM 1;
+
+UPDATE investory.asset_price_history aph
+SET open_price = aph.open_price / NULLIF(aph.price_scale_factor, 0),
+    high_price = aph.high_price / NULLIF(aph.price_scale_factor, 0),
+    low_price = aph.low_price / NULLIF(aph.price_scale_factor, 0),
+    close_price = aph.close_price / NULLIF(aph.price_scale_factor, 0),
+    adjusted_close_price =
+        aph.adjusted_close_price / NULLIF(aph.price_scale_factor, 0)
+WHERE aph.source = 'STOOQ'
+  AND aph.price_scale_factor IS DISTINCT FROM 1
+  AND aph.scale_reason IS NOT NULL
+  AND aph.source_mapping_id IS NOT NULL;
+
+-- A scaled price is still denominated in the provider quote currency. Repair
+-- generated history from its bound mapping rather than from account currency or
+-- the canonical asset fallback.
+UPDATE investory.asset_price_history aph
+SET price_currency = ass.price_currency,
+    price_scale_factor = ass.price_scale_factor
+FROM investory.asset_source_symbols ass
+WHERE aph.source_mapping_id = ass.id
+  AND aph.source = 'STOOQ';
+
+-- XTB trade observations are quote-price observations, not cash-ledger rows.
+-- Older generated rows copied the account currency; use the canonical asset
+-- quote currency for all XTB observations without changing broker ledger data.
+UPDATE investory.asset_price_history aph
+SET price_currency = asset.currency
+FROM investory.assets asset
+WHERE aph.asset_id = asset.id
+  AND aph.source IN ('XTB_TRADE_OPEN', 'XTB_TRADE_CLOSE', 'INTERPOLATED_XTB');
+
+UPDATE investory.asset_price_history
+SET open_price = open_price / 10,
+    high_price = high_price / 10,
+    low_price = low_price / 10,
+    close_price = close_price / 10,
+    quality_class = 'STALE_CARRY_FORWARD_PERCENT_OF_PAR',
+    price_scale_factor = 1,
+    scale_reason = 'IBKR direct bond carry-forward quote is percent of par'
+WHERE asset_id = (
+    SELECT id
+    FROM investory.assets
+    WHERE symbol = 'US91282CKB62'
+      AND asset_type = 'BOND'
+)
+  AND source = 'CARRY_FORWARD'
+  AND quality_class NOT LIKE '%PERCENT_OF_PAR%';
