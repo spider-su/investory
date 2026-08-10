@@ -134,7 +134,6 @@ $$ LANGUAGE plpgsql;
 COMMENT ON FUNCTION investory.refresh_reconciliation_views() IS
     'Refreshes reconciliation materialized views on demand. Reconciliation objects are excluded from refresh_reporting_views().';
 
-SELECT investory.refresh_reconciliation_views();
 
 -- These objects were historical compatibility or diagnostic surfaces with no
 -- live production consumer. Do not retain them for test-only references.

@@ -4660,7 +4660,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-SELECT investory.refresh_reporting_views();
 
 -- Portfolio data quality and valuation confidence.
 CREATE OR REPLACE VIEW investory.v_portfolio_data_quality AS

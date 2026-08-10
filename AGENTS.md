@@ -57,6 +57,7 @@ Package-local `README.md` files are authoritative for the code immediately aroun
 
 - Java 25+ and Maven.
 - Common checks: `mvn test`, `mvn clean verify`, `mvn spotless:check`.
+- Use a default 360-second command timeout for Maven builds and tests; increase it for known long integration suites.
 - Local application: `mvn spring-boot:run`.
 - Do not record exact test counts or dependency versions here when they can be read from the build.
 
