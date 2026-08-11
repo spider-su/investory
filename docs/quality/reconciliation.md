@@ -1,0 +1,123 @@
+# Reconciliation and pipeline validation
+
+Goal: validate the Investory pipeline stage by stage and catch economically wrong results, not only
+internally consistent ones.
+
+This is the current validation contract. Historical investigation notes live under `docs/archive/`
+and are not authoritative.
+
+## Pipeline checkpoints
+
+```text
+files
+  -> import
+  -> positions / cash ledger
+  -> prices + FX
+  -> account_daily
+  -> reporting views/materialized views
+  -> dashboard
+  -> secondary adapters
+```
+
+| ID | Boundary | Core invariant |
+| --- | --- | --- |
+| C0 | files -> import history | Every supplied source file is accounted for; completed imports have no unexplained failed rows. |
+| C1 | files -> cash ledger | Counts, amounts, operation classes, currencies, and date coverage reconcile to the source model. |
+| C2 | ledger -> positions | Open/closed quantities, direction, settlement model, and broker reconstruction are correct. |
+| C3 | prices + FX | Required valuation inputs exist and satisfy canonical price/FX contracts. |
+| C4 | `account_daily` | Equity, cash, market value, flows, and investment result reconcile for each account/date. |
+| C5 | reporting layers | Monthly/portfolio summaries equal the lower-level projection and pass economic-truth checks. |
+| C6 | dashboard | Displayed values equal their documented reporting sources within rounding. |
+| C7 | secondary adapters | Ghostfolio, Yahoo export, Telegram, and other adapters agree when they expose the same metric. |
+
+## Economic-truth checks
+
+Internal consistency is insufficient. At minimum validate:
+
+```text
+period investment result ~= change in equity - external flows
+```
+
+with internal transfers/conversions handled according to portfolio scope.
+
+Also check:
+
+- no cash classification creates unexplained profit;
+- account funding flow, performance flow, and portfolio flow remain distinct in daily performance
+  diagnostics;
+- open-position value uses the canonical current/historical pricing rule;
+- result-only positions are not valued at full notional;
+- broker truth is used as an independent oracle where the broker export provides it;
+- missing/stale FX follows `docs/domain/fx-normalization.md`;
+- dashboard and adapter totals trace back to the same reporting lineage.
+
+## Numeric comparison contract
+
+Reconciliation parameters are stored in `investory.reconciliation_parameters` and read by the
+reconciliation views. Monetary status decisions use full precision:
+
+```text
+difference = actual - expected
+effective_tolerance = max(absolute_tolerance,
+                          relative_tolerance * max(abs(expected), abs(actual)))
+PASS when abs(difference) <= effective_tolerance
+```
+
+`reconciliation_reporting_scale` controls display rounding only; rounded values must never decide
+PASS/FAIL. Generic numeric tolerances are separate from named domain anomaly thresholds such as
+carrying-value, market-bridge, reorganization, and price-jump rules.
+
+Classify reconciliation constants before changing them:
+
+- numeric precision/tolerance belongs in `reconciliation_parameters` and uses the shared comparison
+  rule (for example, monetary and quantity tolerances);
+- domain anomaly thresholds stay separately named because they describe suspicious economic events,
+  not insignificant numeric noise (for example, sale-vs-carrying-value outliers over 20%);
+- display limits and data-quality ages are operational/business rules, not numeric comparison
+  tolerances.
+
+## Regression classes
+
+Keep explicit regression coverage for defect classes already observed in this project:
+
+- incomplete source-file import;
+- cross-account currency conversion misclassified as investment flow/profit;
+- inception-period double counting;
+- inconsistent current price sources across projection and allocation surfaces;
+- stale or missing FX treated as valid converted value.
+
+## Automation levels
+
+- **L1 fast**: parser, classifier, and calculation unit/slice tests.
+- **L2 integration**: PostgreSQL-backed import/projection/reporting tests using deterministic fixtures.
+- **L3 reconciliation**: developer/pre-release comparison against broker files and a local database.
+
+The testing environment and migration/snapshot split are defined in
+`docs/development/testing.md`.
+
+Reconciliation has a separate SQL boundary. Production calculations live in
+`V01.005__portfolio_views.sql`; independent reconstruction and diagnostics live in
+`V01.006__reconciliation_views.sql`; persisted audit tables, triggers, and reports live in
+`V01.007__persisted_system_audit.sql`. Normal reporting refresh uses an explicit production-MV order
+and never refreshes the trade-settlement reconciliation MV. Reconciliation refresh is explicit/on
+demand. Estimated FX is usable for authoritative conversion; stale and missing FX fail closed.
+
+## Current tooling
+
+- `tools/ReconRunner.java` enforces C0 completeness for all supplied IBKR/XTB files, implements XTB C1 checks, and checks aggregate IBKR source-to-ledger cash-amount conservation.
+- Shared deterministic portfolio fixtures live under
+  `src/test/java/com/example/demo/testsupport/portfolio`; read the package-local `README.md`.
+- `src/test/manual/api.http` remains a manual API smoke surface.
+
+Do not copy one developer's local account totals, machine paths, database addresses, or a one-time PASS
+result into this document.
+
+## Known gaps
+
+Track implementation gaps in `ROADMAP.md`, not as a growing historical diary here. IBKR C1 currently
+checks aggregate cash-amount conservation only; row counts, operation classes, currencies, and date
+coverage still need fuller source-to-ledger reconciliation. Other notable gaps are automated dashboard
+checkpoint coverage and making the complete golden pipeline a reliable CI gate.
+
+When those ship, update tests/tooling, remove the roadmap item, and record completion in
+`CHANGELOG.md`.
