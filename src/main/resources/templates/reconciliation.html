@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Reconciliation · Investory</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="/favicon.svg" rel="icon" type="image/svg+xml">
+    <link href="/css/tabler.min.css" rel="stylesheet">
+    <link href="/css/main.css" rel="stylesheet">
+    <script src="/js/theme.js"></script>
+</head>
+<body>
+<div class="iv-app iv-report-page">
+    <header class="iv-topbar iv-report-page__topbar">
+        <div class="iv-brand">
+            <div class="iv-brand__content">
+                <div class="iv-brand__title-row">
+                    <h1 class="iv-brand__title">Reconciliation</h1>
+                    <button id="theme-toggle" class="iv-theme-toggle iv-theme-toggle--brand" type="button"
+                            aria-label="Switch to dark mode" aria-pressed="false">
+                        <svg class="iv-theme-toggle__icon iv-theme-toggle__icon--moon" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M20.8 15.2A8.5 8.5 0 0 1 8.8 3.2 8.5 8.5 0 1 0 20.8 15.2Z" fill="currentColor"/>
+                        </svg>
+                        <svg class="iv-theme-toggle__icon iv-theme-toggle__icon--sun" viewBox="0 0 24 24" aria-hidden="true">
+                            <circle cx="12" cy="12" r="4" fill="currentColor"/>
+                            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                </div>
+                <p class="iv-report-page__subtitle">Read-only checks from canonical valuation and account reconciliation views.</p>
+            </div>
+        </div>
+        <div class="iv-topbar__meta">
+            <a class="iv-topbar-action-button iv-badge iv-badge--muted" href="/dashboard">Back to dashboard</a>
+        </div>
+    </header>
+
+    <main class="iv-report-page__content">
+        <div class="iv-section-heading">
+            <div>
+                <div class="iv-section-heading__eyebrow">Data quality</div>
+                <h2>Issues needing review</h2>
+                <p>Position diagnostics and account-day reconciliation mismatches. No data is changed here.</p>
+            </div>
+        </div>
+
+        <section class="iv-grid iv-grid--kpi iv-report-metrics" aria-label="Reconciliation summary">
+            <div class="iv-kpi">
+                <span class="iv-kpi__label">Position issues</span>
+                <strong class="iv-kpi__value" th:text="${report.positionSummary.totalIssues}">0</strong>
+                <span class="iv-kpi__meta"><span th:text="${report.positionSummary.affectedAssets} + ' assets'">0 assets</span><span th:text="${report.positionSummary.affectedAccounts} + ' accounts'">0 accounts</span></span>
+            </div>
+            <div class="iv-kpi">
+                <span class="iv-kpi__label">Position errors</span>
+                <strong class="iv-kpi__value iv-neg" th:text="${report.positionSummary.errors}">0</strong>
+                <span class="iv-kpi__meta"><span th:text="${report.positionSummary.warnings} + ' warnings'">0 warnings</span></span>
+            </div>
+            <div class="iv-kpi">
+                <span class="iv-kpi__label">Account-day issues</span>
+                <strong class="iv-kpi__value" th:text="${report.accountSummary.totalIssues}">0</strong>
+                <span class="iv-kpi__meta"><span th:text="${report.accountSummary.affectedAccounts} + ' accounts'">0 accounts</span></span>
+            </div>
+            <div class="iv-kpi">
+                <span class="iv-kpi__label">Account failures</span>
+                <strong class="iv-kpi__value iv-neg" th:text="${report.accountSummary.failures}">0</strong>
+                <span class="iv-kpi__meta"><span th:text="${report.accountSummary.warnings} + ' warnings'">0 warnings</span></span>
+            </div>
+        </section>
+
+        <section class="iv-card iv-report-card" aria-labelledby="position-issues-title">
+            <div class="iv-card__head">
+                <h3 id="position-issues-title" class="iv-card__title">Position valuation issues</h3>
+                <span class="iv-card__hint">Showing up to 250 highest-priority rows</span>
+            </div>
+            <div class="iv-card__body iv-table-wrap" th:if="${!report.positionIssues.isEmpty()}">
+                <table class="iv-table">
+                    <thead><tr><th>Severity</th><th>Date</th><th>Account</th><th>Asset</th><th>Code</th><th>Expected</th><th>Actual</th><th>Message</th></tr></thead>
+                    <tbody>
+                    <tr th:each="issue : ${report.positionIssues}">
+                        <td><span class="iv-badge" th:classappend="${issue.severity == 'ERROR'} ? ' iv-badge--neg' : ' iv-badge--warn'" th:text="${issue.severity}">WARN</span></td>
+                        <td th:text="${issue.valuationDate}">2026-01-01</td>
+                        <td><span th:text="${issue.accountName}">Account</span><small class="iv-report-table__sub" th:text="${issue.provider + ' · ' + issue.accountId}">XTB · 1</small></td>
+                        <td><a th:href="@{/dashboard/assets/{symbol}(symbol=${issue.symbol})}" th:text="${issue.symbol}">ASSET</a></td>
+                        <td th:text="${issue.validationCode}">PRICE_RATIO_100X</td>
+                        <td th:text="${issue.expectedValue}">0</td>
+                        <td th:text="${issue.actualValue}">0</td>
+                        <td th:text="${issue.message}">Diagnostic message</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="iv-empty" th:if="${report.positionIssues.isEmpty()}">No position valuation issues.</div>
+        </section>
+
+        <section class="iv-card iv-report-card" aria-labelledby="account-issues-title">
+            <div class="iv-card__head">
+                <h3 id="account-issues-title" class="iv-card__title">Account-day reconciliation issues</h3>
+                <span class="iv-card__hint">Showing up to 250 highest-priority rows</span>
+            </div>
+            <div class="iv-card__body iv-table-wrap" th:if="${!report.accountIssues.isEmpty()}">
+                <table class="iv-table">
+                    <thead><tr><th>Status</th><th>Date</th><th>Account</th><th>Message</th><th>Market Δ</th><th>Cash Δ</th><th>Equity Δ</th></tr></thead>
+                    <tbody>
+                    <tr th:each="issue : ${report.accountIssues}">
+                        <td><span class="iv-badge" th:classappend="${issue.status == 'FAIL'} ? ' iv-badge--neg' : ' iv-badge--warn'" th:text="${issue.status}">FAIL</span></td>
+                        <td th:text="${issue.valuationDate}">2026-01-01</td>
+                        <td><span th:text="${issue.accountName}">Account</span><small class="iv-report-table__sub" th:text="${issue.provider + ' · ' + issue.accountId}">XTB · 1</small></td>
+                        <td th:text="${issue.validationMessage}">Market mismatch</td>
+                        <td th:text="${issue.marketValueDifference}">0</td>
+                        <td th:text="${issue.cashDifference}">0</td>
+                        <td th:text="${issue.equityDifference}">0</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="iv-empty" th:if="${report.accountIssues.isEmpty()}">No account-day reconciliation issues.</div>
+        </section>
+    </main>
+</div>
+</body>
+</html>

@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  thymeleaf:
+    cache: true
+
+app:
+  security:
+    admin-username: ${APP_SECURITY_ADMIN_USERNAME}
+    admin-password: ${APP_SECURITY_ADMIN_PASSWORD}
+    user-username: ${APP_SECURITY_USER_USERNAME}
+    user-password: ${APP_SECURITY_USER_PASSWORD}
+  notifications:
+    enabled: true
+

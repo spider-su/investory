@@ -1,0 +1,22 @@
+model = "gpt-5.6-luna"
+
+# Biggest reasoning-token control.
+model_reasoning_effort = "medium"
+
+# Keep final responses short.
+model_verbosity = "low"
+
+# Don't spend output on conversational style.
+personality = "none"
+
+# Optional: prevents accidentally huge AGENTS.md context.
+project_doc_max_bytes = 12000
+
+approval_policy = "never"
+sandbox_mode = "workspace-write"
+
+[windows]
+sandbox = "unelevated"
+
+[sandbox_workspace_write]
+network_access = true
