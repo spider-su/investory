@@ -350,7 +350,7 @@ CREATE TABLE investory.fx_configuration (
     config_value varchar(64) NOT NULL
 );
 INSERT INTO investory.fx_configuration(config_key, config_value) VALUES
-    ('daily_history_start', '2026-08-01'),
+    ('daily_history_start', '9999-12-31'),
     ('max_age_days', '4');
 
 CREATE TYPE investory.cash_operation_type AS ENUM (

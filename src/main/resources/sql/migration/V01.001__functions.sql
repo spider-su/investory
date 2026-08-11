@@ -359,6 +359,42 @@ FROM (SELECT 1) anchor
 LEFT JOIN selected ON true
 $$;
 
+CREATE OR REPLACE FUNCTION investory.fx_daily_coverage_supported(p_start_date date)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT NOT EXISTS (
+        SELECT 1
+        FROM investory.currencies c
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM investory.exchange_rates er
+            WHERE er.rate_date = p_start_date
+              AND er.method IN ('MARKET_DAILY', 'IBKR_DAILY_REFERENCE')
+              AND er.rate > 0
+              AND (er.base = c.id OR er.to_currency = c.id)
+        )
+    );
+$$;
+
+CREATE OR REPLACE FUNCTION investory.validate_daily_history_start()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF NEW.config_key = 'daily_history_start'
+       AND NEW.config_value::date < DATE '9999-12-31'
+       AND NOT investory.fx_daily_coverage_supported(NEW.config_value::date) THEN
+        RAISE EXCEPTION 'daily_history_start % precedes supported neutral daily FX coverage', NEW.config_value;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION investory.fx_daily_coverage_supported(date) IS
+    'True only when every configured currency participates in neutral daily/reference FX on the proposed boundary date.';
+
 COMMENT ON FUNCTION investory.resolve_fx_rate(date, varchar, varchar) IS
     'Canonical valuation FX resolver. Market daily and IBKR reference rates outrank broker execution rates. Historical gaps are explicitly estimated.';
 
