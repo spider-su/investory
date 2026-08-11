@@ -1,0 +1,1528 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Investory — Portfolio Intelligence</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="/favicon.svg" rel="icon" type="image/svg+xml">
+    <link href="/css/tabler.min.css" rel="stylesheet">
+    <link href="/css/main.css" rel="stylesheet">
+    <script src="/js/theme.js"></script>
+</head>
+
+<body>
+<div class="iv-app">
+    <!-- Topbar -->
+    <header class="iv-topbar">
+        <div class="iv-brand">
+            <div class="iv-brand__content">
+                <div class="iv-brand__title-row">
+                    <h1 class="iv-brand__title">Investory</h1>
+                    <button id="theme-toggle" class="iv-theme-toggle iv-theme-toggle--brand" type="button"
+                            aria-label="Switch to dark mode" title="Switch to dark mode">
+                        <svg class="iv-theme-toggle__icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <circle cx="12" cy="12" r="8"></circle>
+                            <path d="M12 4a8 8 0 0 0 0 16z"
+                                  fill="currentColor" stroke="none"></path>
+                        </svg>
+                    </button>
+                </div>
+                <nav class="iv-period-nav" aria-label="Dashboard period">
+                    <span>Period</span>
+                    <a th:each="periodOption : ${periods}"
+                       th:if="${periodOption.urlValue() != '3Y'}"
+                       th:href="@{/dashboard(period=${periodOption.urlValue()})}"
+                       th:text="${periodOption.label()}"
+                       th:class="${periodOption == selectedPeriod}
+                           ? 'iv-badge iv-badge--selected'
+                           : 'iv-badge iv-badge--muted'"
+                       th:attr="aria-current=${periodOption == selectedPeriod} ? 'page' : null">
+                        1Y
+                    </a>
+                </nav>
+            </div>
+        </div>
+        <div class="iv-topbar-summary">
+            <details id="cash-flows" class="iv-brand__summary iv-cash-flow-popover">
+                <summary class="iv-brand__summary-block">
+                    <span class="iv-brand__summary-row">
+                        <span class="iv-cash-flow-violet"
+                              th:text="${#numbers.formatDecimal(stats.netDeposits, 1, 'POINT', 0, 'COMMA')}">0</span>
+                        <span class="iv-topbar-metric__label">INVESTED</span>
+                    </span>
+                </summary>
+                <div class="iv-balance-popover__panel">
+                    <div class="iv-brand__summary-row">
+                        <span>Deposits</span>
+                        <span class="iv-cash-flow-green"
+                              th:text="${#numbers.formatDecimal(stats.deposits, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
+                    </div>
+                    <div class="iv-brand__summary-row">
+                        <span>Withdrawals</span>
+                        <span class="iv-cash-flow-red"
+                              th:text="${#numbers.formatDecimal(stats.withdrawals, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
+                    </div>
+                    <div class="iv-brand__summary-row">
+                        <span>Available cash</span>
+                        <span class="iv-cash-flow-violet"
+                              th:text="${#numbers.formatDecimal(stats.cash, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
+                    </div>
+                </div>
+            </details>
+
+            <div id="investment-gain" class="iv-kpi iv-kpi--popover"
+                 th:with="gainPct=${stats.netDeposits > 0 ? stats.totalProfit * 100.0 / stats.netDeposits : null}">
+                <div class="iv-kpi__value-row"
+                     th:classappend="${stats.totalProfit >= 0} ? 'iv-pos' : 'iv-neg'">
+                    <span class="iv-topbar-metric__label"
+                          th:text="${stats.totalProfit >= 0 ? 'PROFIT' : 'LOSS'}">PROFIT</span>
+                    <span class="iv-kpi__value"
+                          th:text="${#numbers.formatDecimal(stats.totalProfit, 1, 'POINT', 0, 'COMMA')}">0</span>
+                    <span class="iv-kpi__percent"
+                          th:if="${gainPct != null}"
+                          th:text="'(' + ${(gainPct >= 0 ? '+' : '') + #numbers.formatDecimal(gainPct, 1, 'POINT', 2, 'COMMA')} + '%)'">(+0,00%)</span>
+                </div>
+            </div>
+
+            <div class="iv-balance">
+            <span class="iv-balance__value"
+                  th:text="${#numbers.formatDecimal(stats.balance, 1, 'POINT', 0, 'COMMA')}">0</span>
+            <span class="iv-balance__label iv-topbar-metric__label">BALANCE</span>
+            <div class="iv-trust-line" aria-label="Portfolio data quality">
+            </div>
+            <details id="data-quality" class="iv-balance-popover iv-data-quality-popover">
+                <summary class="iv-balance-popover__trigger"
+                         th:classappend="${stats.dataQuality.state == 'HEALTHY'} ? ' iv-badge--pos' : (${stats.dataQuality.state == 'CRITICAL'} ? ' iv-badge--neg' : ' iv-badge--muted')"
+                         th:text="'Valuation confidence: ' + ${stats.dataQuality.state}">Valuation confidence: HEALTHY</summary>
+                <div class="iv-balance-popover__panel">
+                    <div class="iv-position-popover__row"><span>Accounts reconciled</span><span th:text="${stats.dataQuality.reconciledAccounts} + '/' + ${stats.dataQuality.totalAccounts}">0/0</span></div>
+                    <div class="iv-position-popover__row"><span>Open positions priced</span><span th:text="${stats.dataQuality.pricedOpenPositions} + '/' + ${stats.dataQuality.totalOpenPositions}">0/0</span></div>
+                    <div class="iv-position-popover__row"><span>Missing prices</span><span th:text="${stats.dataQuality.missingPriceCount}">0</span></div>
+                    <div class="iv-position-popover__row"><span>Stale prices (&gt;10 days)</span><span th:text="${stats.dataQuality.stalePriceCount}">0</span></div>
+                    <div class="iv-position-popover__row"><span>Proxy prices</span><span th:text="${stats.dataQuality.proxyPriceCount}">0</span></div>
+                    <div class="iv-position-popover__row"><span>Estimated prices</span><span th:text="${stats.dataQuality.estimatedPriceCount}">0</span></div>
+                    <div class="iv-position-popover__row"><span>Missing FX</span><span th:text="${stats.dataQuality.missingFxCount}">0</span></div>
+                    <div class="iv-position-popover__row"><span>Ambiguous cost currency</span><span th:text="${stats.dataQuality.ambiguousCostBasisCurrencyCount}">0</span></div>
+                    <div class="iv-position-popover__row"><span>Unclassified cash operations</span><span th:text="${stats.dataQuality.unclassifiedCashOperationCount}">0</span></div>
+                    <div class="iv-position-popover__row"><span>Prices as of</span><span th:text="${stats.dataQuality.latestPriceDate}">-</span></div>
+                    <div class="iv-position-popover__row"><span>FX month</span><span th:text="${stats.dataQuality.latestFxMonth}">-</span></div>
+                    <div class="iv-position-popover__row"><span>Reporting refresh</span><span th:text="${stats.dataQuality.latestReportingRefreshAt}">-</span></div>
+                    <div class="iv-position-popover__row iv-balance-popover__row--head"><span>Warnings</span><span>Details</span></div>
+                    <div class="iv-position-popover__row" th:each="issue : ${stats.dataQuality.issues}">
+                        <span th:text="${issue.code + ' · ' + issue.assetId}">STALE_PRICE · AAPL.US</span>
+                        <span th:text="${issue.priceDate + ' · ' + issue.priceQuality + ' · ' + issue.priceAgeDays + ' days'}">-</span>
+                    </div>
+                </div>
+            </details>
+            <details id="view-accounts" class="iv-balance-popover" th:if="${stats.accountBalances != null}">
+                <summary class="iv-balance-popover__trigger">View accounts</summary>
+                <div class="iv-balance-popover__panel iv-sortable-grid">
+                    <div class="iv-balance-popover__row iv-balance-popover__row--head">
+                        <button type="button" class="iv-sort-button" data-sort-key="account">Account</button>
+                        <button type="button" class="iv-sort-button" data-sort-key="name">Name</button>
+                        <button type="button" class="iv-sort-button" data-sort-key="deposit">Net deposit</button>
+                        <button type="button" class="iv-sort-button" data-sort-key="balance">Balance</button>
+                        <button type="button" class="iv-sort-button" data-sort-key="profit">Profit</button>
+                        <button type="button" class="iv-sort-button" data-sort-key="pl">P/L</button>
+                        <button type="button" class="iv-sort-button" data-sort-key="cash">Cash</button>
+                    </div>
+                    <div class="iv-balance-popover__row"
+                         th:each="account : ${stats.accountBalances}"
+                         data-sort-row
+                         th:attr="data-sort-account=${account.accountId},data-sort-name=${account.accountName},data-sort-deposit=${account.baseNetDeposit},data-sort-balance=${account.balance},data-sort-profit=${account.profit},data-sort-pl=${account.profitLossPercent},data-sort-cash=${account.cash}">
+                        <span th:text="${account.accountId}">0</span>
+                        <span th:text="${account.accountName}">Account</span>
+                        <span>
+                            <span th:text="${account.baseNetDeposit == null ? '-' : #numbers.formatDecimal(account.baseNetDeposit, 1, 'POINT', 0, 'COMMA') + ' $'}">0 $</span>
+                            <span class="iv-balance-popover__local"
+                                  th:if="${account.netDeposit != null and account.localCurrency != T(com.example.demo.infrastructure.CurrencyType).USD}"
+                                  th:text="'(' + ${#numbers.formatDecimal(account.netDeposit, 1, 'POINT', 0, 'COMMA')} + ' ' + ${account.localCurrency} + ')'">(0 PLN)</span>
+                        </span>
+                        <span>
+                            <span th:text="${#numbers.formatDecimal(account.balance, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
+                            <span class="iv-balance-popover__local"
+                                  th:if="${account.localBalance != null and account.localCurrency != T(com.example.demo.infrastructure.CurrencyType).USD}"
+                                  th:text="'(' + ${#numbers.formatDecimal(account.localBalance, 1, 'POINT', 0, 'COMMA')} + ' ' + ${account.localCurrency} + ')'">(0 PLN)</span>
+                        </span>
+                        <span>
+                            <span th:classappend="${account.profit >= 0} ? 'iv-pos' : 'iv-neg'"
+                                  th:text="${#numbers.formatDecimal(account.profit, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
+                            <span class="iv-balance-popover__local"
+                                  th:if="${account.localCurrency != T(com.example.demo.infrastructure.CurrencyType).USD}"
+                                  th:text="'(' + ${#numbers.formatDecimal(account.localProfit, 1, 'POINT', 0, 'COMMA')} + ' ' + ${account.localCurrency} + ')'">(0 PLN)</span>
+                        </span>
+                        <span th:classappend="${account.profitLossPercent != null and account.profitLossPercent >= 0} ? 'iv-pos' : (${account.profitLossPercent != null} ? 'iv-neg' : '')"
+                              th:text="${account.profitLossPercent == null ? '-' : #numbers.formatDecimal(account.profitLossPercent, 1, 'NONE', 1, 'COMMA') + '%'}">0%</span>
+                        <span>
+                            <span th:text="${#numbers.formatDecimal(account.cash, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
+                            <span class="iv-balance-popover__local"
+                                  th:if="${account.localCash != null and account.localCurrency != T(com.example.demo.infrastructure.CurrencyType).USD}"
+                                  th:text="'(' + ${#numbers.formatDecimal(account.localCash, 1, 'POINT', 0, 'COMMA')} + ' ' + ${account.localCurrency} + ')'">(0 PLN)</span>
+                        </span>
+                    </div>
+                    <div class="iv-balance-popover__row iv-balance-popover__row--total"
+                         th:if="${stats.accountBalancesTotal != null}">
+                        <span></span>
+                        <span th:text="${stats.accountBalancesTotal.accountName}">Total</span>
+                        <span th:text="${#numbers.formatDecimal(stats.accountBalancesTotal.baseNetDeposit, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
+                        <span th:text="${#numbers.formatDecimal(stats.accountBalancesTotal.balance, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
+                        <span th:text="${#numbers.formatDecimal(stats.accountBalancesTotal.profit, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
+                        <span class="iv-balance-popover__total-return"
+                              th:classappend="${stats.accountBalancesTotal.profitLossPercent != null and stats.accountBalancesTotal.profitLossPercent < 0} ? ' iv-neg' : ' iv-pos'"
+                              th:text="${stats.accountBalancesTotal.profitLossPercent == null ? '-' : #numbers.formatDecimal(stats.accountBalancesTotal.profitLossPercent, 1, 'NONE', 1, 'COMMA') + '%'}">0%</span>
+                        <span th:text="${#numbers.formatDecimal(stats.accountBalancesTotal.cash, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
+                    </div>
+                </div>
+            </details>
+        </div>
+        </div>
+        <div class="iv-topbar__meta">
+            <div class="iv-topbar__toolbar">
+                <details class="iv-balance-popover iv-topbar-fx-popover">
+                    <summary class="iv-topbar-fx-popover__trigger">
+                        Base USD <span class="iv-info-icon" aria-hidden="true">i</span>
+                    </summary>
+                    <div class="iv-balance-popover__panel iv-topbar-fx-popover__panel">
+                        <div class="iv-position-popover__row iv-dividend-popover__row iv-balance-popover__row--head">
+                            <span>Currency</span>
+                            <span>Rate</span>
+                        </div>
+                        <div class="iv-position-popover__row iv-dividend-popover__row"
+                             th:if="${stats.exchangeRates.get(T(com.example.demo.infrastructure.CurrencyType).EUR) != null and stats.exchangeRates.get(T(com.example.demo.infrastructure.CurrencyType).PLN) != null}">
+                            <span>EUR / PLN</span>
+                            <span th:text="'1 EUR = ' + ${#numbers.formatDecimal(stats.exchangeRates.get(T(com.example.demo.infrastructure.CurrencyType).PLN) / stats.exchangeRates.get(T(com.example.demo.infrastructure.CurrencyType).EUR), 1, 'POINT', 2, 'COMMA')} + ' PLN'">1 EUR = 0.00 PLN</span>
+                        </div>
+                        <div class="iv-position-popover__row iv-dividend-popover__row"
+                             th:if="${stats.exchangeRates.get(T(com.example.demo.infrastructure.CurrencyType).PLN) != null}">
+                            <span>USD / PLN</span>
+                            <span th:text="'1 USD = ' + ${#numbers.formatDecimal(stats.exchangeRates.get(T(com.example.demo.infrastructure.CurrencyType).PLN), 1, 'POINT', 2, 'COMMA')} + ' PLN'">1 USD = 0.00 PLN</span>
+                        </div>
+                        <p class="iv-topbar-fx-popover__hint">
+                            Current values use live FX rates. Realized results and ledger transactions use the applicable historical transaction-date FX rate.
+                        </p>
+                    </div>
+                </details>
+            </div>
+                <div class="iv-topbar-actions" aria-label="Portfolio actions">
+                <a class="iv-topbar-action-button iv-badge iv-badge--muted" href="/dashboard/reconciliation">Reconciliation</a>
+                <form id="xtb-upload-form" action="/import" method="POST" enctype="multipart/form-data" style="margin:0;">
+                    <button type="button"
+                            id="import-statement-btn"
+                            class="iv-topbar-action-button iv-badge iv-badge--muted">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7 9m5-5 5 5"/><path d="M5 13v6h14v-6"/></svg> Import
+                    </button>
+                    <input type="file" id="xtb-file-input" name="file" accept=".xlsx,.zip,.csv" style="display: none;" />
+                </form>
+                <button id="refresh-prices-btn"
+                        class="iv-topbar-action-button iv-badge iv-badge--muted">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0 1 4"/><path d="M20 4v7h-7"/></svg> Update History
+                </button>
+                <button id="yahoo-generate-btn"
+                        class="iv-topbar-action-button iv-badge iv-badge--muted">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12m0 0-5-5m5 5 5-5"/><path d="M5 20h14"/></svg> Export
+                </button>
+            </div>
+            <span id="file-chosen-name" class="iv-badge iv-badge--muted" style="display:none; margin-top:8px;"></span>
+        </div>
+    </header>
+    <div class="iv-header-rail">
+        <div id="iv-header-rail-left" class="iv-header-rail__left"></div>
+        <div class="iv-page-nav-slot">
+            <nav class="iv-page-nav" aria-label="Dashboard sections">
+                <a href="#overview">Overview</a><a href="#performance">Performance</a><a href="#positions">Positions</a><a href="#cash-flows">Cash flows</a><a href="#data-quality">Data quality</a>
+            </nav>
+        </div>
+        <div id="iv-header-rail-right" class="iv-header-rail__right"></div>
+    </div>
+
+    <div id="overview" class="iv-section-heading">
+        <div>
+            <span class="iv-section-heading__eyebrow">Portfolio overview</span>
+            <h2>Where you stand now</h2>
+        </div>
+        <p>Current value and key results.</p>
+    </div>
+
+    <!-- KPI tiles -->
+    <section class="iv-grid iv-grid--kpi">
+        <div class="iv-kpi iv-kpi--popover">
+            <p class="iv-kpi__label">
+                <span class="iv-kpi__icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 12h4l3 8 4-16 3 8h4"/>
+                    </svg>
+                </span>
+                Unrealized P/L
+            </p>
+            <p class="iv-kpi__value"
+               th:classappend="${stats.unrealizedProfit >= 0} ? 'iv-pos' : 'iv-neg'"
+               th:text="${#numbers.formatDecimal(stats.unrealizedProfit, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</p>
+            <div class="iv-kpi__meta">
+                <span>Since inception · before tax</span>
+                <div class="iv-kpi__actions">
+                    <details class="iv-balance-popover iv-position-popover"
+                             th:if="${stats.openPositionValues != null and !stats.openPositionValues.isEmpty()}">
+                        <summary class="iv-balance-popover__trigger">View positions</summary>
+                        <div class="iv-balance-popover__panel iv-position-popover__panel iv-sortable-grid">
+                            <div class="iv-position-popover__row iv-balance-popover__row--head">
+                                <button type="button" class="iv-sort-button" data-sort-key="symbol">Symbol</button>
+                                <button type="button" class="iv-sort-button" data-sort-key="price">Price</button>
+                                <button type="button" class="iv-sort-button" data-sort-key="value">Value</button>
+                                <button type="button" class="iv-sort-button" data-sort-key="unrealized">Unrealized</button>
+                                <button type="button" class="iv-sort-button" data-sort-key="pl">P/L</button>
+                                <button type="button" class="iv-sort-button" data-sort-key="share">Share</button>
+                            </div>
+                            <div class="iv-position-popover__row"
+                                 th:each="position : ${stats.openPositionValues}"
+                                 data-sort-row
+                                 th:attr="data-sort-symbol=${position.symbol},data-sort-price=${position.marketPrice},data-sort-value=${position.value},data-sort-unrealized=${position.unrealized},data-sort-pl=${position.profitLossPercent},data-sort-share=${position.sharePercent}">
+                                <span class="iv-position-popover__symbol-cell">
+                                    <a th:href="@{/dashboard/assets/{symbol}(symbol=${position.symbol})}"
+                                       th:classappend="${position.unrealized > -0.01 and position.unrealized < 0.01} ? 'iv-position-popover__symbol--stale'"
+                                       th:text="${position.symbol}"
+                                       title="Open asset details">AAPL.US</a>
+                                    <button type="button"
+                                            class="iv-icon-button iv-manual-price-button"
+                                            title="Set manual price"
+                                            th:if="${position.unrealized > -0.01 and position.unrealized < 0.01}"
+                                            th:attr="data-symbol=${position.symbol},data-average-open-price=${position.averageOpenPrice}">
+                                        Edit
+                                    </button>
+                                </span>
+                                <span th:text="${#numbers.formatDecimal(position.marketPrice, 1, 'POINT', 2, 'COMMA')} + ' ' + ${position.marketPriceCurrency}">0 USD</span>
+                                <span th:text="${#numbers.formatDecimal(position.value, 1, 'POINT', 0, 'COMMA')} + ' ' + ${position.currency}">0 USD</span>
+                                <span th:classappend="${position.unrealized >= 0} ? 'iv-pos' : 'iv-neg'"
+                                      th:text="${#numbers.formatDecimal(position.unrealized, 1, 'POINT', 0, 'COMMA')} + ' ' + ${position.currency}">0 USD</span>
+                                <span th:if="${position.profitLossPercent != null}"
+                                      th:classappend="${position.profitLossPercent >= 0} ? 'iv-pos' : 'iv-neg'"
+                                      th:text="${#numbers.formatDecimal(position.profitLossPercent, 1, 'NONE', 1, 'COMMA')} + '%'">0.0%</span>
+                                <span th:unless="${position.profitLossPercent != null}">-</span>
+                                <span th:text="${#numbers.formatDecimal(position.sharePercent, 1, 'NONE', 1, 'COMMA')} + '%'">0.0%</span>
+                            </div>
+                            <div class="iv-position-popover__row iv-position-popover__row--total"
+                                 th:if="${stats.openPositionValuesTotal != null}">
+                                <strong>Total</strong>
+                                <strong></strong>
+                                <strong th:text="${#numbers.formatDecimal(stats.openPositionValuesTotal.value, 1, 'POINT', 0, 'COMMA')} + ' ' + ${stats.openPositionValuesTotal.currency}">0 USD</strong>
+                                <strong th:classappend="${stats.openPositionValuesTotal.unrealized >= 0} ? 'iv-pos' : 'iv-neg'"
+                                        th:text="${#numbers.formatDecimal(stats.openPositionValuesTotal.unrealized, 1, 'POINT', 0, 'COMMA')} + ' ' + ${stats.openPositionValuesTotal.currency}">0 USD</strong>
+                                <strong th:if="${stats.openPositionValuesTotal.profitLossPercent != null}"
+                                        th:classappend="${stats.openPositionValuesTotal.profitLossPercent >= 0} ? 'iv-pos' : 'iv-neg'"
+                                        th:text="${#numbers.formatDecimal(stats.openPositionValuesTotal.profitLossPercent, 1, 'NONE', 1, 'COMMA')} + '%'">0.0%</strong>
+                                <strong th:text="${#numbers.formatDecimal(stats.openPositionValuesTotal.sharePercent, 1, 'NONE', 1, 'COMMA')} + '%'">100.0%</strong>
+                            </div>
+                        </div>
+                    </details>
+                    <details class="iv-balance-popover iv-position-popover iv-dividend-popover">
+                        <summary class="iv-balance-popover__trigger">By currency</summary>
+                        <div class="iv-balance-popover__panel iv-position-popover__panel">
+                            <div class="iv-position-popover__row iv-dividend-popover__row iv-balance-popover__row--head">
+                                <span>Currency</span>
+                                <span>Open P/L</span>
+                            </div>
+                            <div class="iv-position-popover__row iv-dividend-popover__row" th:each="entry : ${stats.unrealizedByCurrency}">
+                                <span th:text="${entry.key}">USD</span>
+                                <span th:classappend="${entry.value >= 0} ? 'iv-pos' : 'iv-neg'"
+                                      th:text="${#numbers.formatDecimal(entry.value, 1, 'POINT', 0, 'COMMA')} + ' ' + ${entry.key}">0 USD</span>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+            </div>
+        </div>
+
+        <div class="iv-kpi iv-kpi--popover">
+            <p class="iv-kpi__label">
+                <span class="iv-kpi__icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20 6L9 17l-5-5"/>
+                    </svg>
+                </span>
+                Realized P/L
+            </p>
+            <p class="iv-kpi__value"
+               th:classappend="${stats.realizedProfit >= 0} ? 'iv-pos' : 'iv-neg'"
+               th:text="${#numbers.formatDecimal(stats.realizedProfit, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</p>
+            <div class="iv-kpi__meta">
+                <span>Since inception · before capital-gains tax</span>
+                <div class="iv-kpi__actions">
+                    <details class="iv-balance-popover iv-position-popover iv-dividend-popover">
+                        <summary class="iv-balance-popover__trigger">Details</summary>
+                        <div class="iv-balance-popover__panel iv-position-popover__panel">
+                            <div class="iv-position-popover__row iv-dividend-popover__row iv-balance-popover__row--head">
+                                <span>Investment result</span>
+                                <span>Amount</span>
+                            </div>
+                            <div class="iv-position-popover__row iv-dividend-popover__row">
+                                <span>Formula</span>
+                                <span>Balance − invested</span>
+                            </div>
+                            <div class="iv-position-popover__row iv-dividend-popover__row">
+                                <span>Investment gain <span class="iv-muted">(gross)</span></span>
+                                <span th:classappend="${stats.totalProfit >= 0} ? 'iv-pos' : 'iv-neg'"
+                                      th:text="${#numbers.formatDecimal(stats.totalProfit, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
+                            </div>
+                            <div class="iv-position-popover__row iv-dividend-popover__row">
+                                <span>Realized P/L <span class="iv-muted">(gross)</span></span>
+                                <span th:classappend="${stats.realizedProfit >= 0} ? 'iv-pos' : 'iv-neg'"
+                                      th:text="${#numbers.formatDecimal(stats.realizedProfit, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
+                            </div>
+                            <div class="iv-position-popover__row iv-dividend-popover__row" th:if="${stats.lossCarryForward > 0}">
+                                <span>Loss carry-forward applied</span>
+                                <span th:text="${#numbers.formatDecimal(stats.lossCarryForward, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
+                            </div>
+                            <div class="iv-position-popover__row iv-dividend-popover__row">
+                                <span>Capital gains tax <span class="iv-muted">(19% · this year)</span></span>
+                                <span class="iv-neg"
+                                      th:text="'-' + ${#numbers.formatDecimal(stats.capitalGainsTax, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
+                            </div>
+                            <div class="iv-position-popover__row iv-dividend-popover__row">
+                                <span>Investment gain <span class="iv-muted">(net)</span></span>
+                                <span th:with="netGain=${stats.totalProfit - stats.capitalGainsTax}"
+                                      th:classappend="${netGain >= 0} ? 'iv-pos' : 'iv-neg'"
+                                      th:text="${#numbers.formatDecimal(netGain, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
+                            </div>
+                        </div>
+                    </details>
+                    <details class="iv-balance-popover iv-position-popover iv-dividend-popover">
+                        <summary class="iv-balance-popover__trigger">By currency</summary>
+                        <div class="iv-balance-popover__panel iv-position-popover__panel">
+                            <div class="iv-position-popover__row iv-dividend-popover__row iv-balance-popover__row--head">
+                                <span>Currency</span>
+                                <span>Closed P/L</span>
+                            </div>
+                            <div class="iv-position-popover__row iv-dividend-popover__row" th:each="entry : ${stats.realizedByCurrency}">
+                                <span th:text="${entry.key}">USD</span>
+                                <span th:classappend="${entry.value >= 0} ? 'iv-pos' : 'iv-neg'"
+                                      th:text="${#numbers.formatDecimal(entry.value, 1, 'POINT', 0, 'COMMA')} + ' ' + ${entry.key}">0 USD</span>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+            </div>
+        </div>
+
+        <div class="iv-kpi iv-kpi--popover">
+            <p class="iv-kpi__label">
+                <span class="iv-kpi__icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="1" x2="12" y2="23"/>
+                        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                    </svg>
+                </span>
+                Dividends &amp; cash interest
+            </p>
+            <p class="iv-kpi__value"
+               th:with="incomeTotal=${stats.dividends + stats.dividendTax + stats.interest}"
+               th:classappend="${incomeTotal >= 0} ? 'iv-pos' : 'iv-neg'"
+               th:text="${#numbers.formatDecimal(incomeTotal, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</p>
+            <div class="iv-kpi__meta">
+                <span>Since inception · after withholding tax</span>
+                <div class="iv-kpi__actions">
+                    <details class="iv-balance-popover iv-position-popover iv-dividend-popover">
+                        <summary class="iv-balance-popover__trigger">Details</summary>
+                        <div class="iv-balance-popover__panel iv-position-popover__panel">
+                            <div class="iv-position-popover__row iv-dividend-popover__row iv-balance-popover__row--head">
+                                <span>Income and tax</span>
+                                <span>Amount</span>
+                            </div>
+                        <div class="iv-position-popover__row iv-dividend-popover__row">
+                            <span>Dividends <span class="iv-muted">(gross)</span></span>
+                            <span class="iv-pos"
+                                  th:text="${#numbers.formatDecimal(stats.dividends - stats.dividendTax, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
+                        </div>
+                            <div class="iv-position-popover__row iv-dividend-popover__row">
+                                <span>Dividend withholding tax</span>
+                                <span class="iv-neg"
+                                      th:text="${#numbers.formatDecimal(stats.dividendTax, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
+                            </div>
+                            <div class="iv-position-popover__row iv-dividend-popover__row">
+                                <span>Free-funds interest</span>
+                                <span th:classappend="${stats.interest >= 0} ? 'iv-pos' : 'iv-neg'"
+                                      th:text="${#numbers.formatDecimal(stats.interest, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
+                            </div>
+                        </div>
+                    </details>
+                    <details class="iv-balance-popover iv-position-popover iv-dividend-popover"
+                             th:if="${stats.dividendGainers != null and !stats.dividendGainers.isEmpty()}">
+                        <summary class="iv-balance-popover__trigger">Top payers</summary>
+                        <div class="iv-balance-popover__panel iv-position-popover__panel">
+                            <div class="iv-position-popover__row iv-dividend-popover__row iv-balance-popover__row--head">
+                                <span>Symbol</span>
+                                <span>Dividends USD</span>
+                            </div>
+                            <div class="iv-position-popover__row iv-dividend-popover__row" th:each="row : ${stats.dividendGainers}">
+                                <span th:text="${row.symbol}">AAPL.US</span>
+                                <span class="iv-pos"
+                                      th:text="${#numbers.formatDecimal(row.dividends, 1, 'POINT', 0, 'COMMA')} + ' $'">0 $</span>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="iv-risk-summary" aria-labelledby="risk-summary-title">
+        <div class="iv-risk-summary__head">
+            <div><span class="iv-section-heading__eyebrow">Risk &amp; exposure</span><h3 id="risk-summary-title">Portfolio characteristics</h3></div>
+            <span class="iv-card__hint" th:text="${stats.riskExposure.periodLabel}">Current snapshot</span>
+        </div>
+        <div class="iv-risk-summary__grid">
+            <div><span>Cash</span><strong th:text="${#numbers.formatDecimal(stats.riskExposure.availableCash, 1, 'POINT', 0, 'COMMA')} + ' USD'">0 USD</strong></div>
+            <div><span>Largest holding</span><strong th:text="${stats.riskExposure.largestAssetWeightPct == null ? 'Unavailable' : #numbers.formatDecimal(stats.riskExposure.largestAssetWeightPct, 1, 'POINT', 1, 'COMMA') + '%'}">Unavailable</strong></div>
+            <div><span>Top-five concentration</span><strong th:text="${stats.riskExposure.topFiveAssetConcentrationPct == null ? 'Unavailable' : #numbers.formatDecimal(stats.riskExposure.topFiveAssetConcentrationPct, 1, 'POINT', 1, 'COMMA') + '%'}">Unavailable</strong></div>
+            <div><span>Base-currency account exposure</span><strong th:text="${stats.riskExposure.baseCurrencyAccountExposurePct == null ? 'Unavailable' : #numbers.formatDecimal(stats.riskExposure.baseCurrencyAccountExposurePct, 1, 'POINT', 1, 'COMMA') + '%'}">Unavailable</strong></div>
+            <div><span>Foreign-currency account exposure</span><strong th:text="${stats.riskExposure.foreignCurrencyAccountExposurePct == null ? 'Unavailable' : #numbers.formatDecimal(stats.riskExposure.foreignCurrencyAccountExposurePct, 1, 'POINT', 1, 'COMMA') + '%'}">Unavailable</strong></div>
+            <div><span>Income since inception</span><strong th:text="${#numbers.formatDecimal(stats.riskExposure.incomeSinceInception, 1, 'POINT', 0, 'COMMA')} + ' USD'">0 USD</strong></div>
+        </div>
+        <div class="iv-risk-summary__warnings" th:if="${!stats.riskExposure.warnings.isEmpty()}">
+            <span th:each="warning : ${stats.riskExposure.warnings}" th:text="'⚠ ' + ${warning}">Warning</span>
+        </div>
+    </section>
+
+    <div id="status-modal" class="iv-modal" style="display: none;">
+        <div class="iv-modal__content">
+            <div class="iv-modal__header">
+                <h3 id="modal-title" class="iv-card__title">Statement import</h3>
+                <button type="button" class="iv-modal__close" onclick="closeModal()" aria-label="Close import dialog">&times;</button>
+            </div>
+            <div class="iv-modal__body">
+                <div class="iv-badge iv-badge--pos" id="modal-status">COMPLETED</div>
+                <p id="modal-message" style="margin: 15px 0; font-weight: 500; color: #1e2536;"></p>
+
+                <table class="iv-table" style="margin-top: 15px;">
+                    <tbody>
+                    <tr>
+                        <td><strong>Rows found</strong></td>
+                        <td id="modal-rows-total" class="iv-text-right">0</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Rows imported</strong></td>
+                        <td id="modal-rows-applied" class="iv-text-right iv-pos">0</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Rows skipped</strong></td>
+                        <td id="modal-rows-failed" class="iv-text-right">0</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="iv-modal__footer">
+                <button class="iv-badge iv-badge--pos" style="padding: 8px 16px; cursor: pointer;" onclick="location.reload();">Refresh dashboard</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="manual-price-modal" class="iv-modal" style="display: none;">
+        <div class="iv-modal__content iv-modal__content--compact">
+            <div class="iv-modal__header">
+                <h3 class="iv-card__title">Update market price</h3>
+                <button type="button" class="iv-modal__close" id="manual-price-close" aria-label="Close price dialog">&times;</button>
+            </div>
+            <form id="manual-price-form" class="iv-manual-price-form">
+                <div class="iv-field">
+                    <label for="manual-price-symbol">Symbol</label>
+                    <input id="manual-price-symbol" type="text" readonly>
+                </div>
+                <div class="iv-field">
+                    <label for="manual-price-open">Average entry price</label>
+                    <input id="manual-price-open" type="text" readonly>
+                </div>
+                <div class="iv-field">
+                    <label for="manual-price-value">Market price</label>
+                    <input id="manual-price-value" type="number" min="0.000001" step="0.000001" required autofocus>
+                </div>
+                <p id="manual-price-status" class="iv-form-status"></p>
+                <div class="iv-modal__footer">
+                    <button type="button" class="iv-badge iv-badge--muted" id="manual-price-cancel">Cancel</button>
+                    <button type="submit" class="iv-badge iv-badge--pos" id="manual-price-save">Save and refresh</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Performance vs S&P 500 -->
+    <div id="performance" class="iv-section-heading iv-section-heading--spaced">
+        <div>
+            <span class="iv-section-heading__eyebrow">Performance</span>
+            <h2>How the portfolio is progressing</h2>
+        </div>
+        <p>Compare returns, account growth and monthly outcomes.</p>
+    </div>
+
+    <section class="iv-grid iv-grid--charts" th:if="${benchmark != null}">
+        <div class="iv-card">
+            <div class="iv-card__head">
+                <h3 class="iv-card__title">Monthly P/L proxy vs SPY</h3>
+                <span class="iv-card__hint">Cumulative monthly P/L vs same starting capital · external flows excluded · USD</span>
+            </div>
+            <div class="iv-card__body">
+                <div class="iv-account-filter__actions">
+                    <button type="button" class="iv-link-button" id="benchmark-check-all">Check all</button>
+                    <button type="button" class="iv-link-button" id="benchmark-uncheck-all">Uncheck all</button>
+                </div>
+                <div class="iv-account-filter iv-account-filter--with-benchmark">
+                    <label class="iv-account-filter iv-account-filter--with-benchmark__item"
+                           th:each="account : ${benchmark.accountOptions}">
+                        <input type="checkbox"
+                               class="js-benchmark-account"
+                               th:value="${account.id}"
+                               th:checked="${account.selected}">
+                        <span th:text="${account.name}">Account</span>
+                    </label>
+                    <label class="iv-account-filter__item iv-account-filter__item--benchmark">
+                        <input type="checkbox" id="benchmark-show-spy" checked>
+                        <span>Show SPY benchmark</span>
+                    </label>
+                </div>
+                <div class="iv-empty" id="benchmark-empty" th:style="${benchmark.available} ? 'display:none' : ''">
+                    Select at least one account with monthly history to compare performance.
+                </div>
+                <div id="benchmark-content" th:style="${benchmark.available} ? '' : 'display:none'">
+                <div class="iv-benchmark">
+                    <div class="iv-benchmark__stat">
+                        <span class="iv-benchmark__label">Portfolio</span>
+                        <span class="iv-benchmark__value" id="benchmark-you"
+                              th:classappend="${benchmark.portfolioReturnPct >= 0} ? 'iv-pos' : 'iv-neg'"
+                              th:text="${#numbers.formatDecimal(benchmark.portfolioReturnPct, 0, 1)} + ' %'">0 %</span>
+                    </div>
+                    <div class="iv-benchmark__stat">
+                        <span class="iv-benchmark__label">S&amp;P 500</span>
+                        <span class="iv-benchmark__value" id="benchmark-spy"
+                              th:classappend="${benchmark.benchmarkReturnPct >= 0} ? 'iv-pos' : 'iv-neg'"
+                              th:text="${#numbers.formatDecimal(benchmark.benchmarkReturnPct, 0, 1)} + ' %'">0 %</span>
+                    </div>
+                    <div class="iv-benchmark__stat">
+                        <span class="iv-benchmark__label">Excess return</span>
+                        <span class="iv-benchmark__value" id="benchmark-alpha"
+                              th:classappend="${benchmark.alpha >= 0} ? 'iv-pos' : 'iv-neg'"
+                              th:text="(${benchmark.alpha >= 0} ? '+' : '') + ${#numbers.formatDecimal(benchmark.alpha, 0, 1)} + ' pp'">0 pp</span>
+                    </div>
+                </div>
+                <div class="iv-chart">
+                    <canvas id="benchmark-chart" tabindex="0" role="img" aria-label="Portfolio and SPY monthly return comparison. Use View as table for keyboard access."></canvas>
+                </div>
+                <details class="iv-chart-table"><summary>View as table</summary><div id="benchmark-table"></div></details>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Cumulative P/L history -->
+    <section class="iv-grid iv-grid--charts" th:if="${benchmark != null}">
+        <div class="iv-card">
+            <div class="iv-card__head">
+                <h3 class="iv-card__title">Cumulative P/L by account</h3>
+                <span class="iv-card__hint" id="account-value-hint">Calendar year · external cash flows excluded · cumulative daily P/L · base USD</span>
+                <div class="iv-event-legend" aria-label="Chart event markers">
+                    <span><i class="iv-event-dot iv-event-dot--deposit"></i>Deposit</span>
+                    <span><i class="iv-event-dot iv-event-dot--dividend"></i>Dividend</span>
+                    <span><i class="iv-event-dot iv-event-dot--trade"></i>Major trade</span>
+                </div>
+                <div class="iv-card__controls" th:if="${benchmark.accountValuesAvailable}">
+                    <label class="iv-select-field">
+                        <span>Show</span>
+                        <select id="account-value-mode">
+                            <option value="absolute" selected>P/L amount (USD)</option>
+                            <option value="percent">Cumulative return (%)</option>
+                        </select>
+                    </label>
+                    <label class="iv-select-field">
+                        <span>Year</span>
+                        <select id="account-value-year">
+                            <option th:each="year : ${benchmark.accountValueYears}"
+                                    th:value="${year.year}"
+                                    th:selected="${year.year == benchmark.selectedAccountValueYear}"
+                                    th:text="${year.year}">2026</option>
+                        </select>
+                    </label>
+                </div>
+            </div>
+            <div class="iv-card__body">
+                <div class="iv-account-filter__actions">
+                    <button type="button" class="iv-link-button" id="account-value-check-all">Check all</button>
+                    <button type="button" class="iv-link-button" id="account-value-uncheck-all">Uncheck all</button>
+                </div>
+                <div class="iv-account-filter">
+                    <label class="iv-account-filter__item"
+                           th:each="account : ${benchmark.accountOptions}">
+                        <input type="checkbox"
+                               class="js-account-value-account"
+                               th:value="${account.id}"
+                               th:checked="${account.selected}">
+                        <span th:text="${account.name}">Account</span>
+                    </label>
+                </div>
+                <div class="iv-empty" id="account-value-empty"
+                     th:style="${benchmark.accountValuesAvailable} ? 'display:none' : ''">
+                    Select at least one account with daily history to show cumulative P/L.
+                </div>
+                <div id="account-value-content" th:style="${benchmark.accountValuesAvailable} ? '' : 'display:none'">
+                    <div class="iv-chart">
+                        <canvas id="account-value-chart" tabindex="0" role="img" aria-label="Cumulative daily P/L by selected account. Use View as table for keyboard access."></canvas>
+                    </div>
+                    <details class="iv-chart-table"><summary>View as table</summary><div id="account-value-table"></div></details>
+                    <details id="daily-attribution-details" class="iv-balance-popover" style="margin-top:12px;">
+                        <summary class="iv-balance-popover__trigger">Click a date to investigate daily P/L</summary>
+                        <div id="daily-attribution-panel" class="iv-balance-popover__panel">Select a chart point.</div>
+                    </details>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Monthly profit and loss Chart -->
+    <section class="iv-grid iv-grid--charts">
+        <div class="iv-card">
+            <div class="iv-card__head">
+                <h3 class="iv-card__title">Profit and loss by period</h3>
+                <span class="iv-card__hint">Account value change excluding external flows · base USD</span>
+            </div>
+            <div class="iv-card__body">
+                <div class="iv-account-filter__actions">
+                    <button type="button" class="iv-link-button" id="monthly-check-all">Check all</button>
+                    <button type="button" class="iv-link-button" id="monthly-uncheck-all">Uncheck all</button>
+                </div>
+                <div class="iv-account-filter">
+                    <label class="iv-account-filter__item" th:each="account : ${benchmark.accountOptions}">
+                        <input type="checkbox" class="js-monthly-account" th:value="${account.id}" th:checked="${account.selected}">
+                        <span th:text="${account.name}">Account</span>
+                    </label>
+                </div>
+                <label class="iv-select-field"><span>Period</span><select id="monthly-granularity"><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="annual">Annual</option></select></label>
+                <div class="iv-chart">
+                    <canvas id="monthly-performance-chart" tabindex="0" role="img" aria-label="Profit and loss by selected period. Use View as table for keyboard access."></canvas>
+                </div>
+                <details class="iv-chart-table"><summary>View as table</summary><div id="monthly-table"></div></details>
+                <details id="monthly-attribution-details" class="iv-balance-popover" style="margin-top:12px;">
+                    <summary class="iv-balance-popover__trigger">Click a bar to explain monthly P/L</summary>
+                    <div id="monthly-attribution-panel" class="iv-balance-popover__panel">Select a month.</div>
+                </details>
+            </div>
+        </div>
+    </section>
+
+    <!-- Performance per Symbol -->
+    <details id="positions" class="iv-balance-popover iv-attribution-popover">
+        <summary class="iv-balance-popover__trigger">Performance attribution · What is driving results</summary>
+        <div class="iv-attribution-popover__panel">
+            <p class="iv-section-heading__note">Since inception · base USD · total = realized + unrealized + dividends − withholding tax.</p>
+    <section class="iv-grid iv-grid--split">
+        <div class="iv-card">
+            <div class="iv-card__head">
+                <h3 class="iv-card__title">Largest contributors</h3>
+                <span class="iv-card__hint">All results · largest contributors</span>
+            </div>
+            <div class="iv-table-wrap">
+                <table class="iv-table">
+                    <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th class="iv-text-right">Total</th>
+                        <th class="iv-text-right">Realized</th>
+                        <th class="iv-text-right">Unrealized</th>
+                        <th class="iv-text-right">Dividends</th>
+                        <th class="iv-text-right">Tax</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="symbol : ${topGainers}">
+                        <td>
+                            <span class="iv-sym">
+                                <span class="iv-sym__avatar" th:text="${#strings.substring(symbol.symbol, 0, 1)}"></span>
+                                <span th:text="${symbol.symbol}"></span>
+                            </span>
+                        </td>
+                        <td class="iv-text-right iv-amt iv-pos" th:text="${#numbers.formatDecimal(symbol.total, 1, 'POINT', 0, 'COMMA')}"></td>
+                        <td class="iv-text-right iv-amt" th:classappend="${symbol.closedProfit >= 0} ? 'iv-pos' : 'iv-neg'"
+                            th:text="${#numbers.formatDecimal(symbol.closedProfit, 1, 'POINT', 0, 'COMMA')}"></td>
+                        <td class="iv-text-right iv-amt" th:classappend="${symbol.unrealizedProfit >= 0} ? 'iv-pos' : 'iv-neg'"
+                            th:text="${#numbers.formatDecimal(symbol.unrealizedProfit, 1, 'POINT', 0, 'COMMA')}"></td>
+                        <td class="iv-text-right iv-amt" th:text="${#numbers.formatDecimal(symbol.dividends, 1, 'POINT', 0, 'COMMA')}"></td>
+                        <td class="iv-text-right iv-amt" th:classappend="${symbol.withholdingTax > 0} ? 'iv-neg' : ''"
+                            th:text="'-' + ${#numbers.formatDecimal(symbol.withholdingTax, 1, 'POINT', 0, 'COMMA')}"></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="iv-card">
+            <div class="iv-card__head">
+                <h3 class="iv-card__title">Largest detractors</h3>
+                <span class="iv-card__hint">All results · largest detractors</span>
+            </div>
+            <div class="iv-table-wrap">
+                <table class="iv-table">
+                    <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th class="iv-text-right">Total</th>
+                        <th class="iv-text-right">Realized</th>
+                        <th class="iv-text-right">Unrealized</th>
+                        <th class="iv-text-right">Dividends</th>
+                        <th class="iv-text-right">Tax</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="symbol : ${topLosers}">
+                        <td>
+                            <span class="iv-sym">
+                                <span class="iv-sym__avatar" th:text="${#strings.substring(symbol.symbol, 0, 1)}"></span>
+                                <span th:text="${symbol.symbol}"></span>
+                            </span>
+                        </td>
+                        <td class="iv-text-right iv-amt iv-neg" th:text="${#numbers.formatDecimal(symbol.total, 1, 'POINT', 0, 'COMMA')}"></td>
+                        <td class="iv-text-right iv-amt" th:classappend="${symbol.closedProfit >= 0} ? 'iv-pos' : 'iv-neg'"
+                            th:text="${#numbers.formatDecimal(symbol.closedProfit, 1, 'POINT', 0, 'COMMA')}"></td>
+                        <td class="iv-text-right iv-amt" th:classappend="${symbol.unrealizedProfit >= 0} ? 'iv-pos' : 'iv-neg'"
+                            th:text="${#numbers.formatDecimal(symbol.unrealizedProfit, 1, 'POINT', 0, 'COMMA')}"></td>
+                        <td class="iv-text-right iv-amt" th:text="${#numbers.formatDecimal(symbol.dividends, 1, 'POINT', 0, 'COMMA')}"></td>
+                        <td class="iv-text-right iv-amt" th:classappend="${symbol.withholdingTax > 0} ? 'iv-neg' : ''"
+                            th:text="'-' + ${#numbers.formatDecimal(symbol.withholdingTax, 1, 'POINT', 0, 'COMMA')}"></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+        </div>
+    </details>
+
+    <footer class="iv-footer">
+        <span>Investory · Portfolio tracker</span>
+        <span>Values in base currency USD</span>
+    </footer>
+</div> <!-- .iv-app -->
+
+<!-- Scripts -->
+<script src="/js/tabler.min.js"></script>
+<!--suppress JSUnresolvedLibraryURL -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    /* global Chart */
+    const monthlyPerformanceData = [[${stats.monthlyPerformance.calculateMonthlyPerformance}]];
+    const monthlyLabels = Object.keys(monthlyPerformanceData);
+    const monthlyData = Object.values(monthlyPerformanceData);
+
+    const monthlyOperationsCount = [[${stats.monthlyPerformance.monthlyOperationsCount}]];
+    const monthlyCounts = monthlyLabels.map(label => monthlyOperationsCount[label] || 0);
+
+    const monthlyCashflowData = [[${stats.monthlyPerformance.monthlyCashflow}]];
+    const monthlyCashflow = monthlyLabels.map(label => monthlyCashflowData[label] || 0);
+    const monthlyAttributions = [[${stats.monthlyPerformance.monthlyAttributions}]] || {};
+
+    const amountFormatter = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
+    const percentFormatter = new Intl.NumberFormat('de-DE', {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1
+    });
+    const signedUsdFormatter = new Intl.NumberFormat('de-DE', {
+        maximumFractionDigits: 0,
+        signDisplay: 'always'
+    });
+
+    const operationsCountPlugin = {
+        id: 'operationsCountLabels',
+        afterDatasetsDraw(chart) {
+            const ctx = chart.ctx;
+            const meta = chart.getDatasetMeta(0);
+            const theme = chartTheme();
+            ctx.save();
+            ctx.textAlign = 'center';
+            meta.data.forEach((bar, index) => {
+                const count = chart._periodCounts?.[index] || 0;
+                if (!count) {
+                    return;
+                }
+                const value = Number(chart.data.datasets[0].data[index] || 0);
+                const profitText = amountFormatter.format(Math.round(value)) + ' $';
+                const cashflowValue = chart._periodFlows?.[index] || 0;
+                const cashflowText = signedUsdFormatter.format(Math.round(cashflowValue)) + ' $';
+                const accountText = count + (count === 1 ? ' account' : ' accounts');
+                const detailText = Math.abs(cashflowValue) >= 1
+                    ? accountText + ' · flow ' + cashflowText
+                    : accountText;
+                const positive = value >= 0;
+                const top = Math.min(bar.y, bar.base);
+                const bottom = Math.max(bar.y, bar.base);
+                if (positive) {
+                    const profitY = Math.max(top - 6, chart.chartArea.top + 14);
+                    const detailY = Math.max(profitY - 16, chart.chartArea.top + 4);
+                    ctx.textBaseline = 'bottom';
+                    ctx.font = '700 12px Inter, sans-serif';
+                    ctx.fillStyle = theme.strong;
+                    ctx.fillText(profitText, bar.x, profitY);
+                    ctx.font = '600 10px Inter, sans-serif';
+                    ctx.fillStyle = theme.soft;
+                    ctx.fillText(detailText, bar.x, detailY);
+                } else {
+                    const profitY = Math.min(bottom + 6, chart.chartArea.bottom - 28);
+                    const detailY = Math.min(profitY + 16, chart.chartArea.bottom - 8);
+                    ctx.textBaseline = 'top';
+                    ctx.font = '700 12px Inter, sans-serif';
+                    ctx.fillStyle = theme.strong;
+                    ctx.fillText(profitText, bar.x, profitY);
+                    ctx.font = '600 10px Inter, sans-serif';
+                    ctx.fillStyle = theme.soft;
+                    ctx.fillText(detailText, bar.x, detailY);
+                }
+            });
+            ctx.restore();
+        }
+    };
+
+    function cssThemeColor(name, fallback) {
+        const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        return value || fallback;
+    }
+
+    function chartTheme() {
+        return {
+            grid: cssThemeColor('--iv-chart-grid', 'rgba(148, 160, 184, .18)'),
+            soft: cssThemeColor('--iv-text-soft', '#94a0b8'),
+            legend: cssThemeColor('--iv-text-muted', '#6b7488'),
+            strong: cssThemeColor('--iv-text', '#1e2536'),
+            strongFill: cssThemeColor('--iv-chart-strong-fill', 'rgba(30, 37, 54, .08)'),
+            tooltip: cssThemeColor('--iv-chart-tooltip', '#1e2536'),
+            tooltipText: cssThemeColor('--iv-chart-tooltip-text', '#ffffff'),
+            surface: cssThemeColor('--iv-surface', '#ffffff')
+        };
+    }
+
+    let currentChartTheme = chartTheme();
+    let gridColor = currentChartTheme.grid;
+    let tickColor = currentChartTheme.soft;
+    Chart.defaults.font.family = "Inter, system-ui, sans-serif";
+    Chart.defaults.color = tickColor;
+    Chart.defaults.borderColor = gridColor;
+
+    const benchLabels = [[${benchmark != null ? benchmark.labels : null}]] || [];
+    const benchAccountSeries = [[${benchmark != null ? benchmark.accountSeries : null}]] || [];
+    const accountValueYears = [[${benchmark != null ? benchmark.accountValueYears : null}]] || [];
+    const benchEl = document.getElementById("benchmark-chart");
+    const accountValueEl = document.getElementById("account-value-chart");
+    let benchmarkChart = null;
+    let accountValueChart = null;
+    const signedValue = value => (Number(value) >= 0 ? '+' : '') + Number(value || 0).toLocaleString(undefined, {maximumFractionDigits: 0});
+    function renderTable(id, headers, rows) {
+        const el = document.getElementById(id); if (!el) return;
+        const table = document.createElement('table');
+        table.className = 'iv-table iv-chart-table__table';
+        const thead = table.createTHead();
+        const headerRow = thead.insertRow();
+        headers.forEach(header => {
+            const cell = document.createElement('th');
+            cell.textContent = header;
+            headerRow.appendChild(cell);
+        });
+        const tbody = table.createTBody();
+        rows.forEach(row => {
+            const tableRow = tbody.insertRow();
+            row.forEach(value => {
+                const cell = tableRow.insertCell();
+                cell.textContent = value;
+            });
+        });
+        el.replaceChildren(table);
+    }
+    function enableKeyboardChart(chart, canvasId, activate) {
+        const canvas = document.getElementById(canvasId); if (!canvas) return;
+        let index = 0;
+        canvas.addEventListener('keydown', event => {
+            if (!chart?.data?.labels?.length) return;
+            if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+                event.preventDefault();
+                index = (index + (event.key === 'ArrowRight' ? 1 : -1) + chart.data.labels.length) % chart.data.labels.length;
+                chart.setActiveElements([{datasetIndex: 0, index}]); chart.tooltip.setActiveElements([{datasetIndex: 0, index}]); chart.update();
+            } else if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault(); activate(index);
+            }
+        });
+    }
+    if (benchEl) {
+        benchmarkChart = new Chart(benchEl.getContext("2d"), {
+            type: 'line',
+            data: {
+                labels: benchLabels,
+                datasets: [
+                    {
+                        label: 'Your return',
+                        data: [],
+                        borderColor: '#4f46e5',
+                        backgroundColor: 'rgba(79, 70, 229, .12)',
+                        fill: true,
+                        tension: 0.25,
+                        pointRadius: 0,
+                        borderWidth: 2
+                    },
+                    {
+                        label: 'S&P 500 return',
+                        data: [],
+                        borderColor: '#16a34a',
+                        backgroundColor: 'rgba(22, 163, 74, .08)',
+                        fill: true,
+                        tension: 0.25,
+                        pointRadius: 0,
+                        borderWidth: 2
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: tickColor, maxRotation: 0, autoSkip: true }
+                    },
+                    y: {
+                        grid: { color: gridColor, drawBorder: false },
+                        ticks: {
+                            color: tickColor,
+                            callback: function (value) {
+                                return value.toFixed(1) + ' %';
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        align: 'end',
+                        labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, color: '#6b7488' }
+                    },
+                    tooltip: {
+                        backgroundColor: '#1e2536',
+                        padding: 12,
+                        cornerRadius: 10,
+                        callbacks: {
+                            label: function (context) {
+                                const absoluteData = context.dataset.absoluteData || [];
+                                const absoluteValue = absoluteData[context.dataIndex] || 0;
+                                return context.dataset.label + ': '
+                                    + context.parsed.y.toFixed(1) + ' % ('
+                                    + signedUsdFormatter.format(Math.round(absoluteValue)) + ' $)';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    const transactionEventMarkerPlugin = {
+        id: 'transactionEventMarkers',
+        afterDatasetsDraw(chart, args, options) {
+            if (!options || !Array.isArray(options.events)) return;
+            const meta = chart.getDatasetMeta(0);
+            if (!meta?.data?.length) return;
+            const colors = { deposit: '#2563eb', dividend: '#16a34a', trade: '#7c3aed' };
+            options.events.forEach(event => {
+                const point = meta.data[event.index];
+                if (!point) return;
+                const ctx = chart.ctx;
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, 5, 0, Math.PI * 2);
+                ctx.fillStyle = colors[event.type] || colors.trade;
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = chartTheme().surface;
+                ctx.stroke();
+                ctx.restore();
+            });
+        }
+    };
+    Chart.register(transactionEventMarkerPlugin);
+
+    if (accountValueEl) {
+        accountValueChart = new Chart(accountValueEl.getContext("2d"), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: []
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: tickColor, maxRotation: 0, autoSkip: true }
+                    },
+                    y: {
+                        grid: { color: gridColor, drawBorder: false },
+                        ticks: {
+                            color: tickColor,
+                            callback: function (value) {
+                                return amountFormatter.format(Math.round(value)) + ' $';
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        align: 'end',
+                        labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, color: '#6b7488' }
+                    },
+                    tooltip: {
+                        backgroundColor: '#1e2536',
+                        padding: 12,
+                        cornerRadius: 10,
+                        callbacks: {
+                            label: function (context) {
+                                return context.dataset.label + ': '
+                                    + amountFormatter.format(Math.round(context.parsed.y || 0)) + ' $';
+                            }
+                        }
+                    },
+                    transactionEventMarkers: { events: [] }
+                }
+            }
+        });
+    }
+
+    function setBenchmarkValue(id, value, suffix, signed) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.toggle('iv-pos', value >= 0);
+        el.classList.toggle('iv-neg', value < 0);
+        el.textContent = (signed && value >= 0 ? '+' : '') + value.toFixed(1) + suffix;
+    }
+
+    function updateBenchmarkSelection() {
+        const selectedIds = effectiveAccountIds(selectedBenchmarkAccountIds(), benchAccountSeries.map(series => Number(series.id)));
+        if (!benchmarkChart) return;
+        const selectedSeries = benchAccountSeries.filter(series => selectedIds.has(Number(series.id)));
+        const portfolio = benchLabels.map((_, index) =>
+            selectedSeries.reduce((sum, series) => sum + (series.portfolioCurve[index] || 0), 0));
+        const spy = benchLabels.map((_, index) =>
+            selectedSeries.reduce((sum, series) => sum + (series.benchmarkCurve[index] || 0), 0));
+        const invested = selectedSeries.reduce((sum, series) => sum + (series.investedCapital || 0), 0);
+        const portfolioPl = portfolio.length ? portfolio[portfolio.length - 1] : 0;
+        const benchmarkPl = spy.length ? spy[spy.length - 1] : 0;
+        const portfolioPct = invested !== 0 ? portfolioPl / invested * 100 : 0;
+        const benchmarkPct = invested !== 0 ? benchmarkPl / invested * 100 : 0;
+        const portfolioPercentCurve = portfolio.map(value => invested !== 0 ? value / invested * 100 : 0);
+        const spyPercentCurve = spy.map(value => invested !== 0 ? value / invested * 100 : 0);
+        const available = selectedSeries.length > 0 && invested !== 0;
+
+        document.getElementById('benchmark-empty').style.display = available ? 'none' : '';
+        document.getElementById('benchmark-content').style.display = available ? '' : 'none';
+        benchmarkChart.data.datasets[0].data = portfolioPercentCurve;
+        benchmarkChart.data.datasets[0].absoluteData = portfolio;
+        benchmarkChart.data.datasets[1].data = spyPercentCurve;
+        benchmarkChart.data.datasets[1].absoluteData = spy;
+        benchmarkChart.update();
+        renderTable('benchmark-table', ['Period', 'Portfolio %', 'SPY %', 'Excess return'], benchLabels.map((label, i) => [label, signedValue(portfolioPercentCurve[i]) + ' %', signedValue(spyPercentCurve[i]) + ' %', signedValue(portfolioPercentCurve[i] - spyPercentCurve[i]) + ' pp']));
+        setBenchmarkValue('benchmark-you', portfolioPct, ' %', false);
+        setBenchmarkValue('benchmark-spy', benchmarkPct, ' %', false);
+        setBenchmarkValue('benchmark-alpha', portfolioPct - benchmarkPct, ' pp', true);
+    }
+
+    function selectedBenchmarkAccountIds() {
+        return new Set(Array.from(document.querySelectorAll('.js-benchmark-account:checked'))
+            .map(input => Number(input.value)));
+    }
+
+    function selectedAccountValueAccountIds() {
+        return new Set(Array.from(document.querySelectorAll('.js-account-value-account:checked'))
+            .map(input => Number(input.value)));
+    }
+
+    function selectedMonthlyAccountIds() {
+        return new Set(Array.from(document.querySelectorAll('.js-monthly-account:checked'))
+            .map(input => Number(input.value)));
+    }
+
+    function effectiveAccountIds(selectedIds, allIds) {
+        return selectedIds.size === allIds.length ? new Set(allIds) : selectedIds;
+    }
+
+    function selectedAccountValueYear() {
+        const yearSelect = document.getElementById('account-value-year');
+        const selectedYear = yearSelect ? Number(yearSelect.value) : null;
+        return accountValueYears.find(year => Number(year.year) === selectedYear) || accountValueYears[0];
+    }
+
+    function selectedAccountValueMode() {
+        return document.getElementById('account-value-mode')?.value === 'percent' ? 'percent' : 'absolute';
+    }
+
+    function accountValueSeriesData(series, mode) {
+        return mode === 'percent' ? (series.profitPctValues || []) : (series.profitValues || []);
+    }
+
+    function accountValueAxisLabel(value, mode) {
+        return mode === 'percent'
+            ? percentFormatter.format((Number(value) || 0) / 100)
+            : amountFormatter.format(Math.round(Number(value) || 0)) + ' $';
+    }
+
+    function updateAccountValueHint(mode) {
+        const hintEl = document.getElementById('account-value-hint');
+        if (!hintEl) return;
+        hintEl.textContent = mode === 'percent'
+            ? 'Calendar year · external cash flows excluded · cumulative daily P/L · %'
+            : 'Calendar year · external cash flows excluded · cumulative daily P/L · base USD';
+    }
+
+    function updateAccountValueChart(selectedIds) {
+        if (!accountValueChart) return;
+        const year = selectedAccountValueYear();
+        const mode = selectedAccountValueMode();
+        const emptyEl = document.getElementById('account-value-empty');
+        const contentEl = document.getElementById('account-value-content');
+        if (!year || !year.accountSeries || year.accountSeries.length === 0) {
+            if (emptyEl) emptyEl.style.display = '';
+            if (contentEl) contentEl.style.display = 'none';
+            return;
+        }
+
+        const effectiveIds = effectiveAccountIds(selectedIds, year.accountSeries.map(series => Number(series.id)));
+        const selectedSeries = year.accountSeries.filter(series => effectiveIds.has(Number(series.id)));
+        const allAccountsShown = selectedIds.size === year.accountSeries.length;
+        const total = allAccountsShown
+            ? (mode === 'percent' ? (year.totalProfitPctValues || []) : (year.totalProfitValues || []))
+            : (year.labels || []).map((_, index) => selectedSeries.reduce(
+                (sum, series) => sum + Number(accountValueSeriesData(series, mode)[index] || 0), 0));
+        const hasValues = total.some(value => Math.abs(value) > 1) || selectedSeries.length > 0;
+        if (emptyEl) emptyEl.style.display = hasValues ? 'none' : '';
+        if (contentEl) contentEl.style.display = hasValues ? '' : 'none';
+        updateAccountValueHint(mode);
+        const palette = ['#4f46e5', '#16a34a', '#f59e0b', '#dc2626', '#0891b2', '#7c3aed', '#0f766e', '#be123c'];
+        accountValueChart.data.labels = year.labels || [];
+        accountValueChart.data.datasets = [
+            {
+                label: 'Portfolio total',
+                data: total,
+                borderColor: chartTheme().strong,
+                backgroundColor: chartTheme().strongFill,
+                fill: true,
+                tension: 0.25,
+                pointRadius: 0,
+                borderWidth: 3
+            },
+            ...selectedSeries.map((series, index) => ({
+                label: series.name,
+                data: accountValueSeriesData(series, mode),
+                borderColor: palette[index % palette.length],
+                backgroundColor: 'transparent',
+                fill: false,
+                tension: 0.25,
+                pointRadius: 0,
+                borderWidth: 1.8
+            }))
+        ];
+        accountValueChart.options.plugins.transactionEventMarkers.events = [];
+        accountValueChart.options.scales.y.ticks.callback = function (value) {
+            return accountValueAxisLabel(value, mode);
+        };
+        accountValueChart.options.plugins.tooltip.callbacks.label = function (context) {
+            return context.dataset.label + ': ' + accountValueAxisLabel(context.parsed.y || 0, mode);
+        };
+        accountValueChart.options.onClick = async function (event, elements) {
+            if (!elements.length) return;
+            const date = accountValueChart.data.labels[elements[0].index];
+            const ids = [...effectiveIds].join(',');
+            const panel = document.getElementById('daily-attribution-panel');
+            panel.textContent = 'Loading daily attribution…';
+            document.getElementById('daily-attribution-details').open = true;
+            try {
+                const response = await fetch('/dashboard/daily-attribution?date=' + encodeURIComponent(date) + '&accountIds=' + encodeURIComponent(ids));
+                const a = await response.json();
+                const money = value => signedUsdFormatter.format(Math.round(Number(value || 0))) + ' $';
+                panel.replaceChildren();
+                const appendLine = (tag, text) => {
+                    const element = document.createElement(tag);
+                    element.textContent = text;
+                    panel.appendChild(element);
+                };
+                appendLine('strong', a.date + ' · Daily P/L ' + money(a.dailyProfit));
+                appendLine('div', 'Daily return: ' + Number(a.dailyReturnPct || 0).toFixed(2) + '%');
+                appendLine('div', 'Opening equity: ' + money(a.openingEquity));
+                appendLine('div', 'Closing equity: ' + money(a.closingEquity));
+                appendLine('div', 'Deposits: ' + money(a.deposits) + ' · Withdrawals: -' + money(a.withdrawals));
+                appendLine('div', 'Dividends: ' + money(a.dividends) + ' · Interest: ' + money(a.interest));
+                appendLine('div', 'Fees: ' + money(a.fees) + ' · Taxes: ' + money(a.taxes));
+                appendLine('div', 'Combined market/FX movement: ' + money(a.unresolvedResidual));
+                appendLine('strong', 'Accounts');
+                (a.accounts || []).forEach(row => appendLine('div', row.accountId + ': ' + money(row.dailyProfit) + ' · flow ' + money(row.deposits - row.withdrawals)));
+                const note = document.createElement('p');
+                note.className = 'iv-muted';
+                note.textContent = a.attributionNote || '';
+                panel.appendChild(note);
+            } catch (error) { panel.textContent = 'Daily attribution unavailable.'; }
+        };
+        accountValueChart.update();
+        renderTable('account-value-table', ['Date', 'Portfolio P/L USD'], (year.labels || []).map((label, i) => [label, signedValue(total[i]) + (mode === 'percent' ? ' %' : ' USD')]));
+    }
+
+    document.querySelectorAll('.js-benchmark-account')
+        .forEach(input => input.addEventListener('change', updateBenchmarkSelection));
+    document.getElementById('benchmark-show-spy')?.addEventListener('change', event => {
+        if (!benchmarkChart?.data?.datasets?.[1]) return;
+        benchmarkChart.data.datasets[1].hidden = !event.target.checked;
+        benchmarkChart.update();
+    });
+    document.querySelectorAll('.js-account-value-account')
+        .forEach(input => input.addEventListener('change', () =>
+            updateAccountValueChart(selectedAccountValueAccountIds())));
+    document.getElementById('account-value-mode')?.addEventListener('change', () =>
+        updateAccountValueChart(selectedAccountValueAccountIds()));
+    document.getElementById('account-value-year')?.addEventListener('change', () =>
+        updateAccountValueChart(selectedAccountValueAccountIds()));
+    document.getElementById('benchmark-check-all')?.addEventListener('click', () => {
+        document.querySelectorAll('.js-benchmark-account').forEach(input => input.checked = true);
+        updateBenchmarkSelection();
+    });
+    document.getElementById('benchmark-uncheck-all')?.addEventListener('click', () => {
+        document.querySelectorAll('.js-benchmark-account').forEach(input => input.checked = false);
+        updateBenchmarkSelection();
+    });
+    document.getElementById('account-value-check-all')?.addEventListener('click', () => {
+        document.querySelectorAll('.js-account-value-account').forEach(input => input.checked = true);
+        updateAccountValueChart(selectedAccountValueAccountIds());
+    });
+    document.getElementById('account-value-uncheck-all')?.addEventListener('click', () => {
+        document.querySelectorAll('.js-account-value-account').forEach(input => input.checked = false);
+        updateAccountValueChart(selectedAccountValueAccountIds());
+    });
+    updateBenchmarkSelection();
+    updateAccountValueChart(selectedAccountValueAccountIds());
+    enableKeyboardChart(benchmarkChart, 'benchmark-chart', () => {});
+    enableKeyboardChart(accountValueChart, 'account-value-chart', index => accountValueChart.options.onClick?.({}, [{index}]));
+
+    const monthlyPerformanceEl = document.getElementById("monthly-performance-chart");
+    const ctxMonthly = monthlyPerformanceEl
+        ? monthlyPerformanceEl.getContext("2d")
+        : null;
+    function groupedMonthlyData(mode, selectedIds) {
+        const buckets = new Map();
+        monthlyLabels.forEach((label, index) => {
+            const year = label.substring(0, 4);
+            const month = Number(label.substring(5, 7));
+            const key = mode === 'annual' ? year : mode === 'quarterly' ? year + '-Q' + Math.ceil(month / 3) : label;
+            const attribution = monthlyAttributions[label];
+            const rows = attribution?.accounts || [];
+            const partial = selectedIds !== null;
+            const selectedRows = partial ? rows.filter(row => selectedIds.has(Number(row.accountId))) : rows;
+            const value = partial
+                ? selectedRows.reduce((sum, row) => sum + Number(row.monthlyProfit || 0), 0)
+                : Number(monthlyData[index] || 0);
+            const flow = partial
+                ? selectedRows.reduce((sum, row) => sum + Number(row.netFlow || 0), 0)
+                : Number(monthlyCashflow[index] || 0);
+            const bucket = buckets.get(key) || { value: 0, count: 0, flow: 0, sourceLabels: [] };
+            bucket.value += value;
+            bucket.count += partial ? new Set(selectedRows.map(row => row.accountId)).size : Number(monthlyCounts[index] || 0);
+            bucket.flow += flow;
+            bucket.sourceLabels.push(label);
+            buckets.set(key, bucket);
+        });
+        return { labels: [...buckets.keys()], values: [...buckets.values()] };
+    }
+    let monthlyChart;
+    function renderMonthlyChart(mode) {
+        if (!ctxMonthly) return;
+        const allMonthlyIds = [...new Set(Object.values(monthlyAttributions).flatMap(a => (a.accounts || []).map(row => Number(row.accountId))))];
+        const selectedMonthlyIds = effectiveAccountIds(selectedMonthlyAccountIds(), allMonthlyIds);
+        const grouped = groupedMonthlyData(mode, selectedMonthlyIds.size === allMonthlyIds.length ? null : selectedMonthlyIds);
+        const values = grouped.values.map(row => row.value);
+        const counts = grouped.values.map(row => row.count);
+        const flows = grouped.values.map(row => row.flow);
+        if (monthlyChart) {
+            monthlyChart.data.labels = grouped.labels;
+            monthlyChart.data.datasets[0].data = values;
+            monthlyChart.data.datasets[0].backgroundColor = values.map(val => val >= 0 ? '#16a34a' : '#dc2626');
+            monthlyChart.data.datasets[0].hoverBackgroundColor = values.map(val => val >= 0 ? '#15803d' : '#b91c1c');
+            monthlyChart._periodCounts = counts;
+            monthlyChart._periodFlows = flows;
+            monthlyChart._periodSourceLabels = grouped.values.map(row => row.sourceLabels);
+            monthlyChart._selectedAccountIds = selectedMonthlyIds.size === allMonthlyIds.length ? null : selectedMonthlyIds;
+            monthlyChart.update();
+            renderTable('monthly-table', ['Period', 'P/L USD'], grouped.labels.map((label, i) => [label, signedValue(values[i]) + ' USD']));
+            return;
+        }
+        monthlyChart = new Chart(ctxMonthly, {
+        type: 'bar',
+        data: {
+            labels: grouped.labels,
+            datasets: [{
+                label: 'P/L in base USD',
+                data: values,
+                backgroundColor: values.map(val => val >= 0 ? '#16a34a' : '#dc2626'),
+                hoverBackgroundColor: values.map(val => val >= 0 ? '#15803d' : '#b91c1c'),
+                borderRadius: 6,
+                maxBarThickness: 46,
+                barPercentage: 0.7,
+                categoryPercentage: 0.7
+            }]
+        },
+            options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: {
+                padding: {
+                    top: 40,
+                    bottom: 40
+                }
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { color: tickColor, maxRotation: 0, autoSkip: true }
+                },
+                y: {
+                    beginAtZero: true,
+                    grid: { color: gridColor, drawBorder: false },
+                    ticks: { color: tickColor }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    backgroundColor: '#1e2536',
+                    padding: 12,
+                    cornerRadius: 10,
+                    titleFont: { weight: '700' },
+                    callbacks: {
+                        label: function (context) {
+                            return 'P/L: ' + signedUsdFormatter.format(Math.round(context.parsed.y)) + ' $';
+                        },
+                        afterLabel: function (context) {
+                            const count = monthlyChart?._periodCounts?.[context.dataIndex] || 0;
+                            const cashflow = signedUsdFormatter.format(Math.round(monthlyChart?._periodFlows?.[context.dataIndex] || 0));
+                            return 'Accounts: ' + count + '\nExternal flow: ' + cashflow + ' $';
+                        }
+                    }
+                }
+            }
+        },
+                plugins: [operationsCountPlugin]
+        });
+        monthlyChart._periodCounts = counts;
+        monthlyChart._periodFlows = flows;
+        monthlyChart._periodSourceLabels = grouped.values.map(row => row.sourceLabels);
+        monthlyChart._selectedAccountIds = selectedMonthlyIds.size === allMonthlyIds.length ? null : selectedMonthlyIds;
+        monthlyChart.update();
+        renderTable('monthly-table', ['Period', 'P/L USD'], grouped.labels.map((label, i) => [label, signedValue(values[i]) + ' USD']));
+        monthlyChart.options.onClick = function (event, elements) {
+            if (!elements.length) return;
+            const label = monthlyChart.data.labels[elements[0].index];
+            const sourceLabels = monthlyChart._periodSourceLabels?.[elements[0].index] || [label];
+            const attributions = sourceLabels.map(sourceLabel => monthlyAttributions[sourceLabel]).filter(Boolean);
+            if (!attributions.length) return;
+            const money = value => signedUsdFormatter.format(Math.round(Number(value || 0))) + ' $';
+            const selectedAccountIds = monthlyChart._selectedAccountIds;
+            const filteredAttributions = attributions.map(attribution => ({
+                ...attribution,
+                accounts: (attribution.accounts || []).filter(row =>
+                    selectedAccountIds === null || selectedAccountIds.has(Number(row.accountId)))
+            }));
+            const sum = field => filteredAttributions.reduce((total, attribution) => total + Number(attribution[field] || 0), 0);
+            const accountRows = new Map();
+            filteredAttributions.forEach(attribution => (attribution.accounts || []).forEach(row => {
+                const account = accountRows.get(row.accountId) || { profit: 0, flow: 0 };
+                account.profit += Number(row.monthlyProfit || 0);
+                account.flow += Number(row.netFlow || 0);
+                accountRows.set(row.accountId, account);
+            }));
+            const panel = document.getElementById('monthly-attribution-panel');
+            panel.replaceChildren();
+            const appendLine = (tag, text) => {
+                const element = document.createElement(tag);
+                element.textContent = text;
+                panel.appendChild(element);
+            };
+            appendLine('strong', label + ' · ' + money(monthlyChart.data.datasets[0].data[elements[0].index]));
+            if (selectedAccountIds === null) {
+                appendLine('div', 'Opening equity: ' + money(filteredAttributions[0].openingEquity));
+                appendLine('div', 'Closing equity: ' + money(filteredAttributions[filteredAttributions.length - 1].closingEquity));
+                appendLine('div', 'External deposits: ' + money(sum('deposits')));
+                appendLine('div', 'External withdrawals: -' + money(sum('withdrawals')));
+                appendLine('div', 'Market and FX movement: ' + money(sum('marketAndFxMovement')));
+                appendLine('div', 'Realized trading result: ' + money(sum('realizedTradingResult')));
+                appendLine('div', 'Dividends: ' + money(sum('dividends')));
+                appendLine('div', 'Cash interest: ' + money(sum('cashInterest')));
+                appendLine('div', 'Fees: ' + money(sum('fees')));
+                appendLine('div', 'Taxes: ' + money(sum('taxes')));
+                appendLine('div', 'Unresolved residual: ' + money(sum('unresolvedResidual')));
+            }
+            appendLine('strong', 'By account');
+            accountRows.forEach((account, accountId) => appendLine('div', accountId + ': ' + money(account.profit) + ' · flow ' + money(account.flow)));
+            document.getElementById('monthly-attribution-details').open = true;
+        };
+    }
+    renderMonthlyChart('monthly');
+    enableKeyboardChart(monthlyChart, 'monthly-performance-chart', () => {});
+    document.getElementById('monthly-granularity')?.addEventListener('change', event => renderMonthlyChart(event.target.value));
+    document.querySelectorAll('.js-monthly-account').forEach(input => input.addEventListener('change', () => renderMonthlyChart(document.getElementById('monthly-granularity').value)));
+    document.getElementById('monthly-check-all')?.addEventListener('click', () => {
+        document.querySelectorAll('.js-monthly-account').forEach(input => input.checked = true);
+        renderMonthlyChart(document.getElementById('monthly-granularity').value);
+    });
+    document.getElementById('monthly-uncheck-all')?.addEventListener('click', () => {
+        document.querySelectorAll('.js-monthly-account').forEach(input => input.checked = false);
+        renderMonthlyChart(document.getElementById('monthly-granularity').value);
+    });
+
+    function applyChartTheme() {
+        currentChartTheme = chartTheme();
+        gridColor = currentChartTheme.grid;
+        tickColor = currentChartTheme.soft;
+        Chart.defaults.color = tickColor;
+        Chart.defaults.borderColor = gridColor;
+
+        if (accountValueChart?.data?.datasets?.[0]?.label === 'Portfolio total') {
+            accountValueChart.data.datasets[0].borderColor = currentChartTheme.strong;
+            accountValueChart.data.datasets[0].backgroundColor = currentChartTheme.strongFill;
+        }
+
+        [benchmarkChart, accountValueChart, monthlyChart].forEach(chart => {
+            if (!chart) return;
+
+            ['x', 'y'].forEach(axisName => {
+                const axis = chart.options.scales?.[axisName];
+                if (!axis) return;
+                if (axis.ticks) axis.ticks.color = tickColor;
+                if (axis.grid && axis.grid.display !== false) axis.grid.color = gridColor;
+            });
+
+            const legendLabels = chart.options.plugins?.legend?.labels;
+            if (legendLabels) legendLabels.color = currentChartTheme.legend;
+
+            const tooltip = chart.options.plugins?.tooltip;
+            if (tooltip) {
+                tooltip.backgroundColor = currentChartTheme.tooltip;
+                tooltip.titleColor = currentChartTheme.tooltipText;
+                tooltip.bodyColor = currentChartTheme.tooltipText;
+            }
+
+            chart.update('none');
+        });
+    }
+
+    applyChartTheme();
+    window.addEventListener('investory:themechange', applyChartTheme);
+
+    /*]]>*/
+</script>
+
+<script src="/js/dashboard.js"></script>
+
+</body>
+</html>
