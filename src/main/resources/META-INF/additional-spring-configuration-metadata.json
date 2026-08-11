@@ -1,0 +1,10 @@
+{
+  "properties": [
+    {
+      "name": "app.market.chunk-pause-ms",
+      "type": "java.lang.Long",
+      "description": "Pause in milliseconds between TwelveData quote request chunks.",
+      "defaultValue": 120000
+    }
+  ]
+}
