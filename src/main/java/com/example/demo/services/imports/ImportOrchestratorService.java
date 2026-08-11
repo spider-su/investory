@@ -5,6 +5,7 @@ import com.example.demo.infrastructure.ImportSourceType;
 import com.example.demo.infrastructure.repository.imports.ImportHistory;
 import com.example.demo.services.AssetPriceFallbackService;
 import com.example.demo.services.PortfolioProjectionService;
+import com.example.demo.services.ReconciliationRefreshService;
 import java.io.ByteArrayInputStream;
 import java.security.MessageDigest;
 import java.util.EnumMap;
@@ -31,12 +32,14 @@ public class ImportOrchestratorService {
   private final ImportBatchAuditWriter auditWriter;
   private final AssetPriceFallbackService assetPriceFallbackService;
   private final PortfolioProjectionService portfolioProjectionService;
+  private final ReconciliationRefreshService reconciliationRefreshService;
 
   public ImportOrchestratorService(
       List<BrokerImportParser> parsers,
       ImportBatchAuditWriter auditWriter,
       AssetPriceFallbackService assetPriceFallbackService,
-      PortfolioProjectionService portfolioProjectionService) {
+      PortfolioProjectionService portfolioProjectionService,
+      ReconciliationRefreshService reconciliationRefreshService) {
     this.parserByBroker = new EnumMap<>(BrokerType.class);
     for (BrokerImportParser parser : parsers) {
       BrokerImportParser previous = this.parserByBroker.put(parser.brokerType(), parser);
@@ -53,6 +56,7 @@ public class ImportOrchestratorService {
     this.auditWriter = auditWriter;
     this.assetPriceFallbackService = assetPriceFallbackService;
     this.portfolioProjectionService = portfolioProjectionService;
+    this.reconciliationRefreshService = reconciliationRefreshService;
   }
 
   public ImportBatchResponse importFile(
@@ -191,18 +195,7 @@ public class ImportOrchestratorService {
     }
 
     if (projectionSucceeded) {
-      try {
-        portfolioProjectionService.refreshReconciliationViews();
-      } catch (Exception e) {
-        log.warn(
-            "Reconciliation refresh failed after import (batchId={}): {}",
-            batch.getId(),
-            e.getMessage());
-        if (!failures.isEmpty()) {
-          failures.append("; ");
-        }
-        failures.append("reconciliation refresh failed: ").append(exceptionMessage(e));
-      }
+      reconciliationRefreshService.refreshAfterImport(batch.getId());
     }
 
     return failures.isEmpty() ? null : failures.toString();

@@ -19,6 +19,7 @@ import com.example.demo.infrastructure.ImportSourceType;
 import com.example.demo.infrastructure.repository.imports.ImportHistory;
 import com.example.demo.services.AssetPriceFallbackService;
 import com.example.demo.services.PortfolioProjectionService;
+import com.example.demo.services.ReconciliationRefreshService;
 import com.example.demo.testsupport.portfolio.PortfolioScenarios;
 import com.example.demo.testsupport.portfolio.PortfolioTestContext;
 import java.nio.charset.StandardCharsets;
@@ -38,6 +39,7 @@ class ImportHistoryOrchestratorServiceTest {
   @Mock private ImportBatchAuditWriter auditWriter;
   @Mock private AssetPriceFallbackService assetPriceFallbackService;
   @Mock private PortfolioProjectionService portfolioProjectionService;
+  @Mock private ReconciliationRefreshService reconciliationRefreshService;
   private ImportOrchestratorService importOrchestratorService;
 
   @BeforeEach
@@ -45,7 +47,11 @@ class ImportHistoryOrchestratorServiceTest {
     when(xtbParser.brokerType()).thenReturn(BrokerType.XTB);
     importOrchestratorService =
         new ImportOrchestratorService(
-            List.of(xtbParser), auditWriter, assetPriceFallbackService, portfolioProjectionService);
+            List.of(xtbParser),
+            auditWriter,
+            assetPriceFallbackService,
+            portfolioProjectionService,
+            reconciliationRefreshService);
   }
 
   @Test
@@ -60,7 +66,8 @@ class ImportHistoryOrchestratorServiceTest {
                 List.of(xtbParser, other),
                 auditWriter,
                 assetPriceFallbackService,
-                portfolioProjectionService));
+                portfolioProjectionService,
+                reconciliationRefreshService));
   }
 
   @Test
@@ -72,7 +79,8 @@ class ImportHistoryOrchestratorServiceTest {
             List.of(ibkrParser),
             auditWriter,
             assetPriceFallbackService,
-            portfolioProjectionService);
+            portfolioProjectionService,
+            reconciliationRefreshService);
     PortfolioTestContext duplicateScenario = PortfolioScenarios.createDuplicateImportScenario();
     ImportHistory existing = duplicateScenario.imports().firstImport();
     ImportHistory reprocess = batch(88L, ImportBatchStatus.STARTED, null, 0, 0, 0);
@@ -98,7 +106,7 @@ class ImportHistoryOrchestratorServiceTest {
     verify(ibkrParser).importFile(any(), eq("ibkr.csv"));
     verify(assetPriceFallbackService).populateMissingPricesFromOpenPositions();
     verify(portfolioProjectionService).recalculateAll();
-    verify(portfolioProjectionService).refreshReconciliationViews();
+    verify(reconciliationRefreshService).refreshAfterImport(88L);
     verify(auditWriter, never()).startBatch(any(), any(), any(), anyString(), anyString());
   }
 
@@ -197,7 +205,7 @@ class ImportHistoryOrchestratorServiceTest {
     verify(xtbParser).importFile(any(), eq("file.xlsx"));
     verify(assetPriceFallbackService).populateMissingPricesFromOpenPositions();
     verify(portfolioProjectionService).recalculateAll();
-    verify(portfolioProjectionService).refreshReconciliationViews();
+    verify(reconciliationRefreshService).refreshAfterImport(78L);
     assertEquals("ok", existing.getErrorMessage(), "existing batch must not be mutated");
   }
 
@@ -231,7 +239,7 @@ class ImportHistoryOrchestratorServiceTest {
     verify(xtbParser, times(1)).importFile(any(), eq("file.xlsx"));
     verify(assetPriceFallbackService).populateMissingPricesFromOpenPositions();
     verify(portfolioProjectionService).recalculateAll();
-    verify(portfolioProjectionService).refreshReconciliationViews();
+    verify(reconciliationRefreshService).refreshAfterImport(1L);
   }
 
   @Test
@@ -255,7 +263,7 @@ class ImportHistoryOrchestratorServiceTest {
     assertTrue(exception.getMessage().contains("rejected"));
     verify(assetPriceFallbackService, never()).populateMissingPricesFromOpenPositions();
     verify(portfolioProjectionService, never()).recalculateAll();
-    verify(portfolioProjectionService, never()).refreshReconciliationViews();
+    verify(reconciliationRefreshService, never()).refreshAfterImport(any());
   }
 
   @Test
@@ -317,7 +325,7 @@ class ImportHistoryOrchestratorServiceTest {
   }
 
   @Test
-  void importFile_marksBatchNotReadyWhenReconciliationRefreshFails() throws Exception {
+  void importFile_returnsCompletedWhenReconciliationRefreshIsScheduled() throws Exception {
     when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
         .thenReturn(Optional.empty());
     ImportHistory started = batch(91L, ImportBatchStatus.STARTED, null, 0, 0, 0);
@@ -326,18 +334,17 @@ class ImportHistoryOrchestratorServiceTest {
     when(xtbParser.importFile(any(), anyString())).thenReturn(result);
     when(auditWriter.finalizeApplied(91L, result))
         .thenReturn(batch(91L, ImportBatchStatus.COMPLETED, "imported", 1, 1, 0));
-    when(auditWriter.finalizeNotReady(eq(91L), eq(result), anyString()))
-        .thenReturn(batch(91L, ImportBatchStatus.NOT_READY, "reconciliation failed", 1, 1, 0));
-    org.mockito.Mockito.doThrow(new IllegalStateException("reconciliation failed"))
-        .when(portfolioProjectionService)
-        .refreshReconciliationViews();
+    ImportBatchResponse response =
+        importOrchestratorService.importFile(
+            BrokerType.XTB,
+            "not-ready-reconciliation".getBytes(),
+            "file.xlsx",
+            ImportSourceType.MANUAL,
+            null);
 
-    assertThrows(
-        ImportFailedException.class,
-        () ->
-            importOrchestratorService.importFile(
-                BrokerType.XTB, "not-ready-reconciliation".getBytes(), "file.xlsx", ImportSourceType.MANUAL, null));
-    verify(auditWriter).finalizeNotReady(eq(91L), eq(result), contains("reconciliation refresh"));
+    assertEquals(ImportBatchStatus.COMPLETED, response.status());
+    verify(reconciliationRefreshService).refreshAfterImport(91L);
+    verify(auditWriter, never()).finalizeNotReady(eq(91L), eq(result), anyString());
   }
 
   @Test
