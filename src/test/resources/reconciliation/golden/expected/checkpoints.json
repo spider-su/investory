@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "purpose": "Minimal real-row regression corpus for Investory accounting/import/reconciliation.",
+  "cases": [
+    {
+      "id": "IBKR_TREASURY_LIFECYCLE",
+      "account_id": 17959259,
+      "assertions": {
+        "canonical_asset_symbol": "US91282CKB62",
+        "asset_type": "BOND",
+        "buy_count": 3,
+        "face_purchased": 10000.0,
+        "buy_prices_percent_of_par": [
+          100.41049125,
+          100.484375,
+          100.42611625
+        ],
+        "percent_of_par_multiplier": 0.01,
+        "checkpoint_market_value_at_100_42611625": 10042.611625,
+        "coupon_amount": 231.25,
+        "redemption_principal": 10000.0,
+        "redemption_external_funding_flow": 0.0,
+        "open_face_after_redemption": 0.0
+      }
+    },
+    {
+      "id": "IBKR_BUSINESS_DATE",
+      "account_id": 17959259,
+      "assertions": {
+        "deposit_amount": 8793.0,
+        "source_business_date": "2026-05-07",
+        "must_not_appear_on": "2026-05-06"
+      }
+    },
+    {
+      "id": "IBKR_CROSS_CURRENCY",
+      "account_id": 17959259,
+      "assertions": {
+        "JGPI_price_currency": "EUR",
+        "JGPI_quantity": 45.0,
+        "JGPI_price": 22.54,
+        "VWRA_price_currency": "USD",
+        "VWRA_quantity": 18.0,
+        "fx_component_pair": "EUR.USD",
+        "fx_component_external_funding_flow": 0.0
+      }
+    },
+    {
+      "id": "XTB_VHYD_SUBACCOUNT_REBOOK",
+      "account_id": 51993106,
+      "assertions": {
+        "old_vhyd_quantity_closed": 64.8858,
+        "new_vhyd_quantity_opened": 108.5015,
+        "subaccount_transfer_in": 6044.12,
+        "subaccount_transfer_out": -6044.12,
+        "subaccount_transfer_net_cash": 0.0,
+        "account_performance_flow_for_rebooking": 0.0,
+        "portfolio_flow_for_rebooking": 0.0
+      }
+    },
+    {
+      "id": "XTB_TRUE_INTERACCOUNT_TRANSFER",
+      "assertions": {
+        "source_account": 51993106,
+        "target_account": 51499241,
+        "source_amount": -325.0,
+        "target_amount": 325.0,
+        "portfolio_flow": 0.0,
+        "source_account_performance_flow": -325.0,
+        "target_account_performance_flow": 325.0
+      }
+    },
+    {
+      "id": "XTB_RESULT_ONLY_CFD",
+      "account_id": 51499241,
+      "asset": "NATGAS",
+      "position_id": "2040572606",
+      "assertions": {
+        "gross_result": 105.9,
+        "rollover": -86.1,
+        "swap": -0.68,
+        "net_result": 19.12,
+        "settlement_model": "RESULT_ONLY",
+        "must_not_value_full_notional": true
+      }
+    },
+    {
+      "id": "XTB_IKE_CROSS_CURRENCY",
+      "account_id": 51551301,
+      "assertions": {
+        "account_currency": "PLN",
+        "VWRA_price_currency": "USD",
+        "PKN_price_currency": "PLN",
+        "internal_allocation_in": 14200.0,
+        "dividend": 0.25,
+        "withholding_tax": -0.04
+      }
+    },
+    {
+      "id": "XTB_CASH_ONLY_FUNDING",
+      "account_id": 50290466,
+      "assertions": {
+        "external_deposit": 14200.0,
+        "internal_allocation_out": -14200.0,
+        "counterparty_account": 51551301,
+        "portfolio_external_net_contribution": 14200.0,
+        "interest": 0.1,
+        "interest_tax": -0.02
+      }
+    }
+  ]
+}

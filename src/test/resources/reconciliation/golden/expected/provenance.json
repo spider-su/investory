@@ -1,0 +1,14 @@
+{
+  "fixture_purpose": "Deterministic end-to-end regression coverage for broker import, projection, and reconciliation paths.",
+  "source_brokers": ["IBKR", "XTB"],
+  "selected_regression_scenarios": [
+    "Treasury purchases, accrued interest, coupon, and redemption",
+    "IBKR deposits, cross-currency trade, dividend, interest, and withholding tax",
+    "XTB investment-plan rebooking and tracked-account transfer",
+    "XTB result-only CFD lifecycle",
+    "XTB retirement-account FX, income, and tax",
+    "XTB cash-only funding and allocation"
+  ],
+  "anonymization_policy": "Identity-bearing fields and private source metadata are anonymized or removed. The corpus contains no credentials or private-source fingerprints.",
+  "semantic_preservation_policy": "Dates, amounts, currencies, symbols, quantities, prices, cash-operation types, position IDs, transfer relationships, and business semantics required for deterministic regression coverage are preserved."
+}
