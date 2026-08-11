@@ -1,0 +1,7 @@
+interface:
+  display_name: "Review"
+  short_description: "Review Investory changes and database migrations"
+  default_prompt: "Run $review against the current/recent Investory change."
+
+policy:
+  allow_implicit_invocation: false

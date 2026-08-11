@@ -1,0 +1,7 @@
+interface:
+  display_name: "Architecture"
+  short_description: "Plan Investory architecture changes before implementation"
+  default_prompt: "Run $arch for the proposed Investory change."
+
+policy:
+  allow_implicit_invocation: false

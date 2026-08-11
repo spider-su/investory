@@ -1,0 +1,7 @@
+interface:
+  display_name: "Import"
+  short_description: "Check Investory broker imports and import performance"
+  default_prompt: "Run $import against the latest/current Investory import."
+
+policy:
+  allow_implicit_invocation: false

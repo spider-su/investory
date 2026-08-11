@@ -1,0 +1,7 @@
+interface:
+  display_name: "Recon"
+  short_description: "Run Investory reconciliation and golden validation modes"
+  default_prompt: "Run $recon against the current Investory state."
+
+policy:
+  allow_implicit_invocation: false
