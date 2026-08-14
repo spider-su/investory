@@ -126,7 +126,7 @@ CREATE TABLE investory.assets(
     symbol           varchar(64) NOT NULL,
     ticker           varchar(64) NOT NULL,
     ibkr             varchar(64) NOT NULL,
-    yahoo            varchar(64) NOT NULL,
+    yahoo            varchar(64),
     country          varchar(15) NOT NULL,
     currency         varchar(3) NOT NULL REFERENCES investory.currencies(id),
     asset_type       varchar(32) NOT NULL REFERENCES investory.asset_types(id),
@@ -138,20 +138,29 @@ CREATE TABLE investory.assets(
     market_price     numeric(20,8),
     market_price_usd numeric(20,8),
     price_source     varchar(255),
-    price_updated_at timestamptz
+    price_updated_at timestamptz,
+    CONSTRAINT chk_assets_symbol_not_blank_v01011 CHECK (btrim(symbol) <> ''),
+    CONSTRAINT chk_assets_ticker_not_blank_v01011 CHECK (btrim(ticker) <> ''),
+    CONSTRAINT chk_assets_ibkr_not_blank_v01011 CHECK (btrim(ibkr) <> ''),
+    CONSTRAINT chk_assets_yahoo_not_blank_v01011 CHECK (btrim(yahoo) <> ''),
+    CONSTRAINT chk_assets_isin_format_v01011
+        CHECK (isin IS NULL OR upper(btrim(isin)) ~ '^[A-Z]{2}[A-Z0-9]{9}[0-9]$'),
+    CONSTRAINT chk_assets_figi_format_v01011
+        CHECK (figi IS NULL OR upper(btrim(figi)) ~ '^[A-Z0-9]{12}$'),
+    CONSTRAINT chk_assets_exchange_mic_format_v01011
+        CHECK (exchange_mic IS NULL OR upper(btrim(exchange_mic)) ~ '^[A-Z0-9]{4}$')
 );
 CREATE UNIQUE INDEX ux_assets_symbol ON investory.assets(symbol);
 CREATE UNIQUE INDEX ux_assets_ibkr ON investory.assets(ibkr);
 COMMENT ON TABLE investory.assets IS 'Stocks and ETFs as element of portfolio';
 COMMENT ON COLUMN investory.assets.symbol IS 'Symbol used in the broker system, e.g. "AAPL.US" for Apple Inc. stock or "SPY.US" for SPDR S&P 500 ETF';
 COMMENT ON COLUMN investory.assets.ibkr IS 'IBKR identifier for the asset';
-COMMENT ON COLUMN investory.assets.yahoo IS 'Yahoo Finance identifier for the asset';
 COMMENT ON COLUMN investory.assets.currency IS
     'Canonical native quote currency of assets.market_price. Historical rows retain their own observed price_currency and are converted directly from that currency during valuation.';
 COMMENT ON COLUMN investory.assets.ibkr IS
     'Primary IBKR contract or symbol used by transaction import identity resolution. Each nonblank identifier resolves to one canonical asset; it is not a generalized price-provider mapping.';
 COMMENT ON COLUMN investory.assets.yahoo IS
-    'Preferred Yahoo/export symbol. It is not a generalized price-provider mapping.';
+    'Optional Yahoo Finance symbol override. Normal symbols derive from assets.symbol; this is not an asset identity.';
 COMMENT ON COLUMN investory.assets.market_price IS
     'Explicit current native quote fallback in assets.currency. Reporting prefers v_current_asset_price historical observations when available.';
 COMMENT ON COLUMN investory.assets.market_price_usd IS
@@ -445,6 +454,58 @@ CREATE UNIQUE INDEX ux_import_history_provider_sha256_attempt
     ON investory.import_history (provider, file_sha256, attempt_no);
 COMMENT ON TABLE investory.import_history IS 'History of imports from providers to the system';
 
+-- Immutable broker evidence. One physical artifact is reused by reprocess attempts.
+CREATE TABLE investory.import_source_files (
+    id                bigserial PRIMARY KEY,
+    provider          varchar(32) NOT NULL REFERENCES investory.providers(id),
+    import_history_id bigint NOT NULL REFERENCES investory.import_history(id) ON DELETE RESTRICT,
+    file_name         varchar(255),
+    content_type      varchar(255),
+    file_sha256       varchar(64) NOT NULL,
+    original_size     bigint NOT NULL,
+    raw_payload       bytea NOT NULL,
+    created_at        timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT chk_import_source_files_sha256_lower_hex
+        CHECK (file_sha256 ~ '^[0-9a-f]{64}$'),
+    CONSTRAINT chk_import_source_files_size_non_negative
+        CHECK (original_size >= 0)
+);
+CREATE UNIQUE INDEX ux_import_source_files_provider_sha256
+    ON investory.import_source_files(provider, file_sha256);
+CREATE INDEX ix_import_source_files_import_history
+    ON investory.import_source_files(import_history_id);
+COMMENT ON TABLE investory.import_source_files IS
+    'Immutable uploaded broker artifacts. Reprocess attempts reuse the artifact by provider and SHA-256.';
+
+CREATE TABLE investory.import_source_rows (
+    id                    bigserial PRIMARY KEY,
+    import_history_id     bigint NOT NULL REFERENCES investory.import_history(id) ON DELETE RESTRICT,
+    source_file_id        bigint REFERENCES investory.import_source_files(id) ON DELETE RESTRICT,
+    provider              varchar(32) NOT NULL REFERENCES investory.providers(id),
+    section_name          varchar(255),
+    sheet_name            varchar(255),
+    archive_member_name   varchar(512),
+    source_row_number     integer,
+    source_record_id      varchar(255),
+    source_row_occurrence integer NOT NULL DEFAULT 1,
+    raw_text              text,
+    raw_values            jsonb NOT NULL,
+    created_at            timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT chk_import_source_rows_occurrence_positive
+        CHECK (source_row_occurrence >= 1),
+    CONSTRAINT chk_import_source_rows_location
+        CHECK (source_row_number IS NOT NULL OR source_record_id IS NOT NULL)
+);
+CREATE INDEX ix_import_source_rows_import_history
+    ON investory.import_source_rows(import_history_id);
+CREATE INDEX ix_import_source_rows_source_file
+    ON investory.import_source_rows(source_file_id);
+CREATE INDEX ix_import_source_rows_record_identity
+    ON investory.import_source_rows(source_record_id)
+    WHERE source_record_id IS NOT NULL;
+COMMENT ON TABLE investory.import_source_rows IS
+    'Immutable broker row evidence. raw_values preserves parsed source fields; canonical values live elsewhere.';
+
 CREATE TABLE investory.cash_operations (
     id           bigint PRIMARY KEY,
     account_id   bigint NOT NULL REFERENCES investory.accounts(id),
@@ -461,7 +522,9 @@ CREATE TABLE investory.cash_operations (
     execution_fx_rate numeric(20,8),
     execution_fx_observed_at timestamp with time zone,
     execution_fx_source varchar(32),
-    execution_fx_reference varchar(256)
+    execution_fx_reference varchar(256),
+    import_history_id bigint REFERENCES investory.import_history(id) ON DELETE RESTRICT,
+    import_source_row_id bigint REFERENCES investory.import_source_rows(id) ON DELETE RESTRICT
 );
 -- drop index if exists ux_cash_operations;
 -- CREATE UNIQUE INDEX ux_cash_operations on cash_operations (account_id, date, asset_id);
@@ -504,6 +567,8 @@ CREATE TABLE investory.positions (
     commission      numeric(20,8),
     swap            numeric(20,8),
     profit          numeric(20,8),
+    import_history_id bigint REFERENCES investory.import_history(id) ON DELETE RESTRICT,
+    import_source_row_id bigint REFERENCES investory.import_source_rows(id) ON DELETE RESTRICT,
     CONSTRAINT chk_positions_volume_non_negative CHECK (volume >= 0),
     CONSTRAINT chk_positions_source_row_occurrence_one_based
         CHECK (source_row_occurrence >= 1),
@@ -650,22 +715,6 @@ CREATE UNIQUE INDEX ux_assets_ticker_exchange_mic
     ON investory.assets (upper(ticker), upper(exchange_mic))
     WHERE exchange_mic IS NOT NULL AND btrim(exchange_mic) <> '';
 
-ALTER TABLE investory.assets
-    ADD CONSTRAINT chk_assets_symbol_not_blank_v01011
-        CHECK (btrim(symbol) <> ''),
-    ADD CONSTRAINT chk_assets_ticker_not_blank_v01011
-        CHECK (btrim(ticker) <> ''),
-    ADD CONSTRAINT chk_assets_ibkr_not_blank_v01011
-        CHECK (btrim(ibkr) <> ''),
-    ADD CONSTRAINT chk_assets_yahoo_not_blank_v01011
-        CHECK (btrim(yahoo) <> ''),
-    ADD CONSTRAINT chk_assets_isin_format_v01011
-        CHECK (isin IS NULL OR upper(btrim(isin)) ~ '^[A-Z]{2}[A-Z0-9]{9}[0-9]$'),
-    ADD CONSTRAINT chk_assets_figi_format_v01011
-        CHECK (figi IS NULL OR upper(btrim(figi)) ~ '^[A-Z0-9]{12}$'),
-    ADD CONSTRAINT chk_assets_exchange_mic_format_v01011
-        CHECK (exchange_mic IS NULL OR upper(btrim(exchange_mic)) ~ '^[A-Z0-9]{4}$');
-
 CREATE TABLE investory.system_audit_runs (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     import_history_id bigint REFERENCES investory.import_history(id) ON DELETE SET NULL,
@@ -710,3 +759,67 @@ COMMENT ON TABLE investory.system_audit_runs IS
     'Persisted system-level validation result created automatically whenever an import reaches a terminal status.';
 COMMENT ON TABLE investory.system_audit_issues IS
     'Non-zero actionable checks captured for one system audit run. Stable check codes are suitable for notifications and structured logging.';
+
+CREATE TABLE investory.integration_instances (
+    id          bigserial PRIMARY KEY,
+    owner_id    bigint REFERENCES investory.app_users(id) ON DELETE RESTRICT,
+    plugin_id   varchar(128) NOT NULL,
+    plugin_type varchar(32) NOT NULL,
+    enabled     boolean NOT NULL DEFAULT false,
+    config_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    updated_at  timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT chk_integration_instances_type
+        CHECK (plugin_type IN ('BROKER_IMPORT', 'MARKET_DATA', 'FX_DATA', 'EXPORT')),
+    CONSTRAINT ux_integration_instances_plugin_owner UNIQUE (owner_id, plugin_id, plugin_type)
+);
+CREATE INDEX ix_integration_instances_enabled ON investory.integration_instances(enabled);
+CREATE INDEX ix_integration_instances_owner ON investory.integration_instances(owner_id);
+CREATE UNIQUE INDEX ux_integration_instances_global_plugin
+    ON investory.integration_instances(plugin_id, plugin_type)
+    WHERE owner_id IS NULL;
+
+CREATE TABLE investory.integration_secrets (
+    id                    bigserial PRIMARY KEY,
+    integration_instance_id bigint NOT NULL REFERENCES investory.integration_instances(id) ON DELETE CASCADE,
+    secret_name           varchar(128) NOT NULL,
+    ciphertext            text NOT NULL,
+    key_version           varchar(64) NOT NULL,
+    updated_at            timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT ux_integration_secrets_instance_name UNIQUE (integration_instance_id, secret_name)
+);
+
+CREATE TABLE investory.integration_jobs (
+    id                      bigserial PRIMARY KEY,
+    integration_instance_id bigint NOT NULL REFERENCES investory.integration_instances(id) ON DELETE CASCADE,
+    job_type                varchar(128) NOT NULL,
+    enabled                 boolean NOT NULL DEFAULT false,
+    cron                    varchar(128) NOT NULL,
+    timezone                varchar(64) NOT NULL DEFAULT 'Europe/Warsaw',
+    parameters_json         jsonb NOT NULL DEFAULT '{}'::jsonb,
+    last_started_at         timestamptz,
+    last_completed_at       timestamptz,
+    last_status             varchar(32),
+    last_error              text,
+    CONSTRAINT ux_integration_jobs_instance_type UNIQUE (integration_instance_id, job_type),
+    CONSTRAINT chk_integration_jobs_status
+        CHECK (last_status IS NULL OR last_status IN ('STARTED', 'SUCCESS', 'FAILED', 'SKIPPED'))
+);
+CREATE INDEX ix_integration_jobs_enabled ON investory.integration_jobs(enabled);
+
+CREATE TABLE investory.yahoo_export_state (
+    id                  integer PRIMARY KEY CHECK (id = 1),
+    exported_at         timestamptz NOT NULL,
+    portfolio_fingerprint varchar(64) NOT NULL,
+    position_count      integer NOT NULL DEFAULT 0
+);
+
+COMMENT ON TABLE investory.yahoo_export_state IS
+    'Latest successful Yahoo-compatible export and the portfolio state it represented.';
+
+COMMENT ON TABLE investory.integration_instances IS
+    'Plugin configuration instances. owner_id is nullable for global/single-user configuration.';
+COMMENT ON TABLE investory.integration_secrets IS
+    'Encrypted plugin secrets. Plaintext values never belong in config_json or logs.';
+COMMENT ON TABLE investory.integration_jobs IS
+    'Dynamic plugin jobs. Existing fixed schedulers remain compatibility paths during migration.';

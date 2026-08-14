@@ -1,0 +1,110 @@
+{
+  "portfolioId": 1,
+  "rentalTaxPolicies": [
+    { "validFrom": "2026-01-01", "rate": 0.085 }
+  ],
+  "assets": [
+    {
+      "externalKey": "property-a",
+      "type": "REAL_ESTATE",
+      "name": "Property A",
+      "currency": "PLN",
+      "currentValue": 710000,
+      "effectiveFrom": "2026-01-01",
+      "cashFlows": [
+        { "type": "RENT", "amount": 2650, "frequency": "MONTHLY", "validFrom": "2026-01-01" },
+        { "type": "PARKING_RENT", "amount": 250, "frequency": "MONTHLY", "validFrom": "2026-01-01" },
+        { "type": "ADMIN_FEE", "amount": 687, "frequency": "MONTHLY", "validFrom": "2026-01-01" },
+        { "type": "PROPERTY_TAX", "amount": 320, "frequency": "ANNUAL", "validFrom": "2026-01-01" },
+        { "type": "INSURANCE", "amount": 200, "frequency": "ANNUAL", "validFrom": "2026-01-01" }
+      ],
+      "valuationPeriods": [ { "validFrom": "2026-01-01", "annualRate": 0.02 } ]
+    },
+    {
+      "externalKey": "property-b",
+      "type": "REAL_ESTATE",
+      "name": "Property B",
+      "currency": "PLN",
+      "currentValue": 710000,
+      "effectiveFrom": "2026-01-01",
+      "cashFlows": [
+        { "type": "RENT", "amount": 2800, "frequency": "MONTHLY", "validFrom": "2026-01-01" },
+        { "type": "ADMIN_FEE", "amount": 650, "frequency": "MONTHLY", "validFrom": "2026-01-01" },
+        { "type": "PROPERTY_TAX", "amount": 330, "frequency": "ANNUAL", "validFrom": "2026-01-01" },
+        { "type": "INSURANCE", "amount": 240, "frequency": "ANNUAL", "validFrom": "2026-01-01" }
+      ],
+      "valuationPeriods": [ { "validFrom": "2026-01-01", "annualRate": 0.02 } ]
+    },
+    {
+      "externalKey": "property-c",
+      "type": "REAL_ESTATE",
+      "name": "Property C",
+      "currency": "PLN",
+      "currentValue": 700000,
+      "effectiveFrom": "2026-01-01",
+      "cashFlows": [
+        { "type": "RENT", "amount": 2600, "frequency": "MONTHLY", "validFrom": "2026-01-01" },
+        { "type": "ADMIN_FEE", "amount": 380, "frequency": "MONTHLY", "validFrom": "2026-01-01" },
+        { "type": "PROPERTY_TAX", "amount": 330, "frequency": "ANNUAL", "validFrom": "2026-01-01" },
+        { "type": "INSURANCE", "amount": 200, "frequency": "ANNUAL", "validFrom": "2026-01-01" }
+      ],
+      "valuationPeriods": [ { "validFrom": "2026-01-01", "annualRate": 0.02 } ]
+    },
+    {
+      "externalKey": "property-d",
+      "type": "REAL_ESTATE",
+      "name": "Property D",
+      "currency": "PLN",
+      "currentValue": 780000,
+      "effectiveFrom": "2026-01-01",
+      "cashFlows": [
+        { "type": "RENT", "amount": 2900, "frequency": "MONTHLY", "validFrom": "2026-01-01" },
+        { "type": "PARKING_RENT", "amount": 100, "frequency": "MONTHLY", "validFrom": "2026-01-01" },
+        { "type": "ADMIN_FEE", "amount": 400, "frequency": "MONTHLY", "validFrom": "2026-01-01" },
+        { "type": "PROPERTY_TAX", "amount": 340, "frequency": "ANNUAL", "validFrom": "2026-01-01" },
+        { "type": "INSURANCE", "amount": 250, "frequency": "ANNUAL", "validFrom": "2026-01-01" }
+      ],
+      "valuationPeriods": [ { "validFrom": "2026-01-01", "annualRate": 0.02 } ]
+    },
+    {
+      "externalKey": "property-e",
+      "type": "REAL_ESTATE",
+      "name": "Property E",
+      "currency": "PLN",
+      "currentValue": 750000,
+      "effectiveFrom": "2026-01-01",
+      "cashFlows": [
+        { "type": "RENT", "amount": 2900, "frequency": "MONTHLY", "validFrom": "2026-01-01" },
+        { "type": "PARKING_RENT", "amount": 150, "frequency": "MONTHLY", "validFrom": "2026-01-01" },
+        { "type": "ADMIN_FEE", "amount": 490, "frequency": "MONTHLY", "validFrom": "2026-01-01" },
+        { "type": "PROPERTY_TAX", "amount": 320, "frequency": "ANNUAL", "validFrom": "2026-01-01" },
+        { "type": "INSURANCE", "amount": 240, "frequency": "ANNUAL", "validFrom": "2026-01-01" }
+      ],
+      "valuationPeriods": [ { "validFrom": "2026-01-01", "annualRate": 0.02 } ]
+    },
+    {
+      "externalKey": "example-bond-2030",
+      "type": "BOND",
+      "name": "Example Bond",
+      "currency": "PLN",
+      "acquisitionDate": "2026-01-01",
+      "acquisitionValue": 300000,
+      "currentValue": 300000,
+      "effectiveFrom": "2026-01-01",
+      "bondRatePeriods": [ { "validFrom": "2026-01-01", "validTo": "2030-12-31", "annualRate": 0.055 } ],
+      "bond": { "maturityDate": "2030-12-31", "interestTreatment": "CAPITALIZE", "taxRate": 0.19, "redemptionValue": 300000 }
+    },
+    {
+      "externalKey": "income-bond-2029",
+      "type": "BOND",
+      "name": "Income Bond",
+      "currency": "PLN",
+      "acquisitionDate": "2026-01-01",
+      "acquisitionValue": 200000,
+      "currentValue": 200000,
+      "effectiveFrom": "2026-01-01",
+      "bondRatePeriods": [ { "validFrom": "2026-01-01", "validTo": "2029-12-31", "annualRate": 0.05 } ],
+      "bond": { "maturityDate": "2029-12-31", "interestTreatment": "PAY_OUT", "taxRate": 0.19, "redemptionValue": 200000 }
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+package com.smartbox.investory.application.simulation;
+
+public enum RetirementTimingResultState {
+  ALREADY_RETIRED,
+  IMMEDIATE_RETIREMENT_AVAILABLE,
+  EARLIER_RETIREMENT_AVAILABLE,
+  PLANNED_AGE_IS_BOUNDARY,
+  DELAY_REQUIRED,
+  NO_SUSTAINABLE_AGE,
+  NON_MONOTONIC_RESULT
+}

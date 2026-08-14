@@ -1,4 +1,5 @@
 .idea
+*.iml
 *.xml
 !pom.xml
 /target/
@@ -18,3 +19,6 @@ src/main/resources/application-k3s.yml
 /tools/
 /src/test/python/
 /.github/TODO/
+/.m2-local/
+/.m2/
+/.m2-wrapper-cache/

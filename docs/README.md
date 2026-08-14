@@ -10,6 +10,10 @@ source of truth.
 - [`../ROADMAP.md`](../ROADMAP.md): future work and current priorities only.
 - [`../CHANGELOG.md`](../CHANGELOG.md): completed work and documentation history.
 
+## Business overview
+
+- [`business-epics.md`](business-epics.md): short map of the main business-logic epics and their features.
+
 ## Domain contracts
 
 These define intended financial semantics. A code mismatch should be investigated, not silently
@@ -21,11 +25,17 @@ resolved by changing the documentation.
   currency roles, and signed position quantity.
 - [`domain/fx-normalization.md`](domain/fx-normalization.md): FX direction, resolution, stale/missing
   rates, and fail-closed reporting behavior.
+- [`domain/retirement-simulation.md`](domain/retirement-simulation.md): deterministic retirement
+  funding, liquidity, strategy, and independent growth-rate semantics.
+- [`domain/planning-timeline.md`](domain/planning-timeline.md): Actual/Live/Projected lifecycle,
+  expected-versus-actual baseline, temporal anchor, display currency, and planning/accounting isolation.
 
 ## Architecture
 
 - [`architecture/overview.md`](architecture/overview.md): stable application boundaries and major
   components.
+- [`architecture/dashboard-application.md`](architecture/dashboard-application.md): dashboard facade,
+  query flow, immutable view models, and server-rendered UI boundary.
 - [`architecture/reporting-pipeline.md`](architecture/reporting-pipeline.md): raw ledger ->
   `account_daily` -> reporting layers -> UI/adapters.
 
@@ -42,18 +52,14 @@ resolved by changing the documentation.
 
 - [`quality/reconciliation.md`](quality/reconciliation.md): C0-C7 pipeline checkpoints,
   economic-truth validation, regression classes, and current reconciliation tooling.
-
-## Integrations
-
-- [`integrations/ghostfolio.md`](integrations/ghostfolio.md): Ghostfolio compatibility surface and
-  remaining adapter gaps.
+- [`reconciliation/local-profile-db-persistence-freeze-readiness.md`](reconciliation/local-profile-db-persistence-freeze-readiness.md): current database/persistence freeze-readiness audit and required remaining checks.
 
 ## Nearest-code documentation
 
 Package-local `README.md` files describe code-specific conventions and should remain next to that
 code. In particular:
 
-- `src/test/java/com/example/demo/testsupport/portfolio/README.md`: deterministic portfolio test data
+- `src/test/java/com/smartbox/testsupport/portfolio/README.md`: deterministic portfolio test data
   and scenario-building rules.
 
 ## Archive
@@ -71,7 +77,6 @@ Git history remains the long-term history source.
 - Stable data flow and component boundaries belong in `architecture/`.
 - Repeatable engineering procedures belong in `development/`.
 - Validation contracts belong in `quality/`.
-- Integration-specific contracts belong in `integrations/`.
 - Future work belongs in `ROADMAP.md`; completed work belongs in `CHANGELOG.md`.
 - Exact implementation details should be read from source/configuration/Flyway instead of copied into
   multiple documents.

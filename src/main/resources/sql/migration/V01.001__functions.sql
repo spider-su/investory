@@ -558,7 +558,7 @@ WITH cfg AS (
            CASE WHEN er.rate_date = p_valuation_date AND er.method = 'MARKET_DAILY' THEN 1
                 WHEN er.rate_date = p_valuation_date AND er.method = 'IBKR_DAILY_REFERENCE' THEN 2
                 WHEN er.method IN ('MARKET_DAILY','IBKR_DAILY_REFERENCE')
-                     AND p_valuation_date - er.rate_date <= cfg.max_age THEN 6
+                     AND p_valuation_date - er.rate_date <= cfg.max_age THEN 5
                 WHEN er.method = 'HISTORICAL_MONTHLY' THEN 9 ELSE 9 END AS rank
     FROM investory.exchange_rates er CROSS JOIN cfg
     WHERE er.base <> er.to_currency AND er.rate > 0
@@ -569,7 +569,7 @@ WITH cfg AS (
            CASE WHEN er.rate_date = p_valuation_date AND er.method = 'MARKET_DAILY' THEN 1
                 WHEN er.rate_date = p_valuation_date AND er.method = 'IBKR_DAILY_REFERENCE' THEN 2
                 WHEN er.method IN ('MARKET_DAILY','IBKR_DAILY_REFERENCE')
-                     AND p_valuation_date - er.rate_date <= cfg.max_age THEN 6
+                     AND p_valuation_date - er.rate_date <= cfg.max_age THEN 5
                 WHEN er.method = 'HISTORICAL_MONTHLY' THEN 9 ELSE 9 END
     FROM investory.exchange_rates er CROSS JOIN cfg
     WHERE er.base <> er.to_currency AND er.rate > 0
@@ -583,7 +583,7 @@ WITH cfg AS (
     UNION ALL
     SELECT a.edge_rate * b.edge_rate, ('TRIANGULATED:' || a.edge_target)::varchar(64),
            CASE WHEN a.edge_method = b.edge_method THEN a.edge_method ELSE 'TRIANGULATED' END,
-           a.edge_rate_source, LEAST(a.rate_date, b.rate_date), 5
+           a.edge_rate_source, LEAST(a.rate_date, b.rate_date), 6
     FROM edges a JOIN edges b ON b.edge_source = a.edge_target
                               AND b.edge_target = p_target_currency
     WHERE a.edge_source = p_source_currency
@@ -739,19 +739,163 @@ WHERE upper(p_purpose) = 'TRANSACTION'
   AND NOT EXISTS (SELECT 1 FROM selected);
 $$;
 
+CREATE OR REPLACE FUNCTION investory.refresh_reconstructed_position_daily()
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE started_at timestamptz := clock_timestamp();
+BEGIN
+    REFRESH MATERIALIZED VIEW investory.mv_reconstructed_position_daily;
+    ANALYZE investory.mv_reconstructed_position_daily;
+    RAISE LOG 'investory refresh stage=mv_reconstructed_position_daily elapsed_ms=%',
+        EXTRACT(milliseconds FROM clock_timestamp() - started_at);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION investory.refresh_reconstructed_account_market_daily()
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE started_at timestamptz := clock_timestamp();
+BEGIN
+    REFRESH MATERIALIZED VIEW investory.mv_reconstructed_account_market_daily;
+    ANALYZE investory.mv_reconstructed_account_market_daily;
+    RAISE LOG 'investory refresh stage=mv_reconstructed_account_market_daily elapsed_ms=%',
+        EXTRACT(milliseconds FROM clock_timestamp() - started_at);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION investory.refresh_reconstructed_cash_daily()
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE started_at timestamptz := clock_timestamp();
+BEGIN
+    REFRESH MATERIALIZED VIEW investory.mv_reconstructed_cash_daily;
+    ANALYZE investory.mv_reconstructed_cash_daily;
+    RAISE LOG 'investory refresh stage=mv_reconstructed_cash_daily elapsed_ms=%',
+        EXTRACT(milliseconds FROM clock_timestamp() - started_at);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION investory.refresh_account_daily_reconciliation()
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE started_at timestamptz := clock_timestamp();
+BEGIN
+    REFRESH MATERIALIZED VIEW investory.mv_account_daily_reconciliation;
+    ANALYZE investory.mv_account_daily_reconciliation;
+    RAISE LOG 'investory refresh stage=mv_account_daily_reconciliation elapsed_ms=%',
+        EXTRACT(milliseconds FROM clock_timestamp() - started_at);
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION investory.refresh_reconciliation_views()
-RETURNS VOID AS $$
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    PERFORM investory.refresh_reconstructed_position_daily();
+    PERFORM investory.refresh_reconstructed_account_market_daily();
+    PERFORM investory.refresh_reconstructed_cash_daily();
+    PERFORM investory.refresh_account_daily_reconciliation();
+    REFRESH MATERIALIZED VIEW investory.reporting_account_monthly_profit_reconciliation;
+    ANALYZE investory.reporting_account_monthly_profit_reconciliation;
+    REFRESH MATERIALIZED VIEW investory.reporting_account_statistics_vs_daily_reconciliation;
+    ANALYZE investory.reporting_account_statistics_vs_daily_reconciliation;
+    REFRESH MATERIALIZED VIEW investory.reporting_account_daily_cashflow_reconciliation;
+    ANALYZE investory.reporting_account_daily_cashflow_reconciliation;
+    REFRESH MATERIALIZED VIEW investory.reporting_trade_settlement_reconciliation;
+    ANALYZE investory.reporting_trade_settlement_reconciliation;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION investory.refresh_reconciliation_reporting_views()
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE started_at timestamptz := clock_timestamp();
 BEGIN
     REFRESH MATERIALIZED VIEW investory.reporting_account_monthly_profit_reconciliation;
+    ANALYZE investory.reporting_account_monthly_profit_reconciliation;
     REFRESH MATERIALIZED VIEW investory.reporting_account_statistics_vs_daily_reconciliation;
+    ANALYZE investory.reporting_account_statistics_vs_daily_reconciliation;
     REFRESH MATERIALIZED VIEW investory.reporting_account_daily_cashflow_reconciliation;
-    REFRESH MATERIALIZED VIEW investory.v_account_daily_reconciliation;
+    ANALYZE investory.reporting_account_daily_cashflow_reconciliation;
     REFRESH MATERIALIZED VIEW investory.reporting_trade_settlement_reconciliation;
+    ANALYZE investory.reporting_trade_settlement_reconciliation;
+    RAISE LOG 'investory refresh stage=reconciliation_reporting elapsed_ms=%',
+        EXTRACT(milliseconds FROM clock_timestamp() - started_at);
 END;
-$$ LANGUAGE plpgsql;
+$$;
+
+-- Squashed release observability: keep refresh-stage timing in the baseline
+-- function definitions so clean databases get the same operational telemetry.
+CREATE OR REPLACE FUNCTION investory.refresh_reporting_views()
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    started_at timestamptz := clock_timestamp();
+    step_started timestamptz;
+BEGIN
+    step_started := clock_timestamp();
+    REFRESH MATERIALIZED VIEW investory.account_monthly_mv;
+    RAISE LOG 'investory refresh stage=account_monthly_mv elapsed_ms=%', EXTRACT(milliseconds FROM clock_timestamp() - step_started);
+    step_started := clock_timestamp();
+    REFRESH MATERIALIZED VIEW investory.portfolio_monthly_mv;
+    RAISE LOG 'investory refresh stage=portfolio_monthly_mv elapsed_ms=%', EXTRACT(milliseconds FROM clock_timestamp() - step_started);
+    step_started := clock_timestamp();
+    REFRESH MATERIALIZED VIEW investory.account_statistics;
+    RAISE LOG 'investory refresh stage=account_statistics elapsed_ms=%', EXTRACT(milliseconds FROM clock_timestamp() - step_started);
+    step_started := clock_timestamp();
+    REFRESH MATERIALIZED VIEW investory.portfolio_currency_breakdown;
+    RAISE LOG 'investory refresh stage=portfolio_currency_breakdown elapsed_ms=%', EXTRACT(milliseconds FROM clock_timestamp() - step_started);
+    step_started := clock_timestamp();
+    REFRESH MATERIALIZED VIEW investory.portfolio_asset_allocation;
+    RAISE LOG 'investory refresh stage=portfolio_asset_allocation elapsed_ms=%', EXTRACT(milliseconds FROM clock_timestamp() - step_started);
+    step_started := clock_timestamp();
+    REFRESH MATERIALIZED VIEW investory.symbol_performance;
+    RAISE LOG 'investory refresh stage=symbol_performance elapsed_ms=%', EXTRACT(milliseconds FROM clock_timestamp() - step_started);
+    step_started := clock_timestamp();
+    REFRESH MATERIALIZED VIEW investory.portfolio_kpi_summary;
+    RAISE LOG 'investory refresh stage=portfolio_kpi_summary elapsed_ms=%', EXTRACT(milliseconds FROM clock_timestamp() - step_started);
+    RAISE LOG 'investory refresh stage=app_reporting_total elapsed_ms=%', EXTRACT(milliseconds FROM clock_timestamp() - started_at);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION investory.refresh_reconciliation_reporting_views()
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    started_at timestamptz := clock_timestamp();
+    step_started timestamptz;
+BEGIN
+    step_started := clock_timestamp();
+    REFRESH MATERIALIZED VIEW investory.reporting_account_monthly_profit_reconciliation;
+    ANALYZE investory.reporting_account_monthly_profit_reconciliation;
+    RAISE LOG 'investory refresh stage=reporting_account_monthly_profit_reconciliation elapsed_ms=%', EXTRACT(milliseconds FROM clock_timestamp() - step_started);
+    step_started := clock_timestamp();
+    REFRESH MATERIALIZED VIEW investory.reporting_account_statistics_vs_daily_reconciliation;
+    ANALYZE investory.reporting_account_statistics_vs_daily_reconciliation;
+    RAISE LOG 'investory refresh stage=reporting_account_statistics_vs_daily_reconciliation elapsed_ms=%', EXTRACT(milliseconds FROM clock_timestamp() - step_started);
+    step_started := clock_timestamp();
+    REFRESH MATERIALIZED VIEW investory.reporting_account_daily_cashflow_reconciliation;
+    ANALYZE investory.reporting_account_daily_cashflow_reconciliation;
+    RAISE LOG 'investory refresh stage=reporting_account_daily_cashflow_reconciliation elapsed_ms=%', EXTRACT(milliseconds FROM clock_timestamp() - step_started);
+    step_started := clock_timestamp();
+    REFRESH MATERIALIZED VIEW investory.reporting_trade_settlement_reconciliation;
+    ANALYZE investory.reporting_trade_settlement_reconciliation;
+    RAISE LOG 'investory refresh stage=reporting_trade_settlement_reconciliation elapsed_ms=%', EXTRACT(milliseconds FROM clock_timestamp() - step_started);
+    RAISE LOG 'investory refresh stage=reconciliation_reporting_total elapsed_ms=%', EXTRACT(milliseconds FROM clock_timestamp() - started_at);
+END;
+$$;
 
 COMMENT ON FUNCTION investory.refresh_reconciliation_views() IS
-    'Refreshes reconciliation materialized views on demand. Reconciliation objects are excluded from refresh_reporting_views().';
+    'Refreshes disposable reconstruction facts in dependency order, then their reconciliation reports. Java invokes the stage functions separately after import so each stage can commit and be timed independently.';
+
 
 -- Public naming contract: app_v_* is consumed by production application code;
 -- recon_v_* is independent validation or reconciliation output. The original

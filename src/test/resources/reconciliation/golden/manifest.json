@@ -2,29 +2,24 @@
   "version": 1,
   "files": [
     {
-      "path": "README.md",
-      "sha256": "a9b2832477cd40ff28ce5e1752483aa8e39e06da613741c9f347383bb4597166",
-      "size_bytes": 1439
-    },
-    {
       "path": "expected/checkpoints.json",
-      "sha256": "f8984fff4b5fb9e131e3b39ff8cc96b497112ccea0ab3d5cf7ade275c04463ca",
-      "size_bytes": 3312
+      "sha256": "19b74e41c795f649d878ef12159463364e93231ca7344d90319844e65797ae90",
+      "size_bytes": 3572
     },
     {
       "path": "expected/provenance.json",
-      "sha256": "a913bb62d4ebf5c681677c7303b61679ae4d07353941f2d339cd0bf127c54a44",
-      "size_bytes": 970
+      "sha256": "552aba55a44b554f18e85eaa749fa47b622ff8973e54ef11b3ca9a2fcdc553a2",
+      "size_bytes": 984
     },
     {
       "path": "ibkr/U17959259.TRANSACTIONS.GOLDEN.csv",
-      "sha256": "0d8b132bb01c34ee5d5b55c69160d289e30bba1b0a3fb9326c3cb0e06cde5591",
-      "size_bytes": 3179
+      "sha256": "227e1e45069d68f88d8d091f25d3a2de13dee987e460e83ca74bf9438ada4388",
+      "size_bytes": 3200
     },
     {
       "path": "reference/exchange_rates.csv",
-      "sha256": "97a5df49c90e511860f753942888fa2ce2d43f657d02cbc3de56df7eb8fd8171",
-      "size_bytes": 720
+      "sha256": "242e00263b1e2c1ecc1c682e49e31ef69f888f08d8688d858f139c9cd28211ab",
+      "size_bytes": 732
     },
     {
       "path": "xtb/investory_xtb_golden.zip",

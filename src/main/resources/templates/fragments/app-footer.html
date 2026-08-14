@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<footer th:fragment="buildFooter" class="iv-footer">
+  <details class="iv-build-info" th:if="${buildMetadata.available}">
+    <summary th:text="${buildMetadata.displayText}">Build: 2026-08-17 17:42 · abc1234</summary>
+    <div class="iv-build-info__panel" role="tooltip">
+      <strong>Build information</strong>
+      <span th:text="${'Built: ' + buildMetadata.builtAt}">Built: 2026-08-17 17:42</span>
+      <span th:if="${!buildMetadata.commit.isBlank()}" th:text="${'Commit: ' + buildMetadata.commit}">Commit: abc1234</span>
+      <span th:if="${!buildMetadata.branch.isBlank()}" th:text="${'Branch: ' + buildMetadata.branch}">Branch: main</span>
+    </div>
+  </details>
+  <span th:unless="${buildMetadata.available}" class="iv-build-info__fallback">Development build</span>
+</footer>
+</body>
+</html>

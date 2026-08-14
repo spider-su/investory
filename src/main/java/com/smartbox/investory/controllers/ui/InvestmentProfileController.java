@@ -1,0 +1,28 @@
+package com.smartbox.investory.controllers.ui;
+
+import com.smartbox.investory.application.profile.InvestmentProfileFacade;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+
+@Controller
+@RequiredArgsConstructor
+public class InvestmentProfileController {
+  private final InvestmentProfileFacade facade;
+
+  @GetMapping("/investment-profile")
+  public String profile(@RequestParam(defaultValue = "1") Long portfolioId, Model model) {
+    var profile = facade.loadProfile(portfolioId);
+    model.addAttribute("profile", profile);
+    model.addAttribute("portfolioId", portfolioId);
+    model.addAttribute("profileHeaderNetWorth", profile.totalNetWorthWholeDisplay());
+    model.addAttribute("profileHeaderLiquid", profile.liquidAssetsWholeDisplay());
+    model.addAttribute(
+        "profileHeaderLiquidMeta", profile.liquidAssetsPercentageDisplay() + " of net worth");
+    model.addAttribute("profileHeaderIncome", profile.expectedLongTermAssetIncomeWholeDisplay());
+    model.addAttribute("profileHeaderCurrency", profile.currency());
+    return "investment-profile";
+  }
+}

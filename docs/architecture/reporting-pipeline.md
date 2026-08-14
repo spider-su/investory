@@ -7,11 +7,14 @@ Exact view definitions and column lists live in Flyway migrations.
 
 ```text
 broker imports
+  -> immutable import_source_files / import_source_rows
   -> positions / cash_operations / accounts / assets / exchange_rates
   -> normalized cash ledger and position valuation
   -> account_daily
   -> portfolio/account reporting views and materialized views
-  -> PortfolioService / dashboard / compatibility APIs / exports
+  -> PortfolioService / BenchmarkService
+  -> DashboardFacade -> Thymeleaf dashboard
+  -> compatibility APIs / exports
 ```
 
 ## Raw and normalized ledger
@@ -27,6 +30,12 @@ movements.
 preferred place for database reporting semantics; direct `cash_operations` reads are appropriate for
 ledger-detail use cases that need the original operation granularity.
 
+`import_source_files` stores one immutable uploaded broker artifact per provider/checksum. Reprocess
+attempts reuse that payload. `import_source_rows` stores immutable parsed evidence for each broker row;
+new broker-created `cash_operations` and `positions` carry both `import_history_id` and
+`import_source_row_id`. Legacy/manual rows may remain nullable. Use `ImportOriginLookupService` for
+deliberate diagnostic origin inspection; raw evidence is not exposed by dashboard endpoints.
+
 Asset and currency semantics are defined by:
 
 - `docs/domain/asset-identity-and-money.md`
@@ -40,7 +49,7 @@ date and combines end-of-day state with that day's flows and valuation.
 It is live projection data, not disposable legacy history.
 
 When imported dates, ledger classification, market prices, or FX data change, rebuild the projection
-instead of patching dashboard calculations.
+instead of duplicating or patching dashboard calculations.
 
 ## Higher reporting layers
 
@@ -50,6 +59,50 @@ reconciliation surfaces.
 
 These layers are snapshots/derived projections, not independent sources of financial truth. They must
 be refreshed after inputs that affect valuation or classification change.
+
+Performance metric ownership is split by boundary. Normalized accounting owns flow classification
+and investment-result semantics. `account_daily` owns persisted daily equity, flows, income, fees,
+taxes, and realized-result facts. SQL reporting owns period aggregation, FX normalization, and
+monthly return fields. Java application composition exposes those facts through
+`services/portfolio/read/PerformanceResult`; it does not recompute historical accounting formulas.
+Unrealized performance is not populated in `PerformanceResult` until a canonical period-level source
+is available. Existing `Performance` and dashboard view models remain compatibility/presentation
+models and may retain `double` fields.
+
+Return metrics use the canonical normalized flow semantics. `EXTERNAL_DEPOSIT` and
+`EXTERNAL_WITHDRAWAL` are investor cash flows; `INTERNAL_TRANSFER_IN/OUT`, security transfers,
+and `FX_CONVERSION` do not become portfolio-level investor flows. Dividends, interest, fees, and
+taxes remain investment-result components. TWR uses daily portfolio valuation boundaries and treats
+same-day external flow as a beginning-of-day boundary adjustment. XIRR uses contributions as
+negative investor cash flows, withdrawals as positive cash flows, and includes the opening value as
+an initial negative flow and ending value as the terminal positive flow. Missing/invalid boundaries
+produce an unavailable metric, not zero.
+
+### Reconciliation materialization boundary
+
+Reconciliation keeps expensive independent reconstruction separate from cheap reporting joins:
+
+```text
+positions + historical prices + FX
+  -> mv_reconstructed_position_daily
+  -> mv_reconstructed_account_market_daily
+normalized cash ledger + FX
+  -> mv_reconstructed_cash_daily
+account_daily + reconstructed facts + realized-result view
+  -> mv_account_daily_reconciliation
+  -> v_account_daily_reconciliation (compatibility view)
+```
+
+`v_reconstructed_position_daily`, `v_reconstructed_cash_daily`, and
+`v_account_daily_reconciliation` remain public compatibility views. Reconciliation diagnostics are
+rewired to the corresponding `mv_*` facts. The realized-result reconstruction remains a view: it is
+one account/date aggregation over closed positions and cash rows, without the position-by-day
+history expansion that justifies the other materializations.
+
+`refresh_reconciliation_views()` rebuilds the facts in graph order. Post-import application
+orchestration invokes its stages separately, so a slow stage is measurable and does not hold one
+large application transaction. The system audit runs asynchronously after import finalization has
+committed; an audit failure cannot roll back canonical imported data.
 
 For exact current view names and definitions, inspect `src/main/resources/sql/migration`.
 
@@ -73,6 +126,21 @@ those objects in explicit order.
 public naming aliases. `refresh_reconciliation_views()` refreshes reconciliation materializations on
 demand; they are not production refresh dependencies. `V01.007__persisted_system_audit.sql` remains the
 persisted audit subsystem and consumes reconciliation review data.
+
+`V01.008__import_provenance.sql` adds immutable broker artifact/row evidence, nullable canonical-row
+provenance links, immutable-evidence triggers, and provenance diagnostics. It does not alter financial
+formulas or account/asset identity.
+
+Integration ports are under `com.smartbox.investory.integration`. The current first adapter is
+`ExchangeRateHostFxDataPlugin`; `PluginRegistry` provides typed Spring discovery. IBKR and XTB parser
+beans expose the broker-import port; TwelveData owns external ticker mapping and request-key
+overrides; Yahoo export is exposed through the export port. Persisted FX and market jobs are polled
+by `IntegrationJobScheduler`, with PostgreSQL advisory locks preventing overlapping runs. Runtime
+application configuration remains the compatibility fallback. The application-layer
+`IntegrationSettingsFacade` owns descriptor validation, encrypted secret lifecycle, job validation,
+and read-only settings DTOs. An enabled persisted integration instance takes precedence over the
+legacy environment configuration; disabled or absent instances do not override it. Secrets are
+never returned to callers, only their configured state is exposed.
 
 Application-facing aliases use the `app_v_` prefix. Reconciliation and diagnostic aliases use
 `recon_v_`; neither alias family is a financial source of truth. `accounts.id` is an internal generated
@@ -112,3 +180,16 @@ When they disagree, trace the value downward through the reporting pipeline inst
 the UI layer.
 
 See `docs/quality/reconciliation.md` for checkpoint and economic-truth validation.
+
+The dashboard consumes these existing reporting services through `DashboardFacade`. The facade maps
+their results into UI-specific view models; it is not a second reporting source of truth and does not
+change the `account_daily` boundary.
+
+## Migration baseline freeze
+
+The squashed database/accounting baseline `V01.000`–`V01.008` is frozen. Do not edit these migrations
+after the freeze point. Future schema/data migration changes are append-only and start with the next
+available Flyway version, currently `V01.009` (which does not yet exist).
+
+A frozen baseline may be reopened only for a proven defect that requires deliberate baseline
+regeneration, not for routine feature work.

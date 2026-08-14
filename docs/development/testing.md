@@ -7,8 +7,14 @@ Investory uses two PostgreSQL initialization paths. Keep them separate because t
 Run the existing suite with:
 
 ```bash
-mvn test
+./mvnw test
 ```
+
+Architecture dependency rules live in `LayerDependencyTest`. They protect the one-way boundary
+between accounting/reporting, profile/dashboard application code, planning, and deterministic
+simulation. The current exceptions are documented in that test: `SimulationPlanService` is still
+the persistence adapter in the simulation package, `InvestmentProfileFacade` still classifies
+symbols through `AssetRepository`, and `PlanningPresentation` is a legacy presentation bridge.
 
 Tests that do not need a database should remain plain unit tests or Spring test slices.
 
@@ -87,7 +93,7 @@ The Flyway baseline contains anonymized sample portfolio configuration plus publ
 Run full verification before opening or merging a pull request:
 
 ```bash
-mvn clean verify
+./mvnw clean verify
 ```
 
 The required balance is:
@@ -99,6 +105,23 @@ CI before merge: both paths
 ```
 
 A snapshot must never replace production Flyway migrations.
+
+## Private archive pre-release check
+
+The public golden job uses only the reduced corpus. Before a release, run the same clean-database
+rebuild against the full private broker archive, outside public CI, with the archive directory and
+source-file hash manifest recorded by the release operator. The archive must be treated as input
+evidence, not committed test data. Any changed hash or unexplained reconciliation difference makes
+the private check `NOT_READY` until reviewed.
+
+The existing `tools/ReconRunner.java` can be used for the source-file C0/C1 pass:
+
+```text
+ReconRunner <private-archive-directory> <jdbc-url> <user> <password>
+```
+
+Run it only against a clean local release-validation database after the normal import and reporting
+rebuild. Keep the full archive and credentials outside the repository and public CI artifacts.
 
 ## Local Testcontainers reuse
 

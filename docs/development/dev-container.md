@@ -99,7 +99,7 @@ These credentials are development-only and must not be reused in production.
 Open the IntelliJ terminal inside the Dev Container and run:
 
 ```bash
-mvn spring-boot:run
+./mvnw spring-boot:run
 ```
 
 The container supplies `DB_URL`, `DB_USERNAME`, and `DB_PASSWORD` for its PostgreSQL service. It also
@@ -167,9 +167,9 @@ SELECT * FROM investory.flyway_schema_history ORDER BY installed_rank;
 ## Build and test
 
 ```bash
-mvn test
-mvn clean package
-mvn spotless:check
+./mvnw test
+./mvnw clean package
+./mvnw spotless:check
 ```
 
 Testcontainers uses the host Docker daemon through the `docker-outside-of-docker` Dev Container feature. Verify access with:

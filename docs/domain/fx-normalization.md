@@ -13,8 +13,8 @@ Resolution order:
 2. exact-date `MARKET_DAILY`,
 3. exact-date `IBKR_DAILY_REFERENCE`,
 4. direct/inverse neutral daily edge,
-5. one-hop triangulation,
-6. permitted recent carry-forward,
+5. permitted recent carry-forward,
+6. one-hop triangulation,
 7. pre-daily-history historical interpolation.
 
 `VALUATION` and `TRANSACTION` are separate resolver purposes. Valuation uses neutral

@@ -46,6 +46,15 @@
       }
     },
     {
+      "id": "IBKR_C1_SOURCE_TO_LEDGER",
+      "account_id": 17959259,
+      "assertions": {
+        "dimensions": ["operation", "currency", "business_date"],
+        "amount_field": "Net Amount",
+        "row_count_and_amount_must_match": true
+      }
+    },
+    {
       "id": "XTB_VHYD_SUBACCOUNT_REBOOK",
       "account_id": 51993106,
       "assertions": {
