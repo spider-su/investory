@@ -552,8 +552,13 @@ public class LongTermAssetService {
     List<LongTermAssetCashFlow> current = currentCashFlows(portfolioId, assetId, date);
     // Validate the complete resulting configuration before mutating any managed entity. This
     // keeps a failed global-period update atomic when historical rows are present.
+    Set<Long> editedIds =
+        current.stream()
+            .map(LongTermAssetCashFlow::getId)
+            .filter(Objects::nonNull)
+            .collect(java.util.stream.Collectors.toSet());
     for (LongTermAssetCashFlow flow : current)
-      validateCashFlowOverlap(assetId, flow, effectiveFrom, endDate);
+      validateCashFlowOverlap(assetId, flow, effectiveFrom, endDate, editedIds);
     for (LongTermAssetCashFlow flow : current) {
       flow.setValidFrom(effectiveFrom);
       flow.setValidTo(endDate);
@@ -1229,15 +1234,20 @@ public class LongTermAssetService {
   }
 
   private void validateCashFlowOverlap(Long id, LongTermAssetCashFlow f) {
-    validateCashFlowOverlap(id, f, f.getValidFrom(), f.getValidTo());
+    validateCashFlowOverlap(
+        id, f, f.getValidFrom(), f.getValidTo(), f.getId() == null ? Set.of() : Set.of(f.getId()));
   }
 
   private void validateCashFlowOverlap(
-      Long id, LongTermAssetCashFlow f, LocalDate validFrom, LocalDate validTo) {
+      Long id,
+      LongTermAssetCashFlow f,
+      LocalDate validFrom,
+      LocalDate validTo,
+      Set<Long> excludedIds) {
     List<LongTermAssetCashFlow> all = cashFlows.findAllByAssetIdOrderByValidFrom(id);
     if (all.stream()
         .filter(x -> x.getType() == f.getType())
-        .filter(x -> !Objects.equals(x.getId(), f.getId()))
+        .filter(x -> !excludedIds.contains(x.getId()))
         .anyMatch(x -> rangesOverlap(x.getValidFrom(), x.getValidTo(), validFrom, validTo)))
       throw new IllegalArgumentException("Overlapping cash-flow period");
   }

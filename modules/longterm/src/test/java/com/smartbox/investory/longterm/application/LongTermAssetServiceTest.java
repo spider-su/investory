@@ -748,6 +748,75 @@ class LongTermAssetServiceTest {
   }
 
   @Test
+  void changingOpenCurrentRentalPeriodToAnEndDateSucceeds() {
+    LongTermAssetCashFlow current = flow(CashFlowType.RENT, "2600", Frequency.MONTHLY);
+    current.setId(25L);
+    current.setValidFrom(LocalDate.of(2026, 1, 1));
+    current.setValidTo(null);
+    when(assets.findByIdAndPortfolioId(1L, 1L))
+        .thenReturn(Optional.of(asset(LongTermAssetType.REAL_ESTATE, "780000")));
+    when(cashFlows.findAllByAssetIdOrderByValidFrom(1L)).thenReturn(List.of(current));
+    when(cashFlows.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+    service.saveRentalPeriod(1L, 1L, LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31), DATE);
+
+    assertEquals(LocalDate.of(2026, 12, 31), current.getValidTo());
+    verify(cashFlows).save(current);
+  }
+
+  @Test
+  void currentRentalPeriodMayEndTheDayBeforeAnExplicitFutureReplacement() {
+    LongTermAssetCashFlow current = flow(CashFlowType.RENT, "2600", Frequency.MONTHLY);
+    current.setId(25L);
+    current.setValidFrom(LocalDate.of(2026, 7, 1));
+    current.setValidTo(null);
+    LongTermAssetCashFlow future = flow(CashFlowType.RENT, "2800", Frequency.MONTHLY);
+    future.setId(31L);
+    future.setValidFrom(LocalDate.of(2027, 1, 1));
+    future.setValidTo(null);
+    when(assets.findByIdAndPortfolioId(1L, 1L))
+        .thenReturn(Optional.of(asset(LongTermAssetType.REAL_ESTATE, "780000")));
+    when(cashFlows.findAllByAssetIdOrderByValidFrom(1L)).thenReturn(List.of(current, future));
+    when(cashFlows.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+    service.saveRentalPeriod(
+        1L, 1L, LocalDate.of(2026, 7, 1), LocalDate.of(2026, 12, 31), LocalDate.of(2026, 8, 1));
+
+    assertEquals(LocalDate.of(2026, 12, 31), current.getValidTo());
+    assertEquals(LocalDate.of(2027, 1, 1), future.getValidFrom());
+    verify(cashFlows).save(current);
+    verify(cashFlows, never()).save(future);
+  }
+
+  @Test
+  void currentRentalPeriodCannotOverlapAnExplicitFutureReplacement() {
+    LongTermAssetCashFlow current = flow(CashFlowType.RENT, "2600", Frequency.MONTHLY);
+    current.setId(25L);
+    current.setValidFrom(LocalDate.of(2026, 7, 1));
+    current.setValidTo(null);
+    LongTermAssetCashFlow future = flow(CashFlowType.RENT, "2800", Frequency.MONTHLY);
+    future.setId(31L);
+    future.setValidFrom(LocalDate.of(2027, 1, 1));
+    future.setValidTo(null);
+    when(assets.findByIdAndPortfolioId(1L, 1L))
+        .thenReturn(Optional.of(asset(LongTermAssetType.REAL_ESTATE, "780000")));
+    when(cashFlows.findAllByAssetIdOrderByValidFrom(1L)).thenReturn(List.of(current, future));
+
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            service.saveRentalPeriod(
+                1L,
+                1L,
+                LocalDate.of(2026, 7, 1),
+                LocalDate.of(2027, 1, 1),
+                LocalDate.of(2026, 8, 1)));
+
+    assertNull(current.getValidTo());
+    verify(cashFlows, never()).save(any());
+  }
+
+  @Test
   void changingCurrentRentalPeriodToHistoricalOverlapFailsBeforeMutation() {
     LongTermAssetCashFlow historical = flow(CashFlowType.RENT, "2600", Frequency.MONTHLY);
     historical.setId(11L);

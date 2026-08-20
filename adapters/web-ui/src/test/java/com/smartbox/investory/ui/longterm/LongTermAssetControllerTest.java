@@ -16,6 +16,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
 @ExtendWith(MockitoExtension.class)
 class LongTermAssetControllerTest {
@@ -72,10 +73,38 @@ class LongTermAssetControllerTest {
     LongTermAssetController.AssetForm form = new LongTermAssetController.AssetForm();
     form.setType(LongTermAssetType.REAL_ESTATE);
     form.setCurrentValue(new BigDecimal("780000"));
-    controller.update(7L, form, 1L, null, null, new BigDecimal("1800"));
+    controller.update(
+        7L, form, 1L, null, null, new BigDecimal("1800"), new RedirectAttributesModelMap());
     var command = ArgumentCaptor.forClass(LongTermAssetsFacade.AssetCommand.class);
     verify(assets).update(command.capture());
     assertEquals(new BigDecimal("1800"), command.getValue().taxBase());
+  }
+
+  @Test
+  void rentalPeriodOverlapIsReturnedAsFormError() {
+    LongTermAssetController.AssetForm form = new LongTermAssetController.AssetForm();
+    form.setType(LongTermAssetType.REAL_ESTATE);
+    form.setCurrentValue(new BigDecimal("780000"));
+    doThrow(new IllegalArgumentException("Overlapping cash-flow period"))
+        .when(assets)
+        .saveRentalPeriod(
+            eq(1L), eq(7L), eq(LocalDate.of(2026, 1, 1)), eq(LocalDate.of(2027, 1, 1)), any());
+    var redirectAttributes = new RedirectAttributesModelMap();
+
+    assertEquals(
+        "redirect:/long-term-assets/7?portfolioId=1",
+        controller.update(
+            7L,
+            form,
+            1L,
+            LocalDate.of(2026, 1, 1),
+            LocalDate.of(2027, 1, 1),
+            null,
+            redirectAttributes));
+
+    assertEquals(
+        "Rental period overlaps an existing cash-flow period.",
+        redirectAttributes.getFlashAttributes().get("rentalPeriodError"));
   }
 
   private static LongTermAssetsFacade.AssetView assetView(Long id) {

@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller
 @RequiredArgsConstructor
@@ -201,10 +202,20 @@ public class LongTermAssetController {
       @RequestParam Long portfolioId,
       @RequestParam(required = false) LocalDate effectiveFrom,
       @RequestParam(required = false) LocalDate endDate,
-      @RequestParam(required = false) BigDecimal taxBase) {
+      @RequestParam(required = false) BigDecimal taxBase,
+      RedirectAttributes redirectAttributes) {
     assets.update(form.command(portfolioId, id, taxBase));
-    if (form.getType() == LongTermAssetType.REAL_ESTATE && effectiveFrom != null)
-      assets.saveRentalPeriod(portfolioId, id, effectiveFrom, endDate, LocalDate.now(clock));
+    if (form.getType() == LongTermAssetType.REAL_ESTATE && effectiveFrom != null) {
+      try {
+        assets.saveRentalPeriod(portfolioId, id, effectiveFrom, endDate, LocalDate.now(clock));
+      } catch (IllegalArgumentException exception) {
+        String message =
+            "Overlapping cash-flow period".equals(exception.getMessage())
+                ? "Rental period overlaps an existing cash-flow period."
+                : exception.getMessage();
+        redirectAttributes.addFlashAttribute("rentalPeriodError", message);
+      }
+    }
     return redirect(id, portfolioId);
   }
 

@@ -10,6 +10,7 @@
 </head>
 <body>
 <main class="container-xl py-4">
+  <div class="alert alert-danger" role="alert" th:if="${rentalPeriodError != null}" th:text="${rentalPeriodError}">Rental period error</div>
   <div class="d-flex justify-content-between align-items-center mb-3"><h1 class="h2 mb-0" th:text="${asset.name}">Real estate</h1><a class="btn btn-outline-secondary" th:href="@{/long-term-assets(portfolioId=${portfolioId})}">Back</a></div>
   <form class="card mb-4" method="post" th:action="@{/long-term-assets/{id}(id=${asset.id})}">
     <div class="card-body">
