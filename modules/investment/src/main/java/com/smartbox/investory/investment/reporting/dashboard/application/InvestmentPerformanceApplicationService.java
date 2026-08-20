@@ -2,14 +2,14 @@ package com.smartbox.investory.investment.reporting.dashboard.application;
 
 import com.smartbox.investory.investment.accounting.model.Benchmark;
 import com.smartbox.investory.investment.api.InvestmentPerformanceApi;
+import com.smartbox.investory.investment.api.InvestmentPerformanceApi.AccountValueSeries;
+import com.smartbox.investory.investment.api.InvestmentPerformanceApi.AccountValueView;
+import com.smartbox.investory.investment.api.InvestmentPerformanceApi.AccountValueYear;
 import com.smartbox.investory.investment.api.InvestmentPerformanceApi.PerformanceAccount;
 import com.smartbox.investory.investment.api.InvestmentPerformanceApi.PerformanceBoardQuery;
 import com.smartbox.investory.investment.api.InvestmentPerformanceApi.PerformanceBoardView;
 import com.smartbox.investory.investment.api.InvestmentPerformanceApi.PerformanceKpiView;
 import com.smartbox.investory.investment.api.InvestmentPerformanceApi.PerformanceSeries;
-import com.smartbox.investory.investment.api.InvestmentPerformanceApi.AccountValueSeries;
-import com.smartbox.investory.investment.api.InvestmentPerformanceApi.AccountValueView;
-import com.smartbox.investory.investment.api.InvestmentPerformanceApi.AccountValueYear;
 import com.smartbox.investory.investment.reporting.BenchmarkService;
 import java.util.ArrayList;
 import java.util.Comparator;

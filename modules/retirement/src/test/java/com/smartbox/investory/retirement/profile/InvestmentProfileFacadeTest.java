@@ -1,7 +1,5 @@
 package com.smartbox.investory.retirement.profile;
 
-import com.smartbox.investory.retirement.api.InvestmentProfileFacade;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -18,6 +16,7 @@ import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
 import com.smartbox.investory.longterm.api.LongTermAssetProfileSummary;
 import com.smartbox.investory.longterm.api.LongTermAssetProjection;
 import com.smartbox.investory.longterm.api.LongTermAssetType;
+import com.smartbox.investory.retirement.api.InvestmentProfileFacade;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;

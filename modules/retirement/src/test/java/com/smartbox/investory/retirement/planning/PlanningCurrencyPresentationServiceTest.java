@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import com.smartbox.investory.retirement.profile.InvestmentProfile;
 import com.smartbox.investory.retirement.simulation.SimulationChartData;
 import com.smartbox.investory.retirement.simulation.SimulationScenario;
+import com.smartbox.investory.retirement.simulation.SimulationYear;
 import com.smartbox.investory.retirement.simulation.SustainableSpendingAnalysis;
 import com.smartbox.investory.retirement.simulation.SustainableSpendingResultState;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
@@ -277,12 +278,50 @@ class PlanningCurrencyPresentationServiceTest {
     assertEquals(new BigDecimal("262000"), displayed.annualCosts());
     assertEquals(new BigDecimal("180000"), displayed.rentalIncome());
     assertEquals(new BigDecimal("82000"), displayed.incomeGap());
-    assertEquals(BigDecimal.ZERO, displayed.portfolioWithdrawal());
-    assertEquals(new BigDecimal("135849"), displayed.cashReserve());
+    assertNull(displayed.portfolioWithdrawal());
+    assertEquals(BigDecimal.ZERO, displayed.fundingNeed());
+    assertEquals(new BigDecimal("135849"), displayed.safeReserve());
     assertEquals(new BigDecimal("900000"), displayed.bondsValue());
     assertEquals(new BigDecimal("48000"), displayed.bondsIncome());
     assertEquals(new BigDecimal("578516"), displayed.equityValue());
     assertNull(displayed.equityGain());
+  }
+
+  @Test
+  void projectedTimelineSeparatesNeedWithdrawalUnfundedCashAndSafeReserve() {
+    SimulationYear projection = Mockito.mock(SimulationYear.class);
+    when(projection.totalExpenses()).thenReturn(new BigDecimal("100"));
+    when(projection.rentalIncome()).thenReturn(BigDecimal.ZERO);
+    when(projection.incomeGap()).thenReturn(new BigDecimal("100"));
+    when(projection.requiredPortfolioFunding()).thenReturn(new BigDecimal("100"));
+    when(projection.actualPortfolioWithdrawal()).thenReturn(new BigDecimal("70"));
+    when(projection.unfundedAmount()).thenReturn(new BigDecimal("30"));
+    when(projection.cashEnd()).thenReturn(new BigDecimal("20"));
+    when(projection.safeReserveEnd()).thenReturn(new BigDecimal("80"));
+    when(projection.bondValueEnd()).thenReturn(new BigDecimal("60"));
+    when(projection.bondIncome()).thenReturn(BigDecimal.ZERO);
+    when(projection.equityEnd()).thenReturn(new BigDecimal("200"));
+    when(projection.equityGain()).thenReturn(BigDecimal.ZERO);
+    when(projection.fixedIncomeEnd()).thenReturn(new BigDecimal("60"));
+
+    PlanningTimeline timeline =
+        new PlanningTimeline(
+            List.of(
+                new PlanningTimelineYear(
+                    2027, 42, PlanningTimelineState.PROJECTED, null, null, projection)));
+
+    PlanningTimelineMoney displayed =
+        new PlanningCurrencyPresentationService(
+                Mockito.mock(CurrencyConversion.class),
+                Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC))
+            .displayTimelineMoney(timeline, CurrencyType.USD)
+            .get(2027);
+
+    assertEquals(new BigDecimal("100"), displayed.fundingNeed());
+    assertEquals(new BigDecimal("70"), displayed.portfolioWithdrawal());
+    assertEquals(new BigDecimal("30"), displayed.unfunded());
+    assertEquals(new BigDecimal("20"), displayed.cash());
+    assertEquals(new BigDecimal("80"), displayed.safeReserve());
   }
 
   private static PlanningMetricValue value(PlanningMetric metric, String amount) {

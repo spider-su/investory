@@ -664,8 +664,11 @@ public class PlanningCurrencyPresentationService {
       BigDecimal annualCosts = null,
           rentalIncome = null,
           incomeGap = null,
+          fundingNeed = null,
           portfolioWithdrawal = null,
-          cashReserve = null,
+          unfunded = null,
+          cash = null,
+          safeReserve = null,
           bondsValue = null,
           bondsIncome = null,
           equityValue = null,
@@ -679,7 +682,10 @@ public class PlanningCurrencyPresentationService {
             firstValue(
                 row.past().values(), PlanningMetric.RENTAL_INCOME, PlanningMetric.PASSIVE_INCOME);
         incomeGap = difference(annualCosts, rentalIncome);
+        fundingNeed = planningValue(row.past().values(), PlanningMetric.PORTFOLIO_FUNDING);
         portfolioWithdrawal = planningValue(row.past().values(), PlanningMetric.MARKET_WITHDRAWAL);
+        cash = planningValue(row.past().values(), PlanningMetric.CASH_RESERVE_VALUE);
+        safeReserve = planningValue(row.past().values(), PlanningMetric.SAFE_RESERVE);
         legacyFixedIncome = planningValue(row.past().values(), PlanningMetric.FIXED_INCOME);
         legacyEquity = planningValue(row.past().values(), PlanningMetric.EQUITY);
       } else if (row.state() == PlanningTimelineState.LIVE) {
@@ -690,8 +696,10 @@ public class PlanningCurrencyPresentationService {
         rentalIncome =
             firstValue(currentValues, PlanningMetric.RENTAL_INCOME, PlanningMetric.PASSIVE_INCOME);
         incomeGap = difference(annualCosts, rentalIncome);
-        portfolioWithdrawal = planningValue(currentValues, PlanningMetric.PORTFOLIO_FUNDING);
-        cashReserve = planningValue(currentValues, PlanningMetric.SAFE_RESERVE);
+        fundingNeed = planningValue(currentValues, PlanningMetric.PORTFOLIO_FUNDING);
+        portfolioWithdrawal = planningValue(currentValues, PlanningMetric.MARKET_WITHDRAWAL);
+        cash = planningValue(currentValues, PlanningMetric.CASH_RESERVE_VALUE);
+        safeReserve = planningValue(currentValues, PlanningMetric.SAFE_RESERVE);
         bondsValue = planningValue(currentValues, PlanningMetric.BOND_VALUE);
         bondsIncome = planningValue(currentValues, PlanningMetric.BOND_INCOME);
         equityValue = planningValue(currentValues, PlanningMetric.EQUITY);
@@ -701,8 +709,11 @@ public class PlanningCurrencyPresentationService {
         annualCosts = row.projection().totalExpenses();
         rentalIncome = row.projection().rentalIncome();
         incomeGap = row.projection().incomeGap();
-        portfolioWithdrawal = nonNegative(row.projection().requiredPortfolioFunding());
-        cashReserve = row.projection().safeReserveEnd();
+        fundingNeed = nonNegative(row.projection().requiredPortfolioFunding());
+        portfolioWithdrawal = nonNegative(row.projection().actualPortfolioWithdrawal());
+        unfunded = nonNegative(row.projection().unfundedAmount());
+        cash = row.projection().cashEnd();
+        safeReserve = row.projection().safeReserveEnd();
         bondsValue = row.projection().bondValueEnd();
         bondsIncome = row.projection().bondIncome();
         equityValue = row.projection().equityEnd();
@@ -716,8 +727,11 @@ public class PlanningCurrencyPresentationService {
               toDisplay(annualCosts, currency),
               toDisplay(rentalIncome, currency),
               toDisplay(incomeGap, currency),
+              toDisplay(fundingNeed, currency),
               toDisplay(nonNegative(portfolioWithdrawal), currency),
-              toDisplay(cashReserve, currency),
+              toDisplay(unfunded, currency),
+              toDisplay(cash, currency),
+              toDisplay(safeReserve, currency),
               toDisplay(bondsValue, currency),
               toDisplay(bondsIncome, currency),
               toDisplay(equityValue, currency),

@@ -57,7 +57,8 @@ public interface InvestmentPerformanceApi {
       labels = labels == null ? List.of() : List.copyOf(labels);
       accountSeries = accountSeries == null ? List.of() : List.copyOf(accountSeries);
       totalProfitValues = totalProfitValues == null ? List.of() : List.copyOf(totalProfitValues);
-      totalProfitPctValues = totalProfitPctValues == null ? List.of() : List.copyOf(totalProfitPctValues);
+      totalProfitPctValues =
+          totalProfitPctValues == null ? List.of() : List.copyOf(totalProfitPctValues);
     }
   }
 

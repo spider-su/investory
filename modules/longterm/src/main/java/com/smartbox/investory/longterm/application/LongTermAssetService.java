@@ -1,12 +1,12 @@
 package com.smartbox.investory.longterm.application;
 
-import com.smartbox.investory.longterm.api.RealEstateEntry;
 import com.smartbox.investory.longterm.api.CashFlowType;
 import com.smartbox.investory.longterm.api.Frequency;
 import com.smartbox.investory.longterm.api.InterestTreatment;
 import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshot;
 import com.smartbox.investory.longterm.api.LongTermAssetProjection;
 import com.smartbox.investory.longterm.api.LongTermAssetType;
+import com.smartbox.investory.longterm.api.RealEstateEntry;
 import com.smartbox.investory.longterm.api.RentalIncomeProjection;
 import com.smartbox.investory.longterm.infrastructure.*;
 import com.smartbox.investory.shared.currency.CurrencyConversion;

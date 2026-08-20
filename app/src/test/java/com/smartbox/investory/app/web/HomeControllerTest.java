@@ -9,7 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
-import com.smartbox.investory.investment.reporting.dashboard.application.DashboardFacade;
+import com.smartbox.investory.investment.api.InvestmentDashboardApi;
 import com.smartbox.investory.investment.reporting.dashboard.application.DashboardPageView;
 import com.smartbox.investory.investment.reporting.dashboard.application.DashboardQuery;
 import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriod;
@@ -27,7 +27,7 @@ import org.springframework.web.servlet.view.InternalResourceViewResolver;
 @ExtendWith(MockitoExtension.class)
 class HomeControllerTest {
 
-  @Mock private DashboardFacade dashboardFacade;
+  @Mock private InvestmentDashboardApi dashboardFacade;
   private MockMvc mockMvc;
 
   @BeforeEach

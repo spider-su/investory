@@ -9,8 +9,7 @@ import org.springframework.stereotype.Service;
 /** Adapts accounting attribution into the public Investment read boundary. */
 @Service
 @RequiredArgsConstructor
-public class InvestmentDailyPerformanceApplicationService
-    implements InvestmentDailyPerformanceApi {
+public class InvestmentDailyPerformanceApplicationService implements InvestmentDailyPerformanceApi {
   private final PortfolioService portfolioService;
 
   @Override

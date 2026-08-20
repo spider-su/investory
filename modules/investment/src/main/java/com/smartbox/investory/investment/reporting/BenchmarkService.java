@@ -455,7 +455,8 @@ public class BenchmarkService {
                       .toList();
               if (!accountSeries.isEmpty()) {
                 Benchmark.AccountValueSeries totalSeries =
-                    sumAccountValueSeries(rows, availableAccounts, labels, portfolioBaseCurrencies);
+                    sumAccountValueSeries(
+                        rows, availableAccounts, labels, portfolioBaseCurrencies, accountSeries);
                 years.add(
                     new Benchmark.AccountValueYear(
                         year,
@@ -574,7 +575,8 @@ public class BenchmarkService {
       List<AccountDaily> rows,
       Set<Long> accountIds,
       List<String> labels,
-      Map<Long, CurrencyType> portfolioBaseCurrencies) {
+      Map<Long, CurrencyType> portfolioBaseCurrencies,
+      List<Benchmark.AccountValueSeries> accountSeries) {
     int size = labels.size();
     List<Double> profitValues = new ArrayList<>();
     List<Double> profitPctValues = new ArrayList<>();
@@ -584,12 +586,9 @@ public class BenchmarkService {
       String label = labels.get(index);
       List<AccountDaily> dailyRows =
           rows.stream().filter(row -> label.equals(row.getDate().toString())).toList();
-      cumulativeProfit +=
-          dailyRows.stream()
-              .filter(row -> accountIds.contains(row.getAccountId()))
-              .mapToDouble(
-                  row -> dailyProfitInBaseCurrency(row, portfolioBaseCurrencies.get(row.getAccountId())))
-              .sum();
+      int valueIndex = index;
+      cumulativeProfit =
+          accountSeries.stream().mapToDouble(series -> series.profitValues().get(valueIndex)).sum();
       double capital =
           dailyRows.stream()
               .filter(row -> accountIds.contains(row.getAccountId()))

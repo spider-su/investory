@@ -5,8 +5,8 @@ import com.smartbox.investory.investment.reporting.dashboard.service.AssetDetail
 import com.smartbox.investory.investment.reporting.dashboard.service.AssetDetailService;
 import com.smartbox.investory.investment.reporting.dashboard.service.AssetPriceChartService;
 import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriod;
-import java.util.List;
 import java.util.Arrays;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 

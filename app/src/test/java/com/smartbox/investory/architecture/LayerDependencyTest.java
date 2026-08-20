@@ -221,4 +221,36 @@ class LayerDependencyTest {
         .areAnnotatedWith(Repository.class)
         .check(MAIN);
   }
+
+  @Test
+  void investmentWebUiUsesOnlyInvestmentPublicApis() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..ui.investment..")
+        .and()
+        .haveSimpleNameNotEndingWith("Test")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage(
+            "..investment.accounting..",
+            "..investment.imports..",
+            "..investment.market..",
+            "..investment.reporting..",
+            "..investment.reconciliation..",
+            "..investment.infrastructure..")
+        .check(MAIN);
+  }
+
+  @Test
+  void longTermWebUiUsesOnlyLongTermPublicApi() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..ui.longterm..")
+        .and()
+        .haveSimpleNameNotEndingWith("Test")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage("..longterm.application..", "..longterm.infrastructure..")
+        .check(MAIN);
+  }
 }
