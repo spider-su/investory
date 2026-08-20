@@ -105,19 +105,61 @@ HomeController
 This is an application boundary for the internal UI, not a new dashboard JSON API. See
 `docs/architecture/dashboard-application.md` for the dashboard-specific details.
 
-Dependency direction is intentionally one way:
+## Domain boundary direction
+
+Investory remains one Spring Boot application and one Maven artifact. The business ownership target is
+three domains:
+
+- **Investment** owns brokerage accounts, imports, accounting, market data, portfolio reporting,
+  dashboard, and reconciliation.
+- **Long-Term Assets** owns manually managed real estate, bonds, deposits, cash reserves, and other
+  assets.
+- **Retirement** owns profile composition, planning, simulation, scenarios, and progress tracking.
+
+The intended dependency direction is:
 
 ```text
-accounting + long-term assets -> profile -> planning/simulation -> presentation
+Retirement -> Investment public read API
+Retirement -> Long-Term Assets public read API
+
+Investment -> shared primitives/contracts
+Long-Term Assets -> shared primitives/contracts
 ```
+
+Investment and Long-Term Assets must not depend on Retirement. Long-Term Assets must not depend on
+Investment implementation or persistence. Retirement must not access Investment or Long-Term Assets
+persistence. A public boundary exposes focused, immutable business read models, never JPA entities,
+repositories, SQL projections, or internal accounting services. Shared contracts stay small and
+domain-neutral; current candidates are currency identifiers/conversion and time abstractions only when
+their actual consumers require them.
+
+Brokerage reporting already has a focused read boundary under `services/portfolio/read`.
+`BrokeragePortfolioReadService` publishes immutable shared brokerage snapshots for profile composition;
+it is not multi-portfolio scoped. It may use Investment internals behind that boundary. Manual Long-Term
+Assets join while `InvestmentProfileFacade` composes the profile. Profile and planning code do not
+mutate accounting state.
 
 Planning must not become an accounting source of truth or depend on a projected result as an actual fact.
 
-Brokerage reporting is exposed to higher-level application code through focused immutable read models
-under `services/portfolio/read`. `BrokeragePortfolioReadService` currently publishes a shared
-brokerage snapshot for `InvestmentProfile`; it is not multi-portfolio scoped. Manual long-term assets
-join only while `InvestmentProfileFacade` composes the profile. Profile and planning code do not
-mutate accounting state.
+### Transitional boundary exceptions
+
+The target is not fully implemented yet. These exact current dependencies are intentional work items,
+not permitted broad package exceptions:
+
+| Current dependency | Why it exists now | Removal stage |
+| --- | --- | --- |
+| `LongTermAssetService` and `LongTermAssetBootstrapService` -> `PortfolioKpiSummaryRepository` | Long-Term workflows obtain brokerage portfolio context directly. | Stage 4 |
+| `LongTermAssetService` -> `CurrencyRateService` | Long-Term valuation/presentation uses the current FX implementation. | Stage 2/4 |
+| `LongTermAssetService` -> `PlanningPresentation` | Long-Term template-visible summaries use the cross-domain formatter. | Stage 5 |
+| `application.longterm.RentalIncomeProjection` -> `application.profile.ProjectedLongTermAsset` | Long-Term projection currently uses the profile-owned model. | Stage 6 |
+| `InvestmentProfileFacade` -> `AssetRepository`, `LongTermAssetService`, and `CurrencyRateService` | Profile composition still reads Investment persistence and Long-Term implementation directly. | Stages 2, 3, and 6 |
+| Planning sources/facade -> brokerage portfolio repositories | Historical planning actuals still read Investment persistence. | Stage 3 |
+| `HistoricalLongTermAssetYearSource` and Retirement simulation callers -> `LongTermAssetService`/Long-Term types | Retirement has no Long-Term public read contract yet. | Stage 6 |
+| `PlanningPresentation` -> planning, profile, simulation, and Long-Term types | The formatter is a cross-domain presentation bridge; Long-Term also calls it. | Stage 5 |
+
+ArchUnit rules protect the boundaries that already exist. The one accounting-to-Retirement exception is
+specific to `PlanningPresentation`, documented above, and is removed in Stage 5. Later stages replace
+the listed direct dependencies with narrow public read contracts before packages are consolidated.
 
 ## Change rules
 

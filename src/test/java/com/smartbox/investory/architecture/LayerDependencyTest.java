@@ -64,9 +64,21 @@ class LayerDependencyTest {
   }
 
   @Test
+  void brokerageSnapshotModelsDoNotReachIntoPersistence() {
+    noClasses()
+        .that()
+        .haveNameMatching(
+            ".*services\\.portfolio\\.read\\.(BrokeragePositionSnapshot|SharedBrokeragePortfolioSnapshot)")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage("..infrastructure.repository..")
+        .check(MAIN);
+  }
+
+  @Test
   void accountingServicesDoNotDependOnPlanningOrSimulation() {
-    // PlanningPresentation is the current presentation bridge exception; keep this rule narrow
-    // until that bridge is moved behind an application boundary.
+    // PlanningPresentation is the exact cross-domain presentation bridge documented in
+    // docs/architecture/overview.md. Stage 5 removes it; no package-wide exception is allowed.
     noClasses()
         .that()
         .resideInAnyPackage("..services..")
