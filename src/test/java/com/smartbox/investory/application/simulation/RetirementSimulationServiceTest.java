@@ -1,10 +1,10 @@
-package com.smartbox.investory.application.simulation;
+package com.smartbox.investory.retirement.simulation;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.smartbox.investory.application.profile.*;
-import com.smartbox.investory.infrastructure.longterm.CashFlowType;
-import com.smartbox.investory.infrastructure.longterm.LongTermAssetType;
+import com.smartbox.investory.longterm.api.CashFlowType;
+import com.smartbox.investory.longterm.api.LongTermAssetType;
+import com.smartbox.investory.retirement.profile.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -589,7 +589,7 @@ class RetirementSimulationServiceTest {
         new ProjectedLongTermAsset(
             1L,
             "Equity asset",
-            com.smartbox.investory.infrastructure.longterm.LongTermAssetType.OTHER,
+            com.smartbox.investory.longterm.api.LongTermAssetType.OTHER,
             EconomicBucket.EQUITY,
             CurrencyType.PLN,
             new BigDecimal("100"),
@@ -679,7 +679,7 @@ class RetirementSimulationServiceTest {
             new BigDecimal("0.10"),
             java.time.LocalDate.of(2027, 6, 1),
             null,
-            com.smartbox.investory.infrastructure.longterm.InterestTreatment.PAY_OUT,
+            com.smartbox.investory.longterm.api.InterestTreatment.PAY_OUT,
             new BigDecimal("0.20"));
     var r =
         service.simulate(
@@ -706,7 +706,7 @@ class RetirementSimulationServiceTest {
             new BigDecimal("0.10"),
             java.time.LocalDate.of(2027, 6, 1),
             null,
-            com.smartbox.investory.infrastructure.longterm.InterestTreatment.CAPITALIZE,
+            com.smartbox.investory.longterm.api.InterestTreatment.CAPITALIZE,
             new BigDecimal("0.20"));
     var r =
         service.simulate(
@@ -730,7 +730,7 @@ class RetirementSimulationServiceTest {
             new BigDecimal("0.10"),
             null,
             null,
-            com.smartbox.investory.infrastructure.longterm.InterestTreatment.CAPITALIZE,
+            com.smartbox.investory.longterm.api.InterestTreatment.CAPITALIZE,
             ZERO);
     ProjectedLongTermAsset second =
         asset(
@@ -741,7 +741,7 @@ class RetirementSimulationServiceTest {
             new BigDecimal("0.20"),
             null,
             null,
-            com.smartbox.investory.infrastructure.longterm.InterestTreatment.CAPITALIZE,
+            com.smartbox.investory.longterm.api.InterestTreatment.CAPITALIZE,
             ZERO);
     var r =
         service.simulate(
@@ -758,7 +758,7 @@ class RetirementSimulationServiceTest {
         new ProjectedLongTermAsset(
             1L,
             "Deposit",
-            com.smartbox.investory.infrastructure.longterm.LongTermAssetType.DEPOSIT,
+            com.smartbox.investory.longterm.api.LongTermAssetType.DEPOSIT,
             EconomicBucket.LIQUID_CASH,
             CurrencyType.PLN,
             new BigDecimal("100"),
@@ -768,7 +768,7 @@ class RetirementSimulationServiceTest {
                     java.time.LocalDate.of(2026, 1, 1), null, ZERO, ZERO, new BigDecimal("0.10"))),
             java.time.LocalDate.of(2027, 6, 1),
             null,
-            com.smartbox.investory.infrastructure.longterm.InterestTreatment.CAPITALIZE,
+            com.smartbox.investory.longterm.api.InterestTreatment.CAPITALIZE,
             ZERO);
     var r =
         service.simulate(
@@ -787,7 +787,7 @@ class RetirementSimulationServiceTest {
         new ProjectedLongTermAsset(
             1L,
             "Maturing bond",
-            com.smartbox.investory.infrastructure.longterm.LongTermAssetType.BOND,
+            com.smartbox.investory.longterm.api.LongTermAssetType.BOND,
             EconomicBucket.FIXED_INCOME,
             CurrencyType.PLN,
             new BigDecimal("100"),
@@ -797,7 +797,7 @@ class RetirementSimulationServiceTest {
                     java.time.LocalDate.of(2026, 1, 1), null, ZERO, ZERO, ZERO)),
             java.time.LocalDate.of(2027, 6, 1),
             new BigDecimal("100"),
-            com.smartbox.investory.infrastructure.longterm.InterestTreatment.PAY_OUT,
+            com.smartbox.investory.longterm.api.InterestTreatment.PAY_OUT,
             ZERO);
     var assumptions =
         new SimulationAssumptions(
@@ -849,7 +849,7 @@ class RetirementSimulationServiceTest {
         new ProjectedLongTermAsset(
             77L,
             "Ladder bond",
-            com.smartbox.investory.infrastructure.longterm.LongTermAssetType.BOND,
+            com.smartbox.investory.longterm.api.LongTermAssetType.BOND,
             EconomicBucket.FIXED_INCOME,
             CurrencyType.PLN,
             new BigDecimal("200"),
@@ -859,7 +859,7 @@ class RetirementSimulationServiceTest {
                     java.time.LocalDate.of(2026, 1, 1), null, ZERO, ZERO, ZERO)),
             java.time.LocalDate.of(2027, 6, 15),
             new BigDecimal("200"),
-            com.smartbox.investory.infrastructure.longterm.InterestTreatment.PAY_OUT,
+            com.smartbox.investory.longterm.api.InterestTreatment.PAY_OUT,
             ZERO);
     SimulationAssumptions assumptions =
         new SimulationAssumptions(
@@ -1597,7 +1597,7 @@ class RetirementSimulationServiceTest {
         new ProjectedLongTermAsset(
             1L,
             "Locked bond",
-            com.smartbox.investory.infrastructure.longterm.LongTermAssetType.BOND,
+            com.smartbox.investory.longterm.api.LongTermAssetType.BOND,
             EconomicBucket.FIXED_INCOME,
             CurrencyType.PLN,
             new BigDecimal("200000"),
@@ -1605,7 +1605,7 @@ class RetirementSimulationServiceTest {
             List.of(),
             java.time.LocalDate.of(2027, 6, 1),
             new BigDecimal("200000"),
-            com.smartbox.investory.infrastructure.longterm.InterestTreatment.PAY_OUT,
+            com.smartbox.investory.longterm.api.InterestTreatment.PAY_OUT,
             ZERO);
     InvestmentProfile profile =
         new InvestmentProfile(
@@ -1679,7 +1679,7 @@ class RetirementSimulationServiceTest {
         new ProjectedLongTermAsset(
             1L,
             "Bond",
-            com.smartbox.investory.infrastructure.longterm.LongTermAssetType.BOND,
+            com.smartbox.investory.longterm.api.LongTermAssetType.BOND,
             EconomicBucket.FIXED_INCOME,
             CurrencyType.PLN,
             new BigDecimal("200"),
@@ -1687,13 +1687,13 @@ class RetirementSimulationServiceTest {
             List.of(),
             java.time.LocalDate.of(2028, 1, 1),
             new BigDecimal("200"),
-            com.smartbox.investory.infrastructure.longterm.InterestTreatment.PAY_OUT,
+            com.smartbox.investory.longterm.api.InterestTreatment.PAY_OUT,
             ZERO);
     ProjectedLongTermAsset deposit =
         new ProjectedLongTermAsset(
             2L,
             "Deposit",
-            com.smartbox.investory.infrastructure.longterm.LongTermAssetType.DEPOSIT,
+            com.smartbox.investory.longterm.api.LongTermAssetType.DEPOSIT,
             EconomicBucket.LIQUID_CASH,
             CurrencyType.PLN,
             new BigDecimal("100"),
@@ -1701,13 +1701,13 @@ class RetirementSimulationServiceTest {
             List.of(),
             java.time.LocalDate.of(2028, 1, 1),
             new BigDecimal("100"),
-            com.smartbox.investory.infrastructure.longterm.InterestTreatment.PAY_OUT,
+            com.smartbox.investory.longterm.api.InterestTreatment.PAY_OUT,
             ZERO);
     ProjectedLongTermAsset property =
         new ProjectedLongTermAsset(
             3L,
             "Property",
-            com.smartbox.investory.infrastructure.longterm.LongTermAssetType.REAL_ESTATE,
+            com.smartbox.investory.longterm.api.LongTermAssetType.REAL_ESTATE,
             EconomicBucket.REAL_ESTATE,
             CurrencyType.PLN,
             new BigDecimal("300"),
@@ -2023,12 +2023,12 @@ class RetirementSimulationServiceTest {
       BigDecimal rate,
       java.time.LocalDate maturity,
       BigDecimal redemption,
-      com.smartbox.investory.infrastructure.longterm.InterestTreatment treatment,
+      com.smartbox.investory.longterm.api.InterestTreatment treatment,
       BigDecimal tax) {
     return new ProjectedLongTermAsset(
         id,
         name,
-        com.smartbox.investory.infrastructure.longterm.LongTermAssetType.OTHER,
+        com.smartbox.investory.longterm.api.LongTermAssetType.OTHER,
         bucket,
         CurrencyType.PLN,
         new BigDecimal(value),
@@ -2046,7 +2046,7 @@ class RetirementSimulationServiceTest {
     return new ProjectedLongTermAsset(
         id,
         "Bond " + id,
-        com.smartbox.investory.infrastructure.longterm.LongTermAssetType.BOND,
+        com.smartbox.investory.longterm.api.LongTermAssetType.BOND,
         EconomicBucket.FIXED_INCOME,
         CurrencyType.PLN,
         new BigDecimal(value),
@@ -2056,7 +2056,7 @@ class RetirementSimulationServiceTest {
                 java.time.LocalDate.of(2026, 1, 1), null, ZERO, ZERO, ZERO)),
         java.time.LocalDate.of(2027, 6, 15),
         new BigDecimal(value),
-        com.smartbox.investory.infrastructure.longterm.InterestTreatment.PAY_OUT,
+        com.smartbox.investory.longterm.api.InterestTreatment.PAY_OUT,
         ZERO);
   }
 

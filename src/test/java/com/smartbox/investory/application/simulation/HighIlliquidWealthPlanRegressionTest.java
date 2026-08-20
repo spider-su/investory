@@ -1,22 +1,22 @@
-package com.smartbox.investory.application.simulation;
+package com.smartbox.investory.retirement.simulation;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-import com.smartbox.investory.application.planning.CurrentYearProjectionBridge;
-import com.smartbox.investory.application.planning.ForwardSimulationInput;
-import com.smartbox.investory.application.planning.ForwardSimulationInputService;
-import com.smartbox.investory.application.profile.*;
-import com.smartbox.investory.infrastructure.longterm.CashFlowType;
-import com.smartbox.investory.infrastructure.longterm.InterestTreatment;
-import com.smartbox.investory.infrastructure.longterm.LongTermAssetType;
-import com.smartbox.investory.infrastructure.simulation.SimulationPlan;
-import com.smartbox.investory.infrastructure.simulation.SimulationPlanEventRepository;
-import com.smartbox.investory.infrastructure.simulation.SimulationPlanRepository;
-import com.smartbox.investory.infrastructure.simulation.SimulationPlanRevision;
-import com.smartbox.investory.infrastructure.simulation.SimulationPlanRevisionEventRepository;
-import com.smartbox.investory.infrastructure.simulation.SimulationPlanRevisionRepository;
+import com.smartbox.investory.longterm.api.CashFlowType;
+import com.smartbox.investory.longterm.api.InterestTreatment;
+import com.smartbox.investory.longterm.api.LongTermAssetType;
+import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlan;
+import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanEventRepository;
+import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanRepository;
+import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanRevision;
+import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanRevisionEventRepository;
+import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanRevisionRepository;
+import com.smartbox.investory.retirement.planning.CurrentYearProjectionBridge;
+import com.smartbox.investory.retirement.planning.ForwardSimulationInput;
+import com.smartbox.investory.retirement.planning.ForwardSimulationInputService;
+import com.smartbox.investory.retirement.profile.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;

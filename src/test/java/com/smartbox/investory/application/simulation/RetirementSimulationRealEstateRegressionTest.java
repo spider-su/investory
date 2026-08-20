@@ -1,10 +1,10 @@
-package com.smartbox.investory.application.simulation;
+package com.smartbox.investory.retirement.simulation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.smartbox.investory.application.profile.*;
-import com.smartbox.investory.infrastructure.longterm.LongTermAssetType;
+import com.smartbox.investory.longterm.api.LongTermAssetType;
+import com.smartbox.investory.retirement.profile.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -189,7 +189,7 @@ class RetirementSimulationRealEstateRegressionTest {
                 new BigDecimal(gross),
                 new BigDecimal(expenses),
                 new BigDecimal("0.03"),
-                com.smartbox.investory.infrastructure.longterm.CashFlowType.RENT)),
+                com.smartbox.investory.longterm.api.CashFlowType.RENT)),
         null,
         null,
         null,

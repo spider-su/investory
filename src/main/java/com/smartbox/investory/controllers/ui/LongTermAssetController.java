@@ -1,13 +1,12 @@
 package com.smartbox.investory.controllers.ui;
 
-import com.smartbox.investory.application.longterm.LongTermAssetService;
-import com.smartbox.investory.application.longterm.RealEstateEntry;
-import com.smartbox.investory.infrastructure.longterm.CashFlowType;
-import com.smartbox.investory.infrastructure.longterm.Frequency;
-import com.smartbox.investory.infrastructure.longterm.InterestTreatment;
-import com.smartbox.investory.infrastructure.longterm.LongTermAsset;
-import com.smartbox.investory.infrastructure.longterm.LongTermAssetCashFlow;
-import com.smartbox.investory.services.PlanningPresentation;
+import com.smartbox.investory.longterm.api.CashFlowType;
+import com.smartbox.investory.longterm.api.Frequency;
+import com.smartbox.investory.longterm.api.InterestTreatment;
+import com.smartbox.investory.longterm.application.LongTermAssetService;
+import com.smartbox.investory.longterm.application.RealEstateEntry;
+import com.smartbox.investory.longterm.infrastructure.LongTermAsset;
+import com.smartbox.investory.longterm.infrastructure.LongTermAssetCashFlow;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -37,21 +36,19 @@ public class LongTermAssetController {
     model.addAttribute("longTermHeaderMonthly", total.monthlyNetIncomeWholeDisplay());
     model.addAttribute(
         "longTermGrossIncome",
-        PlanningPresentation.wholeNumber(total.annualEconomics().grossAnnualIncome()));
+        UiPresentation.wholeNumber(total.annualEconomics().grossAnnualIncome()));
     model.addAttribute(
         "longTermExpensesTax",
-        PlanningPresentation.wholeNumber(
+        UiPresentation.wholeNumber(
             total.annualEconomics().annualExpenses().add(total.annualEconomics().annualTax())));
-    model.addAttribute(
-        "longTermGrossYield", PlanningPresentation.percentage(total.weightedGrossYield()));
+    model.addAttribute("longTermGrossYield", UiPresentation.percentage(total.weightedGrossYield()));
     groups.stream()
         .max(java.util.Comparator.comparing(group -> group.totalValue()))
         .ifPresent(
             largest -> {
               model.addAttribute("longTermLargestClass", largest.title());
               model.addAttribute(
-                  "longTermLargestClassValue",
-                  PlanningPresentation.wholeNumber(largest.totalValue()));
+                  "longTermLargestClassValue", UiPresentation.wholeNumber(largest.totalValue()));
               model.addAttribute(
                   "longTermLargestClassShare", largest.shareDisplay(total.totalCurrentValue()));
             });
@@ -72,7 +69,7 @@ public class LongTermAssetController {
   public String bondForm(@RequestParam(defaultValue = "1") Long portfolioId, Model model) {
     LongTermAsset asset = new LongTermAsset();
     asset.setPortfolioId(portfolioId);
-    asset.setType(com.smartbox.investory.infrastructure.longterm.LongTermAssetType.BOND);
+    asset.setType(com.smartbox.investory.longterm.api.LongTermAssetType.BOND);
     asset.setCurrency(com.smartbox.investory.shared.currency.CurrencyType.PLN);
     asset.setActive(true);
     model.addAttribute("asset", asset);
@@ -111,7 +108,7 @@ public class LongTermAssetController {
   @PostMapping("/long-term-assets")
   public String create(@ModelAttribute LongTermAsset asset, @RequestParam Long portfolioId) {
     asset.setPortfolioId(portfolioId);
-    if (asset.getType() == com.smartbox.investory.infrastructure.longterm.LongTermAssetType.BOND
+    if (asset.getType() == com.smartbox.investory.longterm.api.LongTermAssetType.BOND
         && asset.getCurrentValue() == null) asset.setCurrentValue(asset.getAcquisitionValue());
     service.save(asset);
     return "redirect:/long-term-assets?portfolioId=" + portfolioId;
@@ -131,7 +128,7 @@ public class LongTermAssetController {
     LongTermAsset asset = new LongTermAsset();
     asset.setPortfolioId(portfolioId);
     asset.setName(name);
-    asset.setType(com.smartbox.investory.infrastructure.longterm.LongTermAssetType.BOND);
+    asset.setType(com.smartbox.investory.longterm.api.LongTermAssetType.BOND);
     asset.setCurrency(currency);
     asset.setAcquisitionValue(value);
     asset.setCurrentValue(value);
@@ -178,7 +175,7 @@ public class LongTermAssetController {
     model.addAttribute("depositDetails", service.depositDetails(portfolioId, id).orElse(null));
     model.addAttribute("valuationPeriods", service.valuationPeriods(portfolioId, id));
     model.addAttribute("bondRatePeriods", service.bondRatePeriods(portfolioId, id));
-    if (asset.getType() == com.smartbox.investory.infrastructure.longterm.LongTermAssetType.BOND) {
+    if (asset.getType() == com.smartbox.investory.longterm.api.LongTermAssetType.BOND) {
       model.addAttribute(
           "legacyBondValueDifference",
           asset.getAcquisitionValue() != null
@@ -186,8 +183,7 @@ public class LongTermAssetController {
               && asset.getAcquisitionValue().compareTo(asset.getCurrentValue()) != 0);
       return "bond-detail";
     }
-    if (asset.getType()
-        == com.smartbox.investory.infrastructure.longterm.LongTermAssetType.REAL_ESTATE) {
+    if (asset.getType() == com.smartbox.investory.longterm.api.LongTermAssetType.REAL_ESTATE) {
       LocalDate today = LocalDate.now(clock);
       model.addAttribute("currentCashFlows", service.currentCashFlows(portfolioId, id, today));
       model.addAttribute("rentalPeriod", service.rentalPeriod(portfolioId, id, today));
@@ -199,13 +195,12 @@ public class LongTermAssetController {
               .filter(p -> p.getValidTo() == null || !p.getValidTo().isBefore(LocalDate.now(clock)))
               .reduce((first, second) -> second)
               .map(
-                  com.smartbox.investory.infrastructure.longterm.LongTermAssetValuationPeriod
+                  com.smartbox.investory.longterm.infrastructure.LongTermAssetValuationPeriod
                       ::getExpectedAnnualGrowthRate)
               .orElse(null));
       return "real-estate-detail";
     }
-    if (asset.getType()
-        == com.smartbox.investory.infrastructure.longterm.LongTermAssetType.CASH_RESERVE)
+    if (asset.getType() == com.smartbox.investory.longterm.api.LongTermAssetType.CASH_RESERVE)
       return "cash-reserve-detail";
     return "long-term-asset-detail";
   }
@@ -230,8 +225,7 @@ public class LongTermAssetController {
     asset.setTaxBase(taxBase);
     asset.setNotes(form.getNotes());
     service.save(asset);
-    if (asset.getType()
-            == com.smartbox.investory.infrastructure.longterm.LongTermAssetType.REAL_ESTATE
+    if (asset.getType() == com.smartbox.investory.longterm.api.LongTermAssetType.REAL_ESTATE
         && effectiveFrom != null)
       service.saveRentalPeriod(portfolioId, id, effectiveFrom, endDate, LocalDate.now(clock));
     return "redirect:/long-term-assets/" + id + "?portfolioId=" + portfolioId;
@@ -327,7 +321,7 @@ public class LongTermAssetController {
       @PathVariable Long id,
       @RequestParam Long portfolioId,
       @ModelAttribute
-          com.smartbox.investory.infrastructure.longterm.LongTermAssetBondDetails details) {
+          com.smartbox.investory.longterm.infrastructure.LongTermAssetBondDetails details) {
     service.saveBondDetails(portfolioId, id, details);
     return redirect(id, portfolioId);
   }
@@ -366,7 +360,7 @@ public class LongTermAssetController {
       @PathVariable Long id,
       @RequestParam Long portfolioId,
       @ModelAttribute
-          com.smartbox.investory.infrastructure.longterm.LongTermAssetDepositDetails details) {
+          com.smartbox.investory.longterm.infrastructure.LongTermAssetDepositDetails details) {
     service.saveDepositDetails(portfolioId, id, details);
     return redirect(id, portfolioId);
   }
@@ -378,7 +372,7 @@ public class LongTermAssetController {
       @RequestParam LocalDate validFrom,
       @RequestParam(required = false) LocalDate validTo,
       @RequestParam BigDecimal expectedAnnualGrowthRatePercent) {
-    var period = new com.smartbox.investory.infrastructure.longterm.LongTermAssetValuationPeriod();
+    var period = new com.smartbox.investory.longterm.infrastructure.LongTermAssetValuationPeriod();
     period.setValidFrom(validFrom);
     period.setValidTo(validTo);
     period.setExpectedAnnualGrowthRate(percentInputToRate(expectedAnnualGrowthRatePercent));
@@ -391,7 +385,7 @@ public class LongTermAssetController {
       @PathVariable Long id,
       @RequestParam Long portfolioId,
       @ModelAttribute
-          com.smartbox.investory.infrastructure.longterm.LongTermAssetBondRatePeriod period) {
+          com.smartbox.investory.longterm.infrastructure.LongTermAssetBondRatePeriod period) {
     service.addBondRatePeriod(portfolioId, id, period);
     return redirect(id, portfolioId);
   }
@@ -399,7 +393,7 @@ public class LongTermAssetController {
   @PostMapping("/long-term-assets/rental-tax-policy")
   public String saveRentalTaxPolicy(
       @RequestParam Long portfolioId,
-      @ModelAttribute com.smartbox.investory.infrastructure.longterm.RentalTaxPolicy policy,
+      @ModelAttribute com.smartbox.investory.longterm.infrastructure.RentalTaxPolicy policy,
       @RequestParam(required = false) BigDecimal ratePercent,
       @RequestParam(required = false) BigDecimal rate) {
     policy.setRate(ratePercent == null ? rate : percentInputToRate(ratePercent));

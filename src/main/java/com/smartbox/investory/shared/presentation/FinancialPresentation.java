@@ -10,8 +10,11 @@ public final class FinancialPresentation {
   private FinancialPresentation() {}
 
   public static String money(BigDecimal value) {
-    BigDecimal rounded = (value == null ? BigDecimal.ZERO : value).setScale(2, RoundingMode.HALF_UP);
-    return rounded.stripTrailingZeros().scale() <= 0 ? number(rounded, 0, 0) : number(rounded, 2, 2);
+    BigDecimal rounded =
+        (value == null ? BigDecimal.ZERO : value).setScale(2, RoundingMode.HALF_UP);
+    return rounded.stripTrailingZeros().scale() <= 0
+        ? number(rounded, 0, 0)
+        : number(rounded, 2, 2);
   }
 
   public static String moneyWhole(BigDecimal value) {

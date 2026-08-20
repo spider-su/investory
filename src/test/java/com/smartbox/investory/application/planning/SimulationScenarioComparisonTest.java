@@ -1,9 +1,9 @@
-package com.smartbox.investory.application.planning;
+package com.smartbox.investory.retirement.planning;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.smartbox.investory.application.simulation.SimulationDecisionSummary;
-import com.smartbox.investory.application.simulation.SimulationScenario;
+import com.smartbox.investory.retirement.simulation.SimulationDecisionSummary;
+import com.smartbox.investory.retirement.simulation.SimulationScenario;
 import java.math.BigDecimal;
 import java.util.EnumMap;
 import java.util.Map;

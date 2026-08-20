@@ -1,4 +1,4 @@
-package com.smartbox.investory.application.planning;
+package com.smartbox.investory.retirement.planning;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;

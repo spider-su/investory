@@ -1,10 +1,10 @@
-package com.smartbox.investory.application.longterm;
+package com.smartbox.investory.longterm.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.smartbox.investory.infrastructure.longterm.CashFlowType;
-import com.smartbox.investory.infrastructure.longterm.Frequency;
-import com.smartbox.investory.infrastructure.longterm.LongTermAssetCashFlow;
+import com.smartbox.investory.longterm.api.CashFlowType;
+import com.smartbox.investory.longterm.api.Frequency;
+import com.smartbox.investory.longterm.infrastructure.LongTermAssetCashFlow;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;

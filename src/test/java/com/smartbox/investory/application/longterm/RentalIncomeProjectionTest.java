@@ -1,12 +1,11 @@
-package com.smartbox.investory.application.longterm;
+package com.smartbox.investory.longterm.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.smartbox.investory.application.profile.EconomicBucket;
-import com.smartbox.investory.application.profile.Liquidity;
-import com.smartbox.investory.application.profile.ProjectedLongTermAsset;
-import com.smartbox.investory.infrastructure.longterm.CashFlowType;
-import com.smartbox.investory.infrastructure.longterm.LongTermAssetType;
+import com.smartbox.investory.longterm.api.CashFlowType;
+import com.smartbox.investory.longterm.api.LongTermAssetProjection;
+import com.smartbox.investory.longterm.api.LongTermAssetType;
+import com.smartbox.investory.longterm.api.RentalIncomeProjection;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -57,21 +56,21 @@ class RentalIncomeProjectionTest {
   void incomeComponentsGrowButExpensesAndTaxRemainCanonical() {
     var asset =
         asset(
-            new ProjectedLongTermAsset.Period(
+            new LongTermAssetProjection.Period(
                 LocalDate.of(2027, 1, 1),
                 null,
                 bd("120000"),
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
                 CashFlowType.RENT),
-            new ProjectedLongTermAsset.Period(
+            new LongTermAssetProjection.Period(
                 LocalDate.of(2027, 1, 1),
                 null,
                 bd("12000"),
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
                 CashFlowType.PARKING_RENT),
-            new ProjectedLongTermAsset.Period(
+            new LongTermAssetProjection.Period(
                 LocalDate.of(2027, 1, 1),
                 null,
                 BigDecimal.ZERO,
@@ -85,15 +84,13 @@ class RentalIncomeProjectionTest {
     assertBd("122000", result.netIncome());
   }
 
-  private static ProjectedLongTermAsset asset(ProjectedLongTermAsset.Period... periods) {
-    return new ProjectedLongTermAsset(
+  private static LongTermAssetProjection asset(LongTermAssetProjection.Period... periods) {
+    return new LongTermAssetProjection(
         1L,
         "Rental",
         LongTermAssetType.REAL_ESTATE,
-        EconomicBucket.REAL_ESTATE,
         CurrencyType.USD,
         BigDecimal.ZERO,
-        Liquidity.ILLIQUID,
         List.of(periods),
         null,
         null,
@@ -102,9 +99,9 @@ class RentalIncomeProjectionTest {
         BigDecimal.ZERO);
   }
 
-  private static ProjectedLongTermAsset.Period period(
+  private static LongTermAssetProjection.Period period(
       int from, Integer to, String amount, CashFlowType type) {
-    return new ProjectedLongTermAsset.Period(
+    return new LongTermAssetProjection.Period(
         LocalDate.of(from, 1, 1),
         to == null ? null : LocalDate.of(to, 12, 31),
         bd(amount),

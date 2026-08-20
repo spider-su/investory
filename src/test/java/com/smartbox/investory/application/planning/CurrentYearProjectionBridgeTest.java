@@ -1,13 +1,13 @@
-package com.smartbox.investory.application.planning;
+package com.smartbox.investory.retirement.planning;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.smartbox.investory.application.profile.*;
-import com.smartbox.investory.application.simulation.*;
-import com.smartbox.investory.infrastructure.longterm.CashFlowType;
-import com.smartbox.investory.infrastructure.longterm.InterestTreatment;
-import com.smartbox.investory.infrastructure.longterm.LongTermAssetType;
+import com.smartbox.investory.longterm.api.CashFlowType;
+import com.smartbox.investory.longterm.api.InterestTreatment;
+import com.smartbox.investory.longterm.api.LongTermAssetType;
+import com.smartbox.investory.retirement.profile.*;
+import com.smartbox.investory.retirement.simulation.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.*;
@@ -157,7 +157,7 @@ class CurrentYearProjectionBridgeTest {
 
     CurrentYearBridgeResult result =
         bridge.projectCurrentYearEnd(
-            new com.smartbox.investory.application.simulation.ForwardSimulationContextFactory(clock)
+            new com.smartbox.investory.retirement.simulation.ForwardSimulationContextFactory(clock)
                 .create(profile(), assumptions));
 
     BigDecimal fraction =
@@ -205,7 +205,7 @@ class CurrentYearProjectionBridgeTest {
                         null)))
             .withRetirementAge(40);
     ForwardSimulationContext context =
-        new com.smartbox.investory.application.simulation.ForwardSimulationContextFactory(clock)
+        new com.smartbox.investory.retirement.simulation.ForwardSimulationContextFactory(clock)
             .create(profile(), assumptions);
     CurrentYearBridgeResult result = bridge.projectCurrentYearEnd(context);
 

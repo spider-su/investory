@@ -1,5 +1,9 @@
 package com.smartbox.investory.application.dashboard;
 
+import com.smartbox.investory.investment.reporting.PerformanceResult;
+import com.smartbox.investory.investment.reporting.PortfolioPerformanceQuery;
+import com.smartbox.investory.investment.reporting.PortfolioReturnCalculator;
+import com.smartbox.investory.investment.reporting.ReturnMetric;
 import com.smartbox.investory.services.BenchmarkService;
 import com.smartbox.investory.services.PortfolioService;
 import com.smartbox.investory.services.dashboard.DashboardOperationalContextService;
@@ -14,10 +18,6 @@ import com.smartbox.investory.services.models.Performance;
 import com.smartbox.investory.services.models.Portfolio;
 import com.smartbox.investory.services.models.PortfolioDataQuality;
 import com.smartbox.investory.services.models.RiskExposureSummary;
-import com.smartbox.investory.services.portfolio.read.PerformanceResult;
-import com.smartbox.investory.services.portfolio.read.PortfolioPerformanceQuery;
-import com.smartbox.investory.services.portfolio.read.PortfolioReturnCalculator;
-import com.smartbox.investory.services.portfolio.read.ReturnMetric;
 import java.time.YearMonth;
 import java.util.Comparator;
 import java.util.LinkedHashMap;

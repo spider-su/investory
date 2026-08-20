@@ -8,7 +8,6 @@ import com.smartbox.investory.application.dashboard.DashboardFacade;
 import com.smartbox.investory.application.dashboard.DashboardQuery;
 import com.smartbox.investory.config.BuildMetadata;
 import com.smartbox.investory.services.BenchmarkService;
-import com.smartbox.investory.services.PlanningPresentation;
 import com.smartbox.investory.services.PortfolioService;
 import com.smartbox.investory.services.dashboard.DashboardPeriodFilterService;
 import com.smartbox.investory.services.models.Benchmark;
@@ -63,7 +62,7 @@ class DashboardRenderSmokeTest {
                 "buildMetadata",
                 BuildMetadata.development(),
                 "format",
-                new PlanningPresentation()));
+                new UiPresentation()));
 
     String html = templateEngine().process("dashboard", context);
 

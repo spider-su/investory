@@ -1,8 +1,8 @@
 package com.smartbox.investory.application.dashboard;
 
+import com.smartbox.investory.investment.reporting.PerformanceAttribution;
+import com.smartbox.investory.investment.reporting.ReturnMetric;
 import com.smartbox.investory.services.models.InstrumentPerformance;
-import com.smartbox.investory.services.portfolio.read.PerformanceAttribution;
-import com.smartbox.investory.services.portfolio.read.ReturnMetric;
 import java.util.List;
 
 public record PerformanceView(

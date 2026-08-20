@@ -1,4 +1,4 @@
-package com.smartbox.investory.services.portfolio.read.internal;
+package com.smartbox.investory.investment.infrastructure.read;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;

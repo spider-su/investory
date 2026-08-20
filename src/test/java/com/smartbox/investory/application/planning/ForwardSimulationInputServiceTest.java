@@ -1,10 +1,10 @@
-package com.smartbox.investory.application.planning;
+package com.smartbox.investory.retirement.planning;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
-import com.smartbox.investory.application.profile.InvestmentProfile;
-import com.smartbox.investory.application.simulation.*;
+import com.smartbox.investory.retirement.profile.InvestmentProfile;
+import com.smartbox.investory.retirement.simulation.*;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;

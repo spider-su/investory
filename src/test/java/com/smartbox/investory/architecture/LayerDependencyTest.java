@@ -20,7 +20,7 @@ class LayerDependencyTest {
   void simulationDoesNotDependOnAccountingRepositories() {
     noClasses()
         .that()
-        .resideInAnyPackage("..application.simulation..")
+        .resideInAnyPackage("..retirement.simulation..")
         .should()
         .dependOnClassesThat()
         .resideInAnyPackage("..infrastructure.repository..")
@@ -32,12 +32,13 @@ class LayerDependencyTest {
     // SimulationPlanService is the known persistence adapter kept in this package for now.
     noClasses()
         .that()
-        .resideInAnyPackage("..application.simulation..")
+        .resideInAnyPackage("..retirement.simulation..")
         .and()
         .doNotHaveSimpleName("SimulationPlanService")
         .should()
         .dependOnClassesThat()
-        .resideInAnyPackage("..infrastructure.repository..", "..infrastructure.simulation..")
+        .resideInAnyPackage(
+            "..infrastructure.repository..", "..retirement.infrastructure.simulation..")
         .check(MAIN);
   }
 
@@ -56,7 +57,7 @@ class LayerDependencyTest {
   void profileApplicationUsesPortfolioReadBoundary() {
     noClasses()
         .that()
-        .resideInAnyPackage("..application.profile..")
+        .resideInAnyPackage("..retirement.profile..")
         .should()
         .dependOnClassesThat()
         .haveSimpleName("PortfolioService")
@@ -67,7 +68,7 @@ class LayerDependencyTest {
   void profileApplicationDoesNotDependOnInvestmentRepositories() {
     noClasses()
         .that()
-        .resideInAnyPackage("..application.profile..")
+        .resideInAnyPackage("..retirement.profile..")
         .should()
         .dependOnClassesThat()
         .resideInAnyPackage("..infrastructure.repository..")
@@ -78,7 +79,7 @@ class LayerDependencyTest {
   void planningApplicationDoesNotDependOnInvestmentRepositories() {
     noClasses()
         .that()
-        .resideInAnyPackage("..application.planning..")
+        .resideInAnyPackage("..retirement.planning..")
         .should()
         .dependOnClassesThat()
         .resideInAnyPackage("..infrastructure.repository..")
@@ -89,10 +90,67 @@ class LayerDependencyTest {
   void longTermApplicationDoesNotDependOnInvestmentRepositories() {
     noClasses()
         .that()
-        .resideInAnyPackage("..application.longterm..")
+        .resideInAnyPackage("..longterm.application..")
         .should()
         .dependOnClassesThat()
         .resideInAnyPackage("..infrastructure.repository..")
+        .check(MAIN);
+  }
+
+  @Test
+  void retirementApplicationsDoNotDependOnLongTermPersistence() {
+    noClasses()
+        .that()
+        .resideInAnyPackage(
+            "..retirement.profile..", "..retirement.planning..", "..retirement.simulation..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage("..longterm.infrastructure..")
+        .check(MAIN);
+  }
+
+  @Test
+  void longTermApplicationsDoNotDependOnRetirementApplications() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..longterm.application..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage(
+            "..retirement.profile..", "..retirement.planning..", "..retirement.simulation..")
+        .check(MAIN);
+  }
+
+  @Test
+  void investmentDoesNotDependOnRetirement() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..investment..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage("..retirement..")
+        .check(MAIN);
+  }
+
+  @Test
+  void longTermDoesNotDependOnRetirement() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..longterm..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage("..retirement..")
+        .check(MAIN);
+  }
+
+  @Test
+  void retirementDoesNotDependOnInvestmentOrLongTermImplementations() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..retirement..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage("..investment.infrastructure..", "..longterm.infrastructure..")
         .check(MAIN);
   }
 
@@ -101,7 +159,7 @@ class LayerDependencyTest {
     noClasses()
         .that()
         .haveNameMatching(
-            ".*services\\.portfolio\\.read\\.(BrokeragePositionSnapshot|SharedBrokeragePortfolioSnapshot)")
+            ".*investment\\.api\\.(BrokeragePositionSnapshot|SharedBrokeragePortfolioSnapshot)")
         .should()
         .dependOnClassesThat()
         .resideInAnyPackage("..infrastructure.repository..")
@@ -113,10 +171,21 @@ class LayerDependencyTest {
     noClasses()
         .that()
         .haveNameMatching(
-            ".*services\\.portfolio\\.read\\.(BrokerageAssetClassification|BrokerageAssetClassificationReader|BrokeragePortfolioContext|BrokeragePortfolioContextReader|HistoricalPortfolioActualsReader|HistoricalPortfolioYear)")
+            ".*investment\\.api\\.(BrokerageAssetClassification|BrokerageAssetClassificationReader|BrokeragePortfolioContext|BrokeragePortfolioContextReader|HistoricalPortfolioActualsReader|HistoricalPortfolioYear)")
         .should()
         .dependOnClassesThat()
         .resideInAnyPackage("..infrastructure.repository..")
+        .check(MAIN);
+  }
+
+  @Test
+  void longTermReadContractsDoNotReachIntoPersistence() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..longterm.api..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage("..longterm.infrastructure..", "..infrastructure.repository..")
         .check(MAIN);
   }
 
@@ -132,24 +201,20 @@ class LayerDependencyTest {
             "..services..",
             "..controllers..",
             "..infrastructure.repository..",
-            "..infrastructure.longterm..",
-            "..infrastructure.planning..",
-            "..infrastructure.simulation..")
+            "..longterm.infrastructure..",
+            "..retirement.infrastructure.planning..",
+            "..retirement.infrastructure.simulation..")
         .check(MAIN);
   }
 
   @Test
   void accountingServicesDoNotDependOnPlanningOrSimulation() {
-    // PlanningPresentation is the exact cross-domain presentation bridge documented in
-    // docs/architecture/overview.md. Stage 5 removes it; no package-wide exception is allowed.
     noClasses()
         .that()
         .resideInAnyPackage("..services..")
-        .and()
-        .haveNameNotMatching(".*PlanningPresentation.*")
         .should()
         .dependOnClassesThat()
-        .resideInAnyPackage("..application.planning..", "..application.simulation..")
+        .resideInAnyPackage("..retirement.planning..", "..retirement.simulation..")
         .check(MAIN);
   }
 }

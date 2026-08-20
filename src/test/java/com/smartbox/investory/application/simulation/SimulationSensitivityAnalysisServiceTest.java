@@ -1,10 +1,10 @@
-package com.smartbox.investory.application.simulation;
+package com.smartbox.investory.retirement.simulation;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-import com.smartbox.investory.application.profile.*;
+import com.smartbox.investory.retirement.profile.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -111,7 +111,7 @@ class SimulationSensitivityAnalysisServiceTest {
         new ProjectedLongTermAsset(
             1L,
             "Property",
-            com.smartbox.investory.infrastructure.longterm.LongTermAssetType.REAL_ESTATE,
+            com.smartbox.investory.longterm.api.LongTermAssetType.REAL_ESTATE,
             EconomicBucket.REAL_ESTATE,
             CurrencyType.PLN,
             new BigDecimal("100"),
@@ -146,7 +146,7 @@ class SimulationSensitivityAnalysisServiceTest {
         new ProjectedLongTermAsset(
             1L,
             "Property",
-            com.smartbox.investory.infrastructure.longterm.LongTermAssetType.REAL_ESTATE,
+            com.smartbox.investory.longterm.api.LongTermAssetType.REAL_ESTATE,
             EconomicBucket.REAL_ESTATE,
             CurrencyType.PLN,
             new BigDecimal("100"),
@@ -186,7 +186,7 @@ class SimulationSensitivityAnalysisServiceTest {
         new ProjectedLongTermAsset(
             1L,
             "Historical property",
-            com.smartbox.investory.infrastructure.longterm.LongTermAssetType.REAL_ESTATE,
+            com.smartbox.investory.longterm.api.LongTermAssetType.REAL_ESTATE,
             EconomicBucket.REAL_ESTATE,
             CurrencyType.PLN,
             BigDecimal.ZERO,
@@ -397,7 +397,7 @@ class SimulationSensitivityAnalysisServiceTest {
     return new ProjectedLongTermAsset(
         id,
         "Property " + id,
-        com.smartbox.investory.infrastructure.longterm.LongTermAssetType.REAL_ESTATE,
+        com.smartbox.investory.longterm.api.LongTermAssetType.REAL_ESTATE,
         EconomicBucket.REAL_ESTATE,
         CurrencyType.PLN,
         new BigDecimal("100"),

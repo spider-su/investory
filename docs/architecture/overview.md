@@ -148,6 +148,11 @@ persistence types.
 validation and aggregation while retaining the existing `PortfolioKpiSummaryRepository` lookup inside
 Investment.
 
+Long-Term publishes `LongTermAssetProfileReader` for profile composition and projection inputs, and
+`LongTermAssetAnnualSnapshotReader` for current and historical planning facts. Its public immutable
+models include the stable Long-Term asset and cash-flow enums. Retirement callers use these contracts;
+Long-Term persistence and application services remain internal.
+
 Planning must not become an accounting source of truth or depend on a projected result as an actual fact.
 
 ### Transitional boundary exceptions
@@ -157,10 +162,6 @@ not permitted broad package exceptions:
 
 | Current dependency | Why it exists now | Removal stage |
 | --- | --- | --- |
-| `LongTermAssetService` -> `PlanningPresentation` | Long-Term template-visible summaries use the cross-domain formatter. | Stage 5 |
-| `application.longterm.RentalIncomeProjection` -> `application.profile.ProjectedLongTermAsset` | Long-Term projection currently uses the profile-owned model. | Stage 6 |
-| `InvestmentProfileFacade` -> `LongTermAssetService` | Profile composition still reads Long-Term implementation directly. | Stage 6 |
-| `HistoricalLongTermAssetYearSource` and Retirement simulation callers -> `LongTermAssetService`/Long-Term types | Retirement has no Long-Term public read contract yet. | Stage 6 |
 | `PlanningPresentation` -> planning, profile, simulation, and Long-Term types | The formatter is a cross-domain presentation bridge; Long-Term also calls it. | Stage 5 |
 
 `shared.currency.CurrencyType` and `shared.currency.CurrencyConversion` now provide the shared FX

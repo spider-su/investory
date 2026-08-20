@@ -1,4 +1,4 @@
-package com.smartbox.investory.application.planning;
+package com.smartbox.investory.retirement.planning;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -6,11 +6,11 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.application.profile.InvestmentProfile;
-import com.smartbox.investory.application.simulation.SimulationChartData;
-import com.smartbox.investory.application.simulation.SimulationScenario;
-import com.smartbox.investory.application.simulation.SustainableSpendingAnalysis;
-import com.smartbox.investory.application.simulation.SustainableSpendingResultState;
+import com.smartbox.investory.retirement.profile.InvestmentProfile;
+import com.smartbox.investory.retirement.simulation.SimulationChartData;
+import com.smartbox.investory.retirement.simulation.SimulationScenario;
+import com.smartbox.investory.retirement.simulation.SustainableSpendingAnalysis;
+import com.smartbox.investory.retirement.simulation.SustainableSpendingResultState;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;

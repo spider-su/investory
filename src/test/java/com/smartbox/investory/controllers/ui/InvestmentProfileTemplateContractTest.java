@@ -2,7 +2,7 @@ package com.smartbox.investory.controllers.ui;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.smartbox.investory.application.profile.InvestmentProfile;
+import com.smartbox.investory.retirement.profile.InvestmentProfile;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;

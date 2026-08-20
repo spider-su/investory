@@ -1,13 +1,13 @@
-package com.smartbox.investory.application.simulation;
+package com.smartbox.investory.retirement.simulation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.smartbox.investory.application.profile.EconomicBucket;
-import com.smartbox.investory.application.profile.InvestmentProfile;
-import com.smartbox.investory.application.profile.Liquidity;
-import com.smartbox.investory.application.profile.ProfileAllocation;
-import com.smartbox.investory.application.profile.ProjectedLongTermAsset;
-import com.smartbox.investory.infrastructure.longterm.LongTermAssetType;
+import com.smartbox.investory.longterm.api.LongTermAssetType;
+import com.smartbox.investory.retirement.profile.EconomicBucket;
+import com.smartbox.investory.retirement.profile.InvestmentProfile;
+import com.smartbox.investory.retirement.profile.Liquidity;
+import com.smartbox.investory.retirement.profile.ProfileAllocation;
+import com.smartbox.investory.retirement.profile.ProjectedLongTermAsset;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.util.List;

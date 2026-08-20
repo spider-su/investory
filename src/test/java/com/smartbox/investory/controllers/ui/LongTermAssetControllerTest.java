@@ -7,12 +7,12 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
-import com.smartbox.investory.application.longterm.LongTermAssetService;
-import com.smartbox.investory.application.longterm.RealEstateEntry;
-import com.smartbox.investory.infrastructure.longterm.Frequency;
-import com.smartbox.investory.infrastructure.longterm.InterestTreatment;
-import com.smartbox.investory.infrastructure.longterm.LongTermAsset;
-import com.smartbox.investory.infrastructure.longterm.LongTermAssetCashFlow;
+import com.smartbox.investory.longterm.api.Frequency;
+import com.smartbox.investory.longterm.api.InterestTreatment;
+import com.smartbox.investory.longterm.application.LongTermAssetService;
+import com.smartbox.investory.longterm.application.RealEstateEntry;
+import com.smartbox.investory.longterm.infrastructure.LongTermAsset;
+import com.smartbox.investory.longterm.infrastructure.LongTermAssetCashFlow;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -118,7 +118,7 @@ class LongTermAssetControllerTest {
   @Test
   void realEstateCreationConvertsDisplayedGrowthPercentToDecimal() {
     LongTermAsset saved = new LongTermAsset();
-    saved.setType(com.smartbox.investory.infrastructure.longterm.LongTermAssetType.REAL_ESTATE);
+    saved.setType(com.smartbox.investory.longterm.api.LongTermAssetType.REAL_ESTATE);
     saved.setCurrentValue(new BigDecimal("1000000"));
     saved.setId(7L);
     when(service.saveRealEstateEntry(anyLong(), isNull(), any(RealEstateEntry.class)))
@@ -154,7 +154,7 @@ class LongTermAssetControllerTest {
 
     var captor =
         org.mockito.ArgumentCaptor.forClass(
-            com.smartbox.investory.infrastructure.longterm.LongTermAssetValuationPeriod.class);
+            com.smartbox.investory.longterm.infrastructure.LongTermAssetValuationPeriod.class);
     verify(service).addValuationPeriod(eq(1L), eq(7L), captor.capture());
     assertEquals(new BigDecimal("0.01"), captor.getValue().getExpectedAnnualGrowthRate());
   }
@@ -186,7 +186,7 @@ class LongTermAssetControllerTest {
     controller.addCashFlow(
         11L,
         1L,
-        com.smartbox.investory.infrastructure.longterm.CashFlowType.RENT,
+        com.smartbox.investory.longterm.api.CashFlowType.RENT,
         new BigDecimal("2900"),
         Frequency.MONTHLY,
         LocalDate.of(2025, 1, 1),
@@ -202,12 +202,12 @@ class LongTermAssetControllerTest {
   void propertySaveBindsAnnualTaxBaseExplicitly() {
     LongTermAsset asset = new LongTermAsset();
     asset.setId(7L);
-    asset.setType(com.smartbox.investory.infrastructure.longterm.LongTermAssetType.REAL_ESTATE);
+    asset.setType(com.smartbox.investory.longterm.api.LongTermAssetType.REAL_ESTATE);
     when(service.get(1L, 7L)).thenReturn(Optional.of(asset));
 
     LongTermAsset form = new LongTermAsset();
     form.setName("Apartment");
-    form.setType(com.smartbox.investory.infrastructure.longterm.LongTermAssetType.REAL_ESTATE);
+    form.setType(com.smartbox.investory.longterm.api.LongTermAssetType.REAL_ESTATE);
     form.setCurrency(CurrencyType.PLN);
     form.setCurrentValue(new BigDecimal("780000"));
 

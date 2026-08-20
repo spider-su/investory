@@ -1,13 +1,13 @@
 package com.smartbox.investory.controllers.ui;
 
-import com.smartbox.investory.application.planning.PlanningMetric;
-import com.smartbox.investory.application.profile.EconomicBucket;
-import com.smartbox.investory.application.profile.Liquidity;
-import com.smartbox.investory.application.simulation.SimulationFundingStrategy;
-import com.smartbox.investory.infrastructure.longterm.CashFlowType;
-import com.smartbox.investory.infrastructure.longterm.Frequency;
-import com.smartbox.investory.infrastructure.longterm.InterestTreatment;
-import com.smartbox.investory.infrastructure.longterm.LongTermAssetType;
+import com.smartbox.investory.longterm.api.CashFlowType;
+import com.smartbox.investory.longterm.api.Frequency;
+import com.smartbox.investory.longterm.api.InterestTreatment;
+import com.smartbox.investory.longterm.api.LongTermAssetType;
+import com.smartbox.investory.retirement.planning.PlanningMetric;
+import com.smartbox.investory.retirement.profile.EconomicBucket;
+import com.smartbox.investory.retirement.profile.Liquidity;
+import com.smartbox.investory.retirement.simulation.SimulationFundingStrategy;
 import com.smartbox.investory.services.FinancialPrecision;
 import java.math.BigDecimal;
 import java.math.RoundingMode;

@@ -2,8 +2,8 @@ package com.smartbox.investory.controllers.ui;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.smartbox.investory.application.planning.PlanningYearStatus;
-import com.smartbox.investory.application.simulation.SimulationScenario;
+import com.smartbox.investory.retirement.planning.PlanningYearStatus;
+import com.smartbox.investory.retirement.simulation.SimulationScenario;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;

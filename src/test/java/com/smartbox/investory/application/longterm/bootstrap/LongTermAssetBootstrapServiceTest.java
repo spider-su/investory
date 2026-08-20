@@ -1,13 +1,15 @@
-package com.smartbox.investory.application.longterm.bootstrap;
+package com.smartbox.investory.longterm.application.bootstrap;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.smartbox.investory.infrastructure.longterm.*;
-import com.smartbox.investory.services.portfolio.read.BrokeragePortfolioContext;
-import com.smartbox.investory.services.portfolio.read.BrokeragePortfolioContextReader;
+import com.smartbox.investory.investment.api.BrokeragePortfolioContext;
+import com.smartbox.investory.investment.api.BrokeragePortfolioContextReader;
+import com.smartbox.investory.longterm.api.InterestTreatment;
+import com.smartbox.investory.longterm.api.LongTermAssetType;
+import com.smartbox.investory.longterm.infrastructure.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.nio.file.Files;

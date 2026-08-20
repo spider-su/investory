@@ -1,4 +1,4 @@
-package com.smartbox.investory.application.simulation;
+package com.smartbox.investory.retirement.simulation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -8,11 +8,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.application.longterm.LongTermAssetAnnualSnapshot;
-import com.smartbox.investory.application.longterm.LongTermAssetService;
-import com.smartbox.investory.application.planning.ForwardSimulationInputService;
-import com.smartbox.investory.application.planning.PlanningCurrencyPresentationService;
-import com.smartbox.investory.application.profile.InvestmentProfile;
+import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshot;
+import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
+import com.smartbox.investory.retirement.planning.ForwardSimulationInputService;
+import com.smartbox.investory.retirement.planning.PlanningCurrencyPresentationService;
+import com.smartbox.investory.retirement.profile.InvestmentProfile;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -40,7 +40,8 @@ class PlanEditorPreviewServiceTest {
   void currentFactsComeFromCanonicalLongTermAssetSnapshot() {
     ForwardSimulationInputService inputs = mock(ForwardSimulationInputService.class);
     RetirementSimulationService simulations = mock(RetirementSimulationService.class);
-    LongTermAssetService longTermAssets = mock(LongTermAssetService.class);
+    LongTermAssetAnnualSnapshotReader longTermAssets =
+        mock(LongTermAssetAnnualSnapshotReader.class);
     PlanningCurrencyPresentationService presentation =
         mock(PlanningCurrencyPresentationService.class);
     Clock clock = Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC);
@@ -67,7 +68,8 @@ class PlanEditorPreviewServiceTest {
   void previewUsesRoundedDivisionForNonTerminatingMonthlyCosts() {
     ForwardSimulationInputService inputs = mock(ForwardSimulationInputService.class);
     RetirementSimulationService simulations = mock(RetirementSimulationService.class);
-    LongTermAssetService longTermAssets = mock(LongTermAssetService.class);
+    LongTermAssetAnnualSnapshotReader longTermAssets =
+        mock(LongTermAssetAnnualSnapshotReader.class);
     PlanningCurrencyPresentationService presentation =
         mock(PlanningCurrencyPresentationService.class);
     Clock clock = Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC);
@@ -98,7 +100,7 @@ class PlanEditorPreviewServiceTest {
     when(profile.portfolioId()).thenReturn(7L);
     when(inputs.prepare(any(), any()))
         .thenReturn(
-            new com.smartbox.investory.application.planning.ForwardSimulationInput(
+            new com.smartbox.investory.retirement.planning.ForwardSimulationInput(
                 mock(ForwardSimulationContext.class), profile, Optional.of(assumptions)));
     when(simulations.simulate(profile, assumptions, SimulationScenario.BASE)).thenReturn(empty);
     when(longTermAssets.currentAnnualSnapshot(any(), any()))

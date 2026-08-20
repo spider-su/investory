@@ -1,8 +1,8 @@
-package com.smartbox.investory.application.longterm;
+package com.smartbox.investory.longterm.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.smartbox.investory.infrastructure.longterm.InterestTreatment;
+import com.smartbox.investory.longterm.api.InterestTreatment;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;

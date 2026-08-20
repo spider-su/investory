@@ -1,17 +1,17 @@
-package com.smartbox.investory.application.planning;
+package com.smartbox.investory.retirement.planning;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-import com.smartbox.investory.application.longterm.LongTermAssetAnnualSnapshot;
-import com.smartbox.investory.application.longterm.LongTermAssetService;
-import com.smartbox.investory.application.profile.*;
-import com.smartbox.investory.application.simulation.*;
-import com.smartbox.investory.infrastructure.planning.*;
 import com.smartbox.investory.infrastructure.repository.portfolio.PortfolioMonthlyPerformance;
 import com.smartbox.investory.infrastructure.repository.portfolio.PortfolioMonthlyPerformanceRepository;
-import com.smartbox.investory.services.portfolio.read.internal.HistoricalPortfolioActualsReadService;
+import com.smartbox.investory.investment.infrastructure.read.HistoricalPortfolioActualsReadService;
+import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshot;
+import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
+import com.smartbox.investory.retirement.infrastructure.planning.*;
+import com.smartbox.investory.retirement.profile.*;
+import com.smartbox.investory.retirement.simulation.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -34,7 +34,7 @@ class PlanningTimelineFacadeTest {
   @Mock RetirementSimulationService simulations;
   @Mock CurrentYearProjectionBridge projectionBridge;
   @Mock HistoricalLongTermAssetYearSource longTermAssets;
-  @Mock LongTermAssetService currentLongTermAssets;
+  @Mock LongTermAssetAnnualSnapshotReader currentLongTermAssets;
   PlanningTimelineFacade facade;
   PlanningYear planningYear;
 

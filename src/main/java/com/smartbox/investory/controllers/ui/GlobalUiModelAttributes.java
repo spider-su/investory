@@ -1,7 +1,6 @@
 package com.smartbox.investory.controllers.ui;
 
 import com.smartbox.investory.config.BuildMetadata;
-import com.smartbox.investory.services.PlanningPresentation;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -21,7 +20,7 @@ public class GlobalUiModelAttributes {
   }
 
   @ModelAttribute("format")
-  public PlanningPresentation format() {
-    return new PlanningPresentation();
+  public UiPresentation format() {
+    return new UiPresentation();
   }
 }

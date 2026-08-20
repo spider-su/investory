@@ -1,9 +1,8 @@
 package com.smartbox.investory.controllers.ui;
 
-import com.smartbox.investory.application.planning.*;
-import com.smartbox.investory.application.profile.InvestmentProfileFacade;
-import com.smartbox.investory.application.simulation.*;
-import com.smartbox.investory.services.PlanningPresentation;
+import com.smartbox.investory.retirement.planning.*;
+import com.smartbox.investory.retirement.profile.InvestmentProfileFacade;
+import com.smartbox.investory.retirement.simulation.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -301,11 +300,11 @@ public class RetirementSimulationController {
             + " · Retire at "
             + projectedAssumptions.retirementAge()
             + " · Cost growth "
-            + PlanningPresentation.percentage(projectedAssumptions.spendingGrowthRate())
+            + UiPresentation.percentage(projectedAssumptions.spendingGrowthRate())
             + " · "
-            + PlanningPresentation.years(projectedAssumptions.safeReserveYears())
+            + UiPresentation.years(projectedAssumptions.safeReserveYears())
             + "-year reserve · "
-            + PlanningPresentation.fundingStrategy(projectedAssumptions.fundingStrategy()));
+            + UiPresentation.fundingStrategy(projectedAssumptions.fundingStrategy()));
     var displaySummaries =
         new LinkedHashMap<>(
             planningPresentation.displaySummaries(summaries, planningDisplayCurrency));

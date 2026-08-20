@@ -1,4 +1,4 @@
-package com.smartbox.investory.services.portfolio.read.internal;
+package com.smartbox.investory.investment.infrastructure.read;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -29,6 +29,7 @@ class BrokerageAssetClassificationReadServiceTest {
     AssetRepository assets = Mockito.mock(AssetRepository.class);
     when(assets.findBySymbol("UNKNOWN")).thenReturn(java.util.Optional.empty());
 
-    assertTrue(new BrokerageAssetClassificationReadService(assets).findBySymbol("UNKNOWN").isEmpty());
+    assertTrue(
+        new BrokerageAssetClassificationReadService(assets).findBySymbol("UNKNOWN").isEmpty());
   }
 }

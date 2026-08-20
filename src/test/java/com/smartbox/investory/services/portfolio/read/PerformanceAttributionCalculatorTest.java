@@ -1,4 +1,4 @@
-package com.smartbox.investory.services.portfolio.read;
+package com.smartbox.investory.investment.reporting;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

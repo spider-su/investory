@@ -36,11 +36,11 @@ class PlanningYearTemplateContractTest {
         () -> assertTrue(html.contains("planningHeader('simulation'")),
         () -> assertTrue(html.contains("fragments/app-footer :: buildFooter")),
         () -> assertTrue(html.contains("for=\"planning-display-currency\">Currency")),
-        () -> assertTrue(html.contains("PlanningPresentation).planningMetric")),
+        () -> assertTrue(html.contains("UiPresentation).planningMetric")),
         () ->
             assertFalse(
                 html.contains(
                     "planningMetric(entry.key, entry.value.derivedValue, planningDisplayCurrency)")),
-        () -> assertFalse(html.contains("PlanningPresentation).money(entry.value.derivedValue")));
+        () -> assertFalse(html.contains("UiPresentation).money(entry.value.derivedValue")));
   }
 }

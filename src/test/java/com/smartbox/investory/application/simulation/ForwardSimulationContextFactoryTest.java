@@ -1,8 +1,8 @@
-package com.smartbox.investory.application.simulation;
+package com.smartbox.investory.retirement.simulation;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.smartbox.investory.application.profile.InvestmentProfile;
+import com.smartbox.investory.retirement.profile.InvestmentProfile;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;

@@ -9,11 +9,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
-import com.smartbox.investory.application.planning.*;
-import com.smartbox.investory.application.profile.InvestmentProfile;
-import com.smartbox.investory.application.profile.InvestmentProfileFacade;
-import com.smartbox.investory.application.simulation.*;
-import com.smartbox.investory.infrastructure.simulation.SimulationPlan;
+import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlan;
+import com.smartbox.investory.retirement.planning.*;
+import com.smartbox.investory.retirement.profile.InvestmentProfile;
+import com.smartbox.investory.retirement.profile.InvestmentProfileFacade;
+import com.smartbox.investory.retirement.simulation.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -66,13 +66,13 @@ class RetirementSimulationControllerTest {
             Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC));
     lenient()
         .when(planningTimeline.loadTimeline(anyLong(), any(), any()))
-        .thenReturn(new com.smartbox.investory.application.planning.PlanningTimeline(List.of()));
+        .thenReturn(new com.smartbox.investory.retirement.planning.PlanningTimeline(List.of()));
     lenient()
         .when(planningTimeline.loadForwardTimeline(anyLong(), any(), any()))
-        .thenReturn(new com.smartbox.investory.application.planning.PlanningTimeline(List.of()));
+        .thenReturn(new com.smartbox.investory.retirement.planning.PlanningTimeline(List.of()));
     lenient()
         .when(planningTimeline.loadForwardTimeline(anyLong(), any(), any(), any()))
-        .thenReturn(new com.smartbox.investory.application.planning.PlanningTimeline(List.of()));
+        .thenReturn(new com.smartbox.investory.retirement.planning.PlanningTimeline(List.of()));
     lenient()
         .when(forwardInputs.prepare(any(), any()))
         .thenAnswer(
@@ -185,7 +185,8 @@ class RetirementSimulationControllerTest {
             .withRetirementAge(60)
             .withAnnualEmploymentIncome(new BigDecimal("240000"))
             .withAnnualPreRetirementContribution(new BigDecimal("50000"));
-    var plan = mock(com.smartbox.investory.infrastructure.simulation.SimulationPlan.class);
+    var plan =
+        mock(com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlan.class);
     when(plan.getName()).thenReturn("Retirement plan");
     when(profiles.loadProfile(1L)).thenReturn(p);
     when(plans.get(1L, 7L)).thenReturn(plan);

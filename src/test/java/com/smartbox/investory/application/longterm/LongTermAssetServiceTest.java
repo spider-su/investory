@@ -1,4 +1,4 @@
-package com.smartbox.investory.application.longterm;
+package com.smartbox.investory.longterm.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -6,9 +6,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-import com.smartbox.investory.infrastructure.longterm.*;
-import com.smartbox.investory.services.portfolio.read.BrokeragePortfolioContext;
-import com.smartbox.investory.services.portfolio.read.BrokeragePortfolioContextReader;
+import com.smartbox.investory.investment.api.BrokeragePortfolioContext;
+import com.smartbox.investory.investment.api.BrokeragePortfolioContextReader;
+import com.smartbox.investory.longterm.api.CashFlowType;
+import com.smartbox.investory.longterm.api.Frequency;
+import com.smartbox.investory.longterm.api.InterestTreatment;
+import com.smartbox.investory.longterm.api.LongTermAssetType;
+import com.smartbox.investory.longterm.infrastructure.*;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;

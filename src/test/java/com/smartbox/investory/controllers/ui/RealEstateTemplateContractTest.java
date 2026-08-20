@@ -27,10 +27,10 @@ class RealEstateTemplateContractTest {
   }
 
   @Test
-  void recurringLabelsUsePlanningPresentation() throws Exception {
+  void recurringLabelsUseUiPresentation() throws Exception {
     String html = Files.readString(Path.of(TEMPLATE));
-    assertTrue(html.contains("PlanningPresentation).cashFlowType(flow.type)"));
-    assertTrue(html.contains("PlanningPresentation).cashFlowType(type)"));
+    assertTrue(html.contains("UiPresentation).cashFlowType(flow.type)"));
+    assertTrue(html.contains("UiPresentation).cashFlowType(type)"));
   }
 
   @Test
@@ -115,8 +115,7 @@ class RealEstateTemplateContractTest {
         () -> assertTrue(detail.contains("name=\"expectedAnnualGrowthRatePercent\"")),
         () -> assertFalse(detail.contains("name=\"expectedAnnualGrowthRate\"")),
         () ->
-            assertTrue(
-                detail.contains("PlanningPresentation).percentage(p.expectedAnnualGrowthRate)")));
+            assertTrue(detail.contains("UiPresentation).percentage(p.expectedAnnualGrowthRate)")));
   }
 
   @Test

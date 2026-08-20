@@ -2,10 +2,10 @@ package com.smartbox.investory.controllers.ui;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.smartbox.investory.application.planning.PlanningMetric;
-import com.smartbox.investory.application.profile.EconomicBucket;
-import com.smartbox.investory.infrastructure.longterm.CashFlowType;
-import com.smartbox.investory.infrastructure.longterm.InterestTreatment;
+import com.smartbox.investory.longterm.api.CashFlowType;
+import com.smartbox.investory.longterm.api.InterestTreatment;
+import com.smartbox.investory.retirement.planning.PlanningMetric;
+import com.smartbox.investory.retirement.profile.EconomicBucket;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 
@@ -17,8 +17,7 @@ class UiPresentationTest {
     assertEquals("0", UiPresentation.money(BigDecimal.ZERO.setScale(8)));
     assertEquals("0.0%", UiPresentation.percentage(BigDecimal.ZERO.setScale(8)));
     assertEquals("56,940 PLN", UiPresentation.moneyWhole(new BigDecimal("56940.444"), "PLN"));
-    assertEquals(
-        "2000", UiPresentation.wholeNumberInput(new BigDecimal("2000.000000000000")));
+    assertEquals("2000", UiPresentation.wholeNumberInput(new BigDecimal("2000.000000000000")));
     assertEquals("1,030", UiPresentation.money(new BigDecimal("1030.00000000")));
     assertEquals("1,030.50", UiPresentation.money(new BigDecimal("1030.50000000")));
     assertEquals("1,030.57", UiPresentation.money(new BigDecimal("1030.5678")));
@@ -36,8 +35,7 @@ class UiPresentationTest {
   void labelsPlanningEnumsForPeople() {
     assertEquals("Fixed income", UiPresentation.bucket(EconomicBucket.FIXED_INCOME));
     assertEquals("Parking rent", UiPresentation.cashFlowType(CashFlowType.PARKING_RENT));
-    assertEquals(
-        "Accumulative", UiPresentation.interestTreatment(InterestTreatment.CAPITALIZE));
+    assertEquals("Accumulative", UiPresentation.interestTreatment(InterestTreatment.CAPITALIZE));
     assertEquals("Distributed", UiPresentation.interestTreatment(InterestTreatment.PAY_OUT));
   }
 
@@ -56,7 +54,6 @@ class UiPresentationTest {
             PlanningMetric.MARKET_RETURN, new BigDecimal("-0.0203"), "PLN"));
     assertEquals(
         "7.0%",
-        UiPresentation.planningMetric(
-            PlanningMetric.EQUITY_RETURN, new BigDecimal("0.07"), "EUR"));
+        UiPresentation.planningMetric(PlanningMetric.EQUITY_RETURN, new BigDecimal("0.07"), "EUR"));
   }
 }
