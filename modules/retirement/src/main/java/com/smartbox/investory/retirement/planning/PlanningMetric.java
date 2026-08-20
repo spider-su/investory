@@ -30,9 +30,9 @@ public enum PlanningMetric {
   MARKET_INCOME,
   MARKET_WITHDRAWAL;
 
-  /** Planning-only flows may be supplied by the user; portfolio facts never may. */
+  /** Planning-only flows and historical reviewer net worth may be supplied by the user. */
   public boolean isManualEditable() {
-    return this == CORE_SPENDING || this == DISCRETIONARY_SPENDING;
+    return this == NET_WORTH || this == CORE_SPENDING || this == DISCRETIONARY_SPENDING;
   }
 
   public boolean isRequiredForClose() {

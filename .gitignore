@@ -8,7 +8,8 @@
 *.xlsx
 *.csv
 *.zip
-!src/test/resources/reconciliation/golden/**
+!test-support/src/main/resources/reconciliation/golden/
+!test-support/src/main/resources/reconciliation/golden/**
 **/application-local.yml
 app/src/main/resources/application-k3s.yml
 src/main/resources/application-k3s.yml

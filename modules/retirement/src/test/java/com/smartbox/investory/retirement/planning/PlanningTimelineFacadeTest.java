@@ -225,6 +225,32 @@ class PlanningTimelineFacadeTest {
   }
 
   @Test
+  void historicalReviewerMayEnterNetWorthWithoutTouchingAccounting() {
+    PlanningYear past = new PlanningYear();
+    past.setId(8L);
+    past.setPortfolioId(1L);
+    past.setYear(2025);
+    past.setStatus(PlanningYearStatus.DRAFT);
+    when(years.findByPortfolioIdAndYear(1L, 2025)).thenReturn(Optional.of(past));
+    when(values.findByPlanningYearIdAndValueKindAndMetric(
+            8L, PlanningValueKind.ACTUAL, PlanningMetric.NET_WORTH))
+        .thenReturn(Optional.empty());
+
+    facade.saveDraftManualValue(
+        1L, 2025, PlanningMetric.NET_WORTH, new BigDecimal("123000"), "Reviewed year-end value");
+
+    verify(values)
+        .save(
+            argThat(
+                value ->
+                    value.getMetric() == PlanningMetric.NET_WORTH
+                        && new BigDecimal("123000").equals(value.getApprovedValue())
+                        && value.getSourceType() == PlanningValueSource.USER_OVERRIDE
+                        && "Reviewed year-end value".equals(value.getNote())));
+    assertTrue(facade.isHistoricalMetricEditable(1L, 2025, PlanningMetric.NET_WORTH));
+  }
+
+  @Test
   void incompleteHistoricalDraftCannotClose() {
     PlanningYear past = new PlanningYear();
     past.setId(8L);

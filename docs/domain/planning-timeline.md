@@ -45,9 +45,12 @@ the reviewer. Planning values preserve a separate source marker. Important sourc
 accounting-derived, portfolio-derived, long-term-derived, simulation-baseline, user override, and
 unavailable.
 
-Portfolio facts such as net worth, market assets, safe reserve, fixed income, equity, and canonical
-returns cannot be manually overridden. Planning flows such as core spending and discretionary
-spending may be entered when no reliable historical source exists. `PASSIVE_INCOME` remains readable
+Portfolio facts such as market assets, safe reserve, fixed income, equity, and canonical returns
+cannot be manually overridden. Historical `NET_WORTH` is the reviewer-owned year-end planning
+snapshot: during a DRAFT it may be entered or corrected as a `USER_OVERRIDE`, remains isolated from
+accounting data, and freezes when the year closes. It becomes editable again only after explicit
+reopen. Planning flows such as core spending and discretionary spending may also be entered when no
+reliable historical source exists. `PASSIVE_INCOME` remains readable
 only for legacy snapshots; new derivation uses explicit `RENTAL_INCOME`, `BOND_INCOME`, and other
 supported categories instead.
 

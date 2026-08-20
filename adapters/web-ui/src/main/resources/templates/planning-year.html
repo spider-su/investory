@@ -18,7 +18,7 @@
     <form class="mt-2" method="post" th:action="@{/simulation/timeline/past/{year}/refresh-derived(year=${planningYear.year})}"><input type="hidden" name="portfolioId" th:value="${profile.portfolioId}"><input type="hidden" name="planId" th:value="${selectedPlanId}"><input type="hidden" name="selectedScenario" th:value="${selectedScenario}"><input type="hidden" name="planningDisplayCurrency" th:value="${planningDisplayCurrency}"><button class="btn btn-sm btn-outline-secondary" type="submit">Refresh derived values</button></form>
   </div></section>
 
-  <section class="card"><div class="table-responsive"><table class="table card-table align-middle"><thead><tr><th>Metric</th><th class="text-end">Planned</th><th class="text-end">Actual</th><th class="text-end">Difference</th><th>Source</th><th>Note</th><th>Action</th></tr></thead><tbody>
+  <section class="card"><details th:open="${planningYear.status.name() != 'CLOSED'}"><summary class="card-header" th:if="${planningYear.status.name() == 'CLOSED'}">Frozen planning values</summary><div class="table-responsive"><table class="table card-table align-middle"><thead><tr><th>Metric</th><th class="text-end">Planned</th><th class="text-end">Actual</th><th class="text-end">Difference</th><th>Source</th><th>Note</th><th>Action</th></tr></thead><tbody>
     <tr th:each="entry : ${planningYear.values}" th:with="expected=${planningYear.expectedValues.get(entry.key)}">
       <td th:text="${entry.key.label()}">Net worth</td>
       <td class="text-end" th:text="${expected == null or expected.value() == null ? '—' : T(com.smartbox.investory.ui.presentation.UiPresentation).planningMetric(entry.key, expected.value())}">—</td>
@@ -35,7 +35,7 @@
       <td th:text="${entry.value.source.name().replace('_', ' ')}">Derived</td>
       <td th:text="${entry.value.note == null ? '—' : entry.value.note}">—</td><td></td>
     </tr>
-  </tbody></table></div></section>
+  </tbody></table></div></details></section>
 
   <section id="planning-reconciliation" class="card mb-3" th:if="${planningReconciliation.metrics.size() > 0}"><div class="card-body"><div class="iv-card-section-header"><span class="iv-card-section-header__title">Investory comparison</span><span class="text-secondary" th:text="${planningReconciliation.summary}">Historical portfolio values compared.</span></div><p class="text-secondary mb-2">Comparison uses the calendar-year portfolio-performance source. It explains differences and never changes this planning snapshot.</p><div class="table-responsive"><table class="table"><thead><tr><th>Metric</th><th class="text-end">Planning value</th><th class="text-end">Investory reference</th><th class="text-end">Difference</th><th>Status</th><th>Quality</th></tr></thead><tbody><tr th:each="metric : ${planningReconciliation.metrics}"><td th:text="${metric.label}">Market assets</td><td class="text-end" th:text="${metric.planningValue}">—</td><td class="text-end" th:text="${metric.referenceValue}">—</td><td class="text-end" th:text="${metric.difference}">—</td><td th:text="${metric.status}">Matched</td><td><span th:text="${metric.quality}">Exact source</span><small class="d-block text-secondary" th:text="${metric.source}">Historical portfolio-performance view</small></td></tr></tbody></table></div></div></section>
 

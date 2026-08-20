@@ -224,6 +224,8 @@ public class PlanningTimelineFacade {
   public void saveCurrentManualValue(
       Long portfolioId, int year, PlanningMetric metric, BigDecimal approvedValue, String note) {
     requireCurrent(portfolioId, year);
+    if (metric == PlanningMetric.NET_WORTH)
+      throw new IllegalArgumentException("Live net worth is derived from authoritative facts");
     if (metric == PlanningMetric.REAL_ESTATE)
       throw new IllegalArgumentException("Live real-estate value is derived from the portfolio");
     saveDraftManualValue(portfolioId, year, metric, approvedValue, note);
