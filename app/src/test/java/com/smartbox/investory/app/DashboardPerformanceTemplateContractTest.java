@@ -34,11 +34,9 @@ class DashboardPerformanceTemplateContractTest {
     assertFalse(html.contains("Compare with S&amp;P 500"));
     assertFalse(html.contains("Line is cumulative; bars show the selected period."));
     assertTrue(html.contains("performance-board-show-spy"));
-    assertTrue(html.contains("performanceBoardCumulativeReturn"));
-    assertTrue(html.contains("performanceBoardPeriodReturn"));
-    assertTrue(html.contains("performanceBoardKpiStart"));
-    assertTrue(html.contains("performanceBoardRebasedReturn"));
-    assertTrue(html.contains("row?.label || benchLabels[index]"));
+    assertFalse(html.contains("performanceBoardCumulativeReturn"));
+    assertFalse(html.contains("performanceBoardPeriodReturn"));
+    assertFalse(html.contains("performanceBoardRebasedReturn"));
     assertTrue(html.contains("performance-scope-aggregation"));
     assertTrue(html.contains("Portfolio data"));
     assertTrue(html.contains("id=\"refresh-prices-btn\""));

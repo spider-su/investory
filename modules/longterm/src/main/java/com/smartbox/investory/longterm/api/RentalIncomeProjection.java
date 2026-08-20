@@ -12,6 +12,7 @@ import java.util.Optional;
 /** Projects canonical real-estate rental economics from Long-term Asset cash-flow periods. */
 public final class RentalIncomeProjection {
   private static final BigDecimal ZERO = BigDecimal.ZERO;
+  private static final BigDecimal DEFAULT_RENTAL_TAX_RATE = new BigDecimal("0.085");
 
   private RentalIncomeProjection() {}
 
@@ -44,10 +45,14 @@ public final class RentalIncomeProjection {
       expenses =
           expenses.add(
               latestKnown(asset, type, year)
+                  .filter(period -> !period.paidByTenant())
                   .map(LongTermAssetProjection.Period::annualExpense)
                   .orElse(ZERO));
     BigDecimal tax =
-        OptionalValue.orZero(asset.taxBase()).multiply(OptionalValue.orZero(asset.taxRate()));
+        asset.rentalTaxPaidByTenant()
+            ? ZERO
+            : OptionalValue.orZero(asset.taxBase())
+                .multiply(OptionalValue.orDefault(asset.taxRate(), DEFAULT_RENTAL_TAX_RATE));
     RentalEconomics economics = RentalEconomics.of(gross, expenses, tax);
     return new Result(
         income,
@@ -67,13 +72,18 @@ public final class RentalIncomeProjection {
       if (isIncome(period.cashFlowType())) {
         income.merge(
             period.cashFlowType(), period.annualIncome().multiply(covered), BigDecimal::add);
-        expenses = expenses.add(period.annualExpense().multiply(covered));
+        if (!period.paidByTenant())
+          expenses = expenses.add(period.annualExpense().multiply(covered));
       } else if (isExpense(period.cashFlowType()))
-        expenses = expenses.add(period.annualExpense().multiply(covered));
+        if (!period.paidByTenant())
+          expenses = expenses.add(period.annualExpense().multiply(covered));
     }
     BigDecimal gross = income.values().stream().reduce(ZERO, BigDecimal::add);
     BigDecimal tax =
-        OptionalValue.orZero(asset.taxBase()).multiply(OptionalValue.orZero(asset.taxRate()));
+        asset.rentalTaxPaidByTenant()
+            ? ZERO
+            : OptionalValue.orZero(asset.taxBase())
+                .multiply(OptionalValue.orDefault(asset.taxRate(), DEFAULT_RENTAL_TAX_RATE));
     RentalEconomics economics = RentalEconomics.of(gross, expenses, tax);
     return new Result(
         income,
@@ -145,6 +155,10 @@ public final class RentalIncomeProjection {
 
     static BigDecimal orZero(BigDecimal value) {
       return value == null ? ZERO : value;
+    }
+
+    static BigDecimal orDefault(BigDecimal value, BigDecimal fallback) {
+      return value == null ? fallback : value;
     }
   }
 }

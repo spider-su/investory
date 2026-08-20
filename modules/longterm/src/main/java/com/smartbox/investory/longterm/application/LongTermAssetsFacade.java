@@ -107,10 +107,10 @@ public class LongTermAssetsFacade {
     current.setType(command.type());
     current.setCurrency(command.currency());
     current.setAcquisitionDate(command.acquisitionDate());
-    current.setAcquisitionValue(command.acquisitionValue());
-    current.setCurrentValue(command.currentValue());
-    current.setTaxBase(command.taxBase());
-    current.setNotes(command.notes());
+    if (command.acquisitionValue() != null) current.setAcquisitionValue(command.acquisitionValue());
+    if (command.currentValue() != null) current.setCurrentValue(command.currentValue());
+    if (command.taxBase() != null) current.setTaxBase(command.taxBase());
+    if (command.notes() != null) current.setNotes(command.notes());
     service.save(current);
     return AssetView.from(current);
   }
@@ -145,6 +145,14 @@ public class LongTermAssetsFacade {
     service.updateTaxBase(portfolioId, id, value);
   }
 
+  public void saveRentalTaxOwnership(Long portfolioId, Long id, boolean paidByTenant) {
+    LongTermAsset asset = service.get(portfolioId, id).orElseThrow();
+    if (asset.getType() != LongTermAssetType.REAL_ESTATE)
+      throw new IllegalArgumentException("Rental tax ownership applies only to real estate");
+    asset.setRentalTaxPaidByTenant(paidByTenant);
+    service.save(asset);
+  }
+
   public void archive(Long portfolioId, Long id) {
     service.archive(portfolioId, id);
   }
@@ -153,11 +161,20 @@ public class LongTermAssetsFacade {
     service.reactivate(portfolioId, id);
   }
 
+  public void saveRentalPeriod(
+      Long portfolioId, Long assetId, LocalDate effectiveFrom, LocalDate endDate, LocalDate date) {
+    service.saveRentalPeriod(portfolioId, assetId, effectiveFrom, endDate, date);
+  }
+
   public void addCashFlow(CashFlowCommand command, LocalDate today) {
     LongTermAssetCashFlow flow = new LongTermAssetCashFlow();
     flow.setType(command.type());
     flow.setAmount(command.amount());
     flow.setFrequency(command.frequency());
+    flow.setPaidByTenant(
+        command.paidByTenant() != null
+            ? command.paidByTenant()
+            : command.type() == CashFlowType.ADMIN_FEE || command.type() == CashFlowType.UTILITIES);
     if (command.validFrom() == null)
       service.addCashFlow(command.portfolioId(), command.assetId(), flow, today);
     else {
@@ -184,6 +201,9 @@ public class LongTermAssetsFacade {
           command.frequency(),
           command.validFrom(),
           command.validTo());
+    if (command.paidByTenant() != null)
+      service.setCashFlowPaidByTenant(
+          command.portfolioId(), command.assetId(), command.flowId(), command.paidByTenant());
   }
 
   public void savePropertyGrowth(Long portfolioId, Long id, BigDecimal percent, LocalDate from) {
@@ -253,7 +273,8 @@ public class LongTermAssetsFacade {
         e.annualInsurance(),
         e.effectiveFrom(),
         rate,
-        e.notes());
+        e.notes(),
+        e.rentalTaxPaidByTenant());
   }
 
   private static LongTermAsset toEntity(AssetCommand c) {
@@ -267,6 +288,7 @@ public class LongTermAssetsFacade {
     a.setCurrentValue(c.currentValue());
     a.setTaxBase(c.taxBase());
     a.setActive(c.active());
+    a.setRentalTaxPaidByTenant(c.rentalTaxPaidByTenant());
     a.setNotes(c.notes());
     return a;
   }
@@ -301,7 +323,35 @@ public class LongTermAssetsFacade {
       BigDecimal currentValue,
       BigDecimal taxBase,
       boolean active,
-      String notes) {}
+      String notes,
+      boolean rentalTaxPaidByTenant) {
+    public AssetCommand(
+        Long portfolioId,
+        Long id,
+        String name,
+        LongTermAssetType type,
+        CurrencyType currency,
+        LocalDate acquisitionDate,
+        BigDecimal acquisitionValue,
+        BigDecimal currentValue,
+        BigDecimal taxBase,
+        boolean active,
+        String notes) {
+      this(
+          portfolioId,
+          id,
+          name,
+          type,
+          currency,
+          acquisitionDate,
+          acquisitionValue,
+          currentValue,
+          taxBase,
+          active,
+          notes,
+          false);
+    }
+  }
 
   public record BondCommand(
       Long portfolioId,
@@ -332,7 +382,20 @@ public class LongTermAssetsFacade {
       BigDecimal amount,
       Frequency frequency,
       LocalDate validFrom,
-      LocalDate validTo) {}
+      LocalDate validTo,
+      Boolean paidByTenant) {
+    public CashFlowCommand(
+        Long portfolioId,
+        Long assetId,
+        Long flowId,
+        CashFlowType type,
+        BigDecimal amount,
+        Frequency frequency,
+        LocalDate validFrom,
+        LocalDate validTo) {
+      this(portfolioId, assetId, flowId, type, amount, frequency, validFrom, validTo, null);
+    }
+  }
 
   public record BondDetailsCommand(
       LocalDate maturityDate,
@@ -366,7 +429,35 @@ public class LongTermAssetsFacade {
       BigDecimal currentValue,
       BigDecimal taxBase,
       boolean active,
-      String notes) {
+      String notes,
+      boolean rentalTaxPaidByTenant) {
+    public AssetView(
+        Long id,
+        Long portfolioId,
+        String name,
+        LongTermAssetType type,
+        CurrencyType currency,
+        LocalDate acquisitionDate,
+        BigDecimal acquisitionValue,
+        BigDecimal currentValue,
+        BigDecimal taxBase,
+        boolean active,
+        String notes) {
+      this(
+          id,
+          portfolioId,
+          name,
+          type,
+          currency,
+          acquisitionDate,
+          acquisitionValue,
+          currentValue,
+          taxBase,
+          active,
+          notes,
+          false);
+    }
+
     static AssetView from(LongTermAsset a) {
       return new AssetView(
           a.getId(),
@@ -379,7 +470,8 @@ public class LongTermAssetsFacade {
           a.getCurrentValue(),
           a.getTaxBase(),
           a.isActive(),
-          a.getNotes());
+          a.getNotes(),
+          a.isRentalTaxPaidByTenant());
     }
   }
 
@@ -390,7 +482,8 @@ public class LongTermAssetsFacade {
       BigDecimal amount,
       Frequency frequency,
       LocalDate validFrom,
-      LocalDate validTo) {
+      LocalDate validTo,
+      boolean paidByTenant) {
     static FlowView from(LongTermAssetCashFlow f) {
       return new FlowView(
           f.getId(),
@@ -399,7 +492,8 @@ public class LongTermAssetsFacade {
           f.getAmount(),
           f.getFrequency(),
           f.getValidFrom(),
-          f.getValidTo());
+          f.getValidTo(),
+          f.isPaidByTenant());
     }
   }
 

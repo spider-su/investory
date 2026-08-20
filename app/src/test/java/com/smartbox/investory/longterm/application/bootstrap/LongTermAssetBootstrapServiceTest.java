@@ -71,9 +71,9 @@ class LongTermAssetBootstrapServiceTest {
     assertEquals(7, result.assetsToCreate());
     assertEquals(new BigDecimal("3650000"), result.propertyValue());
     assertEquals(new BigDecimal("172200"), result.grossAnnualIncome());
-    assertEquals(new BigDecimal("34054"), result.operatingExpenses());
+    assertEquals(new BigDecimal("2770"), result.operatingExpenses());
     assertEquals(new BigDecimal("14637.000"), result.rentalTax());
-    assertEquals(new BigDecimal("123509.000"), result.netAnnualIncome());
+    assertEquals(new BigDecimal("154793.000"), result.netAnnualIncome());
     verify(assets, never()).save(any());
     verify(taxPolicies, never()).save(any());
   }

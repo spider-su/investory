@@ -2,6 +2,7 @@ package com.smartbox.investory.retirement.simulation;
 
 import com.smartbox.investory.retirement.infrastructure.simulation.*;
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -323,75 +324,85 @@ public class SimulationPlanService {
   }
 
   private SimulationAssumptions assumptions(SimulationPlan plan, List<SimulationEvent> eventList) {
-    return new SimulationAssumptions(
-        plan.getCurrentAge(),
-        plan.getEndAge(),
-        plan.getAnnualLivingExpenses(),
-        plan.getInflationRate(),
-        plan.getCashReturnRate(),
-        plan.getFixedIncomeReturnRate(),
-        plan.getEquityReturnRate(),
-        plan.getRealEstateReturnRate(),
-        plan.getOtherReturnRate(),
-        plan.getPensionStartAge(),
-        plan.getAnnualPension(),
-        plan.getCapitalGainTaxRate(),
-        plan.getStartYear(),
-        plan.getAnnualDiscretionaryExpenses(),
-        eventList,
-        plan.getRentalIncomeGrowthRate() == null
-            ? SimulationAssumptions.DEFAULT_RENTAL_INCOME_GROWTH_RATE
-            : plan.getRentalIncomeGrowthRate(),
-        plan.getSpendingGrowthRate() == null
-            ? plan.getInflationRate()
-            : plan.getSpendingGrowthRate(),
-        plan.getFundingStrategy() == null
-            ? SimulationFundingStrategy.SIMPLE_WATERFALL
-            : plan.getFundingStrategy(),
-        plan.getSafeReserveYears() == null ? BigDecimal.ZERO : plan.getSafeReserveYears(),
-        plan.getEquityHarvestMinimumReturnRate() == null
-            ? BigDecimal.ZERO
-            : plan.getEquityHarvestMinimumReturnRate(),
-        plan.getEquityGainHarvestRate() == null ? BigDecimal.ZERO : plan.getEquityGainHarvestRate(),
-        plan.getAllowEmergencyEquityWithdrawal() == null
-            || plan.getAllowEmergencyEquityWithdrawal(),
-        plan.getRetirementAge() == null ? plan.getCurrentAge() : plan.getRetirementAge(),
-        plan.getAnnualEmploymentIncome() == null
-            ? BigDecimal.ZERO
-            : plan.getAnnualEmploymentIncome(),
-        plan.getAnnualPreRetirementContribution() == null
-            ? BigDecimal.ZERO
-            : plan.getAnnualPreRetirementContribution());
+    SimulationAssumptions result =
+        new SimulationAssumptions(
+            plan.getCurrentAge(),
+            plan.getEndAge(),
+            plan.getAnnualLivingExpenses(),
+            plan.getInflationRate(),
+            plan.getCashReturnRate(),
+            plan.getFixedIncomeReturnRate(),
+            plan.getEquityReturnRate(),
+            plan.getRealEstateReturnRate(),
+            plan.getOtherReturnRate(),
+            plan.getPensionStartAge(),
+            plan.getAnnualPension(),
+            plan.getCapitalGainTaxRate(),
+            plan.getStartYear(),
+            plan.getAnnualDiscretionaryExpenses(),
+            eventList,
+            plan.getRentalIncomeGrowthRate() == null
+                ? SimulationAssumptions.DEFAULT_RENTAL_INCOME_GROWTH_RATE
+                : plan.getRentalIncomeGrowthRate(),
+            plan.getSpendingGrowthRate() == null
+                ? plan.getInflationRate()
+                : plan.getSpendingGrowthRate(),
+            plan.getFundingStrategy() == null
+                ? SimulationFundingStrategy.SIMPLE_WATERFALL
+                : plan.getFundingStrategy(),
+            plan.getSafeReserveYears() == null ? BigDecimal.ZERO : plan.getSafeReserveYears(),
+            plan.getEquityHarvestMinimumReturnRate() == null
+                ? BigDecimal.ZERO
+                : plan.getEquityHarvestMinimumReturnRate(),
+            plan.getEquityGainHarvestRate() == null
+                ? BigDecimal.ZERO
+                : plan.getEquityGainHarvestRate(),
+            plan.getAllowEmergencyEquityWithdrawal() == null
+                || plan.getAllowEmergencyEquityWithdrawal(),
+            plan.getRetirementAge() == null ? plan.getCurrentAge() : plan.getRetirementAge(),
+            plan.getAnnualEmploymentIncome() == null
+                ? BigDecimal.ZERO
+                : plan.getAnnualEmploymentIncome(),
+            plan.getAnnualPreRetirementContribution() == null
+                ? BigDecimal.ZERO
+                : plan.getAnnualPreRetirementContribution());
+    return result
+        .withFundingOrder(parseFundingOrder(plan.getFundingOrder()))
+        .withExpenseProfile(parseExpenseProfile(plan.getExpenseProfile()));
   }
 
   private SimulationAssumptions assumptions(
       SimulationPlanRevision revision, List<SimulationEvent> eventList) {
-    return new SimulationAssumptions(
-        revision.getCurrentAge(),
-        revision.getEndAge(),
-        revision.getAnnualLivingExpenses(),
-        revision.getInflationRate(),
-        revision.getCashReturnRate(),
-        revision.getFixedIncomeReturnRate(),
-        revision.getEquityReturnRate(),
-        revision.getRealEstateReturnRate(),
-        revision.getOtherReturnRate(),
-        revision.getPensionStartAge(),
-        revision.getAnnualPension(),
-        revision.getCapitalGainTaxRate(),
-        revision.getStartYear(),
-        revision.getAnnualDiscretionaryExpenses(),
-        eventList,
-        revision.getRentalIncomeGrowthRate(),
-        revision.getSpendingGrowthRate(),
-        revision.getFundingStrategy(),
-        revision.getSafeReserveYears(),
-        revision.getEquityHarvestMinimumReturnRate(),
-        revision.getEquityGainHarvestRate(),
-        revision.getAllowEmergencyEquityWithdrawal(),
-        revision.getRetirementAge(),
-        revision.getAnnualEmploymentIncome(),
-        revision.getAnnualPreRetirementContribution());
+    SimulationAssumptions result =
+        new SimulationAssumptions(
+            revision.getCurrentAge(),
+            revision.getEndAge(),
+            revision.getAnnualLivingExpenses(),
+            revision.getInflationRate(),
+            revision.getCashReturnRate(),
+            revision.getFixedIncomeReturnRate(),
+            revision.getEquityReturnRate(),
+            revision.getRealEstateReturnRate(),
+            revision.getOtherReturnRate(),
+            revision.getPensionStartAge(),
+            revision.getAnnualPension(),
+            revision.getCapitalGainTaxRate(),
+            revision.getStartYear(),
+            revision.getAnnualDiscretionaryExpenses(),
+            eventList,
+            revision.getRentalIncomeGrowthRate(),
+            revision.getSpendingGrowthRate(),
+            revision.getFundingStrategy(),
+            revision.getSafeReserveYears(),
+            revision.getEquityHarvestMinimumReturnRate(),
+            revision.getEquityGainHarvestRate(),
+            revision.getAllowEmergencyEquityWithdrawal(),
+            revision.getRetirementAge(),
+            revision.getAnnualEmploymentIncome(),
+            revision.getAnnualPreRetirementContribution());
+    return result
+        .withFundingOrder(parseFundingOrder(revision.getFundingOrder()))
+        .withExpenseProfile(parseExpenseProfile(revision.getExpenseProfile()));
   }
 
   private static void copy(SimulationPlanRevision target, SimulationAssumptions a) {
@@ -407,6 +418,8 @@ public class SimulationPlanService {
     target.setRentalIncomeGrowthRate(a.rentalIncomeGrowthRate());
     target.setSpendingGrowthRate(a.spendingGrowthRate());
     target.setFundingStrategy(a.fundingStrategy());
+    target.setFundingOrder(serializeFundingOrder(a.fundingOrder()));
+    target.setExpenseProfile(serializeExpenseProfile(a.expenseProfile()));
     target.setSafeReserveYears(a.safeReserveYears());
     target.setEquityHarvestMinimumReturnRate(a.equityHarvestMinimumReturnRate());
     target.setEquityGainHarvestRate(a.equityGainHarvestRate());
@@ -437,6 +450,8 @@ public class SimulationPlanService {
     p.setRentalIncomeGrowthRate(a.rentalIncomeGrowthRate());
     p.setSpendingGrowthRate(a.spendingGrowthRate());
     p.setFundingStrategy(a.fundingStrategy());
+    p.setFundingOrder(serializeFundingOrder(a.fundingOrder()));
+    p.setExpenseProfile(serializeExpenseProfile(a.expenseProfile()));
     p.setSafeReserveYears(a.safeReserveYears());
     p.setEquityHarvestMinimumReturnRate(a.equityHarvestMinimumReturnRate());
     p.setEquityGainHarvestRate(a.equityGainHarvestRate());
@@ -452,6 +467,19 @@ public class SimulationPlanService {
     return p;
   }
 
+  private static String serializeFundingOrder(List<FundingSource> order) {
+    return String.join(",", order.stream().map(Enum::name).toList());
+  }
+
+  private static List<FundingSource> parseFundingOrder(String value) {
+    if (value == null || value.isBlank()) return SimulationAssumptions.DEFAULT_FUNDING_ORDER;
+    try {
+      return Arrays.stream(value.split(",")).map(String::trim).map(FundingSource::valueOf).toList();
+    } catch (IllegalArgumentException exception) {
+      throw new IllegalArgumentException("Unknown funding source in simulation plan", exception);
+    }
+  }
+
   private boolean revisioned() {
     return revisions != null && revisionEvents != null;
   }
@@ -461,5 +489,31 @@ public class SimulationPlanService {
     if (list(portfolioId).stream()
         .anyMatch(p -> !Objects.equals(p.getId(), id) && p.getName().equalsIgnoreCase(name.trim())))
       throw new IllegalArgumentException("Plan name already exists");
+  }
+
+  private static String serializeExpenseProfile(ExpenseProfile profile) {
+    return profile.steps().stream()
+        .map(step -> step.fromYear() + ":" + step.factor().toPlainString())
+        .reduce((left, right) -> left + ";" + right)
+        .orElse("");
+  }
+
+  private static ExpenseProfile parseExpenseProfile(String value) {
+    if (value == null || value.isBlank()) return ExpenseProfile.EMPTY;
+    try {
+      return new ExpenseProfile(
+          Arrays.stream(value.split(";"))
+              .map(String::trim)
+              .map(
+                  entry -> {
+                    String[] parts = entry.split(":", -1);
+                    if (parts.length != 2) throw new IllegalArgumentException();
+                    return new ExpenseProfileStep(
+                        Integer.parseInt(parts[0].trim()), new BigDecimal(parts[1].trim()));
+                  })
+              .toList());
+    } catch (RuntimeException exception) {
+      throw new IllegalArgumentException("Invalid expense profile in simulation plan", exception);
+    }
   }
 }

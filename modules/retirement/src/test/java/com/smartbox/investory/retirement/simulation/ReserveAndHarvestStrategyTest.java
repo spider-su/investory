@@ -12,7 +12,6 @@ import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 class ReserveAndHarvestStrategyTest {
@@ -20,8 +19,7 @@ class ReserveAndHarvestStrategyTest {
   private final RetirementSimulationService service = new RetirementSimulationService();
 
   @Test
-  @Disabled
-  void reserveTargetUsesRecurringFundingGapAndHarvestFillsOnlyItsShortfall() {
+  void combinedDefensiveReserveHarvestsOnlyIntoProjectedBonds() {
     Map<EconomicBucket, BigDecimal> starting =
         Map.of(
             EconomicBucket.LIQUID_CASH,
@@ -38,16 +36,18 @@ class ReserveAndHarvestStrategyTest {
     assertBd("25", year.recurringFundingGap());
     assertBd("125", year.safeReserveTarget());
     assertBd("49.6", year.equityGain());
-    assertBd("30", year.equityToFixedIncomeTransfer());
-    assertBd("125", year.safeReserveEnd());
-    assertBd("639.6", year.equityEnd());
+    assertBd("37.2", year.equityToFixedIncomeTransfer());
+    assertBd("37.2", year.safeReserveEnd());
+    assertBd("632.4", year.equityEnd());
+    assertBd("37.2", year.bondValueEnd());
+    assertBd("95", year.fixedIncomeEnd());
     assertBd("0", year.unfundedAmount());
     assertBd("764.6", year.endNetWorth());
     SimulationYear waterfall =
         simulate(
             starting, simpleWaterfallAssumptions(new BigDecimal("25"), new BigDecimal("0.08")));
     assertBd("0", waterfall.equityToFixedIncomeTransfer());
-    assertBd("95", waterfall.safeReserveEnd());
+    assertBd("0", waterfall.safeReserveEnd());
     assertBd("669.6", waterfall.equityEnd());
     assertBd("764.6", waterfall.endNetWorth());
   }
@@ -87,7 +87,7 @@ class ReserveAndHarvestStrategyTest {
                 EconomicBucket.EQUITY,
                 new BigDecimal("620")),
             assumptions(new BigDecimal("25"), new BigDecimal("0.07"), BigDecimal.ONE, true));
-    assertBd("35", atThreshold.equityToFixedIncomeTransfer());
+    assertBd("43.4", atThreshold.equityToFixedIncomeTransfer());
     SimulationYear negative =
         simulate(
             Map.of(

@@ -10,13 +10,15 @@
       "name": "Property A",
       "currency": "PLN",
       "currentValue": 710000,
+      "taxBase": 34800,
+      "rentalTaxPaidByTenant": false,
       "effectiveFrom": "2026-01-01",
       "cashFlows": [
         { "type": "RENT", "amount": 2650, "frequency": "MONTHLY", "validFrom": "2026-01-01" },
         { "type": "PARKING_RENT", "amount": 250, "frequency": "MONTHLY", "validFrom": "2026-01-01" },
-        { "type": "ADMIN_FEE", "amount": 687, "frequency": "MONTHLY", "validFrom": "2026-01-01" },
-        { "type": "PROPERTY_TAX", "amount": 320, "frequency": "ANNUAL", "validFrom": "2026-01-01" },
-        { "type": "INSURANCE", "amount": 200, "frequency": "ANNUAL", "validFrom": "2026-01-01" }
+        { "type": "ADMIN_FEE", "amount": 687, "frequency": "MONTHLY", "validFrom": "2026-01-01", "paidByTenant": true },
+        { "type": "PROPERTY_TAX", "amount": 320, "frequency": "ANNUAL", "validFrom": "2026-01-01", "paidByTenant": false },
+        { "type": "INSURANCE", "amount": 200, "frequency": "ANNUAL", "validFrom": "2026-01-01", "paidByTenant": false }
       ],
       "valuationPeriods": [ { "validFrom": "2026-01-01", "annualRate": 0.02 } ]
     },
@@ -26,12 +28,14 @@
       "name": "Property B",
       "currency": "PLN",
       "currentValue": 710000,
+      "taxBase": 33600,
+      "rentalTaxPaidByTenant": false,
       "effectiveFrom": "2026-01-01",
       "cashFlows": [
         { "type": "RENT", "amount": 2800, "frequency": "MONTHLY", "validFrom": "2026-01-01" },
-        { "type": "ADMIN_FEE", "amount": 650, "frequency": "MONTHLY", "validFrom": "2026-01-01" },
-        { "type": "PROPERTY_TAX", "amount": 330, "frequency": "ANNUAL", "validFrom": "2026-01-01" },
-        { "type": "INSURANCE", "amount": 240, "frequency": "ANNUAL", "validFrom": "2026-01-01" }
+        { "type": "ADMIN_FEE", "amount": 650, "frequency": "MONTHLY", "validFrom": "2026-01-01", "paidByTenant": true },
+        { "type": "PROPERTY_TAX", "amount": 330, "frequency": "ANNUAL", "validFrom": "2026-01-01", "paidByTenant": false },
+        { "type": "INSURANCE", "amount": 240, "frequency": "ANNUAL", "validFrom": "2026-01-01", "paidByTenant": false }
       ],
       "valuationPeriods": [ { "validFrom": "2026-01-01", "annualRate": 0.02 } ]
     },
@@ -41,12 +45,14 @@
       "name": "Property C",
       "currency": "PLN",
       "currentValue": 700000,
+      "taxBase": 31200,
+      "rentalTaxPaidByTenant": false,
       "effectiveFrom": "2026-01-01",
       "cashFlows": [
         { "type": "RENT", "amount": 2600, "frequency": "MONTHLY", "validFrom": "2026-01-01" },
-        { "type": "ADMIN_FEE", "amount": 380, "frequency": "MONTHLY", "validFrom": "2026-01-01" },
-        { "type": "PROPERTY_TAX", "amount": 330, "frequency": "ANNUAL", "validFrom": "2026-01-01" },
-        { "type": "INSURANCE", "amount": 200, "frequency": "ANNUAL", "validFrom": "2026-01-01" }
+        { "type": "ADMIN_FEE", "amount": 380, "frequency": "MONTHLY", "validFrom": "2026-01-01", "paidByTenant": true },
+        { "type": "PROPERTY_TAX", "amount": 330, "frequency": "ANNUAL", "validFrom": "2026-01-01", "paidByTenant": false },
+        { "type": "INSURANCE", "amount": 200, "frequency": "ANNUAL", "validFrom": "2026-01-01", "paidByTenant": false }
       ],
       "valuationPeriods": [ { "validFrom": "2026-01-01", "annualRate": 0.02 } ]
     },
@@ -56,13 +62,15 @@
       "name": "Property D",
       "currency": "PLN",
       "currentValue": 780000,
+      "taxBase": 36000,
+      "rentalTaxPaidByTenant": false,
       "effectiveFrom": "2026-01-01",
       "cashFlows": [
         { "type": "RENT", "amount": 2900, "frequency": "MONTHLY", "validFrom": "2026-01-01" },
         { "type": "PARKING_RENT", "amount": 100, "frequency": "MONTHLY", "validFrom": "2026-01-01" },
-        { "type": "ADMIN_FEE", "amount": 400, "frequency": "MONTHLY", "validFrom": "2026-01-01" },
-        { "type": "PROPERTY_TAX", "amount": 340, "frequency": "ANNUAL", "validFrom": "2026-01-01" },
-        { "type": "INSURANCE", "amount": 250, "frequency": "ANNUAL", "validFrom": "2026-01-01" }
+        { "type": "ADMIN_FEE", "amount": 400, "frequency": "MONTHLY", "validFrom": "2026-01-01", "paidByTenant": true },
+        { "type": "PROPERTY_TAX", "amount": 340, "frequency": "ANNUAL", "validFrom": "2026-01-01", "paidByTenant": false },
+        { "type": "INSURANCE", "amount": 250, "frequency": "ANNUAL", "validFrom": "2026-01-01", "paidByTenant": false }
       ],
       "valuationPeriods": [ { "validFrom": "2026-01-01", "annualRate": 0.02 } ]
     },
@@ -72,13 +80,15 @@
       "name": "Property E",
       "currency": "PLN",
       "currentValue": 750000,
+      "taxBase": 36600,
+      "rentalTaxPaidByTenant": false,
       "effectiveFrom": "2026-01-01",
       "cashFlows": [
         { "type": "RENT", "amount": 2900, "frequency": "MONTHLY", "validFrom": "2026-01-01" },
         { "type": "PARKING_RENT", "amount": 150, "frequency": "MONTHLY", "validFrom": "2026-01-01" },
-        { "type": "ADMIN_FEE", "amount": 490, "frequency": "MONTHLY", "validFrom": "2026-01-01" },
-        { "type": "PROPERTY_TAX", "amount": 320, "frequency": "ANNUAL", "validFrom": "2026-01-01" },
-        { "type": "INSURANCE", "amount": 240, "frequency": "ANNUAL", "validFrom": "2026-01-01" }
+        { "type": "ADMIN_FEE", "amount": 490, "frequency": "MONTHLY", "validFrom": "2026-01-01", "paidByTenant": true },
+        { "type": "PROPERTY_TAX", "amount": 320, "frequency": "ANNUAL", "validFrom": "2026-01-01", "paidByTenant": false },
+        { "type": "INSURANCE", "amount": 240, "frequency": "ANNUAL", "validFrom": "2026-01-01", "paidByTenant": false }
       ],
       "valuationPeriods": [ { "validFrom": "2026-01-01", "annualRate": 0.02 } ]
     },

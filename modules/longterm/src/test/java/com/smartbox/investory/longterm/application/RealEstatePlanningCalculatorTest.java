@@ -34,9 +34,9 @@ class RealEstatePlanningCalculatorTest {
     assertEquals(new BigDecimal("3687"), result.totalPaymentMonthly());
     assertEquals(new BigDecimal("2975"), result.monthlyIncome());
     assertEquals(new BigDecimal("2856.000"), result.annualTax());
-    assertEquals(new BigDecimal("281.333333333333333333"), result.monthlyReduce());
-    assertEquals(new BigDecimal("2693.666666666666666667"), result.netMonthlyIncome());
-    assertEquals(new BigDecimal("0.041441025641"), result.incomeYield());
+    assertEquals(new BigDecimal("681.333333333333333333"), result.monthlyReduce());
+    assertEquals(new BigDecimal("2293.666666666666666667"), result.netMonthlyIncome());
+    assertEquals(new BigDecimal("0.035287179487"), result.incomeYield());
   }
 
   private static LongTermAssetCashFlow flow(CashFlowType type, String amount, Frequency frequency) {

@@ -15,8 +15,17 @@ public final class BondPlanningCalculator {
       BigDecimal annualRate,
       LocalDate maturityDate,
       InterestTreatment treatment) {
+    return calculate(value, annualRate, maturityDate, treatment, TAX_RATE);
+  }
+
+  public BondPlanningSummary calculate(
+      BigDecimal value,
+      BigDecimal annualRate,
+      LocalDate maturityDate,
+      InterestTreatment treatment,
+      BigDecimal taxRate) {
     BigDecimal gross = value.multiply(annualRate);
-    BigDecimal tax = gross.multiply(TAX_RATE);
+    BigDecimal tax = gross.multiply(taxRate == null ? TAX_RATE : taxRate);
     BigDecimal net = gross.subtract(tax);
     return new BondPlanningSummary(
         value,

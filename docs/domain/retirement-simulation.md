@@ -13,16 +13,15 @@ Passive income includes applicable rental income, PAY_OUT contractual interest, 
 asset income. A CAPITALIZE contractual asset increases principal instead of producing same-year passive
 income.
 
-Temporary stabilization: forward retirement simulation currently uses a fixed `15,000 PLN/month`
-(`180,000 PLN/year`) rental source, grown only by the configured rental-income growth rate. It does
-not add Long-term Asset rental cash flows in the bridge or simulator. The PLN value is normalized
-once at the forward-input boundary into canonical simulation currency. This is temporary debt:
-`TODO(retirement-rental-source)` must replace it with one effective-dated source shared by Long-term
-Assets, historical Planning, the bridge, and forward Simulation, with exactly-once year-boundary
-handling.
+Rental income comes from the effective-dated Long-Term Asset cash-flow API. The Long-Term module
+applies the configured rental-tax policy and ownership flags before exposing canonical simulation
+inputs. Retirement consumes those USD inputs; the UI performs any selected-currency conversion only
+for presentation.
 
 For Reserve + equity harvest, the withdrawal policy funds from a manual liquid cash reserve, then
-market cash, then market fixed income, and only then optional emergency equity.
+market cash, then market fixed income, and only then optional emergency equity. The defensive reserve
+for harvesting is manual/current cash plus contractual and projected bonds; generic market fixed income
+is spendable wealth but is not a second reserve target.
 Contractual bonds/deposits remain locked until maturity. Bond principal that matures becomes available
 in that year before the other portfolio funding sources; unused bond principal is reinvested as a
 projection-only three-year ladder bond. Deposit redemptions retain their existing cash behavior. Real
@@ -53,6 +52,9 @@ All rates are decimal internal values and percentage-point UI values (for exampl
   by retirement simulation; rental property contributes rental cash flow only.
 
 New plans default to inflation `2.5%`, rental income growth `2.0%`, and spending need growth `2.5%`.
+Recurring spending may also have an optional staged expense profile. Inflation/spending growth
+models nominal baseline growth; the profile is a separate real-spending factor schedule, for
+example `0:1.00;8:0.90;15:0.80`. Empty or missing profiles use `1.00` and preserve legacy behavior.
 They are stored independently. A saved plan created before spending growth existed initializes that
 new field once from its saved inflation rate when read/migrated; it is not linked afterward.
 
@@ -69,30 +71,41 @@ portfolio amount. New plans default to **Reserve + equity harvest** with a five-
 7% harvest gate, and 75% eligible-gain fraction. It funds normal gaps from cash and market fixed
 income; equity is used only when the explicit emergency-equity setting is enabled.
 
-For Reserve + equity harvest, the safe reserve is a manual **Cash reserve** asset plus market cash
-plus spendable market fixed income. A Cash reserve is a planning-only, immediately spendable manual
-asset; its explicit annual return takes precedence over the scenario cash return. It is distinct from
-a contractual **Deposit**, which remains locked until maturity. Locked contractual bonds/deposits are
-excluded until their existing maturity redemption becomes cash.
+The spending withdrawal order is deterministic and stored with each simulation plan. The default is
+`CASH → BONDS → STOCKS`, where CASH is the market cash bucket, BONDS is market fixed income after
+the existing contractual-maturity handling, and STOCKS is equity. A plan may choose another supported
+order, such as `CASH → STOCKS → BONDS` or `BONDS → CASH → STOCKS`. Missing legacy configuration uses
+the default. This order controls principal withdrawals only; investment returns are calculated
+independently. Absolute per-bucket reserves are not currently modeled.
+
+For Reserve + equity harvest, the safe reserve is manual/current cash plus contractual and projected
+**Bonds**. A Cash reserve is a planning-only, immediately spendable manual asset; its explicit annual
+return takes precedence over the scenario cash return. It is distinct from a contractual **Deposit**,
+which remains locked until maturity. Generic market fixed income remains available under the existing
+withdrawal policy but does not independently increase the safe-reserve target.
 
 `recurring funding gap = max(core + discretionary - passive income - pension, 0)`.
 
 `safe reserve target = recurring funding gap × safe-reserve years`.
 
-One-off events are excluded from this target. After same-year spending and market returns, a transfer
-from equity to fixed income is allowed only when the scenario equity return meets the harvest threshold.
-The reserve transfer's maximum is the lesser of the reserve shortfall, configured fraction of the
-positive market-equity gain, and current equity balance. Any eligible gain left after that transfer may
-refill the three-year bond ladder up to three years of recurring funding gap. Both transfers change
-allocation only; neither changes net worth.
+One-off events are excluded from this target. After same-year spending, returns, and unused maturity
+reinvestment, a transfer from equity into a projected bond is allowed only when the scenario equity
+return meets the harvest threshold. The bond refill is the lesser of the combined defensive-reserve
+shortfall, the configured fraction of the positive market-equity gain, and current equity balance.
+There is no automatic equity-to-cash refill and no separate bond-ladder reserve target. The transfer
+changes allocation only; it does not change net worth.
 
-`safe reserve` is the normal reserve only. `spendable assets` are safe reserve plus equity only when
+`safe reserve` is the combined cash-plus-bond coverage figure. `spendable assets` include current cash
+and market fixed income, plus equity only when
 the configured strategy permits an emergency equity withdrawal. `financial assets` additionally show
 equity and other financial holdings regardless of withdrawal policy. Locked contractual assets and real
 estate are illiquid. Presentation must not call inaccessible equity "liquid".
 
-For real estate, rental tax is `taxBase × taxRate` only when a tax base is explicitly configured.
-A missing tax base produces no simulated rental tax; annual rent is never used as an implicit tax base.
+For real estate, landlord rental tax is `taxBase × effectiveRentalTaxRate` only when a tax base is
+explicitly configured and rental tax is not marked paid by the tenant. A missing tax base produces no
+simulated rental tax; annual rent is never used as an implicit tax base. Landlord operating expenses
+include only expense cash-flow periods marked landlord-paid; tenant-paid administration and utilities
+are not landlord expenses.
 
 ### Bond ladder
 
@@ -113,7 +126,9 @@ Use required amount
       ↓
 Unused principal → projection-only bond maturing in N+3
       ↓
-Other portfolio funding
+Market returns and end-of-year reserve check
+      ↓
+Eligible positive equity gain → projection-only bond up to reserve deficit
       ↓
 End portfolio
 ```

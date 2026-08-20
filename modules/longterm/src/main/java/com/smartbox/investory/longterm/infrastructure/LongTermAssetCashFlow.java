@@ -36,4 +36,17 @@ public class LongTermAssetCashFlow {
 
   @Column(name = "valid_to")
   private LocalDate validTo;
+
+  @Column(name = "paid_by_tenant", nullable = false)
+  private Boolean paidByTenant;
+
+  public boolean isPaidByTenant() {
+    return paidByTenant != null
+        ? paidByTenant
+        : type == CashFlowType.ADMIN_FEE || type == CashFlowType.UTILITIES;
+  }
+
+  public void setPaidByTenant(boolean paidByTenant) {
+    this.paidByTenant = paidByTenant;
+  }
 }

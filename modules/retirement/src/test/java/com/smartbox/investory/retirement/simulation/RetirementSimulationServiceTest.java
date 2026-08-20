@@ -1334,21 +1334,21 @@ class RetirementSimulationServiceTest {
     assertBd("880000", result.years().get(0).fixedIncomeEnd());
     assertBd("858600", result.years().get(1).fixedIncomeEnd());
     assertBd("37200", result.years().get(0).bondValueEnd());
-    assertBd("64200", result.years().get(1).bondValueEnd());
+    assertBd("75144", result.years().get(1).bondValueEnd());
     assertBd("632400", result.years().get(0).equityEnd());
-    assertBd("655992", result.years().get(1).equityEnd());
-    assertBd("0", result.years().get(0).equityToFixedIncomeTransfer());
+    assertBd("645048", result.years().get(1).equityEnd());
+    assertBd("37200", result.years().get(0).equityToFixedIncomeTransfer());
     assertBd("0", result.years().get(0).unfundedAmount());
     assertBd("0", result.years().get(1).unfundedAmount());
   }
 
   @Test
-  void reserveHarvestUsesRemainingEligibleGainToRefillBondDeficit() {
+  void reserveHarvestRefillsCombinedDefensiveReserveWithEligibleGain() {
     ProjectedLongTermAsset bond = ladderTestBond(700L, "200");
     SimulationAssumptions assumptions =
         transitionUntil(100, 0, 40, 40, 40, 0, 0)
             .withEquityReturnRate(new BigDecimal("0.10"))
-            .withSafeReserveYears(ZERO);
+            .withSafeReserveYears(new BigDecimal("3"));
 
     SimulationYear year =
         service
@@ -1357,13 +1357,12 @@ class RetirementSimulationServiceTest {
                 assumptions,
                 SimulationScenario.BASE)
             .finalYear();
-
     assertBd("300", year.bondValueEnd());
     assertBd("300", year.lockedContractualAssets());
   }
 
   @Test
-  void reserveRefillHasPriorityOverBondRefill() {
+  void sufficientCombinedDefensiveReserveDoesNotHarvestIntoCashOrBonds() {
     ProjectedLongTermAsset bond = ladderTestBond(701L, "200");
     SimulationAssumptions assumptions =
         transitionUntil(100, 0, 40, 40, 40, 0, 0)
@@ -1377,10 +1376,9 @@ class RetirementSimulationServiceTest {
                 assumptions,
                 SimulationScenario.BASE)
             .finalYear();
-
-    assertBd("30", year.equityToFixedIncomeTransfer());
-    assertBd("300", year.bondValueEnd());
-    assertBd("30", year.fixedIncomeEnd());
+    assertBd("0", year.equityToFixedIncomeTransfer());
+    assertBd("200", year.bondValueEnd());
+    assertBd("0", year.fixedIncomeEnd());
   }
 
   @Test

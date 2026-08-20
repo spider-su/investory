@@ -65,13 +65,15 @@ public class LongTermAssetReadService
                                     toUsd(period.annualIncome(), input.currency(), date),
                                     toUsd(period.annualExpense(), input.currency(), date),
                                     period.annualReturnRate(),
-                                    period.cashFlowType()))
+                                    period.cashFlowType(),
+                                    period.paidByTenant()))
                         .toList(),
                     input.maturityDate(),
                     toUsd(input.redemptionValue(), input.currency(), date),
                     input.interestTreatment(),
                     input.taxRate(),
-                    toUsd(input.taxBase(), input.currency(), date)))
+                    toUsd(input.taxBase(), input.currency(), date),
+                    input.rentalTaxPaidByTenant()))
         .toList();
   }
 

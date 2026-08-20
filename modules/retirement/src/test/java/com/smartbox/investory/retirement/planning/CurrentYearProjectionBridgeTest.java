@@ -350,10 +350,9 @@ class CurrentYearProjectionBridgeTest {
                 .currentValue()
                 .compareTo(new BigDecimal("100"))
             > 0);
-    assertEquals(BigDecimal.ZERO, pastResult.redemptionCashApplied());
+    assertEquals(new BigDecimal("100"), pastResult.redemptionCashApplied());
     assertEquals(
-        new BigDecimal("100"),
-        pastResult.bridgedProfile().longTermAssets().getFirst().currentValue());
+        BigDecimal.ZERO, pastResult.bridgedProfile().longTermAssets().getFirst().currentValue());
   }
 
   @Test

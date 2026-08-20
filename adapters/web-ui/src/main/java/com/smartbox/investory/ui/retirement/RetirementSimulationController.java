@@ -8,8 +8,10 @@ import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Year;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -213,7 +215,9 @@ public class RetirementSimulationController {
                 : allowEmergencyEquityWithdrawal,
             base.retirementAge(),
             base.annualEmploymentIncome(),
-            base.annualPreRetirementContribution());
+            base.annualPreRetirementContribution(),
+            base.fundingOrder(),
+            base.expenseProfile());
     var forward = forwardInputs.prepare(profile, assumptions);
     var projectedAssumptions = forward.forwardAssumptions().orElse(assumptions);
     var projectedProfile = forward.bridgedProfile();
@@ -249,6 +253,8 @@ public class RetirementSimulationController {
     model.addAttribute("forwardAssumptions", projectedAssumptions);
     model.addAttribute("planningDisplayCurrency", planningDisplayCurrency);
     model.addAttribute("planningPresentation", planningPresentation);
+    model.addAttribute(
+        "expenseProfileValue", serializeExpenseProfile(assumptions.expenseProfile()));
     model.addAttribute(
         "displayAnnualExpenses",
         planningPresentation.toDisplay(
@@ -503,7 +509,9 @@ public class RetirementSimulationController {
             fields,
             "annualPreRetirementContribution",
             displayCurrency,
-            base.annualPreRetirementContribution()));
+            base.annualPreRetirementContribution()),
+        base.fundingOrder(),
+        base.expenseProfile());
   }
 
   private BigDecimal money(
@@ -811,6 +819,74 @@ public class RetirementSimulationController {
       String name,
       int currentAge,
       int endAge,
+      int retirementAge,
+      BigDecimal annualEmploymentIncome,
+      BigDecimal annualPreRetirementContribution,
+      BigDecimal annualExpenses,
+      BigDecimal monthlyLivingCosts,
+      BigDecimal discretionaryExpenses,
+      BigDecimal inflation,
+      BigDecimal rentalIncomeGrowth,
+      BigDecimal spendingGrowth,
+      SimulationFundingStrategy fundingStrategy,
+      BigDecimal safeReserveYears,
+      BigDecimal equityHarvestMinimumReturn,
+      BigDecimal equityGainHarvest,
+      boolean allowEmergencyEquityWithdrawal,
+      BigDecimal cashReturn,
+      BigDecimal fixedIncomeReturn,
+      BigDecimal equityReturn,
+      BigDecimal realEstateReturn,
+      BigDecimal otherReturn,
+      Integer pensionStartAge,
+      BigDecimal annualPension,
+      BigDecimal capitalGainTaxRate,
+      CurrencyType planningDisplayCurrency,
+      CurrencyType returnPlanningDisplayCurrency,
+      boolean saveAs,
+      SimulationScenario selectedScenario) {
+    return savePlan(
+        portfolioId,
+        planId,
+        name,
+        currentAge,
+        endAge,
+        retirementAge,
+        annualEmploymentIncome,
+        annualPreRetirementContribution,
+        annualExpenses,
+        monthlyLivingCosts,
+        discretionaryExpenses,
+        inflation,
+        rentalIncomeGrowth,
+        spendingGrowth,
+        fundingStrategy,
+        "CASH,BONDS,STOCKS",
+        "",
+        safeReserveYears,
+        equityHarvestMinimumReturn,
+        equityGainHarvest,
+        allowEmergencyEquityWithdrawal,
+        cashReturn,
+        fixedIncomeReturn,
+        equityReturn,
+        realEstateReturn,
+        otherReturn,
+        pensionStartAge,
+        annualPension,
+        capitalGainTaxRate,
+        planningDisplayCurrency,
+        returnPlanningDisplayCurrency,
+        saveAs,
+        selectedScenario);
+  }
+
+  public String savePlan(
+      Long portfolioId,
+      Long planId,
+      String name,
+      int currentAge,
+      int endAge,
       BigDecimal annualExpenses,
       BigDecimal discretionaryExpenses,
       BigDecimal inflation,
@@ -846,6 +922,8 @@ public class RetirementSimulationController {
         rentalIncomeGrowth,
         spendingGrowth,
         fundingStrategy,
+        "CASH,BONDS,STOCKS",
+        "",
         safeReserveYears,
         equityHarvestMinimumReturn,
         equityGainHarvest,
@@ -881,6 +959,8 @@ public class RetirementSimulationController {
       @RequestParam(defaultValue = "2") BigDecimal rentalIncomeGrowth,
       @RequestParam(defaultValue = "2.5") BigDecimal spendingGrowth,
       @RequestParam(defaultValue = "RESERVE_AND_HARVEST") SimulationFundingStrategy fundingStrategy,
+      @RequestParam(defaultValue = "CASH,BONDS,STOCKS") String fundingOrder,
+      @RequestParam(defaultValue = "") String expenseProfile,
       @RequestParam(defaultValue = "5") BigDecimal safeReserveYears,
       @RequestParam(defaultValue = "7") BigDecimal equityHarvestMinimumReturn,
       @RequestParam(defaultValue = "75") BigDecimal equityGainHarvest,
@@ -911,44 +991,49 @@ public class RetirementSimulationController {
     if (annualLivingCostsInput == null) annualLivingCostsInput = BigDecimal.ZERO;
     SimulationAssumptions a =
         new SimulationAssumptions(
-            preservedCurrentAge,
-            endAge,
-            planningPresentation.fromDisplay(
-                annualLivingCostsInput, planningDisplayCurrency, BigDecimal.ZERO),
-            percentInputToRate(inflation, BigDecimal.ZERO),
-            percentInputToRate(cashReturn, BigDecimal.ZERO),
-            percentInputToRate(fixedIncomeReturn, BigDecimal.ZERO),
-            percentInputToRate(equityReturn, BigDecimal.ZERO),
-            percentInputToRate(
-                realEstateReturn,
+                preservedCurrentAge,
+                endAge,
+                planningPresentation.fromDisplay(
+                    annualLivingCostsInput, planningDisplayCurrency, BigDecimal.ZERO),
+                percentInputToRate(inflation, BigDecimal.ZERO),
+                percentInputToRate(cashReturn, BigDecimal.ZERO),
+                percentInputToRate(fixedIncomeReturn, BigDecimal.ZERO),
+                percentInputToRate(equityReturn, BigDecimal.ZERO),
+                percentInputToRate(
+                    realEstateReturn,
+                    storedAssumptions == null
+                        ? BigDecimal.ZERO
+                        : storedAssumptions.realEstateReturnRate()),
+                percentInputToRate(otherReturn, BigDecimal.ZERO),
+                normalizePensionStartAge(pensionStartAge),
+                planningPresentation.fromDisplay(
+                    annualPension, planningDisplayCurrency, BigDecimal.ZERO),
+                percentInputToRate(capitalGainTaxRate, BigDecimal.ZERO),
                 storedAssumptions == null
-                    ? BigDecimal.ZERO
-                    : storedAssumptions.realEstateReturnRate()),
-            percentInputToRate(otherReturn, BigDecimal.ZERO),
-            normalizePensionStartAge(pensionStartAge),
-            planningPresentation.fromDisplay(
-                annualPension, planningDisplayCurrency, BigDecimal.ZERO),
-            percentInputToRate(capitalGainTaxRate, BigDecimal.ZERO),
-            storedAssumptions == null ? Year.now(clock).getValue() : storedAssumptions.startYear(),
-            planningPresentation.fromDisplay(
-                discretionaryExpenses, planningDisplayCurrency, BigDecimal.ZERO),
-            existingEvents,
-            percentInputToRate(
-                rentalIncomeGrowth, SimulationAssumptions.DEFAULT_RENTAL_INCOME_GROWTH_RATE),
-            percentInputToRate(spendingGrowth, SimulationAssumptions.DEFAULT_SPENDING_GROWTH_RATE),
-            fundingStrategy,
-            safeReserveYears,
-            percentInputToRate(
-                equityHarvestMinimumReturn,
-                SimulationAssumptions.DEFAULT_EQUITY_HARVEST_MINIMUM_RETURN_RATE),
-            percentInputToRate(
-                equityGainHarvest, SimulationAssumptions.DEFAULT_EQUITY_GAIN_HARVEST_RATE),
-            allowEmergencyEquityWithdrawal,
-            retirementAge == null ? preservedCurrentAge : retirementAge,
-            planningPresentation.fromDisplay(
-                annualEmploymentIncome, planningDisplayCurrency, BigDecimal.ZERO),
-            planningPresentation.fromDisplay(
-                annualPreRetirementContribution, planningDisplayCurrency, BigDecimal.ZERO));
+                    ? Year.now(clock).getValue()
+                    : storedAssumptions.startYear(),
+                planningPresentation.fromDisplay(
+                    discretionaryExpenses, planningDisplayCurrency, BigDecimal.ZERO),
+                existingEvents,
+                percentInputToRate(
+                    rentalIncomeGrowth, SimulationAssumptions.DEFAULT_RENTAL_INCOME_GROWTH_RATE),
+                percentInputToRate(
+                    spendingGrowth, SimulationAssumptions.DEFAULT_SPENDING_GROWTH_RATE),
+                fundingStrategy,
+                safeReserveYears,
+                percentInputToRate(
+                    equityHarvestMinimumReturn,
+                    SimulationAssumptions.DEFAULT_EQUITY_HARVEST_MINIMUM_RETURN_RATE),
+                percentInputToRate(
+                    equityGainHarvest, SimulationAssumptions.DEFAULT_EQUITY_GAIN_HARVEST_RATE),
+                allowEmergencyEquityWithdrawal,
+                retirementAge == null ? preservedCurrentAge : retirementAge,
+                planningPresentation.fromDisplay(
+                    annualEmploymentIncome, planningDisplayCurrency, BigDecimal.ZERO),
+                planningPresentation.fromDisplay(
+                    annualPreRetirementContribution, planningDisplayCurrency, BigDecimal.ZERO))
+            .withFundingOrder(parseFundingOrder(fundingOrder))
+            .withExpenseProfile(parseExpenseProfile(expenseProfile));
     Long savedPlanId =
         planId == null || saveAs
             ? plans.createId(portfolioId, name, a)
@@ -964,6 +1049,41 @@ public class RetirementSimulationController {
         + returnCurrency
         + "&selectedScenario="
         + selectedScenario;
+  }
+
+  private static List<FundingSource> parseFundingOrder(String value) {
+    if (value == null || value.isBlank()) return SimulationAssumptions.DEFAULT_FUNDING_ORDER;
+    try {
+      return Arrays.stream(value.split(",")).map(String::trim).map(FundingSource::valueOf).toList();
+    } catch (IllegalArgumentException exception) {
+      throw new IllegalArgumentException("Unknown funding source", exception);
+    }
+  }
+
+  private static String serializeExpenseProfile(ExpenseProfile profile) {
+    return profile.steps().stream()
+        .map(step -> step.fromYear() + ":" + step.factor().toPlainString())
+        .reduce((left, right) -> left + ";" + right)
+        .orElse("");
+  }
+
+  private static ExpenseProfile parseExpenseProfile(String value) {
+    if (value == null || value.isBlank()) return ExpenseProfile.EMPTY;
+    try {
+      return new ExpenseProfile(
+          Arrays.stream(value.split(";"))
+              .map(String::trim)
+              .map(
+                  entry -> {
+                    String[] parts = entry.split(":", -1);
+                    if (parts.length != 2) throw new IllegalArgumentException();
+                    return new ExpenseProfileStep(
+                        Integer.parseInt(parts[0].trim()), new BigDecimal(parts[1].trim()));
+                  })
+              .toList());
+    } catch (RuntimeException exception) {
+      throw new IllegalArgumentException("Invalid expense profile", exception);
+    }
   }
 
   @PostMapping("/simulation/plans/{planId}/events")

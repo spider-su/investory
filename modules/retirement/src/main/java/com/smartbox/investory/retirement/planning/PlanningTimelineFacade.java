@@ -494,7 +494,9 @@ public class PlanningTimelineFacade {
         assumptions.allowEmergencyEquityWithdrawal(),
         assumptions.retirementAge(),
         assumptions.annualEmploymentIncome(),
-        assumptions.annualPreRetirementContribution());
+        assumptions.annualPreRetirementContribution(),
+        assumptions.fundingOrder(),
+        assumptions.expenseProfile().rebasedAt(offset));
   }
 
   private Map<PlanningMetric, PlanningMetricValue> deriveHistoricalMarket(

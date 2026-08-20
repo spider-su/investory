@@ -243,7 +243,8 @@ public class LongTermAssetService {
                 isIncome(flow.getType()) ? annual : BigDecimal.ZERO,
                 isIncome(flow.getType()) ? BigDecimal.ZERO : annual,
                 BigDecimal.ZERO,
-                flow.getType()));
+                flow.getType(),
+                flow.isPaidByTenant()));
       }
       for (LongTermAssetValuationPeriod period :
           valuations.findAllByAssetIdOrderByValidFrom(asset.getId()))
@@ -267,7 +268,10 @@ public class LongTermAssetService {
       BigDecimal redemption = null, tax = BigDecimal.ZERO, taxBase = null;
       InterestTreatment treatment = null;
       if (asset.getType() == LongTermAssetType.REAL_ESTATE) {
-        tax = REAL_ESTATE_TAX_RATE;
+        tax =
+            rentalTaxPolicy(portfolioId, effectivePolicyDate)
+                .map(RentalTaxPolicy::getRate)
+                .orElse(REAL_ESTATE_TAX_RATE);
         taxBase = asset.getTaxBase();
       } else if (asset.getType() == LongTermAssetType.BOND) {
         LongTermAssetBondDetails d = bonds.findById(asset.getId()).orElse(null);
@@ -275,7 +279,7 @@ public class LongTermAssetService {
           maturity = d.getMaturityDate();
           redemption = d.getRedemptionValue();
           treatment = d.getInterestTreatment();
-          tax = BOND_TAX_RATE;
+          tax = d.getTaxRate() == null ? BOND_TAX_RATE : d.getTaxRate();
         }
       } else if (asset.getType() == LongTermAssetType.DEPOSIT) {
         LongTermAssetDepositDetails d = deposits.findById(asset.getId()).orElse(null);
@@ -306,7 +310,8 @@ public class LongTermAssetService {
               redemption,
               treatment,
               tax,
-              taxBase));
+              taxBase,
+              asset.isRentalTaxPaidByTenant()));
     }
     return result;
   }
@@ -318,6 +323,15 @@ public class LongTermAssetService {
         || policy.getRate().signum() < 0
         || policy.getRate().compareTo(BigDecimal.ONE) > 0)
       throw new IllegalArgumentException("Tax rate must be between 0 and 1");
+    for (RentalTaxPolicy existing : taxPolicies.findAll())
+      if (Objects.equals(existing.getPortfolioId(), portfolioId)
+          && !Objects.equals(existing.getId(), policy.getId())
+          && rangesOverlap(
+              policy.getValidFrom(),
+              policy.getValidTo(),
+              existing.getValidFrom(),
+              existing.getValidTo()))
+        throw new IllegalArgumentException("Overlapping rental tax policies are not allowed");
     return taxPolicies.save(policy);
   }
 
@@ -333,6 +347,15 @@ public class LongTermAssetService {
 
   public LongTermAsset save(LongTermAsset asset) {
     validate(asset);
+    if (asset.getId() != null) {
+      if (asset.getType() != LongTermAssetType.BOND && bonds.existsById(asset.getId()))
+        throw new IllegalArgumentException("Bond details require a bond asset");
+      if (asset.getType() != LongTermAssetType.DEPOSIT && deposits.existsById(asset.getId()))
+        throw new IllegalArgumentException("Deposit details require a deposit asset");
+      if (asset.getType() != LongTermAssetType.REAL_ESTATE
+          && !cashFlows.findAllByAssetIdOrderByValidFrom(asset.getId()).isEmpty())
+        throw new IllegalArgumentException("Cash flows require a real-estate asset");
+    }
     return assets.save(asset);
   }
 
@@ -380,6 +403,7 @@ public class LongTermAssetService {
     asset.setAcquisitionValue(entry.acquisitionValue());
     asset.setCurrentValue(entry.currentValue());
     asset.setTaxBase(entry.taxBase());
+    asset.setRentalTaxPaidByTenant(entry.rentalTaxPaidByTenant());
     asset.setNotes(entry.notes());
     asset.setActive(true);
     save(asset);
@@ -433,7 +457,8 @@ public class LongTermAssetService {
             && details.getMaturityDate().isBefore(asset.getAcquisitionDate())))
       throw new IllegalArgumentException("Bond maturity must be on or after acquisition");
     details.setAssetId(assetId);
-    details.setTaxRate(BOND_TAX_RATE);
+    if (details.getTaxRate() == null) details.setTaxRate(BOND_TAX_RATE);
+    validateTaxRate(details.getTaxRate(), "Bond tax rate");
     return bonds.save(details);
   }
 
@@ -450,7 +475,7 @@ public class LongTermAssetService {
         bonds.findById(assetId).orElseGet(LongTermAssetBondDetails::new);
     details.setMaturityDate(maturityDate);
     details.setInterestTreatment(treatment);
-    details.setTaxRate(BOND_TAX_RATE);
+    if (details.getTaxRate() == null) details.setTaxRate(BOND_TAX_RATE);
     details.setRedemptionValue(asset.getAcquisitionValue());
     saveBondDetails(portfolioId, assetId, details);
     LocalDate from =
@@ -479,20 +504,30 @@ public class LongTermAssetService {
         && details.getMaturityDate().isBefore(asset.getAcquisitionDate()))
       throw new IllegalArgumentException("Deposit maturity must be on or after acquisition");
     details.setAssetId(assetId);
+    if (details.getTaxRate() == null) details.setTaxRate(BOND_TAX_RATE);
+    validateTaxRate(details.getTaxRate(), "Deposit tax rate");
+    if (details.getAnnualInterestRate() == null || details.getAnnualInterestRate().signum() < 0)
+      throw new IllegalArgumentException("Deposit interest rate must be non-negative");
     return deposits.save(details);
   }
 
   public void archive(Long portfolioId, Long id) {
-    owned(portfolioId, id).setActive(false);
+    LongTermAsset asset = owned(portfolioId, id);
+    asset.setActive(false);
+    asset.setArchivedAt(LocalDate.now());
   }
 
   public void reactivate(Long portfolioId, Long id) {
-    owned(portfolioId, id).setActive(true);
+    LongTermAsset asset = owned(portfolioId, id);
+    asset.setActive(true);
+    asset.setArchivedAt(null);
   }
 
   public LongTermAssetCashFlow addCashFlow(
       Long portfolioId, Long assetId, LongTermAssetCashFlow flow) {
-    owned(portfolioId, assetId);
+    LongTermAsset asset = owned(portfolioId, assetId);
+    if (asset.getType() != LongTermAssetType.REAL_ESTATE)
+      throw new IllegalArgumentException("Cash flows apply only to real estate");
     flow.setAssetId(assetId);
     validateCashFlow(flow);
     return cashFlows.save(flow);
@@ -602,12 +637,35 @@ public class LongTermAssetService {
 
   public void deleteCashFlow(Long portfolioId, Long assetId, Long flowId) {
     owned(portfolioId, assetId);
-    cashFlows.deleteById(flowId);
+    LongTermAssetCashFlow flow =
+        cashFlows
+            .findById(flowId)
+            .filter(candidate -> Objects.equals(candidate.getAssetId(), assetId))
+            .orElseThrow(() -> new NoSuchElementException("Cash flow not found"));
+    cashFlows.delete(flow);
+  }
+
+  public void setCashFlowPaidByTenant(
+      Long portfolioId, Long assetId, Long flowId, boolean paidByTenant) {
+    owned(portfolioId, assetId);
+    LongTermAssetCashFlow flow =
+        cashFlows
+            .findById(flowId)
+            .filter(candidate -> Objects.equals(candidate.getAssetId(), assetId))
+            .orElseThrow(() -> new NoSuchElementException("Cash flow not found"));
+    if (!isExpense(flow.getType()))
+      throw new IllegalArgumentException("Tenant ownership applies only to expenses");
+    flow.setPaidByTenant(paidByTenant);
+    cashFlows.save(flow);
   }
 
   public LongTermAssetValuationPeriod addValuationPeriod(
       Long portfolioId, Long assetId, LongTermAssetValuationPeriod period) {
-    owned(portfolioId, assetId);
+    LongTermAsset asset = owned(portfolioId, assetId);
+    if (asset.getType() != LongTermAssetType.REAL_ESTATE
+        && asset.getType() != LongTermAssetType.CASH_RESERVE)
+      throw new IllegalArgumentException(
+          "Valuation periods apply only to real estate or cash reserve");
     validateRange(period.getValidFrom(), period.getValidTo());
     validateGrowthRate(period.getExpectedAnnualGrowthRate());
     validateValuationOverlap(assetId, period);
@@ -617,8 +675,12 @@ public class LongTermAssetService {
 
   public LongTermAssetBondRatePeriod addBondRatePeriod(
       Long portfolioId, Long assetId, LongTermAssetBondRatePeriod period) {
-    owned(portfolioId, assetId);
+    LongTermAsset asset = owned(portfolioId, assetId);
+    if (asset.getType() != LongTermAssetType.BOND)
+      throw new IllegalArgumentException("Bond-rate periods apply only to bonds");
     validateRange(period.getValidFrom(), period.getValidTo());
+    if (period.getAnnualInterestRate() == null || period.getAnnualInterestRate().signum() < 0)
+      throw new IllegalArgumentException("Bond interest rate must be non-negative");
     validateBondRateOverlap(assetId, period);
     period.setAssetId(assetId);
     return bondRates.save(period);
@@ -641,11 +703,18 @@ public class LongTermAssetService {
         if (LongTermAssetCalculator.applies(f, effectiveDate)) {
           BigDecimal annual = LongTermAssetCalculator.annualAmount(f);
           if (isIncome(f.getType())) gross = gross.add(annual);
-          else expenses = expenses.add(annual);
+          else if (!f.isPaidByTenant()) expenses = expenses.add(annual);
         }
       realEstatePlanning =
           realEstatePlanningCalculator.calculate(
-              a.getCurrentValue(), a.getTaxBase(), flows, effectiveDate);
+              a.getCurrentValue(),
+              a.getTaxBase(),
+              flows,
+              effectiveDate,
+              rentalTaxPolicy(a.getPortfolioId(), effectiveDate)
+                  .map(RentalTaxPolicy::getRate)
+                  .orElse(REAL_ESTATE_TAX_RATE),
+              a.isRentalTaxPaidByTenant());
       tax = realEstatePlanning.annualTax();
     } else if (a.getType() == LongTermAssetType.BOND) {
       LongTermAssetBondDetails d = bonds.findById(a.getId()).orElse(null);
@@ -653,7 +722,11 @@ public class LongTermAssetService {
       rate = currentRate(a.getId(), effectiveDate);
       bondPlanning =
           bondPlanningCalculator.calculate(
-              a.getCurrentValue(), rate, maturity, d == null ? null : d.getInterestTreatment());
+              a.getCurrentValue(),
+              rate,
+              maturity,
+              d == null ? null : d.getInterestTreatment(),
+              d == null ? BOND_TAX_RATE : d.getTaxRate());
       gross = bondPlanning.grossInterest();
       tax = bondPlanning.annualTax();
     } else if (a.getType() == LongTermAssetType.DEPOSIT) {
@@ -730,14 +803,17 @@ public class LongTermAssetService {
     LocalDate date = LocalDate.of(year, 12, 31);
     Set<Long> historicalAssetIds =
         assets.findAllByPortfolioIdOrderByName(portfolioId).stream()
-            .filter(LongTermAsset::isActive)
             .filter(
                 asset ->
-                    asset.getAcquisitionDate() == null || !asset.getAcquisitionDate().isAfter(date))
+                    (asset.getAcquisitionDate() == null
+                            || !asset.getAcquisitionDate().isAfter(date))
+                        && (asset.getArchivedAt() == null || asset.getArchivedAt().isAfter(date)))
             .map(LongTermAsset::getId)
             .collect(java.util.stream.Collectors.toSet());
     List<LongTermAssetSummary> rows =
-        list(portfolioId, date).stream()
+        assets.findAllByPortfolioIdOrderByName(portfolioId).stream()
+            .filter(asset -> historicalAssetIds.contains(asset.getId()))
+            .map(asset -> summary(asset, date))
             .filter(row -> historicalAssetIds.contains(row.id()))
             .toList();
     Map<Long, LongTermAssetProjectionInput> projectionInputs =
@@ -769,13 +845,15 @@ public class LongTermAssetService {
                                             p.annualIncome(),
                                             p.annualExpense(),
                                             p.annualReturnRate(),
-                                            p.cashFlowType()))
+                                            p.cashFlowType(),
+                                            p.paidByTenant()))
                                 .toList(),
                             input.maturityDate(),
                             input.redemptionValue(),
                             input.interestTreatment(),
                             input.taxRate(),
-                            input.taxBase());
+                            input.taxBase(),
+                            input.rentalTaxPaidByTenant());
                     amount = RentalIncomeProjection.actualYear(projection, year).netIncome();
                   }
                   return row.currency() == CurrencyType.USD
@@ -1097,6 +1175,14 @@ public class LongTermAssetService {
         || t == CashFlowType.OTHER_INCOME;
   }
 
+  private static boolean isExpense(CashFlowType t) {
+    return t == CashFlowType.ADMIN_FEE
+        || t == CashFlowType.UTILITIES
+        || t == CashFlowType.PROPERTY_TAX
+        || t == CashFlowType.INSURANCE
+        || t == CashFlowType.OTHER_EXPENSE;
+  }
+
   public record RentalPeriod(LocalDate effectiveFrom, LocalDate endDate) {}
 
   private static boolean isMonthlyOperatingExpense(CashFlowType t) {
@@ -1123,6 +1209,11 @@ public class LongTermAssetService {
         || rate.compareTo(BigDecimal.ONE.negate()) < 0
         || rate.compareTo(BigDecimal.ONE) > 0)
       throw new IllegalArgumentException("Expected property growth rate must be between -1 and 1");
+  }
+
+  private static void validateTaxRate(BigDecimal rate, String label) {
+    if (rate == null || rate.signum() < 0 || rate.compareTo(BigDecimal.ONE) > 0)
+      throw new IllegalArgumentException(label + " must be between 0 and 1");
   }
 
   private static void validateRange(LocalDate from, LocalDate to) {
@@ -1174,6 +1265,7 @@ public class LongTermAssetService {
       flow.setAmount(amount);
       flow.setFrequency(frequency);
       flow.setValidFrom(from);
+      flow.setPaidByTenant(type == CashFlowType.ADMIN_FEE || type == CashFlowType.UTILITIES);
       cashFlows.save(flow);
     }
   }

@@ -70,6 +70,12 @@ public class SimulationPlan {
   @Column(name = "funding_strategy", length = 32)
   private SimulationFundingStrategy fundingStrategy;
 
+  @Column(name = "funding_order", length = 64)
+  private String fundingOrder;
+
+  @Column(name = "expense_profile", length = 512)
+  private String expenseProfile;
+
   @Column(name = "safe_reserve_years", precision = 20, scale = 12)
   private BigDecimal safeReserveYears;
 

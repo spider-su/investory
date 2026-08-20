@@ -113,6 +113,7 @@ public class LongTermAssetBootstrapService {
             "Asset key " + asset.externalKey() + " requires type, name and currency");
       requireNonNegative(asset.currentValue(), "current value for " + asset.externalKey());
       requireNonNegative(asset.acquisitionValue(), "acquisition value for " + asset.externalKey());
+      requireNonNegative(asset.taxBase(), "tax base for " + asset.externalKey());
       if (asset.effectiveFrom() == null)
         throw new IllegalArgumentException(
             "Effective-from date is required for " + asset.externalKey());
@@ -128,6 +129,17 @@ public class LongTermAssetBootstrapService {
           "cash flows for " + asset.externalKey(),
           f -> f.type().name(),
           f -> new DatePeriod(f.validFrom(), f.validTo()));
+      if (asset.type() != LongTermAssetType.REAL_ESTATE && !safe(asset.cashFlows()).isEmpty())
+        throw new IllegalArgumentException(
+            "Cash flows require real estate: " + asset.externalKey());
+      if (asset.type() != LongTermAssetType.REAL_ESTATE
+          && asset.type() != LongTermAssetType.CASH_RESERVE
+          && !safe(asset.valuationPeriods()).isEmpty())
+        throw new IllegalArgumentException(
+            "Valuation periods require real estate: " + asset.externalKey());
+      if (asset.type() != LongTermAssetType.BOND && !safe(asset.bondRatePeriods()).isEmpty())
+        throw new IllegalArgumentException(
+            "Bond-rate periods require a bond: " + asset.externalKey());
       validatePeriods(
           asset.valuationPeriods(), "valuation periods for " + asset.externalKey(), false);
       validatePeriods(
@@ -246,6 +258,8 @@ public class LongTermAssetBootstrapService {
     asset.setAcquisitionDate(input.acquisitionDate());
     asset.setAcquisitionValue(input.acquisitionValue());
     asset.setCurrentValue(input.currentValue());
+    asset.setTaxBase(input.taxBase());
+    asset.setRentalTaxPaidByTenant(Boolean.TRUE.equals(input.rentalTaxPaidByTenant()));
     asset.setNotes(input.notes());
     asset.setActive(true);
     asset = assets.save(asset);
@@ -268,6 +282,10 @@ public class LongTermAssetBootstrapService {
     existing.setFrequency(input.frequency());
     existing.setValidFrom(input.validFrom());
     existing.setValidTo(input.validTo());
+    existing.setPaidByTenant(
+        input.paidByTenant() != null
+            ? input.paidByTenant()
+            : input.type() == CashFlowType.ADMIN_FEE || input.type() == CashFlowType.UTILITIES);
     cashFlows.save(existing);
   }
 
@@ -317,8 +335,11 @@ public class LongTermAssetBootstrapService {
     deposits.save(details);
   }
 
-  private static Totals calculateRealEstateTotals(LongTermAssetBootstrapDocument document) {
-    BigDecimal value = BigDecimal.ZERO, gross = BigDecimal.ZERO, expenses = BigDecimal.ZERO;
+  private Totals calculateRealEstateTotals(LongTermAssetBootstrapDocument document) {
+    BigDecimal value = BigDecimal.ZERO,
+        gross = BigDecimal.ZERO,
+        expenses = BigDecimal.ZERO,
+        tax = BigDecimal.ZERO;
     for (var asset : safe(document.assets()))
       if (asset.type() == LongTermAssetType.REAL_ESTATE) {
         value = value.add(asset.currentValue());
@@ -330,16 +351,32 @@ public class LongTermAssetBootstrapService {
           if (flow.type() == CashFlowType.RENT
               || flow.type() == CashFlowType.PARKING_RENT
               || flow.type() == CashFlowType.OTHER_INCOME) gross = gross.add(annual);
-          else expenses = expenses.add(annual);
+          else if (!tenantPaid(flow)) expenses = expenses.add(annual);
         }
+        BigDecimal taxBase = asset.taxBase() == null ? BigDecimal.ZERO : asset.taxBase();
+        BigDecimal rate = effectiveTaxRate(document, asset.effectiveFrom());
+        BigDecimal assetTax =
+            Boolean.TRUE.equals(asset.rentalTaxPaidByTenant())
+                ? BigDecimal.ZERO
+                : taxBase.multiply(rate);
+        tax = tax.add(assetTax);
       }
-    BigDecimal rate =
-        safe(document.rentalTaxPolicies()).stream()
-            .findFirst()
-            .map(LongTermAssetBootstrapDocument.TaxPolicy::rate)
-            .orElse(BigDecimal.ZERO);
-    BigDecimal tax = gross.multiply(rate);
     return new Totals(value, gross, expenses, tax, gross.subtract(expenses).subtract(tax));
+  }
+
+  private BigDecimal effectiveTaxRate(LongTermAssetBootstrapDocument document, LocalDate date) {
+    return safe(document.rentalTaxPolicies()).stream()
+        .filter(p -> !p.validFrom().isAfter(date))
+        .filter(p -> p.validTo() == null || !p.validTo().isBefore(date))
+        .max(Comparator.comparing(LongTermAssetBootstrapDocument.TaxPolicy::validFrom))
+        .map(LongTermAssetBootstrapDocument.TaxPolicy::rate)
+        .orElse(new BigDecimal("0.085"));
+  }
+
+  private static boolean tenantPaid(LongTermAssetBootstrapDocument.CashFlow flow) {
+    return flow.paidByTenant() != null
+        ? flow.paidByTenant()
+        : flow.type() == CashFlowType.ADMIN_FEE || flow.type() == CashFlowType.UTILITIES;
   }
 
   private record Totals(

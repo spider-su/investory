@@ -19,7 +19,8 @@ public record RealEstateEntry(
     BigDecimal annualInsurance,
     LocalDate effectiveFrom,
     BigDecimal expectedAnnualGrowthRate,
-    String notes) {
+    String notes,
+    boolean rentalTaxPaidByTenant) {
   public RealEstateEntry(
       String name,
       CurrencyType currency,
@@ -50,6 +51,42 @@ public record RealEstateEntry(
         annualInsurance,
         effectiveFrom,
         expectedAnnualGrowthRate,
-        notes);
+        notes,
+        false);
+  }
+
+  public RealEstateEntry(
+      String name,
+      CurrencyType currency,
+      LocalDate acquisitionDate,
+      BigDecimal acquisitionValue,
+      BigDecimal currentValue,
+      BigDecimal taxBase,
+      BigDecimal monthlyRent,
+      BigDecimal monthlyParkingIncome,
+      BigDecimal monthlyAdministrationCost,
+      BigDecimal monthlyOtherCost,
+      BigDecimal annualPropertyTax,
+      BigDecimal annualInsurance,
+      LocalDate effectiveFrom,
+      BigDecimal expectedAnnualGrowthRate,
+      String notes) {
+    this(
+        name,
+        currency,
+        acquisitionDate,
+        acquisitionValue,
+        currentValue,
+        taxBase,
+        monthlyRent,
+        monthlyParkingIncome,
+        monthlyAdministrationCost,
+        monthlyOtherCost,
+        annualPropertyTax,
+        annualInsurance,
+        effectiveFrom,
+        expectedAnnualGrowthRate,
+        notes,
+        false);
   }
 }

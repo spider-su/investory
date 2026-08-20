@@ -112,11 +112,9 @@ public class CurrentYearProjectionBridge {
     BigDecimal bondMaturityUsed = contractual.bondRedemptionCash().min(remainingFunding);
     BigDecimal bondReinvestment = contractual.bondRedemptionCash().subtract(bondMaturityUsed);
     remainingFunding = remainingFunding.subtract(bondMaturityUsed);
-    remainingFunding = withdraw(market, EconomicBucket.LIQUID_CASH, remainingFunding);
-    remainingFunding = withdraw(market, EconomicBucket.FIXED_INCOME, remainingFunding);
-    if (assumptions.fundingStrategy() == SimulationFundingStrategy.SIMPLE_WATERFALL
-        || assumptions.allowEmergencyEquityWithdrawal())
-      remainingFunding = withdraw(market, EconomicBucket.EQUITY, remainingFunding);
+    FundingAllocator.Result funding = FundingAllocator.fund(market, remainingFunding, assumptions);
+    market = funding.balances();
+    remainingFunding = funding.unfundedAmount();
     market.merge(EconomicBucket.LIQUID_CASH, surplus, BigDecimal::add);
 
     BigDecimal equityBeforeReturns = market.get(EconomicBucket.EQUITY);
@@ -154,13 +152,17 @@ public class CurrentYearProjectionBridge {
       bridgedAssets.add(
           projectedLadderBond(-2_000_000_000L, currentYear, bondReinvestment, assumptions));
     BigDecimal target = expected.safeReserveTarget();
-    if (assumptions.fundingStrategy() == SimulationFundingStrategy.RESERVE_AND_HARVEST)
-      harvestEquity(
-          market,
-          target,
-          bridgedAssets,
-          assumptions,
-          market.get(EconomicBucket.EQUITY).subtract(equityBeforeReturns).max(ZERO));
+    if (assumptions.fundingStrategy() == SimulationFundingStrategy.RESERVE_AND_HARVEST) {
+      BigDecimal harvest =
+          harvestBondDeficit(
+              market,
+              target,
+              bridgedAssets,
+              assumptions,
+              market.get(EconomicBucket.EQUITY).subtract(equityBeforeReturns).max(ZERO));
+      if (harvest.signum() > 0)
+        bridgedAssets.add(projectedLadderBond(-2_000_000_001L, currentYear, harvest, assumptions));
+    }
     InvestmentProfile bridged = rebuild(profile, market, bridgedAssets);
     return result(
         context,
@@ -260,9 +262,11 @@ public class CurrentYearProjectionBridge {
       int year,
       LocalDate today,
       BigDecimal fraction) {
-    if (start.signum() == 0
-        || (asset.maturityDate() != null && !asset.maturityDate().isAfter(today)))
-      return new ContractualProjection(start, ZERO, ZERO);
+    if (start.signum() == 0) return new ContractualProjection(start, ZERO, ZERO);
+    if (asset.maturityDate() != null && !asset.maturityDate().isAfter(today)) {
+      BigDecimal proceeds = asset.redemptionValue() == null ? start : asset.redemptionValue();
+      return new ContractualProjection(ZERO, ZERO, proceeds);
+    }
     BigDecimal net =
         netInterest(start.multiply(contractualRate(asset, assumptions, year)), asset)
             .multiply(fraction);
@@ -310,21 +314,23 @@ public class CurrentYearProjectionBridge {
   private record ContractualSummary(
       BigDecimal payoutIncome, BigDecimal redemptionCash, BigDecimal bondRedemptionCash) {}
 
-  private static void harvestEquity(
+  private static BigDecimal harvestBondDeficit(
       EnumMap<EconomicBucket, BigDecimal> market,
       BigDecimal target,
       List<ProjectedLongTermAsset> assets,
       SimulationAssumptions assumptions,
       BigDecimal equityGain) {
     if (assumptions.equityReturnRate().compareTo(assumptions.equityHarvestMinimumReturnRate()) < 0)
-      return;
+      return ZERO;
     BigDecimal reserve =
         market
             .getOrDefault(EconomicBucket.LIQUID_CASH, ZERO)
-            .add(market.getOrDefault(EconomicBucket.FIXED_INCOME, ZERO))
             .add(
                 assets.stream()
-                    .filter(asset -> asset.type() == LongTermAssetType.CASH_RESERVE)
+                    .filter(
+                        asset ->
+                            asset.type() == LongTermAssetType.CASH_RESERVE
+                                || asset.type() == LongTermAssetType.BOND)
                     .map(ProjectedLongTermAsset::currentValue)
                     .reduce(ZERO, BigDecimal::add));
     BigDecimal transfer =
@@ -334,7 +340,7 @@ public class CurrentYearProjectionBridge {
             .min(equityGain.multiply(assumptions.equityGainHarvestRate()))
             .min(market.getOrDefault(EconomicBucket.EQUITY, ZERO));
     market.merge(EconomicBucket.EQUITY, transfer.negate(), BigDecimal::add);
-    market.merge(EconomicBucket.FIXED_INCOME, transfer, BigDecimal::add);
+    return transfer;
   }
 
   private static InvestmentProfile rebuild(
@@ -418,13 +424,6 @@ public class CurrentYearProjectionBridge {
     return left;
   }
 
-  private static BigDecimal withdraw(
-      Map<EconomicBucket, BigDecimal> values, EconomicBucket bucket, BigDecimal need) {
-    BigDecimal used = values.getOrDefault(bucket, ZERO).min(need);
-    values.merge(bucket, used.negate(), BigDecimal::add);
-    return need.subtract(used);
-  }
-
   private static BigDecimal rateFor(EconomicBucket bucket, SimulationAssumptions a) {
     return switch (bucket) {
       case LIQUID_CASH -> a.cashReturnRate();
@@ -473,7 +472,8 @@ public class CurrentYearProjectionBridge {
         asset.redemptionValue(),
         asset.interestTreatment(),
         asset.taxRate(),
-        asset.taxBase());
+        asset.taxBase(),
+        asset.rentalTaxPaidByTenant());
   }
 
   private static ProjectedLongTermAsset projectedLadderBond(
@@ -531,7 +531,9 @@ public class CurrentYearProjectionBridge {
         a.allowEmergencyEquityWithdrawal(),
         a.retirementAge(),
         a.annualEmploymentIncome(),
-        a.annualPreRetirementContribution());
+        a.annualPreRetirementContribution(),
+        a.fundingOrder(),
+        a.expenseProfile().rebasedAt(offset));
   }
 
   private static BigDecimal grow(BigDecimal value, BigDecimal rate, int years) {

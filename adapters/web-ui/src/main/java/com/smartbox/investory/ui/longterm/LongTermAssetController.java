@@ -204,7 +204,7 @@ public class LongTermAssetController {
       @RequestParam(required = false) BigDecimal taxBase) {
     assets.update(form.command(portfolioId, id, taxBase));
     if (form.getType() == LongTermAssetType.REAL_ESTATE && effectiveFrom != null)
-      assets.savePropertyGrowth(portfolioId, id, null, effectiveFrom);
+      assets.saveRentalPeriod(portfolioId, id, effectiveFrom, endDate, LocalDate.now(clock));
     return redirect(id, portfolioId);
   }
 
@@ -235,10 +235,11 @@ public class LongTermAssetController {
       @RequestParam BigDecimal amount,
       @RequestParam Frequency frequency,
       @RequestParam(required = false) LocalDate validFrom,
-      @RequestParam(required = false) LocalDate validTo) {
+      @RequestParam(required = false) LocalDate validTo,
+      @RequestParam(required = false) Boolean paidByTenant) {
     assets.addCashFlow(
         new LongTermAssetsFacade.CashFlowCommand(
-            portfolioId, id, null, type, amount, frequency, validFrom, validTo),
+            portfolioId, id, null, type, amount, frequency, validFrom, validTo, paidByTenant),
         LocalDate.now(clock));
     return redirect(id, portfolioId);
   }
@@ -251,10 +252,39 @@ public class LongTermAssetController {
       @RequestParam BigDecimal amount,
       @RequestParam Frequency frequency,
       @RequestParam(required = false) LocalDate effectiveFrom,
-      @RequestParam(required = false) LocalDate validTo) {
+      @RequestParam(required = false) LocalDate validTo,
+      @RequestParam(required = false) Boolean paidByTenant) {
     assets.changeCashFlow(
         new LongTermAssetsFacade.CashFlowCommand(
-            portfolioId, id, flowId, null, amount, frequency, effectiveFrom, validTo));
+            portfolioId,
+            id,
+            flowId,
+            null,
+            amount,
+            frequency,
+            effectiveFrom,
+            validTo,
+            paidByTenant));
+    return redirect(id, portfolioId);
+  }
+
+  public String addCashFlow(
+      Long id,
+      Long portfolioId,
+      CashFlowType type,
+      BigDecimal amount,
+      Frequency frequency,
+      LocalDate validFrom,
+      LocalDate validTo) {
+    return addCashFlow(id, portfolioId, type, amount, frequency, validFrom, validTo, null);
+  }
+
+  @PostMapping("/long-term-assets/{id}/rental-tax-ownership")
+  public String saveRentalTaxOwnership(
+      @PathVariable Long id,
+      @RequestParam Long portfolioId,
+      @RequestParam(defaultValue = "false") boolean paidByTenant) {
+    assets.saveRentalTaxOwnership(portfolioId, id, paidByTenant);
     return redirect(id, portfolioId);
   }
 

@@ -9,7 +9,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
-import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlan;
 import com.smartbox.investory.retirement.planning.*;
 import com.smartbox.investory.retirement.profile.InvestmentProfile;
 import com.smartbox.investory.retirement.profile.InvestmentProfileFacade;
@@ -185,12 +184,8 @@ class RetirementSimulationControllerTest {
             .withRetirementAge(60)
             .withAnnualEmploymentIncome(new BigDecimal("240000"))
             .withAnnualPreRetirementContribution(new BigDecimal("50000"));
-    var plan =
-        mock(com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlan.class);
-    when(plan.getName()).thenReturn("Retirement plan");
     when(profiles.loadProfile(1L)).thenReturn(p);
-    when(plans.get(1L, 7L)).thenReturn(plan);
-    when(plans.assumptions(plan)).thenReturn(saved);
+    when(plans.assumptions(1L, 7L)).thenReturn(saved);
     when(simulations.compareScenarios(eq(p), any())).thenReturn(Map.of());
 
     mockMvc
@@ -255,7 +250,7 @@ class RetirementSimulationControllerTest {
         BigDecimal.ZERO,
         new BigDecimal("19"),
         CurrencyType.USD);
-    verify(plans).create(eq(1L), eq("Plan"), captured.capture());
+    verify(plans).createId(eq(1L), eq("Plan"), captured.capture());
     assertEquals(new BigDecimal("0.01"), captured.getValue().realEstateReturnRate());
     assertEquals(new BigDecimal("0.02"), captured.getValue().rentalIncomeGrowthRate());
     assertEquals(new BigDecimal("0.025"), captured.getValue().spendingGrowthRate());
@@ -295,7 +290,7 @@ class RetirementSimulationControllerTest {
         new BigDecimal("19"),
         CurrencyType.PLN);
 
-    verify(plans).create(eq(1L), eq("Plan"), captured.capture());
+    verify(plans).createId(eq(1L), eq("Plan"), captured.capture());
     assertEquals(Integer.MAX_VALUE, captured.getValue().pensionStartAge());
     assertEquals(BigDecimal.ZERO, captured.getValue().annualPension());
   }
@@ -328,7 +323,7 @@ class RetirementSimulationControllerTest {
         BigDecimal.ZERO,
         new BigDecimal("19"),
         CurrencyType.USD);
-    verify(plans).update(eq(1L), eq(9L), eq("Plan"), captured.capture());
+    verify(plans).updateId(eq(1L), eq(9L), eq("Plan"), captured.capture());
     assertEquals(new BigDecimal("0.01"), captured.getValue().realEstateReturnRate());
     assertEquals(new BigDecimal("0.02"), captured.getValue().rentalIncomeGrowthRate());
     assertEquals(new BigDecimal("0.025"), captured.getValue().spendingGrowthRate());
@@ -337,14 +332,11 @@ class RetirementSimulationControllerTest {
 
   @Test
   void editingExistingPlanPreservesItsTemporalAnchorAcrossCalendarYears() throws Exception {
-    SimulationPlan storedPlan = new SimulationPlan();
-    storedPlan.setId(9L);
     SimulationAssumptions stored =
         SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80, 2025)
             .withRetirementAge(45);
-    when(plans.get(1L, 9L)).thenReturn(storedPlan);
-    when(plans.assumptions(storedPlan)).thenReturn(stored);
-    when(plans.update(eq(1L), eq(9L), eq("Plan"), any())).thenReturn(storedPlan);
+    when(plans.assumptions(1L, 9L)).thenReturn(stored);
+    when(plans.updateId(eq(1L), eq(9L), eq("Plan"), any())).thenReturn(9L);
 
     var captured = org.mockito.ArgumentCaptor.forClass(SimulationAssumptions.class);
     mockMvc
@@ -380,7 +372,7 @@ class RetirementSimulationControllerTest {
                 .param("selectedScenario", "BASE"))
         .andExpect(status().is3xxRedirection());
 
-    verify(plans).update(eq(1L), eq(9L), eq("Plan"), captured.capture());
+    verify(plans).updateId(eq(1L), eq(9L), eq("Plan"), captured.capture());
     SimulationAssumptions saved = captured.getValue();
     assertEquals(2025, saved.startYear());
     assertEquals(40, saved.currentAge());
@@ -400,16 +392,11 @@ class RetirementSimulationControllerTest {
 
   @Test
   void canonicalSaveAsPreservesSourceTemporalAnchor() {
-    SimulationPlan sourcePlan = new SimulationPlan();
-    sourcePlan.setId(9L);
     SimulationAssumptions source =
         SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80, 2025)
             .withRetirementAge(45);
-    SimulationPlan copy = new SimulationPlan();
-    copy.setId(10L);
-    when(plans.get(1L, 9L)).thenReturn(sourcePlan);
-    when(plans.assumptions(sourcePlan)).thenReturn(source);
-    when(plans.create(eq(1L), eq("Copy"), any())).thenReturn(copy);
+    when(plans.assumptions(1L, 9L)).thenReturn(source);
+    when(plans.createId(eq(1L), eq("Copy"), any())).thenReturn(10L);
 
     controller.savePlan(
         1L,
@@ -445,7 +432,7 @@ class RetirementSimulationControllerTest {
         SimulationScenario.BASE);
 
     var captured = org.mockito.ArgumentCaptor.forClass(SimulationAssumptions.class);
-    verify(plans).create(eq(1L), eq("Copy"), captured.capture());
+    verify(plans).createId(eq(1L), eq("Copy"), captured.capture());
     assertEquals(2025, captured.getValue().startYear());
     assertEquals(40, captured.getValue().currentAge());
     assertEquals(45, captured.getValue().retirementAge());
@@ -508,7 +495,7 @@ class RetirementSimulationControllerTest {
         BigDecimal.ZERO,
         new BigDecimal("19"),
         CurrencyType.PLN);
-    verify(plans).create(eq(1L), eq("Plan"), captured.capture());
+    verify(plans).createId(eq(1L), eq("Plan"), captured.capture());
     assertEquals(0, new BigDecimal("11250").compareTo(captured.getValue().annualLivingExpenses()));
   }
 

@@ -77,13 +77,15 @@ public class InvestmentProfileFacade {
                                         period.annualIncome(),
                                         period.annualExpense(),
                                         period.annualReturnRate(),
-                                        period.cashFlowType()))
+                                        period.cashFlowType(),
+                                        period.paidByTenant()))
                             .toList(),
                         input.maturityDate(),
                         input.redemptionValue() == null ? null : input.redemptionValue(),
                         input.interestTreatment(),
                         input.taxRate(),
-                        input.taxBase() == null ? null : input.taxBase()))
+                        input.taxBase() == null ? null : input.taxBase(),
+                        input.rentalTaxPaidByTenant()))
             .toList();
     BigDecimal lockedContractual =
         manualAssets.stream()

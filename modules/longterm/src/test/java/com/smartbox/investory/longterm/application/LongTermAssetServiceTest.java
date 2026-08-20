@@ -68,10 +68,10 @@ class LongTermAssetServiceTest {
                 flow(CashFlowType.PROPERTY_TAX, "320", Frequency.ANNUAL)));
     var s = service.summary(a, DATE);
     assertEquals(new BigDecimal("34800"), s.annualEconomics().grossAnnualIncome());
-    assertEquals(new BigDecimal("8564"), s.annualEconomics().annualExpenses());
-    assertEquals(new BigDecimal("26236"), s.annualEconomics().netAnnualIncomeBeforeTax());
+    assertEquals(new BigDecimal("320"), s.annualEconomics().annualExpenses());
+    assertEquals(new BigDecimal("34480"), s.annualEconomics().netAnnualIncomeBeforeTax());
     assertEquals(new BigDecimal("2958.000"), s.annualEconomics().annualTax());
-    assertEquals(new BigDecimal("23278.000"), s.annualEconomics().netAnnualIncomeAfterTax());
+    assertEquals(new BigDecimal("31522.000"), s.annualEconomics().netAnnualIncomeAfterTax());
   }
 
   @Test
@@ -138,10 +138,10 @@ class LongTermAssetServiceTest {
         List.of("34800", "33600", "31200", "36000", "36600"),
         summaries.stream().map(s -> s.grossAnnualIncome().toPlainString()).toList());
     assertEquals(
-        List.of("8764", "8370", "5090", "5390", "6440"),
+        List.of("520", "570", "530", "590", "560"),
         summaries.stream().map(s -> s.annualExpenses().toPlainString()).toList());
     assertEquals(
-        List.of("23078.000", "22374.000", "23458.000", "27550.000", "27049.000"),
+        List.of("31322.000", "30174.000", "28018.000", "32350.000", "32929.000"),
         summaries.stream().map(s -> s.netAnnualIncomeAfterTax().toPlainString()).toList());
     assertEquals(
         new BigDecimal("3650000"),
@@ -154,7 +154,7 @@ class LongTermAssetServiceTest {
             .map(LongTermAssetSummary::grossAnnualIncome)
             .reduce(BigDecimal.ZERO, BigDecimal::add));
     assertEquals(
-        new BigDecimal("34054"),
+        new BigDecimal("2770"),
         summaries.stream()
             .map(LongTermAssetSummary::annualExpenses)
             .reduce(BigDecimal.ZERO, BigDecimal::add));
@@ -164,7 +164,7 @@ class LongTermAssetServiceTest {
             .map(LongTermAssetSummary::estimatedAnnualTax)
             .reduce(BigDecimal.ZERO, BigDecimal::add));
     assertEquals(
-        new BigDecimal("123509.000"),
+        new BigDecimal("154793.000"),
         summaries.stream()
             .map(LongTermAssetSummary::netAnnualIncomeAfterTax)
             .reduce(BigDecimal.ZERO, BigDecimal::add));
@@ -172,8 +172,8 @@ class LongTermAssetServiceTest {
         new BigDecimal("0.04717808"),
         LongTermAssetCalculator.ratio(new BigDecimal("172200"), new BigDecimal("3650000")));
     assertEquals(
-        new BigDecimal("0.03383808"),
-        LongTermAssetCalculator.ratio(new BigDecimal("123509"), new BigDecimal("3650000")));
+        new BigDecimal("0.04240904"),
+        LongTermAssetCalculator.ratio(new BigDecimal("154793"), new BigDecimal("3650000")));
   }
 
   @Test

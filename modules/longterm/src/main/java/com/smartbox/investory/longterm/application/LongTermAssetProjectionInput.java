@@ -20,7 +20,8 @@ public record LongTermAssetProjectionInput(
     BigDecimal redemptionValue,
     InterestTreatment interestTreatment,
     BigDecimal taxRate,
-    BigDecimal taxBase) {
+    BigDecimal taxBase,
+    boolean rentalTaxPaidByTenant) {
   public LongTermAssetProjectionInput(
       Long id,
       String name,
@@ -43,7 +44,8 @@ public record LongTermAssetProjectionInput(
         redemptionValue,
         interestTreatment,
         taxRate,
-        null);
+        null,
+        false);
   }
 
   public LongTermAssetProjectionInput {
@@ -56,14 +58,52 @@ public record LongTermAssetProjectionInput(
       BigDecimal annualIncome,
       BigDecimal annualExpense,
       BigDecimal annualReturnRate,
-      CashFlowType cashFlowType) {
+      CashFlowType cashFlowType,
+      boolean paidByTenant) {
     public Period(
         LocalDate validFrom,
         LocalDate validTo,
         BigDecimal annualIncome,
         BigDecimal annualExpense,
         BigDecimal annualReturnRate) {
-      this(validFrom, validTo, annualIncome, annualExpense, annualReturnRate, null);
+      this(validFrom, validTo, annualIncome, annualExpense, annualReturnRate, null, false);
     }
+
+    public Period(
+        LocalDate validFrom,
+        LocalDate validTo,
+        BigDecimal annualIncome,
+        BigDecimal annualExpense,
+        BigDecimal annualReturnRate,
+        CashFlowType cashFlowType) {
+      this(validFrom, validTo, annualIncome, annualExpense, annualReturnRate, cashFlowType, false);
+    }
+  }
+
+  public LongTermAssetProjectionInput(
+      Long id,
+      String name,
+      LongTermAssetType type,
+      CurrencyType currency,
+      BigDecimal currentValue,
+      List<Period> periods,
+      LocalDate maturityDate,
+      BigDecimal redemptionValue,
+      InterestTreatment interestTreatment,
+      BigDecimal taxRate,
+      BigDecimal taxBase) {
+    this(
+        id,
+        name,
+        type,
+        currency,
+        currentValue,
+        periods,
+        maturityDate,
+        redemptionValue,
+        interestTreatment,
+        taxRate,
+        taxBase,
+        false);
   }
 }

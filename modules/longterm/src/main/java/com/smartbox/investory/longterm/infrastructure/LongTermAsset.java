@@ -50,6 +50,12 @@ public class LongTermAsset {
   @Column(nullable = false)
   private boolean active = true;
 
+  @Column(name = "archived_at")
+  private LocalDate archivedAt;
+
+  @Column(name = "rental_tax_paid_by_tenant", nullable = false)
+  private boolean rentalTaxPaidByTenant;
+
   @Column(columnDefinition = "text")
   private String notes;
 

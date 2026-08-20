@@ -30,6 +30,11 @@
     <div class="card-footer"><button class="btn btn-primary">Save changes</button></div>
   </form>
 
+  <form class="card mb-4" method="post" th:action="@{/long-term-assets/{id}/rental-tax-ownership(id=${asset.id})}">
+    <div class="card-body"><input type="hidden" name="portfolioId" th:value="${portfolioId}"><label class="form-check"><input class="form-check-input" type="checkbox" name="paidByTenant" value="true" th:checked="${asset.rentalTaxPaidByTenant}"><span class="form-check-label">Rental tax paid by tenant</span></label><div class="form-hint">The effective rental-tax policy is applied to the configured tax base.</div></div>
+    <div class="card-footer"><button class="btn btn-outline-primary">Save tax ownership</button></div>
+  </form>
+
   <div class="row row-cards mb-4">
     <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-secondary">Total payment</div><strong th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(summary.realEstatePlanning.totalPaymentMonthly, asset.currency)}">0.00 PLN</strong><small class="d-block text-secondary">Monthly rent + parking + administration.</small></div></div></div>
     <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-secondary">Monthly income</div><strong th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(summary.realEstatePlanning.netMonthlyIncome, asset.currency)}">0.00 PLN</strong><small class="d-block text-secondary">Income after monthly reduce.</small></div></div></div>
@@ -41,17 +46,18 @@
     <div class="card-header"><h2 class="card-title">Rental economics</h2></div>
     <div class="table-responsive">
       <table class="table card-table table-vcenter">
-        <thead><tr><th>Type</th><th>Amount</th><th>Frequency</th><th>End date</th><th>Effective from</th><th></th></tr></thead>
+        <thead><tr><th>Type</th><th>Amount</th><th>Frequency</th><th>Paid by tenant</th><th>End date</th><th>Effective from</th><th></th></tr></thead>
         <tbody>
         <tr th:each="flow : ${currentCashFlows}">
           <td><form th:id="|cash-flow-${flow.id}|" method="post" th:action="@{/long-term-assets/{id}/cash-flows/{flowId}(id=${asset.id},flowId=${flow.id})}"><input type="hidden" name="portfolioId" th:value="${portfolioId}"></form><span th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).cashFlowType(flow.type)}">Rent</span></td>
           <td><input class="form-control" name="amount" type="number" min="0" step="0.01" th:attr="form=|cash-flow-${flow.id}|" th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).moneyInput(flow.amount)}" required></td>
           <td><select class="form-select" name="frequency" th:attr="form=|cash-flow-${flow.id}|"><option th:each="frequency : ${T(com.smartbox.investory.longterm.api.Frequency).values()}" th:value="${frequency}" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).frequency(frequency)}" th:selected="${frequency == flow.frequency}"></option></select></td>
+          <td><input th:if="${flow.type.name() == 'ADMIN_FEE' or flow.type.name() == 'UTILITIES' or flow.type.name() == 'PROPERTY_TAX' or flow.type.name() == 'INSURANCE' or flow.type.name() == 'OTHER_EXPENSE'}" type="checkbox" name="paidByTenant" th:checked="${flow.paidByTenant}" th:attr="form=|cash-flow-${flow.id}|"></td>
           <td><input class="form-control" name="validTo" type="date" th:attr="form=|cash-flow-${flow.id}|" th:value="${flow.validTo}"></td>
           <td><input class="form-control" name="effectiveFrom" type="date" th:attr="form=|cash-flow-${flow.id}|" th:value="${flow.validFrom}" required></td>
           <td><button class="btn btn-sm btn-outline-primary" type="submit" th:attr="form=|cash-flow-${flow.id}|">Edit</button></td>
         </tr>
-        <tr th:if="${#lists.isEmpty(currentCashFlows)}"><td colspan="6" class="text-secondary">No recurring rental components configured.</td></tr>
+        <tr th:if="${#lists.isEmpty(currentCashFlows)}"><td colspan="7" class="text-secondary">No recurring rental components configured.</td></tr>
         </tbody>
       </table>
     </div>
@@ -64,6 +70,7 @@
         <div class="col-md-2"><label class="form-label">Frequency</label><select class="form-select" name="frequency"><option th:each="frequency : ${T(com.smartbox.investory.longterm.api.Frequency).values()}" th:value="${frequency}" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).frequency(frequency)}"></option></select></div>
         <div class="col-md-2"><label class="form-label">End date</label><input class="form-control" name="validTo" type="date" th:value="${rentalPeriod.endDate}"></div>
         <div class="col-md-2"><label class="form-label">Effective from</label><input class="form-control" name="validFrom" type="date" th:value="${rentalPeriod.effectiveFrom}"></div>
+        <div class="col-md-2"><label class="form-label">Paid by tenant</label><input class="form-check-input" name="paidByTenant" type="checkbox"></div>
         <div class="col-md-1"><button class="btn btn-primary">Add</button></div>
       </div>
     </form>

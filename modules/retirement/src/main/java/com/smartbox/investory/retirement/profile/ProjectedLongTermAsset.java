@@ -21,7 +21,8 @@ public record ProjectedLongTermAsset(
     BigDecimal redemptionValue,
     InterestTreatment interestTreatment,
     BigDecimal taxRate,
-    BigDecimal taxBase) {
+    BigDecimal taxBase,
+    boolean rentalTaxPaidByTenant) {
   public ProjectedLongTermAsset(
       Long id,
       String name,
@@ -48,7 +49,8 @@ public record ProjectedLongTermAsset(
         redemptionValue,
         interestTreatment,
         taxRate,
-        null);
+        null,
+        false);
   }
 
   public ProjectedLongTermAsset {
@@ -61,14 +63,56 @@ public record ProjectedLongTermAsset(
       BigDecimal annualIncome,
       BigDecimal annualExpense,
       BigDecimal annualReturnRate,
-      CashFlowType cashFlowType) {
+      CashFlowType cashFlowType,
+      boolean paidByTenant) {
     public Period(
         LocalDate validFrom,
         LocalDate validTo,
         BigDecimal annualIncome,
         BigDecimal annualExpense,
         BigDecimal annualReturnRate) {
-      this(validFrom, validTo, annualIncome, annualExpense, annualReturnRate, null);
+      this(validFrom, validTo, annualIncome, annualExpense, annualReturnRate, null, false);
     }
+
+    public Period(
+        LocalDate validFrom,
+        LocalDate validTo,
+        BigDecimal annualIncome,
+        BigDecimal annualExpense,
+        BigDecimal annualReturnRate,
+        CashFlowType cashFlowType) {
+      this(validFrom, validTo, annualIncome, annualExpense, annualReturnRate, cashFlowType, false);
+    }
+  }
+
+  public ProjectedLongTermAsset(
+      Long id,
+      String name,
+      LongTermAssetType type,
+      EconomicBucket bucket,
+      CurrencyType currency,
+      BigDecimal currentValue,
+      Liquidity liquidity,
+      List<Period> periods,
+      LocalDate maturityDate,
+      BigDecimal redemptionValue,
+      InterestTreatment interestTreatment,
+      BigDecimal taxRate,
+      BigDecimal taxBase) {
+    this(
+        id,
+        name,
+        type,
+        bucket,
+        currency,
+        currentValue,
+        liquidity,
+        periods,
+        maturityDate,
+        redemptionValue,
+        interestTreatment,
+        taxRate,
+        taxBase,
+        false);
   }
 }
