@@ -1,10 +1,10 @@
 package com.smartbox.investory.testsupport.portfolio;
 
-import com.smartbox.investory.infrastructure.BrokerType;
-import com.smartbox.investory.infrastructure.CashOperationType;
-import com.smartbox.investory.infrastructure.ImportBatchStatus;
-import com.smartbox.investory.infrastructure.ImportSourceType;
-import com.smartbox.investory.infrastructure.PositionType;
+import com.smartbox.investory.investment.accounting.CashOperationType;
+import com.smartbox.investory.investment.accounting.model.PositionType;
+import com.smartbox.investory.investment.imports.BrokerType;
+import com.smartbox.investory.investment.imports.ImportBatchStatus;
+import com.smartbox.investory.investment.imports.ImportSourceType;
 import com.smartbox.investory.investment.infrastructure.persistence.Asset;
 import com.smartbox.investory.investment.infrastructure.persistence.CashOperation;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPosition;

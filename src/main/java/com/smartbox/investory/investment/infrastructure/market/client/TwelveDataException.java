@@ -1,4 +1,4 @@
-package com.smartbox.investory.investment.infrastructure.market.client.market;
+package com.smartbox.investory.investment.infrastructure.market.client;
 
 /**
  * Signals an unrecoverable failure when calling the TwelveData REST API. Used internally by {@link

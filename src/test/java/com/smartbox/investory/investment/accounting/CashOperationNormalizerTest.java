@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.smartbox.investory.infrastructure.CashOperationType;
 import com.smartbox.investory.investment.accounting.CashOperationNormalizer.NormalizedCashOperation;
 import com.smartbox.investory.investment.accounting.CashOperationNormalizer.NormalizedCategory;
 import com.smartbox.investory.investment.infrastructure.persistence.CashOperation;

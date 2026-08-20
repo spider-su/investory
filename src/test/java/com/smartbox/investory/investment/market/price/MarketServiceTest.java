@@ -9,10 +9,10 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.accounting.model.models.StockQuote;
-import com.smartbox.investory.investment.infrastructure.market.client.market.TwelveDataService;
-import com.smartbox.investory.investment.infrastructure.market.client.market.YahooFinanceService;
-import com.smartbox.investory.investment.infrastructure.market.client.market.YahooFinanceService.YahooQuote;
+import com.smartbox.investory.investment.accounting.model.StockQuote;
+import com.smartbox.investory.investment.infrastructure.market.client.TwelveDataService;
+import com.smartbox.investory.investment.infrastructure.market.client.YahooFinanceService;
+import com.smartbox.investory.investment.infrastructure.market.client.YahooFinanceService.YahooQuote;
 import com.smartbox.investory.investment.infrastructure.persistence.*;
 import com.smartbox.investory.investment.infrastructure.persistence.account.Account;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;

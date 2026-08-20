@@ -1,10 +1,10 @@
 package com.smartbox.investory.investment.web;
 
-import com.smartbox.investory.infrastructure.BrokerType;
-import com.smartbox.investory.infrastructure.ImportSourceType;
+import com.smartbox.investory.investment.imports.BrokerType;
 import com.smartbox.investory.investment.imports.ImportBatchResponse;
 import com.smartbox.investory.investment.imports.ImportFailedException;
 import com.smartbox.investory.investment.imports.ImportOrchestratorService;
+import com.smartbox.investory.investment.imports.ImportSourceType;
 import java.io.IOException;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;

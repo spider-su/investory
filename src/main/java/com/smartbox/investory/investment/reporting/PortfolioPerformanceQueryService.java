@@ -1,9 +1,9 @@
 package com.smartbox.investory.investment.reporting;
 
-import com.smartbox.investory.investment.accounting.model.models.DailyPerformanceDetail;
-import com.smartbox.investory.investment.accounting.model.models.InstrumentPerformance;
-import com.smartbox.investory.investment.accounting.model.models.MonthlyAttribution;
-import com.smartbox.investory.investment.accounting.model.models.Performance;
+import com.smartbox.investory.investment.accounting.model.DailyPerformanceDetail;
+import com.smartbox.investory.investment.accounting.model.InstrumentPerformance;
+import com.smartbox.investory.investment.accounting.model.MonthlyAttribution;
+import com.smartbox.investory.investment.accounting.model.Performance;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPosition;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPositionRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.Account;

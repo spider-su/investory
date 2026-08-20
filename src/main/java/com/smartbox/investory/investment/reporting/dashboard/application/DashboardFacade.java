@@ -1,14 +1,14 @@
 package com.smartbox.investory.investment.reporting.dashboard.application;
 
 import com.smartbox.investory.investment.accounting.PortfolioService;
-import com.smartbox.investory.investment.accounting.model.models.AccountBalance;
-import com.smartbox.investory.investment.accounting.model.models.Benchmark;
-import com.smartbox.investory.investment.accounting.model.models.InstrumentPerformance;
-import com.smartbox.investory.investment.accounting.model.models.MonthlyAttribution;
-import com.smartbox.investory.investment.accounting.model.models.Performance;
-import com.smartbox.investory.investment.accounting.model.models.Portfolio;
-import com.smartbox.investory.investment.accounting.model.models.PortfolioDataQuality;
-import com.smartbox.investory.investment.accounting.model.models.RiskExposureSummary;
+import com.smartbox.investory.investment.accounting.model.AccountBalance;
+import com.smartbox.investory.investment.accounting.model.Benchmark;
+import com.smartbox.investory.investment.accounting.model.InstrumentPerformance;
+import com.smartbox.investory.investment.accounting.model.MonthlyAttribution;
+import com.smartbox.investory.investment.accounting.model.Performance;
+import com.smartbox.investory.investment.accounting.model.Portfolio;
+import com.smartbox.investory.investment.accounting.model.PortfolioDataQuality;
+import com.smartbox.investory.investment.accounting.model.RiskExposureSummary;
 import com.smartbox.investory.investment.reporting.BenchmarkService;
 import com.smartbox.investory.investment.reporting.PerformanceResult;
 import com.smartbox.investory.investment.reporting.PortfolioPerformanceQuery;

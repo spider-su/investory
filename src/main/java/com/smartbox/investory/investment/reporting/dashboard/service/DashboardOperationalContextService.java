@@ -1,9 +1,9 @@
 package com.smartbox.investory.investment.reporting.dashboard.service;
 
-import com.smartbox.investory.infrastructure.ImportBatchStatus;
 import com.smartbox.investory.integration.export.yahoo.YahooExportService;
-import com.smartbox.investory.investment.accounting.model.models.Portfolio;
-import com.smartbox.investory.investment.accounting.model.models.PortfolioDataQuality;
+import com.smartbox.investory.investment.accounting.model.Portfolio;
+import com.smartbox.investory.investment.accounting.model.PortfolioDataQuality;
+import com.smartbox.investory.investment.imports.ImportBatchStatus;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatistics;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistory;

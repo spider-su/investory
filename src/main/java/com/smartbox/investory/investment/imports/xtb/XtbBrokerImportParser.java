@@ -1,7 +1,7 @@
 package com.smartbox.investory.investment.imports.xtb;
 
-import com.smartbox.investory.infrastructure.BrokerType;
 import com.smartbox.investory.investment.imports.BrokerImportParser;
+import com.smartbox.investory.investment.imports.BrokerType;
 import com.smartbox.investory.investment.imports.ImportExecutionResult;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

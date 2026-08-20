@@ -11,7 +11,7 @@ import com.smartbox.investory.investment.accounting.PortfolioProjectionService;
 import com.smartbox.investory.investment.imports.ImportExecutionResult;
 import com.smartbox.investory.investment.imports.ibrk.IbkrImportService;
 import com.smartbox.investory.investment.imports.xtb.XtbImportV2Service;
-import com.smartbox.investory.investment.market.fx.currency.CurrencyRateService;
+import com.smartbox.investory.investment.market.fx.CurrencyRateService;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;

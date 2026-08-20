@@ -6,7 +6,7 @@ import com.smartbox.investory.integration.config.IntegrationConfigurationService
 import com.smartbox.investory.integration.market.MarketDataPlugin;
 import com.smartbox.investory.integration.market.TwelveDataMarketDataPlugin;
 import com.smartbox.investory.investment.accounting.InvestmentCalculationCache;
-import com.smartbox.investory.investment.infrastructure.market.client.market.TwelveDataService;
+import com.smartbox.investory.investment.infrastructure.market.client.TwelveDataService;
 import com.smartbox.investory.investment.infrastructure.persistence.Asset;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;

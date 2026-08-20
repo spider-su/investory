@@ -7,13 +7,12 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.infrastructure.CashOperationType;
-import com.smartbox.investory.investment.accounting.model.models.AccountBalance;
-import com.smartbox.investory.investment.accounting.model.models.DividendGainer;
-import com.smartbox.investory.investment.accounting.model.models.InstrumentPerformance;
-import com.smartbox.investory.investment.accounting.model.models.Performance;
-import com.smartbox.investory.investment.accounting.model.models.Portfolio;
-import com.smartbox.investory.investment.accounting.model.models.PortfolioDataQualityIssue;
+import com.smartbox.investory.investment.accounting.model.AccountBalance;
+import com.smartbox.investory.investment.accounting.model.DividendGainer;
+import com.smartbox.investory.investment.accounting.model.InstrumentPerformance;
+import com.smartbox.investory.investment.accounting.model.Performance;
+import com.smartbox.investory.investment.accounting.model.Portfolio;
+import com.smartbox.investory.investment.accounting.model.PortfolioDataQualityIssue;
 import com.smartbox.investory.investment.infrastructure.persistence.*;
 import com.smartbox.investory.investment.infrastructure.persistence.account.Account;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository;
@@ -33,7 +32,7 @@ import com.smartbox.investory.investment.infrastructure.persistence.portfolio.Po
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformance;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceRepository;
-import com.smartbox.investory.investment.market.fx.currency.CurrencyRateService;
+import com.smartbox.investory.investment.market.fx.CurrencyRateService;
 import com.smartbox.investory.investment.reporting.PortfolioPerformanceQueryService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.portfolio.PortfolioBuilders;

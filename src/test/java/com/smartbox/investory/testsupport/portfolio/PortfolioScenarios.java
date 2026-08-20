@@ -44,7 +44,7 @@ import static com.smartbox.investory.testsupport.portfolio.PortfolioTestData.SPY
 import static com.smartbox.investory.testsupport.portfolio.PortfolioTestData.TSLA;
 import static com.smartbox.investory.testsupport.portfolio.PortfolioTestData.XTB_EUR;
 
-import com.smartbox.investory.infrastructure.BrokerType;
+import com.smartbox.investory.investment.imports.BrokerType;
 import com.smartbox.investory.investment.infrastructure.persistence.Asset;
 import com.smartbox.investory.investment.infrastructure.persistence.CashOperation;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPosition;

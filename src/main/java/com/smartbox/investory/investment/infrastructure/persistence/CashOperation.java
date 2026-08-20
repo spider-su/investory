@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.infrastructure.persistence;
 
-import com.smartbox.investory.infrastructure.CashOperationType;
+import com.smartbox.investory.investment.accounting.CashOperationType;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import jakarta.persistence.*;
 import java.math.BigDecimal;

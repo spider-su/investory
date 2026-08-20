@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.infrastructure.persistence.imports;
 
-import com.smartbox.investory.infrastructure.BrokerType;
+import com.smartbox.investory.investment.imports.BrokerType;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 

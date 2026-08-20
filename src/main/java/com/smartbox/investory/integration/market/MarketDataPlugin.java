@@ -2,7 +2,7 @@ package com.smartbox.investory.integration.market;
 
 import com.smartbox.investory.integration.IntegrationPlugin;
 import com.smartbox.investory.integration.PluginConfig;
-import com.smartbox.investory.investment.accounting.model.models.StockQuote;
+import com.smartbox.investory.investment.accounting.model.StockQuote;
 import java.util.List;
 import java.util.Map;
 

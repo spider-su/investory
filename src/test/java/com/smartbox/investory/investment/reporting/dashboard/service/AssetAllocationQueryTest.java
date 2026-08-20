@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.accounting.model.models.Portfolio;
+import com.smartbox.investory.investment.accounting.model.Portfolio;
 import com.smartbox.investory.investment.infrastructure.persistence.Asset;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocation;

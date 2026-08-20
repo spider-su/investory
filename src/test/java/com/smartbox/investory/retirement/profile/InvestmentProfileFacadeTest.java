@@ -6,9 +6,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.accounting.model.models.OpenPositionValue;
+import com.smartbox.investory.investment.accounting.model.OpenPositionValue;
 import com.smartbox.investory.investment.api.BrokerageAssetClassificationReader;
-import com.smartbox.investory.investment.api.BrokeragePortfolioReadService;
+import com.smartbox.investory.investment.api.BrokeragePortfolioReader;
 import com.smartbox.investory.investment.api.BrokeragePositionSnapshot;
 import com.smartbox.investory.investment.api.SharedBrokeragePortfolioSnapshot;
 import com.smartbox.investory.longterm.api.LongTermAssetProfileAsset;
@@ -32,7 +32,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class InvestmentProfileFacadeTest {
-  @Mock BrokeragePortfolioReadService brokeragePortfolioReadService;
+  @Mock BrokeragePortfolioReader brokeragePortfolioReadService;
   @Mock LongTermAssetProfileReader longTermAssets;
   @Mock BrokerageAssetClassificationReader brokerageAssetClassificationReader;
   @Mock CurrencyConversion currencyRates;

@@ -3,7 +3,7 @@ package com.smartbox.investory.investment.imports.ibrk;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.smartbox.investory.infrastructure.CashOperationType;
+import com.smartbox.investory.investment.accounting.CashOperationType;
 import com.smartbox.investory.investment.imports.ImportExecutionResult;
 import com.smartbox.investory.investment.infrastructure.persistence.Asset;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;

@@ -1,6 +1,7 @@
 # Dashboard application boundary
 
-The server-rendered dashboard enters through `investment.reporting.dashboard.application.DashboardFacade`. `HomeController` maps request
+The server-rendered dashboard enters through `investment.reporting.dashboard.application.DashboardFacade`.
+`investment.web.HomeController` maps request
 parameters to `DashboardQuery` and adds the resulting `DashboardPageView` plus period navigation
 metadata to the Thymeleaf model.
 
@@ -11,8 +12,8 @@ data quality. Financial truth remains in the existing portfolio services and the
 reporting pipeline.
 
 The dashboard facade and view models live in `investment.reporting.dashboard.application`; supporting
-queries and mappers live in `investment.reporting.dashboard.service`. Controllers retain their existing
-routes while package relocation is completed mechanically.
+queries and mappers live in `investment.reporting.dashboard.service`. Investment controllers live in
+`investment.web` and retain their existing routes.
 
 Initial rendering remains server-side Thymeleaf. A small presentation alias in `dashboard.html`
 keeps existing expressions stable while the page is incrementally split into section-heading

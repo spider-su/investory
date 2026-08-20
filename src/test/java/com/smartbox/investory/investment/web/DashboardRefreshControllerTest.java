@@ -10,7 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.smartbox.investory.config.MockMvcSecurityTestConfig;
 import com.smartbox.investory.config.SecurityConfig;
 import com.smartbox.investory.investment.accounting.PortfolioProjectionService;
-import com.smartbox.investory.investment.market.fx.currency.CurrencyRateUpdaterService;
+import com.smartbox.investory.investment.market.fx.CurrencyRateUpdaterService;
 import com.smartbox.investory.investment.market.price.ManualAssetPriceService;
 import com.smartbox.investory.investment.market.price.ManualAssetPriceService.ManualAssetPrice;
 import com.smartbox.investory.investment.market.price.MarketService;

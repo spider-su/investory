@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.reporting.dashboard.service;
 
-import com.smartbox.investory.infrastructure.PositionType;
+import com.smartbox.investory.investment.accounting.model.PositionType;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.ZonedDateTime;
 

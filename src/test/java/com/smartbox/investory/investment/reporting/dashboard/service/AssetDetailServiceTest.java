@@ -7,8 +7,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.infrastructure.PositionSettlementModel;
-import com.smartbox.investory.infrastructure.PositionType;
+import com.smartbox.investory.investment.accounting.model.PositionSettlementModel;
+import com.smartbox.investory.investment.accounting.model.PositionType;
 import com.smartbox.investory.investment.infrastructure.persistence.Asset;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.CashOperationRepository;

@@ -1,8 +1,8 @@
 package com.smartbox.investory.investment.reporting.dashboard.service;
 
-import com.smartbox.investory.investment.accounting.model.models.AccountBalance;
-import com.smartbox.investory.investment.accounting.model.models.OpenPositionValue;
-import com.smartbox.investory.investment.accounting.model.models.Portfolio;
+import com.smartbox.investory.investment.accounting.model.AccountBalance;
+import com.smartbox.investory.investment.accounting.model.OpenPositionValue;
+import com.smartbox.investory.investment.accounting.model.Portfolio;
 import com.smartbox.investory.investment.reporting.dashboard.application.AssetAllocationView;
 import com.smartbox.investory.investment.reporting.dashboard.application.PortfolioStructureView;
 import com.smartbox.investory.shared.currency.CurrencyType;

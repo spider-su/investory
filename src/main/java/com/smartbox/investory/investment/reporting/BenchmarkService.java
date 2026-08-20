@@ -1,7 +1,7 @@
 package com.smartbox.investory.investment.reporting;
 
-import com.smartbox.investory.investment.accounting.model.models.Benchmark;
-import com.smartbox.investory.investment.infrastructure.market.client.market.TwelveDataService;
+import com.smartbox.investory.investment.accounting.model.Benchmark;
+import com.smartbox.investory.investment.infrastructure.market.client.TwelveDataService;
 import com.smartbox.investory.investment.infrastructure.persistence.NormalizedCashOperationRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.Account;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDaily;
@@ -13,7 +13,7 @@ import com.smartbox.investory.investment.infrastructure.persistence.account.Acco
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.benchmark.BenchmarkMonthlyClose;
 import com.smartbox.investory.investment.infrastructure.persistence.benchmark.BenchmarkMonthlyCloseRepository;
-import com.smartbox.investory.investment.market.fx.currency.CurrencyRateService;
+import com.smartbox.investory.investment.market.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.LocalDate;
 import java.time.YearMonth;

@@ -7,9 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.infrastructure.BrokerType;
-import com.smartbox.investory.infrastructure.ImportBatchStatus;
-import com.smartbox.investory.infrastructure.ImportSourceType;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistory;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportRepository;
 import java.nio.charset.StandardCharsets;

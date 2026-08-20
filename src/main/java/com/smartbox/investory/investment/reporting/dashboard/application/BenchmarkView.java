@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.reporting.dashboard.application;
 
-import com.smartbox.investory.investment.accounting.model.models.Benchmark;
+import com.smartbox.investory.investment.accounting.model.Benchmark;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;

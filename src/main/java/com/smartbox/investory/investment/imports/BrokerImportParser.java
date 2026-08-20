@@ -1,6 +1,5 @@
 package com.smartbox.investory.investment.imports;
 
-import com.smartbox.investory.infrastructure.BrokerType;
 import com.smartbox.investory.integration.IntegrationPlugin;
 import com.smartbox.investory.integration.IntegrationType;
 import com.smartbox.investory.integration.PluginDescriptor;

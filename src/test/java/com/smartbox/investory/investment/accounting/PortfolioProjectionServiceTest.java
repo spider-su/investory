@@ -11,9 +11,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.infrastructure.CashOperationType;
-import com.smartbox.investory.infrastructure.PositionSettlementModel;
-import com.smartbox.investory.infrastructure.PositionType;
+import com.smartbox.investory.investment.accounting.model.PositionSettlementModel;
+import com.smartbox.investory.investment.accounting.model.PositionType;
 import com.smartbox.investory.investment.infrastructure.persistence.Asset;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
@@ -28,7 +27,7 @@ import com.smartbox.investory.investment.infrastructure.persistence.account.Acco
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDaily;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
-import com.smartbox.investory.investment.market.fx.currency.CurrencyRateService;
+import com.smartbox.investory.investment.market.fx.CurrencyRateService;
 import com.smartbox.investory.investment.market.price.AssetPriceHistoryGapFillService;
 import com.smartbox.investory.investment.reporting.ReportingDateHelper;
 import com.smartbox.investory.shared.currency.CurrencyType;

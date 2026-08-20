@@ -1,7 +1,5 @@
 package com.smartbox.investory.investment.imports;
 
-import com.smartbox.investory.infrastructure.BrokerType;
-
 /** Request-local provenance scope. Never use this as financial state. */
 public record ImportEvidenceContext(
     Long importHistoryId, Long sourceFileId, BrokerType broker, String archiveMemberName) {

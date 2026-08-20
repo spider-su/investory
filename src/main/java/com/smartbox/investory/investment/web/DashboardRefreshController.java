@@ -1,7 +1,7 @@
 package com.smartbox.investory.investment.web;
 
 import com.smartbox.investory.investment.accounting.PortfolioProjectionService;
-import com.smartbox.investory.investment.market.fx.currency.CurrencyRateUpdaterService;
+import com.smartbox.investory.investment.market.fx.CurrencyRateUpdaterService;
 import com.smartbox.investory.investment.market.price.ManualAssetPriceService;
 import com.smartbox.investory.investment.market.price.ManualAssetPriceService.ManualAssetPrice;
 import com.smartbox.investory.investment.market.price.MarketService;

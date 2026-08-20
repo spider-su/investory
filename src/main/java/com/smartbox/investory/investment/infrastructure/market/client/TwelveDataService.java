@@ -1,8 +1,8 @@
-package com.smartbox.investory.investment.infrastructure.market.client.market;
+package com.smartbox.investory.investment.infrastructure.market.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.smartbox.investory.investment.accounting.model.models.StockQuote;
+import com.smartbox.investory.investment.accounting.model.StockQuote;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;

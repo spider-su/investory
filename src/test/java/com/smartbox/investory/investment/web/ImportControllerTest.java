@@ -11,12 +11,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.smartbox.investory.config.MockMvcSecurityTestConfig;
 import com.smartbox.investory.config.SecurityConfig;
-import com.smartbox.investory.infrastructure.BrokerType;
-import com.smartbox.investory.infrastructure.ImportBatchStatus;
-import com.smartbox.investory.infrastructure.ImportSourceType;
+import com.smartbox.investory.investment.imports.BrokerType;
 import com.smartbox.investory.investment.imports.ImportBatchResponse;
+import com.smartbox.investory.investment.imports.ImportBatchStatus;
 import com.smartbox.investory.investment.imports.ImportFailedException;
 import com.smartbox.investory.investment.imports.ImportOrchestratorService;
+import com.smartbox.investory.investment.imports.ImportSourceType;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;

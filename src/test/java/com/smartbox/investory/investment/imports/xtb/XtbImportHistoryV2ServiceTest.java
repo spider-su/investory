@@ -9,10 +9,10 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-import com.smartbox.investory.infrastructure.CashOperationType;
-import com.smartbox.investory.infrastructure.PositionSettlementModel;
 import com.smartbox.investory.investment.accounting.AssetCatalogService;
+import com.smartbox.investory.investment.accounting.CashOperationType;
 import com.smartbox.investory.investment.accounting.PositionSettlementModelService;
+import com.smartbox.investory.investment.accounting.model.PositionSettlementModel;
 import com.smartbox.investory.investment.imports.ImportExecutionResult;
 import com.smartbox.investory.investment.infrastructure.persistence.Asset;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetPriceHistoryRepository;
@@ -25,7 +25,7 @@ import com.smartbox.investory.investment.infrastructure.persistence.OpenedPositi
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPositionRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.Account;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
-import com.smartbox.investory.investment.market.fx.currency.CurrencyRateService;
+import com.smartbox.investory.investment.market.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;

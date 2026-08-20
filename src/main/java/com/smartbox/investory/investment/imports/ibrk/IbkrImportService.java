@@ -1,9 +1,9 @@
 package com.smartbox.investory.investment.imports.ibrk;
 
 import com.opencsv.CSVReader;
-import com.smartbox.investory.infrastructure.CashOperationType;
-import com.smartbox.investory.infrastructure.PositionType;
 import com.smartbox.investory.investment.accounting.AssetCatalogService;
+import com.smartbox.investory.investment.accounting.CashOperationType;
+import com.smartbox.investory.investment.accounting.model.PositionType;
 import com.smartbox.investory.investment.imports.BrokerSourceRowIdentity;
 import com.smartbox.investory.investment.imports.ImportEvidenceContext;
 import com.smartbox.investory.investment.imports.ImportExecutionResult;
@@ -12,7 +12,7 @@ import com.smartbox.investory.investment.infrastructure.persistence.*;
 import com.smartbox.investory.investment.infrastructure.persistence.Asset;
 import com.smartbox.investory.investment.infrastructure.persistence.account.Account;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
-import com.smartbox.investory.investment.market.fx.currency.CurrencyRateService;
+import com.smartbox.investory.investment.market.fx.CurrencyRateService;
 import com.smartbox.investory.investment.reporting.ReportingDateHelper;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.io.InputStream;

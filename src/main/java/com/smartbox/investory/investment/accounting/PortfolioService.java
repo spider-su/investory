@@ -1,7 +1,6 @@
 package com.smartbox.investory.investment.accounting;
 
-import com.smartbox.investory.infrastructure.CashOperationType;
-import com.smartbox.investory.investment.accounting.model.models.*;
+import com.smartbox.investory.investment.accounting.model.*;
 import com.smartbox.investory.investment.infrastructure.persistence.*;
 import com.smartbox.investory.investment.infrastructure.persistence.account.Account;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
@@ -17,7 +16,7 @@ import com.smartbox.investory.investment.infrastructure.persistence.portfolio.Po
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioKpiSummaryRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformance;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceRepository;
-import com.smartbox.investory.investment.market.fx.currency.CurrencyRateService;
+import com.smartbox.investory.investment.market.fx.CurrencyRateService;
 import com.smartbox.investory.investment.reporting.PortfolioPerformanceQueryService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.LocalDate;

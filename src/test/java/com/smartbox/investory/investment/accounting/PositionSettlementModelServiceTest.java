@@ -2,7 +2,7 @@ package com.smartbox.investory.investment.accounting;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.smartbox.investory.infrastructure.PositionSettlementModel;
+import com.smartbox.investory.investment.accounting.model.PositionSettlementModel;
 import org.junit.jupiter.api.Test;
 
 class PositionSettlementModelServiceTest {

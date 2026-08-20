@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.infrastructure.persistence;
 
-import com.smartbox.investory.infrastructure.CashOperationType;
+import com.smartbox.investory.investment.accounting.CashOperationType;
 import java.util.Collection;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;

@@ -1,11 +1,11 @@
 package com.smartbox.investory.controllers.bot;
 
-import com.smartbox.investory.infrastructure.BrokerType;
-import com.smartbox.investory.infrastructure.ImportSourceType;
 import com.smartbox.investory.integration.openai.OpenAiChatService;
-import com.smartbox.investory.investment.accounting.command.portfolio.PortfolioCommandRouter;
+import com.smartbox.investory.investment.accounting.command.PortfolioCommandRouter;
+import com.smartbox.investory.investment.imports.BrokerType;
 import com.smartbox.investory.investment.imports.ImportBatchResponse;
 import com.smartbox.investory.investment.imports.ImportOrchestratorService;
+import com.smartbox.investory.investment.imports.ImportSourceType;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Locale;

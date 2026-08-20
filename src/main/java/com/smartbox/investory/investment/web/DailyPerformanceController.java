@@ -1,7 +1,7 @@
 package com.smartbox.investory.investment.web;
 
 import com.smartbox.investory.investment.accounting.PortfolioService;
-import com.smartbox.investory.investment.accounting.model.models.DailyPerformanceDetail;
+import com.smartbox.investory.investment.accounting.model.DailyPerformanceDetail;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.Set;

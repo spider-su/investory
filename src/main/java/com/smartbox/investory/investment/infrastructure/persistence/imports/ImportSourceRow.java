@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.infrastructure.persistence.imports;
 
-import com.smartbox.investory.infrastructure.BrokerType;
+import com.smartbox.investory.investment.imports.BrokerType;
 import jakarta.persistence.*;
 import java.time.ZonedDateTime;
 import lombok.Data;

@@ -9,8 +9,8 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.infrastructure.CashOperationType;
 import com.smartbox.investory.investment.accounting.AssetCatalogService;
+import com.smartbox.investory.investment.accounting.CashOperationType;
 import com.smartbox.investory.investment.imports.ImportExecutionResult;
 import com.smartbox.investory.investment.infrastructure.persistence.Asset;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetPriceHistoryRepository;

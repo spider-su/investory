@@ -2,8 +2,8 @@ package com.smartbox.investory.investment.reporting.dashboard.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.smartbox.investory.investment.accounting.model.models.Performance;
-import com.smartbox.investory.investment.accounting.model.models.Portfolio;
+import com.smartbox.investory.investment.accounting.model.Performance;
+import com.smartbox.investory.investment.accounting.model.Portfolio;
 import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriod;
 import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriodFilterService;
 import java.util.LinkedHashMap;

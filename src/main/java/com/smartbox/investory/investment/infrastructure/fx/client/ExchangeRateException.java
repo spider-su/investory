@@ -1,4 +1,4 @@
-package com.smartbox.investory.investment.infrastructure.fx.client.currency;
+package com.smartbox.investory.investment.infrastructure.fx.client;
 
 /**
  * Typed failure raised by {@link ExchangeRateClient} when the call to exchangerate.host cannot be

@@ -1,7 +1,7 @@
 package com.smartbox.investory.config;
 
 import com.smartbox.investory.integration.notifications.NotificationService;
-import com.smartbox.investory.investment.market.fx.currency.CurrencyRateUpdaterService;
+import com.smartbox.investory.investment.market.fx.CurrencyRateUpdaterService;
 import com.smartbox.investory.investment.market.price.MarketService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

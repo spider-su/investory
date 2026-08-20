@@ -7,7 +7,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.infrastructure.BrokerType;
 import com.smartbox.investory.investment.imports.xtb.XtbBrokerImportParser;
 import com.smartbox.investory.investment.imports.xtb.XtbImportV2Service;
 import java.io.ByteArrayInputStream;

@@ -1,14 +1,14 @@
 package com.smartbox.investory.integration.jobs;
 
-import com.smartbox.investory.infrastructure.repository.integration.IntegrationInstance;
-import com.smartbox.investory.infrastructure.repository.integration.IntegrationInstanceRepository;
-import com.smartbox.investory.infrastructure.repository.integration.IntegrationJob;
-import com.smartbox.investory.infrastructure.repository.integration.IntegrationJobRepository;
 import com.smartbox.investory.integration.IntegrationType;
 import com.smartbox.investory.integration.PluginConfig;
 import com.smartbox.investory.integration.config.IntegrationConfigurationService;
 import com.smartbox.investory.integration.fx.ExchangeRateHostFxDataPlugin;
-import com.smartbox.investory.investment.market.fx.currency.CurrencyRateUpdaterService;
+import com.smartbox.investory.integration.infrastructure.persistence.IntegrationInstance;
+import com.smartbox.investory.integration.infrastructure.persistence.IntegrationInstanceRepository;
+import com.smartbox.investory.integration.infrastructure.persistence.IntegrationJob;
+import com.smartbox.investory.integration.infrastructure.persistence.IntegrationJobRepository;
+import com.smartbox.investory.investment.market.fx.CurrencyRateUpdaterService;
 import com.smartbox.investory.investment.market.price.MarketService;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;

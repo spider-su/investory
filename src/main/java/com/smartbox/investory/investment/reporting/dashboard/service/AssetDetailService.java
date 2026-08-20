@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.reporting.dashboard.service;
 
-import com.smartbox.investory.infrastructure.CashOperationType;
+import com.smartbox.investory.investment.accounting.CashOperationType;
 import com.smartbox.investory.investment.infrastructure.persistence.Asset;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.CashOperation;

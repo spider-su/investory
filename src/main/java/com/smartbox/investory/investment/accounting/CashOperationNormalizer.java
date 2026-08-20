@@ -1,6 +1,5 @@
 package com.smartbox.investory.investment.accounting;
 
-import com.smartbox.investory.infrastructure.CashOperationType;
 import com.smartbox.investory.investment.infrastructure.persistence.CashOperation;
 import java.time.Duration;
 import java.time.ZonedDateTime;

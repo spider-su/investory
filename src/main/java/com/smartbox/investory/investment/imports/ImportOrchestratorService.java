@@ -1,7 +1,5 @@
 package com.smartbox.investory.investment.imports;
 
-import com.smartbox.investory.infrastructure.BrokerType;
-import com.smartbox.investory.infrastructure.ImportSourceType;
 import com.smartbox.investory.investment.accounting.InvestmentCalculationCache;
 import com.smartbox.investory.investment.accounting.PortfolioProjectionService;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistory;
@@ -307,7 +305,7 @@ public class ImportOrchestratorService {
   }
 
   private static void throwIfFailed(ImportHistory batch) {
-    if (batch.getStatus() == com.smartbox.investory.infrastructure.ImportBatchStatus.FAILED) {
+    if (batch.getStatus() == com.smartbox.investory.investment.imports.ImportBatchStatus.FAILED) {
       throw new ImportFailedException(
           "Import broker data was rejected (batchId="
               + batch.getId()

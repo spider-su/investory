@@ -30,12 +30,14 @@ changes are owned by Flyway.
 ## Main code areas
 
 - `investment`: brokerage imports, accounting, market/FX, reporting/dashboard, reconciliation, and
-  Investment persistence. Its cross-domain reads are in `investment.api`.
+  Investment persistence. Its cross-domain reads are interfaces and immutable records in
+  `investment.api`; repository-backed readers live in `investment.infrastructure.read`.
 - `longterm`: manual non-brokerage asset application services, persistence, and public read contracts
   in `longterm.api`.
 - `retirement`: profile composition, planning, simulation, and their persistence adapters.
 - `shared`: domain-neutral currency conversion, portfolio context, and presentation primitives.
-- `integration`, `config`, and `controllers`: application composition, external adapters, security,
+- `integration`: external adapters plus integration and notification persistence.
+- `config` and the remaining global `controllers`: application composition, security, bot commands,
   and global UI concerns only.
 
 Use the current package tree as the source of truth if these boundaries change.
@@ -120,8 +122,10 @@ Investment and Long-Term only through their `api` packages. A public boundary ex
 immutable business read models, never JPA entities, repositories, SQL projections, or internal
 accounting services. Shared contracts stay small and domain-neutral.
 
-`investment.api.BrokeragePortfolioReadService` publishes immutable shared brokerage snapshots for
-profile composition; it is not multi-portfolio scoped. `BrokerageAssetClassificationReader` supplies
+`investment.api.BrokeragePortfolioReader` publishes immutable shared brokerage snapshots for
+profile composition; its Spring implementation is
+`investment.infrastructure.read.BrokeragePortfolioReadService` and it is not multi-portfolio scoped.
+`BrokerageAssetClassificationReader` supplies
 the optional symbol classification needed by the profile, and `HistoricalPortfolioActualsReader`
 supplies portfolio-scoped calendar-year planning facts. Their Investment implementations retain
 persistence access behind the boundary.
@@ -129,6 +133,10 @@ persistence access behind the boundary.
 `shared.portfolio.PortfolioContextReader` supplies optional portfolio identity and base currency for
 Long-Term validation and aggregation. The Investment-owned repository-backed implementation preserves
 the existing `PortfolioKpiSummaryRepository` lookup and missing-portfolio behavior.
+
+Integration entities and repositories are owned by `integration.infrastructure.persistence`; notification
+state is owned by `integration.notifications.infrastructure`. They keep their existing database mappings
+and remain adapters outside the three business domains.
 
 Long-Term publishes `LongTermAssetProfileReader` for profile composition and projection inputs, and
 `LongTermAssetAnnualSnapshotReader` for current and historical planning facts. Its public immutable

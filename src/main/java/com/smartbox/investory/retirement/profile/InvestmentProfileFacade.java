@@ -2,7 +2,7 @@ package com.smartbox.investory.retirement.profile;
 
 import com.smartbox.investory.investment.api.BrokerageAssetClassification;
 import com.smartbox.investory.investment.api.BrokerageAssetClassificationReader;
-import com.smartbox.investory.investment.api.BrokeragePortfolioReadService;
+import com.smartbox.investory.investment.api.BrokeragePortfolioReader;
 import com.smartbox.investory.investment.api.BrokeragePositionSnapshot;
 import com.smartbox.investory.investment.api.SharedBrokeragePortfolioSnapshot;
 import com.smartbox.investory.longterm.api.LongTermAssetProfileAsset;
@@ -24,7 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class InvestmentProfileFacade {
-  private final BrokeragePortfolioReadService brokeragePortfolioReadService;
+  private final BrokeragePortfolioReader brokeragePortfolioReadService;
   private final LongTermAssetProfileReader longTermAssets;
   private final BrokerageAssetClassificationReader brokerageAssetClassificationReader;
   private final CurrencyConversion currencyRates;

@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.reporting.dashboard.application;
 
-import com.smartbox.investory.investment.accounting.model.models.AccountBalance;
+import com.smartbox.investory.investment.accounting.model.AccountBalance;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.RoundingMode;
 import java.text.NumberFormat;
@@ -155,8 +155,7 @@ public record OverviewView(
     return cashFlow.lossCarryForward();
   }
 
-  public List<com.smartbox.investory.investment.accounting.model.models.DividendGainer>
-      dividendGainers() {
+  public List<com.smartbox.investory.investment.accounting.model.DividendGainer> dividendGainers() {
     return cashFlow.dividendGainers();
   }
 
@@ -168,12 +167,12 @@ public record OverviewView(
     return positions.unrealizedByCurrency();
   }
 
-  public List<com.smartbox.investory.investment.accounting.model.models.OpenPositionValue>
+  public List<com.smartbox.investory.investment.accounting.model.OpenPositionValue>
       openPositionValues() {
     return positions.openPositionValues();
   }
 
-  public com.smartbox.investory.investment.accounting.model.models.OpenPositionValue
+  public com.smartbox.investory.investment.accounting.model.OpenPositionValue
       openPositionValuesTotal() {
     return positions.openPositionValuesTotal();
   }

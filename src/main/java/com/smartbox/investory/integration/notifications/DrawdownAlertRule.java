@@ -1,9 +1,9 @@
 package com.smartbox.investory.integration.notifications;
 
-import com.smartbox.investory.infrastructure.repository.notifications.DrawdownAlertState;
-import com.smartbox.investory.infrastructure.repository.notifications.DrawdownAlertStateRepository;
+import com.smartbox.investory.integration.notifications.infrastructure.DrawdownAlertState;
+import com.smartbox.investory.integration.notifications.infrastructure.DrawdownAlertStateRepository;
 import com.smartbox.investory.investment.accounting.PortfolioService;
-import com.smartbox.investory.investment.accounting.model.models.Portfolio;
+import com.smartbox.investory.investment.accounting.model.Portfolio;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.ZonedDateTime;

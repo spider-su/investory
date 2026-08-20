@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.accounting;
 
-import com.smartbox.investory.infrastructure.PositionSettlementModel;
+import com.smartbox.investory.investment.accounting.model.PositionSettlementModel;
 import java.util.Locale;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;

@@ -1,7 +1,7 @@
 package com.smartbox.investory.investment.imports.ibrk;
 
-import com.smartbox.investory.infrastructure.BrokerType;
 import com.smartbox.investory.investment.imports.BrokerImportParser;
+import com.smartbox.investory.investment.imports.BrokerType;
 import com.smartbox.investory.investment.imports.ImportExecutionResult;
 import java.io.InputStream;
 import lombok.RequiredArgsConstructor;

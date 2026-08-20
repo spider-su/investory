@@ -1,8 +1,8 @@
 package com.smartbox.investory.investment.infrastructure.persistence;
 
-import com.smartbox.investory.infrastructure.PositionQuantities;
-import com.smartbox.investory.infrastructure.PositionSettlementModel;
-import com.smartbox.investory.infrastructure.PositionType;
+import com.smartbox.investory.investment.accounting.model.PositionQuantities;
+import com.smartbox.investory.investment.accounting.model.PositionSettlementModel;
+import com.smartbox.investory.investment.accounting.model.PositionType;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import jakarta.persistence.*;
 import java.math.BigDecimal;

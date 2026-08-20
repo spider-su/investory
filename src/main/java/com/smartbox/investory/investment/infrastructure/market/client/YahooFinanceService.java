@@ -1,4 +1,4 @@
-package com.smartbox.investory.investment.infrastructure.market.client.market;
+package com.smartbox.investory.investment.infrastructure.market.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

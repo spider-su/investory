@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.infrastructure.BrokerType;
 import com.smartbox.investory.investment.imports.ibrk.IbkrBrokerImportParser;
 import com.smartbox.investory.investment.imports.ibrk.IbkrImportService;
 import java.io.ByteArrayInputStream;

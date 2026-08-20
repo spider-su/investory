@@ -1,12 +1,12 @@
 package com.smartbox.investory.controllers.bot;
 
-import static com.smartbox.investory.infrastructure.BrokerType.IBKR;
+import static com.smartbox.investory.investment.imports.BrokerType.IBKR;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.smartbox.investory.infrastructure.BrokerType;
+import com.smartbox.investory.investment.imports.BrokerType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;

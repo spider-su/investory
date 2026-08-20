@@ -1,8 +1,8 @@
 package com.smartbox.investory.investment.infrastructure.persistence.imports;
 
-import com.smartbox.investory.infrastructure.BrokerType;
-import com.smartbox.investory.infrastructure.ImportBatchStatus;
-import com.smartbox.investory.infrastructure.ImportSourceType;
+import com.smartbox.investory.investment.imports.BrokerType;
+import com.smartbox.investory.investment.imports.ImportBatchStatus;
+import com.smartbox.investory.investment.imports.ImportSourceType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.reporting.dashboard.application;
 
-import com.smartbox.investory.investment.accounting.model.models.InstrumentPerformance;
+import com.smartbox.investory.investment.accounting.model.InstrumentPerformance;
 import com.smartbox.investory.investment.reporting.PerformanceAttribution;
 import com.smartbox.investory.investment.reporting.ReturnMetric;
 import java.util.List;

@@ -1,7 +1,7 @@
 package com.smartbox.investory.investment.accounting;
 
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPosition;
-import com.smartbox.investory.investment.market.fx.currency.CurrencyRateService;
+import com.smartbox.investory.investment.market.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.shared.presentation.FinancialPrecision;
 import java.math.BigDecimal;

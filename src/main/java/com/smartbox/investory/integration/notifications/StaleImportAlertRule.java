@@ -1,6 +1,6 @@
 package com.smartbox.investory.integration.notifications;
 
-import com.smartbox.investory.infrastructure.ImportBatchStatus;
+import com.smartbox.investory.investment.imports.ImportBatchStatus;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistory;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportRepository;
 import java.time.ZonedDateTime;

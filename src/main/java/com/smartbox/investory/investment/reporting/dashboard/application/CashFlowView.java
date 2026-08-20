@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.reporting.dashboard.application;
 
-import com.smartbox.investory.investment.accounting.model.models.DividendGainer;
+import com.smartbox.investory.investment.accounting.model.DividendGainer;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.List;
 import java.util.Map;

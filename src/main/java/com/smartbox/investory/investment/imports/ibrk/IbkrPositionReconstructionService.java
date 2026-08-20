@@ -1,7 +1,7 @@
 package com.smartbox.investory.investment.imports.ibrk;
 
-import com.smartbox.investory.infrastructure.CashOperationType;
-import com.smartbox.investory.infrastructure.PositionType;
+import com.smartbox.investory.investment.accounting.CashOperationType;
+import com.smartbox.investory.investment.accounting.model.PositionType;
 import com.smartbox.investory.investment.infrastructure.persistence.CashOperation;
 import com.smartbox.investory.investment.infrastructure.persistence.CashOperationRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPosition;

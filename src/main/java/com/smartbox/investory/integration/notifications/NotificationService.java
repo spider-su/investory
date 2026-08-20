@@ -2,7 +2,7 @@ package com.smartbox.investory.integration.notifications;
 
 import com.smartbox.investory.controllers.bot.PortfolioBot;
 import com.smartbox.investory.investment.accounting.PortfolioService;
-import com.smartbox.investory.investment.accounting.model.models.Portfolio;
+import com.smartbox.investory.investment.accounting.model.Portfolio;
 import java.util.List;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;

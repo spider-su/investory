@@ -4,7 +4,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 
 import com.smartbox.investory.integration.notifications.NotificationService;
-import com.smartbox.investory.investment.market.fx.currency.CurrencyRateUpdaterService;
+import com.smartbox.investory.investment.market.fx.CurrencyRateUpdaterService;
 import com.smartbox.investory.investment.market.price.MarketService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

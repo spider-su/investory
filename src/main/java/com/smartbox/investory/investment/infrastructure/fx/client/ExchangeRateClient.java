@@ -1,4 +1,4 @@
-package com.smartbox.investory.investment.infrastructure.fx.client.currency;
+package com.smartbox.investory.investment.infrastructure.fx.client;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.DeserializationFeature;

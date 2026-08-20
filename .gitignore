@@ -3,6 +3,8 @@
 *.xml
 !pom.xml
 /target/
+/final-clean-verify.out
+/final-clean-verify.err
 *.xlsx
 *.csv
 *.zip

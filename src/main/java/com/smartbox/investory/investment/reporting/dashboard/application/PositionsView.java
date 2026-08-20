@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.reporting.dashboard.application;
 
-import com.smartbox.investory.investment.accounting.model.models.OpenPositionValue;
+import com.smartbox.investory.investment.accounting.model.OpenPositionValue;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.List;
 import java.util.Map;

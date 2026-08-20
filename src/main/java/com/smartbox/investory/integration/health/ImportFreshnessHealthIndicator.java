@@ -1,7 +1,7 @@
 package com.smartbox.investory.integration.health;
 
-import com.smartbox.investory.infrastructure.ImportBatchStatus;
 import com.smartbox.investory.integration.notifications.NotificationProperties;
+import com.smartbox.investory.investment.imports.ImportBatchStatus;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistory;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportRepository;
 import java.time.Clock;

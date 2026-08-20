@@ -11,7 +11,7 @@ import static org.mockito.Mockito.when;
 import com.smartbox.investory.investment.infrastructure.persistence.Asset;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
-import com.smartbox.investory.investment.market.fx.currency.CurrencyRateService;
+import com.smartbox.investory.investment.market.fx.CurrencyRateService;
 import com.smartbox.investory.investment.market.price.ManualAssetPriceService.ManualAssetPrice;
 import com.smartbox.investory.investment.reporting.StatisticsRefreshService;
 import com.smartbox.investory.shared.currency.CurrencyType;

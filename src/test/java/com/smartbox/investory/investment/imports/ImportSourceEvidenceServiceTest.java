@@ -7,7 +7,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.smartbox.investory.infrastructure.BrokerType;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistory;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceFile;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceFileRepository;
