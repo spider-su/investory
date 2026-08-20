@@ -31,6 +31,7 @@ Read only the documents relevant to the task:
 | Asset identity, position currencies, signed quantity | `docs/domain/asset-identity-and-money.md` |
 | FX conversion and missing/stale-rate policy | `docs/domain/fx-normalization.md` |
 | Overall architecture and package boundaries | `docs/architecture/overview.md` |
+| Maven modules, ownership, and dependency direction | `docs/architecture/modularization.md` |
 | Dashboard facade, view models, and Thymeleaf flow | `docs/architecture/dashboard-application.md` |
 | Projections, reporting data lineage, valuation layers | `docs/architecture/reporting-pipeline.md` |
 | Reconciliation and economic-truth checks | `docs/quality/reconciliation.md` |

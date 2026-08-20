@@ -34,6 +34,8 @@ resolved by changing the documentation.
 
 - [`architecture/overview.md`](architecture/overview.md): stable application boundaries and major
   components.
+- [`architecture/modularization.md`](architecture/modularization.md): Maven reactor modules, code
+  ownership, and dependency direction.
 - [`architecture/dashboard-application.md`](architecture/dashboard-application.md): dashboard facade,
   query flow, immutable view models, and server-rendered UI boundary.
 - [`architecture/reporting-pipeline.md`](architecture/reporting-pipeline.md): raw ledger ->
@@ -59,8 +61,9 @@ resolved by changing the documentation.
 Package-local `README.md` files describe code-specific conventions and should remain next to that
 code. In particular:
 
-- `src/test/java/com/smartbox/testsupport/portfolio/README.md`: deterministic portfolio test data
-  and scenario-building rules.
+- `test-support/src/main/java/com/smartbox/investory/testsupport/README.md`: deterministic portfolio
+  test data and scenario-building rules; fixture implementations live in the adjacent `portfolio`
+  package.
 
 ## Archive
 

@@ -33,7 +33,7 @@ cash reserve, planning display currency, and Actual/Live/Projected timeline are 
 | Actuator + `/actuator/health` (DB, Telegram bot reg, last import age) | S | Container orchestrators (Compose `healthcheck`, K8s probes) need a real signal. |
 | Micrometer + Prometheus exporter | M | Quote-fetch latency, FX-refresh failures, rule-fire counts — none are visible today. |
 | Structured request logging (correlation id per import batch) | S | Currently logs are flat; tying log lines to `imports.id` makes triage trivial. |
-| OpenAPI / Swagger UI (`springdoc-openapi-starter-webmvc-ui`) | S | Replaces the hand-written `src/test/manual/api.http`. ~10 lines + auto-docs. |
+| OpenAPI / Swagger UI (`springdoc-openapi-starter-webmvc-ui`) | S | Replaces the hand-written `test-support/test/manual/api.http`. ~10 lines + auto-docs. |
 | Tighten production Hibernate and request logging | S | Production logging still uses the shared defaults. |
 
 ## Theme B - Test hardening

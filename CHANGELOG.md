@@ -2,6 +2,19 @@
 
 Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains future work only.
 
+## 2026-08-20
+
+### Maven modular monolith
+
+- Restructured Investory as a Maven reactor with separate Shared, Investment, Long-Term,
+  Retirement, Integrations, Test Support, Web UI, and executable App modules.
+- Kept Investment and Long-Term independent, routed Retirement through their public read contracts,
+  and enforced business/UI boundaries with architecture tests.
+- Moved server-rendered controllers, templates, static resources, and shared UI presentation into
+  `adapters/web-ui`; kept application composition, Flyway, and runtime configuration in `app`.
+- Aligned architecture, development, testing, reconciliation, and documentation-routing references
+  with the current module ownership and paths.
+
 ## 2026-08-17
 
 ### Reconciliation report semantics

@@ -36,11 +36,14 @@ changes are owned by Flyway.
 - `longterm`: manual non-brokerage asset application services, persistence, and public read contracts
   in `longterm.api`.
 - `retirement`: profile composition, planning, simulation, and their persistence adapters.
-- `shared`: domain-neutral currency conversion, portfolio context, and presentation primitives exposed
-  from the Investment public surface where required by the current Maven layout.
+- `shared`: domain-neutral currency conversion, portfolio context, and presentation primitives.
 - `integrations`: external adapters plus integration and notification persistence.
-- `app`: application composition, security, scheduling, executable packaging, Flyway resources, and
-  global UI concerns.
+- `adapters/web-ui`: server-rendered controllers, Thymeleaf templates, static assets, and shared UI
+  presentation concerns.
+- `test-support`: reusable Investment fixtures, PostgreSQL Testcontainers support, and the fast-test
+  database snapshot.
+- `app`: application composition, runtime configuration, security, scheduling, executable packaging,
+  and Flyway resources.
 
 Use the current package tree as the source of truth if these boundaries change.
 
@@ -152,12 +155,13 @@ boundary. `CurrencyRateService` implements the BigDecimal conversion contract; i
 persistence, cache, and double compatibility APIs remain Investment implementation details. Long-Term
 and Retirement consumers use the shared contract.
 
-`app.UiPresentation` is an application UI helper. Long-Term uses only the shared financial presentation
+`ui.presentation.UiPresentation` is a Web UI adapter presentation helper. Long-Term uses only the shared financial presentation
 primitive; no PlanningPresentation exception or Long-Term-to-Retirement presentation dependency remains.
 `SimulationPlanService` is the only documented simulation persistence orchestration adapter; deterministic
 simulation classes remain persistence-free.
 
-The Maven reactor contains `modules/shared`, `modules/investment`, `modules/longterm`,
+The Maven reactor and complete dependency direction are documented in
+[`modularization.md`](modularization.md). The reactor contains `modules/shared`, `modules/investment`, `modules/longterm`,
 `modules/retirement`, `integrations`, `test-support`, `adapters/web-ui`, and `app`. Retirement consumes
 Investment and Long-Term public APIs. Long-Term consumes only `shared`; Investment consumes `shared`.
 Investment and Long-Term do not depend on Retirement or each other. This remains one executable application, not microservices. PostgreSQL schema

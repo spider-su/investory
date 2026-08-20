@@ -158,8 +158,9 @@ are [`docs/domain/retirement-simulation.md`](../domain/retirement-simulation.md)
   source identities, and source checksum drift. New orchestrated broker imports must produce no
   missing-link errors; legacy/manual rows remain explicitly nullable.
 - Shared deterministic portfolio fixtures live under
-  `src/test/java/com/smartbox/testsupport/portfolio`; read the package-local `README.md`.
-- `src/test/manual/api.http` remains a manual API smoke surface.
+  `test-support/src/main/java/com/smartbox/investory/testsupport/portfolio`; read
+  `test-support/src/main/java/com/smartbox/investory/testsupport/README.md`.
+- `test-support/test/manual/api.http` remains a manual API smoke surface.
 
 Do not copy one developer's local account totals, machine paths, database addresses, or a one-time PASS
 result into this document.

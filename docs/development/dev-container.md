@@ -119,7 +119,7 @@ Port `8080` is forwarded by the Dev Container client. PostgreSQL port `5432` is 
 A Maven run configuration can be created with:
 
 ```text
-Command line: spring-boot:run
+Command line: -pl app -am spring-boot:run
 Working directory: project root
 ```
 

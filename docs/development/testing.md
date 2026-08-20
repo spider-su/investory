@@ -10,11 +10,13 @@ Run the existing suite with:
 ./mvnw test
 ```
 
-Architecture dependency rules live in `LayerDependencyTest`. They protect the one-way boundary
-between accounting/reporting, profile/dashboard application code, planning, and deterministic
-simulation. The current exceptions are documented in that test: `SimulationPlanService` is still
-the persistence adapter in the simulation package, `InvestmentProfileFacade` still classifies
-symbols through `AssetRepository`, and `PlanningPresentation` is a legacy presentation bridge.
+Architecture dependency rules live in `app/src/test/java/com/smartbox/investory/architecture/LayerDependencyTest.java`.
+They protect the one-way business-module boundaries, restrict Retirement to Investment and Long-Term
+public contracts, keep shared contracts independent, and prevent Web UI access to domain
+infrastructure or repositories. `SimulationPlanService` is the only documented simulation-package
+persistence orchestration exception. `InvestmentProfileFacade` reads classification through the
+Investment public API; `PlanningPresentation` is Retirement-owned and is not a cross-module
+architecture exception.
 
 Tests that do not need a database should remain plain unit tests or Spring test slices.
 
