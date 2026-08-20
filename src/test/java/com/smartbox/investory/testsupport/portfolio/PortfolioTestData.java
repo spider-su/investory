@@ -1,6 +1,6 @@
 package com.smartbox.investory.testsupport.portfolio;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;

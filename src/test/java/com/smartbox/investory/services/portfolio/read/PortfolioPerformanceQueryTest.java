@@ -4,11 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.repository.account.AccountDaily;
 import com.smartbox.investory.infrastructure.repository.account.AccountDailyRepository;
 import com.smartbox.investory.infrastructure.repository.portfolio.PortfolioMonthlyPerformance;
 import com.smartbox.investory.infrastructure.repository.portfolio.PortfolioMonthlyPerformanceRepository;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;

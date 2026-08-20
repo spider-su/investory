@@ -8,14 +8,14 @@ import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.application.longterm.LongTermAssetService;
 import com.smartbox.investory.application.longterm.LongTermAssetSummary;
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.longterm.LongTermAssetType;
 import com.smartbox.investory.infrastructure.repository.AssetRepository;
-import com.smartbox.investory.services.currency.CurrencyRateService;
 import com.smartbox.investory.services.models.OpenPositionValue;
 import com.smartbox.investory.services.portfolio.read.BrokeragePortfolioReadService;
 import com.smartbox.investory.services.portfolio.read.BrokeragePositionSnapshot;
 import com.smartbox.investory.services.portfolio.read.SharedBrokeragePortfolioSnapshot;
+import com.smartbox.investory.shared.currency.CurrencyConversion;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -33,7 +33,7 @@ class InvestmentProfileFacadeTest {
   @Mock BrokeragePortfolioReadService brokeragePortfolioReadService;
   @Mock LongTermAssetService longTermAssets;
   @Mock AssetRepository assetRepository;
-  @Mock CurrencyRateService currencyRates;
+  @Mock CurrencyConversion currencyRates;
   private InvestmentProfileFacade facade;
   private static final Long PORTFOLIO = 1L;
   private static final java.time.LocalDate DATE = java.time.LocalDate.of(2026, 6, 1);

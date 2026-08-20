@@ -3,9 +3,9 @@ package com.smartbox.investory.services;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.repository.ClosedPosition;
 import com.smartbox.investory.services.currency.CurrencyRateService;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.portfolio.PortfolioBuilders;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestData;
 import java.math.BigDecimal;

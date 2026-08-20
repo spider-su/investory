@@ -7,7 +7,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.PositionSettlementModel;
 import com.smartbox.investory.infrastructure.PositionType;
 import com.smartbox.investory.infrastructure.repository.Asset;
@@ -17,6 +16,7 @@ import com.smartbox.investory.infrastructure.repository.ClosedPositionRepository
 import com.smartbox.investory.infrastructure.repository.OpenedPosition;
 import com.smartbox.investory.infrastructure.repository.OpenedPositionRepository;
 import com.smartbox.investory.infrastructure.repository.portfolio.SymbolPerformanceRepository;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;

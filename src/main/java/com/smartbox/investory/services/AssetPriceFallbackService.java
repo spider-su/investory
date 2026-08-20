@@ -1,12 +1,12 @@
 package com.smartbox.investory.services;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.repository.Asset;
 import com.smartbox.investory.infrastructure.repository.AssetPriceHistoryRepository;
 import com.smartbox.investory.infrastructure.repository.AssetRepository;
 import com.smartbox.investory.infrastructure.repository.OpenedPosition;
 import com.smartbox.investory.infrastructure.repository.OpenedPositionRepository;
 import com.smartbox.investory.services.currency.CurrencyRateService;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;

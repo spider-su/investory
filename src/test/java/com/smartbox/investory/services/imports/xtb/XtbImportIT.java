@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.repository.Asset;
 import com.smartbox.investory.infrastructure.repository.AssetRepository;
 import com.smartbox.investory.infrastructure.repository.CashOperation;
@@ -15,6 +14,7 @@ import com.smartbox.investory.infrastructure.repository.ClosedPositionRepository
 import com.smartbox.investory.infrastructure.repository.OpenedPosition;
 import com.smartbox.investory.infrastructure.repository.OpenedPositionRepository;
 import com.smartbox.investory.services.imports.ImportExecutionResult;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.FastDatabaseTest;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;

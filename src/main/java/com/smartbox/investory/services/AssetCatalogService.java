@@ -1,8 +1,8 @@
 package com.smartbox.investory.services;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.repository.Asset;
 import com.smartbox.investory.infrastructure.repository.AssetRepository;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;

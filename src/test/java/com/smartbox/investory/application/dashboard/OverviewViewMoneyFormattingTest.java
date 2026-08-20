@@ -2,7 +2,7 @@ package com.smartbox.investory.application.dashboard;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;

@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.smartbox.investory.application.planning.PlanningYearStatus;
 import com.smartbox.investory.application.simulation.SimulationScenario;
-import com.smartbox.investory.infrastructure.CurrencyType;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;

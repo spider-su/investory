@@ -5,11 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.repository.notifications.DrawdownAlertState;
 import com.smartbox.investory.infrastructure.repository.notifications.DrawdownAlertStateRepository;
 import com.smartbox.investory.services.PortfolioService;
 import com.smartbox.investory.services.models.Portfolio;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;

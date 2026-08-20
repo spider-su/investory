@@ -1,8 +1,8 @@
 package com.smartbox.investory.services;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.repository.CashOperation;
 import com.smartbox.investory.services.currency.CurrencyRateService;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;

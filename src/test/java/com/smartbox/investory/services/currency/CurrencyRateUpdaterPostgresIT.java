@@ -7,7 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.clients.currency.ExchangeRateClient;
-import com.smartbox.investory.infrastructure.CurrencyType;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.FastDatabaseTest;
 import java.time.LocalDate;
 import java.util.Map;

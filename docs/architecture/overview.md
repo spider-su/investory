@@ -149,13 +149,17 @@ not permitted broad package exceptions:
 | Current dependency | Why it exists now | Removal stage |
 | --- | --- | --- |
 | `LongTermAssetService` and `LongTermAssetBootstrapService` -> `PortfolioKpiSummaryRepository` | Long-Term workflows obtain brokerage portfolio context directly. | Stage 4 |
-| `LongTermAssetService` -> `CurrencyRateService` | Long-Term valuation/presentation uses the current FX implementation. | Stage 2/4 |
 | `LongTermAssetService` -> `PlanningPresentation` | Long-Term template-visible summaries use the cross-domain formatter. | Stage 5 |
 | `application.longterm.RentalIncomeProjection` -> `application.profile.ProjectedLongTermAsset` | Long-Term projection currently uses the profile-owned model. | Stage 6 |
-| `InvestmentProfileFacade` -> `AssetRepository`, `LongTermAssetService`, and `CurrencyRateService` | Profile composition still reads Investment persistence and Long-Term implementation directly. | Stages 2, 3, and 6 |
+| `InvestmentProfileFacade` -> `AssetRepository` and `LongTermAssetService` | Profile composition still reads Investment persistence and Long-Term implementation directly. | Stages 3 and 6 |
 | Planning sources/facade -> brokerage portfolio repositories | Historical planning actuals still read Investment persistence. | Stage 3 |
 | `HistoricalLongTermAssetYearSource` and Retirement simulation callers -> `LongTermAssetService`/Long-Term types | Retirement has no Long-Term public read contract yet. | Stage 6 |
 | `PlanningPresentation` -> planning, profile, simulation, and Long-Term types | The formatter is a cross-domain presentation bridge; Long-Term also calls it. | Stage 5 |
+
+`shared.currency.CurrencyType` and `shared.currency.CurrencyConversion` now provide the shared FX
+boundary. `CurrencyRateService` implements the BigDecimal conversion contract; its rate resolution,
+persistence, cache, and double compatibility APIs remain Investment implementation details. Long-Term
+and Retirement consumers use the shared contract.
 
 ArchUnit rules protect the boundaries that already exist. The one accounting-to-Retirement exception is
 specific to `PlanningPresentation`, documented above, and is removed in Stage 5. Later stages replace

@@ -45,13 +45,13 @@ import static com.smartbox.investory.testsupport.portfolio.PortfolioTestData.TSL
 import static com.smartbox.investory.testsupport.portfolio.PortfolioTestData.XTB_EUR;
 
 import com.smartbox.investory.infrastructure.BrokerType;
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.repository.Asset;
 import com.smartbox.investory.infrastructure.repository.CashOperation;
 import com.smartbox.investory.infrastructure.repository.ClosedPosition;
 import com.smartbox.investory.infrastructure.repository.CurrencyRate;
 import com.smartbox.investory.infrastructure.repository.OpenedPosition;
 import com.smartbox.investory.infrastructure.repository.imports.ImportHistory;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.List;
 
 public final class PortfolioScenarios {

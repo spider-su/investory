@@ -1,9 +1,9 @@
 package com.smartbox.investory.services.notifications;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.repository.OpenedPosition;
 import com.smartbox.investory.infrastructure.repository.OpenedPositionRepository;
 import com.smartbox.investory.services.currency.CurrencyRateService;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

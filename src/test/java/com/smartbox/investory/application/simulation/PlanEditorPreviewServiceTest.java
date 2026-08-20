@@ -13,7 +13,7 @@ import com.smartbox.investory.application.longterm.LongTermAssetService;
 import com.smartbox.investory.application.planning.ForwardSimulationInputService;
 import com.smartbox.investory.application.planning.PlanningCurrencyPresentationService;
 import com.smartbox.investory.application.profile.InvestmentProfile;
-import com.smartbox.investory.infrastructure.CurrencyType;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;

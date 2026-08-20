@@ -8,9 +8,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.repository.Asset;
 import com.smartbox.investory.infrastructure.repository.AssetRepository;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;

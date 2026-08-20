@@ -121,14 +121,14 @@
                         <div class="iv-popover-heading" th:text="${'Base currency: ' + stats.baseCurrency}">Base currency: USD</div>
                         <p class="iv-popover-help" th:text="${'Portfolio values are converted to ' + stats.baseCurrency + '.'}">Portfolio values are converted to USD.</p>
                         <div class="iv-position-popover__row iv-dividend-popover__row"
-                             th:if="${stats.exchangeRates.get(T(com.smartbox.investory.infrastructure.CurrencyType).EUR) != null}">
+                             th:if="${stats.exchangeRates.get(T(com.smartbox.investory.shared.currency.CurrencyType).EUR) != null}">
                             <span th:text="${stats.baseCurrency + ' → EUR'}">USD → EUR</span>
-                            <span th:text="${#numbers.formatDecimal(stats.exchangeRates.get(T(com.smartbox.investory.infrastructure.CurrencyType).EUR), 1, 'POINT', 2, 'COMMA')}">0.00</span>
+                            <span th:text="${#numbers.formatDecimal(stats.exchangeRates.get(T(com.smartbox.investory.shared.currency.CurrencyType).EUR), 1, 'POINT', 2, 'COMMA')}">0.00</span>
                         </div>
                         <div class="iv-position-popover__row iv-dividend-popover__row"
-                             th:if="${stats.exchangeRates.get(T(com.smartbox.investory.infrastructure.CurrencyType).PLN) != null}">
+                             th:if="${stats.exchangeRates.get(T(com.smartbox.investory.shared.currency.CurrencyType).PLN) != null}">
                             <span th:text="${stats.baseCurrency + ' → PLN'}">USD → PLN</span>
-                            <span th:text="${#numbers.formatDecimal(stats.exchangeRates.get(T(com.smartbox.investory.infrastructure.CurrencyType).PLN), 1, 'POINT', 2, 'COMMA')}">0.00</span>
+                            <span th:text="${#numbers.formatDecimal(stats.exchangeRates.get(T(com.smartbox.investory.shared.currency.CurrencyType).PLN), 1, 'POINT', 2, 'COMMA')}">0.00</span>
                         </div>
                         <div class="iv-popover-help" th:if="${dashboard.overview.operational != null and dashboard.overview.operational.fx.ratesUpdated != null}"
                              th:text="${'Rates updated: ' + dashboard.overview.operational.fx.ratesUpdated}">Rates updated: —</div>

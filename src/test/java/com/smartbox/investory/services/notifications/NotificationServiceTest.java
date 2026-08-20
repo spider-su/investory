@@ -4,9 +4,9 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 import com.smartbox.investory.controllers.bot.PortfolioBot;
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.services.PortfolioService;
 import com.smartbox.investory.services.models.Portfolio;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;

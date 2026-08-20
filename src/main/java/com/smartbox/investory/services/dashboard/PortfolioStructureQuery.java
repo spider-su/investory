@@ -2,10 +2,10 @@ package com.smartbox.investory.services.dashboard;
 
 import com.smartbox.investory.application.dashboard.AssetAllocationView;
 import com.smartbox.investory.application.dashboard.PortfolioStructureView;
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.services.models.AccountBalance;
 import com.smartbox.investory.services.models.OpenPositionValue;
 import com.smartbox.investory.services.models.Portfolio;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;

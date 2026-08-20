@@ -1,7 +1,6 @@
 package com.smartbox.investory.services;
 
 import com.smartbox.investory.infrastructure.CashOperationType;
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.repository.*;
 import com.smartbox.investory.infrastructure.repository.account.Account;
 import com.smartbox.investory.infrastructure.repository.account.AccountRepository;
@@ -19,6 +18,7 @@ import com.smartbox.investory.infrastructure.repository.portfolio.SymbolPerforma
 import com.smartbox.investory.infrastructure.repository.portfolio.SymbolPerformanceRepository;
 import com.smartbox.investory.services.currency.CurrencyRateService;
 import com.smartbox.investory.services.models.*;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.LocalDate;
 import java.time.temporal.TemporalAccessor;
 import java.util.*;

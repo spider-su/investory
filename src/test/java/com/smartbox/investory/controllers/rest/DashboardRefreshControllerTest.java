@@ -9,12 +9,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.smartbox.investory.config.MockMvcSecurityTestConfig;
 import com.smartbox.investory.config.SecurityConfig;
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.services.ManualAssetPriceService;
 import com.smartbox.investory.services.ManualAssetPriceService.ManualAssetPrice;
 import com.smartbox.investory.services.MarketService;
 import com.smartbox.investory.services.PortfolioProjectionService;
 import com.smartbox.investory.services.currency.CurrencyRateUpdaterService;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.ZonedDateTime;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

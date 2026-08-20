@@ -2,7 +2,6 @@ package com.smartbox.investory.testsupport.portfolio;
 
 import com.smartbox.investory.infrastructure.BrokerType;
 import com.smartbox.investory.infrastructure.CashOperationType;
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.ImportBatchStatus;
 import com.smartbox.investory.infrastructure.ImportSourceType;
 import com.smartbox.investory.infrastructure.PositionType;
@@ -15,6 +14,7 @@ import com.smartbox.investory.infrastructure.repository.account.Account;
 import com.smartbox.investory.infrastructure.repository.account.AccountDaily;
 import com.smartbox.investory.infrastructure.repository.account.AccountStatistics;
 import com.smartbox.investory.infrastructure.repository.imports.ImportHistory;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestData.AccountDefinition;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestData.AssetDefinition;
 import java.time.LocalDate;

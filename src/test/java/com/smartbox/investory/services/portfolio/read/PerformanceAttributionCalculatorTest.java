@@ -2,7 +2,7 @@ package com.smartbox.investory.services.portfolio.read;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;

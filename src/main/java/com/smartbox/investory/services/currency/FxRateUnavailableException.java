@@ -1,6 +1,6 @@
 package com.smartbox.investory.services.currency;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.LocalDate;
 
 public class FxRateUnavailableException extends IllegalStateException {

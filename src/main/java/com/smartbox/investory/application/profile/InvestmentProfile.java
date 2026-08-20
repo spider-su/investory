@@ -1,7 +1,7 @@
 package com.smartbox.investory.application.profile;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.services.PlanningPresentation;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.util.List;
 

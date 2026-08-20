@@ -3,9 +3,9 @@ package com.smartbox.investory.services;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.smartbox.investory.infrastructure.CashOperationType;
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.repository.CashOperation;
 import com.smartbox.investory.infrastructure.repository.account.Account;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;

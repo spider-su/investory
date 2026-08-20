@@ -5,11 +5,12 @@ import com.smartbox.investory.application.longterm.LongTermAssetSummary;
 import com.smartbox.investory.infrastructure.longterm.LongTermAssetType;
 import com.smartbox.investory.infrastructure.repository.Asset;
 import com.smartbox.investory.infrastructure.repository.AssetRepository;
-import com.smartbox.investory.services.currency.CurrencyRateService;
 import com.smartbox.investory.services.models.Portfolio;
 import com.smartbox.investory.services.portfolio.read.BrokeragePortfolioReadService;
 import com.smartbox.investory.services.portfolio.read.BrokeragePositionSnapshot;
 import com.smartbox.investory.services.portfolio.read.SharedBrokeragePortfolioSnapshot;
+import com.smartbox.investory.shared.currency.CurrencyConversion;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
@@ -25,7 +26,7 @@ public class InvestmentProfileFacade {
   private final BrokeragePortfolioReadService brokeragePortfolioReadService;
   private final LongTermAssetService longTermAssetService;
   private final AssetRepository assetRepository;
-  private final CurrencyRateService currencyRates;
+  private final CurrencyConversion currencyRates;
   private final Clock clock;
 
   @Transactional(readOnly = true)
@@ -181,10 +182,7 @@ public class InvestmentProfileFacade {
   }
 
   private BigDecimal convertAmount(
-      BigDecimal value,
-      com.smartbox.investory.infrastructure.CurrencyType from,
-      com.smartbox.investory.infrastructure.CurrencyType to,
-      java.time.LocalDate date) {
+      BigDecimal value, CurrencyType from, CurrencyType to, java.time.LocalDate date) {
     return from == to ? value : currencyRates.convertToBaseCurrency(value, to, from, date);
   }
 

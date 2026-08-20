@@ -8,7 +8,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.infrastructure.CashOperationType;
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.repository.*;
 import com.smartbox.investory.infrastructure.repository.account.Account;
 import com.smartbox.investory.infrastructure.repository.account.AccountDailyRepository;
@@ -35,6 +34,7 @@ import com.smartbox.investory.services.models.InstrumentPerformance;
 import com.smartbox.investory.services.models.Performance;
 import com.smartbox.investory.services.models.Portfolio;
 import com.smartbox.investory.services.models.PortfolioDataQualityIssue;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.portfolio.PortfolioBuilders;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestData;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestData.AccountDefinition;

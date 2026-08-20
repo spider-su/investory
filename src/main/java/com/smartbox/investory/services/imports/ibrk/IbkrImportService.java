@@ -2,7 +2,6 @@ package com.smartbox.investory.services.imports.ibrk;
 
 import com.opencsv.CSVReader;
 import com.smartbox.investory.infrastructure.CashOperationType;
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.PositionType;
 import com.smartbox.investory.infrastructure.repository.*;
 import com.smartbox.investory.infrastructure.repository.Asset;
@@ -15,6 +14,7 @@ import com.smartbox.investory.services.imports.BrokerSourceRowIdentity;
 import com.smartbox.investory.services.imports.ImportEvidenceContext;
 import com.smartbox.investory.services.imports.ImportExecutionResult;
 import com.smartbox.investory.services.imports.ImportSourceEvidenceService;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;

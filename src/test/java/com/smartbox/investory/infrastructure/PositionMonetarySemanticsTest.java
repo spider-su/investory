@@ -3,6 +3,7 @@ package com.smartbox.investory.infrastructure;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.smartbox.investory.infrastructure.repository.OpenedPosition;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import org.junit.jupiter.api.Test;
 
 class PositionMonetarySemanticsTest {

@@ -76,6 +76,24 @@ class LayerDependencyTest {
   }
 
   @Test
+  void sharedContractsDoNotDependOnDomainImplementations() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..shared..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage(
+            "..application..",
+            "..services..",
+            "..controllers..",
+            "..infrastructure.repository..",
+            "..infrastructure.longterm..",
+            "..infrastructure.planning..",
+            "..infrastructure.simulation..")
+        .check(MAIN);
+  }
+
+  @Test
   void accountingServicesDoNotDependOnPlanningOrSimulation() {
     // PlanningPresentation is the exact cross-domain presentation bridge documented in
     // docs/architecture/overview.md. Stage 5 removes it; no package-wide exception is allowed.

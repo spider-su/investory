@@ -9,11 +9,11 @@ import static org.mockito.Mockito.*;
 
 import com.smartbox.investory.application.longterm.LongTermAssetService;
 import com.smartbox.investory.application.longterm.RealEstateEntry;
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.longterm.Frequency;
 import com.smartbox.investory.infrastructure.longterm.InterestTreatment;
 import com.smartbox.investory.infrastructure.longterm.LongTermAsset;
 import com.smartbox.investory.infrastructure.longterm.LongTermAssetCashFlow;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;

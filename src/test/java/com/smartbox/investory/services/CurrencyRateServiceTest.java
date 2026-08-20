@@ -6,12 +6,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.repository.CurrencyRate;
 import com.smartbox.investory.infrastructure.repository.CurrencyRateRepository;
 import com.smartbox.investory.infrastructure.repository.FxRateResolutionRow;
 import com.smartbox.investory.services.currency.CurrencyRateService;
 import com.smartbox.investory.services.currency.FxRateUnavailableException;
+import com.smartbox.investory.shared.currency.CurrencyConversion;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -48,6 +49,17 @@ class CurrencyRateServiceTest {
   }
 
   @Test
+  void sharedConversionKeepsBigDecimalSameCurrencyResult() {
+    CurrencyConversion conversion = service;
+
+    assertEquals(
+        new BigDecimal("100.00000000"),
+        conversion.convertToBaseCurrency(
+            new BigDecimal("100"), CurrencyType.USD, CurrencyType.USD, LocalDate.of(2026, 7, 5)));
+    verifyNoInteractions(currencyRateRepository);
+  }
+
+  @Test
   void convertToBaseCurrency_usesHistoricalRateForRequestedDate() {
     when(currencyRateRepository.resolveFxRate(LocalDate.of(2026, 6, 15), "EUR", "USD", "VALUATION"))
         .thenReturn(
@@ -71,6 +83,23 @@ class CurrencyRateServiceTest {
         service.convertToBaseCurrency(
             90.0, CurrencyType.USD, CurrencyType.EUR, LocalDate.of(2026, 7, 5)),
         1e-9);
+  }
+
+  @Test
+  void sharedConversionKeepsHistoricalBigDecimalResult() {
+    LocalDate date = LocalDate.of(2026, 6, 15);
+    when(currencyRateRepository.resolveFxRate(date, "EUR", "USD", "VALUATION"))
+        .thenReturn(
+            Optional.of(
+                resolution(
+                    "EUR", "USD", "1.1", "HISTORICAL_MONTHLY", "NBP", "2026-06-01", "ESTIMATED")));
+
+    CurrencyConversion conversion = service;
+
+    assertEquals(
+        new BigDecimal("99.00000000"),
+        conversion.convertToBaseCurrency(
+            new BigDecimal("90"), CurrencyType.USD, CurrencyType.EUR, date));
   }
 
   @Test
@@ -120,6 +149,20 @@ class CurrencyRateServiceTest {
         () ->
             freshService.convertToBaseCurrency(
                 123.0, CurrencyType.PLN, CurrencyType.EUR, LocalDate.of(2026, 7, 5)));
+  }
+
+  @Test
+  void sharedConversionKeepsMissingRateFailure() {
+    CurrencyConversion conversion = new CurrencyRateService(currencyRateRepository);
+
+    assertThrows(
+        FxRateUnavailableException.class,
+        () ->
+            conversion.convertToBaseCurrency(
+                new BigDecimal("123"),
+                CurrencyType.PLN,
+                CurrencyType.EUR,
+                LocalDate.of(2026, 7, 5)));
   }
 
   @Test

@@ -1,7 +1,6 @@
 package com.smartbox.investory.services;
 
 import com.smartbox.investory.infrastructure.CashOperationType;
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.PositionSettlementModel;
 import com.smartbox.investory.infrastructure.PositionType;
 import com.smartbox.investory.infrastructure.repository.Asset;
@@ -19,6 +18,7 @@ import com.smartbox.investory.infrastructure.repository.account.AccountDailyRepo
 import com.smartbox.investory.infrastructure.repository.account.AccountRepository;
 import com.smartbox.investory.services.CashOperationNormalizer.NormalizedCategory;
 import com.smartbox.investory.services.currency.CurrencyRateService;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;

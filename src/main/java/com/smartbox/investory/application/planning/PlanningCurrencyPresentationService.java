@@ -2,9 +2,9 @@ package com.smartbox.investory.application.planning;
 
 import com.smartbox.investory.application.profile.InvestmentProfile;
 import com.smartbox.investory.application.simulation.*;
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.services.PlanningPresentation;
-import com.smartbox.investory.services.currency.CurrencyRateService;
+import com.smartbox.investory.shared.currency.CurrencyConversion;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -21,10 +21,10 @@ public class PlanningCurrencyPresentationService {
   private static final CurrencyType CANONICAL = CurrencyType.USD;
   private static final DateTimeFormatter PLAN_PROGRESS_BOUNDARY =
       DateTimeFormatter.ofPattern("d MMM uuuu", java.util.Locale.ENGLISH);
-  private final CurrencyRateService rates;
+  private final CurrencyConversion rates;
   private final Clock clock;
 
-  public PlanningCurrencyPresentationService(CurrencyRateService rates, Clock clock) {
+  public PlanningCurrencyPresentationService(CurrencyConversion rates, Clock clock) {
     this.rates = rates;
     this.clock = clock;
   }

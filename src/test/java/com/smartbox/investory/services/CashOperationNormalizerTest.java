@@ -8,10 +8,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.smartbox.investory.infrastructure.CashOperationType;
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.repository.CashOperation;
 import com.smartbox.investory.services.CashOperationNormalizer.NormalizedCashOperation;
 import com.smartbox.investory.services.CashOperationNormalizer.NormalizedCategory;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.ZonedDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;

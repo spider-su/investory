@@ -10,7 +10,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.clients.market.TwelveDataService;
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.repository.NormalizedCashOperationRepository;
 import com.smartbox.investory.infrastructure.repository.account.Account;
 import com.smartbox.investory.infrastructure.repository.account.AccountDaily;
@@ -24,6 +23,7 @@ import com.smartbox.investory.infrastructure.repository.benchmark.BenchmarkMonth
 import com.smartbox.investory.infrastructure.repository.benchmark.BenchmarkMonthlyCloseRepository;
 import com.smartbox.investory.services.currency.CurrencyRateService;
 import com.smartbox.investory.services.models.Benchmark;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.Collection;

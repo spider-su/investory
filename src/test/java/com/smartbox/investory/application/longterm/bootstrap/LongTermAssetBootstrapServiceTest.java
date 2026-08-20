@@ -5,10 +5,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.longterm.*;
 import com.smartbox.investory.infrastructure.repository.portfolio.PortfolioKpiSummary;
 import com.smartbox.investory.infrastructure.repository.portfolio.PortfolioKpiSummaryRepository;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;

@@ -1,10 +1,11 @@
 package com.smartbox.investory.services.currency;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.repository.CashOperation;
 import com.smartbox.investory.infrastructure.repository.CurrencyRate;
 import com.smartbox.investory.infrastructure.repository.CurrencyRateRepository;
 import com.smartbox.investory.infrastructure.repository.FxRateResolutionRow;
+import com.smartbox.investory.shared.currency.CurrencyConversion;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
@@ -26,7 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional
 @RequiredArgsConstructor
-public class CurrencyRateService {
+public class CurrencyRateService implements CurrencyConversion {
 
   private static final Pattern XTB_EXECUTION =
       Pattern.compile(
@@ -59,6 +60,7 @@ public class CurrencyRateService {
     return convertToBaseCurrency(amount, baseCurrency, positionCurrency, LocalDate.now());
   }
 
+  @Override
   public BigDecimal convertToBaseCurrency(
       BigDecimal amount,
       CurrencyType baseCurrency,

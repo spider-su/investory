@@ -1,7 +1,7 @@
 package com.smartbox.investory.services.dashboard;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.PositionSettlementModel;
+import com.smartbox.investory.shared.currency.CurrencyType;
 
 public record AssetHoldingView(
     Long accountId,

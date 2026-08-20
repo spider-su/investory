@@ -339,8 +339,8 @@ public class DashboardFacade {
         periodPerformance.incomeTotal(),
         incomeYield(periodPerformance, portfolio),
         periodPerformance.profit(),
-        crossRateToPln(portfolio, com.smartbox.investory.infrastructure.CurrencyType.EUR),
-        rate(portfolio, com.smartbox.investory.infrastructure.CurrencyType.PLN),
+        crossRateToPln(portfolio, com.smartbox.investory.shared.currency.CurrencyType.EUR),
+        rate(portfolio, com.smartbox.investory.shared.currency.CurrencyType.PLN),
         portfolio.getAccountBalances(),
         portfolio.getAccountBalancesTotal(),
         portfolio.getExchangeRates(),
@@ -396,13 +396,13 @@ public class DashboardFacade {
   }
 
   private Double rate(
-      Portfolio portfolio, com.smartbox.investory.infrastructure.CurrencyType currency) {
+      Portfolio portfolio, com.smartbox.investory.shared.currency.CurrencyType currency) {
     return portfolio.getExchangeRates() == null ? null : portfolio.getExchangeRates().get(currency);
   }
 
   private Double crossRateToPln(
-      Portfolio portfolio, com.smartbox.investory.infrastructure.CurrencyType currency) {
-    Double pln = rate(portfolio, com.smartbox.investory.infrastructure.CurrencyType.PLN);
+      Portfolio portfolio, com.smartbox.investory.shared.currency.CurrencyType currency) {
+    Double pln = rate(portfolio, com.smartbox.investory.shared.currency.CurrencyType.PLN);
     Double source = rate(portfolio, currency);
     return pln == null || source == null || source == 0.0 ? null : pln / source;
   }

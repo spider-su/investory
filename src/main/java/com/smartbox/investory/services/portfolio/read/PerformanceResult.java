@@ -1,6 +1,6 @@
 package com.smartbox.investory.services.portfolio.read;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 
 /** Canonical application read model for portfolio performance reporting. */

@@ -1,7 +1,7 @@
 package com.smartbox.investory.application.dashboard;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.services.models.OpenPositionValue;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.List;
 import java.util.Map;
 

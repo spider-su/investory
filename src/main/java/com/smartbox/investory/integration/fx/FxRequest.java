@@ -1,6 +1,6 @@
 package com.smartbox.investory.integration.fx;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.LocalDate;
 import java.util.List;
 

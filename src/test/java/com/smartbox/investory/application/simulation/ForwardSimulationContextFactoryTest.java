@@ -3,7 +3,7 @@ package com.smartbox.investory.application.simulation;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.smartbox.investory.application.profile.InvestmentProfile;
-import com.smartbox.investory.infrastructure.CurrencyType;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;

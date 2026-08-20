@@ -1,6 +1,6 @@
 package com.smartbox.investory.infrastructure.repository;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.List;

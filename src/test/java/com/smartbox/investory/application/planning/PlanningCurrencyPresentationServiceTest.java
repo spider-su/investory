@@ -11,8 +11,8 @@ import com.smartbox.investory.application.simulation.SimulationChartData;
 import com.smartbox.investory.application.simulation.SimulationScenario;
 import com.smartbox.investory.application.simulation.SustainableSpendingAnalysis;
 import com.smartbox.investory.application.simulation.SustainableSpendingResultState;
-import com.smartbox.investory.infrastructure.CurrencyType;
-import com.smartbox.investory.services.currency.CurrencyRateService;
+import com.smartbox.investory.shared.currency.CurrencyConversion;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.*;
 import java.util.List;
@@ -25,7 +25,7 @@ class PlanningCurrencyPresentationServiceTest {
   void presentsSpendingDifferenceAsExtraCapacityOrOverLimit() {
     PlanningCurrencyPresentationService service =
         new PlanningCurrencyPresentationService(
-            Mockito.mock(CurrencyRateService.class),
+            Mockito.mock(CurrencyConversion.class),
             Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC));
     SustainableSpendingAnalysis positive =
         new SustainableSpendingAnalysis(
@@ -70,7 +70,7 @@ class PlanningCurrencyPresentationServiceTest {
 
   @Test
   void convertsBothHistoricalActualAndExpectedValuesWithTheSameDisplayRate() {
-    CurrencyRateService rates = Mockito.mock(CurrencyRateService.class);
+    CurrencyConversion rates = Mockito.mock(CurrencyConversion.class);
     when(rates.convertToBaseCurrency(
             any(BigDecimal.class),
             eq(CurrencyType.PLN),
@@ -121,7 +121,7 @@ class PlanningCurrencyPresentationServiceTest {
 
   @Test
   void convertsProfileAndEveryMonetaryChartDatasetAtTheSingleDisplayBoundary() {
-    CurrencyRateService rates = Mockito.mock(CurrencyRateService.class);
+    CurrencyConversion rates = Mockito.mock(CurrencyConversion.class);
     when(rates.convertToBaseCurrency(
             any(BigDecimal.class),
             eq(CurrencyType.PLN),
@@ -181,7 +181,7 @@ class PlanningCurrencyPresentationServiceTest {
   void historicalPresentationHidesLegacyPassiveIncomeWithoutDeletingIt() {
     PlanningCurrencyPresentationService service =
         new PlanningCurrencyPresentationService(
-            Mockito.mock(CurrencyRateService.class),
+            Mockito.mock(CurrencyConversion.class),
             Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC));
     PastPlanningYear past =
         new PastPlanningYear(
@@ -229,7 +229,7 @@ class PlanningCurrencyPresentationServiceTest {
 
     PlanningTimelineMoney displayed =
         new PlanningCurrencyPresentationService(
-                Mockito.mock(CurrencyRateService.class),
+                Mockito.mock(CurrencyConversion.class),
                 Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC))
             .displayTimelineMoney(timeline, CurrencyType.USD)
             .get(2025);
@@ -269,7 +269,7 @@ class PlanningCurrencyPresentationServiceTest {
 
     PlanningTimelineMoney displayed =
         new PlanningCurrencyPresentationService(
-                Mockito.mock(CurrencyRateService.class),
+                Mockito.mock(CurrencyConversion.class),
                 Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC))
             .displayTimelineMoney(timeline, CurrencyType.USD)
             .get(2026);
@@ -294,7 +294,7 @@ class PlanningCurrencyPresentationServiceTest {
   void currentYearReviewExposesSourceBaselineAndMissingPlanningInputs() {
     PlanningCurrencyPresentationService service =
         new PlanningCurrencyPresentationService(
-            Mockito.mock(CurrencyRateService.class),
+            Mockito.mock(CurrencyConversion.class),
             Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC));
     CurrentPlanningYear current =
         new CurrentPlanningYear(
@@ -349,7 +349,7 @@ class PlanningCurrencyPresentationServiceTest {
 
   @Test
   void planProgressDisplayConvertsForPresentationWithoutChangingCanonicalDifference() {
-    CurrencyRateService rates = Mockito.mock(CurrencyRateService.class);
+    CurrencyConversion rates = Mockito.mock(CurrencyConversion.class);
     when(rates.convertToBaseCurrency(
             any(BigDecimal.class),
             eq(CurrencyType.PLN),

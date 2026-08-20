@@ -1,7 +1,6 @@
 package com.smartbox.investory.services.imports.ibrk;
 
 import com.smartbox.investory.infrastructure.CashOperationType;
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.PositionType;
 import com.smartbox.investory.infrastructure.repository.CashOperation;
 import com.smartbox.investory.infrastructure.repository.CashOperationRepository;
@@ -10,6 +9,7 @@ import com.smartbox.investory.infrastructure.repository.ClosedPositionRepository
 import com.smartbox.investory.infrastructure.repository.OpenedPosition;
 import com.smartbox.investory.infrastructure.repository.OpenedPositionRepository;
 import com.smartbox.investory.services.ReportingDateHelper;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.ZonedDateTime;

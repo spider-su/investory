@@ -6,11 +6,11 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import com.opencsv.CSVReader;
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.repository.OpenedPositionRepository;
 import com.smartbox.investory.infrastructure.repository.account.AccountStatistics;
 import com.smartbox.investory.infrastructure.repository.account.AccountStatisticsRepository;
 import com.smartbox.investory.services.exports.yahoo.YahooExportService;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.portfolio.PortfolioBuilders;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestData;
 import java.io.FileReader;

@@ -1,7 +1,6 @@
 package com.smartbox.investory.services.imports.xtb;
 
 import com.smartbox.investory.infrastructure.CashOperationType;
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.PositionSettlementModel;
 import com.smartbox.investory.infrastructure.PositionType;
 import com.smartbox.investory.infrastructure.repository.Asset;
@@ -22,6 +21,7 @@ import com.smartbox.investory.services.imports.BrokerSourceRowIdentity;
 import com.smartbox.investory.services.imports.ImportEvidenceContext;
 import com.smartbox.investory.services.imports.ImportExecutionResult;
 import com.smartbox.investory.services.imports.ImportSourceEvidenceService;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.services.BenchmarkService;
 import com.smartbox.investory.services.PortfolioService;
 import com.smartbox.investory.services.dashboard.DashboardPeriod;
@@ -21,6 +20,7 @@ import com.smartbox.investory.services.models.OpenPositionValue;
 import com.smartbox.investory.services.models.Performance;
 import com.smartbox.investory.services.models.Portfolio;
 import com.smartbox.investory.services.models.RiskExposureSummary;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.nio.charset.StandardCharsets;
 import java.time.YearMonth;
 import java.util.LinkedHashMap;
@@ -403,7 +403,7 @@ class DashboardFacadeTest {
             30.0,
             1_300.0,
             100.0,
-            com.smartbox.investory.infrastructure.CurrencyType.USD,
+            com.smartbox.investory.shared.currency.CurrencyType.USD,
             1_250.0,
             100.0);
     portfolio.setAccountBalances(List.of(account));

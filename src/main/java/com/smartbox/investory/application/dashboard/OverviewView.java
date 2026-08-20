@@ -1,7 +1,7 @@
 package com.smartbox.investory.application.dashboard;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.services.models.AccountBalance;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.RoundingMode;
 import java.text.NumberFormat;
 import java.util.List;

@@ -1,6 +1,6 @@
 package com.smartbox.investory.services.models;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.Map;
 import java.util.TreeMap;
 import lombok.AllArgsConstructor;

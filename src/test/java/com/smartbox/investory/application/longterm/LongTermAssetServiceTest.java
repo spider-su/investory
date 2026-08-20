@@ -6,11 +6,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.longterm.*;
 import com.smartbox.investory.infrastructure.repository.portfolio.PortfolioKpiSummary;
 import com.smartbox.investory.infrastructure.repository.portfolio.PortfolioKpiSummaryRepository;
-import com.smartbox.investory.services.currency.CurrencyRateService;
+import com.smartbox.investory.shared.currency.CurrencyConversion;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -31,7 +31,7 @@ class LongTermAssetServiceTest {
   @Mock LongTermAssetDepositDetailsRepository deposits;
   @Mock RentalTaxPolicyRepository taxPolicies;
   @Mock PortfolioKpiSummaryRepository portfolioSummaries;
-  @Mock CurrencyRateService currencyRates;
+  @Mock CurrencyConversion currencyRates;
   LongTermAssetService service;
 
   @BeforeEach

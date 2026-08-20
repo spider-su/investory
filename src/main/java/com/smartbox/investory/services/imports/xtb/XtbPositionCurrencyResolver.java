@@ -1,7 +1,7 @@
 package com.smartbox.investory.services.imports.xtb;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.repository.ClosedPosition;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Service;

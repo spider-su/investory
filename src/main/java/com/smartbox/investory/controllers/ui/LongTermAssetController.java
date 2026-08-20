@@ -73,7 +73,7 @@ public class LongTermAssetController {
     LongTermAsset asset = new LongTermAsset();
     asset.setPortfolioId(portfolioId);
     asset.setType(com.smartbox.investory.infrastructure.longterm.LongTermAssetType.BOND);
-    asset.setCurrency(com.smartbox.investory.infrastructure.CurrencyType.PLN);
+    asset.setCurrency(com.smartbox.investory.shared.currency.CurrencyType.PLN);
     asset.setActive(true);
     model.addAttribute("asset", asset);
     model.addAttribute("portfolioId", portfolioId);
@@ -91,7 +91,7 @@ public class LongTermAssetController {
       @RequestParam Long portfolioId,
       @RequestParam(required = false) Long id,
       @RequestParam String name,
-      @RequestParam com.smartbox.investory.infrastructure.CurrencyType currency,
+      @RequestParam com.smartbox.investory.shared.currency.CurrencyType currency,
       @RequestParam BigDecimal value,
       @RequestParam(required = false) BigDecimal annualReturnPercent,
       @RequestParam(required = false) String notes) {
@@ -121,7 +121,7 @@ public class LongTermAssetController {
   public String createBond(
       @RequestParam Long portfolioId,
       @RequestParam String name,
-      @RequestParam com.smartbox.investory.infrastructure.CurrencyType currency,
+      @RequestParam com.smartbox.investory.shared.currency.CurrencyType currency,
       @RequestParam BigDecimal value,
       @RequestParam LocalDate acquisitionDate,
       @RequestParam LocalDate maturityDate,
@@ -337,7 +337,7 @@ public class LongTermAssetController {
       @PathVariable Long id,
       @RequestParam Long portfolioId,
       @RequestParam String name,
-      @RequestParam com.smartbox.investory.infrastructure.CurrencyType currency,
+      @RequestParam com.smartbox.investory.shared.currency.CurrencyType currency,
       @RequestParam BigDecimal value,
       @RequestParam LocalDate acquisitionDate,
       @RequestParam LocalDate maturityDate,

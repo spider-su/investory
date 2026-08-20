@@ -2,8 +2,8 @@ package com.smartbox.investory.services.imports.xtb;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.repository.ClosedPosition;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import org.junit.jupiter.api.Test;
 
 class XtbPositionCurrencyResolverTest {

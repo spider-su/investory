@@ -5,10 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.smartbox.investory.application.profile.*;
 import com.smartbox.investory.application.simulation.*;
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.longterm.CashFlowType;
 import com.smartbox.investory.infrastructure.longterm.InterestTreatment;
 import com.smartbox.investory.infrastructure.longterm.LongTermAssetType;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.*;
 import java.util.List;
@@ -406,7 +406,7 @@ class CurrentYearProjectionBridgeTest {
   private static InvestmentProfile profile() {
     return new InvestmentProfile(
         1L,
-        com.smartbox.investory.infrastructure.CurrencyType.USD,
+        com.smartbox.investory.shared.currency.CurrencyType.USD,
         new BigDecimal("1100"),
         BigDecimal.ZERO,
         new BigDecimal("1100"),

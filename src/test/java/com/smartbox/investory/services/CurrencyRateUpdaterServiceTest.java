@@ -8,10 +8,10 @@ import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.clients.currency.ExchangeRateClient;
 import com.smartbox.investory.clients.currency.ExchangeRateException;
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.services.currency.CurrencyRateService;
 import com.smartbox.investory.services.currency.CurrencyRateUpdaterService;
 import com.smartbox.investory.services.currency.CurrencyRateUpdaterService.CurrencyRateRefreshResult;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;

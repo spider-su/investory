@@ -48,7 +48,7 @@ class ForwardSimulationInputServiceTest {
   private static InvestmentProfile profile() {
     return new InvestmentProfile(
         1L,
-        com.smartbox.investory.infrastructure.CurrencyType.PLN,
+        com.smartbox.investory.shared.currency.CurrencyType.PLN,
         new BigDecimal("1000"),
         BigDecimal.ZERO,
         new BigDecimal("1000"),

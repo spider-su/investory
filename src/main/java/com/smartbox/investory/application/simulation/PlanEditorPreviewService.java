@@ -6,7 +6,7 @@ import com.smartbox.investory.application.planning.ForwardSimulationInput;
 import com.smartbox.investory.application.planning.ForwardSimulationInputService;
 import com.smartbox.investory.application.planning.PlanningCurrencyPresentationService;
 import com.smartbox.investory.application.profile.InvestmentProfile;
-import com.smartbox.investory.infrastructure.CurrencyType;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;

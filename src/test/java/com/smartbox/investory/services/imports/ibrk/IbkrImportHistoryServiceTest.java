@@ -10,7 +10,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.infrastructure.CashOperationType;
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.repository.Asset;
 import com.smartbox.investory.infrastructure.repository.AssetPriceHistoryRepository;
 import com.smartbox.investory.infrastructure.repository.AssetRepository;
@@ -24,6 +23,7 @@ import com.smartbox.investory.infrastructure.repository.account.Account;
 import com.smartbox.investory.infrastructure.repository.account.AccountRepository;
 import com.smartbox.investory.services.AssetCatalogService;
 import com.smartbox.investory.services.imports.ImportExecutionResult;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -149,7 +149,7 @@ class IbkrImportHistoryServiceTest {
             .ibrk("O")
             .yahoo("O.US")
             .country("US")
-            .currency(com.smartbox.investory.infrastructure.CurrencyType.USD)
+            .currency(com.smartbox.investory.shared.currency.CurrencyType.USD)
             .assetType("EQUITY")
             .active(true)
             .build();

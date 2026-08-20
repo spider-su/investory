@@ -1,10 +1,10 @@
 package com.smartbox.investory.application.longterm;
 
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.infrastructure.longterm.*;
 import com.smartbox.investory.infrastructure.repository.portfolio.PortfolioKpiSummaryRepository;
 import com.smartbox.investory.services.PlanningPresentation;
-import com.smartbox.investory.services.currency.CurrencyRateService;
+import com.smartbox.investory.shared.currency.CurrencyConversion;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
@@ -27,7 +27,7 @@ public class LongTermAssetService {
   private final LongTermAssetDepositDetailsRepository deposits;
   private final RentalTaxPolicyRepository taxPolicies;
   private final PortfolioKpiSummaryRepository portfolioSummaries;
-  private final CurrencyRateService currencyRates;
+  private final CurrencyConversion currencyRates;
 
   @Value("${app.long-term-assets.planning-currency:PLN}")
   private CurrencyType planningCurrency = CurrencyType.PLN;
@@ -684,7 +684,7 @@ public class LongTermAssetService {
   @Transactional(readOnly = true)
   public AggregateSummary aggregate(Long portfolioId, LocalDate date) {
     date = effectiveDate(date);
-    com.smartbox.investory.infrastructure.CurrencyType base =
+    com.smartbox.investory.shared.currency.CurrencyType base =
         portfolioSummaries
             .findById(portfolioId)
             .orElseThrow(() -> new NoSuchElementException("Portfolio not found"))
@@ -892,7 +892,7 @@ public class LongTermAssetService {
     static AggregateSummary of(
         List<LongTermAssetSummary> rows,
         CurrencyType base,
-        CurrencyRateService rates,
+        CurrencyConversion rates,
         LocalDate date) {
       BigDecimal value = sum(rows, LongTermAssetSummary::currentValue, base, rates, date);
       BigDecimal gross = sum(rows, r -> r.annualEconomics().grossAnnualIncome(), base, rates, date);
@@ -906,7 +906,7 @@ public class LongTermAssetService {
         List<LongTermAssetSummary> rows,
         java.util.function.Function<LongTermAssetSummary, BigDecimal> f,
         CurrencyType base,
-        CurrencyRateService rates,
+        CurrencyConversion rates,
         LocalDate date) {
       return rows.stream()
           .map(

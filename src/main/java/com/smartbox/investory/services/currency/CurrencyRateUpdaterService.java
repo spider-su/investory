@@ -2,13 +2,13 @@ package com.smartbox.investory.services.currency;
 
 import com.smartbox.investory.clients.currency.ExchangeRateClient;
 import com.smartbox.investory.clients.currency.ExchangeRateException;
-import com.smartbox.investory.infrastructure.CurrencyType;
 import com.smartbox.investory.integration.PluginConfig;
 import com.smartbox.investory.integration.config.IntegrationConfigurationService;
 import com.smartbox.investory.integration.fx.ExchangeRateHostFxDataPlugin;
 import com.smartbox.investory.integration.fx.FxDataPlugin;
 import com.smartbox.investory.integration.fx.FxQuote;
 import com.smartbox.investory.integration.fx.FxRequest;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.LocalDate;
 import java.util.EnumMap;
 import java.util.HashMap;
