@@ -53,6 +53,25 @@ public class SimulationPlanService {
     return plan;
   }
 
+  /** Public read boundary for adapters; persistence entities stay inside this service. */
+  @Transactional(readOnly = true)
+  public SimulationAssumptions assumptions(Long portfolioId, Long id) {
+    return assumptions(get(portfolioId, id));
+  }
+
+  @Transactional(readOnly = true)
+  public String name(Long portfolioId, Long id) {
+    return get(portfolioId, id).getName();
+  }
+
+  public Long createId(Long portfolioId, String name, SimulationAssumptions assumptions) {
+    return create(portfolioId, name, assumptions).getId();
+  }
+
+  public Long updateId(Long portfolioId, Long id, String name, SimulationAssumptions assumptions) {
+    return update(portfolioId, id, name, assumptions).getId();
+  }
+
   public SimulationPlan create(Long portfolioId, String name, SimulationAssumptions assumptions) {
     validateName(portfolioId, name, null);
     SimulationPlan saved = plans.save(copy(new SimulationPlan(), portfolioId, name, assumptions));

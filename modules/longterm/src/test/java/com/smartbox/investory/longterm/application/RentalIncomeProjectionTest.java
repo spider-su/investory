@@ -139,6 +139,23 @@ class RentalIncomeProjectionTest {
     assertBd("122000", result.netIncome());
   }
 
+  @Test
+  void expensesStoredOnIncomePeriodRemainPartOfNetRentalEconomics() {
+    var asset =
+        asset(
+            new LongTermAssetProjection.Period(
+                LocalDate.of(2027, 1, 1),
+                null,
+                bd("180000"),
+                bd("34054"),
+                BigDecimal.ZERO,
+                CashFlowType.RENT));
+
+    assertBd(
+        "145946",
+        RentalIncomeProjection.project(asset, Map.of(), 2027, BigDecimal.ZERO).netIncome());
+  }
+
   private static LongTermAssetProjection asset(LongTermAssetProjection.Period... periods) {
     return new LongTermAssetProjection(
         1L,

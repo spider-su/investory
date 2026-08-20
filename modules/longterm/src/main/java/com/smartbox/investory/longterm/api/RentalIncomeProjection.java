@@ -34,6 +34,12 @@ public final class RentalIncomeProjection {
     }
     BigDecimal gross = income.values().stream().reduce(ZERO, BigDecimal::add);
     BigDecimal expenses = ZERO;
+    for (CashFlowType type : INCOME_TYPES)
+      expenses =
+          expenses.add(
+              latestKnown(asset, type, year)
+                  .map(LongTermAssetProjection.Period::annualExpense)
+                  .orElse(ZERO));
     for (CashFlowType type : EXPENSE_TYPES)
       expenses =
           expenses.add(
@@ -58,10 +64,11 @@ public final class RentalIncomeProjection {
     for (LongTermAssetProjection.Period period : asset.periods()) {
       BigDecimal covered = coverage(period, year);
       if (covered.signum() == 0) continue;
-      if (isIncome(period.cashFlowType()))
+      if (isIncome(period.cashFlowType())) {
         income.merge(
             period.cashFlowType(), period.annualIncome().multiply(covered), BigDecimal::add);
-      else if (isExpense(period.cashFlowType()))
+        expenses = expenses.add(period.annualExpense().multiply(covered));
+      } else if (isExpense(period.cashFlowType()))
         expenses = expenses.add(period.annualExpense().multiply(covered));
     }
     BigDecimal gross = income.values().stream().reduce(ZERO, BigDecimal::add);

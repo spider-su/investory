@@ -64,7 +64,10 @@ public class CurrentYearProjectionBridge {
     SimulationYear expected =
         simulations
             .simulate(
-                profile, assumptionsForYear(assumptions, currentYear), SimulationScenario.BASE)
+                profile,
+                assumptionsForYear(assumptions, currentYear),
+                SimulationScenario.BASE,
+                true)
             .years()
             .getFirst();
     BigDecimal eventExpenses =

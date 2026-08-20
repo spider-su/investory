@@ -165,7 +165,7 @@ public class RetirementSimulationController {
     var defaults =
         SimulationAssumptions.defaults(
             profile, requestedCurrentAge, requestedEndAge, Year.now(clock).getValue());
-    var base = planId == null ? defaults : plans.assumptions(plans.get(portfolioId, planId));
+    var base = planId == null ? defaults : plans.assumptions(portfolioId, planId);
     CurrencyType submittedCurrency =
         submittedPlanningDisplayCurrency == null
             ? planningDisplayCurrency
@@ -289,8 +289,7 @@ public class RetirementSimulationController {
     model.addAttribute("selectedPlanId", planId);
     model.addAttribute("selectedScenario", selectedScenario);
     model.addAttribute(
-        "activePlanName",
-        planId == null ? "Current assumptions" : plans.get(portfolioId, planId).getName());
+        "activePlanName", planId == null ? "Current assumptions" : plans.name(portfolioId, planId));
     model.addAttribute(
         "activePlanSummary",
         projectedAssumptions.currentAge()
@@ -361,9 +360,8 @@ public class RetirementSimulationController {
     if (planId == null) {
       assumptions = SimulationAssumptions.defaults(profile, 40, 80, currentYear);
     } else {
-      var plan = plans.get(portfolioId, planId);
-      assumptions = plans.assumptions(plan);
-      planName = plan.getName();
+      assumptions = plans.assumptions(portfolioId, planId);
+      planName = plans.name(portfolioId, planId);
     }
     model.addAttribute("profile", profile);
     model.addAttribute(
@@ -452,7 +450,7 @@ public class RetirementSimulationController {
       var base =
           planId == null
               ? SimulationAssumptions.defaults(profile, 40, 80, Year.now(clock).getValue())
-              : plans.assumptions(plans.get(portfolioId, planId));
+              : plans.assumptions(portfolioId, planId);
       return org.springframework.http.ResponseEntity.ok(
           planEditorPreview.preview(
               profile,
@@ -663,7 +661,7 @@ public class RetirementSimulationController {
         planId,
         plans.currentRevisionId(portfolioId, planId),
         profile,
-        plans.assumptions(plans.get(portfolioId, planId)));
+        plans.assumptions(portfolioId, planId));
     return simulationRedirect(portfolioId, planId, planningDisplayCurrency, selectedScenario);
   }
 
@@ -899,8 +897,7 @@ public class RetirementSimulationController {
       @RequestParam(required = false) CurrencyType returnPlanningDisplayCurrency,
       @RequestParam(defaultValue = "false") boolean saveAs,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
-    var storedAssumptions =
-        planId == null ? null : plans.assumptions(plans.get(portfolioId, planId));
+    var storedAssumptions = planId == null ? null : plans.assumptions(portfolioId, planId);
     var existingEvents =
         storedAssumptions != null
             ? storedAssumptions.futureEvents()
@@ -952,11 +949,10 @@ public class RetirementSimulationController {
                 annualEmploymentIncome, planningDisplayCurrency, BigDecimal.ZERO),
             planningPresentation.fromDisplay(
                 annualPreRetirementContribution, planningDisplayCurrency, BigDecimal.ZERO));
-    var savedPlan =
+    Long savedPlanId =
         planId == null || saveAs
-            ? plans.create(portfolioId, name, a)
-            : plans.update(portfolioId, planId, name, a);
-    Long savedPlanId = savedPlan == null ? planId : savedPlan.getId();
+            ? plans.createId(portfolioId, name, a)
+            : plans.updateId(portfolioId, planId, name, a);
     CurrencyType returnCurrency =
         returnPlanningDisplayCurrency == null
             ? planningDisplayCurrency

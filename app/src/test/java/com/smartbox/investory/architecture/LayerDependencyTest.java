@@ -192,4 +192,33 @@ class LayerDependencyTest {
         .resideInAnyPackage("..retirement.planning..", "..retirement.simulation..")
         .check(MAIN);
   }
+
+  @Test
+  void webUiDoesNotReachIntoBusinessInfrastructure() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..ui..")
+        .and()
+        .haveSimpleNameNotEndingWith("Test")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage(
+            "..investment.infrastructure..",
+            "..longterm.infrastructure..",
+            "..retirement.infrastructure..")
+        .check(MAIN);
+  }
+
+  @Test
+  void webUiDoesNotDependOnPersistenceRepositories() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..ui..")
+        .and()
+        .haveSimpleNameNotEndingWith("Test")
+        .should()
+        .dependOnClassesThat()
+        .areAnnotatedWith(Repository.class)
+        .check(MAIN);
+  }
 }

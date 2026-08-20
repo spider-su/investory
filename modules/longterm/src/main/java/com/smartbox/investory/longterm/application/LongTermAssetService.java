@@ -4,7 +4,9 @@ import com.smartbox.investory.longterm.api.CashFlowType;
 import com.smartbox.investory.longterm.api.Frequency;
 import com.smartbox.investory.longterm.api.InterestTreatment;
 import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshot;
+import com.smartbox.investory.longterm.api.LongTermAssetProjection;
 import com.smartbox.investory.longterm.api.LongTermAssetType;
+import com.smartbox.investory.longterm.api.RentalIncomeProjection;
 import com.smartbox.investory.longterm.infrastructure.*;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -736,12 +738,50 @@ public class LongTermAssetService {
         list(portfolioId, date).stream()
             .filter(row -> historicalAssetIds.contains(row.id()))
             .toList();
+    Map<Long, LongTermAssetProjectionInput> projectionInputs =
+        projectionInputs(portfolioId, date).stream()
+            .collect(java.util.stream.Collectors.toMap(LongTermAssetProjectionInput::id, x -> x));
     BigDecimal rentalIncome =
-        sumPlanning(
-            rows,
-            LongTermAssetType.REAL_ESTATE,
-            row -> row.annualEconomics().netAnnualIncomeAfterTax(),
-            date);
+        rows.stream()
+            .filter(row -> row.type() == LongTermAssetType.REAL_ESTATE)
+            .map(
+                row -> {
+                  LongTermAssetProjectionInput input = projectionInputs.get(row.id());
+                  BigDecimal amount;
+                  if (input == null) {
+                    amount = row.annualEconomics().netAnnualIncomeAfterTax();
+                  } else {
+                    LongTermAssetProjection projection =
+                        new LongTermAssetProjection(
+                            input.id(),
+                            input.name(),
+                            input.type(),
+                            input.currency(),
+                            input.currentValue(),
+                            input.periods().stream()
+                                .map(
+                                    p ->
+                                        new LongTermAssetProjection.Period(
+                                            p.validFrom(),
+                                            p.validTo(),
+                                            p.annualIncome(),
+                                            p.annualExpense(),
+                                            p.annualReturnRate(),
+                                            p.cashFlowType()))
+                                .toList(),
+                            input.maturityDate(),
+                            input.redemptionValue(),
+                            input.interestTreatment(),
+                            input.taxRate(),
+                            input.taxBase());
+                    amount = RentalIncomeProjection.actualYear(projection, year).netIncome();
+                  }
+                  return row.currency() == planningCurrency
+                      ? amount
+                      : currencyRates.convertToBaseCurrency(
+                          amount, planningCurrency, row.currency(), date);
+                })
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
     boolean hasRealEstate =
         rows.stream().anyMatch(row -> row.type() == LongTermAssetType.REAL_ESTATE);
     boolean rentalDataComplete =

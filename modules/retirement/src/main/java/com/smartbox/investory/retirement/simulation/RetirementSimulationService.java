@@ -18,6 +18,19 @@ public class RetirementSimulationService {
 
   public SimulationResult simulate(
       InvestmentProfile profile, SimulationAssumptions assumptions, SimulationScenario scenario) {
+    return simulate(profile, assumptions, scenario, false);
+  }
+
+  /**
+   * Runs the annual simulation, optionally using effective-dated actual-year rental economics for
+   * its first year. The latter is used only by the current-year bridge; later simulation years
+   * always use forward latest-value inheritance.
+   */
+  public SimulationResult simulate(
+      InvestmentProfile profile,
+      SimulationAssumptions assumptions,
+      SimulationScenario scenario,
+      boolean actualRentalYear) {
     SimulationScenarioSettings settings =
         SimulationScenarioSettings.forScenario(scenario, assumptions);
     EnumMap<EconomicBucket, BigDecimal> market = initialMarket(profile);
@@ -50,7 +63,8 @@ public class RetirementSimulationService {
               calendarYear,
               rentalIncome,
               calendarYear,
-              settings);
+              settings,
+              actualRentalYear && age == assumptions.currentAge());
       BigDecimal pension =
           age >= assumptions.pensionStartAge() ? assumptions.annualPension() : ZERO;
       BigDecimal passive = manualYear.passiveIncome();
@@ -309,7 +323,8 @@ public class RetirementSimulationService {
       int year,
       Map<Long, Map<CashFlowType, BigDecimal>> previousRentalIncome,
       int rentalYear,
-      SimulationScenarioSettings settings) {
+      SimulationScenarioSettings settings,
+      boolean actualRentalYear) {
     Map<Long, BigDecimal> values = new LinkedHashMap<>();
     Map<Long, BigDecimal> liquidReserveRates = new LinkedHashMap<>();
     EnumMap<EconomicBucket, BigDecimal> starts = zeroBuckets(), ends = zeroBuckets();
@@ -328,11 +343,13 @@ public class RetirementSimulationService {
       BigDecimal start = previous.getOrDefault(asset.id(), ZERO);
       if (isRentalProperty(asset)) {
         RentalIncomeProjection.Result projection =
-            RentalIncomeProjection.project(
-                longTermProjection(asset),
-                previousRentalIncome.getOrDefault(asset.id(), Map.of()),
-                rentalYear,
-                settings.rentalIncomeGrowthRate());
+            actualRentalYear
+                ? RentalIncomeProjection.actualYear(longTermProjection(asset), rentalYear)
+                : RentalIncomeProjection.project(
+                    longTermProjection(asset),
+                    previousRentalIncome.getOrDefault(asset.id(), Map.of()),
+                    rentalYear,
+                    settings.rentalIncomeGrowthRate());
         rentalIncome.put(asset.id(), projection.incomeByType());
         rentalIncomeAmount = rentalIncomeAmount.add(projection.netIncome());
         passive = passive.add(projection.netIncome());

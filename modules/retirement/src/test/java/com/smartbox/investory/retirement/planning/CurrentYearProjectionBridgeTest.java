@@ -74,6 +74,73 @@ class CurrentYearProjectionBridgeTest {
   }
 
   @Test
+  void currentYearBridgeUsesEffectiveDatedRentalPeriodsBeforeForwardCarry() {
+    Clock clock = Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC);
+    CurrentYearProjectionBridge bridge =
+        new CurrentYearProjectionBridge(clock, new RetirementSimulationService());
+    ProjectedLongTermAsset rental =
+        new ProjectedLongTermAsset(
+            22L,
+            "Rental",
+            LongTermAssetType.REAL_ESTATE,
+            EconomicBucket.REAL_ESTATE,
+            CurrencyType.PLN,
+            BigDecimal.ZERO,
+            Liquidity.ILLIQUID,
+            List.of(
+                new ProjectedLongTermAsset.Period(
+                    LocalDate.of(2026, 1, 1),
+                    LocalDate.of(2026, 6, 30),
+                    new BigDecimal("24000"),
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    CashFlowType.RENT),
+                new ProjectedLongTermAsset.Period(
+                    LocalDate.of(2026, 7, 1),
+                    null,
+                    new BigDecimal("27600"),
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    CashFlowType.RENT)),
+            null,
+            null,
+            null,
+            BigDecimal.ZERO);
+    InvestmentProfile profile =
+        new InvestmentProfile(
+            1L,
+            CurrencyType.PLN,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            List.of(),
+            List.of(rental));
+
+    CurrentYearBridgeResult result =
+        bridge.projectCurrentYearEnd(
+            new ForwardSimulationContextFactory(clock)
+                .create(profile, assumptionsWithRetirement()));
+    BigDecimal currentYearAverage =
+        new BigDecimal("24000")
+            .multiply(
+                new BigDecimal("181")
+                    .divide(new BigDecimal("365"), 18, java.math.RoundingMode.HALF_UP))
+            .add(
+                new BigDecimal("27600")
+                    .multiply(
+                        new BigDecimal("184")
+                            .divide(new BigDecimal("365"), 18, java.math.RoundingMode.HALF_UP)));
+    BigDecimal remaining =
+        new BigDecimal("139").divide(new BigDecimal("365"), 12, java.math.RoundingMode.HALF_UP);
+    assertEquals(0, currentYearAverage.multiply(remaining).compareTo(result.passiveIncomeUsed()));
+  }
+
+  @Test
   void appliesOnlyTheRemainingYearFractionBeforeNextYearsProjection() {
     Clock clock = Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC);
     CurrentYearProjectionBridge bridge =
