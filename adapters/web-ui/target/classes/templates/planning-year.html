@@ -31,7 +31,7 @@
         </form>
       </td>
       <td class="text-end" th:if="${not (planningYear.status.name() == 'DRAFT' and editableMetrics.contains(entry.key))}" th:text="${entry.value.value() == null ? '—' : T(com.smartbox.investory.ui.presentation.UiPresentation).planningMetric(entry.key, entry.value.value())}">—</td>
-      <td class="text-end" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).planningDifference(entry.value.value(), expected == null ? null : expected.value()) == null ? '—' : T(com.smartbox.investory.ui.presentation.UiPresentation).planningMetric(entry.key, T(com.smartbox.investory.ui.presentation.UiPresentation).planningDifference(entry.value.value(), expected == null ? null : expected.value()))}">—</td>
+      <td class="text-end" th:text="${planningYear.variance(entry.key) == null ? '—' : T(com.smartbox.investory.ui.presentation.UiPresentation).planningMetric(entry.key, planningYear.variance(entry.key))}">—</td>
       <td th:text="${entry.value.source.name().replace('_', ' ')}">Derived</td>
       <td th:text="${entry.value.note == null ? '—' : entry.value.note}">—</td><td></td>
     </tr>

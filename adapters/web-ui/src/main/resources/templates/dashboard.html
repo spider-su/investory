@@ -656,7 +656,6 @@
 <script src="/js/tabler.min.js"></script>
 <!--suppress JSUnresolvedLibraryURL -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="/js/performance-board-rules.js"></script>
 <script th:inline="javascript">
     /*<![CDATA[*/
     /* global Chart */
@@ -959,57 +958,36 @@
         el.textContent = (signed && value >= 0 ? '+' : '') + value.toFixed(1) + suffix;
     }
 
-    function updateBenchmarkSelection() {
-        const selectedIds = effectiveAccountIds(selectedBenchmarkAccountIds(), benchAccountSeries.map(series => Number(series.id)));
+    async function updateBenchmarkSelection() {
         if (!benchmarkChart) return;
-        const selectedSeries = benchAccountSeries.filter(series => selectedIds.has(Number(series.id)));
-        const portfolio = benchLabels.map((_, index) =>
-            selectedSeries.reduce((sum, series) => sum + (series.portfolioCurve[index] || 0), 0));
-        const spy = benchLabels.map((_, index) =>
-            selectedSeries.reduce((sum, series) => sum + (series.benchmarkCurve[index] || 0), 0));
-        const invested = selectedSeries.reduce((sum, series) => sum + (series.investedCapital || 0), 0);
-        const portfolioPl = portfolio.length ? portfolio[portfolio.length - 1] : 0;
-        const benchmarkPl = spy.length ? spy[spy.length - 1] : 0;
-        let returnFactor = 1;
-        const portfolioPercentCurve = benchLabels.map((_, index) => {
-            let capital = 0;
-            let contribution = 0;
-            let hasReturn = false;
-            selectedSeries.forEach(series => {
-                const rawCapital = series.returnCapitalCurve?.[index];
-                const rawMonthlyReturn = series.returnPctCurve?.[index];
-                const periodCapital = Number(rawCapital);
-                const periodReturn = Number(rawMonthlyReturn);
-                if (rawCapital != null && rawMonthlyReturn != null
-                    && Number.isFinite(periodCapital) && Number.isFinite(periodReturn) && periodCapital !== 0) {
-                    capital += periodCapital;
-                    contribution += periodCapital * periodReturn / 100;
-                    hasReturn = true;
-                }
-            });
-            if (!hasReturn || capital === 0) return null;
-            const periodReturn = contribution / capital;
-            returnFactor = periodReturn <= -1 ? 0 : returnFactor * (1 + periodReturn);
-            return (returnFactor - 1) * 100;
-        });
-        const spyPercentCurve = benchLabels.map((_, index) => benchBenchmarkReturnCurve[index] ?? null);
-        const portfolioPct = portfolioPercentCurve.length && portfolioPercentCurve.at(-1) != null
-            ? portfolioPercentCurve.at(-1) : 0;
-        const benchmarkPct = spyPercentCurve.length && spyPercentCurve.at(-1) != null
-            ? spyPercentCurve.at(-1) : 0;
-        const available = selectedSeries.length > 0 && invested !== 0;
-
-        document.getElementById('benchmark-empty').style.display = available ? 'none' : '';
-        document.getElementById('benchmark-content').style.display = available ? '' : 'none';
-        benchmarkChart.data.datasets[0].data = portfolioPercentCurve;
-        benchmarkChart.data.datasets[0].absoluteData = portfolio;
-        benchmarkChart.data.datasets[1].data = spyPercentCurve;
-        benchmarkChart.data.datasets[1].absoluteData = spy;
-        benchmarkChart.update();
-        renderTable('benchmark-table', ['Period', 'Portfolio cumulative return', 'S&P 500 cumulative return', 'Excess return'], benchLabels.map((label, i) => [label, portfolioPercentCurve[i] == null ? '—' : signedPercentValue(portfolioPercentCurve[i]), spyPercentCurve[i] == null ? '—' : signedPercentValue(spyPercentCurve[i]), portfolioPercentCurve[i] == null || spyPercentCurve[i] == null ? '—' : signedPercentValue(portfolioPercentCurve[i] - spyPercentCurve[i]).replace('%', ' pp')]));
-        setBenchmarkValue('benchmark-you', portfolioPct, ' %', false);
-        setBenchmarkValue('benchmark-spy', benchmarkPct, ' %', false);
-        setBenchmarkValue('benchmark-alpha', portfolioPct - benchmarkPct, ' pp', true);
+        const ids = [...selectedBenchmarkAccountIds()].join(',');
+        const params = new URLSearchParams({ accountIds: ids, aggregation: 'monthly', metric: 'return', style: 'line' });
+        try {
+            const response = await fetch('/dashboard/performance-board?' + params.toString(), { headers: { Accept: 'application/json' } });
+            if (!response.ok) return;
+            const view = await response.json();
+            const available = Boolean(view.available);
+            document.getElementById('benchmark-empty').style.display = available ? 'none' : '';
+            document.getElementById('benchmark-content').style.display = available ? '' : 'none';
+            const portfolio = view.series?.[0]?.values || [];
+            const benchmark = view.benchmarkValues || [];
+            benchmarkChart.data.labels = view.labels || [];
+            benchmarkChart.data.datasets[0].data = portfolio;
+            benchmarkChart.data.datasets[0].absoluteData = portfolio;
+            benchmarkChart.data.datasets[1].data = benchmark;
+            benchmarkChart.data.datasets[1].absoluteData = benchmark;
+            benchmarkChart.update();
+            const last = values => values.length && values.at(-1) != null ? Number(values.at(-1)) : null;
+            const portfolioPct = last(portfolio), benchmarkPct = last(benchmark);
+            const excess = view.excessValues || [];
+            renderTable('benchmark-table', ['Period', 'Portfolio cumulative return', 'S&P 500 cumulative return', 'Excess return'], (view.labels || []).map((label, i) => [label, portfolio[i] == null ? '—' : signedPercentValue(portfolio[i]), benchmark[i] == null ? '—' : signedPercentValue(benchmark[i]), excess[i] == null ? '—' : signedPercentValue(excess[i]).replace('%', ' pp')]));
+            if (portfolioPct != null) setBenchmarkValue('benchmark-you', portfolioPct, ' %', false);
+            if (benchmarkPct != null) setBenchmarkValue('benchmark-spy', benchmarkPct, ' %', false);
+            if (view.kpis?.excessReturn != null) setBenchmarkValue('benchmark-alpha', view.kpis.excessReturn, ' pp', true);
+        } catch (error) {
+            document.getElementById('benchmark-empty').style.display = '';
+            document.getElementById('benchmark-content').style.display = 'none';
+        }
     }
 
     function selectedBenchmarkAccountIds() {
@@ -1414,179 +1392,82 @@
             : selected + ' of ' + inputs.length;
     }
 
-    function performanceBoardGroup(label, aggregation) {
-        return PerformanceBoardRules.group(label, aggregation);
+    const performanceBoardEl = document.getElementById('performance-board-chart');
+    let performanceBoardChart = null;
+    const performanceBoardState = { metric: 'return', style: 'line' };
+    const performanceBoardPalette = ['#4f46e5', '#16a34a', '#f59e0b', '#dc2626', '#0891b2', '#7c3aed', '#0f766e', '#be123c'];
+
+    function performanceBoardSelectedIds() {
+        return Array.from(document.querySelectorAll('.js-performance-board-account:checked')).map(input => Number(input.value));
     }
 
-    function performanceBoardAggregate(values, aggregation, returnValues) {
-        return PerformanceBoardRules.aggregate(values, benchLabels, aggregation, returnValues);
-    }
-
-    function performanceBoardPeriodValues(curve) {
-        return PerformanceBoardRules.periodValues(curve);
-    }
-
-    function performanceBoardPeriodFromCumulativeReturn(curve) {
-        return PerformanceBoardRules.periodFromCumulativeReturn(curve);
-    }
-
-    function performanceBoardCumulativeReturn(series) {
-        return PerformanceBoardRules.cumulativeReturn(series, benchLabels);
-    }
-
-    function performanceBoardPeriodReturn(series) {
-        return performanceBoardPeriodFromCumulativeReturn(performanceBoardCumulativeReturn(series));
+    function performanceBoardUpdateAccountLabel() {
+        const inputs = Array.from(document.querySelectorAll('.js-performance-board-account'));
+        const selected = inputs.filter(input => input.checked).length;
+        const label = document.getElementById('performance-board-account-label');
+        if (label) label.textContent = selected === inputs.length ? 'Accounts: All (' + inputs.length + ')' : selected + ' of ' + inputs.length;
     }
 
     function performanceBoardDataset(label, values, color, type, stacked) {
         const bars = type === 'bar';
-        return {
-            label,
-            data: values,
-            borderColor: color,
-            backgroundColor: bars ? color : color + '22',
-            fill: !bars && label === 'Portfolio',
-            tension: .25,
-            pointRadius: 0,
-            borderWidth: bars ? 0 : 2,
-            borderRadius: bars ? 5 : 0,
-            stack: stacked ? 'accounts' : undefined
-        };
+        return { label, data: values, borderColor: color, backgroundColor: bars ? color : color + '22', fill: !bars && label === 'Portfolio', tension: .25, pointRadius: 0, borderWidth: bars ? 0 : 2, borderRadius: bars ? 5 : 0, stack: stacked ? 'accounts' : undefined };
     }
 
-    function performanceBoardAccountData(selectedSeries, allSelected, metric, style, aggregation) {
-        return PerformanceBoardRules.accountData(
-            selectedSeries,
-            allSelected,
-            metric,
-            style,
-            aggregation,
-            benchLabels,
-            performanceBoardNames);
+    async function performanceBoardView() {
+        const params = new URLSearchParams({
+            accountIds: performanceBoardSelectedIds().join(','),
+            aggregation: document.getElementById('performance-board-aggregation')?.value || 'monthly',
+            metric: performanceBoardState.metric,
+            style: performanceBoardState.style
+        });
+        const response = await fetch('/dashboard/performance-board?' + params.toString(), { headers: { Accept: 'application/json' } });
+        if (!response.ok) throw new Error('Performance board request failed');
+        return response.json();
     }
 
-    function performanceBoardFlow(label, aggregation, selectedIds, allSelected) {
-        return benchLabels.reduce((total, sourceLabel) => {
-            if (performanceBoardGroup(sourceLabel, aggregation) !== label) return total;
-            const attribution = monthlyAttributions[sourceLabel];
-            if (!attribution) return total;
-            if (allSelected) return total + Number(attribution.netExternalFlow || 0);
-            return total + (attribution.accounts || [])
-                .filter(account => selectedIds.has(Number(account.accountId)))
-                .reduce((sum, account) => sum + Number(account.netFlow || 0), 0);
-        }, 0);
-    }
-
-    function performanceBoardKpiStartIndex(labels) {
-        const index = labels.findIndex(label => String(label) >= performanceBoardKpiStart);
-        return index < 0 ? 0 : index;
-    }
-
-    function performanceBoardRebasedReturn(values, startIndex) {
-        const current = values.at(-1);
-        if (current == null) return null;
-        const baseline = startIndex > 0 ? values[startIndex - 1] : 0;
-        if (baseline == null) return Number(current);
-        return ((1 + Number(current) / 100) / (1 + Number(baseline) / 100) - 1) * 100;
-    }
-
-    function performanceBoardSetKpis(selectedSeries, allSelected, aggregation, periodValues) {
-        const returns = performanceBoardCumulativeReturn(selectedSeries);
-        const kpiStartIndex = performanceBoardKpiStartIndex(benchLabels);
-        const pl = selectedSeries.reduce((sum, series) => {
-            const curve = series.portfolioCurve || [];
-            return sum + Number(curve.at(-1) || 0) - Number(kpiStartIndex > 0 ? curve[kpiStartIndex - 1] || 0 : 0);
-        }, 0);
-        const returnValue = performanceBoardRebasedReturn(returns, kpiStartIndex) ?? 0;
-        const spy = performanceBoardRebasedReturn(benchBenchmarkReturnCurve, kpiStartIndex);
-        const hasSpyData = benchBenchmarkReturnCurve.some(value => value != null);
-        const showBenchmark = hasSpyData && performanceBoardState.metric === 'return'
-            && document.getElementById('performance-board-show-spy')?.checked;
-        const write = (id, value, suffix, monetary = false) => {
-            const el = document.getElementById(id);
-            if (!el) return;
-            el.textContent = (value >= 0 ? '+' : '') + (monetary ? amountFormatter.format(Math.round(value)) : Number(value).toFixed(1)) + suffix;
+    function writePerformanceKpis(view) {
+        const kpis = view.kpis || {};
+        const write = (id, value, suffix, money) => {
+            const el = document.getElementById(id); if (!el) return;
+            if (value == null) { el.textContent = '—'; return; }
+            el.textContent = (value >= 0 ? '+' : '') + (money ? amountFormatter.format(Math.round(value)) : Number(value).toFixed(1)) + suffix;
             el.classList.toggle('iv-pos', value >= 0); el.classList.toggle('iv-neg', value < 0);
         };
-        write('performance-board-return', returnValue, ' %');
-        write('performance-board-pl', pl, '', true);
-        write('performance-board-spy', spy ?? 0, ' %');
-        write('performance-board-excess', spy == null ? 0 : returnValue - spy, ' pp');
-        ['performance-board-spy-kpi', 'performance-board-excess-kpi'].forEach(id => {
-            const el = document.getElementById(id); if (el) el.style.display = showBenchmark ? '' : 'none';
-        });
-        const showPeriods = performanceBoardState.style === 'bars';
-        const totals = periodValues.map((_, index) => periodValues.reduce((sum, series) => sum + Number(series.values[index]?.value ?? series.values[index] ?? 0), 0));
-        const labels = (periodValues[0]?.values || []).map((row, index) => row?.label || benchLabels[index] || 'Period ' + (index + 1));
-        const periodStartIndex = performanceBoardKpiStartIndex(labels);
-        const kpiTotals = totals.slice(periodStartIndex);
-        const best = kpiTotals.length ? periodStartIndex + kpiTotals.indexOf(Math.max(...kpiTotals)) : -1;
-        const worst = kpiTotals.length ? periodStartIndex + kpiTotals.indexOf(Math.min(...kpiTotals)) : -1;
-        const suffix = performanceBoardState.metric === 'return' ? '%' : '';
-        const monetary = performanceBoardState.metric !== 'return';
-        const bestEl = document.getElementById('performance-board-best');
-        const worstEl = document.getElementById('performance-board-worst');
-        if (bestEl) bestEl.textContent = best < 0 ? '—' : labels[best] + ' · ' + (totals[best] >= 0 ? '+' : '') + (monetary ? amountFormatter.format(Math.round(totals[best])) : totals[best].toFixed(1)) + (suffix ? ' ' + suffix : '');
-        if (worstEl) worstEl.textContent = worst < 0 ? '—' : labels[worst] + ' · ' + (totals[worst] >= 0 ? '+' : '') + (monetary ? amountFormatter.format(Math.round(totals[worst])) : totals[worst].toFixed(1)) + (suffix ? ' ' + suffix : '');
-        ['performance-board-best-kpi', 'performance-board-worst-kpi'].forEach(id => {
-            const el = document.getElementById(id); if (el) el.style.display = showPeriods ? '' : 'none';
-        });
+        write('performance-board-return', kpis.portfolioReturn, ' %', false);
+        write('performance-board-pl', kpis.portfolioProfitLoss, '', true);
+        write('performance-board-spy', kpis.benchmarkReturn, ' %', false);
+        write('performance-board-excess', kpis.excessReturn, ' pp', false);
+        const showBenchmark = performanceBoardState.metric === 'return' && document.getElementById('performance-board-show-spy')?.checked;
+        ['performance-board-spy-kpi', 'performance-board-excess-kpi'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = showBenchmark ? '' : 'none'; });
+        const best = document.getElementById('performance-board-best');
+        const worst = document.getElementById('performance-board-worst');
+        if (best) best.textContent = kpis.bestPeriod && kpis.bestValue != null ? kpis.bestPeriod + ' · ' + (kpis.bestValue >= 0 ? '+' : '') + Number(kpis.bestValue).toFixed(1) : '—';
+        if (worst) worst.textContent = kpis.worstPeriod && kpis.worstValue != null ? kpis.worstPeriod + ' · ' + (kpis.worstValue >= 0 ? '+' : '') + Number(kpis.worstValue).toFixed(1) : '—';
     }
 
-    function renderPerformanceBoard() {
+    async function renderPerformanceBoard() {
         if (!performanceBoardEl) return;
         performanceBoardUpdateAccountLabel();
-        const selectedIds = performanceBoardSelectedIds();
-        const allSelected = benchAccountSeries.length > 0 && benchAccountSeries.every(series => selectedIds.has(Number(series.id)));
-        const selectedSeries = benchAccountSeries.filter(series => selectedIds.has(Number(series.id)));
-        const aggregation = document.getElementById('performance-board-aggregation')?.value || 'monthly';
         const empty = document.getElementById('performance-board-empty');
         const content = document.getElementById('performance-board-content');
-        if (!selectedSeries.length) {
-            if (empty) empty.style.display = ''; if (content) content.style.display = 'none';
-            return;
-        }
-        if (empty) empty.style.display = 'none'; if (content) content.style.display = '';
-        const bars = performanceBoardState.style === 'bars';
-        const accountData = performanceBoardAccountData(selectedSeries, allSelected, performanceBoardState.metric, performanceBoardState.style, aggregation);
-        const labels = bars ? accountData[0].values.map(row => row.label) : benchLabels;
-        const datasets = accountData.map((series, index) => performanceBoardDataset(series.label, bars ? series.values.map(row => row.value) : series.values, performanceBoardPalette[index % performanceBoardPalette.length], bars ? 'bar' : 'line', bars && performanceBoardState.metric === 'pl' && !allSelected));
-        const showSpy = benchBenchmarkReturnCurve.some(value => value != null)
-            && performanceBoardState.metric === 'return'
-            && document.getElementById('performance-board-show-spy')?.checked;
-        if (showSpy) {
-            const spyValues = bars
-                ? performanceBoardAggregate(performanceBoardPeriodFromCumulativeReturn(benchBenchmarkReturnCurve), aggregation, true).map(row => row.value)
-                : benchBenchmarkReturnCurve;
-            datasets.push(performanceBoardDataset('S&P 500', spyValues, '#16a34a', bars ? 'bar' : 'line', false));
-        }
-        const benchmarkField = document.getElementById('performance-board-benchmark-field');
-        if (benchmarkField) benchmarkField.style.display = performanceBoardState.metric === 'return' && benchBenchmarkReturnCurve.some(value => value != null) ? '' : 'none';
-        document.getElementById('performance-scope-aggregation').textContent = aggregation[0].toUpperCase() + aggregation.substring(1);
-        performanceBoardSetKpis(selectedSeries, allSelected, aggregation, accountData);
-        const unit = performanceBoardState.metric === 'return' ? '%' : '$';
-        if (!performanceBoardChart) {
-            performanceBoardChart = new Chart(performanceBoardEl.getContext('2d'), {
-                type: bars ? 'bar' : 'line', data: { labels, datasets },
-                options: {
-                    responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-                    scales: { x: { stacked: bars && performanceBoardState.metric === 'pl' && !allSelected, grid: { display: false }, ticks: { color: tickColor, maxRotation: 0, autoSkip: true } }, y: { stacked: bars && performanceBoardState.metric === 'pl' && !allSelected, grid: { color: gridColor, drawBorder: false }, ticks: { color: tickColor, callback: value => performanceBoardState.metric === 'return' ? Number(value).toFixed(1) + ' %' : amountFormatter.format(Math.round(value)) } } },
-                    plugins: { legend: { display: true, position: 'top', align: 'end', labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, color: '#6b7488' } }, tooltip: { backgroundColor: '#1e2536', padding: 12, cornerRadius: 10, callbacks: { label: context => context.dataset.label + ': ' + (Number(context.parsed.y) >= 0 ? '+' : '') + (unit === '%' ? Number(context.parsed.y).toFixed(1) + ' %' : amountFormatter.format(Math.round(context.parsed.y)) + ' $'), afterBody: items => { const index = items[0]?.dataIndex; if (index == null) return []; const sourceLabel = labels[index]; const sourceIndexes = bars ? benchLabels.map((label, i) => performanceBoardGroup(label, aggregation) === sourceLabel ? i : -1).filter(i => i >= 0) : [index]; const periodPl = selectedSeries.reduce((sum, series) => sum + sourceIndexes.reduce((value, i) => value + Number(performanceBoardPeriodValues(series.portfolioCurve || [])[i] || 0), 0), 0); const cumulativePl = selectedSeries.reduce((sum, series) => sum + Number(series.portfolioCurve?.[sourceIndexes.at(-1)] || 0), 0); return ['Period P/L: ' + signedUsdFormatter.format(Math.round(periodPl)) + ' $', 'Cumulative P/L: ' + signedUsdFormatter.format(Math.round(cumulativePl)) + ' $', 'Net external flow: ' + signedUsdFormatter.format(Math.round(performanceBoardFlow(sourceLabel, aggregation, selectedIds, allSelected))) + ' $']; } } } }
-                }
-            });
-            enableKeyboardChart(performanceBoardChart, 'performance-board-chart', () => {});
-        } else if (performanceBoardChart.config.type !== (bars ? 'bar' : 'line')) {
-            performanceBoardChart.destroy();
-            performanceBoardChart = null;
-            renderPerformanceBoard();
-            return;
-        } else {
-            performanceBoardChart.data.labels = labels; performanceBoardChart.data.datasets = datasets;
-            performanceBoardChart.options.scales.x.stacked = bars && performanceBoardState.metric === 'pl' && !allSelected;
-            performanceBoardChart.options.scales.y.stacked = bars && performanceBoardState.metric === 'pl' && !allSelected;
-            performanceBoardChart.update();
-        }
-        renderTable('performance-board-table', ['Period', ...datasets.map(dataset => dataset.label)], labels.map((label, index) => [label, ...datasets.map(dataset => { const value = dataset.data[index]; return value == null ? '—' : (Number(value) >= 0 ? '+' : '') + (unit === '%' ? Number(value).toFixed(1) + ' %' : amountFormatter.format(Math.round(value)) + ' $'); })]));
+        try {
+            const view = await performanceBoardView();
+            (view.accounts || []).forEach(account => { const input = document.querySelector('.js-performance-board-account[value="' + account.id + '"]'); if (input) input.checked = account.selected; });
+            const labels = view.labels || [];
+            const bars = performanceBoardState.style === 'bars';
+            const datasets = (view.series || []).map((series, index) => performanceBoardDataset(series.label, series.values || [], performanceBoardPalette[index % performanceBoardPalette.length], bars ? 'bar' : 'line', bars && performanceBoardState.metric === 'pl' && (view.series || []).length > 1));
+            if (performanceBoardState.metric === 'return' && document.getElementById('performance-board-show-spy')?.checked && (view.benchmarkValues || []).some(value => value != null)) datasets.push(performanceBoardDataset('S&P 500', view.benchmarkValues, '#16a34a', bars ? 'bar' : 'line', false));
+            if (!view.available || !datasets.length) { if (empty) empty.style.display = ''; if (content) content.style.display = 'none'; return; }
+            if (empty) empty.style.display = 'none'; if (content) content.style.display = '';
+            writePerformanceKpis(view);
+            document.getElementById('performance-scope-aggregation').textContent = (document.getElementById('performance-board-aggregation')?.value || 'monthly').replace(/^./, value => value.toUpperCase());
+            const unit = performanceBoardState.metric === 'return' ? '%' : '$';
+            if (!performanceBoardChart) {
+                performanceBoardChart = new Chart(performanceBoardEl.getContext('2d'), { type: bars ? 'bar' : 'line', data: { labels, datasets }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: { x: { stacked: bars && performanceBoardState.metric === 'pl', grid: { display: false }, ticks: { color: tickColor, maxRotation: 0, autoSkip: true } }, y: { stacked: bars && performanceBoardState.metric === 'pl', grid: { color: gridColor, drawBorder: false }, ticks: { color: tickColor, callback: value => performanceBoardState.metric === 'return' ? Number(value).toFixed(1) + ' %' : amountFormatter.format(Math.round(value)) } } }, plugins: { legend: { display: true, position: 'top', align: 'end', labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, color: '#6b7488' } }, tooltip: { callbacks: { label: context => context.dataset.label + ': ' + (Number(context.parsed.y) >= 0 ? '+' : '') + (unit === '%' ? Number(context.parsed.y).toFixed(1) + ' %' : amountFormatter.format(Math.round(context.parsed.y)) + ' $') } } } } });
+                enableKeyboardChart(performanceBoardChart, 'performance-board-chart', () => {});
+            } else if (performanceBoardChart.config.type !== (bars ? 'bar' : 'line')) { performanceBoardChart.destroy(); performanceBoardChart = null; return renderPerformanceBoard(); } else { performanceBoardChart.data.labels = labels; performanceBoardChart.data.datasets = datasets; performanceBoardChart.update(); }
+            renderTable('performance-board-table', ['Period', ...datasets.map(dataset => dataset.label)], labels.map((label, index) => [label, ...datasets.map(dataset => { const value = dataset.data[index]; return value == null ? '—' : (Number(value) >= 0 ? '+' : '') + (unit === '%' ? Number(value).toFixed(1) + ' %' : amountFormatter.format(Math.round(value)) + ' $'); })]));
+        } catch (error) { if (empty) empty.style.display = ''; if (content) content.style.display = 'none'; }
     }
 
     document.querySelectorAll('.js-performance-board-metric').forEach(button => button.addEventListener('click', () => { performanceBoardState.metric = button.dataset.metric; document.querySelectorAll('.js-performance-board-metric').forEach(item => { const active = item === button; item.classList.toggle('btn-primary', active); item.classList.toggle('btn-outline-secondary', !active); }); renderPerformanceBoard(); }));

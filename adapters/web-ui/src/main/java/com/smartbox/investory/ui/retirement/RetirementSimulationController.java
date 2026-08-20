@@ -33,8 +33,6 @@ public class RetirementSimulationController {
   private final AnnualPlanningRolloverService rollover;
   private final PlanningReconciliationService reconciliation;
   private final Clock clock;
-  private final PlanningProgressService planningProgress = new PlanningProgressService();
-  private final YearReviewService yearReviews = new YearReviewService(planningProgress);
 
   @Autowired(required = false)
   private PlanEditorPreviewService planEditorPreview;
@@ -326,7 +324,7 @@ public class RetirementSimulationController {
     model.addAttribute(
         "charts", planningPresentation.displayCharts(canonicalCharts, planningDisplayCurrency));
     model.addAttribute("timeline", timeline);
-    var globalPlanProgress = planningProgress.progressForTimeline(timeline);
+    var globalPlanProgress = planningTimeline.progress(timeline);
     model.addAttribute("planProgress", globalPlanProgress);
     model.addAttribute(
         "planProgressView",
@@ -622,7 +620,7 @@ public class RetirementSimulationController {
         "planningReconciliation",
         planningPresentation.displayReconciliation(
             historicalReconciliation, planningDisplayCurrency));
-    model.addAttribute("yearReview", yearReviews.review(stored));
+    model.addAttribute("yearReview", planningTimeline.yearReview(stored));
     Set<PlanningMetric> editableMetrics = EnumSet.noneOf(PlanningMetric.class);
     stored
         .values()

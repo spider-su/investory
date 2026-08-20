@@ -194,13 +194,7 @@ public class LongTermAssetController {
           "availableCashFlowTypes", service.availableCashFlowTypes(portfolioId, id, today));
       model.addAttribute(
           "expectedPropertyGrowth",
-          service.valuationPeriods(portfolioId, id).stream()
-              .filter(p -> p.getValidTo() == null || !p.getValidTo().isBefore(LocalDate.now(clock)))
-              .reduce((first, second) -> second)
-              .map(
-                  com.smartbox.investory.longterm.infrastructure.LongTermAssetValuationPeriod
-                      ::getExpectedAnnualGrowthRate)
-              .orElse(null));
+          service.expectedPropertyGrowth(portfolioId, id, LocalDate.now(clock)));
       return "real-estate-detail";
     }
     if (asset.getType() == com.smartbox.investory.longterm.api.LongTermAssetType.CASH_RESERVE)

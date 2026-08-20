@@ -193,6 +193,18 @@ public class LongTermAssetService {
     return valuations.findAllByAssetIdOrderByValidFrom(id);
   }
 
+  /** Returns the effective property-growth assumption for presentation and simulation inputs. */
+  public BigDecimal expectedPropertyGrowth(Long portfolioId, Long id, LocalDate date) {
+    return valuationPeriods(portfolioId, id).stream()
+        .filter(
+            period ->
+                !period.getValidFrom().isAfter(date)
+                    && (period.getValidTo() == null || !period.getValidTo().isBefore(date)))
+        .max(java.util.Comparator.comparing(LongTermAssetValuationPeriod::getValidFrom))
+        .map(LongTermAssetValuationPeriod::getExpectedAnnualGrowthRate)
+        .orElse(null);
+  }
+
   @Transactional(readOnly = true)
   public List<LongTermAssetBondRatePeriod> bondRatePeriods(Long portfolioId, Long id) {
     owned(portfolioId, id);

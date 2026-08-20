@@ -39,7 +39,7 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
             .toList();
     if (!benchmark.isAvailable() || benchmark.getLabels().isEmpty()) {
       return new PerformanceBoardView(
-          false, List.of(), List.of(), List.of(), emptyKpis(), accounts);
+          false, List.of(), List.of(), List.of(), List.of(), emptyKpis(), accounts);
     }
 
     Set<Long> selectedIds =
@@ -53,7 +53,7 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
             .toList();
     if (selected.isEmpty()) {
       return new PerformanceBoardView(
-          false, List.of(), List.of(), List.of(), emptyKpis(), accounts);
+          false, List.of(), List.of(), List.of(), List.of(), emptyKpis(), accounts);
     }
 
     boolean returns = "return".equalsIgnoreCase(query.metric());
@@ -98,6 +98,13 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
                 query.aggregation(),
                 false,
                 "bars".equalsIgnoreCase(query.style()));
+    List<Double> excessValues =
+        transform(
+            differenceCurve(sourceSeries.getFirst().values(), benchmark.getBenchmarkReturnCurve()),
+            sourceLabels,
+            query.aggregation(),
+            true,
+            "bars".equalsIgnoreCase(query.style()));
     List<Double> kpiSource = sourceSeries.getFirst().values();
     List<Double> kpiBenchmark = benchmark.getBenchmarkReturnCurve();
     Double portfolioReturn = last(rebase(kpiSource, sourceLabels));
@@ -110,11 +117,13 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
             portfolioReturn == null || benchmarkReturn == null
                 ? null
                 : round(portfolioReturn - benchmarkReturn),
+            profitLoss(benchmark, selectedIds, sourceLabels),
             periodLabel(periodValues, sourceLabels, true),
             extreme(periodValues, true),
             periodLabel(periodValues, sourceLabels, false),
             extreme(periodValues, false));
-    return new PerformanceBoardView(true, labels, series, benchmarkValues, kpis, accounts);
+    return new PerformanceBoardView(
+        true, labels, series, benchmarkValues, excessValues, kpis, accounts);
   }
 
   private String accountName(List<PerformanceAccount> accounts, Long id) {
@@ -211,6 +220,15 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
     return available ? round((factor - 1) * 100.0) : null;
   }
 
+  private List<Double> differenceCurve(List<Double> left, List<Double> right) {
+    List<Double> result = new ArrayList<>();
+    for (int i = 0; i < left.size(); i++) {
+      Double a = left.get(i), b = i < right.size() ? right.get(i) : null;
+      result.add(a == null || b == null ? null : round(a - b));
+    }
+    return result;
+  }
+
   private List<Double> rebase(List<Double> values, List<String> labels) {
     int start = 0;
     String configured =
@@ -250,7 +268,37 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
   }
 
   private PerformanceKpiView emptyKpis() {
-    return new PerformanceKpiView(null, null, null, "—", null, "—", null);
+    return new PerformanceKpiView(null, null, null, null, "—", null, "—", null);
+  }
+
+  private Double profitLoss(Benchmark benchmark, Set<Long> selectedIds, List<String> labels) {
+    int start = 0;
+    String configured =
+        kpiStart == null ? "" : kpiStart.substring(0, Math.min(7, kpiStart.length()));
+    for (int i = 0; i < labels.size(); i++) {
+      if (labels.get(i).compareTo(configured) >= 0) {
+        start = i;
+        break;
+      }
+    }
+    List<Benchmark.AccountSeries> selected =
+        benchmark.getAccountSeries().stream()
+            .filter(row -> selectedIds.contains(row.id()))
+            .toList();
+    if (selected.isEmpty()) return null;
+    int end = labels.size() - 1;
+    double result = 0;
+    for (Benchmark.AccountSeries row : selected) {
+      List<Double> curve = row.portfolioCurve();
+      if (end >= curve.size()) return null;
+      result += value(curve, end) - (start == 0 ? 0 : value(curve, start - 1));
+    }
+    return round(result);
+  }
+
+  private double value(List<Double> values, int index) {
+    Double value = index < values.size() ? values.get(index) : null;
+    return value == null ? 0 : value;
   }
 
   private String group(String label, String aggregation) {

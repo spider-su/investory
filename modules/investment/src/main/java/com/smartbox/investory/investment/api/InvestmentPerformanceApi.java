@@ -21,6 +21,7 @@ public interface InvestmentPerformanceApi {
       List<String> labels,
       List<PerformanceSeries> series,
       List<Double> benchmarkValues,
+      List<Double> excessValues,
       PerformanceKpiView kpis,
       List<PerformanceAccount> accounts) {}
 
@@ -32,6 +33,7 @@ public interface InvestmentPerformanceApi {
       Double portfolioReturn,
       Double benchmarkReturn,
       Double excessReturn,
+      Double portfolioProfitLoss,
       String bestPeriod,
       Double bestValue,
       String worstPeriod,

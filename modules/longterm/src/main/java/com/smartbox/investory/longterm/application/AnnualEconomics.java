@@ -1,5 +1,6 @@
 package com.smartbox.investory.longterm.application;
 
+import com.smartbox.investory.longterm.api.RentalEconomics;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 
@@ -15,8 +16,9 @@ public record AnnualEconomics(
     BigDecimal netYieldAfterTax) {
   public static AnnualEconomics of(
       BigDecimal value, BigDecimal gross, BigDecimal expenses, BigDecimal tax) {
-    BigDecimal netBeforeTax = gross.subtract(expenses);
-    BigDecimal netAfterTax = netBeforeTax.subtract(tax);
+    RentalEconomics rental = RentalEconomics.of(gross, expenses, tax);
+    BigDecimal netBeforeTax = rental.netIncomeBeforeTax();
+    BigDecimal netAfterTax = rental.netIncome();
     return new AnnualEconomics(
         gross,
         expenses,
@@ -31,8 +33,9 @@ public record AnnualEconomics(
   /** Aggregate yields historically retain 12 decimal places. */
   public static AnnualEconomics aggregateOf(
       BigDecimal value, BigDecimal gross, BigDecimal expenses, BigDecimal tax) {
-    BigDecimal netBeforeTax = gross.subtract(expenses);
-    BigDecimal netAfterTax = netBeforeTax.subtract(tax);
+    RentalEconomics rental = RentalEconomics.of(gross, expenses, tax);
+    BigDecimal netBeforeTax = rental.netIncomeBeforeTax();
+    BigDecimal netAfterTax = rental.netIncome();
     return new AnnualEconomics(
         gross,
         expenses,

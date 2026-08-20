@@ -31,6 +31,8 @@ public class PlanningTimelineFacade {
   private final Clock clock;
   private final ForwardSimulationContextFactory forwardContexts;
   private final LongTermAssetAnnualSnapshotReader longTermAssets;
+  private final PlanningProgressService planningProgress = new PlanningProgressService();
+  private final YearReviewService yearReviews = new YearReviewService(planningProgress);
 
   @Autowired
   public PlanningTimelineFacade(
@@ -52,6 +54,15 @@ public class PlanningTimelineFacade {
     this.clock = clock;
     this.forwardContexts = forwardContexts;
     this.longTermAssets = longTermAssets;
+  }
+
+  /** Application read facade for planning progress and year review composition. */
+  public PlanProgress progress(PlanningTimeline timeline) {
+    return planningProgress.progressForTimeline(timeline);
+  }
+
+  public YearReview yearReview(PastPlanningYear year) {
+    return yearReviews.review(year);
   }
 
   public PlanningTimelineFacade(

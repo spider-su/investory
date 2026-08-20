@@ -123,10 +123,6 @@ public final class UiPresentation {
     return value == Liquidity.ILLIQUID ? "Illiquid" : "Liquid";
   }
 
-  public static BigDecimal planningDifference(BigDecimal actual, BigDecimal planned) {
-    return actual == null || planned == null ? null : actual.subtract(planned);
-  }
-
   public static String fundingStrategy(SimulationFundingStrategy value) {
     return switch (value) {
       case SIMPLE_WATERFALL -> "Simple waterfall";
