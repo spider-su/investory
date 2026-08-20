@@ -443,7 +443,7 @@ public class RetirementSimulationService {
         "Projected bond ladder",
         com.smartbox.investory.longterm.api.LongTermAssetType.BOND,
         EconomicBucket.FIXED_INCOME,
-        com.smartbox.investory.shared.currency.CurrencyType.PLN,
+        com.smartbox.investory.shared.currency.CurrencyType.USD,
         principal,
         Liquidity.LIQUID,
         List.of(

@@ -226,6 +226,7 @@ public class LongTermAssetService {
                         portfolioId, effectiveDate));
   }
 
+  /** Builds native-domain projection data; the public reader normalizes its money to USD. */
   @Transactional(readOnly = true)
   public List<LongTermAssetProjectionInput> projectionInputs(
       Long portfolioId, LocalDate policyDate) {
@@ -723,6 +724,7 @@ public class LongTermAssetService {
    * <p>Current values are deliberately not exposed as historical values: this model has no dated
    * valuation table from which a prior Dec-31 balance could be proven.
    */
+  /** Returns historical Long-Term facts in the canonical USD application currency. */
   @Transactional(readOnly = true)
   public LongTermAssetAnnualSnapshot historicalAnnualSnapshot(Long portfolioId, int year) {
     LocalDate date = LocalDate.of(year, 12, 31);
@@ -792,6 +794,7 @@ public class LongTermAssetService {
         null, !hasRealEstate || rentalDataComplete ? rentalIncome : null, null, null, null, null);
   }
 
+  /** Returns current Long-Term facts in the canonical USD application currency. */
   @Transactional(readOnly = true)
   public LongTermAssetAnnualSnapshot currentAnnualSnapshot(Long portfolioId, LocalDate date) {
     List<LongTermAssetSummary> rows = list(portfolioId, date);

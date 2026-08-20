@@ -483,7 +483,7 @@ public class CurrentYearProjectionBridge {
         "Projected bond ladder",
         LongTermAssetType.BOND,
         EconomicBucket.FIXED_INCOME,
-        com.smartbox.investory.shared.currency.CurrencyType.PLN,
+        com.smartbox.investory.shared.currency.CurrencyType.USD,
         principal,
         Liquidity.LIQUID,
         List.of(

@@ -4,11 +4,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 import com.smartbox.investory.longterm.api.CashFlowType;
 import com.smartbox.investory.longterm.api.Frequency;
 import com.smartbox.investory.longterm.api.InterestTreatment;
+import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshot;
 import com.smartbox.investory.longterm.api.LongTermAssetType;
 import com.smartbox.investory.longterm.infrastructure.*;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
@@ -900,17 +902,19 @@ class LongTermAssetServiceTest {
     when(cashFlows.findAllByAssetIdOrderByValidFrom(1L))
         .thenReturn(List.of(flow(CashFlowType.RENT, "400000", Frequency.ANNUAL)));
     when(currencyRates.convertToBaseCurrency(
-            any(BigDecimal.class), eq(CurrencyType.USD), eq(CurrencyType.PLN), any(LocalDate.class)))
+            any(BigDecimal.class),
+            eq(CurrencyType.USD),
+            eq(CurrencyType.PLN),
+            any(LocalDate.class)))
         .thenAnswer(
-            invocation ->
-                invocation.getArgument(0, BigDecimal.class).divide(new BigDecimal("4")));
+            invocation -> invocation.getArgument(0, BigDecimal.class).divide(new BigDecimal("4")));
 
     LongTermAssetAnnualSnapshot current = service.currentAnnualSnapshot(1L, DATE);
     LongTermAssetAnnualSnapshot historical = service.historicalAnnualSnapshot(1L, 2025);
 
-    assertEquals(new BigDecimal("1000000"), current.realEstateValue());
-    assertEquals(new BigDecimal("100000"), current.rentalIncome());
-    assertEquals(new BigDecimal("100000"), historical.rentalIncome());
+    assertEquals(0, new BigDecimal("1000000").compareTo(current.realEstateValue()));
+    assertEquals(0, new BigDecimal("100000").compareTo(current.rentalIncome()));
+    assertEquals(0, new BigDecimal("100000").compareTo(historical.rentalIncome()));
   }
 
   private static final LocalDate DATE = LocalDate.of(2026, 6, 1);

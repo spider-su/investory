@@ -32,8 +32,7 @@ class LongTermAssetReadServiceTest {
     when(currencyRates.convertToBaseCurrency(
             any(BigDecimal.class), eq(CurrencyType.USD), eq(CurrencyType.PLN), eq(DATE)))
         .thenAnswer(
-            invocation ->
-                invocation.getArgument(0, BigDecimal.class).divide(new BigDecimal("4")));
+            invocation -> invocation.getArgument(0, BigDecimal.class).divide(new BigDecimal("4")));
   }
 
   @Test
