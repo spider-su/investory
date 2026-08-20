@@ -875,6 +875,12 @@ class LongTermAssetServiceTest {
                 flow(CashFlowType.PARKING_RENT, "250", Frequency.MONTHLY),
                 flow(CashFlowType.ADMIN_FEE, "687", Frequency.MONTHLY),
                 flow(CashFlowType.PROPERTY_TAX, "320", Frequency.ANNUAL)));
+    when(currencyRates.convertToBaseCurrency(
+            any(BigDecimal.class),
+            eq(CurrencyType.USD),
+            eq(CurrencyType.PLN),
+            any(LocalDate.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0, BigDecimal.class));
 
     BigDecimal overviewAnnualIncome =
         service
@@ -884,6 +890,27 @@ class LongTermAssetServiceTest {
     BigDecimal historicalAnnualIncome = service.historicalAnnualSnapshot(1L, 2025).rentalIncome();
 
     assertEquals(0, overviewAnnualIncome.compareTo(historicalAnnualIncome));
+  }
+
+  @Test
+  void annualSnapshotsNormalizeNativePlnMoneyToCanonicalUsd() {
+    LongTermAsset apartment = asset(LongTermAssetType.REAL_ESTATE, "4000000");
+    apartment.setTaxBase(BigDecimal.ZERO);
+    when(assets.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of(apartment));
+    when(cashFlows.findAllByAssetIdOrderByValidFrom(1L))
+        .thenReturn(List.of(flow(CashFlowType.RENT, "400000", Frequency.ANNUAL)));
+    when(currencyRates.convertToBaseCurrency(
+            any(BigDecimal.class), eq(CurrencyType.USD), eq(CurrencyType.PLN), any(LocalDate.class)))
+        .thenAnswer(
+            invocation ->
+                invocation.getArgument(0, BigDecimal.class).divide(new BigDecimal("4")));
+
+    LongTermAssetAnnualSnapshot current = service.currentAnnualSnapshot(1L, DATE);
+    LongTermAssetAnnualSnapshot historical = service.historicalAnnualSnapshot(1L, 2025);
+
+    assertEquals(new BigDecimal("1000000"), current.realEstateValue());
+    assertEquals(new BigDecimal("100000"), current.rentalIncome());
+    assertEquals(new BigDecimal("100000"), historical.rentalIncome());
   }
 
   private static final LocalDate DATE = LocalDate.of(2026, 6, 1);

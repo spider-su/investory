@@ -5,7 +5,13 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
-/** Persistence-free Long-Term projection input for retirement consumers. */
+/**
+ * Persistence-free Long-Term projection input for retirement consumers.
+ *
+ * <p>All monetary fields, including period amounts, redemption value and tax base, are canonical
+ * USD. The currency field is therefore always {@link CurrencyType#USD}; rates and dates are not
+ * converted.
+ */
 public record LongTermAssetProjection(
     Long id,
     String name,

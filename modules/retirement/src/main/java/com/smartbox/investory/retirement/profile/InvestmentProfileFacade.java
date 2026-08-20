@@ -36,24 +36,23 @@ public class InvestmentProfileFacade {
     SharedBrokeragePortfolioSnapshot market = brokeragePortfolioReadService.currentSharedSnapshot();
     LongTermAssetProfileSummary longTerm = longTermAssets.aggregate(portfolioId, date);
     Map<EconomicBucket, BigDecimal> values = new EnumMap<>(EconomicBucket.class);
-    values.put(EconomicBucket.LIQUID_CASH, market.cash());
+    BigDecimal marketCash = toUsd(market.cash(), market.baseCurrency(), date);
+    values.put(EconomicBucket.LIQUID_CASH, marketCash);
     for (BrokeragePositionSnapshot position : market.openPositions()) {
       EconomicBucket bucket = classify(position.symbol());
-      values.merge(bucket, position.value(), BigDecimal::add);
+      values.merge(bucket, toUsd(position.value(), market.baseCurrency(), date), BigDecimal::add);
     }
     for (LongTermAssetProfileAsset asset : longTermAssets.list(portfolioId, date)) {
       EconomicBucket bucket = classify(asset.type());
-      BigDecimal value =
-          asset.currency() == longTerm.currency()
-              ? asset.currentValue()
-              : currencyRates.convertToBaseCurrency(
-                  asset.currentValue(), longTerm.currency(), asset.currency(), date);
+      BigDecimal value = asset.currentValue();
       values.merge(bucket, value, BigDecimal::add);
     }
-    BigDecimal marketValue = market.balance();
+    BigDecimal marketValue = toUsd(market.balance(), market.baseCurrency(), date);
     BigDecimal longTermValue = longTerm.totalCurrentValue();
     BigDecimal total = marketValue.add(longTermValue);
-    BigDecimal marketIncome = market.dividends().add(market.interest());
+    BigDecimal marketIncome =
+        toUsd(market.dividends(), market.baseCurrency(), date)
+            .add(toUsd(market.interest(), market.baseCurrency(), date));
     BigDecimal longTermIncome = longTerm.netAnnualIncomeAfterTax();
     List<ProjectedLongTermAsset> manualAssets =
         Optional.ofNullable(longTermAssets.projectionInputs(portfolioId, date))
@@ -66,9 +65,8 @@ public class InvestmentProfileFacade {
                         input.name(),
                         input.type(),
                         classify(input.type()),
-                        longTerm.currency(),
-                        convertAmount(
-                            input.currentValue(), input.currency(), longTerm.currency(), date),
+                        CurrencyType.USD,
+                        input.currentValue(),
                         liquidity(classify(input.type())),
                         input.periods().stream()
                             .map(
@@ -76,33 +74,16 @@ public class InvestmentProfileFacade {
                                     new ProjectedLongTermAsset.Period(
                                         period.validFrom(),
                                         period.validTo(),
-                                        convertAmount(
-                                            period.annualIncome(),
-                                            input.currency(),
-                                            longTerm.currency(),
-                                            date),
-                                        convertAmount(
-                                            period.annualExpense(),
-                                            input.currency(),
-                                            longTerm.currency(),
-                                            date),
+                                        period.annualIncome(),
+                                        period.annualExpense(),
                                         period.annualReturnRate(),
                                         period.cashFlowType()))
                             .toList(),
                         input.maturityDate(),
-                        input.redemptionValue() == null
-                            ? null
-                            : convertAmount(
-                                input.redemptionValue(),
-                                input.currency(),
-                                longTerm.currency(),
-                                date),
+                        input.redemptionValue() == null ? null : input.redemptionValue(),
                         input.interestTreatment(),
                         input.taxRate(),
-                        input.taxBase() == null
-                            ? null
-                            : convertAmount(
-                                input.taxBase(), input.currency(), longTerm.currency(), date)))
+                        input.taxBase() == null ? null : input.taxBase()))
             .toList();
     BigDecimal lockedContractual =
         manualAssets.stream()
@@ -124,7 +105,7 @@ public class InvestmentProfileFacade {
             .add(lockedContractual);
     return new InvestmentProfile(
         portfolioId,
-        longTerm.currency(),
+        CurrencyType.USD,
         marketValue,
         longTermValue,
         total,
@@ -177,9 +158,10 @@ public class InvestmentProfileFacade {
     return asset.type() == LongTermAssetType.BOND || asset.type() == LongTermAssetType.DEPOSIT;
   }
 
-  private BigDecimal convertAmount(
-      BigDecimal value, CurrencyType from, CurrencyType to, java.time.LocalDate date) {
-    return from == to ? value : currencyRates.convertToBaseCurrency(value, to, from, date);
+  private BigDecimal toUsd(BigDecimal value, CurrencyType source, java.time.LocalDate date) {
+    return source == CurrencyType.USD
+        ? value
+        : currencyRates.convertToBaseCurrency(value, CurrencyType.USD, source, date);
   }
 
   private Liquidity liquidity(EconomicBucket bucket) {

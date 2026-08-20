@@ -54,13 +54,13 @@ class InvestmentProfileFacadeTest {
   @Test
   void combinesMarketAndManualValuesAndIncome() {
     SharedBrokeragePortfolioSnapshot market =
-        snapshot(CurrencyType.PLN, 2000, 500, 100, 20, List.of(position("KNOWN", 1500)));
+        snapshot(CurrencyType.USD, 2000, 500, 100, 20, List.of(position("KNOWN", 1500)));
     when(brokeragePortfolioReadService.currentSharedSnapshot()).thenReturn(market);
     when(brokerageAssetClassificationReader.findBySymbol("KNOWN")).thenReturn(Optional.empty());
     when(longTermAssets.aggregate(PORTFOLIO, DATE))
         .thenReturn(
             new LongTermAssetProfileSummary(
-                CurrencyType.PLN, new BigDecimal("3000"), new BigDecimal("260")));
+                CurrencyType.USD, new BigDecimal("3000"), new BigDecimal("260")));
     when(longTermAssets.list(PORTFOLIO, DATE))
         .thenReturn(List.of(summary(LongTermAssetType.REAL_ESTATE, "3000", "260")));
     InvestmentProfile profile = facade.loadProfile(PORTFOLIO);
@@ -73,12 +73,12 @@ class InvestmentProfileFacadeTest {
   @Test
   void unknownMarketSecurityMapsToOther() {
     SharedBrokeragePortfolioSnapshot market =
-        snapshot(CurrencyType.PLN, 100, 0, 0, 0, List.of(position("UNKNOWN", 100)));
+        snapshot(CurrencyType.USD, 100, 0, 0, 0, List.of(position("UNKNOWN", 100)));
     when(brokeragePortfolioReadService.currentSharedSnapshot()).thenReturn(market);
     when(brokerageAssetClassificationReader.findBySymbol("UNKNOWN")).thenReturn(Optional.empty());
     when(longTermAssets.aggregate(PORTFOLIO, DATE))
         .thenReturn(
-            new LongTermAssetProfileSummary(CurrencyType.PLN, BigDecimal.ZERO, BigDecimal.ZERO));
+            new LongTermAssetProfileSummary(CurrencyType.USD, BigDecimal.ZERO, BigDecimal.ZERO));
     when(longTermAssets.list(PORTFOLIO, DATE)).thenReturn(List.of());
     ProfileAllocation other =
         facade.loadProfile(PORTFOLIO).allocations().stream()
@@ -99,10 +99,7 @@ class InvestmentProfileFacadeTest {
             new LongTermAssetProfileSummary(
                 CurrencyType.USD, new BigDecimal("400"), new BigDecimal("40")));
     when(longTermAssets.list(PORTFOLIO, DATE))
-        .thenReturn(List.of(summary(LongTermAssetType.REAL_ESTATE, "100", "10", CurrencyType.PLN)));
-    when(currencyRates.convertToBaseCurrency(
-            new BigDecimal("100"), CurrencyType.USD, CurrencyType.PLN, DATE))
-        .thenReturn(new BigDecimal("400"));
+        .thenReturn(List.of(summary(LongTermAssetType.REAL_ESTATE, "400", "10", CurrencyType.USD)));
 
     InvestmentProfile profile = facade.loadProfile(PORTFOLIO);
 
@@ -115,18 +112,17 @@ class InvestmentProfileFacadeTest {
         profile.allocations().stream()
             .map(ProfileAllocation::percentage)
             .reduce(BigDecimal.ZERO, BigDecimal::add));
-    verify(currencyRates)
-        .convertToBaseCurrency(new BigDecimal("100"), CurrencyType.USD, CurrencyType.PLN, DATE);
+    verify(currencyRates, never()).convertToBaseCurrency(any(), any(), any(), any());
   }
 
   @Test
   void contractualManualBondIsNotReportedAsSpendableLiquidity() {
-    SharedBrokeragePortfolioSnapshot market = snapshot(CurrencyType.PLN, 0, 0, 0, 0, List.of());
+    SharedBrokeragePortfolioSnapshot market = snapshot(CurrencyType.USD, 0, 0, 0, 0, List.of());
     when(brokeragePortfolioReadService.currentSharedSnapshot()).thenReturn(market);
     when(longTermAssets.aggregate(PORTFOLIO, DATE))
         .thenReturn(
             new LongTermAssetProfileSummary(
-                CurrencyType.PLN, new BigDecimal("200000"), BigDecimal.ZERO));
+                CurrencyType.USD, new BigDecimal("200000"), BigDecimal.ZERO));
     when(longTermAssets.list(PORTFOLIO, DATE))
         .thenReturn(List.of(summary(LongTermAssetType.BOND, "200000", "0")));
     when(longTermAssets.projectionInputs(PORTFOLIO, DATE))
@@ -136,7 +132,7 @@ class InvestmentProfileFacadeTest {
                     1L,
                     "Bond",
                     LongTermAssetType.BOND,
-                    CurrencyType.PLN,
+                    CurrencyType.USD,
                     new BigDecimal("200000"),
                     List.of(),
                     java.time.LocalDate.of(2028, 2, 28),
@@ -160,7 +156,7 @@ class InvestmentProfileFacadeTest {
             new LongTermAssetProfileSummary(
                 CurrencyType.USD, new BigDecimal("400"), BigDecimal.ZERO));
     when(longTermAssets.list(PORTFOLIO, DATE))
-        .thenReturn(List.of(summary(LongTermAssetType.REAL_ESTATE, "100", "0", CurrencyType.PLN)));
+        .thenReturn(List.of(summary(LongTermAssetType.REAL_ESTATE, "100", "0", CurrencyType.USD)));
     when(longTermAssets.projectionInputs(PORTFOLIO, DATE))
         .thenReturn(
             List.of(
@@ -168,7 +164,7 @@ class InvestmentProfileFacadeTest {
                     1L,
                     "Property",
                     LongTermAssetType.REAL_ESTATE,
-                    CurrencyType.PLN,
+                    CurrencyType.USD,
                     new BigDecimal("100"),
                     List.of(
                         new LongTermAssetProjection.Period(
@@ -182,22 +178,12 @@ class InvestmentProfileFacadeTest {
                     null,
                     BigDecimal.ZERO,
                     new BigDecimal("20"))));
-    when(currencyRates.convertToBaseCurrency(
-            any(BigDecimal.class),
-            org.mockito.ArgumentMatchers.eq(CurrencyType.USD),
-            org.mockito.ArgumentMatchers.eq(CurrencyType.PLN),
-            org.mockito.ArgumentMatchers.eq(DATE)))
-        .thenAnswer(
-            invocation ->
-                invocation.getArgument(0, BigDecimal.class).multiply(new BigDecimal("4")));
-
     var period = facade.loadProfile(PORTFOLIO).longTermAssets().getFirst().periods().getFirst();
 
-    assertEquals(new BigDecimal("40"), period.annualIncome());
-    assertEquals(new BigDecimal("16"), period.annualExpense());
+    assertEquals(new BigDecimal("10"), period.annualIncome());
+    assertEquals(new BigDecimal("4"), period.annualExpense());
     assertEquals(new BigDecimal("0.01"), period.annualReturnRate());
-    verify(currencyRates, never())
-        .convertToBaseCurrency(new BigDecimal("0.01"), CurrencyType.USD, CurrencyType.PLN, DATE);
+    verify(currencyRates, never()).convertToBaseCurrency(any(), any(), any(), any());
   }
 
   private static OpenPositionValue position(String symbol, double value) {
@@ -227,7 +213,7 @@ class InvestmentProfileFacadeTest {
 
   private static LongTermAssetProfileAsset summary(
       LongTermAssetType type, String value, String income) {
-    return summary(type, value, income, CurrencyType.PLN);
+    return summary(type, value, income, CurrencyType.USD);
   }
 
   private static LongTermAssetProfileAsset summary(

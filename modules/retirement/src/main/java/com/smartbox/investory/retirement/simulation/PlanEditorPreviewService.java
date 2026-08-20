@@ -68,8 +68,8 @@ public class PlanEditorPreviewService {
             assumptions.annualLivingExpenses().add(assumptions.annualDiscretionaryExpenses()),
             displayCurrency),
         nextYearCosts,
-        displayPlanning(facts.rentalIncome(), displayCurrency),
-        displayPlanning(facts.bondIncome(), displayCurrency),
+        displayCanonical(facts.rentalIncome(), displayCurrency),
+        displayCanonical(facts.bondIncome(), displayCurrency),
         assumptions,
         result.failureAge(),
         result.years().stream()
@@ -114,10 +114,6 @@ public class PlanEditorPreviewService {
 
   private BigDecimal displayCanonical(BigDecimal value, CurrencyType displayCurrency) {
     return presentation.toDisplay(value, displayCurrency);
-  }
-
-  private BigDecimal displayPlanning(BigDecimal value, CurrencyType displayCurrency) {
-    return presentation.toDisplay(value, CurrencyType.PLN, displayCurrency);
   }
 
   public record PlanEditorPreview(

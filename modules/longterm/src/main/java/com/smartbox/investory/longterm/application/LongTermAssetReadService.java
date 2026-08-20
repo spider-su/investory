@@ -6,6 +6,9 @@ import com.smartbox.investory.longterm.api.LongTermAssetProfileAsset;
 import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
 import com.smartbox.investory.longterm.api.LongTermAssetProfileSummary;
 import com.smartbox.investory.longterm.api.LongTermAssetProjection;
+import com.smartbox.investory.shared.currency.CurrencyConversion;
+import com.smartbox.investory.shared.currency.CurrencyType;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -19,14 +22,15 @@ import org.springframework.transaction.annotation.Transactional;
 public class LongTermAssetReadService
     implements LongTermAssetProfileReader, LongTermAssetAnnualSnapshotReader {
   private final LongTermAssetService longTermAssets;
+  private final CurrencyConversion currencyRates;
 
   @Override
   public LongTermAssetProfileSummary aggregate(Long portfolioId, LocalDate date) {
     LongTermAssetService.AggregateSummary summary = longTermAssets.aggregate(portfolioId, date);
     return new LongTermAssetProfileSummary(
-        summary.currency(),
-        summary.totalCurrentValue(),
-        summary.annualEconomics().netAnnualIncomeAfterTax());
+        CurrencyType.USD,
+        toUsd(summary.totalCurrentValue(), summary.currency(), date),
+        toUsd(summary.annualEconomics().netAnnualIncomeAfterTax(), summary.currency(), date));
   }
 
   @Override
@@ -34,7 +38,10 @@ public class LongTermAssetReadService
     return longTermAssets.list(portfolioId, date).stream()
         .map(
             asset ->
-                new LongTermAssetProfileAsset(asset.type(), asset.currency(), asset.currentValue()))
+                new LongTermAssetProfileAsset(
+                    asset.type(),
+                    CurrencyType.USD,
+                    toUsd(asset.currentValue(), asset.currency(), date)))
         .toList();
   }
 
@@ -47,24 +54,24 @@ public class LongTermAssetReadService
                     input.id(),
                     input.name(),
                     input.type(),
-                    input.currency(),
-                    input.currentValue(),
+                    CurrencyType.USD,
+                    toUsd(input.currentValue(), input.currency(), date),
                     input.periods().stream()
                         .map(
                             period ->
                                 new LongTermAssetProjection.Period(
                                     period.validFrom(),
                                     period.validTo(),
-                                    period.annualIncome(),
-                                    period.annualExpense(),
+                                    toUsd(period.annualIncome(), input.currency(), date),
+                                    toUsd(period.annualExpense(), input.currency(), date),
                                     period.annualReturnRate(),
                                     period.cashFlowType()))
                         .toList(),
                     input.maturityDate(),
-                    input.redemptionValue(),
+                    toUsd(input.redemptionValue(), input.currency(), date),
                     input.interestTreatment(),
                     input.taxRate(),
-                    input.taxBase()))
+                    toUsd(input.taxBase(), input.currency(), date)))
         .toList();
   }
 
@@ -76,5 +83,11 @@ public class LongTermAssetReadService
   @Override
   public LongTermAssetAnnualSnapshot currentAnnualSnapshot(Long portfolioId, LocalDate date) {
     return longTermAssets.currentAnnualSnapshot(portfolioId, date);
+  }
+
+  private BigDecimal toUsd(BigDecimal amount, CurrencyType source, LocalDate date) {
+    return amount == null || source == CurrencyType.USD
+        ? amount
+        : currencyRates.convertToBaseCurrency(amount, CurrencyType.USD, source, date);
   }
 }

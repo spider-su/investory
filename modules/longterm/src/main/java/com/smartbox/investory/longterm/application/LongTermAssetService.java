@@ -776,10 +776,10 @@ public class LongTermAssetService {
                             input.taxBase());
                     amount = RentalIncomeProjection.actualYear(projection, year).netIncome();
                   }
-                  return row.currency() == planningCurrency
+                  return row.currency() == CurrencyType.USD
                       ? amount
                       : currencyRates.convertToBaseCurrency(
-                          amount, planningCurrency, row.currency(), date);
+                          amount, CurrencyType.USD, row.currency(), date);
                 })
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     boolean hasRealEstate =
@@ -796,26 +796,27 @@ public class LongTermAssetService {
   public LongTermAssetAnnualSnapshot currentAnnualSnapshot(Long portfolioId, LocalDate date) {
     List<LongTermAssetSummary> rows = list(portfolioId, date);
     BigDecimal realEstateValue =
-        sumPlanning(rows, LongTermAssetType.REAL_ESTATE, LongTermAssetSummary::currentValue, date);
+        sumCanonical(rows, LongTermAssetType.REAL_ESTATE, LongTermAssetSummary::currentValue, date);
     BigDecimal rentalIncome =
-        sumPlanning(
+        sumCanonical(
             rows,
             LongTermAssetType.REAL_ESTATE,
             r -> r.annualEconomics().netAnnualIncomeAfterTax(),
             date);
     BigDecimal bondValue =
-        sumPlanning(rows, LongTermAssetType.BOND, LongTermAssetSummary::currentValue, date);
+        sumCanonical(rows, LongTermAssetType.BOND, LongTermAssetSummary::currentValue, date);
     BigDecimal bondIncome =
-        sumPlanning(
+        sumCanonical(
             rows, LongTermAssetType.BOND, r -> r.annualEconomics().netAnnualIncomeAfterTax(), date);
     BigDecimal cashReserveValue =
-        sumPlanning(rows, LongTermAssetType.CASH_RESERVE, LongTermAssetSummary::currentValue, date);
-    BigDecimal otherAssetValue = sumPlanning(rows, null, LongTermAssetSummary::currentValue, date);
+        sumCanonical(
+            rows, LongTermAssetType.CASH_RESERVE, LongTermAssetSummary::currentValue, date);
+    BigDecimal otherAssetValue = sumCanonical(rows, null, LongTermAssetSummary::currentValue, date);
     return new LongTermAssetAnnualSnapshot(
         realEstateValue, rentalIncome, bondValue, bondIncome, cashReserveValue, otherAssetValue);
   }
 
-  private BigDecimal sumPlanning(
+  private BigDecimal sumCanonical(
       List<LongTermAssetSummary> rows,
       LongTermAssetType type,
       java.util.function.Function<LongTermAssetSummary, BigDecimal> value,
@@ -831,10 +832,10 @@ public class LongTermAssetService {
             row -> {
               BigDecimal amount = value.apply(row);
               if (amount == null) return BigDecimal.ZERO;
-              return row.currency() == planningCurrency
+              return row.currency() == CurrencyType.USD
                   ? amount
                   : currencyRates.convertToBaseCurrency(
-                      amount, planningCurrency, row.currency(), date);
+                      amount, CurrencyType.USD, row.currency(), date);
             })
         .reduce(BigDecimal.ZERO, BigDecimal::add);
   }

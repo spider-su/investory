@@ -34,4 +34,3 @@ src/main/resources/application-k3s.yml
 /integrations/target/
 /test-support/target/
 /adapters/web-ui/target/
-/adapters/web-ui/target/

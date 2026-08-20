@@ -2,7 +2,12 @@ package com.smartbox.investory.longterm.api;
 
 import java.math.BigDecimal;
 
-/** Canonical annual long-term-asset facts shared by overview and historical planning. */
+/**
+ * Canonical annual long-term-asset facts shared by overview and historical planning.
+ *
+ * <p>Every monetary amount in this API contract is canonical USD. Native asset currency is an
+ * internal persistence/domain concern and is normalized before this record is returned.
+ */
 public record LongTermAssetAnnualSnapshot(
     BigDecimal realEstateValue,
     BigDecimal rentalIncome,
