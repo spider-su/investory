@@ -9,6 +9,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.Year;
 import java.util.*;
+import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -76,7 +77,7 @@ public class CurrentYearProjectionBridge {
         eventsFor(context.currentYearEvents(), SimulationEventType.ONE_OFF_INCOME);
     BigDecimal recurringExpenses = expected.coreExpenses().add(expected.discretionaryExpenses());
     BigDecimal fullYearContractualPayout =
-        fullYearContractualPayout(profile.longTermAssets(), assumptions, currentYear, today);
+        fullYearContractualPayout(profile.longTermAssets(), assumptions, currentYear);
     BigDecimal nonContractualPassive =
         expected.passiveIncome().subtract(fullYearContractualPayout).max(ZERO);
     ContractualSummary contractual =
@@ -105,10 +106,19 @@ public class CurrentYearProjectionBridge {
         contractual.redemptionCash().subtract(contractual.bondRedemptionCash()).max(ZERO),
         BigDecimal::add);
     BigDecimal remainingFunding = requiredFunding;
-    if (assumptions.fundingStrategy() == SimulationFundingStrategy.RESERVE_AND_HARVEST)
-      remainingFunding =
-          withdrawManualReserve(
-              profile.longTermAssets(), manual, remainingFunding, assumptions, currentYear);
+    if (assumptions.fundingStrategy() == SimulationFundingStrategy.RESERVE_AND_HARVEST) {
+      Map<Long, BigDecimal> reserveRates =
+          profile.longTermAssets().stream()
+              .filter(asset -> asset.type() == LongTermAssetType.CASH_RESERVE)
+              .collect(
+                  Collectors.toMap(
+                      ProjectedLongTermAsset::id,
+                      asset -> manualRate(asset, assumptions, currentYear)));
+      ManualCashReserveAllocator.Result reserveWithdrawal =
+          ManualCashReserveAllocator.withdraw(manual, reserveRates, remainingFunding);
+      manual = new LinkedHashMap<>(reserveWithdrawal.values());
+      remainingFunding = remainingFunding.subtract(reserveWithdrawal.fundedAmount());
+    }
     BigDecimal bondMaturityUsed = contractual.bondRedemptionCash().min(remainingFunding);
     BigDecimal bondReinvestment = contractual.bondRedemptionCash().subtract(bondMaturityUsed);
     remainingFunding = remainingFunding.subtract(bondMaturityUsed);
@@ -118,20 +128,23 @@ public class CurrentYearProjectionBridge {
     market.merge(EconomicBucket.LIQUID_CASH, surplus, BigDecimal::add);
 
     BigDecimal equityBeforeReturns = market.get(EconomicBucket.EQUITY);
-    market.replaceAll(
-        (bucket, amount) ->
-            amount.multiply(BigDecimal.ONE.add(rateFor(bucket, assumptions).multiply(fraction))));
+    market =
+        PortfolioReturnCalculator.apply(
+            market,
+            SimulationScenarioSettings.forScenario(SimulationScenario.BASE, assumptions),
+            fraction);
+    Map<Long, BigDecimal> projectedManual = manual;
     List<ProjectedLongTermAsset> bridgedAssets =
         new ArrayList<>(
             profile.longTermAssets().stream()
                 .map(
                     asset ->
-                        isContractual(asset)
+                        ContractualAssetProjector.isContractual(asset)
                             ? withValue(
-                                asset,
-                                contractualProjection(
                                         asset,
-                                        manual.get(asset.id()),
+                                        ContractualAssetProjector.project(
+                                        asset,
+                                        projectedManual.get(asset.id()),
                                         assumptions,
                                         currentYear,
                                         today,
@@ -141,7 +154,7 @@ public class CurrentYearProjectionBridge {
                                 ? withValue(asset, asset.currentValue())
                                 : withValue(
                                     asset,
-                                    manual
+                                    projectedManual
                                         .get(asset.id())
                                         .multiply(
                                             BigDecimal.ONE.add(
@@ -153,13 +166,32 @@ public class CurrentYearProjectionBridge {
           projectedLadderBond(-2_000_000_000L, currentYear, bondReinvestment, assumptions));
     BigDecimal target = expected.safeReserveTarget();
     if (assumptions.fundingStrategy() == SimulationFundingStrategy.RESERVE_AND_HARVEST) {
+      SimulationScenarioSettings settings =
+          SimulationScenarioSettings.forScenario(SimulationScenario.BASE, assumptions);
+      BigDecimal equityGain =
+          market.get(EconomicBucket.EQUITY).subtract(equityBeforeReturns).max(ZERO);
+      BigDecimal eligibleHarvest =
+          ReserveHarvestPolicy.eligibleEquityHarvest(market, equityGain, settings, assumptions);
+      BigDecimal manualCash =
+          bridgedAssets.stream()
+              .filter(asset -> asset.type() == LongTermAssetType.CASH_RESERVE)
+              .map(ProjectedLongTermAsset::currentValue)
+              .reduce(ZERO, BigDecimal::add);
+      Map<Long, BigDecimal> bridgedValues =
+          bridgedAssets.stream()
+              .collect(
+                  Collectors.toMap(
+                      ProjectedLongTermAsset::id, ProjectedLongTermAsset::currentValue));
       BigDecimal harvest =
-          harvestBondDeficit(
+          ReserveHarvestPolicy.harvestBondDeficit(
               market,
+              eligibleHarvest,
               target,
+              manualCash,
               bridgedAssets,
+              bridgedValues,
               assumptions,
-              market.get(EconomicBucket.EQUITY).subtract(equityBeforeReturns).max(ZERO));
+              context.asOfAge() >= assumptions.retirementAge());
       if (harvest.signum() > 0)
         bridgedAssets.add(projectedLadderBond(-2_000_000_001L, currentYear, harvest, assumptions));
     }
@@ -214,23 +246,10 @@ public class CurrentYearProjectionBridge {
   }
 
   private static BigDecimal fullYearContractualPayout(
-      List<ProjectedLongTermAsset> assets,
-      SimulationAssumptions assumptions,
-      int year,
-      LocalDate today) {
+      List<ProjectedLongTermAsset> assets, SimulationAssumptions assumptions, int year) {
     return assets.stream()
-        .filter(CurrentYearProjectionBridge::isContractual)
-        .map(
-            asset -> {
-              if (asset.maturityDate() != null && year > asset.maturityDate().getYear())
-                return ZERO;
-              BigDecimal start = asset.currentValue();
-              BigDecimal rate = contractualRate(asset, assumptions, year);
-              BigDecimal gross = start.multiply(rate);
-              return asset.interestTreatment() == InterestTreatment.PAY_OUT
-                  ? netInterest(gross, asset)
-                  : ZERO;
-            })
+        .filter(ContractualAssetProjector::isContractual)
+        .map(asset -> ContractualAssetProjector.fullYearPayout(asset, assumptions, year))
         .reduce(ZERO, BigDecimal::add);
   }
 
@@ -244,9 +263,10 @@ public class CurrentYearProjectionBridge {
     BigDecimal redemption = ZERO;
     BigDecimal bondRedemption = ZERO;
     for (ProjectedLongTermAsset asset : assets) {
-      if (!isContractual(asset)) continue;
-      ContractualProjection projection =
-          contractualProjection(asset, asset.currentValue(), assumptions, year, today, fraction);
+      if (!ContractualAssetProjector.isContractual(asset)) continue;
+      ContractualAssetProjector.Projection projection =
+          ContractualAssetProjector.project(
+              asset, asset.currentValue(), assumptions, year, today, fraction);
       payout = payout.add(projection.payoutIncome());
       redemption = redemption.add(projection.redemptionCash());
       if (asset.type() == LongTermAssetType.BOND)
@@ -255,93 +275,8 @@ public class CurrentYearProjectionBridge {
     return new ContractualSummary(payout, redemption, bondRedemption);
   }
 
-  private static ContractualProjection contractualProjection(
-      ProjectedLongTermAsset asset,
-      BigDecimal start,
-      SimulationAssumptions assumptions,
-      int year,
-      LocalDate today,
-      BigDecimal fraction) {
-    if (start.signum() == 0) return new ContractualProjection(start, ZERO, ZERO);
-    if (asset.maturityDate() != null && !asset.maturityDate().isAfter(today)) {
-      BigDecimal proceeds = asset.redemptionValue() == null ? start : asset.redemptionValue();
-      return new ContractualProjection(ZERO, ZERO, proceeds);
-    }
-    BigDecimal net =
-        netInterest(start.multiply(contractualRate(asset, assumptions, year)), asset)
-            .multiply(fraction);
-    BigDecimal end =
-        asset.interestTreatment() == InterestTreatment.CAPITALIZE ? start.add(net) : start;
-    BigDecimal payout = asset.interestTreatment() == InterestTreatment.PAY_OUT ? net : ZERO;
-    BigDecimal redemption = ZERO;
-    if (asset.maturityDate() != null && asset.maturityDate().getYear() == year) {
-      redemption = asset.redemptionValue() == null ? end : asset.redemptionValue();
-      end = ZERO;
-    }
-    return new ContractualProjection(end, payout, redemption);
-  }
-
-  private static BigDecimal contractualRate(
-      ProjectedLongTermAsset asset, SimulationAssumptions assumptions, int year) {
-    return asset.periods().stream()
-        .filter(
-            period ->
-                period.validFrom().getYear() <= year
-                    && (period.validTo() == null || period.validTo().getYear() >= year))
-        .map(ProjectedLongTermAsset.Period::annualReturnRate)
-        .findFirst()
-        .orElse(
-            switch (asset.bucket()) {
-              case FIXED_INCOME -> assumptions.fixedIncomeReturnRate();
-              case LIQUID_CASH -> assumptions.cashReturnRate();
-              default -> ZERO;
-            });
-  }
-
-  private static BigDecimal netInterest(BigDecimal gross, ProjectedLongTermAsset asset) {
-    return gross.subtract(gross.multiply(Optional.ofNullable(asset.taxRate()).orElse(ZERO)));
-  }
-
-  private static boolean isContractual(ProjectedLongTermAsset asset) {
-    return asset.type() == LongTermAssetType.BOND
-        || asset.type() == LongTermAssetType.DEPOSIT
-        || (asset.bucket() == EconomicBucket.FIXED_INCOME && asset.interestTreatment() != null);
-  }
-
-  private record ContractualProjection(
-      BigDecimal endValue, BigDecimal payoutIncome, BigDecimal redemptionCash) {}
-
   private record ContractualSummary(
       BigDecimal payoutIncome, BigDecimal redemptionCash, BigDecimal bondRedemptionCash) {}
-
-  private static BigDecimal harvestBondDeficit(
-      EnumMap<EconomicBucket, BigDecimal> market,
-      BigDecimal target,
-      List<ProjectedLongTermAsset> assets,
-      SimulationAssumptions assumptions,
-      BigDecimal equityGain) {
-    if (assumptions.equityReturnRate().compareTo(assumptions.equityHarvestMinimumReturnRate()) < 0)
-      return ZERO;
-    BigDecimal reserve =
-        market
-            .getOrDefault(EconomicBucket.LIQUID_CASH, ZERO)
-            .add(
-                assets.stream()
-                    .filter(
-                        asset ->
-                            asset.type() == LongTermAssetType.CASH_RESERVE
-                                || asset.type() == LongTermAssetType.BOND)
-                    .map(ProjectedLongTermAsset::currentValue)
-                    .reduce(ZERO, BigDecimal::add));
-    BigDecimal transfer =
-        target
-            .subtract(reserve)
-            .max(ZERO)
-            .min(equityGain.multiply(assumptions.equityGainHarvestRate()))
-            .min(market.getOrDefault(EconomicBucket.EQUITY, ZERO));
-    market.merge(EconomicBucket.EQUITY, transfer.negate(), BigDecimal::add);
-    return transfer;
-  }
 
   private static InvestmentProfile rebuild(
       InvestmentProfile profile,
@@ -400,38 +335,6 @@ public class CurrentYearProjectionBridge {
       values.merge(asset.bucket(), manual.get(asset.id()).negate(), BigDecimal::add);
     values.replaceAll((bucket, value) -> value.max(ZERO));
     return values;
-  }
-
-  private static BigDecimal withdrawManualReserve(
-      List<ProjectedLongTermAsset> assets,
-      Map<Long, BigDecimal> manual,
-      BigDecimal need,
-      SimulationAssumptions assumptions,
-      int year) {
-    BigDecimal left = need;
-    for (ProjectedLongTermAsset asset :
-        assets.stream()
-            .filter(a -> a.type() == LongTermAssetType.CASH_RESERVE)
-            .sorted(
-                Comparator.comparing(
-                        (ProjectedLongTermAsset asset) -> manualRate(asset, assumptions, year))
-                    .thenComparing(ProjectedLongTermAsset::id))
-            .toList()) {
-      BigDecimal used = manual.get(asset.id()).min(left);
-      manual.put(asset.id(), manual.get(asset.id()).subtract(used));
-      left = left.subtract(used);
-    }
-    return left;
-  }
-
-  private static BigDecimal rateFor(EconomicBucket bucket, SimulationAssumptions a) {
-    return switch (bucket) {
-      case LIQUID_CASH -> a.cashReturnRate();
-      case FIXED_INCOME -> a.fixedIncomeReturnRate();
-      case EQUITY -> a.equityReturnRate();
-      case REAL_ESTATE -> ZERO;
-      case OTHER -> a.otherReturnRate();
-    };
   }
 
   private static BigDecimal manualRate(

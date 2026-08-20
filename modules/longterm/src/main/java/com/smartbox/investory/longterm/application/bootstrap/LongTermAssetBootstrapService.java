@@ -3,12 +3,14 @@ package com.smartbox.investory.longterm.application.bootstrap;
 import com.smartbox.investory.longterm.api.CashFlowType;
 import com.smartbox.investory.longterm.api.Frequency;
 import com.smartbox.investory.longterm.api.LongTermAssetType;
+import com.smartbox.investory.longterm.application.LongTermAssetPeriodRules;
 import com.smartbox.investory.longterm.infrastructure.*;
 import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +27,9 @@ public class LongTermAssetBootstrapService {
   private final LongTermAssetDepositDetailsRepository deposits;
   private final RentalTaxPolicyRepository taxPolicies;
   private final PortfolioContextReader portfolioContextReader;
+
+  @Autowired(required = false)
+  private com.smartbox.investory.longterm.application.LongTermAssetLifecycleService lifecycle;
 
   @Transactional
   public LongTermAssetBootstrapResult importDocument(
@@ -105,6 +110,13 @@ public class LongTermAssetBootstrapService {
             "Asset externalKey is required and must be at most 128 characters");
       if (!keys.add(asset.externalKey()))
         throw new IllegalArgumentException("Duplicate asset externalKey: " + asset.externalKey());
+      LongTermAsset stored =
+          assets
+              .findByPortfolioIdAndExternalKey(document.portfolioId(), asset.externalKey())
+              .orElse(null);
+      if (stored != null && stored.getType() != asset.type())
+        throw new IllegalArgumentException(
+            "Asset type cannot be changed for externalKey " + asset.externalKey());
       if (asset.type() == null
           || asset.name() == null
           || asset.name().isBlank()
@@ -129,6 +141,7 @@ public class LongTermAssetBootstrapService {
           "cash flows for " + asset.externalKey(),
           f -> f.type().name(),
           f -> new DatePeriod(f.validFrom(), f.validTo()));
+      if (stored != null) validateStoredPeriods(stored, asset);
       if (asset.type() != LongTermAssetType.REAL_ESTATE && !safe(asset.cashFlows()).isEmpty())
         throw new IllegalArgumentException(
             "Cash flows require real estate: " + asset.externalKey());
@@ -163,6 +176,59 @@ public class LongTermAssetBootstrapService {
         BigDecimal.ZERO,
         BigDecimal.ONE);
     requireNonNegative(bond.redemptionValue(), "bond redemption value for " + asset.externalKey());
+  }
+
+  private void validateStoredPeriods(
+      LongTermAsset stored, LongTermAssetBootstrapDocument.Asset input) {
+    for (var incoming : safe(input.cashFlows())) {
+      for (var existing : cashFlows.findAllByAssetIdOrderByValidFrom(stored.getId())) {
+        if (existing.getType() == incoming.type()
+            && !LongTermAssetPeriodRules.samePeriodIdentity(
+                incoming.validFrom(),
+                incoming.validTo(),
+                existing.getValidFrom(),
+                existing.getValidTo())
+            && LongTermAssetPeriodRules.overlaps(
+                incoming.validFrom(),
+                incoming.validTo(),
+                existing.getValidFrom(),
+                existing.getValidTo()))
+          throw new IllegalArgumentException(
+              "Overlapping stored cash-flow period for " + input.externalKey());
+      }
+    }
+    for (var incoming : safe(input.valuationPeriods())) {
+      for (var existing : valuations.findAllByAssetIdOrderByValidFrom(stored.getId())) {
+        if (!LongTermAssetPeriodRules.samePeriodIdentity(
+                incoming.validFrom(),
+                incoming.validTo(),
+                existing.getValidFrom(),
+                existing.getValidTo())
+            && LongTermAssetPeriodRules.overlaps(
+                incoming.validFrom(),
+                incoming.validTo(),
+                existing.getValidFrom(),
+                existing.getValidTo()))
+          throw new IllegalArgumentException(
+              "Overlapping stored valuation period for " + input.externalKey());
+      }
+    }
+    for (var incoming : safe(input.bondRatePeriods())) {
+      for (var existing : bondRates.findAllByAssetIdOrderByValidFrom(stored.getId())) {
+        if (!LongTermAssetPeriodRules.samePeriodIdentity(
+                incoming.validFrom(),
+                incoming.validTo(),
+                existing.getValidFrom(),
+                existing.getValidTo())
+            && LongTermAssetPeriodRules.overlaps(
+                incoming.validFrom(),
+                incoming.validTo(),
+                existing.getValidFrom(),
+                existing.getValidTo()))
+          throw new IllegalArgumentException(
+              "Overlapping stored bond-rate period for " + input.externalKey());
+      }
+    }
   }
 
   private void validateDeposit(LongTermAssetBootstrapDocument.Asset asset) {
@@ -261,8 +327,9 @@ public class LongTermAssetBootstrapService {
     asset.setTaxBase(input.taxBase());
     asset.setRentalTaxPaidByTenant(Boolean.TRUE.equals(input.rentalTaxPaidByTenant()));
     asset.setNotes(input.notes());
-    asset.setActive(true);
+    if (existing == null) asset.setActive(true);
     asset = assets.save(asset);
+    if (lifecycle != null) lifecycle.ensureInitialPeriod(asset);
     for (var flow : safe(input.cashFlows())) upsertCashFlow(asset.getId(), flow);
     for (var period : safe(input.valuationPeriods())) upsertValuation(asset.getId(), period);
     for (var period : safe(input.bondRatePeriods())) upsertBondRate(asset.getId(), period);
@@ -285,7 +352,7 @@ public class LongTermAssetBootstrapService {
     existing.setPaidByTenant(
         input.paidByTenant() != null
             ? input.paidByTenant()
-            : input.type() == CashFlowType.ADMIN_FEE || input.type() == CashFlowType.UTILITIES);
+            : LongTermAssetPeriodRules.defaultPaidByTenant(input.type()));
     cashFlows.save(existing);
   }
 

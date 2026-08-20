@@ -13,6 +13,11 @@ Passive income includes applicable rental income, PAY_OUT contractual interest, 
 asset income. A CAPITALIZE contractual asset increases principal instead of producing same-year passive
 income.
 
+The full-year simulator and the current-year bridge share the same contractual-asset projector,
+portfolio-return calculator, manual-cash allocator, and reserve/harvest policy. The bridge adds only
+partial-year timing and current-date handling; it does not define alternative bond, deposit, tax,
+maturity, withdrawal, or harvest mechanics.
+
 Rental income comes from the effective-dated Long-Term Asset cash-flow API. The Long-Term module
 applies the configured rental-tax policy and ownership flags before exposing canonical simulation
 inputs. Retirement consumes those USD inputs; the UI performs any selected-currency conversion only

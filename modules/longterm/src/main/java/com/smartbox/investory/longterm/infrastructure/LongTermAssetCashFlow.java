@@ -49,4 +49,11 @@ public class LongTermAssetCashFlow {
   public void setPaidByTenant(boolean paidByTenant) {
     this.paidByTenant = paidByTenant;
   }
+
+  @PrePersist
+  @PreUpdate
+  void applyOwnershipDefault() {
+    if (paidByTenant == null)
+      paidByTenant = type == CashFlowType.ADMIN_FEE || type == CashFlowType.UTILITIES;
+  }
 }

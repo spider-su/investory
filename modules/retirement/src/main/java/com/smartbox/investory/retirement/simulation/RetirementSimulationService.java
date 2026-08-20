@@ -93,12 +93,14 @@ public class RetirementSimulationService {
               : ZERO;
       ManualWithdrawal manualWithdrawal =
           assumptions.fundingStrategy() == SimulationFundingStrategy.RESERVE_AND_HARVEST
-              ? withdrawManualCashReserve(manual, manualYear.liquidReserveRates(), required)
+              ? toManualWithdrawal(
+                  ManualCashReserveAllocator.withdraw(
+                      manual, manualYear.liquidReserveRates(), required))
               : new ManualWithdrawal(new LinkedHashMap<>(manual), ZERO);
       EnumMap<EconomicBucket, BigDecimal> availableMarket = new EnumMap<>(market);
       availableMarket.merge(EconomicBucket.LIQUID_CASH, preRetirementContribution, BigDecimal::add);
       BigDecimal safeReserveStart =
-          defensiveReserve(
+          ReserveHarvestPolicy.defensiveReserve(
               availableMarket.get(EconomicBucket.LIQUID_CASH),
               manualYear.manualLiquidReserveStart(),
               simulationAssets(profile.longTermAssets(), ladderBonds),
@@ -128,7 +130,8 @@ public class RetirementSimulationService {
       totalUnfunded = totalUnfunded.add(missing);
       BigDecimal surplus = retirementIncome.subtract(totalExpenses).max(ZERO);
       afterWithdrawal.merge(EconomicBucket.LIQUID_CASH, surplus, BigDecimal::add);
-      EnumMap<EconomicBucket, BigDecimal> marketEnd = applyMarketReturns(afterWithdrawal, settings);
+      EnumMap<EconomicBucket, BigDecimal> marketEnd =
+          PortfolioReturnCalculator.applyFullYear(afterWithdrawal, settings);
       Map<Long, BigDecimal> manualAfterWithdrawal = new LinkedHashMap<>(manualYear.values());
       manualYear
           .liquidReserveRates()
@@ -160,9 +163,9 @@ public class RetirementSimulationService {
                   .map(id -> manualEnd.getOrDefault(id, ZERO))
                   .toList());
       BigDecimal eligibleEquityHarvest =
-          eligibleEquityHarvest(marketEnd, equityGain, settings, assumptions);
+          ReserveHarvestPolicy.eligibleEquityHarvest(marketEnd, equityGain, settings, assumptions);
       BigDecimal equityToFixedIncomeTransfer =
-          harvestBondDeficit(
+          ReserveHarvestPolicy.harvestBondDeficit(
               marketEnd,
               eligibleEquityHarvest,
               safeReserveTarget,
@@ -214,9 +217,10 @@ public class RetirementSimulationService {
       BigDecimal realEstateStart = ZERO;
       BigDecimal realEstateEnd = ZERO;
       BigDecimal bondValueEnd =
-          bondValue(simulationAssets(profile.longTermAssets(), ladderBonds), manualEnd);
+          ReserveHarvestPolicy.bondValue(
+              simulationAssets(profile.longTermAssets(), ladderBonds), manualEnd);
       BigDecimal safeReserveEnd =
-          defensiveReserve(
+          ReserveHarvestPolicy.defensiveReserve(
               marketEnd.get(EconomicBucket.LIQUID_CASH),
               manualLiquidReserveEnd,
               simulationAssets(profile.longTermAssets(), ladderBonds),
@@ -381,39 +385,30 @@ public class RetirementSimulationService {
         manualLiquidReserveStart = manualLiquidReserveStart.add(start);
         continue;
       }
-      if (isContractual(asset)) contractualStart = contractualStart.add(start);
+      if (ContractualAssetProjector.isContractual(asset))
+        contractualStart = contractualStart.add(start);
       else starts.merge(asset.bucket(), start, BigDecimal::add);
       if (start.signum() == 0) {
         values.put(asset.id(), ZERO);
         continue;
       }
-      if (isContractual(asset)) {
-        if (asset.maturityDate() != null && year > asset.maturityDate().getYear()) {
-          BigDecimal proceeds = asset.redemptionValue() == null ? start : asset.redemptionValue();
-          redemptionCash = redemptionCash.add(proceeds);
-          if (asset.type() == com.smartbox.investory.longterm.api.LongTermAssetType.BOND)
-            bondRedemptionCash = bondRedemptionCash.add(proceeds);
-          values.put(asset.id(), ZERO);
-          continue;
-        }
-        BigDecimal rate = activeRate(asset, year).orElse(rateFor(asset.bucket(), settings));
-        BigDecimal gross = start.multiply(rate);
-        BigDecimal net =
-            gross.subtract(gross.multiply(Optional.ofNullable(asset.taxRate()).orElse(ZERO)));
+      if (ContractualAssetProjector.isContractual(asset)) {
+        ContractualAssetProjector.Projection projection =
+            ContractualAssetProjector.project(
+                asset,
+                start,
+                settings,
+                year,
+                LocalDate.of(year, 1, 1).minusDays(1),
+                BigDecimal.ONE);
         if (asset.type() == com.smartbox.investory.longterm.api.LongTermAssetType.BOND)
-          bondIncome = bondIncome.add(net);
-        BigDecimal end =
-            asset.interestTreatment() == InterestTreatment.CAPITALIZE ? start.add(net) : start;
-        if (asset.interestTreatment() != InterestTreatment.CAPITALIZE) passive = passive.add(net);
-        if (asset.maturityDate() != null && year == asset.maturityDate().getYear()) {
-          BigDecimal proceeds = asset.redemptionValue() == null ? end : asset.redemptionValue();
-          redemptionCash = redemptionCash.add(proceeds);
-          if (asset.type() == com.smartbox.investory.longterm.api.LongTermAssetType.BOND)
-            bondRedemptionCash = bondRedemptionCash.add(proceeds);
-          end = ZERO;
-        }
-        values.put(asset.id(), end);
-        contractualEnd = contractualEnd.add(end);
+          bondIncome = bondIncome.add(projection.payoutIncome());
+        passive = passive.add(projection.payoutIncome());
+        redemptionCash = redemptionCash.add(projection.redemptionCash());
+        if (asset.type() == com.smartbox.investory.longterm.api.LongTermAssetType.BOND)
+          bondRedemptionCash = bondRedemptionCash.add(projection.redemptionCash());
+        values.put(asset.id(), projection.endValue());
+        contractualEnd = contractualEnd.add(projection.endValue());
         continue;
       }
       BigDecimal income = activeIncome(asset, year);
@@ -430,7 +425,8 @@ public class RetirementSimulationService {
       BigDecimal end =
           start.multiply(
               BigDecimal.ONE.add(
-                  activeRate(asset, year).orElse(rateFor(asset.bucket(), settings))));
+                  activeRate(asset, year)
+                      .orElse(PortfolioReturnCalculator.rateFor(asset.bucket(), settings))));
       values.put(asset.id(), end);
       ends.merge(asset.bucket(), end, BigDecimal::add);
     }
@@ -524,12 +520,6 @@ public class RetirementSimulationService {
         && (period.validTo() == null || period.validTo().getYear() >= year);
   }
 
-  private static boolean isContractual(ProjectedLongTermAsset asset) {
-    return asset.type() == com.smartbox.investory.longterm.api.LongTermAssetType.BOND
-        || asset.type() == com.smartbox.investory.longterm.api.LongTermAssetType.DEPOSIT
-        || (asset.bucket() == EconomicBucket.FIXED_INCOME && asset.interestTreatment() != null);
-  }
-
   private static boolean isManualCashReserve(ProjectedLongTermAsset asset) {
     return asset.type() == com.smartbox.investory.longterm.api.LongTermAssetType.CASH_RESERVE;
   }
@@ -566,56 +556,8 @@ public class RetirementSimulationService {
         asset.rentalTaxPaidByTenant());
   }
 
-  private static BigDecimal eligibleEquityHarvest(
-      EnumMap<EconomicBucket, BigDecimal> marketEnd,
-      BigDecimal equityGain,
-      SimulationScenarioSettings settings,
-      SimulationAssumptions assumptions) {
-    if (assumptions.fundingStrategy() != SimulationFundingStrategy.RESERVE_AND_HARVEST
-        || settings.equityReturnRate().compareTo(assumptions.equityHarvestMinimumReturnRate()) < 0)
-      return ZERO;
-    return equityGain
-        .multiply(assumptions.equityGainHarvestRate())
-        .min(marketEnd.get(EconomicBucket.EQUITY))
-        .max(ZERO);
-  }
-
-  private static BigDecimal harvestBondDeficit(
-      EnumMap<EconomicBucket, BigDecimal> marketEnd,
-      BigDecimal eligibleHarvest,
-      BigDecimal safeReserveTarget,
-      BigDecimal manualLiquidReserveEnd,
-      List<ProjectedLongTermAsset> assets,
-      Map<Long, BigDecimal> manualEnd,
-      SimulationAssumptions assumptions,
-      boolean retired) {
-    if (!retired || assumptions.fundingStrategy() != SimulationFundingStrategy.RESERVE_AND_HARVEST)
-      return ZERO;
-    BigDecimal defensiveReserve =
-        defensiveReserve(
-            marketEnd.get(EconomicBucket.LIQUID_CASH), manualLiquidReserveEnd, assets, manualEnd);
-    BigDecimal bondDeficit = safeReserveTarget.subtract(defensiveReserve).max(ZERO);
-    BigDecimal harvest = bondDeficit.min(eligibleHarvest).min(marketEnd.get(EconomicBucket.EQUITY));
-    marketEnd.merge(EconomicBucket.EQUITY, harvest.negate(), BigDecimal::add);
-    return harvest;
-  }
-
-  private static ManualWithdrawal withdrawManualCashReserve(
-      Map<Long, BigDecimal> source, Map<Long, BigDecimal> reserveRates, BigDecimal amount) {
-    Map<Long, BigDecimal> result = new LinkedHashMap<>(source);
-    BigDecimal left = amount, funded = ZERO;
-    for (Long id :
-        reserveRates.keySet().stream()
-            .sorted(
-                java.util.Comparator.comparing((Long id) -> reserveRates.getOrDefault(id, ZERO))
-                    .thenComparing(Long::compareTo))
-            .toList()) {
-      BigDecimal used = result.getOrDefault(id, ZERO).min(left);
-      result.put(id, result.getOrDefault(id, ZERO).subtract(used));
-      left = left.subtract(used);
-      funded = funded.add(used);
-    }
-    return new ManualWithdrawal(result, funded);
+  private static ManualWithdrawal toManualWithdrawal(ManualCashReserveAllocator.Result result) {
+    return new ManualWithdrawal(result.values(), result.fundedAmount());
   }
 
   private static Map<Long, BigDecimal> applyManualCashReserveReturns(
@@ -634,33 +576,8 @@ public class RetirementSimulationService {
     return result;
   }
 
-  private static EnumMap<EconomicBucket, BigDecimal> applyMarketReturns(
-      EnumMap<EconomicBucket, BigDecimal> source, SimulationScenarioSettings settings) {
-    EnumMap<EconomicBucket, BigDecimal> result = new EnumMap<>(source);
-    result.replaceAll(
-        (bucket, value) -> value.multiply(BigDecimal.ONE.add(rateFor(bucket, settings))));
-    return result;
-  }
-
-  private static BigDecimal rateFor(EconomicBucket bucket, SimulationScenarioSettings settings) {
-    java.util.Objects.requireNonNull(bucket, "bucket");
-    if (bucket == EconomicBucket.LIQUID_CASH) return settings.cashReturnRate();
-    if (bucket == EconomicBucket.FIXED_INCOME) return settings.fixedIncomeReturnRate();
-    if (bucket == EconomicBucket.EQUITY) return settings.equityReturnRate();
-    if (bucket == EconomicBucket.REAL_ESTATE) return ZERO;
-    return settings.otherReturnRate();
-  }
-
   private static BigDecimal sum(Collection<BigDecimal> values) {
     return values.stream().reduce(ZERO, BigDecimal::add);
-  }
-
-  private static BigDecimal bondValue(
-      List<ProjectedLongTermAsset> assets, Map<Long, BigDecimal> values) {
-    return assets.stream()
-        .filter(asset -> asset.type() == com.smartbox.investory.longterm.api.LongTermAssetType.BOND)
-        .map(asset -> values.getOrDefault(asset.id(), ZERO))
-        .reduce(ZERO, BigDecimal::add);
   }
 
   private static BigDecimal spendable(Map<EconomicBucket, BigDecimal> values) {
@@ -668,16 +585,6 @@ public class RetirementSimulationService {
         .get(EconomicBucket.LIQUID_CASH)
         .add(values.get(EconomicBucket.FIXED_INCOME))
         .add(values.get(EconomicBucket.EQUITY));
-  }
-
-  private static BigDecimal defensiveReserve(
-      BigDecimal marketCash,
-      BigDecimal manualCash,
-      List<ProjectedLongTermAsset> assets,
-      Map<Long, BigDecimal> values) {
-    // Defensive reserve is factual cash plus contractual/projected bonds. Generic fixed income,
-    // equity, real estate and other illiquid wealth are not additional reserve targets.
-    return marketCash.add(manualCash).add(bondValue(assets, values));
   }
 
   private static BigDecimal grow(BigDecimal value, BigDecimal rate) {

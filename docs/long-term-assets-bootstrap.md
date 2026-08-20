@@ -34,6 +34,11 @@ economics are `gross income - landlord-paid expenses - effective rental tax`; a 
 zero rental tax. The effective policy is selected by portfolio and calculation date, with an 8.5%
 fallback when no policy applies.
 
+Asset type is immutable after creation. Bootstrap updates preserve the existing lifecycle history;
+they do not silently convert an archived asset or discard archive/reactivation periods. Cash-flow,
+valuation, and bond-rate periods are checked against both the incoming document and stored periods,
+while an existing period identified by the same effective start date is updated idempotently.
+
 ## Reconciliation
 
 The example contains five sanitized properties and two bonds. The property totals under current semantics are:

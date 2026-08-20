@@ -14,9 +14,11 @@ import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
 import com.smartbox.investory.shared.presentation.FinancialPresentation;
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +38,15 @@ public class LongTermAssetService {
   private final RentalTaxPolicyRepository taxPolicies;
   private final PortfolioContextReader portfolioContextReader;
   private final CurrencyConversion currencyRates;
+
+  @Autowired(required = false)
+  private LongTermAssetLifecycleService lifecycle;
+
+  @Autowired(required = false)
+  private LongTermAssetCashFlowService cashFlowService;
+
+  @Autowired(required = false)
+  private Clock applicationClock;
 
   @Value("${app.long-term-assets.planning-currency:PLN}")
   private CurrencyType planningCurrency = CurrencyType.PLN;
@@ -231,9 +242,16 @@ public class LongTermAssetService {
   @Transactional(readOnly = true)
   public List<LongTermAssetProjectionInput> projectionInputs(
       Long portfolioId, LocalDate policyDate) {
+    return projectionInputsAt(portfolioId, policyDate, true);
+  }
+
+  private List<LongTermAssetProjectionInput> projectionInputsAt(
+      Long portfolioId, LocalDate policyDate, boolean activeOnly) {
     LocalDate effectivePolicyDate = effectiveDate(policyDate);
     List<LongTermAssetProjectionInput> result = new ArrayList<>();
-    for (LongTermAsset asset : assets.findAllByPortfolioIdAndActiveTrueOrderByName(portfolioId)) {
+    for (LongTermAsset asset : assets.findAllByPortfolioIdOrderByName(portfolioId)) {
+      if (activeOnly && !asset.isActive()) continue;
+      if (!activeOnly && !activeOn(asset, effectivePolicyDate)) continue;
       List<LongTermAssetProjectionInput.Period> periods = new ArrayList<>();
       for (LongTermAssetCashFlow flow : cashFlows.findAllByAssetIdOrderByValidFrom(asset.getId())) {
         BigDecimal annual = LongTermAssetCalculator.annualAmount(flow);
@@ -349,6 +367,12 @@ public class LongTermAssetService {
   public LongTermAsset save(LongTermAsset asset) {
     validate(asset);
     if (asset.getId() != null) {
+      LongTermAsset existing =
+          assets
+              .findByIdAndPortfolioId(asset.getId(), asset.getPortfolioId())
+              .orElseThrow(() -> new NoSuchElementException("Long-term asset not found"));
+      if (existing.getType() != asset.getType())
+        throw new IllegalArgumentException("Asset type cannot be changed after creation");
       if (asset.getType() != LongTermAssetType.BOND && bonds.existsById(asset.getId()))
         throw new IllegalArgumentException("Bond details require a bond asset");
       if (asset.getType() != LongTermAssetType.DEPOSIT && deposits.existsById(asset.getId()))
@@ -357,7 +381,9 @@ public class LongTermAssetService {
           && !cashFlows.findAllByAssetIdOrderByValidFrom(asset.getId()).isEmpty())
         throw new IllegalArgumentException("Cash flows require a real-estate asset");
     }
-    return assets.save(asset);
+    LongTermAsset saved = assets.save(asset);
+    if (lifecycle != null) lifecycle.ensureInitialPeriod(saved);
+    return saved;
   }
 
   public LongTermAsset saveCashReserve(
@@ -479,8 +505,7 @@ public class LongTermAssetService {
     if (details.getTaxRate() == null) details.setTaxRate(BOND_TAX_RATE);
     details.setRedemptionValue(asset.getAcquisitionValue());
     saveBondDetails(portfolioId, assetId, details);
-    LocalDate from =
-        asset.getAcquisitionDate() == null ? LocalDate.now() : asset.getAcquisitionDate();
+    LocalDate from = asset.getAcquisitionDate() == null ? today() : asset.getAcquisitionDate();
     LongTermAssetBondRatePeriod period =
         bondRates.findAllByAssetIdOrderByValidFrom(assetId).stream()
             .filter(p -> p.getValidFrom().equals(from))
@@ -513,12 +538,20 @@ public class LongTermAssetService {
   }
 
   public void archive(Long portfolioId, Long id) {
+    if (lifecycle != null) {
+      lifecycle.archive(portfolioId, id);
+      return;
+    }
     LongTermAsset asset = owned(portfolioId, id);
     asset.setActive(false);
-    asset.setArchivedAt(LocalDate.now());
+    asset.setArchivedAt(today());
   }
 
   public void reactivate(Long portfolioId, Long id) {
+    if (lifecycle != null) {
+      lifecycle.reactivate(portfolioId, id);
+      return;
+    }
     LongTermAsset asset = owned(portfolioId, id);
     asset.setActive(true);
     asset.setArchivedAt(null);
@@ -526,6 +559,7 @@ public class LongTermAssetService {
 
   public LongTermAssetCashFlow addCashFlow(
       Long portfolioId, Long assetId, LongTermAssetCashFlow flow) {
+    if (cashFlowService != null) return cashFlowService.add(portfolioId, assetId, flow);
     LongTermAsset asset = owned(portfolioId, assetId);
     if (asset.getType() != LongTermAssetType.REAL_ESTATE)
       throw new IllegalArgumentException("Cash flows apply only to real estate");
@@ -548,6 +582,15 @@ public class LongTermAssetService {
 
   public void saveRentalPeriod(
       Long portfolioId, Long assetId, LocalDate effectiveFrom, LocalDate endDate, LocalDate date) {
+    if (cashFlowService != null) {
+      cashFlowService.saveRentalPeriod(
+          portfolioId,
+          assetId,
+          effectiveFrom,
+          endDate,
+          currentCashFlows(portfolioId, assetId, date));
+      return;
+    }
     owned(portfolioId, assetId);
     validateRange(effectiveFrom, endDate);
     List<LongTermAssetCashFlow> current = currentCashFlows(portfolioId, assetId, date);
@@ -575,6 +618,9 @@ public class LongTermAssetService {
       Frequency frequency,
       LocalDate effectiveFrom,
       LocalDate validTo) {
+    if (cashFlowService != null)
+      return cashFlowService.change(
+          portfolioId, assetId, flowId, amount, frequency, effectiveFrom, validTo);
     owned(portfolioId, assetId);
     LongTermAssetCashFlow old = cashFlows.findById(flowId).orElseThrow();
     if (!Objects.equals(old.getAssetId(), assetId))
@@ -586,6 +632,7 @@ public class LongTermAssetService {
       old.setAmount(amount);
       old.setFrequency(frequency);
       old.setValidTo(validTo);
+      LongTermAssetPeriodRules.ensurePaidByTenant(old);
       return cashFlows.save(old);
     }
     if (effectiveFrom.isBefore(old.getValidFrom()))
@@ -601,6 +648,7 @@ public class LongTermAssetService {
     replacement.setFrequency(frequency);
     replacement.setValidFrom(effectiveFrom);
     replacement.setValidTo(validTo);
+    replacement.setPaidByTenant(old.isPaidByTenant());
     return cashFlows.save(replacement);
   }
 
@@ -642,6 +690,10 @@ public class LongTermAssetService {
   }
 
   public void deleteCashFlow(Long portfolioId, Long assetId, Long flowId) {
+    if (cashFlowService != null) {
+      cashFlowService.delete(portfolioId, assetId, flowId);
+      return;
+    }
     owned(portfolioId, assetId);
     LongTermAssetCashFlow flow =
         cashFlows
@@ -653,6 +705,10 @@ public class LongTermAssetService {
 
   public void setCashFlowPaidByTenant(
       Long portfolioId, Long assetId, Long flowId, boolean paidByTenant) {
+    if (cashFlowService != null) {
+      cashFlowService.setPaidByTenant(portfolioId, assetId, flowId, paidByTenant);
+      return;
+    }
     owned(portfolioId, assetId);
     LongTermAssetCashFlow flow =
         cashFlows
@@ -813,7 +869,7 @@ public class LongTermAssetService {
                 asset ->
                     (asset.getAcquisitionDate() == null
                             || !asset.getAcquisitionDate().isAfter(date))
-                        && (asset.getArchivedAt() == null || asset.getArchivedAt().isAfter(date)))
+                        && activeOn(asset, date))
             .map(LongTermAsset::getId)
             .collect(java.util.stream.Collectors.toSet());
     List<LongTermAssetSummary> rows =
@@ -823,7 +879,7 @@ public class LongTermAssetService {
             .filter(row -> historicalAssetIds.contains(row.id()))
             .toList();
     Map<Long, LongTermAssetProjectionInput> projectionInputs =
-        projectionInputs(portfolioId, date).stream()
+        projectionInputsAt(portfolioId, date, false).stream()
             .collect(java.util.stream.Collectors.toMap(LongTermAssetProjectionInput::id, x -> x));
     BigDecimal rentalIncome =
         rows.stream()
@@ -832,36 +888,11 @@ public class LongTermAssetService {
                 row -> {
                   LongTermAssetProjectionInput input = projectionInputs.get(row.id());
                   BigDecimal amount;
-                  if (input == null) {
-                    amount = row.annualEconomics().netAnnualIncomeAfterTax();
-                  } else {
-                    LongTermAssetProjection projection =
-                        new LongTermAssetProjection(
-                            input.id(),
-                            input.name(),
-                            input.type(),
-                            input.currency(),
-                            input.currentValue(),
-                            input.periods().stream()
-                                .map(
-                                    p ->
-                                        new LongTermAssetProjection.Period(
-                                            p.validFrom(),
-                                            p.validTo(),
-                                            p.annualIncome(),
-                                            p.annualExpense(),
-                                            p.annualReturnRate(),
-                                            p.cashFlowType(),
-                                            p.paidByTenant()))
-                                .toList(),
-                            input.maturityDate(),
-                            input.redemptionValue(),
-                            input.interestTreatment(),
-                            input.taxRate(),
-                            input.taxBase(),
-                            input.rentalTaxPaidByTenant());
-                    amount = RentalIncomeProjection.actualYear(projection, year).netIncome();
-                  }
+                  // Historical snapshots expose the annual economics effective at the
+                  // boundary date.  They intentionally do not prorate a period that began
+                  // during the requested year; that is the established snapshot contract and
+                  // keeps historical planning aligned with the asset summary.
+                  amount = row.annualEconomics().netAnnualIncomeAfterTax();
                   return row.currency() == CurrencyType.USD
                       ? amount
                       : currencyRates.convertToBaseCurrency(
@@ -929,6 +960,16 @@ public class LongTermAssetService {
 
   private LocalDate effectiveDate(LocalDate date) {
     return date != null && date.isBefore(historyStart) ? historyStart : date;
+  }
+
+  private LocalDate today() {
+    return LocalDate.now(applicationClock == null ? Clock.systemDefaultZone() : applicationClock);
+  }
+
+  private boolean activeOn(LongTermAsset asset, LocalDate date) {
+    if (lifecycle != null) return lifecycle.activeOn(asset, date);
+    return (asset.getAcquisitionDate() == null || !asset.getAcquisitionDate().isAfter(date))
+        && (asset.getArchivedAt() == null || asset.getArchivedAt().isAfter(date));
   }
 
   public record AggregateSummary(
@@ -1231,6 +1272,7 @@ public class LongTermAssetService {
     validateRange(f.getValidFrom(), f.getValidTo());
     if (f.getAmount() == null || f.getAmount().signum() < 0)
       throw new IllegalArgumentException("Amount must be non-negative");
+    LongTermAssetPeriodRules.ensurePaidByTenant(f);
     validateCashFlowOverlap(f.getAssetId(), f);
   }
 
@@ -1246,11 +1288,7 @@ public class LongTermAssetService {
       LocalDate validTo,
       Set<Long> excludedIds) {
     List<LongTermAssetCashFlow> all = cashFlows.findAllByAssetIdOrderByValidFrom(id);
-    if (all.stream()
-        .filter(x -> x.getType() == f.getType())
-        .filter(x -> !excludedIds.contains(x.getId()))
-        .anyMatch(x -> rangesOverlap(x.getValidFrom(), x.getValidTo(), validFrom, validTo)))
-      throw new IllegalArgumentException("Overlapping cash-flow period");
+    LongTermAssetPeriodRules.rejectOverlap(all, f, validFrom, validTo, excludedIds);
   }
 
   private void upsertCashFlow(
@@ -1277,6 +1315,7 @@ public class LongTermAssetService {
       flow.setFrequency(frequency);
       flow.setValidFrom(from);
       flow.setPaidByTenant(type == CashFlowType.ADMIN_FEE || type == CashFlowType.UTILITIES);
+      LongTermAssetPeriodRules.ensurePaidByTenant(flow);
       cashFlows.save(flow);
     }
   }
@@ -1308,6 +1347,6 @@ public class LongTermAssetService {
   }
 
   private static boolean rangesOverlap(LocalDate a, LocalDate b, LocalDate c, LocalDate d) {
-    return !a.isAfter(d == null ? LocalDate.MAX : d) && !c.isAfter(b == null ? LocalDate.MAX : b);
+    return LongTermAssetPeriodRules.overlaps(a, b, c, d);
   }
 }
