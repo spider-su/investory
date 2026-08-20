@@ -25,7 +25,9 @@ import org.thymeleaf.web.servlet.JakartaServletWebApplication;
 class PlanningYearHeaderRenderTest {
   @Test
   void planningYearHeaderRendersForDraftAndClosedStates() throws Exception {
-    String source = Files.readString(Path.of("src/main/resources/templates/planning-year.html"));
+    String source =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/planning-year.html"));
     int start = source.indexOf("~{fragments/app-header :: planningHeader(");
     int end = source.indexOf("}\"></div>", start) + 1;
     String headerTemplate = "<div th:replace=\"" + source.substring(start, end) + "\"></div>";

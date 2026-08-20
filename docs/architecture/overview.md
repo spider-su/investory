@@ -157,9 +157,10 @@ primitive; no PlanningPresentation exception or Long-Term-to-Retirement presenta
 `SimulationPlanService` is the only documented simulation persistence orchestration adapter; deterministic
 simulation classes remain persistence-free.
 
-The Maven reactor contains `app`, `investment`, `longterm`, `retirement`, `integrations`, and
-`test-support`. Retirement consumes Investment and Long-Term public APIs. Investment and Long-Term do not
-depend on Retirement. This remains one executable application, not microservices. PostgreSQL schema
+The Maven reactor contains `modules/shared`, `modules/investment`, `modules/longterm`,
+`modules/retirement`, `integrations`, `test-support`, `adapters/web-ui`, and `app`. Retirement consumes
+Investment and Long-Term public APIs. Long-Term consumes only `shared`; Investment consumes `shared`.
+Investment and Long-Term do not depend on Retirement or each other. This remains one executable application, not microservices. PostgreSQL schema
 isolation is a separate future epic; this modularization does not change schemas, roles, or Flyway history.
 
 ## Change rules

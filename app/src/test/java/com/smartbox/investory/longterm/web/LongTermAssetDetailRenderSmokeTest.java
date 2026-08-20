@@ -1,4 +1,4 @@
-package com.smartbox.investory.longterm.web;
+package com.smartbox.investory.ui.longterm;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

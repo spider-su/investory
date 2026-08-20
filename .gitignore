@@ -20,6 +20,7 @@ src/main/resources/application-k3s.yml
 /tools/MigrateFix.java
 /tools/*.class
 /tools/
+.docker-build-config/
 /src/test/python/
 /.github/TODO/
 /.m2-local/
@@ -29,5 +30,7 @@ src/main/resources/application-k3s.yml
 /modules/investment/target/
 /modules/longterm/target/
 /modules/retirement/target/
+/modules/shared/target/
 /integrations/target/
 /test-support/target/
+/adapters/web-ui/target/

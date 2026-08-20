@@ -11,7 +11,9 @@ import org.junit.jupiter.api.Test;
 class PlanningYearTemplateContractTest {
   @Test
   void historicalDraftSupportsOnlyApplicationApprovedEditsAndLifecycleActions() throws Exception {
-    String html = Files.readString(Path.of("src/main/resources/templates/planning-year.html"));
+    String html =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/planning-year.html"));
     assertAll(
         () -> assertTrue(html.contains("editableMetrics.contains(entry.key)")),
         () -> assertTrue(html.contains("name=\"metric\"")),

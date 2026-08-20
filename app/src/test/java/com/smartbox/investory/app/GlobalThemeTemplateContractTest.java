@@ -34,7 +34,8 @@ class GlobalThemeTemplateContractTest {
     for (String template : USER_TEMPLATES) {
       String html =
           Files.readString(
-              Path.of("src/main/resources/templates", template), StandardCharsets.UTF_8);
+              Path.of("../adapters/web-ui/src/main/resources/templates", template),
+              StandardCharsets.UTF_8);
       assertThat(html).as(template).contains("fragments/theme-head :: theme");
     }
   }
@@ -43,7 +44,7 @@ class GlobalThemeTemplateContractTest {
   void sharedThemeFragmentSynchronizesBothThemeAttributesAndExistingStorageKey() throws Exception {
     String html =
         Files.readString(
-            Path.of("src/main/resources/templates/fragments/theme-head.html"),
+            Path.of("../adapters/web-ui/src/main/resources/templates/fragments/theme-head.html"),
             StandardCharsets.UTF_8);
     assertThat(html)
         .contains("investory.theme")

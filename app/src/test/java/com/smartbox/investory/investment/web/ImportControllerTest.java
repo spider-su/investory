@@ -1,4 +1,4 @@
-package com.smartbox.investory.investment.web;
+package com.smartbox.investory.ui.investment;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;

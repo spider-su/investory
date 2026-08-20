@@ -10,7 +10,9 @@ import org.junit.jupiter.api.Test;
 class RetirementSimulationTemplateContractTest {
   @Test
   void planProgressIsCompactAndPlacedBeforeFlexibilityAndRisks() throws Exception {
-    String html = Files.readString(Path.of("src/main/resources/templates/simulation.html"));
+    String html =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/simulation.html"));
 
     assertTrue(html.contains("planProgressView"));
     assertTrue(html.contains("Not available yet"));
@@ -22,7 +24,9 @@ class RetirementSimulationTemplateContractTest {
 
   @Test
   void closedPlanningYearShowsAnHonestUnavailableProgressState() throws Exception {
-    String html = Files.readString(Path.of("src/main/resources/templates/planning-year.html"));
+    String html =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/planning-year.html"));
 
     assertTrue(html.contains("Year in review"));
     assertTrue(html.contains("Plan progress unavailable"));
@@ -35,9 +39,12 @@ class RetirementSimulationTemplateContractTest {
   @Test
   void normalAssumptionsExposeIndependentGrowthRatesButNotRecurringOneOffExpenses()
       throws Exception {
-    String html = Files.readString(Path.of("src/main/resources/templates/simulation.html"));
+    String html =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/simulation.html"));
     String editor =
-        Files.readString(Path.of("src/main/resources/templates/simulation-plan-edit.html"));
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/simulation-plan-edit.html"));
     assertTrue(editor.contains("Rental income growth"));
     assertFalse(editor.contains("Real-estate return"));
     assertTrue(editor.contains("name=\"rentalIncomeGrowth\""));

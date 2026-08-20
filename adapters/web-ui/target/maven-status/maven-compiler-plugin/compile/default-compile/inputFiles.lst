@@ -1,0 +1,15 @@
+D:\projects\investory\adapters\web-ui\src\main\java\com\smartbox\investory\config\ThymeleafConfig.java
+D:\projects\investory\adapters\web-ui\src\main\java\com\smartbox\investory\ui\app\HomeController.java
+D:\projects\investory\adapters\web-ui\src\main\java\com\smartbox\investory\ui\common\BuildMetadata.java
+D:\projects\investory\adapters\web-ui\src\main\java\com\smartbox\investory\ui\common\GlobalUiModelAttributes.java
+D:\projects\investory\adapters\web-ui\src\main\java\com\smartbox\investory\ui\investment\AssetDetailController.java
+D:\projects\investory\adapters\web-ui\src\main\java\com\smartbox\investory\ui\investment\DailyPerformanceController.java
+D:\projects\investory\adapters\web-ui\src\main\java\com\smartbox\investory\ui\investment\DashboardRefreshController.java
+D:\projects\investory\adapters\web-ui\src\main\java\com\smartbox\investory\ui\investment\ExportController.java
+D:\projects\investory\adapters\web-ui\src\main\java\com\smartbox\investory\ui\investment\ImportController.java
+D:\projects\investory\adapters\web-ui\src\main\java\com\smartbox\investory\ui\investment\InvestmentPerformanceController.java
+D:\projects\investory\adapters\web-ui\src\main\java\com\smartbox\investory\ui\investment\ReconciliationController.java
+D:\projects\investory\adapters\web-ui\src\main\java\com\smartbox\investory\ui\longterm\LongTermAssetController.java
+D:\projects\investory\adapters\web-ui\src\main\java\com\smartbox\investory\ui\presentation\UiPresentation.java
+D:\projects\investory\adapters\web-ui\src\main\java\com\smartbox\investory\ui\retirement\InvestmentProfileController.java
+D:\projects\investory\adapters\web-ui\src\main\java\com\smartbox\investory\ui\retirement\RetirementSimulationController.java

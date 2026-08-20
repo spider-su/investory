@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Asset not found — Investory</title>
+    <link href="/favicon.svg" rel="icon" type="image/svg+xml">
+    <link href="/css/tabler.min.css" rel="stylesheet">
+    <link href="/css/main.css" rel="stylesheet">
+    <th:block th:replace="~{fragments/theme-head :: theme}"></th:block>
+</head>
+<body>
+<main class="container-tight py-6">
+    <div class="empty">
+        <div class="empty-header">404</div>
+        <p class="empty-title">Asset not found</p>
+        <p class="empty-subtitle text-secondary" th:text="${message}">Asset not found.</p>
+        <div class="empty-action"><a href="/dashboard" class="btn btn-primary">Return to dashboard</a></div>
+    </div>
+</main>
+</body>
+</html>

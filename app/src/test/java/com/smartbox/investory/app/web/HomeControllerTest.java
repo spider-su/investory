@@ -1,4 +1,4 @@
-package com.smartbox.investory.app.web;
+package com.smartbox.investory.ui.app;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;

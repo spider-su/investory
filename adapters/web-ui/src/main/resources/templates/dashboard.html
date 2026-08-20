@@ -1,0 +1,1647 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Investory — Portfolio Intelligence</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="/favicon.svg" rel="icon" type="image/svg+xml">
+    <link href="/css/tabler.min.css" rel="stylesheet">
+    <link href="/css/main.css" rel="stylesheet">
+    <th:block th:replace="~{fragments/theme-head :: theme}"></th:block>
+</head>
+
+<body>
+<th:block th:with="stats=${dashboard.overview}, benchmark=${dashboard.performance.benchmark}, topGainers=${dashboard.performance.topGainers}, topLosers=${dashboard.performance.topLosers}">
+<div class="iv-app">
+    <!-- Topbar -->
+    <header class="iv-topbar iv-app-header-shell">
+        <div class="iv-topbar__primary iv-app-header-shell__primary">
+        <div class="iv-brand">
+            <div class="iv-brand__content">
+                <div class="iv-brand__title-row">
+                    <h1 class="iv-brand__title">Investory</h1>
+                    <button id="theme-toggle" class="iv-theme-toggle iv-theme-toggle--brand" type="button"
+                            aria-label="Switch to dark mode" title="Switch to dark mode">
+                        <svg class="iv-theme-toggle__icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <circle cx="12" cy="12" r="8"></circle>
+                            <path d="M12 4a8 8 0 0 0 0 16z"
+                                  fill="currentColor" stroke="none"></path>
+                        </svg>
+                    </button>
+                </div>
+                <nav class="iv-period-nav" aria-label="Dashboard period">
+                    <a th:each="periodOption : ${periods}"
+                       th:if="${periodOption.urlValue() != '3Y'}"
+                       th:href="${dashboard.navigation.periodUrl(periodOption)}"
+                       th:text="${periodOption.label()}"
+                       th:class="${periodOption == selectedPeriod}
+                           ? 'iv-badge iv-badge--selected'
+                           : 'iv-badge iv-badge--muted'"
+                       th:attr="aria-current=${periodOption == selectedPeriod} ? 'page' : null">
+                        1Y
+                    </a>
+                </nav>
+            </div>
+        </div>
+        <div class="iv-topbar-summary iv-app-header-shell__summary">
+            <div id="cash-flows" class="iv-topbar-metric iv-metric-context" tabindex="0" aria-label="Invested: net external contributions">
+                <div class="iv-topbar-metric__content">
+                    <div class="iv-topbar-metric__value-row">
+                        <span class="iv-topbar-metric__value iv-cash-flow-violet"
+                              th:text="${format.wholeNumber(stats.netDeposits)}">0</span>
+                    </div>
+                    <span class="iv-topbar-metric__label">INVESTED</span>
+                </div>
+                <div class="iv-metric-context__panel" role="tooltip">
+                    <strong>Invested</strong>
+                    <span>Net external contributions: deposits less withdrawals.</span>
+                    <div class="iv-brand__summary-row">
+                        <span>Deposits</span>
+                        <span class="iv-cash-flow-green"
+                              th:text="${stats.formatBase(stats.deposits)}">0</span>
+                    </div>
+                    <div class="iv-brand__summary-row">
+                        <span>Withdrawals</span>
+                        <span class="iv-cash-flow-red"
+                              th:text="${stats.formatBase(stats.withdrawals)}">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="investment-gain" class="iv-topbar-metric iv-metric-context" tabindex="0" aria-label="Investment result">
+                <div class="iv-topbar-metric__content">
+                    <div class="iv-topbar-metric__value-row"
+                     th:classappend="${stats.totalProfit >= 0} ? 'iv-pos' : 'iv-neg'">
+                    <span class="iv-topbar-metric__profit-value-wrap">
+                        <span class="iv-topbar-metric__value"
+                              th:text="${format.wholeNumber(stats.totalProfit)}">0</span>
+                        <span class="iv-topbar-metric__percent"
+                              th:if="${stats.gainPct != null}"
+                              th:text="|(${stats.formatSignedPercent(stats.gainPct)})|">(+0,0%)</span>
+                    </span>
+                    </div>
+                    <span class="iv-topbar-metric__label"
+                          th:text="${stats.totalProfit >= 0 ? 'PROFIT' : 'LOSS'}">PROFIT</span>
+                </div>
+                <div class="iv-metric-context__panel" role="tooltip">
+                    <strong>Investment result</strong>
+                    <span>Realized and unrealized result plus income, after the existing portfolio adjustments.</span>
+                    <div class="iv-brand__summary-row"><span>Return since KPI start</span><span th:if="${dashboard.performance.summary.kpiReturn.status.name() == 'AVAILABLE'}" th:text="${dashboard.performance.summary.formatSignedPercent(dashboard.performance.summary.kpiReturn.value * 100)}">Unavailable</span><span th:unless="${dashboard.performance.summary.kpiReturn.status.name() == 'AVAILABLE'}">Unavailable</span></div>
+                    <div class="iv-brand__summary-row"><span>Annualized return</span><span th:if="${dashboard.performance.summary.annualizedReturn.status.name() == 'AVAILABLE'}" th:text="${dashboard.performance.summary.formatSignedPercent(dashboard.performance.summary.annualizedReturn.value * 100) + ' p.a.'}">Unavailable</span><span th:unless="${dashboard.performance.summary.annualizedReturn.status.name() == 'AVAILABLE'}">Unavailable</span></div>
+                    <small th:if="${dashboard.performance.summary.kpiStartDate != null}" th:text="${'KPI start · ' + dashboard.performance.summary.kpiStartDate}">KPI start · 2026-01-01</small>
+                </div>
+            </div>
+
+            <div id="balance-cash" class="iv-topbar-metric iv-metric-context" tabindex="0" aria-label="Portfolio value">
+                <div class="iv-topbar-metric__content">
+                    <div class="iv-topbar-metric__value-row">
+                    <span class="iv-topbar-metric__value"
+                          th:text="${format.wholeNumber(stats.balance)}">0</span>
+                    </div>
+                    <span class="iv-topbar-metric__label">BALANCE</span>
+                </div>
+                <div class="iv-metric-context__panel" role="tooltip">
+                    <strong>Portfolio value</strong>
+                    <span>Current portfolio value from Investory’s existing valuation calculation.</span>
+                    <div class="iv-brand__summary-row">
+                        <span>Free cash</span>
+                        <span class="iv-cash-flow-violet"
+                              th:text="${stats.formatBase(stats.cash)}">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="iv-topbar__meta iv-app-header-shell__actions">
+            <div class="iv-topbar__toolbar">
+                <details class="iv-balance-popover iv-topbar-fx-popover">
+                    <summary class="iv-topbar-fx-popover__trigger">
+                        <span th:text="${'Base: ' + stats.baseCurrency}">Base: USD</span> <span class="iv-info-icon" aria-hidden="true">i</span>
+                    </summary>
+                    <div class="iv-balance-popover__panel iv-topbar-fx-popover__panel">
+                        <div class="iv-popover-heading" th:text="${'Base currency: ' + stats.baseCurrency}">Base currency: USD</div>
+                        <p class="iv-popover-help" th:text="${'Portfolio values are converted to ' + stats.baseCurrency + '.'}">Portfolio values are converted to USD.</p>
+                        <div class="iv-position-popover__row iv-dividend-popover__row"
+                             th:if="${stats.exchangeRates.get(T(com.smartbox.investory.shared.currency.CurrencyType).EUR) != null}">
+                            <span th:text="${stats.baseCurrency + ' → EUR'}">USD → EUR</span>
+                            <span th:text="${#numbers.formatDecimal(stats.exchangeRates.get(T(com.smartbox.investory.shared.currency.CurrencyType).EUR), 1, 'POINT', 2, 'COMMA')}">0.00</span>
+                        </div>
+                        <div class="iv-position-popover__row iv-dividend-popover__row"
+                             th:if="${stats.exchangeRates.get(T(com.smartbox.investory.shared.currency.CurrencyType).PLN) != null}">
+                            <span th:text="${stats.baseCurrency + ' → PLN'}">USD → PLN</span>
+                            <span th:text="${#numbers.formatDecimal(stats.exchangeRates.get(T(com.smartbox.investory.shared.currency.CurrencyType).PLN), 1, 'POINT', 2, 'COMMA')}">0.00</span>
+                        </div>
+                        <div class="iv-popover-help" th:if="${dashboard.overview.operational != null and dashboard.overview.operational.fx.ratesUpdated != null}"
+                             th:text="${'Rates updated: ' + dashboard.overview.operational.fx.ratesUpdated}">Rates updated: —</div>
+                        <div class="iv-popover-help" th:text="${dashboard.overview.operational == null ? stats.exchangeRates.size() : dashboard.overview.operational.fx.currencyCount} + ' currencies in portfolio'">0 currencies in portfolio</div>
+                        <button type="button" id="refresh-currency-btn" class="iv-topbar-action-button iv-badge iv-badge--muted">Update currency</button>
+                        <p id="refresh-currency-status" class="iv-form-status" role="status" aria-live="polite"></p>
+                    </div>
+                </details>
+            </div>
+                <div class="iv-topbar-actions" aria-label="Portfolio actions">
+                <form id="xtb-upload-form" action="/import" method="POST" enctype="multipart/form-data" style="margin:0;">
+                    <div class="iv-hover-context">
+                        <button type="button"
+                                id="import-statement-btn"
+                                class="iv-topbar-action-button iv-badge iv-badge--muted">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7 9m5-5 5 5"/><path d="M5 13v6h14v-6"/></svg> Import
+                        </button>
+                        <div class="iv-hover-context__panel" role="tooltip">
+                            <strong>Last import</strong>
+                            <span th:if="${dashboard.overview.operational != null and dashboard.overview.operational.importContext.available()}"
+                                  th:text="${#temporals.format(dashboard.overview.operational.importContext.finishedAt, 'MMM d, HH:mm')}">—</span>
+                            <span th:if="${dashboard.overview.operational == null or !dashboard.overview.operational.importContext.available()}">No imports yet</span>
+                            <span th:if="${dashboard.overview.operational != null and dashboard.overview.operational.importContext.available()}"
+                                  th:text="${dashboard.overview.operational.importContext.accountsProcessed} + ' accounts processed'">0 accounts processed</span>
+                            <span th:if="${dashboard.overview.operational != null and dashboard.overview.operational.importContext.rowsApplied > 0}"
+                                  th:text="${dashboard.overview.operational.importContext.rowsApplied} + ' rows applied'">0 rows applied</span>
+                        </div>
+                    </div>
+                    <input type="file" id="xtb-file-input" name="file" accept=".xlsx,.zip,.csv" style="display: none;" />
+                </form>
+                <div class="iv-hover-context">
+                    <button id="refresh-prices-btn"
+                            class="iv-topbar-action-button iv-badge iv-badge--muted">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0 1 4"/><path d="M20 4v7h-7"/></svg> Update History
+                    </button>
+                    <div class="iv-hover-context__panel" role="tooltip">
+                        <strong>Portfolio data</strong>
+                        <span th:if="${dashboard.overview.operational != null and dashboard.overview.operational.freshness.lastUpdate != null}"
+                              th:text="${'Last update: ' + #temporals.format(dashboard.overview.operational.freshness.lastUpdate, 'MMM d, HH:mm')}">Last update: —</span>
+                        <span th:if="${dashboard.overview.operational != null and dashboard.overview.operational.freshness.latestTransaction != null}"
+                              th:text="${'Latest transaction: ' + #temporals.format(dashboard.overview.operational.freshness.latestTransaction, 'MMM d, HH:mm')}">Latest transaction: —</span>
+                        <span th:if="${dashboard.overview.operational != null and dashboard.overview.operational.freshness.latestValuation != null}"
+                              th:text="${'Latest valuation: ' + dashboard.overview.operational.freshness.latestValuation}">Latest valuation: —</span>
+                        <span th:if="${dashboard.overview.operational != null and dashboard.overview.operational.freshness.accountsUpdated > 0}"
+                              th:text="${dashboard.overview.operational.freshness.accountsUpdated} + ' accounts updated'">0 accounts updated</span>
+                        <span th:if="${stats.dataQuality.stalePriceCount > 0}"
+                              class="iv-hover-context__warning"
+                              th:text="${'⚠ Stale prices: ' + stats.dataQuality.stalePriceCount}">⚠ Stale prices</span>
+                        <span th:if="${stats.dataQuality.stalePriceCount == 0}"
+                              th:text="${stats.dataQuality.pricedOpenPositions} + ' positions priced'">0 positions priced</span>
+                    </div>
+                </div>
+                <div class="iv-hover-context">
+                    <button id="yahoo-generate-btn"
+                            class="iv-topbar-action-button iv-badge iv-badge--muted">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12m0 0-5-5m5 5 5-5"/><path d="M5 20h14"/></svg> Export
+                    </button>
+                    <div class="iv-hover-context__panel" role="tooltip">
+                        <strong>Yahoo Finance</strong>
+                        <span th:if="${dashboard.overview.operational == null or dashboard.overview.operational.yahoo.neverExported()}">Never exported</span>
+                        <span th:if="${dashboard.overview.operational != null and !dashboard.overview.operational.yahoo.neverExported() and dashboard.overview.operational.yahoo.upToDate}">✓ Up to date</span>
+                        <span th:if="${dashboard.overview.operational != null and !dashboard.overview.operational.yahoo.neverExported() and !dashboard.overview.operational.yahoo.upToDate}">Changes since export</span>
+                        <span th:if="${dashboard.overview.operational != null and !dashboard.overview.operational.yahoo.neverExported()}"
+                              th:text="${'Last export: ' + #temporals.format(dashboard.overview.operational.yahoo.lastExport, 'MMM d, HH:mm')}">Last export: —</span>
+                    </div>
+                </div>
+            </div>
+            <span id="file-chosen-name" class="iv-badge iv-badge--muted" style="display:none; margin-top:8px;"></span>
+        </div>
+        </div>
+        <div class="iv-topbar__secondary iv-app-header-shell__secondary">
+        <div id="iv-header-rail-left" class="iv-header-rail__left">
+            <div th:replace="~{dashboard/fragments/header-controls :: accounts}"></div>
+        </div>
+        <div class="iv-page-nav-slot">
+            <div th:replace="~{fragments/app-header :: appNavigation('investment', ${portfolioId})}"></div>
+        </div>
+        <div id="iv-header-rail-right" class="iv-header-rail__right">
+            <a th:if="${yahooFinanceUrl != null and !yahooFinanceUrl.isBlank()}"
+               class="iv-header-rail__yahoo"
+               th:href="${yahooFinanceUrl}"
+               target="_blank"
+               rel="noopener noreferrer"
+               aria-label="Open Yahoo Finance portfolio in a new tab">Yahoo Finance ↗</a>
+            <span th:unless="${yahooFinanceUrl != null and !yahooFinanceUrl.isBlank()}"
+                  class="iv-header-rail__yahoo iv-header-rail__yahoo--disabled"
+                  aria-disabled="true">Yahoo Finance ↗</span>
+            <div th:replace="~{dashboard/fragments/header-controls :: valuation}"></div>
+        </div>
+        </div>
+    </header>
+
+    <!-- KPI tiles -->
+    <section class="iv-grid iv-grid--kpi iv-grid--portfolio-overview">
+        <div class="iv-kpi iv-kpi--popover iv-overview-card">
+            <div class="iv-overview-card__heading iv-hover-context" tabindex="0">
+                <p class="iv-kpi__label">
+                <span class="iv-kpi__icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 12h4l3 8 4-16 3 8h4"/>
+                    </svg>
+                </span>
+                    Unrealized P/L
+                </p>
+                <div class="iv-hover-context__panel iv-overview-card__context" role="tooltip">Open positions · before tax</div>
+            </div>
+            <p class="iv-kpi__value"
+               th:classappend="${stats.unrealizedProfit >= 0} ? 'iv-pos' : 'iv-neg'"
+               th:text="${stats.formatBase(stats.unrealizedProfit)}">0</p>
+            <div class="iv-kpi__actions">
+                    <details class="iv-balance-popover iv-position-popover iv-open-positions-popover"
+                             th:if="${stats.openPositionValues != null and !stats.openPositionValues.isEmpty()}">
+                        <summary class="iv-balance-popover__trigger">Details</summary>
+                        <div class="iv-balance-popover__panel iv-position-popover__panel iv-sortable-grid">
+                            <div class="iv-position-popover__row iv-balance-popover__row--head">
+                                <button type="button" class="iv-sort-button" data-sort-key="symbol">Symbol</button>
+                                <button type="button" class="iv-sort-button" data-sort-key="price">Price</button>
+                                <button type="button" class="iv-sort-button" data-sort-key="value">Value</button>
+                                <button type="button" class="iv-sort-button" data-sort-key="unrealized">Unrealized</button>
+                                <button type="button" class="iv-sort-button" data-sort-key="pl">P/L</button>
+                                <button type="button" class="iv-sort-button" data-sort-key="share">Share</button>
+                            </div>
+                            <div class="iv-position-popover__row"
+                                 th:each="position : ${stats.openPositionValues}"
+                                 data-sort-row
+                                 th:attr="data-sort-symbol=${position.symbol},data-sort-price=${position.marketPrice},data-sort-value=${position.value},data-sort-unrealized=${position.unrealized},data-sort-pl=${position.profitLossPercent},data-sort-share=${position.sharePercent}">
+                                <span class="iv-position-popover__symbol-cell">
+                                    <a th:href="@{/dashboard/assets/{symbol}(symbol=${position.symbol})}"
+                                       th:classappend="${position.unrealized > -0.01 and position.unrealized < 0.01} ? 'iv-position-popover__symbol--stale'"
+                                       th:text="${position.symbol}"
+                                       title="Open asset details">AAPL.US</a>
+                                    <button type="button"
+                                            class="iv-icon-button iv-manual-price-button"
+                                            title="Set manual price"
+                                            th:if="${position.unrealized > -0.01 and position.unrealized < 0.01}"
+                                        th:attr="data-symbol=${position.symbol},data-average-open-price=${position.averageOpenPrice}">
+                                        Edit
+                                    </button>
+                                </span>
+                                <span class="iv-position-price-cell">
+                                    <span th:text="${#numbers.formatDecimal(position.marketPrice, 1, 'POINT', 2, 'COMMA') + ' ' + position.marketPriceCurrency}">0 USD</span>
+                                    <span th:if="${position.yahooFinancePrice}"
+                                          class="iv-badge iv-badge--muted"
+                                          title="Twelve Data had no usable quote; Yahoo Finance supplied this exact-listing price">Yahoo</span>
+                                    <span th:unless="${position.twelveDataPrice or position.yahooFinancePrice}"
+                                          class="iv-badge iv-badge--neg"
+                                          th:title="${'Price source: ' + (position.priceSource == null ? 'Unavailable' : position.priceSource)}">No 12data update</span>
+                                </span>
+                                <span th:text="${stats.formatBase(position.value)}">0</span>
+                                <span th:classappend="${position.unrealized >= 0} ? 'iv-pos' : 'iv-neg'"
+                                      th:text="${stats.formatBase(position.unrealized)}">0</span>
+                                <span th:if="${position.profitLossPercent != null}"
+                                      th:classappend="${position.profitLossPercent >= 0} ? 'iv-pos' : 'iv-neg'"
+                                      th:text="${stats.formatPercent(position.profitLossPercent)}">0,0%</span>
+                                <span th:unless="${position.profitLossPercent != null}">-</span>
+                                <span th:text="${stats.formatPercent(position.sharePercent)}">0,0%</span>
+                            </div>
+                            <div class="iv-position-popover__row iv-position-popover__row--total"
+                                 th:if="${stats.openPositionValuesTotal != null}">
+                                <strong>Total</strong>
+                                <strong></strong>
+                                <strong th:text="${stats.formatBase(stats.openPositionValuesTotal.value)}">0</strong>
+                                <strong th:classappend="${stats.openPositionValuesTotal.unrealized >= 0} ? 'iv-pos' : 'iv-neg'"
+                                        th:text="${stats.formatBase(stats.openPositionValuesTotal.unrealized)}">0</strong>
+                                <strong th:if="${stats.openPositionValuesTotal.profitLossPercent != null}"
+                                        th:classappend="${stats.openPositionValuesTotal.profitLossPercent >= 0} ? 'iv-pos' : 'iv-neg'"
+                                        th:text="${stats.formatPercent(stats.openPositionValuesTotal.profitLossPercent)}">0,0%</strong>
+                                <strong th:text="${stats.formatPercent(stats.openPositionValuesTotal.sharePercent)}">100,0%</strong>
+                            </div>
+                        </div>
+                    </details>
+                    <details class="iv-balance-popover iv-position-popover iv-dividend-popover">
+                        <summary class="iv-balance-popover__trigger">By currency</summary>
+                        <div class="iv-balance-popover__panel iv-position-popover__panel">
+                            <div class="iv-position-popover__row iv-dividend-popover__row iv-balance-popover__row--head">
+                                <span>Currency</span>
+                                <span>Open P/L</span>
+                            </div>
+                            <div class="iv-position-popover__row iv-dividend-popover__row" th:each="entry : ${stats.unrealizedByCurrency}">
+                                <span th:text="${entry.key}">USD</span>
+                                <span th:classappend="${entry.value >= 0} ? 'iv-pos' : 'iv-neg'"
+                                      th:text="${format.wholeNumber(entry.value) + ' ' + entry.key}">0 USD</span>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+        </div>
+
+        <div id="positions" class="iv-kpi iv-kpi--popover iv-overview-card">
+            <div class="iv-overview-card__heading iv-hover-context" tabindex="0">
+                <p class="iv-kpi__label">
+                <span class="iv-kpi__icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20 6L9 17l-5-5"/>
+                    </svg>
+                </span>
+                    Realized P/L
+                </p>
+                <div class="iv-hover-context__panel iv-overview-card__context" role="tooltip">
+                    <span th:text="${selectedPeriod == T(com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriod).MAX ? 'Since inception · before tax' : selectedPeriod.label() + ' · before tax'}">YTD · before tax</span>
+                </div>
+            </div>
+            <p class="iv-kpi__value"
+               th:classappend="${stats.realizedProfit >= 0} ? 'iv-pos' : 'iv-neg'"
+               th:text="${stats.formatBase(stats.realizedProfit)}">0</p>
+            <div class="iv-kpi__actions">
+                    <details class="iv-balance-popover iv-position-popover iv-dividend-popover iv-realized-details">
+                        <summary class="iv-balance-popover__trigger">Details</summary>
+                        <div class="iv-balance-popover__panel iv-position-popover__panel">
+                            <div class="iv-position-popover__row iv-dividend-popover__row iv-balance-popover__row--head">
+                                <span>Investment result</span>
+                                <span>Amount</span>
+                            </div>
+                            <div class="iv-position-popover__row iv-dividend-popover__row">
+                                <span>Formula</span>
+                                <span>Balance − invested</span>
+                            </div>
+                            <div class="iv-position-popover__row iv-dividend-popover__row">
+                                <span>Investment gain <span class="iv-muted">(gross)</span></span>
+                                <span th:classappend="${stats.totalProfit >= 0} ? 'iv-pos' : 'iv-neg'"
+                                      th:text="${stats.formatBase(stats.totalProfit)}">0</span>
+                            </div>
+                            <div class="iv-position-popover__row iv-dividend-popover__row">
+                                <span>Realized P/L <span class="iv-muted">(gross)</span></span>
+                                <span th:classappend="${stats.realizedProfit >= 0} ? 'iv-pos' : 'iv-neg'"
+                                      th:text="${stats.formatBase(stats.realizedProfit)}">0</span>
+                            </div>
+                            <div class="iv-position-popover__row iv-dividend-popover__row" th:if="${stats.lossCarryForward > 0}">
+                                <span>Loss carry-forward applied</span>
+                                <span th:text="${stats.formatBase(stats.lossCarryForward)}">0</span>
+                            </div>
+                            <div class="iv-position-popover__row iv-dividend-popover__row">
+                                <span>Capital gains tax <span class="iv-muted">(current-year estimate)</span></span>
+                                <span class="iv-neg"
+                                      th:text="${'-' + stats.formatBase(stats.capitalGainsTax)}">0</span>
+                            </div>
+                            <div class="iv-position-popover__row iv-dividend-popover__row">
+                                <span>Investment gain <span class="iv-muted">(selected period · before capital-gains tax)</span></span>
+                                <span th:classappend="${stats.netGain >= 0} ? 'iv-pos' : 'iv-neg'"
+                                      th:text="${stats.formatBase(stats.netGain)}">0</span>
+                            </div>
+                            <div class="iv-realized-attribution-popover">
+                                <p class="iv-card__title">What is driving results</p>
+                                <p class="iv-section-heading__note">Since inception · base USD · total = realized + unrealized + dividends − withholding tax.</p>
+                                <section class="iv-grid iv-grid--split">
+                                    <div class="iv-card">
+                                        <div class="iv-card__head">
+                                            <h3 class="iv-card__title">Largest contributors</h3>
+                                            <span class="iv-card__hint">All results · largest contributors</span>
+                                        </div>
+                                        <div class="iv-table-wrap">
+                                            <table class="iv-table">
+                                                <thead><tr><th>Symbol</th><th class="iv-text-right">Total</th><th class="iv-text-right">Realized</th><th class="iv-text-right">Unrealized</th><th class="iv-text-right">Dividends</th><th class="iv-text-right">Tax</th></tr></thead>
+                                                <tbody>
+                                                <tr th:each="symbol : ${topGainers}">
+                                                    <td><span class="iv-sym"><span class="iv-sym__avatar" th:text="${#strings.substring(symbol.symbol, 0, 1)}"></span><span th:text="${symbol.symbol}"></span></span></td>
+                                                    <td class="iv-text-right iv-amt iv-pos" th:text="${format.wholeNumber(symbol.total)}"></td>
+                                                    <td class="iv-text-right iv-amt" th:classappend="${symbol.closedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.wholeNumber(symbol.closedProfit)}"></td>
+                                                    <td class="iv-text-right iv-amt" th:classappend="${symbol.unrealizedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.wholeNumber(symbol.unrealizedProfit)}"></td>
+                                                    <td class="iv-text-right iv-amt" th:text="${format.wholeNumber(symbol.dividends)}"></td>
+                                                    <td class="iv-text-right iv-amt" th:classappend="${symbol.withholdingTax > 0} ? 'iv-neg' : ''" th:text="${'-' + format.wholeNumber(symbol.withholdingTax)}"></td>
+                                                </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                    <div class="iv-card">
+                                        <div class="iv-card__head">
+                                            <h3 class="iv-card__title">Largest detractors</h3>
+                                            <span class="iv-card__hint">All results · largest detractors</span>
+                                        </div>
+                                        <div class="iv-table-wrap">
+                                            <table class="iv-table">
+                                                <thead><tr><th>Symbol</th><th class="iv-text-right">Total</th><th class="iv-text-right">Realized</th><th class="iv-text-right">Unrealized</th><th class="iv-text-right">Dividends</th><th class="iv-text-right">Tax</th></tr></thead>
+                                                <tbody>
+                                                <tr th:each="symbol : ${topLosers}">
+                                                    <td><span class="iv-sym"><span class="iv-sym__avatar" th:text="${#strings.substring(symbol.symbol, 0, 1)}"></span><span th:text="${symbol.symbol}"></span></span></td>
+                                                    <td class="iv-text-right iv-amt iv-neg" th:text="${format.wholeNumber(symbol.total)}"></td>
+                                                    <td class="iv-text-right iv-amt" th:classappend="${symbol.closedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.wholeNumber(symbol.closedProfit)}"></td>
+                                                    <td class="iv-text-right iv-amt" th:classappend="${symbol.unrealizedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.wholeNumber(symbol.unrealizedProfit)}"></td>
+                                                    <td class="iv-text-right iv-amt" th:text="${format.wholeNumber(symbol.dividends)}"></td>
+                                                    <td class="iv-text-right iv-amt" th:classappend="${symbol.withholdingTax > 0} ? 'iv-neg' : ''" th:text="${'-' + format.wholeNumber(symbol.withholdingTax)}"></td>
+                                                </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </section>
+                            </div>
+                        </div>
+                    </details>
+                    <details class="iv-balance-popover iv-position-popover iv-dividend-popover">
+                        <summary class="iv-balance-popover__trigger">By currency</summary>
+                        <div class="iv-balance-popover__panel iv-position-popover__panel">
+                            <div class="iv-position-popover__row iv-dividend-popover__row iv-balance-popover__row--head">
+                                <span>Currency</span>
+                                <span>Closed P/L</span>
+                            </div>
+                            <div class="iv-position-popover__row iv-dividend-popover__row" th:each="entry : ${stats.realizedByCurrency}">
+                                <span th:text="${entry.key}">USD</span>
+                                <span th:classappend="${entry.value >= 0} ? 'iv-pos' : 'iv-neg'"
+                                      th:text="${format.wholeNumber(entry.value) + ' ' + entry.key}">0 USD</span>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+        </div>
+
+        <div class="iv-kpi iv-kpi--popover iv-overview-card">
+            <div class="iv-overview-card__heading iv-hover-context" tabindex="0">
+                <p class="iv-kpi__label">
+                <span class="iv-kpi__icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="1" x2="12" y2="23"/>
+                        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                    </svg>
+                </span>
+                    Dividends
+                </p>
+                <div class="iv-hover-context__panel iv-overview-card__context" role="tooltip">
+                    <span><span th:text="${selectedPeriod == T(com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriod).MAX ? 'Since inception' : selectedPeriod.label()}">YTD</span> · after withholding tax · yield
+                        <strong th:if="${stats.incomeYieldPct != null}"
+                                th:text="${stats.formatPercent(stats.incomeYieldPct)}">0,0%</strong>
+                        <strong th:unless="${stats.incomeYieldPct != null}">Unavailable</strong>
+                    </span>
+                </div>
+            </div>
+            <p class="iv-kpi__value"
+               th:classappend="${stats.incomeTotal >= 0} ? 'iv-pos' : 'iv-neg'"
+               th:text="${stats.formatBase(stats.incomeTotal)}">0</p>
+            <div class="iv-kpi__actions">
+                    <details class="iv-balance-popover iv-position-popover iv-dividend-popover">
+                        <summary class="iv-balance-popover__trigger">Details</summary>
+                        <div class="iv-balance-popover__panel iv-position-popover__panel">
+                            <div class="iv-position-popover__row iv-dividend-popover__row iv-balance-popover__row--head">
+                                <span>Income and tax</span>
+                                <span>Amount</span>
+                            </div>
+                        <div class="iv-position-popover__row iv-dividend-popover__row">
+                            <span>Dividends <span class="iv-muted">(gross)</span></span>
+                            <span class="iv-pos"
+                                  th:text="${stats.formatBase(stats.dividends)}">0</span>
+                        </div>
+                            <div class="iv-position-popover__row iv-dividend-popover__row">
+                                <span>Dividend withholding tax</span>
+                                <span class="iv-neg"
+                                      th:text="${stats.formatBase(stats.dividendTax)}">0</span>
+                            </div>
+                            <div class="iv-position-popover__row iv-dividend-popover__row">
+                                <span>Free-funds interest</span>
+                                <span th:classappend="${stats.interest >= 0} ? 'iv-pos' : 'iv-neg'"
+                                      th:text="${stats.formatBase(stats.interest)}">0</span>
+                            </div>
+                        </div>
+                    </details>
+                    <details class="iv-balance-popover iv-position-popover iv-dividend-popover"
+                             th:if="${stats.dividendGainers != null and !stats.dividendGainers.isEmpty()}">
+                        <summary class="iv-balance-popover__trigger">Top payers</summary>
+                        <div class="iv-balance-popover__panel iv-position-popover__panel">
+                            <div class="iv-position-popover__row iv-dividend-popover__row iv-balance-popover__row--head">
+                                <span>Symbol</span>
+                                <span>Dividends USD</span>
+                            </div>
+                            <div class="iv-position-popover__row iv-dividend-popover__row" th:each="row : ${stats.dividendGainers}">
+                                <span th:text="${row.symbol}">AAPL.US</span>
+                                <span class="iv-pos"
+                                      th:text="${stats.formatBase(row.dividends)}">0</span>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+        </div>
+    </section>
+
+    <div id="status-modal" class="iv-modal" style="display: none;">
+        <div class="iv-modal__content">
+            <div class="iv-modal__header">
+                <h3 id="modal-title" class="iv-card__title">Statement import</h3>
+                <button type="button" class="iv-modal__close" onclick="closeModal()" aria-label="Close import dialog">&times;</button>
+            </div>
+            <div class="iv-modal__body">
+                <div class="iv-badge iv-badge--pos" id="modal-status">COMPLETED</div>
+                <p id="modal-message" style="margin: 15px 0; font-weight: 500; color: #1e2536;"></p>
+
+                <table class="iv-table" style="margin-top: 15px;">
+                    <tbody>
+                    <tr>
+                        <td><strong>Rows found</strong></td>
+                        <td id="modal-rows-total" class="iv-text-right">0</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Rows imported</strong></td>
+                        <td id="modal-rows-applied" class="iv-text-right iv-pos">0</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Rows skipped</strong></td>
+                        <td id="modal-rows-failed" class="iv-text-right">0</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="iv-modal__footer">
+                <a id="modal-reconciliation-link" class="iv-badge iv-badge--muted" href="/dashboard/reconciliation" style="display:none; padding: 8px 16px;">View reconciliation</a>
+                <button class="iv-badge iv-badge--pos" style="padding: 8px 16px; cursor: pointer;" onclick="location.reload();">Refresh dashboard</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="manual-price-modal" class="iv-modal" style="display: none;">
+        <div class="iv-modal__content iv-modal__content--compact">
+            <div class="iv-modal__header">
+                <h3 class="iv-card__title">Update market price</h3>
+                <button type="button" class="iv-modal__close" id="manual-price-close" aria-label="Close price dialog">&times;</button>
+            </div>
+            <form id="manual-price-form" class="iv-manual-price-form">
+                <div class="iv-field">
+                    <label for="manual-price-symbol">Symbol</label>
+                    <input id="manual-price-symbol" type="text" readonly>
+                </div>
+                <div class="iv-field">
+                    <label for="manual-price-open">Average entry price</label>
+                    <input id="manual-price-open" type="text" readonly>
+                </div>
+                <div class="iv-field">
+                    <label for="manual-price-value">Market price</label>
+                    <input id="manual-price-value" type="number" min="0.000001" step="0.000001" required autofocus>
+                </div>
+                <p id="manual-price-status" class="iv-form-status"></p>
+                <div class="iv-modal__footer">
+                    <button type="button" class="iv-badge iv-badge--muted" id="manual-price-cancel">Cancel</button>
+                    <button type="submit" class="iv-badge iv-badge--pos" id="manual-price-save">Save and refresh</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <section id="portfolio-performance" class="iv-grid iv-grid--charts" th:if="${benchmark != null}">
+        <div class="iv-card">
+            <div class="iv-card-section-header">
+                <span class="iv-card-section-header__title">Performance</span>
+            </div>
+            <div class="iv-card__body">
+                <div class="iv-benchmark iv-performance-metrics">
+                    <div class="iv-benchmark__stat iv-performance-metric--result"><span class="iv-benchmark__label">Return</span><span class="iv-benchmark__value" id="performance-board-return">—</span></div>
+                    <div class="iv-benchmark__stat iv-performance-metric--risk iv-performance-metric--group-start"><span class="iv-benchmark__label">Current drawdown</span><span class="iv-benchmark__value" th:text="${dashboard.performance.summary.formatPercent(dashboard.performance.summary.currentDrawdownPct)}">0,0%</span></div>
+                    <div class="iv-benchmark__stat iv-performance-metric--risk"><span class="iv-benchmark__label">Max drawdown</span><span class="iv-benchmark__value" th:text="${dashboard.performance.summary.formatPercent(dashboard.performance.summary.maxDrawdownPct)}">0,0%</span></div>
+                    <div class="iv-benchmark__stat iv-performance-metric--group-start" th:if="${dashboard.performance.summary.timeWeightedReturn.status.name() == 'AVAILABLE'}"><span class="iv-benchmark__label" title="Portfolio performance independent of contribution timing">TWR</span><span class="iv-benchmark__value" th:text="${dashboard.performance.summary.formatSignedPercent(dashboard.performance.summary.timeWeightedReturn.value * 100)}">—</span></div>
+                    <div class="iv-benchmark__stat" th:if="${dashboard.performance.summary.moneyWeightedReturn.status.name() == 'AVAILABLE'}"><span class="iv-benchmark__label" title="Annualized return based on dated investor cash flows">XIRR</span><span class="iv-benchmark__value" th:text="${dashboard.performance.summary.formatSignedPercent(dashboard.performance.summary.moneyWeightedReturn.value * 100)}">—</span></div>
+                    <div class="iv-benchmark__stat iv-performance-metric--relative iv-performance-metric--group-start" id="performance-board-spy-kpi"><span class="iv-benchmark__label">Benchmark</span><span class="iv-benchmark__value" id="performance-board-spy">—</span></div>
+                    <div class="iv-benchmark__stat iv-performance-metric--relative" id="performance-board-excess-kpi"><span class="iv-benchmark__label">Excess Return</span><span class="iv-benchmark__value" id="performance-board-excess">—</span></div>
+                </div>
+                <div class="iv-card__controls iv-performance-toolbar" role="toolbar" aria-label="Performance controls">
+                    <div class="btn-list" role="group" aria-label="Metric"><button type="button" class="btn btn-sm btn-primary js-performance-board-metric" data-metric="return">Return %</button><button type="button" class="btn btn-sm btn-outline-secondary js-performance-board-metric" data-metric="pl">P/L</button></div>
+                    <div class="btn-list" role="group" aria-label="Chart style"><button type="button" class="btn btn-sm btn-primary js-performance-board-style" data-style="line">Line</button><button type="button" class="btn btn-sm btn-outline-secondary js-performance-board-style" data-style="bars">Bars</button></div>
+                    <label class="iv-select-field iv-performance-aggregation"><select id="performance-board-aggregation" aria-label="Aggregation"><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="annual">Annual</option></select></label>
+                    <details id="performance-board-account-selector" class="iv-balance-popover iv-performance-account-selector">
+                        <summary id="performance-board-account-label" class="iv-balance-popover__trigger">Accounts: All (0)</summary>
+                        <div class="iv-balance-popover__panel iv-performance-account-panel">
+                            <strong>Accounts</strong>
+                            <div class="iv-account-filter__actions"><button type="button" class="iv-link-button" id="performance-board-check-all">All accounts</button><button type="button" class="iv-link-button" id="performance-board-uncheck-all">Clear</button></div>
+                            <div class="iv-account-filter">
+                                <label class="iv-account-filter__item" th:each="account : ${benchmark.accountOptions}">
+                                    <input type="checkbox" class="js-performance-board-account" th:value="${account.id}" th:checked="${account.selected}">
+                                    <span th:text="${account.name}">Account</span>
+                                </label>
+                            </div>
+                        </div>
+                    </details>
+                    <label class="iv-account-filter__item iv-account-filter__item--benchmark" id="performance-board-benchmark-field"><input type="checkbox" id="performance-board-show-spy" checked><span>S&amp;P 500</span></label>
+                </div>
+                <div class="iv-empty" id="performance-board-empty" th:style="${benchmark.available} ? 'display:none' : ''">Select at least one account with monthly history to show performance.</div>
+                <div id="performance-board-content" th:style="${benchmark.available} ? '' : 'display:none'">
+                    <div class="iv-chart"><canvas id="performance-board-chart" tabindex="0" role="img" aria-label="Selected portfolio performance. Use View as table for keyboard access."></canvas></div>
+                    <details class="iv-chart-table"><summary>View as table</summary><div id="performance-board-table"></div></details>
+                </div>
+                <span id="performance-scope-aggregation" class="visually-hidden">Monthly</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="iv-risk-summary iv-portfolio-structure" aria-labelledby="portfolio-structure-title">
+        <div class="iv-card-section-header">
+            <span id="portfolio-structure-title" class="iv-card-section-header__title">Portfolio structure</span>
+        </div>
+        <div class="iv-portfolio-structure__grid">
+            <details class="iv-structure-card">
+                <summary><span>Cash</span><strong th:text="${stats.formatBase(stats.portfolioStructure.cash)}">0</strong><small th:text="${stats.formatPercent(stats.portfolioStructure.cashWeightPct) + ' of portfolio'}">0,0% of portfolio</small></summary>
+                <div class="iv-structure-popover">
+                    <strong>Cash</strong>
+                    <div th:each="account : ${stats.accountBalances}"><span th:text="${account.accountName}">Account</span><span th:text="${stats.formatBase(account.cash)}">0</span></div>
+                    <div class="iv-structure-popover__total"><span>Total</span><span th:text="${stats.formatBase(stats.portfolioStructure.cash)}">0</span></div>
+                </div>
+            </details>
+            <details class="iv-structure-card">
+                <summary><span>Largest holding</span><strong th:text="${stats.portfolioStructure.largestHolding == null ? 'Unavailable' : stats.portfolioStructure.largestHolding.symbol}">Unavailable</strong><small th:if="${stats.portfolioStructure.largestHolding != null}" th:text="${stats.formatPercent(stats.portfolioStructure.largestHolding.weightPct) + ' · ' + stats.formatBase(stats.portfolioStructure.largestHolding.value)}">0,0% · 0</small></summary>
+                <div class="iv-structure-popover" th:if="${stats.portfolioStructure.largestHolding != null}">
+                    <strong th:text="${stats.portfolioStructure.largestHolding.symbol}">Holding</strong>
+                    <div><span>Value</span><span th:text="${stats.formatBase(stats.portfolioStructure.largestHolding.value)}">0</span></div>
+                    <div><span>Portfolio weight</span><span th:text="${#numbers.formatDecimal(stats.portfolioStructure.largestHolding.weightPct, 1, 'NONE', 1, 'COMMA')} + '%'">0.0%</span></div>
+                    <div><span>Unrealized P/L</span><span th:text="${stats.formatBase(stats.portfolioStructure.largestHolding.unrealized)}">0</span></div>
+                </div>
+            </details>
+            <details class="iv-structure-card">
+                <summary><span>Concentration</span><strong th:text="${'Top 5 · ' + stats.formatPercent(stats.portfolioStructure.topFiveWeightPct)}">Top 5 · 0,0%</strong><small th:text="${'Top 10 · ' + stats.formatPercent(stats.portfolioStructure.topTenWeightPct)}">Top 10 · 0,0%</small></summary>
+                <div class="iv-structure-popover"><strong>Top holdings</strong><div th:each="holding : ${stats.portfolioStructure.topHoldings}"><span th:text="${holding.symbol}">Symbol</span><span th:text="${stats.formatPercent(holding.weightPct)}">0,0%</span></div></div>
+            </details>
+            <details class="iv-structure-card iv-structure-card--allocation">
+                <summary><span>Asset allocation</span><div class="iv-structure-bar" aria-label="Asset allocation by portfolio value"><span th:each="bucket : ${stats.portfolioStructure.assetAllocation.buckets}" class="iv-structure-bar__segment" th:classappend="${' iv-structure-segment--' + bucket.cssKey()}" th:style="${'width:' + bucket.weightPct + '%'}" th:title="${bucket.name + ' · ' + stats.formatPercent(bucket.weightPct)}"></span></div><small th:text="${stats.portfolioStructure.assetAllocation.buckets.isEmpty() ? 'Unavailable' : #strings.listJoin(stats.portfolioStructure.assetAllocation.buckets.![name], ' · ')}">Unavailable</small></summary>
+                <div class="iv-structure-popover"><strong>Asset allocation</strong><div th:each="bucket : ${stats.portfolioStructure.assetAllocation.buckets}"><span th:text="${bucket.name}">Category</span><span th:text="${stats.formatBase(bucket.value) + ' · ' + stats.formatPercent(bucket.weightPct)}">0 · 0,0%</span></div></div>
+            </details>
+        </div>
+        <details class="iv-structure-currency">
+            <summary><span>Account currency</span><div class="iv-structure-bar" aria-label="Portfolio value by account currency"><span th:each="bucket : ${stats.portfolioStructure.accountCurrencies}" class="iv-structure-bar__segment" th:classappend="${' iv-structure-currency-segment--' + bucket.currency.name().toLowerCase()}" th:style="${'width:' + bucket.weightPct + '%'}" th:title="${bucket.currency + ' · ' + stats.formatPercent(bucket.weightPct)}"></span></div><small th:text="${stats.portfolioStructure.accountCurrencies.isEmpty() ? 'Unavailable' : #strings.listJoin(stats.portfolioStructure.accountCurrencies.![currency], ' · ')}">Unavailable</small></summary>
+            <div class="iv-structure-popover"><strong>Account currency</strong><div th:each="bucket : ${stats.portfolioStructure.accountCurrencies}"><span th:text="${bucket.currency}">USD</span><span th:text="${stats.formatBase(bucket.value) + ' · ' + stats.formatPercent(bucket.weightPct)}">0 · 0,0%</span></div><small>Based on account currency, not underlying security exposure.</small></div>
+        </details>
+    </section>
+
+    <div th:replace="~{fragments/app-footer :: buildFooter}"></div>
+</div> <!-- .iv-app -->
+
+<!-- Scripts -->
+<script src="/js/tabler.min.js"></script>
+<!--suppress JSUnresolvedLibraryURL -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="/js/performance-board-rules.js"></script>
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    /* global Chart */
+    const monthlyPerformanceData = [[${stats.monthlyPerformance.calculateMonthlyPerformance}]];
+    // Do not rely on JSON object iteration order. The chart must always run oldest to newest.
+    const monthlyLabels = Object.keys(monthlyPerformanceData).sort((a, b) => a.localeCompare(b));
+    const monthlyData = monthlyLabels.map(label => Number(monthlyPerformanceData[label] || 0));
+
+    const monthlyOperationsCount = [[${stats.monthlyPerformance.monthlyOperationsCount}]];
+    const monthlyCounts = monthlyLabels.map(label => monthlyOperationsCount[label] || 0);
+
+    const monthlyCashflowData = [[${stats.monthlyPerformance.monthlyCashflow}]];
+    const monthlyCashflow = monthlyLabels.map(label => monthlyCashflowData[label] || 0);
+    const monthlyAttributions = [[${stats.monthlyPerformance.monthlyAttributions}]] || {};
+
+    const amountFormatter = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
+    const percentFormatter = new Intl.NumberFormat('de-DE', {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1
+    });
+    const signedUsdFormatter = new Intl.NumberFormat('de-DE', {
+        maximumFractionDigits: 0,
+        signDisplay: 'always'
+    });
+
+    const operationsCountPlugin = {
+        id: 'operationsCountLabels',
+        afterDatasetsDraw(chart) {
+            const ctx = chart.ctx;
+            const meta = chart.getDatasetMeta(0);
+            const theme = chartTheme();
+            ctx.save();
+            ctx.textAlign = 'center';
+            meta.data.forEach((bar, index) => {
+                const count = chart._periodCounts?.[index] || 0;
+                if (!count) {
+                    return;
+                }
+                const value = Number(chart.data.datasets[0].data[index] || 0);
+                const profitText = amountFormatter.format(Math.round(value));
+                const cashflowValue = chart._periodFlows?.[index] || 0;
+                const cashflowText = signedUsdFormatter.format(Math.round(cashflowValue));
+                const accountText = count + (count === 1 ? ' account' : ' accounts');
+                const detailText = Math.abs(cashflowValue) >= 1
+                    ? accountText + ' · flow ' + cashflowText
+                    : accountText;
+                const positive = value >= 0;
+                const top = Math.min(bar.y, bar.base);
+                const bottom = Math.max(bar.y, bar.base);
+                if (positive) {
+                    const profitY = Math.max(top - 6, chart.chartArea.top + 14);
+                    const detailY = Math.max(profitY - 16, chart.chartArea.top + 4);
+                    ctx.textBaseline = 'bottom';
+                    ctx.font = '700 12px Inter, sans-serif';
+                    ctx.fillStyle = theme.strong;
+                    ctx.fillText(profitText, bar.x, profitY);
+                    ctx.font = '600 10px Inter, sans-serif';
+                    ctx.fillStyle = theme.soft;
+                    ctx.fillText(detailText, bar.x, detailY);
+                } else {
+                    const profitY = Math.min(bottom + 6, chart.chartArea.bottom - 28);
+                    const detailY = Math.min(profitY + 16, chart.chartArea.bottom - 8);
+                    ctx.textBaseline = 'top';
+                    ctx.font = '700 12px Inter, sans-serif';
+                    ctx.fillStyle = theme.strong;
+                    ctx.fillText(profitText, bar.x, profitY);
+                    ctx.font = '600 10px Inter, sans-serif';
+                    ctx.fillStyle = theme.soft;
+                    ctx.fillText(detailText, bar.x, detailY);
+                }
+            });
+            ctx.restore();
+        }
+    };
+
+    function cssThemeColor(name, fallback) {
+        const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        return value || fallback;
+    }
+
+    function chartTheme() {
+        return {
+            grid: cssThemeColor('--iv-chart-grid', 'rgba(148, 160, 184, .18)'),
+            soft: cssThemeColor('--iv-text-soft', '#94a0b8'),
+            legend: cssThemeColor('--iv-text-muted', '#6b7488'),
+            strong: cssThemeColor('--iv-text', '#1e2536'),
+            strongFill: cssThemeColor('--iv-chart-strong-fill', 'rgba(30, 37, 54, .08)'),
+            tooltip: cssThemeColor('--iv-chart-tooltip', '#1e2536'),
+            tooltipText: cssThemeColor('--iv-chart-tooltip-text', '#ffffff'),
+            surface: cssThemeColor('--iv-surface', '#ffffff')
+        };
+    }
+
+    let currentChartTheme = chartTheme();
+    let gridColor = currentChartTheme.grid;
+    let tickColor = currentChartTheme.soft;
+    Chart.defaults.font.family = "Inter, system-ui, sans-serif";
+    Chart.defaults.color = tickColor;
+    Chart.defaults.borderColor = gridColor;
+
+    const benchLabels = [[${benchmark != null ? benchmark.labels : null}]] || [];
+    const benchAccountSeries = [[${benchmark != null ? benchmark.accountSeries : null}]] || [];
+    const benchBenchmarkReturnCurve = [[${benchmark != null ? benchmark.benchmarkReturnCurve : null}]] || [];
+    const performanceBoardKpiStart = [[${dashboard.performance.kpiStart}]] || '2026-01';
+    const accountValueYears = [[${benchmark != null ? benchmark.accountValueYears : null}]] || [];
+    const benchEl = document.getElementById("benchmark-chart");
+    const accountValueEl = document.getElementById("account-value-chart");
+    let benchmarkChart = null;
+    let accountValueChart = null;
+    const signedValue = value => (Number(value) >= 0 ? '+' : '') + Number(value || 0).toLocaleString(undefined, {maximumFractionDigits: 0});
+    const signedPercentValue = value => (Number(value) >= 0 ? '+' : '') + Number(value || 0).toLocaleString(undefined, {minimumFractionDigits: 1, maximumFractionDigits: 1}) + '%';
+    function renderTable(id, headers, rows) {
+        const el = document.getElementById(id); if (!el) return;
+        const table = document.createElement('table');
+        table.className = 'iv-table iv-chart-table__table';
+        const thead = table.createTHead();
+        const headerRow = thead.insertRow();
+        headers.forEach(header => {
+            const cell = document.createElement('th');
+            cell.textContent = header;
+            headerRow.appendChild(cell);
+        });
+        const tbody = table.createTBody();
+        rows.forEach(row => {
+            const tableRow = tbody.insertRow();
+            row.forEach(value => {
+                const cell = tableRow.insertCell();
+                cell.textContent = value;
+            });
+        });
+        el.replaceChildren(table);
+    }
+    function enableKeyboardChart(chart, canvasId, activate) {
+        const canvas = document.getElementById(canvasId); if (!canvas) return;
+        let index = 0;
+        canvas.addEventListener('keydown', event => {
+            if (!chart?.data?.labels?.length) return;
+            if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+                event.preventDefault();
+                index = (index + (event.key === 'ArrowRight' ? 1 : -1) + chart.data.labels.length) % chart.data.labels.length;
+                chart.setActiveElements([{datasetIndex: 0, index}]); chart.tooltip.setActiveElements([{datasetIndex: 0, index}]); chart.update();
+            } else if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault(); activate(index);
+            }
+        });
+    }
+    if (benchEl) {
+        benchmarkChart = new Chart(benchEl.getContext("2d"), {
+            type: 'line',
+            data: {
+                labels: benchLabels,
+                datasets: [
+                    {
+                        label: 'Portfolio cumulative return',
+                        data: [],
+                        borderColor: '#4f46e5',
+                        backgroundColor: 'rgba(79, 70, 229, .12)',
+                        fill: true,
+                        tension: 0.25,
+                        pointRadius: 0,
+                        borderWidth: 2
+                    },
+                    {
+                        label: 'S&P 500 cumulative return',
+                        data: [],
+                        borderColor: '#16a34a',
+                        backgroundColor: 'rgba(22, 163, 74, .08)',
+                        fill: true,
+                        tension: 0.25,
+                        pointRadius: 0,
+                        borderWidth: 2
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: tickColor, maxRotation: 0, autoSkip: true }
+                    },
+                    y: {
+                        grid: { color: gridColor, drawBorder: false },
+                        ticks: {
+                            color: tickColor,
+                            callback: function (value) {
+                                return value.toFixed(1) + ' %';
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        align: 'end',
+                        labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, color: '#6b7488' }
+                    },
+                    tooltip: {
+                        backgroundColor: '#1e2536',
+                        padding: 12,
+                        cornerRadius: 10,
+                        callbacks: {
+                            label: function (context) {
+                                const absoluteData = context.dataset.absoluteData || [];
+                                const absoluteValue = absoluteData[context.dataIndex] || 0;
+                                return context.dataset.label + ': '
+                                    + context.parsed.y.toFixed(1) + ' % ('
+                                    + signedUsdFormatter.format(Math.round(absoluteValue)) + ')';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    const transactionEventMarkerPlugin = {
+        id: 'transactionEventMarkers',
+        afterDatasetsDraw(chart, args, options) {
+            if (!options || !Array.isArray(options.events)) return;
+            const meta = chart.getDatasetMeta(0);
+            if (!meta?.data?.length) return;
+            const colors = { deposit: '#2563eb', dividend: '#16a34a', trade: '#7c3aed' };
+            options.events.forEach(event => {
+                const point = meta.data[event.index];
+                if (!point) return;
+                const ctx = chart.ctx;
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, 5, 0, Math.PI * 2);
+                ctx.fillStyle = colors[event.type] || colors.trade;
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = chartTheme().surface;
+                ctx.stroke();
+                ctx.restore();
+            });
+        }
+    };
+    Chart.register(transactionEventMarkerPlugin);
+
+    if (accountValueEl) {
+        accountValueChart = new Chart(accountValueEl.getContext("2d"), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: []
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: tickColor, maxRotation: 0, autoSkip: true }
+                    },
+                    y: {
+                        grid: { color: gridColor, drawBorder: false },
+                        ticks: {
+                            color: tickColor,
+                            callback: function (value) {
+                                return amountFormatter.format(Math.round(value));
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        align: 'end',
+                        labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, color: '#6b7488' }
+                    },
+                    tooltip: {
+                        backgroundColor: '#1e2536',
+                        padding: 12,
+                        cornerRadius: 10,
+                        callbacks: {
+                            label: function (context) {
+                                return context.dataset.label + ': '
+                                    + amountFormatter.format(Math.round(context.parsed.y || 0));
+                            }
+                        }
+                    },
+                    transactionEventMarkers: { events: [] }
+                }
+            }
+        });
+    }
+
+    function setBenchmarkValue(id, value, suffix, signed) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.toggle('iv-pos', value >= 0);
+        el.classList.toggle('iv-neg', value < 0);
+        el.textContent = (signed && value >= 0 ? '+' : '') + value.toFixed(1) + suffix;
+    }
+
+    function updateBenchmarkSelection() {
+        const selectedIds = effectiveAccountIds(selectedBenchmarkAccountIds(), benchAccountSeries.map(series => Number(series.id)));
+        if (!benchmarkChart) return;
+        const selectedSeries = benchAccountSeries.filter(series => selectedIds.has(Number(series.id)));
+        const portfolio = benchLabels.map((_, index) =>
+            selectedSeries.reduce((sum, series) => sum + (series.portfolioCurve[index] || 0), 0));
+        const spy = benchLabels.map((_, index) =>
+            selectedSeries.reduce((sum, series) => sum + (series.benchmarkCurve[index] || 0), 0));
+        const invested = selectedSeries.reduce((sum, series) => sum + (series.investedCapital || 0), 0);
+        const portfolioPl = portfolio.length ? portfolio[portfolio.length - 1] : 0;
+        const benchmarkPl = spy.length ? spy[spy.length - 1] : 0;
+        let returnFactor = 1;
+        const portfolioPercentCurve = benchLabels.map((_, index) => {
+            let capital = 0;
+            let contribution = 0;
+            let hasReturn = false;
+            selectedSeries.forEach(series => {
+                const rawCapital = series.returnCapitalCurve?.[index];
+                const rawMonthlyReturn = series.returnPctCurve?.[index];
+                const periodCapital = Number(rawCapital);
+                const periodReturn = Number(rawMonthlyReturn);
+                if (rawCapital != null && rawMonthlyReturn != null
+                    && Number.isFinite(periodCapital) && Number.isFinite(periodReturn) && periodCapital !== 0) {
+                    capital += periodCapital;
+                    contribution += periodCapital * periodReturn / 100;
+                    hasReturn = true;
+                }
+            });
+            if (!hasReturn || capital === 0) return null;
+            const periodReturn = contribution / capital;
+            returnFactor = periodReturn <= -1 ? 0 : returnFactor * (1 + periodReturn);
+            return (returnFactor - 1) * 100;
+        });
+        const spyPercentCurve = benchLabels.map((_, index) => benchBenchmarkReturnCurve[index] ?? null);
+        const portfolioPct = portfolioPercentCurve.length && portfolioPercentCurve.at(-1) != null
+            ? portfolioPercentCurve.at(-1) : 0;
+        const benchmarkPct = spyPercentCurve.length && spyPercentCurve.at(-1) != null
+            ? spyPercentCurve.at(-1) : 0;
+        const available = selectedSeries.length > 0 && invested !== 0;
+
+        document.getElementById('benchmark-empty').style.display = available ? 'none' : '';
+        document.getElementById('benchmark-content').style.display = available ? '' : 'none';
+        benchmarkChart.data.datasets[0].data = portfolioPercentCurve;
+        benchmarkChart.data.datasets[0].absoluteData = portfolio;
+        benchmarkChart.data.datasets[1].data = spyPercentCurve;
+        benchmarkChart.data.datasets[1].absoluteData = spy;
+        benchmarkChart.update();
+        renderTable('benchmark-table', ['Period', 'Portfolio cumulative return', 'S&P 500 cumulative return', 'Excess return'], benchLabels.map((label, i) => [label, portfolioPercentCurve[i] == null ? '—' : signedPercentValue(portfolioPercentCurve[i]), spyPercentCurve[i] == null ? '—' : signedPercentValue(spyPercentCurve[i]), portfolioPercentCurve[i] == null || spyPercentCurve[i] == null ? '—' : signedPercentValue(portfolioPercentCurve[i] - spyPercentCurve[i]).replace('%', ' pp')]));
+        setBenchmarkValue('benchmark-you', portfolioPct, ' %', false);
+        setBenchmarkValue('benchmark-spy', benchmarkPct, ' %', false);
+        setBenchmarkValue('benchmark-alpha', portfolioPct - benchmarkPct, ' pp', true);
+    }
+
+    function selectedBenchmarkAccountIds() {
+        return new Set(Array.from(document.querySelectorAll('.js-benchmark-account:checked'))
+            .map(input => Number(input.value)));
+    }
+
+    function selectedAccountValueAccountIds() {
+        return new Set(Array.from(document.querySelectorAll('.js-account-value-account:checked'))
+            .map(input => Number(input.value)));
+    }
+
+    function selectedMonthlyAccountIds() {
+        return new Set(Array.from(document.querySelectorAll('.js-monthly-account:checked'))
+            .map(input => Number(input.value)));
+    }
+
+    function effectiveAccountIds(selectedIds, allIds) {
+        return selectedIds.size === allIds.length ? new Set(allIds) : selectedIds;
+    }
+
+    function selectedAccountValueYear() {
+        const yearSelect = document.getElementById('account-value-year');
+        const selectedYear = yearSelect ? Number(yearSelect.value) : null;
+        return accountValueYears.find(year => Number(year.year) === selectedYear) || accountValueYears[0];
+    }
+
+    function selectedAccountValueMode() {
+        return document.getElementById('account-value-mode')?.value === 'percent' ? 'percent' : 'absolute';
+    }
+
+    function accountValueSeriesData(series, mode) {
+        return mode === 'percent' ? (series.profitPctValues || []) : (series.profitValues || []);
+    }
+
+    function accountValueAxisLabel(value, mode) {
+        return mode === 'percent'
+            ? percentFormatter.format((Number(value) || 0) / 100)
+            : amountFormatter.format(Math.round(Number(value) || 0));
+    }
+
+    function updateAccountValueHint(mode) {
+        const hintEl = document.getElementById('account-value-hint');
+        if (!hintEl) return;
+        hintEl.textContent = mode === 'percent'
+            ? 'Calendar year · external cash flows excluded · cumulative daily P/L · %'
+            : 'Calendar year · external cash flows excluded · cumulative daily P/L · base USD';
+    }
+
+    function updateAccountValueChart(selectedIds) {
+        if (!accountValueChart) return;
+        const year = selectedAccountValueYear();
+        const mode = selectedAccountValueMode();
+        const emptyEl = document.getElementById('account-value-empty');
+        const contentEl = document.getElementById('account-value-content');
+        if (!year || !year.accountSeries || year.accountSeries.length === 0) {
+            if (emptyEl) emptyEl.style.display = '';
+            if (contentEl) contentEl.style.display = 'none';
+            return;
+        }
+
+        const effectiveIds = effectiveAccountIds(selectedIds, year.accountSeries.map(series => Number(series.id)));
+        const selectedSeries = year.accountSeries.filter(series => effectiveIds.has(Number(series.id)));
+        const allAccountsShown = selectedIds.size === year.accountSeries.length;
+        const total = allAccountsShown
+            ? (mode === 'percent' ? (year.totalProfitPctValues || []) : (year.totalProfitValues || []))
+            : (year.labels || []).map((_, index) => selectedSeries.reduce(
+                (sum, series) => sum + Number(accountValueSeriesData(series, mode)[index] || 0), 0));
+        const hasValues = total.some(value => Math.abs(value) > 1) || selectedSeries.length > 0;
+        if (emptyEl) emptyEl.style.display = hasValues ? 'none' : '';
+        if (contentEl) contentEl.style.display = hasValues ? '' : 'none';
+        updateAccountValueHint(mode);
+        const palette = ['#4f46e5', '#16a34a', '#f59e0b', '#dc2626', '#0891b2', '#7c3aed', '#0f766e', '#be123c'];
+        accountValueChart.data.labels = year.labels || [];
+        accountValueChart.data.datasets = [
+            {
+                label: 'Portfolio total',
+                data: total,
+                borderColor: chartTheme().strong,
+                backgroundColor: chartTheme().strongFill,
+                fill: true,
+                tension: 0.25,
+                pointRadius: 0,
+                borderWidth: 3
+            },
+            ...selectedSeries.map((series, index) => ({
+                label: series.name,
+                data: accountValueSeriesData(series, mode),
+                borderColor: palette[index % palette.length],
+                backgroundColor: 'transparent',
+                fill: false,
+                tension: 0.25,
+                pointRadius: 0,
+                borderWidth: 1.8
+            }))
+        ];
+        accountValueChart.options.plugins.transactionEventMarkers.events = [];
+        accountValueChart.options.scales.y.ticks.callback = function (value) {
+            return accountValueAxisLabel(value, mode);
+        };
+        accountValueChart.options.plugins.tooltip.callbacks.label = function (context) {
+            return context.dataset.label + ': ' + accountValueAxisLabel(context.parsed.y || 0, mode);
+        };
+        accountValueChart.options.onClick = async function (event, elements) {
+            if (!elements.length) return;
+            const date = accountValueChart.data.labels[elements[0].index];
+            const ids = [...effectiveIds].join(',');
+            const panel = document.getElementById('daily-attribution-panel');
+            panel.textContent = 'Loading daily attribution…';
+            document.getElementById('daily-attribution-details').open = true;
+            try {
+                const response = await fetch('/dashboard/daily-attribution?date=' + encodeURIComponent(date) + '&accountIds=' + encodeURIComponent(ids));
+                const a = await response.json();
+                const money = value => signedUsdFormatter.format(Math.round(Number(value || 0)));
+                panel.replaceChildren();
+                const appendLine = (tag, text) => {
+                    const element = document.createElement(tag);
+                    element.textContent = text;
+                    panel.appendChild(element);
+                };
+                appendLine('strong', a.date + ' · Daily P/L ' + money(a.dailyProfit));
+                appendLine('div', 'Daily return: ' + Number(a.dailyReturnPct || 0).toLocaleString(undefined, {minimumFractionDigits: 1, maximumFractionDigits: 1}) + '%');
+                appendLine('div', 'Opening equity: ' + money(a.openingEquity));
+                appendLine('div', 'Closing equity: ' + money(a.closingEquity));
+                appendLine('div', 'Deposits: ' + money(a.deposits) + ' · Withdrawals: -' + money(a.withdrawals));
+                appendLine('div', 'Dividends: ' + money(a.dividends) + ' · Interest: ' + money(a.interest));
+                appendLine('div', 'Fees: ' + money(a.fees) + ' · Taxes: ' + money(a.taxes));
+                appendLine('div', 'Combined market/FX movement: ' + money(a.unresolvedResidual));
+                appendLine('strong', 'Accounts');
+                (a.accounts || []).forEach(row => appendLine('div', row.accountId + ': ' + money(row.dailyProfit) + ' · flow ' + money(row.deposits - row.withdrawals)));
+                const note = document.createElement('p');
+                note.className = 'iv-muted';
+                note.textContent = a.attributionNote || '';
+                panel.appendChild(note);
+            } catch (error) { panel.textContent = 'Daily attribution unavailable.'; }
+        };
+        accountValueChart.update();
+        renderTable('account-value-table', ['Date', 'Portfolio P/L USD'], (year.labels || []).map((label, i) => [label, signedValue(total[i]) + (mode === 'percent' ? ' %' : ' USD')]));
+    }
+
+    document.querySelectorAll('.js-benchmark-account')
+        .forEach(input => input.addEventListener('change', updateBenchmarkSelection));
+    document.getElementById('benchmark-show-spy')?.addEventListener('change', event => {
+        if (!benchmarkChart?.data?.datasets?.[1]) return;
+        benchmarkChart.data.datasets[1].hidden = !event.target.checked;
+        benchmarkChart.update();
+    });
+    document.querySelectorAll('.js-account-value-account')
+        .forEach(input => input.addEventListener('change', () =>
+            updateAccountValueChart(selectedAccountValueAccountIds())));
+    document.getElementById('account-value-mode')?.addEventListener('change', () =>
+        updateAccountValueChart(selectedAccountValueAccountIds()));
+    document.getElementById('account-value-year')?.addEventListener('change', () =>
+        updateAccountValueChart(selectedAccountValueAccountIds()));
+    document.getElementById('benchmark-check-all')?.addEventListener('click', () => {
+        document.querySelectorAll('.js-benchmark-account').forEach(input => input.checked = true);
+        updateBenchmarkSelection();
+    });
+    document.getElementById('benchmark-uncheck-all')?.addEventListener('click', () => {
+        document.querySelectorAll('.js-benchmark-account').forEach(input => input.checked = false);
+        updateBenchmarkSelection();
+    });
+    document.getElementById('account-value-check-all')?.addEventListener('click', () => {
+        document.querySelectorAll('.js-account-value-account').forEach(input => input.checked = true);
+        updateAccountValueChart(selectedAccountValueAccountIds());
+    });
+    document.getElementById('account-value-uncheck-all')?.addEventListener('click', () => {
+        document.querySelectorAll('.js-account-value-account').forEach(input => input.checked = false);
+        updateAccountValueChart(selectedAccountValueAccountIds());
+    });
+    updateBenchmarkSelection();
+    updateAccountValueChart(selectedAccountValueAccountIds());
+    enableKeyboardChart(benchmarkChart, 'benchmark-chart', () => {});
+    enableKeyboardChart(accountValueChart, 'account-value-chart', index => accountValueChart.options.onClick?.({}, [{index}]));
+
+    const monthlyPerformanceEl = document.getElementById("monthly-performance-chart");
+    const ctxMonthly = monthlyPerformanceEl
+        ? monthlyPerformanceEl.getContext("2d")
+        : null;
+    function groupedMonthlyData(mode, selectedIds) {
+        const buckets = new Map();
+        monthlyLabels.forEach((label, index) => {
+            const year = label.substring(0, 4);
+            const month = Number(label.substring(5, 7));
+            const key = mode === 'annual' ? year : mode === 'quarterly' ? year + '-Q' + Math.ceil(month / 3) : label;
+            const attribution = monthlyAttributions[label];
+            const rows = attribution?.accounts || [];
+            const partial = selectedIds !== null;
+            const selectedRows = partial ? rows.filter(row => selectedIds.has(Number(row.accountId))) : rows;
+            const value = partial
+                ? selectedRows.reduce((sum, row) => sum + Number(row.monthlyProfit || 0), 0)
+                : Number(monthlyData[index] || 0);
+            const flow = partial
+                ? selectedRows.reduce((sum, row) => sum + Number(row.netFlow || 0), 0)
+                : Number(monthlyCashflow[index] || 0);
+            const bucket = buckets.get(key) || { value: 0, count: 0, flow: 0, sourceLabels: [] };
+            bucket.value += value;
+            bucket.count += partial ? new Set(selectedRows.map(row => row.accountId)).size : Number(monthlyCounts[index] || 0);
+            bucket.flow += flow;
+            bucket.sourceLabels.push(label);
+            buckets.set(key, bucket);
+        });
+        const ordered = [...buckets.entries()].sort(([a], [b]) => a.localeCompare(b));
+        return { labels: ordered.map(([label]) => label), values: ordered.map(([, value]) => value) };
+    }
+    let monthlyChart;
+    function renderMonthlyChart(mode) {
+        if (!ctxMonthly) return;
+        const allMonthlyIds = [...new Set(Object.values(monthlyAttributions).flatMap(a => (a.accounts || []).map(row => Number(row.accountId))))];
+        const selectedMonthlyIds = effectiveAccountIds(selectedMonthlyAccountIds(), allMonthlyIds);
+        const grouped = groupedMonthlyData(mode, selectedMonthlyIds.size === allMonthlyIds.length ? null : selectedMonthlyIds);
+        const values = grouped.values.map(row => row.value);
+        const counts = grouped.values.map(row => row.count);
+        const flows = grouped.values.map(row => row.flow);
+        if (monthlyChart) {
+            monthlyChart.data.labels = grouped.labels;
+            monthlyChart.data.datasets[0].data = values;
+            monthlyChart.data.datasets[0].backgroundColor = values.map(val => val >= 0 ? '#16a34a' : '#dc2626');
+            monthlyChart.data.datasets[0].hoverBackgroundColor = values.map(val => val >= 0 ? '#15803d' : '#b91c1c');
+            monthlyChart._periodCounts = counts;
+            monthlyChart._periodFlows = flows;
+            monthlyChart._periodSourceLabels = grouped.values.map(row => row.sourceLabels);
+            monthlyChart._selectedAccountIds = selectedMonthlyIds.size === allMonthlyIds.length ? null : selectedMonthlyIds;
+            monthlyChart.update();
+            renderTable('monthly-table', ['Period', 'P/L USD'], grouped.labels.map((label, i) => [label, signedValue(values[i]) + ' USD']));
+            return;
+        }
+        monthlyChart = new Chart(ctxMonthly, {
+        type: 'bar',
+        data: {
+            labels: grouped.labels,
+            datasets: [{
+                label: 'P/L in base USD',
+                data: values,
+                backgroundColor: values.map(val => val >= 0 ? '#16a34a' : '#dc2626'),
+                hoverBackgroundColor: values.map(val => val >= 0 ? '#15803d' : '#b91c1c'),
+                borderRadius: 6,
+                maxBarThickness: 46,
+                barPercentage: 0.7,
+                categoryPercentage: 0.7
+            }]
+        },
+            options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: {
+                padding: {
+                    top: 40,
+                    bottom: 40
+                }
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { color: tickColor, maxRotation: 0, autoSkip: true }
+                },
+                y: {
+                    beginAtZero: true,
+                    grid: { color: gridColor, drawBorder: false },
+                    ticks: { color: tickColor }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    backgroundColor: '#1e2536',
+                    padding: 12,
+                    cornerRadius: 10,
+                    titleFont: { weight: '700' },
+                    callbacks: {
+                        label: function (context) {
+                            return 'P/L: ' + signedUsdFormatter.format(Math.round(context.parsed.y));
+                        },
+                        afterLabel: function (context) {
+                            const count = monthlyChart?._periodCounts?.[context.dataIndex] || 0;
+                            const cashflow = signedUsdFormatter.format(Math.round(monthlyChart?._periodFlows?.[context.dataIndex] || 0));
+                            return 'Accounts: ' + count + '\nExternal flow: ' + cashflow;
+                        }
+                    }
+                }
+            }
+        },
+                plugins: [operationsCountPlugin]
+        });
+        monthlyChart._periodCounts = counts;
+        monthlyChart._periodFlows = flows;
+        monthlyChart._periodSourceLabels = grouped.values.map(row => row.sourceLabels);
+        monthlyChart._selectedAccountIds = selectedMonthlyIds.size === allMonthlyIds.length ? null : selectedMonthlyIds;
+        monthlyChart.update();
+        renderTable('monthly-table', ['Period', 'P/L USD'], grouped.labels.map((label, i) => [label, signedValue(values[i]) + ' USD']));
+        monthlyChart.options.onClick = function (event, elements) {
+            if (!elements.length) return;
+            const label = monthlyChart.data.labels[elements[0].index];
+            const sourceLabels = monthlyChart._periodSourceLabels?.[elements[0].index] || [label];
+            const attributions = sourceLabels.map(sourceLabel => monthlyAttributions[sourceLabel]).filter(Boolean);
+            if (!attributions.length) return;
+            const money = value => signedUsdFormatter.format(Math.round(Number(value || 0)));
+            const selectedAccountIds = monthlyChart._selectedAccountIds;
+            const filteredAttributions = attributions.map(attribution => ({
+                ...attribution,
+                accounts: (attribution.accounts || []).filter(row =>
+                    selectedAccountIds === null || selectedAccountIds.has(Number(row.accountId)))
+            }));
+            const sum = field => filteredAttributions.reduce((total, attribution) => total + Number(attribution[field] || 0), 0);
+            const accountRows = new Map();
+            filteredAttributions.forEach(attribution => (attribution.accounts || []).forEach(row => {
+                const account = accountRows.get(row.accountId) || { profit: 0, flow: 0 };
+                account.profit += Number(row.monthlyProfit || 0);
+                account.flow += Number(row.netFlow || 0);
+                accountRows.set(row.accountId, account);
+            }));
+            const panel = document.getElementById('monthly-attribution-panel');
+            panel.replaceChildren();
+            const appendLine = (tag, text) => {
+                const element = document.createElement(tag);
+                element.textContent = text;
+                panel.appendChild(element);
+            };
+            appendLine('strong', label + ' · ' + money(monthlyChart.data.datasets[0].data[elements[0].index]));
+            if (selectedAccountIds === null) {
+                appendLine('div', 'Opening equity: ' + money(filteredAttributions[0].openingEquity));
+                appendLine('div', 'Closing equity: ' + money(filteredAttributions[filteredAttributions.length - 1].closingEquity));
+                appendLine('div', 'External deposits: ' + money(sum('deposits')));
+                appendLine('div', 'External withdrawals: -' + money(sum('withdrawals')));
+                appendLine('div', 'Market and FX movement: ' + money(sum('marketAndFxMovement')));
+                appendLine('div', 'Realized trading result: ' + money(sum('realizedTradingResult')));
+                appendLine('div', 'Dividends: ' + money(sum('dividends')));
+                appendLine('div', 'Cash interest: ' + money(sum('cashInterest')));
+                appendLine('div', 'Fees: ' + money(sum('fees')));
+                appendLine('div', 'Taxes: ' + money(sum('taxes')));
+                appendLine('div', 'Unresolved residual: ' + money(sum('unresolvedResidual')));
+            }
+            appendLine('strong', 'By account');
+            accountRows.forEach((account, accountId) => appendLine('div', accountId + ': ' + money(account.profit) + ' · flow ' + money(account.flow)));
+            document.getElementById('monthly-attribution-details').open = true;
+        };
+    }
+    renderMonthlyChart('monthly');
+    enableKeyboardChart(monthlyChart, 'monthly-performance-chart', () => {});
+    document.getElementById('monthly-granularity')?.addEventListener('change', event => renderMonthlyChart(event.target.value));
+    document.querySelectorAll('.js-monthly-account').forEach(input => input.addEventListener('change', () => renderMonthlyChart(document.getElementById('monthly-granularity').value)));
+    document.getElementById('monthly-check-all')?.addEventListener('click', () => {
+        document.querySelectorAll('.js-monthly-account').forEach(input => input.checked = true);
+        renderMonthlyChart(document.getElementById('monthly-granularity').value);
+    });
+    document.getElementById('monthly-uncheck-all')?.addEventListener('click', () => {
+        document.querySelectorAll('.js-monthly-account').forEach(input => input.checked = false);
+        renderMonthlyChart(document.getElementById('monthly-granularity').value);
+    });
+
+    function setPerformanceMode(mode) {
+        const overview = mode === 'overview';
+        const accounts = mode === 'accounts';
+        const benchmark = document.getElementById('benchmark-content');
+        const accountPanel = document.getElementById('performance-accounts-panel');
+        const attributionPanel = document.getElementById('performance-attribution-panel');
+        if (benchmark) benchmark.style.display = overview ? '' : 'none';
+        if (accountPanel) accountPanel.style.display = accounts ? '' : 'none';
+        if (attributionPanel) attributionPanel.style.display = overview || mode === 'attribution' ? '' : 'none';
+        document.getElementById('performance-display-field')?.style.setProperty('display', accounts ? '' : 'none');
+        document.querySelectorAll('.js-performance-mode').forEach(button => {
+            const active = button.dataset.mode === mode;
+            button.classList.toggle('btn-primary', active);
+            button.classList.toggle('btn-outline-secondary', !active);
+            button.setAttribute('aria-pressed', String(active));
+        });
+        const metric = document.getElementById('performance-metric')?.value || 'both';
+        const returnVisible = overview && metric !== 'pl';
+        const plVisible = (overview && metric !== 'return') || mode === 'attribution';
+        if (benchmark) benchmark.style.display = returnVisible ? '' : 'none';
+        if (attributionPanel) attributionPanel.style.display = plVisible ? '' : 'none';
+        if (mode === 'accounts') updateAccountValueChart(selectedAccountValueAccountIds());
+        document.getElementById('performance-scope-aggregation').textContent = document.getElementById('monthly-granularity')?.value || 'Monthly';
+    }
+    document.querySelectorAll('.js-performance-mode').forEach(button => button.addEventListener('click', () => setPerformanceMode(button.dataset.mode)));
+    document.getElementById('performance-metric')?.addEventListener('change', () => setPerformanceMode(document.querySelector('.js-performance-mode.btn-primary')?.dataset.mode || 'overview'));
+    document.getElementById('monthly-granularity')?.addEventListener('change', () => setPerformanceMode(document.querySelector('.js-performance-mode.btn-primary')?.dataset.mode || 'overview'));
+    setPerformanceMode('overview');
+
+    // Performance Board uses the canonical monthly return contributions and P/L curves prepared by
+    // BenchmarkService. It changes presentation only: line values are cumulative and bar values are
+    // period values, so external funding never becomes investment performance.
+    const performanceBoardEl = document.getElementById('performance-board-chart');
+    let performanceBoardChart = null;
+    const performanceBoardState = { metric: 'return', style: 'line' };
+    const performanceBoardPalette = ['#4f46e5', '#16a34a', '#f59e0b', '#dc2626', '#0891b2', '#7c3aed', '#0f766e', '#be123c'];
+    const performanceBoardNames = new Map(([[${benchmark != null ? benchmark.accountOptions : null}]] || []).map(account => [Number(account.id), account.name]));
+
+    function performanceBoardSelectedIds() {
+        return new Set(Array.from(document.querySelectorAll('.js-performance-board-account:checked')).map(input => Number(input.value)));
+    }
+
+    function performanceBoardUpdateAccountLabel() {
+        const inputs = Array.from(document.querySelectorAll('.js-performance-board-account'));
+        const selected = inputs.filter(input => input.checked).length;
+        const label = document.getElementById('performance-board-account-label');
+        if (!label) return;
+        label.textContent = selected === inputs.length
+            ? 'Accounts: All (' + inputs.length + ')'
+            : selected + ' of ' + inputs.length;
+    }
+
+    function performanceBoardGroup(label, aggregation) {
+        return PerformanceBoardRules.group(label, aggregation);
+    }
+
+    function performanceBoardAggregate(values, aggregation, returnValues) {
+        return PerformanceBoardRules.aggregate(values, benchLabels, aggregation, returnValues);
+    }
+
+    function performanceBoardPeriodValues(curve) {
+        return PerformanceBoardRules.periodValues(curve);
+    }
+
+    function performanceBoardPeriodFromCumulativeReturn(curve) {
+        return PerformanceBoardRules.periodFromCumulativeReturn(curve);
+    }
+
+    function performanceBoardCumulativeReturn(series) {
+        return PerformanceBoardRules.cumulativeReturn(series, benchLabels);
+    }
+
+    function performanceBoardPeriodReturn(series) {
+        return performanceBoardPeriodFromCumulativeReturn(performanceBoardCumulativeReturn(series));
+    }
+
+    function performanceBoardDataset(label, values, color, type, stacked) {
+        const bars = type === 'bar';
+        return {
+            label,
+            data: values,
+            borderColor: color,
+            backgroundColor: bars ? color : color + '22',
+            fill: !bars && label === 'Portfolio',
+            tension: .25,
+            pointRadius: 0,
+            borderWidth: bars ? 0 : 2,
+            borderRadius: bars ? 5 : 0,
+            stack: stacked ? 'accounts' : undefined
+        };
+    }
+
+    function performanceBoardAccountData(selectedSeries, allSelected, metric, style, aggregation) {
+        return PerformanceBoardRules.accountData(
+            selectedSeries,
+            allSelected,
+            metric,
+            style,
+            aggregation,
+            benchLabels,
+            performanceBoardNames);
+    }
+
+    function performanceBoardFlow(label, aggregation, selectedIds, allSelected) {
+        return benchLabels.reduce((total, sourceLabel) => {
+            if (performanceBoardGroup(sourceLabel, aggregation) !== label) return total;
+            const attribution = monthlyAttributions[sourceLabel];
+            if (!attribution) return total;
+            if (allSelected) return total + Number(attribution.netExternalFlow || 0);
+            return total + (attribution.accounts || [])
+                .filter(account => selectedIds.has(Number(account.accountId)))
+                .reduce((sum, account) => sum + Number(account.netFlow || 0), 0);
+        }, 0);
+    }
+
+    function performanceBoardKpiStartIndex(labels) {
+        const index = labels.findIndex(label => String(label) >= performanceBoardKpiStart);
+        return index < 0 ? 0 : index;
+    }
+
+    function performanceBoardRebasedReturn(values, startIndex) {
+        const current = values.at(-1);
+        if (current == null) return null;
+        const baseline = startIndex > 0 ? values[startIndex - 1] : 0;
+        if (baseline == null) return Number(current);
+        return ((1 + Number(current) / 100) / (1 + Number(baseline) / 100) - 1) * 100;
+    }
+
+    function performanceBoardSetKpis(selectedSeries, allSelected, aggregation, periodValues) {
+        const returns = performanceBoardCumulativeReturn(selectedSeries);
+        const kpiStartIndex = performanceBoardKpiStartIndex(benchLabels);
+        const pl = selectedSeries.reduce((sum, series) => {
+            const curve = series.portfolioCurve || [];
+            return sum + Number(curve.at(-1) || 0) - Number(kpiStartIndex > 0 ? curve[kpiStartIndex - 1] || 0 : 0);
+        }, 0);
+        const returnValue = performanceBoardRebasedReturn(returns, kpiStartIndex) ?? 0;
+        const spy = performanceBoardRebasedReturn(benchBenchmarkReturnCurve, kpiStartIndex);
+        const hasSpyData = benchBenchmarkReturnCurve.some(value => value != null);
+        const showBenchmark = hasSpyData && performanceBoardState.metric === 'return'
+            && document.getElementById('performance-board-show-spy')?.checked;
+        const write = (id, value, suffix, monetary = false) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.textContent = (value >= 0 ? '+' : '') + (monetary ? amountFormatter.format(Math.round(value)) : Number(value).toFixed(1)) + suffix;
+            el.classList.toggle('iv-pos', value >= 0); el.classList.toggle('iv-neg', value < 0);
+        };
+        write('performance-board-return', returnValue, ' %');
+        write('performance-board-pl', pl, '', true);
+        write('performance-board-spy', spy ?? 0, ' %');
+        write('performance-board-excess', spy == null ? 0 : returnValue - spy, ' pp');
+        ['performance-board-spy-kpi', 'performance-board-excess-kpi'].forEach(id => {
+            const el = document.getElementById(id); if (el) el.style.display = showBenchmark ? '' : 'none';
+        });
+        const showPeriods = performanceBoardState.style === 'bars';
+        const totals = periodValues.map((_, index) => periodValues.reduce((sum, series) => sum + Number(series.values[index]?.value ?? series.values[index] ?? 0), 0));
+        const labels = (periodValues[0]?.values || []).map((row, index) => row?.label || benchLabels[index] || 'Period ' + (index + 1));
+        const periodStartIndex = performanceBoardKpiStartIndex(labels);
+        const kpiTotals = totals.slice(periodStartIndex);
+        const best = kpiTotals.length ? periodStartIndex + kpiTotals.indexOf(Math.max(...kpiTotals)) : -1;
+        const worst = kpiTotals.length ? periodStartIndex + kpiTotals.indexOf(Math.min(...kpiTotals)) : -1;
+        const suffix = performanceBoardState.metric === 'return' ? '%' : '';
+        const monetary = performanceBoardState.metric !== 'return';
+        const bestEl = document.getElementById('performance-board-best');
+        const worstEl = document.getElementById('performance-board-worst');
+        if (bestEl) bestEl.textContent = best < 0 ? '—' : labels[best] + ' · ' + (totals[best] >= 0 ? '+' : '') + (monetary ? amountFormatter.format(Math.round(totals[best])) : totals[best].toFixed(1)) + (suffix ? ' ' + suffix : '');
+        if (worstEl) worstEl.textContent = worst < 0 ? '—' : labels[worst] + ' · ' + (totals[worst] >= 0 ? '+' : '') + (monetary ? amountFormatter.format(Math.round(totals[worst])) : totals[worst].toFixed(1)) + (suffix ? ' ' + suffix : '');
+        ['performance-board-best-kpi', 'performance-board-worst-kpi'].forEach(id => {
+            const el = document.getElementById(id); if (el) el.style.display = showPeriods ? '' : 'none';
+        });
+    }
+
+    function renderPerformanceBoard() {
+        if (!performanceBoardEl) return;
+        performanceBoardUpdateAccountLabel();
+        const selectedIds = performanceBoardSelectedIds();
+        const allSelected = benchAccountSeries.length > 0 && benchAccountSeries.every(series => selectedIds.has(Number(series.id)));
+        const selectedSeries = benchAccountSeries.filter(series => selectedIds.has(Number(series.id)));
+        const aggregation = document.getElementById('performance-board-aggregation')?.value || 'monthly';
+        const empty = document.getElementById('performance-board-empty');
+        const content = document.getElementById('performance-board-content');
+        if (!selectedSeries.length) {
+            if (empty) empty.style.display = ''; if (content) content.style.display = 'none';
+            return;
+        }
+        if (empty) empty.style.display = 'none'; if (content) content.style.display = '';
+        const bars = performanceBoardState.style === 'bars';
+        const accountData = performanceBoardAccountData(selectedSeries, allSelected, performanceBoardState.metric, performanceBoardState.style, aggregation);
+        const labels = bars ? accountData[0].values.map(row => row.label) : benchLabels;
+        const datasets = accountData.map((series, index) => performanceBoardDataset(series.label, bars ? series.values.map(row => row.value) : series.values, performanceBoardPalette[index % performanceBoardPalette.length], bars ? 'bar' : 'line', bars && performanceBoardState.metric === 'pl' && !allSelected));
+        const showSpy = benchBenchmarkReturnCurve.some(value => value != null)
+            && performanceBoardState.metric === 'return'
+            && document.getElementById('performance-board-show-spy')?.checked;
+        if (showSpy) {
+            const spyValues = bars
+                ? performanceBoardAggregate(performanceBoardPeriodFromCumulativeReturn(benchBenchmarkReturnCurve), aggregation, true).map(row => row.value)
+                : benchBenchmarkReturnCurve;
+            datasets.push(performanceBoardDataset('S&P 500', spyValues, '#16a34a', bars ? 'bar' : 'line', false));
+        }
+        const benchmarkField = document.getElementById('performance-board-benchmark-field');
+        if (benchmarkField) benchmarkField.style.display = performanceBoardState.metric === 'return' && benchBenchmarkReturnCurve.some(value => value != null) ? '' : 'none';
+        document.getElementById('performance-scope-aggregation').textContent = aggregation[0].toUpperCase() + aggregation.substring(1);
+        performanceBoardSetKpis(selectedSeries, allSelected, aggregation, accountData);
+        const unit = performanceBoardState.metric === 'return' ? '%' : '$';
+        if (!performanceBoardChart) {
+            performanceBoardChart = new Chart(performanceBoardEl.getContext('2d'), {
+                type: bars ? 'bar' : 'line', data: { labels, datasets },
+                options: {
+                    responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+                    scales: { x: { stacked: bars && performanceBoardState.metric === 'pl' && !allSelected, grid: { display: false }, ticks: { color: tickColor, maxRotation: 0, autoSkip: true } }, y: { stacked: bars && performanceBoardState.metric === 'pl' && !allSelected, grid: { color: gridColor, drawBorder: false }, ticks: { color: tickColor, callback: value => performanceBoardState.metric === 'return' ? Number(value).toFixed(1) + ' %' : amountFormatter.format(Math.round(value)) } } },
+                    plugins: { legend: { display: true, position: 'top', align: 'end', labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, color: '#6b7488' } }, tooltip: { backgroundColor: '#1e2536', padding: 12, cornerRadius: 10, callbacks: { label: context => context.dataset.label + ': ' + (Number(context.parsed.y) >= 0 ? '+' : '') + (unit === '%' ? Number(context.parsed.y).toFixed(1) + ' %' : amountFormatter.format(Math.round(context.parsed.y)) + ' $'), afterBody: items => { const index = items[0]?.dataIndex; if (index == null) return []; const sourceLabel = labels[index]; const sourceIndexes = bars ? benchLabels.map((label, i) => performanceBoardGroup(label, aggregation) === sourceLabel ? i : -1).filter(i => i >= 0) : [index]; const periodPl = selectedSeries.reduce((sum, series) => sum + sourceIndexes.reduce((value, i) => value + Number(performanceBoardPeriodValues(series.portfolioCurve || [])[i] || 0), 0), 0); const cumulativePl = selectedSeries.reduce((sum, series) => sum + Number(series.portfolioCurve?.[sourceIndexes.at(-1)] || 0), 0); return ['Period P/L: ' + signedUsdFormatter.format(Math.round(periodPl)) + ' $', 'Cumulative P/L: ' + signedUsdFormatter.format(Math.round(cumulativePl)) + ' $', 'Net external flow: ' + signedUsdFormatter.format(Math.round(performanceBoardFlow(sourceLabel, aggregation, selectedIds, allSelected))) + ' $']; } } } }
+                }
+            });
+            enableKeyboardChart(performanceBoardChart, 'performance-board-chart', () => {});
+        } else if (performanceBoardChart.config.type !== (bars ? 'bar' : 'line')) {
+            performanceBoardChart.destroy();
+            performanceBoardChart = null;
+            renderPerformanceBoard();
+            return;
+        } else {
+            performanceBoardChart.data.labels = labels; performanceBoardChart.data.datasets = datasets;
+            performanceBoardChart.options.scales.x.stacked = bars && performanceBoardState.metric === 'pl' && !allSelected;
+            performanceBoardChart.options.scales.y.stacked = bars && performanceBoardState.metric === 'pl' && !allSelected;
+            performanceBoardChart.update();
+        }
+        renderTable('performance-board-table', ['Period', ...datasets.map(dataset => dataset.label)], labels.map((label, index) => [label, ...datasets.map(dataset => { const value = dataset.data[index]; return value == null ? '—' : (Number(value) >= 0 ? '+' : '') + (unit === '%' ? Number(value).toFixed(1) + ' %' : amountFormatter.format(Math.round(value)) + ' $'); })]));
+    }
+
+    document.querySelectorAll('.js-performance-board-metric').forEach(button => button.addEventListener('click', () => { performanceBoardState.metric = button.dataset.metric; document.querySelectorAll('.js-performance-board-metric').forEach(item => { const active = item === button; item.classList.toggle('btn-primary', active); item.classList.toggle('btn-outline-secondary', !active); }); renderPerformanceBoard(); }));
+    document.querySelectorAll('.js-performance-board-style').forEach(button => button.addEventListener('click', () => { performanceBoardState.style = button.dataset.style; document.querySelectorAll('.js-performance-board-style').forEach(item => { const active = item === button; item.classList.toggle('btn-primary', active); item.classList.toggle('btn-outline-secondary', !active); }); renderPerformanceBoard(); }));
+    document.querySelectorAll('.js-performance-board-account').forEach(input => input.addEventListener('change', renderPerformanceBoard));
+    document.getElementById('performance-board-aggregation')?.addEventListener('change', renderPerformanceBoard);
+    document.getElementById('performance-board-show-spy')?.addEventListener('change', renderPerformanceBoard);
+    document.getElementById('performance-board-check-all')?.addEventListener('click', () => { document.querySelectorAll('.js-performance-board-account').forEach(input => input.checked = true); renderPerformanceBoard(); });
+    document.getElementById('performance-board-uncheck-all')?.addEventListener('click', () => { document.querySelectorAll('.js-performance-board-account').forEach(input => input.checked = false); renderPerformanceBoard(); });
+    renderPerformanceBoard();
+
+    function applyChartTheme() {
+        currentChartTheme = chartTheme();
+        gridColor = currentChartTheme.grid;
+        tickColor = currentChartTheme.soft;
+        Chart.defaults.color = tickColor;
+        Chart.defaults.borderColor = gridColor;
+
+        if (accountValueChart?.data?.datasets?.[0]?.label === 'Portfolio total') {
+            accountValueChart.data.datasets[0].borderColor = currentChartTheme.strong;
+            accountValueChart.data.datasets[0].backgroundColor = currentChartTheme.strongFill;
+        }
+
+        [benchmarkChart, accountValueChart, monthlyChart, performanceBoardChart].forEach(chart => {
+            if (!chart) return;
+
+            ['x', 'y'].forEach(axisName => {
+                const axis = chart.options.scales?.[axisName];
+                if (!axis) return;
+                if (axis.ticks) axis.ticks.color = tickColor;
+                if (axis.grid && axis.grid.display !== false) axis.grid.color = gridColor;
+            });
+
+            const legendLabels = chart.options.plugins?.legend?.labels;
+            if (legendLabels) legendLabels.color = currentChartTheme.legend;
+
+            const tooltip = chart.options.plugins?.tooltip;
+            if (tooltip) {
+                tooltip.backgroundColor = currentChartTheme.tooltip;
+                tooltip.titleColor = currentChartTheme.tooltipText;
+                tooltip.bodyColor = currentChartTheme.tooltipText;
+            }
+
+            chart.update('none');
+        });
+    }
+
+    applyChartTheme();
+    window.addEventListener('investory:themechange', applyChartTheme);
+
+    /*]]>*/
+</script>
+
+<script type="module" src="/js/dashboard.js"></script>
+</th:block>
+
+</body>
+</html>

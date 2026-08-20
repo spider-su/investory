@@ -10,7 +10,9 @@ class SimulationTemplateContractTest {
   @Test
   void javascriptInlineTemplateDoesNotUseArraySyntaxThatThymeleafParsesAsAnExpression()
       throws Exception {
-    String html = Files.readString(Path.of("src/main/resources/templates/simulation.html"));
+    String html =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/simulation.html"));
     assertAll(
         () -> assertFalse(html.contains("flowFields=[[")),
         () -> assertFalse(html.contains("fields=[[")),
@@ -25,7 +27,9 @@ class SimulationTemplateContractTest {
 
   @Test
   void planningTimelineIsSummaryOnlyAndRoutesHistoricalWorkToDetail() throws Exception {
-    String html = Files.readString(Path.of("src/main/resources/templates/simulation.html"));
+    String html =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/simulation.html"));
     assertAll(
         () -> assertTrue(html.contains("<th>Action</th>")),
         () -> assertTrue(html.contains("<th>Annual costs</th>")),
@@ -52,11 +56,15 @@ class SimulationTemplateContractTest {
 
   @Test
   void simulationKeepsDecisionContentVisibleAndMovesConfigurationToEditor() throws Exception {
-    String html = Files.readString(Path.of("src/main/resources/templates/simulation.html"));
+    String html =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/simulation.html"));
     String editor =
-        Files.readString(Path.of("src/main/resources/templates/simulation-plan-edit.html"));
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/simulation-plan-edit.html"));
     String header =
-        Files.readString(Path.of("src/main/resources/templates/fragments/app-header.html"));
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/fragments/app-header.html"));
     assertAll(
         () -> assertTrue(html.contains("planningHeader('simulation'")),
         () -> assertTrue(html.contains("Retirement outlook")),
@@ -93,7 +101,8 @@ class SimulationTemplateContractTest {
   @Test
   void developerPreviewIsConfigurableAndReadOnlyFactsAreNotPlanInputs() throws Exception {
     String editor =
-        Files.readString(Path.of("src/main/resources/templates/simulation-plan-edit.html"));
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/simulation-plan-edit.html"));
     String config = Files.readString(Path.of("src/main/resources/application.yml"));
     assertAll(
         () -> assertTrue(config.contains("mode: ${DEVELOP_MODE:true}")),

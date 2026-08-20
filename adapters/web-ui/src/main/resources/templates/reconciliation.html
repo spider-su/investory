@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Reconciliation · Investory</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="/favicon.svg" rel="icon" type="image/svg+xml">
+    <link href="/css/tabler.min.css" rel="stylesheet">
+    <link href="/css/main.css" rel="stylesheet">
+    <th:block th:replace="~{fragments/theme-head :: theme}"></th:block>
+</head>
+<body>
+<div class="iv-app iv-report-page">
+    <div th:replace="~{fragments/app-header :: appHeader('Reconciliation', 'Read-only pipeline checks. Earliest failed checkpoint is the primary diagnosis.', 'reconciliation', 1, 'Scope', 'Pipeline', 'Status', 'Read-only', 'Source', 'Reporting', null, null, null)}"></div>
+
+    <main class="iv-report-page__content">
+        <div class="iv-section-heading">
+            <div>
+                <div class="iv-section-heading__eyebrow">Data quality</div>
+                <h2>Reconciliation pipeline</h2>
+                <p th:text="${'Mode: ' + report.mode + ' · data as of ' + report.asOfDate + '. Later failures and reviews are shown as blocked when an earlier checkpoint fails.'}">Mode: QUICK · data as of today.</p>
+            </div>
+        </div>
+
+        <section class="iv-grid iv-grid--kpi iv-report-metrics" aria-label="Reconciliation state">
+            <div class="iv-kpi">
+                <span class="iv-kpi__label">Overall state</span>
+                <strong class="iv-kpi__value" th:classappend="${report.overallState == 'UNRECONCILED'} ? ' iv-neg' : (${report.overallState == 'RECONCILED'} ? ' iv-pos' : ' iv-warn')" th:text="${report.overallState}">REVIEW</strong>
+            </div>
+            <div class="iv-kpi">
+                <span class="iv-kpi__label">First failing level</span>
+                <strong class="iv-kpi__value" th:classappend="${report.firstFailingCheckpoint != null} ? ' iv-neg' : ' iv-pos'" th:text="${report.firstFailingCheckpoint == null ? 'None' : report.firstFailingCheckpoint.code + ' — ' + report.firstFailingCheckpoint.name}">None</strong>
+            </div>
+        </section>
+
+        <section class="iv-card iv-report-card" aria-labelledby="checkpoint-counts-title">
+            <div class="iv-card__head"><h3 id="checkpoint-counts-title" class="iv-card__title">Checkpoint counts</h3></div>
+            <div class="iv-card__body iv-table-wrap">
+                <table class="iv-table"><thead><tr><th>Checkpoint</th><th>Status</th><th>Issues</th><th>Failures</th><th>Reviews</th></tr></thead>
+                    <tbody><tr th:each="checkpoint : ${report.checkpoints}"><td><strong th:text="${checkpoint.code}">C0</strong><small class="iv-report-table__sub" th:text="${checkpoint.name}">files → import history</small></td><td><span class="iv-badge" th:classappend="${checkpoint.status.name() == 'FAIL'} ? ' iv-badge--neg' : (${checkpoint.status.name() == 'REVIEW' or checkpoint.status.name() == 'BLOCKED'} ? ' iv-badge--warn' : (${checkpoint.status.name() == 'PASS'} ? ' iv-badge--pos' : ' iv-badge--muted'))" th:text="${checkpoint.status}">NOT_CHECKED</span></td><td th:text="${checkpoint.issueCount}">0</td><td th:text="${checkpoint.failureCount}">0</td><td th:text="${checkpoint.reviewCount}">0</td></tr></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="iv-card iv-report-card" aria-labelledby="issues-title">
+            <div class="iv-card__head"><h3 id="issues-title" class="iv-card__title">Issues by pipeline checkpoint</h3><span class="iv-card__hint">Showing capped detail rows; counts are uncapped</span></div>
+            <div class="iv-card__body" th:if="${!report.issues.isEmpty()}">
+                <details class="iv-report-issue-group" th:each="group, groupStat : ${report.issueGroups}" th:open="${report.firstFailingCheckpoint == null ? groupStat.index == 0 : group.checkpoint == report.firstFailingCheckpoint.checkpoint}">
+                    <summary><strong th:text="${group.level}">C4 — account_daily</strong><span class="iv-card__hint" th:text="${group.issues.size() + ' displayed'}">1 displayed</span></summary>
+                    <div class="iv-table-wrap">
+                        <table class="iv-table">
+                            <thead><tr><th>Status</th><th>Location</th><th>Check</th><th>Expected</th><th>Actual</th><th>Difference</th><th>Cause</th></tr></thead>
+                            <tbody><tr th:each="issue : ${group.issues}">
+                                <td><span class="iv-badge" th:classappend="${issue.effectiveStatus.name() == 'FAIL'} ? ' iv-badge--neg' : (${issue.effectiveStatus.name() == 'BLOCKED' or issue.effectiveStatus.name() == 'REVIEW'} ? ' iv-badge--warn' : ' iv-badge--muted')" th:text="${issue.effectiveStatus}">FAIL</span><small class="iv-report-table__sub" th:if="${issue.originalStatus != issue.effectiveStatus}" th:text="${'Original: ' + issue.originalStatus}">Original: FAIL</small></td>
+                                <td th:text="${issue.location}">Provider / Account / Date</td>
+                                <td><strong th:text="${issue.checkCode}">ACCOUNT_DAILY_EQUITY_RECONCILIATION</strong><small class="iv-report-table__sub" th:text="${issue.checkName}">Equity reconciliation</small></td>
+                                <td th:text="${issue.expected == null ? '—' : issue.expected}">100000</td>
+                                <td th:text="${issue.actual == null ? '—' : issue.actual}">99200</td>
+                                <td th:text="${issue.difference == null ? '—' : issue.difference}">-800</td>
+                                <td><span th:text="${issue.cause}">Cash mismatch</span><details th:if="${issue.details != null and !issue.details.isBlank()}"><summary>Details</summary><small class="iv-report-table__sub" th:text="${issue.details}">Technical evidence</small></details><small class="iv-report-table__sub" th:if="${issue.suggestedAction != null and !issue.suggestedAction.isBlank()}" th:text="${'Suggested action: ' + issue.suggestedAction}">Suggested action</small></td>
+                            </tr></tbody>
+                        </table>
+                    </div>
+                </details>
+            </div>
+            <div class="iv-empty" th:if="${report.issues.isEmpty()}">
+                <span th:if="${report.checkpoints.?[originalStatus.name() == 'NOT_CHECKED'].isEmpty()}">No issues were found in the executed checks.</span>
+                <span th:unless="${report.checkpoints.?[originalStatus.name() == 'NOT_CHECKED'].isEmpty()}">No issues were found in the executed checks; some checkpoints are still not checked.</span>
+            </div>
+        </section>
+    </main>
+    <div th:replace="~{fragments/app-footer :: buildFooter}"></div>
+</div>
+</body>
+</html>

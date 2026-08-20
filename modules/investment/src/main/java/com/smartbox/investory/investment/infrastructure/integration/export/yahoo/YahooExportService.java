@@ -1,6 +1,7 @@
 package com.smartbox.investory.investment.infrastructure.integration.export.yahoo;
 
 import com.opencsv.CSVWriter;
+import com.smartbox.investory.investment.api.YahooPortfolioExportApi;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPositionRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.YahooExportState;
@@ -32,7 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @Service
 @Transactional
-public class YahooExportService {
+public class YahooExportService implements YahooPortfolioExportApi {
 
   private final OpenedPositionRepository openedPositionRepository;
   private final AccountStatisticsRepository accountStatisticsRepository;

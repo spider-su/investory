@@ -10,9 +10,9 @@ import org.junit.jupiter.api.Test;
 
 class InvestmentProfileTemplateContractTest {
   private static final Path TEMPLATE =
-      Path.of("src/main/resources/templates/investment-profile.html");
+      Path.of("../adapters/web-ui/src/main/resources/templates/investment-profile.html");
   private static final Path SHARED_NAV =
-      Path.of("src/main/resources/templates/fragments/app-header.html");
+      Path.of("../adapters/web-ui/src/main/resources/templates/fragments/app-header.html");
 
   @Test
   void profileUsesCompactHeaderAndStructureDimensions() throws Exception {

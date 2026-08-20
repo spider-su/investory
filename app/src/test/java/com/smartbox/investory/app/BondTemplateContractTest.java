@@ -9,7 +9,8 @@ import org.junit.jupiter.api.Test;
 class BondTemplateContractTest {
   @Test
   void bondCreateFormHasOneValueField() throws Exception {
-    String html = Files.readString(Path.of("src/main/resources/templates/bond-form.html"));
+    String html =
+        Files.readString(Path.of("../adapters/web-ui/src/main/resources/templates/bond-form.html"));
     assertAll(
         () -> assertTrue(html.contains(">Value</label>")),
         () -> assertTrue(html.contains("name=\"value\"")),
@@ -19,7 +20,9 @@ class BondTemplateContractTest {
 
   @Test
   void bondEditFormHasOneValueFieldAndHidesNormalProfitMetrics() throws Exception {
-    String html = Files.readString(Path.of("src/main/resources/templates/bond-detail.html"));
+    String html =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/bond-detail.html"));
     assertAll(
         () -> assertTrue(html.contains(">Value</label>")),
         () -> assertTrue(html.contains("name=\"value\"")),

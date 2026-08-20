@@ -12,7 +12,7 @@ class GlobalFooterTemplateContractTest {
   void footerIsOneSharedBuildMetadataFragment() throws Exception {
     String footer =
         Files.readString(
-            Path.of("src/main/resources/templates/fragments/app-footer.html"),
+            Path.of("../adapters/web-ui/src/main/resources/templates/fragments/app-footer.html"),
             StandardCharsets.UTF_8);
     assertThat(footer)
         .contains("th:fragment=\"buildFooter\"")
@@ -32,7 +32,8 @@ class GlobalFooterTemplateContractTest {
         }) {
       String html =
           Files.readString(
-              Path.of("src/main/resources/templates", template), StandardCharsets.UTF_8);
+              Path.of("../adapters/web-ui/src/main/resources/templates", template),
+              StandardCharsets.UTF_8);
       assertThat(html).as(template).contains("fragments/app-footer :: buildFooter");
     }
   }

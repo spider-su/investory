@@ -7,7 +7,8 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 
 class RealEstateTemplateContractTest {
-  private static final String TEMPLATE = "src/main/resources/templates/real-estate-detail.html";
+  private static final String TEMPLATE =
+      "../adapters/web-ui/src/main/resources/templates/real-estate-detail.html";
 
   @Test
   void realEstatePageKeepsOwnerMetricsAndHidesGenericAdministration() throws Exception {
@@ -35,7 +36,9 @@ class RealEstateTemplateContractTest {
 
   @Test
   void longTermAssetListPlacesCreationActionsInEverySection() throws Exception {
-    String html = Files.readString(Path.of("src/main/resources/templates/long-term-assets.html"));
+    String html =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/long-term-assets.html"));
     assertAll(
         () -> assertFalse(html.contains("iv-planning-intro")),
         () -> assertFalse(html.contains("iv-planning-income-summary")),
@@ -106,9 +109,12 @@ class RealEstateTemplateContractTest {
 
   @Test
   void realEstateGrowthFormsUsePercentagePointsAtTheUiBoundary() throws Exception {
-    String create = Files.readString(Path.of("src/main/resources/templates/real-estate-form.html"));
+    String create =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/real-estate-form.html"));
     String detail =
-        Files.readString(Path.of("src/main/resources/templates/long-term-asset-detail.html"));
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/long-term-asset-detail.html"));
     assertAll(
         () -> assertTrue(create.contains("name=\"expectedAnnualGrowthRatePercent\"")),
         () -> assertFalse(create.contains("name=\"expectedAnnualGrowthRate\"")),
@@ -121,7 +127,8 @@ class RealEstateTemplateContractTest {
   @Test
   void longTermHeaderUsesSharedNavigationAndOnlyLongTermActions() throws Exception {
     String fragment =
-        Files.readString(Path.of("src/main/resources/templates/fragments/app-header.html"));
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/fragments/app-header.html"));
     assertAll(
         () -> assertTrue(fragment.contains("appNavigation(${activePage}, ${portfolioId})")),
         () -> assertTrue(fragment.contains("</svg>Rental</a>")),
@@ -134,7 +141,9 @@ class RealEstateTemplateContractTest {
 
   @Test
   void longTermPageHasThreeCompactAssetSummaryCards() throws Exception {
-    String html = Files.readString(Path.of("src/main/resources/templates/long-term-assets.html"));
+    String html =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/long-term-assets.html"));
     assertAll(
         () -> assertTrue(html.contains("iv-grid--long-term-overview")),
         () ->

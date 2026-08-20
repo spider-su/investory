@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.config.BuildMetadata;
 import com.smartbox.investory.investment.accounting.PortfolioService;
 import com.smartbox.investory.investment.accounting.model.Benchmark;
 import com.smartbox.investory.investment.accounting.model.Portfolio;
@@ -12,6 +11,8 @@ import com.smartbox.investory.investment.reporting.BenchmarkService;
 import com.smartbox.investory.investment.reporting.dashboard.application.DashboardFacade;
 import com.smartbox.investory.investment.reporting.dashboard.application.DashboardQuery;
 import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriodFilterService;
+import com.smartbox.investory.ui.common.BuildMetadata;
+import com.smartbox.investory.ui.presentation.UiPresentation;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;

@@ -16,7 +16,7 @@ class ThymeleafClassReferenceTest {
 
   @Test
   void applicationTypeLiteralsResolveFromEveryTemplate() throws IOException {
-    Path templates = Path.of("app", "src", "main", "resources", "templates");
+    Path templates = Path.of("..", "adapters", "web-ui", "src", "main", "resources", "templates");
     try (Stream<Path> files = Files.walk(templates)) {
       files
           .filter(path -> path.toString().endsWith(".html"))

@@ -13,11 +13,12 @@ class DashboardNavigationTemplateContractTest {
   void topNavigationKeepsOnlyCrossPageLinksWithoutBottomDuplicates() throws Exception {
     String template =
         Files.readString(
-            Path.of("src/main/resources/templates/dashboard.html"), StandardCharsets.UTF_8);
+            Path.of("../adapters/web-ui/src/main/resources/templates/dashboard.html"),
+            StandardCharsets.UTF_8);
 
     String fragment =
         Files.readString(
-            Path.of("src/main/resources/templates/fragments/app-header.html"),
+            Path.of("../adapters/web-ui/src/main/resources/templates/fragments/app-header.html"),
             StandardCharsets.UTF_8);
 
     assertThat(template)
@@ -40,7 +41,10 @@ class DashboardNavigationTemplateContractTest {
         .contains("class=\"is-active\" aria-current=\"page\"")
         .doesNotContain("portfolioId=1");
     assertThat(fragment).contains("Investment").doesNotContain("Back to investment");
-    assertThat(Files.readString(Path.of("src/main/resources/templates/fragments/app-header.html")))
+    assertThat(
+            Files.readString(
+                Path.of(
+                    "../adapters/web-ui/src/main/resources/templates/fragments/app-header.html")))
         .doesNotContain("Back to investment")
         .contains("${portfolioId}")
         .doesNotContain("workspace', current, portfolioId")

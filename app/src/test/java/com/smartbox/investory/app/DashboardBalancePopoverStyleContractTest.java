@@ -12,7 +12,9 @@ class DashboardBalancePopoverStyleContractTest {
   @Test
   void balancePopoverOwnsAVisibleStackingContextAboveFloatingNavigation() throws Exception {
     String css =
-        Files.readString(Path.of("src/main/resources/static/css/main.css"), StandardCharsets.UTF_8);
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/static/css/main.css"),
+            StandardCharsets.UTF_8);
 
     assertThat(css)
         .contains(".iv-topbar:has(#balance-cash[open]) { z-index: 1210; }")

@@ -7,15 +7,15 @@ This is an explicit developer/admin import for manual long-term assets. It is no
 Use the sanitized example as a template:
 
 ```powershell
-./mvnw spring-boot:run "-Dspring-boot.run.profiles=local" "-Dspring-boot.run.arguments=--bootstrap-long-term-assets=src/main/resources/bootstrap/example-long-term-assets.json --dry-run"
-./mvnw spring-boot:run "-Dspring-boot.run.profiles=local" "-Dspring-boot.run.arguments=--bootstrap-long-term-assets=src/main/resources/bootstrap/example-long-term-assets.json"
+./mvnw -pl app -am spring-boot:run "-Dspring-boot.run.profiles=local" "-Dspring-boot.run.arguments=--bootstrap-long-term-assets=app/src/main/resources/bootstrap/example-long-term-assets.json --dry-run"
+./mvnw -pl app -am spring-boot:run "-Dspring-boot.run.profiles=local" "-Dspring-boot.run.arguments=--bootstrap-long-term-assets=app/src/main/resources/bootstrap/example-long-term-assets.json"
 ```
 
 The process exits after the command. `--dry-run` validates and reports counts/totals without writing.
 
 ## Format and behavior
 
-The JSON document contains `portfolioId`, rental-tax policies, and assets. Assets use the existing domain enums and support cash-flow periods, valuation periods, bond-rate periods, bond details, and deposit details. See `src/main/resources/bootstrap/example-long-term-assets.json`.
+The JSON document contains `portfolioId`, rental-tax policies, and assets. Assets use the existing domain enums and support cash-flow periods, valuation periods, bond-rate periods, bond details, and deposit details. See `app/src/main/resources/bootstrap/example-long-term-assets.json`.
 
 Assets use `externalKey` as a stable identity scoped to a portfolio. Import behavior is **upsert**:
 

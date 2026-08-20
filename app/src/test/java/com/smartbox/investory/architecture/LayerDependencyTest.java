@@ -36,7 +36,7 @@ class LayerDependencyTest {
         .resideInAnyPackage("..longterm..")
         .should()
         .dependOnClassesThat()
-        .resideInAnyPackage("..retirement..")
+        .resideInAnyPackage("..investment..", "..retirement..")
         .check(MAIN);
   }
 
@@ -68,7 +68,8 @@ class LayerDependencyTest {
         .resideInAnyPackage("..shared..")
         .should()
         .dependOnClassesThat()
-        .resideInAnyPackage("..investment..", "..longterm..", "..retirement..")
+        .resideInAnyPackage(
+            "..investment..", "..longterm..", "..retirement..", "..integrations..", "..app..")
         .check(MAIN);
   }
 

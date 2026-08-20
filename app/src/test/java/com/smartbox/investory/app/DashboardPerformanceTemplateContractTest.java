@@ -8,14 +8,16 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 
 class DashboardPerformanceTemplateContractTest {
-  private static final String TEMPLATE = "src/main/resources/templates/dashboard.html";
+  private static final String TEMPLATE =
+      "../adapters/web-ui/src/main/resources/templates/dashboard.html";
 
   @Test
   void dashboardUsesOneUnifiedPerformanceBoardWithModes() throws Exception {
     String html = Files.readString(Path.of(TEMPLATE));
     String headerControls =
         Files.readString(
-            Path.of("src/main/resources/templates/dashboard/fragments/header-controls.html"));
+            Path.of(
+                "../adapters/web-ui/src/main/resources/templates/dashboard/fragments/header-controls.html"));
     assertTrue(html.contains("id=\"portfolio-performance\""));
     assertFalse(html.contains("<h3 class=\"iv-card__title\">Performance Board"));
     assertTrue(html.contains("id=\"performance-board-chart\""));
@@ -107,10 +109,14 @@ class DashboardPerformanceTemplateContractTest {
     assertTrue(html.contains("id=\"cash-flows\" class=\"iv-topbar-metric iv-metric-context\""));
     assertTrue(html.contains("id=\"balance-cash\" class=\"iv-topbar-metric iv-metric-context\""));
     assertTrue(
-        Files.readString(Path.of("src/main/resources/static/js/dashboard-accessibility.js"))
+        Files.readString(
+                Path.of(
+                    "../adapters/web-ui/src/main/resources/static/js/dashboard-accessibility.js"))
             .contains(".iv-metric-context:focus"));
     assertTrue(
-        Files.readString(Path.of("src/main/resources/static/js/dashboard-accessibility.js"))
+        Files.readString(
+                Path.of(
+                    "../adapters/web-ui/src/main/resources/static/js/dashboard-accessibility.js"))
             .contains("document.querySelectorAll('details[open]')"));
     assertFalse(html.contains("Cumulative P/L by account"));
     assertFalse(html.contains("Profit and loss by selected period"));

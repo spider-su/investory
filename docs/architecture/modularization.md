@@ -8,20 +8,25 @@ application Java sources.
 
 ```text
 app
+├── shared
 ├── investment
 ├── longterm
 ├── retirement
-└── integrations
+├── integrations
+└── adapters/web-ui
 
 test-support -> investment (test fixtures only)
+investment -> shared
+longterm -> shared
+retirement -> shared
 retirement -> investment public API
 retirement -> longterm public API
-longterm -> investment shared/public surface only
 integrations -> investment public/integration contracts
 ```
 
-Investment does not depend on Retirement. Long-Term does not depend on Retirement and does not use
-Investment persistence. Retirement does not use Investment or Long-Term infrastructure/persistence.
+Investment does not depend on Long-Term or Retirement. Long-Term does not depend on Investment or
+Retirement and does not use Investment persistence. Retirement does not use Investment or Long-Term
+infrastructure/persistence.
 Application composition is the only executable packaging layer.
 
 Feature controllers and tests live with their owning module. External adapters, notifications, and

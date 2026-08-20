@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:fragment="theme">
+    <script>
+        (function () {
+            try {
+                const saved = localStorage.getItem('investory.theme');
+                const theme = saved === 'dark' || saved === 'light'
+                    ? saved
+                    : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+                document.documentElement.dataset.theme = theme;
+                document.documentElement.dataset.bsTheme = theme;
+            } catch (ignored) {
+                document.documentElement.dataset.theme = 'light';
+                document.documentElement.dataset.bsTheme = 'light';
+            }
+        }());
+    </script>
+    <script th:src="@{/js/theme.js}"></script>
+</th:block>
+</body>
+</html>

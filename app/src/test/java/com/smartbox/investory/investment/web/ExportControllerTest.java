@@ -1,4 +1,4 @@
-package com.smartbox.investory.investment.web;
+package com.smartbox.investory.ui.investment;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.anyString;

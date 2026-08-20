@@ -268,7 +268,7 @@ Set different values when your PostgreSQL host, database, or credentials differ.
 ### 3. Start the application
 
 ```bash
-./mvnw spring-boot:run
+./mvnw -pl app -am spring-boot:run
 ```
 
 The base configuration reads `DB_URL`, `DB_USERNAME`, and `DB_PASSWORD` and otherwise uses the local
@@ -276,7 +276,7 @@ defaults shown above. The Dev Container also activates the `local` profile as a 
 but that profile is not required to select the local datasource.
 
 On startup, Flyway creates the `investory` schema when needed and applies migrations from
-`src/main/resources/sql/migration`.
+`app/src/main/resources/sql/migration`.
 
 Open `http://localhost:8080`. The development administrator credentials are:
 
@@ -355,7 +355,7 @@ export APP_SECURITY_ADMIN_PASSWORD=replace-me
 export APP_SECURITY_USER_USERNAME=user
 export APP_SECURITY_USER_PASSWORD=replace-me
 
-./mvnw spring-boot:run -Dspring-boot.run.profiles=prod
+./mvnw -pl app -am spring-boot:run "-Dspring-boot.run.profiles=prod"
 ```
 
 Use deployment secrets or a secret manager. Do not commit credentials.
