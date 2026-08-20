@@ -1,4 +1,4 @@
-package com.smartbox.investory.longterm.application;
+package com.smartbox.investory.longterm.api;
 
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;

@@ -1,4 +1,4 @@
-package com.smartbox.investory.retirement.profile;
+package com.smartbox.investory.retirement.api;
 
 import com.smartbox.investory.investment.api.BrokerageAssetClassification;
 import com.smartbox.investory.investment.api.BrokerageAssetClassificationReader;
@@ -10,6 +10,7 @@ import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
 import com.smartbox.investory.longterm.api.LongTermAssetProfileSummary;
 import com.smartbox.investory.longterm.api.LongTermAssetProjection;
 import com.smartbox.investory.longterm.api.LongTermAssetType;
+import com.smartbox.investory.retirement.profile.*;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;

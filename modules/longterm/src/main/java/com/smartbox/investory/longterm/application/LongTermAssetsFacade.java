@@ -1,9 +1,11 @@
-package com.smartbox.investory.longterm.application;
+package com.smartbox.investory.longterm.api;
 
 import com.smartbox.investory.longterm.api.CashFlowType;
 import com.smartbox.investory.longterm.api.Frequency;
 import com.smartbox.investory.longterm.api.InterestTreatment;
 import com.smartbox.investory.longterm.api.LongTermAssetType;
+import com.smartbox.investory.longterm.application.LongTermAssetService;
+import com.smartbox.investory.longterm.application.LongTermAssetSummary;
 import com.smartbox.investory.longterm.infrastructure.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;

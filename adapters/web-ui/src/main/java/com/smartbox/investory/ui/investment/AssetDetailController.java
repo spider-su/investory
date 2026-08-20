@@ -1,9 +1,6 @@
 package com.smartbox.investory.ui.investment;
 
-import com.smartbox.investory.investment.reporting.dashboard.service.AssetDetailNotFoundException;
-import com.smartbox.investory.investment.reporting.dashboard.service.AssetDetailService;
-import com.smartbox.investory.investment.reporting.dashboard.service.AssetPriceChartService;
-import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriod;
+import com.smartbox.investory.investment.api.InvestmentAssetApi;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
@@ -18,22 +15,20 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 @RequiredArgsConstructor
 public class AssetDetailController {
 
-  private final AssetDetailService assetDetailService;
-  private final AssetPriceChartService assetPriceChartService;
+  private final InvestmentAssetApi assetApi;
 
   @GetMapping("/dashboard/assets/{symbol}")
   public String detail(
       @PathVariable String symbol, @RequestParam(required = false) String period, Model model) {
-    DashboardPeriod selectedPeriod = DashboardPeriod.fromUrlValue(period);
-    model.addAttribute("asset", assetDetailService.findBySymbol(symbol, selectedPeriod));
-    model.addAttribute("priceHistory", assetPriceChartService.findBySymbol(symbol, selectedPeriod));
-    model.addAttribute("periods", DashboardPeriod.values());
+    model.addAttribute("asset", assetApi.detail(symbol, period));
+    model.addAttribute("priceHistory", assetApi.priceHistory(symbol, period));
+    model.addAttribute("periods", assetApi.periods());
     return "dashboard/asset-detail";
   }
 
-  @ExceptionHandler(AssetDetailNotFoundException.class)
+  @ExceptionHandler(InvestmentAssetApi.AssetNotFoundException.class)
   @ResponseStatus(HttpStatus.NOT_FOUND)
-  public String notFound(AssetDetailNotFoundException exception, Model model) {
+  public String notFound(InvestmentAssetApi.AssetNotFoundException exception, Model model) {
     model.addAttribute("message", exception.getMessage());
     return "dashboard/asset-not-found";
   }

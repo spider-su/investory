@@ -5,7 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import com.smartbox.investory.longterm.api.*;
-import com.smartbox.investory.longterm.application.LongTermAssetsFacade;
+import com.smartbox.investory.longterm.api.LongTermAssetsFacade;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;

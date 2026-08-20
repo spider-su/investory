@@ -1,7 +1,6 @@
 package com.smartbox.investory.ui.investment;
 
-import com.smartbox.investory.investment.reconciliation.ReconciliationMode;
-import com.smartbox.investory.investment.reconciliation.ReconciliationReportService;
+import com.smartbox.investory.investment.api.InvestmentReconciliationApi;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
@@ -13,19 +12,14 @@ import org.springframework.web.bind.annotation.RequestParam;
 @RequiredArgsConstructor
 public class ReconciliationController {
 
-  private final ReconciliationReportService reconciliationReportService;
+  private final InvestmentReconciliationApi reconciliationApi;
 
   @GetMapping("/dashboard/reconciliation")
   public String reconciliation(
       Model model,
-      @RequestParam(defaultValue = "QUICK") ReconciliationMode mode,
+      @RequestParam(defaultValue = "QUICK") String mode,
       @RequestParam(required = false) LocalDate asOf) {
-    var report =
-        mode == ReconciliationMode.QUICK && asOf == null
-            ? reconciliationReportService.load()
-            : reconciliationReportService.load(
-                new com.smartbox.investory.investment.reconciliation.ReconciliationContext(
-                    mode, java.time.Instant.now(), asOf == null ? LocalDate.now() : asOf));
+    var report = reconciliationApi.load(mode, asOf);
     model.addAttribute("report", report);
     return "reconciliation";
   }

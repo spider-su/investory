@@ -31,4 +31,17 @@ public class InvestmentPerformanceController {
                 .toList();
     return performanceApi.load(new PerformanceBoardQuery(ids, aggregation, metric, style));
   }
+
+  @GetMapping("/dashboard/account-performance")
+  public InvestmentPerformanceApi.PerformanceBoardView accountPerformance(
+      @RequestParam String accountIds,
+      @RequestParam(defaultValue = "monthly") String aggregation) {
+    List<Long> ids =
+        Stream.of(accountIds.split(","))
+            .map(String::trim)
+            .filter(value -> !value.isBlank())
+            .map(Long::valueOf)
+            .toList();
+    return performanceApi.load(new PerformanceBoardQuery(ids, aggregation, "profit", "bars"));
+  }
 }

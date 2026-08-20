@@ -1,6 +1,6 @@
 package com.smartbox.investory.ui.app;
 
-import com.smartbox.investory.investment.reporting.dashboard.application.DashboardFacade;
+import com.smartbox.investory.investment.api.InvestmentDashboardApi;
 import com.smartbox.investory.investment.reporting.dashboard.application.DashboardPageView;
 import com.smartbox.investory.investment.reporting.dashboard.application.DashboardQuery;
 import com.smartbox.investory.ui.common.BuildMetadata;
@@ -15,15 +15,15 @@ import org.springframework.web.bind.annotation.RequestParam;
 @Controller
 public class HomeController {
 
-  private final DashboardFacade dashboardFacade;
+  private final InvestmentDashboardApi dashboardFacade;
   private final BuildMetadata buildMetadata;
 
-  public HomeController(DashboardFacade dashboardFacade) {
+  public HomeController(InvestmentDashboardApi dashboardFacade) {
     this(dashboardFacade, BuildMetadata.development());
   }
 
   @Autowired
-  public HomeController(DashboardFacade dashboardFacade, BuildMetadata buildMetadata) {
+  public HomeController(InvestmentDashboardApi dashboardFacade, BuildMetadata buildMetadata) {
     this.dashboardFacade = dashboardFacade;
     this.buildMetadata = buildMetadata;
   }

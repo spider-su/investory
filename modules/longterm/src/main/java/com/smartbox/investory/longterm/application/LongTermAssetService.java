@@ -1,5 +1,6 @@
 package com.smartbox.investory.longterm.application;
 
+import com.smartbox.investory.longterm.api.RealEstateEntry;
 import com.smartbox.investory.longterm.api.CashFlowType;
 import com.smartbox.investory.longterm.api.Frequency;
 import com.smartbox.investory.longterm.api.InterestTreatment;

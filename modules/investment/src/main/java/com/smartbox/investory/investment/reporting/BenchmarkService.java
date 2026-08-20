@@ -125,8 +125,9 @@ public class BenchmarkService {
               filterSubmitted ? selectedAccounts : benchmarkEligibleAccounts));
       Map<Long, CurrencyType> portfolioBaseCurrencies =
           portfolioBaseCurrencies(performanceAccounts);
+      Set<Long> accountValueAccounts = filterSubmitted ? selectedAccounts : performanceAccounts;
       benchmark.setAccountValueYears(
-          accountValueYears(allRows, performanceAccounts, accountsById, portfolioBaseCurrencies));
+          accountValueYears(allRows, accountValueAccounts, accountsById, portfolioBaseCurrencies));
       benchmark.setAccountValuesAvailable(!benchmark.getAccountValueYears().isEmpty());
       benchmark.setSelectedAccountValueYear(
           benchmark.isAccountValuesAvailable()
@@ -453,7 +454,8 @@ public class BenchmarkService {
                                   portfolioBaseCurrencies.get(account.getId())))
                       .toList();
               if (!accountSeries.isEmpty()) {
-                Benchmark.AccountValueSeries totalSeries = sumAccountValueSeries(accountSeries);
+                Benchmark.AccountValueSeries totalSeries =
+                    sumAccountValueSeries(rows, availableAccounts, labels, portfolioBaseCurrencies);
                 years.add(
                     new Benchmark.AccountValueYear(
                         year,
@@ -569,22 +571,44 @@ public class BenchmarkService {
   }
 
   private Benchmark.AccountValueSeries sumAccountValueSeries(
-      List<Benchmark.AccountValueSeries> accountSeries) {
-    int size = accountSeries.getFirst().profitValues().size();
+      List<AccountDaily> rows,
+      Set<Long> accountIds,
+      List<String> labels,
+      Map<Long, CurrencyType> portfolioBaseCurrencies) {
+    int size = labels.size();
     List<Double> profitValues = new ArrayList<>();
     List<Double> profitPctValues = new ArrayList<>();
+    double cumulativeProfit = 0.0;
+    double cumulativeReturnFactor = 1.0;
     for (int index = 0; index < size; index++) {
-      int valueIndex = index;
-      profitValues.add(
-          round(
-              accountSeries.stream()
-                  .mapToDouble(series -> series.profitValues().get(valueIndex))
-                  .sum()));
-      profitPctValues.add(
-          round(
-              accountSeries.stream()
-                  .mapToDouble(series -> series.profitPctValues().get(valueIndex))
-                  .sum()));
+      String label = labels.get(index);
+      List<AccountDaily> dailyRows =
+          rows.stream().filter(row -> label.equals(row.getDate().toString())).toList();
+      cumulativeProfit +=
+          dailyRows.stream()
+              .filter(row -> accountIds.contains(row.getAccountId()))
+              .mapToDouble(
+                  row -> dailyProfitInBaseCurrency(row, portfolioBaseCurrencies.get(row.getAccountId())))
+              .sum();
+      double capital =
+          dailyRows.stream()
+              .filter(row -> accountIds.contains(row.getAccountId()))
+              .mapToDouble(row -> nz(row.getEquity()))
+              .sum();
+      if (capital != 0.0
+          && dailyRows.stream()
+              .filter(row -> accountIds.contains(row.getAccountId()))
+              .allMatch(row -> row.getDailyReturn() != null)) {
+        double dailyReturn =
+            dailyRows.stream()
+                    .filter(row -> accountIds.contains(row.getAccountId()))
+                    .mapToDouble(row -> nz(row.getEquity()) * nz(row.getDailyReturn()))
+                    .sum()
+                / capital;
+        cumulativeReturnFactor *= dailyReturn <= -1.0 ? 0.0 : 1.0 + dailyReturn;
+      }
+      profitValues.add(round(cumulativeProfit));
+      profitPctValues.add(round((cumulativeReturnFactor - 1.0) * 100.0));
     }
     return new Benchmark.AccountValueSeries(0L, "Portfolio total", profitValues, profitPctValues);
   }

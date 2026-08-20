@@ -7,8 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
-import com.smartbox.investory.investment.reconciliation.ReconciliationReport;
-import com.smartbox.investory.investment.reconciliation.ReconciliationReportService;
+import com.smartbox.investory.investment.api.InvestmentReconciliationApi;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,7 +21,7 @@ import org.springframework.web.servlet.view.InternalResourceViewResolver;
 @ExtendWith(MockitoExtension.class)
 class ReconciliationControllerTest {
 
-  @Mock private ReconciliationReportService reconciliationReportService;
+  @Mock private InvestmentReconciliationApi reconciliationApi;
 
   @InjectMocks private ReconciliationController reconciliationController;
 
@@ -32,14 +31,8 @@ class ReconciliationControllerTest {
         MockMvcBuilders.standaloneSetup(reconciliationController)
             .setViewResolvers(new InternalResourceViewResolver("/WEB-INF/views/", ".jsp"))
             .build();
-    ReconciliationReport report =
-        new ReconciliationReport(
-            "RECONCILED",
-            null,
-            List.of(new ReconciliationReport.Checkpoint("C0", "files -> import history", 0, 0)),
-            List.of(),
-            List.of());
-    when(reconciliationReportService.load()).thenReturn(report);
+    Object report = new Object();
+    when(reconciliationApi.load("QUICK", null)).thenReturn(report);
 
     mockMvc
         .perform(get("/dashboard/reconciliation"))
@@ -47,6 +40,6 @@ class ReconciliationControllerTest {
         .andExpect(view().name("reconciliation"))
         .andExpect(model().attribute("report", report));
 
-    verify(reconciliationReportService).load();
+    verify(reconciliationApi).load("QUICK", null);
   }
 }

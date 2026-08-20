@@ -2,7 +2,7 @@ package com.smartbox.investory.ui.retirement;
 
 import com.smartbox.investory.retirement.planning.*;
 import com.smartbox.investory.retirement.planning.PlanningPresentation;
-import com.smartbox.investory.retirement.profile.InvestmentProfileFacade;
+import com.smartbox.investory.retirement.api.InvestmentProfileFacade;
 import com.smartbox.investory.retirement.simulation.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;

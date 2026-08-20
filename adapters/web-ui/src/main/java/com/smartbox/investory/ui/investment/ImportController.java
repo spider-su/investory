@@ -1,10 +1,6 @@
 package com.smartbox.investory.ui.investment;
 
-import com.smartbox.investory.investment.imports.BrokerType;
-import com.smartbox.investory.investment.imports.ImportBatchResponse;
-import com.smartbox.investory.investment.imports.ImportFailedException;
-import com.smartbox.investory.investment.imports.ImportOrchestratorService;
-import com.smartbox.investory.investment.imports.ImportSourceType;
+import com.smartbox.investory.investment.api.InvestmentImportApi;
 import java.io.IOException;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
@@ -26,50 +22,32 @@ import org.springframework.web.server.ResponseStatusException;
 @RequiredArgsConstructor
 public class ImportController {
 
-  private final ImportOrchestratorService importOrchestratorService;
+  private final InvestmentImportApi importApi;
 
   @PostMapping
-  ImportBatchResponse importAuto(
+  Object importAuto(
       @RequestParam("file") MultipartFile file,
       @RequestParam(value = "source", required = false, defaultValue = "MANUAL")
-          ImportSourceType sourceType,
+          String sourceType,
       @RequestParam(value = "sourceRef", required = false) String sourceRef) {
     String fileName =
         file.getOriginalFilename() != null ? file.getOriginalFilename() : "upload.bin";
-    BrokerType brokerType = detectBrokerType(fileName);
-    return importOrchestratorService.importFile(
-        brokerType, readBytes(file), fileName, sourceType, sourceRef);
+    return importApi.importAuto(fileName, readBytes(file), sourceType, sourceRef);
   }
 
   @PostMapping("/broker/{broker}")
-  ImportBatchResponse importByBroker(
+  Object importByBroker(
       @PathVariable("broker") String broker,
       @RequestParam("file") MultipartFile file,
       @RequestParam(value = "source", required = false, defaultValue = "MANUAL")
-          ImportSourceType sourceType,
+          String sourceType,
       @RequestParam(value = "sourceRef", required = false) String sourceRef) {
-    BrokerType brokerType = BrokerType.fromValue(broker);
-    return importOrchestratorService.importFile(
-        brokerType,
-        readBytes(file),
+    return importApi.importForBroker(
+        broker,
         file.getOriginalFilename() != null ? file.getOriginalFilename() : "upload.bin",
+        readBytes(file),
         sourceType,
         sourceRef);
-  }
-
-  private static BrokerType detectBrokerType(String fileName) {
-    String normalized = fileName.toLowerCase(Locale.ROOT);
-    if (normalized.endsWith(".csv")) {
-      return BrokerType.IBKR;
-    }
-    if (normalized.endsWith(".xlsx") || normalized.endsWith(".zip")) {
-      return BrokerType.XTB;
-    }
-    throw new ResponseStatusException(
-        HttpStatus.BAD_REQUEST,
-        "Unsupported import file extension for auto-detect: "
-            + fileName
-            + ". Supported: .csv -> IBKR, .xlsx/.zip -> XTB");
   }
 
   private static byte[] readBytes(MultipartFile file) {
@@ -87,9 +65,9 @@ public class ImportController {
     return e.getMessage();
   }
 
-  @ExceptionHandler(ImportFailedException.class)
+  @ExceptionHandler(InvestmentImportApi.ImportFailure.class)
   @ResponseStatus(HttpStatus.UNPROCESSABLE_CONTENT)
-  String handleImportFailed(ImportFailedException e) {
+  String handleImportFailed(InvestmentImportApi.ImportFailure e) {
     log.warn("Import failed: {}", e.getMessage());
     return e.getMessage();
   }

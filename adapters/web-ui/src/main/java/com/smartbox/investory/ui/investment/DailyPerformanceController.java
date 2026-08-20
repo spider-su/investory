@@ -1,7 +1,6 @@
 package com.smartbox.investory.ui.investment;
 
-import com.smartbox.investory.investment.accounting.PortfolioService;
-import com.smartbox.investory.investment.accounting.model.DailyPerformanceDetail;
+import com.smartbox.investory.investment.api.InvestmentDailyPerformanceApi;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.Set;
@@ -14,10 +13,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 public class DailyPerformanceController {
-  private final PortfolioService portfolioService;
+  private final InvestmentDailyPerformanceApi performanceApi;
 
   @GetMapping("/dashboard/daily-attribution")
-  public DailyPerformanceDetail attribution(
+  public Object attribution(
       @RequestParam LocalDate date, @RequestParam(required = false) String accountIds) {
     Set<Long> ids =
         accountIds == null || accountIds.isBlank()
@@ -26,6 +25,6 @@ public class DailyPerformanceController {
                 .map(String::trim)
                 .map(Long::valueOf)
                 .collect(Collectors.toSet());
-    return portfolioService.dailyPerformanceDetail(date, ids);
+    return performanceApi.load(date, ids);
   }
 }

@@ -1,11 +1,6 @@
 package com.smartbox.investory.ui.investment;
 
-import com.smartbox.investory.investment.accounting.PortfolioProjectionService;
-import com.smartbox.investory.investment.market.fx.CurrencyRateUpdaterService;
-import com.smartbox.investory.investment.market.price.ManualAssetPriceService;
-import com.smartbox.investory.investment.market.price.ManualAssetPriceService.ManualAssetPrice;
-import com.smartbox.investory.investment.market.price.MarketService;
-import com.smartbox.investory.investment.market.price.PriceHistoryCoverageService;
+import com.smartbox.investory.investment.api.InvestmentMaintenanceApi;
 import java.time.ZonedDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -22,48 +17,32 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class DashboardRefreshController {
 
-  private final MarketService marketService;
-  private final ManualAssetPriceService manualAssetPriceService;
-  private final PortfolioProjectionService portfolioProjectionService;
-  private final CurrencyRateUpdaterService currencyRateUpdaterService;
-
-  @org.springframework.beans.factory.annotation.Autowired(required = false)
-  private PriceHistoryCoverageService priceHistoryCoverageService;
+  private final InvestmentMaintenanceApi maintenance;
 
   @PostMapping("/refresh-prices")
   RefreshPricesResponse refreshPrices() {
-    marketService.fullPortfolioUpdate();
-    return new RefreshPricesResponse("OK", "Open position prices refreshed", ZonedDateTime.now());
+    return RefreshPricesResponse.from(maintenance.refreshPrices());
   }
 
   @PostMapping("/refresh-currency")
-  CurrencyRateUpdaterService.CurrencyRateRefreshResult refreshCurrency() {
-    return currencyRateUpdaterService.updateCurrencyRates();
+  Object refreshCurrency() {
+    return maintenance.refreshCurrency();
   }
 
   @PostMapping("/update-history")
   RefreshPricesResponse updateHistory() {
-    marketService.refreshMarketPricesAndPositions();
-    if (priceHistoryCoverageService != null) {
-      priceHistoryCoverageService.ensurePortfolioCoverage(null);
-    }
-    portfolioProjectionService.recalculateAll();
-    portfolioProjectionService.refreshReconciliationViews();
-    return new RefreshPricesResponse(
-        "OK", "Market prices refreshed and history rebuilt", ZonedDateTime.now());
+    return RefreshPricesResponse.from(maintenance.updateHistory());
   }
 
   @PostMapping("/rebuild-monthly")
   RefreshPricesResponse rebuildMonthly() {
-    portfolioProjectionService.recalculateAll();
-    portfolioProjectionService.refreshReconciliationViews();
-    return new RefreshPricesResponse("OK", "Account stats rebuilt", ZonedDateTime.now());
+    return RefreshPricesResponse.from(maintenance.rebuildMonthly());
   }
 
   @PostMapping("/assets/{symbol}/price")
-  ManualAssetPrice updateManualAssetPrice(
+  Object updateManualAssetPrice(
       @PathVariable String symbol, @RequestBody ManualPriceRequest request) {
-    return manualAssetPriceService.updatePrice(symbol, request.marketPrice());
+    return maintenance.updateManualAssetPrice(symbol, request.marketPrice());
   }
 
   @ExceptionHandler(IllegalArgumentException.class)
@@ -72,7 +51,11 @@ public class DashboardRefreshController {
     return new ErrorResponse(exception.getMessage());
   }
 
-  public record RefreshPricesResponse(String status, String message, ZonedDateTime refreshedAt) {}
+  public record RefreshPricesResponse(String status, String message, ZonedDateTime refreshedAt) {
+    static RefreshPricesResponse from(InvestmentMaintenanceApi.MaintenanceResult result) {
+      return new RefreshPricesResponse(result.status(), result.message(), result.refreshedAt());
+    }
+  }
 
   public record ManualPriceRequest(double marketPrice) {}
 

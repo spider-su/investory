@@ -7,6 +7,9 @@ import com.smartbox.investory.investment.api.InvestmentPerformanceApi.Performanc
 import com.smartbox.investory.investment.api.InvestmentPerformanceApi.PerformanceBoardView;
 import com.smartbox.investory.investment.api.InvestmentPerformanceApi.PerformanceKpiView;
 import com.smartbox.investory.investment.api.InvestmentPerformanceApi.PerformanceSeries;
+import com.smartbox.investory.investment.api.InvestmentPerformanceApi.AccountValueSeries;
+import com.smartbox.investory.investment.api.InvestmentPerformanceApi.AccountValueView;
+import com.smartbox.investory.investment.api.InvestmentPerformanceApi.AccountValueYear;
 import com.smartbox.investory.investment.reporting.BenchmarkService;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -124,6 +127,30 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
             extreme(periodValues, false));
     return new PerformanceBoardView(
         true, labels, series, benchmarkValues, excessValues, kpis, accounts);
+  }
+
+  @Override
+  public AccountValueView loadAccountValues(List<Long> accountIds) {
+    Benchmark benchmark = benchmarkService.calculate(accountIds);
+    return new AccountValueView(
+        benchmark.getAccountValueYears().stream()
+            .map(
+                year ->
+                    new AccountValueYear(
+                        year.year(),
+                        year.labels(),
+                        year.accountSeries().stream()
+                            .map(
+                                series ->
+                                    new AccountValueSeries(
+                                        series.id(),
+                                        series.name(),
+                                        series.profitValues(),
+                                        series.profitPctValues()))
+                            .toList(),
+                        year.totalProfitValues(),
+                        year.totalProfitPctValues()))
+            .toList());
   }
 
   private String accountName(List<PerformanceAccount> accounts, Long id) {

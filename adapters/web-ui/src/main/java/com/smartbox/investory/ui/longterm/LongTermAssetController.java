@@ -1,9 +1,8 @@
 package com.smartbox.investory.ui.longterm;
 
 import com.smartbox.investory.longterm.api.*;
-import com.smartbox.investory.longterm.application.LongTermAssetService;
-import com.smartbox.investory.longterm.application.LongTermAssetsFacade;
-import com.smartbox.investory.longterm.application.RealEstateEntry;
+import com.smartbox.investory.longterm.api.LongTermAssetsFacade;
+import com.smartbox.investory.longterm.api.RealEstateEntry;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.shared.presentation.FinancialPresentation;
 import java.math.BigDecimal;
@@ -44,7 +43,7 @@ public class LongTermAssetController {
     model.addAttribute(
         "longTermGrossYield", FinancialPresentation.percentage(total.weightedGrossYield()));
     groups.stream()
-        .max(java.util.Comparator.comparing(LongTermAssetService.AssetGroupSummary::totalValue))
+        .max(java.util.Comparator.comparing(g -> g.totalValue()))
         .ifPresent(
             g -> {
               model.addAttribute("longTermLargestClass", g.title());

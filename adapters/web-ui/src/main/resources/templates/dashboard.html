@@ -765,6 +765,7 @@
     const accountValueEl = document.getElementById("account-value-chart");
     let benchmarkChart = null;
     let accountValueChart = null;
+    let accountValueRequest = 0;
     const signedValue = value => (Number(value) >= 0 ? '+' : '') + Number(value || 0).toLocaleString(undefined, {maximumFractionDigits: 0});
     const signedPercentValue = value => (Number(value) >= 0 ? '+' : '') + Number(value || 0).toLocaleString(undefined, {minimumFractionDigits: 1, maximumFractionDigits: 1}) + '%';
     function renderTable(id, headers, rows) {
@@ -1049,13 +1050,24 @@
             return;
         }
 
+        const allAccountsShown = selectedIds.size === year.accountSeries.length;
+        if (!allAccountsShown) {
+            const requestId = ++accountValueRequest;
+            const ids = [...selectedIds].join(',');
+            fetch('/dashboard/account-values?accountIds=' + encodeURIComponent(ids))
+                .then(response => response.json())
+                .then(view => {
+                    if (requestId !== accountValueRequest) return;
+                    accountValueYears.splice(0, accountValueYears.length, ...(view.years || []));
+                    updateAccountValueChart(selectedIds);
+                })
+                .catch(() => {});
+            return;
+        }
+
         const effectiveIds = effectiveAccountIds(selectedIds, year.accountSeries.map(series => Number(series.id)));
         const selectedSeries = year.accountSeries.filter(series => effectiveIds.has(Number(series.id)));
-        const allAccountsShown = selectedIds.size === year.accountSeries.length;
-        const total = allAccountsShown
-            ? (mode === 'percent' ? (year.totalProfitPctValues || []) : (year.totalProfitValues || []))
-            : (year.labels || []).map((_, index) => selectedSeries.reduce(
-                (sum, series) => sum + Number(accountValueSeriesData(series, mode)[index] || 0), 0));
+        const total = mode === 'percent' ? (year.totalProfitPctValues || []) : (year.totalProfitValues || []);
         const hasValues = total.some(value => Math.abs(value) > 1) || selectedSeries.length > 0;
         if (emptyEl) emptyEl.style.display = hasValues ? 'none' : '';
         if (contentEl) contentEl.style.display = hasValues ? '' : 'none';
@@ -1167,7 +1179,7 @@
     const ctxMonthly = monthlyPerformanceEl
         ? monthlyPerformanceEl.getContext("2d")
         : null;
-    function groupedMonthlyData(mode, selectedIds) {
+    function groupedMonthlyData(mode) {
         const buckets = new Map();
         monthlyLabels.forEach((label, index) => {
             const year = label.substring(0, 4);
@@ -1175,17 +1187,11 @@
             const key = mode === 'annual' ? year : mode === 'quarterly' ? year + '-Q' + Math.ceil(month / 3) : label;
             const attribution = monthlyAttributions[label];
             const rows = attribution?.accounts || [];
-            const partial = selectedIds !== null;
-            const selectedRows = partial ? rows.filter(row => selectedIds.has(Number(row.accountId))) : rows;
-            const value = partial
-                ? selectedRows.reduce((sum, row) => sum + Number(row.monthlyProfit || 0), 0)
-                : Number(monthlyData[index] || 0);
-            const flow = partial
-                ? selectedRows.reduce((sum, row) => sum + Number(row.netFlow || 0), 0)
-                : Number(monthlyCashflow[index] || 0);
+            const value = Number(monthlyData[index] || 0);
+            const flow = Number(monthlyCashflow[index] || 0);
             const bucket = buckets.get(key) || { value: 0, count: 0, flow: 0, sourceLabels: [] };
             bucket.value += value;
-            bucket.count += partial ? new Set(selectedRows.map(row => row.accountId)).size : Number(monthlyCounts[index] || 0);
+            bucket.count += Number(monthlyCounts[index] || 0);
             bucket.flow += flow;
             bucket.sourceLabels.push(label);
             buckets.set(key, bucket);
@@ -1194,11 +1200,21 @@
         return { labels: ordered.map(([label]) => label), values: ordered.map(([, value]) => value) };
     }
     let monthlyChart;
-    function renderMonthlyChart(mode) {
+    function renderMonthlyChart(mode, remoteView = null) {
         if (!ctxMonthly) return;
         const allMonthlyIds = [...new Set(Object.values(monthlyAttributions).flatMap(a => (a.accounts || []).map(row => Number(row.accountId))))];
         const selectedMonthlyIds = effectiveAccountIds(selectedMonthlyAccountIds(), allMonthlyIds);
-        const grouped = groupedMonthlyData(mode, selectedMonthlyIds.size === allMonthlyIds.length ? null : selectedMonthlyIds);
+        const partial = selectedMonthlyIds.size !== allMonthlyIds.length;
+        if (partial && !remoteView) {
+            fetch('/dashboard/account-performance?accountIds=' + encodeURIComponent([...selectedMonthlyIds].join(',')) + '&aggregation=' + encodeURIComponent(mode))
+                .then(response => response.json())
+                .then(view => renderMonthlyChart(mode, view))
+                .catch(() => {});
+            return;
+        }
+        const grouped = remoteView
+            ? { labels: remoteView.labels || [], values: (remoteView.series?.[0]?.values || []).map(value => ({ value, count: 0, flow: 0, sourceLabels: [] })) }
+            : groupedMonthlyData(mode);
         const values = grouped.values.map(row => row.value);
         const counts = grouped.values.map(row => row.count);
         const flows = grouped.values.map(row => row.flow);
@@ -1210,7 +1226,7 @@
             monthlyChart._periodCounts = counts;
             monthlyChart._periodFlows = flows;
             monthlyChart._periodSourceLabels = grouped.values.map(row => row.sourceLabels);
-            monthlyChart._selectedAccountIds = selectedMonthlyIds.size === allMonthlyIds.length ? null : selectedMonthlyIds;
+            monthlyChart._selectedAccountIds = partial ? selectedMonthlyIds : null;
             monthlyChart.update();
             renderTable('monthly-table', ['Period', 'P/L USD'], grouped.labels.map((label, i) => [label, signedValue(values[i]) + ' USD']));
             return;
@@ -1277,7 +1293,7 @@
         monthlyChart._periodCounts = counts;
         monthlyChart._periodFlows = flows;
         monthlyChart._periodSourceLabels = grouped.values.map(row => row.sourceLabels);
-        monthlyChart._selectedAccountIds = selectedMonthlyIds.size === allMonthlyIds.length ? null : selectedMonthlyIds;
+        monthlyChart._selectedAccountIds = partial ? selectedMonthlyIds : null;
         monthlyChart.update();
         renderTable('monthly-table', ['Period', 'P/L USD'], grouped.labels.map((label, i) => [label, signedValue(values[i]) + ' USD']));
         monthlyChart.options.onClick = function (event, elements) {

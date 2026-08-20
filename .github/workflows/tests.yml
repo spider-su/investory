@@ -51,11 +51,10 @@ jobs:
           cache: maven
 
       - name: Run integration tests
-        run: >-
-          sh ./mvnw --batch-mode --no-transfer-progress -pl app -am test-compile failsafe:integration-test
-          failsafe:verify
-          "-Dfailsafe.failIfNoSpecifiedTests=false"
-          "-Dit.test=ValuationInputContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,CurrencyRateUpdaterPostgresIT,SchemaMigrationCheckpoint2IT,IbkrTreasuryImportIT,XtbImportIT"
+        run: |
+          sh ./mvnw --batch-mode --no-transfer-progress -pl app -am -DskipTests install
+          sh ./mvnw --batch-mode --no-transfer-progress -pl app test-compile failsafe:integration-test failsafe:verify \
+            "-Dit.test=ValuationInputContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,CurrencyRateUpdaterPostgresIT,SchemaMigrationCheckpoint2IT,IbkrTreasuryImportIT,XtbImportIT"
 
   goldenPath:
     name: Golden path
@@ -74,11 +73,11 @@ jobs:
           cache: maven
 
       - name: Run offline golden gate
-        run: >-
-          sh ./mvnw --batch-mode --no-transfer-progress -pl app -am clean
-          "-Dmaven.compiler.useIncrementalCompilation=false"
-          "-Dsurefire.failIfNoSpecifiedTests=false"
-          "-Dtest=GoldenRebuildIT" test
+        run: |
+          sh ./mvnw --batch-mode --no-transfer-progress -pl app -am -DskipTests install
+          sh ./mvnw --batch-mode --no-transfer-progress -pl app \
+            "-Dmaven.compiler.useIncrementalCompilation=false" \
+            "-Dtest=GoldenRebuildIT" test
 
       - name: Check formatting
         run: sh ./mvnw --batch-mode --no-transfer-progress spotless:check
