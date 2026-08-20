@@ -6,7 +6,8 @@ import com.smartbox.investory.application.profile.*;
 import com.smartbox.investory.application.simulation.*;
 import com.smartbox.investory.infrastructure.longterm.LongTermAssetType;
 import com.smartbox.investory.infrastructure.planning.*;
-import com.smartbox.investory.infrastructure.repository.portfolio.*;
+import com.smartbox.investory.services.portfolio.read.HistoricalPortfolioActualsReader;
+import com.smartbox.investory.services.portfolio.read.HistoricalPortfolioYear;
 import java.math.BigDecimal;
 import java.time.*;
 import java.util.*;
@@ -23,7 +24,7 @@ public class PlanningTimelineFacade {
   private static final BigDecimal ZERO = BigDecimal.ZERO;
   private final PlanningYearRepository years;
   private final PlanningYearValueRepository values;
-  private final HistoricalPortfolioYearSource historicalPortfolio;
+  private final HistoricalPortfolioActualsReader historicalPortfolio;
   private final HistoricalLongTermAssetYearSource historicalLongTermAssets;
   private final RetirementSimulationService simulations;
   private final CurrentYearProjectionBridge projectionBridge;
@@ -35,7 +36,7 @@ public class PlanningTimelineFacade {
   public PlanningTimelineFacade(
       PlanningYearRepository years,
       PlanningYearValueRepository values,
-      HistoricalPortfolioYearSource historicalPortfolio,
+      HistoricalPortfolioActualsReader historicalPortfolio,
       HistoricalLongTermAssetYearSource historicalLongTermAssets,
       RetirementSimulationService simulations,
       CurrentYearProjectionBridge projectionBridge,
@@ -56,7 +57,7 @@ public class PlanningTimelineFacade {
   public PlanningTimelineFacade(
       PlanningYearRepository years,
       PlanningYearValueRepository values,
-      HistoricalPortfolioYearSource historicalPortfolio,
+      HistoricalPortfolioActualsReader historicalPortfolio,
       HistoricalLongTermAssetYearSource historicalLongTermAssets,
       RetirementSimulationService simulations,
       CurrentYearProjectionBridge projectionBridge,
@@ -71,25 +72,6 @@ public class PlanningTimelineFacade {
         projectionBridge,
         clock,
         forwardContexts,
-        null);
-  }
-
-  public PlanningTimelineFacade(
-      PlanningYearRepository years,
-      PlanningYearValueRepository values,
-      PortfolioMonthlyPerformanceRepository monthlyPerformance,
-      RetirementSimulationService simulations,
-      CurrentYearProjectionBridge projectionBridge,
-      Clock clock) {
-    this(
-        years,
-        values,
-        new HistoricalPortfolioYearSource(monthlyPerformance),
-        null,
-        simulations,
-        projectionBridge,
-        clock,
-        new ForwardSimulationContextFactory(clock),
         null);
   }
 
@@ -128,8 +110,7 @@ public class PlanningTimelineFacade {
     PlanningYear planningYear = year(portfolioId, year);
     if (planningYear.getStatus() == PlanningYearStatus.CLOSED)
       throw new IllegalStateException("Closed planning year cannot refresh accounting values");
-    HistoricalPortfolioYearSource.HistoricalPortfolioYear source =
-        historicalPortfolio.read(portfolioId, year);
+    HistoricalPortfolioYear source = historicalPortfolio.read(portfolioId, year);
     Map<PlanningMetric, PlanningMetricValue> refreshed = new EnumMap<>(PlanningMetric.class);
     refreshed.putAll(
         source.complete()
@@ -507,8 +488,7 @@ public class PlanningTimelineFacade {
 
   private Map<PlanningMetric, PlanningMetricValue> deriveHistoricalMarket(
       Long portfolioId, int year) {
-    HistoricalPortfolioYearSource.HistoricalPortfolioYear source =
-        historicalPortfolio.read(portfolioId, year);
+    HistoricalPortfolioYear source = historicalPortfolio.read(portfolioId, year);
     if (!source.complete()) return Map.of();
     Map<PlanningMetric, PlanningMetricValue> result = new EnumMap<>(PlanningMetric.class);
     result.put(
@@ -825,18 +805,6 @@ public class PlanningTimelineFacade {
           "Historical value unavailable";
       default -> "Historical value unavailable";
     };
-  }
-
-  private static BigDecimal compoundedReturn(List<PortfolioMonthlyPerformance> rows) {
-    BigDecimal result = BigDecimal.ONE;
-    for (PortfolioMonthlyPerformance row : rows)
-      if (row.getReturnPctDecimal() != null)
-        result = result.multiply(BigDecimal.ONE.add(money(row.getReturnPctDecimal())));
-    return result.subtract(BigDecimal.ONE);
-  }
-
-  private static BigDecimal money(BigDecimal value) {
-    return value == null ? ZERO : value;
   }
 
   private static BigDecimal grow(BigDecimal amount, BigDecimal rate) {

@@ -1,25 +1,24 @@
 package com.smartbox.investory.application.profile;
 
-import com.smartbox.investory.services.PlanningPresentation;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 
 public record ProfileAllocation(
     EconomicBucket bucket, BigDecimal value, BigDecimal percentage, Liquidity liquidity) {
   public String bucketLabel() {
-    return PlanningPresentation.bucket(bucket);
+    return ProfilePresentation.bucket(bucket);
   }
 
   public String liquidityLabel() {
-    return PlanningPresentation.liquidity(liquidity);
+    return ProfilePresentation.liquidity(liquidity);
   }
 
   public String valueDisplay(CurrencyType currency) {
-    return PlanningPresentation.money(value, currency);
+    return ProfilePresentation.money(value, currency);
   }
 
   public String wholeValueDisplay() {
-    return PlanningPresentation.wholeNumber(value);
+    return ProfilePresentation.wholeNumber(value);
   }
 
   public boolean isNonZero() {
@@ -57,6 +56,6 @@ public record ProfileAllocation(
   }
 
   public String percentageDisplay() {
-    return PlanningPresentation.percentage(percentage);
+    return ProfilePresentation.percentage(percentage);
   }
 }

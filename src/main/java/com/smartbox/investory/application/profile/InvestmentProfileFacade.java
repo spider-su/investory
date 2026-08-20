@@ -3,9 +3,9 @@ package com.smartbox.investory.application.profile;
 import com.smartbox.investory.application.longterm.LongTermAssetService;
 import com.smartbox.investory.application.longterm.LongTermAssetSummary;
 import com.smartbox.investory.infrastructure.longterm.LongTermAssetType;
-import com.smartbox.investory.infrastructure.repository.Asset;
-import com.smartbox.investory.infrastructure.repository.AssetRepository;
 import com.smartbox.investory.services.models.Portfolio;
+import com.smartbox.investory.services.portfolio.read.BrokerageAssetClassification;
+import com.smartbox.investory.services.portfolio.read.BrokerageAssetClassificationReader;
 import com.smartbox.investory.services.portfolio.read.BrokeragePortfolioReadService;
 import com.smartbox.investory.services.portfolio.read.BrokeragePositionSnapshot;
 import com.smartbox.investory.services.portfolio.read.SharedBrokeragePortfolioSnapshot;
@@ -25,7 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class InvestmentProfileFacade {
   private final BrokeragePortfolioReadService brokeragePortfolioReadService;
   private final LongTermAssetService longTermAssetService;
-  private final AssetRepository assetRepository;
+  private final BrokerageAssetClassificationReader brokerageAssetClassificationReader;
   private final CurrencyConversion currencyRates;
   private final Clock clock;
 
@@ -150,9 +150,9 @@ public class InvestmentProfileFacade {
   }
 
   private EconomicBucket classify(String symbol) {
-    return assetRepository
+    return brokerageAssetClassificationReader
         .findBySymbol(symbol)
-        .map(Asset::getAssetType)
+        .map(BrokerageAssetClassification::assetType)
         .map(this::classifyAssetType)
         .orElse(EconomicBucket.OTHER);
   }

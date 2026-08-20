@@ -139,6 +139,15 @@ it is not multi-portfolio scoped. It may use Investment internals behind that bo
 Assets join while `InvestmentProfileFacade` composes the profile. Profile and planning code do not
 mutate accounting state.
 
+`BrokerageAssetClassificationReader` supplies the optional symbol classification required by profile
+composition. `HistoricalPortfolioActualsReader` supplies complete, portfolio-scoped calendar-year facts
+for planning and reconciliation. Their Investment-owned implementations retain `AssetRepository` and
+`PortfolioMonthlyPerformanceRepository` access; the public contracts and immutable models do not expose
+persistence types.
+`BrokeragePortfolioContextReader` supplies optional portfolio identity and base currency for Long-Term
+validation and aggregation while retaining the existing `PortfolioKpiSummaryRepository` lookup inside
+Investment.
+
 Planning must not become an accounting source of truth or depend on a projected result as an actual fact.
 
 ### Transitional boundary exceptions
@@ -148,11 +157,9 @@ not permitted broad package exceptions:
 
 | Current dependency | Why it exists now | Removal stage |
 | --- | --- | --- |
-| `LongTermAssetService` and `LongTermAssetBootstrapService` -> `PortfolioKpiSummaryRepository` | Long-Term workflows obtain brokerage portfolio context directly. | Stage 4 |
 | `LongTermAssetService` -> `PlanningPresentation` | Long-Term template-visible summaries use the cross-domain formatter. | Stage 5 |
 | `application.longterm.RentalIncomeProjection` -> `application.profile.ProjectedLongTermAsset` | Long-Term projection currently uses the profile-owned model. | Stage 6 |
-| `InvestmentProfileFacade` -> `AssetRepository` and `LongTermAssetService` | Profile composition still reads Investment persistence and Long-Term implementation directly. | Stages 3 and 6 |
-| Planning sources/facade -> brokerage portfolio repositories | Historical planning actuals still read Investment persistence. | Stage 3 |
+| `InvestmentProfileFacade` -> `LongTermAssetService` | Profile composition still reads Long-Term implementation directly. | Stage 6 |
 | `HistoricalLongTermAssetYearSource` and Retirement simulation callers -> `LongTermAssetService`/Long-Term types | Retirement has no Long-Term public read contract yet. | Stage 6 |
 | `PlanningPresentation` -> planning, profile, simulation, and Long-Term types | The formatter is a cross-domain presentation bridge; Long-Term also calls it. | Stage 5 |
 

@@ -1,7 +1,6 @@
 package com.smartbox.investory.application.planning;
 
 import com.smartbox.investory.application.simulation.SimulationScenario;
-import com.smartbox.investory.services.PlanningPresentation;
 import java.math.BigDecimal;
 
 /** Display-currency-only decision-summary amounts. Ratios and years are deliberately unchanged. */

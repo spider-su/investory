@@ -11,6 +11,7 @@ import com.smartbox.investory.application.simulation.*;
 import com.smartbox.investory.infrastructure.planning.*;
 import com.smartbox.investory.infrastructure.repository.portfolio.PortfolioMonthlyPerformance;
 import com.smartbox.investory.infrastructure.repository.portfolio.PortfolioMonthlyPerformanceRepository;
+import com.smartbox.investory.services.portfolio.read.internal.HistoricalPortfolioActualsReadService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -43,7 +44,7 @@ class PlanningTimelineFacadeTest {
         new PlanningTimelineFacade(
             years,
             values,
-            new HistoricalPortfolioYearSource(performance),
+            new HistoricalPortfolioActualsReadService(performance),
             longTermAssets,
             simulations,
             projectionBridge,
@@ -364,7 +365,7 @@ class PlanningTimelineFacadeTest {
         new PlanningTimelineFacade(
             years,
             values,
-            new HistoricalPortfolioYearSource(performance),
+            new HistoricalPortfolioActualsReadService(performance),
             longTermAssets,
             simulations,
             projectionBridge,

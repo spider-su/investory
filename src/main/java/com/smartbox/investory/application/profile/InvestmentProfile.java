@@ -1,6 +1,5 @@
 package com.smartbox.investory.application.profile;
 
-import com.smartbox.investory.services.PlanningPresentation;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.util.List;
@@ -40,11 +39,11 @@ public record InvestmentProfile(
   }
 
   public String totalNetWorthDisplay() {
-    return PlanningPresentation.money(totalNetWorth, currency);
+    return ProfilePresentation.money(totalNetWorth, currency);
   }
 
   public String totalNetWorthWholeDisplay() {
-    return PlanningPresentation.wholeNumber(totalNetWorth);
+    return ProfilePresentation.wholeNumber(totalNetWorth);
   }
 
   public String getMarketPortfolioValueWholeDisplay() {
@@ -88,80 +87,80 @@ public record InvestmentProfile(
   }
 
   public String liquidAssetsDisplay() {
-    return PlanningPresentation.money(liquidAssets, currency);
+    return ProfilePresentation.money(liquidAssets, currency);
   }
 
   public String liquidAssetsWholeDisplay() {
-    return PlanningPresentation.wholeNumber(liquidAssets);
+    return ProfilePresentation.wholeNumber(liquidAssets);
   }
 
   public String totalInvestmentIncomeDisplay() {
-    return PlanningPresentation.money(totalInvestmentIncome, currency);
+    return ProfilePresentation.money(totalInvestmentIncome, currency);
   }
 
   public String marketPortfolioValueDisplay() {
-    return PlanningPresentation.money(marketPortfolioValue, currency);
+    return ProfilePresentation.money(marketPortfolioValue, currency);
   }
 
   public String marketPortfolioValueWholeDisplay() {
-    return PlanningPresentation.wholeNumber(marketPortfolioValue);
+    return ProfilePresentation.wholeNumber(marketPortfolioValue);
   }
 
   public String longTermAssetValueDisplay() {
-    return PlanningPresentation.money(longTermAssetValue, currency);
+    return ProfilePresentation.money(longTermAssetValue, currency);
   }
 
   public String longTermAssetValueWholeDisplay() {
-    return PlanningPresentation.wholeNumber(longTermAssetValue);
+    return ProfilePresentation.wholeNumber(longTermAssetValue);
   }
 
   public String illiquidAssetsDisplay() {
-    return PlanningPresentation.money(illiquidAssets, currency);
+    return ProfilePresentation.money(illiquidAssets, currency);
   }
 
   public String illiquidAssetsWholeDisplay() {
-    return PlanningPresentation.wholeNumber(illiquidAssets);
+    return ProfilePresentation.wholeNumber(illiquidAssets);
   }
 
   public String liquidAssetsPercentageDisplay() {
-    return PlanningPresentation.percentage(liquidAssetsPercentage());
+    return ProfilePresentation.percentage(liquidAssetsPercentage());
   }
 
   public String marketPortfolioPercentageDisplay() {
-    return PlanningPresentation.percentage(marketPortfolioPercentage());
+    return ProfilePresentation.percentage(marketPortfolioPercentage());
   }
 
   public String longTermAssetPercentageDisplay() {
-    return PlanningPresentation.percentage(longTermAssetPercentage());
+    return ProfilePresentation.percentage(longTermAssetPercentage());
   }
 
   public String illiquidAssetsPercentageDisplay() {
-    return PlanningPresentation.percentage(illiquidAssetsPercentage());
+    return ProfilePresentation.percentage(illiquidAssetsPercentage());
   }
 
   public String historicalMarketInvestmentIncomeDisplay() {
-    return PlanningPresentation.money(historicalMarketInvestmentIncome, currency);
+    return ProfilePresentation.money(historicalMarketInvestmentIncome, currency);
   }
 
   public String historicalMarketInvestmentIncomeWholeDisplay() {
-    return PlanningPresentation.wholeNumber(historicalMarketInvestmentIncome);
+    return ProfilePresentation.wholeNumber(historicalMarketInvestmentIncome);
   }
 
   public String expectedLongTermAssetIncomeDisplay() {
-    return PlanningPresentation.money(expectedLongTermAssetIncome, currency);
+    return ProfilePresentation.money(expectedLongTermAssetIncome, currency);
   }
 
   public String expectedLongTermAssetIncomeWholeDisplay() {
-    return PlanningPresentation.wholeNumber(expectedLongTermAssetIncome);
+    return ProfilePresentation.wholeNumber(expectedLongTermAssetIncome);
   }
 
   public String longTermIncomeYieldDisplay() {
     if (longTermAssetValue == null
         || longTermAssetValue.signum() == 0
         || expectedLongTermAssetIncome == null) {
-      return PlanningPresentation.percentage(BigDecimal.ZERO);
+      return ProfilePresentation.percentage(BigDecimal.ZERO);
     }
-    return PlanningPresentation.percentage(
+    return ProfilePresentation.percentage(
         expectedLongTermAssetIncome.divide(longTermAssetValue, 8, java.math.RoundingMode.HALF_UP));
   }
 

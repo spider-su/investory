@@ -6,8 +6,8 @@ import static org.mockito.Mockito.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smartbox.investory.infrastructure.longterm.*;
-import com.smartbox.investory.infrastructure.repository.portfolio.PortfolioKpiSummary;
-import com.smartbox.investory.infrastructure.repository.portfolio.PortfolioKpiSummaryRepository;
+import com.smartbox.investory.services.portfolio.read.BrokeragePortfolioContext;
+import com.smartbox.investory.services.portfolio.read.BrokeragePortfolioContextReader;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.nio.file.Files;
@@ -31,7 +31,7 @@ class LongTermAssetBootstrapServiceTest {
   @Mock LongTermAssetBondDetailsRepository bonds;
   @Mock LongTermAssetDepositDetailsRepository deposits;
   @Mock RentalTaxPolicyRepository taxPolicies;
-  @Mock PortfolioKpiSummaryRepository portfolios;
+  @Mock BrokeragePortfolioContextReader brokeragePortfolioContextReader;
 
   private LongTermAssetBootstrapService service;
 
@@ -39,8 +39,17 @@ class LongTermAssetBootstrapServiceTest {
   void setUp() {
     service =
         new LongTermAssetBootstrapService(
-            assets, cashFlows, valuations, bondRates, bonds, deposits, taxPolicies, portfolios);
-    lenient().when(portfolios.findById(1L)).thenReturn(Optional.of(new PortfolioKpiSummary()));
+            assets,
+            cashFlows,
+            valuations,
+            bondRates,
+            bonds,
+            deposits,
+            taxPolicies,
+            brokeragePortfolioContextReader);
+    lenient()
+        .when(brokeragePortfolioContextReader.findById(1L))
+        .thenReturn(Optional.of(new BrokeragePortfolioContext(1L, CurrencyType.PLN)));
     lenient().when(assets.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of());
     lenient().when(taxPolicies.findAll()).thenReturn(List.of());
   }

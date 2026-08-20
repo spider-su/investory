@@ -1,10 +1,10 @@
 package com.smartbox.investory.application.longterm;
 
 import com.smartbox.investory.infrastructure.longterm.*;
-import com.smartbox.investory.infrastructure.repository.portfolio.PortfolioKpiSummaryRepository;
-import com.smartbox.investory.services.PlanningPresentation;
+import com.smartbox.investory.services.portfolio.read.BrokeragePortfolioContextReader;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.presentation.FinancialPresentation;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
@@ -26,7 +26,7 @@ public class LongTermAssetService {
   private final LongTermAssetBondDetailsRepository bonds;
   private final LongTermAssetDepositDetailsRepository deposits;
   private final RentalTaxPolicyRepository taxPolicies;
-  private final PortfolioKpiSummaryRepository portfolioSummaries;
+  private final BrokeragePortfolioContextReader brokeragePortfolioContextReader;
   private final CurrencyConversion currencyRates;
 
   @Value("${app.long-term-assets.planning-currency:PLN}")
@@ -685,10 +685,10 @@ public class LongTermAssetService {
   public AggregateSummary aggregate(Long portfolioId, LocalDate date) {
     date = effectiveDate(date);
     com.smartbox.investory.shared.currency.CurrencyType base =
-        portfolioSummaries
+        brokeragePortfolioContextReader
             .findById(portfolioId)
             .orElseThrow(() -> new NoSuchElementException("Portfolio not found"))
-            .getBaseCurrency();
+            .baseCurrency();
     return AggregateSummary.of(list(portfolioId, date), base, currencyRates, date);
   }
 
@@ -789,15 +789,15 @@ public class LongTermAssetService {
   public record AggregateSummary(
       CurrencyType currency, BigDecimal totalCurrentValue, AnnualEconomics annualEconomics) {
     public String totalCurrentValueWholeDisplay() {
-      return PlanningPresentation.wholeNumber(totalCurrentValue);
+      return FinancialPresentation.wholeNumber(totalCurrentValue);
     }
 
     public String netAnnualIncomeWholeDisplay() {
-      return PlanningPresentation.wholeNumber(annualEconomics.netAnnualIncomeAfterTax());
+      return FinancialPresentation.wholeNumber(annualEconomics.netAnnualIncomeAfterTax());
     }
 
     public String netYieldDisplay() {
-      return PlanningPresentation.percentage(netYieldAfterTax());
+      return FinancialPresentation.percentage(netYieldAfterTax());
     }
 
     public String netYieldWithLabelDisplay() {
@@ -805,23 +805,23 @@ public class LongTermAssetService {
     }
 
     public String monthlyNetIncomeWholeDisplay() {
-      return PlanningPresentation.wholeNumber(
+      return FinancialPresentation.wholeNumber(
           annualEconomics
               .netAnnualIncomeAfterTax()
               .divide(BigDecimal.valueOf(12), 2, java.math.RoundingMode.HALF_UP));
     }
 
     public String grossAnnualIncomeWholeDisplay() {
-      return PlanningPresentation.wholeNumber(annualEconomics.grossAnnualIncome());
+      return FinancialPresentation.wholeNumber(annualEconomics.grossAnnualIncome());
     }
 
     public String annualExpensesAndTaxWholeDisplay() {
-      return PlanningPresentation.wholeNumber(
+      return FinancialPresentation.wholeNumber(
           annualEconomics.annualExpenses().add(annualEconomics.annualTax()));
     }
 
     public String grossYieldDisplay() {
-      return PlanningPresentation.percentage(annualEconomics.grossYield());
+      return FinancialPresentation.percentage(annualEconomics.grossYield());
     }
 
     private BigDecimal netYieldAfterTax() {
@@ -934,7 +934,7 @@ public class LongTermAssetService {
 
     public String shareDisplay(BigDecimal total) {
       if (total == null || total.signum() == 0) return "0.0%";
-      return PlanningPresentation.percentage(
+      return FinancialPresentation.percentage(
           totalValue.divide(total, 8, java.math.RoundingMode.HALF_UP));
     }
 

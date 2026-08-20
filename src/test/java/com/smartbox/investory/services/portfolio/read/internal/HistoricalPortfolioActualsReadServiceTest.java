@@ -1,4 +1,4 @@
-package com.smartbox.investory.application.planning;
+package com.smartbox.investory.services.portfolio.read.internal;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-class HistoricalPortfolioYearSourceTest {
+class HistoricalPortfolioActualsReadServiceTest {
   @Test
   void completeYearProvidesAnnualFactsAndDecemberAssets() {
     PortfolioMonthlyPerformanceRepository repository =
@@ -20,7 +20,7 @@ class HistoricalPortfolioYearSourceTest {
     when(repository.findByPortfolioIdAndMonthBetweenOrderByMonthAsc(anyLong(), any(), any()))
         .thenReturn(current);
 
-    var result = new HistoricalPortfolioYearSource(repository).read(1L, 2025);
+    var result = new HistoricalPortfolioActualsReadService(repository).read(1L, 2025);
 
     assertTrue(result.complete());
     assertNull(result.startMarketAssets());
@@ -56,7 +56,7 @@ class HistoricalPortfolioYearSourceTest {
               return current;
             });
 
-    var result = new HistoricalPortfolioYearSource(repository).read(1L, 2025);
+    var result = new HistoricalPortfolioActualsReadService(repository).read(1L, 2025);
 
     assertEquals(new BigDecimal("1000000"), result.startMarketAssets());
     assertEquals(
@@ -86,7 +86,7 @@ class HistoricalPortfolioYearSourceTest {
     when(repository.findByPortfolioIdAndMonthBetweenOrderByMonthAsc(anyLong(), any(), any()))
         .thenReturn(current);
 
-    var result = new HistoricalPortfolioYearSource(repository).read(1L, 2025);
+    var result = new HistoricalPortfolioActualsReadService(repository).read(1L, 2025);
 
     assertEquals(
         new BigDecimal("500000.00"), result.netContribution().setScale(2, RoundingMode.HALF_UP));
@@ -107,7 +107,7 @@ class HistoricalPortfolioYearSourceTest {
     when(repository.findByPortfolioIdAndMonthBetweenOrderByMonthAsc(anyLong(), any(), any()))
         .thenReturn(current);
 
-    var result = new HistoricalPortfolioYearSource(repository).read(1L, 2025);
+    var result = new HistoricalPortfolioActualsReadService(repository).read(1L, 2025);
 
     assertEquals(BigDecimal.ZERO, result.netContribution());
     assertEquals(BigDecimal.ZERO, result.netWithdrawal());
@@ -120,12 +120,12 @@ class HistoricalPortfolioYearSourceTest {
     List<PortfolioMonthlyPerformance> partial = rows(9, true);
     when(repository.findByPortfolioIdAndMonthBetweenOrderByMonthAsc(anyLong(), any(), any()))
         .thenReturn(partial);
-    assertFalse(new HistoricalPortfolioYearSource(repository).read(1L, 2025).complete());
+    assertFalse(new HistoricalPortfolioActualsReadService(repository).read(1L, 2025).complete());
 
     List<PortfolioMonthlyPerformance> duplicate = rowsWithDuplicateMonth();
     when(repository.findByPortfolioIdAndMonthBetweenOrderByMonthAsc(anyLong(), any(), any()))
         .thenReturn(duplicate);
-    assertFalse(new HistoricalPortfolioYearSource(repository).read(1L, 2025).complete());
+    assertFalse(new HistoricalPortfolioActualsReadService(repository).read(1L, 2025).complete());
   }
 
   @Test
@@ -136,7 +136,7 @@ class HistoricalPortfolioYearSourceTest {
     when(repository.findByPortfolioIdAndMonthBetweenOrderByMonthAsc(anyLong(), any(), any()))
         .thenReturn(current);
 
-    var result = new HistoricalPortfolioYearSource(repository).read(1L, 2025);
+    var result = new HistoricalPortfolioActualsReadService(repository).read(1L, 2025);
 
     assertTrue(result.complete());
     assertNotNull(result.marketAssets());

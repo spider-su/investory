@@ -1,7 +1,9 @@
-package com.smartbox.investory.application.planning;
+package com.smartbox.investory.services.portfolio.read.internal;
 
 import com.smartbox.investory.infrastructure.repository.portfolio.PortfolioMonthlyPerformance;
 import com.smartbox.investory.infrastructure.repository.portfolio.PortfolioMonthlyPerformanceRepository;
+import com.smartbox.investory.services.portfolio.read.HistoricalPortfolioActualsReader;
+import com.smartbox.investory.services.portfolio.read.HistoricalPortfolioYear;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -11,13 +13,14 @@ import org.springframework.stereotype.Service;
 
 /** Reads an exact, complete calendar year's portfolio-performance facts. */
 @Service
-public class HistoricalPortfolioYearSource {
+public class HistoricalPortfolioActualsReadService implements HistoricalPortfolioActualsReader {
   private final PortfolioMonthlyPerformanceRepository performance;
 
-  public HistoricalPortfolioYearSource(PortfolioMonthlyPerformanceRepository performance) {
+  public HistoricalPortfolioActualsReadService(PortfolioMonthlyPerformanceRepository performance) {
     this.performance = performance;
   }
 
+  @Override
   public HistoricalPortfolioYear read(Long portfolioId, int year) {
     List<PortfolioMonthlyPerformance> rows =
         performance.findByPortfolioIdAndMonthBetweenOrderByMonthAsc(
@@ -84,25 +87,5 @@ public class HistoricalPortfolioYearSource {
 
   private static BigDecimal money(BigDecimal value) {
     return value == null ? BigDecimal.ZERO : value;
-  }
-
-  public record HistoricalPortfolioYear(
-      boolean complete,
-      BigDecimal startMarketAssets,
-      BigDecimal marketAssets,
-      BigDecimal marketIncome,
-      BigDecimal grossDeposits,
-      BigDecimal grossWithdrawals,
-      BigDecimal netContribution,
-      BigDecimal netWithdrawal,
-      BigDecimal marketReturn) {
-    /** End-of-calendar-year market value from the December row for this year. */
-    public BigDecimal endMarketAssets() {
-      return marketAssets;
-    }
-
-    static HistoricalPortfolioYear incomplete() {
-      return new HistoricalPortfolioYear(false, null, null, null, null, null, null, null, null);
-    }
   }
 }

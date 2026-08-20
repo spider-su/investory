@@ -1,4 +1,4 @@
-package com.smartbox.investory.services;
+package com.smartbox.investory.controllers.ui;
 
 import com.smartbox.investory.application.planning.PlanningMetric;
 import com.smartbox.investory.application.profile.EconomicBucket;
@@ -8,14 +8,15 @@ import com.smartbox.investory.infrastructure.longterm.CashFlowType;
 import com.smartbox.investory.infrastructure.longterm.Frequency;
 import com.smartbox.investory.infrastructure.longterm.InterestTreatment;
 import com.smartbox.investory.infrastructure.longterm.LongTermAssetType;
+import com.smartbox.investory.services.FinancialPrecision;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.text.NumberFormat;
 import java.util.Locale;
 
 /** Stable display formatting and labels for the planning pages. */
-public final class PlanningPresentation {
-  public PlanningPresentation() {}
+public final class UiPresentation {
+  public UiPresentation() {}
 
   public static String money(BigDecimal value) {
     BigDecimal rounded =

@@ -64,11 +64,56 @@ class LayerDependencyTest {
   }
 
   @Test
+  void profileApplicationDoesNotDependOnInvestmentRepositories() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..application.profile..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage("..infrastructure.repository..")
+        .check(MAIN);
+  }
+
+  @Test
+  void planningApplicationDoesNotDependOnInvestmentRepositories() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..application.planning..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage("..infrastructure.repository..")
+        .check(MAIN);
+  }
+
+  @Test
+  void longTermApplicationDoesNotDependOnInvestmentRepositories() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..application.longterm..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage("..infrastructure.repository..")
+        .check(MAIN);
+  }
+
+  @Test
   void brokerageSnapshotModelsDoNotReachIntoPersistence() {
     noClasses()
         .that()
         .haveNameMatching(
             ".*services\\.portfolio\\.read\\.(BrokeragePositionSnapshot|SharedBrokeragePortfolioSnapshot)")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage("..infrastructure.repository..")
+        .check(MAIN);
+  }
+
+  @Test
+  void brokeragePlanningReadContractsDoNotReachIntoPersistence() {
+    noClasses()
+        .that()
+        .haveNameMatching(
+            ".*services\\.portfolio\\.read\\.(BrokerageAssetClassification|BrokerageAssetClassificationReader|BrokeragePortfolioContext|BrokeragePortfolioContextReader|HistoricalPortfolioActualsReader|HistoricalPortfolioYear)")
         .should()
         .dependOnClassesThat()
         .resideInAnyPackage("..infrastructure.repository..")

@@ -2,7 +2,6 @@ package com.smartbox.investory.application.planning;
 
 import com.smartbox.investory.application.simulation.SimulationDecisionSummary;
 import com.smartbox.investory.application.simulation.SimulationScenario;
-import com.smartbox.investory.services.PlanningPresentation;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.List;

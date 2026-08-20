@@ -1,7 +1,7 @@
 package com.smartbox.investory.application.longterm.bootstrap;
 
 import com.smartbox.investory.infrastructure.longterm.*;
-import com.smartbox.investory.infrastructure.repository.portfolio.PortfolioKpiSummaryRepository;
+import com.smartbox.investory.services.portfolio.read.BrokeragePortfolioContextReader;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
@@ -21,7 +21,7 @@ public class LongTermAssetBootstrapService {
   private final LongTermAssetBondDetailsRepository bonds;
   private final LongTermAssetDepositDetailsRepository deposits;
   private final RentalTaxPolicyRepository taxPolicies;
-  private final PortfolioKpiSummaryRepository portfolios;
+  private final BrokeragePortfolioContextReader brokeragePortfolioContextReader;
 
   @Transactional
   public LongTermAssetBootstrapResult importDocument(
@@ -70,7 +70,7 @@ public class LongTermAssetBootstrapService {
   private void validate(LongTermAssetBootstrapDocument document) {
     if (document == null || document.portfolioId() == null)
       throw new IllegalArgumentException("portfolioId is required");
-    if (portfolios.findById(document.portfolioId()).isEmpty())
+    if (brokeragePortfolioContextReader.findById(document.portfolioId()).isEmpty())
       throw new IllegalArgumentException("Portfolio not found: " + document.portfolioId());
     var keys = new HashSet<String>();
     for (var policy : safe(document.rentalTaxPolicies())) {

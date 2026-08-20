@@ -9,8 +9,8 @@ import static org.mockito.Mockito.when;
 import com.smartbox.investory.application.longterm.LongTermAssetService;
 import com.smartbox.investory.application.longterm.LongTermAssetSummary;
 import com.smartbox.investory.infrastructure.longterm.LongTermAssetType;
-import com.smartbox.investory.infrastructure.repository.AssetRepository;
 import com.smartbox.investory.services.models.OpenPositionValue;
+import com.smartbox.investory.services.portfolio.read.BrokerageAssetClassificationReader;
 import com.smartbox.investory.services.portfolio.read.BrokeragePortfolioReadService;
 import com.smartbox.investory.services.portfolio.read.BrokeragePositionSnapshot;
 import com.smartbox.investory.services.portfolio.read.SharedBrokeragePortfolioSnapshot;
@@ -32,7 +32,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class InvestmentProfileFacadeTest {
   @Mock BrokeragePortfolioReadService brokeragePortfolioReadService;
   @Mock LongTermAssetService longTermAssets;
-  @Mock AssetRepository assetRepository;
+  @Mock BrokerageAssetClassificationReader brokerageAssetClassificationReader;
   @Mock CurrencyConversion currencyRates;
   private InvestmentProfileFacade facade;
   private static final Long PORTFOLIO = 1L;
@@ -44,7 +44,7 @@ class InvestmentProfileFacadeTest {
         new InvestmentProfileFacade(
             brokeragePortfolioReadService,
             longTermAssets,
-            assetRepository,
+            brokerageAssetClassificationReader,
             currencyRates,
             Clock.fixed(Instant.parse("2026-06-01T00:00:00Z"), ZoneOffset.UTC));
   }
@@ -54,7 +54,7 @@ class InvestmentProfileFacadeTest {
     SharedBrokeragePortfolioSnapshot market =
         snapshot(CurrencyType.PLN, 2000, 500, 100, 20, List.of(position("KNOWN", 1500)));
     when(brokeragePortfolioReadService.currentSharedSnapshot()).thenReturn(market);
-    when(assetRepository.findBySymbol("KNOWN")).thenReturn(Optional.empty());
+    when(brokerageAssetClassificationReader.findBySymbol("KNOWN")).thenReturn(Optional.empty());
     when(longTermAssets.aggregate(PORTFOLIO, DATE))
         .thenReturn(
             new LongTermAssetService.AggregateSummary(
@@ -79,7 +79,7 @@ class InvestmentProfileFacadeTest {
     SharedBrokeragePortfolioSnapshot market =
         snapshot(CurrencyType.PLN, 100, 0, 0, 0, List.of(position("UNKNOWN", 100)));
     when(brokeragePortfolioReadService.currentSharedSnapshot()).thenReturn(market);
-    when(assetRepository.findBySymbol("UNKNOWN")).thenReturn(Optional.empty());
+    when(brokerageAssetClassificationReader.findBySymbol("UNKNOWN")).thenReturn(Optional.empty());
     when(longTermAssets.aggregate(PORTFOLIO, DATE))
         .thenReturn(
             new LongTermAssetService.AggregateSummary(
@@ -104,7 +104,7 @@ class InvestmentProfileFacadeTest {
     SharedBrokeragePortfolioSnapshot market =
         snapshot(CurrencyType.USD, 1000, 200, 0, 0, List.of(position("UNKNOWN", 800)));
     when(brokeragePortfolioReadService.currentSharedSnapshot()).thenReturn(market);
-    when(assetRepository.findBySymbol("UNKNOWN")).thenReturn(Optional.empty());
+    when(brokerageAssetClassificationReader.findBySymbol("UNKNOWN")).thenReturn(Optional.empty());
     when(longTermAssets.aggregate(PORTFOLIO, DATE))
         .thenReturn(
             new LongTermAssetService.AggregateSummary(

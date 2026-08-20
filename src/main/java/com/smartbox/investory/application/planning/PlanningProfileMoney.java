@@ -1,6 +1,5 @@
 package com.smartbox.investory.application.planning;
 
-import com.smartbox.investory.services.PlanningPresentation;
 import java.math.BigDecimal;
 
 /** Display-currency-only profile amounts for the planning pages. */

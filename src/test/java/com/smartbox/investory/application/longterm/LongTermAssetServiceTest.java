@@ -7,8 +7,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import com.smartbox.investory.infrastructure.longterm.*;
-import com.smartbox.investory.infrastructure.repository.portfolio.PortfolioKpiSummary;
-import com.smartbox.investory.infrastructure.repository.portfolio.PortfolioKpiSummaryRepository;
+import com.smartbox.investory.services.portfolio.read.BrokeragePortfolioContext;
+import com.smartbox.investory.services.portfolio.read.BrokeragePortfolioContextReader;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -30,7 +30,7 @@ class LongTermAssetServiceTest {
   @Mock LongTermAssetBondDetailsRepository bonds;
   @Mock LongTermAssetDepositDetailsRepository deposits;
   @Mock RentalTaxPolicyRepository taxPolicies;
-  @Mock PortfolioKpiSummaryRepository portfolioSummaries;
+  @Mock BrokeragePortfolioContextReader brokeragePortfolioContextReader;
   @Mock CurrencyConversion currencyRates;
   LongTermAssetService service;
 
@@ -45,7 +45,7 @@ class LongTermAssetServiceTest {
             bonds,
             deposits,
             taxPolicies,
-            portfolioSummaries,
+            brokeragePortfolioContextReader,
             currencyRates);
   }
 
@@ -229,9 +229,8 @@ class LongTermAssetServiceTest {
     usd.setId(2L);
     usd.setCurrency(CurrencyType.USD);
     when(assets.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of(pln, usd));
-    PortfolioKpiSummary p = new PortfolioKpiSummary();
-    p.setBaseCurrency(CurrencyType.PLN);
-    when(portfolioSummaries.findById(1L)).thenReturn(Optional.of(p));
+    when(brokeragePortfolioContextReader.findById(1L))
+        .thenReturn(Optional.of(new BrokeragePortfolioContext(1L, CurrencyType.PLN)));
     when(currencyRates.convertToBaseCurrency(
             any(BigDecimal.class),
             org.mockito.ArgumentMatchers.eq(CurrencyType.PLN),

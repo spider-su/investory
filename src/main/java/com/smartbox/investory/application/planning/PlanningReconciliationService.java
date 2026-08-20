@@ -1,6 +1,7 @@
 package com.smartbox.investory.application.planning;
 
-import com.smartbox.investory.infrastructure.repository.portfolio.PortfolioMonthlyPerformanceRepository;
+import com.smartbox.investory.services.portfolio.read.HistoricalPortfolioActualsReader;
+import com.smartbox.investory.services.portfolio.read.HistoricalPortfolioYear;
 import java.math.BigDecimal;
 import java.util.EnumMap;
 import java.util.List;
@@ -13,15 +14,11 @@ import org.springframework.stereotype.Service;
 public class PlanningReconciliationService {
   private static final BigDecimal MONEY_TOLERANCE = new BigDecimal("0.01");
   private static final BigDecimal RATE_TOLERANCE = new BigDecimal("0.00000001");
-  private final HistoricalPortfolioYearSource historicalPortfolio;
+  private final HistoricalPortfolioActualsReader historicalPortfolio;
 
   @Autowired
-  public PlanningReconciliationService(HistoricalPortfolioYearSource historicalPortfolio) {
+  public PlanningReconciliationService(HistoricalPortfolioActualsReader historicalPortfolio) {
     this.historicalPortfolio = historicalPortfolio;
-  }
-
-  public PlanningReconciliationService(PortfolioMonthlyPerformanceRepository performance) {
-    this(new HistoricalPortfolioYearSource(performance));
   }
 
   public HistoricalReconciliation reconcile(Long portfolioId, PastPlanningYear planningYear) {
@@ -75,8 +72,7 @@ public class PlanningReconciliationService {
   }
 
   private Map<PlanningMetric, PlanningMetricValue> accountingValues(Long portfolioId, int year) {
-    HistoricalPortfolioYearSource.HistoricalPortfolioYear source =
-        historicalPortfolio.read(portfolioId, year);
+    HistoricalPortfolioYear source = historicalPortfolio.read(portfolioId, year);
     if (!source.complete()) return Map.of();
     Map<PlanningMetric, PlanningMetricValue> result = new EnumMap<>(PlanningMetric.class);
     result.put(

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
 import com.smartbox.investory.infrastructure.repository.portfolio.*;
+import com.smartbox.investory.services.portfolio.read.internal.HistoricalPortfolioActualsReadService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -51,7 +52,8 @@ class PlanningReconciliationServiceTest {
             Map.of());
 
     HistoricalReconciliation result =
-        new PlanningReconciliationService(repository).reconcile(1L, planningYear);
+        new PlanningReconciliationService(new HistoricalPortfolioActualsReadService(repository))
+            .reconcile(1L, planningYear);
 
     assertEquals(4, result.metrics().size());
     assertEquals(4, result.matchedCount());
@@ -75,7 +77,8 @@ class PlanningReconciliationServiceTest {
             Map.of());
 
     HistoricalReconciliation result =
-        new PlanningReconciliationService(repository).reconcile(1L, planningYear);
+        new PlanningReconciliationService(new HistoricalPortfolioActualsReadService(repository))
+            .reconcile(1L, planningYear);
 
     assertEquals(ReconciliationStatus.NOT_AVAILABLE, result.metrics().getFirst().status());
     assertEquals(ReconciliationQuality.UNAVAILABLE, result.metrics().getFirst().quality());
@@ -99,7 +102,8 @@ class PlanningReconciliationServiceTest {
             Map.of());
 
     HistoricalReconciliation result =
-        new PlanningReconciliationService(repository).reconcile(1L, planningYear);
+        new PlanningReconciliationService(new HistoricalPortfolioActualsReadService(repository))
+            .reconcile(1L, planningYear);
 
     assertEquals(ReconciliationStatus.NOT_AVAILABLE, result.metrics().getFirst().status());
     assertEquals(ReconciliationQuality.UNAVAILABLE, result.metrics().getFirst().quality());
