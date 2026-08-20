@@ -141,8 +141,8 @@ public class CurrentYearProjectionBridge {
                     asset ->
                         ContractualAssetProjector.isContractual(asset)
                             ? withValue(
-                                        asset,
-                                        ContractualAssetProjector.project(
+                                asset,
+                                ContractualAssetProjector.project(
                                         asset,
                                         projectedManual.get(asset.id()),
                                         assumptions,
