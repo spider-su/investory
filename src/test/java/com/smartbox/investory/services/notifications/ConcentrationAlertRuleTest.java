@@ -1,4 +1,4 @@
-package com.smartbox.investory.services.notifications;
+package com.smartbox.investory.integration.notifications;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -6,9 +6,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.infrastructure.repository.OpenedPosition;
-import com.smartbox.investory.infrastructure.repository.OpenedPositionRepository;
-import com.smartbox.investory.services.currency.CurrencyRateService;
+import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
+import com.smartbox.investory.investment.infrastructure.persistence.OpenedPositionRepository;
+import com.smartbox.investory.investment.market.fx.currency.CurrencyRateService;
 import com.smartbox.investory.testsupport.portfolio.PortfolioBuilders;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestData;
 import java.util.List;

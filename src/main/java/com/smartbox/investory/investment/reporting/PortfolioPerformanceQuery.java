@@ -1,9 +1,9 @@
 package com.smartbox.investory.investment.reporting;
 
-import com.smartbox.investory.infrastructure.repository.account.AccountDaily;
-import com.smartbox.investory.infrastructure.repository.account.AccountDailyRepository;
-import com.smartbox.investory.infrastructure.repository.portfolio.PortfolioMonthlyPerformance;
-import com.smartbox.investory.infrastructure.repository.portfolio.PortfolioMonthlyPerformanceRepository;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDaily;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformance;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;

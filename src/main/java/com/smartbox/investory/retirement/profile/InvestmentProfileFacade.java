@@ -10,7 +10,6 @@ import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
 import com.smartbox.investory.longterm.api.LongTermAssetProfileSummary;
 import com.smartbox.investory.longterm.api.LongTermAssetProjection;
 import com.smartbox.investory.longterm.api.LongTermAssetType;
-import com.smartbox.investory.services.models.Portfolio;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -136,10 +135,6 @@ public class InvestmentProfileFacade {
         illiquid,
         allocations(values, total),
         manualAssets);
-  }
-
-  public Portfolio loadMarketInvestments(Long portfolioId) {
-    return brokeragePortfolioReadService.currentMarketInvestments();
   }
 
   public List<LongTermAssetProfileAsset> loadLongTermAssets(Long portfolioId) {

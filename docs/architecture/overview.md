@@ -29,25 +29,14 @@ changes are owned by Flyway.
 
 ## Main code areas
 
-- `controllers`: UI, import/export/admin endpoints, Telegram, and compatibility endpoints.
-- `application/dashboard`: dashboard query boundary, facade orchestration, and immutable dashboard
-  view models for the server-rendered UI.
-- `application/longterm`: manual non-brokerage asset entry, economics, and projection inputs for real
-  estate, bonds, deposits, cash reserve, and other long-term assets.
-- `application/profile`: read-only `InvestmentProfile` aggregation of market portfolio and manual
-  long-term assets.
-- `application/simulation`: deterministic nominal retirement projection, scenario assumptions, funding
-  strategy, reserve/harvest policy, and simulation-only yearly results.
-- `application/planning`: planning-year lifecycle, baseline persistence, historical/current actuals,
-  current-year bridge, and Actual/Live/Projected timeline orchestration.
-- `services`: portfolio calculations, market/FX sync, projections, tax, cash flow, and pricing.
-- `services/imports`: broker parser SPI and broker-specific import implementations.
-- `services/openai`: optional AI/Telegram analysis and scheduled reports.
-- `services/portfolio`: deterministic portfolio command handling.
-- `services/notifications`: notification and alert rules.
-- `infrastructure`: persistence entities, repositories, enums, and reporting projections.
-- `clients`: external HTTP clients.
-- `config`: application security, scheduling, Thymeleaf, Telegram, and AI configuration.
+- `investment`: brokerage imports, accounting, market/FX, reporting/dashboard, reconciliation, and
+  Investment persistence. Its cross-domain reads are in `investment.api`.
+- `longterm`: manual non-brokerage asset application services, persistence, and public read contracts
+  in `longterm.api`.
+- `retirement`: profile composition, planning, simulation, and their persistence adapters.
+- `shared`: domain-neutral currency conversion, portfolio context, and presentation primitives.
+- `integration`, `config`, and `controllers`: application composition, external adapters, security,
+  and global UI concerns only.
 
 Use the current package tree as the source of truth if these boundaries change.
 
@@ -126,27 +115,20 @@ Investment -> shared primitives/contracts
 Long-Term Assets -> shared primitives/contracts
 ```
 
-Investment and Long-Term Assets must not depend on Retirement. Long-Term Assets must not depend on
-Investment implementation or persistence. Retirement must not access Investment or Long-Term Assets
-persistence. A public boundary exposes focused, immutable business read models, never JPA entities,
-repositories, SQL projections, or internal accounting services. Shared contracts stay small and
-domain-neutral; current candidates are currency identifiers/conversion and time abstractions only when
-their actual consumers require them.
+Investment and Long-Term Assets do not depend on each other or on Retirement. Retirement depends on
+Investment and Long-Term only through their `api` packages. A public boundary exposes focused,
+immutable business read models, never JPA entities, repositories, SQL projections, or internal
+accounting services. Shared contracts stay small and domain-neutral.
 
-Brokerage reporting already has a focused read boundary under `services/portfolio/read`.
-`BrokeragePortfolioReadService` publishes immutable shared brokerage snapshots for profile composition;
-it is not multi-portfolio scoped. It may use Investment internals behind that boundary. Manual Long-Term
-Assets join while `InvestmentProfileFacade` composes the profile. Profile and planning code do not
-mutate accounting state.
+`investment.api.BrokeragePortfolioReadService` publishes immutable shared brokerage snapshots for
+profile composition; it is not multi-portfolio scoped. `BrokerageAssetClassificationReader` supplies
+the optional symbol classification needed by the profile, and `HistoricalPortfolioActualsReader`
+supplies portfolio-scoped calendar-year planning facts. Their Investment implementations retain
+persistence access behind the boundary.
 
-`BrokerageAssetClassificationReader` supplies the optional symbol classification required by profile
-composition. `HistoricalPortfolioActualsReader` supplies complete, portfolio-scoped calendar-year facts
-for planning and reconciliation. Their Investment-owned implementations retain `AssetRepository` and
-`PortfolioMonthlyPerformanceRepository` access; the public contracts and immutable models do not expose
-persistence types.
-`BrokeragePortfolioContextReader` supplies optional portfolio identity and base currency for Long-Term
-validation and aggregation while retaining the existing `PortfolioKpiSummaryRepository` lookup inside
-Investment.
+`shared.portfolio.PortfolioContextReader` supplies optional portfolio identity and base currency for
+Long-Term validation and aggregation. The Investment-owned repository-backed implementation preserves
+the existing `PortfolioKpiSummaryRepository` lookup and missing-portfolio behavior.
 
 Long-Term publishes `LongTermAssetProfileReader` for profile composition and projection inputs, and
 `LongTermAssetAnnualSnapshotReader` for current and historical planning facts. Its public immutable
@@ -155,23 +137,15 @@ Long-Term persistence and application services remain internal.
 
 Planning must not become an accounting source of truth or depend on a projected result as an actual fact.
 
-### Transitional boundary exceptions
-
-The target is not fully implemented yet. These exact current dependencies are intentional work items,
-not permitted broad package exceptions:
-
-| Current dependency | Why it exists now | Removal stage |
-| --- | --- | --- |
-| `PlanningPresentation` -> planning, profile, simulation, and Long-Term types | The formatter is a cross-domain presentation bridge; Long-Term also calls it. | Stage 5 |
-
 `shared.currency.CurrencyType` and `shared.currency.CurrencyConversion` now provide the shared FX
 boundary. `CurrencyRateService` implements the BigDecimal conversion contract; its rate resolution,
 persistence, cache, and double compatibility APIs remain Investment implementation details. Long-Term
 and Retirement consumers use the shared contract.
 
-ArchUnit rules protect the boundaries that already exist. The one accounting-to-Retirement exception is
-specific to `PlanningPresentation`, documented above, and is removed in Stage 5. Later stages replace
-the listed direct dependencies with narrow public read contracts before packages are consolidated.
+`controllers.ui.UiPresentation` remains an application UI helper. Long-Term uses only the shared
+financial presentation primitive; no PlanningPresentation exception or Long-Term-to-Retirement
+presentation dependency remains. `SimulationPlanService` is the only documented simulation persistence
+orchestration adapter; deterministic simulation classes remain persistence-free.
 
 ## Change rules
 

@@ -8,7 +8,7 @@ import com.smartbox.investory.retirement.planning.PlanningMetric;
 import com.smartbox.investory.retirement.profile.EconomicBucket;
 import com.smartbox.investory.retirement.profile.Liquidity;
 import com.smartbox.investory.retirement.simulation.SimulationFundingStrategy;
-import com.smartbox.investory.services.FinancialPrecision;
+import com.smartbox.investory.shared.presentation.FinancialPrecision;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.text.NumberFormat;

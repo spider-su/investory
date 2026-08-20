@@ -5,8 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.clients.currency.ExchangeRateClient;
 import com.smartbox.investory.integration.PluginConfig;
+import com.smartbox.investory.investment.infrastructure.fx.client.currency.ExchangeRateClient;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.LocalDate;
 import java.util.List;

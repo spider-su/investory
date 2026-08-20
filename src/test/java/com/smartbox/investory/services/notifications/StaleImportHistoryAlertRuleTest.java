@@ -1,4 +1,4 @@
-package com.smartbox.investory.services.notifications;
+package com.smartbox.investory.integration.notifications;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -6,8 +6,8 @@ import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.infrastructure.BrokerType;
 import com.smartbox.investory.infrastructure.ImportBatchStatus;
-import com.smartbox.investory.infrastructure.repository.imports.ImportHistory;
-import com.smartbox.investory.infrastructure.repository.imports.ImportRepository;
+import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistory;
+import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportRepository;
 import java.time.ZonedDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;

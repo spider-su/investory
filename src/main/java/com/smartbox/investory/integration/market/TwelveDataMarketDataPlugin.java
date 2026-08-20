@@ -1,12 +1,12 @@
 package com.smartbox.investory.integration.market;
 
-import com.smartbox.investory.clients.market.TwelveDataService;
 import com.smartbox.investory.integration.IntegrationType;
 import com.smartbox.investory.integration.PluginConfig;
 import com.smartbox.investory.integration.PluginDescriptor;
 import com.smartbox.investory.integration.PluginFieldDescriptor;
 import com.smartbox.investory.integration.ValidationResult;
-import com.smartbox.investory.services.models.StockQuote;
+import com.smartbox.investory.investment.accounting.model.models.StockQuote;
+import com.smartbox.investory.investment.infrastructure.market.client.market.TwelveDataService;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;

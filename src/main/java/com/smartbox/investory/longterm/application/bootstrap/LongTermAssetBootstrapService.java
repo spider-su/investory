@@ -1,10 +1,10 @@
 package com.smartbox.investory.longterm.application.bootstrap;
 
-import com.smartbox.investory.investment.api.BrokeragePortfolioContextReader;
 import com.smartbox.investory.longterm.api.CashFlowType;
 import com.smartbox.investory.longterm.api.Frequency;
 import com.smartbox.investory.longterm.api.LongTermAssetType;
 import com.smartbox.investory.longterm.infrastructure.*;
+import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
@@ -24,7 +24,7 @@ public class LongTermAssetBootstrapService {
   private final LongTermAssetBondDetailsRepository bonds;
   private final LongTermAssetDepositDetailsRepository deposits;
   private final RentalTaxPolicyRepository taxPolicies;
-  private final BrokeragePortfolioContextReader brokeragePortfolioContextReader;
+  private final PortfolioContextReader portfolioContextReader;
 
   @Transactional
   public LongTermAssetBootstrapResult importDocument(
@@ -73,7 +73,7 @@ public class LongTermAssetBootstrapService {
   private void validate(LongTermAssetBootstrapDocument document) {
     if (document == null || document.portfolioId() == null)
       throw new IllegalArgumentException("portfolioId is required");
-    if (brokeragePortfolioContextReader.findById(document.portfolioId()).isEmpty())
+    if (portfolioContextReader.findById(document.portfolioId()).isEmpty())
       throw new IllegalArgumentException("Portfolio not found: " + document.portfolioId());
     var keys = new HashSet<String>();
     for (var policy : safe(document.rentalTaxPolicies())) {

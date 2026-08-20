@@ -1,13 +1,13 @@
-package com.smartbox.investory.services.health;
+package com.smartbox.investory.integration.health;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.infrastructure.BrokerType;
 import com.smartbox.investory.infrastructure.ImportBatchStatus;
-import com.smartbox.investory.infrastructure.repository.imports.ImportHistory;
-import com.smartbox.investory.infrastructure.repository.imports.ImportRepository;
-import com.smartbox.investory.services.notifications.NotificationProperties;
+import com.smartbox.investory.integration.notifications.NotificationProperties;
+import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistory;
+import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;

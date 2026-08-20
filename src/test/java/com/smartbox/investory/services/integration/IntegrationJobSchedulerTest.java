@@ -1,4 +1,4 @@
-package com.smartbox.investory.services.integration;
+package com.smartbox.investory.integration.jobs;
 
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -13,8 +13,8 @@ import com.smartbox.investory.infrastructure.repository.integration.IntegrationJ
 import com.smartbox.investory.infrastructure.repository.integration.IntegrationJobRepository;
 import com.smartbox.investory.integration.IntegrationType;
 import com.smartbox.investory.integration.config.IntegrationConfigurationService;
-import com.smartbox.investory.services.MarketService;
-import com.smartbox.investory.services.currency.CurrencyRateUpdaterService;
+import com.smartbox.investory.investment.market.fx.currency.CurrencyRateUpdaterService;
+import com.smartbox.investory.investment.market.price.MarketService;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;

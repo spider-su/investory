@@ -2,7 +2,7 @@ package com.smartbox.investory.longterm.application;
 
 import com.smartbox.investory.longterm.api.Frequency;
 import com.smartbox.investory.longterm.infrastructure.*;
-import com.smartbox.investory.services.FinancialPrecision;
+import com.smartbox.investory.shared.presentation.FinancialPrecision;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;

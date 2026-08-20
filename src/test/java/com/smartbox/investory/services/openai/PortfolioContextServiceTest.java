@@ -1,4 +1,4 @@
-package com.smartbox.investory.services.openai;
+package com.smartbox.investory.integration.openai;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;

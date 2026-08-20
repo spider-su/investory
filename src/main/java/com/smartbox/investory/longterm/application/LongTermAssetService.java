@@ -1,6 +1,5 @@
 package com.smartbox.investory.longterm.application;
 
-import com.smartbox.investory.investment.api.BrokeragePortfolioContextReader;
 import com.smartbox.investory.longterm.api.CashFlowType;
 import com.smartbox.investory.longterm.api.Frequency;
 import com.smartbox.investory.longterm.api.InterestTreatment;
@@ -9,6 +8,7 @@ import com.smartbox.investory.longterm.api.LongTermAssetType;
 import com.smartbox.investory.longterm.infrastructure.*;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
 import com.smartbox.investory.shared.presentation.FinancialPresentation;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -31,7 +31,7 @@ public class LongTermAssetService {
   private final LongTermAssetBondDetailsRepository bonds;
   private final LongTermAssetDepositDetailsRepository deposits;
   private final RentalTaxPolicyRepository taxPolicies;
-  private final BrokeragePortfolioContextReader brokeragePortfolioContextReader;
+  private final PortfolioContextReader portfolioContextReader;
   private final CurrencyConversion currencyRates;
 
   @Value("${app.long-term-assets.planning-currency:PLN}")
@@ -690,7 +690,7 @@ public class LongTermAssetService {
   public AggregateSummary aggregate(Long portfolioId, LocalDate date) {
     date = effectiveDate(date);
     com.smartbox.investory.shared.currency.CurrencyType base =
-        brokeragePortfolioContextReader
+        portfolioContextReader
             .findById(portfolioId)
             .orElseThrow(() -> new NoSuchElementException("Portfolio not found"))
             .baseCurrency();

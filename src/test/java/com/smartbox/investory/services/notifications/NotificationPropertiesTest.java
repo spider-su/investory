@@ -1,4 +1,4 @@
-package com.smartbox.investory.services.notifications;
+package com.smartbox.investory.integration.notifications;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;

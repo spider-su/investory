@@ -1,11 +1,11 @@
-package com.smartbox.investory.services.notifications;
+package com.smartbox.investory.integration.notifications;
 
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 import com.smartbox.investory.controllers.bot.PortfolioBot;
-import com.smartbox.investory.services.PortfolioService;
-import com.smartbox.investory.services.models.Portfolio;
+import com.smartbox.investory.investment.accounting.PortfolioService;
+import com.smartbox.investory.investment.accounting.model.models.Portfolio;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.List;
 import java.util.Optional;

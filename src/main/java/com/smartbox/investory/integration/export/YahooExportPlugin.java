@@ -4,7 +4,7 @@ import com.smartbox.investory.integration.IntegrationType;
 import com.smartbox.investory.integration.PluginConfig;
 import com.smartbox.investory.integration.PluginDescriptor;
 import com.smartbox.investory.integration.ValidationResult;
-import com.smartbox.investory.services.exports.yahoo.YahooExportService;
+import com.smartbox.investory.integration.export.yahoo.YahooExportService;
 import java.io.IOException;
 import java.util.List;
 import lombok.RequiredArgsConstructor;

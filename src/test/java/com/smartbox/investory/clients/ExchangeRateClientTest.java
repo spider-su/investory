@@ -6,8 +6,8 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.smartbox.investory.clients.currency.ExchangeRateClient;
-import com.smartbox.investory.clients.currency.ExchangeRateException;
+import com.smartbox.investory.investment.infrastructure.fx.client.currency.ExchangeRateClient;
+import com.smartbox.investory.investment.infrastructure.fx.client.currency.ExchangeRateException;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;

@@ -9,27 +9,90 @@ import org.junit.jupiter.api.Test;
 
 class LayerDependencyTest {
   static {
-    // Java 26 class files are newer than ArchUnit's bundled ASM; dependency resolution is not
-    // needed for these package-direction checks and would pull in JRT classes.
     ArchConfiguration.get().setResolveMissingDependenciesFromClassPath(false);
   }
 
   private static final JavaClasses MAIN = new ClassFileImporter().importPath("target/classes");
 
   @Test
-  void simulationDoesNotDependOnAccountingRepositories() {
+  void investmentDoesNotDependOnOtherBusinessDomains() {
     noClasses()
         .that()
-        .resideInAnyPackage("..retirement.simulation..")
+        .resideInAnyPackage("..investment..")
         .should()
         .dependOnClassesThat()
-        .resideInAnyPackage("..infrastructure.repository..")
+        .resideInAnyPackage("..longterm..", "..retirement..")
         .check(MAIN);
   }
 
   @Test
-  void deterministicSimulationIsPersistenceFree() {
-    // SimulationPlanService is the known persistence adapter kept in this package for now.
+  void longTermDoesNotDependOnOtherBusinessDomains() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..longterm..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage("..investment..", "..retirement..")
+        .check(MAIN);
+  }
+
+  @Test
+  void retirementUsesOnlyInvestmentAndLongTermPublicBoundaries() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..retirement..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage(
+            "..investment.accounting..",
+            "..investment.imports..",
+            "..investment.market..",
+            "..investment.reporting..",
+            "..investment.reconciliation..",
+            "..investment.infrastructure..",
+            "..investment.web..",
+            "..longterm.application..",
+            "..longterm.infrastructure..",
+            "..longterm.web..")
+        .check(MAIN);
+  }
+
+  @Test
+  void sharedDoesNotDependOnBusinessDomains() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..shared..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage("..investment..", "..longterm..", "..retirement..")
+        .check(MAIN);
+  }
+
+  @Test
+  void investmentApiDoesNotDependOnInvestmentPersistence() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..investment.api..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage("..investment.infrastructure.persistence..")
+        .check(MAIN);
+  }
+
+  @Test
+  void longTermApiDoesNotDependOnLongTermPersistence() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..longterm.api..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage("..longterm.infrastructure..")
+        .check(MAIN);
+  }
+
+  @Test
+  void deterministicSimulationDoesNotDependOnPersistenceOrDomainImplementations() {
+    // SimulationPlanService is the persistence-owning orchestration adapter in this package.
     noClasses()
         .that()
         .resideInAnyPackage("..retirement.simulation..")
@@ -38,7 +101,15 @@ class LayerDependencyTest {
         .should()
         .dependOnClassesThat()
         .resideInAnyPackage(
-            "..infrastructure.repository..", "..retirement.infrastructure.simulation..")
+            "..retirement.infrastructure..",
+            "..investment.accounting..",
+            "..investment.imports..",
+            "..investment.market..",
+            "..investment.reporting..",
+            "..investment.reconciliation..",
+            "..investment.infrastructure..",
+            "..longterm.application..",
+            "..longterm.infrastructure..")
         .check(MAIN);
   }
 
@@ -46,172 +117,18 @@ class LayerDependencyTest {
   void dashboardApplicationDoesNotReachIntoPersistence() {
     noClasses()
         .that()
-        .resideInAnyPackage("..application.dashboard..")
+        .resideInAnyPackage("..investment.reporting.dashboard.application..")
         .should()
         .dependOnClassesThat()
-        .resideInAnyPackage("..infrastructure.repository..")
+        .resideInAnyPackage("..investment.infrastructure.persistence..")
         .check(MAIN);
   }
 
   @Test
-  void profileApplicationUsesPortfolioReadBoundary() {
+  void accountingDoesNotDependOnRetirementPlanningOrSimulation() {
     noClasses()
         .that()
-        .resideInAnyPackage("..retirement.profile..")
-        .should()
-        .dependOnClassesThat()
-        .haveSimpleName("PortfolioService")
-        .check(MAIN);
-  }
-
-  @Test
-  void profileApplicationDoesNotDependOnInvestmentRepositories() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..retirement.profile..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage("..infrastructure.repository..")
-        .check(MAIN);
-  }
-
-  @Test
-  void planningApplicationDoesNotDependOnInvestmentRepositories() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..retirement.planning..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage("..infrastructure.repository..")
-        .check(MAIN);
-  }
-
-  @Test
-  void longTermApplicationDoesNotDependOnInvestmentRepositories() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..longterm.application..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage("..infrastructure.repository..")
-        .check(MAIN);
-  }
-
-  @Test
-  void retirementApplicationsDoNotDependOnLongTermPersistence() {
-    noClasses()
-        .that()
-        .resideInAnyPackage(
-            "..retirement.profile..", "..retirement.planning..", "..retirement.simulation..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage("..longterm.infrastructure..")
-        .check(MAIN);
-  }
-
-  @Test
-  void longTermApplicationsDoNotDependOnRetirementApplications() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..longterm.application..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage(
-            "..retirement.profile..", "..retirement.planning..", "..retirement.simulation..")
-        .check(MAIN);
-  }
-
-  @Test
-  void investmentDoesNotDependOnRetirement() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..investment..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage("..retirement..")
-        .check(MAIN);
-  }
-
-  @Test
-  void longTermDoesNotDependOnRetirement() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..longterm..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage("..retirement..")
-        .check(MAIN);
-  }
-
-  @Test
-  void retirementDoesNotDependOnInvestmentOrLongTermImplementations() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..retirement..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage("..investment.infrastructure..", "..longterm.infrastructure..")
-        .check(MAIN);
-  }
-
-  @Test
-  void brokerageSnapshotModelsDoNotReachIntoPersistence() {
-    noClasses()
-        .that()
-        .haveNameMatching(
-            ".*investment\\.api\\.(BrokeragePositionSnapshot|SharedBrokeragePortfolioSnapshot)")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage("..infrastructure.repository..")
-        .check(MAIN);
-  }
-
-  @Test
-  void brokeragePlanningReadContractsDoNotReachIntoPersistence() {
-    noClasses()
-        .that()
-        .haveNameMatching(
-            ".*investment\\.api\\.(BrokerageAssetClassification|BrokerageAssetClassificationReader|BrokeragePortfolioContext|BrokeragePortfolioContextReader|HistoricalPortfolioActualsReader|HistoricalPortfolioYear)")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage("..infrastructure.repository..")
-        .check(MAIN);
-  }
-
-  @Test
-  void longTermReadContractsDoNotReachIntoPersistence() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..longterm.api..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage("..longterm.infrastructure..", "..infrastructure.repository..")
-        .check(MAIN);
-  }
-
-  @Test
-  void sharedContractsDoNotDependOnDomainImplementations() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..shared..")
-        .should()
-        .dependOnClassesThat()
-        .resideInAnyPackage(
-            "..application..",
-            "..services..",
-            "..controllers..",
-            "..infrastructure.repository..",
-            "..longterm.infrastructure..",
-            "..retirement.infrastructure.planning..",
-            "..retirement.infrastructure.simulation..")
-        .check(MAIN);
-  }
-
-  @Test
-  void accountingServicesDoNotDependOnPlanningOrSimulation() {
-    noClasses()
-        .that()
-        .resideInAnyPackage("..services..")
+        .resideInAnyPackage("..investment.accounting..")
         .should()
         .dependOnClassesThat()
         .resideInAnyPackage("..retirement.planning..", "..retirement.simulation..")

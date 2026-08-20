@@ -1,4 +1,4 @@
-package com.smartbox.investory.services.notifications;
+package com.smartbox.investory.integration.notifications;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -7,8 +7,8 @@ import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.infrastructure.repository.notifications.DrawdownAlertState;
 import com.smartbox.investory.infrastructure.repository.notifications.DrawdownAlertStateRepository;
-import com.smartbox.investory.services.PortfolioService;
-import com.smartbox.investory.services.models.Portfolio;
+import com.smartbox.investory.investment.accounting.PortfolioService;
+import com.smartbox.investory.investment.accounting.model.models.Portfolio;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.Clock;
 import java.time.Instant;

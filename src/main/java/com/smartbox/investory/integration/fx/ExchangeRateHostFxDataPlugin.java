@@ -1,11 +1,11 @@
 package com.smartbox.investory.integration.fx;
 
-import com.smartbox.investory.clients.currency.ExchangeRateClient;
 import com.smartbox.investory.integration.IntegrationType;
 import com.smartbox.investory.integration.PluginConfig;
 import com.smartbox.investory.integration.PluginDescriptor;
 import com.smartbox.investory.integration.PluginFieldDescriptor;
 import com.smartbox.investory.integration.ValidationResult;
+import com.smartbox.investory.investment.infrastructure.fx.client.currency.ExchangeRateClient;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.ArrayList;
 import java.util.List;

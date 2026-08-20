@@ -3,8 +3,8 @@ package com.smartbox.investory.testsupport.portfolio;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-import com.smartbox.investory.infrastructure.repository.CashOperation;
-import com.smartbox.investory.infrastructure.repository.OpenedPosition;
+import com.smartbox.investory.investment.infrastructure.persistence.CashOperation;
+import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
 import java.util.List;
 
 public final class PortfolioAssertions {
