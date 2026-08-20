@@ -9,7 +9,8 @@
 *.csv
 *.zip
 !src/test/resources/reconciliation/golden/**
-src/main/resources/application-local.yml
+**/application-local.yml
+app/src/main/resources/application-k3s.yml
 src/main/resources/application-k3s.yml
 .env
 /src/test/manual/http-client.private.env.json
@@ -24,3 +25,9 @@ src/main/resources/application-k3s.yml
 /.m2-local/
 /.m2/
 /.m2-wrapper-cache/
+/app/target/
+/modules/investment/target/
+/modules/longterm/target/
+/modules/retirement/target/
+/integrations/target/
+/test-support/target/

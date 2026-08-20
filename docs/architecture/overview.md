@@ -6,7 +6,8 @@ and Flyway migrations.
 
 ## System shape
 
-Investory is a Spring Boot monolith backed by PostgreSQL. The main data path is:
+Investory is one Spring Boot modular monolith, one executable application and one deployment,
+backed by one PostgreSQL database. The main data path is:
 
 ```text
 broker files
@@ -35,10 +36,11 @@ changes are owned by Flyway.
 - `longterm`: manual non-brokerage asset application services, persistence, and public read contracts
   in `longterm.api`.
 - `retirement`: profile composition, planning, simulation, and their persistence adapters.
-- `shared`: domain-neutral currency conversion, portfolio context, and presentation primitives.
-- `integration`: external adapters plus integration and notification persistence.
-- `config` and the remaining global `controllers`: application composition, security, bot commands,
-  and global UI concerns only.
+- `shared`: domain-neutral currency conversion, portfolio context, and presentation primitives exposed
+  from the Investment public surface where required by the current Maven layout.
+- `integrations`: external adapters plus integration and notification persistence.
+- `app`: application composition, security, scheduling, executable packaging, Flyway resources, and
+  global UI concerns.
 
 Use the current package tree as the source of truth if these boundaries change.
 
@@ -98,8 +100,8 @@ This is an application boundary for the internal UI, not a new dashboard JSON AP
 
 ## Domain boundary direction
 
-Investory remains one Spring Boot application and one Maven artifact. The business ownership target is
-three domains:
+Investory remains one Spring Boot application and one JVM process. Maven provides compile-time module
+boundaries while the business ownership is organized around three domains:
 
 - **Investment** owns brokerage accounts, imports, accounting, market data, portfolio reporting,
   dashboard, and reconciliation.
@@ -134,7 +136,7 @@ persistence access behind the boundary.
 Long-Term validation and aggregation. The Investment-owned repository-backed implementation preserves
 the existing `PortfolioKpiSummaryRepository` lookup and missing-portfolio behavior.
 
-Integration entities and repositories are owned by `integration.infrastructure.persistence`; notification
+Integration entities and repositories are owned by `integrations.infrastructure.persistence`; notification
 state is owned by `integration.notifications.infrastructure`. They keep their existing database mappings
 and remain adapters outside the three business domains.
 
@@ -150,10 +152,15 @@ boundary. `CurrencyRateService` implements the BigDecimal conversion contract; i
 persistence, cache, and double compatibility APIs remain Investment implementation details. Long-Term
 and Retirement consumers use the shared contract.
 
-`controllers.ui.UiPresentation` remains an application UI helper. Long-Term uses only the shared
-financial presentation primitive; no PlanningPresentation exception or Long-Term-to-Retirement
-presentation dependency remains. `SimulationPlanService` is the only documented simulation persistence
-orchestration adapter; deterministic simulation classes remain persistence-free.
+`app.UiPresentation` is an application UI helper. Long-Term uses only the shared financial presentation
+primitive; no PlanningPresentation exception or Long-Term-to-Retirement presentation dependency remains.
+`SimulationPlanService` is the only documented simulation persistence orchestration adapter; deterministic
+simulation classes remain persistence-free.
+
+The Maven reactor contains `app`, `investment`, `longterm`, `retirement`, `integrations`, and
+`test-support`. Retirement consumes Investment and Long-Term public APIs. Investment and Long-Term do not
+depend on Retirement. This remains one executable application, not microservices. PostgreSQL schema
+isolation is a separate future epic; this modularization does not change schemas, roles, or Flyway history.
 
 ## Change rules
 
