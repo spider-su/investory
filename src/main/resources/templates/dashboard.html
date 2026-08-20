@@ -330,7 +330,7 @@
                     Realized P/L
                 </p>
                 <div class="iv-hover-context__panel iv-overview-card__context" role="tooltip">
-                    <span th:text="${selectedPeriod == T(com.smartbox.investory.services.dashboard.DashboardPeriod).MAX ? 'Since inception · before tax' : selectedPeriod.label() + ' · before tax'}">YTD · before tax</span>
+                    <span th:text="${selectedPeriod == T(com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriod).MAX ? 'Since inception · before tax' : selectedPeriod.label() + ' · before tax'}">YTD · before tax</span>
                 </div>
             </div>
             <p class="iv-kpi__value"
@@ -452,7 +452,7 @@
                     Dividends
                 </p>
                 <div class="iv-hover-context__panel iv-overview-card__context" role="tooltip">
-                    <span><span th:text="${selectedPeriod == T(com.smartbox.investory.services.dashboard.DashboardPeriod).MAX ? 'Since inception' : selectedPeriod.label()}">YTD</span> · after withholding tax · yield
+                    <span><span th:text="${selectedPeriod == T(com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriod).MAX ? 'Since inception' : selectedPeriod.label()}">YTD</span> · after withholding tax · yield
                         <strong th:if="${stats.incomeYieldPct != null}"
                                 th:text="${stats.formatPercent(stats.incomeYieldPct)}">0,0%</strong>
                         <strong th:unless="${stats.incomeYieldPct != null}">Unavailable</strong>
