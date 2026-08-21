@@ -1,5 +1,6 @@
 package com.smartbox.investory.retirement.profile;
 
+import com.smartbox.investory.longterm.api.model.RentalContractModel;
 import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
@@ -17,6 +18,7 @@ public record ProjectedLongTermAsset(
     BigDecimal currentValue,
     Liquidity liquidity,
     List<Period> periods,
+    List<RentalContractModel> rentalContracts,
     LocalDate maturityDate,
     BigDecimal redemptionValue,
     InterestTreatment interestTreatment,
@@ -45,6 +47,7 @@ public record ProjectedLongTermAsset(
         currentValue,
         liquidity,
         periods,
+        List.of(),
         maturityDate,
         redemptionValue,
         interestTreatment,
@@ -55,6 +58,7 @@ public record ProjectedLongTermAsset(
 
   public ProjectedLongTermAsset {
     periods = periods == null ? List.of() : List.copyOf(periods);
+    rentalContracts = rentalContracts == null ? List.of() : List.copyOf(rentalContracts);
   }
 
   public record Period(
@@ -108,11 +112,45 @@ public record ProjectedLongTermAsset(
         currentValue,
         liquidity,
         periods,
+        List.of(),
         maturityDate,
         redemptionValue,
         interestTreatment,
         taxRate,
         taxBase,
         false);
+  }
+
+  public ProjectedLongTermAsset(
+      Long id,
+      String name,
+      LongTermAssetType type,
+      EconomicBucket bucket,
+      CurrencyType currency,
+      BigDecimal currentValue,
+      Liquidity liquidity,
+      List<Period> periods,
+      LocalDate maturityDate,
+      BigDecimal redemptionValue,
+      InterestTreatment interestTreatment,
+      BigDecimal taxRate,
+      BigDecimal taxBase,
+      boolean rentalTaxPaidByTenant) {
+    this(
+        id,
+        name,
+        type,
+        bucket,
+        currency,
+        currentValue,
+        liquidity,
+        periods,
+        List.of(),
+        maturityDate,
+        redemptionValue,
+        interestTreatment,
+        taxRate,
+        taxBase,
+        rentalTaxPaidByTenant);
   }
 }
