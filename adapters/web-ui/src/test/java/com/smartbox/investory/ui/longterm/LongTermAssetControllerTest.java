@@ -8,8 +8,6 @@ import com.smartbox.investory.longterm.api.*;
 import com.smartbox.investory.longterm.api.LongTermAssetsApi;
 import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
-import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -54,22 +52,6 @@ class LongTermAssetControllerTest {
   void propertyGrowthFormIsSentAsPercentInput() {
     controller.savePropertyGrowth(7L, 1L, BigDecimal.ONE, LocalDate.of(2026, 1, 1));
     verify(assets).savePropertyGrowth(1L, 7L, BigDecimal.ONE, LocalDate.of(2026, 1, 1));
-  }
-
-  @Test
-  void cashFlowFormPreservesBothEffectiveDates() {
-    controller.addCashFlow(
-        11L,
-        1L,
-        CashFlowType.RENT,
-        new BigDecimal("2900"),
-        Frequency.MONTHLY,
-        LocalDate.of(2025, 1, 1),
-        LocalDate.of(2026, 12, 31));
-    var command = ArgumentCaptor.forClass(LongTermAssetsApi.CashFlowCommand.class);
-    verify(assets).addCashFlow(command.capture(), any());
-    assertEquals(LocalDate.of(2025, 1, 1), command.getValue().validFrom());
-    assertEquals(LocalDate.of(2026, 12, 31), command.getValue().validTo());
   }
 
   @Test

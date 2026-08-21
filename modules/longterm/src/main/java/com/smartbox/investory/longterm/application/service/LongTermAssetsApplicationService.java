@@ -155,22 +155,6 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
   }
 
   @Override
-  public void saveRentalPeriod(
-      Long portfolioId, Long assetId, LocalDate effectiveFrom, LocalDate endDate, LocalDate date) {
-    delegate.saveRentalPeriod(portfolioId, assetId, effectiveFrom, endDate, date);
-  }
-
-  @Override
-  public void addCashFlow(LongTermAssetsApi.CashFlowCommand command, LocalDate today) {
-    delegate.addCashFlow(toInternal(command), today);
-  }
-
-  @Override
-  public void changeCashFlow(LongTermAssetsApi.CashFlowCommand command) {
-    delegate.changeCashFlow(toInternal(command));
-  }
-
-  @Override
   public void savePropertyGrowth(Long portfolioId, Long id, BigDecimal percent, LocalDate from) {
     delegate.savePropertyGrowth(portfolioId, id, percent, from);
   }
@@ -243,20 +227,6 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
         c.rentalTaxPaidByTenant());
   }
 
-  private static LongTermAssetsFacade.CashFlowCommand toInternal(
-      LongTermAssetsApi.CashFlowCommand c) {
-    return new LongTermAssetsFacade.CashFlowCommand(
-        c.portfolioId(),
-        c.assetId(),
-        c.flowId(),
-        cashFlowType(c.type()),
-        c.amount(),
-        frequency(c.frequency()),
-        c.validFrom(),
-        c.validTo(),
-        c.paidByTenant());
-  }
-
   private static LongTermAssetsApi.AssetView asset(LongTermAssetsFacade.AssetView v) {
     return new LongTermAssetsApi.AssetView(
         v.id(),
@@ -277,14 +247,10 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
     return new LongTermAssetsApi.DetailView(
         asset(v.asset()),
         summary(v.summary()),
-        v.cashFlows().stream().map(LongTermAssetsApplicationService::flow).toList(),
         v.bondDetails() == null ? null : bond(v.bondDetails()),
         v.depositDetails() == null ? null : deposit(v.depositDetails()),
         v.valuationPeriods().stream().map(LongTermAssetsApplicationService::valuation).toList(),
         v.bondRatePeriods().stream().map(LongTermAssetsApplicationService::bondRate).toList(),
-        v.currentCashFlows().stream().map(LongTermAssetsApplicationService::flow).toList(),
-        new RentalPeriodView(v.rentalPeriod().effectiveFrom(), v.rentalPeriod().endDate()),
-        v.availableCashFlowTypes().stream().map(LongTermAssetsApplicationService::cashFlowType).toList(),
         v.expectedPropertyGrowth(),
         v.contracts().stream()
             .map(
@@ -388,18 +354,6 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
         p.netYield(),
         p.maturityDate(),
         interest(p.interestTreatment()));
-  }
-
-  private static LongTermAssetsApi.FlowView flow(LongTermAssetsFacade.FlowView f) {
-    return new LongTermAssetsApi.FlowView(
-        f.id(),
-        f.assetId(),
-        cashFlowType(f.type()),
-        f.amount(),
-        frequency(f.frequency()),
-        f.validFrom(),
-        f.validTo(),
-        f.paidByTenant());
   }
 
   private static LongTermAssetsApi.BondDetailsView bond(LongTermAssetsFacade.BondDetailsView d) {

@@ -50,13 +50,6 @@ public interface LongTermAssetsApi {
 
   void reactivate(Long portfolioId, Long id);
 
-  void saveRentalPeriod(
-      Long portfolioId, Long assetId, LocalDate effectiveFrom, LocalDate endDate, LocalDate date);
-
-  void addCashFlow(CashFlowCommand command, LocalDate today);
-
-  void changeCashFlow(CashFlowCommand command);
-
   void savePropertyGrowth(Long portfolioId, Long id, BigDecimal percent, LocalDate from);
 
   void saveBondDetails(Long portfolioId, Long id, BondDetailsCommand command);
@@ -131,29 +124,6 @@ public interface LongTermAssetsApi {
       BigDecimal annualReturnPercent,
       String notes) {}
 
-  record CashFlowCommand(
-      Long portfolioId,
-      Long assetId,
-      Long flowId,
-      CashFlowTypeModel type,
-      BigDecimal amount,
-      FrequencyModel frequency,
-      LocalDate validFrom,
-      LocalDate validTo,
-      Boolean paidByTenant) {
-    public CashFlowCommand(
-        Long portfolioId,
-        Long assetId,
-        Long flowId,
-        CashFlowTypeModel type,
-        BigDecimal amount,
-        FrequencyModel frequency,
-        LocalDate validFrom,
-        LocalDate validTo) {
-      this(portfolioId, assetId, flowId, type, amount, frequency, validFrom, validTo, null);
-    }
-  }
-
   record RentalContractCommand(
       Long portfolioId,
       Long assetId,
@@ -198,16 +168,6 @@ public interface LongTermAssetsApi {
       String notes,
       boolean rentalTaxPaidByTenant) {}
 
-  record FlowView(
-      Long id,
-      Long assetId,
-      CashFlowTypeModel type,
-      BigDecimal amount,
-      FrequencyModel frequency,
-      LocalDate validFrom,
-      LocalDate validTo,
-      boolean paidByTenant) {}
-
   record BondDetailsView(
       LocalDate maturityDate,
       BigDecimal taxRate,
@@ -224,8 +184,6 @@ public interface LongTermAssetsApi {
       LocalDate validFrom, LocalDate validTo, BigDecimal expectedAnnualGrowthRate) {}
 
   record BondRateView(LocalDate validFrom, LocalDate validTo, BigDecimal annualInterestRate) {}
-
-  record RentalPeriodView(LocalDate effectiveFrom, LocalDate endDate) {}
 
   record AnnualEconomicsView(
       BigDecimal grossAnnualIncome,
@@ -290,14 +248,10 @@ public interface LongTermAssetsApi {
   record DetailView(
       AssetView asset,
       AssetSummaryView summary,
-      List<FlowView> cashFlows,
       BondDetailsView bondDetails,
       DepositDetailsView depositDetails,
       List<ValuationView> valuationPeriods,
       List<BondRateView> bondRatePeriods,
-      List<FlowView> currentCashFlows,
-      RentalPeriodView rentalPeriod,
-      List<CashFlowTypeModel> availableCashFlowTypes,
       BigDecimal expectedPropertyGrowth,
       List<RentalContractView> contracts) {}
 

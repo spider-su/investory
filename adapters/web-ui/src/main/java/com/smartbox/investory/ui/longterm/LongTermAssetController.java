@@ -271,11 +271,6 @@ public class LongTermAssetController {
     model.addAttribute("valuationPeriods", view.valuationPeriods());
     model.addAttribute("bondRatePeriods", view.bondRatePeriods());
     model.addAttribute("expectedPropertyGrowth", view.expectedPropertyGrowth());
-    model.addAttribute(
-        "legacyBondValueDifference",
-        view.asset().acquisitionValue() != null
-            && view.asset().currentValue() != null
-            && view.asset().acquisitionValue().compareTo(view.asset().currentValue()) != 0);
     return switch (view.asset().type()) {
       case BOND -> "bond-detail";
       case REAL_ESTATE -> "real-estate-detail";
@@ -311,59 +306,6 @@ public class LongTermAssetController {
       @PathVariable Long id, @RequestParam Long portfolioId, @RequestParam BigDecimal taxBase) {
     assets.saveTaxBase(portfolioId, id, taxBase);
     return redirect(id, portfolioId);
-  }
-
-  @PostMapping("/long-term-assets/{id}/cash-flows")
-  public String addCashFlow(
-      @PathVariable Long id,
-      @RequestParam Long portfolioId,
-      @RequestParam CashFlowType type,
-      @RequestParam BigDecimal amount,
-      @RequestParam Frequency frequency,
-      @RequestParam(required = false) LocalDate validFrom,
-      @RequestParam(required = false) LocalDate validTo,
-      @RequestParam(required = false) Boolean paidByTenant) {
-    assets.addCashFlow(
-        new LongTermAssetsApi.CashFlowCommand(
-            portfolioId, id, null, CashFlowTypeModel.valueOf(type.name()), amount,
-            FrequencyModel.valueOf(frequency.name()), validFrom, validTo, paidByTenant),
-        LocalDate.now(clock));
-    return redirect(id, portfolioId);
-  }
-
-  @PostMapping("/long-term-assets/{id}/cash-flows/{flowId}")
-  public String changeCashFlow(
-      @PathVariable Long id,
-      @PathVariable Long flowId,
-      @RequestParam Long portfolioId,
-      @RequestParam BigDecimal amount,
-      @RequestParam Frequency frequency,
-      @RequestParam(required = false) LocalDate effectiveFrom,
-      @RequestParam(required = false) LocalDate validTo,
-      @RequestParam(required = false) Boolean paidByTenant) {
-    assets.changeCashFlow(
-        new LongTermAssetsApi.CashFlowCommand(
-            portfolioId,
-            id,
-            flowId,
-            null,
-            amount,
-            FrequencyModel.valueOf(frequency.name()),
-            effectiveFrom,
-            validTo,
-            paidByTenant));
-    return redirect(id, portfolioId);
-  }
-
-  public String addCashFlow(
-      Long id,
-      Long portfolioId,
-      CashFlowType type,
-      BigDecimal amount,
-      Frequency frequency,
-      LocalDate validFrom,
-      LocalDate validTo) {
-    return addCashFlow(id, portfolioId, type, amount, frequency, validFrom, validTo, null);
   }
 
   @PostMapping("/long-term-assets/{id}/rental-tax-ownership")

@@ -17,7 +17,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,7 +36,7 @@ public class LongTermAssetBootstrapService {
 
   private final com.smartbox.investory.longterm.application.service.LongTermAssetLifecycleService
       lifecycle;
-  @Autowired private LongTermAssetRentalContractRepository rentalContracts;
+  private final LongTermAssetRentalContractRepository rentalContracts;
 
   @Transactional
   public LongTermAssetBootstrapResult importDocument(
@@ -154,7 +153,7 @@ public class LongTermAssetBootstrapService {
       if (stored != null) validateStoredPeriods(stored, asset);
       if (asset.type() != LongTermAssetType.REAL_ESTATE && !safe(asset.cashFlows()).isEmpty())
         throw new IllegalArgumentException(
-            "Cash flows require real estate: " + asset.externalKey());
+            "Cash flows are supported only as real-estate bootstrap input: " + asset.externalKey());
       if (asset.type() != LongTermAssetType.REAL_ESTATE
           && asset.type() != LongTermAssetType.CASH_RESERVE
           && !safe(asset.valuationPeriods()).isEmpty())
@@ -347,17 +346,18 @@ public class LongTermAssetBootstrapService {
     if (existing == null) asset.setActive(true);
     asset = assets.save(asset);
     lifecycle.ensureInitialPeriod(asset);
-    for (var flow : safe(input.cashFlows())) upsertCashFlow(asset.getId(), flow);
-    if (asset.getType() == LongTermAssetType.REAL_ESTATE && rentalContracts != null)
-      upsertRentalContracts(asset.getId());
+    if (asset.getType() == LongTermAssetType.REAL_ESTATE)
+      upsertRentalContracts(asset.getId(), safe(input.cashFlows()));
+    else for (var flow : safe(input.cashFlows())) upsertCashFlow(asset.getId(), flow);
     for (var period : safe(input.valuationPeriods())) upsertValuation(asset.getId(), period);
     for (var period : safe(input.bondRatePeriods())) upsertBondRate(asset.getId(), period);
     if (input.bond() != null) upsertBondDetails(asset.getId(), input.bond());
     if (input.deposit() != null) upsertDepositDetails(asset.getId(), input.deposit());
   }
 
-  private void upsertRentalContracts(Long assetId) {
-    var flows = cashFlows.findAllByAssetIdOrderByValidFrom(assetId);
+  private void upsertRentalContracts(
+      Long assetId, List<LongTermAssetBootstrapDocument.CashFlow> inputFlows) {
+    var flows = inputFlows.stream().map(this::toCashFlowEntity).toList();
     if (flows.isEmpty()) return;
     var boundaries = new TreeSet<LocalDate>();
     for (var flow : flows) {
@@ -396,6 +396,21 @@ public class LongTermAssetBootstrapService {
       }
       rentalContracts.save(contract);
     }
+  }
+
+  private LongTermAssetCashFlowEntity toCashFlowEntity(
+      LongTermAssetBootstrapDocument.CashFlow input) {
+    var flow = new LongTermAssetCashFlowEntity();
+    flow.setType(input.type());
+    flow.setAmount(input.amount());
+    flow.setFrequency(input.frequency());
+    flow.setValidFrom(input.validFrom());
+    flow.setValidTo(input.validTo());
+    flow.setPaidByTenant(
+        input.paidByTenant() != null
+            ? input.paidByTenant()
+            : LongTermAssetPeriodRules.defaultPaidByTenant(input.type()));
+    return flow;
   }
 
   private void upsertCashFlow(Long assetId, LongTermAssetBootstrapDocument.CashFlow input) {

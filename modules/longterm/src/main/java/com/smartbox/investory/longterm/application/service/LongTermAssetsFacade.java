@@ -57,14 +57,10 @@ public class LongTermAssetsFacade {
     return new DetailView(
         asset,
         service.summary(toEntity(asset), date),
-        service.cashFlows(portfolioId, id).stream().map(FlowView::from).toList(),
         service.bondDetails(portfolioId, id).map(BondDetailsView::from).orElse(null),
         service.depositDetails(portfolioId, id).map(DepositDetailsView::from).orElse(null),
         service.valuationPeriods(portfolioId, id).stream().map(ValuationView::from).toList(),
         service.bondRatePeriods(portfolioId, id).stream().map(BondRateView::from).toList(),
-        service.currentCashFlows(portfolioId, id, date).stream().map(FlowView::from).toList(),
-        service.rentalPeriod(portfolioId, id, date),
-        service.availableCashFlowTypes(portfolioId, id, date),
         service.expectedPropertyGrowth(portfolioId, id, date),
         rentalContracts.list(portfolioId, id).stream().map(ContractView::from).toList());
   }
@@ -138,13 +134,10 @@ public class LongTermAssetsFacade {
 
   public void updateBond(BondCommand command) {
     LongTermAssetEntity current = service.get(command.portfolioId(), command.id()).orElseThrow();
-    boolean legacy =
-        current.getAcquisitionValue() != null
-            && current.getCurrentValue() != null
-            && current.getAcquisitionValue().compareTo(current.getCurrentValue()) != 0;
     current.setName(command.name());
     current.setCurrency(command.currency());
-    if (!legacy) current.setAcquisitionValue(command.value());
+    // Bond command.value is the current market/principal value. Historical acquisition value is
+    // immutable after acquisition and is deliberately not overwritten by a normal update.
     current.setCurrentValue(command.value());
     current.setAcquisitionDate(command.acquisitionDate());
     current.setNotes(command.notes());
@@ -229,51 +222,6 @@ public class LongTermAssetsFacade {
 
   public void reactivate(Long portfolioId, Long id) {
     service.reactivate(portfolioId, id);
-  }
-
-  public void saveRentalPeriod(
-      Long portfolioId, Long assetId, LocalDate effectiveFrom, LocalDate endDate, LocalDate date) {
-    service.saveRentalPeriod(portfolioId, assetId, effectiveFrom, endDate, date);
-  }
-
-  public void addCashFlow(CashFlowCommand command, LocalDate today) {
-    LongTermAssetCashFlowEntity flow = new LongTermAssetCashFlowEntity();
-    flow.setType(command.type());
-    flow.setAmount(command.amount());
-    flow.setFrequency(command.frequency());
-    flow.setPaidByTenant(
-        command.paidByTenant() != null
-            ? command.paidByTenant()
-            : command.type() == CashFlowType.ADMIN_FEE || command.type() == CashFlowType.UTILITIES);
-    if (command.validFrom() == null)
-      service.addCashFlow(command.portfolioId(), command.assetId(), flow, today);
-    else {
-      flow.setValidFrom(command.validFrom());
-      flow.setValidTo(command.validTo());
-      service.addCashFlow(command.portfolioId(), command.assetId(), flow);
-    }
-  }
-
-  public void changeCashFlow(CashFlowCommand command) {
-    if (command.validFrom() == null)
-      service.changeCurrentCashFlow(
-          command.portfolioId(),
-          command.assetId(),
-          command.flowId(),
-          command.amount(),
-          command.frequency());
-    else
-      service.changeCashFlow(
-          command.portfolioId(),
-          command.assetId(),
-          command.flowId(),
-          command.amount(),
-          command.frequency(),
-          command.validFrom(),
-          command.validTo());
-    if (command.paidByTenant() != null)
-      service.setCashFlowPaidByTenant(
-          command.portfolioId(), command.assetId(), command.flowId(), command.paidByTenant());
   }
 
   public void savePropertyGrowth(Long portfolioId, Long id, BigDecimal percent, LocalDate from) {
@@ -444,29 +392,6 @@ public class LongTermAssetsFacade {
       BigDecimal annualReturnPercent,
       String notes) {}
 
-  public record CashFlowCommand(
-      Long portfolioId,
-      Long assetId,
-      Long flowId,
-      CashFlowType type,
-      BigDecimal amount,
-      Frequency frequency,
-      LocalDate validFrom,
-      LocalDate validTo,
-      Boolean paidByTenant) {
-    public CashFlowCommand(
-        Long portfolioId,
-        Long assetId,
-        Long flowId,
-        CashFlowType type,
-        BigDecimal amount,
-        Frequency frequency,
-        LocalDate validFrom,
-        LocalDate validTo) {
-      this(portfolioId, assetId, flowId, type, amount, frequency, validFrom, validTo, null);
-    }
-  }
-
   public record BondDetailsCommand(
       LocalDate maturityDate,
       BigDecimal taxRate,
@@ -545,28 +470,6 @@ public class LongTermAssetsFacade {
     }
   }
 
-  public record FlowView(
-      Long id,
-      Long assetId,
-      CashFlowType type,
-      BigDecimal amount,
-      Frequency frequency,
-      LocalDate validFrom,
-      LocalDate validTo,
-      boolean paidByTenant) {
-    static FlowView from(LongTermAssetCashFlowEntity f) {
-      return new FlowView(
-          f.getId(),
-          f.getAssetId(),
-          f.getType(),
-          f.getAmount(),
-          f.getFrequency(),
-          f.getValidFrom(),
-          f.getValidTo(),
-          f.isPaidByTenant());
-    }
-  }
-
   public record BondDetailsView(
       LocalDate maturityDate,
       BigDecimal taxRate,
@@ -606,14 +509,10 @@ public class LongTermAssetsFacade {
   public record DetailView(
       AssetView asset,
       LongTermAssetSummary summary,
-      List<FlowView> cashFlows,
       BondDetailsView bondDetails,
       DepositDetailsView depositDetails,
       List<ValuationView> valuationPeriods,
       List<BondRateView> bondRatePeriods,
-      List<FlowView> currentCashFlows,
-      LongTermAssetService.RentalPeriod rentalPeriod,
-      List<CashFlowType> availableCashFlowTypes,
       BigDecimal expectedPropertyGrowth,
       List<ContractView> contracts) {}
 

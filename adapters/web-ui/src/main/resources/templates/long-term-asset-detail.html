@@ -61,28 +61,6 @@
   </section>
 
   <section class="card mb-4">
-    <div class="card-header"><h2 class="card-title">Recurring cash flows</h2></div>
-    <div class="card-body text-secondary" th:if="${#lists.isEmpty(cashFlows)}">No recurring cash flows configured.</div>
-    <div class="table-responsive" th:unless="${#lists.isEmpty(cashFlows)}">
-      <table class="table card-table iv-asset-table">
-        <thead><tr><th>Type</th><th>Amount</th><th>Frequency</th><th>From</th><th>To</th></tr></thead>
-        <tbody><tr th:each="flow : ${cashFlows}"><td th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).cashFlowType(flow.type)}">Rent</td><td th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(flow.amount, asset.currency)}">0.00 PLN</td><td th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).frequency(flow.frequency)}">Monthly</td><td th:text="${flow.validFrom ?: '—'}">—</td><td th:text="${flow.validTo ?: 'Open'}">Open</td></tr></tbody>
-      </table>
-    </div>
-    <form class="card-body border-top" method="post" th:action="@{/long-term-assets/{id}/cash-flows(id=${asset.id})}">
-      <input type="hidden" name="portfolioId" th:value="${portfolioId}">
-      <div class="iv-asset-section-form">
-        <div><label class="form-label" for="flow-type">Type</label><select id="flow-type" class="form-select" name="type"><option th:each="type : ${T(com.smartbox.investory.longterm.api.model.CashFlowTypeModel).values()}" th:value="${type}" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).cashFlowType(type)}"></option></select></div>
-        <div><label class="form-label" for="flow-amount">Amount</label><input id="flow-amount" class="form-control" name="amount" type="number" step="0.01" min="0" required></div>
-        <div><label class="form-label" for="flow-frequency">Frequency</label><select id="flow-frequency" class="form-select" name="frequency"><option th:each="frequency : ${T(com.smartbox.investory.longterm.api.model.FrequencyModel).values()}" th:value="${frequency}" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).frequency(frequency)}"></option></select></div>
-        <div><label class="form-label" for="flow-from">From</label><input id="flow-from" class="form-control" name="validFrom" type="date"></div>
-        <div><label class="form-label" for="flow-to">To</label><input id="flow-to" class="form-control" name="validTo" type="date"></div>
-        <button class="btn btn-primary">Add cash flow</button>
-      </div>
-    </form>
-  </section>
-
-  <section class="card mb-4">
     <div class="card-header"><h2 class="card-title">Planning periods</h2></div>
     <div class="card-body text-secondary" th:if="${#lists.isEmpty(valuationPeriods)}">No planning periods configured.</div>
     <div class="table-responsive" th:unless="${#lists.isEmpty(valuationPeriods)}"><table class="table card-table iv-asset-table"><thead><tr><th>From</th><th>To</th><th>Growth rate</th></tr></thead><tbody><tr th:each="p : ${valuationPeriods}"><td th:text="${p.validFrom}">2026-01-01</td><td th:text="${p.validTo ?: 'Open'}">Open</td><td th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).percentage(p.expectedAnnualGrowthRate)}">0.0%</td></tr></tbody></table></div>

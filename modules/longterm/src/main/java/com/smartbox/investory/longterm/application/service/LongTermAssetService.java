@@ -28,7 +28,6 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.*;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,8 +50,7 @@ public class LongTermAssetService {
   private final LongTermAssetCashFlowService cashFlowService;
   private final Clock applicationClock;
 
-  /** Optional for old unit fixtures; production uses normalized contracts first. */
-  @Autowired private LongTermAssetRentalContractRepository rentalContracts;
+  private final LongTermAssetRentalContractRepository rentalContracts;
 
   @Value("${app.long-term-assets.planning-currency:PLN}")
   private CurrencyType planningCurrency = CurrencyType.PLN;
@@ -76,6 +74,7 @@ public class LongTermAssetService {
       CurrencyConversion currencyRates,
       LongTermAssetLifecycleService lifecycle,
       LongTermAssetCashFlowService cashFlowService,
+      LongTermAssetRentalContractRepository rentalContracts,
       Clock applicationClock) {
     this.assets = assets;
     this.cashFlows = cashFlows;
@@ -88,6 +87,7 @@ public class LongTermAssetService {
     this.currencyRates = currencyRates;
     this.lifecycle = lifecycle;
     this.cashFlowService = cashFlowService;
+    this.rentalContracts = rentalContracts;
     this.applicationClock = applicationClock;
   }
 
@@ -289,9 +289,7 @@ public class LongTermAssetService {
       if (!activeOnly && !activeOn(asset, effectivePolicyDate)) continue;
       List<LongTermAssetProjectionInput.Period> periods = new ArrayList<>();
       List<RentalContractModel> contracts =
-          rentalContracts == null
-              ? List.of()
-              : rentalContracts.findAllByAssetIdOrderByStartDate(asset.getId()).stream()
+          rentalContracts.findAllByAssetIdOrderByStartDate(asset.getId()).stream()
                   .map(
                       c ->
                           new RentalContractModel(
@@ -310,12 +308,10 @@ public class LongTermAssetService {
                                               t.isPaidByTenant()))
                                   .toList()))
                   .toList();
-      for (LongTermAssetCashFlowEntity flow :
-          contracts.isEmpty()
-              ? cashFlows.findAllByAssetIdOrderByValidFrom(asset.getId())
-              : List.<LongTermAssetCashFlowEntity>of()) {
+      if (asset.getType() != LongTermAssetType.REAL_ESTATE) {
+        for (LongTermAssetCashFlowEntity flow : cashFlows.findAllByAssetIdOrderByValidFrom(asset.getId())) {
         BigDecimal annual = LongTermAssetCalculator.annualAmount(flow);
-        periods.add(
+          periods.add(
             new LongTermAssetProjectionInput.Period(
                 flow.getValidFrom(),
                 flow.getValidTo(),
@@ -324,6 +320,7 @@ public class LongTermAssetService {
                 BigDecimal.ZERO,
                 flow.getType(),
                 flow.isPaidByTenant()));
+        }
       }
       for (LongTermAssetValuationPeriodEntity period :
           valuations.findAllByAssetIdOrderByValidFrom(asset.getId()))
@@ -739,15 +736,14 @@ public class LongTermAssetService {
         tax = BigDecimal.ZERO,
         rate = BigDecimal.ZERO;
     LocalDate maturity = null;
-    List<LongTermAssetCashFlowEntity> flows = rentalAwareFlows(a.getId());
+    List<LongTermAssetCashFlowEntity> flows =
+        a.getType() == LongTermAssetType.REAL_ESTATE ? List.of() : rentalAwareFlows(a.getId());
     RealEstatePlanningSummary realEstatePlanning = null;
     BondPlanningSummary bondPlanning = null;
     LocalDate rentEnd = null;
     if (a.getType() == LongTermAssetType.REAL_ESTATE) {
       var contractModels =
-          rentalContracts == null
-              ? List.<RentalContractModel>of()
-              : rentalContracts.findAllByAssetIdOrderByStartDate(a.getId()).stream()
+          rentalContracts.findAllByAssetIdOrderByStartDate(a.getId()).stream()
                   .map(
                       c ->
                           new RentalContractModel(
@@ -766,25 +762,7 @@ public class LongTermAssetService {
                                               t.isPaidByTenant()))
                                   .toList()))
                   .toList();
-      if (contractModels.isEmpty()) {
-        rentEnd = currentRentEnd(flows, effectiveDate);
-        for (LongTermAssetCashFlowEntity flow : flows) {
-          if (!LongTermAssetCalculator.applies(flow, effectiveDate)) continue;
-          BigDecimal annual = LongTermAssetCalculator.annualAmount(flow);
-          if (isIncome(flow.getType())) gross = gross.add(annual);
-          else if (!flow.isPaidByTenant()) expenses = expenses.add(annual);
-        }
-        realEstatePlanning =
-            realEstatePlanningCalculator.calculate(
-                a.getCurrentValue(),
-                a.getTaxBase(),
-                flows,
-                effectiveDate,
-                rentalTaxPolicy(a.getPortfolioId(), effectiveDate)
-                    .map(RentalTaxPolicyEntity::getRate)
-                    .orElse(REAL_ESTATE_TAX_RATE),
-                a.isRentalTaxPaidByTenant());
-      } else {
+      {
         rentEnd =
             contractModels.stream()
                 .filter(c -> c.startDate() != null && !c.startDate().isAfter(effectiveDate))
@@ -938,10 +916,7 @@ public class LongTermAssetService {
             .allMatch(
                 row ->
                     !cashFlows.findAllByAssetIdOrderByValidFrom(row.id()).isEmpty()
-                        || (rentalContracts != null
-                            && !rentalContracts
-                                .findAllByAssetIdOrderByStartDate(row.id())
-                                .isEmpty()));
+                        || !rentalContracts.findAllByAssetIdOrderByStartDate(row.id()).isEmpty());
     return new LongTermAssetAnnualSnapshotModel(
         null, !hasRealEstate || rentalDataComplete ? rentalIncome : null, null, null, null, null);
   }
@@ -1258,10 +1233,8 @@ public class LongTermAssetService {
   }
 
   private List<LongTermAssetCashFlowEntity> rentalAwareFlows(Long assetId) {
-    if (rentalContracts == null) return cashFlows.findAllByAssetIdOrderByValidFrom(assetId);
     List<LongTermAssetRentalContractEntity> contracts =
         rentalContracts.findAllByAssetIdOrderByStartDate(assetId);
-    if (contracts.isEmpty()) return cashFlows.findAllByAssetIdOrderByValidFrom(assetId);
     List<LongTermAssetCashFlowEntity> result = new ArrayList<>();
     for (var contract : contracts) {
       for (var term : contract.getTerms()) {

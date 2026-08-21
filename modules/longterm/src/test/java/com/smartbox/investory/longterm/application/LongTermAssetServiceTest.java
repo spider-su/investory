@@ -52,6 +52,7 @@ class LongTermAssetServiceTest {
   @Mock PortfolioContextReader portfolioContextReader;
   @Mock CurrencyConversion currencyRates;
   @Mock LongTermAssetLifecycleService lifecycle;
+  @Mock LongTermAssetRentalContractRepository rentalContracts;
   LongTermAssetService service;
 
   @BeforeEach
@@ -59,6 +60,21 @@ class LongTermAssetServiceTest {
     lenient()
         .when(lifecycle.activeOn(any(LongTermAssetEntity.class), any(LocalDate.class)))
         .thenReturn(true);
+    // Test fixtures below use the old compact flow helper; convert them at the test boundary so
+    // production code is exercised through the contract repository only.
+    lenient()
+        .when(rentalContracts.findAllByAssetIdOrderByStartDate(anyLong()))
+        .thenAnswer(
+            invocation ->
+                cashFlows.findAllByAssetIdOrderByValidFrom(invocation.getArgument(0, Long.class)).stream()
+                    .filter(f -> f.getType() != CashFlowType.RENT || f.getAmount() != null)
+                    .collect(java.util.stream.Collectors.groupingBy(
+                        f -> java.util.Arrays.asList(f.getValidFrom(), f.getValidTo()),
+                        java.util.LinkedHashMap::new,
+                        java.util.stream.Collectors.toList()))
+                    .values().stream()
+                    .map(LongTermAssetServiceTest::contractFrom)
+                    .toList());
     service =
         new LongTermAssetService(
             assets,
@@ -72,8 +88,27 @@ class LongTermAssetServiceTest {
             currencyRates,
             lifecycle,
             new LongTermAssetCashFlowService(assets, cashFlows),
+            rentalContracts,
             java.time.Clock.fixed(
                 DATE.atStartOfDay(java.time.ZoneOffset.UTC).toInstant(), java.time.ZoneOffset.UTC));
+  }
+
+  private static LongTermAssetRentalContractEntity contractFrom(List<LongTermAssetCashFlowEntity> flows) {
+    LongTermAssetCashFlowEntity flow = flows.get(0);
+    LongTermAssetRentalContractEntity contract = new LongTermAssetRentalContractEntity();
+    contract.setAssetId(flow.getAssetId());
+    contract.setStartDate(flow.getValidFrom());
+    contract.setEndDate(flow.getValidTo());
+    contract.setTerms(flows.stream().map(f -> {
+      LongTermAssetRentalContractTermEntity term = new LongTermAssetRentalContractTermEntity();
+      term.setContract(contract);
+      term.setType(f.getType());
+      term.setAmount(f.getAmount());
+      term.setFrequency(f.getFrequency());
+      term.setPaidByTenant(f.isPaidByTenant());
+      return term;
+    }).toList());
+    return contract;
   }
 
   @Test
