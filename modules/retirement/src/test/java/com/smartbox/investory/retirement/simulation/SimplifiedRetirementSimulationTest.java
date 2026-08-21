@@ -47,8 +47,8 @@ class SimplifiedRetirementSimulationTest {
     var year = result;
     assertThat(year.requiredFunding()).isEqualByComparingTo("100");
     assertThat(year.reserveWithdrawal()).isEqualByComparingTo("60");
-    assertThat(year.investmentWithdrawal()).isEqualByComparingTo("40");
-    assertThat(year.unfundedShortfall()).isZero();
+    assertThat(year.investmentWithdrawal()).isZero();
+    assertThat(year.unfundedShortfall()).isEqualByComparingTo("40");
   }
 
   @Test

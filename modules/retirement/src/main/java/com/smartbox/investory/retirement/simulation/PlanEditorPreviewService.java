@@ -20,14 +20,14 @@ import org.springframework.stereotype.Service;
 @Service
 public class PlanEditorPreviewService {
   private final ForwardSimulationInputService forwardInputs;
-  private final RetirementSimulationService simulations;
+  private final RetirementSimulation simulations;
   private final LongTermAssetAnnualSnapshotReader longTermAssets;
   private final PlanningCurrencyPresentationService presentation;
   private final Clock clock;
 
   public PlanEditorPreviewService(
       ForwardSimulationInputService forwardInputs,
-      RetirementSimulationService simulations,
+      RetirementSimulation simulations,
       LongTermAssetAnnualSnapshotReader longTermAssets,
       PlanningCurrencyPresentationService presentation,
       Clock clock) {
@@ -136,13 +136,16 @@ public class PlanEditorPreviewService {
     BigDecimal rental = zeroIfNull(facts.rentalIncome());
     BigDecimal bond = zeroIfNull(facts.bondIncome());
     BigDecimal totalIncome = employment.add(rental).add(bond).add(pension);
+    BigDecimal expenses = retired
+        ? assumptions.annualLivingExpenses().add(assumptions.annualDiscretionaryExpenses())
+        : BigDecimal.ZERO;
     BigDecimal zero = displayCanonical(BigDecimal.ZERO, displayCurrency);
     return new PreviewYear(
         year,
         age,
         retired ? SimulationLifecyclePhase.RETIRED.name() : SimulationLifecyclePhase.WORKING.name(),
         displayCanonical(
-            assumptions.annualLivingExpenses().add(assumptions.annualDiscretionaryExpenses()),
+            expenses,
             displayCurrency),
         displayCanonical(employment, displayCurrency),
         displayCanonical(rental, displayCurrency),

@@ -10,8 +10,10 @@ public class InvestmentAnnualProjectionService implements InvestmentAnnualProjec
   @Override
   public AnnualProjection project(ProjectionRequest request) {
     BigDecimal returnAmount = request.startValue().multiply(request.annualReturnRate());
-    BigDecimal end = request.startValue().add(returnAmount).subtract(request.withdrawal()).max(BigDecimal.ZERO);
+    BigDecimal available = request.startValue().add(request.externalContribution()).add(returnAmount).max(BigDecimal.ZERO);
+    BigDecimal withdrawal = request.withdrawal().min(available);
+    BigDecimal end = available.subtract(withdrawal);
     return new AnnualProjection(
-        request.year(), request.startValue(), returnAmount, request.withdrawal(), end, request.source());
+        request.year(), request.startValue(), request.externalContribution(), returnAmount, withdrawal, end, request.source());
   }
 }

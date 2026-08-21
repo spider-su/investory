@@ -34,13 +34,14 @@ class GenericPlanningModelTest {
   }
 
   @Test
-  void actualReplacesProjectedFlowWithSameIdentity() {
+  void actualReplacesProjectedOccurrenceAndKeepsRemainingProjection() {
     var projected = flow("rent", "rental", CashFlowDirection.INCOME, CashFlowCadence.MONTHLY, "100", 2026, 1, 1);
     var actual = new PlannedCashFlow("rent", "rental", CashFlowDirection.INCOME,
-        CashFlowCadence.MONTHLY, bd("80"), date(2026, 1, 1), ProjectionSource.ACTUAL);
+        CashFlowCadence.MONTHLY, bd("80"), date(2026, 1, 1), date(2026, 1, 31), null,
+        ProjectionSource.ACTUAL, com.smartbox.investory.shared.currency.CurrencyType.PLN);
     var result = aggregation.aggregate(new Period(date(2026, 1, 1), date(2026, 12, 31)), List.of(projected, actual));
-    assertThat(result.actualIncome()).isEqualByComparingTo("960");
-    assertThat(result.projectedIncome()).isZero();
+    assertThat(result.actualIncome()).isEqualByComparingTo("80");
+    assertThat(result.projectedIncome()).isEqualByComparingTo("1100");
   }
 
   @Test

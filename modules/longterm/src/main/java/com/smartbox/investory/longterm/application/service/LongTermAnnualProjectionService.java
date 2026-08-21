@@ -12,15 +12,30 @@ import org.springframework.stereotype.Service;
 @Service
 public class LongTermAnnualProjectionService implements LongTermAnnualProjectionApi {
   @Override
+  public CapitalProjection projectCapital(ProjectionRequest request) {
+    AnnualProjection annual = project(request);
+    BigDecimal start = request.bonds().stream()
+        .map(Bond::principalValue).reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal end = annual.nextBonds().stream()
+        .map(Bond::principalValue).reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal actual = annual.maturedFunding().min(annual.maturedFunding().max(BigDecimal.ZERO));
+    return new CapitalProjection(
+        annual.year(), start, annual.netBondIncome(), BigDecimal.ZERO,
+        annual.maturedFunding(), request.requiredFunding(), actual, end, annual.source());
+  }
+
+  @Override
   public AnnualProjection project(ProjectionRequest request) {
     BigDecimal reserveStart = request.reserve();
     BigDecimal reserve = reserveStart;
     BigDecimal maturedFunding = BigDecimal.ZERO;
+    BigDecimal fundGapProceeds = BigDecimal.ZERO;
     BigDecimal bondIncome = BigDecimal.ZERO;
     List<Bond> next = new ArrayList<>();
     for (Bond bond : request.bonds()) {
       bondIncome = bondIncome.add(bond.netAnnualIncome());
-      if (bond.maturityDate() == null || bond.maturityDate().getYear() != request.year()) {
+      if (bond.maturityDate() == null
+          || bond.maturityDate().isAfter(LocalDate.of(request.year(), 12, 31))) {
         next.add(bond);
         continue;
       }
@@ -40,20 +55,23 @@ public class LongTermAnnualProjectionService implements LongTermAnnualProjection
       } else if (strategy == MaturityStrategy.MOVE_TO_RESERVE) {
         reserve = reserve.add(proceeds);
       } else {
-        BigDecimal direct = proceeds.min(request.requiredFunding());
-        maturedFunding = maturedFunding.add(direct);
-        reserve = reserve.add(proceeds.subtract(direct));
+        fundGapProceeds = fundGapProceeds.add(proceeds);
       }
     }
-    BigDecimal reserveUsed = reserve.min(request.requiredFunding().subtract(maturedFunding).max(BigDecimal.ZERO));
+    BigDecimal reserveBeforeFunding = reserve;
+    BigDecimal reserveUsed = reserve.min(request.requiredFunding());
     reserve = reserve.subtract(reserveUsed);
+    maturedFunding = fundGapProceeds.min(request.requiredFunding().subtract(reserveUsed).max(BigDecimal.ZERO));
+    reserve = reserve.add(fundGapProceeds.subtract(maturedFunding));
     BigDecimal rental = request.rentalIncome().stream()
         .map(LongTermAnnualProjectionApi.RentalIncome::monthlyNetIncome)
         .reduce(BigDecimal.ZERO, BigDecimal::add);
     return new AnnualProjection(
         request.year(), rental, bondIncome, reserveStart,
-        reserve.add(reserveUsed), reserveUsed, maturedFunding, reserve, next,
-        request.rentalIncome().stream().anyMatch(i -> i.source() == LongTermAnnualProjectionApi.Source.ACTUAL)
+        reserveBeforeFunding, reserveUsed, maturedFunding, reserve, next,
+        !request.rentalIncome().isEmpty()
+                && request.rentalIncome().stream()
+                    .allMatch(i -> i.source() == LongTermAnnualProjectionApi.Source.ACTUAL)
             ? LongTermAnnualProjectionApi.Source.ACTUAL
             : LongTermAnnualProjectionApi.Source.PROJECTED);
   }

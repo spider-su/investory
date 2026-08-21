@@ -24,7 +24,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 @Controller
 public class RetirementSimulationController {
   private final InvestmentProfileFacade profiles;
-  private final RetirementSimulationService simulations;
+  private final RetirementSimulation simulations;
   private final SimulationPlanService plans;
   private final SustainableSpendingAnalysisService sustainableSpending;
   private final SimulationSensitivityAnalysisService sensitivity;
@@ -45,7 +45,7 @@ public class RetirementSimulationController {
   @Autowired
   public RetirementSimulationController(
       InvestmentProfileFacade profiles,
-      RetirementSimulationService simulations,
+      RetirementSimulation simulations,
       SimulationPlanService plans,
       SustainableSpendingAnalysisService sustainableSpending,
       SimulationSensitivityAnalysisService sensitivity,
@@ -72,7 +72,7 @@ public class RetirementSimulationController {
 
   public RetirementSimulationController(
       InvestmentProfileFacade profiles,
-      RetirementSimulationService simulations,
+      RetirementSimulation simulations,
       SimulationPlanService plans,
       SustainableSpendingAnalysisService sustainableSpending,
       SimulationSensitivityAnalysisService sensitivity,
@@ -100,7 +100,7 @@ public class RetirementSimulationController {
   /** Compatibility constructor for tests/callers that already provide forward-input service. */
   public RetirementSimulationController(
       InvestmentProfileFacade profiles,
-      RetirementSimulationService simulations,
+      RetirementSimulation simulations,
       SimulationPlanService plans,
       SustainableSpendingAnalysisService sustainableSpending,
       SimulationSensitivityAnalysisService sensitivity,
@@ -364,7 +364,7 @@ public class RetirementSimulationController {
     SimulationAssumptions assumptions;
     String planName = "";
     if (planId == null) {
-      assumptions = SimulationAssumptions.defaults(profile, 40, 80, currentYear);
+      assumptions = SimulationAssumptions.defaults(profile, 40, 95, currentYear);
     } else {
       assumptions = plans.assumptions(portfolioId, planId);
       planName = plans.name(portfolioId, planId);
@@ -386,8 +386,12 @@ public class RetirementSimulationController {
     model.addAttribute("developMode", Boolean.valueOf(developMode));
     if (planEditorPreview != null) {
       var facts = planEditorPreview.currentFacts(profile);
-      model.addAttribute("currentRentalIncome", facts.rentalIncome());
-      model.addAttribute("currentBondIncome", facts.bondIncome());
+      model.addAttribute(
+          "currentRentalIncome",
+          planningPresentation.toDisplay(facts.rentalIncome(), planningDisplayCurrency));
+      model.addAttribute(
+          "currentBondIncome",
+          planningPresentation.toDisplay(facts.bondIncome(), planningDisplayCurrency));
     }
     model.addAttribute("plans", plans.list(portfolioId));
     model.addAttribute(
@@ -455,7 +459,7 @@ public class RetirementSimulationController {
       var profile = profiles.loadProfile(portfolioId);
       var base =
           planId == null
-              ? SimulationAssumptions.defaults(profile, 40, 80, Year.now(clock).getValue())
+              ? SimulationAssumptions.defaults(profile, 40, 95, Year.now(clock).getValue())
               : plans.assumptions(portfolioId, planId);
       return org.springframework.http.ResponseEntity.ok(
           planEditorPreview.preview(

@@ -16,19 +16,32 @@ public record RetirementSimulationInput(
     BigDecimal annualPension,
     int pensionStartAge,
     BigDecimal annualEmploymentIncome,
+    BigDecimal annualPreRetirementContribution,
     BigDecimal initialReserve,
     BigDecimal initialInvestmentValue,
     BigDecimal investmentReturnRate,
     List<LongTermYearInput> longTermYears,
     List<SimulationEvent> events,
     InvestmentAnnualProjectionApi.Source investmentSource) {
+  public RetirementSimulationInput(
+      int currentAge, int endAge, int startYear, int retirementAge, BigDecimal annualExpenses,
+      BigDecimal spendingGrowthRate, BigDecimal annualPension, int pensionStartAge,
+      BigDecimal annualEmploymentIncome, BigDecimal initialReserve, BigDecimal initialInvestmentValue,
+      BigDecimal investmentReturnRate, List<LongTermYearInput> longTermYears,
+      List<SimulationEvent> events, InvestmentAnnualProjectionApi.Source investmentSource) {
+    this(currentAge, endAge, startYear, retirementAge, annualExpenses, spendingGrowthRate,
+        annualPension, pensionStartAge, annualEmploymentIncome, BigDecimal.ZERO, initialReserve,
+        initialInvestmentValue, investmentReturnRate, longTermYears, events, investmentSource);
+  }
+
   public RetirementSimulationInput {
-    if (currentAge < 0 || endAge < currentAge || retirementAge < currentAge || retirementAge > endAge)
+    if (currentAge < 0 || endAge < currentAge || retirementAge < 0 || retirementAge > endAge)
       throw new IllegalArgumentException("Invalid retirement horizon");
     annualExpenses = nz(annualExpenses);
     spendingGrowthRate = nz(spendingGrowthRate);
     annualPension = nz(annualPension);
     annualEmploymentIncome = nz(annualEmploymentIncome);
+    annualPreRetirementContribution = nz(annualPreRetirementContribution);
     initialReserve = nz(initialReserve);
     initialInvestmentValue = nz(initialInvestmentValue);
     investmentReturnRate = nz(investmentReturnRate);

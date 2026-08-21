@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
 
 /** Pure deterministic annual projection. It never writes to accounting data. */
 @Service
-public class RetirementSimulationService {
+public class RetirementSimulationService implements RetirementSimulation {
   private static final BigDecimal ZERO = BigDecimal.ZERO;
 
   public SimulationResult simulate(

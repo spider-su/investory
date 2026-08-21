@@ -10,8 +10,9 @@ public record ReserveState(
     ProjectionSource source) {
   public ReserveState {
     startValue = nz(startValue);
-    withdrawal = nz(withdrawal).max(BigDecimal.ZERO).min(startValue.add(nz(reviewAdjustment)));
     reviewAdjustment = nz(reviewAdjustment);
+    withdrawal = nz(withdrawal).max(BigDecimal.ZERO)
+        .min(startValue.add(reviewAdjustment).max(BigDecimal.ZERO));
     endValue = startValue.add(reviewAdjustment).subtract(withdrawal).max(BigDecimal.ZERO);
     source = source == null ? ProjectionSource.PROJECTED : source;
   }

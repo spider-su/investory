@@ -26,7 +26,7 @@ public class PlanningTimelineFacade {
   private final PlanningYearValueRepository values;
   private final HistoricalPortfolioActualsReader historicalPortfolio;
   private final HistoricalLongTermAssetYearSource historicalLongTermAssets;
-  private final RetirementSimulationService simulations;
+  private final RetirementSimulation simulations;
   private final CurrentYearProjectionBridge projectionBridge;
   private final Clock clock;
   private final ForwardSimulationContextFactory forwardContexts;
@@ -40,7 +40,7 @@ public class PlanningTimelineFacade {
       PlanningYearValueRepository values,
       HistoricalPortfolioActualsReader historicalPortfolio,
       HistoricalLongTermAssetYearSource historicalLongTermAssets,
-      RetirementSimulationService simulations,
+      RetirementSimulation simulations,
       CurrentYearProjectionBridge projectionBridge,
       Clock clock,
       ForwardSimulationContextFactory forwardContexts,
@@ -70,7 +70,7 @@ public class PlanningTimelineFacade {
       PlanningYearValueRepository values,
       HistoricalPortfolioActualsReader historicalPortfolio,
       HistoricalLongTermAssetYearSource historicalLongTermAssets,
-      RetirementSimulationService simulations,
+      RetirementSimulation simulations,
       CurrentYearProjectionBridge projectionBridge,
       Clock clock,
       ForwardSimulationContextFactory forwardContexts) {

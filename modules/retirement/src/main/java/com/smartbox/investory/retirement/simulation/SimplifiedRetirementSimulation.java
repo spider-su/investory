@@ -46,7 +46,9 @@ public final class SimplifiedRetirementSimulation {
           year, reserve, required, bonds, assets.rentalIncome()));
       BigDecimal remaining = required.subtract(assetYear.reserveUsed()).subtract(assetYear.maturedFunding()).max(BigDecimal.ZERO);
       var investmentYear = investments.project(new InvestmentAnnualProjectionApi.ProjectionRequest(
-          year, investmentValue, input.investmentReturnRate(), remaining, input.investmentSource()));
+          year, investmentValue,
+          retired ? BigDecimal.ZERO : input.annualPreRetirementContribution(),
+          input.investmentReturnRate(), remaining, input.investmentSource()));
       BigDecimal unfunded = remaining.subtract(investmentYear.withdrawal()).max(BigDecimal.ZERO);
       years.add(new Year(age, year, retired, expenses, employment, pension, eventIncome, eventExpenses,
           preview.monthlyNetRentalIncome(), preview.netBondIncome(), gap, required, surplus,

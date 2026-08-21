@@ -22,17 +22,17 @@ import org.springframework.stereotype.Service;
 public class CurrentYearProjectionBridge {
   private static final BigDecimal ZERO = BigDecimal.ZERO;
   private final Clock clock;
-  private final RetirementSimulationService simulations;
+  private final RetirementSimulation simulations;
   private final ForwardSimulationContextFactory contexts;
 
-  public CurrentYearProjectionBridge(Clock clock, RetirementSimulationService simulations) {
+  public CurrentYearProjectionBridge(Clock clock, RetirementSimulation simulations) {
     this(clock, simulations, new ForwardSimulationContextFactory(clock));
   }
 
   @Autowired
   public CurrentYearProjectionBridge(
       Clock clock,
-      RetirementSimulationService simulations,
+      RetirementSimulation simulations,
       ForwardSimulationContextFactory contexts) {
     this.clock = clock;
     this.simulations = simulations;

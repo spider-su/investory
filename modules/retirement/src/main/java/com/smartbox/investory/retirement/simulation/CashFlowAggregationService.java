@@ -5,10 +5,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /** Aggregates generic planned flows. It has no asset-category rules. */
 public final class CashFlowAggregationService {
@@ -62,21 +59,66 @@ public final class CashFlowAggregationService {
   }
 
   private static List<PlannedCashFlow> replaceProjectedWithActual(List<PlannedCashFlow> flows) {
-    Map<String, PlannedCashFlow> byIdentity = new LinkedHashMap<>();
-    flows.stream().sorted(Comparator.comparing(f -> f.source() == ProjectionSource.ACTUAL ? 1 : 0))
-        .forEach(flow -> byIdentity.put(identity(flow), flow));
-    return new ArrayList<>(byIdentity.values());
+    List<PlannedCashFlow> actual = flows.stream()
+        .filter(flow -> flow.source() == ProjectionSource.ACTUAL)
+        .toList();
+    List<PlannedCashFlow> result = new ArrayList<>();
+    for (PlannedCashFlow flow : flows) {
+      if (flow.source() == ProjectionSource.ACTUAL) {
+        result.add(flow);
+        continue;
+      }
+      List<PlannedCashFlow> replacements = actual.stream()
+          .filter(candidate -> sameOccurrence(flow, candidate))
+          .toList();
+      if (replacements.isEmpty()) {
+        result.add(flow);
+      } else if (flow.cadence() == CashFlowCadence.MONTHLY) {
+        LocalDate remainingFrom = flow.effectiveFrom();
+        for (PlannedCashFlow replacement : replacements) {
+          LocalDate coveredThrough = replacement.effectiveTo() == null
+              ? YearMonth.from(replacement.effectiveFrom()).atEndOfMonth()
+              : replacement.effectiveTo();
+          if (!coveredThrough.isBefore(remainingFrom)) {
+            remainingFrom = coveredThrough.plusDays(1);
+          }
+        }
+        if (flow.effectiveTo() == null || !remainingFrom.isAfter(flow.effectiveTo())) {
+          result.add(new PlannedCashFlow(
+              flow.id(), flow.category(), flow.direction(), flow.cadence(), flow.amount(),
+              remainingFrom, flow.effectiveTo(), flow.eventDate(), flow.source(), flow.currency()));
+        }
+      }
+    }
+    return result;
   }
 
-  private static String identity(PlannedCashFlow flow) {
-    return flow.id() + "|" + flow.effectiveDate();
+  private static boolean sameOccurrence(PlannedCashFlow projected, PlannedCashFlow actual) {
+    if (!projected.id().equals(actual.id()) || projected.cadence() != actual.cadence()) return false;
+    if (projected.cadence() == CashFlowCadence.ONE_OFF) {
+      return projected.eventDate().equals(actual.eventDate());
+    }
+    if (projected.cadence() == CashFlowCadence.ANNUAL) {
+      return projected.effectiveFrom().getYear() == actual.effectiveFrom().getYear();
+    }
+    LocalDate projectedEnd = projected.effectiveTo();
+    LocalDate actualEnd = actual.effectiveTo() == null ? actual.effectiveFrom() : actual.effectiveTo();
+    return !actualEnd.isBefore(projected.effectiveFrom())
+        && (projectedEnd == null || !actual.effectiveFrom().isAfter(projectedEnd));
   }
 
   private static boolean applicable(PlannedCashFlow flow, Period period) {
+    LocalDate start = flow.effectiveFrom();
+    LocalDate end = flow.effectiveTo() == null ? period.end() : flow.effectiveTo();
     return switch (flow.cadence()) {
-      case ONE_OFF, ANNUAL -> !flow.effectiveDate().isAfter(period.end())
-          && !flow.effectiveDate().isBefore(period.start());
-      case MONTHLY -> !YearMonth.from(flow.effectiveDate()).isAfter(YearMonth.from(period.end()));
+      case ONE_OFF -> {
+        LocalDate event = flow.eventDate() == null ? start : flow.eventDate();
+        yield !event.isBefore(period.start()) && !event.isAfter(period.end())
+            && !start.isAfter(event) && !end.isBefore(event);
+      }
+      case ANNUAL -> !start.isAfter(period.end()) && !end.isBefore(period.start());
+      case MONTHLY -> !YearMonth.from(start).isAfter(YearMonth.from(period.end()))
+          && !YearMonth.from(end).isBefore(YearMonth.from(period.start()));
     };
   }
 
@@ -86,9 +128,12 @@ public final class CashFlowAggregationService {
       case MONTHLY -> {
         YearMonth first = YearMonth.from(period.start());
         YearMonth last = YearMonth.from(period.end());
-        YearMonth effective = YearMonth.from(flow.effectiveDate());
-        long months = Math.max(0, java.time.temporal.ChronoUnit.MONTHS.between(
-            effective.isAfter(first) ? effective : first, last) + 1);
+        YearMonth effective = YearMonth.from(flow.effectiveFrom());
+        YearMonth until = YearMonth.from(flow.effectiveTo() == null ? period.end() : flow.effectiveTo());
+        YearMonth firstApplicable = effective.isAfter(first) ? effective : first;
+        YearMonth lastApplicable = until.isBefore(last) ? until : last;
+        long months = lastApplicable.isBefore(firstApplicable) ? 0
+            : java.time.temporal.ChronoUnit.MONTHS.between(firstApplicable, lastApplicable) + 1;
         yield flow.amount().multiply(BigDecimal.valueOf(months));
       }
     };

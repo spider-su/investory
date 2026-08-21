@@ -6,9 +6,9 @@ import org.springframework.stereotype.Service;
 /** Thin boundary for analyses that repeatedly invoke the canonical simulator. */
 @Service
 public class SimulationEvaluationService {
-  private final RetirementSimulationService simulations;
+  private final RetirementSimulation simulations;
 
-  public SimulationEvaluationService(RetirementSimulationService simulations) {
+  public SimulationEvaluationService(RetirementSimulation simulations) {
     this.simulations = simulations;
   }
 
