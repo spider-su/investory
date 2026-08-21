@@ -369,11 +369,13 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
 
   private static RealEstatePlanningView realEstate(RealEstatePlanningSummary p) {
     return new RealEstatePlanningView(
+        p.taxBase(),
         p.totalPaymentMonthly(),
         p.monthlyIncome(),
         p.monthlyReduce(),
         p.annualTax(),
-        p.netMonthlyIncome());
+        p.netMonthlyIncome(),
+        p.incomeYield());
   }
 
   private static BondPlanningView bondPlanning(BondPlanningSummary p) {

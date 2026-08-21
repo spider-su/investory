@@ -238,11 +238,13 @@ public interface LongTermAssetsApi {
       BigDecimal netYieldAfterTax) {}
 
   record RealEstatePlanningView(
+      BigDecimal taxBase,
       BigDecimal totalPaymentMonthly,
       BigDecimal monthlyIncome,
       BigDecimal monthlyReduce,
       BigDecimal annualTax,
-      BigDecimal netMonthlyIncome) {}
+      BigDecimal netMonthlyIncome,
+      BigDecimal incomeYield) {}
 
   record BondPlanningView(
       BigDecimal value,

@@ -61,7 +61,7 @@
             <td class="text-end" th:if="${group.key != 'REAL_ESTATE'}" th:text="${asset.currency == total.currency ? format.wholeNumber(asset.annualEconomics.annualTax) : format.moneyWhole(asset.annualEconomics.annualTax, asset.currency)}">0</td>
             <td class="text-end" th:if="${group.key != 'REAL_ESTATE'}" th:text="${asset.currency == total.currency ? format.wholeNumber(asset.annualEconomics.netAnnualIncomeAfterTax) : format.moneyWhole(asset.annualEconomics.netAnnualIncomeAfterTax, asset.currency)}">0</td>
             <td class="text-end" th:if="${group.key != 'REAL_ESTATE'}" th:text="${format.percentage(asset.annualEconomics.netYieldAfterTax)}">0.0%</td>
-            <td class="text-end" th:if="${group.key == 'REAL_ESTATE'}" th:text="${format.percentage(asset.annualEconomics.netYieldAfterTax)}">0.0%</td>
+            <td class="text-end" th:if="${group.key == 'REAL_ESTATE'}" th:text="${format.percentage(asset.realEstatePlanning.incomeYield)}">0.0%</td>
             <td th:if="${group.key == 'BOND'}" th:text="${asset.bondPlanning.maturityDate == null ? '—' : asset.bondPlanning.maturityDate}">—</td>
           </tr>
           </tbody>
