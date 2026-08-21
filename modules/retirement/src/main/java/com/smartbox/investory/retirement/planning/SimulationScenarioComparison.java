@@ -37,7 +37,7 @@ public record SimulationScenarioComparison(
                       label(scenario),
                       scenario == selectedScenario,
                       summary.failed(),
-                      summary.failed() ? "Plan fails" : "Sustainable",
+                      healthLabel(summary),
                       display.minimumSafeReserveCoverageYearsDisplay(),
                       failureDisplay(summary),
                       display.minimumSpendableAssetsDisplay(),
@@ -82,6 +82,15 @@ public record SimulationScenarioComparison(
       return summary.firstFailureYear().toString();
     }
     return summary.firstFailureYear() + " · age " + summary.firstFailureAge();
+  }
+
+  private static String healthLabel(SimulationDecisionSummary summary) {
+    if (summary.failed()) return "Fails";
+    if (summary.recurringFundingGapRequired()
+        && summary.minimumSafeReserveCoverageYears().compareTo(java.math.BigDecimal.ONE) < 0) {
+      return "Fragile";
+    }
+    return "Sustainable";
   }
 
   private static int compareReserveCoverage(

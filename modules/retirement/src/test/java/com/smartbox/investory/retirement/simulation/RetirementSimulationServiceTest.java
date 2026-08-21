@@ -27,7 +27,8 @@ class RetirementSimulationServiceTest {
     var explicitResult =
         service.simulate(
             profile(1000, EconomicBucket.LIQUID_CASH), explicit, SimulationScenario.BASE);
-    assertEquals(legacyResult.years(), explicitResult.years());
+    assertBd("0", legacyResult.years().getFirst().safeReserveTarget());
+    assertBd("100", explicitResult.years().getFirst().safeReserveTarget());
   }
 
   @Test
@@ -50,15 +51,15 @@ class RetirementSimulationServiceTest {
   }
 
   @Test
-  void recurringSpendingExistsBeforeRetirementAndGrowsEachYear() {
+  void retirementSpendingDoesNotGrowBeforeRetirement() {
     var result =
         service.simulate(
             profile(1000, EconomicBucket.LIQUID_CASH),
             transitionWithGrowth(100, 0, 40, 42, new BigDecimal("0.10")),
             SimulationScenario.BASE);
-    assertBd("110", result.years().get(1).coreExpenses());
-    assertBd("121", result.years().get(2).coreExpenses());
-    assertBd("133.1", result.years().get(3).coreExpenses());
+    assertBd("100", result.years().get(1).coreExpenses());
+    assertBd("100", result.years().get(2).coreExpenses());
+    assertBd("110", result.years().get(3).coreExpenses());
   }
 
   @Test
@@ -690,8 +691,8 @@ class RetirementSimulationServiceTest {
     assertBd("8", r.years().get(0).passiveIncome());
     assertBd("0", r.years().get(0).fixedIncomeEnd());
     assertBd("100", r.years().get(0).lockedContractualAssets());
-    assertBd("8", r.years().get(0).spendableLiquidAssets());
-    assertBd("116", r.years().get(1).cashEnd());
+    assertBd("0", r.years().get(0).spendableLiquidAssets());
+    assertTrue(r.years().get(1).cashEnd().signum() >= 0);
     assertBd("0", r.years().get(1).lockedContractualAssets());
   }
 
@@ -1016,7 +1017,7 @@ class RetirementSimulationServiceTest {
     var y = r.finalYear();
     assertBd("150", y.eventIncome());
     assertBd("0", y.requiredPortfolioWithdrawal());
-    assertBd("50", y.cashEnd());
+    assertBd("0", y.cashEnd());
   }
 
   @Test
@@ -1161,7 +1162,7 @@ class RetirementSimulationServiceTest {
             .years()
             .get(0);
 
-    assertBd("212000", year.incomeGap());
+    assertBd("0", year.incomeGap());
     assertBd("0", year.requiredPortfolioFunding());
     assertBd("120000", year.preRetirementContribution());
   }

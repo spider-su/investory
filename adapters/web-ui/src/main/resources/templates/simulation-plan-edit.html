@@ -89,8 +89,7 @@
     <section class="card iv-simulation-editor__section">
       <div class="iv-card-section-header"><span class="iv-card-section-header__title">Funding &amp; reserve strategy</span></div>
       <div class="card-body iv-simulation-editor__grid">
-        <div><label class="form-label" for="funding-strategy">Funding strategy</label><select id="funding-strategy" class="form-select" name="fundingStrategy"><option value="SIMPLE_WATERFALL" th:selected="${assumptions.fundingStrategy.name() == 'SIMPLE_WATERFALL'}">Simple waterfall</option><option value="RESERVE_AND_HARVEST" th:selected="${assumptions.fundingStrategy.name() == 'RESERVE_AND_HARVEST'}">Reserve + equity harvest</option></select></div>
-        <div><label class="form-label" for="funding-order">Funding order</label><select id="funding-order" class="form-select" name="fundingOrder"><option value="CASH,BONDS,STOCKS" th:selected="${assumptions.fundingOrder.toString() == '[CASH, BONDS, STOCKS]'}">Cash → bonds → stocks</option><option value="CASH,STOCKS,BONDS" th:selected="${assumptions.fundingOrder.toString() == '[CASH, STOCKS, BONDS]'}">Cash → stocks → bonds</option><option value="BONDS,CASH,STOCKS" th:selected="${assumptions.fundingOrder.toString() == '[BONDS, CASH, STOCKS]'}">Bonds → cash → stocks</option></select><div class="form-hint">Deterministic order for funding spending deficits. Rental income offsets expenses first.</div></div>
+        <div><span class="form-label">Funding order</span><div class="form-hint">Income → free reserve → permitted Long-Term capital → Investment. This order is fixed.</div></div>
         <div class="iv-expense-profile">
           <span class="form-label d-block">Expense profile</span>
           <input id="expense-profile" name="expenseProfile" type="hidden" th:value="${expenseProfileValue}">

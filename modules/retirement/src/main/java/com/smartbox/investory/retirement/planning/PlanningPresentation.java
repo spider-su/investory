@@ -37,9 +37,6 @@ public final class PlanningPresentation {
   }
 
   public static String fundingStrategy(SimulationFundingStrategy value) {
-    return switch (value) {
-      case SIMPLE_WATERFALL -> "Simple waterfall";
-      case RESERVE_AND_HARVEST -> "Reserve + equity harvest";
-    };
+    return "Fixed funding order: income → reserve → permitted Long-Term capital → Investment";
   }
 }

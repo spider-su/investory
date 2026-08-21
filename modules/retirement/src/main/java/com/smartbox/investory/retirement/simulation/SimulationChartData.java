@@ -9,12 +9,22 @@ public record SimulationChartData(
     List<IncomeSpendingPoint> incomeSpending,
     List<CompositionPoint> composition,
     Map<SimulationScenario, List<FundingPoint>> funding,
-    Map<SimulationScenario, List<ReservePoint>> reserves) {
+    Map<SimulationScenario, List<ReservePoint>> reserves,
+    ChartMetadata metadata) {
   public SimulationChartData(
       Map<SimulationScenario, List<BalancePoint>> balances,
       List<IncomeSpendingPoint> incomeSpending,
       List<CompositionPoint> composition) {
-    this(balances, incomeSpending, composition, Map.of(), Map.of());
+    this(balances, incomeSpending, composition, Map.of(), Map.of(), ChartMetadata.empty());
+  }
+
+  public SimulationChartData(
+      Map<SimulationScenario, List<BalancePoint>> balances,
+      List<IncomeSpendingPoint> incomeSpending,
+      List<CompositionPoint> composition,
+      Map<SimulationScenario, List<FundingPoint>> funding,
+      Map<SimulationScenario, List<ReservePoint>> reserves) {
+    this(balances, incomeSpending, composition, funding, reserves, ChartMetadata.empty());
   }
 
   public record BalancePoint(int year, int age, BigDecimal netWorth, BigDecimal liquidAssets) {}
@@ -39,7 +49,28 @@ public record SimulationChartData(
       BigDecimal safeReserveEnd,
       BigDecimal safeReserveTarget,
       BigDecimal safeReserveCoverageYears,
+      BigDecimal safeReserveTargetCoverageYears,
       boolean failed) {}
+
+  public record ChartMetadata(
+      int retirementYear,
+      int pensionStartYear,
+      int horizonEndYear,
+      int horizonEndAge,
+      Map<SimulationScenario, FailureMarker> failures,
+      List<Integer> expenseProfileTransitionYears) {
+    public ChartMetadata {
+      failures = failures == null ? Map.of() : Map.copyOf(failures);
+      expenseProfileTransitionYears =
+          expenseProfileTransitionYears == null ? List.of() : List.copyOf(expenseProfileTransitionYears);
+    }
+
+    static ChartMetadata empty() {
+      return new ChartMetadata(0, 0, 0, 0, Map.of(), List.of());
+    }
+  }
+
+  public record FailureMarker(int year, int age) {}
 
   /**
    * Simplified allocation view. Bonds include market fixed income and locked contractual
@@ -56,19 +87,24 @@ public record SimulationChartData(
         new java.util.EnumMap<>(SimulationScenario.class);
     Map<SimulationScenario, List<ReservePoint>> reserves =
         new java.util.EnumMap<>(SimulationScenario.class);
-    results.forEach(
-        (scenario, result) ->
-            balances.put(
-                scenario,
-                result.years().stream()
-                    .map(
-                        y ->
-                            new BalancePoint(
-                                assumptions.startYear() + y.year(),
-                                y.age(),
-                                y.endNetWorth(),
-                                y.spendableAssetsEnd()))
-                    .toList()));
+    Map<SimulationScenario, FailureMarker> failures = new java.util.EnumMap<>(SimulationScenario.class);
+    results.forEach((scenario, result) -> {
+      boolean failed = false;
+      java.util.ArrayList<BalancePoint> points = new java.util.ArrayList<>();
+      for (SimulationYear y : result.years()) {
+        int calendarYear = assumptions.startYear() + y.year();
+        if (y.failed() && !failed) {
+          failures.put(scenario, new FailureMarker(calendarYear, y.age()));
+          failed = true;
+        }
+        points.add(new BalancePoint(
+            calendarYear,
+            y.age(),
+            failed ? (y.failed() ? y.endNetWorth().max(BigDecimal.ZERO) : null) : y.endNetWorth(),
+            failed ? (y.failed() ? y.spendableAssetsEnd().max(BigDecimal.ZERO) : null) : y.spendableAssetsEnd()));
+      }
+      balances.put(scenario, List.copyOf(points));
+    });
     results.forEach(
         (scenario, result) -> {
           funding.put(
@@ -79,7 +115,7 @@ public record SimulationChartData(
                           new FundingPoint(
                               assumptions.startYear() + y.year(),
                               y.age(),
-                              y.passiveIncome(),
+                              y.totalIncome(),
                               y.pensionIncome(),
                               y.coreExpenses().add(y.discretionaryExpenses()),
                               y.requiredPortfolioFunding(),
@@ -97,6 +133,7 @@ public record SimulationChartData(
                               y.safeReserveEnd(),
                               y.safeReserveTarget(),
                               y.safeReserveCoverageYears(),
+                              targetCoverage(y),
                               y.failed()))
                   .toList());
         });
@@ -128,6 +165,22 @@ public record SimulationChartData(
                         y.equityEnd()))
             .toList(),
         funding,
-        reserves);
+        reserves,
+        new ChartMetadata(
+            assumptions.startYear() + assumptions.retirementAge() - assumptions.currentAge(),
+            assumptions.startYear() + assumptions.pensionStartAge() - assumptions.currentAge(),
+            assumptions.startYear() + assumptions.endAge() - assumptions.currentAge(),
+            assumptions.endAge(),
+            failures,
+            assumptions.expenseProfile().steps().stream()
+                .map(step -> assumptions.startYear() + step.fromYear())
+                .toList()));
+  }
+
+  private static BigDecimal targetCoverage(SimulationYear year) {
+    BigDecimal need = year.recurringFundingGap();
+    return need == null || need.signum() <= 0
+        ? null
+        : year.safeReserveTarget().divide(need, 8, java.math.RoundingMode.HALF_UP);
   }
 }

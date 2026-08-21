@@ -19,6 +19,10 @@ asset module depends on Retirement.
 
 Taxes and costs are already reflected in supplied net flow values.
 
+All values cross the plan boundary in the plan currency. Source-currency asset values are converted
+once, using the shared target-currency-first conversion service, before they become a flow, capital
+projection, or page view value. A display-currency change only formats the already-normalized value.
+
 ## Planned cash flows
 
 The generic flow contract is:
@@ -69,6 +73,8 @@ endValue = startValue - reserveWithdrawal
 
 Review may apply an explicit, separately reported reserve adjustment. External contributions do not
 exist inside future simulation. Unused surplus stays informational unless a review allocates it.
+Any reserve target is informational (`recurring funding need * target years`); it never refills the
+reserve and never causes equity or bond harvesting.
 
 ## Capital projections
 
@@ -124,13 +130,17 @@ retirement. Pension starts only at its configured date. One-off flows remain act
 Spending starts at retirement and grows only afterward. Forward rebasing carries accumulated
 retirement spending instead of resetting it.
 
+The current-year bridge is explicit: actual state plus projected remaining current-year flows and
+returns produces the expected year-end state, which is the next projected year's start. If there is
+no approved baseline, future rows are not presented as a continuous trusted projection.
+
 An open-year result exposes actual income/expenses, projected remaining income/expenses, expected
 full-year net result, variance from the original plan, and any explicit reserve adjustment.
 
 ## Exclusions
 
 The model excludes economic buckets, market-cash/equity/fixed-income simulation, configurable
-withdrawal order, equity harvesting, emergency equity withdrawals, synthetic bonds, reserve targets
-or refill rules, property valuation/growth inside Retirement, and duplicated asset formulas.
-Legacy UI adapters may remain temporarily where external screens still require them; they are not
-part of the generic simulation contract.
+withdrawal order, equity harvesting, emergency equity withdrawals, synthetic bonds, reserve refill
+rules, property valuation/growth inside Retirement, and duplicated asset formulas. A target reserve
+may be reported as a policy metric, but is never a funding action. Actual and projected source
+labels remain separate; a projected return assumption is never labelled actual.

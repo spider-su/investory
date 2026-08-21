@@ -220,6 +220,7 @@ public class PlanningCurrencyPresentationService {
                     scenario,
                     summary.failed(),
                     toDisplay(summary.finalNetWorth(), display),
+                    toDisplay(summary.finalLiquidAssets(), display),
                     toDisplay(summary.minimumLiquidAssets(), display),
                     toDisplay(summary.lowestNetWorth(), display),
                     toDisplay(summary.lifetimeActualWithdrawals(), display),
@@ -279,7 +280,8 @@ public class PlanningCurrencyPresentationService {
                         toDisplay(point.equities(), display)))
             .toList(),
         displayFunding(charts.funding(), display),
-        displayReserves(charts.reserves(), display));
+        displayReserves(charts.reserves(), display),
+        charts.metadata());
   }
 
   private Map<SimulationScenario, List<SimulationChartData.FundingPoint>> displayFunding(
@@ -647,6 +649,7 @@ public class PlanningCurrencyPresentationService {
                                 toDisplay(point.safeReserveEnd(), display),
                                 toDisplay(point.safeReserveTarget(), display),
                                 point.safeReserveCoverageYears(),
+                                point.safeReserveTargetCoverageYears(),
                                 point.failed()))
                     .toList()));
     return result;

@@ -77,18 +77,29 @@ public class RetirementSimulationService implements RetirementSimulation {
           eventsFor(assumptions.futureEvents(), calendarYear, SimulationEventType.ONE_OFF_EXPENSE);
       BigDecimal eventIncome =
           eventsFor(assumptions.futureEvents(), calendarYear, SimulationEventType.ONE_OFF_INCOME);
+      CashFlowAggregationService.Result cashFlow =
+          aggregateYearFlows(
+              calendarYear,
+              yearCoreExpenses,
+              yearDiscretionaryExpenses,
+              passive,
+              pension,
+              employmentIncome,
+              eventIncome,
+              eventExpenses);
       BigDecimal retirementIncome = passive.add(pension).add(eventIncome);
-      BigDecimal totalExpenses = yearCoreExpenses.add(yearDiscretionaryExpenses).add(eventExpenses);
-      BigDecimal totalIncome = employmentIncome.add(retirementIncome);
-      BigDecimal required = totalExpenses.subtract(totalIncome).max(ZERO);
+      BigDecimal totalExpenses = cashFlow.periodExpenses();
+      BigDecimal totalIncome = cashFlow.periodIncome();
+      BigDecimal required = cashFlow.fundingGap();
       BigDecimal recurringFundingGap =
           yearCoreExpenses
               .add(yearDiscretionaryExpenses)
               .subtract(passive)
               .subtract(pension)
+              .subtract(employmentIncome)
               .max(ZERO);
       BigDecimal safeReserveTarget =
-          retired && assumptions.fundingStrategy() == SimulationFundingStrategy.RESERVE_AND_HARVEST
+          retired
               ? recurringFundingGap.multiply(assumptions.safeReserveYears())
               : ZERO;
       ManualWithdrawal manualWithdrawal =
@@ -128,8 +139,6 @@ public class RetirementSimulationService implements RetirementSimulation {
       }
       boolean failed = failureAge != null;
       totalUnfunded = totalUnfunded.add(missing);
-      BigDecimal surplus = retirementIncome.subtract(totalExpenses).max(ZERO);
-      afterWithdrawal.merge(EconomicBucket.LIQUID_CASH, surplus, BigDecimal::add);
       EnumMap<EconomicBucket, BigDecimal> marketEnd =
           PortfolioReturnCalculator.applyFullYear(afterWithdrawal, settings);
       Map<Long, BigDecimal> manualAfterWithdrawal = new LinkedHashMap<>(manualYear.values());
@@ -249,7 +258,7 @@ public class RetirementSimulationService implements RetirementSimulation {
       years.add(
           new SimulationYear(
               age,
-              age - assumptions.currentAge(),
+              calendarYear,
               startNetWorth,
               yearCoreExpenses,
               yearDiscretionaryExpenses,
@@ -297,14 +306,18 @@ public class RetirementSimulationService implements RetirementSimulation {
               preRetirementContribution,
               age == assumptions.retirementAge(),
               manualYear.rentalIncomeAmount(),
-              totalExpenses.subtract(manualYear.rentalIncomeAmount()).max(ZERO),
+              totalExpenses.subtract(totalIncome).max(ZERO),
               bondValueEnd,
               manualYear.bondIncome()));
       market = marketEnd;
       manual = manualEnd;
       rentalIncome = manualYear.rentalIncome();
-      coreExpenses = grow(coreExpenses, settings.spendingGrowthRate());
-      discretionaryExpenses = grow(discretionaryExpenses, settings.spendingGrowthRate());
+      // Retirement spending starts at the first retirement year. The configured first
+      // retirement-year amount is the baseline; growth applies before the following year.
+      if (retired) {
+        coreExpenses = grow(coreExpenses, settings.spendingGrowthRate());
+        discretionaryExpenses = grow(discretionaryExpenses, settings.spendingGrowthRate());
+      }
     }
     return new SimulationResult(
         scenario, failureAge != null, failureAge, firstFailureShortfall, totalUnfunded, years);
@@ -324,6 +337,41 @@ public class RetirementSimulationService implements RetirementSimulation {
         .filter(event -> event.year() == year && event.type() == type)
         .map(SimulationEvent::amount)
         .reduce(ZERO, BigDecimal::add);
+  }
+
+  private static CashFlowAggregationService.Result aggregateYearFlows(
+      int year,
+      BigDecimal coreExpenses,
+      BigDecimal discretionaryExpenses,
+      BigDecimal passiveIncome,
+      BigDecimal pension,
+      BigDecimal employment,
+      BigDecimal eventIncome,
+      BigDecimal eventExpenses) {
+    LocalDate firstDay = LocalDate.of(year, 1, 1);
+    List<PlannedCashFlow> flows = new ArrayList<>();
+    addAnnual(flows, "living-expenses", CashFlowDirection.EXPENSE, coreExpenses, firstDay);
+    addAnnual(flows, "discretionary-expenses", CashFlowDirection.EXPENSE, discretionaryExpenses, firstDay);
+    addAnnual(flows, "long-term-income", CashFlowDirection.INCOME, passiveIncome, firstDay);
+    addAnnual(flows, "pension", CashFlowDirection.INCOME, pension, firstDay);
+    addAnnual(flows, "employment", CashFlowDirection.INCOME, employment, firstDay);
+    addAnnual(flows, "events-income", CashFlowDirection.INCOME, eventIncome, firstDay);
+    addAnnual(flows, "events-expenses", CashFlowDirection.EXPENSE, eventExpenses, firstDay);
+    return new CashFlowAggregationService()
+        .aggregateProjected(new Period(firstDay, LocalDate.of(year, 12, 31)), flows);
+  }
+
+  private static void addAnnual(
+      List<PlannedCashFlow> flows,
+      String id,
+      CashFlowDirection direction,
+      BigDecimal amount,
+      LocalDate date) {
+    if (amount.signum() > 0) {
+      flows.add(
+          new PlannedCashFlow(
+              id, id, direction, CashFlowCadence.ANNUAL, amount, date, ProjectionSource.PROJECTED));
+    }
   }
 
   private EnumMap<EconomicBucket, BigDecimal> initialMarket(InvestmentProfile profile) {

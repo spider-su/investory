@@ -8,6 +8,7 @@ public record SimulationDecisionSummaryMoney(
     SimulationScenario scenario,
     boolean failed,
     BigDecimal finalNetWorth,
+    BigDecimal finalSpendableAssets,
     BigDecimal minimumSpendableAssets,
     BigDecimal lowestNetWorth,
     BigDecimal lifetimeActualWithdrawals,
@@ -51,6 +52,7 @@ public record SimulationDecisionSummaryMoney(
         failed,
         finalNetWorth,
         minimumSpendableAssets,
+        minimumSpendableAssets,
         lowestNetWorth,
         lifetimeActualWithdrawals,
         totalUnfundedAmount,
@@ -69,12 +71,61 @@ public record SimulationDecisionSummaryMoney(
         true);
   }
 
+  public SimulationDecisionSummaryMoney(
+      SimulationScenario scenario,
+      boolean failed,
+      BigDecimal finalNetWorth,
+      BigDecimal minimumSpendableAssets,
+      BigDecimal lowestNetWorth,
+      BigDecimal lifetimeActualWithdrawals,
+      BigDecimal totalUnfundedAmount,
+      BigDecimal firstYearPassiveIncomeCoverage,
+      BigDecimal minimumPassiveIncomeCoverage,
+      Integer firstFailureYear,
+      Integer firstFailureAge,
+      BigDecimal totalEquityHarvested,
+      BigDecimal totalEmergencyEquityWithdrawals,
+      BigDecimal totalManualLiquidReserveWithdrawals,
+      BigDecimal minimumManualLiquidReserve,
+      BigDecimal minimumSafeReserveCoverageYears,
+      int yearsWithEquityHarvest,
+      int yearsUsingEmergencyEquity,
+      BigDecimal finalSafeReserve,
+      boolean recurringFundingGapRequired) {
+    this(
+        scenario,
+        failed,
+        finalNetWorth,
+        minimumSpendableAssets,
+        minimumSpendableAssets,
+        lowestNetWorth,
+        lifetimeActualWithdrawals,
+        totalUnfundedAmount,
+        firstYearPassiveIncomeCoverage,
+        minimumPassiveIncomeCoverage,
+        firstFailureYear,
+        firstFailureAge,
+        totalEquityHarvested,
+        totalEmergencyEquityWithdrawals,
+        totalManualLiquidReserveWithdrawals,
+        minimumManualLiquidReserve,
+        minimumSafeReserveCoverageYears,
+        yearsWithEquityHarvest,
+        yearsUsingEmergencyEquity,
+        finalSafeReserve,
+        recurringFundingGapRequired);
+  }
+
   public String finalNetWorthDisplay() {
     return PlanningPresentation.wholeNumber(finalNetWorth);
   }
 
   public String minimumSpendableAssetsDisplay() {
     return PlanningPresentation.wholeNumber(minimumSpendableAssets);
+  }
+
+  public String finalSpendableAssetsDisplay() {
+    return PlanningPresentation.wholeNumber(finalSpendableAssets);
   }
 
   public String lifetimeActualWithdrawalsDisplay() {

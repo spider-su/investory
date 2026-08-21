@@ -60,8 +60,8 @@ class RetirementSimulationTemplateContractTest {
     assertFalse(editor.contains("Discretionary spending / year"));
     assertFalse(editor.contains("Spending growth"));
     assertTrue(editor.contains("name=\"spendingGrowth\""));
-    assertTrue(editor.contains("Funding strategy"));
-    assertTrue(editor.contains("name=\"fundingStrategy\""));
+    assertTrue(editor.contains("Funding order"));
+    assertFalse(editor.contains("name=\"fundingStrategy\""));
     assertTrue(editor.contains("Safe-reserve target"));
     assertTrue(editor.contains("recurring portfolio funding need"));
     assertTrue(editor.contains("Target reserve amount"));

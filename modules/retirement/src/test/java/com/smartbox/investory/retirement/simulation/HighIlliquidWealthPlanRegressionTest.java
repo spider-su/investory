@@ -72,7 +72,7 @@ class HighIlliquidWealthPlanRegressionTest {
     for (SimulationYear year : checkpoints) {
       System.out.printf(
           "trace year=%d age=%d cash=%s fixed=%s equity=%s other=%s contractual=%s spendable=%s realEstate=%s financial=%s unfunded=%s netWorth=%s%n",
-          year.year() + 2027,
+          year.year(),
           year.age(),
           compact(year.cashEnd()),
           compact(year.fixedIncomeEnd()),
@@ -88,7 +88,7 @@ class HighIlliquidWealthPlanRegressionTest {
     assertTrue(base.simulationFailed(), "high spending should eventually exhaust spendable assets");
     assertNotNull(base.failureAge());
     System.out.printf(
-        "failure age=%d calendarYear=%d%n", base.failureAge(), 2027 + base.failureAge() - 41);
+        "failure age=%d calendarYear=%d%n", base.failureAge(), base.finalYear().year());
     BigDecimal finalRealEstate = base.finalYear().realEstateEnd();
     assertEquals(ZERO, finalRealEstate, "property value is not part of simulated wealth");
     assertEquals(
@@ -131,7 +131,7 @@ class HighIlliquidWealthPlanRegressionTest {
 
   private static SimulationYear year(SimulationResult result, int calendarYear) {
     return result.years().stream()
-        .filter(year -> year.year() + 2027 == calendarYear)
+        .filter(year -> year.year() == calendarYear)
         .findFirst()
         .orElseThrow(() -> new AssertionError("Missing calendar year " + calendarYear));
   }

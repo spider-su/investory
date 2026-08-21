@@ -1,6 +1,7 @@
 package com.smartbox.investory.retirement.simulation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
@@ -142,12 +143,15 @@ class SimulationDecisionSummaryTest {
     assertEquals(
         projection.endNetWorth(), charts.balances().get(SimulationScenario.BASE).get(0).netWorth());
     assertEquals(
-        projection.passiveIncome().add(projection.pensionIncome()),
+        projection.totalIncome(),
         charts.incomeSpending().get(0).recurringIncome());
     assertEquals(
         projection.coreExpenses().add(projection.discretionaryExpenses()),
         charts.incomeSpending().get(0).plannedSpending());
     assertEquals(projection.equityEnd(), charts.composition().get(0).equities());
+    assertEquals(2026, charts.metadata().retirementYear());
+    assertEquals(2026, charts.metadata().horizonEndYear());
+    assertTrue(charts.metadata().failures().isEmpty());
   }
 
   @Test

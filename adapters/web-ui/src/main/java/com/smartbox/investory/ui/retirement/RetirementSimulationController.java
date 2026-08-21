@@ -162,7 +162,7 @@ public class RetirementSimulationController {
     // Optional assumption parameters are retained as transient/query overrides for legacy deep
     // links. Saved plans remain the canonical source when an override is not supplied.
     int requestedCurrentAge = currentAge == null ? 40 : currentAge;
-    int requestedEndAge = endAge == null ? 80 : endAge;
+    int requestedEndAge = endAge == null ? 95 : endAge;
     var profile = profiles.loadProfile(portfolioId);
     var defaults =
         SimulationAssumptions.defaults(
@@ -206,7 +206,7 @@ public class RetirementSimulationController {
             base.futureEvents(),
             percentInputToRate(rentalIncomeGrowth, base.rentalIncomeGrowthRate()),
             percentInputToRate(spendingGrowth, base.spendingGrowthRate()),
-            fundingStrategy == null ? base.fundingStrategy() : fundingStrategy,
+            SimulationFundingStrategy.SIMPLE_WATERFALL,
             value(safeReserveYears, base.safeReserveYears()),
             percentInputToRate(equityHarvestMinimumReturn, base.equityHarvestMinimumReturnRate()),
             percentInputToRate(equityGainHarvest, base.equityGainHarvestRate()),
@@ -216,7 +216,7 @@ public class RetirementSimulationController {
             base.retirementAge(),
             base.annualEmploymentIncome(),
             base.annualPreRetirementContribution(),
-            base.fundingOrder(),
+            SimulationAssumptions.DEFAULT_FUNDING_ORDER,
             base.expenseProfile());
     var forward = forwardInputs.prepare(profile, assumptions);
     var projectedAssumptions = forward.forwardAssumptions().orElse(assumptions);
@@ -952,7 +952,7 @@ public class RetirementSimulationController {
       @RequestParam(required = false) Long planId,
       @RequestParam String name,
       @RequestParam(defaultValue = "40") int currentAge,
-      @RequestParam(defaultValue = "80") int endAge,
+      @RequestParam(defaultValue = "95") int endAge,
       @RequestParam(required = false) Integer retirementAge,
       @RequestParam(defaultValue = "0") BigDecimal annualEmploymentIncome,
       @RequestParam(defaultValue = "0") BigDecimal annualPreRetirementContribution,
@@ -962,7 +962,7 @@ public class RetirementSimulationController {
       @RequestParam BigDecimal inflation,
       @RequestParam(defaultValue = "2") BigDecimal rentalIncomeGrowth,
       @RequestParam(defaultValue = "2.5") BigDecimal spendingGrowth,
-      @RequestParam(defaultValue = "RESERVE_AND_HARVEST") SimulationFundingStrategy fundingStrategy,
+      @RequestParam(defaultValue = "SIMPLE_WATERFALL") SimulationFundingStrategy fundingStrategy,
       @RequestParam(defaultValue = "CASH,BONDS,STOCKS") String fundingOrder,
       @RequestParam(defaultValue = "") String expenseProfile,
       @RequestParam(defaultValue = "5") BigDecimal safeReserveYears,
@@ -1023,7 +1023,7 @@ public class RetirementSimulationController {
                     rentalIncomeGrowth, SimulationAssumptions.DEFAULT_RENTAL_INCOME_GROWTH_RATE),
                 percentInputToRate(
                     spendingGrowth, SimulationAssumptions.DEFAULT_SPENDING_GROWTH_RATE),
-                fundingStrategy,
+                SimulationFundingStrategy.SIMPLE_WATERFALL,
                 safeReserveYears,
                 percentInputToRate(
                     equityHarvestMinimumReturn,
@@ -1036,7 +1036,7 @@ public class RetirementSimulationController {
                     annualEmploymentIncome, planningDisplayCurrency, BigDecimal.ZERO),
                 planningPresentation.fromDisplay(
                     annualPreRetirementContribution, planningDisplayCurrency, BigDecimal.ZERO))
-            .withFundingOrder(parseFundingOrder(fundingOrder))
+            .withFundingOrder(SimulationAssumptions.DEFAULT_FUNDING_ORDER)
             .withExpenseProfile(parseExpenseProfile(expenseProfile));
     Long savedPlanId =
         planId == null || saveAs

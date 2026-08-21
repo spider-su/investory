@@ -191,7 +191,10 @@ class RetirementSimulationControllerTest {
     mockMvc
         .perform(get("/simulation").param("portfolioId", "1").param("planId", "7"))
         .andExpect(status().isOk())
-        .andExpect(model().attribute("assumptions", saved));
+        .andExpect(
+            model()
+                .attribute(
+                    "assumptions", saved.withFundingStrategy(SimulationFundingStrategy.SIMPLE_WATERFALL)));
 
     var captured = org.mockito.ArgumentCaptor.forClass(SimulationAssumptions.class);
     verify(simulations).compareScenarios(eq(p), captured.capture());
@@ -255,7 +258,7 @@ class RetirementSimulationControllerTest {
     assertEquals(new BigDecimal("0.02"), captured.getValue().rentalIncomeGrowthRate());
     assertEquals(new BigDecimal("0.025"), captured.getValue().spendingGrowthRate());
     assertEquals(
-        SimulationFundingStrategy.RESERVE_AND_HARVEST, captured.getValue().fundingStrategy());
+        SimulationFundingStrategy.SIMPLE_WATERFALL, captured.getValue().fundingStrategy());
     assertEquals(new BigDecimal("0.07"), captured.getValue().equityHarvestMinimumReturnRate());
     assertEquals(0, new BigDecimal("0.75").compareTo(captured.getValue().equityGainHarvestRate()));
     assertEquals(new BigDecimal("0.19"), captured.getValue().capitalGainTaxRate());

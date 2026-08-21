@@ -2460,6 +2460,15 @@ body.iv-modal-open { overflow: hidden; }
 .iv-simulation-disclosure { margin-top: 12px; border-top: 1px solid var(--iv-border); }
 .iv-simulation-disclosure > summary { padding: 10px 0 0; color: var(--iv-primary); cursor: pointer; font-size: .76rem; font-weight: 700; }
 .iv-simulation-chart-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; }
+.iv-simulation-chart-controls { display: flex; flex-wrap: wrap; gap: 10px 16px; margin-bottom: 14px; }
+.iv-simulation-chart-controls label { color: var(--iv-text-muted); font-size: .75rem; font-weight: 700; }
+.iv-simulation-chart-controls select { min-width: 150px; margin-top: 3px; }
+.iv-simulation-decision-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.iv-simulation-decision-grid article { border: 1px solid var(--iv-border); border-radius: 8px; padding: 12px; background: var(--iv-surface); }
+.iv-simulation-decision-grid h3 { margin: 0; color: var(--iv-text); font-size: .82rem; }
+.iv-simulation-decision-grid strong { display: block; margin-top: 5px; color: var(--iv-text); }
+.iv-simulation-decision-grid span { display: block; margin-top: 3px; color: var(--iv-text-muted); font-size: .75rem; }
+.iv-simulation-decision-actions { margin-top: 14px; color: var(--iv-text-muted); font-size: .8rem; }
 .iv-simulation-chart-grid > div { min-width: 0; }
 .iv-simulation-chart-grid__primary { grid-column: 1 / -1; }
 .iv-simulation-chart-grid h3 { margin: 0 0 8px; color: var(--iv-text); font-size: .82rem; font-weight: 750; }
@@ -2481,6 +2490,7 @@ body.iv-modal-open { overflow: hidden; }
     .iv-simulation-portfolio-grid > div:nth-child(4) { border-left: 0; }
     .iv-simulation-chart-grid { grid-template-columns: 1fr; }
     .iv-simulation-chart-grid__primary { grid-column: auto; }
+    .iv-simulation-decision-grid { grid-template-columns: 1fr; }
     .iv-simulation-comparison-grid { grid-template-columns: 1fr; gap: 12px; }
     .iv-simulation-comparison-column, .iv-simulation-comparison-column:first-child { padding: 0; }
     .iv-simulation-comparison-column + .iv-simulation-comparison-column { padding-top: 12px; border-top: 1px solid var(--iv-metric-divider); border-left: 0; }
