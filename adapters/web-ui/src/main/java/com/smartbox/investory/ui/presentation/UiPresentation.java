@@ -157,7 +157,26 @@ public final class UiPresentation {
     };
   }
 
+  public static String cashFlowType(
+      com.smartbox.investory.longterm.api.model.CashFlowTypeModel value) {
+    return switch (value) {
+      case RENT -> "Rent";
+      case PARKING_RENT -> "Parking rent";
+      case OTHER_INCOME -> "Other income";
+      case ADMIN_FEE -> "Administration";
+      case UTILITIES -> "Utilities";
+      case PROPERTY_TAX -> "Property tax";
+      case INSURANCE -> "Insurance";
+      case OTHER_EXPENSE -> "Other expense";
+    };
+  }
+
   public static String frequency(Frequency value) {
+    return title(value);
+  }
+
+  public static String frequency(
+      com.smartbox.investory.longterm.api.model.FrequencyModel value) {
     return title(value);
   }
 
