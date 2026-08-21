@@ -1,0 +1,20 @@
+package com.smartbox.investory.ui.retirement;
+
+import com.smartbox.investory.retirement.planning.PlanRiskView;
+import com.smartbox.investory.retirement.planning.PlanningFlexibilityMoney;
+import com.smartbox.investory.retirement.planning.SimulationDecisionSummaryMoney;
+import com.smartbox.investory.retirement.planning.SimulationScenarioComparison;
+import com.smartbox.investory.retirement.simulation.SimulationChartData;
+import com.smartbox.investory.retirement.simulation.SimulationScenario;
+import com.smartbox.investory.shared.currency.CurrencyType;
+
+/** Focused Analysis-board model. Values come from one completed simulation projection. */
+public record RetirementAnalysisPageView(
+    CurrencyType displayCurrency,
+    SimulationScenario selectedScenario,
+    SimulationDecisionSummaryMoney selectedSummary,
+    SimulationScenarioComparison scenarios,
+    PlanRiskView risks,
+    PlanningFlexibilityMoney flexibility,
+    SimulationChartData charts,
+    String horizon) {}

@@ -352,6 +352,71 @@ public class RetirementSimulationController {
     return "simulation";
   }
 
+  /** Read-only interpretation board over the same projected scenario results as Simulation. */
+  @GetMapping("/analysis")
+  public String analysis(
+      @RequestParam(defaultValue = "1") Long portfolioId,
+      @RequestParam(required = false) Long planId,
+      @RequestParam(defaultValue = "PLN") CurrencyType planningDisplayCurrency,
+      @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario,
+      Model model) {
+    var profile = profiles.loadProfile(portfolioId);
+    var assumptions =
+        planId == null
+            ? SimulationAssumptions.defaults(profile, 40, 95, Year.now(clock).getValue())
+            : plans.assumptions(portfolioId, planId);
+    var forward = forwardInputs.prepare(profile, assumptions);
+    var projectedAssumptions = forward.forwardAssumptions().orElse(assumptions);
+    var projectedProfile = forward.bridgedProfile();
+    var results =
+        forward.forwardAssumptions().isPresent()
+            ? simulations.compareScenarios(projectedProfile, projectedAssumptions)
+            : new java.util.EnumMap<SimulationScenario, SimulationResult>(SimulationScenario.class);
+    var summaries =
+        new java.util.EnumMap<SimulationScenario, SimulationDecisionSummary>(
+            SimulationScenario.class);
+    results.forEach(
+        (scenario, result) ->
+            summaries.put(scenario, SimulationDecisionSummary.from(result, projectedAssumptions)));
+    var displaySummaries =
+        new LinkedHashMap<>(
+            planningPresentation.displaySummaries(summaries, planningDisplayCurrency));
+    var chartData =
+        planningPresentation.displayCharts(
+            SimulationChartData.from(results, projectedAssumptions), planningDisplayCurrency);
+    var spendingAnalysis = sustainableSpending.analyze(projectedProfile, projectedAssumptions);
+    var retirementAnalysis = retirementAgeAnalysis.analyze(projectedProfile, projectedAssumptions);
+    var scenarioView =
+        SimulationScenarioComparison.from(summaries, displaySummaries, selectedScenario);
+    var riskView =
+        planningPresentation.displayPlanRisks(
+            sensitivity.analyze(projectedProfile, projectedAssumptions), planningDisplayCurrency);
+    var flexibilityView =
+        planningPresentation.displayPlanningFlexibility(
+            spendingAnalysis, retirementAnalysis, planningDisplayCurrency);
+    model.addAttribute(
+        "analysisPage",
+        new RetirementAnalysisPageView(
+            planningDisplayCurrency,
+            selectedScenario,
+            displaySummaries.get(selectedScenario),
+            scenarioView,
+            riskView,
+            flexibilityView,
+            chartData,
+            projectedAssumptions.currentAge() + " → " + projectedAssumptions.endAge()));
+    model.addAttribute("profile", profile);
+    model.addAttribute(
+        "displayProfile", planningPresentation.displayProfile(profile, planningDisplayCurrency));
+    model.addAttribute("planningDisplayCurrency", planningDisplayCurrency);
+    model.addAttribute("selectedScenario", selectedScenario);
+    model.addAttribute(
+        "activePlanName", planId == null ? "Current assumptions" : plans.name(portfolioId, planId));
+    model.addAttribute("selectedPlanId", planId);
+    model.addAttribute("analysisHorizon", projectedAssumptions.currentAge() + " → " + projectedAssumptions.endAge());
+    return "retirement-analysis";
+  }
+
   @GetMapping("/simulation/plan/edit")
   public String editPlan(
       @RequestParam(defaultValue = "1") Long portfolioId,
