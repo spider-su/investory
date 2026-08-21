@@ -10,6 +10,7 @@ import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
+import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -87,7 +88,7 @@ class LongTermAssetControllerTest {
         id,
         1L,
         "Bond",
-        LongTermAssetType.BOND,
+        LongTermAssetTypeModel.BOND,
         CurrencyType.PLN,
         null,
         BigDecimal.ONE,

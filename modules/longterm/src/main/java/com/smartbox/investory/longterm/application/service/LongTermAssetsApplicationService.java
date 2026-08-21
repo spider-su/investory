@@ -249,7 +249,7 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
         c.portfolioId(),
         c.assetId(),
         c.flowId(),
-        assetType(c.type()),
+        cashFlowType(c.type()),
         c.amount(),
         frequency(c.frequency()),
         c.validFrom(),

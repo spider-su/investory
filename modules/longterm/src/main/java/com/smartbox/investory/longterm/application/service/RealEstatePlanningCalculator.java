@@ -1,6 +1,8 @@
 package com.smartbox.investory.longterm.application.service;
 
 import com.smartbox.investory.longterm.api.model.RentalContractModel;
+import com.smartbox.investory.longterm.api.model.CashFlowTypeModel;
+import com.smartbox.investory.longterm.api.model.FrequencyModel;
 import com.smartbox.investory.longterm.application.model.RealEstatePlanningSummary;
 import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
@@ -89,7 +91,7 @@ public final class RealEstatePlanningCalculator {
     BigDecimal income = BigDecimal.ZERO, payment = BigDecimal.ZERO, expenses = BigDecimal.ZERO;
     for (var term : contract.terms()) {
       BigDecimal monthly =
-          term.frequency() == Frequency.MONTHLY
+          term.frequency() == FrequencyModel.MONTHLY
               ? term.amount()
               : term.amount().divide(TWELVE, 18, RoundingMode.HALF_UP);
       if (isIncome(term.type())) income = income.add(monthly);
@@ -131,5 +133,27 @@ public final class RealEstatePlanningCalculator {
         || type == CashFlowType.PROPERTY_TAX
         || type == CashFlowType.INSURANCE
         || type == CashFlowType.OTHER_EXPENSE;
+  }
+
+  private static boolean isPayment(CashFlowTypeModel type) {
+    return type == CashFlowTypeModel.RENT
+        || type == CashFlowTypeModel.PARKING_RENT
+        || type == CashFlowTypeModel.ADMIN_FEE
+        || type == CashFlowTypeModel.UTILITIES
+        || isExpense(type);
+  }
+
+  private static boolean isIncome(CashFlowTypeModel type) {
+    return type == CashFlowTypeModel.RENT
+        || type == CashFlowTypeModel.PARKING_RENT
+        || type == CashFlowTypeModel.OTHER_INCOME;
+  }
+
+  private static boolean isExpense(CashFlowTypeModel type) {
+    return type == CashFlowTypeModel.ADMIN_FEE
+        || type == CashFlowTypeModel.UTILITIES
+        || type == CashFlowTypeModel.PROPERTY_TAX
+        || type == CashFlowTypeModel.INSURANCE
+        || type == CashFlowTypeModel.OTHER_EXPENSE;
   }
 }

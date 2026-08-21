@@ -47,7 +47,7 @@ public record LongTermAssetProjectionModel(
         List.of(),
         maturityDate,
         redemptionValue,
-        InterestTreatmentModel,
+        interestTreatment,
         taxRate,
         null,
         false);
@@ -82,7 +82,7 @@ public record LongTermAssetProjectionModel(
         BigDecimal annualExpense,
         BigDecimal annualReturnRate,
         CashFlowTypeModel cashFlowType) {
-      this(validFrom, validTo, annualIncome, annualExpense, annualReturnRate, CashFlowTypeModel, false);
+      this(validFrom, validTo, annualIncome, annualExpense, annualReturnRate, cashFlowType, false);
     }
   }
 
@@ -108,7 +108,7 @@ public record LongTermAssetProjectionModel(
         List.of(),
         maturityDate,
         redemptionValue,
-        InterestTreatmentModel,
+        interestTreatment,
         taxRate,
         taxBase,
         false);
@@ -137,7 +137,7 @@ public record LongTermAssetProjectionModel(
         List.of(),
         maturityDate,
         redemptionValue,
-        InterestTreatmentModel,
+        interestTreatment,
         taxRate,
         taxBase,
         rentalTaxPaidByTenant);

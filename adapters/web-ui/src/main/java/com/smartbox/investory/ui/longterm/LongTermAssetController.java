@@ -1,6 +1,10 @@
 package com.smartbox.investory.ui.longterm;
 
 import com.smartbox.investory.longterm.api.*;
+import com.smartbox.investory.longterm.api.model.CashFlowTypeModel;
+import com.smartbox.investory.longterm.api.model.FrequencyModel;
+import com.smartbox.investory.longterm.api.model.InterestTreatmentModel;
+import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
 import com.smartbox.investory.longterm.api.model.RealEstateEntryModel;
 import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
@@ -142,7 +146,7 @@ public class LongTermAssetController {
                 value,
                 acquisitionDate,
                 maturityDate,
-                interestTreatment,
+                InterestTreatmentModel.valueOf(interestTreatment.name()),
                 annualRatePercent,
                 notes));
     return redirect(saved.id(), portfolioId);
@@ -208,17 +212,17 @@ public class LongTermAssetController {
             rentalTaxPaidByTenant,
             java.util.List.of(
                 new LongTermAssetsApi.RentalTermCommand(
-                    CashFlowType.RENT, zero(rent), Frequency.MONTHLY, false),
+                    CashFlowTypeModel.RENT, zero(rent), FrequencyModel.MONTHLY, false),
                 new LongTermAssetsApi.RentalTermCommand(
-                    CashFlowType.PARKING_RENT, zero(parkingRent), Frequency.MONTHLY, false),
+                    CashFlowTypeModel.PARKING_RENT, zero(parkingRent), FrequencyModel.MONTHLY, false),
                 new LongTermAssetsApi.RentalTermCommand(
-                    CashFlowType.ADMIN_FEE, zero(administrationFee), Frequency.MONTHLY, true),
+                    CashFlowTypeModel.ADMIN_FEE, zero(administrationFee), FrequencyModel.MONTHLY, true),
                 new LongTermAssetsApi.RentalTermCommand(
-                    CashFlowType.UTILITIES, zero(utilities), Frequency.MONTHLY, true),
+                    CashFlowTypeModel.UTILITIES, zero(utilities), FrequencyModel.MONTHLY, true),
                 new LongTermAssetsApi.RentalTermCommand(
-                    CashFlowType.OTHER_INCOME, zero(otherIncome), Frequency.MONTHLY, false),
+                    CashFlowTypeModel.OTHER_INCOME, zero(otherIncome), FrequencyModel.MONTHLY, false),
                 new LongTermAssetsApi.RentalTermCommand(
-                    CashFlowType.OTHER_EXPENSE, zero(otherExpense), Frequency.MONTHLY, false))));
+                    CashFlowTypeModel.OTHER_EXPENSE, zero(otherExpense), FrequencyModel.MONTHLY, false))));
     return redirect(id, portfolioId);
   }
 
@@ -313,7 +317,8 @@ public class LongTermAssetController {
       @RequestParam(required = false) Boolean paidByTenant) {
     assets.addCashFlow(
         new LongTermAssetsApi.CashFlowCommand(
-            portfolioId, id, null, type, amount, frequency, validFrom, validTo, paidByTenant),
+            portfolioId, id, null, CashFlowTypeModel.valueOf(type.name()), amount,
+            FrequencyModel.valueOf(frequency.name()), validFrom, validTo, paidByTenant),
         LocalDate.now(clock));
     return redirect(id, portfolioId);
   }
@@ -335,7 +340,7 @@ public class LongTermAssetController {
             flowId,
             null,
             amount,
-            frequency,
+            FrequencyModel.valueOf(frequency.name()),
             effectiveFrom,
             validTo,
             paidByTenant));
@@ -379,7 +384,8 @@ public class LongTermAssetController {
         portfolioId,
         id,
         new LongTermAssetsApi.BondDetailsCommand(
-            form.maturityDate, form.taxRate, form.interestTreatment, form.redemptionValue));
+            form.maturityDate, form.taxRate,
+            InterestTreatmentModel.valueOf(form.interestTreatment.name()), form.redemptionValue));
     return redirect(id, portfolioId);
   }
 
@@ -404,7 +410,7 @@ public class LongTermAssetController {
             value,
             acquisitionDate,
             maturityDate,
-            interestTreatment,
+                InterestTreatmentModel.valueOf(interestTreatment.name()),
             annualRatePercent,
             notes));
     return redirect(id, portfolioId);
@@ -419,7 +425,8 @@ public class LongTermAssetController {
         portfolioId,
         id,
         new LongTermAssetsApi.DepositDetailsCommand(
-            form.maturityDate, form.annualInterestRate, form.taxRate, form.interestTreatment));
+            form.maturityDate, form.annualInterestRate, form.taxRate,
+            InterestTreatmentModel.valueOf(form.interestTreatment.name())));
     return redirect(id, portfolioId);
   }
 
@@ -571,7 +578,7 @@ public class LongTermAssetController {
           p,
           i,
           name,
-          type,
+          LongTermAssetTypeModel.valueOf(type.name()),
           currency,
           acquisitionDate,
           acquisitionValue,

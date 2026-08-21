@@ -150,7 +150,7 @@ public interface LongTermAssetsApi {
         FrequencyModel frequency,
         LocalDate validFrom,
         LocalDate validTo) {
-      this(portfolioId, assetId, flowId, type, amount, FrequencyModel, validFrom, validTo, null);
+      this(portfolioId, assetId, flowId, type, amount, frequency, validFrom, validTo, null);
     }
   }
 

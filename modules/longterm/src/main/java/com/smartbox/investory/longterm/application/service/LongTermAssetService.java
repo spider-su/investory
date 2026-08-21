@@ -304,9 +304,9 @@ public class LongTermAssetService {
                                   .map(
                                       t ->
                                           new RentalContractModel.Term(
-                                              t.getType(),
+                                              com.smartbox.investory.longterm.api.model.CashFlowTypeModel.valueOf(t.getType().name()),
                                               t.getAmount(),
-                                              t.getFrequency(),
+                                              com.smartbox.investory.longterm.api.model.FrequencyModel.valueOf(t.getFrequency().name()),
                                               t.isPaidByTenant()))
                                   .toList()))
                   .toList();
@@ -760,9 +760,9 @@ public class LongTermAssetService {
                                   .map(
                                       t ->
                                           new RentalContractModel.Term(
-                                              t.getType(),
+                                              com.smartbox.investory.longterm.api.model.CashFlowTypeModel.valueOf(t.getType().name()),
                                               t.getAmount(),
-                                              t.getFrequency(),
+                                              com.smartbox.investory.longterm.api.model.FrequencyModel.valueOf(t.getFrequency().name()),
                                               t.isPaidByTenant()))
                                   .toList()))
                   .toList();

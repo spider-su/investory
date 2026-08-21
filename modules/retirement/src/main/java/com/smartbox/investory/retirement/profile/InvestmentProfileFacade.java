@@ -44,7 +44,7 @@ public class InvestmentProfileFacade {
       values.merge(bucket, toUsd(position.value(), market.baseCurrency(), date), BigDecimal::add);
     }
     for (LongTermAssetProfileAssetModel asset : longTermAssets.list(portfolioId, date)) {
-      EconomicBucket bucket = classify(asset.type());
+      EconomicBucket bucket = classify(LongTermAssetType.valueOf(asset.type().name()));
       BigDecimal value = asset.currentValue();
       values.merge(bucket, value, BigDecimal::add);
     }
@@ -64,11 +64,11 @@ public class InvestmentProfileFacade {
                     new ProjectedLongTermAsset(
                         input.id(),
                         input.name(),
-                        input.type(),
-                        classify(input.type()),
+                        LongTermAssetType.valueOf(input.type().name()),
+                        classify(LongTermAssetType.valueOf(input.type().name())),
                         CurrencyType.USD,
                         input.currentValue(),
-                        liquidity(classify(input.type())),
+                        liquidity(classify(LongTermAssetType.valueOf(input.type().name()))),
                         input.periods().stream()
                             .map(
                                 period ->
@@ -78,12 +78,12 @@ public class InvestmentProfileFacade {
                                         period.annualIncome(),
                                         period.annualExpense(),
                                         period.annualReturnRate(),
-                                        period.cashFlowType(),
+                                        period.cashFlowType() == null ? null : com.smartbox.investory.longterm.infrastructure.rental.CashFlowType.valueOf(period.cashFlowType().name()),
                                         period.paidByTenant()))
                             .toList(),
                         input.maturityDate(),
                         input.redemptionValue() == null ? null : input.redemptionValue(),
-                        input.interestTreatment(),
+                        com.smartbox.investory.longterm.infrastructure.InterestTreatment.valueOf(input.interestTreatment().name()),
                         input.taxRate(),
                         input.taxBase() == null ? null : input.taxBase(),
                         input.rentalTaxPaidByTenant()))

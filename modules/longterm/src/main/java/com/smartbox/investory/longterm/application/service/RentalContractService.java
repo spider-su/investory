@@ -84,9 +84,9 @@ public class RentalContractService {
         throw new IllegalArgumentException("Invalid rental contract term");
       var term = new LongTermAssetRentalContractTermEntity();
       term.setContract(contract);
-      term.setType(input.type());
+      term.setType(CashFlowType.valueOf(input.type().name()));
       term.setAmount(input.amount());
-      term.setFrequency(input.frequency());
+      term.setFrequency(Frequency.valueOf(input.frequency().name()));
       term.setPaidByTenant(input.paidByTenant());
       contract.getTerms().add(term);
     }

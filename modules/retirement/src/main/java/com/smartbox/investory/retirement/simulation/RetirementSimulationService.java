@@ -36,7 +36,7 @@ public class RetirementSimulationService {
     Map<Long, BigDecimal> manual = new LinkedHashMap<>();
     for (ProjectedLongTermAsset asset : profile.longTermAssets())
       if (!isRentalProperty(asset)) manual.put(asset.id(), asset.currentValue());
-    Map<Long, Map<CashFlowType, BigDecimal>> rentalIncome = new LinkedHashMap<>();
+    Map<Long, Map<com.smartbox.investory.longterm.api.model.CashFlowTypeModel, BigDecimal>> rentalIncome = new LinkedHashMap<>();
     List<ProjectedLongTermAsset> ladderBonds = new ArrayList<>();
     BigDecimal coreExpenses = assumptions.annualLivingExpenses();
     BigDecimal discretionaryExpenses = assumptions.annualDiscretionaryExpenses();
@@ -344,7 +344,7 @@ public class RetirementSimulationService {
       List<ProjectedLongTermAsset> assets,
       Map<Long, BigDecimal> previous,
       int year,
-      Map<Long, Map<CashFlowType, BigDecimal>> previousRentalIncome,
+      Map<Long, Map<com.smartbox.investory.longterm.api.model.CashFlowTypeModel, BigDecimal>> previousRentalIncome,
       int rentalYear,
       SimulationScenarioSettings settings,
       boolean actualRentalYear) {
@@ -361,7 +361,7 @@ public class RetirementSimulationService {
         bondRedemptionCash = ZERO,
         rentalIncomeAmount = ZERO,
         bondIncome = ZERO;
-    Map<Long, Map<CashFlowType, BigDecimal>> rentalIncome = new LinkedHashMap<>();
+    Map<Long, Map<com.smartbox.investory.longterm.api.model.CashFlowTypeModel, BigDecimal>> rentalIncome = new LinkedHashMap<>();
     for (ProjectedLongTermAsset asset : assets) {
       BigDecimal start = previous.getOrDefault(asset.id(), ZERO);
       if (isRentalProperty(asset)) {
@@ -538,7 +538,7 @@ public class RetirementSimulationService {
     return new com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel(
         asset.id(),
         asset.name(),
-        asset.type(),
+        com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel.valueOf(asset.type().name()),
         asset.currency(),
         asset.currentValue(),
         asset.periods().stream()
@@ -551,12 +551,12 @@ public class RetirementSimulationService {
                         period.annualIncome(),
                         period.annualExpense(),
                         period.annualReturnRate(),
-                        period.cashFlowType(),
+                        period.cashFlowType() == null ? null : com.smartbox.investory.longterm.api.model.CashFlowTypeModel.valueOf(period.cashFlowType().name()),
                         period.paidByTenant()))
             .toList(),
         asset.maturityDate(),
         asset.redemptionValue(),
-        asset.interestTreatment(),
+        com.smartbox.investory.longterm.api.model.InterestTreatmentModel.valueOf(asset.interestTreatment().name()),
         asset.taxRate(),
         asset.taxBase(),
         asset.rentalTaxPaidByTenant());
@@ -621,7 +621,7 @@ public class RetirementSimulationService {
       BigDecimal contractualAssetsEnd,
       EnumMap<EconomicBucket, BigDecimal> startByBucket,
       EnumMap<EconomicBucket, BigDecimal> endByBucket,
-      Map<Long, Map<CashFlowType, BigDecimal>> rentalIncome,
+      Map<Long, Map<com.smartbox.investory.longterm.api.model.CashFlowTypeModel, BigDecimal>> rentalIncome,
       BigDecimal rentalIncomeAmount,
       BigDecimal bondIncome) {}
 }

@@ -29,7 +29,7 @@ public final class RentalIncomeProjectionModel {
     EnumMap<CashFlowTypeModel, BigDecimal> income = new EnumMap<>(CashFlowTypeModel.class);
     for (var term : contract.terms()) {
       if (!isIncome(term.type())) continue;
-      BigDecimal base = annual(term.amount(), term.FrequencyModel());
+      BigDecimal base = annual(term.amount(), term.frequency());
       BigDecimal prior = previousIncome.get(term.type());
       income.put(
           term.type(),
@@ -39,7 +39,7 @@ public final class RentalIncomeProjectionModel {
     BigDecimal expenses =
         contract.terms().stream()
             .filter(t -> isExpense(t.type()) && !t.paidByTenant())
-            .map(t -> annual(t.amount(), t.FrequencyModel()))
+            .map(t -> annual(t.amount(), t.frequency()))
             .reduce(ZERO, BigDecimal::add);
     return result(income, gross, expenses, tax(asset, contract));
   }
@@ -56,7 +56,7 @@ public final class RentalIncomeProjectionModel {
         }) {
       var period =
           asset.periods().stream()
-              .filter(p -> p.CashFlowTypeModel() == type)
+              .filter(p -> p.cashFlowType() == type)
               .filter(p -> p.validFrom().getYear() <= year)
               .max(Comparator.comparing(LongTermAssetProjectionModel.Period::validFrom));
       if (period.isEmpty()) continue;
@@ -72,9 +72,9 @@ public final class RentalIncomeProjectionModel {
         asset.periods().stream()
             .filter(
                 p ->
-                    p.CashFlowTypeModel() != null
+                    p.cashFlowType() != null
                         && !p.paidByTenant()
-                        && (isExpense(p.CashFlowTypeModel()) || isIncome(p.CashFlowTypeModel())))
+                        && (isExpense(p.cashFlowType()) || isIncome(p.cashFlowType())))
             .map(LongTermAssetProjectionModel.Period::annualExpense)
             .reduce(ZERO, BigDecimal::add);
     BigDecimal gross = income.values().stream().reduce(ZERO, BigDecimal::add);
@@ -94,7 +94,7 @@ public final class RentalIncomeProjectionModel {
       BigDecimal covered = coverage(contract.startDate(), effectiveEnd(contract), year);
       if (covered.signum() == 0) continue;
       for (var term : contract.terms()) {
-        BigDecimal amount = annual(term.amount(), term.FrequencyModel()).multiply(covered);
+        BigDecimal amount = annual(term.amount(), term.frequency()).multiply(covered);
         if (isIncome(term.type())) income.merge(term.type(), amount, BigDecimal::add);
         if (isExpense(term.type()) && !term.paidByTenant()) expenses = expenses.add(amount);
       }
@@ -108,12 +108,12 @@ public final class RentalIncomeProjectionModel {
     BigDecimal expenses = ZERO;
     for (var p : asset.periods()) {
       BigDecimal covered = coverage(p.validFrom(), p.validTo(), year);
-      if (covered.signum() == 0 || p.CashFlowTypeModel() == null) continue;
-      if (isIncome(p.CashFlowTypeModel()))
-        income.merge(p.CashFlowTypeModel(), p.annualIncome().multiply(covered), BigDecimal::add);
-      if (isIncome(p.CashFlowTypeModel()) && !p.paidByTenant())
+      if (covered.signum() == 0 || p.cashFlowType() == null) continue;
+      if (isIncome(p.cashFlowType()))
+        income.merge(p.cashFlowType(), p.annualIncome().multiply(covered), BigDecimal::add);
+      if (isIncome(p.cashFlowType()) && !p.paidByTenant())
         expenses = expenses.add(p.annualExpense().multiply(covered));
-      if (isExpense(p.CashFlowTypeModel()) && !p.paidByTenant())
+      if (isExpense(p.cashFlowType()) && !p.paidByTenant())
         expenses = expenses.add(p.annualExpense().multiply(covered));
     }
     BigDecimal gross = income.values().stream().reduce(ZERO, BigDecimal::add);
@@ -146,7 +146,7 @@ public final class RentalIncomeProjectionModel {
   }
 
   private static BigDecimal annual(BigDecimal amount, FrequencyModel frequency) {
-    return FrequencyModel == FrequencyModel.MONTHLY ? amount.multiply(TWELVE) : amount;
+    return frequency == FrequencyModel.MONTHLY ? amount.multiply(TWELVE) : amount;
   }
 
   private static BigDecimal coverage(LocalDate from, LocalDate to, int year) {

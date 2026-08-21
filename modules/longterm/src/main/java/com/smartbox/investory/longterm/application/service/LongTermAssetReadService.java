@@ -6,6 +6,10 @@ import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotMode
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileAssetModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSummaryModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
+import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
+import com.smartbox.investory.longterm.api.model.CashFlowTypeModel;
+import com.smartbox.investory.longterm.api.model.FrequencyModel;
+import com.smartbox.investory.longterm.api.model.InterestTreatmentModel;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -39,7 +43,7 @@ public class LongTermAssetReadService
         .map(
             asset ->
                 new LongTermAssetProfileAssetModel(
-                    asset.type(),
+                    LongTermAssetTypeModel.valueOf(asset.type().name()),
                     CurrencyType.USD,
                     toUsd(asset.currentValue(), asset.currency(), date)))
         .toList();
@@ -53,7 +57,7 @@ public class LongTermAssetReadService
                 new LongTermAssetProjectionModel(
                     input.id(),
                     input.name(),
-                    input.type(),
+                    LongTermAssetTypeModel.valueOf(input.type().name()),
                     CurrencyType.USD,
                     toUsd(input.currentValue(), input.currency(), date),
                     input.periods().stream()
@@ -65,7 +69,7 @@ public class LongTermAssetReadService
                                     toUsd(period.annualIncome(), input.currency(), date),
                                     toUsd(period.annualExpense(), input.currency(), date),
                                     period.annualReturnRate(),
-                                    period.cashFlowType(),
+                                    period.cashFlowType() == null ? null : CashFlowTypeModel.valueOf(period.cashFlowType().name()),
                                     period.paidByTenant()))
                         .toList(),
                     input.rentalContracts().stream()
@@ -82,15 +86,15 @@ public class LongTermAssetReadService
                                             t ->
                                                 new com.smartbox.investory.longterm.api.model
                                                     .RentalContractModel.Term(
-                                                    t.type(),
+                                                    CashFlowTypeModel.valueOf(t.type().name()),
                                                     toUsd(t.amount(), input.currency(), date),
-                                                    t.frequency(),
+                                                    FrequencyModel.valueOf(t.frequency().name()),
                                                     t.paidByTenant()))
                                         .toList()))
                         .toList(),
                     input.maturityDate(),
                     toUsd(input.redemptionValue(), input.currency(), date),
-                    input.interestTreatment(),
+                    InterestTreatmentModel.valueOf(input.interestTreatment().name()),
                     input.taxRate(),
                     toUsd(input.taxBase(), input.currency(), date),
                     input.rentalTaxPaidByTenant()))

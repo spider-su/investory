@@ -205,7 +205,10 @@ public class LongTermAssetsFacade {
   private static RentalContractModel.Term term(
       CashFlowType type, BigDecimal amount, Frequency frequency, boolean tenant) {
     return new RentalContractModel.Term(
-        type, amount == null ? BigDecimal.ZERO : amount, frequency, tenant);
+        com.smartbox.investory.longterm.api.model.CashFlowTypeModel.valueOf(type.name()),
+        amount == null ? BigDecimal.ZERO : amount,
+        com.smartbox.investory.longterm.api.model.FrequencyModel.valueOf(frequency.name()),
+        tenant);
   }
 
   public void saveTaxBase(Long portfolioId, Long id, BigDecimal value) {
