@@ -39,10 +39,14 @@ class LongTermAssetServiceTest {
   @Mock RentalTaxPolicyRepository taxPolicies;
   @Mock PortfolioContextReader portfolioContextReader;
   @Mock CurrencyConversion currencyRates;
+  @Mock LongTermAssetLifecycleService lifecycle;
   LongTermAssetService service;
 
   @BeforeEach
   void setUp() {
+    lenient()
+        .when(lifecycle.activeOn(any(LongTermAsset.class), any(LocalDate.class)))
+        .thenReturn(true);
     service =
         new LongTermAssetService(
             assets,
@@ -53,7 +57,11 @@ class LongTermAssetServiceTest {
             deposits,
             taxPolicies,
             portfolioContextReader,
-            currencyRates);
+            currencyRates,
+            lifecycle,
+            new LongTermAssetCashFlowService(assets, cashFlows),
+            java.time.Clock.fixed(
+                DATE.atStartOfDay(java.time.ZoneOffset.UTC).toInstant(), java.time.ZoneOffset.UTC));
   }
 
   @Test

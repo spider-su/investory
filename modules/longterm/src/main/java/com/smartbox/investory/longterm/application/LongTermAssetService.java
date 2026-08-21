@@ -15,14 +15,11 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.*;
-import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@RequiredArgsConstructor
 @Transactional
 public class LongTermAssetService {
   public static final BigDecimal REAL_ESTATE_TAX_RATE = new BigDecimal("0.085");
@@ -36,15 +33,9 @@ public class LongTermAssetService {
   private final RentalTaxPolicyRepository taxPolicies;
   private final PortfolioContextReader portfolioContextReader;
   private final CurrencyConversion currencyRates;
-
-  @Autowired(required = false)
-  private LongTermAssetLifecycleService lifecycle;
-
-  @Autowired(required = false)
-  private LongTermAssetCashFlowService cashFlowService;
-
-  @Autowired(required = false)
-  private Clock applicationClock;
+  private final LongTermAssetLifecycleService lifecycle;
+  private final LongTermAssetCashFlowService cashFlowService;
+  private final Clock applicationClock;
 
   @Value("${app.long-term-assets.planning-currency:PLN}")
   private CurrencyType planningCurrency = CurrencyType.PLN;
@@ -55,6 +46,33 @@ public class LongTermAssetService {
   private final RealEstatePlanningCalculator realEstatePlanningCalculator =
       new RealEstatePlanningCalculator();
   private final BondPlanningCalculator bondPlanningCalculator = new BondPlanningCalculator();
+
+  public LongTermAssetService(
+      LongTermAssetRepository assets,
+      LongTermAssetCashFlowRepository cashFlows,
+      LongTermAssetValuationPeriodRepository valuations,
+      LongTermAssetBondRatePeriodRepository bondRates,
+      LongTermAssetBondDetailsRepository bonds,
+      LongTermAssetDepositDetailsRepository deposits,
+      RentalTaxPolicyRepository taxPolicies,
+      PortfolioContextReader portfolioContextReader,
+      CurrencyConversion currencyRates,
+      LongTermAssetLifecycleService lifecycle,
+      LongTermAssetCashFlowService cashFlowService,
+      Clock applicationClock) {
+    this.assets = assets;
+    this.cashFlows = cashFlows;
+    this.valuations = valuations;
+    this.bondRates = bondRates;
+    this.bonds = bonds;
+    this.deposits = deposits;
+    this.taxPolicies = taxPolicies;
+    this.portfolioContextReader = portfolioContextReader;
+    this.currencyRates = currencyRates;
+    this.lifecycle = lifecycle;
+    this.cashFlowService = cashFlowService;
+    this.applicationClock = applicationClock;
+  }
 
   @Transactional(readOnly = true)
   public List<LongTermAssetSummary> list(Long portfolioId, LocalDate date) {
@@ -369,7 +387,11 @@ public class LongTermAssetService {
           assets
               .findByIdAndPortfolioId(asset.getId(), asset.getPortfolioId())
               .orElseThrow(() -> new NoSuchElementException("Long-term asset not found"));
-      if (existing.getType() != asset.getType())
+      LongTermAssetType originalType =
+          assets
+              .findTypeByIdAndPortfolioId(asset.getId(), asset.getPortfolioId())
+              .orElse(existing.getType());
+      if (originalType != asset.getType())
         throw new IllegalArgumentException("Asset type cannot be changed after creation");
       if (asset.getType() != LongTermAssetType.BOND && bonds.existsById(asset.getId()))
         throw new IllegalArgumentException("Bond details require a bond asset");
@@ -378,9 +400,18 @@ public class LongTermAssetService {
       if (asset.getType() != LongTermAssetType.REAL_ESTATE
           && !cashFlows.findAllByAssetIdOrderByValidFrom(asset.getId()).isEmpty())
         throw new IllegalArgumentException("Cash flows require a real-estate asset");
+      if (asset.getType() != LongTermAssetType.REAL_ESTATE
+          && asset.getType() != LongTermAssetType.CASH_RESERVE
+          && !valuations.findAllByAssetIdOrderByValidFrom(asset.getId()).isEmpty())
+        throw new IllegalArgumentException("Valuation periods require a supported asset type");
+      if (asset.getType() != LongTermAssetType.BOND
+          && !bondRates.findAllByAssetIdOrderByValidFrom(asset.getId()).isEmpty())
+        throw new IllegalArgumentException("Bond-rate periods require a bond asset");
+      if (asset.getType() != LongTermAssetType.REAL_ESTATE && asset.isRentalTaxPaidByTenant())
+        throw new IllegalArgumentException("Rental-tax settings require a real-estate asset");
     }
     LongTermAsset saved = assets.save(asset);
-    if (lifecycle != null) lifecycle.ensureInitialPeriod(saved);
+    lifecycle.ensureInitialPeriod(saved);
     return saved;
   }
 
@@ -394,6 +425,8 @@ public class LongTermAssetService {
       String notes,
       LocalDate effectiveFrom) {
     LongTermAsset asset = id == null ? new LongTermAsset() : owned(portfolioId, id);
+    if (id != null && asset.getType() != LongTermAssetType.CASH_RESERVE)
+      throw new IllegalArgumentException("Asset type cannot be changed after creation");
     asset.setPortfolioId(portfolioId);
     asset.setName(name);
     asset.setType(LongTermAssetType.CASH_RESERVE);
@@ -420,6 +453,8 @@ public class LongTermAssetService {
     if (entry == null || entry.effectiveFrom() == null)
       throw new IllegalArgumentException("Effective-from date is required");
     LongTermAsset asset = id == null ? new LongTermAsset() : owned(portfolioId, id);
+    if (id != null && asset.getType() != LongTermAssetType.REAL_ESTATE)
+      throw new IllegalArgumentException("Asset type cannot be changed after creation");
     asset.setPortfolioId(portfolioId);
     asset.setName(entry.name());
     asset.setType(LongTermAssetType.REAL_ESTATE);
@@ -536,34 +571,16 @@ public class LongTermAssetService {
   }
 
   public void archive(Long portfolioId, Long id) {
-    if (lifecycle != null) {
-      lifecycle.archive(portfolioId, id);
-      return;
-    }
-    LongTermAsset asset = owned(portfolioId, id);
-    asset.setActive(false);
-    asset.setArchivedAt(today());
+    lifecycle.archive(portfolioId, id);
   }
 
   public void reactivate(Long portfolioId, Long id) {
-    if (lifecycle != null) {
-      lifecycle.reactivate(portfolioId, id);
-      return;
-    }
-    LongTermAsset asset = owned(portfolioId, id);
-    asset.setActive(true);
-    asset.setArchivedAt(null);
+    lifecycle.reactivate(portfolioId, id);
   }
 
   public LongTermAssetCashFlow addCashFlow(
       Long portfolioId, Long assetId, LongTermAssetCashFlow flow) {
-    if (cashFlowService != null) return cashFlowService.add(portfolioId, assetId, flow);
-    LongTermAsset asset = owned(portfolioId, assetId);
-    if (asset.getType() != LongTermAssetType.REAL_ESTATE)
-      throw new IllegalArgumentException("Cash flows apply only to real estate");
-    flow.setAssetId(assetId);
-    validateCashFlow(flow);
-    return cashFlows.save(flow);
+    return cashFlowService.add(portfolioId, assetId, flow);
   }
 
   public LongTermAssetCashFlow addCashFlow(
@@ -580,32 +597,8 @@ public class LongTermAssetService {
 
   public void saveRentalPeriod(
       Long portfolioId, Long assetId, LocalDate effectiveFrom, LocalDate endDate, LocalDate date) {
-    if (cashFlowService != null) {
-      cashFlowService.saveRentalPeriod(
-          portfolioId,
-          assetId,
-          effectiveFrom,
-          endDate,
-          currentCashFlows(portfolioId, assetId, date));
-      return;
-    }
-    owned(portfolioId, assetId);
-    validateRange(effectiveFrom, endDate);
-    List<LongTermAssetCashFlow> current = currentCashFlows(portfolioId, assetId, date);
-    // Validate the complete resulting configuration before mutating any managed entity. This
-    // keeps a failed global-period update atomic when historical rows are present.
-    Set<Long> editedIds =
-        current.stream()
-            .map(LongTermAssetCashFlow::getId)
-            .filter(Objects::nonNull)
-            .collect(java.util.stream.Collectors.toSet());
-    for (LongTermAssetCashFlow flow : current)
-      validateCashFlowOverlap(assetId, flow, effectiveFrom, endDate, editedIds);
-    for (LongTermAssetCashFlow flow : current) {
-      flow.setValidFrom(effectiveFrom);
-      flow.setValidTo(endDate);
-      cashFlows.save(flow);
-    }
+    cashFlowService.saveRentalPeriod(
+        portfolioId, assetId, effectiveFrom, endDate, currentCashFlows(portfolioId, assetId, date));
   }
 
   public LongTermAssetCashFlow changeCashFlow(
@@ -616,38 +609,8 @@ public class LongTermAssetService {
       Frequency frequency,
       LocalDate effectiveFrom,
       LocalDate validTo) {
-    if (cashFlowService != null)
-      return cashFlowService.change(
-          portfolioId, assetId, flowId, amount, frequency, effectiveFrom, validTo);
-    owned(portfolioId, assetId);
-    LongTermAssetCashFlow old = cashFlows.findById(flowId).orElseThrow();
-    if (!Objects.equals(old.getAssetId(), assetId))
-      throw new NoSuchElementException("Cash flow not found");
-    validateRange(effectiveFrom, validTo);
-    if (amount == null || amount.signum() < 0)
-      throw new IllegalArgumentException("Amount must be non-negative");
-    if (effectiveFrom.equals(old.getValidFrom())) {
-      old.setAmount(amount);
-      old.setFrequency(frequency);
-      old.setValidTo(validTo);
-      LongTermAssetPeriodRules.ensurePaidByTenant(old);
-      return cashFlows.save(old);
-    }
-    if (effectiveFrom.isBefore(old.getValidFrom()))
-      throw new IllegalArgumentException("Effective date cannot precede the current period");
-    if (old.getValidTo() != null && effectiveFrom.isAfter(old.getValidTo()))
-      throw new IllegalArgumentException("Effective date is outside the current period");
-    old.setValidTo(effectiveFrom.minusDays(1));
-    cashFlows.save(old);
-    LongTermAssetCashFlow replacement = new LongTermAssetCashFlow();
-    replacement.setAssetId(assetId);
-    replacement.setType(old.getType());
-    replacement.setAmount(amount);
-    replacement.setFrequency(frequency);
-    replacement.setValidFrom(effectiveFrom);
-    replacement.setValidTo(validTo);
-    replacement.setPaidByTenant(old.isPaidByTenant());
-    return cashFlows.save(replacement);
+    return cashFlowService.change(
+        portfolioId, assetId, flowId, amount, frequency, effectiveFrom, validTo);
   }
 
   public LongTermAssetCashFlow changeCurrentCashFlow(
@@ -688,35 +651,12 @@ public class LongTermAssetService {
   }
 
   public void deleteCashFlow(Long portfolioId, Long assetId, Long flowId) {
-    if (cashFlowService != null) {
-      cashFlowService.delete(portfolioId, assetId, flowId);
-      return;
-    }
-    owned(portfolioId, assetId);
-    LongTermAssetCashFlow flow =
-        cashFlows
-            .findById(flowId)
-            .filter(candidate -> Objects.equals(candidate.getAssetId(), assetId))
-            .orElseThrow(() -> new NoSuchElementException("Cash flow not found"));
-    cashFlows.delete(flow);
+    cashFlowService.delete(portfolioId, assetId, flowId);
   }
 
   public void setCashFlowPaidByTenant(
       Long portfolioId, Long assetId, Long flowId, boolean paidByTenant) {
-    if (cashFlowService != null) {
-      cashFlowService.setPaidByTenant(portfolioId, assetId, flowId, paidByTenant);
-      return;
-    }
-    owned(portfolioId, assetId);
-    LongTermAssetCashFlow flow =
-        cashFlows
-            .findById(flowId)
-            .filter(candidate -> Objects.equals(candidate.getAssetId(), assetId))
-            .orElseThrow(() -> new NoSuchElementException("Cash flow not found"));
-    if (!isExpense(flow.getType()))
-      throw new IllegalArgumentException("Tenant ownership applies only to expenses");
-    flow.setPaidByTenant(paidByTenant);
-    cashFlows.save(flow);
+    cashFlowService.setPaidByTenant(portfolioId, assetId, flowId, paidByTenant);
   }
 
   public LongTermAssetValuationPeriod addValuationPeriod(
@@ -961,13 +901,11 @@ public class LongTermAssetService {
   }
 
   private LocalDate today() {
-    return LocalDate.now(applicationClock == null ? Clock.systemDefaultZone() : applicationClock);
+    return LocalDate.now(applicationClock);
   }
 
   private boolean activeOn(LongTermAsset asset, LocalDate date) {
-    if (lifecycle != null) return lifecycle.activeOn(asset, date);
-    return (asset.getAcquisitionDate() == null || !asset.getAcquisitionDate().isAfter(date))
-        && (asset.getArchivedAt() == null || asset.getArchivedAt().isAfter(date));
+    return lifecycle.activeOn(asset, date);
   }
 
   public record AggregateSummary(
@@ -1220,21 +1158,7 @@ public class LongTermAssetService {
         || t == CashFlowType.OTHER_INCOME;
   }
 
-  private static boolean isExpense(CashFlowType t) {
-    return t == CashFlowType.ADMIN_FEE
-        || t == CashFlowType.UTILITIES
-        || t == CashFlowType.PROPERTY_TAX
-        || t == CashFlowType.INSURANCE
-        || t == CashFlowType.OTHER_EXPENSE;
-  }
-
   public record RentalPeriod(LocalDate effectiveFrom, LocalDate endDate) {}
-
-  private static boolean isMonthlyOperatingExpense(CashFlowType t) {
-    return t == CashFlowType.ADMIN_FEE
-        || t == CashFlowType.UTILITIES
-        || t == CashFlowType.OTHER_EXPENSE;
-  }
 
   private LongTermAsset owned(Long portfolioId, Long id) {
     return assets
@@ -1264,29 +1188,6 @@ public class LongTermAssetService {
   private static void validateRange(LocalDate from, LocalDate to) {
     if (from == null || (to != null && to.isBefore(from)))
       throw new IllegalArgumentException("Invalid period");
-  }
-
-  private void validateCashFlow(LongTermAssetCashFlow f) {
-    validateRange(f.getValidFrom(), f.getValidTo());
-    if (f.getAmount() == null || f.getAmount().signum() < 0)
-      throw new IllegalArgumentException("Amount must be non-negative");
-    LongTermAssetPeriodRules.ensurePaidByTenant(f);
-    validateCashFlowOverlap(f.getAssetId(), f);
-  }
-
-  private void validateCashFlowOverlap(Long id, LongTermAssetCashFlow f) {
-    validateCashFlowOverlap(
-        id, f, f.getValidFrom(), f.getValidTo(), f.getId() == null ? Set.of() : Set.of(f.getId()));
-  }
-
-  private void validateCashFlowOverlap(
-      Long id,
-      LongTermAssetCashFlow f,
-      LocalDate validFrom,
-      LocalDate validTo,
-      Set<Long> excludedIds) {
-    List<LongTermAssetCashFlow> all = cashFlows.findAllByAssetIdOrderByValidFrom(id);
-    LongTermAssetPeriodRules.rejectOverlap(all, f, validFrom, validTo, excludedIds);
   }
 
   private void upsertCashFlow(

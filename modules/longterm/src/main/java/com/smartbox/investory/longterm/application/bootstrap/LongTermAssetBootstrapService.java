@@ -10,7 +10,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,8 +27,7 @@ public class LongTermAssetBootstrapService {
   private final RentalTaxPolicyRepository taxPolicies;
   private final PortfolioContextReader portfolioContextReader;
 
-  @Autowired(required = false)
-  private com.smartbox.investory.longterm.application.LongTermAssetLifecycleService lifecycle;
+  private final com.smartbox.investory.longterm.application.LongTermAssetLifecycleService lifecycle;
 
   @Transactional
   public LongTermAssetBootstrapResult importDocument(
@@ -316,6 +314,9 @@ public class LongTermAssetBootstrapService {
   private void upsertAsset(
       Long portfolioId, LongTermAssetBootstrapDocument.Asset input, LongTermAsset existing) {
     var asset = existing == null ? new LongTermAsset() : existing;
+    if (existing != null && existing.getType() != input.type())
+      throw new IllegalArgumentException(
+          "Asset type cannot be changed for bootstrap asset " + input.externalKey());
     asset.setPortfolioId(portfolioId);
     asset.setExternalKey(input.externalKey());
     asset.setType(input.type());
@@ -329,7 +330,7 @@ public class LongTermAssetBootstrapService {
     asset.setNotes(input.notes());
     if (existing == null) asset.setActive(true);
     asset = assets.save(asset);
-    if (lifecycle != null) lifecycle.ensureInitialPeriod(asset);
+    lifecycle.ensureInitialPeriod(asset);
     for (var flow : safe(input.cashFlows())) upsertCashFlow(asset.getId(), flow);
     for (var period : safe(input.valuationPeriods())) upsertValuation(asset.getId(), period);
     for (var period : safe(input.bondRatePeriods())) upsertBondRate(asset.getId(), period);

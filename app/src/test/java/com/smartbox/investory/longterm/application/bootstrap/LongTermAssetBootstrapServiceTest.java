@@ -34,6 +34,7 @@ class LongTermAssetBootstrapServiceTest {
   @Mock LongTermAssetDepositDetailsRepository deposits;
   @Mock RentalTaxPolicyRepository taxPolicies;
   @Mock PortfolioContextReader portfolioContextReader;
+  @Mock com.smartbox.investory.longterm.application.LongTermAssetLifecycleService lifecycle;
 
   private LongTermAssetBootstrapService service;
 
@@ -48,7 +49,8 @@ class LongTermAssetBootstrapServiceTest {
             bonds,
             deposits,
             taxPolicies,
-            portfolioContextReader);
+            portfolioContextReader,
+            lifecycle);
     lenient()
         .when(portfolioContextReader.findById(1L))
         .thenReturn(Optional.of(new PortfolioContext(1L, CurrencyType.PLN)));

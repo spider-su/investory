@@ -1,6 +1,7 @@
 package com.smartbox.investory.ui.investment;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -11,12 +12,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.smartbox.investory.config.MockMvcSecurityTestConfig;
 import com.smartbox.investory.config.SecurityConfig;
+import com.smartbox.investory.investment.api.InvestmentImportApi;
 import com.smartbox.investory.investment.imports.BrokerType;
 import com.smartbox.investory.investment.imports.ImportBatchResponse;
 import com.smartbox.investory.investment.imports.ImportBatchStatus;
-import com.smartbox.investory.investment.imports.ImportFailedException;
-import com.smartbox.investory.investment.imports.ImportOrchestratorService;
-import com.smartbox.investory.investment.imports.ImportSourceType;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,13 +32,12 @@ import org.springframework.test.web.servlet.MockMvc;
 class ImportControllerTest {
 
   @Autowired private MockMvc mockMvc;
-  @MockitoBean private ImportOrchestratorService importOrchestratorService;
+  @MockitoBean private InvestmentImportApi importApi;
 
   @Test
   @WithMockUser(roles = "ADMIN")
   void importByBroker_uploadsFileAndReturnsResponse() throws Exception {
-    when(importOrchestratorService.importFile(
-            eq(BrokerType.XTB), any(), eq("file.xlsx"), eq(ImportSourceType.MANUAL), any()))
+    when(importApi.importForBroker(eq("XTB"), eq("file.xlsx"), any(), eq("MANUAL"), any()))
         .thenReturn(
             new ImportBatchResponse(
                 99L, BrokerType.XTB, ImportBatchStatus.COMPLETED, 10, 10, 0, "ok", false));
@@ -55,13 +53,8 @@ class ImportControllerTest {
         .andExpect(jsonPath("$.duplicate").value(false));
 
     ArgumentCaptor<byte[]> bytesCaptor = ArgumentCaptor.forClass(byte[].class);
-    verify(importOrchestratorService)
-        .importFile(
-            eq(BrokerType.XTB),
-            bytesCaptor.capture(),
-            eq("file.xlsx"),
-            eq(ImportSourceType.MANUAL),
-            any());
+    verify(importApi)
+        .importForBroker(eq("XTB"), eq("file.xlsx"), bytesCaptor.capture(), eq("MANUAL"), any());
     org.junit.jupiter.api.Assertions.assertArrayEquals(
         "payload".getBytes(), bytesCaptor.getValue());
   }
@@ -69,12 +62,8 @@ class ImportControllerTest {
   @Test
   @WithMockUser(roles = "ADMIN")
   void importByBroker_passesSourceMetadata() throws Exception {
-    when(importOrchestratorService.importFile(
-            eq(BrokerType.IBKR),
-            any(),
-            eq("statement.csv"),
-            eq(ImportSourceType.TELEGRAM),
-            eq("telegram-file-123")))
+    when(importApi.importForBroker(
+            eq("IBKR"), eq("statement.csv"), any(), eq("TELEGRAM"), eq("telegram-file-123")))
         .thenReturn(
             new ImportBatchResponse(
                 100L, BrokerType.IBKR, ImportBatchStatus.COMPLETED, 1, 1, 0, "ok", false));
@@ -93,13 +82,9 @@ class ImportControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.broker").value("IBKR"));
 
-    verify(importOrchestratorService)
-        .importFile(
-            eq(BrokerType.IBKR),
-            any(),
-            eq("statement.csv"),
-            eq(ImportSourceType.TELEGRAM),
-            eq("telegram-file-123"));
+    verify(importApi)
+        .importForBroker(
+            eq("IBKR"), eq("statement.csv"), any(), eq("TELEGRAM"), eq("telegram-file-123"));
   }
 
   @Test
@@ -117,9 +102,9 @@ class ImportControllerTest {
   @Test
   @WithMockUser(roles = "ADMIN")
   void importByBroker_parserFailureReturns422() throws Exception {
-    when(importOrchestratorService.importFile(any(), any(), any(), any(), any()))
+    when(importApi.importForBroker(anyString(), anyString(), any(), anyString(), any()))
         .thenThrow(
-            new ImportFailedException(
+            new InvestmentImportApi.ImportFailure(
                 "Failed to import (batchId=5): boom", new IllegalStateException("boom")));
 
     MockMultipartFile multipart =

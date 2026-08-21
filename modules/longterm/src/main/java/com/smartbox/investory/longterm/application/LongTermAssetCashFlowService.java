@@ -46,7 +46,7 @@ public class LongTermAssetCashFlowService {
       flow.setValidTo(endDate);
       LongTermAssetPeriodRules.ensurePaidByTenant(flow);
     }
-    cashFlows.saveAll(current);
+    current.forEach(cashFlows::save);
   }
 
   public LongTermAssetCashFlow change(

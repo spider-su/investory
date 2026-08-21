@@ -39,6 +39,11 @@ they do not silently convert an archived asset or discard archive/reactivation p
 valuation, and bond-rate periods are checked against both the incoming document and stored periods,
 while an existing period identified by the same effective start date is updated idempotently.
 
+Lifecycle history uses inclusive date periods and the application `Clock`. If several lifecycle
+transitions occur on one date, the date-only model collapses them to that date and never writes an
+invalid range; the current active flag remains authoritative for current lists, while historical
+lookups use the persisted lifecycle periods.
+
 ## Reconciliation
 
 The example contains five sanitized properties and two bonds. The property totals under current semantics are:

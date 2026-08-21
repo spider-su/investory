@@ -2,6 +2,7 @@ package com.smartbox.investory.ui.investment;
 
 import com.smartbox.investory.investment.api.InvestmentImportApi;
 import java.io.IOException;
+import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -39,8 +40,12 @@ public class ImportController {
       @RequestParam("file") MultipartFile file,
       @RequestParam(value = "source", required = false, defaultValue = "MANUAL") String sourceType,
       @RequestParam(value = "sourceRef", required = false) String sourceRef) {
+    String normalizedBroker = broker == null ? "" : broker.trim().toUpperCase(Locale.ROOT);
+    if (!normalizedBroker.equals("IBKR") && !normalizedBroker.equals("XTB")) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported broker: " + broker);
+    }
     return importApi.importForBroker(
-        broker,
+        normalizedBroker,
         file.getOriginalFilename() != null ? file.getOriginalFilename() : "upload.bin",
         readBytes(file),
         sourceType,

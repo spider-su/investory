@@ -33,10 +33,20 @@ public class LongTermAssetLifecycleService {
     LongTermAsset asset = owned(portfolioId, assetId);
     if (asset.isActive()) return;
     LocalDate date = LocalDate.now(clock);
-    LongTermAssetLifecyclePeriod period = new LongTermAssetLifecyclePeriod();
-    period.setAssetId(assetId);
-    period.setActiveFrom(date);
-    periods.save(period);
+    LongTermAssetLifecyclePeriod sameDay =
+        periods.findAllByAssetIdOrderByActiveFrom(assetId).stream()
+            .filter(period -> date.equals(period.getActiveFrom()))
+            .reduce((first, second) -> second)
+            .orElse(null);
+    if (sameDay != null) {
+      sameDay.setActiveTo(null);
+      periods.save(sameDay);
+    } else {
+      LongTermAssetLifecyclePeriod period = new LongTermAssetLifecyclePeriod();
+      period.setAssetId(assetId);
+      period.setActiveFrom(date);
+      periods.save(period);
+    }
     asset.setActive(true);
     asset.setArchivedAt(null);
     assets.save(asset);
@@ -64,7 +74,8 @@ public class LongTermAssetLifecycleService {
       return history.stream()
           .anyMatch(
               p -> LongTermAssetPeriodRules.activeOn(p.getActiveFrom(), p.getActiveTo(), date));
-    return asset.getAcquisitionDate() == null || !asset.getAcquisitionDate().isAfter(date);
+    return (asset.getAcquisitionDate() == null || !asset.getAcquisitionDate().isAfter(date))
+        && (asset.getArchivedAt() == null || asset.getArchivedAt().isAfter(date));
   }
 
   private void closeOpenPeriod(LongTermAsset asset, LocalDate end) {
@@ -76,11 +87,17 @@ public class LongTermAssetLifecycleService {
     if (open == null) {
       LongTermAssetLifecyclePeriod initial = new LongTermAssetLifecyclePeriod();
       initial.setAssetId(asset.getId());
-      initial.setActiveFrom(asset.getAcquisitionDate() == null ? end : asset.getAcquisitionDate());
+      initial.setActiveFrom(
+          asset.getAcquisitionDate() == null || asset.getAcquisitionDate().isAfter(end)
+              ? end
+              : asset.getAcquisitionDate());
       initial.setActiveTo(end);
       periods.save(initial);
     } else {
-      open.setActiveTo(end);
+      // Date-only lifecycle data cannot represent two distinct transitions inside one day.
+      // Collapse same-day transitions into one valid one-day period instead of producing
+      // active_to < active_from. The current active flag remains authoritative for current views.
+      open.setActiveTo(end.isBefore(open.getActiveFrom()) ? open.getActiveFrom() : end);
       periods.save(open);
     }
   }

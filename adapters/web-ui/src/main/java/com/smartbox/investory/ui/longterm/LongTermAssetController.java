@@ -1,7 +1,6 @@
 package com.smartbox.investory.ui.longterm;
 
 import com.smartbox.investory.longterm.api.*;
-import com.smartbox.investory.longterm.api.LongTermAssetsFacade;
 import com.smartbox.investory.longterm.api.RealEstateEntry;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.shared.presentation.FinancialPresentation;
@@ -17,7 +16,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 @Controller
 @RequiredArgsConstructor
 public class LongTermAssetController {
-  private final LongTermAssetsFacade assets;
+  private final LongTermAssetsApi assets;
   private final Clock clock;
 
   @GetMapping("/long-term-assets")
@@ -94,7 +93,7 @@ public class LongTermAssetController {
       @RequestParam(required = false) String notes) {
     var saved =
         assets.saveCashReserve(
-            new LongTermAssetsFacade.CashReserveCommand(
+            new LongTermAssetsApi.CashReserveCommand(
                 portfolioId, id, name, currency, value, annualReturnPercent, notes),
             LocalDate.now(clock));
     return redirect(saved.id(), portfolioId);
@@ -119,7 +118,7 @@ public class LongTermAssetController {
       @RequestParam(required = false) String notes) {
     var saved =
         assets.createBond(
-            new LongTermAssetsFacade.BondCommand(
+            new LongTermAssetsApi.BondCommand(
                 portfolioId,
                 null,
                 name,
@@ -248,7 +247,7 @@ public class LongTermAssetController {
       @RequestParam(required = false) LocalDate validTo,
       @RequestParam(required = false) Boolean paidByTenant) {
     assets.addCashFlow(
-        new LongTermAssetsFacade.CashFlowCommand(
+        new LongTermAssetsApi.CashFlowCommand(
             portfolioId, id, null, type, amount, frequency, validFrom, validTo, paidByTenant),
         LocalDate.now(clock));
     return redirect(id, portfolioId);
@@ -265,7 +264,7 @@ public class LongTermAssetController {
       @RequestParam(required = false) LocalDate validTo,
       @RequestParam(required = false) Boolean paidByTenant) {
     assets.changeCashFlow(
-        new LongTermAssetsFacade.CashFlowCommand(
+        new LongTermAssetsApi.CashFlowCommand(
             portfolioId,
             id,
             flowId,
@@ -314,7 +313,7 @@ public class LongTermAssetController {
     assets.saveBondDetails(
         portfolioId,
         id,
-        new LongTermAssetsFacade.BondDetailsCommand(
+        new LongTermAssetsApi.BondDetailsCommand(
             form.maturityDate, form.taxRate, form.interestTreatment, form.redemptionValue));
     return redirect(id, portfolioId);
   }
@@ -332,7 +331,7 @@ public class LongTermAssetController {
       @RequestParam BigDecimal annualRatePercent,
       @RequestParam(required = false) String notes) {
     assets.updateBond(
-        new LongTermAssetsFacade.BondCommand(
+        new LongTermAssetsApi.BondCommand(
             portfolioId,
             id,
             name,
@@ -354,7 +353,7 @@ public class LongTermAssetController {
     assets.saveDepositDetails(
         portfolioId,
         id,
-        new LongTermAssetsFacade.DepositDetailsCommand(
+        new LongTermAssetsApi.DepositDetailsCommand(
             form.maturityDate, form.annualInterestRate, form.taxRate, form.interestTreatment));
     return redirect(id, portfolioId);
   }
@@ -369,7 +368,7 @@ public class LongTermAssetController {
     assets.addValuation(
         portfolioId,
         id,
-        new LongTermAssetsFacade.ValuationCommand(
+        new LongTermAssetsApi.ValuationCommand(
             validFrom, validTo, expectedAnnualGrowthRatePercent));
     return redirect(id, portfolioId);
   }
@@ -380,7 +379,7 @@ public class LongTermAssetController {
     assets.addBondRate(
         portfolioId,
         id,
-        new LongTermAssetsFacade.BondRateCommand(
+        new LongTermAssetsApi.BondRateCommand(
             form.validFrom, form.validTo, form.annualInterestRate));
     return redirect(id, portfolioId);
   }
@@ -393,7 +392,7 @@ public class LongTermAssetController {
       @RequestParam(required = false) BigDecimal rate) {
     assets.saveRentalTaxPolicy(
         portfolioId,
-        new LongTermAssetsFacade.RentalTaxCommand(form.validFrom, form.validTo, ratePercent, rate));
+        new LongTermAssetsApi.RentalTaxCommand(form.validFrom, form.validTo, ratePercent, rate));
     return "redirect:/long-term-assets?portfolioId=" + portfolioId;
   }
 
@@ -498,12 +497,12 @@ public class LongTermAssetController {
       active = v;
     }
 
-    LongTermAssetsFacade.AssetCommand command(Long p) {
+    LongTermAssetsApi.AssetCommand command(Long p) {
       return command(p, id, null);
     }
 
-    LongTermAssetsFacade.AssetCommand command(Long p, Long i, BigDecimal tax) {
-      return new LongTermAssetsFacade.AssetCommand(
+    LongTermAssetsApi.AssetCommand command(Long p, Long i, BigDecimal tax) {
+      return new LongTermAssetsApi.AssetCommand(
           p,
           i,
           name,

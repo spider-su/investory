@@ -10,8 +10,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 import com.smartbox.investory.investment.api.InvestmentDashboardApi;
-import com.smartbox.investory.investment.reporting.dashboard.application.DashboardPageView;
-import com.smartbox.investory.investment.reporting.dashboard.application.DashboardQuery;
+import com.smartbox.investory.investment.api.InvestmentDashboardApi.DashboardPageView;
+import com.smartbox.investory.investment.api.InvestmentDashboardApi.DashboardQuery;
 import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriod;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;

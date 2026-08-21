@@ -1,7 +1,6 @@
-package com.smartbox.investory.longterm.api;
+package com.smartbox.investory.longterm.application;
 
-import com.smartbox.investory.longterm.application.LongTermAssetService;
-import com.smartbox.investory.longterm.application.LongTermAssetSummary;
+import com.smartbox.investory.longterm.api.*;
 import com.smartbox.investory.longterm.infrastructure.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -63,6 +62,12 @@ public class LongTermAssetsFacade {
   }
 
   public AssetView saveCashReserve(CashReserveCommand command, LocalDate effectiveFrom) {
+    if (command.id() != null)
+      service
+          .get(command.portfolioId(), command.id())
+          .filter(asset -> asset.getType() == LongTermAssetType.CASH_RESERVE)
+          .orElseThrow(
+              () -> new IllegalArgumentException("Asset type cannot be changed after creation"));
     return AssetView.from(
         service.saveCashReserve(
             command.portfolioId(),
@@ -101,8 +106,9 @@ public class LongTermAssetsFacade {
 
   public AssetView update(AssetCommand command) {
     LongTermAsset current = service.get(command.portfolioId(), command.id()).orElseThrow();
+    if (current.getType() != command.type())
+      throw new IllegalArgumentException("Asset type cannot be changed after creation");
     current.setName(command.name());
-    current.setType(command.type());
     current.setCurrency(command.currency());
     current.setAcquisitionDate(command.acquisitionDate());
     if (command.acquisitionValue() != null) current.setAcquisitionValue(command.acquisitionValue());

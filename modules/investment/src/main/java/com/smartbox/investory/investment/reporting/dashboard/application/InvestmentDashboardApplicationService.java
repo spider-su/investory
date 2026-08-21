@@ -1,6 +1,8 @@
 package com.smartbox.investory.investment.reporting.dashboard.application;
 
 import com.smartbox.investory.investment.api.InvestmentDashboardApi;
+import com.smartbox.investory.investment.api.InvestmentDashboardApi.DashboardPageView;
+import com.smartbox.investory.investment.api.InvestmentDashboardApi.DashboardQuery;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -12,6 +14,22 @@ public class InvestmentDashboardApplicationService implements InvestmentDashboar
 
   @Override
   public DashboardPageView loadDashboard(DashboardQuery query) {
-    return dashboard.loadDashboard(query);
+    var page =
+        dashboard.loadDashboard(
+            new com.smartbox.investory.investment.reporting.dashboard.application.DashboardQuery(
+                query.accountIds(),
+                query.benchmarkAccountsSubmitted(),
+                query.period(),
+                query.portfolioId()));
+    return new DashboardPageView(
+        page.overview(),
+        page.performance(),
+        page.positions(),
+        page.cashFlow(),
+        page.risk(),
+        page.dataQuality(),
+        page.selectedPeriod(),
+        page.periods(),
+        page.navigation());
   }
 }

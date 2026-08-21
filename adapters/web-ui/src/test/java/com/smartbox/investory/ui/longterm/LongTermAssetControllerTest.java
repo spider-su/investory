@@ -5,7 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import com.smartbox.investory.longterm.api.*;
-import com.smartbox.investory.longterm.api.LongTermAssetsFacade;
+import com.smartbox.investory.longterm.api.LongTermAssetsApi;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -20,7 +20,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
 @ExtendWith(MockitoExtension.class)
 class LongTermAssetControllerTest {
-  @Mock LongTermAssetsFacade assets;
+  @Mock LongTermAssetsApi assets;
   private LongTermAssetController controller;
 
   @BeforeEach
@@ -41,7 +41,7 @@ class LongTermAssetControllerTest {
         InterestTreatment.CAPITALIZE,
         new BigDecimal("6"),
         null);
-    var command = ArgumentCaptor.forClass(LongTermAssetsFacade.BondCommand.class);
+    var command = ArgumentCaptor.forClass(LongTermAssetsApi.BondCommand.class);
     verify(assets).createBond(command.capture());
     assertEquals(new BigDecimal("150000"), command.getValue().value());
   }
@@ -62,7 +62,7 @@ class LongTermAssetControllerTest {
         Frequency.MONTHLY,
         LocalDate.of(2025, 1, 1),
         LocalDate.of(2026, 12, 31));
-    var command = ArgumentCaptor.forClass(LongTermAssetsFacade.CashFlowCommand.class);
+    var command = ArgumentCaptor.forClass(LongTermAssetsApi.CashFlowCommand.class);
     verify(assets).addCashFlow(command.capture(), any());
     assertEquals(LocalDate.of(2025, 1, 1), command.getValue().validFrom());
     assertEquals(LocalDate.of(2026, 12, 31), command.getValue().validTo());
@@ -75,7 +75,7 @@ class LongTermAssetControllerTest {
     form.setCurrentValue(new BigDecimal("780000"));
     controller.update(
         7L, form, 1L, null, null, new BigDecimal("1800"), new RedirectAttributesModelMap());
-    var command = ArgumentCaptor.forClass(LongTermAssetsFacade.AssetCommand.class);
+    var command = ArgumentCaptor.forClass(LongTermAssetsApi.AssetCommand.class);
     verify(assets).update(command.capture());
     assertEquals(new BigDecimal("1800"), command.getValue().taxBase());
   }
@@ -107,8 +107,8 @@ class LongTermAssetControllerTest {
         redirectAttributes.getFlashAttributes().get("rentalPeriodError"));
   }
 
-  private static LongTermAssetsFacade.AssetView assetView(Long id) {
-    return new LongTermAssetsFacade.AssetView(
+  private static LongTermAssetsApi.AssetView assetView(Long id) {
+    return new LongTermAssetsApi.AssetView(
         id,
         1L,
         "Bond",
@@ -119,6 +119,7 @@ class LongTermAssetControllerTest {
         BigDecimal.ONE,
         null,
         true,
-        null);
+        null,
+        false);
   }
 }

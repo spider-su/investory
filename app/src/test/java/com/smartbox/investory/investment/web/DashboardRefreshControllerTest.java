@@ -9,11 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.smartbox.investory.config.MockMvcSecurityTestConfig;
 import com.smartbox.investory.config.SecurityConfig;
-import com.smartbox.investory.investment.accounting.PortfolioProjectionService;
-import com.smartbox.investory.investment.market.fx.CurrencyRateUpdaterService;
-import com.smartbox.investory.investment.market.price.ManualAssetPriceService;
+import com.smartbox.investory.investment.api.InvestmentMaintenanceApi;
 import com.smartbox.investory.investment.market.price.ManualAssetPriceService.ManualAssetPrice;
-import com.smartbox.investory.investment.market.price.MarketService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.ZonedDateTime;
 import org.junit.jupiter.api.Test;
@@ -29,21 +26,22 @@ import org.springframework.test.web.servlet.MockMvc;
 class DashboardRefreshControllerTest {
 
   @Autowired private MockMvc mockMvc;
-  @MockitoBean private MarketService marketService;
-  @MockitoBean private ManualAssetPriceService manualAssetPriceService;
-  @MockitoBean private PortfolioProjectionService portfolioProjectionService;
-  @MockitoBean private CurrencyRateUpdaterService currencyRateUpdaterService;
+  @MockitoBean private InvestmentMaintenanceApi maintenance;
 
   @Test
   @WithMockUser(roles = "ADMIN")
   void refreshPricesRunsFullPortfolioUpdate() throws Exception {
+    when(maintenance.refreshPrices())
+        .thenReturn(
+            new InvestmentMaintenanceApi.MaintenanceResult(
+                "OK", "Open position prices refreshed", ZonedDateTime.now()));
     mockMvc
         .perform(post("/admin/refresh-prices").with(csrf()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("OK"))
         .andExpect(jsonPath("$.message").value("Open position prices refreshed"));
 
-    verify(marketService).fullPortfolioUpdate();
+    verify(maintenance).refreshPrices();
   }
 
   @Test
@@ -56,32 +54,31 @@ class DashboardRefreshControllerTest {
   @Test
   @WithMockUser(roles = "ADMIN")
   void refreshCurrencyRunsFxUpdate() throws Exception {
-    when(currencyRateUpdaterService.updateCurrencyRates())
-        .thenReturn(
-            new CurrencyRateUpdaterService.CurrencyRateRefreshResult(
-                java.time.LocalDate.of(2026, 8, 16),
-                java.util.List.of("USD", "EUR", "PLN"),
-                java.util.List.of()));
+    when(maintenance.refreshCurrency())
+        .thenReturn(java.util.Map.of("updated", java.util.List.of("USD", "EUR", "PLN")));
 
     mockMvc
         .perform(post("/admin/refresh-currency").with(csrf()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.updated[0]").value("USD"));
 
-    verify(currencyRateUpdaterService).updateCurrencyRates();
+    verify(maintenance).refreshCurrency();
   }
 
   @Test
   @WithMockUser(roles = "ADMIN")
   void rebuildMonthlyRunsProjectionRecalculation() throws Exception {
+    when(maintenance.rebuildMonthly())
+        .thenReturn(
+            new InvestmentMaintenanceApi.MaintenanceResult(
+                "OK", "Account stats rebuilt", ZonedDateTime.now()));
     mockMvc
         .perform(post("/admin/rebuild-monthly").with(csrf()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("OK"))
         .andExpect(jsonPath("$.message").value("Account stats rebuilt"));
 
-    verify(portfolioProjectionService).recalculateAll();
-    verify(portfolioProjectionService).refreshReconciliationViews();
+    verify(maintenance).rebuildMonthly();
   }
 
   @Test
@@ -95,7 +92,7 @@ class DashboardRefreshControllerTest {
   @WithMockUser(roles = "ADMIN")
   void updateManualAssetPriceReturnsUpdatedPrice() throws Exception {
     ZonedDateTime updatedAt = ZonedDateTime.parse("2026-07-16T09:00:00Z");
-    when(manualAssetPriceService.updatePrice("SGLD.UK", 15.25))
+    when(maintenance.updateManualAssetPrice("SGLD.UK", 15.25))
         .thenReturn(
             new ManualAssetPrice("SGLD.UK", 15.25, 15.25, CurrencyType.USD, "Manual", updatedAt));
 
@@ -110,7 +107,7 @@ class DashboardRefreshControllerTest {
         .andExpect(jsonPath("$.marketPrice").value(15.25))
         .andExpect(jsonPath("$.source").value("Manual"));
 
-    verify(manualAssetPriceService).updatePrice("SGLD.UK", 15.25);
+    verify(maintenance).updateManualAssetPrice("SGLD.UK", 15.25);
   }
 
   @Test
@@ -139,7 +136,7 @@ class DashboardRefreshControllerTest {
   @Test
   @WithMockUser(roles = "ADMIN")
   void updateManualAssetPriceMapsInvalidInputToBadRequest() throws Exception {
-    when(manualAssetPriceService.updatePrice("SGLD.UK", -1.0))
+    when(maintenance.updateManualAssetPrice("SGLD.UK", -1.0))
         .thenThrow(new IllegalArgumentException("Market price must be positive"));
 
     mockMvc
