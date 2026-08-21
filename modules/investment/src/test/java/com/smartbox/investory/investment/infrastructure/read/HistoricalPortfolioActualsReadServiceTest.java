@@ -47,7 +47,8 @@ class HistoricalPortfolioActualsReadServiceTest {
                   new BigDecimal("740429.67")
                       .divide(BigDecimal.valueOf(12), 8, RoundingMode.HALF_UP));
         });
-    PortfolioMonthlyPerformanceEntity previous = row(LocalDate.of(2024, 12, 1), "1000000", "0", "0");
+    PortfolioMonthlyPerformanceEntity previous =
+        row(LocalDate.of(2024, 12, 1), "1000000", "0", "0");
     when(repository.findByPortfolioIdAndMonthBetweenOrderByMonthAsc(anyLong(), any(), any()))
         .thenAnswer(
             invocation -> {
@@ -149,7 +150,8 @@ class HistoricalPortfolioActualsReadServiceTest {
     return rows(2025, count, returns);
   }
 
-  private static List<PortfolioMonthlyPerformanceEntity> rows(int year, int count, boolean returns) {
+  private static List<PortfolioMonthlyPerformanceEntity> rows(
+      int year, int count, boolean returns) {
     List<PortfolioMonthlyPerformanceEntity> result = new ArrayList<>();
     for (int month = 1; month <= count; month++) {
       PortfolioMonthlyPerformanceEntity row = mock(PortfolioMonthlyPerformanceEntity.class);

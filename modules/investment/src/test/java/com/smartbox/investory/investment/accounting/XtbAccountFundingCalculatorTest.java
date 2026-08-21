@@ -49,11 +49,14 @@ class XtbAccountFundingCalculatorTest {
 
   @Test
   void knownXtbUsdReconciliationAdjustmentsAreRepresentedExactly() {
-    CashOperationEntity firstOut = transfer(1L, 51499241L, -801.47, "Transfer from 51993106 to 51499241");
-    CashOperationEntity firstIn = transfer(2L, 51499241L, 801.47, "Transfer from 51993106 to 51499241");
+    CashOperationEntity firstOut =
+        transfer(1L, 51499241L, -801.47, "Transfer from 51993106 to 51499241");
+    CashOperationEntity firstIn =
+        transfer(2L, 51499241L, 801.47, "Transfer from 51993106 to 51499241");
     CashOperationEntity secondOut =
         transfer(3L, 51993106L, -995.31, "Transfer from 51499241 to 51993106");
-    CashOperationEntity secondIn = transfer(4L, 51993106L, 995.31, "Transfer from 51499241 to 51993106");
+    CashOperationEntity secondIn =
+        transfer(4L, 51993106L, 995.31, "Transfer from 51499241 to 51993106");
 
     Map<Long, Double> effects =
         calculator.calculate(
@@ -96,7 +99,8 @@ class XtbAccountFundingCalculatorTest {
     return account;
   }
 
-  private static CashOperationEntity transfer(long id, long accountId, double amount, String comment) {
+  private static CashOperationEntity transfer(
+      long id, long accountId, double amount, String comment) {
     CashOperationEntity operation = new CashOperationEntity();
     operation.setId(id);
     operation.setAccount(accountId);

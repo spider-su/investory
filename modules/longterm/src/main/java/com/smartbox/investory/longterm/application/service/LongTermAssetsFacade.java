@@ -1,18 +1,18 @@
 package com.smartbox.investory.longterm.application.service;
+
+import com.smartbox.investory.longterm.api.*;
 import com.smartbox.investory.longterm.api.model.RealEstateEntryModel;
 import com.smartbox.investory.longterm.api.model.RentalContractModel;
 import com.smartbox.investory.longterm.application.model.LongTermAssetSummary;
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
-import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
-
-import com.smartbox.investory.longterm.api.*;
 import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 import com.smartbox.investory.longterm.infrastructure.asset.*;
+import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.longterm.infrastructure.bond.*;
 import com.smartbox.investory.longterm.infrastructure.deposit.*;
 import com.smartbox.investory.longterm.infrastructure.lifecycle.*;
 import com.smartbox.investory.longterm.infrastructure.rental.*;
+import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
+import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import com.smartbox.investory.longterm.infrastructure.tax.*;
 import com.smartbox.investory.longterm.infrastructure.valuation.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -82,7 +82,9 @@ public class LongTermAssetsFacade {
           .get(command.portfolioId(), command.id())
           .filter(asset -> asset.getType() == LongTermAssetType.CASH_RESERVE)
           .orElseThrow(
-              () -> new IllegalArgumentException("AssetEntity type cannot be changed after creation"));
+              () ->
+                  new IllegalArgumentException(
+                      "AssetEntity type cannot be changed after creation"));
     return AssetView.from(
         service.saveCashReserve(
             command.portfolioId(),
@@ -156,36 +158,54 @@ public class LongTermAssetsFacade {
   }
 
   public void saveRealEstate(Long portfolioId, RealEstateEntryModel entry) {
-    var saved = service.saveRealEstateEntry(
-        portfolioId, null, withGrowth(entry, percentToRate(entry.expectedAnnualGrowthRate())));
-    rentalContracts.create(portfolioId, saved.getId(), entry.effectiveFrom(), null, List.of(
-        term(CashFlowType.RENT, entry.monthlyRent(), Frequency.MONTHLY, false),
-        term(CashFlowType.PARKING_RENT, entry.monthlyParkingIncome(), Frequency.MONTHLY, false),
-        term(CashFlowType.ADMIN_FEE, entry.monthlyAdministrationCost(), Frequency.MONTHLY, true),
-        term(CashFlowType.OTHER_EXPENSE, entry.monthlyOtherCost(), Frequency.MONTHLY, false),
-        term(CashFlowType.PROPERTY_TAX, entry.annualPropertyTax(), Frequency.ANNUAL, false),
-        term(CashFlowType.INSURANCE, entry.annualInsurance(), Frequency.ANNUAL, false)));
+    var saved =
+        service.saveRealEstateEntry(
+            portfolioId, null, withGrowth(entry, percentToRate(entry.expectedAnnualGrowthRate())));
+    rentalContracts.create(
+        portfolioId,
+        saved.getId(),
+        entry.effectiveFrom(),
+        null,
+        List.of(
+            term(CashFlowType.RENT, entry.monthlyRent(), Frequency.MONTHLY, false),
+            term(CashFlowType.PARKING_RENT, entry.monthlyParkingIncome(), Frequency.MONTHLY, false),
+            term(
+                CashFlowType.ADMIN_FEE, entry.monthlyAdministrationCost(), Frequency.MONTHLY, true),
+            term(CashFlowType.OTHER_EXPENSE, entry.monthlyOtherCost(), Frequency.MONTHLY, false),
+            term(CashFlowType.PROPERTY_TAX, entry.annualPropertyTax(), Frequency.ANNUAL, false),
+            term(CashFlowType.INSURANCE, entry.annualInsurance(), Frequency.ANNUAL, false)));
   }
 
-  public LongTermAssetRentalContractEntity createRentalContract(LongTermAssetsApi.RentalContractCommand command) {
+  public LongTermAssetRentalContractEntity createRentalContract(
+      LongTermAssetsApi.RentalContractCommand command) {
     return rentalContracts.create(
-        command.portfolioId(), command.assetId(), command.startDate(), command.endDate(),
+        command.portfolioId(),
+        command.assetId(),
+        command.startDate(),
+        command.endDate(),
         command.rentalTaxPaidByTenant(),
         command.terms().stream()
-            .map(t -> new RentalContractModel.Term(t.type(), t.amount(), t.frequency(), t.paidByTenant()))
+            .map(
+                t ->
+                    new RentalContractModel.Term(
+                        t.type(), t.amount(), t.frequency(), t.paidByTenant()))
             .toList());
   }
 
-  public LongTermAssetRentalContractEntity endRentalContract(Long portfolioId, Long assetId, Long contractId, LocalDate endDate) {
+  public LongTermAssetRentalContractEntity endRentalContract(
+      Long portfolioId, Long assetId, Long contractId, LocalDate endDate) {
     return rentalContracts.end(portfolioId, assetId, contractId, endDate);
   }
 
-  public void terminateRentalContract(Long portfolioId, Long assetId, Long contractId, LocalDate date) {
+  public void terminateRentalContract(
+      Long portfolioId, Long assetId, Long contractId, LocalDate date) {
     rentalContracts.terminate(portfolioId, assetId, contractId, date);
   }
 
-  private static RentalContractModel.Term term(CashFlowType type, BigDecimal amount, Frequency frequency, boolean tenant) {
-    return new RentalContractModel.Term(type, amount == null ? BigDecimal.ZERO : amount, frequency, tenant);
+  private static RentalContractModel.Term term(
+      CashFlowType type, BigDecimal amount, Frequency frequency, boolean tenant) {
+    return new RentalContractModel.Term(
+        type, amount == null ? BigDecimal.ZERO : amount, frequency, tenant);
   }
 
   public void saveTaxBase(Long portfolioId, Long id, BigDecimal value) {
@@ -594,12 +614,29 @@ public class LongTermAssetsFacade {
       BigDecimal expectedPropertyGrowth,
       List<ContractView> contracts) {}
 
-  public record ContractView(Long id, LocalDate startDate, LocalDate endDate, LocalDate terminatedDate, Boolean rentalTaxPaidByTenant, List<TermView> terms) {
+  public record ContractView(
+      Long id,
+      LocalDate startDate,
+      LocalDate endDate,
+      LocalDate terminatedDate,
+      Boolean rentalTaxPaidByTenant,
+      List<TermView> terms) {
     static ContractView from(LongTermAssetRentalContractEntity c) {
-      return new ContractView(c.getId(), c.getStartDate(), c.getEndDate(), c.getTerminatedDate(), c.getRentalTaxPaidByTenant(), c.getTerms().stream()
-          .map(t -> new TermView(t.getType(), t.getAmount(), t.getFrequency(), t.isPaidByTenant())).toList());
+      return new ContractView(
+          c.getId(),
+          c.getStartDate(),
+          c.getEndDate(),
+          c.getTerminatedDate(),
+          c.getRentalTaxPaidByTenant(),
+          c.getTerms().stream()
+              .map(
+                  t ->
+                      new TermView(
+                          t.getType(), t.getAmount(), t.getFrequency(), t.isPaidByTenant()))
+              .toList());
     }
   }
 
-  public record TermView(CashFlowType type, BigDecimal amount, Frequency frequency, boolean paidByTenant) {}
+  public record TermView(
+      CashFlowType type, BigDecimal amount, Frequency frequency, boolean paidByTenant) {}
 }

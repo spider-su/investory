@@ -275,7 +275,8 @@ class ImportHistoryOrchestratorServiceTest {
         .thenReturn(Optional.empty());
     ImportHistoryEntity started = batch(95L, ImportBatchStatus.STARTED, null, 0, 0, 0);
     ImportExecutionResult result = new ImportExecutionResult(10, 0, 10, "10 rejected rows");
-    ImportHistoryEntity failed = batch(95L, ImportBatchStatus.FAILED, "10 rejected rows", 10, 0, 10);
+    ImportHistoryEntity failed =
+        batch(95L, ImportBatchStatus.FAILED, "10 rejected rows", 10, 0, 10);
     when(auditWriter.startBatch(any(), any(), any(), anyString(), anyString())).thenReturn(started);
     when(xtbParser.importFile(any(), anyString())).thenReturn(result);
     when(auditWriter.finalizeApplied(95L, result)).thenReturn(failed);
@@ -335,7 +336,8 @@ class ImportHistoryOrchestratorServiceTest {
     ImportHistoryEntity started = batch(90L, ImportBatchStatus.STARTED, null, 0, 0, 0);
     ImportExecutionResult result = new ImportExecutionResult(1, 1, 0, "imported");
     ImportHistoryEntity applied = batch(90L, ImportBatchStatus.COMPLETED, "imported", 1, 1, 0);
-    ImportHistoryEntity notReady = batch(90L, ImportBatchStatus.NOT_READY, "projection failed", 1, 1, 0);
+    ImportHistoryEntity notReady =
+        batch(90L, ImportBatchStatus.NOT_READY, "projection failed", 1, 1, 0);
     when(auditWriter.startBatch(any(), any(), any(), anyString(), anyString())).thenReturn(started);
     when(xtbParser.importFile(any(), anyString())).thenReturn(result);
     when(auditWriter.finalizeApplied(90L, result)).thenReturn(applied);

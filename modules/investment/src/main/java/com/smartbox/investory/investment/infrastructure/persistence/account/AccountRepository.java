@@ -8,7 +8,8 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface AccountRepository extends JpaRepository<AccountEntity, Long>, AccountRepositoryCustom {
+public interface AccountRepository
+    extends JpaRepository<AccountEntity, Long>, AccountRepositoryCustom {
 
   List<AccountEntity> findAllByProviderIgnoreCase(String provider);
 

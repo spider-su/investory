@@ -2,8 +2,8 @@ package com.smartbox.investory.retirement.planning;
 
 import com.smartbox.investory.investment.api.HistoricalPortfolioActualsReader;
 import com.smartbox.investory.investment.api.HistoricalPortfolioYear;
-import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
 import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
+import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.retirement.infrastructure.planning.*;
 import com.smartbox.investory.retirement.profile.*;
@@ -406,7 +406,8 @@ public class PlanningTimelineFacade {
 
   @Transactional(readOnly = true)
   public CurrentPlanningYear current(Long portfolioId, int year, InvestmentProfile profile) {
-    PlanningYearEntity planningYear = years.findByPortfolioIdAndYear(portfolioId, year).orElse(null);
+    PlanningYearEntity planningYear =
+        years.findByPortfolioIdAndYear(portfolioId, year).orElse(null);
     Map<PlanningMetric, PlanningMetricValue> live = currentActual(profile);
     if (planningYear == null) return new CurrentPlanningYear(year, null, null, live, Map.of());
     Map<PlanningMetric, PlanningMetricValue> manual = actualValues(planningYear);
@@ -858,7 +859,8 @@ public class PlanningTimelineFacade {
     }
   }
 
-  private static boolean isManualEditAllowed(PlanningMetric metric, PlanningYearValueEntity current) {
+  private static boolean isManualEditAllowed(
+      PlanningMetric metric, PlanningYearValueEntity current) {
     if (!metric.isManualEditable()) return false;
     return metric != PlanningMetric.REAL_ESTATE
         || current == null

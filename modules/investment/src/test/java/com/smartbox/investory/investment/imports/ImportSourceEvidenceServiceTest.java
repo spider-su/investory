@@ -74,7 +74,8 @@ class ImportSourceEvidenceServiceTest {
         service.recordRow(
             "Cash Operations", "Cash Operations", 42, "TX-1", 1, "original,0.1,USD", values);
 
-    ArgumentCaptor<ImportSourceRowEntity> captor = ArgumentCaptor.forClass(ImportSourceRowEntity.class);
+    ArgumentCaptor<ImportSourceRowEntity> captor =
+        ArgumentCaptor.forClass(ImportSourceRowEntity.class);
     verify(rowRepository).save(captor.capture());
     ImportSourceRowEntity saved = captor.getValue();
     assertEquals(11L, id);

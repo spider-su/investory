@@ -162,7 +162,8 @@ public class AssetDetailService {
             .orElse(null));
   }
 
-  private List<AssetHoldingView> aggregateHoldings(AssetEntity asset, List<OpenedPosition> positions) {
+  private List<AssetHoldingView> aggregateHoldings(
+      AssetEntity asset, List<OpenedPosition> positions) {
     Map<Long, List<OpenedPosition>> byAccount =
         positions.stream().collect(Collectors.groupingBy(OpenedPosition::getAccount));
 
@@ -172,7 +173,8 @@ public class AssetDetailService {
         .toList();
   }
 
-  private AssetHoldingView toHolding(AssetEntity asset, Long accountId, List<OpenedPosition> positions) {
+  private AssetHoldingView toHolding(
+      AssetEntity asset, Long accountId, List<OpenedPosition> positions) {
     double quantity = positions.stream().mapToDouble(OpenedPosition::signedQuantity).sum();
     double absoluteQuantity =
         positions.stream().mapToDouble(position -> Math.abs(position.signedQuantity())).sum();

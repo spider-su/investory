@@ -47,13 +47,14 @@ public interface CurrencyRateRepository extends JpaRepository<CurrencyRateEntity
   Optional<CurrencyRateEntity> findFirstByRateDateAndBaseAndToCurrencyAndSourceAndMethod(
       LocalDate rateDate, CurrencyType base, CurrencyType toCurrency, String source, String method);
 
-  Optional<CurrencyRateEntity> findByRateDateAndBaseAndToCurrencyAndSourceAndMethodAndSourceReference(
-      LocalDate rateDate,
-      CurrencyType base,
-      CurrencyType toCurrency,
-      String source,
-      String method,
-      String sourceReference);
+  Optional<CurrencyRateEntity>
+      findByRateDateAndBaseAndToCurrencyAndSourceAndMethodAndSourceReference(
+          LocalDate rateDate,
+          CurrencyType base,
+          CurrencyType toCurrency,
+          String source,
+          String method,
+          String sourceReference);
 
   @Query(
       value =

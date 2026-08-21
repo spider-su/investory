@@ -1,7 +1,7 @@
 package com.smartbox.investory.longterm.application.model;
-import com.smartbox.investory.longterm.application.service.LongTermAssetCalculator;
 
 import com.smartbox.investory.longterm.api.model.RentalEconomicsModel;
+import com.smartbox.investory.longterm.application.service.LongTermAssetCalculator;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 

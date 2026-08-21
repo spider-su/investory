@@ -3,9 +3,9 @@ package com.smartbox.investory.investment.reporting;
 import com.smartbox.investory.investment.accounting.model.Benchmark;
 import com.smartbox.investory.investment.infrastructure.market.client.TwelveDataService;
 import com.smartbox.investory.investment.infrastructure.persistence.NormalizedCashOperationRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountMonthlyPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountMonthlyPerformanceRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
@@ -376,7 +376,8 @@ public class BenchmarkService {
         .orElse(null);
   }
 
-  private Set<Long> activeAccountIds(List<AccountDailyEntity> rows, List<AccountStatisticsEntity> statistics) {
+  private Set<Long> activeAccountIds(
+      List<AccountDailyEntity> rows, List<AccountStatisticsEntity> statistics) {
     if (!CollectionUtils.isEmpty(statistics)) {
       return statistics.stream()
           .filter(stat -> stat.getAccountId() != null)
@@ -408,7 +409,9 @@ public class BenchmarkService {
   }
 
   private List<Benchmark.AccountOption> accountOptions(
-      Map<Long, AccountEntity> accountsById, Set<Long> visibleAccounts, Set<Long> selectedAccounts) {
+      Map<Long, AccountEntity> accountsById,
+      Set<Long> visibleAccounts,
+      Set<Long> selectedAccounts) {
     return accountsById.values().stream()
         .filter(account -> visibleAccounts.contains(account.getId()))
         .map(
@@ -470,7 +473,10 @@ public class BenchmarkService {
   }
 
   private Benchmark.AccountValueSeries dailyAccountValueSeries(
-      AccountEntity account, List<AccountDailyEntity> rows, List<String> labels, CurrencyType baseCurrency) {
+      AccountEntity account,
+      List<AccountDailyEntity> rows,
+      List<String> labels,
+      CurrencyType baseCurrency) {
     Map<String, AccountDailyEntity> valuesByDay =
         rows.stream()
             .filter(row -> account.getId().equals(row.getAccountId()))

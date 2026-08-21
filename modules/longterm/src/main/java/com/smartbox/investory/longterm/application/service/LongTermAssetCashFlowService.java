@@ -1,10 +1,8 @@
 package com.smartbox.investory.longterm.application.service;
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 
-import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import com.smartbox.investory.longterm.infrastructure.asset.*;
 import com.smartbox.investory.longterm.infrastructure.rental.*;
+import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
@@ -20,7 +18,8 @@ public class LongTermAssetCashFlowService {
   private final LongTermAssetRepository assets;
   private final LongTermAssetCashFlowRepository cashFlows;
 
-  public LongTermAssetCashFlowEntity add(Long portfolioId, Long assetId, LongTermAssetCashFlowEntity flow) {
+  public LongTermAssetCashFlowEntity add(
+      Long portfolioId, Long assetId, LongTermAssetCashFlowEntity flow) {
     LongTermAssetEntity asset = owned(portfolioId, assetId);
     requireRealEstate(asset);
     flow.setAssetId(assetId);
@@ -136,11 +135,13 @@ public class LongTermAssetCashFlowService {
   }
 
   private static void requireRealEstate(LongTermAssetEntity asset) {
-    if (asset.getType() != com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType.REAL_ESTATE)
+    if (asset.getType()
+        != com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType.REAL_ESTATE)
       throw new IllegalArgumentException("Cash flows apply only to real estate");
   }
 
-  private static boolean isExpense(com.smartbox.investory.longterm.infrastructure.rental.CashFlowType type) {
+  private static boolean isExpense(
+      com.smartbox.investory.longterm.infrastructure.rental.CashFlowType type) {
     return switch (type) {
       case ADMIN_FEE, UTILITIES, PROPERTY_TAX, INSURANCE, OTHER_EXPENSE -> true;
       default -> false;

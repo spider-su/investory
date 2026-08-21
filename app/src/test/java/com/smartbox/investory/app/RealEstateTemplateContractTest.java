@@ -1,6 +1,4 @@
 package com.smartbox.investory.app;
-import com.smartbox.investory.longterm.application.model.AnnualEconomics;
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 
 import static org.junit.jupiter.api.Assertions.*;
 

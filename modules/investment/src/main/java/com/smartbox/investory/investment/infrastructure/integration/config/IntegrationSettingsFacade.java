@@ -308,7 +308,8 @@ public class IntegrationSettingsFacade {
     return result;
   }
 
-  private IntegrationSettingsView view(IntegrationPlugin plugin, IntegrationInstanceEntity instance) {
+  private IntegrationSettingsView view(
+      IntegrationPlugin plugin, IntegrationInstanceEntity instance) {
     Map<String, String> values = instance == null ? Map.of() : fromJson(instance.getConfigJson());
     Map<String, IntegrationSettingsView.SecretState> secrets = new LinkedHashMap<>();
     if (instance != null)

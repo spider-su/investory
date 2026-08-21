@@ -1,10 +1,9 @@
 package com.smartbox.investory.retirement.simulation;
-import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
+import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.retirement.profile.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;

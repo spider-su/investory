@@ -1,11 +1,11 @@
 package com.smartbox.investory.longterm.application;
-import com.smartbox.investory.longterm.application.service.LongTermAssetCalculator;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.smartbox.investory.longterm.application.service.LongTermAssetCalculator;
+import com.smartbox.investory.longterm.infrastructure.rental.*;
 import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
-import com.smartbox.investory.longterm.infrastructure.rental.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
@@ -48,7 +48,8 @@ class LongTermAssetCalculatorTest {
         BigDecimal.ZERO, LongTermAssetCalculator.ratio(new BigDecimal("10"), BigDecimal.ZERO));
   }
 
-  private static LongTermAssetCashFlowEntity flow(CashFlowType type, String amount, Frequency frequency) {
+  private static LongTermAssetCashFlowEntity flow(
+      CashFlowType type, String amount, Frequency frequency) {
     LongTermAssetCashFlowEntity f = new LongTermAssetCashFlowEntity();
     f.setType(type);
     f.setAmount(new BigDecimal(amount));

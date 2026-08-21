@@ -1,6 +1,6 @@
 package com.smartbox.investory.longterm.api;
-import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
 
+import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
 import java.time.LocalDate;
 
 /** Public Long-Term annual facts for planning history and current-year presentation. */

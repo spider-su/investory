@@ -678,7 +678,8 @@ public class CashOperationNormalizer {
     return Math.round(rate * 1_000_000d);
   }
 
-  private static String stableGroupId(String prefix, CashOperationEntity left, CashOperationEntity right) {
+  private static String stableGroupId(
+      String prefix, CashOperationEntity left, CashOperationEntity right) {
     long leftId = opId(left);
     long rightId = opId(right);
     long low = Math.min(leftId, rightId);

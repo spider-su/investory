@@ -7,8 +7,8 @@ import static org.mockito.Mockito.*;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceRepository;
 import com.smartbox.investory.investment.infrastructure.read.HistoricalPortfolioActualsReadService;
-import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
 import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
+import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
 import com.smartbox.investory.retirement.infrastructure.planning.*;
 import com.smartbox.investory.retirement.profile.*;
 import com.smartbox.investory.retirement.simulation.*;
@@ -134,7 +134,8 @@ class PlanningTimelineFacadeTest {
               if (year != 2025) return List.of();
               List<PortfolioMonthlyPerformanceEntity> rows = new ArrayList<>();
               for (int month = 1; month <= 12; month++) {
-                PortfolioMonthlyPerformanceEntity row = mock(PortfolioMonthlyPerformanceEntity.class);
+                PortfolioMonthlyPerformanceEntity row =
+                    mock(PortfolioMonthlyPerformanceEntity.class);
                 when(row.getMonth()).thenReturn(LocalDate.of(2025, month, 1));
                 when(row.getEndEquityDecimal()).thenReturn(new BigDecimal("380333.75"));
                 when(row.getDepositFlowDecimal()).thenReturn(new BigDecimal("58333.3333333333"));
@@ -149,7 +150,8 @@ class PlanningTimelineFacadeTest {
 
     facade.refreshHistoricalAccounting(1L, 2025);
 
-    ArgumentCaptor<PlanningYearValueEntity> saved = ArgumentCaptor.forClass(PlanningYearValueEntity.class);
+    ArgumentCaptor<PlanningYearValueEntity> saved =
+        ArgumentCaptor.forClass(PlanningYearValueEntity.class);
     verify(values, atLeastOnce()).save(saved.capture());
     PlanningYearValueEntity refreshedWithdrawal =
         saved.getAllValues().stream()

@@ -14,8 +14,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
- * Aggregates {@link CashOperationEntity} rows into base-currency totals (deposits, withdrawals, interest,
- * dividends and dividend tax) plus a per-currency dividends breakdown.
+ * Aggregates {@link CashOperationEntity} rows into base-currency totals (deposits, withdrawals,
+ * interest, dividends and dividend tax) plus a per-currency dividends breakdown.
  *
  * <p>Extracted from {@code PortfolioService.calculateTotalProfitLoss()} so the cash-side accounting
  * can be unit-tested in isolation from positions / tax / FX board logic.
@@ -45,7 +45,8 @@ public class CashFlowAggregator {
     }
   }
 
-  public CashFlowSummary aggregate(List<CashOperationEntity> operations, CurrencyType baseCurrency) {
+  public CashFlowSummary aggregate(
+      List<CashOperationEntity> operations, CurrencyType baseCurrency) {
     Map<CurrencyType, List<CashOperationEntity>> byCurrency =
         operations.stream().collect(Collectors.groupingBy(CashOperationEntity::getCurrency));
 

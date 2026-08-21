@@ -73,9 +73,11 @@ public class SimulationPlanService {
     return update(portfolioId, id, name, assumptions).getId();
   }
 
-  public SimulationPlanEntity create(Long portfolioId, String name, SimulationAssumptions assumptions) {
+  public SimulationPlanEntity create(
+      Long portfolioId, String name, SimulationAssumptions assumptions) {
     validateName(portfolioId, name, null);
-    SimulationPlanEntity saved = plans.save(copy(new SimulationPlanEntity(), portfolioId, name, assumptions));
+    SimulationPlanEntity saved =
+        plans.save(copy(new SimulationPlanEntity(), portfolioId, name, assumptions));
     if (revisioned()) {
       SimulationPlanRevisionEntity revision = createRevision(saved, assumptions, 1);
       saved.setCurrentRevisionId(revision.getId());
@@ -252,7 +254,8 @@ public class SimulationPlanService {
     return revisions.save(revision);
   }
 
-  private void saveRevisionEvents(SimulationPlanRevisionEntity revision, List<SimulationEvent> source) {
+  private void saveRevisionEvents(
+      SimulationPlanRevisionEntity revision, List<SimulationEvent> source) {
     for (SimulationEvent event : source) {
       SimulationPlanRevisionEventEntity stored = new SimulationPlanRevisionEventEntity();
       stored.setRevisionId(revision.getId());
@@ -323,7 +326,8 @@ public class SimulationPlanService {
     return assumptions(plan, legacyEventRecords(plan.getId()));
   }
 
-  private SimulationAssumptions assumptions(SimulationPlanEntity plan, List<SimulationEvent> eventList) {
+  private SimulationAssumptions assumptions(
+      SimulationPlanEntity plan, List<SimulationEvent> eventList) {
     SimulationAssumptions result =
         new SimulationAssumptions(
             plan.getCurrentAge(),

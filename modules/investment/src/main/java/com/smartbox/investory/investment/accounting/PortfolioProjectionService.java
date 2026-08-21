@@ -12,9 +12,9 @@ import com.smartbox.investory.investment.infrastructure.persistence.ClosedPositi
 import com.smartbox.investory.investment.infrastructure.persistence.NormalizedCashOperationRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPositionRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.market.fx.CurrencyRateService;
 import com.smartbox.investory.investment.market.price.AssetPriceHistoryGapFillService;
@@ -200,7 +200,8 @@ public class PortfolioProjectionService {
         allAccounts.stream()
             .filter(account -> account.getId() != null)
             .collect(
-                Collectors.toMap(AccountEntity::getId, AccountEntity::getCurrency, (first, ignored) -> first));
+                Collectors.toMap(
+                    AccountEntity::getId, AccountEntity::getCurrency, (first, ignored) -> first));
 
     Map<PositionKey, PositionAccumulator> positions = new HashMap<>();
     Map<DayTickerKey, TickerMonthAccumulator> tickerDaily = new HashMap<>();
@@ -832,7 +833,8 @@ public class PortfolioProjectionService {
     }
 
     rows.sort(
-        Comparator.comparing(AccountDailyEntity::getAccountId).thenComparing(AccountDailyEntity::getDate));
+        Comparator.comparing(AccountDailyEntity::getAccountId)
+            .thenComparing(AccountDailyEntity::getDate));
     return rows;
   }
 

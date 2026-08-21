@@ -9,7 +9,8 @@ public record RentalEconomicsModel(
     BigDecimal tax,
     BigDecimal netIncomeBeforeTax,
     BigDecimal netIncome) {
-  public static RentalEconomicsModel of(BigDecimal grossIncome, BigDecimal expenses, BigDecimal tax) {
+  public static RentalEconomicsModel of(
+      BigDecimal grossIncome, BigDecimal expenses, BigDecimal tax) {
     BigDecimal netBeforeTax = grossIncome.subtract(expenses);
     return new RentalEconomicsModel(
         grossIncome, expenses, tax, netBeforeTax, netBeforeTax.subtract(tax));

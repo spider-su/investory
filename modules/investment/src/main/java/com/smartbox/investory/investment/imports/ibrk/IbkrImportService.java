@@ -129,7 +129,8 @@ public class IbkrImportService {
         String type = value(r, col, "Transaction Type", "Type");
         Long externalAccountId =
             resolveIbkrAccountId(
-                accountIdFromFilename, value(r, col, "AccountEntity", "AccountEntity ID", "AccountId"));
+                accountIdFromFilename,
+                value(r, col, "AccountEntity", "AccountEntity ID", "AccountId"));
         AccountEntity configuredAccount =
             configuredAccounts.computeIfAbsent(externalAccountId, this::requireIbkrAccount);
         Long account = configuredAccount.getId();

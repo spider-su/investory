@@ -4,9 +4,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
+import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanEntity;
 import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanEventRepository;
 import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanRepository;

@@ -186,7 +186,8 @@ class CurrencyRateServiceTest {
 
   @Test
   void updateRates_updatesExistingRate() {
-    CurrencyRateEntity existing = rate(CurrencyType.USD, CurrencyType.EUR, LocalDate.of(2026, 7, 5), 0.8);
+    CurrencyRateEntity existing =
+        rate(CurrencyType.USD, CurrencyType.EUR, LocalDate.of(2026, 7, 5), 0.8);
     when(currencyRateRepository.findFirstByRateDateAndBaseAndToCurrencyAndSourceAndMethod(
             LocalDate.of(2026, 7, 5),
             CurrencyType.USD,

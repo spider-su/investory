@@ -1,15 +1,15 @@
 package com.smartbox.investory.ui.longterm;
-import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import com.smartbox.investory.longterm.api.*;
+import com.smartbox.investory.longterm.api.LongTermAssetsApi;
+import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
-import com.smartbox.investory.longterm.api.LongTermAssetsApi;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -20,7 +20,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
 @ExtendWith(MockitoExtension.class)
 class LongTermAssetControllerTest {
@@ -77,8 +76,7 @@ class LongTermAssetControllerTest {
     LongTermAssetController.AssetForm form = new LongTermAssetController.AssetForm();
     form.setType(LongTermAssetType.REAL_ESTATE);
     form.setCurrentValue(new BigDecimal("780000"));
-    controller.update(
-        7L, form, 1L, new BigDecimal("1800"));
+    controller.update(7L, form, 1L, new BigDecimal("1800"));
     var command = ArgumentCaptor.forClass(LongTermAssetsApi.AssetCommand.class);
     verify(assets).update(command.capture());
     assertEquals(new BigDecimal("1800"), command.getValue().taxBase());

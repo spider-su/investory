@@ -1,9 +1,8 @@
 package com.smartbox.investory.ui.longterm;
-import com.smartbox.investory.longterm.application.model.AnnualEconomics;
-import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 
 import com.smartbox.investory.longterm.api.*;
 import com.smartbox.investory.longterm.api.model.RealEstateEntryModel;
+import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
@@ -16,7 +15,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller
 @RequiredArgsConstructor
@@ -33,10 +31,22 @@ public class LongTermAssetController {
     model.addAttribute("assets", assets.list(portfolioId, date));
     model.addAttribute("groups", groups);
     model.addAttribute("total", total);
-    model.addAttribute("longTermHeaderTotal", FinancialPresentation.wholeNumber(total.totalCurrentValue()));
-    model.addAttribute("longTermHeaderIncome", FinancialPresentation.wholeNumber(total.annualEconomics().netAnnualIncomeAfterTax()));
-    model.addAttribute("longTermHeaderYield", FinancialPresentation.percentage(total.annualEconomics().netYieldAfterTax()) + " net yield");
-    model.addAttribute("longTermHeaderMonthly", FinancialPresentation.wholeNumber(total.annualEconomics().netAnnualIncomeAfterTax().divide(BigDecimal.valueOf(12), 2, java.math.RoundingMode.HALF_UP)));
+    model.addAttribute(
+        "longTermHeaderTotal", FinancialPresentation.wholeNumber(total.totalCurrentValue()));
+    model.addAttribute(
+        "longTermHeaderIncome",
+        FinancialPresentation.wholeNumber(total.annualEconomics().netAnnualIncomeAfterTax()));
+    model.addAttribute(
+        "longTermHeaderYield",
+        FinancialPresentation.percentage(total.annualEconomics().netYieldAfterTax())
+            + " net yield");
+    model.addAttribute(
+        "longTermHeaderMonthly",
+        FinancialPresentation.wholeNumber(
+            total
+                .annualEconomics()
+                .netAnnualIncomeAfterTax()
+                .divide(BigDecimal.valueOf(12), 2, java.math.RoundingMode.HALF_UP)));
     model.addAttribute(
         "longTermGrossIncome",
         FinancialPresentation.wholeNumber(total.annualEconomics().grossAnnualIncome()));
@@ -45,7 +55,8 @@ public class LongTermAssetController {
         FinancialPresentation.wholeNumber(
             total.annualEconomics().annualExpenses().add(total.annualEconomics().annualTax())));
     model.addAttribute(
-        "longTermGrossYield", FinancialPresentation.percentage(total.annualEconomics().grossYield()));
+        "longTermGrossYield",
+        FinancialPresentation.percentage(total.annualEconomics().grossYield()));
     groups.stream()
         .max(java.util.Comparator.comparing(g -> g.totalValue()))
         .ifPresent(
@@ -170,7 +181,9 @@ public class LongTermAssetController {
   }
 
   private static String share(BigDecimal value, BigDecimal total) {
-    return total == null || total.signum() == 0 ? "0.0%" : FinancialPresentation.percentage(value.divide(total, 8, java.math.RoundingMode.HALF_UP));
+    return total == null || total.signum() == 0
+        ? "0.0%"
+        : FinancialPresentation.percentage(value.divide(total, 8, java.math.RoundingMode.HALF_UP));
   }
 
   @PostMapping("/long-term-assets/{id}/rental-contracts")
@@ -186,21 +199,34 @@ public class LongTermAssetController {
       @RequestParam(required = false) BigDecimal utilities,
       @RequestParam(required = false) BigDecimal otherIncome,
       @RequestParam(required = false) BigDecimal otherExpense) {
-    assets.createRentalContract(new LongTermAssetsApi.RentalContractCommand(
-        portfolioId, id, startDate, endDate, rentalTaxPaidByTenant,
-        java.util.List.of(
-            new LongTermAssetsApi.RentalTermCommand(CashFlowType.RENT, zero(rent), Frequency.MONTHLY, false),
-            new LongTermAssetsApi.RentalTermCommand(CashFlowType.PARKING_RENT, zero(parkingRent), Frequency.MONTHLY, false),
-            new LongTermAssetsApi.RentalTermCommand(CashFlowType.ADMIN_FEE, zero(administrationFee), Frequency.MONTHLY, true),
-            new LongTermAssetsApi.RentalTermCommand(CashFlowType.UTILITIES, zero(utilities), Frequency.MONTHLY, true),
-            new LongTermAssetsApi.RentalTermCommand(CashFlowType.OTHER_INCOME, zero(otherIncome), Frequency.MONTHLY, false),
-            new LongTermAssetsApi.RentalTermCommand(CashFlowType.OTHER_EXPENSE, zero(otherExpense), Frequency.MONTHLY, false))));
+    assets.createRentalContract(
+        new LongTermAssetsApi.RentalContractCommand(
+            portfolioId,
+            id,
+            startDate,
+            endDate,
+            rentalTaxPaidByTenant,
+            java.util.List.of(
+                new LongTermAssetsApi.RentalTermCommand(
+                    CashFlowType.RENT, zero(rent), Frequency.MONTHLY, false),
+                new LongTermAssetsApi.RentalTermCommand(
+                    CashFlowType.PARKING_RENT, zero(parkingRent), Frequency.MONTHLY, false),
+                new LongTermAssetsApi.RentalTermCommand(
+                    CashFlowType.ADMIN_FEE, zero(administrationFee), Frequency.MONTHLY, true),
+                new LongTermAssetsApi.RentalTermCommand(
+                    CashFlowType.UTILITIES, zero(utilities), Frequency.MONTHLY, true),
+                new LongTermAssetsApi.RentalTermCommand(
+                    CashFlowType.OTHER_INCOME, zero(otherIncome), Frequency.MONTHLY, false),
+                new LongTermAssetsApi.RentalTermCommand(
+                    CashFlowType.OTHER_EXPENSE, zero(otherExpense), Frequency.MONTHLY, false))));
     return redirect(id, portfolioId);
   }
 
   @PostMapping("/long-term-assets/{id}/rental-contracts/{contractId}/end")
   public String endRentalContract(
-      @PathVariable Long id, @PathVariable Long contractId, @RequestParam Long portfolioId,
+      @PathVariable Long id,
+      @PathVariable Long contractId,
+      @RequestParam Long portfolioId,
       @RequestParam LocalDate endDate) {
     assets.endRentalContract(portfolioId, id, contractId, endDate);
     return redirect(id, portfolioId);
@@ -208,7 +234,9 @@ public class LongTermAssetController {
 
   @PostMapping("/long-term-assets/{id}/rental-contracts/{contractId}/terminate")
   public String terminateRentalContract(
-      @PathVariable Long id, @PathVariable Long contractId, @RequestParam Long portfolioId,
+      @PathVariable Long id,
+      @PathVariable Long contractId,
+      @RequestParam Long portfolioId,
       @RequestParam LocalDate terminationDate) {
     assets.terminateRentalContract(portfolioId, id, contractId, terminationDate);
     return redirect(id, portfolioId);

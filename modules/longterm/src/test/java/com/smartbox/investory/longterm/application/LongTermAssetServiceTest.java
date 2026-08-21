@@ -1,11 +1,4 @@
 package com.smartbox.investory.longterm.application;
-import com.smartbox.investory.longterm.application.model.RealEstatePlanningSummary;
-import com.smartbox.investory.longterm.application.service.LongTermAssetCashFlowService;
-import com.smartbox.investory.longterm.application.model.AnnualEconomics;
-import com.smartbox.investory.longterm.application.service.LongTermAssetLifecycleService;
-import com.smartbox.investory.longterm.application.model.LongTermAssetSummary;
-import com.smartbox.investory.longterm.application.service.LongTermAssetService;
-import com.smartbox.investory.longterm.application.service.LongTermAssetCalculator;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -14,17 +7,23 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
-import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
-import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.longterm.api.model.RealEstateEntryModel;
+import com.smartbox.investory.longterm.application.model.LongTermAssetSummary;
+import com.smartbox.investory.longterm.application.model.RealEstatePlanningSummary;
+import com.smartbox.investory.longterm.application.service.LongTermAssetCalculator;
+import com.smartbox.investory.longterm.application.service.LongTermAssetCashFlowService;
+import com.smartbox.investory.longterm.application.service.LongTermAssetLifecycleService;
+import com.smartbox.investory.longterm.application.service.LongTermAssetService;
+import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 import com.smartbox.investory.longterm.infrastructure.asset.*;
+import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.longterm.infrastructure.bond.*;
 import com.smartbox.investory.longterm.infrastructure.deposit.*;
 import com.smartbox.investory.longterm.infrastructure.lifecycle.*;
 import com.smartbox.investory.longterm.infrastructure.rental.*;
+import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
+import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import com.smartbox.investory.longterm.infrastructure.tax.*;
 import com.smartbox.investory.longterm.infrastructure.valuation.*;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
@@ -1056,7 +1055,8 @@ class LongTermAssetServiceTest {
             BigDecimal.ZERO));
   }
 
-  private static LongTermAssetCashFlowEntity flow(CashFlowType type, String amount, Frequency frequency) {
+  private static LongTermAssetCashFlowEntity flow(
+      CashFlowType type, String amount, Frequency frequency) {
     LongTermAssetCashFlowEntity f = new LongTermAssetCashFlowEntity();
     f.setAssetId(1L);
     f.setType(type);

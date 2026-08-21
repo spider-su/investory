@@ -23,7 +23,7 @@
           <span th:text="${group.key == 'CASH_RESERVE' ? 'Cash reserves' : group.title}">Real estate</span>
         </p>
         <div class="iv-hover-context__panel iv-overview-card__context" role="tooltip">
-          <div class="iv-context-row"><span>Share of long-term assets</span><strong th:text="${group.shareDisplay(total.totalCurrentValue)}">0.0%</strong></div>
+          <div class="iv-context-row"><span>Share of long-term assets</span><strong th:text="${groupShares[group.key]}">0.0%</strong></div>
           <div class="iv-context-row" th:if="${group.key == 'REAL_ESTATE'}"><span>Monthly income</span><strong th:text="${format.moneyWhole(group.netMonthlyIncome()) + '/month'}">0/month</strong></div>
           <div class="iv-context-row" th:if="${group.key == 'REAL_ESTATE'}"><span>Yield</span><strong th:text="${format.percentage(group.realEstatePlanning.incomeYield)}">0.0%</strong></div>
           <div class="iv-context-row" th:if="${group.key != 'REAL_ESTATE'}"><span>Annual gross income</span><strong th:text="${format.wholeNumber(group.annualEconomics.grossAnnualIncome) + '/year'}">0/year</strong></div>

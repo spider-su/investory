@@ -19,7 +19,10 @@ public record PortfolioTestContext(
     Expected expected) {
 
   public record Accounts(
-      AccountEntity ibkrUsd, AccountEntity xtbEur, AccountEntity polishBondsPln, AccountEntity cryptoUsd) {}
+      AccountEntity ibkrUsd,
+      AccountEntity xtbEur,
+      AccountEntity polishBondsPln,
+      AccountEntity cryptoUsd) {}
 
   public record Assets(
       AssetEntity aapl,
@@ -53,7 +56,8 @@ public record PortfolioTestContext(
       List<OpenedPosition> open,
       List<ClosedPosition> closed) {}
 
-  public record FxRates(CurrencyRateEntity eurUsd, CurrencyRateEntity plnUsd, List<CurrencyRateEntity> all) {}
+  public record FxRates(
+      CurrencyRateEntity eurUsd, CurrencyRateEntity plnUsd, List<CurrencyRateEntity> all) {}
 
   public record Imports(ImportHistoryEntity firstImport, ImportHistoryEntity duplicateImport) {}
 

@@ -1,5 +1,4 @@
 package com.smartbox.investory.retirement.simulation;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;

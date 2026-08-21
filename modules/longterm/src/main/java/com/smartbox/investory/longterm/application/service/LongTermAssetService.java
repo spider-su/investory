@@ -1,22 +1,23 @@
 package com.smartbox.investory.longterm.application.service;
-import com.smartbox.investory.longterm.application.model.RealEstatePlanningSummary;
+
+import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
+import com.smartbox.investory.longterm.api.model.RealEstateEntryModel;
+import com.smartbox.investory.longterm.api.model.RentalContractModel;
 import com.smartbox.investory.longterm.application.model.AnnualEconomics;
-import com.smartbox.investory.longterm.application.model.LongTermAssetSummary;
 import com.smartbox.investory.longterm.application.model.BondPlanningSummary;
 import com.smartbox.investory.longterm.application.model.LongTermAssetProjectionInput;
+import com.smartbox.investory.longterm.application.model.LongTermAssetSummary;
 import com.smartbox.investory.longterm.application.model.RealEstateGroupPlanningSummary;
-
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
-import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
+import com.smartbox.investory.longterm.application.model.RealEstatePlanningSummary;
 import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
-import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
-import com.smartbox.investory.longterm.api.model.RealEstateEntryModel;
 import com.smartbox.investory.longterm.infrastructure.asset.*;
+import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.longterm.infrastructure.bond.*;
 import com.smartbox.investory.longterm.infrastructure.deposit.*;
 import com.smartbox.investory.longterm.infrastructure.lifecycle.*;
 import com.smartbox.investory.longterm.infrastructure.rental.*;
+import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
+import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import com.smartbox.investory.longterm.infrastructure.tax.*;
 import com.smartbox.investory.longterm.infrastructure.valuation.*;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
@@ -27,8 +28,8 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.*;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,6 +50,7 @@ public class LongTermAssetService {
   private final LongTermAssetLifecycleService lifecycle;
   private final LongTermAssetCashFlowService cashFlowService;
   private final Clock applicationClock;
+
   /** Optional for old unit fixtures; production uses normalized contracts first. */
   @Autowired private LongTermAssetRentalContractRepository rentalContracts;
 
@@ -167,14 +169,16 @@ public class LongTermAssetService {
     owned(portfolioId, id);
     return cashFlows.findAllByAssetIdOrderByValidFrom(id).stream()
         .sorted(
-            Comparator.comparingInt((LongTermAssetCashFlowEntity flow) -> cashFlowOrder(flow.getType()))
+            Comparator.comparingInt(
+                    (LongTermAssetCashFlowEntity flow) -> cashFlowOrder(flow.getType()))
                 .thenComparing(LongTermAssetCashFlowEntity::getValidFrom)
                 .thenComparing(flow -> Optional.ofNullable(flow.getId()).orElse(Long.MAX_VALUE)))
         .toList();
   }
 
   @Transactional(readOnly = true)
-  public List<LongTermAssetCashFlowEntity> currentCashFlows(Long portfolioId, Long id, LocalDate date) {
+  public List<LongTermAssetCashFlowEntity> currentCashFlows(
+      Long portfolioId, Long id, LocalDate date) {
     return cashFlows(portfolioId, id).stream()
         .filter(flow -> LongTermAssetCalculator.applies(flow, effectiveDate(date)))
         .toList();
@@ -284,7 +288,32 @@ public class LongTermAssetService {
       if (activeOnly && !asset.isActive()) continue;
       if (!activeOnly && !activeOn(asset, effectivePolicyDate)) continue;
       List<LongTermAssetProjectionInput.Period> periods = new ArrayList<>();
-      for (LongTermAssetCashFlowEntity flow : rentalAwareFlows(asset.getId())) {
+      List<RentalContractModel> contracts =
+          rentalContracts == null
+              ? List.of()
+              : rentalContracts.findAllByAssetIdOrderByStartDate(asset.getId()).stream()
+                  .map(
+                      c ->
+                          new RentalContractModel(
+                              c.getId(),
+                              c.getStartDate(),
+                              c.getEndDate(),
+                              c.getTerminatedDate(),
+                              c.getRentalTaxPaidByTenant(),
+                              c.getTerms().stream()
+                                  .map(
+                                      t ->
+                                          new RentalContractModel.Term(
+                                              t.getType(),
+                                              t.getAmount(),
+                                              t.getFrequency(),
+                                              t.isPaidByTenant()))
+                                  .toList()))
+                  .toList();
+      for (LongTermAssetCashFlowEntity flow :
+          contracts.isEmpty()
+              ? cashFlows.findAllByAssetIdOrderByValidFrom(asset.getId())
+              : List.<LongTermAssetCashFlowEntity>of()) {
         BigDecimal annual = LongTermAssetCalculator.annualAmount(flow);
         periods.add(
             new LongTermAssetProjectionInput.Period(
@@ -356,6 +385,7 @@ public class LongTermAssetService {
               asset.getCurrency(),
               asset.getCurrentValue(),
               periods,
+              contracts,
               maturity,
               redemption,
               treatment,
@@ -464,7 +494,8 @@ public class LongTermAssetService {
     return asset;
   }
 
-  public LongTermAssetEntity saveRealEstateEntry(Long portfolioId, Long id, RealEstateEntryModel entry) {
+  public LongTermAssetEntity saveRealEstateEntry(
+      Long portfolioId, Long id, RealEstateEntryModel entry) {
     if (entry == null || entry.effectiveFrom() == null)
       throw new IllegalArgumentException("Effective-from date is required");
     LongTermAssetEntity asset = id == null ? new LongTermAssetEntity() : owned(portfolioId, id);
@@ -713,23 +744,70 @@ public class LongTermAssetService {
     BondPlanningSummary bondPlanning = null;
     LocalDate rentEnd = null;
     if (a.getType() == LongTermAssetType.REAL_ESTATE) {
-      rentEnd = currentRentEnd(flows, effectiveDate);
-      for (LongTermAssetCashFlowEntity f : flows)
-        if (LongTermAssetCalculator.applies(f, effectiveDate)) {
-          BigDecimal annual = LongTermAssetCalculator.annualAmount(f);
-          if (isIncome(f.getType())) gross = gross.add(annual);
-          else if (!f.isPaidByTenant()) expenses = expenses.add(annual);
+      var contractModels =
+          rentalContracts == null
+              ? List.<RentalContractModel>of()
+              : rentalContracts.findAllByAssetIdOrderByStartDate(a.getId()).stream()
+                  .map(
+                      c ->
+                          new RentalContractModel(
+                              c.getId(),
+                              c.getStartDate(),
+                              c.getEndDate(),
+                              c.getTerminatedDate(),
+                              c.getRentalTaxPaidByTenant(),
+                              c.getTerms().stream()
+                                  .map(
+                                      t ->
+                                          new RentalContractModel.Term(
+                                              t.getType(),
+                                              t.getAmount(),
+                                              t.getFrequency(),
+                                              t.isPaidByTenant()))
+                                  .toList()))
+                  .toList();
+      if (contractModels.isEmpty()) {
+        rentEnd = currentRentEnd(flows, effectiveDate);
+        for (LongTermAssetCashFlowEntity flow : flows) {
+          if (!LongTermAssetCalculator.applies(flow, effectiveDate)) continue;
+          BigDecimal annual = LongTermAssetCalculator.annualAmount(flow);
+          if (isIncome(flow.getType())) gross = gross.add(annual);
+          else if (!flow.isPaidByTenant()) expenses = expenses.add(annual);
         }
-      realEstatePlanning =
-          realEstatePlanningCalculator.calculate(
-              a.getCurrentValue(),
-              a.getTaxBase(),
-              flows,
-              effectiveDate,
-              rentalTaxPolicy(a.getPortfolioId(), effectiveDate)
-                  .map(RentalTaxPolicyEntity::getRate)
-                  .orElse(REAL_ESTATE_TAX_RATE),
-              a.isRentalTaxPaidByTenant());
+        realEstatePlanning =
+            realEstatePlanningCalculator.calculate(
+                a.getCurrentValue(),
+                a.getTaxBase(),
+                flows,
+                effectiveDate,
+                rentalTaxPolicy(a.getPortfolioId(), effectiveDate)
+                    .map(RentalTaxPolicyEntity::getRate)
+                    .orElse(REAL_ESTATE_TAX_RATE),
+                a.isRentalTaxPaidByTenant());
+      } else {
+        rentEnd =
+            contractModels.stream()
+                .filter(c -> c.startDate() != null && !c.startDate().isAfter(effectiveDate))
+                .max(Comparator.comparing(RentalContractModel::startDate))
+                .map(RentalContractModel::endDate)
+                .orElse(null);
+        realEstatePlanning =
+            realEstatePlanningCalculator.calculate(
+                a.getCurrentValue(),
+                a.getTaxBase(),
+                a.isRentalTaxPaidByTenant(),
+                contractModels,
+                effectiveDate,
+                rentalTaxPolicy(a.getPortfolioId(), effectiveDate)
+                    .map(RentalTaxPolicyEntity::getRate)
+                    .orElse(REAL_ESTATE_TAX_RATE));
+        gross = realEstatePlanning.monthlyIncome().multiply(BigDecimal.valueOf(12));
+        expenses =
+            realEstatePlanning
+                .monthlyReduce()
+                .multiply(BigDecimal.valueOf(12))
+                .subtract(realEstatePlanning.annualTax());
+      }
       tax = realEstatePlanning.annualTax();
     } else if (a.getType() == LongTermAssetType.BOND) {
       LongTermAssetBondDetailsEntity d = bonds.findById(a.getId()).orElse(null);
@@ -857,7 +935,13 @@ public class LongTermAssetService {
     boolean rentalDataComplete =
         rows.stream()
             .filter(row -> row.type() == LongTermAssetType.REAL_ESTATE)
-            .allMatch(row -> !cashFlows.findAllByAssetIdOrderByValidFrom(row.id()).isEmpty());
+            .allMatch(
+                row ->
+                    !cashFlows.findAllByAssetIdOrderByValidFrom(row.id()).isEmpty()
+                        || (rentalContracts != null
+                            && !rentalContracts
+                                .findAllByAssetIdOrderByStartDate(row.id())
+                                .isEmpty()));
     return new LongTermAssetAnnualSnapshotModel(
         null, !hasRealEstate || rentalDataComplete ? rentalIncome : null, null, null, null, null);
   }
@@ -1175,15 +1259,20 @@ public class LongTermAssetService {
 
   private List<LongTermAssetCashFlowEntity> rentalAwareFlows(Long assetId) {
     if (rentalContracts == null) return cashFlows.findAllByAssetIdOrderByValidFrom(assetId);
-    List<LongTermAssetRentalContractEntity> contracts = rentalContracts.findAllByAssetIdOrderByStartDate(assetId);
+    List<LongTermAssetRentalContractEntity> contracts =
+        rentalContracts.findAllByAssetIdOrderByStartDate(assetId);
     if (contracts.isEmpty()) return cashFlows.findAllByAssetIdOrderByValidFrom(assetId);
     List<LongTermAssetCashFlowEntity> result = new ArrayList<>();
     for (var contract : contracts) {
       for (var term : contract.getTerms()) {
         var flow = new LongTermAssetCashFlowEntity();
-        flow.setAssetId(assetId); flow.setType(term.getType()); flow.setAmount(term.getAmount());
-        flow.setFrequency(term.getFrequency()); flow.setValidFrom(contract.getStartDate());
-        flow.setValidTo(effectiveContractEnd(contract)); flow.setPaidByTenant(term.isPaidByTenant());
+        flow.setAssetId(assetId);
+        flow.setType(term.getType());
+        flow.setAmount(term.getAmount());
+        flow.setFrequency(term.getFrequency());
+        flow.setValidFrom(contract.getStartDate());
+        flow.setValidTo(effectiveContractEnd(contract));
+        flow.setPaidByTenant(term.isPaidByTenant());
         result.add(flow);
       }
     }

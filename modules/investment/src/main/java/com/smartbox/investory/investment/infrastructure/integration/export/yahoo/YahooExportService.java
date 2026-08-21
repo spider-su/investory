@@ -123,7 +123,8 @@ public class YahooExportService implements YahooPortfolioExportApi {
     CsvExportPayload payload = buildPayloadFromSummary();
     writeCsv(filePath, payload.rows());
     if (exportStateRepository != null) {
-      YahooExportStateEntity state = exportStateRepository.findById(1).orElseGet(YahooExportStateEntity::new);
+      YahooExportStateEntity state =
+          exportStateRepository.findById(1).orElseGet(YahooExportStateEntity::new);
       state.setId(1);
       state.setExportedAt(payload.lastSnapshotAt());
       state.setPortfolioFingerprint(fingerprint(payload.rows()));

@@ -1,5 +1,4 @@
 package com.smartbox.investory.retirement.planning;
-import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;

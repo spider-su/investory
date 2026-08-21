@@ -11,7 +11,8 @@ public interface SimulationPlanRevisionRepository
   Optional<SimulationPlanRevisionEntity> findBySimulationPlanIdAndRevisionNumber(
       Long planId, int revisionNumber);
 
-  List<SimulationPlanRevisionEntity> findAllBySimulationPlanIdOrderByRevisionNumberDesc(Long planId);
+  List<SimulationPlanRevisionEntity> findAllBySimulationPlanIdOrderByRevisionNumberDesc(
+      Long planId);
 
   long countBySimulationPlanId(Long planId);
 }

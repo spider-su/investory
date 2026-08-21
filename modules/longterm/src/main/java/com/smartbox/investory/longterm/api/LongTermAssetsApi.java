@@ -1,11 +1,10 @@
 package com.smartbox.investory.longterm.api;
+
 import com.smartbox.investory.longterm.api.model.RealEstateEntryModel;
-import com.smartbox.investory.longterm.application.model.AnnualEconomics;
+import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
+import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
-import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
-
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -37,9 +36,11 @@ public interface LongTermAssetsApi {
 
   RentalContractView createRentalContract(RentalContractCommand command);
 
-  RentalContractView endRentalContract(Long portfolioId, Long assetId, Long contractId, LocalDate endDate);
+  RentalContractView endRentalContract(
+      Long portfolioId, Long assetId, Long contractId, LocalDate endDate);
 
-  void terminateRentalContract(Long portfolioId, Long assetId, Long contractId, LocalDate terminationDate);
+  void terminateRentalContract(
+      Long portfolioId, Long assetId, Long contractId, LocalDate terminationDate);
 
   void saveTaxBase(Long portfolioId, Long id, BigDecimal value);
 
@@ -298,7 +299,14 @@ public interface LongTermAssetsApi {
       BigDecimal expectedPropertyGrowth,
       List<RentalContractView> contracts) {}
 
-  record RentalContractView(Long id, LocalDate startDate, LocalDate endDate, LocalDate terminatedDate, Boolean rentalTaxPaidByTenant, List<RentalTermView> terms) {}
+  record RentalContractView(
+      Long id,
+      LocalDate startDate,
+      LocalDate endDate,
+      LocalDate terminatedDate,
+      Boolean rentalTaxPaidByTenant,
+      List<RentalTermView> terms) {}
 
-  record RentalTermView(CashFlowType type, BigDecimal amount, Frequency frequency, boolean paidByTenant) {}
+  record RentalTermView(
+      CashFlowType type, BigDecimal amount, Frequency frequency, boolean paidByTenant) {}
 }

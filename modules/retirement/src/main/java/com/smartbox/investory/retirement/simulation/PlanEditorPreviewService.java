@@ -1,7 +1,7 @@
 package com.smartbox.investory.retirement.simulation;
 
-import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
 import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
+import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
 import com.smartbox.investory.retirement.planning.ForwardSimulationInput;
 import com.smartbox.investory.retirement.planning.ForwardSimulationInputService;
 import com.smartbox.investory.retirement.planning.PlanningCurrencyPresentationService;

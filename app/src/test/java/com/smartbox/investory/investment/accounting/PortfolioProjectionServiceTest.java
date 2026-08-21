@@ -23,9 +23,9 @@ import com.smartbox.investory.investment.infrastructure.persistence.ClosedPositi
 import com.smartbox.investory.investment.infrastructure.persistence.NormalizedCashOperationRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPositionRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.market.fx.CurrencyRateService;
 import com.smartbox.investory.investment.market.price.AssetPriceHistoryGapFillService;
@@ -394,7 +394,8 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor =
+        ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
     AccountDailyEntity tradeDay =
         toList(dailyCaptor.getValue()).stream()
@@ -455,7 +456,8 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor =
+        ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
     AccountDailyEntity splitDay =
         toList(dailyCaptor.getValue()).stream()
@@ -528,7 +530,8 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor =
+        ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
     AccountDailyEntity tradeDay =
         toList(dailyCaptor.getValue()).stream()
@@ -606,7 +609,8 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor =
+        ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
     AccountDailyEntity tradeDay =
         toList(dailyCaptor.getValue()).stream()
@@ -657,7 +661,8 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor =
+        ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
     AccountDailyEntity tradeDay =
         toList(dailyCaptor.getValue()).stream()
@@ -706,7 +711,8 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor =
+        ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
     AccountDailyEntity today =
         toList(dailyCaptor.getValue()).stream()
@@ -767,7 +773,8 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor =
+        ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
     AccountDailyEntity tradeDay =
         toList(dailyCaptor.getValue()).stream()
@@ -827,7 +834,8 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor =
+        ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
     AccountDailyEntity tradeDay =
         toList(dailyCaptor.getValue()).stream()
@@ -889,7 +897,8 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor =
+        ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
     AccountDailyEntity tradeDay =
         toList(dailyCaptor.getValue()).stream()
@@ -989,7 +998,8 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor =
+        ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
     List<AccountDailyEntity> rows = toList(dailyCaptor.getValue());
 
@@ -1067,7 +1077,8 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor =
+        ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
     AccountDailyEntity closeDay =
         toList(dailyCaptor.getValue()).stream()
@@ -1130,7 +1141,8 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor =
+        ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
     AccountDailyEntity closeDay =
         toList(dailyCaptor.getValue()).stream()
@@ -1205,7 +1217,8 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor =
+        ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
     List<AccountDailyEntity> rows = toList(dailyCaptor.getValue());
     AccountDailyEntity february =
@@ -1268,7 +1281,8 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor =
+        ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
     AccountDailyEntity january =
         toList(dailyCaptor.getValue()).stream()
@@ -1316,7 +1330,8 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor =
+        ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
     AccountDailyEntity tradeDay =
         toList(dailyCaptor.getValue()).stream()
@@ -1487,7 +1502,8 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor =
+        ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
     AccountDailyEntity daily = toList(dailyCaptor.getValue()).getFirst();
 
@@ -1562,7 +1578,8 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor =
+        ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
     AccountDailyEntity latest =
         toList(dailyCaptor.getValue()).stream()
@@ -1709,7 +1726,8 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor =
+        ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
     List<AccountDailyEntity> rows = toList(dailyCaptor.getValue());
 
@@ -1782,7 +1800,8 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor =
+        ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
     AccountDailyEntity daily = toList(dailyCaptor.getValue()).getFirst();
 
@@ -1913,7 +1932,8 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor =
+        ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
     List<AccountDailyEntity> rows = toList(dailyCaptor.getValue());
 
@@ -1978,7 +1998,8 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor =
+        ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
     AccountDailyEntity rebookingDay =
         toList(dailyCaptor.getValue()).stream()

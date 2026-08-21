@@ -576,7 +576,9 @@ public class PortfolioService {
   }
 
   private Map<Long, AccountNetDeposit> accountNetDeposits(
-      Collection<Long> accountIds, Map<Long, AccountEntity> accountsById, CurrencyType baseCurrency) {
+      Collection<Long> accountIds,
+      Map<Long, AccountEntity> accountsById,
+      CurrencyType baseCurrency) {
     if (CollectionUtils.isEmpty(accountIds)) {
       return Map.of();
     }

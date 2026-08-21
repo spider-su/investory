@@ -1,12 +1,14 @@
 package com.smartbox.investory.longterm.application.service;
-import com.smartbox.investory.longterm.application.model.RealEstatePlanningSummary;
 
+import com.smartbox.investory.longterm.api.model.RentalContractModel;
+import com.smartbox.investory.longterm.application.model.RealEstatePlanningSummary;
 import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetCashFlowEntity;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
 
 /** Calculates current apartment planning metrics from effective cash-flow periods. */
@@ -66,6 +68,47 @@ public final class RealEstatePlanningCalculator {
   public BigDecimal annualRentalTax(BigDecimal taxBase, BigDecimal taxRate) {
     return (taxBase == null ? BigDecimal.ZERO : taxBase)
         .multiply(taxRate == null ? TAX_RATE : taxRate);
+  }
+
+  public RealEstatePlanningSummary calculate(
+      BigDecimal currentValue,
+      BigDecimal taxBase,
+      boolean assetTaxPaidByTenant,
+      List<RentalContractModel> contracts,
+      LocalDate date,
+      BigDecimal taxRate) {
+    var contract =
+        contracts.stream()
+            .filter(c -> c.startDate() != null && !c.startDate().isAfter(date))
+            .filter(c -> c.endDate() == null || !c.endDate().isBefore(date))
+            .filter(c -> c.terminatedDate() == null || !c.terminatedDate().isBefore(date))
+            .max(Comparator.comparing(RentalContractModel::startDate))
+            .orElse(null);
+    if (contract == null)
+      return calculate(currentValue, taxBase, List.of(), date, taxRate, assetTaxPaidByTenant);
+    BigDecimal income = BigDecimal.ZERO, payment = BigDecimal.ZERO, expenses = BigDecimal.ZERO;
+    for (var term : contract.terms()) {
+      BigDecimal monthly =
+          term.frequency() == Frequency.MONTHLY
+              ? term.amount()
+              : term.amount().divide(TWELVE, 18, RoundingMode.HALF_UP);
+      if (isIncome(term.type())) income = income.add(monthly);
+      if (isPayment(term.type())) payment = payment.add(monthly);
+      if (isExpense(term.type()) && !term.paidByTenant())
+        expenses = expenses.add(monthly.multiply(TWELVE));
+    }
+    boolean tenant =
+        contract.rentalTaxPaidByTenant() == null
+            ? assetTaxPaidByTenant
+            : contract.rentalTaxPaidByTenant();
+    BigDecimal annualTax = tenant ? BigDecimal.ZERO : annualRentalTax(taxBase, taxRate);
+    BigDecimal reduce = expenses.add(annualTax).divide(TWELVE, 18, RoundingMode.HALF_UP);
+    BigDecimal net = income.subtract(reduce);
+    BigDecimal yield =
+        currentValue.signum() == 0
+            ? BigDecimal.ZERO
+            : net.multiply(TWELVE).divide(currentValue, 12, RoundingMode.HALF_UP);
+    return new RealEstatePlanningSummary(taxBase, annualTax, payment, income, reduce, yield);
   }
 
   private static boolean isPayment(CashFlowType type) {

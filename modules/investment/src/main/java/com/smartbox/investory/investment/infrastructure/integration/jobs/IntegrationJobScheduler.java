@@ -80,7 +80,8 @@ public class IntegrationJobScheduler {
     }
   }
 
-  private void run(IntegrationJobEntity job, IntegrationInstanceEntity instance, ZonedDateTime now) {
+  private void run(
+      IntegrationJobEntity job, IntegrationInstanceEntity instance, ZonedDateTime now) {
     job.setLastStartedAt(now);
     job.setLastStatus("STARTED");
     job.setLastError(null);

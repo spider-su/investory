@@ -21,11 +21,13 @@ class CashOperationNormalizerTest {
 
   @Test
   void normalize_classifiesExplicitTransferInOutAsInternalNotExternal() {
-    CashOperationEntity out = cash(1L, 50290466L, CashOperationType.DEPOSIT, -5200.0, CurrencyType.PLN);
+    CashOperationEntity out =
+        cash(1L, 50290466L, CashOperationType.DEPOSIT, -5200.0, CurrencyType.PLN);
     out.setComment("Transfer out operation on account with id 50290466");
     out.setDate(ZonedDateTime.parse("2025-02-03T13:34:00Z"));
 
-    CashOperationEntity in = cash(2L, 51551301L, CashOperationType.DEPOSIT, 5200.0, CurrencyType.PLN);
+    CashOperationEntity in =
+        cash(2L, 51551301L, CashOperationType.DEPOSIT, 5200.0, CurrencyType.PLN);
     in.setComment("Transfer in operation on account with id 51551301");
     in.setDate(ZonedDateTime.parse("2025-02-03T13:34:52Z"));
 
@@ -47,7 +49,8 @@ class CashOperationNormalizerTest {
         "Currency conversion, PLN to USD from TA: 50290466 to: 51499241, Exchange rate:0.250206");
     pln.setDate(ZonedDateTime.parse("2026-01-10T12:00:00Z"));
 
-    CashOperationEntity usd = cash(11L, 51499241L, CashOperationType.TRANSFER, 5004.12, CurrencyType.USD);
+    CashOperationEntity usd =
+        cash(11L, 51499241L, CashOperationType.TRANSFER, 5004.12, CurrencyType.USD);
     usd.setComment(
         "Currency conversion, PLN to USD from TA: 50290466 to: 51499241, Exchange rate:0.250206");
     usd.setDate(ZonedDateTime.parse("2026-01-10T12:01:00Z"));
@@ -160,7 +163,8 @@ class CashOperationNormalizerTest {
     legA.setComment("Transfer from 51499241 to 51993106");
     legA.setDate(ZonedDateTime.parse("2026-01-10T10:00:00Z"));
 
-    CashOperationEntity legB = cash(51L, 51993106L, CashOperationType.TRANSFER, 1000.0, CurrencyType.USD);
+    CashOperationEntity legB =
+        cash(51L, 51993106L, CashOperationType.TRANSFER, 1000.0, CurrencyType.USD);
     legB.setComment("Transfer from 51499241 to 51993106");
     legB.setDate(ZonedDateTime.parse("2026-01-10T10:01:00Z"));
 

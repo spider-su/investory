@@ -1,7 +1,7 @@
 package com.smartbox.investory.longterm.application.service;
 
-import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import com.smartbox.investory.longterm.infrastructure.rental.*;
+import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import com.smartbox.investory.shared.presentation.FinancialPrecision;
 import java.math.BigDecimal;
 import java.time.LocalDate;

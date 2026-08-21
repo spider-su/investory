@@ -1,5 +1,4 @@
 package com.smartbox.investory.retirement.profile;
-import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -12,8 +11,8 @@ import com.smartbox.investory.investment.api.BrokerageAssetClassificationReader;
 import com.smartbox.investory.investment.api.BrokeragePortfolioReader;
 import com.smartbox.investory.investment.api.BrokeragePositionSnapshot;
 import com.smartbox.investory.investment.api.SharedBrokeragePortfolioSnapshot;
-import com.smartbox.investory.longterm.api.model.LongTermAssetProfileAssetModel;
 import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
+import com.smartbox.investory.longterm.api.model.LongTermAssetProfileAssetModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSummaryModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
@@ -80,7 +79,8 @@ class InvestmentProfileFacadeTest {
     when(brokerageAssetClassificationReader.findBySymbol("UNKNOWN")).thenReturn(Optional.empty());
     when(longTermAssets.aggregate(PORTFOLIO, DATE))
         .thenReturn(
-            new LongTermAssetProfileSummaryModel(CurrencyType.USD, BigDecimal.ZERO, BigDecimal.ZERO));
+            new LongTermAssetProfileSummaryModel(
+                CurrencyType.USD, BigDecimal.ZERO, BigDecimal.ZERO));
     when(longTermAssets.list(PORTFOLIO, DATE)).thenReturn(List.of());
     ProfileAllocation other =
         facade.loadProfile(PORTFOLIO).allocations().stream()

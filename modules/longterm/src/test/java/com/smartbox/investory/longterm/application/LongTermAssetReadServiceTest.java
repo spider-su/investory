@@ -1,7 +1,4 @@
 package com.smartbox.investory.longterm.application;
-import com.smartbox.investory.longterm.application.model.LongTermAssetProjectionInput;
-import com.smartbox.investory.longterm.application.service.LongTermAssetService;
-import com.smartbox.investory.longterm.application.service.LongTermAssetReadService;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -9,6 +6,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
+import com.smartbox.investory.longterm.application.model.LongTermAssetProjectionInput;
+import com.smartbox.investory.longterm.application.service.LongTermAssetReadService;
+import com.smartbox.investory.longterm.application.service.LongTermAssetService;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;

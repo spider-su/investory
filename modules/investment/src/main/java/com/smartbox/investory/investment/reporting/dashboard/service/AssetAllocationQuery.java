@@ -28,7 +28,8 @@ public class AssetAllocationQuery {
   }
 
   public AssetAllocationView load(Long portfolioId, Portfolio portfolio) {
-    List<PortfolioAssetAllocationEntity> rows = allocationRepository.findAllByPortfolioId(portfolioId);
+    List<PortfolioAssetAllocationEntity> rows =
+        allocationRepository.findAllByPortfolioId(portfolioId);
     Map<Long, AssetEntity> assets =
         assetRepository
             .findAllById(rows.stream().map(PortfolioAssetAllocationEntity::getAssetId).toList())

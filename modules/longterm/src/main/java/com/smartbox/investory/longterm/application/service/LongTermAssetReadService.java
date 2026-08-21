@@ -1,12 +1,9 @@
 package com.smartbox.investory.longterm.application.service;
-import com.smartbox.investory.longterm.application.model.AnnualEconomics;
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
-import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 
-import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
 import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
-import com.smartbox.investory.longterm.api.model.LongTermAssetProfileAssetModel;
 import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
+import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
+import com.smartbox.investory.longterm.api.model.LongTermAssetProfileAssetModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSummaryModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
@@ -70,6 +67,26 @@ public class LongTermAssetReadService
                                     period.annualReturnRate(),
                                     period.cashFlowType(),
                                     period.paidByTenant()))
+                        .toList(),
+                    input.rentalContracts().stream()
+                        .map(
+                            c ->
+                                new com.smartbox.investory.longterm.api.model.RentalContractModel(
+                                    c.id(),
+                                    c.startDate(),
+                                    c.endDate(),
+                                    c.terminatedDate(),
+                                    c.rentalTaxPaidByTenant(),
+                                    c.terms().stream()
+                                        .map(
+                                            t ->
+                                                new com.smartbox.investory.longterm.api.model
+                                                    .RentalContractModel.Term(
+                                                    t.type(),
+                                                    toUsd(t.amount(), input.currency(), date),
+                                                    t.frequency(),
+                                                    t.paidByTenant()))
+                                        .toList()))
                         .toList(),
                     input.maturityDate(),
                     toUsd(input.redemptionValue(), input.currency(), date),

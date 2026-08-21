@@ -38,7 +38,8 @@ class ImportHistoryAuditWriterTest {
             BrokerType.IBKR, "abc", ImportBatchStatus.COMPLETED))
         .thenReturn(Optional.of(completed));
 
-    Optional<ImportHistoryEntity> result = auditWriter.findExistingAppliedBatch(BrokerType.IBKR, "abc");
+    Optional<ImportHistoryEntity> result =
+        auditWriter.findExistingAppliedBatch(BrokerType.IBKR, "abc");
 
     assertEquals(Optional.of(completed), result);
   }

@@ -1,19 +1,21 @@
 package com.smartbox.investory.longterm.api.model;
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 
+import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
+import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.Year;
 import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.Map;
-import java.util.Optional;
 
-/** Projects canonical real-estate rental economics from Long-term AssetEntity cash-flow periods. */
+/** Canonical rental projection. A contract, not an individual term, is the baseline. */
 public final class RentalIncomeProjectionModel {
   private static final BigDecimal ZERO = BigDecimal.ZERO;
-  private static final BigDecimal DEFAULT_RENTAL_TAX_RATE = new BigDecimal("0.085");
+  private static final BigDecimal TWELVE = BigDecimal.valueOf(12);
+  private static final BigDecimal DEFAULT_TAX_RATE = new BigDecimal("0.085");
 
   private RentalIncomeProjectionModel() {}
 
@@ -22,122 +24,172 @@ public final class RentalIncomeProjectionModel {
       Map<CashFlowType, BigDecimal> previousIncome,
       int year,
       BigDecimal growthRate) {
+    if (asset.rentalContracts().isEmpty())
+      return legacyProject(asset, previousIncome, year, growthRate);
+    var contract = latestContract(asset, year);
+    if (contract == null) return new Result(Map.of(), ZERO, ZERO, ZERO, ZERO);
     EnumMap<CashFlowType, BigDecimal> income = new EnumMap<>(CashFlowType.class);
-    for (CashFlowType type : INCOME_TYPES) {
-      Optional<LongTermAssetProjectionModel.Period> latest = latestKnown(asset, type, year);
-      if (latest.isEmpty()) continue;
-      var period = latest.get();
+    for (var term : contract.terms()) {
+      if (!isIncome(term.type())) continue;
+      BigDecimal base = annual(term.amount(), term.frequency());
+      BigDecimal prior = previousIncome.get(term.type());
+      income.put(
+          term.type(),
+          prior == null || contract.startDate().getYear() == year ? base : grow(prior, growthRate));
+    }
+    BigDecimal gross = income.values().stream().reduce(ZERO, BigDecimal::add);
+    BigDecimal expenses =
+        contract.terms().stream()
+            .filter(t -> isExpense(t.type()) && !t.paidByTenant())
+            .map(t -> annual(t.amount(), t.frequency()))
+            .reduce(ZERO, BigDecimal::add);
+    return result(income, gross, expenses, tax(asset, contract));
+  }
+
+  private static Result legacyProject(
+      LongTermAssetProjectionModel asset,
+      Map<CashFlowType, BigDecimal> previousIncome,
+      int year,
+      BigDecimal growthRate) {
+    EnumMap<CashFlowType, BigDecimal> income = new EnumMap<>(CashFlowType.class);
+    for (CashFlowType type :
+        new CashFlowType[] {
+          CashFlowType.RENT, CashFlowType.PARKING_RENT, CashFlowType.OTHER_INCOME
+        }) {
+      var period =
+          asset.periods().stream()
+              .filter(p -> p.cashFlowType() == type)
+              .filter(p -> p.validFrom().getYear() <= year)
+              .max(Comparator.comparing(LongTermAssetProjectionModel.Period::validFrom));
+      if (period.isEmpty()) continue;
+      BigDecimal base = period.get().annualIncome();
       BigDecimal prior = previousIncome.get(type);
       income.put(
           type,
-          prior == null || period.validFrom().getYear() == year
-              ? period.annualIncome()
+          prior == null || period.get().validFrom().getYear() == year
+              ? base
               : grow(prior, growthRate));
     }
+    BigDecimal expenses =
+        asset.periods().stream()
+            .filter(
+                p ->
+                    p.cashFlowType() != null
+                        && !p.paidByTenant()
+                        && (isExpense(p.cashFlowType()) || isIncome(p.cashFlowType())))
+            .map(LongTermAssetProjectionModel.Period::annualExpense)
+            .reduce(ZERO, BigDecimal::add);
     BigDecimal gross = income.values().stream().reduce(ZERO, BigDecimal::add);
-    BigDecimal expenses = ZERO;
-    for (CashFlowType type : INCOME_TYPES)
-      expenses =
-          expenses.add(
-              latestKnown(asset, type, year)
-                  .map(LongTermAssetProjectionModel.Period::annualExpense)
-                  .orElse(ZERO));
-    for (CashFlowType type : EXPENSE_TYPES)
-      expenses =
-          expenses.add(
-              latestKnown(asset, type, year)
-                  .filter(period -> !period.paidByTenant())
-                  .map(LongTermAssetProjectionModel.Period::annualExpense)
-                  .orElse(ZERO));
-    BigDecimal tax =
-        asset.rentalTaxPaidByTenant()
-            ? ZERO
-            : OptionalValue.orZero(asset.taxBase())
-                .multiply(OptionalValue.orDefault(asset.taxRate(), DEFAULT_RENTAL_TAX_RATE));
-    RentalEconomicsModel economics = RentalEconomicsModel.of(gross, expenses, tax);
-    return new Result(
+    return result(
         income,
-        economics.grossIncome(),
-        economics.expenses(),
-        economics.tax(),
-        economics.netIncome());
+        gross,
+        expenses,
+        asset.rentalTaxPaidByTenant() ? ZERO : taxBase(asset).multiply(rate(asset)));
   }
 
-  /** Calculates effective-dated economics actually covered by a calendar year. */
+  /** Calculates covered rental economics. Rental tax is prorated by covered calendar days. */
   public static Result actualYear(LongTermAssetProjectionModel asset, int year) {
+    if (asset.rentalContracts().isEmpty()) return legacyActualYear(asset, year);
+    EnumMap<CashFlowType, BigDecimal> income = new EnumMap<>(CashFlowType.class);
+    BigDecimal expenses = ZERO, tax = ZERO;
+    for (var contract : asset.rentalContracts()) {
+      BigDecimal covered = coverage(contract.startDate(), effectiveEnd(contract), year);
+      if (covered.signum() == 0) continue;
+      for (var term : contract.terms()) {
+        BigDecimal amount = annual(term.amount(), term.frequency()).multiply(covered);
+        if (isIncome(term.type())) income.merge(term.type(), amount, BigDecimal::add);
+        if (isExpense(term.type()) && !term.paidByTenant()) expenses = expenses.add(amount);
+      }
+      tax = tax.add(tax(asset, contract).multiply(covered));
+    }
+    return result(income, income.values().stream().reduce(ZERO, BigDecimal::add), expenses, tax);
+  }
+
+  private static Result legacyActualYear(LongTermAssetProjectionModel asset, int year) {
     EnumMap<CashFlowType, BigDecimal> income = new EnumMap<>(CashFlowType.class);
     BigDecimal expenses = ZERO;
-    for (LongTermAssetProjectionModel.Period period : asset.periods()) {
-      BigDecimal covered = coverage(period, year);
-      if (covered.signum() == 0) continue;
-      if (isIncome(period.cashFlowType())) {
-        income.merge(
-            period.cashFlowType(), period.annualIncome().multiply(covered), BigDecimal::add);
-        if (!period.paidByTenant())
-          expenses = expenses.add(period.annualExpense().multiply(covered));
-      } else if (isExpense(period.cashFlowType()))
-        if (!period.paidByTenant())
-          expenses = expenses.add(period.annualExpense().multiply(covered));
+    for (var p : asset.periods()) {
+      BigDecimal covered = coverage(p.validFrom(), p.validTo(), year);
+      if (covered.signum() == 0 || p.cashFlowType() == null) continue;
+      if (isIncome(p.cashFlowType()))
+        income.merge(p.cashFlowType(), p.annualIncome().multiply(covered), BigDecimal::add);
+      if (isIncome(p.cashFlowType()) && !p.paidByTenant())
+        expenses = expenses.add(p.annualExpense().multiply(covered));
+      if (isExpense(p.cashFlowType()) && !p.paidByTenant())
+        expenses = expenses.add(p.annualExpense().multiply(covered));
     }
     BigDecimal gross = income.values().stream().reduce(ZERO, BigDecimal::add);
-    BigDecimal tax =
-        asset.rentalTaxPaidByTenant()
-            ? ZERO
-            : OptionalValue.orZero(asset.taxBase())
-                .multiply(OptionalValue.orDefault(asset.taxRate(), DEFAULT_RENTAL_TAX_RATE));
-    RentalEconomicsModel economics = RentalEconomicsModel.of(gross, expenses, tax);
-    return new Result(
-        income,
-        economics.grossIncome(),
-        economics.expenses(),
-        economics.tax(),
-        economics.netIncome());
+    BigDecimal tax = asset.rentalTaxPaidByTenant() ? ZERO : taxBase(asset).multiply(rate(asset));
+    return result(income, gross, expenses, tax);
   }
 
-  private static final CashFlowType[] INCOME_TYPES = {
-    CashFlowType.RENT, CashFlowType.PARKING_RENT, CashFlowType.OTHER_INCOME
-  };
-
-  private static final CashFlowType[] EXPENSE_TYPES = {
-    CashFlowType.ADMIN_FEE,
-    CashFlowType.UTILITIES,
-    CashFlowType.INSURANCE,
-    CashFlowType.PROPERTY_TAX,
-    CashFlowType.OTHER_EXPENSE
-  };
-
-  private static Optional<LongTermAssetProjectionModel.Period> latestKnown(
-      LongTermAssetProjectionModel asset, CashFlowType type, int year) {
-    return asset.periods().stream()
-        .filter(period -> period.cashFlowType() == type)
-        .filter(period -> period.validFrom().getYear() <= year)
-        .max(java.util.Comparator.comparing(LongTermAssetProjectionModel.Period::validFrom));
+  private static RentalContractModel latestContract(LongTermAssetProjectionModel asset, int year) {
+    LocalDate horizon = LocalDate.of(year, 12, 31);
+    return asset.rentalContracts().stream()
+        .filter(c -> !c.startDate().isAfter(horizon))
+        .max(Comparator.comparing(RentalContractModel::startDate))
+        .orElse(null);
   }
 
-  private static BigDecimal coverage(LongTermAssetProjectionModel.Period period, int year) {
-    LocalDate start = LocalDate.of(year, 1, 1);
-    LocalDate end = LocalDate.of(year, 12, 31);
-    LocalDate from = period.validFrom().isAfter(start) ? period.validFrom() : start;
-    LocalDate to =
-        period.validTo() == null || period.validTo().isAfter(end) ? end : period.validTo();
-    if (from.isAfter(to)) return ZERO;
-    long coveredDays = ChronoUnit.DAYS.between(from, to.plusDays(1));
-    return BigDecimal.valueOf(coveredDays)
+  private static BigDecimal tax(LongTermAssetProjectionModel asset, RentalContractModel contract) {
+    boolean tenant =
+        contract.rentalTaxPaidByTenant() == null
+            ? asset.rentalTaxPaidByTenant()
+            : contract.rentalTaxPaidByTenant();
+    return tenant ? ZERO : taxBase(asset).multiply(rate(asset));
+  }
+
+  private static BigDecimal taxBase(LongTermAssetProjectionModel asset) {
+    return asset.taxBase() == null ? ZERO : asset.taxBase();
+  }
+
+  private static BigDecimal rate(LongTermAssetProjectionModel asset) {
+    return asset.taxRate() == null ? DEFAULT_TAX_RATE : asset.taxRate();
+  }
+
+  private static BigDecimal annual(BigDecimal amount, Frequency frequency) {
+    return frequency == Frequency.MONTHLY ? amount.multiply(TWELVE) : amount;
+  }
+
+  private static BigDecimal coverage(LocalDate from, LocalDate to, int year) {
+    LocalDate yearStart = LocalDate.of(year, 1, 1), yearEnd = LocalDate.of(year, 12, 31);
+    LocalDate start = from.isAfter(yearStart) ? from : yearStart,
+        end = to == null || to.isAfter(yearEnd) ? yearEnd : to;
+    if (start.isAfter(end)) return ZERO;
+    return BigDecimal.valueOf(ChronoUnit.DAYS.between(start, end.plusDays(1)))
         .divide(BigDecimal.valueOf(Year.of(year).length()), 18, RoundingMode.HALF_UP);
   }
 
-  private static boolean isIncome(CashFlowType type) {
-    for (CashFlowType incomeType : INCOME_TYPES) if (incomeType == type) return true;
-    return false;
+  private static LocalDate effectiveEnd(RentalContractModel c) {
+    return c.endDate() == null
+        ? c.terminatedDate()
+        : c.terminatedDate() == null || c.endDate().isBefore(c.terminatedDate())
+            ? c.endDate()
+            : c.terminatedDate();
   }
 
-  private static boolean isExpense(CashFlowType type) {
-    for (CashFlowType expenseType : EXPENSE_TYPES) if (expenseType == type) return true;
-    return false;
+  private static boolean isIncome(CashFlowType t) {
+    return t == CashFlowType.RENT
+        || t == CashFlowType.PARKING_RENT
+        || t == CashFlowType.OTHER_INCOME;
+  }
+
+  private static boolean isExpense(CashFlowType t) {
+    return t == CashFlowType.ADMIN_FEE
+        || t == CashFlowType.UTILITIES
+        || t == CashFlowType.INSURANCE
+        || t == CashFlowType.PROPERTY_TAX
+        || t == CashFlowType.OTHER_EXPENSE;
   }
 
   private static BigDecimal grow(BigDecimal value, BigDecimal rate) {
     return value.multiply(BigDecimal.ONE.add(rate)).setScale(8, RoundingMode.HALF_UP);
+  }
+
+  private static Result result(
+      Map<CashFlowType, BigDecimal> income, BigDecimal gross, BigDecimal expenses, BigDecimal tax) {
+    var e = RentalEconomicsModel.of(gross, expenses, tax);
+    return new Result(income, e.grossIncome(), e.expenses(), e.tax(), e.netIncome());
   }
 
   public record Result(
@@ -148,18 +200,6 @@ public final class RentalIncomeProjectionModel {
       BigDecimal netIncome) {
     public Result {
       incomeByType = Map.copyOf(incomeByType);
-    }
-  }
-
-  private static final class OptionalValue {
-    private OptionalValue() {}
-
-    static BigDecimal orZero(BigDecimal value) {
-      return value == null ? ZERO : value;
-    }
-
-    static BigDecimal orDefault(BigDecimal value, BigDecimal fallback) {
-      return value == null ? fallback : value;
     }
   }
 }

@@ -1,9 +1,9 @@
 package com.smartbox.investory.longterm.application;
-import com.smartbox.investory.longterm.application.service.LongTermAssetLifecycleService;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
+import com.smartbox.investory.longterm.application.service.LongTermAssetLifecycleService;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetEntity;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetRepository;
 import com.smartbox.investory.longterm.infrastructure.lifecycle.LongTermAssetLifecyclePeriodEntity;

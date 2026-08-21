@@ -76,7 +76,8 @@ class SimulationPlanServiceTest {
     when(repository.findByIdAndPortfolioId(7L, 1L)).thenReturn(Optional.of(plan));
     when(repository.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of(plan));
     service.update(1L, 7L, "Updated", assumptions);
-    ArgumentCaptor<SimulationPlanEntity> captor = ArgumentCaptor.forClass(SimulationPlanEntity.class);
+    ArgumentCaptor<SimulationPlanEntity> captor =
+        ArgumentCaptor.forClass(SimulationPlanEntity.class);
     verify(repository).save(captor.capture());
     assertEquals("Updated", captor.getValue().getName());
     assertEquals(180000, captor.getValue().getAnnualLivingExpenses().intValue());

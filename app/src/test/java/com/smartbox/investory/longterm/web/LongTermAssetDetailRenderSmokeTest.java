@@ -2,10 +2,10 @@ package com.smartbox.investory.ui.longterm;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.longterm.application.model.AnnualEconomics;
 import com.smartbox.investory.longterm.application.model.LongTermAssetSummary;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetEntity;
+import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;

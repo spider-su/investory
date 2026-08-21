@@ -145,7 +145,8 @@ public class ImportOrchestratorService {
           String errorMessage = exceptionMessage(e);
           log.warn(
               "Duplicate import repair failed for batchId={}: {}", batch.getId(), errorMessage, e);
-          ImportHistoryEntity failed = auditWriter.finalizeFailed(batch.getId(), errorMessage, fileBytes);
+          ImportHistoryEntity failed =
+              auditWriter.finalizeFailed(batch.getId(), errorMessage, fileBytes);
           throw new ImportFailedException(
               "Failed to reprocess duplicate import for broker "
                   + broker
@@ -163,7 +164,8 @@ public class ImportOrchestratorService {
       return toBatchResponse(batch, "File already imported, returning existing batch", true);
     }
 
-    ImportHistoryEntity batch = auditWriter.startBatch(broker, sourceType, sourceRef, fileName, checksum);
+    ImportHistoryEntity batch =
+        auditWriter.startBatch(broker, sourceType, sourceRef, fileName, checksum);
     var sourceFile =
         sourceEvidenceService == null
             ? null
@@ -176,7 +178,8 @@ public class ImportOrchestratorService {
       String errorMessage = exceptionMessage(e);
       log.warn(
           "Broker import failed for {} ({} bytes): {}", broker, fileBytes.length, errorMessage, e);
-      ImportHistoryEntity failed = auditWriter.finalizeFailed(batch.getId(), errorMessage, fileBytes);
+      ImportHistoryEntity failed =
+          auditWriter.finalizeFailed(batch.getId(), errorMessage, fileBytes);
       throw new ImportFailedException(
           "Failed to import file for broker "
               + broker
@@ -192,7 +195,8 @@ public class ImportOrchestratorService {
 
     String refreshFailure = refreshDerivedData(finalized);
     if (refreshFailure != null) {
-      ImportHistoryEntity notReady = auditWriter.finalizeNotReady(batch.getId(), result, refreshFailure);
+      ImportHistoryEntity notReady =
+          auditWriter.finalizeNotReady(batch.getId(), result, refreshFailure);
       throw new ImportFailedException(
           "Import broker data applied but pipeline is not ready (batchId="
               + notReady.getId()

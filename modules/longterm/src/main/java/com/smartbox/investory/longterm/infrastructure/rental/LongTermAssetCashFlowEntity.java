@@ -1,7 +1,5 @@
 package com.smartbox.investory.longterm.infrastructure.rental;
 
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
-import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;

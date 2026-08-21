@@ -58,7 +58,8 @@ public class AssetPriceFallbackService {
         assetRepository.findAllBySymbolIn(weightedPrices.keySet()).stream()
             .filter(asset -> !Boolean.TRUE.equals(asset.getExcludeFromImport()))
             .collect(
-                Collectors.toMap(AssetEntity::getSymbol, Function.identity(), (left, right) -> right));
+                Collectors.toMap(
+                    AssetEntity::getSymbol, Function.identity(), (left, right) -> right));
     Map<String, HistoricalQuote> historicalQuotesBySymbol =
         assetPriceHistoryRepository
             .findHistoricalPricesBySymbolInBefore(weightedPrices.keySet(), rateDate)

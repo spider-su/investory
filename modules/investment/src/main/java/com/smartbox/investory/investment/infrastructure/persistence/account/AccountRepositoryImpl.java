@@ -21,7 +21,8 @@ public class AccountRepositoryImpl implements AccountRepositoryCustom {
       return Map.of();
     }
     return entityManager
-        .createQuery("select a from AccountEntity a where a.id in :ids order by a.id", AccountEntity.class)
+        .createQuery(
+            "select a from AccountEntity a where a.id in :ids order by a.id", AccountEntity.class)
         .setParameter("ids", ids)
         .getResultList()
         .stream()

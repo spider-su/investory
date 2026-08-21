@@ -619,7 +619,8 @@ public class XtbImportV2Service {
   List<CashOperationEntity> operationsForOpenReconstruction(
       Long account, List<CashOperationEntity> currentOperations) {
     Map<Long, CashOperationEntity> operationsById = new LinkedHashMap<>();
-    List<CashOperationEntity> existingOperations = cashOperationRepository.findAllByAccount(account);
+    List<CashOperationEntity> existingOperations =
+        cashOperationRepository.findAllByAccount(account);
     if (existingOperations != null) {
       existingOperations.stream()
           .filter(operation -> operation.getId() != null)
@@ -864,7 +865,8 @@ public class XtbImportV2Service {
         assetRepository.findAllBySymbolIn(aggregatedSymbols).stream()
             .filter(asset -> !Boolean.TRUE.equals(asset.getExcludeFromImport()))
             .collect(
-                java.util.stream.Collectors.toMap(AssetEntity::getSymbol, AssetEntity::getId, (a, b) -> a));
+                java.util.stream.Collectors.toMap(
+                    AssetEntity::getSymbol, AssetEntity::getId, (a, b) -> a));
 
     for (Map.Entry<PriceCheckpointKey, WeightedPrice> entry : aggregated.entrySet()) {
       Long assetId = assetIdsBySymbol.get(entry.getKey().symbol());
@@ -1296,10 +1298,10 @@ public class XtbImportV2Service {
    * Reads an optional XTB security ticker while preserving the broker's real export semantics.
    *
    * <p>Current XTB v2 workbooks use the literal value {@code "3"} as an N/A placeholder on
-   * non-instrument cash rows. In those rows Instrument, Ticker, Category and PositionEntity ID are all
-   * {@code "3"}. Treating that placeholder as a real ticker makes fresh imports try to resolve an
-   * asset named {@code "3"}; on cash-only accounts it also incorrectly drops deposits, transfers,
-   * interest and taxes because the account filter thinks the row references a security.
+   * non-instrument cash rows. In those rows Instrument, Ticker, Category and PositionEntity ID are
+   * all {@code "3"}. Treating that placeholder as a real ticker makes fresh imports try to resolve
+   * an asset named {@code "3"}; on cash-only accounts it also incorrectly drops deposits,
+   * transfers, interest and taxes because the account filter thinks the row references a security.
    *
    * <p>Only collapse {@code "3"} when the workbook exposes the accompanying XTB metadata columns
    * and all of them also look like N/A placeholders. A genuine ticker named {@code "3"} in a

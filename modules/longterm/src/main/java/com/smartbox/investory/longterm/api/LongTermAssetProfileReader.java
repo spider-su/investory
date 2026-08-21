@@ -1,8 +1,8 @@
 package com.smartbox.investory.longterm.api;
-import com.smartbox.investory.longterm.api.model.LongTermAssetProfileAssetModel;
-import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
-import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSummaryModel;
 
+import com.smartbox.investory.longterm.api.model.LongTermAssetProfileAssetModel;
+import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSummaryModel;
+import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
 import java.time.LocalDate;
 import java.util.List;
 

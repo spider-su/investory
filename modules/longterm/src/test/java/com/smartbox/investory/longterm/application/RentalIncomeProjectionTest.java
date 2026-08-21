@@ -3,10 +3,10 @@ package com.smartbox.investory.longterm.application;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.longterm.api.model.RentalIncomeProjectionModel;
+import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
+import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -60,8 +60,10 @@ class RentalIncomeProjectionTest {
             period(2027, 2027, "180000", CashFlowType.RENT),
             period(2028, null, "0", CashFlowType.RENT));
     var first = RentalIncomeProjectionModel.project(asset, Map.of(), 2027, bd("0.10"));
-    var replacement = RentalIncomeProjectionModel.project(asset, first.incomeByType(), 2028, bd("0.10"));
-    var after = RentalIncomeProjectionModel.project(asset, replacement.incomeByType(), 2029, bd("0.10"));
+    var replacement =
+        RentalIncomeProjectionModel.project(asset, first.incomeByType(), 2028, bd("0.10"));
+    var after =
+        RentalIncomeProjectionModel.project(asset, replacement.incomeByType(), 2029, bd("0.10"));
 
     assertBd("180000", first.netIncome());
     assertBd("0", replacement.netIncome());
@@ -156,7 +158,8 @@ class RentalIncomeProjectionTest {
         RentalIncomeProjectionModel.project(asset, Map.of(), 2027, BigDecimal.ZERO).netIncome());
   }
 
-  private static LongTermAssetProjectionModel asset(LongTermAssetProjectionModel.Period... periods) {
+  private static LongTermAssetProjectionModel asset(
+      LongTermAssetProjectionModel.Period... periods) {
     return new LongTermAssetProjectionModel(
         1L,
         "Rental",

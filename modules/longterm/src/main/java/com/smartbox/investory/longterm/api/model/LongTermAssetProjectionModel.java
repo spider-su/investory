@@ -1,8 +1,8 @@
 package com.smartbox.investory.longterm.api.model;
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
-import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 
+import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
+import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
+import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -22,6 +22,7 @@ public record LongTermAssetProjectionModel(
     CurrencyType currency,
     BigDecimal currentValue,
     List<Period> periods,
+    List<RentalContractModel> rentalContracts,
     LocalDate maturityDate,
     BigDecimal redemptionValue,
     InterestTreatment interestTreatment,
@@ -46,6 +47,7 @@ public record LongTermAssetProjectionModel(
         currency,
         currentValue,
         periods,
+        List.of(),
         maturityDate,
         redemptionValue,
         interestTreatment,
@@ -56,6 +58,7 @@ public record LongTermAssetProjectionModel(
 
   public LongTermAssetProjectionModel {
     periods = periods == null ? List.of() : List.copyOf(periods);
+    rentalContracts = rentalContracts == null ? List.of() : List.copyOf(rentalContracts);
   }
 
   public record Period(
@@ -105,11 +108,41 @@ public record LongTermAssetProjectionModel(
         currency,
         currentValue,
         periods,
+        List.of(),
         maturityDate,
         redemptionValue,
         interestTreatment,
         taxRate,
         taxBase,
         false);
+  }
+
+  public LongTermAssetProjectionModel(
+      Long id,
+      String name,
+      LongTermAssetType type,
+      CurrencyType currency,
+      BigDecimal currentValue,
+      List<Period> periods,
+      LocalDate maturityDate,
+      BigDecimal redemptionValue,
+      InterestTreatment interestTreatment,
+      BigDecimal taxRate,
+      BigDecimal taxBase,
+      boolean rentalTaxPaidByTenant) {
+    this(
+        id,
+        name,
+        type,
+        currency,
+        currentValue,
+        periods,
+        List.of(),
+        maturityDate,
+        redemptionValue,
+        interestTreatment,
+        taxRate,
+        taxBase,
+        rentalTaxPaidByTenant);
   }
 }

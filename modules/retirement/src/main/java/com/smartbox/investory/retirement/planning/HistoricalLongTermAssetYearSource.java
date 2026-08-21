@@ -1,7 +1,7 @@
 package com.smartbox.investory.retirement.planning;
 
-import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
 import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
+import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
 import java.math.BigDecimal;
 import org.springframework.stereotype.Service;
 

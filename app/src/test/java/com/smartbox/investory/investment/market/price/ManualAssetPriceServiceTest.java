@@ -119,7 +119,8 @@ class ManualAssetPriceServiceTest {
     IllegalArgumentException exception =
         assertThrows(IllegalArgumentException.class, () -> service.updatePrice("PKO.PL", 10.0));
 
-    assertEquals("AssetEntity is excluded from Investory calculations: PKO.PL", exception.getMessage());
+    assertEquals(
+        "AssetEntity is excluded from Investory calculations: PKO.PL", exception.getMessage());
     verifyNoInteractions(
         currencyRateService, assetPriceHistoryRepository, marketService, statisticsRefreshService);
   }

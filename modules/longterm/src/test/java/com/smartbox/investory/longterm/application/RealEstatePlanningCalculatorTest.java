@@ -1,9 +1,9 @@
 package com.smartbox.investory.longterm.application;
-import com.smartbox.investory.longterm.application.model.RealEstatePlanningSummary;
-import com.smartbox.investory.longterm.application.service.RealEstatePlanningCalculator;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.smartbox.investory.longterm.application.model.RealEstatePlanningSummary;
+import com.smartbox.investory.longterm.application.service.RealEstatePlanningCalculator;
 import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetCashFlowEntity;
@@ -41,7 +41,8 @@ class RealEstatePlanningCalculatorTest {
     assertEquals(new BigDecimal("0.035287179487"), result.incomeYield());
   }
 
-  private static LongTermAssetCashFlowEntity flow(CashFlowType type, String amount, Frequency frequency) {
+  private static LongTermAssetCashFlowEntity flow(
+      CashFlowType type, String amount, Frequency frequency) {
     LongTermAssetCashFlowEntity flow = new LongTermAssetCashFlowEntity();
     flow.setType(type);
     flow.setAmount(new BigDecimal(amount));

@@ -1,15 +1,11 @@
 package com.smartbox.investory.longterm.application.service;
-import com.smartbox.investory.longterm.api.model.RealEstateEntryModel;
-import com.smartbox.investory.longterm.application.model.RealEstatePlanningSummary;
-import com.smartbox.investory.longterm.application.model.AnnualEconomics;
-import com.smartbox.investory.longterm.application.model.LongTermAssetSummary;
-import com.smartbox.investory.longterm.application.model.BondPlanningSummary;
 
 import com.smartbox.investory.longterm.api.*;
-import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
-import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
+import com.smartbox.investory.longterm.api.model.RealEstateEntryModel;
+import com.smartbox.investory.longterm.application.model.AnnualEconomics;
+import com.smartbox.investory.longterm.application.model.BondPlanningSummary;
+import com.smartbox.investory.longterm.application.model.LongTermAssetSummary;
+import com.smartbox.investory.longterm.application.model.RealEstatePlanningSummary;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractEntity;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -58,7 +54,8 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
   }
 
   @Override
-  public LongTermAssetsApi.AssetView saveCashReserve(LongTermAssetsApi.CashReserveCommand command, LocalDate effectiveFrom) {
+  public LongTermAssetsApi.AssetView saveCashReserve(
+      LongTermAssetsApi.CashReserveCommand command, LocalDate effectiveFrom) {
     return asset(
         delegate.saveCashReserve(
             new LongTermAssetsFacade.CashReserveCommand(
@@ -116,17 +113,20 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
   }
 
   @Override
-  public LongTermAssetsApi.RentalContractView createRentalContract(LongTermAssetsApi.RentalContractCommand command) {
+  public LongTermAssetsApi.RentalContractView createRentalContract(
+      LongTermAssetsApi.RentalContractCommand command) {
     return rental(delegate.createRentalContract(command));
   }
 
   @Override
-  public LongTermAssetsApi.RentalContractView endRentalContract(Long portfolioId, Long assetId, Long contractId, LocalDate endDate) {
+  public LongTermAssetsApi.RentalContractView endRentalContract(
+      Long portfolioId, Long assetId, Long contractId, LocalDate endDate) {
     return rental(delegate.endRentalContract(portfolioId, assetId, contractId, endDate));
   }
 
   @Override
-  public void terminateRentalContract(Long portfolioId, Long assetId, Long contractId, LocalDate terminationDate) {
+  public void terminateRentalContract(
+      Long portfolioId, Long assetId, Long contractId, LocalDate terminationDate) {
     delegate.terminateRentalContract(portfolioId, assetId, contractId, terminationDate);
   }
 
@@ -172,7 +172,8 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
   }
 
   @Override
-  public void saveBondDetails(Long portfolioId, Long id, LongTermAssetsApi.BondDetailsCommand command) {
+  public void saveBondDetails(
+      Long portfolioId, Long id, LongTermAssetsApi.BondDetailsCommand command) {
     delegate.saveBondDetails(
         portfolioId,
         id,
@@ -184,7 +185,8 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
   }
 
   @Override
-  public void saveDepositDetails(Long portfolioId, Long id, LongTermAssetsApi.DepositDetailsCommand command) {
+  public void saveDepositDetails(
+      Long portfolioId, Long id, LongTermAssetsApi.DepositDetailsCommand command) {
     delegate.saveDepositDetails(
         portfolioId,
         id,
@@ -237,7 +239,8 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
         c.rentalTaxPaidByTenant());
   }
 
-  private static LongTermAssetsFacade.CashFlowCommand toInternal(LongTermAssetsApi.CashFlowCommand c) {
+  private static LongTermAssetsFacade.CashFlowCommand toInternal(
+      LongTermAssetsApi.CashFlowCommand c) {
     return new LongTermAssetsFacade.CashFlowCommand(
         c.portfolioId(),
         c.assetId(),
@@ -279,13 +282,37 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
         new RentalPeriodView(v.rentalPeriod().effectiveFrom(), v.rentalPeriod().endDate()),
         v.availableCashFlowTypes(),
         v.expectedPropertyGrowth(),
-        v.contracts().stream().map(c -> new LongTermAssetsApi.RentalContractView(c.id(), c.startDate(), c.endDate(), c.terminatedDate(), c.rentalTaxPaidByTenant(),
-            c.terms().stream().map(t -> new LongTermAssetsApi.RentalTermView(t.type(), t.amount(), t.frequency(), t.paidByTenant())).toList())).toList());
+        v.contracts().stream()
+            .map(
+                c ->
+                    new LongTermAssetsApi.RentalContractView(
+                        c.id(),
+                        c.startDate(),
+                        c.endDate(),
+                        c.terminatedDate(),
+                        c.rentalTaxPaidByTenant(),
+                        c.terms().stream()
+                            .map(
+                                t ->
+                                    new LongTermAssetsApi.RentalTermView(
+                                        t.type(), t.amount(), t.frequency(), t.paidByTenant()))
+                            .toList()))
+            .toList());
   }
 
   private static LongTermAssetsApi.RentalContractView rental(LongTermAssetRentalContractEntity c) {
-    return new LongTermAssetsApi.RentalContractView(c.getId(), c.getStartDate(), c.getEndDate(), c.getTerminatedDate(), c.getRentalTaxPaidByTenant(),
-        c.getTerms().stream().map(t -> new LongTermAssetsApi.RentalTermView(t.getType(), t.getAmount(), t.getFrequency(), t.isPaidByTenant())).toList());
+    return new LongTermAssetsApi.RentalContractView(
+        c.getId(),
+        c.getStartDate(),
+        c.getEndDate(),
+        c.getTerminatedDate(),
+        c.getRentalTaxPaidByTenant(),
+        c.getTerms().stream()
+            .map(
+                t ->
+                    new LongTermAssetsApi.RentalTermView(
+                        t.getType(), t.getAmount(), t.getFrequency(), t.isPaidByTenant()))
+            .toList());
   }
 
   private static AssetSummaryView summary(LongTermAssetSummary s) {
@@ -374,13 +401,15 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
         d.maturityDate(), d.taxRate(), d.interestTreatment(), d.redemptionValue());
   }
 
-  private static LongTermAssetsApi.DepositDetailsView deposit(LongTermAssetsFacade.DepositDetailsView d) {
+  private static LongTermAssetsApi.DepositDetailsView deposit(
+      LongTermAssetsFacade.DepositDetailsView d) {
     return new LongTermAssetsApi.DepositDetailsView(
         d.maturityDate(), d.annualInterestRate(), d.taxRate(), d.interestTreatment());
   }
 
   private static LongTermAssetsApi.ValuationView valuation(LongTermAssetsFacade.ValuationView p) {
-    return new LongTermAssetsApi.ValuationView(p.validFrom(), p.validTo(), p.expectedAnnualGrowthRate());
+    return new LongTermAssetsApi.ValuationView(
+        p.validFrom(), p.validTo(), p.expectedAnnualGrowthRate());
   }
 
   private static LongTermAssetsApi.BondRateView bondRate(LongTermAssetsFacade.BondRateView p) {

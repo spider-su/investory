@@ -1,9 +1,9 @@
 package com.smartbox.investory.ui.presentation;
 
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
-import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
+import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
+import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import com.smartbox.investory.retirement.planning.PlanningMetric;
 import com.smartbox.investory.retirement.profile.EconomicBucket;
 import com.smartbox.investory.retirement.profile.Liquidity;

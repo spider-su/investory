@@ -1,11 +1,11 @@
 package com.smartbox.investory.longterm.application.model;
 
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.longterm.infrastructure.bond.*;
 import com.smartbox.investory.longterm.infrastructure.deposit.*;
 import com.smartbox.investory.longterm.infrastructure.rental.*;
+import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -18,6 +18,7 @@ public record LongTermAssetProjectionInput(
     CurrencyType currency,
     BigDecimal currentValue,
     List<Period> periods,
+    List<com.smartbox.investory.longterm.api.model.RentalContractModel> rentalContracts,
     LocalDate maturityDate,
     BigDecimal redemptionValue,
     InterestTreatment interestTreatment,
@@ -42,6 +43,7 @@ public record LongTermAssetProjectionInput(
         currency,
         currentValue,
         periods,
+        List.of(),
         maturityDate,
         redemptionValue,
         interestTreatment,
@@ -52,6 +54,7 @@ public record LongTermAssetProjectionInput(
 
   public LongTermAssetProjectionInput {
     periods = periods == null ? List.of() : List.copyOf(periods);
+    rentalContracts = rentalContracts == null ? List.of() : List.copyOf(rentalContracts);
   }
 
   public record Period(
@@ -101,6 +104,7 @@ public record LongTermAssetProjectionInput(
         currency,
         currentValue,
         periods,
+        List.of(),
         maturityDate,
         redemptionValue,
         interestTreatment,

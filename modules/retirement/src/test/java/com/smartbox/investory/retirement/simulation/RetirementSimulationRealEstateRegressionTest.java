@@ -1,5 +1,4 @@
 package com.smartbox.investory.retirement.simulation;
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;

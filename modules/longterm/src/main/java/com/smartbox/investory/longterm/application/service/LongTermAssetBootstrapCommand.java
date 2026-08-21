@@ -1,7 +1,7 @@
 package com.smartbox.investory.longterm.application.service;
 
-import com.smartbox.investory.longterm.application.model.LongTermAssetBootstrapDocument;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.smartbox.investory.longterm.application.model.LongTermAssetBootstrapDocument;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import lombok.RequiredArgsConstructor;

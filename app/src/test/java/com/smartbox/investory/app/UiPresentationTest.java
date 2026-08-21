@@ -2,8 +2,8 @@ package com.smartbox.investory.app;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
+import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.retirement.planning.PlanningMetric;
 import com.smartbox.investory.retirement.profile.EconomicBucket;
 import com.smartbox.investory.ui.presentation.UiPresentation;

@@ -37,7 +37,8 @@ public class ImportSourceEvidenceService {
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
-  public ImportSourceFileEntity storeArtifact(ImportHistoryEntity batch, byte[] payload, String contentType) {
+  public ImportSourceFileEntity storeArtifact(
+      ImportHistoryEntity batch, byte[] payload, String contentType) {
     Optional<ImportSourceFileEntity> existing =
         fileRepository.findByBrokerAndFileSha256(batch.getBroker(), batch.getFileSha256());
     if (existing.isPresent()) {
@@ -55,7 +56,8 @@ public class ImportSourceEvidenceService {
     return fileRepository.save(file);
   }
 
-  public Scope open(ImportHistoryEntity batch, ImportSourceFileEntity file, String archiveMemberName) {
+  public Scope open(
+      ImportHistoryEntity batch, ImportSourceFileEntity file, String archiveMemberName) {
     ImportEvidenceContext.open(
         new ImportEvidenceContext(
             batch.getId(), file.getId(), batch.getBroker(), archiveMemberName));
