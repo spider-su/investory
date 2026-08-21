@@ -16,6 +16,7 @@ import com.smartbox.investory.longterm.api.model.LongTermAssetProfileAssetModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSummaryModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
+import com.smartbox.investory.longterm.api.model.RentalContractModel;
 import com.smartbox.investory.retirement.api.InvestmentProfileFacade;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -186,6 +187,41 @@ class InvestmentProfileFacadeTest {
     assertEquals(new BigDecimal("4"), period.annualExpense());
     assertEquals(new BigDecimal("0.01"), period.annualReturnRate());
     verify(currencyRates, never()).convertToBaseCurrency(any(), any(), any(), any());
+  }
+
+  @Test
+  void preservesRentalContractsForRetirementProjection() {
+    SharedBrokeragePortfolioSnapshot market = snapshot(CurrencyType.USD, 0, 0, 0, 0, List.of());
+    RentalContractModel contract =
+        new RentalContractModel(3L, DATE, null, List.of());
+    when(brokeragePortfolioReadService.currentSharedSnapshot()).thenReturn(market);
+    when(longTermAssets.aggregate(PORTFOLIO, DATE))
+        .thenReturn(
+            new LongTermAssetProfileSummaryModel(
+                CurrencyType.USD, new BigDecimal("400"), BigDecimal.ZERO));
+    when(longTermAssets.list(PORTFOLIO, DATE))
+        .thenReturn(List.of(summary(LongTermAssetTypeModel.REAL_ESTATE, "400", "0")));
+    when(longTermAssets.projectionInputs(PORTFOLIO, DATE))
+        .thenReturn(
+            List.of(
+                new LongTermAssetProjectionModel(
+                    1L,
+                    "Property",
+                    LongTermAssetTypeModel.REAL_ESTATE,
+                    CurrencyType.USD,
+                    new BigDecimal("400"),
+                    List.of(),
+                    List.of(contract),
+                    null,
+                    null,
+                    null,
+                    new BigDecimal("0.085"),
+                    new BigDecimal("1500"),
+                    false)));
+
+    ProjectedLongTermAsset projected = facade.loadProfile(PORTFOLIO).longTermAssets().getFirst();
+
+    assertEquals(List.of(contract), projected.rentalContracts());
   }
 
   private static OpenPositionValue position(String symbol, double value) {

@@ -371,6 +371,7 @@ public class CurrentYearProjectionBridge {
         value,
         asset.liquidity(),
         asset.periods(),
+        asset.rentalContracts(),
         asset.maturityDate(),
         asset.redemptionValue(),
         asset.interestTreatment(),

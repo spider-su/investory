@@ -2406,6 +2406,11 @@ body.iv-modal-open { overflow: hidden; }
 .iv-simulation-editor__form { display: grid; gap: 16px; }
 .iv-simulation-editor__section { margin: 0 !important; }
 .iv-simulation-editor__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 16px; }
+.iv-expense-profile { grid-column: 1 / -1; }
+.iv-expense-profile__head,
+.iv-expense-profile__row { display: grid; grid-template-columns: minmax(120px, .7fr) minmax(160px, 1fr) auto; gap: 8px; align-items: center; }
+.iv-expense-profile__head { margin-bottom: 6px; color: var(--iv-text-muted); font-size: .75rem; font-weight: 600; }
+.iv-expense-profile__rows { display: grid; gap: 8px; }
 .iv-simulation-editor__section h2 { margin: 0 0 12px; font-size: .9rem; }
 .iv-simulation-editor__advanced { margin-top: 12px; border-top: 1px solid var(--iv-border); }
 .iv-simulation-editor__advanced > summary { padding: 12px 0 0; color: var(--iv-primary); cursor: pointer; font-weight: 700; }
@@ -2483,6 +2488,8 @@ body.iv-modal-open { overflow: hidden; }
 @media (max-width: 600px) {
     .iv-simulation-editor__grid,
     .iv-simulation-editor__events-form { grid-template-columns: 1fr; }
+    .iv-expense-profile__head { display: none; }
+    .iv-expense-profile__row { grid-template-columns: 1fr; padding-top: 8px; border-top: 1px solid var(--iv-border); }
     .iv-simulation-editor__actions { justify-content: stretch; }
     .iv-simulation-editor__actions > * { flex: 1 1 100%; text-align: center; }
     .iv-simulation-subheading { align-items: stretch; flex-direction: column; gap: 6px; }
