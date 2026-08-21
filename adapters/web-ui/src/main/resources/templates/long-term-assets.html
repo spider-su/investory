@@ -24,8 +24,8 @@
         </p>
         <div class="iv-hover-context__panel iv-overview-card__context" role="tooltip">
           <div class="iv-context-row"><span>Share of long-term assets</span><strong th:text="${groupShares[group.key]}">0.0%</strong></div>
-          <div class="iv-context-row" th:if="${group.key == 'REAL_ESTATE'}"><span>Monthly income</span><strong th:text="${format.moneyWhole(group.netMonthlyIncome()) + '/month'}">0/month</strong></div>
-          <div class="iv-context-row" th:if="${group.key == 'REAL_ESTATE'}"><span>Yield</span><strong th:text="${format.percentage(group.realEstatePlanning.incomeYield)}">0.0%</strong></div>
+          <div class="iv-context-row" th:if="${group.key == 'REAL_ESTATE'}"><span>Monthly income</span><strong th:text="${format.moneyWhole(group.realEstatePlanning.netMonthlyIncome) + '/month'}">0/month</strong></div>
+          <div class="iv-context-row" th:if="${group.key == 'REAL_ESTATE'}"><span>Yield</span><strong th:text="${format.percentage(group.realEstatePlanning.netYield)}">0.0%</strong></div>
           <div class="iv-context-row" th:if="${group.key != 'REAL_ESTATE'}"><span>Annual gross income</span><strong th:text="${format.wholeNumber(group.annualEconomics.grossAnnualIncome) + '/year'}">0/year</strong></div>
           <div class="iv-context-row" th:if="${group.key != 'REAL_ESTATE'}"><span>Gross yield</span><strong th:text="${format.percentage(group.annualEconomics.grossYield)}">0.0%</strong></div>
         </div>
@@ -61,7 +61,7 @@
             <td class="text-end" th:if="${group.key != 'REAL_ESTATE'}" th:text="${asset.currency == total.currency ? format.wholeNumber(asset.annualEconomics.annualTax) : format.moneyWhole(asset.annualEconomics.annualTax, asset.currency)}">0</td>
             <td class="text-end" th:if="${group.key != 'REAL_ESTATE'}" th:text="${asset.currency == total.currency ? format.wholeNumber(asset.annualEconomics.netAnnualIncomeAfterTax) : format.moneyWhole(asset.annualEconomics.netAnnualIncomeAfterTax, asset.currency)}">0</td>
             <td class="text-end" th:if="${group.key != 'REAL_ESTATE'}" th:text="${format.percentage(asset.annualEconomics.netYieldAfterTax)}">0.0%</td>
-            <td class="text-end" th:if="${group.key == 'REAL_ESTATE'}" th:text="${format.percentage(asset.realEstatePlanning.incomeYield)}">0.0%</td>
+            <td class="text-end" th:if="${group.key == 'REAL_ESTATE'}" th:text="${format.percentage(asset.annualEconomics.netYieldAfterTax)}">0.0%</td>
             <td th:if="${group.key == 'BOND'}" th:text="${asset.bondPlanning.maturityDate == null ? '—' : asset.bondPlanning.maturityDate}">—</td>
           </tr>
           </tbody>
@@ -77,8 +77,8 @@
         <tbody>
         <tr>
           <td>TOTAL</td>
-          <td class="text-end" th:if="${group.key == 'REAL_ESTATE'}" th:text="${format.moneyWhole(group.totalPaymentMonthly())}">0</td>
-          <td class="text-end" th:if="${group.key == 'REAL_ESTATE'}" th:text="${format.moneyWhole(group.netMonthlyIncome())}">0</td>
+          <td class="text-end" th:if="${group.key == 'REAL_ESTATE'}" th:text="${format.moneyWhole(group.realEstatePlanning.totalPaymentMonthly)}">0</td>
+          <td class="text-end" th:if="${group.key == 'REAL_ESTATE'}" th:text="${format.moneyWhole(group.realEstatePlanning.netMonthlyIncome)}">0</td>
           <td class="text-end" th:if="${group.key == 'REAL_ESTATE'}">—</td>
           <td class="text-end" th:if="${group.key == 'REAL_ESTATE'}">—</td>
           <td class="text-end" th:if="${group.key == 'REAL_ESTATE'}">—</td>
@@ -87,7 +87,7 @@
           <td class="text-end" th:if="${group.key != 'REAL_ESTATE'}" th:text="${group.currency == total.currency ? format.wholeNumber(group.annualEconomics.annualTax) : format.moneyWhole(group.annualEconomics.annualTax, group.currency)}">0</td>
           <td class="text-end" th:if="${group.key != 'REAL_ESTATE'}" th:text="${group.currency == total.currency ? format.wholeNumber(group.annualEconomics.netAnnualIncomeAfterTax) : format.moneyWhole(group.annualEconomics.netAnnualIncomeAfterTax, group.currency)}">0</td>
           <td class="text-end" th:if="${group.key != 'REAL_ESTATE'}" th:text="${format.percentage(group.annualEconomics.netYieldAfterTax)}">0.0%</td>
-          <td class="text-end" th:if="${group.key == 'REAL_ESTATE'}" th:text="${format.percentage(group.realEstatePlanning.incomeYield)}">0.0%</td>
+          <td class="text-end" th:if="${group.key == 'REAL_ESTATE'}" th:text="${format.percentage(group.realEstatePlanning.netYield)}">0.0%</td>
           <td th:if="${group.key == 'BOND'}">—</td>
         </tr>
         </tbody>
@@ -100,16 +100,16 @@
       </div>
       <div class="iv-collapsed-summary__metric">
         <span class="iv-collapsed-summary__label" th:text="${group.key == 'REAL_ESTATE' ? 'Monthly income' : 'Annual gross income'}">Income</span>
-        <strong class="iv-collapsed-summary__value" th:if="${group.key == 'REAL_ESTATE'}" th:text="${format.moneyWhole(group.netMonthlyIncome()) + ' / month'}">0 / month</strong>
+        <strong class="iv-collapsed-summary__value" th:if="${group.key == 'REAL_ESTATE'}" th:text="${format.moneyWhole(group.realEstatePlanning.netMonthlyIncome) + ' / month'}">0 / month</strong>
         <strong class="iv-collapsed-summary__value" th:if="${group.key != 'REAL_ESTATE'}" th:text="${format.wholeNumber(group.annualEconomics.grossAnnualIncome) + ' / year'}">0 / year</strong>
       </div>
       <div class="iv-collapsed-summary__metric" th:if="${group.key == 'REAL_ESTATE'}">
         <span class="iv-collapsed-summary__label">Monthly rent tax</span>
-        <strong class="iv-collapsed-summary__value" th:text="${format.moneyWhole(group.realEstatePlanning.monthlyRentTax) + ' / month'}">0 / month</strong>
+        <strong class="iv-collapsed-summary__value" th:text="${format.moneyWhole(group.realEstatePlanning.monthlyTax) + ' / month'}">0 / month</strong>
       </div>
       <div class="iv-collapsed-summary__metric">
         <span class="iv-collapsed-summary__label" th:text="${group.key == 'REAL_ESTATE' ? 'Income yield' : 'Gross yield'}">Yield</span>
-        <strong class="iv-collapsed-summary__value" th:text="${format.percentage(group.key == 'REAL_ESTATE' ? group.realEstatePlanning.incomeYield : group.annualEconomics.grossYield)}">0.0%</strong>
+        <strong class="iv-collapsed-summary__value" th:text="${format.percentage(group.key == 'REAL_ESTATE' ? group.realEstatePlanning.netYield : group.annualEconomics.grossYield)}">0.0%</strong>
       </div>
     </div>
   </div>
@@ -119,11 +119,11 @@
     <div class="iv-portfolio-structure__grid">
       <details class="iv-structure-card">
         <summary><span>Largest asset class</span><strong th:text="${longTermLargestClass ?: 'Unavailable'}">Unavailable</strong><small th:text="${(longTermLargestClassShare ?: '0.0%') + ' · ' + (longTermLargestClassValue ?: '0')}">0.0% · 0</small></summary>
-        <div class="iv-structure-popover"><strong>Asset classes</strong><div th:each="group : ${groups}"><span th:text="${group.title}">Category</span><span th:text="${group.shareDisplay(total.totalCurrentValue) + ' · ' + format.wholeNumber(group.totalValue)}">0.0% · 0</span></div></div>
+        <div class="iv-structure-popover"><strong>Asset classes</strong><div th:each="group : ${groups}"><span th:text="${group.title}">Category</span><span th:text="${groupShares[group.key] + ' · ' + format.wholeNumber(group.totalValue)}">0.0% · 0</span></div></div>
       </details>
       <details class="iv-structure-card iv-structure-card--allocation">
-        <summary><span>Asset allocation</span><div class="iv-structure-bar" aria-label="Long-term asset allocation"><span th:each="group : ${groups}" class="iv-structure-bar__segment" th:classappend="${' iv-structure-segment--' + (group.key == 'BOND' ? 'fixed-income' : group.key == 'CASH_RESERVE' ? 'cash' : group.key == 'REAL_ESTATE' ? 'real-estate' : 'other')}" th:style="|width:${group.shareWidth(total.totalCurrentValue)}%|" th:title="${group.title + ' · ' + group.shareDisplay(total.totalCurrentValue)}"></span></div><small th:text="${#strings.listJoin(groups.![title], ' · ')}">Real estate · Bonds · Cash · Other</small></summary>
-        <div class="iv-structure-popover"><strong>Asset allocation</strong><div th:each="group : ${groups}"><span th:text="${group.title}">Category</span><span th:text="${group.shareDisplay(total.totalCurrentValue) + ' · ' + format.wholeNumber(group.totalValue)}">0.0% · 0</span></div></div>
+        <summary><span>Asset allocation</span><div class="iv-structure-bar" aria-label="Long-term asset allocation"><span th:each="group : ${groups}" class="iv-structure-bar__segment" th:classappend="${' iv-structure-segment--' + (group.key == 'BOND' ? 'fixed-income' : group.key == 'CASH_RESERVE' ? 'cash' : group.key == 'REAL_ESTATE' ? 'real-estate' : 'other')}" th:style="|width:${#strings.replace(groupShares[group.key], '%', '')}%|" th:title="${group.title + ' · ' + groupShares[group.key]}"></span></div><small th:text="${#strings.listJoin(groups.![title], ' · ')}">Real estate · Bonds · Cash · Other</small></summary>
+        <div class="iv-structure-popover"><strong>Asset allocation</strong><div th:each="group : ${groups}"><span th:text="${group.title}">Category</span><span th:text="${groupShares[group.key] + ' · ' + format.wholeNumber(group.totalValue)}">0.0% · 0</span></div></div>
       </details>
       <details class="iv-structure-card">
         <summary><span>Income yield</span><strong th:text="${format.percentage(total.annualEconomics.netYieldAfterTax)}">0.0%</strong><small>Net annual income / total long-term asset value</small></summary>

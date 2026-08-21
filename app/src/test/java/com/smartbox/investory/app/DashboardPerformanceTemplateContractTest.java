@@ -59,7 +59,7 @@ class DashboardPerformanceTemplateContractTest {
     assertFalse(html.contains("yahoo.changes"));
     assertTrue(html.contains("Latest transaction:"));
     assertTrue(headerControls.contains("Valuation status"));
-    assertTrue(html.contains("AssetEntity allocation"));
+    assertTrue(html.contains("Asset allocation"));
     assertTrue(html.contains("Portfolio structure"));
     int kpiStripStart = html.indexOf("<div class=\"iv-benchmark iv-performance-metrics\">");
     int performanceControlsStart =
@@ -81,7 +81,7 @@ class DashboardPerformanceTemplateContractTest {
     assertFalse(kpiStrip.contains("Worst period"));
     assertTrue(html.contains("Largest holding"));
     assertTrue(html.contains("Concentration"));
-    assertTrue(html.contains("AccountEntity currency"));
+    assertTrue(html.contains("Account currency"));
     assertTrue(html.contains("iv-portfolio-structure__grid"));
     assertTrue(html.contains("iv-structure-bar"));
     assertFalse(html.contains("RISK &amp; EXPOSURE"));

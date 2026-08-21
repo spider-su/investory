@@ -83,7 +83,9 @@ public class InvestmentProfileFacade {
                             .toList(),
                         input.maturityDate(),
                         input.redemptionValue() == null ? null : input.redemptionValue(),
-                        com.smartbox.investory.longterm.infrastructure.InterestTreatment.valueOf(input.interestTreatment().name()),
+                        input.interestTreatment() == null
+                            ? null
+                            : com.smartbox.investory.longterm.infrastructure.InterestTreatment.valueOf(input.interestTreatment().name()),
                         input.taxRate(),
                         input.taxBase() == null ? null : input.taxBase(),
                         input.rentalTaxPaidByTenant()))
