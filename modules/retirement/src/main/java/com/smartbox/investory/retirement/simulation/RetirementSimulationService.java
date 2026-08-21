@@ -554,6 +554,7 @@ public class RetirementSimulationService {
                         period.cashFlowType() == null ? null : com.smartbox.investory.longterm.api.model.CashFlowTypeModel.valueOf(period.cashFlowType().name()),
                         period.paidByTenant()))
             .toList(),
+        asset.rentalContracts(),
         asset.maturityDate(),
         asset.redemptionValue(),
         asset.interestTreatment() == null

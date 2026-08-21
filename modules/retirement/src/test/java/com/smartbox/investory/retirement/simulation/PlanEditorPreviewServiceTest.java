@@ -113,4 +113,48 @@ class PlanEditorPreviewServiceTest {
 
     assertEquals(new BigDecimal("0.083333333333"), preview.monthlyLivingCosts());
   }
+
+  @Test
+  void incomePreviewStartsWithCurrentYearCanonicalFacts() {
+    ForwardSimulationInputService inputs = mock(ForwardSimulationInputService.class);
+    RetirementSimulationService simulations = mock(RetirementSimulationService.class);
+    LongTermAssetAnnualSnapshotReader longTermAssets =
+        mock(LongTermAssetAnnualSnapshotReader.class);
+    PlanningCurrencyPresentationService presentation =
+        mock(PlanningCurrencyPresentationService.class);
+    Clock clock = Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC);
+    PlanEditorPreviewService service =
+        new PlanEditorPreviewService(inputs, simulations, longTermAssets, presentation, clock);
+    InvestmentProfile profile = mock(InvestmentProfile.class);
+    SimulationAssumptions assumptions =
+        SimulationAssumptions.defaults(profile, 41, 42, 2026)
+            .withRetirementAge(42)
+            .withAnnualEmploymentIncome(new BigDecimal("120000"))
+            .withAnnualPreRetirementContribution(new BigDecimal("12000"));
+    LongTermAssetAnnualSnapshotModel facts =
+        new LongTermAssetAnnualSnapshotModel(
+            BigDecimal.ZERO,
+            new BigDecimal("47411"),
+            BigDecimal.ZERO,
+            new BigDecimal("10545"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO);
+    when(profile.portfolioId()).thenReturn(7L);
+    when(inputs.prepare(any(), any()))
+        .thenReturn(
+            new com.smartbox.investory.retirement.planning.ForwardSimulationInput(
+                mock(ForwardSimulationContext.class), profile, Optional.empty()));
+    when(longTermAssets.currentAnnualSnapshot(any(), any())).thenReturn(facts);
+    when(presentation.toDisplay(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+    PlanEditorPreviewService.PreviewYear current =
+        service.preview(profile, assumptions, CurrencyType.PLN).years().getFirst();
+
+    assertEquals(2026, current.year());
+    assertEquals("WORKING", current.lifecycle());
+    assertEquals(new BigDecimal("120000"), current.employmentIncome());
+    assertEquals(new BigDecimal("47411"), current.rentalIncome());
+    assertEquals(new BigDecimal("10545"), current.bondIncome());
+    assertEquals(new BigDecimal("12000"), current.contribution());
+  }
 }

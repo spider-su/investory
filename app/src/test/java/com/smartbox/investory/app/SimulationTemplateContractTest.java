@@ -116,4 +116,14 @@ class SimulationTemplateContractTest {
         () -> assertFalse(editor.contains("name=\"rentalIncome\"")),
         () -> assertFalse(editor.contains("name=\"bondIncome\"")));
   }
+
+  @Test
+  void developerPreviewIsCancelledBeforePlanSave() throws Exception {
+    String editor =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/simulation-plan-edit.html"));
+    assertTrue(editor.contains("form.addEventListener('submit'"));
+    assertTrue(editor.contains("clearTimeout(timer)"));
+    assertTrue(editor.contains("controller.abort()"));
+  }
 }

@@ -81,6 +81,7 @@ public class InvestmentProfileFacade {
                                         period.cashFlowType() == null ? null : com.smartbox.investory.longterm.infrastructure.rental.CashFlowType.valueOf(period.cashFlowType().name()),
                                         period.paidByTenant()))
                             .toList(),
+                        input.rentalContracts(),
                         input.maturityDate(),
                         input.redemptionValue() == null ? null : input.redemptionValue(),
                         input.interestTreatment() == null

@@ -1102,6 +1102,55 @@ class RetirementSimulationServiceTest {
   }
 
   @Test
+  void rentalContractIncomeIsNotDroppedAtTheRetirementBoundary() {
+    var contract =
+        new com.smartbox.investory.longterm.api.model.RentalContractModel(
+            7L,
+            LocalDate.of(2026, 1, 1),
+            null,
+            List.of(
+                new com.smartbox.investory.longterm.api.model.RentalContractModel.Term(
+                    com.smartbox.investory.longterm.api.model.CashFlowTypeModel.RENT,
+                    new BigDecimal("1000"),
+                    com.smartbox.investory.longterm.api.model.FrequencyModel.MONTHLY,
+                    false),
+                new com.smartbox.investory.longterm.api.model.RentalContractModel.Term(
+                    com.smartbox.investory.longterm.api.model.CashFlowTypeModel.OTHER_EXPENSE,
+                    new BigDecimal("100"),
+                    com.smartbox.investory.longterm.api.model.FrequencyModel.ANNUAL,
+                    false)));
+    var property =
+        new ProjectedLongTermAsset(
+            1L,
+            "Property",
+            LongTermAssetType.REAL_ESTATE,
+            EconomicBucket.REAL_ESTATE,
+            CurrencyType.USD,
+            new BigDecimal("1000000"),
+            Liquidity.ILLIQUID,
+            List.of(),
+            List.of(contract),
+            null,
+            null,
+            null,
+            new BigDecimal("0.10"),
+            new BigDecimal("1000"),
+            false);
+
+    SimulationYear year =
+        service
+            .simulate(
+                profileWithAssets(List.of(property), new BigDecimal("1000000")),
+                assumptionsWithRental(40, 40, new BigDecimal("20000"), ZERO, ZERO, ZERO),
+                SimulationScenario.BASE)
+            .years()
+            .getFirst();
+
+    assertBd("11800", year.rentalIncome());
+    assertBd("8200", year.requiredPortfolioFunding());
+  }
+
+  @Test
   void workingIncomeCoversTheRemainingNeedWithoutChangingExplicitContribution() {
     var property = rentalProperty(List.of(period(2026, null, "50000", CashFlowType.RENT)), ZERO);
     var assumptions = transitionUntil(262000, 0, 40, 41, 41, 240000, 120000);

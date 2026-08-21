@@ -12,6 +12,7 @@ import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.Year;
+import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Service;
 
@@ -50,10 +51,20 @@ public class PlanEditorPreviewService {
     int currentYear = Year.now(clock).getValue();
     int retirementYear = ForwardSimulationContextFactory.retirementYear(assumptions);
     SimulationYear first = result.years().isEmpty() ? null : result.years().get(0);
+    int currentPlanningAge =
+        ForwardSimulationContextFactory.currentPlanningAge(assumptions, currentYear);
+    List<PreviewYear> previewYears = new ArrayList<>();
+    previewYears.add(
+        currentYear(
+            currentYear, currentPlanningAge, facts, assumptions, displayCurrency));
+    previewYears.addAll(
+        result.years().stream()
+            .map(row -> year(row, projected.startYear(), displayCurrency))
+            .toList());
     BigDecimal nextYearCosts =
         first == null ? null : displayCanonical(first.totalExpenses(), displayCurrency);
     return new PlanEditorPreview(
-        ForwardSimulationContextFactory.currentPlanningAge(assumptions, currentYear),
+        currentPlanningAge,
         retirementYear,
         Math.max(retirementYear - currentYear, 0),
         Math.max(assumptions.endAge() - assumptions.currentAge() + 1, 0),
@@ -72,9 +83,7 @@ public class PlanEditorPreviewService {
         displayCanonical(facts.bondIncome(), displayCurrency),
         assumptions,
         result.failureAge(),
-        result.years().stream()
-            .map(row -> year(row, projected.startYear(), displayCurrency))
-            .toList(),
+        List.copyOf(previewYears),
         first == null ? null : year(first, projected.startYear(), displayCurrency));
   }
 
@@ -110,6 +119,55 @@ public class PlanEditorPreviewService {
         displayCanonical(row.equityEnd(), displayCurrency),
         displayCanonical(row.equityGain(), displayCurrency),
         row.equityReturnRate());
+  }
+
+  private PreviewYear currentYear(
+      int year,
+      int age,
+      LongTermAssetAnnualSnapshotModel facts,
+      SimulationAssumptions assumptions,
+      CurrencyType displayCurrency) {
+    boolean retired = age >= assumptions.retirementAge();
+    BigDecimal employment = retired ? BigDecimal.ZERO : assumptions.annualEmploymentIncome();
+    BigDecimal contribution =
+        retired ? BigDecimal.ZERO : assumptions.annualPreRetirementContribution();
+    BigDecimal pension =
+        age >= assumptions.pensionStartAge() ? assumptions.annualPension() : BigDecimal.ZERO;
+    BigDecimal rental = zeroIfNull(facts.rentalIncome());
+    BigDecimal bond = zeroIfNull(facts.bondIncome());
+    BigDecimal totalIncome = employment.add(rental).add(bond).add(pension);
+    BigDecimal zero = displayCanonical(BigDecimal.ZERO, displayCurrency);
+    return new PreviewYear(
+        year,
+        age,
+        retired ? SimulationLifecyclePhase.RETIRED.name() : SimulationLifecyclePhase.WORKING.name(),
+        displayCanonical(
+            assumptions.annualLivingExpenses().add(assumptions.annualDiscretionaryExpenses()),
+            displayCurrency),
+        displayCanonical(employment, displayCurrency),
+        displayCanonical(rental, displayCurrency),
+        displayCanonical(bond, displayCurrency),
+        displayCanonical(pension, displayCurrency),
+        displayCanonical(contribution, displayCurrency),
+        displayCanonical(totalIncome, displayCurrency),
+        zero,
+        zero,
+        zero,
+        zero,
+        zero,
+        zero,
+        zero,
+        zero,
+        zero,
+        zero,
+        zero,
+        zero,
+        zero,
+        assumptions.equityReturnRate());
+  }
+
+  private static BigDecimal zeroIfNull(BigDecimal value) {
+    return value == null ? BigDecimal.ZERO : value;
   }
 
   private BigDecimal displayCanonical(BigDecimal value, CurrencyType displayCurrency) {

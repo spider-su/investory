@@ -91,7 +91,22 @@
       <div class="card-body iv-simulation-editor__grid">
         <div><label class="form-label" for="funding-strategy">Funding strategy</label><select id="funding-strategy" class="form-select" name="fundingStrategy"><option value="SIMPLE_WATERFALL" th:selected="${assumptions.fundingStrategy.name() == 'SIMPLE_WATERFALL'}">Simple waterfall</option><option value="RESERVE_AND_HARVEST" th:selected="${assumptions.fundingStrategy.name() == 'RESERVE_AND_HARVEST'}">Reserve + equity harvest</option></select></div>
         <div><label class="form-label" for="funding-order">Funding order</label><select id="funding-order" class="form-select" name="fundingOrder"><option value="CASH,BONDS,STOCKS" th:selected="${assumptions.fundingOrder.toString() == '[CASH, BONDS, STOCKS]'}">Cash → bonds → stocks</option><option value="CASH,STOCKS,BONDS" th:selected="${assumptions.fundingOrder.toString() == '[CASH, STOCKS, BONDS]'}">Cash → stocks → bonds</option><option value="BONDS,CASH,STOCKS" th:selected="${assumptions.fundingOrder.toString() == '[BONDS, CASH, STOCKS]'}">Bonds → cash → stocks</option></select><div class="form-hint">Deterministic order for funding spending deficits. Rental income offsets expenses first.</div></div>
-        <div><label class="form-label" for="expense-profile">Expense profile</label><input id="expense-profile" class="form-control" name="expenseProfile" type="text" th:value="${expenseProfileValue}" placeholder="0:1.00;8:0.90;15:0.80"><div class="form-hint">Optional lifecycle factors as <code>fromYear:factor</code>, separated by semicolons. Empty keeps current behavior.</div></div>
+        <div class="iv-expense-profile">
+          <span class="form-label d-block">Expense profile</span>
+          <input id="expense-profile" name="expenseProfile" type="hidden" th:value="${expenseProfileValue}">
+          <div class="iv-expense-profile__head" aria-hidden="true"><span>From plan year</span><span>Spending level</span><span></span></div>
+          <div id="expense-profile-rows" class="iv-expense-profile__rows">
+            <div class="iv-expense-profile__row" th:each="step : ${assumptions.expenseProfile.steps}">
+              <div><input class="form-control" data-expense-year type="number" min="0" step="1" required th:value="${step.fromYear}" aria-label="From plan year"></div>
+              <div class="input-group"><input class="form-control" data-expense-percent type="number" min="0.1" step="0.1" required th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).percentageInput(step.factor)}" aria-label="Spending level"><span class="input-group-text">%</span></div>
+              <button class="btn btn-outline-danger" data-expense-remove type="button" aria-label="Remove spending stage">Remove</button>
+            </div>
+          </div>
+          <div id="expense-profile-empty" class="form-hint" th:classappend="${!#lists.isEmpty(assumptions.expenseProfile.steps)} ? ' d-none'">No stages: spending stays at 100%.</div>
+          <button id="expense-profile-add" class="btn btn-sm btn-outline-primary mt-2" type="button">Add spending stage</button>
+          <div class="form-hint mt-2">Plan year 0 is the plan start. Each stage changes recurring spending from that year onward; cost growth still applies separately.</div>
+          <template id="expense-profile-row-template"><div class="iv-expense-profile__row"><div><input class="form-control" data-expense-year type="number" min="0" step="1" required aria-label="From plan year"></div><div class="input-group"><input class="form-control" data-expense-percent type="number" min="0.1" step="0.1" required value="100" aria-label="Spending level"><span class="input-group-text">%</span></div><button class="btn btn-outline-danger" data-expense-remove type="button" aria-label="Remove spending stage">Remove</button></div></template>
+        </div>
         <div><label class="form-label" for="safe-reserve-years">Safe-reserve target</label><div class="input-group"><input id="safe-reserve-years" class="form-control" name="safeReserveYears" type="number" min="0" step="0.1" required th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).decimalInput(assumptions.safeReserveYears)}"><span class="input-group-text">years</span></div><div class="form-hint">Target is measured in years of recurring portfolio funding need, after recurring income.</div></div>
         <div><label class="form-label" for="emergency-equity">Emergency equity withdrawal</label><select id="emergency-equity" class="form-select" name="allowEmergencyEquityWithdrawal"><option value="true" th:selected="${assumptions.allowEmergencyEquityWithdrawal}">Allowed</option><option value="false" th:selected="${!assumptions.allowEmergencyEquityWithdrawal}">Not allowed</option></select></div>
         <div><label class="form-label" for="harvest-threshold">Equity harvest threshold</label><div class="input-group"><input id="harvest-threshold" class="form-control" name="equityHarvestMinimumReturn" type="number" step="0.1" min="1" max="99" th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).percentageInput(assumptions.equityHarvestMinimumReturnRate)}" required><span class="input-group-text">%</span></div></div>
@@ -99,7 +114,8 @@
       </div>
       <div class="card-body border-top" th:if="${developMode != null and developMode and planPreview != null}">
         <div class="text-secondary small mb-2">Development preview · funding and reserve</div>
-        <table class="table table-sm mb-0"><tbody><tr th:if="${planPreview.firstProjectedYear != null}"><td>Recurring portfolio need</td><td class="text-end" id="preview-portfolio-need" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.portfolioNeed)}">0</td></tr><tr><td>Reserve target years</td><td class="text-end" id="preview-reserve-years" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).decimal(planPreview.assumptions.safeReserveYears)}">5</td></tr><tr th:if="${planPreview.firstProjectedYear != null}"><td>Target reserve amount</td><td class="text-end" id="preview-reserve-target" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.reserveTarget)}">0</td></tr><tr th:if="${planPreview.firstProjectedYear != null}"><td>Reserve before</td><td class="text-end" id="preview-reserve-before" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.reserveBefore)}">0</td></tr><tr th:if="${planPreview.firstProjectedYear != null}"><td>Reserve after</td><td class="text-end" id="preview-reserve-after" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.reserveAfter)}">0</td></tr><tr th:if="${planPreview.firstProjectedYear != null}"><td>Equity harvest</td><td class="text-end" id="preview-equity-harvest" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.equityHarvest)}">0</td></tr><tr th:if="${planPreview.firstProjectedYear != null}"><td>Emergency equity withdrawal</td><td class="text-end" id="preview-emergency-equity" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.emergencyEquityWithdrawal)}">0</td></tr></tbody></table>
+        <table class="table table-sm mb-0"><tbody><tr th:if="${planPreview.firstProjectedYear != null}"><td>Recurring portfolio need</td><td class="text-end" id="preview-portfolio-need" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.portfolioNeed)}">0</td></tr><tr><td>Reserve target years</td><td class="text-end" id="preview-reserve-years" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).decimal(planPreview.assumptions.safeReserveYears)}">5</td></tr><tr th:if="${planPreview.firstProjectedYear != null}"><td>Target reserve amount</td><td class="text-end" id="preview-reserve-target" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.reserveTarget)}">0</td></tr><tr th:if="${planPreview.firstProjectedYear != null}"><td>Defensive reserve before</td><td class="text-end" id="preview-reserve-before" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.reserveBefore)}">0</td></tr><tr th:if="${planPreview.firstProjectedYear != null}"><td>Defensive reserve after</td><td class="text-end" id="preview-reserve-after" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.reserveAfter)}">0</td></tr><tr th:if="${planPreview.firstProjectedYear != null}"><td>Equity harvest</td><td class="text-end" id="preview-equity-harvest" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.equityHarvest)}">0</td></tr><tr th:if="${planPreview.firstProjectedYear != null}"><td>Emergency equity withdrawal</td><td class="text-end" id="preview-emergency-equity" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.emergencyEquityWithdrawal)}">0</td></tr></tbody></table>
+        <div class="form-hint mt-2">Defensive reserve includes cash reserves and contractual bonds. Bond principal becomes spendable only at maturity.</div>
       </div>
     </section>
 
@@ -128,6 +144,63 @@
   </section>
 </main>
 <div th:replace="~{fragments/app-footer :: buildFooter}"></div>
+<script>
+(() => {
+  const form = document.getElementById('plan-editor-form');
+  const hidden = document.getElementById('expense-profile');
+  const rows = document.getElementById('expense-profile-rows');
+  const empty = document.getElementById('expense-profile-empty');
+  const template = document.getElementById('expense-profile-row-template');
+  if (!form || !hidden || !rows || !template) return;
+
+  const factor = percent => {
+    const value = Number(percent) / 100;
+    return value.toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
+  };
+  const sync = () => {
+    const stages = [...rows.querySelectorAll('.iv-expense-profile__row')].map(row => ({
+      yearInput: row.querySelector('[data-expense-year]'),
+      percentInput: row.querySelector('[data-expense-percent]')
+    }));
+    const years = stages.map(stage => stage.yearInput.value).filter(value => value !== '');
+    stages.forEach(stage => stage.yearInput.setCustomValidity(''));
+    stages.forEach(stage => {
+      if (stage.yearInput.value !== '' && years.filter(year => year === stage.yearInput.value).length > 1) {
+        stage.yearInput.setCustomValidity('Each spending stage needs a unique start year.');
+      }
+    });
+    hidden.value = stages
+      .filter(stage => stage.yearInput.value !== '' && stage.percentInput.value !== '')
+      .sort((left, right) => Number(left.yearInput.value) - Number(right.yearInput.value))
+      .map(stage => `${stage.yearInput.value}:${factor(stage.percentInput.value)}`)
+      .join(';');
+    empty.classList.toggle('d-none', stages.length > 0);
+    hidden.dispatchEvent(new Event('input', {bubbles: true}));
+  };
+  const attach = row => {
+    row.querySelectorAll('input').forEach(input => input.addEventListener('input', sync));
+    row.querySelector('[data-expense-remove]').addEventListener('click', () => {
+      row.remove();
+      sync();
+    });
+  };
+  rows.querySelectorAll('.iv-expense-profile__row').forEach(attach);
+  document.getElementById('expense-profile-add').addEventListener('click', () => {
+    const row = template.content.firstElementChild.cloneNode(true);
+    const lastYear = [...rows.querySelectorAll('[data-expense-year]')]
+      .map(input => Number(input.value))
+      .filter(Number.isFinite)
+      .sort((left, right) => right - left)[0];
+    row.querySelector('[data-expense-year]').value = Number.isFinite(lastYear) ? lastYear + 1 : 0;
+    rows.append(row);
+    attach(row);
+    sync();
+    row.querySelector('[data-expense-year]').focus();
+  });
+  form.addEventListener('submit', sync);
+  sync();
+})();
+</script>
 <script th:if="${developMode != null and developMode}" th:inline="javascript">
 (() => {
   const form = document.getElementById('plan-editor-form');
@@ -170,7 +243,28 @@
       } catch (error) { if (error.name !== 'AbortError') console.debug('Plan preview unavailable'); }
     }, 300);
   };
+  form.addEventListener('submit', () => {
+    clearTimeout(timer);
+    if (controller) controller.abort();
+  });
   form.querySelectorAll('input, select').forEach(input => { if (input.name !== 'name') { input.addEventListener('input', refresh); input.addEventListener('change', refresh); } });
+})();
+</script>
+<script>
+(() => {
+  const percentageFields = [
+    'spendingGrowth', 'rentalIncomeGrowth', 'equityHarvestMinimumReturn',
+    'equityGainHarvest', 'inflation', 'cashReturn', 'fixedIncomeReturn',
+    'equityReturn', 'otherReturn', 'capitalGainTaxRate'
+  ];
+  percentageFields.forEach(name => {
+    const input = document.querySelector(`#plan-editor-form [name="${name}"]`);
+    if (input) { input.min = '0'; input.max = '100'; }
+  });
+  document.querySelectorAll('#plan-editor-form [data-expense-percent]').forEach(input => {
+    input.min = '0';
+    input.max = '100';
+  });
 })();
 </script>
 </body>
