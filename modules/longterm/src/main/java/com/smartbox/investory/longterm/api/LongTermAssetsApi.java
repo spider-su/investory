@@ -1,10 +1,10 @@
 package com.smartbox.investory.longterm.api;
 
 import com.smartbox.investory.longterm.api.model.RealEstateEntryModel;
-import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
-import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
+import com.smartbox.investory.longterm.api.model.CashFlowTypeModel;
+import com.smartbox.investory.longterm.api.model.FrequencyModel;
+import com.smartbox.investory.longterm.api.model.InterestTreatmentModel;
+import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -73,7 +73,7 @@ public interface LongTermAssetsApi {
       Long portfolioId,
       Long id,
       String name,
-      LongTermAssetType type,
+      LongTermAssetTypeModel type,
       CurrencyType currency,
       LocalDate acquisitionDate,
       BigDecimal acquisitionValue,
@@ -86,7 +86,7 @@ public interface LongTermAssetsApi {
         Long portfolioId,
         Long id,
         String name,
-        LongTermAssetType type,
+        LongTermAssetTypeModel type,
         CurrencyType currency,
         LocalDate acquisitionDate,
         BigDecimal acquisitionValue,
@@ -118,7 +118,7 @@ public interface LongTermAssetsApi {
       BigDecimal value,
       LocalDate acquisitionDate,
       LocalDate maturityDate,
-      InterestTreatment interestTreatment,
+      InterestTreatmentModel interestTreatment,
       BigDecimal annualRatePercent,
       String notes) {}
 
@@ -135,9 +135,9 @@ public interface LongTermAssetsApi {
       Long portfolioId,
       Long assetId,
       Long flowId,
-      CashFlowType type,
+      CashFlowTypeModel type,
       BigDecimal amount,
-      Frequency frequency,
+      FrequencyModel frequency,
       LocalDate validFrom,
       LocalDate validTo,
       Boolean paidByTenant) {
@@ -145,12 +145,12 @@ public interface LongTermAssetsApi {
         Long portfolioId,
         Long assetId,
         Long flowId,
-        CashFlowType type,
+        CashFlowTypeModel type,
         BigDecimal amount,
-        Frequency frequency,
+        FrequencyModel frequency,
         LocalDate validFrom,
         LocalDate validTo) {
-      this(portfolioId, assetId, flowId, type, amount, frequency, validFrom, validTo, null);
+      this(portfolioId, assetId, flowId, type, amount, FrequencyModel, validFrom, validTo, null);
     }
   }
 
@@ -163,19 +163,19 @@ public interface LongTermAssetsApi {
       List<RentalTermCommand> terms) {}
 
   record RentalTermCommand(
-      CashFlowType type, BigDecimal amount, Frequency frequency, boolean paidByTenant) {}
+      CashFlowTypeModel type, BigDecimal amount, FrequencyModel frequency, boolean paidByTenant) {}
 
   record BondDetailsCommand(
       LocalDate maturityDate,
       BigDecimal taxRate,
-      InterestTreatment interestTreatment,
+      InterestTreatmentModel interestTreatment,
       BigDecimal redemptionValue) {}
 
   record DepositDetailsCommand(
       LocalDate maturityDate,
       BigDecimal annualInterestRate,
       BigDecimal taxRate,
-      InterestTreatment interestTreatment) {}
+      InterestTreatmentModel interestTreatment) {}
 
   record ValuationCommand(LocalDate validFrom, LocalDate validTo, BigDecimal growthRatePercent) {}
 
@@ -188,7 +188,7 @@ public interface LongTermAssetsApi {
       Long id,
       Long portfolioId,
       String name,
-      LongTermAssetType type,
+      LongTermAssetTypeModel type,
       CurrencyType currency,
       LocalDate acquisitionDate,
       BigDecimal acquisitionValue,
@@ -201,9 +201,9 @@ public interface LongTermAssetsApi {
   record FlowView(
       Long id,
       Long assetId,
-      CashFlowType type,
+      CashFlowTypeModel type,
       BigDecimal amount,
-      Frequency frequency,
+      FrequencyModel frequency,
       LocalDate validFrom,
       LocalDate validTo,
       boolean paidByTenant) {}
@@ -211,14 +211,14 @@ public interface LongTermAssetsApi {
   record BondDetailsView(
       LocalDate maturityDate,
       BigDecimal taxRate,
-      InterestTreatment interestTreatment,
+      InterestTreatmentModel interestTreatment,
       BigDecimal redemptionValue) {}
 
   record DepositDetailsView(
       LocalDate maturityDate,
       BigDecimal annualInterestRate,
       BigDecimal taxRate,
-      InterestTreatment interestTreatment) {}
+      InterestTreatmentModel interestTreatment) {}
 
   record ValuationView(
       LocalDate validFrom, LocalDate validTo, BigDecimal expectedAnnualGrowthRate) {}
@@ -252,7 +252,7 @@ public interface LongTermAssetsApi {
       BigDecimal netInterest,
       BigDecimal netYield,
       LocalDate maturityDate,
-      InterestTreatment interestTreatment) {}
+      InterestTreatmentModel interestTreatment) {}
 
   record RealEstateGroupPlanningView(
       BigDecimal totalPaymentMonthly,
@@ -263,7 +263,7 @@ public interface LongTermAssetsApi {
   record AssetSummaryView(
       Long id,
       String name,
-      LongTermAssetType type,
+      LongTermAssetTypeModel type,
       CurrencyType currency,
       BigDecimal currentValue,
       LocalDate maturityDate,
@@ -295,7 +295,7 @@ public interface LongTermAssetsApi {
       List<BondRateView> bondRatePeriods,
       List<FlowView> currentCashFlows,
       RentalPeriodView rentalPeriod,
-      List<CashFlowType> availableCashFlowTypes,
+      List<CashFlowTypeModel> availableCashFlowTypes,
       BigDecimal expectedPropertyGrowth,
       List<RentalContractView> contracts) {}
 
@@ -308,5 +308,5 @@ public interface LongTermAssetsApi {
       List<RentalTermView> terms) {}
 
   record RentalTermView(
-      CashFlowType type, BigDecimal amount, Frequency frequency, boolean paidByTenant) {}
+      CashFlowTypeModel type, BigDecimal amount, FrequencyModel frequency, boolean paidByTenant) {}
 }

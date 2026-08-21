@@ -2,6 +2,10 @@ package com.smartbox.investory.longterm.application.service;
 
 import com.smartbox.investory.longterm.api.*;
 import com.smartbox.investory.longterm.api.model.RealEstateEntryModel;
+import com.smartbox.investory.longterm.api.model.CashFlowTypeModel;
+import com.smartbox.investory.longterm.api.model.FrequencyModel;
+import com.smartbox.investory.longterm.api.model.InterestTreatmentModel;
+import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
 import com.smartbox.investory.longterm.application.model.AnnualEconomics;
 import com.smartbox.investory.longterm.application.model.BondPlanningSummary;
 import com.smartbox.investory.longterm.application.model.LongTermAssetSummary;
@@ -81,7 +85,7 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
                 command.value(),
                 command.acquisitionDate(),
                 command.maturityDate(),
-                command.interestTreatment(),
+                interest(command.interestTreatment()),
                 command.annualRatePercent(),
                 command.notes())));
   }
@@ -102,7 +106,7 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
             command.value(),
             command.acquisitionDate(),
             command.maturityDate(),
-            command.interestTreatment(),
+            interest(command.interestTreatment()),
             command.annualRatePercent(),
             command.notes()));
   }
@@ -180,7 +184,7 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
         new LongTermAssetsFacade.BondDetailsCommand(
             command.maturityDate(),
             command.taxRate(),
-            command.interestTreatment(),
+            interest(command.interestTreatment()),
             command.redemptionValue()));
   }
 
@@ -194,7 +198,7 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
             command.maturityDate(),
             command.annualInterestRate(),
             command.taxRate(),
-            command.interestTreatment()));
+            interest(command.interestTreatment())));
   }
 
   @Override
@@ -228,7 +232,7 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
         c.portfolioId(),
         c.id(),
         c.name(),
-        c.type(),
+        assetType(c.type()),
         c.currency(),
         c.acquisitionDate(),
         c.acquisitionValue(),
@@ -245,9 +249,9 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
         c.portfolioId(),
         c.assetId(),
         c.flowId(),
-        c.type(),
+        assetType(c.type()),
         c.amount(),
-        c.frequency(),
+        frequency(c.frequency()),
         c.validFrom(),
         c.validTo(),
         c.paidByTenant());
@@ -258,7 +262,7 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
         v.id(),
         v.portfolioId(),
         v.name(),
-        v.type(),
+        assetType(v.type()),
         v.currency(),
         v.acquisitionDate(),
         v.acquisitionValue(),
@@ -280,7 +284,7 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
         v.bondRatePeriods().stream().map(LongTermAssetsApplicationService::bondRate).toList(),
         v.currentCashFlows().stream().map(LongTermAssetsApplicationService::flow).toList(),
         new RentalPeriodView(v.rentalPeriod().effectiveFrom(), v.rentalPeriod().endDate()),
-        v.availableCashFlowTypes(),
+        v.availableCashFlowTypes().stream().map(LongTermAssetsApplicationService::cashFlowType).toList(),
         v.expectedPropertyGrowth(),
         v.contracts().stream()
             .map(
@@ -295,7 +299,7 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
                             .map(
                                 t ->
                                     new LongTermAssetsApi.RentalTermView(
-                                        t.type(), t.amount(), t.frequency(), t.paidByTenant()))
+                                        cashFlowType(t.type()), t.amount(), frequency(t.frequency()), t.paidByTenant()))
                             .toList()))
             .toList());
   }
@@ -311,7 +315,7 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
             .map(
                 t ->
                     new LongTermAssetsApi.RentalTermView(
-                        t.getType(), t.getAmount(), t.getFrequency(), t.isPaidByTenant()))
+                        cashFlowType(t.getType()), t.getAmount(), frequency(t.getFrequency()), t.isPaidByTenant()))
             .toList());
   }
 
@@ -319,7 +323,7 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
     return new AssetSummaryView(
         s.id(),
         s.name(),
-        s.type(),
+        assetType(s.type()),
         s.currency(),
         s.currentValue(),
         s.maturityDate(),
@@ -381,16 +385,16 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
         p.netInterest(),
         p.netYield(),
         p.maturityDate(),
-        p.interestTreatment());
+        interest(p.interestTreatment()));
   }
 
   private static LongTermAssetsApi.FlowView flow(LongTermAssetsFacade.FlowView f) {
     return new LongTermAssetsApi.FlowView(
         f.id(),
         f.assetId(),
-        f.type(),
+        cashFlowType(f.type()),
         f.amount(),
-        f.frequency(),
+        frequency(f.frequency()),
         f.validFrom(),
         f.validTo(),
         f.paidByTenant());
@@ -398,13 +402,13 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
 
   private static LongTermAssetsApi.BondDetailsView bond(LongTermAssetsFacade.BondDetailsView d) {
     return new LongTermAssetsApi.BondDetailsView(
-        d.maturityDate(), d.taxRate(), d.interestTreatment(), d.redemptionValue());
+        d.maturityDate(), d.taxRate(), interest(d.interestTreatment()), d.redemptionValue());
   }
 
   private static LongTermAssetsApi.DepositDetailsView deposit(
       LongTermAssetsFacade.DepositDetailsView d) {
     return new LongTermAssetsApi.DepositDetailsView(
-        d.maturityDate(), d.annualInterestRate(), d.taxRate(), d.interestTreatment());
+        d.maturityDate(), d.annualInterestRate(), d.taxRate(), interest(d.interestTreatment()));
   }
 
   private static LongTermAssetsApi.ValuationView valuation(LongTermAssetsFacade.ValuationView p) {
@@ -415,4 +419,13 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
   private static LongTermAssetsApi.BondRateView bondRate(LongTermAssetsFacade.BondRateView p) {
     return new LongTermAssetsApi.BondRateView(p.validFrom(), p.validTo(), p.annualInterestRate());
   }
+
+  private static com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType assetType(LongTermAssetTypeModel value) { return com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType.valueOf(value.name()); }
+  private static LongTermAssetTypeModel assetType(com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType value) { return LongTermAssetTypeModel.valueOf(value.name()); }
+  private static com.smartbox.investory.longterm.infrastructure.rental.CashFlowType cashFlowType(CashFlowTypeModel value) { return com.smartbox.investory.longterm.infrastructure.rental.CashFlowType.valueOf(value.name()); }
+  private static CashFlowTypeModel cashFlowType(com.smartbox.investory.longterm.infrastructure.rental.CashFlowType value) { return CashFlowTypeModel.valueOf(value.name()); }
+  private static com.smartbox.investory.longterm.infrastructure.rental.Frequency frequency(FrequencyModel value) { return com.smartbox.investory.longterm.infrastructure.rental.Frequency.valueOf(value.name()); }
+  private static FrequencyModel frequency(com.smartbox.investory.longterm.infrastructure.rental.Frequency value) { return FrequencyModel.valueOf(value.name()); }
+  private static com.smartbox.investory.longterm.infrastructure.InterestTreatment interest(InterestTreatmentModel value) { return com.smartbox.investory.longterm.infrastructure.InterestTreatment.valueOf(value.name()); }
+  private static InterestTreatmentModel interest(com.smartbox.investory.longterm.infrastructure.InterestTreatment value) { return InterestTreatmentModel.valueOf(value.name()); }
 }

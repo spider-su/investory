@@ -1,8 +1,5 @@
 package com.smartbox.investory.longterm.api.model;
 
-import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -18,27 +15,27 @@ import java.util.List;
 public record LongTermAssetProjectionModel(
     Long id,
     String name,
-    LongTermAssetType type,
+    LongTermAssetTypeModel type,
     CurrencyType currency,
     BigDecimal currentValue,
     List<Period> periods,
     List<RentalContractModel> rentalContracts,
     LocalDate maturityDate,
     BigDecimal redemptionValue,
-    InterestTreatment interestTreatment,
+    InterestTreatmentModel interestTreatment,
     BigDecimal taxRate,
     BigDecimal taxBase,
     boolean rentalTaxPaidByTenant) {
   public LongTermAssetProjectionModel(
       Long id,
       String name,
-      LongTermAssetType type,
+      LongTermAssetTypeModel type,
       CurrencyType currency,
       BigDecimal currentValue,
       List<Period> periods,
       LocalDate maturityDate,
       BigDecimal redemptionValue,
-      InterestTreatment interestTreatment,
+      InterestTreatmentModel interestTreatment,
       BigDecimal taxRate) {
     this(
         id,
@@ -50,7 +47,7 @@ public record LongTermAssetProjectionModel(
         List.of(),
         maturityDate,
         redemptionValue,
-        interestTreatment,
+        InterestTreatmentModel,
         taxRate,
         null,
         false);
@@ -67,7 +64,7 @@ public record LongTermAssetProjectionModel(
       BigDecimal annualIncome,
       BigDecimal annualExpense,
       BigDecimal annualReturnRate,
-      CashFlowType cashFlowType,
+      CashFlowTypeModel cashFlowType,
       boolean paidByTenant) {
     public Period(
         LocalDate validFrom,
@@ -84,21 +81,21 @@ public record LongTermAssetProjectionModel(
         BigDecimal annualIncome,
         BigDecimal annualExpense,
         BigDecimal annualReturnRate,
-        CashFlowType cashFlowType) {
-      this(validFrom, validTo, annualIncome, annualExpense, annualReturnRate, cashFlowType, false);
+        CashFlowTypeModel cashFlowType) {
+      this(validFrom, validTo, annualIncome, annualExpense, annualReturnRate, CashFlowTypeModel, false);
     }
   }
 
   public LongTermAssetProjectionModel(
       Long id,
       String name,
-      LongTermAssetType type,
+      LongTermAssetTypeModel type,
       CurrencyType currency,
       BigDecimal currentValue,
       List<Period> periods,
       LocalDate maturityDate,
       BigDecimal redemptionValue,
-      InterestTreatment interestTreatment,
+      InterestTreatmentModel interestTreatment,
       BigDecimal taxRate,
       BigDecimal taxBase) {
     this(
@@ -111,7 +108,7 @@ public record LongTermAssetProjectionModel(
         List.of(),
         maturityDate,
         redemptionValue,
-        interestTreatment,
+        InterestTreatmentModel,
         taxRate,
         taxBase,
         false);
@@ -120,13 +117,13 @@ public record LongTermAssetProjectionModel(
   public LongTermAssetProjectionModel(
       Long id,
       String name,
-      LongTermAssetType type,
+      LongTermAssetTypeModel type,
       CurrencyType currency,
       BigDecimal currentValue,
       List<Period> periods,
       LocalDate maturityDate,
       BigDecimal redemptionValue,
-      InterestTreatment interestTreatment,
+      InterestTreatmentModel interestTreatment,
       BigDecimal taxRate,
       BigDecimal taxBase,
       boolean rentalTaxPaidByTenant) {
@@ -140,7 +137,7 @@ public record LongTermAssetProjectionModel(
         List.of(),
         maturityDate,
         redemptionValue,
-        interestTreatment,
+        InterestTreatmentModel,
         taxRate,
         taxBase,
         rentalTaxPaidByTenant);

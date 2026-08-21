@@ -1,7 +1,5 @@
 package com.smartbox.investory.longterm.api.model;
 
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
-import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -22,5 +20,5 @@ public record RentalContractModel(
   }
 
   public record Term(
-      CashFlowType type, BigDecimal amount, Frequency frequency, boolean paidByTenant) {}
+      CashFlowTypeModel type, BigDecimal amount, FrequencyModel frequency, boolean paidByTenant) {}
 }

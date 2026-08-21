@@ -1,7 +1,5 @@
 package com.smartbox.investory.longterm.api.model;
 
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
-import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -21,17 +19,17 @@ public final class RentalIncomeProjectionModel {
 
   public static Result project(
       LongTermAssetProjectionModel asset,
-      Map<CashFlowType, BigDecimal> previousIncome,
+      Map<CashFlowTypeModel, BigDecimal> previousIncome,
       int year,
       BigDecimal growthRate) {
     if (asset.rentalContracts().isEmpty())
       return legacyProject(asset, previousIncome, year, growthRate);
     var contract = latestContract(asset, year);
     if (contract == null) return new Result(Map.of(), ZERO, ZERO, ZERO, ZERO);
-    EnumMap<CashFlowType, BigDecimal> income = new EnumMap<>(CashFlowType.class);
+    EnumMap<CashFlowTypeModel, BigDecimal> income = new EnumMap<>(CashFlowTypeModel.class);
     for (var term : contract.terms()) {
       if (!isIncome(term.type())) continue;
-      BigDecimal base = annual(term.amount(), term.frequency());
+      BigDecimal base = annual(term.amount(), term.FrequencyModel());
       BigDecimal prior = previousIncome.get(term.type());
       income.put(
           term.type(),
@@ -41,24 +39,24 @@ public final class RentalIncomeProjectionModel {
     BigDecimal expenses =
         contract.terms().stream()
             .filter(t -> isExpense(t.type()) && !t.paidByTenant())
-            .map(t -> annual(t.amount(), t.frequency()))
+            .map(t -> annual(t.amount(), t.FrequencyModel()))
             .reduce(ZERO, BigDecimal::add);
     return result(income, gross, expenses, tax(asset, contract));
   }
 
   private static Result legacyProject(
       LongTermAssetProjectionModel asset,
-      Map<CashFlowType, BigDecimal> previousIncome,
+      Map<CashFlowTypeModel, BigDecimal> previousIncome,
       int year,
       BigDecimal growthRate) {
-    EnumMap<CashFlowType, BigDecimal> income = new EnumMap<>(CashFlowType.class);
-    for (CashFlowType type :
-        new CashFlowType[] {
-          CashFlowType.RENT, CashFlowType.PARKING_RENT, CashFlowType.OTHER_INCOME
+    EnumMap<CashFlowTypeModel, BigDecimal> income = new EnumMap<>(CashFlowTypeModel.class);
+    for (CashFlowTypeModel type :
+        new CashFlowTypeModel[] {
+          CashFlowTypeModel.RENT, CashFlowTypeModel.PARKING_RENT, CashFlowTypeModel.OTHER_INCOME
         }) {
       var period =
           asset.periods().stream()
-              .filter(p -> p.cashFlowType() == type)
+              .filter(p -> p.CashFlowTypeModel() == type)
               .filter(p -> p.validFrom().getYear() <= year)
               .max(Comparator.comparing(LongTermAssetProjectionModel.Period::validFrom));
       if (period.isEmpty()) continue;
@@ -74,9 +72,9 @@ public final class RentalIncomeProjectionModel {
         asset.periods().stream()
             .filter(
                 p ->
-                    p.cashFlowType() != null
+                    p.CashFlowTypeModel() != null
                         && !p.paidByTenant()
-                        && (isExpense(p.cashFlowType()) || isIncome(p.cashFlowType())))
+                        && (isExpense(p.CashFlowTypeModel()) || isIncome(p.CashFlowTypeModel())))
             .map(LongTermAssetProjectionModel.Period::annualExpense)
             .reduce(ZERO, BigDecimal::add);
     BigDecimal gross = income.values().stream().reduce(ZERO, BigDecimal::add);
@@ -90,13 +88,13 @@ public final class RentalIncomeProjectionModel {
   /** Calculates covered rental economics. Rental tax is prorated by covered calendar days. */
   public static Result actualYear(LongTermAssetProjectionModel asset, int year) {
     if (asset.rentalContracts().isEmpty()) return legacyActualYear(asset, year);
-    EnumMap<CashFlowType, BigDecimal> income = new EnumMap<>(CashFlowType.class);
+    EnumMap<CashFlowTypeModel, BigDecimal> income = new EnumMap<>(CashFlowTypeModel.class);
     BigDecimal expenses = ZERO, tax = ZERO;
     for (var contract : asset.rentalContracts()) {
       BigDecimal covered = coverage(contract.startDate(), effectiveEnd(contract), year);
       if (covered.signum() == 0) continue;
       for (var term : contract.terms()) {
-        BigDecimal amount = annual(term.amount(), term.frequency()).multiply(covered);
+        BigDecimal amount = annual(term.amount(), term.FrequencyModel()).multiply(covered);
         if (isIncome(term.type())) income.merge(term.type(), amount, BigDecimal::add);
         if (isExpense(term.type()) && !term.paidByTenant()) expenses = expenses.add(amount);
       }
@@ -106,16 +104,16 @@ public final class RentalIncomeProjectionModel {
   }
 
   private static Result legacyActualYear(LongTermAssetProjectionModel asset, int year) {
-    EnumMap<CashFlowType, BigDecimal> income = new EnumMap<>(CashFlowType.class);
+    EnumMap<CashFlowTypeModel, BigDecimal> income = new EnumMap<>(CashFlowTypeModel.class);
     BigDecimal expenses = ZERO;
     for (var p : asset.periods()) {
       BigDecimal covered = coverage(p.validFrom(), p.validTo(), year);
-      if (covered.signum() == 0 || p.cashFlowType() == null) continue;
-      if (isIncome(p.cashFlowType()))
-        income.merge(p.cashFlowType(), p.annualIncome().multiply(covered), BigDecimal::add);
-      if (isIncome(p.cashFlowType()) && !p.paidByTenant())
+      if (covered.signum() == 0 || p.CashFlowTypeModel() == null) continue;
+      if (isIncome(p.CashFlowTypeModel()))
+        income.merge(p.CashFlowTypeModel(), p.annualIncome().multiply(covered), BigDecimal::add);
+      if (isIncome(p.CashFlowTypeModel()) && !p.paidByTenant())
         expenses = expenses.add(p.annualExpense().multiply(covered));
-      if (isExpense(p.cashFlowType()) && !p.paidByTenant())
+      if (isExpense(p.CashFlowTypeModel()) && !p.paidByTenant())
         expenses = expenses.add(p.annualExpense().multiply(covered));
     }
     BigDecimal gross = income.values().stream().reduce(ZERO, BigDecimal::add);
@@ -147,8 +145,8 @@ public final class RentalIncomeProjectionModel {
     return asset.taxRate() == null ? DEFAULT_TAX_RATE : asset.taxRate();
   }
 
-  private static BigDecimal annual(BigDecimal amount, Frequency frequency) {
-    return frequency == Frequency.MONTHLY ? amount.multiply(TWELVE) : amount;
+  private static BigDecimal annual(BigDecimal amount, FrequencyModel frequency) {
+    return FrequencyModel == FrequencyModel.MONTHLY ? amount.multiply(TWELVE) : amount;
   }
 
   private static BigDecimal coverage(LocalDate from, LocalDate to, int year) {
@@ -168,18 +166,18 @@ public final class RentalIncomeProjectionModel {
             : c.terminatedDate();
   }
 
-  private static boolean isIncome(CashFlowType t) {
-    return t == CashFlowType.RENT
-        || t == CashFlowType.PARKING_RENT
-        || t == CashFlowType.OTHER_INCOME;
+  private static boolean isIncome(CashFlowTypeModel t) {
+    return t == CashFlowTypeModel.RENT
+        || t == CashFlowTypeModel.PARKING_RENT
+        || t == CashFlowTypeModel.OTHER_INCOME;
   }
 
-  private static boolean isExpense(CashFlowType t) {
-    return t == CashFlowType.ADMIN_FEE
-        || t == CashFlowType.UTILITIES
-        || t == CashFlowType.INSURANCE
-        || t == CashFlowType.PROPERTY_TAX
-        || t == CashFlowType.OTHER_EXPENSE;
+  private static boolean isExpense(CashFlowTypeModel t) {
+    return t == CashFlowTypeModel.ADMIN_FEE
+        || t == CashFlowTypeModel.UTILITIES
+        || t == CashFlowTypeModel.INSURANCE
+        || t == CashFlowTypeModel.PROPERTY_TAX
+        || t == CashFlowTypeModel.OTHER_EXPENSE;
   }
 
   private static BigDecimal grow(BigDecimal value, BigDecimal rate) {
@@ -187,13 +185,13 @@ public final class RentalIncomeProjectionModel {
   }
 
   private static Result result(
-      Map<CashFlowType, BigDecimal> income, BigDecimal gross, BigDecimal expenses, BigDecimal tax) {
+      Map<CashFlowTypeModel, BigDecimal> income, BigDecimal gross, BigDecimal expenses, BigDecimal tax) {
     var e = RentalEconomicsModel.of(gross, expenses, tax);
     return new Result(income, e.grossIncome(), e.expenses(), e.tax(), e.netIncome());
   }
 
   public record Result(
-      Map<CashFlowType, BigDecimal> incomeByType,
+      Map<CashFlowTypeModel, BigDecimal> incomeByType,
       BigDecimal grossIncome,
       BigDecimal expenses,
       BigDecimal tax,
