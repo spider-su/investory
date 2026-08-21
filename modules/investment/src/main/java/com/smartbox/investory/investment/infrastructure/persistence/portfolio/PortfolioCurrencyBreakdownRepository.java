@@ -5,4 +5,4 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface PortfolioCurrencyBreakdownRepository
-    extends ReadOnlyRepository<PortfolioCurrencyBreakdown, PortfolioCurrencyBreakdownId> {}
+    extends ReadOnlyRepository<PortfolioCurrencyBreakdownEntity, PortfolioCurrencyBreakdownId> {}

@@ -16,15 +16,15 @@ class PlanningReconciliationServiceTest {
   void comparesSupportedHistoricalMarketMetricsAgainstCalendarYearPerformance() {
     PortfolioMonthlyPerformanceRepository repository =
         mock(PortfolioMonthlyPerformanceRepository.class);
-    List<PortfolioMonthlyPerformance> rows = new java.util.ArrayList<>();
+    List<PortfolioMonthlyPerformanceEntity> rows = new java.util.ArrayList<>();
     for (int month = 1; month <= 12; month++) {
-      PortfolioMonthlyPerformance row = mock(PortfolioMonthlyPerformance.class);
+      PortfolioMonthlyPerformanceEntity row = mock(PortfolioMonthlyPerformanceEntity.class);
       when(row.getMonth()).thenReturn(LocalDate.of(2025, month, 1));
       when(row.getReturnPctDecimal()).thenReturn(BigDecimal.ZERO);
       rows.add(row);
     }
-    PortfolioMonthlyPerformance january = rows.getFirst();
-    PortfolioMonthlyPerformance december = rows.getLast();
+    PortfolioMonthlyPerformanceEntity january = rows.getFirst();
+    PortfolioMonthlyPerformanceEntity december = rows.getLast();
     when(january.getDividendsDecimal()).thenReturn(new BigDecimal("2"));
     when(january.getInterestDecimal()).thenReturn(new BigDecimal("1"));
     when(january.getWithdrawalFlowDecimal()).thenReturn(new BigDecimal("4"));
@@ -88,7 +88,7 @@ class PlanningReconciliationServiceTest {
   void incompleteCalendarYearIsNotLabeledExact() {
     PortfolioMonthlyPerformanceRepository repository =
         mock(PortfolioMonthlyPerformanceRepository.class);
-    PortfolioMonthlyPerformance january = mock(PortfolioMonthlyPerformance.class);
+    PortfolioMonthlyPerformanceEntity january = mock(PortfolioMonthlyPerformanceEntity.class);
     when(january.getMonth()).thenReturn(LocalDate.of(2025, 1, 1));
     when(january.getEndEquityDecimal()).thenReturn(new BigDecimal("100"));
     when(repository.findByPortfolioIdAndMonthBetweenOrderByMonthAsc(anyLong(), any(), any()))

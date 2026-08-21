@@ -6,7 +6,7 @@ public final class PortfolioExpected {
 
   public record CashBalance(double startingCash, double endingCash, double externalCashFlow) {}
 
-  public record Position(
+  public record PositionEntity(
       double quantity,
       double marketPrice,
       double marketValue,

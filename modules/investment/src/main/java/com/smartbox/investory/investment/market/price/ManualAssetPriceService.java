@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.market.price;
 
-import com.smartbox.investory.investment.infrastructure.persistence.Asset;
+import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
 import com.smartbox.investory.investment.market.fx.CurrencyRateService;
@@ -32,19 +32,19 @@ public class ManualAssetPriceService {
   @Transactional
   public ManualAssetPrice updatePrice(String symbol, double marketPrice) {
     if (!StringUtils.hasText(symbol)) {
-      throw new IllegalArgumentException("Asset symbol is required");
+      throw new IllegalArgumentException("AssetEntity symbol is required");
     }
     if (!Double.isFinite(marketPrice) || marketPrice <= 0.0) {
       throw new IllegalArgumentException("Market price must be positive");
     }
 
-    Asset asset =
+    AssetEntity asset =
         assetRepository
             .findBySymbol(symbol)
-            .orElseThrow(() -> new IllegalArgumentException("Asset not found: " + symbol));
+            .orElseThrow(() -> new IllegalArgumentException("AssetEntity not found: " + symbol));
     if (Boolean.TRUE.equals(asset.getExcludeFromImport())) {
       throw new IllegalArgumentException(
-          "Asset is excluded from Investory calculations: " + symbol);
+          "AssetEntity is excluded from Investory calculations: " + symbol);
     }
 
     CurrencyType currency = asset.getCurrency() != null ? asset.getCurrency() : BASE_CURRENCY;

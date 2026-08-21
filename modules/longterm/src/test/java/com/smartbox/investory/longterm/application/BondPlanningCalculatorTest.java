@@ -1,8 +1,10 @@
 package com.smartbox.investory.longterm.application;
+import com.smartbox.investory.longterm.application.service.BondPlanningCalculator;
+import com.smartbox.investory.longterm.application.model.BondPlanningSummary;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.smartbox.investory.longterm.api.InterestTreatment;
+import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;

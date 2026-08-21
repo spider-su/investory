@@ -1,13 +1,13 @@
 package com.smartbox.investory.investment.reporting.dashboard.service;
 
-import com.smartbox.investory.investment.infrastructure.persistence.Asset;
+import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
 import java.util.Locale;
 
 /** Deterministic mapping from the existing asset type field to dashboard categories. */
 final class PortfolioAssetCategoryMapper {
   private PortfolioAssetCategoryMapper() {}
 
-  static String category(Asset asset) {
+  static String category(AssetEntity asset) {
     if (asset == null || asset.getAssetType() == null) return "Other";
     String type = asset.getAssetType().trim().toUpperCase(Locale.ROOT);
     return switch (type) {

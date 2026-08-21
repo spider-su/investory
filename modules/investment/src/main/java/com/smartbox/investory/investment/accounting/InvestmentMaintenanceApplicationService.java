@@ -46,7 +46,7 @@ public class InvestmentMaintenanceApplicationService implements InvestmentMainte
   public MaintenanceResult rebuildMonthly() {
     projections.recalculateAll();
     projections.refreshReconciliationViews();
-    return result("Account stats rebuilt");
+    return result("AccountEntity stats rebuilt");
   }
 
   @Override

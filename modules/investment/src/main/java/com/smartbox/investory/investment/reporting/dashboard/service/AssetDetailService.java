@@ -1,15 +1,15 @@
 package com.smartbox.investory.investment.reporting.dashboard.service;
 
 import com.smartbox.investory.investment.accounting.CashOperationType;
-import com.smartbox.investory.investment.infrastructure.persistence.Asset;
+import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.CashOperation;
+import com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.CashOperationRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPosition;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPositionRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPositionRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformance;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceRepository;
 import com.smartbox.investory.investment.market.price.YahooSymbolResolver;
 import java.time.ZonedDateTime;
@@ -41,7 +41,7 @@ public class AssetDetailService {
 
   public AssetDetailView findBySymbol(String rawSymbol, DashboardPeriod period) {
     String symbol = normalize(rawSymbol);
-    Asset asset =
+    AssetEntity asset =
         assetRepository
             .findBySymbol(symbol)
             .orElseThrow(() -> new AssetDetailNotFoundException(symbol));
@@ -60,10 +60,10 @@ public class AssetDetailService {
   }
 
   private AssetDetailView toView(
-      Asset asset,
+      AssetEntity asset,
       List<OpenedPosition> positions,
       List<ClosedPosition> closedPositions,
-      List<CashOperation> dividendOperations,
+      List<CashOperationEntity> dividendOperations,
       DashboardPeriod period,
       AssetPerformanceView performance) {
     List<AssetHoldingView> holdings = aggregateHoldings(asset, positions);
@@ -132,8 +132,8 @@ public class AssetDetailService {
         .toList();
   }
 
-  private List<CashOperation> filterDividendOperations(
-      List<CashOperation> operations, ZonedDateTime startDate) {
+  private List<CashOperationEntity> filterDividendOperations(
+      List<CashOperationEntity> operations, ZonedDateTime startDate) {
     if (startDate == null) {
       return operations;
     }
@@ -143,7 +143,7 @@ public class AssetDetailService {
         .toList();
   }
 
-  private AssetPerformanceView aggregatePerformance(List<SymbolPerformance> rows) {
+  private AssetPerformanceView aggregatePerformance(List<SymbolPerformanceEntity> rows) {
     if (rows.isEmpty()) {
       return null;
     }
@@ -156,13 +156,13 @@ public class AssetDetailService {
         rows.stream().mapToDouble(row -> safe(row.getCostBasis())).sum(),
         rows.stream().mapToDouble(row -> safe(row.getMarketValue())).sum(),
         rows.stream()
-            .map(SymbolPerformance::getUpdatedAt)
+            .map(SymbolPerformanceEntity::getUpdatedAt)
             .filter(value -> value != null)
             .max(ZonedDateTime::compareTo)
             .orElse(null));
   }
 
-  private List<AssetHoldingView> aggregateHoldings(Asset asset, List<OpenedPosition> positions) {
+  private List<AssetHoldingView> aggregateHoldings(AssetEntity asset, List<OpenedPosition> positions) {
     Map<Long, List<OpenedPosition>> byAccount =
         positions.stream().collect(Collectors.groupingBy(OpenedPosition::getAccount));
 
@@ -172,7 +172,7 @@ public class AssetDetailService {
         .toList();
   }
 
-  private AssetHoldingView toHolding(Asset asset, Long accountId, List<OpenedPosition> positions) {
+  private AssetHoldingView toHolding(AssetEntity asset, Long accountId, List<OpenedPosition> positions) {
     double quantity = positions.stream().mapToDouble(OpenedPosition::signedQuantity).sum();
     double absoluteQuantity =
         positions.stream().mapToDouble(position -> Math.abs(position.signedQuantity())).sum();
@@ -218,7 +218,7 @@ public class AssetDetailService {
         position.getBrokerSymbol());
   }
 
-  private AssetDividendView toDividend(CashOperation operation) {
+  private AssetDividendView toDividend(CashOperationEntity operation) {
     return new AssetDividendView(
         operation.getId(),
         operation.getAccount(),

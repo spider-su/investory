@@ -5,15 +5,15 @@ import com.smartbox.investory.investment.accounting.model.PositionType;
 import com.smartbox.investory.investment.imports.BrokerType;
 import com.smartbox.investory.investment.imports.ImportBatchStatus;
 import com.smartbox.investory.investment.imports.ImportSourceType;
-import com.smartbox.investory.investment.infrastructure.persistence.Asset;
-import com.smartbox.investory.investment.infrastructure.persistence.CashOperation;
+import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
+import com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPosition;
-import com.smartbox.investory.investment.infrastructure.persistence.CurrencyRate;
+import com.smartbox.investory.investment.infrastructure.persistence.CurrencyRateEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
-import com.smartbox.investory.investment.infrastructure.persistence.account.Account;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDaily;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatistics;
-import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistory;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyEntity;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsEntity;
+import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestData.AccountDefinition;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestData.AssetDefinition;
@@ -75,7 +75,7 @@ public final class PortfolioBuilders {
   }
 
   public static final class AccountBuilder {
-    private final Account account = new Account();
+    private final AccountEntity account = new AccountEntity();
 
     private AccountBuilder(AccountDefinition definition) {
       account.setId(definition.id());
@@ -88,7 +88,7 @@ public final class PortfolioBuilders {
       return this;
     }
 
-    public Account build() {
+    public AccountEntity build() {
       require(account.getId() != null, "account id is required");
       require(account.getCurrency() != null, "account currency is required");
       return account;
@@ -96,11 +96,11 @@ public final class PortfolioBuilders {
   }
 
   public static final class AssetBuilder {
-    private final Asset asset;
+    private final AssetEntity asset;
 
     private AssetBuilder(AssetDefinition definition) {
       asset =
-          Asset.builder()
+          AssetEntity.builder()
               .name(definition.symbol())
               .symbol(definition.symbol())
               .ticker(definition.ticker())
@@ -131,7 +131,7 @@ public final class PortfolioBuilders {
       return this;
     }
 
-    public Asset build() {
+    public AssetEntity build() {
       requireText(asset.getSymbol(), "asset symbol is required");
       requireText(asset.getTicker(), "asset ticker is required");
       require(asset.getCurrency() != null, "asset currency is required");
@@ -226,11 +226,11 @@ public final class PortfolioBuilders {
       return this;
     }
 
-    public CashOperation build() {
+    public CashOperationEntity build() {
       require(account != null, "cash operation account is required");
       require(type != null, "cash operation type is required");
       require(currency != null, "cash operation currency is required");
-      CashOperation operation = new CashOperation();
+      CashOperationEntity operation = new CashOperationEntity();
       operation.setId(id);
       operation.setAccount(account);
       operation.setType(type);
@@ -404,7 +404,7 @@ public final class PortfolioBuilders {
   }
 
   public static final class AccountDailyBuilder {
-    private final AccountDaily daily = new AccountDaily();
+    private final AccountDailyEntity daily = new AccountDailyEntity();
 
     private AccountDailyBuilder() {
       daily.setId(1L);
@@ -476,7 +476,7 @@ public final class PortfolioBuilders {
       return this;
     }
 
-    public AccountDaily build() {
+    public AccountDailyEntity build() {
       require(daily.getAccountId() != null, "account daily account id is required");
       require(daily.getDate() != null, "account daily date is required");
       return daily;
@@ -505,8 +505,8 @@ public final class PortfolioBuilders {
       return this;
     }
 
-    public CurrencyRate build() {
-      CurrencyRate currencyRate = new CurrencyRate();
+    public CurrencyRateEntity build() {
+      CurrencyRateEntity currencyRate = new CurrencyRateEntity();
       currencyRate.setRateDate(monthStart);
       currencyRate.setBase(base);
       currencyRate.setToCurrency(toCurrency);
@@ -516,7 +516,7 @@ public final class PortfolioBuilders {
   }
 
   public static final class AccountStatisticsBuilder {
-    private final AccountStatistics statistics = new AccountStatistics();
+    private final AccountStatisticsEntity statistics = new AccountStatisticsEntity();
 
     private AccountStatisticsBuilder() {
       statistics.setAccountId(PortfolioTestData.IBKR_USD_ACCOUNT_ID);
@@ -570,13 +570,13 @@ public final class PortfolioBuilders {
       return this;
     }
 
-    public AccountStatistics build() {
+    public AccountStatisticsEntity build() {
       return statistics;
     }
   }
 
   public static final class ImportHistoryBuilder {
-    private final ImportHistory history = new ImportHistory();
+    private final ImportHistoryEntity history = new ImportHistoryEntity();
 
     private ImportHistoryBuilder() {
       history.setId(1L);
@@ -609,7 +609,7 @@ public final class PortfolioBuilders {
       return this;
     }
 
-    public ImportHistory build() {
+    public ImportHistoryEntity build() {
       return history;
     }
   }

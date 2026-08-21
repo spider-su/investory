@@ -16,19 +16,19 @@ public class AccountRepositoryImpl implements AccountRepositoryCustom {
   private final EntityManager entityManager;
 
   @Override
-  public Map<Long, Account> findMapByIdIn(Collection<Long> ids) {
+  public Map<Long, AccountEntity> findMapByIdIn(Collection<Long> ids) {
     if (CollectionUtils.isEmpty(ids)) {
       return Map.of();
     }
     return entityManager
-        .createQuery("select a from Account a where a.id in :ids order by a.id", Account.class)
+        .createQuery("select a from AccountEntity a where a.id in :ids order by a.id", AccountEntity.class)
         .setParameter("ids", ids)
         .getResultList()
         .stream()
         .filter(account -> account.getId() != null)
         .collect(
             Collectors.toMap(
-                Account::getId,
+                AccountEntity::getId,
                 account -> account,
                 (existing, replacement) -> existing,
                 LinkedHashMap::new));

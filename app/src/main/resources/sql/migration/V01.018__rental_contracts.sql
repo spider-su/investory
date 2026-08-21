@@ -6,6 +6,7 @@ CREATE TABLE investory.long_term_asset_rental_contracts (
     start_date date NOT NULL,
     end_date date,
     terminated_date date,
+    rental_tax_paid_by_tenant boolean,
     notes text,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
@@ -74,7 +75,7 @@ WITH term_totals AS (
                 WHEN c.terminated_date IS NULL THEN c.end_date
                 ELSE LEAST(c.end_date, c.terminated_date) END AS valid_to,
            a.current_value, a.tax_base,
-           a.rental_tax_paid_by_tenant, a.portfolio_id,
+           COALESCE(c.rental_tax_paid_by_tenant, a.rental_tax_paid_by_tenant) AS rental_tax_paid_by_tenant, a.portfolio_id,
            COALESCE(SUM(CASE WHEN t.cash_flow_type IN ('RENT','PARKING_RENT','OTHER_INCOME')
                     THEN CASE WHEN t.frequency = 'MONTHLY' THEN t.amount * 12 ELSE t.amount END ELSE 0 END), 0) AS gross_rental_income,
            COALESCE(SUM(CASE WHEN t.cash_flow_type IN ('ADMIN_FEE','UTILITIES','PROPERTY_TAX','INSURANCE','OTHER_EXPENSE') AND NOT t.paid_by_tenant
@@ -84,8 +85,8 @@ WITH term_totals AS (
     FROM investory.long_term_asset_rental_contracts c
     JOIN investory.long_term_assets a ON a.id = c.asset_id
     LEFT JOIN investory.long_term_asset_rental_contract_terms t ON t.contract_id = c.id
-    GROUP BY c.id, c.asset_id, c.start_date, c.end_date, c.terminated_date, a.current_value, a.tax_base,
-             a.rental_tax_paid_by_tenant, a.portfolio_id
+    GROUP BY c.id, c.asset_id, c.start_date, c.end_date, c.terminated_date, c.rental_tax_paid_by_tenant,
+             a.current_value, a.tax_base, a.rental_tax_paid_by_tenant, a.portfolio_id
 )
 SELECT e.*, COALESCE(p.rate, 0.085) AS rental_tax_rate,
        CASE WHEN e.rental_tax_paid_by_tenant THEN 0

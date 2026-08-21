@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.accounting;
 
-import com.smartbox.investory.investment.infrastructure.persistence.CashOperation;
+import com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.ArrayDeque;
@@ -40,7 +40,7 @@ public class CashOperationNormalizer {
       Pattern.compile(
           "(?i)(commission\\s+refund|commission\\s+adj|sec\\s*fee\\s*adj|sec\\s*fee\\s*adjustment|fee\\s+refund)");
 
-  public List<NormalizedCashOperation> normalize(List<CashOperation> operations) {
+  public List<NormalizedCashOperation> normalize(List<CashOperationEntity> operations) {
     List<MutableNormalized> normalized = new ArrayList<>();
     for (int index = 0; index < operations.size(); index++) {
       normalized.add(classifyBase(index, operations.get(index)));
@@ -54,7 +54,7 @@ public class CashOperationNormalizer {
         .toList();
   }
 
-  private MutableNormalized classifyBase(int index, CashOperation operation) {
+  private MutableNormalized classifyBase(int index, CashOperationEntity operation) {
     CashOperationType rawType = operation.getType();
     String comment = normalizedComment(operation.getComment());
     double amount = nz(operation.getAmount());
@@ -678,7 +678,7 @@ public class CashOperationNormalizer {
     return Math.round(rate * 1_000_000d);
   }
 
-  private static String stableGroupId(String prefix, CashOperation left, CashOperation right) {
+  private static String stableGroupId(String prefix, CashOperationEntity left, CashOperationEntity right) {
     long leftId = opId(left);
     long rightId = opId(right);
     long low = Math.min(leftId, rightId);
@@ -686,7 +686,7 @@ public class CashOperationNormalizer {
     return prefix + ":" + low + ":" + high;
   }
 
-  private static long opId(CashOperation operation) {
+  private static long opId(CashOperationEntity operation) {
     return operation.getId() != null ? operation.getId() : System.identityHashCode(operation);
   }
 
@@ -709,7 +709,7 @@ public class CashOperationNormalizer {
 
   private static final class MutableNormalized {
     private final int index;
-    private final CashOperation operation;
+    private final CashOperationEntity operation;
     private final NormalizedCategory category;
     private final String subtype;
     private final EconomicDirection direction;
@@ -725,7 +725,7 @@ public class CashOperationNormalizer {
 
     private MutableNormalized(
         int index,
-        CashOperation operation,
+        CashOperationEntity operation,
         NormalizedCategory category,
         String subtype,
         EconomicDirection direction,
@@ -752,7 +752,7 @@ public class CashOperationNormalizer {
 
     private static MutableNormalized of(
         int index,
-        CashOperation operation,
+        CashOperationEntity operation,
         NormalizedCategory category,
         String subtype,
         EconomicDirection direction,
@@ -803,7 +803,7 @@ public class CashOperationNormalizer {
   }
 
   public record NormalizedCashOperation(
-      CashOperation operation,
+      CashOperationEntity operation,
       String rawOperation,
       NormalizedCategory normalizedCategory,
       String normalizedSubtype,

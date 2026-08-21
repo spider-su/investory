@@ -7,19 +7,19 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface ImportRepository extends JpaRepository<ImportHistory, Long> {
-  Optional<ImportHistory> findFirstByBrokerAndFileSha256AndStatusOrderByAttemptNoDesc(
+public interface ImportRepository extends JpaRepository<ImportHistoryEntity, Long> {
+  Optional<ImportHistoryEntity> findFirstByBrokerAndFileSha256AndStatusOrderByAttemptNoDesc(
       BrokerType broker, String fileSha256, ImportBatchStatus status);
 
-  Optional<ImportHistory> findFirstByBrokerAndFileSha256OrderByAttemptNoDesc(
+  Optional<ImportHistoryEntity> findFirstByBrokerAndFileSha256OrderByAttemptNoDesc(
       BrokerType broker, String fileSha256);
 
-  Optional<ImportHistory> findFirstByOrderByIdDesc();
+  Optional<ImportHistoryEntity> findFirstByOrderByIdDesc();
 
-  Optional<ImportHistory> findFirstByStatusOrderByFinishedAtDesc(ImportBatchStatus status);
+  Optional<ImportHistoryEntity> findFirstByStatusOrderByFinishedAtDesc(ImportBatchStatus status);
 
   @SuppressWarnings("deprecation")
-  default ImportHistory getById(Long id) {
+  default ImportHistoryEntity getById(Long id) {
     return findById(id).orElseThrow(() -> new IllegalStateException("Import batch missing: " + id));
   }
 }

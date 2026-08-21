@@ -1,7 +1,7 @@
 package com.smartbox.investory.investment.accounting;
 
-import com.smartbox.investory.investment.infrastructure.persistence.CashOperation;
-import com.smartbox.investory.investment.infrastructure.persistence.account.Account;
+import com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.Collection;
 import java.util.HashMap;
@@ -20,7 +20,7 @@ public final class XtbAccountFundingCalculator {
   }
 
   public Map<Long, Double> calculate(
-      Collection<CashOperation> operations, Map<Long, Account> accountsById) {
+      Collection<CashOperationEntity> operations, Map<Long, AccountEntity> accountsById) {
     if (operations == null || operations.isEmpty() || accountsById.isEmpty()) {
       return Map.of();
     }
@@ -28,9 +28,9 @@ public final class XtbAccountFundingCalculator {
     Map<Long, Double> effects = new HashMap<>();
     for (CashOperationNormalizer.NormalizedCashOperation row :
         normalizer.normalize(List.copyOf(operations))) {
-      CashOperation operation = row.operation();
+      CashOperationEntity operation = row.operation();
       Long accountId = operation.getAccount();
-      Account account = accountsById.get(accountId);
+      AccountEntity account = accountsById.get(accountId);
       if (!isEligible(account)
           || operation.getType() == null
           || operation.getType() != CashOperationType.SUBACCOUNT_TRANSFER
@@ -53,7 +53,7 @@ public final class XtbAccountFundingCalculator {
     return effects;
   }
 
-  private static boolean isEligible(Account account) {
+  private static boolean isEligible(AccountEntity account) {
     return account != null
         && "XTB".equalsIgnoreCase(account.getProvider())
         && account.getCurrency() == CurrencyType.USD;

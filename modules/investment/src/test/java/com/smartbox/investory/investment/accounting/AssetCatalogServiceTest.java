@@ -8,7 +8,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.infrastructure.persistence.Asset;
+import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.List;
@@ -95,7 +95,7 @@ class AssetCatalogServiceTest {
   @Test
   void mapIbkrSymbolToCanonicalUsesExactCanonicalSymbol() {
     AssetCatalogService service = new AssetCatalogService(assetRepository);
-    Asset pg = asset("PG.US", "PG");
+    AssetEntity pg = asset("PG.US", "PG");
     when(assetRepository.findAllByIbkrIgnoreCase("PG.US")).thenReturn(List.of());
     when(assetRepository.findBySymbol("PG.US")).thenReturn(Optional.of(pg));
 
@@ -141,8 +141,8 @@ class AssetCatalogServiceTest {
     assertEquals(CurrencyType.PLN, service.seedForSymbol("CDR.PL", CurrencyType.USD).currency());
   }
 
-  private static Asset asset(String symbol, String ticker) {
-    return Asset.builder()
+  private static AssetEntity asset(String symbol, String ticker) {
+    return AssetEntity.builder()
         .symbol(symbol)
         .ticker(ticker)
         .currency(CurrencyType.USD)

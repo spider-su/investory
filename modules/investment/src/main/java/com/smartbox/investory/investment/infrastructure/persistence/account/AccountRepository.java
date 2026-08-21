@@ -8,11 +8,11 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface AccountRepository extends JpaRepository<Account, Long>, AccountRepositoryCustom {
+public interface AccountRepository extends JpaRepository<AccountEntity, Long>, AccountRepositoryCustom {
 
-  List<Account> findAllByProviderIgnoreCase(String provider);
+  List<AccountEntity> findAllByProviderIgnoreCase(String provider);
 
-  java.util.Optional<Account> findByProviderIgnoreCaseAndExternalAccountId(
+  java.util.Optional<AccountEntity> findByProviderIgnoreCaseAndExternalAccountId(
       String provider, String externalAccountId);
 
   @Query(

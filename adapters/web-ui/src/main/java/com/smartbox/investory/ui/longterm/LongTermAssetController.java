@@ -1,7 +1,12 @@
 package com.smartbox.investory.ui.longterm;
+import com.smartbox.investory.longterm.application.model.AnnualEconomics;
+import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 
 import com.smartbox.investory.longterm.api.*;
-import com.smartbox.investory.longterm.api.RealEstateEntry;
+import com.smartbox.investory.longterm.api.model.RealEstateEntryModel;
+import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
+import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
+import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.shared.presentation.FinancialPresentation;
 import java.math.BigDecimal;
@@ -28,10 +33,10 @@ public class LongTermAssetController {
     model.addAttribute("assets", assets.list(portfolioId, date));
     model.addAttribute("groups", groups);
     model.addAttribute("total", total);
-    model.addAttribute("longTermHeaderTotal", total.totalCurrentValueWholeDisplay());
-    model.addAttribute("longTermHeaderIncome", total.netAnnualIncomeWholeDisplay());
-    model.addAttribute("longTermHeaderYield", total.netYieldWithLabelDisplay());
-    model.addAttribute("longTermHeaderMonthly", total.monthlyNetIncomeWholeDisplay());
+    model.addAttribute("longTermHeaderTotal", FinancialPresentation.wholeNumber(total.totalCurrentValue()));
+    model.addAttribute("longTermHeaderIncome", FinancialPresentation.wholeNumber(total.annualEconomics().netAnnualIncomeAfterTax()));
+    model.addAttribute("longTermHeaderYield", FinancialPresentation.percentage(total.annualEconomics().netYieldAfterTax()) + " net yield");
+    model.addAttribute("longTermHeaderMonthly", FinancialPresentation.wholeNumber(total.annualEconomics().netAnnualIncomeAfterTax().divide(BigDecimal.valueOf(12), 2, java.math.RoundingMode.HALF_UP)));
     model.addAttribute(
         "longTermGrossIncome",
         FinancialPresentation.wholeNumber(total.annualEconomics().grossAnnualIncome()));
@@ -40,7 +45,7 @@ public class LongTermAssetController {
         FinancialPresentation.wholeNumber(
             total.annualEconomics().annualExpenses().add(total.annualEconomics().annualTax())));
     model.addAttribute(
-        "longTermGrossYield", FinancialPresentation.percentage(total.weightedGrossYield()));
+        "longTermGrossYield", FinancialPresentation.percentage(total.annualEconomics().grossYield()));
     groups.stream()
         .max(java.util.Comparator.comparing(g -> g.totalValue()))
         .ifPresent(
@@ -49,7 +54,7 @@ public class LongTermAssetController {
               model.addAttribute(
                   "longTermLargestClassValue", FinancialPresentation.wholeNumber(g.totalValue()));
               model.addAttribute(
-                  "longTermLargestClassShare", g.shareDisplay(total.totalCurrentValue()));
+                  "longTermLargestClassShare", share(g.totalValue(), total.totalCurrentValue()));
             });
     return "long-term-assets";
   }
@@ -141,11 +146,11 @@ public class LongTermAssetController {
   @PostMapping("/long-term-assets/real-estate")
   public String saveRealEstate(
       @RequestParam Long portfolioId,
-      @ModelAttribute RealEstateEntry entry,
+      @ModelAttribute RealEstateEntryModel entry,
       @RequestParam(name = "expectedAnnualGrowthRatePercent", required = false) BigDecimal growth) {
     assets.saveRealEstate(
         portfolioId,
-        new RealEstateEntry(
+        new RealEstateEntryModel(
             entry.name(),
             entry.currency(),
             entry.acquisitionDate(),
@@ -164,6 +169,55 @@ public class LongTermAssetController {
     return "redirect:/long-term-assets?portfolioId=" + portfolioId;
   }
 
+  private static String share(BigDecimal value, BigDecimal total) {
+    return total == null || total.signum() == 0 ? "0.0%" : FinancialPresentation.percentage(value.divide(total, 8, java.math.RoundingMode.HALF_UP));
+  }
+
+  @PostMapping("/long-term-assets/{id}/rental-contracts")
+  public String addRentalContract(
+      @PathVariable Long id,
+      @RequestParam Long portfolioId,
+      @RequestParam LocalDate startDate,
+      @RequestParam(required = false) LocalDate endDate,
+      @RequestParam(required = false) Boolean rentalTaxPaidByTenant,
+      @RequestParam(required = false) BigDecimal rent,
+      @RequestParam(required = false) BigDecimal parkingRent,
+      @RequestParam(required = false) BigDecimal administrationFee,
+      @RequestParam(required = false) BigDecimal utilities,
+      @RequestParam(required = false) BigDecimal otherIncome,
+      @RequestParam(required = false) BigDecimal otherExpense) {
+    assets.createRentalContract(new LongTermAssetsApi.RentalContractCommand(
+        portfolioId, id, startDate, endDate, rentalTaxPaidByTenant,
+        java.util.List.of(
+            new LongTermAssetsApi.RentalTermCommand(CashFlowType.RENT, zero(rent), Frequency.MONTHLY, false),
+            new LongTermAssetsApi.RentalTermCommand(CashFlowType.PARKING_RENT, zero(parkingRent), Frequency.MONTHLY, false),
+            new LongTermAssetsApi.RentalTermCommand(CashFlowType.ADMIN_FEE, zero(administrationFee), Frequency.MONTHLY, true),
+            new LongTermAssetsApi.RentalTermCommand(CashFlowType.UTILITIES, zero(utilities), Frequency.MONTHLY, true),
+            new LongTermAssetsApi.RentalTermCommand(CashFlowType.OTHER_INCOME, zero(otherIncome), Frequency.MONTHLY, false),
+            new LongTermAssetsApi.RentalTermCommand(CashFlowType.OTHER_EXPENSE, zero(otherExpense), Frequency.MONTHLY, false))));
+    return redirect(id, portfolioId);
+  }
+
+  @PostMapping("/long-term-assets/{id}/rental-contracts/{contractId}/end")
+  public String endRentalContract(
+      @PathVariable Long id, @PathVariable Long contractId, @RequestParam Long portfolioId,
+      @RequestParam LocalDate endDate) {
+    assets.endRentalContract(portfolioId, id, contractId, endDate);
+    return redirect(id, portfolioId);
+  }
+
+  @PostMapping("/long-term-assets/{id}/rental-contracts/{contractId}/terminate")
+  public String terminateRentalContract(
+      @PathVariable Long id, @PathVariable Long contractId, @RequestParam Long portfolioId,
+      @RequestParam LocalDate terminationDate) {
+    assets.terminateRentalContract(portfolioId, id, contractId, terminationDate);
+    return redirect(id, portfolioId);
+  }
+
+  private static BigDecimal zero(BigDecimal value) {
+    return value == null ? BigDecimal.ZERO : value;
+  }
+
   @GetMapping("/long-term-assets/{id}")
   public String detail(
       @PathVariable Long id, @RequestParam(defaultValue = "1") Long portfolioId, Model model) {
@@ -171,15 +225,11 @@ public class LongTermAssetController {
     model.addAttribute("asset", view.asset());
     model.addAttribute("portfolioId", portfolioId);
     model.addAttribute("summary", view.summary());
-    model.addAttribute("cashFlows", view.cashFlows());
     model.addAttribute("contracts", view.contracts());
     model.addAttribute("bondDetails", view.bondDetails());
     model.addAttribute("depositDetails", view.depositDetails());
     model.addAttribute("valuationPeriods", view.valuationPeriods());
     model.addAttribute("bondRatePeriods", view.bondRatePeriods());
-    model.addAttribute("currentCashFlows", view.currentCashFlows());
-    model.addAttribute("rentalPeriod", view.rentalPeriod());
-    model.addAttribute("availableCashFlowTypes", view.availableCashFlowTypes());
     model.addAttribute("expectedPropertyGrowth", view.expectedPropertyGrowth());
     model.addAttribute(
         "legacyBondValueDifference",
@@ -199,22 +249,8 @@ public class LongTermAssetController {
       @PathVariable Long id,
       @ModelAttribute AssetForm form,
       @RequestParam Long portfolioId,
-      @RequestParam(required = false) LocalDate effectiveFrom,
-      @RequestParam(required = false) LocalDate endDate,
-      @RequestParam(required = false) BigDecimal taxBase,
-      RedirectAttributes redirectAttributes) {
+      @RequestParam(required = false) BigDecimal taxBase) {
     assets.update(form.command(portfolioId, id, taxBase));
-    if (form.getType() == LongTermAssetType.REAL_ESTATE && effectiveFrom != null) {
-      try {
-        assets.saveRentalPeriod(portfolioId, id, effectiveFrom, endDate, LocalDate.now(clock));
-      } catch (IllegalArgumentException exception) {
-        String message =
-            "Overlapping cash-flow period".equals(exception.getMessage())
-                ? "Rental period overlaps an existing cash-flow period."
-                : exception.getMessage();
-        redirectAttributes.addFlashAttribute("rentalPeriodError", message);
-      }
-    }
     return redirect(id, portfolioId);
   }
 

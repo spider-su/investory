@@ -9,9 +9,9 @@ import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.infrastructure.integration.IntegrationType;
 import com.smartbox.investory.investment.infrastructure.integration.config.IntegrationConfigurationService;
-import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationInstance;
+import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationInstanceEntity;
 import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationInstanceRepository;
-import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationJob;
+import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationJobEntity;
 import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationJobRepository;
 import com.smartbox.investory.investment.market.fx.CurrencyRateUpdaterService;
 import com.smartbox.investory.investment.market.price.MarketService;
@@ -33,8 +33,8 @@ class IntegrationJobSchedulerTest {
 
   @Test
   void skipsDisabledInstanceAndInvalidCronWithoutTakingLock() {
-    IntegrationJob disabled = job("0 0 * * * *", "Europe/Warsaw");
-    IntegrationInstance instance = instance(IntegrationType.MARKET_DATA, false);
+    IntegrationJobEntity disabled = job("0 0 * * * *", "Europe/Warsaw");
+    IntegrationInstanceEntity instance = instance(IntegrationType.MARKET_DATA, false);
     when(jobs.findByEnabledTrue()).thenReturn(List.of(disabled));
     when(instances.findById(anyLong())).thenReturn(Optional.of(instance));
 
@@ -46,8 +46,8 @@ class IntegrationJobSchedulerTest {
 
   @Test
   void runsDueMarketJobAndRecordsSuccess() {
-    IntegrationJob job = job("* * * * * *", "Europe/Warsaw");
-    IntegrationInstance instance = instance(IntegrationType.MARKET_DATA, true);
+    IntegrationJobEntity job = job("* * * * * *", "Europe/Warsaw");
+    IntegrationInstanceEntity instance = instance(IntegrationType.MARKET_DATA, true);
     when(jobs.findByEnabledTrue()).thenReturn(List.of(job));
     when(instances.findById(anyLong())).thenReturn(Optional.of(instance));
     when(jdbc.queryForObject(eq("select pg_try_advisory_lock(?)"), eq(Boolean.class), anyLong()))
@@ -62,8 +62,8 @@ class IntegrationJobSchedulerTest {
     org.assertj.core.api.Assertions.assertThat(job.getLastStatus()).isEqualTo("SUCCESS");
   }
 
-  private IntegrationJob job(String cron, String timezone) {
-    IntegrationJob job = new IntegrationJob();
+  private IntegrationJobEntity job(String cron, String timezone) {
+    IntegrationJobEntity job = new IntegrationJobEntity();
     job.setId(2L);
     job.setIntegrationInstanceId(3L);
     job.setJobType("refresh-prices");
@@ -73,8 +73,8 @@ class IntegrationJobSchedulerTest {
     return job;
   }
 
-  private IntegrationInstance instance(IntegrationType type, boolean enabled) {
-    IntegrationInstance instance = new IntegrationInstance();
+  private IntegrationInstanceEntity instance(IntegrationType type, boolean enabled) {
+    IntegrationInstanceEntity instance = new IntegrationInstanceEntity();
     instance.setId(3L);
     instance.setPluginType(type);
     instance.setEnabled(enabled);

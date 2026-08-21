@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
-public interface AssetPriceChartRepository extends Repository<Asset, Long> {
+public interface AssetPriceChartRepository extends Repository<AssetEntity, Long> {
 
   @Query(
       value =

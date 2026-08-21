@@ -5,6 +5,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface PortfolioAssetAllocationRepository
-    extends ReadOnlyRepository<PortfolioAssetAllocation, PortfolioAssetAllocationId> {
-  java.util.List<PortfolioAssetAllocation> findAllByPortfolioId(Long portfolioId);
+    extends ReadOnlyRepository<PortfolioAssetAllocationEntity, PortfolioAssetAllocationId> {
+  java.util.List<PortfolioAssetAllocationEntity> findAllByPortfolioId(Long portfolioId);
 }

@@ -3,8 +3,8 @@ package com.smartbox.investory.investment.infrastructure.integration.persistence
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface IntegrationJobRepository extends JpaRepository<IntegrationJob, Long> {
-  List<IntegrationJob> findByEnabledTrue();
+public interface IntegrationJobRepository extends JpaRepository<IntegrationJobEntity, Long> {
+  List<IntegrationJobEntity> findByEnabledTrue();
 
-  List<IntegrationJob> findByIntegrationInstanceId(Long integrationInstanceId);
+  List<IntegrationJobEntity> findByIntegrationInstanceId(Long integrationInstanceId);
 }

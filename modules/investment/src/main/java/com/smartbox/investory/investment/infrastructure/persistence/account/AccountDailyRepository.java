@@ -11,20 +11,20 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Repository
-public interface AccountDailyRepository extends JpaRepository<AccountDaily, Long> {
+public interface AccountDailyRepository extends JpaRepository<AccountDailyEntity, Long> {
 
-  List<AccountDaily> findAllByOrderByDateAscAccountIdAsc();
+  List<AccountDailyEntity> findAllByOrderByDateAscAccountIdAsc();
 
-  List<AccountDaily> findAllByAccountIdOrderByDateAsc(Long accountId);
+  List<AccountDailyEntity> findAllByAccountIdOrderByDateAsc(Long accountId);
 
   @Modifying
-  @Query("DELETE FROM AccountDaily")
+  @Query("DELETE FROM AccountDailyEntity")
   void deleteAllRows();
 
   @Modifying
   @Query(
       """
-      DELETE FROM AccountDaily row
+      DELETE FROM AccountDailyEntity row
       WHERE row.accountId = :accountId AND row.date >= :date
       """)
   void deleteByAccountIdAndDateGreaterThanEqual(

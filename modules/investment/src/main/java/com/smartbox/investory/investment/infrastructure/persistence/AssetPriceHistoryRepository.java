@@ -9,7 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
-public interface AssetPriceHistoryRepository extends Repository<Asset, Long> {
+public interface AssetPriceHistoryRepository extends Repository<AssetEntity, Long> {
 
   @Query(
       value =

@@ -1,10 +1,14 @@
 package com.smartbox.investory.ui.longterm;
+import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import com.smartbox.investory.longterm.api.*;
+import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
+import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
+import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import com.smartbox.investory.longterm.api.LongTermAssetsApi;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -74,37 +78,10 @@ class LongTermAssetControllerTest {
     form.setType(LongTermAssetType.REAL_ESTATE);
     form.setCurrentValue(new BigDecimal("780000"));
     controller.update(
-        7L, form, 1L, null, null, new BigDecimal("1800"), new RedirectAttributesModelMap());
+        7L, form, 1L, new BigDecimal("1800"));
     var command = ArgumentCaptor.forClass(LongTermAssetsApi.AssetCommand.class);
     verify(assets).update(command.capture());
     assertEquals(new BigDecimal("1800"), command.getValue().taxBase());
-  }
-
-  @Test
-  void rentalPeriodOverlapIsReturnedAsFormError() {
-    LongTermAssetController.AssetForm form = new LongTermAssetController.AssetForm();
-    form.setType(LongTermAssetType.REAL_ESTATE);
-    form.setCurrentValue(new BigDecimal("780000"));
-    doThrow(new IllegalArgumentException("Overlapping cash-flow period"))
-        .when(assets)
-        .saveRentalPeriod(
-            eq(1L), eq(7L), eq(LocalDate.of(2026, 1, 1)), eq(LocalDate.of(2027, 1, 1)), any());
-    var redirectAttributes = new RedirectAttributesModelMap();
-
-    assertEquals(
-        "redirect:/long-term-assets/7?portfolioId=1",
-        controller.update(
-            7L,
-            form,
-            1L,
-            LocalDate.of(2026, 1, 1),
-            LocalDate.of(2027, 1, 1),
-            null,
-            redirectAttributes));
-
-    assertEquals(
-        "Rental period overlaps an existing cash-flow period.",
-        redirectAttributes.getFlashAttributes().get("rentalPeriodError"));
   }
 
   private static LongTermAssetsApi.AssetView assetView(Long id) {

@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.market.price;
 
-import com.smartbox.investory.investment.infrastructure.persistence.Asset;
+import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
@@ -54,11 +54,11 @@ public class AssetPriceFallbackService {
 
     ZonedDateTime now = ZonedDateTime.now();
     LocalDate rateDate = now.toLocalDate();
-    Map<String, Asset> assetsBySymbol =
+    Map<String, AssetEntity> assetsBySymbol =
         assetRepository.findAllBySymbolIn(weightedPrices.keySet()).stream()
             .filter(asset -> !Boolean.TRUE.equals(asset.getExcludeFromImport()))
             .collect(
-                Collectors.toMap(Asset::getSymbol, Function.identity(), (left, right) -> right));
+                Collectors.toMap(AssetEntity::getSymbol, Function.identity(), (left, right) -> right));
     Map<String, HistoricalQuote> historicalQuotesBySymbol =
         assetPriceHistoryRepository
             .findHistoricalPricesBySymbolInBefore(weightedPrices.keySet(), rateDate)
@@ -75,10 +75,10 @@ public class AssetPriceFallbackService {
                             row.getPriceDate(),
                             row.getQualityScore()),
                     AssetPriceFallbackService::preferHistoricalQuote));
-    Collection<Asset> changed = new ArrayList<>();
+    Collection<AssetEntity> changed = new ArrayList<>();
     weightedPrices.forEach(
         (symbol, weightedPrice) -> {
-          Asset asset = assetsBySymbol.get(symbol);
+          AssetEntity asset = assetsBySymbol.get(symbol);
           if (asset == null) {
             log.warn("Skipping fallback price for {} because asset catalog row is missing", symbol);
             return;

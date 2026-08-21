@@ -7,9 +7,9 @@ import com.smartbox.investory.investment.infrastructure.integration.IntegrationP
 import com.smartbox.investory.investment.infrastructure.integration.IntegrationType;
 import com.smartbox.investory.investment.infrastructure.integration.PluginConfig;
 import com.smartbox.investory.investment.infrastructure.integration.ValidationResult;
-import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationInstance;
+import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationInstanceEntity;
 import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationInstanceRepository;
-import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationSecret;
+import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationSecretEntity;
 import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationSecretRepository;
 import com.smartbox.investory.investment.infrastructure.integration.registry.PluginRegistry;
 import java.time.ZonedDateTime;
@@ -52,7 +52,7 @@ public class IntegrationConfigurationService {
   }
 
   @Transactional
-  public IntegrationInstance saveGlobal(
+  public IntegrationInstanceEntity saveGlobal(
       String pluginId,
       IntegrationType type,
       Map<String, String> config,
@@ -61,7 +61,7 @@ public class IntegrationConfigurationService {
   }
 
   @Transactional
-  public IntegrationInstance saveGlobal(
+  public IntegrationInstanceEntity saveGlobal(
       String pluginId,
       IntegrationType type,
       Map<String, String> config,
@@ -74,10 +74,10 @@ public class IntegrationConfigurationService {
                 () ->
                     new IllegalArgumentException(
                         "Unknown integration plugin: " + type + "/" + pluginId));
-    IntegrationInstance instance =
+    IntegrationInstanceEntity instance =
         instanceRepository
             .findByOwnerIdAndPluginIdAndPluginType(null, pluginId, type)
-            .orElseGet(IntegrationInstance::new);
+            .orElseGet(IntegrationInstanceEntity::new);
     Map<String, String> persistedConfig =
         instance.getId() == null ? new LinkedHashMap<>() : fromJson(instance.getConfigJson());
     Map<String, String> effective = new LinkedHashMap<>(persistedConfig);
@@ -116,13 +116,13 @@ public class IntegrationConfigurationService {
     persistedSecrets.keySet().forEach(storedConfig::remove);
     instance.setConfigJson(toJson(storedConfig));
     instance.setUpdatedAt(ZonedDateTime.now());
-    IntegrationInstance saved = instanceRepository.save(instance);
+    IntegrationInstanceEntity saved = instanceRepository.save(instance);
     if (secrets != null) {
       for (Map.Entry<String, String> entry : secrets.entrySet()) {
-        IntegrationSecret secret =
+        IntegrationSecretEntity secret =
             secretRepository
                 .findByIntegrationInstanceIdAndSecretName(saved.getId(), entry.getKey())
-                .orElseGet(IntegrationSecret::new);
+                .orElseGet(IntegrationSecretEntity::new);
         secret.setIntegrationInstanceId(saved.getId());
         secret.setSecretName(entry.getKey());
         secret.setCiphertext(secretCipher.encrypt(entry.getValue()));
@@ -137,7 +137,7 @@ public class IntegrationConfigurationService {
   }
 
   @Transactional(readOnly = true)
-  public PluginConfig resolve(IntegrationInstance instance) {
+  public PluginConfig resolve(IntegrationInstanceEntity instance) {
     Map<String, String> values = fromJson(instance.getConfigJson());
     secretRepository
         .findByIntegrationInstanceId(instance.getId())
@@ -151,7 +151,7 @@ public class IntegrationConfigurationService {
   public Optional<PluginConfig> resolveEnabledGlobal(IntegrationType type, String pluginId) {
     return instanceRepository
         .findByOwnerIdAndPluginIdAndPluginType(null, pluginId, type)
-        .filter(IntegrationInstance::isEnabled)
+        .filter(IntegrationInstanceEntity::isEnabled)
         .map(this::resolve);
   }
 

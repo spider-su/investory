@@ -38,15 +38,15 @@ public class SimulationPlanService {
   }
 
   @Transactional(readOnly = true)
-  public List<SimulationPlan> list(Long portfolioId) {
+  public List<SimulationPlanEntity> list(Long portfolioId) {
     return plans.findAllByPortfolioIdOrderByName(portfolioId).stream()
         .filter(plan -> !plan.isArchived())
         .toList();
   }
 
   @Transactional(readOnly = true)
-  public SimulationPlan get(Long portfolioId, Long id) {
-    SimulationPlan plan =
+  public SimulationPlanEntity get(Long portfolioId, Long id) {
+    SimulationPlanEntity plan =
         plans
             .findByIdAndPortfolioId(id, portfolioId)
             .orElseThrow(() -> new NoSuchElementException("Simulation plan not found"));
@@ -73,11 +73,11 @@ public class SimulationPlanService {
     return update(portfolioId, id, name, assumptions).getId();
   }
 
-  public SimulationPlan create(Long portfolioId, String name, SimulationAssumptions assumptions) {
+  public SimulationPlanEntity create(Long portfolioId, String name, SimulationAssumptions assumptions) {
     validateName(portfolioId, name, null);
-    SimulationPlan saved = plans.save(copy(new SimulationPlan(), portfolioId, name, assumptions));
+    SimulationPlanEntity saved = plans.save(copy(new SimulationPlanEntity(), portfolioId, name, assumptions));
     if (revisioned()) {
-      SimulationPlanRevision revision = createRevision(saved, assumptions, 1);
+      SimulationPlanRevisionEntity revision = createRevision(saved, assumptions, 1);
       saved.setCurrentRevisionId(revision.getId());
       plans.save(saved);
       saveRevisionEvents(revision, assumptions.futureEvents());
@@ -87,9 +87,9 @@ public class SimulationPlanService {
     return saved;
   }
 
-  public SimulationPlan update(
+  public SimulationPlanEntity update(
       Long portfolioId, Long id, String name, SimulationAssumptions assumptions) {
-    SimulationPlan plan = get(portfolioId, id);
+    SimulationPlanEntity plan = get(portfolioId, id);
     validateName(portfolioId, name, id);
     if (revisioned()) {
       if (assumptions(plan).equals(assumptions)) {
@@ -98,15 +98,15 @@ public class SimulationPlanService {
       }
       int nextNumber =
           revisions.findAllBySimulationPlanIdOrderByRevisionNumberDesc(id).stream()
-                  .mapToInt(SimulationPlanRevision::getRevisionNumber)
+                  .mapToInt(SimulationPlanRevisionEntity::getRevisionNumber)
                   .max()
                   .orElse(0)
               + 1;
-      SimulationPlanRevision revision = createRevision(plan, assumptions, nextNumber);
+      SimulationPlanRevisionEntity revision = createRevision(plan, assumptions, nextNumber);
       plan.setCurrentRevisionId(revision.getId());
       // Keep legacy columns synchronized for old readers; revisions are the authoritative source.
       copy(plan, portfolioId, name, assumptions);
-      SimulationPlan saved = plans.save(plan);
+      SimulationPlanEntity saved = plans.save(plan);
       saveRevisionEvents(revision, assumptions.futureEvents());
       return saved;
     }
@@ -114,7 +114,7 @@ public class SimulationPlanService {
   }
 
   public void delete(Long portfolioId, Long id) {
-    SimulationPlan plan = get(portfolioId, id);
+    SimulationPlanEntity plan = get(portfolioId, id);
     if (revisioned()) {
       plan.setArchived(true);
       plans.save(plan);
@@ -124,8 +124,8 @@ public class SimulationPlanService {
   }
 
   @Transactional(readOnly = true)
-  public SimulationPlanRevision currentRevision(Long portfolioId, Long planId) {
-    SimulationPlan plan = get(portfolioId, planId);
+  public SimulationPlanRevisionEntity currentRevision(Long portfolioId, Long planId) {
+    SimulationPlanEntity plan = get(portfolioId, planId);
     if (!revisioned() || plan.getCurrentRevisionId() == null) return null;
     return revisions
         .findByIdAndSimulationPlanId(plan.getCurrentRevisionId(), planId)
@@ -134,12 +134,12 @@ public class SimulationPlanService {
 
   @Transactional(readOnly = true)
   public Long currentRevisionId(Long portfolioId, Long planId) {
-    SimulationPlan plan = get(portfolioId, planId);
+    SimulationPlanEntity plan = get(portfolioId, planId);
     return plan.getCurrentRevisionId();
   }
 
   @Transactional(readOnly = true)
-  public List<SimulationPlanRevision> revisionHistory(Long portfolioId, Long planId) {
+  public List<SimulationPlanRevisionEntity> revisionHistory(Long portfolioId, Long planId) {
     get(portfolioId, planId);
     return revisioned()
         ? revisions.findAllBySimulationPlanIdOrderByRevisionNumberDesc(planId)
@@ -147,7 +147,7 @@ public class SimulationPlanService {
   }
 
   @Transactional(readOnly = true)
-  public SimulationPlanRevision revision(Long portfolioId, Long planId, Long revisionId) {
+  public SimulationPlanRevisionEntity revision(Long portfolioId, Long planId, Long revisionId) {
     plans
         .findByIdAndPortfolioId(planId, portfolioId)
         .orElseThrow(() -> new NoSuchElementException("Simulation plan not found"));
@@ -158,9 +158,9 @@ public class SimulationPlanService {
   }
 
   @Transactional(readOnly = true)
-  public SimulationAssumptions assumptions(SimulationPlan plan) {
+  public SimulationAssumptions assumptions(SimulationPlanEntity plan) {
     if (revisioned() && plan.getCurrentRevisionId() != null) {
-      SimulationPlanRevision revision =
+      SimulationPlanRevisionEntity revision =
           revisions
               .findByIdAndSimulationPlanId(plan.getCurrentRevisionId(), plan.getId())
               .orElseThrow(() -> new IllegalStateException("Current plan revision not found"));
@@ -171,13 +171,13 @@ public class SimulationPlanService {
 
   @Transactional(readOnly = true)
   public List<SimulationEvent> events(Long portfolioId, Long planId) {
-    SimulationPlan plan = get(portfolioId, planId);
+    SimulationPlanEntity plan = get(portfolioId, planId);
     if (revisioned() && plan.getCurrentRevisionId() != null)
       return revisionEventRecords(plan.getCurrentRevisionId());
     return legacyEventRecords(planId);
   }
 
-  public SimulationPlanEvent saveEvent(
+  public SimulationPlanEventEntity saveEvent(
       Long portfolioId,
       Long planId,
       Long eventId,
@@ -186,7 +186,7 @@ public class SimulationPlanService {
       BigDecimal amount,
       SimulationEventType type,
       String notes) {
-    SimulationPlan plan = get(portfolioId, planId);
+    SimulationPlanEntity plan = get(portfolioId, planId);
     if (!revisioned() || plan.getCurrentRevisionId() == null)
       return saveLegacyEvent(plan, eventId, year, name, amount, type, notes);
     List<SimulationEvent> current = events(portfolioId, planId);
@@ -195,11 +195,11 @@ public class SimulationPlanService {
             .filter(event -> !Objects.equals(event.id(), eventId))
             .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
     next.add(new SimulationEvent(eventId, year, name.trim(), amount, type, notes));
-    SimulationPlanRevision revision = newRevisionFromCurrent(plan);
+    SimulationPlanRevisionEntity revision = newRevisionFromCurrent(plan);
     plan.setCurrentRevisionId(revision.getId());
     plans.save(plan);
     saveRevisionEvents(revision, next);
-    SimulationPlanEvent result = new SimulationPlanEvent();
+    SimulationPlanEventEntity result = new SimulationPlanEventEntity();
     result.setId(revision.getId());
     result.setSimulationPlanId(planId);
     result.setYear(year);
@@ -211,7 +211,7 @@ public class SimulationPlanService {
   }
 
   public void deleteEvent(Long portfolioId, Long planId, Long eventId) {
-    SimulationPlan plan = get(portfolioId, planId);
+    SimulationPlanEntity plan = get(portfolioId, planId);
     if (!revisioned() || plan.getCurrentRevisionId() == null) {
       legacyEvents.delete(
           legacyEvents
@@ -225,36 +225,36 @@ public class SimulationPlanService {
             .toList();
     if (next.size() == events(portfolioId, planId).size())
       throw new NoSuchElementException("Simulation event not found");
-    SimulationPlanRevision revision = newRevisionFromCurrent(plan);
+    SimulationPlanRevisionEntity revision = newRevisionFromCurrent(plan);
     plan.setCurrentRevisionId(revision.getId());
     plans.save(plan);
     saveRevisionEvents(revision, next);
   }
 
-  private SimulationPlanRevision newRevisionFromCurrent(SimulationPlan plan) {
+  private SimulationPlanRevisionEntity newRevisionFromCurrent(SimulationPlanEntity plan) {
     SimulationAssumptions current = assumptions(plan);
     int nextNumber =
         revisions.findAllBySimulationPlanIdOrderByRevisionNumberDesc(plan.getId()).stream()
-                .mapToInt(SimulationPlanRevision::getRevisionNumber)
+                .mapToInt(SimulationPlanRevisionEntity::getRevisionNumber)
                 .max()
                 .orElse(0)
             + 1;
-    SimulationPlanRevision revision = createRevision(plan, current, nextNumber);
+    SimulationPlanRevisionEntity revision = createRevision(plan, current, nextNumber);
     return revision;
   }
 
-  private SimulationPlanRevision createRevision(
-      SimulationPlan plan, SimulationAssumptions assumptions, int number) {
-    SimulationPlanRevision revision = new SimulationPlanRevision();
+  private SimulationPlanRevisionEntity createRevision(
+      SimulationPlanEntity plan, SimulationAssumptions assumptions, int number) {
+    SimulationPlanRevisionEntity revision = new SimulationPlanRevisionEntity();
     revision.setSimulationPlanId(plan.getId());
     revision.setRevisionNumber(number);
     copy(revision, assumptions);
     return revisions.save(revision);
   }
 
-  private void saveRevisionEvents(SimulationPlanRevision revision, List<SimulationEvent> source) {
+  private void saveRevisionEvents(SimulationPlanRevisionEntity revision, List<SimulationEvent> source) {
     for (SimulationEvent event : source) {
-      SimulationPlanRevisionEvent stored = new SimulationPlanRevisionEvent();
+      SimulationPlanRevisionEventEntity stored = new SimulationPlanRevisionEventEntity();
       stored.setRevisionId(revision.getId());
       stored.setYear(event.year());
       stored.setName(event.name());
@@ -265,9 +265,9 @@ public class SimulationPlanService {
     }
   }
 
-  private void saveLegacyEvents(SimulationPlan plan, List<SimulationEvent> source) {
+  private void saveLegacyEvents(SimulationPlanEntity plan, List<SimulationEvent> source) {
     for (SimulationEvent event : source) {
-      SimulationPlanEvent stored = new SimulationPlanEvent();
+      SimulationPlanEventEntity stored = new SimulationPlanEventEntity();
       stored.setSimulationPlanId(plan.getId());
       stored.setYear(event.year());
       stored.setName(event.name());
@@ -278,17 +278,17 @@ public class SimulationPlanService {
     }
   }
 
-  private SimulationPlanEvent saveLegacyEvent(
-      SimulationPlan plan,
+  private SimulationPlanEventEntity saveLegacyEvent(
+      SimulationPlanEntity plan,
       Long eventId,
       int year,
       String name,
       BigDecimal amount,
       SimulationEventType type,
       String notes) {
-    SimulationPlanEvent event =
+    SimulationPlanEventEntity event =
         eventId == null
-            ? new SimulationPlanEvent()
+            ? new SimulationPlanEventEntity()
             : legacyEvents
                 .findByIdAndSimulationPlanId(eventId, plan.getId())
                 .orElseThrow(() -> new NoSuchElementException("Simulation event not found"));
@@ -319,11 +319,11 @@ public class SimulationPlanService {
         .toList();
   }
 
-  private SimulationAssumptions assumptionsFromLegacy(SimulationPlan plan) {
+  private SimulationAssumptions assumptionsFromLegacy(SimulationPlanEntity plan) {
     return assumptions(plan, legacyEventRecords(plan.getId()));
   }
 
-  private SimulationAssumptions assumptions(SimulationPlan plan, List<SimulationEvent> eventList) {
+  private SimulationAssumptions assumptions(SimulationPlanEntity plan, List<SimulationEvent> eventList) {
     SimulationAssumptions result =
         new SimulationAssumptions(
             plan.getCurrentAge(),
@@ -372,7 +372,7 @@ public class SimulationPlanService {
   }
 
   private SimulationAssumptions assumptions(
-      SimulationPlanRevision revision, List<SimulationEvent> eventList) {
+      SimulationPlanRevisionEntity revision, List<SimulationEvent> eventList) {
     SimulationAssumptions result =
         new SimulationAssumptions(
             revision.getCurrentAge(),
@@ -405,7 +405,7 @@ public class SimulationPlanService {
         .withExpenseProfile(parseExpenseProfile(revision.getExpenseProfile()));
   }
 
-  private static void copy(SimulationPlanRevision target, SimulationAssumptions a) {
+  private static void copy(SimulationPlanRevisionEntity target, SimulationAssumptions a) {
     target.setCurrentAge(a.currentAge());
     target.setStartYear(a.startYear());
     target.setEndAge(a.endAge());
@@ -434,8 +434,8 @@ public class SimulationPlanService {
     target.setCapitalGainTaxRate(a.capitalGainTaxRate());
   }
 
-  private static SimulationPlan copy(
-      SimulationPlan p, Long portfolioId, String name, SimulationAssumptions a) {
+  private static SimulationPlanEntity copy(
+      SimulationPlanEntity p, Long portfolioId, String name, SimulationAssumptions a) {
     p.setPortfolioId(portfolioId);
     p.setName(name.trim());
     p.setCurrentAge(a.currentAge());

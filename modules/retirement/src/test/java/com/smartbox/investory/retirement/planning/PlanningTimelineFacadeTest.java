@@ -4,10 +4,10 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformance;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceRepository;
 import com.smartbox.investory.investment.infrastructure.read.HistoricalPortfolioActualsReadService;
-import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshot;
+import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
 import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
 import com.smartbox.investory.retirement.infrastructure.planning.*;
 import com.smartbox.investory.retirement.profile.*;
@@ -36,7 +36,7 @@ class PlanningTimelineFacadeTest {
   @Mock HistoricalLongTermAssetYearSource longTermAssets;
   @Mock LongTermAssetAnnualSnapshotReader currentLongTermAssets;
   PlanningTimelineFacade facade;
-  PlanningYear planningYear;
+  PlanningYearEntity planningYear;
 
   @BeforeEach
   void setUp() {
@@ -52,7 +52,7 @@ class PlanningTimelineFacadeTest {
             new ForwardSimulationContextFactory(
                 Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC)),
             currentLongTermAssets);
-    planningYear = new PlanningYear();
+    planningYear = new PlanningYearEntity();
     planningYear.setId(7L);
     planningYear.setPortfolioId(1L);
     planningYear.setYear(2026);
@@ -69,7 +69,7 @@ class PlanningTimelineFacadeTest {
     lenient()
         .when(currentLongTermAssets.currentAnnualSnapshot(eq(1L), any(LocalDate.class)))
         .thenReturn(
-            new LongTermAssetAnnualSnapshot(
+            new LongTermAssetAnnualSnapshotModel(
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
@@ -90,7 +90,7 @@ class PlanningTimelineFacadeTest {
 
   @Test
   void closedYearRejectsCasualManualEditsAndReopenIsExplicit() {
-    PlanningYear historical = new PlanningYear();
+    PlanningYearEntity historical = new PlanningYearEntity();
     historical.setId(8L);
     historical.setPortfolioId(1L);
     historical.setYear(2025);
@@ -109,17 +109,17 @@ class PlanningTimelineFacadeTest {
 
   @Test
   void refreshesStaleAccountingWithdrawalButPreservesUserOverride() {
-    PlanningYear historical = new PlanningYear();
+    PlanningYearEntity historical = new PlanningYearEntity();
     historical.setId(8L);
     historical.setPortfolioId(1L);
     historical.setYear(2025);
     historical.setStatus(PlanningYearStatus.DRAFT);
     when(years.findByPortfolioIdAndYear(1L, 2025)).thenReturn(Optional.of(historical));
 
-    PlanningYearValue staleWithdrawal =
+    PlanningYearValueEntity staleWithdrawal =
         stored(
             PlanningMetric.MARKET_WITHDRAWAL, "740429.67", PlanningValueSource.ACCOUNTING_DERIVED);
-    PlanningYearValue userCosts =
+    PlanningYearValueEntity userCosts =
         stored(PlanningMetric.CORE_SPENDING, "180000", PlanningValueSource.USER_OVERRIDE);
     when(values.findByPlanningYearIdAndValueKindAndMetric(
             8L, PlanningValueKind.ACTUAL, PlanningMetric.MARKET_WITHDRAWAL))
@@ -132,9 +132,9 @@ class PlanningTimelineFacadeTest {
             invocation -> {
               int year = ((LocalDate) invocation.getArgument(1)).getYear();
               if (year != 2025) return List.of();
-              List<PortfolioMonthlyPerformance> rows = new ArrayList<>();
+              List<PortfolioMonthlyPerformanceEntity> rows = new ArrayList<>();
               for (int month = 1; month <= 12; month++) {
-                PortfolioMonthlyPerformance row = mock(PortfolioMonthlyPerformance.class);
+                PortfolioMonthlyPerformanceEntity row = mock(PortfolioMonthlyPerformanceEntity.class);
                 when(row.getMonth()).thenReturn(LocalDate.of(2025, month, 1));
                 when(row.getEndEquityDecimal()).thenReturn(new BigDecimal("380333.75"));
                 when(row.getDepositFlowDecimal()).thenReturn(new BigDecimal("58333.3333333333"));
@@ -149,9 +149,9 @@ class PlanningTimelineFacadeTest {
 
     facade.refreshHistoricalAccounting(1L, 2025);
 
-    ArgumentCaptor<PlanningYearValue> saved = ArgumentCaptor.forClass(PlanningYearValue.class);
+    ArgumentCaptor<PlanningYearValueEntity> saved = ArgumentCaptor.forClass(PlanningYearValueEntity.class);
     verify(values, atLeastOnce()).save(saved.capture());
-    PlanningYearValue refreshedWithdrawal =
+    PlanningYearValueEntity refreshedWithdrawal =
         saved.getAllValues().stream()
             .filter(value -> value.getMetric() == PlanningMetric.MARKET_WITHDRAWAL)
             .reduce((first, second) -> second)
@@ -170,7 +170,7 @@ class PlanningTimelineFacadeTest {
 
   @Test
   void closedYearCannotRefreshAccountingValues() {
-    PlanningYear closed = new PlanningYear();
+    PlanningYearEntity closed = new PlanningYearEntity();
     closed.setId(9L);
     closed.setPortfolioId(1L);
     closed.setYear(2025);
@@ -180,9 +180,9 @@ class PlanningTimelineFacadeTest {
     verifyNoInteractions(performance);
   }
 
-  private static PlanningYearValue stored(
+  private static PlanningYearValueEntity stored(
       PlanningMetric metric, String amount, PlanningValueSource source) {
-    PlanningYearValue value = new PlanningYearValue();
+    PlanningYearValueEntity value = new PlanningYearValueEntity();
     value.setPlanningYearId(8L);
     value.setValueKind(PlanningValueKind.ACTUAL);
     value.setMetric(metric);
@@ -193,14 +193,14 @@ class PlanningTimelineFacadeTest {
 
   @Test
   void historicalRealEstateIsNeverAPlanningInput() {
-    PlanningYearValue derived = new PlanningYearValue();
+    PlanningYearValueEntity derived = new PlanningYearValueEntity();
     derived.setDerivedValue(BigDecimal.TEN);
     derived.setSourceType(PlanningValueSource.LONG_TERM_DERIVED);
     when(values.findByPlanningYearIdAndValueKindAndMetric(
             7L, PlanningValueKind.ACTUAL, PlanningMetric.REAL_ESTATE))
         .thenReturn(Optional.of(derived));
     assertFalse(facade.isHistoricalMetricEditable(1L, 2026, PlanningMetric.REAL_ESTATE));
-    PlanningYearValue unavailable = new PlanningYearValue();
+    PlanningYearValueEntity unavailable = new PlanningYearValueEntity();
     unavailable.setSourceType(PlanningValueSource.UNAVAILABLE);
     when(values.findByPlanningYearIdAndValueKindAndMetric(
             7L, PlanningValueKind.ACTUAL, PlanningMetric.REAL_ESTATE))
@@ -226,7 +226,7 @@ class PlanningTimelineFacadeTest {
 
   @Test
   void historicalReviewerMayEnterNetWorthWithoutTouchingAccounting() {
-    PlanningYear past = new PlanningYear();
+    PlanningYearEntity past = new PlanningYearEntity();
     past.setId(8L);
     past.setPortfolioId(1L);
     past.setYear(2025);
@@ -252,7 +252,7 @@ class PlanningTimelineFacadeTest {
 
   @Test
   void incompleteHistoricalDraftCannotClose() {
-    PlanningYear past = new PlanningYear();
+    PlanningYearEntity past = new PlanningYearEntity();
     past.setId(8L);
     past.setPortfolioId(1L);
     past.setYear(2025);
@@ -265,7 +265,7 @@ class PlanningTimelineFacadeTest {
 
   @Test
   void historicalCloseStatusUsesTheSameCompletenessPolicyAsClose() {
-    PlanningYear past = new PlanningYear();
+    PlanningYearEntity past = new PlanningYearEntity();
     past.setId(8L);
     past.setPortfolioId(1L);
     past.setYear(2025);
@@ -308,7 +308,7 @@ class PlanningTimelineFacadeTest {
 
   @Test
   void timelineOrdersPastThenLiveThenNextYearProjectionWithoutDuplicatingCurrentYear() {
-    PlanningYear past = new PlanningYear();
+    PlanningYearEntity past = new PlanningYearEntity();
     past.setId(8L);
     past.setPortfolioId(1L);
     past.setYear(2025);
@@ -341,7 +341,7 @@ class PlanningTimelineFacadeTest {
     when(years.findAllByPortfolioIdOrderByYearAsc(1L)).thenReturn(List.of());
     when(currentLongTermAssets.currentAnnualSnapshot(eq(1L), any(LocalDate.class)))
         .thenReturn(
-            new LongTermAssetAnnualSnapshot(
+            new LongTermAssetAnnualSnapshotModel(
                 new BigDecimal("3650000"),
                 new BigDecimal("180000"),
                 new BigDecimal("900000"),
@@ -377,7 +377,7 @@ class PlanningTimelineFacadeTest {
 
   @Test
   void historicalDraftDerivesRentalIncomeFromLongTermAssetSource() {
-    PlanningYear historical = new PlanningYear();
+    PlanningYearEntity historical = new PlanningYearEntity();
     historical.setId(8L);
     historical.setPortfolioId(1L);
     historical.setYear(2025);
@@ -412,7 +412,7 @@ class PlanningTimelineFacadeTest {
 
   @Test
   void currentTimelineDoesNotExposeOrphanBaselineRowsWithoutRevisionProvenance() {
-    PlanningYearValue stale = new PlanningYearValue();
+    PlanningYearValueEntity stale = new PlanningYearValueEntity();
     stale.setPlanningYearId(7L);
     stale.setValueKind(PlanningValueKind.BASELINE);
     stale.setMetric(PlanningMetric.CORE_SPENDING);
@@ -428,7 +428,7 @@ class PlanningTimelineFacadeTest {
 
   @Test
   void completeMarketAssetsAllowCloseWhenHistoricalNetWorthIsUnavailable() {
-    PlanningYear historical = new PlanningYear();
+    PlanningYearEntity historical = new PlanningYearEntity();
     historical.setId(8L);
     historical.setPortfolioId(1L);
     historical.setYear(2025);
@@ -451,7 +451,7 @@ class PlanningTimelineFacadeTest {
 
   @Test
   void historicalDraftIsShownAsNeedsReviewRatherThanFinalActual() {
-    PlanningYear past = new PlanningYear();
+    PlanningYearEntity past = new PlanningYearEntity();
     past.setId(8L);
     past.setPortfolioId(1L);
     past.setYear(2025);
@@ -589,8 +589,8 @@ class PlanningTimelineFacadeTest {
         new BigDecimal("60000"));
   }
 
-  private static PlanningYearValue stored(PlanningMetric metric, String amount) {
-    PlanningYearValue value = new PlanningYearValue();
+  private static PlanningYearValueEntity stored(PlanningMetric metric, String amount) {
+    PlanningYearValueEntity value = new PlanningYearValueEntity();
     value.setMetric(metric);
     value.setDerivedValue(new BigDecimal(amount));
     value.setSourceType(PlanningValueSource.ACCOUNTING_DERIVED);

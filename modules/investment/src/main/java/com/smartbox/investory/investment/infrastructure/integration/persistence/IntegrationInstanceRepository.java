@@ -5,9 +5,9 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface IntegrationInstanceRepository extends JpaRepository<IntegrationInstance, Long> {
-  Optional<IntegrationInstance> findByOwnerIdAndPluginIdAndPluginType(
+public interface IntegrationInstanceRepository extends JpaRepository<IntegrationInstanceEntity, Long> {
+  Optional<IntegrationInstanceEntity> findByOwnerIdAndPluginIdAndPluginType(
       Long ownerId, String pluginId, IntegrationType pluginType);
 
-  List<IntegrationInstance> findByEnabledTrue();
+  List<IntegrationInstanceEntity> findByEnabledTrue();
 }

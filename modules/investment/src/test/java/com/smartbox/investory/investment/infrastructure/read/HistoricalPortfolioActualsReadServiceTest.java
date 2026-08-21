@@ -16,7 +16,7 @@ class HistoricalPortfolioActualsReadServiceTest {
   void completeYearProvidesAnnualFactsAndDecemberAssets() {
     PortfolioMonthlyPerformanceRepository repository =
         mock(PortfolioMonthlyPerformanceRepository.class);
-    List<PortfolioMonthlyPerformance> current = rows(12, true);
+    List<PortfolioMonthlyPerformanceEntity> current = rows(12, true);
     when(repository.findByPortfolioIdAndMonthBetweenOrderByMonthAsc(anyLong(), any(), any()))
         .thenReturn(current);
 
@@ -36,7 +36,7 @@ class HistoricalPortfolioActualsReadServiceTest {
   void usesPreviousDecemberForStartAndNetAnnualFlow() {
     PortfolioMonthlyPerformanceRepository repository =
         mock(PortfolioMonthlyPerformanceRepository.class);
-    List<PortfolioMonthlyPerformance> current = rows(2025, 12, true);
+    List<PortfolioMonthlyPerformanceEntity> current = rows(2025, 12, true);
     current.forEach(
         row -> {
           when(row.getDepositFlowDecimal())
@@ -47,7 +47,7 @@ class HistoricalPortfolioActualsReadServiceTest {
                   new BigDecimal("740429.67")
                       .divide(BigDecimal.valueOf(12), 8, RoundingMode.HALF_UP));
         });
-    PortfolioMonthlyPerformance previous = row(LocalDate.of(2024, 12, 1), "1000000", "0", "0");
+    PortfolioMonthlyPerformanceEntity previous = row(LocalDate.of(2024, 12, 1), "1000000", "0", "0");
     when(repository.findByPortfolioIdAndMonthBetweenOrderByMonthAsc(anyLong(), any(), any()))
         .thenAnswer(
             invocation -> {
@@ -73,7 +73,7 @@ class HistoricalPortfolioActualsReadServiceTest {
   void depositsExceedWithdrawalsProduceNetContributionOnly() {
     PortfolioMonthlyPerformanceRepository repository =
         mock(PortfolioMonthlyPerformanceRepository.class);
-    List<PortfolioMonthlyPerformance> current = rows(2025, 12, true);
+    List<PortfolioMonthlyPerformanceEntity> current = rows(2025, 12, true);
     current.forEach(
         row -> {
           when(row.getDepositFlowDecimal())
@@ -98,7 +98,7 @@ class HistoricalPortfolioActualsReadServiceTest {
   void noFlowsProduceZeroNetContributionAndWithdrawal() {
     PortfolioMonthlyPerformanceRepository repository =
         mock(PortfolioMonthlyPerformanceRepository.class);
-    List<PortfolioMonthlyPerformance> current = rows(12, true);
+    List<PortfolioMonthlyPerformanceEntity> current = rows(12, true);
     current.forEach(
         row -> {
           when(row.getDepositFlowDecimal()).thenReturn(null);
@@ -117,12 +117,12 @@ class HistoricalPortfolioActualsReadServiceTest {
   void partialOrDuplicateCalendarYearIsUnavailable() {
     PortfolioMonthlyPerformanceRepository repository =
         mock(PortfolioMonthlyPerformanceRepository.class);
-    List<PortfolioMonthlyPerformance> partial = rows(9, true);
+    List<PortfolioMonthlyPerformanceEntity> partial = rows(9, true);
     when(repository.findByPortfolioIdAndMonthBetweenOrderByMonthAsc(anyLong(), any(), any()))
         .thenReturn(partial);
     assertFalse(new HistoricalPortfolioActualsReadService(repository).read(1L, 2025).complete());
 
-    List<PortfolioMonthlyPerformance> duplicate = rowsWithDuplicateMonth();
+    List<PortfolioMonthlyPerformanceEntity> duplicate = rowsWithDuplicateMonth();
     when(repository.findByPortfolioIdAndMonthBetweenOrderByMonthAsc(anyLong(), any(), any()))
         .thenReturn(duplicate);
     assertFalse(new HistoricalPortfolioActualsReadService(repository).read(1L, 2025).complete());
@@ -132,7 +132,7 @@ class HistoricalPortfolioActualsReadServiceTest {
   void missingMonthlyReturnKeepsOtherFactsButNotAnnualReturn() {
     PortfolioMonthlyPerformanceRepository repository =
         mock(PortfolioMonthlyPerformanceRepository.class);
-    List<PortfolioMonthlyPerformance> current = rows(12, false);
+    List<PortfolioMonthlyPerformanceEntity> current = rows(12, false);
     when(repository.findByPortfolioIdAndMonthBetweenOrderByMonthAsc(anyLong(), any(), any()))
         .thenReturn(current);
 
@@ -145,14 +145,14 @@ class HistoricalPortfolioActualsReadServiceTest {
     assertNull(result.marketReturn());
   }
 
-  private static List<PortfolioMonthlyPerformance> rows(int count, boolean returns) {
+  private static List<PortfolioMonthlyPerformanceEntity> rows(int count, boolean returns) {
     return rows(2025, count, returns);
   }
 
-  private static List<PortfolioMonthlyPerformance> rows(int year, int count, boolean returns) {
-    List<PortfolioMonthlyPerformance> result = new ArrayList<>();
+  private static List<PortfolioMonthlyPerformanceEntity> rows(int year, int count, boolean returns) {
+    List<PortfolioMonthlyPerformanceEntity> result = new ArrayList<>();
     for (int month = 1; month <= count; month++) {
-      PortfolioMonthlyPerformance row = mock(PortfolioMonthlyPerformance.class);
+      PortfolioMonthlyPerformanceEntity row = mock(PortfolioMonthlyPerformanceEntity.class);
       when(row.getMonth()).thenReturn(LocalDate.of(year, month, 1));
       when(row.getEndEquityDecimal()).thenReturn(new BigDecimal(month * 10));
       when(row.getDividendsDecimal()).thenReturn(BigDecimal.ONE);
@@ -165,9 +165,9 @@ class HistoricalPortfolioActualsReadServiceTest {
     return result;
   }
 
-  private static PortfolioMonthlyPerformance row(
+  private static PortfolioMonthlyPerformanceEntity row(
       LocalDate month, String endEquity, String deposits, String withdrawals) {
-    PortfolioMonthlyPerformance row = mock(PortfolioMonthlyPerformance.class);
+    PortfolioMonthlyPerformanceEntity row = mock(PortfolioMonthlyPerformanceEntity.class);
     when(row.getMonth()).thenReturn(month);
     when(row.getEndEquityDecimal()).thenReturn(new BigDecimal(endEquity));
     when(row.getDepositFlowDecimal()).thenReturn(new BigDecimal(deposits));
@@ -175,8 +175,8 @@ class HistoricalPortfolioActualsReadServiceTest {
     return row;
   }
 
-  private static List<PortfolioMonthlyPerformance> rowsWithDuplicateMonth() {
-    List<PortfolioMonthlyPerformance> result = rows(12, true);
+  private static List<PortfolioMonthlyPerformanceEntity> rowsWithDuplicateMonth() {
+    List<PortfolioMonthlyPerformanceEntity> result = rows(12, true);
     when(result.get(11).getMonth()).thenReturn(LocalDate.of(2025, 11, 1));
     return result;
   }

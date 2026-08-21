@@ -11,9 +11,9 @@ import com.smartbox.investory.investment.infrastructure.integration.PluginConfig
 import com.smartbox.investory.investment.infrastructure.integration.PluginFieldDescriptor;
 import com.smartbox.investory.investment.infrastructure.integration.PluginFieldType;
 import com.smartbox.investory.investment.infrastructure.integration.TestableIntegrationPlugin;
-import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationInstance;
+import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationInstanceEntity;
 import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationInstanceRepository;
-import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationJob;
+import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationJobEntity;
 import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationJobRepository;
 import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationSecretRepository;
 import com.smartbox.investory.investment.infrastructure.integration.registry.PluginRegistry;
@@ -100,7 +100,7 @@ public class IntegrationSettingsFacade {
   public IntegrationSettingsView setEnabled(
       IntegrationType type, String pluginId, boolean enabled) {
     IntegrationPlugin plugin = plugin(type, pluginId);
-    IntegrationInstance instance = instance(plugin);
+    IntegrationInstanceEntity instance = instance(plugin);
     if (instance == null) {
       if (enabled)
         throw new IntegrationSettingsValidationException(
@@ -138,7 +138,7 @@ public class IntegrationSettingsFacade {
     validateSchedule(cron, timezone);
     if (!command.parameters().isEmpty())
       throw new IllegalArgumentException("Unsupported job parameters");
-    IntegrationInstance instance = instance(plugin);
+    IntegrationInstanceEntity instance = instance(plugin);
     if (instance == null)
       throw new IllegalArgumentException("Save integration configuration first");
     if (command.enabled()) {
@@ -146,11 +146,11 @@ public class IntegrationSettingsFacade {
         throw new IllegalArgumentException("Enable the integration before enabling a job");
       validateEffective(plugin, effective(plugin));
     }
-    IntegrationJob job =
+    IntegrationJobEntity job =
         jobRepository.findByIntegrationInstanceId(instance.getId()).stream()
             .filter(item -> item.getJobType().equals(command.jobType()))
             .findFirst()
-            .orElseGet(IntegrationJob::new);
+            .orElseGet(IntegrationJobEntity::new);
     job.setIntegrationInstanceId(instance.getId());
     job.setJobType(descriptor.jobType());
     job.setEnabled(command.enabled());
@@ -162,13 +162,13 @@ public class IntegrationSettingsFacade {
 
   @Transactional
   public IntegrationSettingsView.JobView setJobEnabled(Long jobId, boolean enabled) {
-    IntegrationJob job =
+    IntegrationJobEntity job =
         jobRepository
             .findById(jobId)
             .orElseThrow(() -> new IllegalArgumentException("Unknown integration job"));
     if (enabled) {
       validateSchedule(job.getCron(), job.getTimezone());
-      IntegrationInstance instance =
+      IntegrationInstanceEntity instance =
           instanceRepository
               .findById(job.getIntegrationInstanceId())
               .orElseThrow(() -> new IllegalArgumentException("Unknown integration instance"));
@@ -289,7 +289,7 @@ public class IntegrationSettingsFacade {
   }
 
   private Map<String, String> effective(IntegrationPlugin plugin) {
-    IntegrationInstance instance = instance(plugin);
+    IntegrationInstanceEntity instance = instance(plugin);
     return instance == null
         ? new LinkedHashMap<>()
         : new LinkedHashMap<>(configurationService.resolve(instance).values());
@@ -308,7 +308,7 @@ public class IntegrationSettingsFacade {
     return result;
   }
 
-  private IntegrationSettingsView view(IntegrationPlugin plugin, IntegrationInstance instance) {
+  private IntegrationSettingsView view(IntegrationPlugin plugin, IntegrationInstanceEntity instance) {
     Map<String, String> values = instance == null ? Map.of() : fromJson(instance.getConfigJson());
     Map<String, IntegrationSettingsView.SecretState> secrets = new LinkedHashMap<>();
     if (instance != null)
@@ -342,7 +342,7 @@ public class IntegrationSettingsFacade {
         jobs);
   }
 
-  private IntegrationSettingsView.JobView job(IntegrationJob job) {
+  private IntegrationSettingsView.JobView job(IntegrationJobEntity job) {
     return new IntegrationSettingsView.JobView(
         job.getJobType(),
         job.isEnabled(),
@@ -353,7 +353,7 @@ public class IntegrationSettingsFacade {
         sanitize(job.getLastError()));
   }
 
-  private IntegrationInstance instance(IntegrationPlugin plugin) {
+  private IntegrationInstanceEntity instance(IntegrationPlugin plugin) {
     return instanceRepository
         .findByOwnerIdAndPluginIdAndPluginType(null, plugin.id(), plugin.type())
         .orElse(null);

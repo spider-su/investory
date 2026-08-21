@@ -6,9 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.smartbox.investory.investment.imports.ImportExecutionResult;
-import com.smartbox.investory.investment.infrastructure.persistence.Asset;
+import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.CashOperation;
+import com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.CashOperationRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPosition;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPositionRepository;
@@ -48,8 +48,8 @@ class XtbImportIT extends FastDatabaseTest {
 
   @Test
   void usesConfiguredAccountCurrencyKeepsExcludedHistoryAndPreservesUtc() throws Exception {
-    Asset excludedAsset = assetRepository.findBySymbol("ALE.PL").orElseThrow();
-    Asset quotedAsset = assetRepository.findBySymbol("META.US").orElseThrow();
+    AssetEntity excludedAsset = assetRepository.findBySymbol("ALE.PL").orElseThrow();
+    AssetEntity quotedAsset = assetRepository.findBySymbol("META.US").orElseThrow();
     assertTrue(Boolean.TRUE.equals(excludedAsset.getExcludeFromImport()));
 
     TimeZone originalTimeZone = TimeZone.getDefault();
@@ -68,13 +68,13 @@ class XtbImportIT extends FastDatabaseTest {
     assertEquals(0, result.rowsFailed());
     assertTrue(result.details().contains("cash=2 closed=1 open=2"));
 
-    List<CashOperation> cash = cashOperationRepository.findAllByAccount(ACCOUNT_ID);
+    List<CashOperationEntity> cash = cashOperationRepository.findAllByAccount(ACCOUNT_ID);
     assertEquals(2, cash.size());
     assertTrue(cash.stream().allMatch(operation -> operation.getCurrency() == CurrencyType.PLN));
     assertEquals(
         0,
         cash.stream()
-            .map(CashOperation::getAmountValue)
+            .map(CashOperationEntity::getAmountValue)
             .reduce(BigDecimal.ZERO, BigDecimal::add)
             .compareTo(BigDecimal.valueOf(-300)));
     assertEquals(
@@ -132,7 +132,7 @@ class XtbImportIT extends FastDatabaseTest {
     assertEquals(1, result.rowsApplied());
     assertEquals(0, result.rowsFailed());
 
-    CashOperation deposit =
+    CashOperationEntity deposit =
         cashOperationRepository.findAllByAccount(50290466L).stream()
             .filter(operation -> operation.getId() == 99101L)
             .findFirst()
@@ -156,7 +156,7 @@ class XtbImportIT extends FastDatabaseTest {
 
       XSSFSheet cash = workbook.createSheet("Cash Operations");
       cash.createRow(0).createCell(1).setCellValue(String.valueOf(ACCOUNT_ID));
-      cash.getRow(0).createCell(0).setCellValue("Account number");
+      cash.getRow(0).createCell(0).setCellValue("AccountEntity number");
       String[] cashHeaders = {"ID", "Type", "Ticker", "Time", "Amount", "Comment"};
       writeHeader(cash.createRow(1), cashHeaders);
       Row winter = cash.createRow(2);
@@ -177,7 +177,7 @@ class XtbImportIT extends FastDatabaseTest {
 
       XSSFSheet closed = workbook.createSheet("Closed Positions");
       closed.createRow(0).createCell(1).setCellValue(String.valueOf(ACCOUNT_ID));
-      closed.getRow(0).createCell(0).setCellValue("Account");
+      closed.getRow(0).createCell(0).setCellValue("AccountEntity");
       String[] closedHeaders = {
         "Ticker",
         "Type",
@@ -195,7 +195,7 @@ class XtbImportIT extends FastDatabaseTest {
         "Swap",
         "Profit/Loss",
         "Product",
-        "Position ID"
+        "PositionEntity ID"
       };
       writeHeader(closed.createRow(1), closedHeaders);
       Row closedRow = closed.createRow(2);
@@ -233,7 +233,7 @@ class XtbImportIT extends FastDatabaseTest {
           workbook.getCreationHelper().createDataFormat().getFormat("yyyy-mm-dd hh:mm:ss.000"));
 
       XSSFSheet cash = workbook.createSheet("Cash Operations");
-      cash.createRow(0).createCell(0).setCellValue("Account number");
+      cash.createRow(0).createCell(0).setCellValue("AccountEntity number");
       cash.getRow(0).createCell(1).setCellValue("50290466");
       String[] cashHeaders = {
         "Type",
@@ -245,7 +245,7 @@ class XtbImportIT extends FastDatabaseTest {
         "ID",
         "Comment",
         "Product",
-        "Position ID"
+        "PositionEntity ID"
       };
       writeHeader(cash.createRow(1), cashHeaders);
 
@@ -262,7 +262,7 @@ class XtbImportIT extends FastDatabaseTest {
       deposit.createCell(9).setCellValue("3");
 
       XSSFSheet closed = workbook.createSheet("Closed Positions");
-      closed.createRow(0).createCell(0).setCellValue("Account");
+      closed.createRow(0).createCell(0).setCellValue("AccountEntity");
       closed.getRow(0).createCell(1).setCellValue("50290466");
       writeHeader(
           closed.createRow(1),

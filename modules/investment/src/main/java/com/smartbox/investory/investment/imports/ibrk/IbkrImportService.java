@@ -9,8 +9,8 @@ import com.smartbox.investory.investment.imports.ImportEvidenceContext;
 import com.smartbox.investory.investment.imports.ImportExecutionResult;
 import com.smartbox.investory.investment.imports.ImportSourceEvidenceService;
 import com.smartbox.investory.investment.infrastructure.persistence.*;
-import com.smartbox.investory.investment.infrastructure.persistence.Asset;
-import com.smartbox.investory.investment.infrastructure.persistence.account.Account;
+import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.market.fx.CurrencyRateService;
 import com.smartbox.investory.investment.reporting.ReportingDateHelper;
@@ -113,8 +113,8 @@ public class IbkrImportService {
 
     Map<String, Integer> col = locateHeader(rows, SECTION);
     Map<String, Integer> dedup = new HashMap<>();
-    Map<Long, Account> configuredAccounts = new HashMap<>();
-    List<CashOperation> cashOps = new ArrayList<>();
+    Map<Long, AccountEntity> configuredAccounts = new HashMap<>();
+    List<CashOperationEntity> cashOps = new ArrayList<>();
     List<IbkrTradePriceObservation> tradePriceObservations = new ArrayList<>();
     int total = 0;
     int failed = 0;
@@ -129,8 +129,8 @@ public class IbkrImportService {
         String type = value(r, col, "Transaction Type", "Type");
         Long externalAccountId =
             resolveIbkrAccountId(
-                accountIdFromFilename, value(r, col, "Account", "Account ID", "AccountId"));
-        Account configuredAccount =
+                accountIdFromFilename, value(r, col, "AccountEntity", "AccountEntity ID", "AccountId"));
+        AccountEntity configuredAccount =
             configuredAccounts.computeIfAbsent(externalAccountId, this::requireIbkrAccount);
         Long account = configuredAccount.getId();
         CurrencyType baseCurrency = statementBaseCurrency;
@@ -154,7 +154,7 @@ public class IbkrImportService {
           throw new IllegalArgumentException("IBKR row has no net amount");
         }
 
-        CashOperation op = new CashOperation();
+        CashOperationEntity op = new CashOperationEntity();
         String key =
             String.join(
                 "|",
@@ -237,7 +237,7 @@ public class IbkrImportService {
 
     List<Long> affectedAccounts =
         cashOps.stream()
-            .map(CashOperation::getAccount)
+            .map(CashOperationEntity::getAccount)
             .filter(Objects::nonNull)
             .distinct()
             .toList();
@@ -249,7 +249,7 @@ public class IbkrImportService {
           affectedAccounts.size() == 1
               ? affectedAccounts.getFirst()
               : Optional.ofNullable(configuredAccounts.get(accountIdFromFilename))
-                  .map(Account::getId)
+                  .map(AccountEntity::getId)
                   .orElse(null);
       if (openPositionsAccount == null) {
         throw new IllegalArgumentException("IBKR open positions have no resolvable account");
@@ -330,7 +330,7 @@ public class IbkrImportService {
                   section,
                   null,
                   rowIndex + 1,
-                  value(r, col, "Position ID", "PositionID", "Conid", "ConID"),
+                  value(r, col, "PositionEntity ID", "PositionID", "Conid", "ConID"),
                   1,
                   String.join(",", r),
                   rawRowValues(r, col));
@@ -518,11 +518,11 @@ public class IbkrImportService {
     assetCatalogService.ensureAssetsExist(assets);
   }
 
-  private void ensureCashOperationAssetsExist(List<CashOperation> cashOperations) {
+  private void ensureCashOperationAssetsExist(List<CashOperationEntity> cashOperations) {
     List<AssetCatalogService.AssetSeed> assets = new ArrayList<>();
     cashOperations.stream()
         .filter(this::hasResolvableAssetSymbol)
-        .map(CashOperation::getSymbol)
+        .map(CashOperationEntity::getSymbol)
         .filter(StringUtils::hasText)
         .map(symbol -> assetCatalogService.seedForSymbol(symbol, CurrencyType.USD))
         .filter(Objects::nonNull)
@@ -530,15 +530,15 @@ public class IbkrImportService {
     assetCatalogService.ensureAssetsExist(assets);
   }
 
-  private void applyCashOperationAssetIdentities(List<CashOperation> operations) {
+  private void applyCashOperationAssetIdentities(List<CashOperationEntity> operations) {
     Set<String> symbols =
         operations.stream()
-            .map(CashOperation::getSymbol)
+            .map(CashOperationEntity::getSymbol)
             .filter(StringUtils::hasText)
             .collect(java.util.stream.Collectors.toSet());
     Map<String, Long> ids =
         assetRepository.findAllBySymbolIn(symbols).stream()
-            .collect(java.util.stream.Collectors.toMap(Asset::getSymbol, Asset::getId));
+            .collect(java.util.stream.Collectors.toMap(AssetEntity::getSymbol, AssetEntity::getId));
     operations.forEach(
         operation -> {
           if (hasResolvableAssetSymbol(operation)) {
@@ -555,7 +555,7 @@ public class IbkrImportService {
             .collect(java.util.stream.Collectors.toSet());
     Map<String, Long> ids =
         assetRepository.findAllBySymbolIn(symbols).stream()
-            .collect(java.util.stream.Collectors.toMap(Asset::getSymbol, Asset::getId));
+            .collect(java.util.stream.Collectors.toMap(AssetEntity::getSymbol, AssetEntity::getId));
     positions.forEach(position -> position.setAssetId(requiredAssetId(position.getSymbol(), ids)));
   }
 
@@ -567,7 +567,7 @@ public class IbkrImportService {
     return assetId;
   }
 
-  private boolean hasResolvableAssetSymbol(CashOperation operation) {
+  private boolean hasResolvableAssetSymbol(CashOperationEntity operation) {
     boolean pseudoFxSymbol =
         operation.getType() == CashOperationType.TRANSFER
             && StringUtils.hasText(operation.getSourceAssetSymbol())
@@ -590,8 +590,8 @@ public class IbkrImportService {
         || type == CashOperationType.FREE_FUNDS_INTEREST;
   }
 
-  private Account requireIbkrAccount(Long externalAccountId) {
-    Account account =
+  private AccountEntity requireIbkrAccount(Long externalAccountId) {
+    AccountEntity account =
         accountRepository
             .findByProviderIgnoreCaseAndExternalAccountId("IBKR", String.valueOf(externalAccountId))
             .orElseThrow(
@@ -600,7 +600,7 @@ public class IbkrImportService {
                         "IBKR account is not configured: " + externalAccountId));
     if (!"IBKR".equalsIgnoreCase(account.getProvider())) {
       throw new IllegalArgumentException(
-          "Account "
+          "AccountEntity "
               + externalAccountId
               + " is configured for provider "
               + account.getProvider()
@@ -655,7 +655,7 @@ public class IbkrImportService {
             .filter(asset -> !Boolean.TRUE.equals(asset.getExcludeFromImport()))
             .collect(
                 java.util.stream.Collectors.toMap(
-                    Asset::getSymbol, Asset::getId, (existing, ignored) -> existing));
+                    AssetEntity::getSymbol, AssetEntity::getId, (existing, ignored) -> existing));
     for (IbkrTradePriceObservation observation : observations) {
       Long assetId = assetIdsBySymbol.get(observation.symbol());
       if (assetId == null) {

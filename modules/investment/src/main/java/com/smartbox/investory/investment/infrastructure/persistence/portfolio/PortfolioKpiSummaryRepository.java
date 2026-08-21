@@ -5,4 +5,4 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface PortfolioKpiSummaryRepository
-    extends ReadOnlyRepository<PortfolioKpiSummary, Long> {}
+    extends ReadOnlyRepository<PortfolioKpiSummaryEntity, Long> {}

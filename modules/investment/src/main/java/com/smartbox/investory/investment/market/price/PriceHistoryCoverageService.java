@@ -7,7 +7,7 @@ import com.smartbox.investory.investment.infrastructure.integration.config.Integ
 import com.smartbox.investory.investment.infrastructure.integration.market.MarketDataPlugin;
 import com.smartbox.investory.investment.infrastructure.integration.market.TwelveDataMarketDataPlugin;
 import com.smartbox.investory.investment.infrastructure.market.client.TwelveDataService;
-import com.smartbox.investory.investment.infrastructure.persistence.Asset;
+import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
@@ -72,7 +72,7 @@ public class PriceHistoryCoverageService {
     if (assetId == null || from == null || to == null || from.isAfter(to)) {
       return new CoverageResult(assetId, from, to, 0, 0, 0, CoverageStatus.NO_SOURCE, List.of());
     }
-    Asset asset = assetRepository.findById(assetId).orElse(null);
+    AssetEntity asset = assetRepository.findById(assetId).orElse(null);
     if (asset == null || !StringUtils.hasText(asset.getTicker())) {
       return new CoverageResult(
           assetId, from, to, 0, 0, 0, CoverageStatus.NO_SOURCE, List.of("No source mapping"));

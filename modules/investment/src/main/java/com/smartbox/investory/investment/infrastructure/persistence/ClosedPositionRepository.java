@@ -40,23 +40,23 @@ public class ClosedPositionRepository {
   }
 
   public List<ClosedPosition> saveAll(Iterable<ClosedPosition> positions) {
-    List<Position> saved = positionRepository.saveAll(toPositions(positions));
+    List<PositionEntity> saved = positionRepository.saveAll(toPositions(positions));
     return saved.stream().map(ClosedPositionRepository::copy).toList();
   }
 
-  private static List<Position> toPositions(Iterable<ClosedPosition> positions) {
-    java.util.ArrayList<Position> result = new java.util.ArrayList<>();
+  private static List<PositionEntity> toPositions(Iterable<ClosedPosition> positions) {
+    java.util.ArrayList<PositionEntity> result = new java.util.ArrayList<>();
     positions.forEach(position -> result.add(copyToPosition(position)));
     return result;
   }
 
-  private static Position copyToPosition(ClosedPosition source) {
-    Position target = new Position();
+  private static PositionEntity copyToPosition(ClosedPosition source) {
+    PositionEntity target = new PositionEntity();
     BeanUtils.copyProperties(source, target);
     return target;
   }
 
-  private static ClosedPosition copy(Position source) {
+  private static ClosedPosition copy(PositionEntity source) {
     ClosedPosition target = new ClosedPosition();
     BeanUtils.copyProperties(source, target);
     return target;

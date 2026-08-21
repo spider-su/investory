@@ -8,7 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.infrastructure.persistence.Asset;
+import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
 import com.smartbox.investory.investment.market.fx.CurrencyRateService;
@@ -51,7 +51,7 @@ class ManualAssetPriceServiceTest {
 
   @Test
   void updatePriceSavesManualPriceAndRefreshesDerivedState() {
-    Asset asset = PortfolioBuilders.asset(PortfolioTestData.PKO_WA).build();
+    AssetEntity asset = PortfolioBuilders.asset(PortfolioTestData.PKO_WA).build();
     when(assetRepository.findBySymbol("PKO.PL")).thenReturn(Optional.of(asset));
     when(currencyRateService.convertToBaseCurrency(
             eq(123.45), eq(CurrencyType.USD), eq(CurrencyType.PLN), any(LocalDate.class)))
@@ -105,28 +105,28 @@ class ManualAssetPriceServiceTest {
     IllegalArgumentException exception =
         assertThrows(IllegalArgumentException.class, () -> service.updatePrice("MISSING.US", 10.0));
 
-    assertEquals("Asset not found: MISSING.US", exception.getMessage());
+    assertEquals("AssetEntity not found: MISSING.US", exception.getMessage());
     verify(assetRepository).findBySymbol("MISSING.US");
     verifyNoInteractions(currencyRateService, marketService, statisticsRefreshService);
   }
 
   @Test
   void updatePriceRejectsExcludedAssetWithoutChangingHistory() {
-    Asset asset = PortfolioBuilders.asset(PortfolioTestData.PKO_WA).build();
+    AssetEntity asset = PortfolioBuilders.asset(PortfolioTestData.PKO_WA).build();
     asset.setExcludeFromImport(true);
     when(assetRepository.findBySymbol("PKO.PL")).thenReturn(Optional.of(asset));
 
     IllegalArgumentException exception =
         assertThrows(IllegalArgumentException.class, () -> service.updatePrice("PKO.PL", 10.0));
 
-    assertEquals("Asset is excluded from Investory calculations: PKO.PL", exception.getMessage());
+    assertEquals("AssetEntity is excluded from Investory calculations: PKO.PL", exception.getMessage());
     verifyNoInteractions(
         currencyRateService, assetPriceHistoryRepository, marketService, statisticsRefreshService);
   }
 
   @Test
   void updatePriceRefreshesProjectionsOnlyAfterThePriceTransactionCommits() {
-    Asset asset = PortfolioBuilders.asset(PortfolioTestData.PKO_WA).build();
+    AssetEntity asset = PortfolioBuilders.asset(PortfolioTestData.PKO_WA).build();
     when(assetRepository.findBySymbol("PKO.PL")).thenReturn(Optional.of(asset));
     when(currencyRateService.convertToBaseCurrency(
             eq(123.45), eq(CurrencyType.USD), eq(CurrencyType.PLN), any(LocalDate.class)))

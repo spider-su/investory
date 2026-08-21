@@ -5,13 +5,13 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface SimulationPlanRevisionRepository
-    extends JpaRepository<SimulationPlanRevision, Long> {
-  Optional<SimulationPlanRevision> findByIdAndSimulationPlanId(Long id, Long planId);
+    extends JpaRepository<SimulationPlanRevisionEntity, Long> {
+  Optional<SimulationPlanRevisionEntity> findByIdAndSimulationPlanId(Long id, Long planId);
 
-  Optional<SimulationPlanRevision> findBySimulationPlanIdAndRevisionNumber(
+  Optional<SimulationPlanRevisionEntity> findBySimulationPlanIdAndRevisionNumber(
       Long planId, int revisionNumber);
 
-  List<SimulationPlanRevision> findAllBySimulationPlanIdOrderByRevisionNumberDesc(Long planId);
+  List<SimulationPlanRevisionEntity> findAllBySimulationPlanIdOrderByRevisionNumberDesc(Long planId);
 
   long countBySimulationPlanId(Long planId);
 }

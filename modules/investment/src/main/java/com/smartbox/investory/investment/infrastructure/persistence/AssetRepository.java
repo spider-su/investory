@@ -7,17 +7,17 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface AssetRepository extends JpaRepository<Asset, Long> {
+public interface AssetRepository extends JpaRepository<AssetEntity, Long> {
 
-  Optional<Asset> findBySymbol(String symbol);
+  Optional<AssetEntity> findBySymbol(String symbol);
 
-  default List<Asset> findAllByIbrkIgnoreCase(String ibrk) {
+  default List<AssetEntity> findAllByIbrkIgnoreCase(String ibrk) {
     return findAllByIbkrIgnoreCase(ibrk);
   }
 
-  List<Asset> findAllByIbkrIgnoreCase(String ibkr);
+  List<AssetEntity> findAllByIbkrIgnoreCase(String ibkr);
 
-  List<Asset> findAllBySymbolIn(Collection<String> symbols);
+  List<AssetEntity> findAllBySymbolIn(Collection<String> symbols);
 
-  List<Asset> findAllByTickerIn(Collection<String> tickers);
+  List<AssetEntity> findAllByTickerIn(Collection<String> tickers);
 }

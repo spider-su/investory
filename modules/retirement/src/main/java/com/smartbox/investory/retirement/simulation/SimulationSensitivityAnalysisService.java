@@ -1,6 +1,6 @@
 package com.smartbox.investory.retirement.simulation;
 
-import com.smartbox.investory.longterm.api.CashFlowType;
+import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.retirement.profile.EconomicBucket;
 import com.smartbox.investory.retirement.profile.InvestmentProfile;
 import java.math.BigDecimal;

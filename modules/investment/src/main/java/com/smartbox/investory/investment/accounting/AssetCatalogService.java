@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.accounting;
 
-import com.smartbox.investory.investment.infrastructure.persistence.Asset;
+import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.Collection;
@@ -47,7 +47,7 @@ public class AssetCatalogService {
             .collect(Collectors.toSet());
     Set<String> existingSymbols =
         assetRepository.findAllBySymbolIn(requiredSymbols).stream()
-            .map(Asset::getSymbol)
+            .map(AssetEntity::getSymbol)
             .filter(StringUtils::hasText)
             .map(symbol -> symbol.trim().toUpperCase(Locale.ROOT))
             .collect(Collectors.toSet());
@@ -117,7 +117,7 @@ public class AssetCatalogService {
       return Map.of();
     }
 
-    Map<String, Asset> exactBySymbol =
+    Map<String, AssetEntity> exactBySymbol =
         assetRepository.findAllBySymbolIn(normalizedSymbols).stream()
             .filter(asset -> StringUtils.hasText(asset.getSymbol()))
             .collect(
@@ -133,7 +133,7 @@ public class AssetCatalogService {
             .map(this::deriveTicker)
             .collect(Collectors.toSet());
 
-    Map<String, List<Asset>> assetsByTicker =
+    Map<String, List<AssetEntity>> assetsByTicker =
         unresolvedTickers.isEmpty()
             ? Map.of()
             : assetRepository.findAllByTickerIn(unresolvedTickers).stream()
@@ -161,7 +161,7 @@ public class AssetCatalogService {
       return null;
     }
 
-    List<Asset> brokerMatches =
+    List<AssetEntity> brokerMatches =
         assetRepository.findAllByIbkrIgnoreCase(ibkrSymbol).stream()
             .filter(asset -> StringUtils.hasText(asset.getSymbol()))
             .toList();
@@ -180,7 +180,7 @@ public class AssetCatalogService {
       throw unknownAssetMapping(rawIbkrSymbol, ibkrSymbol);
     }
 
-    List<Asset> tickerMatches =
+    List<AssetEntity> tickerMatches =
         assetRepository.findAllByTickerIn(Set.of(deriveTicker(ibkrSymbol))).stream()
             .filter(asset -> StringUtils.hasText(asset.getSymbol()))
             .toList();
@@ -196,9 +196,9 @@ public class AssetCatalogService {
   private String resolveCanonicalSymbol(
       String rawSymbol,
       String normalizedSymbol,
-      Map<String, Asset> exactBySymbol,
-      Map<String, List<Asset>> assetsByTicker) {
-    Asset exact = exactBySymbol.get(normalizedSymbol);
+      Map<String, AssetEntity> exactBySymbol,
+      Map<String, List<AssetEntity>> assetsByTicker) {
+    AssetEntity exact = exactBySymbol.get(normalizedSymbol);
     if (exact != null && StringUtils.hasText(exact.getSymbol())) {
       return exact.getSymbol();
     }
@@ -206,7 +206,7 @@ public class AssetCatalogService {
       throw unknownAssetMapping(rawSymbol, normalizedSymbol);
     }
 
-    List<Asset> tickerMatches =
+    List<AssetEntity> tickerMatches =
         assetsByTicker.getOrDefault(deriveTicker(normalizedSymbol), List.of()).stream()
             .filter(asset -> StringUtils.hasText(asset.getSymbol()))
             .toList();
@@ -229,10 +229,10 @@ public class AssetCatalogService {
   }
 
   private IllegalArgumentException ambiguousAssetMapping(
-      String rawSymbol, String normalizedSymbol, List<Asset> matches) {
+      String rawSymbol, String normalizedSymbol, List<AssetEntity> matches) {
     String candidates =
         matches.stream()
-            .map(Asset::getSymbol)
+            .map(AssetEntity::getSymbol)
             .filter(StringUtils::hasText)
             .distinct()
             .sorted()

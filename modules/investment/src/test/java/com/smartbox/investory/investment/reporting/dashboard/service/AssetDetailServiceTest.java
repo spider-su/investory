@@ -9,7 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.accounting.model.PositionSettlementModel;
 import com.smartbox.investory.investment.accounting.model.PositionType;
-import com.smartbox.investory.investment.infrastructure.persistence.Asset;
+import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.CashOperationRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPositionRepository;
@@ -33,8 +33,8 @@ class AssetDetailServiceTest {
 
   @Test
   void aggregatesSignedQuantitiesAndWeightedCostByAccount() {
-    Asset asset =
-        Asset.builder()
+    AssetEntity asset =
+        AssetEntity.builder()
             .id(9L)
             .symbol("VWCE")
             .name("Vanguard")

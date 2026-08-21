@@ -4,9 +4,9 @@ import com.smartbox.investory.investment.accounting.model.Portfolio;
 import com.smartbox.investory.investment.accounting.model.PortfolioDataQuality;
 import com.smartbox.investory.investment.imports.ImportBatchStatus;
 import com.smartbox.investory.investment.infrastructure.integration.export.yahoo.YahooExportService;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatistics;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistory;
+import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportRepository;
 import com.smartbox.investory.investment.reporting.dashboard.application.DashboardOperationalView;
 import java.time.ZonedDateTime;
@@ -45,16 +45,16 @@ public class DashboardOperationalContextService {
         portfolio.getDataQuality() == null
             ? PortfolioDataQuality.unknown()
             : portfolio.getDataQuality();
-    Optional<ImportHistory> latestImport =
+    Optional<ImportHistoryEntity> latestImport =
         importRepository.findFirstByStatusOrderByFinishedAtDesc(ImportBatchStatus.COMPLETED);
-    List<AccountStatistics> accounts = accountStatisticsRepository.findAll();
+    List<AccountStatisticsEntity> accounts = accountStatisticsRepository.findAll();
     ZonedDateTime latestTransaction =
         accounts.stream()
-            .map(AccountStatistics::getLastActivityAt)
+            .map(AccountStatisticsEntity::getLastActivityAt)
             .filter(java.util.Objects::nonNull)
             .max(Comparator.naturalOrder())
             .orElse(null);
-    ImportHistory imported = latestImport.orElse(null);
+    ImportHistoryEntity imported = latestImport.orElse(null);
     long updatedAccounts =
         quality.reconciledAccounts() > 0 ? quality.reconciledAccounts() : accounts.size();
     var importContext =

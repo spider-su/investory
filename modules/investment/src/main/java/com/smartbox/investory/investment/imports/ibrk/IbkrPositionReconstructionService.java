@@ -2,7 +2,7 @@ package com.smartbox.investory.investment.imports.ibrk;
 
 import com.smartbox.investory.investment.accounting.CashOperationType;
 import com.smartbox.investory.investment.accounting.model.PositionType;
-import com.smartbox.investory.investment.infrastructure.persistence.CashOperation;
+import com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.CashOperationRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPosition;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPositionRepository;
@@ -49,13 +49,13 @@ public class IbkrPositionReconstructionService {
   @Transactional
   public ReconstructionResult rebuildFromCanonicalHistory(
       Long accountId, List<OpenedPosition> authoritativeOpenPositions) {
-    List<CashOperation> canonicalOperations =
+    List<CashOperationEntity> canonicalOperations =
         cashOperationRepository.findAllByAccount(accountId).stream()
             .sorted(
-                Comparator.comparing(CashOperation::getDate)
+                Comparator.comparing(CashOperationEntity::getDate)
                     .thenComparing(op -> orDefault(op.getSymbol(), ""))
                     .thenComparing(op -> orDefault(op.getComment(), ""))
-                    .thenComparing(CashOperation::getId))
+                    .thenComparing(CashOperationEntity::getId))
             .toList();
 
     Map<String, Integer> dedup = new HashMap<>();
@@ -92,7 +92,7 @@ public class IbkrPositionReconstructionService {
     }
   }
 
-  private CanonicalTrade toCanonicalTrade(CashOperation operation) {
+  private CanonicalTrade toCanonicalTrade(CashOperationEntity operation) {
     if (operation.getAccount() == null) {
       return null;
     }
@@ -126,7 +126,7 @@ public class IbkrPositionReconstructionService {
       List<ClosedPosition> closedPositions,
       Map<String, Integer> dedup,
       CanonicalTrade tx) {
-    CashOperation op = tx.operation();
+    CashOperationEntity op = tx.operation();
     if (op.getType() == CashOperationType.TRANSFER && !isBondRedemption(tx)) {
       return;
     }
@@ -233,7 +233,7 @@ public class IbkrPositionReconstructionService {
   private List<OpenedPosition> mergeAuthoritativeOpenPositionFallback(
       List<OpenedPosition> canonicalOpen,
       List<OpenedPosition> authoritativeOpenPositions,
-      List<CashOperation> canonicalOperations) {
+      List<CashOperationEntity> canonicalOperations) {
     if (authoritativeOpenPositions == null) {
       return canonicalOpen;
     }
@@ -279,7 +279,7 @@ public class IbkrPositionReconstructionService {
     if (closedSlices.isEmpty()) {
       return;
     }
-    CashOperation op = tx.operation();
+    CashOperationEntity op = tx.operation();
     double totalClosedQuantity = closedSlices.stream().mapToDouble(ClosedSlice::quantity).sum();
     double totalSaleValue = grossTradeValue(tx);
     if (totalSaleValue <= EPSILON) {
@@ -432,10 +432,10 @@ public class IbkrPositionReconstructionService {
   }
 
   private void validateQuantityReconciliation(
-      Map<String, ReconstructedPosition> positions, List<CashOperation> canonicalOperations) {
+      Map<String, ReconstructedPosition> positions, List<CashOperationEntity> canonicalOperations) {
     Map<String, Double> netByPosition = new HashMap<>();
     Map<String, ReconstructedPosition> validationPositions = new HashMap<>();
-    for (CashOperation operation : canonicalOperations) {
+    for (CashOperationEntity operation : canonicalOperations) {
       if (!StringUtils.hasText(operation.getSymbol())) {
         continue;
       }
@@ -546,7 +546,7 @@ public class IbkrPositionReconstructionService {
       List<OpenedPosition> openedPositions, List<ClosedPosition> closedPositions) {}
 
   private record CanonicalTrade(
-      CashOperation operation,
+      CashOperationEntity operation,
       String rawType,
       String symbol,
       String rawSymbol,

@@ -4,9 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDaily;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformance;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -23,7 +23,7 @@ class PortfolioPerformanceQueryTest {
 
   @Test
   void noFlowPeriodPreservesExactValues() {
-    PortfolioMonthlyPerformance row = row("2026-01-01", "2026-01-31");
+    PortfolioMonthlyPerformanceEntity row = row("2026-01-01", "2026-01-31");
     row.setStartEquity(new BigDecimal("1000.12345678"));
     row.setEndEquity(new BigDecimal("1000.12345679"));
     when(repository.findAllByOrderByMonthAscPortfolioIdAsc()).thenReturn(List.of(row));
@@ -37,7 +37,7 @@ class PortfolioPerformanceQueryTest {
 
   @Test
   void aggregatesFlowsIncomeAndProfitFromReportingRows() {
-    PortfolioMonthlyPerformance row = row("2026-02-01", "2026-02-28");
+    PortfolioMonthlyPerformanceEntity row = row("2026-02-01", "2026-02-28");
     row.setDepositFlow(new BigDecimal("100.10"));
     row.setWithdrawalFlow(new BigDecimal("20.05"));
     row.setDividends(new BigDecimal("1.25"));
@@ -63,9 +63,9 @@ class PortfolioPerformanceQueryTest {
 
   @Test
   void excludesRowsOutsideRequestedPeriod() {
-    PortfolioMonthlyPerformance included = row("2026-03-01", "2026-03-31");
+    PortfolioMonthlyPerformanceEntity included = row("2026-03-01", "2026-03-31");
     included.setProfit(new BigDecimal("4.00"));
-    PortfolioMonthlyPerformance excluded = row("2026-04-01", "2026-04-30");
+    PortfolioMonthlyPerformanceEntity excluded = row("2026-04-01", "2026-04-30");
     excluded.setProfit(new BigDecimal("99.00"));
     when(repository.findAllByOrderByMonthAscPortfolioIdAsc())
         .thenReturn(List.of(included, excluded));
@@ -77,11 +77,11 @@ class PortfolioPerformanceQueryTest {
 
   @Test
   void assemblesReturnMetricsFromAccountDailyBoundaries() {
-    PortfolioMonthlyPerformance row = row("2026-05-01", "2026-05-31");
+    PortfolioMonthlyPerformanceEntity row = row("2026-05-01", "2026-05-31");
     row.setStartEquity(new BigDecimal("100"));
     row.setEndEquity(new BigDecimal("110"));
     when(repository.findAllByOrderByMonthAscPortfolioIdAsc()).thenReturn(List.of(row));
-    AccountDaily daily = new AccountDaily();
+    AccountDailyEntity daily = new AccountDailyEntity();
     daily.setAccountId(1L);
     daily.setDate(LocalDate.parse("2026-05-31"));
     daily.setEquity(new BigDecimal("110"));
@@ -96,8 +96,8 @@ class PortfolioPerformanceQueryTest {
     assertThat(result.moneyWeightedReturn().status()).isEqualTo(ReturnMetric.Status.AVAILABLE);
   }
 
-  private static PortfolioMonthlyPerformance row(String firstDate, String endDate) {
-    PortfolioMonthlyPerformance row = new PortfolioMonthlyPerformance();
+  private static PortfolioMonthlyPerformanceEntity row(String firstDate, String endDate) {
+    PortfolioMonthlyPerformanceEntity row = new PortfolioMonthlyPerformanceEntity();
     row.setPortfolioId(1L);
     row.setMonth(LocalDate.parse(firstDate));
     row.setFirstDate(LocalDate.parse(firstDate));

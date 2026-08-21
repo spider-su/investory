@@ -1,12 +1,13 @@
 package com.smartbox.investory.longterm.application;
+import com.smartbox.investory.longterm.application.service.LongTermAssetLifecycleService;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
-import com.smartbox.investory.longterm.infrastructure.LongTermAsset;
-import com.smartbox.investory.longterm.infrastructure.LongTermAssetLifecyclePeriod;
-import com.smartbox.investory.longterm.infrastructure.LongTermAssetLifecyclePeriodRepository;
-import com.smartbox.investory.longterm.infrastructure.LongTermAssetRepository;
+import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetEntity;
+import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetRepository;
+import com.smartbox.investory.longterm.infrastructure.lifecycle.LongTermAssetLifecyclePeriodEntity;
+import com.smartbox.investory.longterm.infrastructure.lifecycle.LongTermAssetLifecyclePeriodRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -23,7 +24,7 @@ class LongTermAssetLifecycleServiceTest {
 
   @Test
   void archiveOnAcquisitionDateCreatesAValidSameDayPeriod() {
-    LongTermAsset asset = asset(true, TODAY);
+    LongTermAssetEntity asset = asset(true, TODAY);
     LongTermAssetRepository assets = mock(LongTermAssetRepository.class);
     LongTermAssetLifecyclePeriodRepository periods =
         mock(LongTermAssetLifecyclePeriodRepository.class);
@@ -32,8 +33,8 @@ class LongTermAssetLifecycleServiceTest {
 
     new LongTermAssetLifecycleService(assets, periods, CLOCK).archive(1L, 1L);
 
-    ArgumentCaptor<LongTermAssetLifecyclePeriod> captor =
-        ArgumentCaptor.forClass(LongTermAssetLifecyclePeriod.class);
+    ArgumentCaptor<LongTermAssetLifecyclePeriodEntity> captor =
+        ArgumentCaptor.forClass(LongTermAssetLifecyclePeriodEntity.class);
     verify(periods).save(captor.capture());
     assertTrue(!captor.getValue().getActiveTo().isBefore(captor.getValue().getActiveFrom()));
     verify(assets).save(asset);
@@ -41,8 +42,8 @@ class LongTermAssetLifecycleServiceTest {
 
   @Test
   void reactivationAndArchiveOnSameDateNeverCreatesAnInvalidRange() {
-    LongTermAsset asset = asset(false, TODAY.minusDays(1));
-    LongTermAssetLifecyclePeriod period = period(TODAY, TODAY);
+    LongTermAssetEntity asset = asset(false, TODAY.minusDays(1));
+    LongTermAssetLifecyclePeriodEntity period = period(TODAY, TODAY);
     LongTermAssetRepository assets = mock(LongTermAssetRepository.class);
     LongTermAssetLifecyclePeriodRepository periods =
         mock(LongTermAssetLifecyclePeriodRepository.class);
@@ -59,9 +60,9 @@ class LongTermAssetLifecycleServiceTest {
 
   @Test
   void historicalLookupUsesPersistedPeriodsAndInjectedClock() {
-    LongTermAsset asset = asset(false, TODAY.minusDays(10));
-    LongTermAssetLifecyclePeriod first = period(TODAY.minusDays(10), TODAY.minusDays(5));
-    LongTermAssetLifecyclePeriod second = period(TODAY.minusDays(2), null);
+    LongTermAssetEntity asset = asset(false, TODAY.minusDays(10));
+    LongTermAssetLifecyclePeriodEntity first = period(TODAY.minusDays(10), TODAY.minusDays(5));
+    LongTermAssetLifecyclePeriodEntity second = period(TODAY.minusDays(2), null);
     LongTermAssetRepository assets = mock(LongTermAssetRepository.class);
     LongTermAssetLifecyclePeriodRepository periods =
         mock(LongTermAssetLifecyclePeriodRepository.class);
@@ -75,8 +76,8 @@ class LongTermAssetLifecycleServiceTest {
     assertTrue(service.activeOn(asset, TODAY));
   }
 
-  private static LongTermAsset asset(boolean active, LocalDate acquisitionDate) {
-    LongTermAsset asset = new LongTermAsset();
+  private static LongTermAssetEntity asset(boolean active, LocalDate acquisitionDate) {
+    LongTermAssetEntity asset = new LongTermAssetEntity();
     asset.setId(1L);
     asset.setPortfolioId(1L);
     asset.setActive(active);
@@ -84,8 +85,8 @@ class LongTermAssetLifecycleServiceTest {
     return asset;
   }
 
-  private static LongTermAssetLifecyclePeriod period(LocalDate from, LocalDate to) {
-    LongTermAssetLifecyclePeriod period = new LongTermAssetLifecyclePeriod();
+  private static LongTermAssetLifecyclePeriodEntity period(LocalDate from, LocalDate to) {
+    LongTermAssetLifecyclePeriodEntity period = new LongTermAssetLifecyclePeriodEntity();
     period.setAssetId(1L);
     period.setActiveFrom(from);
     period.setActiveTo(to);

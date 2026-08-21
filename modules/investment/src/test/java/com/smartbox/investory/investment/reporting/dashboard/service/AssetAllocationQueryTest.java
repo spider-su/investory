@@ -5,9 +5,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.accounting.model.Portfolio;
-import com.smartbox.investory.investment.infrastructure.persistence.Asset;
+import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocation;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocationEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocationRepository;
 import com.smartbox.investory.investment.reporting.dashboard.application.AssetAllocationView;
 import java.util.List;
@@ -16,11 +16,11 @@ import org.junit.jupiter.api.Test;
 class AssetAllocationQueryTest {
   @Test
   void aggregatesExistingValuationsByAssetTypeAndCash() {
-    PortfolioAssetAllocation position = new PortfolioAssetAllocation();
+    PortfolioAssetAllocationEntity position = new PortfolioAssetAllocationEntity();
     position.setAssetId(7L);
     position.setAssetSymbol("VWRA");
     position.setTotalValueInBaseCurrency(700d);
-    Asset asset = new Asset();
+    AssetEntity asset = new AssetEntity();
     asset.setId(7L);
     asset.setAssetType("ETF");
 
@@ -42,14 +42,14 @@ class AssetAllocationQueryTest {
 
   @Test
   void mapsKnownAssetTypesDeterministicallyAndUnknownTypesToOther() {
-    List<PortfolioAssetAllocation> rows =
+    List<PortfolioAssetAllocationEntity> rows =
         List.of(
             allocation(1L, "ETF", 10),
             allocation(2L, "REIT", 20),
             allocation(3L, "FIXED_INCOME", 30),
             allocation(4L, "METAL", 40),
             allocation(5L, "mystery", 50));
-    List<Asset> assets =
+    List<AssetEntity> assets =
         List.of(
             asset(1L, "ETF"),
             asset(2L, "REIT"),
@@ -71,7 +71,7 @@ class AssetAllocationQueryTest {
 
   @Test
   void loadsOnlyRowsForRequestedPortfolio() {
-    PortfolioAssetAllocation first = allocation(1L, "VWRA", 70);
+    PortfolioAssetAllocationEntity first = allocation(1L, "VWRA", 70);
     first.setPortfolioId(1L);
     PortfolioAssetAllocationRepository allocations = mock(PortfolioAssetAllocationRepository.class);
     AssetRepository assetRepository = mock(AssetRepository.class);
@@ -84,8 +84,8 @@ class AssetAllocationQueryTest {
     assertThat(view.buckets().getFirst().value()).isEqualTo(70);
   }
 
-  private static PortfolioAssetAllocation allocation(Long id, String symbol, double value) {
-    PortfolioAssetAllocation allocation = new PortfolioAssetAllocation();
+  private static PortfolioAssetAllocationEntity allocation(Long id, String symbol, double value) {
+    PortfolioAssetAllocationEntity allocation = new PortfolioAssetAllocationEntity();
     allocation.setPortfolioId(1L);
     allocation.setAssetId(id);
     allocation.setAssetSymbol(symbol);
@@ -93,8 +93,8 @@ class AssetAllocationQueryTest {
     return allocation;
   }
 
-  private static Asset asset(Long id, String type) {
-    Asset asset = new Asset();
+  private static AssetEntity asset(Long id, String type) {
+    AssetEntity asset = new AssetEntity();
     asset.setId(id);
     asset.setAssetType(type);
     return asset;

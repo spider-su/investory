@@ -6,7 +6,7 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface BenchmarkMonthlyCloseRepository
-    extends JpaRepository<BenchmarkMonthlyClose, Long> {
+    extends JpaRepository<BenchmarkMonthlyCloseEntity, Long> {
 
-  List<BenchmarkMonthlyClose> findBySymbolOrderByMonthDateAsc(String symbol);
+  List<BenchmarkMonthlyCloseEntity> findBySymbolOrderByMonthDateAsc(String symbol);
 }

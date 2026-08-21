@@ -1,6 +1,6 @@
 package com.smartbox.investory.retirement.simulation;
 
-import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshot;
+import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
 import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
 import com.smartbox.investory.retirement.planning.ForwardSimulationInput;
 import com.smartbox.investory.retirement.planning.ForwardSimulationInputService;
@@ -46,7 +46,7 @@ public class PlanEditorPreviewService {
             ? simulations.simulate(forward.bridgedProfile(), projected, SimulationScenario.BASE)
             : new SimulationResult(
                 SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of());
-    LongTermAssetAnnualSnapshot facts = currentFacts(profile);
+    LongTermAssetAnnualSnapshotModel facts = currentFacts(profile);
     int currentYear = Year.now(clock).getValue();
     int retirementYear = ForwardSimulationContextFactory.retirementYear(assumptions);
     SimulationYear first = result.years().isEmpty() ? null : result.years().get(0);
@@ -79,7 +79,7 @@ public class PlanEditorPreviewService {
   }
 
   /** Current Long-term Assets facts used by the editor's read-only fields. */
-  public LongTermAssetAnnualSnapshot currentFacts(InvestmentProfile profile) {
+  public LongTermAssetAnnualSnapshotModel currentFacts(InvestmentProfile profile) {
     return longTermAssets.currentAnnualSnapshot(profile.portfolioId(), LocalDate.now(clock));
   }
 

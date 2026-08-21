@@ -14,23 +14,23 @@ import com.smartbox.investory.investment.accounting.model.Performance;
 import com.smartbox.investory.investment.accounting.model.Portfolio;
 import com.smartbox.investory.investment.accounting.model.PortfolioDataQualityIssue;
 import com.smartbox.investory.investment.infrastructure.persistence.*;
-import com.smartbox.investory.investment.infrastructure.persistence.account.Account;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountMonthlyPerformance;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountMonthlyPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountMonthlyPerformanceRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatistics;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocationRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioCurrencyBreakdown;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioCurrencyBreakdownEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioCurrencyBreakdownRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioDataQualityRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioFallbackReconciliationRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioKpiSummary;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioKpiSummaryEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioKpiSummaryRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformance;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformance;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceRepository;
 import com.smartbox.investory.investment.market.fx.CurrencyRateService;
 import com.smartbox.investory.investment.reporting.PortfolioPerformanceQueryService;
@@ -196,7 +196,7 @@ class PortfolioServiceTest {
     when(portfolioKpiSummaryRepository.findAll())
         .thenReturn(
             List.of(
-                new PortfolioKpiSummary(
+                new PortfolioKpiSummaryEntity(
                     1L,
                     "Main",
                     CurrencyType.USD,
@@ -228,11 +228,11 @@ class PortfolioServiceTest {
                     .balances(0.0, 0.0, 0.0)
                     .performance(0.0, 0.0, 0.0)
                     .build()));
-    Account account = new Account();
+    AccountEntity account = new AccountEntity();
     account.setId(17959259L);
     account.setName("IBKR");
     account.setCurrency(CurrencyType.PLN);
-    Account emptyAccount = new Account();
+    AccountEntity emptyAccount = new AccountEntity();
     emptyAccount.setId(999L);
     emptyAccount.setName("Empty");
     emptyAccount.setCurrency(CurrencyType.PLN);
@@ -275,7 +275,7 @@ class PortfolioServiceTest {
 
   @Test
   void calculateTotalProfitLoss_keepsFundedZeroBalanceAccountsVisible() {
-    Account account = new Account();
+    AccountEntity account = new AccountEntity();
     account.setId(51747407L);
     account.setName("Trading EUR");
     account.setCurrency(CurrencyType.EUR);
@@ -303,7 +303,7 @@ class PortfolioServiceTest {
 
   @Test
   void calculateTotalProfitLoss_usesTransferAwareNormalizedNetDepositsForAccountCards() {
-    Account account = new Account();
+    AccountEntity account = new AccountEntity();
     account.setId(51747407L);
     account.setName("Trading EUR");
     account.setCurrency(CurrencyType.EUR);
@@ -336,7 +336,7 @@ class PortfolioServiceTest {
 
   @Test
   void calculateTotalProfitLoss_usesBaseBalanceForBaseCurrencyAccountProfitLoss() {
-    Account account = new Account();
+    AccountEntity account = new AccountEntity();
     account.setId(51499241L);
     account.setName("Trading USD");
     account.setCurrency(CurrencyType.USD);
@@ -365,7 +365,7 @@ class PortfolioServiceTest {
 
   @Test
   void xtbUsdSubaccountTransferAdjustsAccountBasisNotPortfolioBasis() {
-    Account account = new Account();
+    AccountEntity account = new AccountEntity();
     account.setId(51499241L);
     account.setName("XTB USD");
     account.setProvider("XTB");
@@ -373,7 +373,7 @@ class PortfolioServiceTest {
     when(portfolioKpiSummaryRepository.findAll())
         .thenReturn(
             List.of(
-                new PortfolioKpiSummary(
+                new PortfolioKpiSummaryEntity(
                     1L,
                     "Portfolio",
                     CurrencyType.USD,
@@ -429,14 +429,14 @@ class PortfolioServiceTest {
 
   @Test
   void calculateTotalProfitLoss_derivesDashboardTotalProfitFromBalanceAndNetDeposit() {
-    Account account = new Account();
+    AccountEntity account = new AccountEntity();
     account.setId(51499241L);
     account.setName("Trading USD");
     account.setCurrency(CurrencyType.USD);
     when(portfolioKpiSummaryRepository.findAll())
         .thenReturn(
             List.of(
-                new PortfolioKpiSummary(
+                new PortfolioKpiSummaryEntity(
                     1L,
                     "Portfolio",
                     CurrencyType.USD,
@@ -481,7 +481,7 @@ class PortfolioServiceTest {
     when(portfolioKpiSummaryRepository.findAll())
         .thenReturn(
             List.of(
-                new PortfolioKpiSummary(
+                new PortfolioKpiSummaryEntity(
                     1L,
                     "Main",
                     CurrencyType.USD,
@@ -642,7 +642,7 @@ class PortfolioServiceTest {
     when(portfolioKpiSummaryRepository.findAll())
         .thenReturn(
             List.of(
-                new PortfolioKpiSummary(
+                new PortfolioKpiSummaryEntity(
                     1L,
                     "Main",
                     CurrencyType.USD,
@@ -672,29 +672,29 @@ class PortfolioServiceTest {
     when(symbolPerformanceRepository.findAll())
         .thenReturn(
             List.of(
-                new SymbolPerformance(
+                new SymbolPerformanceEntity(
                     "PZU.PL", 0.0, 0.0, 0.0, 300.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now()),
-                new SymbolPerformance(
+                new SymbolPerformanceEntity(
                     "AAPL.US", 0.0, 0.0, 0.0, 200.0, 50.0, 0.0, 0.0, 0.0, ZonedDateTime.now()),
-                new SymbolPerformance(
+                new SymbolPerformanceEntity(
                     "SMALL_1", 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now()),
-                new SymbolPerformance(
+                new SymbolPerformanceEntity(
                     "SMALL_2", 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now()),
-                new SymbolPerformance(
+                new SymbolPerformanceEntity(
                     "SMALL_3", 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now()),
-                new SymbolPerformance(
+                new SymbolPerformanceEntity(
                     "SMALL_4", 0.0, 0.0, 0.0, 4.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now()),
-                new SymbolPerformance(
+                new SymbolPerformanceEntity(
                     "SMALL_5", 0.0, 0.0, 0.0, 5.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now()),
-                new SymbolPerformance(
+                new SymbolPerformanceEntity(
                     "SMALL_6", 0.0, 0.0, 0.0, 6.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now()),
-                new SymbolPerformance(
+                new SymbolPerformanceEntity(
                     "SMALL_7", 0.0, 0.0, 0.0, 7.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now()),
-                new SymbolPerformance(
+                new SymbolPerformanceEntity(
                     "SMALL_8", 0.0, 0.0, 0.0, 8.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now()),
-                new SymbolPerformance(
+                new SymbolPerformanceEntity(
                     "SMALL_9", 0.0, 0.0, 0.0, 9.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now()),
-                new SymbolPerformance(
+                new SymbolPerformanceEntity(
                     "SMALL_10", 0.0, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now())));
     when(closedPositionRepository.findAll()).thenReturn(List.of());
     when(openedPositionRepository.findAll()).thenReturn(List.of());
@@ -719,7 +719,7 @@ class PortfolioServiceTest {
     when(portfolioKpiSummaryRepository.findAll())
         .thenReturn(
             List.of(
-                new PortfolioKpiSummary(
+                new PortfolioKpiSummaryEntity(
                     1L,
                     "Main",
                     CurrencyType.USD,
@@ -747,7 +747,7 @@ class PortfolioServiceTest {
     when(portfolioKpiSummaryRepository.findAll())
         .thenReturn(
             List.of(
-                new PortfolioKpiSummary(
+                new PortfolioKpiSummaryEntity(
                     1L,
                     "Main",
                     CurrencyType.USD,
@@ -764,7 +764,7 @@ class PortfolioServiceTest {
     when(portfolioCurrencyBreakdownRepository.findAll())
         .thenReturn(
             List.of(
-                new PortfolioCurrencyBreakdown(
+                new PortfolioCurrencyBreakdownEntity(
                     1L,
                     CurrencyType.USD,
                     "REALIZED",
@@ -772,7 +772,7 @@ class PortfolioServiceTest {
                     100.0,
                     100.0,
                     ZonedDateTime.now()),
-                new PortfolioCurrencyBreakdown(
+                new PortfolioCurrencyBreakdownEntity(
                     1L,
                     CurrencyType.USD,
                     "UNREALIZED",
@@ -780,7 +780,7 @@ class PortfolioServiceTest {
                     -250.0,
                     -250.0,
                     ZonedDateTime.now()),
-                new PortfolioCurrencyBreakdown(
+                new PortfolioCurrencyBreakdownEntity(
                     1L,
                     CurrencyType.USD,
                     "DIVIDENDS",
@@ -806,7 +806,7 @@ class PortfolioServiceTest {
     when(portfolioKpiSummaryRepository.findAll())
         .thenReturn(
             List.of(
-                new PortfolioKpiSummary(
+                new PortfolioKpiSummaryEntity(
                     2L,
                     "EUR portfolio",
                     CurrencyType.EUR,
@@ -834,7 +834,7 @@ class PortfolioServiceTest {
     when(portfolioCurrencyBreakdownRepository.findAll())
         .thenReturn(
             List.of(
-                new PortfolioCurrencyBreakdown(
+                new PortfolioCurrencyBreakdownEntity(
                     1L,
                     CurrencyType.USD,
                     "ACCOUNT_LATEST",
@@ -849,7 +849,7 @@ class PortfolioServiceTest {
                     .account(new AccountDefinition(1L, "Main", CurrencyType.USD, "Broker"))
                     .performance(10.0, 20.0, 30.0)
                     .build()));
-    Account account = new Account();
+    AccountEntity account = new AccountEntity();
     account.setId(1L);
     account.setCurrency(CurrencyType.USD);
     when(accountRepository.findAll()).thenReturn(List.of(account));
@@ -890,7 +890,7 @@ class PortfolioServiceTest {
                     .balances(0.0, 5000.0, 4950.0)
                     .performance(99.0, 50.0, 25.0)
                     .build()));
-    Account account = new Account();
+    AccountEntity account = new AccountEntity();
     account.setId(1L);
     account.setCurrency(CurrencyType.USD);
     account.setName("Main");
@@ -965,9 +965,9 @@ class PortfolioServiceTest {
     when(symbolPerformanceRepository.findAll())
         .thenReturn(
             List.of(
-                new SymbolPerformance(
+                new SymbolPerformanceEntity(
                     "AAPL.US", 100.0, 50.0, 150.0, 0.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now()),
-                new SymbolPerformance(
+                new SymbolPerformanceEntity(
                     "MSFT.US", 0.0, 30.0, 30.0, 0.0, 0.0, 0.0, 0.0, 0.0, ZonedDateTime.now())));
 
     List<InstrumentPerformance> performance = portfolioService.calculatePerformancePerInstrument();
@@ -1084,11 +1084,11 @@ class PortfolioServiceTest {
         .build();
   }
 
-  private static PortfolioMonthlyPerformance portfolioMonthlyPerformance(
+  private static PortfolioMonthlyPerformanceEntity portfolioMonthlyPerformance(
       LocalDate month, double profit, double netCashflow) {
     double deposits = Math.max(0.0, netCashflow);
     double withdrawals = Math.max(0.0, -netCashflow);
-    return new PortfolioMonthlyPerformance(
+    return new PortfolioMonthlyPerformanceEntity(
         1L,
         month,
         month,
@@ -1108,9 +1108,9 @@ class PortfolioServiceTest {
         ZonedDateTime.now());
   }
 
-  private static AccountMonthlyPerformance monthlyPerformance(
+  private static AccountMonthlyPerformanceEntity monthlyPerformance(
       Long accountId, LocalDate month, double profit, double netCashflow, double endEquity) {
-    return new AccountMonthlyPerformance(
+    return new AccountMonthlyPerformanceEntity(
         accountId + ":" + month,
         accountId,
         month,
@@ -1125,7 +1125,7 @@ class PortfolioServiceTest {
         ZonedDateTime.now());
   }
 
-  private static AccountStatistics visibleAccountStats(
+  private static AccountStatisticsEntity visibleAccountStats(
       Long accountId, double balance, double netDeposit) {
     return PortfolioBuilders.accountStatistics()
         .account(new AccountDefinition(accountId, "A" + accountId, CurrencyType.USD, "Test"))
@@ -1134,7 +1134,7 @@ class PortfolioServiceTest {
         .build();
   }
 
-  private static CashOperation cash(CashOperationType type, double amount, String comment) {
+  private static CashOperationEntity cash(CashOperationType type, double amount, String comment) {
     return PortfolioBuilders.cashOperation()
         .type(type)
         .deposit(amount, CurrencyType.USD)
@@ -1144,23 +1144,23 @@ class PortfolioServiceTest {
         .build();
   }
 
-  private static CashOperation subaccountTransfer(long id, double amount, String comment) {
-    CashOperation operation = cash(CashOperationType.SUBACCOUNT_TRANSFER, amount, comment);
+  private static CashOperationEntity subaccountTransfer(long id, double amount, String comment) {
+    CashOperationEntity operation = cash(CashOperationType.SUBACCOUNT_TRANSFER, amount, comment);
     operation.setId(id);
     operation.setAccount(51499241L);
     operation.setDate(ZonedDateTime.parse("2026-01-01T12:00:00Z").plusMinutes(id));
     return operation;
   }
 
-  private static CashOperation dividend() {
-    CashOperation c = cash(CashOperationType.DIVIDEND, 100.0, null);
+  private static CashOperationEntity dividend() {
+    CashOperationEntity c = cash(CashOperationType.DIVIDEND, 100.0, null);
     c.setSymbol("AAPL.US");
     c.setCurrency(CurrencyType.USD);
     return c;
   }
 
-  private static CashOperation dividendTax() {
-    CashOperation c = cash(CashOperationType.WITHHOLDING_TAX, -15.0, null);
+  private static CashOperationEntity dividendTax() {
+    CashOperationEntity c = cash(CashOperationType.WITHHOLDING_TAX, -15.0, null);
     c.setSymbol("AAPL.US");
     c.setCurrency(CurrencyType.USD);
     return c;

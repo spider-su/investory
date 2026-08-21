@@ -1,7 +1,7 @@
 package com.smartbox.investory.integrations.notifications;
 
 import com.smartbox.investory.investment.imports.ImportBatchStatus;
-import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistory;
+import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportRepository;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
@@ -26,11 +26,11 @@ public class StaleImportAlertRule implements AlertRule {
 
   @Override
   public Optional<String> evaluate() {
-    Optional<ImportHistory> latest = importRepository.findFirstByOrderByIdDesc();
+    Optional<ImportHistoryEntity> latest = importRepository.findFirstByOrderByIdDesc();
     if (latest.isEmpty()) {
       return Optional.of("No broker imports recorded yet.");
     }
-    ImportHistory batch = latest.get();
+    ImportHistoryEntity batch = latest.get();
     ZonedDateTime ts = batch.getFinishedAt() != null ? batch.getFinishedAt() : batch.getStartedAt();
     if (ts == null) {
       return Optional.empty();

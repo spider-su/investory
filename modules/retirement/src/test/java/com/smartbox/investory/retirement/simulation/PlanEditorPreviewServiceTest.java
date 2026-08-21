@@ -8,7 +8,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshot;
+import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
 import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
 import com.smartbox.investory.retirement.planning.ForwardSimulationInputService;
 import com.smartbox.investory.retirement.planning.PlanningCurrencyPresentationService;
@@ -48,8 +48,8 @@ class PlanEditorPreviewServiceTest {
     PlanEditorPreviewService service =
         new PlanEditorPreviewService(inputs, simulations, longTermAssets, presentation, clock);
     InvestmentProfile profile = mock(InvestmentProfile.class);
-    LongTermAssetAnnualSnapshot facts =
-        new LongTermAssetAnnualSnapshot(
+    LongTermAssetAnnualSnapshotModel facts =
+        new LongTermAssetAnnualSnapshotModel(
             new BigDecimal("3650000"),
             new BigDecimal("171509"),
             new BigDecimal("900000"),
@@ -104,7 +104,7 @@ class PlanEditorPreviewServiceTest {
                 mock(ForwardSimulationContext.class), profile, Optional.of(assumptions)));
     when(simulations.simulate(profile, assumptions, SimulationScenario.BASE)).thenReturn(empty);
     when(longTermAssets.currentAnnualSnapshot(any(), any()))
-        .thenReturn(new LongTermAssetAnnualSnapshot(null, null, null, null, null, null));
+        .thenReturn(new LongTermAssetAnnualSnapshotModel(null, null, null, null, null, null));
 
     when(presentation.toDisplay(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
 

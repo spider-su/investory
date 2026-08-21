@@ -6,7 +6,7 @@ import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.imports.BrokerType;
 import com.smartbox.investory.investment.imports.ImportBatchStatus;
-import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistory;
+import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportRepository;
 import java.time.ZonedDateTime;
 import java.util.Optional;
@@ -69,8 +69,8 @@ class StaleImportHistoryAlertRuleTest {
     assertFalse(rule.evaluate().isPresent());
   }
 
-  private static ImportHistory batch(ImportBatchStatus status, ZonedDateTime ts) {
-    ImportHistory b = new ImportHistory();
+  private static ImportHistoryEntity batch(ImportBatchStatus status, ZonedDateTime ts) {
+    ImportHistoryEntity b = new ImportHistoryEntity();
     b.setId(1L);
     b.setBroker(BrokerType.XTB);
     b.setStatus(status);

@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.infrastructure.persistence.Asset;
+import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -13,7 +13,7 @@ class BrokerageAssetClassificationReadServiceTest {
   @Test
   void exposesOnlyExistingAssetSymbolAndClassification() {
     AssetRepository assets = Mockito.mock(AssetRepository.class);
-    Asset asset = new Asset();
+    AssetEntity asset = new AssetEntity();
     asset.setSymbol("ETF-PL");
     asset.setAssetType("ETF");
     when(assets.findBySymbol("ETF-PL")).thenReturn(java.util.Optional.of(asset));

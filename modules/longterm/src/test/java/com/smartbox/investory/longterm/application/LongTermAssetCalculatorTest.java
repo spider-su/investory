@@ -1,10 +1,11 @@
 package com.smartbox.investory.longterm.application;
+import com.smartbox.investory.longterm.application.service.LongTermAssetCalculator;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.smartbox.investory.longterm.api.CashFlowType;
-import com.smartbox.investory.longterm.api.Frequency;
-import com.smartbox.investory.longterm.infrastructure.*;
+import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
+import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
+import com.smartbox.investory.longterm.infrastructure.rental.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
@@ -14,19 +15,19 @@ class LongTermAssetCalculatorTest {
 
   @Test
   void monthlyCashFlowIsAnnualized() {
-    LongTermAssetCashFlow f = flow(CashFlowType.RENT, "2650", Frequency.MONTHLY);
+    LongTermAssetCashFlowEntity f = flow(CashFlowType.RENT, "2650", Frequency.MONTHLY);
     assertEquals(new BigDecimal("31800"), LongTermAssetCalculator.annualAmount(f));
   }
 
   @Test
   void annualCashFlowIsUnchanged() {
-    LongTermAssetCashFlow f = flow(CashFlowType.PROPERTY_TAX, "320", Frequency.ANNUAL);
+    LongTermAssetCashFlowEntity f = flow(CashFlowType.PROPERTY_TAX, "320", Frequency.ANNUAL);
     assertEquals(new BigDecimal("320"), LongTermAssetCalculator.annualAmount(f));
   }
 
   @Test
   void cashFlowPeriodSelectionUsesInclusiveBounds() {
-    LongTermAssetCashFlow f = flow(CashFlowType.RENT, "1", Frequency.MONTHLY);
+    LongTermAssetCashFlowEntity f = flow(CashFlowType.RENT, "1", Frequency.MONTHLY);
     f.setValidFrom(DATE);
     f.setValidTo(DATE.plusMonths(1));
     assertTrue(LongTermAssetCalculator.applies(f, DATE));
@@ -47,8 +48,8 @@ class LongTermAssetCalculatorTest {
         BigDecimal.ZERO, LongTermAssetCalculator.ratio(new BigDecimal("10"), BigDecimal.ZERO));
   }
 
-  private static LongTermAssetCashFlow flow(CashFlowType type, String amount, Frequency frequency) {
-    LongTermAssetCashFlow f = new LongTermAssetCashFlow();
+  private static LongTermAssetCashFlowEntity flow(CashFlowType type, String amount, Frequency frequency) {
+    LongTermAssetCashFlowEntity f = new LongTermAssetCashFlowEntity();
     f.setType(type);
     f.setAmount(new BigDecimal(amount));
     f.setFrequency(frequency);

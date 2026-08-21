@@ -2,7 +2,7 @@ package com.smartbox.investory.investment.infrastructure.read;
 
 import com.smartbox.investory.investment.api.HistoricalPortfolioActualsReader;
 import com.smartbox.investory.investment.api.HistoricalPortfolioYear;
-import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformance;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -22,7 +22,7 @@ public class HistoricalPortfolioActualsReadService implements HistoricalPortfoli
 
   @Override
   public HistoricalPortfolioYear read(Long portfolioId, int year) {
-    List<PortfolioMonthlyPerformance> rows =
+    List<PortfolioMonthlyPerformanceEntity> rows =
         performance.findByPortfolioIdAndMonthBetweenOrderByMonthAsc(
             portfolioId, LocalDate.of(year, 1, 1), LocalDate.of(year, 12, 31));
     Set<LocalDate> expectedMonths =
@@ -30,12 +30,12 @@ public class HistoricalPortfolioActualsReadService implements HistoricalPortfoli
             .mapToObj(month -> LocalDate.of(year, month, 1))
             .collect(Collectors.toSet());
     Set<LocalDate> actualMonths =
-        rows.stream().map(PortfolioMonthlyPerformance::getMonth).collect(Collectors.toSet());
+        rows.stream().map(PortfolioMonthlyPerformanceEntity::getMonth).collect(Collectors.toSet());
     if (rows.size() != 12 || actualMonths.size() != 12 || !actualMonths.equals(expectedMonths)) {
       return HistoricalPortfolioYear.incomplete();
     }
 
-    PortfolioMonthlyPerformance december =
+    PortfolioMonthlyPerformanceEntity december =
         rows.stream()
             .filter(row -> row.getMonth().equals(LocalDate.of(year, 12, 1)))
             .findFirst()
@@ -57,7 +57,7 @@ public class HistoricalPortfolioActualsReadService implements HistoricalPortfoli
     BigDecimal annualReturn = null;
     if (rows.stream().allMatch(row -> row.getReturnPctDecimal() != null)) {
       BigDecimal compounded = BigDecimal.ONE;
-      for (PortfolioMonthlyPerformance row : rows) {
+      for (PortfolioMonthlyPerformanceEntity row : rows) {
         compounded = compounded.multiply(BigDecimal.ONE.add(row.getReturnPctDecimal()));
       }
       annualReturn = compounded.subtract(BigDecimal.ONE);
@@ -75,13 +75,13 @@ public class HistoricalPortfolioActualsReadService implements HistoricalPortfoli
   }
 
   private BigDecimal previousDecemberClosingValue(Long portfolioId, int year) {
-    List<PortfolioMonthlyPerformance> rows =
+    List<PortfolioMonthlyPerformanceEntity> rows =
         performance.findByPortfolioIdAndMonthBetweenOrderByMonthAsc(
             portfolioId, LocalDate.of(year - 1, 12, 1), LocalDate.of(year - 1, 12, 31));
     return rows.stream()
         .filter(row -> row.getMonth().equals(LocalDate.of(year - 1, 12, 1)))
         .findFirst()
-        .map(PortfolioMonthlyPerformance::getEndEquityDecimal)
+        .map(PortfolioMonthlyPerformanceEntity::getEndEquityDecimal)
         .orElse(null);
   }
 

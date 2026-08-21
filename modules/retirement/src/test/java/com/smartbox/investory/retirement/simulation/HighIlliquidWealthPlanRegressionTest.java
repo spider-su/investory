@@ -4,13 +4,13 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-import com.smartbox.investory.longterm.api.CashFlowType;
-import com.smartbox.investory.longterm.api.InterestTreatment;
-import com.smartbox.investory.longterm.api.LongTermAssetType;
-import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlan;
+import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
+import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
+import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
+import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanEntity;
 import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanEventRepository;
 import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanRepository;
-import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanRevision;
+import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanRevisionEntity;
 import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanRevisionEventRepository;
 import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanRevisionRepository;
 import com.smartbox.investory.retirement.planning.CurrentYearProjectionBridge;
@@ -177,21 +177,21 @@ class HighIlliquidWealthPlanRegressionTest {
     when(plans.save(any()))
         .thenAnswer(
             invocation -> {
-              SimulationPlan plan = invocation.getArgument(0);
+              SimulationPlanEntity plan = invocation.getArgument(0);
               if (plan.getId() == null) plan.setId(70L);
               return plan;
             });
-    java.util.concurrent.atomic.AtomicReference<SimulationPlanRevision> storedRevision =
+    java.util.concurrent.atomic.AtomicReference<SimulationPlanRevisionEntity> storedRevision =
         new java.util.concurrent.atomic.AtomicReference<>();
     when(revisions.save(any()))
         .thenAnswer(
             invocation -> {
-              SimulationPlanRevision revision = invocation.getArgument(0);
+              SimulationPlanRevisionEntity revision = invocation.getArgument(0);
               revision.setId(700L);
               storedRevision.set(revision);
               return revision;
             });
-    SimulationPlan saved = planService.create(7L, "Observed plan", assumptions());
+    SimulationPlanEntity saved = planService.create(7L, "Observed plan", assumptions());
     when(plans.findByIdAndPortfolioId(70L, 7L)).thenReturn(java.util.Optional.of(saved));
     when(revisions.findByIdAndSimulationPlanId(700L, 70L))
         .thenReturn(java.util.Optional.of(storedRevision.get()));

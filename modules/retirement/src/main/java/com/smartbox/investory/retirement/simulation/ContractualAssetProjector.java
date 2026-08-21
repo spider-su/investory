@@ -1,7 +1,7 @@
 package com.smartbox.investory.retirement.simulation;
 
-import com.smartbox.investory.longterm.api.InterestTreatment;
-import com.smartbox.investory.longterm.api.LongTermAssetType;
+import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
+import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.retirement.profile.EconomicBucket;
 import com.smartbox.investory.retirement.profile.ProjectedLongTermAsset;
 import java.math.BigDecimal;

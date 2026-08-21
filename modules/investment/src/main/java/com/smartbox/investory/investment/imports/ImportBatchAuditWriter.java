@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.imports;
 
-import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistory;
+import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportRepository;
 import java.time.ZonedDateTime;
 import java.util.Optional;
@@ -28,21 +28,21 @@ public class ImportBatchAuditWriter {
   private final ImportRepository importRepository;
 
   @Transactional(readOnly = true)
-  public Optional<ImportHistory> findExistingAppliedBatch(BrokerType broker, String sha256) {
+  public Optional<ImportHistoryEntity> findExistingAppliedBatch(BrokerType broker, String sha256) {
     return importRepository.findFirstByBrokerAndFileSha256AndStatusOrderByAttemptNoDesc(
         broker, sha256, ImportBatchStatus.COMPLETED);
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
-  public ImportHistory startBatch(
+  public ImportHistoryEntity startBatch(
       BrokerType broker,
       ImportSourceType sourceType,
       String sourceRef,
       String fileName,
       String sha256) {
-    Optional<ImportHistory> existing =
+    Optional<ImportHistoryEntity> existing =
         importRepository.findFirstByBrokerAndFileSha256OrderByAttemptNoDesc(broker, sha256);
-    ImportHistory batch = new ImportHistory();
+    ImportHistoryEntity batch = new ImportHistoryEntity();
     batch.setBroker(broker);
     batch.setSourceType(sourceType);
     batch.setSourceRef(sourceRef);
@@ -57,18 +57,18 @@ public class ImportBatchAuditWriter {
         existing
             .map(previous -> previous.getAttemptNo() == null ? 2 : previous.getAttemptNo() + 1)
             .orElse(1));
-    existing.map(ImportHistory::getId).ifPresent(batch::setReprocessOf);
+    existing.map(ImportHistoryEntity::getId).ifPresent(batch::setReprocessOf);
     return importRepository.save(batch);
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
-  public ImportHistory startReprocessBatch(ImportHistory original) {
-    ImportHistory latest =
+  public ImportHistoryEntity startReprocessBatch(ImportHistoryEntity original) {
+    ImportHistoryEntity latest =
         importRepository
             .findFirstByBrokerAndFileSha256OrderByAttemptNoDesc(
                 original.getBroker(), original.getFileSha256())
             .orElse(original);
-    ImportHistory batch = new ImportHistory();
+    ImportHistoryEntity batch = new ImportHistoryEntity();
     batch.setBroker(original.getBroker());
     batch.setSourceType(original.getSourceType());
     batch.setSourceRef(original.getSourceRef());
@@ -85,8 +85,8 @@ public class ImportBatchAuditWriter {
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
-  public ImportHistory finalizeApplied(Long batchId, ImportExecutionResult result) {
-    ImportHistory batch = importRepository.getById(batchId);
+  public ImportHistoryEntity finalizeApplied(Long batchId, ImportExecutionResult result) {
+    ImportHistoryEntity batch = importRepository.getById(batchId);
     batch.setStatus(
         result.rowsFailed() == 0 && result.rowsApplied() == result.rowsTotal()
             ? ImportBatchStatus.COMPLETED
@@ -100,8 +100,8 @@ public class ImportBatchAuditWriter {
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
-  public ImportHistory finalizeFailed(Long batchId, String message, byte[] rawPayload) {
-    ImportHistory batch = importRepository.getById(batchId);
+  public ImportHistoryEntity finalizeFailed(Long batchId, String message, byte[] rawPayload) {
+    ImportHistoryEntity batch = importRepository.getById(batchId);
     batch.setStatus(ImportBatchStatus.FAILED);
     if (batch.getRowsTotal() == null || batch.getRowsTotal() < 1) {
       batch.setRowsTotal(1);
@@ -119,9 +119,9 @@ public class ImportBatchAuditWriter {
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
-  public ImportHistory finalizeNotReady(
+  public ImportHistoryEntity finalizeNotReady(
       Long batchId, ImportExecutionResult result, String message) {
-    ImportHistory batch = importRepository.getById(batchId);
+    ImportHistoryEntity batch = importRepository.getById(batchId);
     batch.setStatus(ImportBatchStatus.NOT_READY);
     batch.setRowsTotal(result.rowsTotal());
     batch.setRowsApplied(result.rowsApplied());

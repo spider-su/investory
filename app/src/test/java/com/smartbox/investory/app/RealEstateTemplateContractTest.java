@@ -1,4 +1,6 @@
 package com.smartbox.investory.app;
+import com.smartbox.investory.longterm.application.model.AnnualEconomics;
+import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -43,8 +45,8 @@ class RealEstateTemplateContractTest {
         () -> assertFalse(html.contains("iv-planning-intro")),
         () -> assertFalse(html.contains("iv-planning-income-summary")),
         () -> assertTrue(html.contains("long-term-structure-title")),
-        () -> assertTrue(html.contains("Asset allocation")),
-        () -> assertTrue(html.contains("Asset currency")),
+        () -> assertTrue(html.contains("AssetEntity allocation")),
+        () -> assertTrue(html.contains("AssetEntity currency")),
         () -> assertTrue(html.contains("longTermLargestClass")),
         () -> assertTrue(html.contains("format.wholeNumber(group.totalValue)")),
         () -> assertTrue(html.contains("format.wholeNumber(total.totalCurrentValue)")),
@@ -165,7 +167,7 @@ class RealEstateTemplateContractTest {
         () -> assertFalse(html.contains(">+ Rental</a>")),
         () -> assertFalse(html.contains(">+ Bond</a>")),
         () -> assertFalse(html.contains(">+ Cash</a>")),
-        () -> assertTrue(html.contains(">+ Asset</a>")),
+        () -> assertTrue(html.contains(">+ AssetEntity</a>")),
         () -> assertTrue(html.contains("#real-estate")),
         () -> assertTrue(html.contains("#bonds")),
         () -> assertTrue(html.contains("#cash-reserves")),

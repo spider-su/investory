@@ -14,7 +14,7 @@ import com.smartbox.investory.investment.infrastructure.market.client.TwelveData
 import com.smartbox.investory.investment.infrastructure.market.client.YahooFinanceService;
 import com.smartbox.investory.investment.infrastructure.market.client.YahooFinanceService.YahooQuote;
 import com.smartbox.investory.investment.infrastructure.persistence.*;
-import com.smartbox.investory.investment.infrastructure.persistence.account.Account;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.reporting.StatisticsRefreshService;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -45,7 +45,7 @@ class MarketServiceTest {
   @Mock private AssetPriceHistoryGapFillService assetPriceHistoryGapFillService;
   @Mock private StatisticsRefreshService statisticsRefreshService;
   @Mock private PlatformTransactionManager transactionManager;
-  @Captor private ArgumentCaptor<Iterable<Asset>> assetIterableCaptor;
+  @Captor private ArgumentCaptor<Iterable<AssetEntity>> assetIterableCaptor;
 
   private MarketService marketService;
 
@@ -93,7 +93,7 @@ class MarketServiceTest {
     ibkr.setVolume(10.0);
     ibkr.setOpenPrice(150.0);
 
-    Asset price = newAsset("AAPL", "AAPL", true);
+    AssetEntity price = newAsset("AAPL", "AAPL", true);
     price.setMarketPrice(180.0);
 
     when(accountRepository.findAllByProviderIgnoreCase("IBKR"))
@@ -157,7 +157,7 @@ class MarketServiceTest {
     ibkr.setVolume(2.0);
     ibkr.setOpenPrice(300.0);
     ibkr.setProfit(17.0);
-    Asset price = newAsset("GOOGL.US", "GOOGL", true);
+    AssetEntity price = newAsset("GOOGL.US", "GOOGL", true);
     price.setMarketPrice(320.0);
 
     when(accountRepository.findAllByProviderIgnoreCase("IBKR"))
@@ -174,8 +174,8 @@ class MarketServiceTest {
 
   @Test
   void updateStocks_skipsUnsupportedSymbolsAndPersistsQuoteData() {
-    Asset supported = newAsset("AAPL.US", "AAPL", true);
-    Asset unsupported = newAsset("CSPX.UK", "CSPX", true);
+    AssetEntity supported = newAsset("AAPL.US", "AAPL", true);
+    AssetEntity unsupported = newAsset("CSPX.UK", "CSPX", true);
     when(assetRepository.findAll()).thenReturn(List.of(unsupported, supported));
     when(openedPositionRepository.findAll())
         .thenReturn(List.of(openPosition("AAPL.US"), openPosition("CSPX.UK")));
@@ -210,7 +210,7 @@ class MarketServiceTest {
 
   @Test
   void updateStocks_skipsQuotesUpdatedWithinFourHours() {
-    Asset recent = newAsset("AAPL.US", "AAPL", true);
+    AssetEntity recent = newAsset("AAPL.US", "AAPL", true);
     recent.setPriceSource("TwelveData");
     recent.setPriceUpdatedAt(java.time.ZonedDateTime.now().minusHours(3));
     when(assetRepository.findAll()).thenReturn(List.of(recent));
@@ -226,7 +226,7 @@ class MarketServiceTest {
 
   @Test
   void updateStocksUsesYahooFallbackWhenTwelveDataHasNoQuote() {
-    Asset vwra = newAsset("VWRA.UK", "VWRA", true);
+    AssetEntity vwra = newAsset("VWRA.UK", "VWRA", true);
     when(assetRepository.findAll()).thenReturn(List.of(vwra));
     when(openedPositionRepository.findAll()).thenReturn(List.of(openPosition("VWRA.UK")));
     when(yahooFinanceService.fetchLatestQuote("VWRA.L"))
@@ -256,7 +256,7 @@ class MarketServiceTest {
 
   @Test
   void updateStocksDerivesYahooExchangeSuffixesForFallback() {
-    Asset etfbw20tr = newAsset("ETFBW20TR.PL", "ETFBW20TR", true);
+    AssetEntity etfbw20tr = newAsset("ETFBW20TR.PL", "ETFBW20TR", true);
     etfbw20tr.setCurrency(CurrencyType.PLN);
     when(assetRepository.findAll()).thenReturn(List.of(etfbw20tr));
     when(openedPositionRepository.findAll()).thenReturn(List.of(openPosition("ETFBW20TR.PL")));
@@ -269,7 +269,7 @@ class MarketServiceTest {
 
   @Test
   void updateStocksRefreshesRecentImportedPrice() {
-    Asset recentImport = newAsset("AAPL.US", "AAPL", true);
+    AssetEntity recentImport = newAsset("AAPL.US", "AAPL", true);
     recentImport.setPriceSource("XTB");
     recentImport.setPriceUpdatedAt(java.time.ZonedDateTime.now().minusHours(3));
     when(assetRepository.findAll()).thenReturn(List.of(recentImport));
@@ -287,7 +287,7 @@ class MarketServiceTest {
   @Test
   void updateStocksAppliesManualRemxUkPriceAdjustment() {
     marketService = marketService(false, "");
-    Asset remx = newAsset("REMX.UK", "REMX", true);
+    AssetEntity remx = newAsset("REMX.UK", "REMX", true);
     when(assetRepository.findAll()).thenReturn(List.of(remx));
     when(openedPositionRepository.findAll()).thenReturn(List.of(openPosition("REMX.UK")));
 
@@ -301,7 +301,7 @@ class MarketServiceTest {
 
     verify(twelveDataService).fetchStockQuotes("REMX");
     verify(assetRepository).saveAll(assetIterableCaptor.capture());
-    List<Asset> saved = toList(assetIterableCaptor.getValue());
+    List<AssetEntity> saved = toList(assetIterableCaptor.getValue());
     assertEquals(1, saved.size());
     assertEquals("REMX.UK", saved.get(0).getSymbol());
     assertEquals(12.93, saved.get(0).getMarketPrice(), 0.00000001);
@@ -321,10 +321,10 @@ class MarketServiceTest {
 
   @Test
   void updateStocksSkipsNonUsListingsBeforeHttpCallByDefault() {
-    Asset jgpi = newAsset("JGPI.DE", "JGPI", true);
-    Asset cdr = newAsset("CDR.PL", "CDR", true);
-    Asset sgld = newAsset("SGLD.UK", "SGLD", true);
-    Asset vhyd = newAsset("VHYD.UK", "VHYD", true);
+    AssetEntity jgpi = newAsset("JGPI.DE", "JGPI", true);
+    AssetEntity cdr = newAsset("CDR.PL", "CDR", true);
+    AssetEntity sgld = newAsset("SGLD.UK", "SGLD", true);
+    AssetEntity vhyd = newAsset("VHYD.UK", "VHYD", true);
     when(assetRepository.findAll()).thenReturn(List.of(jgpi, cdr, sgld, vhyd));
     when(openedPositionRepository.findAll())
         .thenReturn(
@@ -343,10 +343,10 @@ class MarketServiceTest {
   @Test
   void updateStocksUsesExchangeQualifiedSymbolsForNonUsListingsWhenEnabled() {
     marketService = marketService(false, "");
-    Asset jgpi = newAsset("JGPI.DE", "JGPI", true);
-    Asset cdr = newAsset("CDR.PL", "CDR", true);
-    Asset sgld = newAsset("SGLD.UK", "SGLD", true);
-    Asset vhyd = newAsset("VHYD.UK", "VHYD", true);
+    AssetEntity jgpi = newAsset("JGPI.DE", "JGPI", true);
+    AssetEntity cdr = newAsset("CDR.PL", "CDR", true);
+    AssetEntity sgld = newAsset("SGLD.UK", "SGLD", true);
+    AssetEntity vhyd = newAsset("VHYD.UK", "VHYD", true);
     when(assetRepository.findAll()).thenReturn(List.of(jgpi, cdr, sgld, vhyd));
     when(openedPositionRepository.findAll())
         .thenReturn(
@@ -374,7 +374,7 @@ class MarketServiceTest {
   @Test
   void updateStocksSkipsConfiguredExcludedSymbolsBeforeHttpCall() {
     marketService = marketService(false, "AAPL.US");
-    Asset aapl = newAsset("AAPL.US", "AAPL", true);
+    AssetEntity aapl = newAsset("AAPL.US", "AAPL", true);
     when(assetRepository.findAll()).thenReturn(List.of(aapl));
     when(openedPositionRepository.findAll()).thenReturn(List.of(openPosition("AAPL.US")));
 
@@ -387,7 +387,7 @@ class MarketServiceTest {
   @Test
   void updateStocksSkipsAssetsMarkedExcludedFromImportBeforeHttpCall() {
     marketService = marketService(false, "");
-    Asset excluded = newAsset("AIGI.UK", "AIGI", true);
+    AssetEntity excluded = newAsset("AIGI.UK", "AIGI", true);
     excluded.setExcludeFromImport(true);
     when(assetRepository.findAll()).thenReturn(List.of(excluded));
     when(openedPositionRepository.findAll()).thenReturn(List.of(openPosition("AIGI.UK")));
@@ -400,8 +400,8 @@ class MarketServiceTest {
 
   @Test
   void updateStocks_continuesWhenFetchFailsAndLogsTheChunk() {
-    Asset a = newAsset("A.US", "A", true);
-    Asset b = newAsset("B.US", "B", true);
+    AssetEntity a = newAsset("A.US", "A", true);
+    AssetEntity b = newAsset("B.US", "B", true);
     when(assetRepository.findAll()).thenReturn(List.of(a, b));
     when(openedPositionRepository.findAll())
         .thenReturn(List.of(openPosition("A.US"), openPosition("B.US")));
@@ -418,8 +418,8 @@ class MarketServiceTest {
 
   @Test
   void updateStocks_fallsBackToSingleTickerRequestsWhenChunkFails() {
-    Asset a = newAsset("A.US", "A", true);
-    Asset b = newAsset("B.US", "B", true);
+    AssetEntity a = newAsset("A.US", "A", true);
+    AssetEntity b = newAsset("B.US", "B", true);
     when(assetRepository.findAll()).thenReturn(List.of(a, b));
     when(openedPositionRepository.findAll())
         .thenReturn(List.of(openPosition("A.US"), openPosition("B.US")));
@@ -439,7 +439,7 @@ class MarketServiceTest {
 
   @Test
   void updateStocks_skipsHttpCallWhenAllSymbolsAreUnsupported() {
-    Asset only = newAsset("CSPX.UK", "CSPX", true);
+    AssetEntity only = newAsset("CSPX.UK", "CSPX", true);
     when(assetRepository.findAll()).thenReturn(List.of(only));
     when(openedPositionRepository.findAll()).thenReturn(List.of(openPosition("CSPX.UK")));
 
@@ -462,8 +462,8 @@ class MarketServiceTest {
     verify(statisticsRefreshService, times(1)).refreshAll();
   }
 
-  private static Asset newAsset(String symbol, String ticker, boolean active) {
-    Asset asset = new Asset();
+  private static AssetEntity newAsset(String symbol, String ticker, boolean active) {
+    AssetEntity asset = new AssetEntity();
     asset.setSymbol(symbol);
     asset.setTicker(ticker);
     asset.setActive(active);
@@ -494,8 +494,8 @@ class MarketServiceTest {
     return position;
   }
 
-  private static Account account(long id, String provider) {
-    Account account = new Account();
+  private static AccountEntity account(long id, String provider) {
+    AccountEntity account = new AccountEntity();
     account.setId(id);
     account.setProvider(provider);
     return account;

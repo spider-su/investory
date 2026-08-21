@@ -7,13 +7,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface CashOperationRepository extends JpaRepository<CashOperation, Long> {
-  List<CashOperation> findAllByAccount(Long account);
+public interface CashOperationRepository extends JpaRepository<CashOperationEntity, Long> {
+  List<CashOperationEntity> findAllByAccount(Long account);
 
-  List<CashOperation> findAllByAccountIn(Collection<Long> accounts);
+  List<CashOperationEntity> findAllByAccountIn(Collection<Long> accounts);
 
-  List<CashOperation> findAllByOrderByDateDescIdDesc();
+  List<CashOperationEntity> findAllByOrderByDateDescIdDesc();
 
-  List<CashOperation> findAllByAssetIdAndTypeInOrderByDateDescIdDesc(
+  List<CashOperationEntity> findAllByAssetIdAndTypeInOrderByDateDescIdDesc(
       Long assetId, Collection<CashOperationType> types);
 }

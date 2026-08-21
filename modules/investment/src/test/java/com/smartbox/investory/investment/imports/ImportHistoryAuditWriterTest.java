@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistory;
+import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportRepository;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -27,7 +27,7 @@ class ImportHistoryAuditWriterTest {
 
   @Test
   void findExistingAppliedBatch_ignoresNewerFailedAttempt() {
-    ImportHistory completed = new ImportHistory();
+    ImportHistoryEntity completed = new ImportHistoryEntity();
     completed.setId(10L);
     completed.setBroker(BrokerType.IBKR);
     completed.setFileSha256("abc");
@@ -38,22 +38,22 @@ class ImportHistoryAuditWriterTest {
             BrokerType.IBKR, "abc", ImportBatchStatus.COMPLETED))
         .thenReturn(Optional.of(completed));
 
-    Optional<ImportHistory> result = auditWriter.findExistingAppliedBatch(BrokerType.IBKR, "abc");
+    Optional<ImportHistoryEntity> result = auditWriter.findExistingAppliedBatch(BrokerType.IBKR, "abc");
 
     assertEquals(Optional.of(completed), result);
   }
 
   @Test
   void startBatch_persistsReceivedRowWithMetadata() {
-    when(importRepository.save(any(ImportHistory.class)))
+    when(importRepository.save(any(ImportHistoryEntity.class)))
         .thenAnswer(
             invocation -> {
-              ImportHistory saved = invocation.getArgument(0);
+              ImportHistoryEntity saved = invocation.getArgument(0);
               saved.setId(101L);
               return saved;
             });
 
-    ImportHistory batch =
+    ImportHistoryEntity batch =
         auditWriter.startBatch(BrokerType.IBKR, ImportSourceType.MANUAL, "ref", "ibkr.csv", "abc");
 
     assertEquals(101L, batch.getId());
@@ -69,7 +69,7 @@ class ImportHistoryAuditWriterTest {
 
   @Test
   void startBatch_createsLinkedAttemptForSameChecksumAfterFailure() {
-    ImportHistory failed = new ImportHistory();
+    ImportHistoryEntity failed = new ImportHistoryEntity();
     failed.setId(55L);
     failed.setBroker(BrokerType.IBKR);
     failed.setStatus(ImportBatchStatus.FAILED);
@@ -82,10 +82,10 @@ class ImportHistoryAuditWriterTest {
     when(importRepository.findFirstByBrokerAndFileSha256OrderByAttemptNoDesc(
             BrokerType.IBKR, "abc"))
         .thenReturn(Optional.of(failed));
-    when(importRepository.save(any(ImportHistory.class)))
+    when(importRepository.save(any(ImportHistoryEntity.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
 
-    ImportHistory batch =
+    ImportHistoryEntity batch =
         auditWriter.startBatch(
             BrokerType.IBKR, ImportSourceType.MANUAL, "ref2", "retry.csv", "abc");
 
@@ -103,14 +103,14 @@ class ImportHistoryAuditWriterTest {
 
   @Test
   void finalizeApplied_updatesCountsAndStatus() {
-    ImportHistory existing = new ImportHistory();
+    ImportHistoryEntity existing = new ImportHistoryEntity();
     existing.setId(5L);
     existing.setStatus(ImportBatchStatus.STARTED);
     when(importRepository.getById(5L)).thenReturn(existing);
-    when(importRepository.save(any(ImportHistory.class)))
+    when(importRepository.save(any(ImportHistoryEntity.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
 
-    ImportHistory result =
+    ImportHistoryEntity result =
         auditWriter.finalizeApplied(5L, new ImportExecutionResult(10, 9, 1, "done"));
 
     assertEquals(ImportBatchStatus.PARTIAL, result.getStatus());
@@ -123,16 +123,16 @@ class ImportHistoryAuditWriterTest {
 
   @Test
   void finalizeFailed_persistsErrorAndTruncatesRawPayload() {
-    ImportHistory existing = new ImportHistory();
+    ImportHistoryEntity existing = new ImportHistoryEntity();
     existing.setId(7L);
     when(importRepository.getById(7L)).thenReturn(existing);
-    when(importRepository.save(any(ImportHistory.class)))
+    when(importRepository.save(any(ImportHistoryEntity.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
 
     byte[] big = new byte[ImportBatchAuditWriter.RAW_PAYLOAD_LIMIT + 1024];
     Arrays.fill(big, (byte) 'a');
 
-    ImportHistory failed = auditWriter.finalizeFailed(7L, "boom", big);
+    ImportHistoryEntity failed = auditWriter.finalizeFailed(7L, "boom", big);
 
     assertEquals(ImportBatchStatus.FAILED, failed.getStatus());
     org.junit.jupiter.api.Assertions.assertTrue(
@@ -142,13 +142,13 @@ class ImportHistoryAuditWriterTest {
 
   @Test
   void finalizeApplied_marksZeroAppliedRowsAsFailed() {
-    ImportHistory existing = new ImportHistory();
+    ImportHistoryEntity existing = new ImportHistoryEntity();
     existing.setId(6L);
     when(importRepository.getById(6L)).thenReturn(existing);
-    when(importRepository.save(any(ImportHistory.class)))
+    when(importRepository.save(any(ImportHistoryEntity.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
 
-    ImportHistory result =
+    ImportHistoryEntity result =
         auditWriter.finalizeApplied(6L, new ImportExecutionResult(1, 0, 1, "bad"));
 
     assertEquals(ImportBatchStatus.FAILED, result.getStatus());
@@ -156,13 +156,13 @@ class ImportHistoryAuditWriterTest {
 
   @Test
   void startReprocessBatchCreatesNewAttemptLinkedToOriginal() {
-    ImportHistory original = new ImportHistory();
+    ImportHistoryEntity original = new ImportHistoryEntity();
     original.setId(10L);
     original.setBroker(BrokerType.IBKR);
     original.setFileSha256("a".repeat(64));
     original.setSourceType(ImportSourceType.MANUAL);
     original.setAttemptNo(1);
-    ImportHistory failed = new ImportHistory();
+    ImportHistoryEntity failed = new ImportHistoryEntity();
     failed.setId(11L);
     failed.setBroker(BrokerType.IBKR);
     failed.setFileSha256(original.getFileSha256());
@@ -171,15 +171,15 @@ class ImportHistoryAuditWriterTest {
     when(importRepository.findFirstByBrokerAndFileSha256OrderByAttemptNoDesc(
             BrokerType.IBKR, original.getFileSha256()))
         .thenReturn(Optional.of(failed));
-    when(importRepository.save(any(ImportHistory.class)))
+    when(importRepository.save(any(ImportHistoryEntity.class)))
         .thenAnswer(
             invocation -> {
-              ImportHistory saved = invocation.getArgument(0);
+              ImportHistoryEntity saved = invocation.getArgument(0);
               saved.setId(12L);
               return saved;
             });
 
-    ImportHistory reprocess = auditWriter.startReprocessBatch(original);
+    ImportHistoryEntity reprocess = auditWriter.startReprocessBatch(original);
 
     assertEquals(12L, reprocess.getId());
     assertEquals(3, reprocess.getAttemptNo());
@@ -189,16 +189,16 @@ class ImportHistoryAuditWriterTest {
 
   @Test
   void finalizeFailed_setsTotalWhenParserFailsBeforeReturningCounters() {
-    ImportHistory existing = new ImportHistory();
+    ImportHistoryEntity existing = new ImportHistoryEntity();
     existing.setId(9L);
     existing.setRowsTotal(0);
     existing.setRowsApplied(0);
     existing.setRowsFailed(0);
     when(importRepository.getById(9L)).thenReturn(existing);
-    when(importRepository.save(any(ImportHistory.class)))
+    when(importRepository.save(any(ImportHistoryEntity.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
 
-    ImportHistory failed = auditWriter.finalizeFailed(9L, "boom", null);
+    ImportHistoryEntity failed = auditWriter.finalizeFailed(9L, "boom", null);
 
     assertEquals(1, failed.getRowsTotal());
     assertEquals(0, failed.getRowsApplied());
@@ -207,10 +207,10 @@ class ImportHistoryAuditWriterTest {
 
   @Test
   void finalizeFailed_keepsShortPayloadInline() {
-    ImportHistory existing = new ImportHistory();
+    ImportHistoryEntity existing = new ImportHistoryEntity();
     existing.setId(8L);
     when(importRepository.getById(8L)).thenReturn(existing);
-    when(importRepository.save(any(ImportHistory.class)))
+    when(importRepository.save(any(ImportHistoryEntity.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
 
     auditWriter.finalizeFailed(8L, "boom", "hello".getBytes(StandardCharsets.UTF_8));

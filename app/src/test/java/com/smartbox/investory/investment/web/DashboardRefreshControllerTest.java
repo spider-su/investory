@@ -71,12 +71,12 @@ class DashboardRefreshControllerTest {
     when(maintenance.rebuildMonthly())
         .thenReturn(
             new InvestmentMaintenanceApi.MaintenanceResult(
-                "OK", "Account stats rebuilt", ZonedDateTime.now()));
+                "OK", "AccountEntity stats rebuilt", ZonedDateTime.now()));
     mockMvc
         .perform(post("/admin/rebuild-monthly").with(csrf()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("OK"))
-        .andExpect(jsonPath("$.message").value("Account stats rebuilt"));
+        .andExpect(jsonPath("$.message").value("AccountEntity stats rebuilt"));
 
     verify(maintenance).rebuildMonthly();
   }

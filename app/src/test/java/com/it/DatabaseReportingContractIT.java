@@ -428,7 +428,7 @@ class DatabaseReportingContractIT {
       assertEquals(
           List.of("BUY", "SELL"),
           enumLabels(connection, "positions_operation_type"),
-          "Position operations require an explicit signed-quantity contract");
+          "PositionEntity operations require an explicit signed-quantity contract");
 
       try (PreparedStatement statement =
           connection.prepareStatement(

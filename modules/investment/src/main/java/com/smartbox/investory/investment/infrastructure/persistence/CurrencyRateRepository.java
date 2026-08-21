@@ -12,7 +12,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface CurrencyRateRepository extends JpaRepository<CurrencyRate, Long> {
+public interface CurrencyRateRepository extends JpaRepository<CurrencyRateEntity, Long> {
 
   @Query(
       value =
@@ -44,10 +44,10 @@ public interface CurrencyRateRepository extends JpaRepository<CurrencyRate, Long
       nativeQuery = true)
   void setDailyHistoryStart(@Param("firstSupportedDate") LocalDate firstSupportedDate);
 
-  Optional<CurrencyRate> findFirstByRateDateAndBaseAndToCurrencyAndSourceAndMethod(
+  Optional<CurrencyRateEntity> findFirstByRateDateAndBaseAndToCurrencyAndSourceAndMethod(
       LocalDate rateDate, CurrencyType base, CurrencyType toCurrency, String source, String method);
 
-  Optional<CurrencyRate> findByRateDateAndBaseAndToCurrencyAndSourceAndMethodAndSourceReference(
+  Optional<CurrencyRateEntity> findByRateDateAndBaseAndToCurrencyAndSourceAndMethodAndSourceReference(
       LocalDate rateDate,
       CurrencyType base,
       CurrencyType toCurrency,
@@ -71,7 +71,7 @@ public interface CurrencyRateRepository extends JpaRepository<CurrencyRate, Long
           LIMIT 1
           """,
       nativeQuery = true)
-  Optional<CurrencyRate> findExecutionRateAtOrBefore(
+  Optional<CurrencyRateEntity> findExecutionRateAtOrBefore(
       @Param("transactionTime") ZonedDateTime transactionTime,
       @Param("sourceCurrency") String sourceCurrency,
       @Param("targetCurrency") String targetCurrency);

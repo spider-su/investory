@@ -6,7 +6,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.infrastructure.persistence.CurrencyRate;
+import com.smartbox.investory.investment.infrastructure.persistence.CurrencyRateEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.CurrencyRateRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.FxRateResolutionRow;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
@@ -175,9 +175,9 @@ class CurrencyRateServiceTest {
 
     service.updateRates(CurrencyType.USD, Map.of(CurrencyType.EUR, 0.95), LocalDate.of(2026, 7, 5));
 
-    ArgumentCaptor<CurrencyRate> captor = ArgumentCaptor.forClass(CurrencyRate.class);
+    ArgumentCaptor<CurrencyRateEntity> captor = ArgumentCaptor.forClass(CurrencyRateEntity.class);
     verify(currencyRateRepository).save(captor.capture());
-    CurrencyRate saved = captor.getValue();
+    CurrencyRateEntity saved = captor.getValue();
     assertEquals(LocalDate.of(2026, 7, 5), saved.getRateDate());
     assertEquals(CurrencyType.USD, saved.getBase());
     assertEquals(CurrencyType.EUR, saved.getToCurrency());
@@ -186,7 +186,7 @@ class CurrencyRateServiceTest {
 
   @Test
   void updateRates_updatesExistingRate() {
-    CurrencyRate existing = rate(CurrencyType.USD, CurrencyType.EUR, LocalDate.of(2026, 7, 5), 0.8);
+    CurrencyRateEntity existing = rate(CurrencyType.USD, CurrencyType.EUR, LocalDate.of(2026, 7, 5), 0.8);
     when(currencyRateRepository.findFirstByRateDateAndBaseAndToCurrencyAndSourceAndMethod(
             LocalDate.of(2026, 7, 5),
             CurrencyType.USD,
@@ -225,17 +225,17 @@ class CurrencyRateServiceTest {
 
   @Test
   void harvestXtbExecutionRatePreservesPairDateAndMethod() {
-    com.smartbox.investory.investment.infrastructure.persistence.CashOperation operation =
-        new com.smartbox.investory.investment.infrastructure.persistence.CashOperation();
+    com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity operation =
+        new com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity();
     operation.setId(42L);
     operation.setDate(ZonedDateTime.of(2026, 1, 2, 19, 54, 12, 0, ZoneOffset.UTC));
     operation.setComment("Currency conversion, USD to PLN, Exchange rate:3.573631");
 
     service.harvestXtbExecutionRates(List.of(operation));
 
-    ArgumentCaptor<CurrencyRate> captor = ArgumentCaptor.forClass(CurrencyRate.class);
+    ArgumentCaptor<CurrencyRateEntity> captor = ArgumentCaptor.forClass(CurrencyRateEntity.class);
     verify(currencyRateRepository).save(captor.capture());
-    CurrencyRate saved = captor.getValue();
+    CurrencyRateEntity saved = captor.getValue();
     assertEquals(LocalDate.of(2026, 1, 2), saved.getRateDate());
     assertEquals(CurrencyType.USD, saved.getBase());
     assertEquals(CurrencyType.PLN, saved.getToCurrency());
@@ -248,13 +248,13 @@ class CurrencyRateServiceTest {
 
   @Test
   void harvestXtbExecutionRatesKeepDifferentSameDayRatesAttachedToTheirOperations() {
-    com.smartbox.investory.investment.infrastructure.persistence.CashOperation first =
-        new com.smartbox.investory.investment.infrastructure.persistence.CashOperation();
+    com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity first =
+        new com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity();
     first.setId(100L);
     first.setDate(ZonedDateTime.of(2026, 1, 2, 10, 0, 0, 0, ZoneOffset.UTC));
     first.setComment("Currency conversion, USD to PLN, Exchange rate:3.50");
-    com.smartbox.investory.investment.infrastructure.persistence.CashOperation second =
-        new com.smartbox.investory.investment.infrastructure.persistence.CashOperation();
+    com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity second =
+        new com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity();
     second.setId(101L);
     second.setDate(ZonedDateTime.of(2026, 1, 2, 15, 0, 0, 0, ZoneOffset.UTC));
     second.setComment("Currency conversion, USD to PLN, Exchange rate:3.60");
@@ -269,7 +269,7 @@ class CurrencyRateServiceTest {
 
   @Test
   void transactionResolverDoesNotBorrowUnboundExecutionRate() {
-    CurrencyRate execution =
+    CurrencyRateEntity execution =
         rate(CurrencyType.USD, CurrencyType.PLN, LocalDate.of(2026, 1, 2), 3.573631);
     execution.setMethod("XTB_EXECUTION");
     execution.setSource("XTB");
@@ -346,9 +346,9 @@ class CurrencyRateServiceTest {
     verify(currencyRateRepository).resolveFxRate(first, "EUR", "USD", "VALUATION");
   }
 
-  private static CurrencyRate rate(
+  private static CurrencyRateEntity rate(
       CurrencyType base, CurrencyType to, LocalDate date, double value) {
-    CurrencyRate r = new CurrencyRate();
+    CurrencyRateEntity r = new CurrencyRateEntity();
     r.setRateDate(date);
     r.setBase(base);
     r.setToCurrency(to);

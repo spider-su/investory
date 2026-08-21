@@ -1,12 +1,12 @@
 package com.smartbox.investory.testsupport.portfolio;
 
-import com.smartbox.investory.investment.infrastructure.persistence.Asset;
-import com.smartbox.investory.investment.infrastructure.persistence.CashOperation;
+import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
+import com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPosition;
-import com.smartbox.investory.investment.infrastructure.persistence.CurrencyRate;
+import com.smartbox.investory.investment.infrastructure.persistence.CurrencyRateEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
-import com.smartbox.investory.investment.infrastructure.persistence.account.Account;
-import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistory;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
+import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
 import java.util.List;
 
 public record PortfolioTestContext(
@@ -19,32 +19,32 @@ public record PortfolioTestContext(
     Expected expected) {
 
   public record Accounts(
-      Account ibkrUsd, Account xtbEur, Account polishBondsPln, Account cryptoUsd) {}
+      AccountEntity ibkrUsd, AccountEntity xtbEur, AccountEntity polishBondsPln, AccountEntity cryptoUsd) {}
 
   public record Assets(
-      Asset aapl,
-      Asset msft,
-      Asset tsla,
-      Asset spy,
-      Asset sieDe,
-      Asset pkoWa,
-      Asset iwdaAs,
-      Asset btc,
-      Asset eth) {
-    public Assets withAapl(Asset replacement) {
+      AssetEntity aapl,
+      AssetEntity msft,
+      AssetEntity tsla,
+      AssetEntity spy,
+      AssetEntity sieDe,
+      AssetEntity pkoWa,
+      AssetEntity iwdaAs,
+      AssetEntity btc,
+      AssetEntity eth) {
+    public Assets withAapl(AssetEntity replacement) {
       return new Assets(replacement, msft, tsla, spy, sieDe, pkoWa, iwdaAs, btc, eth);
     }
   }
 
   public record Operations(
-      CashOperation initialUsdDeposit,
-      CashOperation initialEurDeposit,
-      CashOperation initialPlnDeposit,
-      CashOperation aaplDividend,
-      CashOperation aaplWithholdingTax,
-      CashOperation transferOut,
-      CashOperation transferIn,
-      List<CashOperation> all) {}
+      CashOperationEntity initialUsdDeposit,
+      CashOperationEntity initialEurDeposit,
+      CashOperationEntity initialPlnDeposit,
+      CashOperationEntity aaplDividend,
+      CashOperationEntity aaplWithholdingTax,
+      CashOperationEntity transferOut,
+      CashOperationEntity transferIn,
+      List<CashOperationEntity> all) {}
 
   public record Positions(
       OpenedPosition aaplOpen,
@@ -53,13 +53,13 @@ public record PortfolioTestContext(
       List<OpenedPosition> open,
       List<ClosedPosition> closed) {}
 
-  public record FxRates(CurrencyRate eurUsd, CurrencyRate plnUsd, List<CurrencyRate> all) {}
+  public record FxRates(CurrencyRateEntity eurUsd, CurrencyRateEntity plnUsd, List<CurrencyRateEntity> all) {}
 
-  public record Imports(ImportHistory firstImport, ImportHistory duplicateImport) {}
+  public record Imports(ImportHistoryEntity firstImport, ImportHistoryEntity duplicateImport) {}
 
   public record Expected(
       PortfolioExpected.CashBalance cash,
-      PortfolioExpected.Position position,
+      PortfolioExpected.PositionEntity position,
       PortfolioExpected.Dividend dividend,
       PortfolioExpected.Valuation valuation,
       PortfolioExpected.Transfer transfer,

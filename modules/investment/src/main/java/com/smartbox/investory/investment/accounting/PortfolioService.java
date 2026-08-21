@@ -2,19 +2,19 @@ package com.smartbox.investory.investment.accounting;
 
 import com.smartbox.investory.investment.accounting.model.*;
 import com.smartbox.investory.investment.infrastructure.persistence.*;
-import com.smartbox.investory.investment.infrastructure.persistence.account.Account;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatistics;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocation;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocationEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocationRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioCurrencyBreakdown;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioCurrencyBreakdownEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioCurrencyBreakdownRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioDataQualityRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioFallbackReconciliationRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioKpiSummary;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioKpiSummaryEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioKpiSummaryRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformance;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceRepository;
 import com.smartbox.investory.investment.market.fx.CurrencyRateService;
 import com.smartbox.investory.investment.reporting.PortfolioPerformanceQueryService;
@@ -281,13 +281,13 @@ public class PortfolioService {
   }
 
   private boolean applyKpiSummary(Portfolio portfolio) {
-    Optional<PortfolioKpiSummary> summary =
+    Optional<PortfolioKpiSummaryEntity> summary =
         portfolioKpiSummaryRepository.findAll().stream().findFirst();
     if (summary.isEmpty()) {
       return false;
     }
 
-    PortfolioKpiSummary kpi = summary.get();
+    PortfolioKpiSummaryEntity kpi = summary.get();
     CurrencyType baseCurrency = kpi.getBaseCurrency();
     double realized = nz(kpi.getTotalRealizedProfit());
     double unrealized = nz(kpi.getTotalUnrealizedProfit());
@@ -315,11 +315,11 @@ public class PortfolioService {
   }
 
   private void applyCashFlowSupplement(Portfolio portfolio) {
-    List<AccountStatistics> stats = accountStatisticsRepository.findAll();
+    List<AccountStatisticsEntity> stats = accountStatisticsRepository.findAll();
     Set<Long> cashOnlyAccounts = cashOnlyAccountIds();
     stats = stats.stream().filter(stat -> !cashOnlyAccounts.contains(stat.getAccountId())).toList();
     portfolio.setInterest(stats.stream().mapToDouble(stat -> nz(stat.getInterest())).sum());
-    List<CashOperation> cashOperations =
+    List<CashOperationEntity> cashOperations =
         cashOperationRepository.findAll().stream()
             .filter(operation -> !cashOnlyAccounts.contains(operation.getAccount()))
             .toList();
@@ -332,7 +332,7 @@ public class PortfolioService {
 
   private void applyCalculatedTotals(Portfolio portfolio) {
     List<ClosedPosition> closedPositions = closedPositionRepository.findAll();
-    List<CashOperation> cashOperations = cashOperationRepository.findAll();
+    List<CashOperationEntity> cashOperations = cashOperationRepository.findAll();
 
     // ── Realized P/L from imported closed positions ──────────────────────
     for (ClosedPosition position : closedPositions) {
@@ -370,7 +370,7 @@ public class PortfolioService {
 
     // ── Dividends from imported cash operations ──────────────────────────
     double dividendsTotal = 0.0;
-    for (CashOperation cashOperation : cashOperations) {
+    for (CashOperationEntity cashOperation : cashOperations) {
       if (cashOperation.getType() == CashOperationType.DIVIDEND) {
         CurrencyType currency =
             cashOperation.getCurrency() != null
@@ -411,13 +411,13 @@ public class PortfolioService {
     }
 
     // Balance breakdown from account_statistics.
-    List<AccountStatistics> stats = accountStatisticsRepository.findAll();
+    List<AccountStatisticsEntity> stats = accountStatisticsRepository.findAll();
     Set<Long> cashOnlyAccounts = cashOnlyAccountIds();
     stats = stats.stream().filter(stat -> !cashOnlyAccounts.contains(stat.getAccountId())).toList();
     double cash;
     double balance;
     if (!stats.isEmpty()) {
-      List<AccountStatistics> activeStats =
+      List<AccountStatisticsEntity> activeStats =
           stats.stream()
               .filter(
                   s ->
@@ -477,13 +477,13 @@ public class PortfolioService {
   }
 
   private List<AccountBalance> calculateAccountBalances(CurrencyType baseCurrency) {
-    List<AccountStatistics> stats = accountStatisticsRepository.findAll();
+    List<AccountStatisticsEntity> stats = accountStatisticsRepository.findAll();
     Set<Long> cashOnlyAccounts = cashOnlyAccountIds();
     if (!CollectionUtils.isEmpty(stats)) {
-      Map<Long, Account> accountsById =
+      Map<Long, AccountEntity> accountsById =
           accountsById(
               stats.stream()
-                  .map(AccountStatistics::getAccountId)
+                  .map(AccountStatisticsEntity::getAccountId)
                   .filter(Objects::nonNull)
                   .collect(Collectors.toSet()));
       Map<Long, AccountNetDeposit> netDepositsByAccount =
@@ -493,14 +493,14 @@ public class PortfolioService {
           .filter(this::hasDashboardAccountSurface)
           .sorted(
               Comparator.comparing(
-                      (AccountStatistics stat) ->
+                      (AccountStatisticsEntity stat) ->
                           accountsById.get(stat.getAccountId()).getCreatedAt(),
                       Comparator.nullsLast(Comparator.naturalOrder()))
-                  .thenComparing(AccountStatistics::getAccountId))
+                  .thenComparing(AccountStatisticsEntity::getAccountId))
           .map(
               stat -> {
                 double balance = nz(stat.getCashBalance()) + nz(stat.getMarketValue());
-                Account account = accountsById.get(stat.getAccountId());
+                AccountEntity account = accountsById.get(stat.getAccountId());
                 AccountNetDeposit netDeposit =
                     netDepositsByAccount.getOrDefault(
                         stat.getAccountId(),
@@ -568,7 +568,7 @@ public class PortfolioService {
         cash);
   }
 
-  private boolean hasDashboardAccountSurface(AccountStatistics stat) {
+  private boolean hasDashboardAccountSurface(AccountStatisticsEntity stat) {
     return Math.abs(nz(stat.getCashBalance()) + nz(stat.getMarketValue()))
             >= ACCOUNT_VISIBILITY_MIN_VALUE
         || Math.abs(nz(stat.getAccountNetDeposit())) >= ACCOUNT_VISIBILITY_MIN_VALUE
@@ -576,7 +576,7 @@ public class PortfolioService {
   }
 
   private Map<Long, AccountNetDeposit> accountNetDeposits(
-      Collection<Long> accountIds, Map<Long, Account> accountsById, CurrencyType baseCurrency) {
+      Collection<Long> accountIds, Map<Long, AccountEntity> accountsById, CurrencyType baseCurrency) {
     if (CollectionUtils.isEmpty(accountIds)) {
       return Map.of();
     }
@@ -606,7 +606,7 @@ public class PortfolioService {
               .calculate(cashOperationRepository.findAllByAccountIn(accountIds), accountsById);
       adjustments.forEach(
           (accountId, adjustment) -> {
-            Account account = accountsById.get(accountId);
+            AccountEntity account = accountsById.get(accountId);
             double baseAdjustment =
                 currencyRateService.convertToBaseCurrency(
                     adjustment, baseCurrency, account.getCurrency(), LocalDate.now());
@@ -631,7 +631,7 @@ public class PortfolioService {
   }
 
   private List<OpenPositionValue> calculateOpenPositionValues() {
-    List<PortfolioAssetAllocation> allocations = portfolioAssetAllocationRepository.findAll();
+    List<PortfolioAssetAllocationEntity> allocations = portfolioAssetAllocationRepository.findAll();
     if (CollectionUtils.isEmpty(allocations)) {
       return List.of();
     }
@@ -639,11 +639,11 @@ public class PortfolioService {
         assetRepository
             .findAllById(
                 allocations.stream()
-                    .map(PortfolioAssetAllocation::getAssetId)
+                    .map(PortfolioAssetAllocationEntity::getAssetId)
                     .filter(Objects::nonNull)
                     .toList())
             .stream()
-            .collect(Collectors.toMap(Asset::getId, Asset::getPriceSource));
+            .collect(Collectors.toMap(AssetEntity::getId, AssetEntity::getPriceSource));
 
     double totalValue =
         allocations.stream()
@@ -653,7 +653,7 @@ public class PortfolioService {
         .filter(allocation -> Math.abs(nz(allocation.getTotalValueInBaseCurrency())) > 0.005)
         .sorted(
             Comparator.comparing(
-                    (PortfolioAssetAllocation allocation) ->
+                    (PortfolioAssetAllocationEntity allocation) ->
                         nz(allocation.getTotalValueInBaseCurrency()))
                 .reversed())
         .map(
@@ -687,19 +687,19 @@ public class PortfolioService {
   }
 
   private List<DividendGainer> calculateDividendGainers(CurrencyType baseCurrency) {
-    List<CashOperation> cashOperations = cashOperationRepository.findAll();
+    List<CashOperationEntity> cashOperations = cashOperationRepository.findAll();
     if (CollectionUtils.isEmpty(cashOperations)) {
       List<DividendGainer> cached =
           symbolPerformanceRepository.findAll().stream()
               .filter(row -> Math.abs(nz(row.getDividends())) > 0.005)
-              .sorted(Comparator.comparing(SymbolPerformance::getDividends).reversed())
+              .sorted(Comparator.comparing(SymbolPerformanceEntity::getDividends).reversed())
               .map(row -> new DividendGainer(row.getSymbol(), nz(row.getDividends())))
               .toList();
       return collapseDividendGainers(cached);
     }
 
     Map<String, Double> dividendsBySymbolInBase = new HashMap<>();
-    for (CashOperation operation : cashOperations) {
+    for (CashOperationEntity operation : cashOperations) {
       if (operation.getType() != CashOperationType.DIVIDEND
           || !org.springframework.util.StringUtils.hasText(operation.getSymbol())) {
         continue;
@@ -737,7 +737,7 @@ public class PortfolioService {
 
   private boolean applyAccountStatisticsCurrencyBreakdowns(
       Portfolio portfolio, boolean updateTotals) {
-    List<AccountStatistics> stats = accountStatisticsRepository.findAll();
+    List<AccountStatisticsEntity> stats = accountStatisticsRepository.findAll();
     Set<Long> cashOnlyAccounts = cashOnlyAccountIds();
     stats = stats.stream().filter(stat -> !cashOnlyAccounts.contains(stat.getAccountId())).toList();
     if (CollectionUtils.isEmpty(stats)) {
@@ -751,9 +751,9 @@ public class PortfolioService {
     double realizedInBase = 0.0;
     double unrealizedInBase = 0.0;
     double dividendsInBase = 0.0;
-    for (AccountStatistics stat : stats) {
+    for (AccountStatisticsEntity stat : stats) {
       // Every monetary value in account_statistics is already expressed in
-      // valuation_currency (normally the portfolio base). Account currency is only
+      // valuation_currency (normally the portfolio base). AccountEntity currency is only
       // display metadata and must never be used to relabel these converted values.
       CurrencyType currency = CurrencyType.valueOf(stat.getValuationCurrency());
       double realized = nz(stat.getRealizedProfit());
@@ -776,7 +776,7 @@ public class PortfolioService {
   }
 
   private boolean applyPortfolioCurrencyBreakdowns(Portfolio portfolio, boolean updateTotals) {
-    List<PortfolioCurrencyBreakdown> rows = portfolioCurrencyBreakdownRepository.findAll();
+    List<PortfolioCurrencyBreakdownEntity> rows = portfolioCurrencyBreakdownRepository.findAll();
     if (CollectionUtils.isEmpty(rows)) {
       return false;
     }
@@ -789,7 +789,7 @@ public class PortfolioService {
     double unrealizedInBase = 0.0;
     double dividendsInBase = 0.0;
     boolean hasSupportedMetric = false;
-    for (PortfolioCurrencyBreakdown row : rows) {
+    for (PortfolioCurrencyBreakdownEntity row : rows) {
       CurrencyType currency = row.getCurrency();
       double localAmount = nz(row.getAmountLocal());
       double baseAmount = nz(row.getAmountInBaseCurrency());
@@ -828,7 +828,7 @@ public class PortfolioService {
     return true;
   }
 
-  private Map<Long, Account> accountsById(Collection<Long> accountIds) {
+  private Map<Long, AccountEntity> accountsById(Collection<Long> accountIds) {
     return accountRepository.findMapByIdIn(accountIds);
   }
 
@@ -863,7 +863,7 @@ public class PortfolioService {
     if (localCurrency == baseCurrency) {
       return balance;
     }
-    // Account statistics are already in the portfolio base currency. The FX board stores
+    // AccountEntity statistics are already in the portfolio base currency. The FX board stores
     // units of local currency per one base-currency unit, so display conversion multiplies.
     return currencyRateService.findRate(baseCurrency, localCurrency, rateDate).stream()
         .map(rate -> balance * rate)
@@ -893,8 +893,8 @@ public class PortfolioService {
 
   private Set<Long> cashOnlyAccountIds() {
     return accountRepository.findAll().stream()
-        .filter(Account::isCashOnly)
-        .map(Account::getId)
+        .filter(AccountEntity::isCashOnly)
+        .map(AccountEntity::getId)
         .filter(Objects::nonNull)
         .collect(Collectors.toSet());
   }
@@ -914,11 +914,11 @@ public class PortfolioService {
             .filter(stat -> stat.getAccountId() != null)
             .filter(stat -> !cashOnlyAccounts.contains(stat.getAccountId()))
             .filter(this::hasVisibleAccountSurface)
-            .map(AccountStatistics::getAccountId)
+            .map(AccountStatisticsEntity::getAccountId)
             .collect(Collectors.toCollection(TreeSet::new));
     boolean filterVisibleAccounts = !visibleAccounts.isEmpty();
 
-    for (PortfolioMonthlyPerformance row :
+    for (PortfolioMonthlyPerformanceEntity row :
         portfolioMonthlyPerformanceRepository.findAllByOrderByMonthAscPortfolioIdAsc()) {
       String bucketKey = summaryBucketKey(row.getMonth());
       monthlyProfit.merge(bucketKey, nz(row.getProfit()), Double::sum);
@@ -970,7 +970,7 @@ public class PortfolioService {
                   old.accounts()));
     }
 
-    for (AccountMonthlyPerformance row :
+    for (AccountMonthlyPerformanceEntity row :
         accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc()) {
       if (filterVisibleAccounts && !visibleAccounts.contains(row.getAccountId())) {
         continue;
@@ -1044,7 +1044,7 @@ public class PortfolioService {
     return String.format("%d-%02d", month.getYear(), month.getMonthValue());
   }
 
-  private boolean hasVisibleAccountSurface(AccountStatistics stat) {
+  private boolean hasVisibleAccountSurface(AccountStatisticsEntity stat) {
     return Math.abs(nz(stat.getCashBalance()) + nz(stat.getMarketValue()))
             > ACCOUNT_VISIBILITY_MIN_VALUE
         || Math.abs(nz(stat.getNetDeposit())) > ACCOUNT_VISIBILITY_MIN_VALUE;
@@ -1147,7 +1147,7 @@ public class PortfolioService {
   public DailyPerformanceDetail dailyPerformanceDetail(LocalDate date, Set<Long> accountIds) {
     return performanceQueryService.dailyPerformanceDetail(date, accountIds);
     /*
-    List<com.smartbox.investory.investment.infrastructure.persistence.account.AccountDaily> rows =
+    List<com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyEntity> rows =
         accountDailyRepository.findAllByOrderByDateAscAccountIdAsc().stream()
             .filter(row -> date.equals(row.getDate()))
             .filter(

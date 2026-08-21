@@ -91,7 +91,7 @@ public class PortfolioCommandService {
     }
     if (lines.isEmpty()) {
       lines.add(
-          "Asset-class and position-weight allocation is not exposed by the current dashboard context.");
+          "AssetEntity-class and position-weight allocation is not exposed by the current dashboard context.");
     }
     return result("Allocation", lines);
   }

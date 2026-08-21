@@ -1,4 +1,5 @@
 package com.smartbox.investory.retirement.simulation;
+import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -111,7 +112,7 @@ class SimulationSensitivityAnalysisServiceTest {
         new ProjectedLongTermAsset(
             1L,
             "Property",
-            com.smartbox.investory.longterm.api.LongTermAssetType.REAL_ESTATE,
+            com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType.REAL_ESTATE,
             EconomicBucket.REAL_ESTATE,
             CurrencyType.PLN,
             new BigDecimal("100"),
@@ -146,7 +147,7 @@ class SimulationSensitivityAnalysisServiceTest {
         new ProjectedLongTermAsset(
             1L,
             "Property",
-            com.smartbox.investory.longterm.api.LongTermAssetType.REAL_ESTATE,
+            com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType.REAL_ESTATE,
             EconomicBucket.REAL_ESTATE,
             CurrencyType.PLN,
             new BigDecimal("100"),
@@ -186,7 +187,7 @@ class SimulationSensitivityAnalysisServiceTest {
         new ProjectedLongTermAsset(
             1L,
             "Historical property",
-            com.smartbox.investory.longterm.api.LongTermAssetType.REAL_ESTATE,
+            com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType.REAL_ESTATE,
             EconomicBucket.REAL_ESTATE,
             CurrencyType.PLN,
             BigDecimal.ZERO,
@@ -397,7 +398,7 @@ class SimulationSensitivityAnalysisServiceTest {
     return new ProjectedLongTermAsset(
         id,
         "Property " + id,
-        com.smartbox.investory.longterm.api.LongTermAssetType.REAL_ESTATE,
+        com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType.REAL_ESTATE,
         EconomicBucket.REAL_ESTATE,
         CurrencyType.PLN,
         new BigDecimal("100"),

@@ -5,9 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.smartbox.investory.investment.accounting.CashOperationType;
 import com.smartbox.investory.investment.imports.ImportExecutionResult;
-import com.smartbox.investory.investment.infrastructure.persistence.Asset;
+import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.CashOperation;
+import com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.CashOperationRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPosition;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPositionRepository;
@@ -28,7 +28,7 @@ class IbkrTreasuryImportIT extends FastDatabaseTest {
   private static final String TREASURY_ROWS =
       String.join(
           "\n",
-          "Transaction History,Header,Date,Account,Description,Transaction Type,Symbol,Quantity,Price,Price Currency,Gross Amount,Commission,Net Amount,Currency",
+          "Transaction History,Header,Date,AccountEntity,Description,Transaction Type,Symbol,Quantity,Price,Price Currency,Gross Amount,Commission,Net Amount,Currency",
           "Transaction History,Data,2025-03-26,Sample Broker User,T 4 5/8 02/28/26,Buy,T 4 5/8 02/28/26,1000,100.41049125,USD,-1004.10,-5.00,-1009.10,USD",
           "Transaction History,Data,2025-04-17,Sample Broker User,T 4 5/8 02/28/26,Buy,T 4 5/8 02/28/26,1000,100.484375,USD,-1004.84,-5.00,-1009.84,USD",
           "Transaction History,Data,2025-05-06,Sample Broker User,T 4 5/8 02/28/26,Buy,T 4 5/8 02/28/26,8000,100.42611625,USD,-8034.09,-5.00,-8039.09,USD",
@@ -47,9 +47,9 @@ class IbkrTreasuryImportIT extends FastDatabaseTest {
 
   @Test
   void importsAllTreasuryRowsAndReconstructsRedemption() throws Exception {
-    List<Asset> treasuryAssets = assetRepository.findAllByIbrkIgnoreCase("T458022826");
+    List<AssetEntity> treasuryAssets = assetRepository.findAllByIbrkIgnoreCase("T458022826");
     assertEquals(1, treasuryAssets.size());
-    Asset treasury = treasuryAssets.getFirst();
+    AssetEntity treasury = treasuryAssets.getFirst();
     assertEquals("US91282CKB62", treasury.getSymbol());
     assertEquals("BOND", treasury.getAssetType());
 
@@ -63,7 +63,7 @@ class IbkrTreasuryImportIT extends FastDatabaseTest {
     assertEquals(0, result.rowsFailed());
     assertTrue(result.details().contains("0 skipped"));
 
-    List<CashOperation> operations = cashOperationRepository.findAllByAccount(17959259L);
+    List<CashOperationEntity> operations = cashOperationRepository.findAllByAccount(17959259L);
     assertEquals(9, operations.size());
     assertEquals(
         3,
@@ -81,7 +81,7 @@ class IbkrTreasuryImportIT extends FastDatabaseTest {
             .filter(operation -> operation.getType() == CashOperationType.TRANSFER)
             .count());
 
-    double importedCash = operations.stream().mapToDouble(CashOperation::getAmount).sum();
+    double importedCash = operations.stream().mapToDouble(CashOperationEntity::getAmount).sum();
     assertEquals(-54.03, importedCash, 0.000001);
 
     List<ClosedPosition> closed = closedPositionRepository.findClosedByAssetId(treasury.getId());

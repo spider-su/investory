@@ -1,6 +1,6 @@
 package com.smartbox.investory.retirement.planning;
 
-import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshot;
+import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
 import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
 import java.math.BigDecimal;
 import org.springframework.stereotype.Service;
@@ -15,7 +15,7 @@ public class HistoricalLongTermAssetYearSource {
   }
 
   public HistoricalLongTermAssetYear read(Long portfolioId, int year) {
-    LongTermAssetAnnualSnapshot snapshot =
+    LongTermAssetAnnualSnapshotModel snapshot =
         longTermAssets.historicalAnnualSnapshot(portfolioId, year);
     return new HistoricalLongTermAssetYear(
         snapshot.rentalIncomeAvailable(),

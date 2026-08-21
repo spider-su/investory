@@ -50,23 +50,23 @@ public class OpenedPositionRepository {
   }
 
   public List<OpenedPosition> saveAll(Iterable<OpenedPosition> positions) {
-    List<Position> saved = positionRepository.saveAll(toPositions(positions));
+    List<PositionEntity> saved = positionRepository.saveAll(toPositions(positions));
     return saved.stream().map(OpenedPositionRepository::copy).toList();
   }
 
-  private static List<Position> toPositions(Iterable<OpenedPosition> positions) {
-    java.util.ArrayList<Position> result = new java.util.ArrayList<>();
+  private static List<PositionEntity> toPositions(Iterable<OpenedPosition> positions) {
+    java.util.ArrayList<PositionEntity> result = new java.util.ArrayList<>();
     positions.forEach(position -> result.add(copyToPosition(position)));
     return result;
   }
 
-  private static Position copyToPosition(OpenedPosition source) {
-    Position target = new Position();
+  private static PositionEntity copyToPosition(OpenedPosition source) {
+    PositionEntity target = new PositionEntity();
     BeanUtils.copyProperties(source, target);
     return target;
   }
 
-  private static OpenedPosition copy(Position source) {
+  private static OpenedPosition copy(PositionEntity source) {
     OpenedPosition target = new OpenedPosition();
     BeanUtils.copyProperties(source, target);
     return target;

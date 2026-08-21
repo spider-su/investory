@@ -1,15 +1,17 @@
 package com.smartbox.investory.retirement.api;
+import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
+import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 
 import com.smartbox.investory.investment.api.BrokerageAssetClassification;
 import com.smartbox.investory.investment.api.BrokerageAssetClassificationReader;
 import com.smartbox.investory.investment.api.BrokeragePortfolioReader;
 import com.smartbox.investory.investment.api.BrokeragePositionSnapshot;
 import com.smartbox.investory.investment.api.SharedBrokeragePortfolioSnapshot;
-import com.smartbox.investory.longterm.api.LongTermAssetProfileAsset;
+import com.smartbox.investory.longterm.api.model.LongTermAssetProfileAssetModel;
 import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
-import com.smartbox.investory.longterm.api.LongTermAssetProfileSummary;
-import com.smartbox.investory.longterm.api.LongTermAssetProjection;
-import com.smartbox.investory.longterm.api.LongTermAssetType;
+import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSummaryModel;
+import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
+import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.retirement.profile.*;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -35,7 +37,7 @@ public class InvestmentProfileFacade {
   public InvestmentProfile loadProfile(Long portfolioId) {
     LocalDate date = LocalDate.now(clock);
     SharedBrokeragePortfolioSnapshot market = brokeragePortfolioReadService.currentSharedSnapshot();
-    LongTermAssetProfileSummary longTerm = longTermAssets.aggregate(portfolioId, date);
+    LongTermAssetProfileSummaryModel longTerm = longTermAssets.aggregate(portfolioId, date);
     Map<EconomicBucket, BigDecimal> values = new EnumMap<>(EconomicBucket.class);
     BigDecimal marketCash = toUsd(market.cash(), market.baseCurrency(), date);
     values.put(EconomicBucket.LIQUID_CASH, marketCash);
@@ -43,7 +45,7 @@ public class InvestmentProfileFacade {
       EconomicBucket bucket = classify(position.symbol());
       values.merge(bucket, toUsd(position.value(), market.baseCurrency(), date), BigDecimal::add);
     }
-    for (LongTermAssetProfileAsset asset : longTermAssets.list(portfolioId, date)) {
+    for (LongTermAssetProfileAssetModel asset : longTermAssets.list(portfolioId, date)) {
       EconomicBucket bucket = classify(asset.type());
       BigDecimal value = asset.currentValue();
       values.merge(bucket, value, BigDecimal::add);
@@ -60,7 +62,7 @@ public class InvestmentProfileFacade {
             .orElse(List.of())
             .stream()
             .map(
-                (LongTermAssetProjection input) ->
+                (LongTermAssetProjectionModel input) ->
                     new ProjectedLongTermAsset(
                         input.id(),
                         input.name(),
@@ -121,7 +123,7 @@ public class InvestmentProfileFacade {
         manualAssets);
   }
 
-  public List<LongTermAssetProfileAsset> loadLongTermAssets(Long portfolioId) {
+  public List<LongTermAssetProfileAssetModel> loadLongTermAssets(Long portfolioId) {
     return longTermAssets.list(portfolioId, LocalDate.now(clock));
   }
 

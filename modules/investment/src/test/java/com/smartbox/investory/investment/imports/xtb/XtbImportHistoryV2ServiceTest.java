@@ -14,16 +14,16 @@ import com.smartbox.investory.investment.accounting.CashOperationType;
 import com.smartbox.investory.investment.accounting.PositionSettlementModelService;
 import com.smartbox.investory.investment.accounting.model.PositionSettlementModel;
 import com.smartbox.investory.investment.imports.ImportExecutionResult;
-import com.smartbox.investory.investment.infrastructure.persistence.Asset;
+import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.CashOperation;
+import com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.CashOperationRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPosition;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPositionRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPositionRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.account.Account;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.market.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -61,7 +61,7 @@ class XtbImportHistoryV2ServiceTest {
   @Mock private AssetRepository assetRepository;
   @Mock private AccountRepository accountRepository;
   @Mock private CurrencyRateService currencyRateService;
-  @Captor private ArgumentCaptor<Iterable<CashOperation>> cashOperationsCaptor;
+  @Captor private ArgumentCaptor<Iterable<CashOperationEntity>> cashOperationsCaptor;
   @Captor private ArgumentCaptor<Iterable<OpenedPosition>> openedPositionsCaptor;
   @Captor private ArgumentCaptor<Iterable<ClosedPosition>> closedPositionsCaptor;
 
@@ -69,7 +69,7 @@ class XtbImportHistoryV2ServiceTest {
 
   @BeforeEach
   void setUp() {
-    Map<String, Asset> storedAssets = new HashMap<>();
+    Map<String, AssetEntity> storedAssets = new HashMap<>();
     AtomicLong assetIds = new AtomicLong(1000);
     org.mockito.Mockito.lenient()
         .when(assetRepository.findAllBySymbolIn(org.mockito.ArgumentMatchers.anyCollection()))
@@ -108,7 +108,7 @@ class XtbImportHistoryV2ServiceTest {
                 org.mockito.ArgumentMatchers.eq("XTB"), org.mockito.ArgumentMatchers.anyString()))
         .thenAnswer(
             invocation -> {
-              Account account = new Account();
+              AccountEntity account = new AccountEntity();
               String externalAccountId = invocation.getArgument(1);
               Long accountId = Long.valueOf(externalAccountId);
               account.setId(accountId);
@@ -125,7 +125,7 @@ class XtbImportHistoryV2ServiceTest {
             });
   }
 
-  private static Asset catalogAsset(String symbol, long id) {
+  private static AssetEntity catalogAsset(String symbol, long id) {
     int dot = symbol.lastIndexOf('.');
     String ticker = dot > 0 ? symbol.substring(0, dot) : symbol;
     String suffix = dot > 0 && dot < symbol.length() - 1 ? symbol.substring(dot + 1) : "US";
@@ -135,7 +135,7 @@ class XtbImportHistoryV2ServiceTest {
           case "DE", "FR", "NL", "IT", "ES", "FI", "PT", "IE", "AT", "BE" -> CurrencyType.EUR;
           default -> CurrencyType.USD;
         };
-    return Asset.builder()
+    return AssetEntity.builder()
         .id(id)
         .name(ticker)
         .symbol(symbol)
@@ -213,7 +213,7 @@ class XtbImportHistoryV2ServiceTest {
     try (XSSFWorkbook workbook = new XSSFWorkbook()) {
       XSSFSheet cashSheet = workbook.createSheet("Cash Operations");
       Row account = cashSheet.createRow(0);
-      account.createCell(0).setCellValue("Account number");
+      account.createCell(0).setCellValue("AccountEntity number");
       account.createCell(1).setCellValue("51548444");
       Row header = cashSheet.createRow(1);
       String[] cashHeaders = {"ID", "Type", "Ticker", "Time", "Amount", "Comment"};
@@ -226,7 +226,7 @@ class XtbImportHistoryV2ServiceTest {
 
       XSSFSheet closedSheet = workbook.createSheet("Closed Positions");
       Row closedAccount = closedSheet.createRow(0);
-      closedAccount.createCell(0).setCellValue("Account");
+      closedAccount.createCell(0).setCellValue("AccountEntity");
       closedAccount.createCell(1).setCellValue("51548444");
       Row closedHeader = closedSheet.createRow(1);
       closedHeader.createCell(0).setCellValue("Ticker");
@@ -244,7 +244,7 @@ class XtbImportHistoryV2ServiceTest {
     }
 
     verify(cashOperationRepository).saveAll(cashOperationsCaptor.capture());
-    List<CashOperation> savedCash = new ArrayList<>();
+    List<CashOperationEntity> savedCash = new ArrayList<>();
     cashOperationsCaptor.getValue().forEach(savedCash::add);
     assertEquals(2, savedCash.size());
     assertTrue(savedCash.stream().allMatch(operation -> operation.getSymbol() == null));
@@ -270,14 +270,14 @@ class XtbImportHistoryV2ServiceTest {
           new ByteArrayInputStream(output.toByteArray()), "USD_51729109.xlsx");
     }
     verify(cashOperationRepository).saveAll(cashOperationsCaptor.capture());
-    CashOperation saved = cashOperationsCaptor.getValue().iterator().next();
+    CashOperationEntity saved = cashOperationsCaptor.getValue().iterator().next();
     assertEquals(CurrencyType.USD, saved.getCurrency());
   }
 
   private void addMinimalSheetHeaders(XSSFWorkbook workbook, String accountId) {
     XSSFSheet cashSheet = workbook.createSheet("Cash Operations");
     Row cashAccount = cashSheet.createRow(0);
-    cashAccount.createCell(0).setCellValue("Account number");
+    cashAccount.createCell(0).setCellValue("AccountEntity number");
     cashAccount.createCell(1).setCellValue(accountId);
     Row cashHeader = cashSheet.createRow(1);
     cashHeader.createCell(0).setCellValue("Type");
@@ -286,7 +286,7 @@ class XtbImportHistoryV2ServiceTest {
 
     XSSFSheet closedSheet = workbook.createSheet("Closed Positions");
     Row closedAccount = closedSheet.createRow(0);
-    closedAccount.createCell(0).setCellValue("Account");
+    closedAccount.createCell(0).setCellValue("AccountEntity");
     closedAccount.createCell(1).setCellValue(accountId);
     Row closedHeader = closedSheet.createRow(1);
     closedHeader.createCell(0).setCellValue("Ticker");
@@ -328,15 +328,15 @@ class XtbImportHistoryV2ServiceTest {
   @Test
   void reconstructOpenedPositionsUsesExistingImportedCashOperationsForPartialHistory() {
     Long account = 51707603L;
-    CashOperation existingOpen =
+    CashOperationEntity existingOpen =
         cashOperation(
             1L, account, CashOperationType.STOCK_PURCHASE, "AAPL.US", "OPEN BUY 10 @ 100");
-    CashOperation currentClose =
+    CashOperationEntity currentClose =
         cashOperation(2L, account, CashOperationType.STOCK_SELL, "AAPL.US", "CLOSE BUY 4 @ 110");
     org.mockito.Mockito.when(cashOperationRepository.findAllByAccount(account))
         .thenReturn(List.of(existingOpen));
 
-    List<CashOperation> operations =
+    List<CashOperationEntity> operations =
         xtbImportV2Service.operationsForOpenReconstruction(account, List.of(currentClose));
     List<OpenedPosition> openedPositions =
         xtbImportV2Service.reconstructOpenedPositions(operations, account, CurrencyType.USD);
@@ -348,8 +348,8 @@ class XtbImportHistoryV2ServiceTest {
 
   @Test
   void importWorkbook_usesExistingAssetSkipsFooterAndWritesTradeCheckpoints() throws Exception {
-    Asset asset =
-        Asset.builder()
+    AssetEntity asset =
+        AssetEntity.builder()
             .id(77L)
             .name("Apple")
             .symbol("AAPL.US")
@@ -368,7 +368,7 @@ class XtbImportHistoryV2ServiceTest {
     try (XSSFWorkbook workbook = new XSSFWorkbook()) {
       XSSFSheet cashSheet = workbook.createSheet("Cash Operations");
       Row cashHeader1 = cashSheet.createRow(0);
-      cashHeader1.createCell(0).setCellValue("Account number");
+      cashHeader1.createCell(0).setCellValue("AccountEntity number");
       cashHeader1.createCell(1).setCellValue("51707603");
       Row cashHeader2 = cashSheet.createRow(1);
       cashHeader2.createCell(0).setCellValue("ID");
@@ -396,7 +396,7 @@ class XtbImportHistoryV2ServiceTest {
 
       XSSFSheet closedSheet = workbook.createSheet("Closed Positions");
       Row closedHeader1 = closedSheet.createRow(0);
-      closedHeader1.createCell(0).setCellValue("Account");
+      closedHeader1.createCell(0).setCellValue("AccountEntity");
       closedHeader1.createCell(1).setCellValue("51707603");
       Row closedHeader2 = closedSheet.createRow(1);
       closedHeader2.createCell(0).setCellValue("Ticker");
@@ -481,8 +481,8 @@ class XtbImportHistoryV2ServiceTest {
 
   @Test
   void importWorkbook_keepsAssetMarkedExcludedFromImport() throws Exception {
-    Asset excluded =
-        Asset.builder()
+    AssetEntity excluded =
+        AssetEntity.builder()
             .id(78L)
             .name("AIGI")
             .symbol("AIGI.UK")
@@ -502,7 +502,7 @@ class XtbImportHistoryV2ServiceTest {
     try (XSSFWorkbook workbook = new XSSFWorkbook()) {
       XSSFSheet cashSheet = workbook.createSheet("Cash Operations");
       Row account = cashSheet.createRow(0);
-      account.createCell(0).setCellValue("Account number");
+      account.createCell(0).setCellValue("AccountEntity number");
       account.createCell(1).setCellValue("51707603");
       Row header = cashSheet.createRow(1);
       header.createCell(0).setCellValue("ID");
@@ -521,7 +521,7 @@ class XtbImportHistoryV2ServiceTest {
 
       XSSFSheet closedSheet = workbook.createSheet("Closed Positions");
       Row closedAccount = closedSheet.createRow(0);
-      closedAccount.createCell(0).setCellValue("Account");
+      closedAccount.createCell(0).setCellValue("AccountEntity");
       closedAccount.createCell(1).setCellValue("51707603");
       Row closedHeader = closedSheet.createRow(1);
       closedHeader.createCell(0).setCellValue("Ticker");
@@ -553,8 +553,8 @@ class XtbImportHistoryV2ServiceTest {
   @Test
   void importWorkbook_preservesIdenticalPartialCloseRowsAndBrokerCurrencyEvidence()
       throws Exception {
-    Asset asset =
-        Asset.builder()
+    AssetEntity asset =
+        AssetEntity.builder()
             .id(12851L)
             .name("L&G Clean Energy UCITS ETF")
             .symbol("NCLR.UK")
@@ -573,7 +573,7 @@ class XtbImportHistoryV2ServiceTest {
     try (XSSFWorkbook workbook = new XSSFWorkbook()) {
       XSSFSheet cashSheet = workbook.createSheet("Cash Operations");
       Row cashAccount = cashSheet.createRow(0);
-      cashAccount.createCell(0).setCellValue("Account number");
+      cashAccount.createCell(0).setCellValue("AccountEntity number");
       cashAccount.createCell(1).setCellValue("51729109");
       Row cashHeader = cashSheet.createRow(1);
       cashHeader.createCell(0).setCellValue("ID");
@@ -585,7 +585,7 @@ class XtbImportHistoryV2ServiceTest {
 
       XSSFSheet closedSheet = workbook.createSheet("Closed Positions");
       Row closedAccount = closedSheet.createRow(0);
-      closedAccount.createCell(0).setCellValue("Account");
+      closedAccount.createCell(0).setCellValue("AccountEntity");
       closedAccount.createCell(1).setCellValue("51729109");
       String[] headers = {
         "Ticker",
@@ -604,7 +604,7 @@ class XtbImportHistoryV2ServiceTest {
         "Swap",
         "Profit/Loss",
         "Product",
-        "Position ID"
+        "PositionEntity ID"
       };
       Row closedHeader = closedSheet.createRow(1);
       for (int index = 0; index < headers.length; index++) {
@@ -653,9 +653,9 @@ class XtbImportHistoryV2ServiceTest {
         positions.stream().allMatch(position -> position.getCostCurrency() == CurrencyType.PLN));
   }
 
-  private static CashOperation cashOperation(
+  private static CashOperationEntity cashOperation(
       Long id, Long account, CashOperationType type, String symbol, String comment) {
-    CashOperation operation = new CashOperation();
+    CashOperationEntity operation = new CashOperationEntity();
     operation.setId(id);
     operation.setAccount(account);
     operation.setType(type);

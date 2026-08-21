@@ -3,7 +3,7 @@ package com.smartbox.investory.investment.accounting;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 
-import com.smartbox.investory.investment.infrastructure.persistence.CashOperation;
+import com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity;
 import com.smartbox.investory.investment.market.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.portfolio.PortfolioBuilders;
@@ -108,7 +108,7 @@ class CashFlowAggregatorTest {
     assertEquals(0, summary.dividendsByCurrency().size());
   }
 
-  private static CashOperation op(CashOperationType type, double amount, String comment) {
+  private static CashOperationEntity op(CashOperationType type, double amount, String comment) {
     return PortfolioBuilders.cashOperation()
         .type(type)
         .deposit(amount, CurrencyType.USD)

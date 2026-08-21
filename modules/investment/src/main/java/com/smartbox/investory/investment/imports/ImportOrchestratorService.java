@@ -2,7 +2,7 @@ package com.smartbox.investory.investment.imports;
 
 import com.smartbox.investory.investment.accounting.InvestmentCalculationCache;
 import com.smartbox.investory.investment.accounting.PortfolioProjectionService;
-import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistory;
+import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
 import com.smartbox.investory.investment.market.price.AssetPriceFallbackService;
 import com.smartbox.investory.investment.market.price.PriceHistoryCoverageService;
 import com.smartbox.investory.investment.reconciliation.ReconciliationRefreshService;
@@ -112,16 +112,16 @@ public class ImportOrchestratorService {
     }
 
     String checksum = sha256(fileBytes);
-    Optional<ImportHistory> existing = auditWriter.findExistingAppliedBatch(broker, checksum);
+    Optional<ImportHistoryEntity> existing = auditWriter.findExistingAppliedBatch(broker, checksum);
     if (existing.isPresent()) {
       if (shouldReprocessDuplicate(broker)) {
-        ImportHistory original = existing.get();
-        ImportHistory batch = auditWriter.startReprocessBatch(original);
+        ImportHistoryEntity original = existing.get();
+        ImportHistoryEntity batch = auditWriter.startReprocessBatch(original);
         var sourceFile =
             sourceEvidenceService == null
                 ? null
                 : sourceEvidenceService.storeArtifact(batch, fileBytes, contentType(fileName));
-        ImportHistory reloaded;
+        ImportHistoryEntity reloaded;
         try {
           ImportExecutionResult result = runParser(parser, batch, sourceFile, fileBytes, fileName);
           reloaded = finalizeAppliedTimed(batch.getId(), result);
@@ -145,7 +145,7 @@ public class ImportOrchestratorService {
           String errorMessage = exceptionMessage(e);
           log.warn(
               "Duplicate import repair failed for batchId={}: {}", batch.getId(), errorMessage, e);
-          ImportHistory failed = auditWriter.finalizeFailed(batch.getId(), errorMessage, fileBytes);
+          ImportHistoryEntity failed = auditWriter.finalizeFailed(batch.getId(), errorMessage, fileBytes);
           throw new ImportFailedException(
               "Failed to reprocess duplicate import for broker "
                   + broker
@@ -159,11 +159,11 @@ public class ImportOrchestratorService {
       // Duplicate is a per-request observation; do NOT mutate the original successful
       // batch's row in the database (used to overwrite errorMessage and poison the
       // details endpoint forever after).
-      ImportHistory batch = existing.get();
+      ImportHistoryEntity batch = existing.get();
       return toBatchResponse(batch, "File already imported, returning existing batch", true);
     }
 
-    ImportHistory batch = auditWriter.startBatch(broker, sourceType, sourceRef, fileName, checksum);
+    ImportHistoryEntity batch = auditWriter.startBatch(broker, sourceType, sourceRef, fileName, checksum);
     var sourceFile =
         sourceEvidenceService == null
             ? null
@@ -176,7 +176,7 @@ public class ImportOrchestratorService {
       String errorMessage = exceptionMessage(e);
       log.warn(
           "Broker import failed for {} ({} bytes): {}", broker, fileBytes.length, errorMessage, e);
-      ImportHistory failed = auditWriter.finalizeFailed(batch.getId(), errorMessage, fileBytes);
+      ImportHistoryEntity failed = auditWriter.finalizeFailed(batch.getId(), errorMessage, fileBytes);
       throw new ImportFailedException(
           "Failed to import file for broker "
               + broker
@@ -187,12 +187,12 @@ public class ImportOrchestratorService {
           e);
     }
 
-    ImportHistory finalized = finalizeAppliedTimed(batch.getId(), result);
+    ImportHistoryEntity finalized = finalizeAppliedTimed(batch.getId(), result);
     throwIfFailed(finalized);
 
     String refreshFailure = refreshDerivedData(finalized);
     if (refreshFailure != null) {
-      ImportHistory notReady = auditWriter.finalizeNotReady(batch.getId(), result, refreshFailure);
+      ImportHistoryEntity notReady = auditWriter.finalizeNotReady(batch.getId(), result, refreshFailure);
       throw new ImportFailedException(
           "Import broker data applied but pipeline is not ready (batchId="
               + notReady.getId()
@@ -221,8 +221,8 @@ public class ImportOrchestratorService {
 
   private ImportExecutionResult runParser(
       BrokerImportParser parser,
-      ImportHistory batch,
-      com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceFile
+      ImportHistoryEntity batch,
+      com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceFileEntity
           sourceFile,
       byte[] fileBytes,
       String fileName)
@@ -259,7 +259,7 @@ public class ImportOrchestratorService {
     return e.getClass().getSimpleName();
   }
 
-  private String refreshDerivedData(ImportHistory batch) {
+  private String refreshDerivedData(ImportHistoryEntity batch) {
     StringBuilder failures = new StringBuilder();
     boolean projectionSucceeded = false;
     long fallbackStarted = System.nanoTime();
@@ -267,7 +267,7 @@ public class ImportOrchestratorService {
       assetPriceFallbackService.populateMissingPricesFromOpenPositions();
     } catch (Exception e) {
       log.warn(
-          "Asset price fallback population failed after import (batchId={}): {}",
+          "AssetEntity price fallback population failed after import (batchId={}): {}",
           batch.getId(),
           e.getMessage());
       failures.append("asset price fallback failed: ").append(exceptionMessage(e));
@@ -304,7 +304,7 @@ public class ImportOrchestratorService {
     return failures.isEmpty() ? null : failures.toString();
   }
 
-  private static void throwIfFailed(ImportHistory batch) {
+  private static void throwIfFailed(ImportHistoryEntity batch) {
     if (batch.getStatus() == com.smartbox.investory.investment.imports.ImportBatchStatus.FAILED) {
       throw new ImportFailedException(
           "Import broker data was rejected (batchId="
@@ -335,7 +335,7 @@ public class ImportOrchestratorService {
   }
 
   private ImportBatchResponse toBatchResponse(
-      ImportHistory batch, String message, boolean duplicate) {
+      ImportHistoryEntity batch, String message, boolean duplicate) {
     return new ImportBatchResponse(
         batch.getId(),
         batch.getBroker(),
@@ -351,7 +351,7 @@ public class ImportOrchestratorService {
     return value == null ? 0 : value;
   }
 
-  private ImportHistory finalizeAppliedTimed(Long batchId, ImportExecutionResult result) {
+  private ImportHistoryEntity finalizeAppliedTimed(Long batchId, ImportExecutionResult result) {
     long started = System.nanoTime();
     try {
       return auditWriter.finalizeApplied(batchId, result);

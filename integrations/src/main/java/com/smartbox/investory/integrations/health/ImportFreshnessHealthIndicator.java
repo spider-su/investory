@@ -2,7 +2,7 @@ package com.smartbox.investory.integrations.health;
 
 import com.smartbox.investory.integrations.notifications.NotificationProperties;
 import com.smartbox.investory.investment.imports.ImportBatchStatus;
-import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistory;
+import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportRepository;
 import java.time.Clock;
 import java.time.ZonedDateTime;
@@ -34,7 +34,7 @@ public class ImportFreshnessHealthIndicator implements HealthIndicator {
             () -> Health.down().withDetail("reason", "No broker imports recorded yet.").build());
   }
 
-  private Health healthFor(ImportHistory batch) {
+  private Health healthFor(ImportHistoryEntity batch) {
     ZonedDateTime importedAt =
         batch.getFinishedAt() != null ? batch.getFinishedAt() : batch.getStartedAt();
     if (importedAt == null) {

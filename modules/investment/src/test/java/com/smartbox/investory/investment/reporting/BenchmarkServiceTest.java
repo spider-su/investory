@@ -12,15 +12,15 @@ import static org.mockito.Mockito.when;
 import com.smartbox.investory.investment.accounting.model.Benchmark;
 import com.smartbox.investory.investment.infrastructure.market.client.TwelveDataService;
 import com.smartbox.investory.investment.infrastructure.persistence.NormalizedCashOperationRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.account.Account;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDaily;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountMonthlyPerformance;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountMonthlyPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountMonthlyPerformanceRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatistics;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.benchmark.BenchmarkMonthlyClose;
+import com.smartbox.investory.investment.infrastructure.persistence.benchmark.BenchmarkMonthlyCloseEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.benchmark.BenchmarkMonthlyCloseRepository;
 import com.smartbox.investory.investment.market.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -601,7 +601,7 @@ class BenchmarkServiceTest {
 
   @Test
   void calculate_portfolioDailyProfitExcludesCashOnlyAccounts() {
-    Account cashOnly = account(2L, "Cash reserve");
+    AccountEntity cashOnly = account(2L, "Cash reserve");
     cashOnly.setCashOnly(true);
     when(accountRepository.findMapByIdIn(any()))
         .thenAnswer(
@@ -636,7 +636,7 @@ class BenchmarkServiceTest {
     when(currencyRateService.convertToBaseCurrency(
             10.0, CurrencyType.USD, CurrencyType.PLN, LocalDate.parse("2026-01-02")))
         .thenReturn(20.0);
-    AccountDaily row = daily(1L, "2026-01-02", 10.0, 1_010.0, null);
+    AccountDailyEntity row = daily(1L, "2026-01-02", 10.0, 1_010.0, null);
     row.setValuationCurrency("PLN");
     when(accountDailyRepository.findAll()).thenReturn(List.of(row));
 
@@ -701,9 +701,9 @@ class BenchmarkServiceTest {
     assertEquals(List.of(0.0, 0.0, 0.0, 10.0), series.profitPctValues());
   }
 
-  private static AccountDaily monthly(
+  private static AccountDailyEntity monthly(
       Long accountId, String month, double netCashFlow, double portfolioValue) {
-    AccountDaily row = new AccountDaily();
+    AccountDailyEntity row = new AccountDailyEntity();
     row.setAccountId(accountId);
     row.setDate(LocalDate.parse(month));
     row.setDeposits(Math.max(netCashFlow, 0.0));
@@ -712,30 +712,30 @@ class BenchmarkServiceTest {
     return row;
   }
 
-  private static AccountDaily daily(
+  private static AccountDailyEntity daily(
       Long accountId, String date, double dailyProfit, double equity, Double dailyReturn) {
-    AccountDaily row = monthly(accountId, date, 0.0, equity);
+    AccountDailyEntity row = monthly(accountId, date, 0.0, equity);
     row.setDailyProfitAmount(dailyProfit);
     row.setDailyReturn(dailyReturn);
     return row;
   }
 
-  private static AccountDaily monthlyWithReturn(
+  private static AccountDailyEntity monthlyWithReturn(
       String month, double netCashFlow, double portfolioValue, Double monthlyReturn) {
-    AccountDaily row = monthly(1L, month, netCashFlow, portfolioValue);
+    AccountDailyEntity row = monthly(1L, month, netCashFlow, portfolioValue);
     row.setDailyReturn(monthlyReturn);
     return row;
   }
 
-  private static AccountDaily monthlyWithStartingValue(
+  private static AccountDailyEntity monthlyWithStartingValue(
       Long accountId, String month, double portfolioValue) {
     return monthly(accountId, month, 0.0, portfolioValue);
   }
 
-  private static AccountMonthlyPerformance monthlyPerformance(
+  private static AccountMonthlyPerformanceEntity monthlyPerformance(
       Long accountId, String month, double startEquity, double profit, double netCashflow) {
     LocalDate monthDate = LocalDate.parse(month);
-    return new AccountMonthlyPerformance(
+    return new AccountMonthlyPerformanceEntity(
         accountId + ":" + month,
         accountId,
         monthDate,
@@ -750,21 +750,21 @@ class BenchmarkServiceTest {
         ZonedDateTime.now());
   }
 
-  private static Account account(Long id, String name) {
-    Account account = new Account();
+  private static AccountEntity account(Long id, String name) {
+    AccountEntity account = new AccountEntity();
     account.setId(id);
     account.setName(name);
     return account;
   }
 
-  private static Map<Long, Account> requestedAccounts(
-      Collection<Long> requestedIds, Map<Long, Account> accounts) {
+  private static Map<Long, AccountEntity> requestedAccounts(
+      Collection<Long> requestedIds, Map<Long, AccountEntity> accounts) {
     if (requestedIds == null || requestedIds.isEmpty()) {
       return Map.of();
     }
-    Map<Long, Account> requested = new LinkedHashMap<>();
+    Map<Long, AccountEntity> requested = new LinkedHashMap<>();
     for (Long id : requestedIds) {
-      Account account = accounts.get(id);
+      AccountEntity account = accounts.get(id);
       if (account != null) {
         requested.put(id, account);
       }
@@ -772,14 +772,14 @@ class BenchmarkServiceTest {
     return requested;
   }
 
-  private static AccountStatistics accountStatistics(
+  private static AccountStatisticsEntity accountStatistics(
       Long accountId, double cashBalance, double marketValue) {
     return accountStatistics(accountId, cashBalance, marketValue, cashBalance + marketValue);
   }
 
-  private static AccountStatistics accountStatistics(
+  private static AccountStatisticsEntity accountStatistics(
       Long accountId, double cashBalance, double marketValue, double netDeposit) {
-    AccountStatistics statistics = new AccountStatistics();
+    AccountStatisticsEntity statistics = new AccountStatisticsEntity();
     statistics.setAccountId(accountId);
     statistics.setCashBalance(cashBalance);
     statistics.setMarketValue(marketValue);
@@ -787,8 +787,8 @@ class BenchmarkServiceTest {
     return statistics;
   }
 
-  private static BenchmarkMonthlyClose benchmarkClose(String month, double close) {
-    return BenchmarkMonthlyClose.builder()
+  private static BenchmarkMonthlyCloseEntity benchmarkClose(String month, double close) {
+    return BenchmarkMonthlyCloseEntity.builder()
         .symbol("SPY")
         .monthDate(LocalDate.parse(month + "-01"))
         .closePrice(java.math.BigDecimal.valueOf(close))

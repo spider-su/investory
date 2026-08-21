@@ -1273,7 +1273,7 @@ class SchemaMigrationCheckpoint2IT {
               id, name, symbol, ticker, ibkr, yahoo, country, currency, asset_type)
           values
               (-200, 'Test CFD', 'TESTCFD', 'TESTCFD', 'TESTCFD', 'TESTCFD', 'US', 'USD', 'DERIVATIVE'),
-              (-201, 'Test Cash Asset', 'TESTCASH.US', 'TESTCASH', 'TESTCASH', 'TESTCASH', 'US', 'USD', 'EQUITY');
+              (-201, 'Test Cash AssetEntity', 'TESTCASH.US', 'TESTCASH', 'TESTCASH', 'TESTCASH', 'US', 'USD', 'EQUITY');
 
           insert into investory.account_daily(
               account_id, snapshot_date, valuation_currency, cash_balance, market_value, equity,

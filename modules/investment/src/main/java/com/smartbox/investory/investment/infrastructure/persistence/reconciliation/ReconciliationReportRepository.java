@@ -1,13 +1,13 @@
 package com.smartbox.investory.investment.infrastructure.persistence.reconciliation;
 
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDaily;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyEntity;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 
-public interface ReconciliationReportRepository extends Repository<AccountDaily, Long> {
+public interface ReconciliationReportRepository extends Repository<AccountDailyEntity, Long> {
 
   @Query(
       value =

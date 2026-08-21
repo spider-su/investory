@@ -53,11 +53,11 @@ class SimulationPlanServiceTest {
     when(repository.save(any()))
         .thenAnswer(
             i -> {
-              SimulationPlan p = i.getArgument(0);
+              SimulationPlanEntity p = i.getArgument(0);
               p.setId(7L);
               return p;
             });
-    SimulationPlan saved = service.create(1L, "Current plan", assumptions);
+    SimulationPlanEntity saved = service.create(1L, "Current plan", assumptions);
     when(repository.findByIdAndPortfolioId(7L, 1L)).thenReturn(Optional.of(saved));
     assertEquals(7L, saved.getId());
     assertEquals(assumptions, service.assumptions(service.get(1L, 7L)));
@@ -69,14 +69,14 @@ class SimulationPlanServiceTest {
 
   @Test
   void updateChangesAssumptionsButNeverStoresResults() {
-    SimulationPlan plan = new SimulationPlan();
+    SimulationPlanEntity plan = new SimulationPlanEntity();
     plan.setId(7L);
     plan.setPortfolioId(1L);
     plan.setName("Old");
     when(repository.findByIdAndPortfolioId(7L, 1L)).thenReturn(Optional.of(plan));
     when(repository.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of(plan));
     service.update(1L, 7L, "Updated", assumptions);
-    ArgumentCaptor<SimulationPlan> captor = ArgumentCaptor.forClass(SimulationPlan.class);
+    ArgumentCaptor<SimulationPlanEntity> captor = ArgumentCaptor.forClass(SimulationPlanEntity.class);
     verify(repository).save(captor.capture());
     assertEquals("Updated", captor.getValue().getName());
     assertEquals(180000, captor.getValue().getAnnualLivingExpenses().intValue());
@@ -85,7 +85,7 @@ class SimulationPlanServiceTest {
 
   @Test
   void duplicateNamesAreRejectedWithinPortfolio() {
-    SimulationPlan existing = new SimulationPlan();
+    SimulationPlanEntity existing = new SimulationPlanEntity();
     existing.setId(1L);
     existing.setName("Current plan");
     when(repository.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of(existing));
@@ -95,7 +95,7 @@ class SimulationPlanServiceTest {
 
   @Test
   void deleteUsesPortfolioOwnership() {
-    SimulationPlan plan = new SimulationPlan();
+    SimulationPlanEntity plan = new SimulationPlanEntity();
     plan.setId(7L);
     when(repository.findByIdAndPortfolioId(7L, 1L)).thenReturn(Optional.of(plan));
     service.delete(1L, 7L);
@@ -104,11 +104,11 @@ class SimulationPlanServiceTest {
 
   @Test
   void eventIsSavedForOwnedPlan() {
-    SimulationPlan plan = new SimulationPlan();
+    SimulationPlanEntity plan = new SimulationPlanEntity();
     plan.setId(7L);
     when(repository.findByIdAndPortfolioId(7L, 1L)).thenReturn(Optional.of(plan));
     when(eventRepository.save(any())).thenAnswer(i -> i.getArgument(0));
-    SimulationPlanEvent event =
+    SimulationPlanEventEntity event =
         service.saveEvent(
             1L,
             7L,
@@ -125,7 +125,7 @@ class SimulationPlanServiceTest {
 
   @Test
   void loadingPlanRestoresSavedEvents() {
-    SimulationPlan plan = new SimulationPlan();
+    SimulationPlanEntity plan = new SimulationPlanEntity();
     plan.setId(7L);
     plan.setCurrentAge(40);
     plan.setEndAge(80);
@@ -140,7 +140,7 @@ class SimulationPlanServiceTest {
     plan.setPensionStartAge(99);
     plan.setAnnualPension(BigDecimal.ZERO);
     plan.setCapitalGainTaxRate(BigDecimal.ZERO);
-    SimulationPlanEvent event = new SimulationPlanEvent();
+    SimulationPlanEventEntity event = new SimulationPlanEventEntity();
     event.setId(9L);
     event.setYear(2030);
     event.setName("Car");
@@ -154,7 +154,7 @@ class SimulationPlanServiceTest {
 
   @Test
   void oldPlanWithoutGrowthFieldsUsesDeterministicCompatibilityValues() {
-    SimulationPlan plan = basicPlan();
+    SimulationPlanEntity plan = basicPlan();
     assertEquals(
         SimulationAssumptions.DEFAULT_RENTAL_INCOME_GROWTH_RATE,
         service.assumptions(plan).rentalIncomeGrowthRate());
@@ -173,7 +173,7 @@ class SimulationPlanServiceTest {
 
   @Test
   void savedPlanKeepsItsCalendarAgeAnchorWhenReloadedLater() {
-    SimulationPlan plan = basicPlan();
+    SimulationPlanEntity plan = basicPlan();
     plan.setStartYear(2026);
     plan.setCurrentAge(40);
     SimulationAssumptions reloaded = service.assumptions(plan);
@@ -182,8 +182,8 @@ class SimulationPlanServiceTest {
     assertEquals(41, reloaded.currentAge() + 2027 - reloaded.startYear());
   }
 
-  private static SimulationPlan basicPlan() {
-    SimulationPlan plan = new SimulationPlan();
+  private static SimulationPlanEntity basicPlan() {
+    SimulationPlanEntity plan = new SimulationPlanEntity();
     plan.setId(7L);
     plan.setStartYear(2026);
     plan.setCurrentAge(40);

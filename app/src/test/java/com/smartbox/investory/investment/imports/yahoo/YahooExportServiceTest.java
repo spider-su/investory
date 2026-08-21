@@ -8,7 +8,7 @@ import static org.mockito.Mockito.when;
 import com.opencsv.CSVReader;
 import com.smartbox.investory.investment.infrastructure.integration.export.yahoo.YahooExportService;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPositionRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatistics;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.portfolio.PortfolioBuilders;
@@ -230,11 +230,11 @@ class YahooExportServiceTest {
     return rows.stream().skip(1).filter(row -> exactSymbol.equals(row[0])).findFirst();
   }
 
-  private static AccountStatistics accountStatistics(Long accountId, Double cashBalance) {
+  private static AccountStatisticsEntity accountStatistics(Long accountId, Double cashBalance) {
     return PortfolioBuilders.accountStatistics()
         .account(
             new PortfolioTestData.AccountDefinition(
-                accountId, "Cash Account", CurrencyType.USD, "Broker"))
+                accountId, "Cash AccountEntity", CurrencyType.USD, "Broker"))
         .balances(cashBalance, 0.0, 0.0)
         .build();
   }

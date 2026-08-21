@@ -38,12 +38,12 @@ public class AssetPriceHistoryGapFillService {
       return;
     }
 
-    Map<String, Asset> assetsBySymbol =
+    Map<String, AssetEntity> assetsBySymbol =
         assetRepository.findAllBySymbolIn(openSymbols).stream()
             .filter(asset -> !Boolean.TRUE.equals(asset.getExcludeFromImport()))
             .collect(
                 java.util.stream.Collectors.toMap(
-                    Asset::getSymbol, asset -> asset, (existing, ignored) -> existing));
+                    AssetEntity::getSymbol, asset -> asset, (existing, ignored) -> existing));
     if (assetsBySymbol.isEmpty()) {
       return;
     }
@@ -69,9 +69,9 @@ public class AssetPriceHistoryGapFillService {
     }
 
     int inserted = 0;
-    for (Map.Entry<String, Asset> entry : assetsBySymbol.entrySet()) {
+    for (Map.Entry<String, AssetEntity> entry : assetsBySymbol.entrySet()) {
       String symbol = entry.getKey();
-      Asset asset = entry.getValue();
+      AssetEntity asset = entry.getValue();
       NavigableMap<LocalDate, AssetPriceHistoryRepository.HistoricalAssetPriceRow> datedRows =
           bySymbol.get(symbol);
       if (datedRows == null || datedRows.isEmpty()) {

@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.accounting;
 
-import com.smartbox.investory.investment.infrastructure.persistence.CashOperation;
+import com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity;
 import com.smartbox.investory.investment.market.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -14,7 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
- * Aggregates {@link CashOperation} rows into base-currency totals (deposits, withdrawals, interest,
+ * Aggregates {@link CashOperationEntity} rows into base-currency totals (deposits, withdrawals, interest,
  * dividends and dividend tax) plus a per-currency dividends breakdown.
  *
  * <p>Extracted from {@code PortfolioService.calculateTotalProfitLoss()} so the cash-side accounting
@@ -45,9 +45,9 @@ public class CashFlowAggregator {
     }
   }
 
-  public CashFlowSummary aggregate(List<CashOperation> operations, CurrencyType baseCurrency) {
-    Map<CurrencyType, List<CashOperation>> byCurrency =
-        operations.stream().collect(Collectors.groupingBy(CashOperation::getCurrency));
+  public CashFlowSummary aggregate(List<CashOperationEntity> operations, CurrencyType baseCurrency) {
+    Map<CurrencyType, List<CashOperationEntity>> byCurrency =
+        operations.stream().collect(Collectors.groupingBy(CashOperationEntity::getCurrency));
 
     BigDecimal deposits = BigDecimal.ZERO;
     BigDecimal withdrawals = BigDecimal.ZERO;
@@ -56,14 +56,14 @@ public class CashFlowAggregator {
     BigDecimal dividendTax = BigDecimal.ZERO;
     Map<CurrencyType, BigDecimal> dividendsByCurrency = new HashMap<>();
 
-    for (Map.Entry<CurrencyType, List<CashOperation>> entry : byCurrency.entrySet()) {
+    for (Map.Entry<CurrencyType, List<CashOperationEntity>> entry : byCurrency.entrySet()) {
       CurrencyType currency = entry.getKey();
-      List<CashOperation> positions = entry.getValue();
+      List<CashOperationEntity> positions = entry.getValue();
 
       BigDecimal grossDividends = BigDecimal.ZERO;
       BigDecimal withholdingTax = BigDecimal.ZERO;
 
-      for (CashOperation op : positions) {
+      for (CashOperationEntity op : positions) {
         if (op.getType() == null) {
           continue;
         }
@@ -119,7 +119,7 @@ public class CashFlowAggregator {
    * sub-account transfer or a currency conversion (which the broker also books as Deposit /
    * Withdraw rows but are not actual income/outflow for the portfolio).
    */
-  static boolean isExternalFunding(CashOperation operation) {
+  static boolean isExternalFunding(CashOperationEntity operation) {
     String comment = operation.getComment();
     if (comment == null) {
       return true;

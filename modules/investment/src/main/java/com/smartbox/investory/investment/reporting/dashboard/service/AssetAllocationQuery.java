@@ -1,9 +1,9 @@
 package com.smartbox.investory.investment.reporting.dashboard.service;
 
 import com.smartbox.investory.investment.accounting.model.Portfolio;
-import com.smartbox.investory.investment.infrastructure.persistence.Asset;
+import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocation;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocationEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocationRepository;
 import com.smartbox.investory.investment.reporting.dashboard.application.AssetAllocationView;
 import java.util.ArrayList;
@@ -28,15 +28,15 @@ public class AssetAllocationQuery {
   }
 
   public AssetAllocationView load(Long portfolioId, Portfolio portfolio) {
-    List<PortfolioAssetAllocation> rows = allocationRepository.findAllByPortfolioId(portfolioId);
-    Map<Long, Asset> assets =
+    List<PortfolioAssetAllocationEntity> rows = allocationRepository.findAllByPortfolioId(portfolioId);
+    Map<Long, AssetEntity> assets =
         assetRepository
-            .findAllById(rows.stream().map(PortfolioAssetAllocation::getAssetId).toList())
+            .findAllById(rows.stream().map(PortfolioAssetAllocationEntity::getAssetId).toList())
             .stream()
-            .collect(java.util.stream.Collectors.toMap(Asset::getId, asset -> asset));
+            .collect(java.util.stream.Collectors.toMap(AssetEntity::getId, asset -> asset));
     Map<String, MutableBucket> buckets = new LinkedHashMap<>();
     double invested = 0.0;
-    for (PortfolioAssetAllocation row : rows) {
+    for (PortfolioAssetAllocationEntity row : rows) {
       double value = nz(row.getTotalValueInBaseCurrency());
       if (Math.abs(value) < 0.005) continue;
       String category = PortfolioAssetCategoryMapper.category(assets.get(row.getAssetId()));

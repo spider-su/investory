@@ -5,7 +5,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.infrastructure.persistence.Asset;
+import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
@@ -36,7 +36,7 @@ class AssetPriceHistoryGapFillServiceTest {
     OpenedPosition opened = new OpenedPosition();
     opened.setSymbol("IUVL");
 
-    Asset asset = new Asset();
+    AssetEntity asset = new AssetEntity();
     asset.setId(101L);
     asset.setSymbol("IUVL");
     asset.setCurrency(CurrencyType.USD);
@@ -121,7 +121,7 @@ class AssetPriceHistoryGapFillServiceTest {
     OpenedPosition opened = new OpenedPosition();
     opened.setSymbol("IUVL");
 
-    Asset asset = new Asset();
+    AssetEntity asset = new AssetEntity();
     asset.setId(101L);
     asset.setSymbol("IUVL");
 
@@ -153,7 +153,7 @@ class AssetPriceHistoryGapFillServiceTest {
 
     OpenedPosition opened = new OpenedPosition();
     opened.setSymbol("EXCLUDED.US");
-    Asset asset = new Asset();
+    AssetEntity asset = new AssetEntity();
     asset.setId(404L);
     asset.setSymbol("EXCLUDED.US");
     asset.setExcludeFromImport(true);
@@ -176,7 +176,7 @@ class AssetPriceHistoryGapFillServiceTest {
 
     OpenedPosition opened = new OpenedPosition();
     opened.setSymbol("NFLX.US");
-    Asset asset = new Asset();
+    AssetEntity asset = new AssetEntity();
     asset.setId(202L);
     asset.setSymbol("NFLX.US");
 
@@ -225,7 +225,7 @@ class AssetPriceHistoryGapFillServiceTest {
 
     OpenedPosition opened = new OpenedPosition();
     opened.setSymbol("VWCE.DE");
-    Asset asset = new Asset();
+    AssetEntity asset = new AssetEntity();
     asset.setId(303L);
     asset.setSymbol("VWCE.DE");
 

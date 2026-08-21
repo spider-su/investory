@@ -1,8 +1,8 @@
 package com.smartbox.investory.investment.reporting;
 
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDaily;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformance;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -32,7 +32,7 @@ public class PortfolioPerformanceQuery {
 
   /** Returns the exact aggregate for the inclusive monthly range. */
   public PerformanceResult forMonths(YearMonth from, YearMonth to) {
-    List<PortfolioMonthlyPerformance> rows =
+    List<PortfolioMonthlyPerformanceEntity> rows =
         repository.findAllByOrderByMonthAscPortfolioIdAsc().stream()
             .filter(row -> from == null || !YearMonth.from(row.getMonth()).isBefore(from))
             .filter(row -> to == null || !YearMonth.from(row.getMonth()).isAfter(to))
@@ -41,11 +41,11 @@ public class PortfolioPerformanceQuery {
       return empty(from, to);
     }
 
-    PortfolioMonthlyPerformance first = rows.getFirst();
-    PortfolioMonthlyPerformance last = rows.getLast();
-    BigDecimal contributions = sum(rows, PortfolioMonthlyPerformance::getDepositFlowDecimal);
-    BigDecimal withdrawals = sum(rows, PortfolioMonthlyPerformance::getWithdrawalFlowDecimal);
-    BigDecimal investmentResult = sum(rows, PortfolioMonthlyPerformance::getProfitDecimal);
+    PortfolioMonthlyPerformanceEntity first = rows.getFirst();
+    PortfolioMonthlyPerformanceEntity last = rows.getLast();
+    BigDecimal contributions = sum(rows, PortfolioMonthlyPerformanceEntity::getDepositFlowDecimal);
+    BigDecimal withdrawals = sum(rows, PortfolioMonthlyPerformanceEntity::getWithdrawalFlowDecimal);
+    BigDecimal investmentResult = sum(rows, PortfolioMonthlyPerformanceEntity::getProfitDecimal);
     BigDecimal returnPercentage = last.getReturnPctDecimal();
     PerformanceResult result =
         new PerformanceResult(
@@ -57,12 +57,12 @@ public class PortfolioPerformanceQuery {
             withdrawals,
             contributions.subtract(withdrawals),
             investmentResult,
-            sum(rows, PortfolioMonthlyPerformance::getRealizedProfitDecimal),
+            sum(rows, PortfolioMonthlyPerformanceEntity::getRealizedProfitDecimal),
             null,
-            sum(rows, PortfolioMonthlyPerformance::getDividendsDecimal),
-            sum(rows, PortfolioMonthlyPerformance::getInterestDecimal),
-            sum(rows, PortfolioMonthlyPerformance::getFeesDecimal),
-            sum(rows, PortfolioMonthlyPerformance::getTaxesDecimal),
+            sum(rows, PortfolioMonthlyPerformanceEntity::getDividendsDecimal),
+            sum(rows, PortfolioMonthlyPerformanceEntity::getInterestDecimal),
+            sum(rows, PortfolioMonthlyPerformanceEntity::getFeesDecimal),
+            sum(rows, PortfolioMonthlyPerformanceEntity::getTaxesDecimal),
             returnPercentage,
             ReturnMetric.unavailable(
                 ReturnMetric.Status.INSUFFICIENT_DATA,
@@ -146,7 +146,7 @@ public class PortfolioPerformanceQuery {
 
   private List<DailyPortfolioValue> dailyValues(LocalDate from, LocalDate to) {
     Map<LocalDate, DailyTotals> totals = new TreeMap<>();
-    for (AccountDaily row : dailyRepository.findAllByOrderByDateAscAccountIdAsc()) {
+    for (AccountDailyEntity row : dailyRepository.findAllByOrderByDateAscAccountIdAsc()) {
       if (row.getDate().isBefore(from) || row.getDate().isAfter(to)) continue;
       DailyTotals total = totals.computeIfAbsent(row.getDate(), ignored -> new DailyTotals());
       total.endValue = total.endValue.add(nz(row.getEquityValue()));
@@ -171,8 +171,8 @@ public class PortfolioPerformanceQuery {
   }
 
   private BigDecimal sum(
-      List<PortfolioMonthlyPerformance> rows,
-      java.util.function.Function<PortfolioMonthlyPerformance, BigDecimal> value) {
+      List<PortfolioMonthlyPerformanceEntity> rows,
+      java.util.function.Function<PortfolioMonthlyPerformanceEntity, BigDecimal> value) {
     return rows.stream().map(value).map(this::nz).reduce(ZERO, BigDecimal::add);
   }
 

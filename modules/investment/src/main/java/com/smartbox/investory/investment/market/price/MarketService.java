@@ -7,14 +7,14 @@ import com.smartbox.investory.investment.infrastructure.integration.market.Marke
 import com.smartbox.investory.investment.infrastructure.market.client.TwelveDataService;
 import com.smartbox.investory.investment.infrastructure.market.client.YahooFinanceService;
 import com.smartbox.investory.investment.infrastructure.market.client.YahooFinanceService.YahooQuote;
-import com.smartbox.investory.investment.infrastructure.persistence.Asset;
+import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPosition;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPositionRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPositionRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.account.Account;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.reporting.ReportingDateHelper;
 import com.smartbox.investory.investment.reporting.StatisticsRefreshService;
@@ -135,7 +135,7 @@ public class MarketService {
 
     refreshAssetActivityFromOpenPositions();
 
-    List<Asset> activeAssets =
+    List<AssetEntity> activeAssets =
         assetRepository.findAll().stream()
             .filter(a -> Boolean.TRUE.equals(a.getActive()))
             .filter(a -> !Boolean.TRUE.equals(a.getExcludeFromImport()))
@@ -144,7 +144,7 @@ public class MarketService {
 
     // Source tickers from assets table; skip unsupported Twelve Data symbols.
     // TwelveData recognizes the app's US-style tickers, not symbols like NVDA.US.
-    Map<String, List<Asset>> assetsByTicker =
+    Map<String, List<AssetEntity>> assetsByTicker =
         activeAssets.stream()
             .filter(this::isSupportedForPriceUpdate)
             .collect(
@@ -162,7 +162,7 @@ public class MarketService {
     // from the latest closed deal so portfolio views do not show null/zero prices.
     backfillInactiveAssetPricesFromLatestClosedDeals();
 
-    List<Map<String, List<Asset>>> chunks = splitIntoChunks(assetsByTicker, CHUNK_SIZE);
+    List<Map<String, List<AssetEntity>>> chunks = splitIntoChunks(assetsByTicker, CHUNK_SIZE);
     log.info(
         "Found {} unique tickers across {} assets, divided into {} chunks",
         assetsByTicker.size(),
@@ -171,7 +171,7 @@ public class MarketService {
 
     AtomicInteger i = new AtomicInteger(1);
     Set<Long> twelveDataUpdatedAssetIds = new java.util.HashSet<>();
-    for (Map<String, List<Asset>> chunk : chunks) {
+    for (Map<String, List<AssetEntity>> chunk : chunks) {
       int idx = i.getAndIncrement();
       log.info("Updating chunk {} out of {}", idx, chunks.size());
       try {
@@ -190,7 +190,7 @@ public class MarketService {
       }
       if (idx < chunks.size() && !chunkPause.isZero()) {
         if (!sleep(chunkPause)) {
-          log.warn("Asset price sync interrupted after chunk {}; stopping cleanly", idx);
+          log.warn("AssetEntity price sync interrupted after chunk {}; stopping cleanly", idx);
           refreshStatisticsIfNeeded(refreshAfterUpdate);
           return;
         }
@@ -205,20 +205,20 @@ public class MarketService {
     log.info("Updating asset prices finished");
   }
 
-  private Set<Long> runChunkInNewTransaction(Map<String, List<Asset>> chunkByTicker) {
+  private Set<Long> runChunkInNewTransaction(Map<String, List<AssetEntity>> chunkByTicker) {
     Set<Long> updated =
         chunkTransactionTemplate.execute(status -> fetchAndUpsertPrices(chunkByTicker));
     return updated == null ? Set.of() : updated;
   }
 
-  private void runYahooFallbackInNewTransaction(List<Asset> assets) {
+  private void runYahooFallbackInNewTransaction(List<AssetEntity> assets) {
     if (!assets.isEmpty()) {
       chunkTransactionTemplate.executeWithoutResult(status -> fetchAndUpsertYahooFallbacks(assets));
     }
   }
 
   private void backfillInactiveAssetPricesFromLatestClosedDeals() {
-    List<Asset> inactiveAssets =
+    List<AssetEntity> inactiveAssets =
         assetRepository.findAll().stream()
             .filter(asset -> !Boolean.TRUE.equals(asset.getActive()))
             .filter(asset -> StringUtils.hasText(asset.getSymbol()))
@@ -246,8 +246,8 @@ public class MarketService {
                       return rightTime.isAfter(leftTime) ? right : left;
                     }));
 
-    List<Asset> backfilled = new ArrayList<>();
-    for (Asset asset : inactiveAssets) {
+    List<AssetEntity> backfilled = new ArrayList<>();
+    for (AssetEntity asset : inactiveAssets) {
       ClosedPosition latest = latestClosedBySymbol.get(asset.getSymbol());
       if (latest == null) {
         continue;
@@ -273,8 +273,8 @@ public class MarketService {
             .filter(StringUtils::hasText)
             .collect(Collectors.toSet());
 
-    List<Asset> changed = new ArrayList<>();
-    for (Asset asset : assetRepository.findAll()) {
+    List<AssetEntity> changed = new ArrayList<>();
+    for (AssetEntity asset : assetRepository.findAll()) {
       boolean shouldBeActive = openSymbols.contains(asset.getSymbol());
       if (!Objects.equals(asset.getActive(), shouldBeActive)) {
         asset.setActive(shouldBeActive);
@@ -284,13 +284,13 @@ public class MarketService {
     if (!changed.isEmpty()) {
       assetRepository.saveAll(changed);
       log.info(
-          "Asset activity refresh: {} assets updated ({} open symbols)",
+          "AssetEntity activity refresh: {} assets updated ({} open symbols)",
           changed.size(),
           openSymbols.size());
     }
   }
 
-  private Set<Long> fetchAndUpsertPrices(Map<String, List<Asset>> chunkByTicker) {
+  private Set<Long> fetchAndUpsertPrices(Map<String, List<AssetEntity>> chunkByTicker) {
     String tickers = String.join(",", chunkByTicker.keySet());
     if (tickers.isEmpty()) {
       return Set.of();
@@ -311,7 +311,7 @@ public class MarketService {
                         PluginConfig.empty()));
     ZonedDateTime now = ZonedDateTime.now();
 
-    List<Asset> toSave = new ArrayList<>();
+    List<AssetEntity> toSave = new ArrayList<>();
     Set<Long> updatedAssetIds = new java.util.HashSet<>();
     chunkByTicker.forEach(
         (ticker, assets) -> {
@@ -319,7 +319,7 @@ public class MarketService {
           if (quote == null) {
             return;
           }
-          for (Asset asset : assets) {
+          for (AssetEntity asset : assets) {
             double marketPrice = normalizeMarketPrice(asset, quote.getClose());
             asset.setMarketPrice(marketPrice);
             // Legacy UI/export cache only. Reporting selects price and currency from
@@ -346,9 +346,9 @@ public class MarketService {
     return updatedAssetIds;
   }
 
-  private void fetchAndUpsertYahooFallbacks(List<Asset> assets) {
-    List<Asset> toSave = new ArrayList<>();
-    for (Asset asset : assets) {
+  private void fetchAndUpsertYahooFallbacks(List<AssetEntity> assets) {
+    List<AssetEntity> toSave = new ArrayList<>();
+    for (AssetEntity asset : assets) {
       yahooFinanceService
           .fetchLatestQuote(YahooSymbolResolver.resolve(asset.getSymbol(), asset.getYahoo()))
           .filter(quote -> quoteCurrencyMatchesAsset(asset, quote))
@@ -378,7 +378,7 @@ public class MarketService {
     }
   }
 
-  private boolean quoteCurrencyMatchesAsset(Asset asset, YahooQuote quote) {
+  private boolean quoteCurrencyMatchesAsset(AssetEntity asset, YahooQuote quote) {
     if (asset.getCurrency() == null
         || !StringUtils.hasText(quote.currency())
         || asset.getCurrency().name().equalsIgnoreCase(quote.currency())) {
@@ -392,7 +392,7 @@ public class MarketService {
     return false;
   }
 
-  private boolean isQuoteFresh(Asset asset, ZonedDateTime cutoff) {
+  private boolean isQuoteFresh(AssetEntity asset, ZonedDateTime cutoff) {
     ZonedDateTime updatedAt = asset.getPriceUpdatedAt();
     return "TwelveData".equalsIgnoreCase(asset.getPriceSource())
         && updatedAt != null
@@ -411,21 +411,21 @@ public class MarketService {
     return ReportingDateHelper.today();
   }
 
-  private String quoteCurrency(Asset asset, StockQuote quote) {
+  private String quoteCurrency(AssetEntity asset, StockQuote quote) {
     if (StringUtils.hasText(quote.getCurrency())) {
       return quote.getCurrency().trim().toUpperCase(Locale.ROOT);
     }
     return asset.getCurrency() != null ? asset.getCurrency().name() : "USD";
   }
 
-  private double normalizeMarketPrice(Asset asset, double quoteClose) {
+  private double normalizeMarketPrice(AssetEntity asset, double quoteClose) {
     if (REMX_UK_SYMBOL.equals(asset.getSymbol())) {
       return quoteClose / REMX_UK_TWELVE_DATA_DIVISOR;
     }
     return quoteClose;
   }
 
-  private String twelveDataSymbol(Asset asset) {
+  private String twelveDataSymbol(AssetEntity asset) {
     if (marketDataPlugin != null) {
       return marketDataPlugin.externalSymbol(asset.getSymbol(), asset.getTicker());
     }
@@ -450,7 +450,7 @@ public class MarketService {
   }
 
   private StockQuote findQuote(
-      Map<String, StockQuote> quotes, String requestKey, List<Asset> assets) {
+      Map<String, StockQuote> quotes, String requestKey, List<AssetEntity> assets) {
     StockQuote byRequestKey = quotes.get(requestKey);
     if (byRequestKey != null) {
       return byRequestKey;
@@ -464,7 +464,7 @@ public class MarketService {
     if (byTicker != null) {
       return byTicker;
     }
-    for (Asset asset : assets) {
+    for (AssetEntity asset : assets) {
       StockQuote byAssetTicker = quotes.get(asset.getTicker());
       if (byAssetTicker != null) {
         return byAssetTicker;
@@ -473,7 +473,7 @@ public class MarketService {
     return null;
   }
 
-  private boolean isSupportedForPriceUpdate(Asset asset) {
+  private boolean isSupportedForPriceUpdate(AssetEntity asset) {
     if (asset == null
         || Boolean.TRUE.equals(asset.getExcludeFromImport())
         || !StringUtils.hasText(asset.getTicker())) {
@@ -492,7 +492,7 @@ public class MarketService {
     return REMX_UK_SYMBOL.equals(symbol) || !(skipNonUsListings && isNonUsExchangeSymbol(symbol));
   }
 
-  private boolean isNotConfiguredExcluded(Asset asset) {
+  private boolean isNotConfiguredExcluded(AssetEntity asset) {
     return asset != null
         && (!StringUtils.hasText(asset.getSymbol())
             || !excludedAssetSymbols.contains(asset.getSymbol().trim().toUpperCase(Locale.ROOT)));
@@ -574,7 +574,7 @@ public class MarketService {
   public void syncIbkrPositions() {
     List<Long> ibkrAccounts =
         accountRepository.findAllByProviderIgnoreCase(IBKR_PROVIDER).stream()
-            .map(Account::getId)
+            .map(AccountEntity::getId)
             .filter(java.util.Objects::nonNull)
             .toList();
     if (ibkrAccounts.isEmpty()) {
@@ -589,12 +589,12 @@ public class MarketService {
             .map(OpenedPosition::getSymbol)
             .filter(StringUtils::hasText)
             .collect(Collectors.toSet());
-    Map<String, Asset> assetsBySymbol =
+    Map<String, AssetEntity> assetsBySymbol =
         assetRepository.findAllBySymbolIn(symbols).stream()
-            .collect(Collectors.toMap(Asset::getSymbol, asset -> asset, (a, b) -> b));
+            .collect(Collectors.toMap(AssetEntity::getSymbol, asset -> asset, (a, b) -> b));
 
     for (OpenedPosition position : positions) {
-      Asset asset = assetsBySymbol.get(position.getSymbol());
+      AssetEntity asset = assetsBySymbol.get(position.getSymbol());
       if (asset == null || asset.getMarketPrice() == null || asset.getMarketPrice() == 0.0) {
         continue;
       }
@@ -612,7 +612,7 @@ public class MarketService {
     }
     openedPositionRepository.saveAll(positions);
 
-    // Account cash/equity is broker-imported state. Quote refresh must not rewrite it:
+    // AccountEntity cash/equity is broker-imported state. Quote refresh must not rewrite it:
     // account statistics will combine broker cash with current market value from assets.
   }
 
@@ -620,7 +620,7 @@ public class MarketService {
   public int repairXtbReconstructedPositionProfits() {
     List<Long> xtbAccounts =
         accountRepository.findAllByProviderIgnoreCase(XTB_PROVIDER).stream()
-            .map(Account::getId)
+            .map(AccountEntity::getId)
             .filter(java.util.Objects::nonNull)
             .toList();
     if (xtbAccounts.isEmpty()) {

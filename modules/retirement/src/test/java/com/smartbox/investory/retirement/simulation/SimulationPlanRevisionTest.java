@@ -23,9 +23,9 @@ class SimulationPlanRevisionTest {
 
   @Test
   void editingCreatesNewRevisionAndLeavesOldSnapshotUntouched() {
-    SimulationPlan plan = logicalPlan(7L);
+    SimulationPlanEntity plan = logicalPlan(7L);
     plan.setCurrentRevisionId(11L);
-    SimulationPlanRevision old = revision(11L, 1);
+    SimulationPlanRevisionEntity old = revision(11L, 1);
     when(plans.findByIdAndPortfolioId(7L, 1L)).thenReturn(Optional.of(plan));
     when(plans.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of(plan));
     when(revisions.findByIdAndSimulationPlanId(11L, 7L)).thenReturn(Optional.of(old));
@@ -34,7 +34,7 @@ class SimulationPlanRevisionTest {
     when(revisions.save(any()))
         .thenAnswer(
             invocation -> {
-              SimulationPlanRevision value = invocation.getArgument(0);
+              SimulationPlanRevisionEntity value = invocation.getArgument(0);
               value.setId(12L);
               return value;
             });
@@ -50,10 +50,10 @@ class SimulationPlanRevisionTest {
 
   @Test
   void currentRevisionEventsAreCopiedIntoNewRevision() {
-    SimulationPlan plan = logicalPlan(7L);
+    SimulationPlanEntity plan = logicalPlan(7L);
     plan.setCurrentRevisionId(11L);
-    SimulationPlanRevision old = revision(11L, 1);
-    SimulationPlanRevisionEvent event = new SimulationPlanRevisionEvent();
+    SimulationPlanRevisionEntity old = revision(11L, 1);
+    SimulationPlanRevisionEventEntity event = new SimulationPlanRevisionEventEntity();
     event.setId(21L);
     event.setRevisionId(11L);
     event.setYear(2030);
@@ -68,7 +68,7 @@ class SimulationPlanRevisionTest {
     when(revisions.save(any()))
         .thenAnswer(
             invocation -> {
-              SimulationPlanRevision value = invocation.getArgument(0);
+              SimulationPlanRevisionEntity value = invocation.getArgument(0);
               value.setId(12L);
               return value;
             });
@@ -84,33 +84,33 @@ class SimulationPlanRevisionTest {
         SimulationEventType.ONE_OFF_INCOME,
         null);
 
-    verify(revisionEvents, times(2)).save(any(SimulationPlanRevisionEvent.class));
+    verify(revisionEvents, times(2)).save(any(SimulationPlanRevisionEventEntity.class));
     assertEquals(11L, event.getRevisionId());
     assertEquals(12L, plan.getCurrentRevisionId());
   }
 
   @Test
   void archivedPlanCanStillResolveHistoricalRevision() {
-    SimulationPlan plan = logicalPlan(7L);
+    SimulationPlanEntity plan = logicalPlan(7L);
     plan.setArchived(true);
     plan.setCurrentRevisionId(11L);
-    SimulationPlanRevision old = revision(11L, 1);
+    SimulationPlanRevisionEntity old = revision(11L, 1);
     when(plans.findByIdAndPortfolioId(7L, 1L)).thenReturn(Optional.of(plan));
     when(revisions.findByIdAndSimulationPlanId(11L, 7L)).thenReturn(Optional.of(old));
 
     assertSame(old, service.revision(1L, 7L, 11L));
   }
 
-  private static SimulationPlan logicalPlan(Long id) {
-    SimulationPlan plan = new SimulationPlan();
+  private static SimulationPlanEntity logicalPlan(Long id) {
+    SimulationPlanEntity plan = new SimulationPlanEntity();
     plan.setId(id);
     plan.setPortfolioId(1L);
     plan.setName("Retirement 55");
     return plan;
   }
 
-  private static SimulationPlanRevision revision(Long id, int number) {
-    SimulationPlanRevision revision = new SimulationPlanRevision();
+  private static SimulationPlanRevisionEntity revision(Long id, int number) {
+    SimulationPlanRevisionEntity revision = new SimulationPlanRevisionEntity();
     revision.setId(id);
     revision.setSimulationPlanId(7L);
     revision.setRevisionNumber(number);

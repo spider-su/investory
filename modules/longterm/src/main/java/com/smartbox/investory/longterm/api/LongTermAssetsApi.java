@@ -1,4 +1,10 @@
 package com.smartbox.investory.longterm.api;
+import com.smartbox.investory.longterm.api.model.RealEstateEntryModel;
+import com.smartbox.investory.longterm.application.model.AnnualEconomics;
+import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
+import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
+import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
+import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -27,7 +33,13 @@ public interface LongTermAssetsApi {
 
   void updateBond(BondCommand command);
 
-  void saveRealEstate(Long portfolioId, RealEstateEntry entry);
+  void saveRealEstate(Long portfolioId, RealEstateEntryModel entry);
+
+  RentalContractView createRentalContract(RentalContractCommand command);
+
+  RentalContractView endRentalContract(Long portfolioId, Long assetId, Long contractId, LocalDate endDate);
+
+  void terminateRentalContract(Long portfolioId, Long assetId, Long contractId, LocalDate terminationDate);
 
   void saveTaxBase(Long portfolioId, Long id, BigDecimal value);
 
@@ -141,6 +153,17 @@ public interface LongTermAssetsApi {
     }
   }
 
+  record RentalContractCommand(
+      Long portfolioId,
+      Long assetId,
+      LocalDate startDate,
+      LocalDate endDate,
+      Boolean rentalTaxPaidByTenant,
+      List<RentalTermCommand> terms) {}
+
+  record RentalTermCommand(
+      CashFlowType type, BigDecimal amount, Frequency frequency, boolean paidByTenant) {}
+
   record BondDetailsCommand(
       LocalDate maturityDate,
       BigDecimal taxRate,
@@ -250,34 +273,7 @@ public interface LongTermAssetsApi {
       LocalDate rentEnd) {}
 
   record AggregateView(
-      CurrencyType currency, BigDecimal totalCurrentValue, AnnualEconomicsView annualEconomics) {
-    public String totalCurrentValueWholeDisplay() {
-      return com.smartbox.investory.shared.presentation.FinancialPresentation.wholeNumber(
-          totalCurrentValue);
-    }
-
-    public String netAnnualIncomeWholeDisplay() {
-      return com.smartbox.investory.shared.presentation.FinancialPresentation.wholeNumber(
-          annualEconomics.netAnnualIncomeAfterTax());
-    }
-
-    public String netYieldWithLabelDisplay() {
-      return com.smartbox.investory.shared.presentation.FinancialPresentation.percentage(
-              annualEconomics.netYieldAfterTax())
-          + " net yield";
-    }
-
-    public String monthlyNetIncomeWholeDisplay() {
-      return com.smartbox.investory.shared.presentation.FinancialPresentation.wholeNumber(
-          annualEconomics
-              .netAnnualIncomeAfterTax()
-              .divide(BigDecimal.valueOf(12), 2, java.math.RoundingMode.HALF_UP));
-    }
-
-    public BigDecimal weightedGrossYield() {
-      return annualEconomics.grossYield();
-    }
-  }
+      CurrencyType currency, BigDecimal totalCurrentValue, AnnualEconomicsView annualEconomics) {}
 
   record AssetGroupView(
       String key,
@@ -286,13 +282,7 @@ public interface LongTermAssetsApi {
       List<AssetSummaryView> assets,
       BigDecimal totalValue,
       AnnualEconomicsView annualEconomics,
-      RealEstateGroupPlanningView realEstatePlanning) {
-    public String shareDisplay(BigDecimal total) {
-      if (total == null || total.signum() == 0) return "0.0%";
-      return com.smartbox.investory.shared.presentation.FinancialPresentation.percentage(
-          totalValue.divide(total, 8, java.math.RoundingMode.HALF_UP));
-    }
-  }
+      RealEstateGroupPlanningView realEstatePlanning) {}
 
   record DetailView(
       AssetView asset,
@@ -308,7 +298,7 @@ public interface LongTermAssetsApi {
       BigDecimal expectedPropertyGrowth,
       List<RentalContractView> contracts) {}
 
-  record RentalContractView(Long id, LocalDate startDate, LocalDate endDate, LocalDate terminatedDate, List<RentalTermView> terms) {}
+  record RentalContractView(Long id, LocalDate startDate, LocalDate endDate, LocalDate terminatedDate, Boolean rentalTaxPaidByTenant, List<RentalTermView> terms) {}
 
   record RentalTermView(CashFlowType type, BigDecimal amount, Frequency frequency, boolean paidByTenant) {}
 }

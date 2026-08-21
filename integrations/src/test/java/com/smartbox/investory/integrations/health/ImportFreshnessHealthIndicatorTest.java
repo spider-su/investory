@@ -6,7 +6,7 @@ import static org.mockito.Mockito.when;
 import com.smartbox.investory.integrations.notifications.NotificationProperties;
 import com.smartbox.investory.investment.imports.BrokerType;
 import com.smartbox.investory.investment.imports.ImportBatchStatus;
-import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistory;
+import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportRepository;
 import java.time.Clock;
 import java.time.Instant;
@@ -53,8 +53,8 @@ class ImportFreshnessHealthIndicatorTest {
     assertEquals("DOWN", indicator.health().getStatus().getCode());
   }
 
-  private static ImportHistory batch(ImportBatchStatus status, String finishedAt) {
-    ImportHistory batch = new ImportHistory();
+  private static ImportHistoryEntity batch(ImportBatchStatus status, String finishedAt) {
+    ImportHistoryEntity batch = new ImportHistoryEntity();
     batch.setId(12L);
     batch.setBroker(BrokerType.IBKR);
     batch.setStatus(status);

@@ -8,8 +8,8 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface SymbolPerformanceRepository
-    extends ReadOnlyRepository<SymbolPerformance, SymbolPerformanceId> {
+    extends ReadOnlyRepository<SymbolPerformanceEntity, SymbolPerformanceId> {
 
-  @Query("SELECT row FROM SymbolPerformance row WHERE row.symbol = :symbol")
-  List<SymbolPerformance> findAllBySymbol(@Param("symbol") String symbol);
+  @Query("SELECT row FROM SymbolPerformanceEntity row WHERE row.symbol = :symbol")
+  List<SymbolPerformanceEntity> findAllBySymbol(@Param("symbol") String symbol);
 }

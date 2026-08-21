@@ -7,10 +7,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistory;
-import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceFile;
+import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
+import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceFileEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceFileRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceRow;
+import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceRowEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceRowRepository;
 import java.util.LinkedHashMap;
 import java.util.Optional;
@@ -41,13 +41,13 @@ class ImportSourceEvidenceServiceTest {
 
   @Test
   void duplicateChecksumReusesImmutableArtifact() {
-    ImportHistory batch = batch();
-    ImportSourceFile existing = new ImportSourceFile();
+    ImportHistoryEntity batch = batch();
+    ImportSourceFileEntity existing = new ImportSourceFileEntity();
     existing.setId(7L);
     when(fileRepository.findByBrokerAndFileSha256(BrokerType.IBKR, batch.getFileSha256()))
         .thenReturn(Optional.of(existing));
 
-    ImportSourceFile result = service.storeArtifact(batch, new byte[] {1}, "text/csv");
+    ImportSourceFileEntity result = service.storeArtifact(batch, new byte[] {1}, "text/csv");
 
     assertSame(existing, result);
     verify(fileRepository).findByBrokerAndFileSha256(BrokerType.IBKR, batch.getFileSha256());
@@ -55,14 +55,14 @@ class ImportSourceEvidenceServiceTest {
 
   @Test
   void sourceRowRetainsBatchLocationAndOriginalValues() {
-    ImportHistory batch = batch();
-    ImportSourceFile file = new ImportSourceFile();
+    ImportHistoryEntity batch = batch();
+    ImportSourceFileEntity file = new ImportSourceFileEntity();
     file.setId(7L);
     service.open(batch, file, "member.xlsx");
-    when(rowRepository.save(any(ImportSourceRow.class)))
+    when(rowRepository.save(any(ImportSourceRowEntity.class)))
         .thenAnswer(
             invocation -> {
-              ImportSourceRow row = invocation.getArgument(0);
+              ImportSourceRowEntity row = invocation.getArgument(0);
               row.setId(11L);
               return row;
             });
@@ -74,9 +74,9 @@ class ImportSourceEvidenceServiceTest {
         service.recordRow(
             "Cash Operations", "Cash Operations", 42, "TX-1", 1, "original,0.1,USD", values);
 
-    ArgumentCaptor<ImportSourceRow> captor = ArgumentCaptor.forClass(ImportSourceRow.class);
+    ArgumentCaptor<ImportSourceRowEntity> captor = ArgumentCaptor.forClass(ImportSourceRowEntity.class);
     verify(rowRepository).save(captor.capture());
-    ImportSourceRow saved = captor.getValue();
+    ImportSourceRowEntity saved = captor.getValue();
     assertEquals(11L, id);
     assertEquals(99L, saved.getImportHistoryId());
     assertEquals(7L, saved.getSourceFileId());
@@ -85,8 +85,8 @@ class ImportSourceEvidenceServiceTest {
     assertEquals("{\"Amount\":\"0.1\",\"Currency\":\"USD\"}", saved.getRawValues());
   }
 
-  private ImportHistory batch() {
-    ImportHistory batch = new ImportHistory();
+  private ImportHistoryEntity batch() {
+    ImportHistoryEntity batch = new ImportHistoryEntity();
     batch.setId(99L);
     batch.setBroker(BrokerType.IBKR);
     batch.setFileName("statement.csv");

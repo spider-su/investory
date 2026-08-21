@@ -1,4 +1,5 @@
 package com.smartbox.investory.retirement.profile;
+import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -11,11 +12,11 @@ import com.smartbox.investory.investment.api.BrokerageAssetClassificationReader;
 import com.smartbox.investory.investment.api.BrokeragePortfolioReader;
 import com.smartbox.investory.investment.api.BrokeragePositionSnapshot;
 import com.smartbox.investory.investment.api.SharedBrokeragePortfolioSnapshot;
-import com.smartbox.investory.longterm.api.LongTermAssetProfileAsset;
+import com.smartbox.investory.longterm.api.model.LongTermAssetProfileAssetModel;
 import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
-import com.smartbox.investory.longterm.api.LongTermAssetProfileSummary;
-import com.smartbox.investory.longterm.api.LongTermAssetProjection;
-import com.smartbox.investory.longterm.api.LongTermAssetType;
+import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSummaryModel;
+import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
+import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.retirement.api.InvestmentProfileFacade;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -60,7 +61,7 @@ class InvestmentProfileFacadeTest {
     when(brokerageAssetClassificationReader.findBySymbol("KNOWN")).thenReturn(Optional.empty());
     when(longTermAssets.aggregate(PORTFOLIO, DATE))
         .thenReturn(
-            new LongTermAssetProfileSummary(
+            new LongTermAssetProfileSummaryModel(
                 CurrencyType.USD, new BigDecimal("3000"), new BigDecimal("260")));
     when(longTermAssets.list(PORTFOLIO, DATE))
         .thenReturn(List.of(summary(LongTermAssetType.REAL_ESTATE, "3000", "260")));
@@ -79,7 +80,7 @@ class InvestmentProfileFacadeTest {
     when(brokerageAssetClassificationReader.findBySymbol("UNKNOWN")).thenReturn(Optional.empty());
     when(longTermAssets.aggregate(PORTFOLIO, DATE))
         .thenReturn(
-            new LongTermAssetProfileSummary(CurrencyType.USD, BigDecimal.ZERO, BigDecimal.ZERO));
+            new LongTermAssetProfileSummaryModel(CurrencyType.USD, BigDecimal.ZERO, BigDecimal.ZERO));
     when(longTermAssets.list(PORTFOLIO, DATE)).thenReturn(List.of());
     ProfileAllocation other =
         facade.loadProfile(PORTFOLIO).allocations().stream()
@@ -97,7 +98,7 @@ class InvestmentProfileFacadeTest {
     when(brokerageAssetClassificationReader.findBySymbol("UNKNOWN")).thenReturn(Optional.empty());
     when(longTermAssets.aggregate(PORTFOLIO, DATE))
         .thenReturn(
-            new LongTermAssetProfileSummary(
+            new LongTermAssetProfileSummaryModel(
                 CurrencyType.USD, new BigDecimal("400"), new BigDecimal("40")));
     when(longTermAssets.list(PORTFOLIO, DATE))
         .thenReturn(List.of(summary(LongTermAssetType.REAL_ESTATE, "400", "10", CurrencyType.USD)));
@@ -122,14 +123,14 @@ class InvestmentProfileFacadeTest {
     when(brokeragePortfolioReadService.currentSharedSnapshot()).thenReturn(market);
     when(longTermAssets.aggregate(PORTFOLIO, DATE))
         .thenReturn(
-            new LongTermAssetProfileSummary(
+            new LongTermAssetProfileSummaryModel(
                 CurrencyType.USD, new BigDecimal("200000"), BigDecimal.ZERO));
     when(longTermAssets.list(PORTFOLIO, DATE))
         .thenReturn(List.of(summary(LongTermAssetType.BOND, "200000", "0")));
     when(longTermAssets.projectionInputs(PORTFOLIO, DATE))
         .thenReturn(
             List.of(
-                new LongTermAssetProjection(
+                new LongTermAssetProjectionModel(
                     1L,
                     "Bond",
                     LongTermAssetType.BOND,
@@ -138,7 +139,7 @@ class InvestmentProfileFacadeTest {
                     List.of(),
                     java.time.LocalDate.of(2028, 2, 28),
                     new BigDecimal("200000"),
-                    com.smartbox.investory.longterm.api.InterestTreatment.CAPITALIZE,
+                    com.smartbox.investory.longterm.infrastructure.InterestTreatment.CAPITALIZE,
                     BigDecimal.ZERO)));
 
     InvestmentProfile profile = facade.loadProfile(PORTFOLIO);
@@ -154,21 +155,21 @@ class InvestmentProfileFacadeTest {
     when(brokeragePortfolioReadService.currentSharedSnapshot()).thenReturn(market);
     when(longTermAssets.aggregate(PORTFOLIO, DATE))
         .thenReturn(
-            new LongTermAssetProfileSummary(
+            new LongTermAssetProfileSummaryModel(
                 CurrencyType.USD, new BigDecimal("400"), BigDecimal.ZERO));
     when(longTermAssets.list(PORTFOLIO, DATE))
         .thenReturn(List.of(summary(LongTermAssetType.REAL_ESTATE, "100", "0", CurrencyType.USD)));
     when(longTermAssets.projectionInputs(PORTFOLIO, DATE))
         .thenReturn(
             List.of(
-                new LongTermAssetProjection(
+                new LongTermAssetProjectionModel(
                     1L,
                     "Property",
                     LongTermAssetType.REAL_ESTATE,
                     CurrencyType.USD,
                     new BigDecimal("100"),
                     List.of(
-                        new LongTermAssetProjection.Period(
+                        new LongTermAssetProjectionModel.Period(
                             DATE,
                             null,
                             new BigDecimal("10"),
@@ -212,14 +213,14 @@ class InvestmentProfileFacadeTest {
             .toList());
   }
 
-  private static LongTermAssetProfileAsset summary(
+  private static LongTermAssetProfileAssetModel summary(
       LongTermAssetType type, String value, String income) {
     return summary(type, value, income, CurrencyType.USD);
   }
 
-  private static LongTermAssetProfileAsset summary(
+  private static LongTermAssetProfileAssetModel summary(
       LongTermAssetType type, String value, String income, CurrencyType currency) {
     BigDecimal v = new BigDecimal(value);
-    return new LongTermAssetProfileAsset(type, currency, v);
+    return new LongTermAssetProfileAssetModel(type, currency, v);
   }
 }

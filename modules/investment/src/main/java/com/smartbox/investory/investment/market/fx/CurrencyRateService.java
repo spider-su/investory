@@ -1,7 +1,7 @@
 package com.smartbox.investory.investment.market.fx;
 
-import com.smartbox.investory.investment.infrastructure.persistence.CashOperation;
-import com.smartbox.investory.investment.infrastructure.persistence.CurrencyRate;
+import com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity;
+import com.smartbox.investory.investment.infrastructure.persistence.CurrencyRateEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.CurrencyRateRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.FxRateResolutionRow;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
@@ -82,13 +82,13 @@ public class CurrencyRateService implements CurrencyConversion {
   public void updateRates(CurrencyType base, Map<CurrencyType, Double> rates, LocalDate date) {
     rates.forEach(
         (toCurrency, rate) -> {
-          CurrencyRate currencyRate =
+          CurrencyRateEntity currencyRate =
               currencyRateRepository
                   .findFirstByRateDateAndBaseAndToCurrencyAndSourceAndMethod(
                       date, base, toCurrency, "EXCHANGERATE_HOST", "MARKET_DAILY")
                   .orElseGet(
                       () -> {
-                        CurrencyRate newRate = new CurrencyRate();
+                        CurrencyRateEntity newRate = new CurrencyRateEntity();
                         newRate.setRateDate(date);
                         newRate.setBase(base);
                         newRate.setToCurrency(toCurrency);
@@ -116,7 +116,7 @@ public class CurrencyRateService implements CurrencyConversion {
     valuationResolutionCache.clear();
   }
 
-  public void harvestXtbExecutionRates(List<CashOperation> operations) {
+  public void harvestXtbExecutionRates(List<CashOperationEntity> operations) {
     if (operations == null) return;
     operations.forEach(
         operation -> {
@@ -166,7 +166,7 @@ public class CurrencyRateService implements CurrencyConversion {
   }
 
   public void bindIbkrExecutionRate(
-      CashOperation operation, String pair, BigDecimal rate, String sourceReference) {
+      CashOperationEntity operation, String pair, BigDecimal rate, String sourceReference) {
     if (operation == null || operation.getDate() == null || pair == null || rate == null) return;
     String[] currencies = pair.trim().toUpperCase().split("[./_ -]");
     if (currencies.length != 2) return;
@@ -210,11 +210,11 @@ public class CurrencyRateService implements CurrencyConversion {
         sourceReference == null
             ? source + ":" + observedAt + ":" + base + ":" + target
             : sourceReference;
-    CurrencyRate observation =
+    CurrencyRateEntity observation =
         currencyRateRepository
             .findByRateDateAndBaseAndToCurrencyAndSourceAndMethodAndSourceReference(
                 observedAt.toLocalDate(), base, target, source, method, reference)
-            .orElseGet(CurrencyRate::new);
+            .orElseGet(CurrencyRateEntity::new);
     observation.setRateDate(observedAt.toLocalDate());
     observation.setBase(base);
     observation.setToCurrency(target);
@@ -242,13 +242,13 @@ public class CurrencyRateService implements CurrencyConversion {
           "SAME_CURRENCY",
           "SAME_CURRENCY");
     }
-    Optional<CurrencyRate> observation =
+    Optional<CurrencyRateEntity> observation =
         currencyRateRepository.findExecutionRateAtOrBefore(
             transactionTime, sourceCurrency.name(), targetCurrency.name());
     if (observation.isEmpty()) {
       return missingTransactionRate(transactionTime);
     }
-    CurrencyRate rate = observation.get();
+    CurrencyRateEntity rate = observation.get();
     boolean direct = rate.getBase() == sourceCurrency && rate.getToCurrency() == targetCurrency;
     BigDecimal resolvedRate =
         direct ? rate.getRateValue() : BigDecimal.ONE.divide(rate.getRateValue(), FX_MATH_CONTEXT);

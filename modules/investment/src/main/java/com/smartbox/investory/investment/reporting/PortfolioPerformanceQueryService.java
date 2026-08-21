@@ -6,17 +6,17 @@ import com.smartbox.investory.investment.accounting.model.MonthlyAttribution;
 import com.smartbox.investory.investment.accounting.model.Performance;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPosition;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPositionRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.account.Account;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDaily;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountMonthlyPerformance;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountMonthlyPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountMonthlyPerformanceRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatistics;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformance;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformance;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceRepository;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -60,11 +60,11 @@ public class PortfolioPerformanceQueryService {
             .filter(stat -> stat.getAccountId() != null)
             .filter(stat -> !cashOnlyAccounts.contains(stat.getAccountId()))
             .filter(this::hasVisibleAccountSurface)
-            .map(AccountStatistics::getAccountId)
+            .map(AccountStatisticsEntity::getAccountId)
             .collect(Collectors.toCollection(TreeSet::new));
     boolean filterVisibleAccounts = !visibleAccounts.isEmpty();
 
-    for (PortfolioMonthlyPerformance row :
+    for (PortfolioMonthlyPerformanceEntity row :
         portfolioMonthlyPerformanceRepository.findAllByOrderByMonthAscPortfolioIdAsc()) {
       String bucketKey = summaryBucketKey(row.getMonth());
       monthlyProfit.merge(bucketKey, nz(row.getProfit()), Double::sum);
@@ -116,7 +116,7 @@ public class PortfolioPerformanceQueryService {
                   old.accounts()));
     }
 
-    for (AccountMonthlyPerformance row :
+    for (AccountMonthlyPerformanceEntity row :
         accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc()) {
       if (filterVisibleAccounts && !visibleAccounts.contains(row.getAccountId())) continue;
       String bucketKey = summaryBucketKey(row.getMonth());
@@ -228,7 +228,7 @@ public class PortfolioPerformanceQueryService {
   }
 
   public DailyPerformanceDetail dailyPerformanceDetail(LocalDate date, Set<Long> accountIds) {
-    List<AccountDaily> rows =
+    List<AccountDailyEntity> rows =
         accountDailyRepository.findAllByOrderByDateAscAccountIdAsc().stream()
             .filter(row -> date.equals(row.getDate()))
             .filter(
@@ -277,7 +277,7 @@ public class PortfolioPerformanceQueryService {
         "Daily account_daily data cannot separate price movement from FX; residual is combined market/FX movement.");
   }
 
-  private InstrumentPerformance toInstrumentPerformance(SymbolPerformance row) {
+  private InstrumentPerformance toInstrumentPerformance(SymbolPerformanceEntity row) {
     return new InstrumentPerformance(
         row.getSymbol(),
         nz(row.getClosedProfit()),
@@ -291,13 +291,13 @@ public class PortfolioPerformanceQueryService {
 
   private Set<Long> cashOnlyAccountIds() {
     return accountRepository.findAll().stream()
-        .filter(Account::isCashOnly)
-        .map(Account::getId)
+        .filter(AccountEntity::isCashOnly)
+        .map(AccountEntity::getId)
         .filter(Objects::nonNull)
         .collect(Collectors.toSet());
   }
 
-  private boolean hasVisibleAccountSurface(AccountStatistics stat) {
+  private boolean hasVisibleAccountSurface(AccountStatisticsEntity stat) {
     return Math.abs(nz(stat.getCashBalance()) + nz(stat.getMarketValue()))
             > ACCOUNT_VISIBILITY_MIN_VALUE
         || Math.abs(nz(stat.getNetDeposit())) > ACCOUNT_VISIBILITY_MIN_VALUE;

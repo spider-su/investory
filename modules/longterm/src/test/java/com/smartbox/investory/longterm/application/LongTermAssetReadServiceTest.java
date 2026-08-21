@@ -1,12 +1,15 @@
 package com.smartbox.investory.longterm.application;
+import com.smartbox.investory.longterm.application.model.LongTermAssetProjectionInput;
+import com.smartbox.investory.longterm.application.service.LongTermAssetService;
+import com.smartbox.investory.longterm.application.service.LongTermAssetReadService;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.longterm.api.LongTermAssetProjection;
-import com.smartbox.investory.longterm.api.LongTermAssetType;
+import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
+import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -58,7 +61,7 @@ class LongTermAssetReadServiceTest {
             new BigDecimal("200000"));
     when(longTermAssets.projectionInputs(1L, DATE)).thenReturn(List.of(input));
 
-    LongTermAssetProjection result = readService.projectionInputs(1L, DATE).getFirst();
+    LongTermAssetProjectionModel result = readService.projectionInputs(1L, DATE).getFirst();
 
     assertEquals(CurrencyType.USD, result.currency());
     assertEquals(new BigDecimal("100000"), result.currentValue());

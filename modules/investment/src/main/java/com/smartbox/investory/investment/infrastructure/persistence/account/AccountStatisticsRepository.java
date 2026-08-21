@@ -4,4 +4,4 @@ import com.smartbox.investory.investment.infrastructure.persistence.ReadOnlyRepo
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface AccountStatisticsRepository extends ReadOnlyRepository<AccountStatistics, Long> {}
+public interface AccountStatisticsRepository extends ReadOnlyRepository<AccountStatisticsEntity, Long> {}

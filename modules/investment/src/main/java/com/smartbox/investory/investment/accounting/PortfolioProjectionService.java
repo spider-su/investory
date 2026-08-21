@@ -3,7 +3,7 @@ package com.smartbox.investory.investment.accounting;
 import com.smartbox.investory.investment.accounting.CashOperationNormalizer.NormalizedCategory;
 import com.smartbox.investory.investment.accounting.model.PositionSettlementModel;
 import com.smartbox.investory.investment.accounting.model.PositionType;
-import com.smartbox.investory.investment.infrastructure.persistence.Asset;
+import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.CashOperationRepository;
@@ -12,8 +12,8 @@ import com.smartbox.investory.investment.infrastructure.persistence.ClosedPositi
 import com.smartbox.investory.investment.infrastructure.persistence.NormalizedCashOperationRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPositionRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.account.Account;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDaily;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.market.fx.CurrencyRateService;
@@ -163,18 +163,18 @@ public class PortfolioProjectionService {
       return;
     }
 
-    List<Account> allAccounts = accountRepository.findAll();
+    List<AccountEntity> allAccounts = accountRepository.findAll();
     Set<Long> cashOnlyAccounts =
         allAccounts.stream()
             .filter(account -> affectedAccounts.contains(account.getId()))
-            .filter(Account::isCashOnly)
-            .map(Account::getId)
+            .filter(AccountEntity::isCashOnly)
+            .map(AccountEntity::getId)
             .collect(Collectors.toSet());
-    List<Asset> allAssets = assetRepository.findAll();
+    List<AssetEntity> allAssets = assetRepository.findAll();
     Set<Long> excludedAssetIds =
         allAssets.stream()
             .filter(asset -> Boolean.TRUE.equals(asset.getExcludeFromImport()))
-            .map(Asset::getId)
+            .map(AssetEntity::getId)
             .collect(Collectors.toSet());
     List<OpenedPosition> opened =
         openedPositionRepository.findAllByAccountIn(affectedAccounts).stream()
@@ -186,13 +186,13 @@ public class PortfolioProjectionService {
             .filter(position -> !cashOnlyAccounts.contains(position.getAccount()))
             .filter(position -> !excludedAssetIds.contains(position.getAssetId()))
             .toList();
-    Map<String, Asset> assets =
+    Map<String, AssetEntity> assets =
         allAssets.stream()
             .filter(asset -> StringUtils.hasText(asset.getSymbol()))
             .filter(asset -> !Boolean.TRUE.equals(asset.getExcludeFromImport()))
             .collect(
                 Collectors.toMap(
-                    Asset::getSymbol,
+                    AssetEntity::getSymbol,
                     asset -> asset,
                     (first, ignored) -> first,
                     LinkedHashMap::new));
@@ -200,7 +200,7 @@ public class PortfolioProjectionService {
         allAccounts.stream()
             .filter(account -> account.getId() != null)
             .collect(
-                Collectors.toMap(Account::getId, Account::getCurrency, (first, ignored) -> first));
+                Collectors.toMap(AccountEntity::getId, AccountEntity::getCurrency, (first, ignored) -> first));
 
     Map<PositionKey, PositionAccumulator> positions = new HashMap<>();
     Map<DayTickerKey, TickerMonthAccumulator> tickerDaily = new HashMap<>();
@@ -250,7 +250,7 @@ public class PortfolioProjectionService {
     HistoricalPriceBook historicalPrices =
         loadHistoricalPrices(tickerDaily.keySet(), now.toLocalDate());
 
-    List<AccountDaily> accountRows =
+    List<AccountDailyEntity> accountRows =
         buildAccountDailyRows(
             accountDaily,
             tickerDaily,
@@ -273,7 +273,7 @@ public class PortfolioProjectionService {
   }
 
   private void replaceAccountDerivedRows(
-      List<AccountDaily> accountRows, Map<Long, LocalDate> dirtyFromByAccount) {
+      List<AccountDailyEntity> accountRows, Map<Long, LocalDate> dirtyFromByAccount) {
     for (Map.Entry<Long, LocalDate> entry : dirtyFromByAccount.entrySet()) {
       Long accountId = entry.getKey();
       LocalDate dirtyFrom = entry.getValue();
@@ -529,7 +529,7 @@ public class PortfolioProjectionService {
        * Daily cash-flow fields in account_daily come from one canonical source only:
        * normalized cash operations.
        *
-       * Position pipelines feed valuation and realized trade P/L, but never deposits,
+       * PositionEntity pipelines feed valuation and realized trade P/L, but never deposits,
        * withdrawals, dividends, interest, fees, or taxes. That avoids double counting
        * commissions / SEC fees already present in the canonical cash ledger.
        */
@@ -639,10 +639,10 @@ public class PortfolioProjectionService {
     };
   }
 
-  private List<AccountDaily> buildAccountDailyRows(
+  private List<AccountDailyEntity> buildAccountDailyRows(
       Map<DayAccountKey, AccountMonthAccumulator> accountDaily,
       Map<DayTickerKey, TickerMonthAccumulator> tickerDaily,
-      Map<String, Asset> assets,
+      Map<String, AssetEntity> assets,
       HistoricalPriceBook historicalPrices,
       Map<Long, CurrencyType> accountCurrencies,
       Map<Long, CurrencyType> portfolioBaseCurrencies,
@@ -709,7 +709,7 @@ public class PortfolioProjectionService {
           }
         }
 
-        Asset asset = assets.get(entry.getKey().ticker());
+        AssetEntity asset = assets.get(entry.getKey().ticker());
         double marketValue =
             historicalPrices.marketValue(
                 entry.getKey().ticker(),
@@ -748,7 +748,7 @@ public class PortfolioProjectionService {
           .add(new DayAccountEntry(entry.getKey(), entry.getValue()));
     }
 
-    List<AccountDaily> rows = new ArrayList<>();
+    List<AccountDailyEntity> rows = new ArrayList<>();
     for (Map.Entry<Long, List<DayAccountEntry>> account : byAccount.entrySet()) {
       List<DayAccountEntry> entries = account.getValue();
       entries.sort(Comparator.comparing(DayAccountEntry::date));
@@ -803,7 +803,7 @@ public class PortfolioProjectionService {
                 previousEquity, equity, List.of(acc.performanceFlow));
 
         rows.add(
-            AccountDaily.builder()
+            AccountDailyEntity.builder()
                 .accountId(entry.key().accountId())
                 .date(entry.key().date())
                 .valuationCurrency(portfolioBase.name())
@@ -832,7 +832,7 @@ public class PortfolioProjectionService {
     }
 
     rows.sort(
-        Comparator.comparing(AccountDaily::getAccountId).thenComparing(AccountDaily::getDate));
+        Comparator.comparing(AccountDailyEntity::getAccountId).thenComparing(AccountDailyEntity::getDate));
     return rows;
   }
 
@@ -1119,7 +1119,7 @@ public class PortfolioProjectionService {
       CurrencyType currency, Long positionId, String role) {
     if (currency == null) {
       throw new IllegalArgumentException(
-          "Position " + positionId + " has no " + role + " currency");
+          "PositionEntity " + positionId + " has no " + role + " currency");
     }
     return currency;
   }
@@ -1216,7 +1216,7 @@ public class PortfolioProjectionService {
         LocalDate date,
         LocalDate valuationDate,
         LocalDate holdingStartDate,
-        Asset asset,
+        AssetEntity asset,
         CurrencyType portfolioBaseCurrency) {
       if (shares <= EPSILON) {
         return 0.0;
@@ -1318,7 +1318,7 @@ public class PortfolioProjectionService {
         double shares,
         LocalDate date,
         LocalDate valuationDate,
-        Asset asset,
+        AssetEntity asset,
         CurrencyType portfolioBaseCurrency) {
       if (!date.equals(valuationDate)
           || asset == null

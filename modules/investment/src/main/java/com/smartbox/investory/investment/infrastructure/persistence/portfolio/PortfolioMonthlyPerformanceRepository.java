@@ -7,10 +7,10 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface PortfolioMonthlyPerformanceRepository
-    extends ReadOnlyRepository<PortfolioMonthlyPerformance, PortfolioMonthlyPerformanceId> {
+    extends ReadOnlyRepository<PortfolioMonthlyPerformanceEntity, PortfolioMonthlyPerformanceId> {
 
-  List<PortfolioMonthlyPerformance> findAllByOrderByMonthAscPortfolioIdAsc();
+  List<PortfolioMonthlyPerformanceEntity> findAllByOrderByMonthAscPortfolioIdAsc();
 
-  List<PortfolioMonthlyPerformance> findByPortfolioIdAndMonthBetweenOrderByMonthAsc(
+  List<PortfolioMonthlyPerformanceEntity> findByPortfolioIdAndMonthBetweenOrderByMonthAsc(
       Long portfolioId, LocalDate from, LocalDate to);
 }

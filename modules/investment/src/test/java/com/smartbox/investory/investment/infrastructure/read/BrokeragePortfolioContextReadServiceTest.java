@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioKpiSummary;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioKpiSummaryEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioKpiSummaryRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.Optional;
@@ -15,7 +15,7 @@ class BrokeragePortfolioContextReadServiceTest {
   @Test
   void exposesExistingPortfolioIdAndBaseCurrency() {
     PortfolioKpiSummaryRepository summaries = Mockito.mock(PortfolioKpiSummaryRepository.class);
-    PortfolioKpiSummary summary = new PortfolioKpiSummary();
+    PortfolioKpiSummaryEntity summary = new PortfolioKpiSummaryEntity();
     summary.setBaseCurrency(CurrencyType.USD);
     when(summaries.findById(7L)).thenReturn(Optional.of(summary));
 

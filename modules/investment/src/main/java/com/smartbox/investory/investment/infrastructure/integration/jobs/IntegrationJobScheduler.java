@@ -4,9 +4,9 @@ import com.smartbox.investory.investment.infrastructure.integration.IntegrationT
 import com.smartbox.investory.investment.infrastructure.integration.PluginConfig;
 import com.smartbox.investory.investment.infrastructure.integration.config.IntegrationConfigurationService;
 import com.smartbox.investory.investment.infrastructure.integration.fx.ExchangeRateHostFxDataPlugin;
-import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationInstance;
+import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationInstanceEntity;
 import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationInstanceRepository;
-import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationJob;
+import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationJobEntity;
 import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationJobRepository;
 import com.smartbox.investory.investment.market.fx.CurrencyRateUpdaterService;
 import com.smartbox.investory.investment.market.price.MarketService;
@@ -36,8 +36,8 @@ public class IntegrationJobScheduler {
   @Transactional
   public void poll() {
     ZonedDateTime now = ZonedDateTime.now();
-    for (IntegrationJob job : jobRepository.findByEnabledTrue()) {
-      IntegrationInstance instance =
+    for (IntegrationJobEntity job : jobRepository.findByEnabledTrue()) {
+      IntegrationInstanceEntity instance =
           instanceRepository.findById(job.getIntegrationInstanceId()).orElse(null);
       if (instance == null || !instance.isEnabled() || !isDue(job, now)) {
         continue;
@@ -60,11 +60,11 @@ public class IntegrationJobScheduler {
         jdbcTemplate.queryForObject("select pg_try_advisory_lock(?)", Boolean.class, lockKey));
   }
 
-  private long lockKey(IntegrationInstance instance, IntegrationJob job) {
+  private long lockKey(IntegrationInstanceEntity instance, IntegrationJobEntity job) {
     return ((long) instance.getId().hashCode() << 32) ^ job.getJobType().hashCode();
   }
 
-  private boolean isDue(IntegrationJob job, ZonedDateTime now) {
+  private boolean isDue(IntegrationJobEntity job, ZonedDateTime now) {
     try {
       ZoneId zone = ZoneId.of(job.getTimezone());
       ZonedDateTime reference = job.getLastCompletedAt();
@@ -80,7 +80,7 @@ public class IntegrationJobScheduler {
     }
   }
 
-  private void run(IntegrationJob job, IntegrationInstance instance, ZonedDateTime now) {
+  private void run(IntegrationJobEntity job, IntegrationInstanceEntity instance, ZonedDateTime now) {
     job.setLastStartedAt(now);
     job.setLastStatus("STARTED");
     job.setLastError(null);

@@ -11,7 +11,7 @@ import com.smartbox.investory.investment.infrastructure.persistence.account.Acco
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformance;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceRepository;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -44,8 +44,8 @@ class PortfolioPerformanceQueryServiceTest {
     when(symbols.findAll())
         .thenReturn(
             List.of(
-                new SymbolPerformance("major", 100, 0, 100, 0, 0, 0, 10, 20, null),
-                new SymbolPerformance("minor", 0.5, 0, 1, 0, 0, 0, 5, 6, null)));
+                new SymbolPerformanceEntity("major", 100, 0, 100, 0, 0, 0, 10, 20, null),
+                new SymbolPerformanceEntity("minor", 0.5, 0, 1, 0, 0, 0, 5, 6, null)));
 
     var result = service.calculatePerformancePerInstrument();
 

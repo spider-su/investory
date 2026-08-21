@@ -1,8 +1,8 @@
 package com.smartbox.investory.retirement.profile;
 
-import com.smartbox.investory.longterm.api.CashFlowType;
-import com.smartbox.investory.longterm.api.InterestTreatment;
-import com.smartbox.investory.longterm.api.LongTermAssetType;
+import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
+import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
+import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;

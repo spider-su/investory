@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.reporting.dashboard.service;
 
-import com.smartbox.investory.investment.infrastructure.persistence.Asset;
+import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetPriceChartRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
 import java.time.LocalDate;
@@ -19,7 +19,7 @@ public class AssetPriceChartService {
 
   public List<AssetPricePointView> findBySymbol(String rawSymbol, DashboardPeriod period) {
     String symbol = normalize(rawSymbol);
-    Asset asset =
+    AssetEntity asset =
         assetRepository
             .findBySymbol(symbol)
             .orElseThrow(() -> new AssetDetailNotFoundException(symbol));

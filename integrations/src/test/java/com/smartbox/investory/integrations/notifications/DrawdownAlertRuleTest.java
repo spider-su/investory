@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.integrations.notifications.infrastructure.DrawdownAlertState;
+import com.smartbox.investory.integrations.notifications.infrastructure.DrawdownAlertStateEntity;
 import com.smartbox.investory.integrations.notifications.infrastructure.DrawdownAlertStateRepository;
 import com.smartbox.investory.investment.accounting.PortfolioService;
 import com.smartbox.investory.investment.accounting.model.Portfolio;
@@ -28,16 +28,16 @@ class DrawdownAlertRuleTest {
 
   private NotificationProperties properties;
   private DrawdownAlertRule rule;
-  private DrawdownAlertState state;
+  private DrawdownAlertStateEntity state;
 
   @BeforeEach
   void setUp() {
     properties = new NotificationProperties();
     properties.setDrawdownThresholdPct(10.0);
     properties.setDrawdownCooldownHours(24);
-    state = new DrawdownAlertState();
+    state = new DrawdownAlertStateEntity();
     lenient()
-        .when(stateRepository.findById(DrawdownAlertState.SINGLETON_ID))
+        .when(stateRepository.findById(DrawdownAlertStateEntity.SINGLETON_ID))
         .thenReturn(Optional.of(state));
     rule =
         new DrawdownAlertRule(

@@ -9,16 +9,16 @@ import com.smartbox.investory.investment.imports.BrokerSourceRowIdentity;
 import com.smartbox.investory.investment.imports.ImportEvidenceContext;
 import com.smartbox.investory.investment.imports.ImportExecutionResult;
 import com.smartbox.investory.investment.imports.ImportSourceEvidenceService;
-import com.smartbox.investory.investment.infrastructure.persistence.Asset;
+import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.CashOperation;
+import com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.CashOperationRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPosition;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPositionRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPositionRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.account.Account;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.market.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -227,20 +227,20 @@ public class XtbImportV2Service {
 
       String accountRaw =
           firstNonBlank(
-              readHeaderValue(cashSheet, "Account number"),
-              readHeaderValue(closedSheet, "Account"));
+              readHeaderValue(cashSheet, "AccountEntity number"),
+              readHeaderValue(closedSheet, "AccountEntity"));
       if (!StringUtils.hasText(accountRaw)) {
         throw new IllegalStateException("XTB v2 workbook has no account number: " + sourceName);
       }
       Long externalAccountId = parseAccountId(accountRaw);
-      Account accountConfiguration = accountConfiguration(externalAccountId, sourceName);
+      AccountEntity accountConfiguration = accountConfiguration(externalAccountId, sourceName);
       Long account = accountConfiguration.getId();
       boolean cashOnly = accountConfiguration.isCashOnly();
 
       Map<String, Integer> cashColumns = findHeader(cashSheet, "Type", "Time", "Amount");
       Map<String, Integer> closedColumns = findHeader(closedSheet, "Ticker", "Type", "Volume");
 
-      List<CashOperation> cashOperations =
+      List<CashOperationEntity> cashOperations =
           parseCashOperations(cashSheet, cashColumns, account, sourceName, cashOnly);
       List<ClosedPosition> closedPositions =
           cashOnly
@@ -285,7 +285,7 @@ public class XtbImportV2Service {
         && workbook.getSheet("Closed Positions") != null;
   }
 
-  private List<CashOperation> parseCashOperations(
+  private List<CashOperationEntity> parseCashOperations(
       Sheet sheet,
       Map<String, Integer> columns,
       Long account,
@@ -295,7 +295,7 @@ public class XtbImportV2Service {
       return List.of();
     }
 
-    List<CashOperation> operations = new ArrayList<>();
+    List<CashOperationEntity> operations = new ArrayList<>();
     Map<String, Integer> sourceRowOccurrences = new HashMap<>();
     for (Row row : dataRows(sheet, columns)) {
       String symbol = sourceTicker(row, columns);
@@ -311,7 +311,7 @@ public class XtbImportV2Service {
         continue;
       }
 
-      CashOperation operation = new CashOperation();
+      CashOperationEntity operation = new CashOperationEntity();
       String brokerId = cellValue(row, columns.get("ID"));
       operation.setAccount(account);
       String comment = cellValue(row, columns.get("Comment"));
@@ -471,7 +471,7 @@ public class XtbImportV2Service {
           firstNonBlank(
               cellValue(row, columns.get("Category")), cellValue(row, columns.get("Product")));
       String sourcePositionId =
-          normalizeSourcePositionId(cellValue(row, columns.get("Position ID")));
+          normalizeSourcePositionId(cellValue(row, columns.get("PositionEntity ID")));
       Double openConversionRate =
           parseDouble(cellValue(row, columns.get("Open Conversion Rate"))).orElse(null);
       Double closeConversionRate =
@@ -569,7 +569,7 @@ public class XtbImportV2Service {
   }
 
   List<OpenedPosition> reconstructOpenedPositions(
-      List<CashOperation> cashOperations, Long account, CurrencyType currency) {
+      List<CashOperationEntity> cashOperations, Long account, CurrencyType currency) {
     Map<String, Deque<Lot>> buyLots = new HashMap<>();
     Map<String, Deque<Lot>> sellLots = new HashMap<>();
 
@@ -581,9 +581,9 @@ public class XtbImportV2Service {
         .filter(op -> StringUtils.hasText(op.getSymbol()))
         .sorted(
             Comparator.comparing(
-                    CashOperation::getDate, Comparator.nullsLast(Comparator.naturalOrder()))
+                    CashOperationEntity::getDate, Comparator.nullsLast(Comparator.naturalOrder()))
                 .thenComparing(
-                    CashOperation::getId, Comparator.nullsLast(Comparator.naturalOrder())))
+                    CashOperationEntity::getId, Comparator.nullsLast(Comparator.naturalOrder())))
         .forEach(
             op -> {
               LotEvent event = parseLotEvent(op.getComment()).orElse(null);
@@ -616,10 +616,10 @@ public class XtbImportV2Service {
     return openedPositions;
   }
 
-  List<CashOperation> operationsForOpenReconstruction(
-      Long account, List<CashOperation> currentOperations) {
-    Map<Long, CashOperation> operationsById = new LinkedHashMap<>();
-    List<CashOperation> existingOperations = cashOperationRepository.findAllByAccount(account);
+  List<CashOperationEntity> operationsForOpenReconstruction(
+      Long account, List<CashOperationEntity> currentOperations) {
+    Map<Long, CashOperationEntity> operationsById = new LinkedHashMap<>();
+    List<CashOperationEntity> existingOperations = cashOperationRepository.findAllByAccount(account);
     if (existingOperations != null) {
       existingOperations.stream()
           .filter(operation -> operation.getId() != null)
@@ -711,13 +711,13 @@ public class XtbImportV2Service {
   }
 
   private void ensureAssetsExist(
-      List<CashOperation> cashOperations,
+      List<CashOperationEntity> cashOperations,
       List<ClosedPosition> closedPositions,
       List<OpenedPosition> openedPositions,
       CurrencyType currency) {
     List<AssetCatalogService.AssetSeed> assets = new ArrayList<>();
     cashOperations.stream()
-        .map(CashOperation::getSymbol)
+        .map(CashOperationEntity::getSymbol)
         .map(symbol -> assetCatalogService.seedForSymbol(symbol, currency))
         .filter(java.util.Objects::nonNull)
         .forEach(assets::add);
@@ -735,12 +735,12 @@ public class XtbImportV2Service {
   }
 
   private void applyAssetIdentities(
-      List<CashOperation> cashOperations,
+      List<CashOperationEntity> cashOperations,
       List<ClosedPosition> closedPositions,
       List<OpenedPosition> openedPositions) {
     Set<String> symbols = new HashSet<>();
     cashOperations.stream()
-        .map(CashOperation::getSymbol)
+        .map(CashOperationEntity::getSymbol)
         .filter(StringUtils::hasText)
         .forEach(symbols::add);
     closedPositions.stream()
@@ -753,7 +753,7 @@ public class XtbImportV2Service {
         .forEach(symbols::add);
     Map<String, Long> ids =
         assetRepository.findAllBySymbolIn(symbols).stream()
-            .collect(java.util.stream.Collectors.toMap(Asset::getSymbol, Asset::getId));
+            .collect(java.util.stream.Collectors.toMap(AssetEntity::getSymbol, AssetEntity::getId));
     cashOperations.forEach(
         operation -> {
           if (StringUtils.hasText(operation.getSymbol())) {
@@ -793,7 +793,7 @@ public class XtbImportV2Service {
             .filter(asset -> asset.getCurrency() != null)
             .collect(
                 java.util.stream.Collectors.toMap(
-                    Asset::getSymbol, Asset::getCurrency, (left, right) -> right));
+                    AssetEntity::getSymbol, AssetEntity::getCurrency, (left, right) -> right));
 
     Map<PriceCheckpointKey, WeightedPrice> aggregated = new LinkedHashMap<>();
 
@@ -864,7 +864,7 @@ public class XtbImportV2Service {
         assetRepository.findAllBySymbolIn(aggregatedSymbols).stream()
             .filter(asset -> !Boolean.TRUE.equals(asset.getExcludeFromImport()))
             .collect(
-                java.util.stream.Collectors.toMap(Asset::getSymbol, Asset::getId, (a, b) -> a));
+                java.util.stream.Collectors.toMap(AssetEntity::getSymbol, AssetEntity::getId, (a, b) -> a));
 
     for (Map.Entry<PriceCheckpointKey, WeightedPrice> entry : aggregated.entrySet()) {
       Long assetId = assetIdsBySymbol.get(entry.getKey().symbol());
@@ -918,10 +918,10 @@ public class XtbImportV2Service {
   }
 
   private void normalizeImportedSymbols(
-      List<CashOperation> cashOperations, List<ClosedPosition> closedPositions) {
+      List<CashOperationEntity> cashOperations, List<ClosedPosition> closedPositions) {
     List<String> rawSymbols = new ArrayList<>();
     cashOperations.stream()
-        .map(CashOperation::getSymbol)
+        .map(CashOperationEntity::getSymbol)
         .filter(StringUtils::hasText)
         .forEach(rawSymbols::add);
     closedPositions.stream()
@@ -961,7 +961,7 @@ public class XtbImportV2Service {
             .filter(asset -> asset.getCurrency() != null)
             .collect(
                 java.util.stream.Collectors.toMap(
-                    Asset::getSymbol, Asset::getCurrency, (left, right) -> left));
+                    AssetEntity::getSymbol, AssetEntity::getCurrency, (left, right) -> left));
 
     closedPositions.forEach(
         position -> {
@@ -1073,8 +1073,8 @@ public class XtbImportV2Service {
     return first != null ? first : second;
   }
 
-  private Account accountConfiguration(Long externalAccountId, String sourceName) {
-    Account account =
+  private AccountEntity accountConfiguration(Long externalAccountId, String sourceName) {
+    AccountEntity account =
         accountRepository
             .findByProviderIgnoreCaseAndExternalAccountId("XTB", String.valueOf(externalAccountId))
             .orElseThrow(
@@ -1083,7 +1083,7 @@ public class XtbImportV2Service {
                         "XTB account " + externalAccountId + " is not configured: " + sourceName));
     if (!"XTB".equalsIgnoreCase(account.getProvider())) {
       throw new IllegalStateException(
-          "Account "
+          "AccountEntity "
               + externalAccountId
               + " is configured for provider "
               + account.getProvider()
@@ -1296,7 +1296,7 @@ public class XtbImportV2Service {
    * Reads an optional XTB security ticker while preserving the broker's real export semantics.
    *
    * <p>Current XTB v2 workbooks use the literal value {@code "3"} as an N/A placeholder on
-   * non-instrument cash rows. In those rows Instrument, Ticker, Category and Position ID are all
+   * non-instrument cash rows. In those rows Instrument, Ticker, Category and PositionEntity ID are all
    * {@code "3"}. Treating that placeholder as a real ticker makes fresh imports try to resolve an
    * asset named {@code "3"}; on cash-only accounts it also incorrectly drops deposits, transfers,
    * interest and taxes because the account filter thinks the row references a security.
@@ -1314,14 +1314,14 @@ public class XtbImportV2Service {
     boolean hasXtbPlaceholderShape =
         columns.containsKey("Instrument")
             || columns.containsKey("Category")
-            || columns.containsKey("Position ID");
+            || columns.containsKey("PositionEntity ID");
     if (!hasXtbPlaceholderShape) {
       return ticker;
     }
 
     return isXtbBlankSentinel(cellValue(row, columns.get("Instrument")))
             && isXtbBlankSentinel(cellValue(row, columns.get("Category")))
-            && isXtbBlankSentinel(cellValue(row, columns.get("Position ID")))
+            && isXtbBlankSentinel(cellValue(row, columns.get("PositionEntity ID")))
         ? null
         : ticker;
   }

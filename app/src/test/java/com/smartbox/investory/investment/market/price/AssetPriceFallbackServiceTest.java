@@ -8,7 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.infrastructure.persistence.Asset;
+import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
@@ -45,7 +45,7 @@ class AssetPriceFallbackServiceTest {
 
     OpenedPosition first = position(10.0, 200.0);
     OpenedPosition second = position(30.0, 220.0);
-    Asset asset = PortfolioBuilders.asset(PortfolioTestData.PKO_WA).build();
+    AssetEntity asset = PortfolioBuilders.asset(PortfolioTestData.PKO_WA).build();
 
     when(openedPositionRepository.findAll()).thenReturn(List.of(first, second));
     when(assetRepository.findAllBySymbolIn(any())).thenReturn(List.of(asset));
@@ -55,9 +55,9 @@ class AssetPriceFallbackServiceTest {
 
     service.populateMissingPricesFromOpenPositions();
 
-    ArgumentCaptor<Iterable<Asset>> captor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AssetEntity>> captor = ArgumentCaptor.forClass(Iterable.class);
     verify(assetRepository).saveAll(captor.capture());
-    Asset saved = toList(captor.getValue()).getFirst();
+    AssetEntity saved = toList(captor.getValue()).getFirst();
     assertEquals("PKO.PL", saved.getSymbol());
     assertEquals(215.0, saved.getMarketPrice(), 0.001);
     assertEquals(53.75, saved.getMarketPriceUsd(), 0.001);
@@ -75,7 +75,7 @@ class AssetPriceFallbackServiceTest {
 
     OpenedPosition position =
         PortfolioBuilders.openPosition(PortfolioTestData.SPY).quantity(2.0).price(100.0).build();
-    Asset asset =
+    AssetEntity asset =
         PortfolioBuilders.asset(PortfolioTestData.SPY)
             .withLatestPrice(120.0, 120.0, PortfolioTestData.JANUARY_MONTH_END)
             .build();

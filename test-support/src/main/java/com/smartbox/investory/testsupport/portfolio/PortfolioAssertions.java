@@ -3,7 +3,7 @@ package com.smartbox.investory.testsupport.portfolio;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-import com.smartbox.investory.investment.infrastructure.persistence.CashOperation;
+import com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
 import java.util.List;
 
@@ -14,10 +14,10 @@ public final class PortfolioAssertions {
   private PortfolioAssertions() {}
 
   public static void expectCashToReconcile(
-      double startingCash, List<CashOperation> operations, double expectedEndingCash) {
+      double startingCash, List<CashOperationEntity> operations, double expectedEndingCash) {
     double operationTotal =
         operations.stream()
-            .map(CashOperation::getAmount)
+            .map(CashOperationEntity::getAmount)
             .filter(amount -> amount != null)
             .mapToDouble(Double::doubleValue)
             .sum();
@@ -54,7 +54,7 @@ public final class PortfolioAssertions {
   }
 
   public static void expectInternalTransferToBeNeutral(
-      CashOperation transferOut, CashOperation transferIn) {
+      CashOperationEntity transferOut, CashOperationEntity transferIn) {
     assertNotNull(transferOut.getComment(), "transfer out should have a link/comment");
     assertEquals(transferOut.getComment(), transferIn.getComment());
     assertEquals(0.0, transferOut.getAmount() + transferIn.getAmount(), EPSILON);

@@ -4,9 +4,9 @@ import com.opencsv.CSVWriter;
 import com.smartbox.investory.investment.api.YahooPortfolioExportApi;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPositionRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.YahooExportState;
+import com.smartbox.investory.investment.infrastructure.persistence.YahooExportStateEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.YahooExportStateRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatistics;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsRepository;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -123,7 +123,7 @@ public class YahooExportService implements YahooPortfolioExportApi {
     CsvExportPayload payload = buildPayloadFromSummary();
     writeCsv(filePath, payload.rows());
     if (exportStateRepository != null) {
-      YahooExportState state = exportStateRepository.findById(1).orElseGet(YahooExportState::new);
+      YahooExportStateEntity state = exportStateRepository.findById(1).orElseGet(YahooExportStateEntity::new);
       state.setId(1);
       state.setExportedAt(payload.lastSnapshotAt());
       state.setPortfolioFingerprint(fingerprint(payload.rows()));
@@ -221,7 +221,7 @@ public class YahooExportService implements YahooPortfolioExportApi {
   }
 
   private double computeTotalCashBalanceUsd() {
-    List<AccountStatistics> statistics =
+    List<AccountStatisticsEntity> statistics =
         accountStatisticsRepository.findAll().stream()
             .filter(stat -> stat.getCashBalance() != null)
             .filter(

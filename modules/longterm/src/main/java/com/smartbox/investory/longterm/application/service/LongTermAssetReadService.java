@@ -1,0 +1,98 @@
+package com.smartbox.investory.longterm.application.service;
+import com.smartbox.investory.longterm.application.model.AnnualEconomics;
+import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
+import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
+
+import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
+import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
+import com.smartbox.investory.longterm.api.model.LongTermAssetProfileAssetModel;
+import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
+import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSummaryModel;
+import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
+import com.smartbox.investory.shared.currency.CurrencyConversion;
+import com.smartbox.investory.shared.currency.CurrencyType;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/** Adapts Long-Term application calculations to persistence-free public read contracts. */
+@Service
+@Transactional(readOnly = true)
+@RequiredArgsConstructor
+public class LongTermAssetReadService
+    implements LongTermAssetProfileReader, LongTermAssetAnnualSnapshotReader {
+  private final LongTermAssetService longTermAssets;
+  private final CurrencyConversion currencyRates;
+
+  @Override
+  public LongTermAssetProfileSummaryModel aggregate(Long portfolioId, LocalDate date) {
+    LongTermAssetService.AggregateSummary summary = longTermAssets.aggregate(portfolioId, date);
+    return new LongTermAssetProfileSummaryModel(
+        CurrencyType.USD,
+        toUsd(summary.totalCurrentValue(), summary.currency(), date),
+        toUsd(summary.annualEconomics().netAnnualIncomeAfterTax(), summary.currency(), date));
+  }
+
+  @Override
+  public List<LongTermAssetProfileAssetModel> list(Long portfolioId, LocalDate date) {
+    return longTermAssets.list(portfolioId, date).stream()
+        .map(
+            asset ->
+                new LongTermAssetProfileAssetModel(
+                    asset.type(),
+                    CurrencyType.USD,
+                    toUsd(asset.currentValue(), asset.currency(), date)))
+        .toList();
+  }
+
+  @Override
+  public List<LongTermAssetProjectionModel> projectionInputs(Long portfolioId, LocalDate date) {
+    return longTermAssets.projectionInputs(portfolioId, date).stream()
+        .map(
+            input ->
+                new LongTermAssetProjectionModel(
+                    input.id(),
+                    input.name(),
+                    input.type(),
+                    CurrencyType.USD,
+                    toUsd(input.currentValue(), input.currency(), date),
+                    input.periods().stream()
+                        .map(
+                            period ->
+                                new LongTermAssetProjectionModel.Period(
+                                    period.validFrom(),
+                                    period.validTo(),
+                                    toUsd(period.annualIncome(), input.currency(), date),
+                                    toUsd(period.annualExpense(), input.currency(), date),
+                                    period.annualReturnRate(),
+                                    period.cashFlowType(),
+                                    period.paidByTenant()))
+                        .toList(),
+                    input.maturityDate(),
+                    toUsd(input.redemptionValue(), input.currency(), date),
+                    input.interestTreatment(),
+                    input.taxRate(),
+                    toUsd(input.taxBase(), input.currency(), date),
+                    input.rentalTaxPaidByTenant()))
+        .toList();
+  }
+
+  @Override
+  public LongTermAssetAnnualSnapshotModel historicalAnnualSnapshot(Long portfolioId, int year) {
+    return longTermAssets.historicalAnnualSnapshot(portfolioId, year);
+  }
+
+  @Override
+  public LongTermAssetAnnualSnapshotModel currentAnnualSnapshot(Long portfolioId, LocalDate date) {
+    return longTermAssets.currentAnnualSnapshot(portfolioId, date);
+  }
+
+  private BigDecimal toUsd(BigDecimal amount, CurrencyType source, LocalDate date) {
+    return amount == null || source == CurrencyType.USD
+        ? amount
+        : currencyRates.convertToBaseCurrency(amount, CurrencyType.USD, source, date);
+  }
+}

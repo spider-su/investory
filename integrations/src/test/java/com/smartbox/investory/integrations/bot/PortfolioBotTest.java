@@ -86,7 +86,7 @@ class PortfolioBotTest {
 
   @Test
   void detectBroker_isCaseInsensitive() {
-    assertEquals(BrokerType.XTB, PortfolioBot.detectBroker("Account.XLSX"));
+    assertEquals(BrokerType.XTB, PortfolioBot.detectBroker("AccountEntity.XLSX"));
     assertEquals(IBKR, PortfolioBot.detectBroker("MyIbkrAccount.CSV"));
     assertEquals(IBKR, PortfolioBot.detectBroker("U17959259.TRANSACTIONS.20250211.20251231.CSV"));
   }

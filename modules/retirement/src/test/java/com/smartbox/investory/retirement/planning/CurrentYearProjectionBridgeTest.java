@@ -3,9 +3,9 @@ package com.smartbox.investory.retirement.planning;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.smartbox.investory.longterm.api.CashFlowType;
-import com.smartbox.investory.longterm.api.InterestTreatment;
-import com.smartbox.investory.longterm.api.LongTermAssetType;
+import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
+import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
+import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.retirement.profile.*;
 import com.smartbox.investory.retirement.simulation.*;
 import com.smartbox.investory.shared.currency.CurrencyType;

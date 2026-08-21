@@ -45,12 +45,12 @@ import static com.smartbox.investory.testsupport.portfolio.PortfolioTestData.TSL
 import static com.smartbox.investory.testsupport.portfolio.PortfolioTestData.XTB_EUR;
 
 import com.smartbox.investory.investment.imports.BrokerType;
-import com.smartbox.investory.investment.infrastructure.persistence.Asset;
-import com.smartbox.investory.investment.infrastructure.persistence.CashOperation;
+import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
+import com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPosition;
-import com.smartbox.investory.investment.infrastructure.persistence.CurrencyRate;
+import com.smartbox.investory.investment.infrastructure.persistence.CurrencyRateEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
-import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistory;
+import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.List;
 
@@ -75,7 +75,7 @@ public final class PortfolioScenarios {
 
   /** Creates one funded USD account and no positions. */
   public static PortfolioTestContext createFundedPortfolio() {
-    CashOperation deposit =
+    CashOperationEntity deposit =
         cashOperation()
             .forAccount(IBKR_USD)
             .deposit(DEFAULT_USD_DEPOSIT, CurrencyType.USD)
@@ -104,9 +104,9 @@ public final class PortfolioScenarios {
   public static PortfolioTestContext createLongPositionScenario() {
     PortfolioTestContext funded = createFundedPortfolio();
     double monthEndPrice = AAPL_PRICES_USD.get(JANUARY_MONTH_END);
-    Asset aapl =
+    AssetEntity aapl =
         asset(AAPL).withLatestPrice(monthEndPrice, monthEndPrice, JANUARY_MONTH_END).build();
-    CashOperation deposit = funded.operations().initialUsdDeposit();
+    CashOperationEntity deposit = funded.operations().initialUsdDeposit();
     OpenedPosition position =
         openPosition(AAPL)
             .forAccount(IBKR_USD)
@@ -130,7 +130,7 @@ public final class PortfolioScenarios {
         funded.imports(),
         expected(
             new PortfolioExpected.CashBalance(0.0, endingCash, DEFAULT_USD_DEPOSIT),
-            new PortfolioExpected.Position(
+            new PortfolioExpected.PositionEntity(
                 AAPL_FIRST_BUY_QUANTITY,
                 monthEndPrice,
                 marketValue,
@@ -184,7 +184,7 @@ public final class PortfolioScenarios {
         base.imports(),
         expected(
             new PortfolioExpected.CashBalance(0.0, endingCash, DEFAULT_USD_DEPOSIT),
-            new PortfolioExpected.Position(
+            new PortfolioExpected.PositionEntity(
                 quantity, monthEndPrice, marketValue, grossCost, marketValue - grossCost),
             null,
             new PortfolioExpected.Valuation(endingCash, marketValue, endingCash + marketValue),
@@ -228,7 +228,7 @@ public final class PortfolioScenarios {
         lots.imports(),
         expected(
             lots.expected().cash(),
-            new PortfolioExpected.Position(
+            new PortfolioExpected.PositionEntity(
                 remainingQuantity,
                 AAPL_PARTIAL_SALE_PRICE,
                 remainingQuantity * AAPL_PARTIAL_SALE_PRICE,
@@ -245,13 +245,13 @@ public final class PortfolioScenarios {
   /** Creates dividend and withholding-tax cash events separate from trading events. */
   public static PortfolioTestContext createDividendScenario() {
     PortfolioTestContext longPosition = createLongPositionScenario();
-    CashOperation dividend =
+    CashOperationEntity dividend =
         cashOperation()
             .forAccount(IBKR_USD)
             .dividend(AAPL, AAPL_DIVIDEND_GROSS)
             .on(PortfolioTestData.MID_YEAR)
             .build();
-    CashOperation tax =
+    CashOperationEntity tax =
         cashOperation()
             .forAccount(IBKR_USD)
             .withholdingTax(AAPL, Math.abs(AAPL_WITHHOLDING_TAX))
@@ -291,13 +291,13 @@ public final class PortfolioScenarios {
   public static PortfolioTestContext createInternalCashTransferScenario() {
     PortfolioTestContext funded = createFundedPortfolio();
     String transferRef = "internal-transfer-2025-01";
-    CashOperation out =
+    CashOperationEntity out =
         cashOperation()
             .forAccount(IBKR_USD)
             .transfer(-INTERNAL_TRANSFER_AMOUNT, CurrencyType.USD, transferRef)
             .on(PortfolioTestData.MID_YEAR)
             .build();
-    CashOperation in =
+    CashOperationEntity in =
         cashOperation()
             .forAccount(CRYPTO_USD)
             .transfer(INTERNAL_TRANSFER_AMOUNT, CurrencyType.USD, transferRef)
@@ -332,31 +332,31 @@ public final class PortfolioScenarios {
 
   /** Creates USD, EUR, and PLN accounts with deterministic month-start FX rows. */
   public static PortfolioTestContext createMultiCurrencyScenario() {
-    CashOperation usdDeposit =
+    CashOperationEntity usdDeposit =
         cashOperation()
             .forAccount(IBKR_USD)
             .deposit(DEFAULT_USD_DEPOSIT, CurrencyType.USD)
             .on(JANUARY_DEPOSIT_DATE)
             .build();
-    CashOperation eurDeposit =
+    CashOperationEntity eurDeposit =
         cashOperation()
             .forAccount(XTB_EUR)
             .deposit(DEFAULT_EUR_DEPOSIT, CurrencyType.EUR)
             .on(JANUARY_DEPOSIT_DATE)
             .build();
-    CashOperation plnDeposit =
+    CashOperationEntity plnDeposit =
         cashOperation()
             .forAccount(POLISH_BONDS_PLN)
             .deposit(DEFAULT_PLN_DEPOSIT, CurrencyType.PLN)
             .on(JANUARY_DEPOSIT_DATE)
             .build();
-    CurrencyRate eurUsd =
+    CurrencyRateEntity eurUsd =
         fxRate()
             .on(PERIOD_START)
             .pair(CurrencyType.EUR, CurrencyType.USD)
             .rate(EUR_USD.get(PERIOD_START))
             .build();
-    CurrencyRate plnUsd =
+    CurrencyRateEntity plnUsd =
         fxRate()
             .on(PERIOD_START)
             .pair(CurrencyType.PLN, CurrencyType.USD)
@@ -400,9 +400,9 @@ public final class PortfolioScenarios {
   /** Creates two import batches with the same checksum for idempotency tests. */
   public static PortfolioTestContext createDuplicateImportScenario() {
     String checksum = "sha256-deterministic-statement";
-    ImportHistory first =
+    ImportHistoryEntity first =
         importHistory().id(77L).broker(BrokerType.IBKR).checksum(checksum).build();
-    ImportHistory duplicate =
+    ImportHistoryEntity duplicate =
         importHistory().id(78L).broker(BrokerType.IBKR).checksum(checksum).build();
 
     return context(
@@ -461,14 +461,14 @@ public final class PortfolioScenarios {
   }
 
   private static PortfolioTestContext.Operations operations(
-      CashOperation initialUsdDeposit,
-      CashOperation initialEurDeposit,
-      CashOperation initialPlnDeposit,
-      CashOperation aaplDividend,
-      CashOperation aaplWithholdingTax,
-      CashOperation transferOut,
-      CashOperation transferIn,
-      List<CashOperation> all) {
+      CashOperationEntity initialUsdDeposit,
+      CashOperationEntity initialEurDeposit,
+      CashOperationEntity initialPlnDeposit,
+      CashOperationEntity aaplDividend,
+      CashOperationEntity aaplWithholdingTax,
+      CashOperationEntity transferOut,
+      CashOperationEntity transferIn,
+      List<CashOperationEntity> all) {
     return new PortfolioTestContext.Operations(
         initialUsdDeposit,
         initialEurDeposit,
@@ -491,18 +491,18 @@ public final class PortfolioScenarios {
   }
 
   private static PortfolioTestContext.FxRates fxRates(
-      CurrencyRate eurUsd, CurrencyRate plnUsd, List<CurrencyRate> all) {
+      CurrencyRateEntity eurUsd, CurrencyRateEntity plnUsd, List<CurrencyRateEntity> all) {
     return new PortfolioTestContext.FxRates(eurUsd, plnUsd, all);
   }
 
   private static PortfolioTestContext.Imports imports(
-      ImportHistory first, ImportHistory duplicate) {
+      ImportHistoryEntity first, ImportHistoryEntity duplicate) {
     return new PortfolioTestContext.Imports(first, duplicate);
   }
 
   private static PortfolioTestContext.Expected expected(
       PortfolioExpected.CashBalance cash,
-      PortfolioExpected.Position position,
+      PortfolioExpected.PositionEntity position,
       PortfolioExpected.Dividend dividend,
       PortfolioExpected.Valuation valuation,
       PortfolioExpected.Transfer transfer,

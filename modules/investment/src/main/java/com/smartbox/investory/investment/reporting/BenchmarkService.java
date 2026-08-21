@@ -3,15 +3,15 @@ package com.smartbox.investory.investment.reporting;
 import com.smartbox.investory.investment.accounting.model.Benchmark;
 import com.smartbox.investory.investment.infrastructure.market.client.TwelveDataService;
 import com.smartbox.investory.investment.infrastructure.persistence.NormalizedCashOperationRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.account.Account;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDaily;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountMonthlyPerformance;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountMonthlyPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountMonthlyPerformanceRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatistics;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.benchmark.BenchmarkMonthlyClose;
+import com.smartbox.investory.investment.infrastructure.persistence.benchmark.BenchmarkMonthlyCloseEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.benchmark.BenchmarkMonthlyCloseRepository;
 import com.smartbox.investory.investment.market.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -92,20 +92,20 @@ public class BenchmarkService {
   public Benchmark calculate(Collection<Long> accountIds) {
     Benchmark benchmark = new Benchmark();
     try {
-      List<AccountDaily> allRows = accountDailyRepository.findAll();
+      List<AccountDailyEntity> allRows = accountDailyRepository.findAll();
       Set<Long> requestedAccounts = accountIds == null ? Set.of() : new HashSet<>(accountIds);
       boolean filterSubmitted = accountIds != null;
       Set<Long> benchmarkEligibleAccounts =
           activeAccountIds(allRows, accountStatisticsRepository.findAll());
       Set<Long> allPortfolioAccounts =
           allRows.stream()
-              .map(AccountDaily::getAccountId)
+              .map(AccountDailyEntity::getAccountId)
               .filter(Objects::nonNull)
               .collect(Collectors.toCollection(TreeSet::new));
       Set<Long> cashOnlyAccounts =
           accountRepository.findAll().stream()
-              .filter(Account::isCashOnly)
-              .map(Account::getId)
+              .filter(AccountEntity::isCashOnly)
+              .map(AccountEntity::getId)
               .filter(Objects::nonNull)
               .collect(Collectors.toSet());
       benchmarkEligibleAccounts.removeAll(cashOnlyAccounts);
@@ -117,7 +117,7 @@ public class BenchmarkService {
               : requestedAccounts.stream()
                   .filter(benchmarkEligibleAccounts::contains)
                   .collect(Collectors.toCollection(TreeSet::new));
-      Map<Long, Account> accountsById = accountRepository.findMapByIdIn(performanceAccounts);
+      Map<Long, AccountEntity> accountsById = accountRepository.findMapByIdIn(performanceAccounts);
       benchmark.setAccountOptions(
           accountOptions(
               accountsById,
@@ -134,7 +134,7 @@ public class BenchmarkService {
               ? benchmark.getAccountValueYears().getFirst().year()
               : null);
 
-      List<AccountMonthlyPerformance> monthlyRows =
+      List<AccountMonthlyPerformanceEntity> monthlyRows =
           accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc().stream()
               .filter(row -> row.getMonth() != null)
               .filter(row -> benchmarkEligibleAccounts.contains(row.getAccountId()))
@@ -144,7 +144,7 @@ public class BenchmarkService {
         return benchmark;
       }
 
-      List<AccountMonthlyPerformance> selectedRows =
+      List<AccountMonthlyPerformanceEntity> selectedRows =
           monthlyRows.stream()
               .filter(row -> selectedAccounts.contains(row.getAccountId()))
               .toList();
@@ -155,7 +155,7 @@ public class BenchmarkService {
       YearMonth start = historyStart;
       YearMonth end =
           monthlyRows.stream()
-              .map(AccountMonthlyPerformance::getMonth)
+              .map(AccountMonthlyPerformanceEntity::getMonth)
               .map(YearMonth::from)
               .max(Comparator.naturalOrder())
               .orElse(start);
@@ -180,7 +180,7 @@ public class BenchmarkService {
 
       List<Benchmark.AccountSeries> accountSeries =
           monthlyRows.stream()
-              .collect(Collectors.groupingBy(AccountMonthlyPerformance::getAccountId))
+              .collect(Collectors.groupingBy(AccountMonthlyPerformanceEntity::getAccountId))
               .entrySet()
               .stream()
               .map(entry -> accountSeries(entry.getKey(), entry.getValue(), labels, closes))
@@ -247,10 +247,10 @@ public class BenchmarkService {
 
   private Benchmark.AccountSeries accountSeries(
       Long accountId,
-      List<AccountMonthlyPerformance> rows,
+      List<AccountMonthlyPerformanceEntity> rows,
       List<String> labels,
       NavigableMap<String, Double> closes) {
-    Map<String, AccountMonthlyPerformance> monthlyRows =
+    Map<String, AccountMonthlyPerformanceEntity> monthlyRows =
         rows.stream()
             .filter(row -> row.getMonth() != null)
             .collect(
@@ -305,7 +305,7 @@ public class BenchmarkService {
         started = true;
       }
 
-      AccountMonthlyPerformance row = monthlyRows.get(label);
+      AccountMonthlyPerformanceEntity row = monthlyRows.get(label);
       if (row != null) {
         cumulativeProfit += nz(row.getProfit());
       }
@@ -376,39 +376,39 @@ public class BenchmarkService {
         .orElse(null);
   }
 
-  private Set<Long> activeAccountIds(List<AccountDaily> rows, List<AccountStatistics> statistics) {
+  private Set<Long> activeAccountIds(List<AccountDailyEntity> rows, List<AccountStatisticsEntity> statistics) {
     if (!CollectionUtils.isEmpty(statistics)) {
       return statistics.stream()
           .filter(stat -> stat.getAccountId() != null)
           .filter(this::hasAccountValueSurface)
-          .map(AccountStatistics::getAccountId)
+          .map(AccountStatisticsEntity::getAccountId)
           .collect(Collectors.toCollection(TreeSet::new));
     }
 
-    Map<Long, AccountDaily> latestByAccount = new HashMap<>();
-    for (AccountDaily row : rows) {
+    Map<Long, AccountDailyEntity> latestByAccount = new HashMap<>();
+    for (AccountDailyEntity row : rows) {
       if (row.getAccountId() == null || row.getDate() == null) {
         continue;
       }
-      AccountDaily current = latestByAccount.get(row.getAccountId());
+      AccountDailyEntity current = latestByAccount.get(row.getAccountId());
       if (current == null || row.getDate().isAfter(current.getDate())) {
         latestByAccount.put(row.getAccountId(), row);
       }
     }
     return latestByAccount.values().stream()
         .filter(row -> nz(row.getEquity()) > ACTIVE_ACCOUNT_MIN_VALUE)
-        .map(AccountDaily::getAccountId)
+        .map(AccountDailyEntity::getAccountId)
         .collect(Collectors.toCollection(TreeSet::new));
   }
 
-  private boolean hasAccountValueSurface(AccountStatistics stat) {
+  private boolean hasAccountValueSurface(AccountStatisticsEntity stat) {
     return Math.abs(nz(stat.getCashBalance()) + nz(stat.getMarketValue()))
             > ACTIVE_ACCOUNT_MIN_VALUE
         || Math.abs(nz(stat.getNetDeposit())) > ACTIVE_ACCOUNT_MIN_VALUE;
   }
 
   private List<Benchmark.AccountOption> accountOptions(
-      Map<Long, Account> accountsById, Set<Long> visibleAccounts, Set<Long> selectedAccounts) {
+      Map<Long, AccountEntity> accountsById, Set<Long> visibleAccounts, Set<Long> selectedAccounts) {
     return accountsById.values().stream()
         .filter(account -> visibleAccounts.contains(account.getId()))
         .map(
@@ -419,9 +419,9 @@ public class BenchmarkService {
   }
 
   private List<Benchmark.AccountValueYear> accountValueYears(
-      List<AccountDaily> dailyRows,
+      List<AccountDailyEntity> dailyRows,
       Set<Long> availableAccounts,
-      Map<Long, Account> accountsById,
+      Map<Long, AccountEntity> accountsById,
       Map<Long, CurrencyType> portfolioBaseCurrencies) {
     if (CollectionUtils.isEmpty(dailyRows)
         || CollectionUtils.isEmpty(availableAccounts)
@@ -429,7 +429,7 @@ public class BenchmarkService {
       return List.of();
     }
 
-    NavigableMap<Integer, List<AccountDaily>> rowsByYear =
+    NavigableMap<Integer, List<AccountDailyEntity>> rowsByYear =
         dailyRows.stream()
             .filter(row -> row.getDate() != null)
             .filter(row -> availableAccounts.contains(row.getAccountId()))
@@ -470,8 +470,8 @@ public class BenchmarkService {
   }
 
   private Benchmark.AccountValueSeries dailyAccountValueSeries(
-      Account account, List<AccountDaily> rows, List<String> labels, CurrencyType baseCurrency) {
-    Map<String, AccountDaily> valuesByDay =
+      AccountEntity account, List<AccountDailyEntity> rows, List<String> labels, CurrencyType baseCurrency) {
+    Map<String, AccountDailyEntity> valuesByDay =
         rows.stream()
             .filter(row -> account.getId().equals(row.getAccountId()))
             .collect(
@@ -481,14 +481,14 @@ public class BenchmarkService {
                         Collectors.toList(),
                         dayRows ->
                             dayRows.stream()
-                                .max(Comparator.comparing(AccountDaily::getDate))
+                                .max(Comparator.comparing(AccountDailyEntity::getDate))
                                 .orElse(null))));
     List<Double> profitValues = new ArrayList<>();
     List<Double> profitPctValues = new ArrayList<>();
     double cumulativeProfit = 0.0;
     double cumulativeReturnFactor = 1.0;
     for (String label : labels) {
-      AccountDaily point = valuesByDay.get(label);
+      AccountDailyEntity point = valuesByDay.get(label);
       if (point != null) {
         cumulativeProfit += dailyProfitInBaseCurrency(point, baseCurrency);
         Double dailyReturn = point.getDailyReturn();
@@ -503,7 +503,7 @@ public class BenchmarkService {
         account.getId(), account.getName(), profitValues, profitPctValues);
   }
 
-  private double dailyProfitInBaseCurrency(AccountDaily row, CurrencyType baseCurrency) {
+  private double dailyProfitInBaseCurrency(AccountDailyEntity row, CurrencyType baseCurrency) {
     double profit = nz(row.getDailyProfitAmount());
     if (profit == 0.0 || row.getValuationCurrency() == null || baseCurrency == null) {
       return profit;
@@ -526,11 +526,11 @@ public class BenchmarkService {
   }
 
   private List<Double> canonicalReturnCurve(
-      List<AccountMonthlyPerformance> rows, List<String> labels) {
+      List<AccountMonthlyPerformanceEntity> rows, List<String> labels) {
     List<Double> curve = new ArrayList<>();
     double factor = 1.0;
     for (String label : labels) {
-      List<AccountMonthlyPerformance> monthRows =
+      List<AccountMonthlyPerformanceEntity> monthRows =
           rows.stream()
               .filter(row -> label.equals(YearMonth.from(row.getMonth()).toString()))
               .toList();
@@ -572,7 +572,7 @@ public class BenchmarkService {
   }
 
   private Benchmark.AccountValueSeries sumAccountValueSeries(
-      List<AccountDaily> rows,
+      List<AccountDailyEntity> rows,
       Set<Long> accountIds,
       List<String> labels,
       Map<Long, CurrencyType> portfolioBaseCurrencies,
@@ -584,7 +584,7 @@ public class BenchmarkService {
     double cumulativeReturnFactor = 1.0;
     for (int index = 0; index < size; index++) {
       String label = labels.get(index);
-      List<AccountDaily> dailyRows =
+      List<AccountDailyEntity> dailyRows =
           rows.stream().filter(row -> label.equals(row.getDate().toString())).toList();
       int valueIndex = index;
       cumulativeProfit =
@@ -626,9 +626,9 @@ public class BenchmarkService {
                     Collectors.summingDouble(row -> nz(row.getAmountInBaseCurrency())))));
   }
 
-  private List<String> dailyLabels(List<AccountDaily> rows) {
+  private List<String> dailyLabels(List<AccountDailyEntity> rows) {
     List<LocalDate> dates =
-        rows.stream().map(AccountDaily::getDate).filter(Objects::nonNull).sorted().toList();
+        rows.stream().map(AccountDailyEntity::getDate).filter(Objects::nonNull).sorted().toList();
     if (dates.isEmpty()) {
       return List.of();
     }
@@ -657,7 +657,7 @@ public class BenchmarkService {
 
   private NavigableMap<String, Double> loadCachedCloses() {
     NavigableMap<String, Double> closes = new TreeMap<>();
-    for (BenchmarkMonthlyClose row :
+    for (BenchmarkMonthlyCloseEntity row :
         benchmarkMonthlyCloseRepository.findBySymbolOrderByMonthDateAsc(BENCHMARK_SYMBOL)) {
       if (row.getMonthDate() != null && row.getClosePrice() != null) {
         closes.put(
@@ -684,7 +684,7 @@ public class BenchmarkService {
   }
 
   private void persistFetchedCloses(NavigableMap<String, Double> fetched) {
-    Map<String, BenchmarkMonthlyClose> existing =
+    Map<String, BenchmarkMonthlyCloseEntity> existing =
         benchmarkMonthlyCloseRepository.findBySymbolOrderByMonthDateAsc(BENCHMARK_SYMBOL).stream()
             .filter(row -> row.getMonthDate() != null)
             .collect(
@@ -695,16 +695,16 @@ public class BenchmarkService {
                     TreeMap::new));
 
     ZonedDateTime now = ZonedDateTime.now();
-    List<BenchmarkMonthlyClose> rows = new ArrayList<>();
+    List<BenchmarkMonthlyCloseEntity> rows = new ArrayList<>();
     fetched.forEach(
         (month, close) -> {
           if (close == null || close == 0.0) {
             return;
           }
-          BenchmarkMonthlyClose row = existing.get(month);
+          BenchmarkMonthlyCloseEntity row = existing.get(month);
           if (row == null) {
             row =
-                BenchmarkMonthlyClose.builder()
+                BenchmarkMonthlyCloseEntity.builder()
                     .symbol(BENCHMARK_SYMBOL)
                     .monthDate(YearMonth.parse(month).atDay(1))
                     .build();

@@ -10,10 +10,10 @@ import com.smartbox.investory.investment.infrastructure.integration.PluginConfig
 import com.smartbox.investory.investment.infrastructure.integration.PluginDescriptor;
 import com.smartbox.investory.investment.infrastructure.integration.PluginFieldDescriptor;
 import com.smartbox.investory.investment.infrastructure.integration.ValidationResult;
-import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationInstance;
+import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationInstanceEntity;
 import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationInstanceRepository;
 import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationJobRepository;
-import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationSecret;
+import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationSecretEntity;
 import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationSecretRepository;
 import com.smartbox.investory.investment.infrastructure.integration.registry.PluginRegistry;
 import java.util.List;
@@ -52,14 +52,14 @@ class IntegrationSettingsFacadeTest {
     var jobs = mock(IntegrationJobRepository.class);
     var config = mock(IntegrationConfigurationService.class);
     var cipher = mock(IntegrationSecretCipher.class);
-    var instance = new IntegrationInstance();
+    var instance = new IntegrationInstanceEntity();
     instance.setId(7L);
     instance.setPluginId("test");
     instance.setPluginType(IntegrationType.FX_DATA);
     instance.setConfigJson("{\"region\":\"eu\"}");
     when(instances.findByOwnerIdAndPluginIdAndPluginType(null, "test", IntegrationType.FX_DATA))
         .thenReturn(Optional.of(instance));
-    var secret = new IntegrationSecret();
+    var secret = new IntegrationSecretEntity();
     secret.setSecretName("apiKey");
     when(secrets.findByIntegrationInstanceId(7L)).thenReturn(List.of(secret));
     when(jobs.findByIntegrationInstanceId(7L)).thenReturn(List.of());

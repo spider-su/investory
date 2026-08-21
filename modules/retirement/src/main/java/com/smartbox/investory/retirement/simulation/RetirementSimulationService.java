@@ -1,8 +1,10 @@
 package com.smartbox.investory.retirement.simulation;
+import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
+import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 
-import com.smartbox.investory.longterm.api.CashFlowType;
-import com.smartbox.investory.longterm.api.InterestTreatment;
-import com.smartbox.investory.longterm.api.RentalIncomeProjection;
+import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
+import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
+import com.smartbox.investory.longterm.api.model.RentalIncomeProjectionModel;
 import com.smartbox.investory.retirement.profile.*;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -365,10 +367,10 @@ public class RetirementSimulationService {
     for (ProjectedLongTermAsset asset : assets) {
       BigDecimal start = previous.getOrDefault(asset.id(), ZERO);
       if (isRentalProperty(asset)) {
-        RentalIncomeProjection.Result projection =
+        RentalIncomeProjectionModel.Result projection =
             actualRentalYear
-                ? RentalIncomeProjection.actualYear(longTermProjection(asset), rentalYear)
-                : RentalIncomeProjection.project(
+                ? RentalIncomeProjectionModel.actualYear(longTermProjection(asset), rentalYear)
+                : RentalIncomeProjectionModel.project(
                     longTermProjection(asset),
                     previousRentalIncome.getOrDefault(asset.id(), Map.of()),
                     rentalYear,
@@ -401,11 +403,11 @@ public class RetirementSimulationService {
                 year,
                 LocalDate.of(year, 1, 1).minusDays(1),
                 BigDecimal.ONE);
-        if (asset.type() == com.smartbox.investory.longterm.api.LongTermAssetType.BOND)
+        if (asset.type() == com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType.BOND)
           bondIncome = bondIncome.add(projection.payoutIncome());
         passive = passive.add(projection.payoutIncome());
         redemptionCash = redemptionCash.add(projection.redemptionCash());
-        if (asset.type() == com.smartbox.investory.longterm.api.LongTermAssetType.BOND)
+        if (asset.type() == com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType.BOND)
           bondRedemptionCash = bondRedemptionCash.add(projection.redemptionCash());
         values.put(asset.id(), projection.endValue());
         contractualEnd = contractualEnd.add(projection.endValue());
@@ -414,7 +416,7 @@ public class RetirementSimulationService {
       BigDecimal income = activeIncome(asset, year);
       BigDecimal expense = activeExpense(asset, year);
       BigDecimal taxBase =
-          asset.type() == com.smartbox.investory.longterm.api.LongTermAssetType.REAL_ESTATE
+          asset.type() == com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType.REAL_ESTATE
               ? Optional.ofNullable(asset.taxBase()).orElse(ZERO)
               : income.max(ZERO);
       passive =
@@ -460,7 +462,7 @@ public class RetirementSimulationService {
     return new ProjectedLongTermAsset(
         id,
         "Projected bond ladder",
-        com.smartbox.investory.longterm.api.LongTermAssetType.BOND,
+        com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType.BOND,
         EconomicBucket.FIXED_INCOME,
         com.smartbox.investory.shared.currency.CurrencyType.USD,
         principal,
@@ -521,16 +523,16 @@ public class RetirementSimulationService {
   }
 
   private static boolean isManualCashReserve(ProjectedLongTermAsset asset) {
-    return asset.type() == com.smartbox.investory.longterm.api.LongTermAssetType.CASH_RESERVE;
+    return asset.type() == com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType.CASH_RESERVE;
   }
 
   private static boolean isRentalProperty(ProjectedLongTermAsset asset) {
     return asset.bucket() == EconomicBucket.REAL_ESTATE;
   }
 
-  private static com.smartbox.investory.longterm.api.LongTermAssetProjection longTermProjection(
+  private static com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel longTermProjection(
       ProjectedLongTermAsset asset) {
-    return new com.smartbox.investory.longterm.api.LongTermAssetProjection(
+    return new com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel(
         asset.id(),
         asset.name(),
         asset.type(),
@@ -539,7 +541,7 @@ public class RetirementSimulationService {
         asset.periods().stream()
             .map(
                 period ->
-                    new com.smartbox.investory.longterm.api.LongTermAssetProjection.Period(
+                    new com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel.Period(
                         period.validFrom(),
                         period.validTo(),
                         period.annualIncome(),

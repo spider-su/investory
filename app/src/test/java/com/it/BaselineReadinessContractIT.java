@@ -75,17 +75,17 @@ class BaselineReadinessContractIT {
           singleInt(statement, "SELECT count(*) FROM investory.accounts WHERE portfolio_id = 1"));
       for (String accountName :
           new String[] {
-            "Sample PLN Account",
-            "Sample USD Account",
-            "Sample EUR Account",
-            "Sample Metals Account",
-            "Sample Retirement Account",
-            "Sample PLN Cash Account",
-            "Sample USD Trading Account",
-            "Sample EUR Cash Account",
-            "Sample Income Account",
-            "Sample PLN Reserve Account",
-            "Sample IBKR Account"
+            "Sample PLN AccountEntity",
+            "Sample USD AccountEntity",
+            "Sample EUR AccountEntity",
+            "Sample Metals AccountEntity",
+            "Sample Retirement AccountEntity",
+            "Sample PLN Cash AccountEntity",
+            "Sample USD Trading AccountEntity",
+            "Sample EUR Cash AccountEntity",
+            "Sample Income AccountEntity",
+            "Sample PLN Reserve AccountEntity",
+            "Sample IBKR AccountEntity"
           }) {
         assertTrue(
             exists(

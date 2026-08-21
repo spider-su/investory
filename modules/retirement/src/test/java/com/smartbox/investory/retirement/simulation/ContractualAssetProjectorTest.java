@@ -2,8 +2,8 @@ package com.smartbox.investory.retirement.simulation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.smartbox.investory.longterm.api.InterestTreatment;
-import com.smartbox.investory.longterm.api.LongTermAssetType;
+import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
+import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.retirement.profile.EconomicBucket;
 import com.smartbox.investory.retirement.profile.Liquidity;
 import com.smartbox.investory.retirement.profile.ProjectedLongTermAsset;

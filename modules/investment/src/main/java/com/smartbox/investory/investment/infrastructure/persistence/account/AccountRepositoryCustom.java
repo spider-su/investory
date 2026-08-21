@@ -5,5 +5,5 @@ import java.util.Map;
 
 public interface AccountRepositoryCustom {
 
-  Map<Long, Account> findMapByIdIn(Collection<Long> ids);
+  Map<Long, AccountEntity> findMapByIdIn(Collection<Long> ids);
 }

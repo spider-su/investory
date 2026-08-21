@@ -7,7 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.infrastructure.persistence.Asset;
+import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetPriceChartRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
 import java.math.BigDecimal;
@@ -23,7 +23,7 @@ class AssetPriceChartServiceTest {
 
   @Test
   void normalizesSymbolAndMapsCanonicalPriceRows() {
-    Asset asset = Asset.builder().id(4L).symbol("VWCE").build();
+    AssetEntity asset = AssetEntity.builder().id(4L).symbol("VWCE").build();
     var row = mock(AssetPriceChartRepository.AssetPriceChartRow.class);
     when(row.getPriceDate()).thenReturn(java.time.LocalDate.of(2026, 8, 1));
     when(row.getClosePrice()).thenReturn(new BigDecimal("123.45"));

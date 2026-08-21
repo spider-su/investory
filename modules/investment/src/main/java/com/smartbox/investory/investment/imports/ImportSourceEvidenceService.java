@@ -2,10 +2,10 @@ package com.smartbox.investory.investment.imports;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistory;
-import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceFile;
+import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
+import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceFileEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceFileRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceRow;
+import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceRowEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceRowRepository;
 import java.time.ZonedDateTime;
 import java.util.Map;
@@ -37,13 +37,13 @@ public class ImportSourceEvidenceService {
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
-  public ImportSourceFile storeArtifact(ImportHistory batch, byte[] payload, String contentType) {
-    Optional<ImportSourceFile> existing =
+  public ImportSourceFileEntity storeArtifact(ImportHistoryEntity batch, byte[] payload, String contentType) {
+    Optional<ImportSourceFileEntity> existing =
         fileRepository.findByBrokerAndFileSha256(batch.getBroker(), batch.getFileSha256());
     if (existing.isPresent()) {
       return existing.get();
     }
-    ImportSourceFile file = new ImportSourceFile();
+    ImportSourceFileEntity file = new ImportSourceFileEntity();
     file.setBroker(batch.getBroker());
     file.setImportHistoryId(batch.getId());
     file.setFileName(batch.getFileName());
@@ -55,7 +55,7 @@ public class ImportSourceEvidenceService {
     return fileRepository.save(file);
   }
 
-  public Scope open(ImportHistory batch, ImportSourceFile file, String archiveMemberName) {
+  public Scope open(ImportHistoryEntity batch, ImportSourceFileEntity file, String archiveMemberName) {
     ImportEvidenceContext.open(
         new ImportEvidenceContext(
             batch.getId(), file.getId(), batch.getBroker(), archiveMemberName));
@@ -75,7 +75,7 @@ public class ImportSourceEvidenceService {
     if (context == null) {
       return null;
     }
-    ImportSourceRow row = new ImportSourceRow();
+    ImportSourceRowEntity row = new ImportSourceRowEntity();
     row.setImportHistoryId(context.importHistoryId());
     row.setSourceFileId(context.sourceFileId());
     row.setBroker(context.broker());

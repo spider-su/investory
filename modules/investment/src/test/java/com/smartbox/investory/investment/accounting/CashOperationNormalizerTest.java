@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.smartbox.investory.investment.accounting.CashOperationNormalizer.NormalizedCashOperation;
 import com.smartbox.investory.investment.accounting.CashOperationNormalizer.NormalizedCategory;
-import com.smartbox.investory.investment.infrastructure.persistence.CashOperation;
+import com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -21,11 +21,11 @@ class CashOperationNormalizerTest {
 
   @Test
   void normalize_classifiesExplicitTransferInOutAsInternalNotExternal() {
-    CashOperation out = cash(1L, 50290466L, CashOperationType.DEPOSIT, -5200.0, CurrencyType.PLN);
+    CashOperationEntity out = cash(1L, 50290466L, CashOperationType.DEPOSIT, -5200.0, CurrencyType.PLN);
     out.setComment("Transfer out operation on account with id 50290466");
     out.setDate(ZonedDateTime.parse("2025-02-03T13:34:00Z"));
 
-    CashOperation in = cash(2L, 51551301L, CashOperationType.DEPOSIT, 5200.0, CurrencyType.PLN);
+    CashOperationEntity in = cash(2L, 51551301L, CashOperationType.DEPOSIT, 5200.0, CurrencyType.PLN);
     in.setComment("Transfer in operation on account with id 51551301");
     in.setDate(ZonedDateTime.parse("2025-02-03T13:34:52Z"));
 
@@ -41,13 +41,13 @@ class CashOperationNormalizerTest {
 
   @Test
   void normalize_classifiesCurrencyConversionAsInternalFx() {
-    CashOperation pln =
+    CashOperationEntity pln =
         cash(10L, 50290466L, CashOperationType.TRANSFER, -20000.0, CurrencyType.PLN);
     pln.setComment(
         "Currency conversion, PLN to USD from TA: 50290466 to: 51499241, Exchange rate:0.250206");
     pln.setDate(ZonedDateTime.parse("2026-01-10T12:00:00Z"));
 
-    CashOperation usd = cash(11L, 51499241L, CashOperationType.TRANSFER, 5004.12, CurrencyType.USD);
+    CashOperationEntity usd = cash(11L, 51499241L, CashOperationType.TRANSFER, 5004.12, CurrencyType.USD);
     usd.setComment(
         "Currency conversion, PLN to USD from TA: 50290466 to: 51499241, Exchange rate:0.250206");
     usd.setDate(ZonedDateTime.parse("2026-01-10T12:01:00Z"));
@@ -65,10 +65,10 @@ class CashOperationNormalizerTest {
 
   @Test
   void normalize_classifiesDividendAndTaxReversalsBySign() {
-    CashOperation negativeDividend =
+    CashOperationEntity negativeDividend =
         cash(20L, 51993106L, CashOperationType.DIVIDEND, -12.34, CurrencyType.USD);
     negativeDividend.setComment("Dividend correction");
-    CashOperation positiveTax =
+    CashOperationEntity positiveTax =
         cash(21L, 51993106L, CashOperationType.WITHHOLDING_TAX, 15.0, CurrencyType.USD);
     positiveTax.setComment("Tax reversal");
 
@@ -83,11 +83,11 @@ class CashOperationNormalizerTest {
 
   @Test
   void normalize_pairsZeroNetSubaccountTransfers() {
-    CashOperation left =
+    CashOperationEntity left =
         cash(30L, 51548444L, CashOperationType.SUBACCOUNT_TRANSFER, -1250.0, CurrencyType.EUR);
     left.setComment("Transfer from 51548444 to 51551130");
     left.setDate(ZonedDateTime.parse("2024-11-30T00:48:00Z"));
-    CashOperation right =
+    CashOperationEntity right =
         cash(31L, 51548444L, CashOperationType.SUBACCOUNT_TRANSFER, 1250.0, CurrencyType.EUR);
     right.setComment("Transfer from 51548444 to 51551130");
     right.setDate(ZonedDateTime.parse("2024-11-30T00:49:00Z"));
@@ -104,7 +104,7 @@ class CashOperationNormalizerTest {
 
   @Test
   void normalize_doesNotTreatUnexplainedNegativeDepositAsExternalWithdrawal() {
-    CashOperation negativeDeposit =
+    CashOperationEntity negativeDeposit =
         cash(40L, 51499241L, CashOperationType.DEPOSIT, -42.50, CurrencyType.USD);
     negativeDeposit.setComment("manual correction without transfer hint");
 
@@ -116,7 +116,7 @@ class CashOperationNormalizerTest {
 
   @Test
   void normalize_doesNotTreatPositiveWithdrawalAsExternalDeposit() {
-    CashOperation positiveWithdrawal =
+    CashOperationEntity positiveWithdrawal =
         cash(41L, 51499241L, CashOperationType.WITHDRAWAL, 42.50, CurrencyType.USD);
     positiveWithdrawal.setComment("withdrawal reversal");
 
@@ -128,7 +128,7 @@ class CashOperationNormalizerTest {
 
   @Test
   void normalize_zeroDepositDoesNotBecomeNormalCapitalFlow() {
-    CashOperation zeroDeposit =
+    CashOperationEntity zeroDeposit =
         cash(42L, 51499241L, CashOperationType.DEPOSIT, 0.0, CurrencyType.USD);
     zeroDeposit.setComment("zero adjustment");
 
@@ -141,7 +141,7 @@ class CashOperationNormalizerTest {
 
   @Test
   void normalize_unmatchedInternalTransferRemainsVisibleAndUnpaired() {
-    CashOperation transferOut =
+    CashOperationEntity transferOut =
         cash(43L, 50290466L, CashOperationType.DEPOSIT, -5200.0, CurrencyType.PLN);
     transferOut.setComment("Transfer out operation on account with id 50290466");
     transferOut.setDate(ZonedDateTime.parse("2025-02-03T13:34:00Z"));
@@ -155,16 +155,16 @@ class CashOperationNormalizerTest {
 
   @Test
   void normalize_transferBetweenAccountsUsesAccountCluesNotOnlyAmountAndTime() {
-    CashOperation legA =
+    CashOperationEntity legA =
         cash(50L, 51499241L, CashOperationType.TRANSFER, -1000.0, CurrencyType.USD);
     legA.setComment("Transfer from 51499241 to 51993106");
     legA.setDate(ZonedDateTime.parse("2026-01-10T10:00:00Z"));
 
-    CashOperation legB = cash(51L, 51993106L, CashOperationType.TRANSFER, 1000.0, CurrencyType.USD);
+    CashOperationEntity legB = cash(51L, 51993106L, CashOperationType.TRANSFER, 1000.0, CurrencyType.USD);
     legB.setComment("Transfer from 51499241 to 51993106");
     legB.setDate(ZonedDateTime.parse("2026-01-10T10:01:00Z"));
 
-    CashOperation unrelated =
+    CashOperationEntity unrelated =
         cash(52L, 53582946L, CashOperationType.TRANSFER, 1000.0, CurrencyType.USD);
     unrelated.setComment("Transfer from 11111111 to 22222222");
     unrelated.setDate(ZonedDateTime.parse("2026-01-10T10:02:00Z"));
@@ -179,11 +179,11 @@ class CashOperationNormalizerTest {
 
   @Test
   void normalize_subaccountTransferPairingIsInputOrderIndependent() {
-    CashOperation left =
+    CashOperationEntity left =
         cash(60L, 51548444L, CashOperationType.SUBACCOUNT_TRANSFER, -1250.0, CurrencyType.EUR);
     left.setComment("Transfer from 51548444 to 51551130");
     left.setDate(ZonedDateTime.parse("2024-11-30T00:48:00Z"));
-    CashOperation right =
+    CashOperationEntity right =
         cash(61L, 51548444L, CashOperationType.SUBACCOUNT_TRANSFER, 1250.0, CurrencyType.EUR);
     right.setComment("Transfer from 51548444 to 51551130");
     right.setDate(ZonedDateTime.parse("2024-11-30T00:49:00Z"));
@@ -199,7 +199,7 @@ class CashOperationNormalizerTest {
 
   @Test
   void normalize_negativeInterestBecomesInterestReversal() {
-    CashOperation interest =
+    CashOperationEntity interest =
         cash(70L, 51499241L, CashOperationType.FREE_FUNDS_INTEREST, -1.23, CurrencyType.USD);
 
     NormalizedCashOperation row = normalizer.normalize(List.of(interest)).getFirst();
@@ -210,7 +210,7 @@ class CashOperationNormalizerTest {
 
   @Test
   void normalize_ibkrBondRedemptionIsSettlementNotFunding() {
-    CashOperation redemption =
+    CashOperationEntity redemption =
         cash(75L, 17959259L, CashOperationType.TRANSFER, 10_000.0, CurrencyType.USD);
     redemption.setComment("(US91282CKB62) Full Call / Early Redemption for USD 1.00 per Bond");
 
@@ -224,11 +224,11 @@ class CashOperationNormalizerTest {
 
   @Test
   void normalize_feeCorrectionsBecomeFeeReversals() {
-    CashOperation commissionRefund =
+    CashOperationEntity commissionRefund =
         cash(71L, 51499241L, CashOperationType.CORRECTION, 5.00, CurrencyType.USD);
     commissionRefund.setComment("Commission Refund");
 
-    CashOperation secFeeAdjustment =
+    CashOperationEntity secFeeAdjustment =
         cash(72L, 51499241L, CashOperationType.CORRECTION, 0.01, CurrencyType.USD);
     secFeeAdjustment.setComment("corr Sec Fee adj");
 
@@ -241,9 +241,9 @@ class CashOperationNormalizerTest {
     assertTrue(rows.get(1).reversal());
   }
 
-  private static CashOperation cash(
+  private static CashOperationEntity cash(
       Long id, Long accountId, CashOperationType type, double amount, CurrencyType currency) {
-    CashOperation operation = new CashOperation();
+    CashOperationEntity operation = new CashOperationEntity();
     operation.setId(id);
     operation.setAccount(accountId);
     operation.setType(type);

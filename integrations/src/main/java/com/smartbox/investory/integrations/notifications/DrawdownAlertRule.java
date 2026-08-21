@@ -1,6 +1,6 @@
 package com.smartbox.investory.integrations.notifications;
 
-import com.smartbox.investory.integrations.notifications.infrastructure.DrawdownAlertState;
+import com.smartbox.investory.integrations.notifications.infrastructure.DrawdownAlertStateEntity;
 import com.smartbox.investory.integrations.notifications.infrastructure.DrawdownAlertStateRepository;
 import com.smartbox.investory.investment.accounting.PortfolioService;
 import com.smartbox.investory.investment.accounting.model.Portfolio;
@@ -33,10 +33,10 @@ public class DrawdownAlertRule implements AlertRule {
   public Optional<String> evaluate() {
     Portfolio p = portfolioService.calculateTotalProfitLoss();
     double equity = p.getBalance();
-    DrawdownAlertState state =
+    DrawdownAlertStateEntity state =
         stateRepository
-            .findById(DrawdownAlertState.SINGLETON_ID)
-            .orElseGet(DrawdownAlertState::new);
+            .findById(DrawdownAlertStateEntity.SINGLETON_ID)
+            .orElseGet(DrawdownAlertStateEntity::new);
     if (equity > state.getPeakEquity()) {
       state.setPeakEquity(equity);
       stateRepository.save(state);
@@ -62,7 +62,7 @@ public class DrawdownAlertRule implements AlertRule {
     return Optional.empty();
   }
 
-  private boolean cooldownElapsed(DrawdownAlertState state, ZonedDateTime now) {
+  private boolean cooldownElapsed(DrawdownAlertStateEntity state, ZonedDateTime now) {
     if (state.getLastAlertAt() == null) {
       return true;
     }

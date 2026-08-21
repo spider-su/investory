@@ -6,7 +6,7 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface AccountMonthlyPerformanceRepository
-    extends ReadOnlyRepository<AccountMonthlyPerformance, AccountMonthlyPerformanceId> {
+    extends ReadOnlyRepository<AccountMonthlyPerformanceEntity, AccountMonthlyPerformanceId> {
 
-  List<AccountMonthlyPerformance> findAllByOrderByMonthAscAccountIdAsc();
+  List<AccountMonthlyPerformanceEntity> findAllByOrderByMonthAscAccountIdAsc();
 }

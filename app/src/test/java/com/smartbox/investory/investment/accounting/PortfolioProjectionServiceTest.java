@@ -13,18 +13,18 @@ import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.accounting.model.PositionSettlementModel;
 import com.smartbox.investory.investment.accounting.model.PositionType;
-import com.smartbox.investory.investment.infrastructure.persistence.Asset;
+import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.CashOperation;
+import com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.CashOperationRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPosition;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPositionRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.NormalizedCashOperationRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPositionRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.account.Account;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDaily;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.market.fx.CurrencyRateService;
@@ -189,21 +189,21 @@ class PortfolioProjectionServiceTest {
             .on(PortfolioTestData.AAPL_FIRST_BUY_DATE)
             .build();
 
-    CashOperation dividend =
+    CashOperationEntity dividend =
         PortfolioBuilders.cashOperation()
             .forAccount(PortfolioTestData.IBKR_USD)
             .dividend(PortfolioTestData.AAPL, 3.0)
             .on(PortfolioTestData.JANUARY_MONTH_END)
             .build();
 
-    CashOperation deposit =
+    CashOperationEntity deposit =
         PortfolioBuilders.cashOperation()
             .forAccount(PortfolioTestData.IBKR_USD)
             .deposit(200.0, CurrencyType.USD)
             .on(PortfolioTestData.JANUARY_DEPOSIT_DATE)
             .build();
 
-    Asset asset =
+    AssetEntity asset =
         PortfolioBuilders.asset(PortfolioTestData.AAPL)
             .withLatestPrice(120.0, 120.0, PortfolioTestData.JANUARY_MONTH_END)
             .build();
@@ -221,11 +221,11 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> accountDailyCaptor =
+    ArgumentCaptor<Iterable<AccountDailyEntity>> accountDailyCaptor =
         ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(accountDailyCaptor.capture());
     verify(accountDailyRepository).refreshReportingViews();
-    List<AccountDaily> firstRows = toList(accountDailyCaptor.getValue());
+    List<AccountDailyEntity> firstRows = toList(accountDailyCaptor.getValue());
     assertFalse(firstRows.isEmpty());
 
     service.recalculateAll();
@@ -233,7 +233,7 @@ class PortfolioProjectionServiceTest {
     verify(accountDailyRepository, org.mockito.Mockito.times(2))
         .saveAll(accountDailyCaptor.capture());
     verify(accountDailyRepository, org.mockito.Mockito.times(2)).refreshReportingViews();
-    List<AccountDaily> secondRows = toList(accountDailyCaptor.getAllValues().get(1));
+    List<AccountDailyEntity> secondRows = toList(accountDailyCaptor.getAllValues().get(1));
     assertEquivalentProjectionRows(firstRows, secondRows);
   }
 
@@ -283,14 +283,14 @@ class PortfolioProjectionServiceTest {
     opened.setPurchaseValue(400.0);
     opened.setOpenTime(ZonedDateTime.now().minusDays(1));
 
-    CashOperation deposit = new CashOperation();
+    CashOperationEntity deposit = new CashOperationEntity();
     deposit.setAccount(51551301L);
     deposit.setType(CashOperationType.DEPOSIT);
     deposit.setAmount(400.0);
     deposit.setCurrency(CurrencyType.PLN);
     deposit.setDate(ZonedDateTime.now().minusDays(2));
 
-    Asset asset = new Asset();
+    AssetEntity asset = new AssetEntity();
     asset.setSymbol("AAPL.US");
     asset.setMarketPriceUsd(120.0);
 
@@ -324,13 +324,13 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> accountDailyCaptor =
+    ArgumentCaptor<Iterable<AccountDailyEntity>> accountDailyCaptor =
         ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(accountDailyCaptor.capture());
-    AccountDaily latest =
+    AccountDailyEntity latest =
         toList(accountDailyCaptor.getValue()).stream()
             .filter(row -> row.getAccountId().equals(51551301L))
-            .max(java.util.Comparator.comparing(AccountDaily::getDate))
+            .max(java.util.Comparator.comparing(AccountDailyEntity::getDate))
             .orElseThrow();
 
     assertEquals(120.0, latest.getMarketValue(), 0.01);
@@ -353,14 +353,14 @@ class PortfolioProjectionServiceTest {
     opened.setPurchaseValue(1000.0);
     opened.setOpenTime(tradeDate);
 
-    CashOperation deposit = new CashOperation();
+    CashOperationEntity deposit = new CashOperationEntity();
     deposit.setAccount(51499241L);
     deposit.setType(CashOperationType.DEPOSIT);
     deposit.setAmount(1000.0);
     deposit.setCurrency(CurrencyType.USD);
     deposit.setDate(tradeDate.minusDays(1));
 
-    Asset asset = new Asset();
+    AssetEntity asset = new AssetEntity();
     asset.setSymbol("AAPL.US");
     asset.setCurrency(CurrencyType.USD);
     asset.setMarketPrice(999.0);
@@ -394,9 +394,9 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
-    AccountDaily tradeDay =
+    AccountDailyEntity tradeDay =
         toList(dailyCaptor.getValue()).stream()
             .filter(row -> row.getDate().equals(tradeDate.toLocalDate()))
             .findFirst()
@@ -455,9 +455,9 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
-    AccountDaily splitDay =
+    AccountDailyEntity splitDay =
         toList(dailyCaptor.getValue()).stream()
             .filter(row -> row.getDate().equals(splitDate.toLocalDate()))
             .findFirst()
@@ -472,7 +472,7 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime tradeDate = ZonedDateTime.parse("2026-01-10T12:00:00Z");
     long accountId = 51707603L;
 
-    Account cashOnlyAccount = account(accountId, CurrencyType.USD);
+    AccountEntity cashOnlyAccount = account(accountId, CurrencyType.USD);
     cashOnlyAccount.setCashOnly(true);
 
     OpenedPosition opened = new OpenedPosition();
@@ -485,14 +485,14 @@ class PortfolioProjectionServiceTest {
     opened.setPurchaseValue(1000.0);
     opened.setOpenTime(tradeDate);
 
-    CashOperation deposit = new CashOperation();
+    CashOperationEntity deposit = new CashOperationEntity();
     deposit.setAccount(accountId);
     deposit.setType(CashOperationType.DEPOSIT);
     deposit.setAmount(1000.0);
     deposit.setCurrency(CurrencyType.USD);
     deposit.setDate(tradeDate.minusDays(1));
 
-    CashOperation purchase = new CashOperation();
+    CashOperationEntity purchase = new CashOperationEntity();
     purchase.setAccount(accountId);
     purchase.setType(CashOperationType.STOCK_PURCHASE);
     purchase.setSymbol("CSPX.UK");
@@ -500,7 +500,7 @@ class PortfolioProjectionServiceTest {
     purchase.setCurrency(CurrencyType.USD);
     purchase.setDate(tradeDate);
 
-    CashOperation sale = new CashOperation();
+    CashOperationEntity sale = new CashOperationEntity();
     sale.setAccount(accountId);
     sale.setType(CashOperationType.STOCK_SELL);
     sale.setSymbol("CSPX.UK");
@@ -508,7 +508,7 @@ class PortfolioProjectionServiceTest {
     sale.setCurrency(CurrencyType.USD);
     sale.setDate(tradeDate.plusDays(1));
 
-    Asset asset = new Asset();
+    AssetEntity asset = new AssetEntity();
     asset.setSymbol("CSPX.UK");
     asset.setMarketPriceUsd(100.0);
 
@@ -528,19 +528,19 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
-    AccountDaily tradeDay =
+    AccountDailyEntity tradeDay =
         toList(dailyCaptor.getValue()).stream()
             .filter(row -> row.getDate().equals(tradeDate.toLocalDate()))
             .findFirst()
             .orElseThrow();
-    AccountDaily saleDay =
+    AccountDailyEntity saleDay =
         toList(dailyCaptor.getValue()).stream()
             .filter(row -> row.getDate().equals(tradeDate.plusDays(1).toLocalDate()))
             .findFirst()
             .orElseThrow();
-    AccountDaily currentDay =
+    AccountDailyEntity currentDay =
         toList(dailyCaptor.getValue()).stream()
             .filter(row -> row.getDate().equals(ReportingDateHelper.today()))
             .findFirst()
@@ -606,9 +606,9 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
-    AccountDaily tradeDay =
+    AccountDailyEntity tradeDay =
         toList(dailyCaptor.getValue()).stream()
             .filter(row -> row.getDate().equals(tradeDate.toLocalDate()))
             .findFirst()
@@ -657,9 +657,9 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
-    AccountDaily tradeDay =
+    AccountDailyEntity tradeDay =
         toList(dailyCaptor.getValue()).stream()
             .filter(row -> row.getDate().equals(tradeDate.toLocalDate()))
             .findFirst()
@@ -684,7 +684,7 @@ class PortfolioProjectionServiceTest {
     opened.setPurchaseValue(1000.0);
     opened.setOpenTime(tradeDate);
 
-    Asset asset = new Asset();
+    AssetEntity asset = new AssetEntity();
     asset.setSymbol("AAPL.US");
     asset.setMarketPriceUsd(120.0);
 
@@ -706,9 +706,9 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
-    AccountDaily today =
+    AccountDailyEntity today =
         toList(dailyCaptor.getValue()).stream()
             .filter(row -> row.getDate().equals(LocalDate.now(ZoneId.of("Europe/Warsaw"))))
             .findFirst()
@@ -723,14 +723,14 @@ class PortfolioProjectionServiceTest {
   void recalculateAll_prefersHistoricalPriceOverCashTradeFallback() {
     ZonedDateTime tradeDate = ZonedDateTime.parse("2026-01-10T12:00:00Z");
 
-    CashOperation deposit = new CashOperation();
+    CashOperationEntity deposit = new CashOperationEntity();
     deposit.setAccount(51499241L);
     deposit.setType(CashOperationType.DEPOSIT);
     deposit.setAmount(1000.0);
     deposit.setCurrency(CurrencyType.USD);
     deposit.setDate(tradeDate.minusDays(1));
 
-    CashOperation stockPurchase = new CashOperation();
+    CashOperationEntity stockPurchase = new CashOperationEntity();
     stockPurchase.setAccount(51499241L);
     stockPurchase.setType(CashOperationType.STOCK_PURCHASE);
     stockPurchase.setAmount(-1000.0);
@@ -748,7 +748,7 @@ class PortfolioProjectionServiceTest {
     opened.setPurchaseValue(1000.0);
     opened.setOpenTime(tradeDate);
 
-    Asset asset = new Asset();
+    AssetEntity asset = new AssetEntity();
     asset.setSymbol("AAPL.US");
     asset.setMarketPriceUsd(100.0);
 
@@ -767,9 +767,9 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
-    AccountDaily tradeDay =
+    AccountDailyEntity tradeDay =
         toList(dailyCaptor.getValue()).stream()
             .filter(row -> row.getDate().equals(tradeDate.toLocalDate()))
             .findFirst()
@@ -784,14 +784,14 @@ class PortfolioProjectionServiceTest {
   void recalculateAll_usesZeroMarketValueWhenNoHistoricalPriceExists() {
     ZonedDateTime tradeDate = ZonedDateTime.parse("2026-02-13T12:00:00Z");
 
-    CashOperation deposit = new CashOperation();
+    CashOperationEntity deposit = new CashOperationEntity();
     deposit.setAccount(51499241L);
     deposit.setType(CashOperationType.DEPOSIT);
     deposit.setAmount(5000.0);
     deposit.setCurrency(CurrencyType.USD);
     deposit.setDate(tradeDate.minusDays(1));
 
-    CashOperation stockPurchase = new CashOperation();
+    CashOperationEntity stockPurchase = new CashOperationEntity();
     stockPurchase.setAccount(51499241L);
     stockPurchase.setType(CashOperationType.STOCK_PURCHASE);
     stockPurchase.setAmount(-1901.80);
@@ -809,7 +809,7 @@ class PortfolioProjectionServiceTest {
     opened.setPurchaseValue(1901.80);
     opened.setOpenTime(tradeDate);
 
-    Asset asset = new Asset();
+    AssetEntity asset = new AssetEntity();
     asset.setSymbol("DTLA.UK");
 
     when(openedPositionRepository.findAll()).thenReturn(List.of(opened));
@@ -827,9 +827,9 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
-    AccountDaily tradeDay =
+    AccountDailyEntity tradeDay =
         toList(dailyCaptor.getValue()).stream()
             .filter(row -> row.getDate().equals(tradeDate.toLocalDate()))
             .findFirst()
@@ -845,14 +845,14 @@ class PortfolioProjectionServiceTest {
   void recalculateAll_doesNotReuseStaleHistoricalPriceForPastValuation() {
     ZonedDateTime tradeDate = ZonedDateTime.parse("2025-12-05T12:00:00Z");
 
-    CashOperation deposit = new CashOperation();
+    CashOperationEntity deposit = new CashOperationEntity();
     deposit.setAccount(51499241L);
     deposit.setType(CashOperationType.DEPOSIT);
     deposit.setAmount(5000.0);
     deposit.setCurrency(CurrencyType.USD);
     deposit.setDate(tradeDate.minusDays(1));
 
-    CashOperation stockPurchase = new CashOperation();
+    CashOperationEntity stockPurchase = new CashOperationEntity();
     stockPurchase.setAccount(51499241L);
     stockPurchase.setType(CashOperationType.STOCK_PURCHASE);
     stockPurchase.setAmount(-2329.205436);
@@ -870,7 +870,7 @@ class PortfolioProjectionServiceTest {
     opened.setPurchaseValue(2329.205436);
     opened.setOpenTime(tradeDate);
 
-    Asset asset = new Asset();
+    AssetEntity asset = new AssetEntity();
     asset.setSymbol("JGPI.DE");
 
     when(openedPositionRepository.findAll()).thenReturn(List.of(opened));
@@ -889,9 +889,9 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
-    AccountDaily tradeDay =
+    AccountDailyEntity tradeDay =
         toList(dailyCaptor.getValue()).stream()
             .filter(row -> row.getDate().equals(tradeDate.toLocalDate()))
             .findFirst()
@@ -911,14 +911,14 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime closeDate = ZonedDateTime.parse("2025-02-13T12:00:00Z");
     String symbol = "CSPX.UK";
 
-    CashOperation deposit = new CashOperation();
+    CashOperationEntity deposit = new CashOperationEntity();
     deposit.setAccount(51499241L);
     deposit.setType(CashOperationType.DEPOSIT);
     deposit.setAmount(2500.0);
     deposit.setCurrency(CurrencyType.USD);
     deposit.setDate(depositDate);
 
-    CashOperation purchase = new CashOperation();
+    CashOperationEntity purchase = new CashOperationEntity();
     purchase.setAccount(51499241L);
     purchase.setType(CashOperationType.STOCK_PURCHASE);
     purchase.setAmount(-2500.0);
@@ -926,7 +926,7 @@ class PortfolioProjectionServiceTest {
     purchase.setDate(openDate);
     purchase.setSymbol(symbol);
 
-    CashOperation sale = new CashOperation();
+    CashOperationEntity sale = new CashOperationEntity();
     sale.setAccount(51499241L);
     sale.setType(CashOperationType.STOCK_SELL);
     sale.setAmount(2600.0);
@@ -951,7 +951,7 @@ class PortfolioProjectionServiceTest {
     closed.setCommission(0.0);
     closed.setSwap(0.0);
 
-    Asset asset = new Asset();
+    AssetEntity asset = new AssetEntity();
     asset.setSymbol(symbol);
 
     when(openedPositionRepository.findAll()).thenReturn(List.of());
@@ -989,21 +989,21 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
-    List<AccountDaily> rows = toList(dailyCaptor.getValue());
+    List<AccountDailyEntity> rows = toList(dailyCaptor.getValue());
 
-    AccountDaily firstStaleDay =
+    AccountDailyEntity firstStaleDay =
         rows.stream()
             .filter(row -> row.getDate().equals(LocalDate.of(2025, 1, 28)))
             .findFirst()
             .orElseThrow();
-    AccountDaily dayBeforeClose =
+    AccountDailyEntity dayBeforeClose =
         rows.stream()
             .filter(row -> row.getDate().equals(closeDate.minusDays(1).toLocalDate()))
             .findFirst()
             .orElseThrow();
-    AccountDaily closeDay =
+    AccountDailyEntity closeDay =
         rows.stream()
             .filter(row -> row.getDate().equals(closeDate.toLocalDate()))
             .findFirst()
@@ -1022,7 +1022,7 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime openDate = ZonedDateTime.parse("2026-02-06T08:03:29Z");
     ZonedDateTime closeDate = ZonedDateTime.parse("2026-02-25T11:26:38Z");
 
-    CashOperation stockPurchase = new CashOperation();
+    CashOperationEntity stockPurchase = new CashOperationEntity();
     stockPurchase.setAccount(51707603L);
     stockPurchase.setType(CashOperationType.STOCK_PURCHASE);
     stockPurchase.setAmount(-1006.50);
@@ -1030,7 +1030,7 @@ class PortfolioProjectionServiceTest {
     stockPurchase.setDate(openDate);
     stockPurchase.setSymbol("ETFBW20TR.PL");
 
-    CashOperation stockSell = new CashOperation();
+    CashOperationEntity stockSell = new CashOperationEntity();
     stockSell.setAccount(51707603L);
     stockSell.setType(CashOperationType.STOCK_SELL);
     stockSell.setAmount(1031.25);
@@ -1067,9 +1067,9 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
-    AccountDaily closeDay =
+    AccountDailyEntity closeDay =
         toList(dailyCaptor.getValue()).stream()
             .filter(row -> row.getDate().equals(closeDate.toLocalDate()))
             .findFirst()
@@ -1103,7 +1103,7 @@ class PortfolioProjectionServiceTest {
     cfd.setSwap(-0.54);
     cfd.setCommission(0.0);
 
-    CashOperation closeResult = new CashOperation();
+    CashOperationEntity closeResult = new CashOperationEntity();
     closeResult.setId(2422831730L);
     closeResult.setAccount(51499241L);
     closeResult.setType(CashOperationType.CLOSE_TRADE);
@@ -1112,7 +1112,7 @@ class PortfolioProjectionServiceTest {
     closeResult.setDate(closeDate);
     closeResult.setSymbol("NATGAS");
 
-    CashOperation swap = new CashOperation();
+    CashOperationEntity swap = new CashOperationEntity();
     swap.setId(2422831731L);
     swap.setAccount(51499241L);
     swap.setType(CashOperationType.SWAP);
@@ -1130,9 +1130,9 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
-    AccountDaily closeDay =
+    AccountDailyEntity closeDay =
         toList(dailyCaptor.getValue()).stream()
             .filter(row -> row.getDate().equals(closeDate.toLocalDate()))
             .findFirst()
@@ -1178,11 +1178,11 @@ class PortfolioProjectionServiceTest {
     februaryRoundTrip.setOpenTime(februaryOpen);
     februaryRoundTrip.setCloseTime(februaryClose);
 
-    Asset apple = new Asset();
+    AssetEntity apple = new AssetEntity();
     apple.setSymbol("AAPL.US");
     apple.setMarketPriceUsd(100.0);
 
-    Asset microsoft = new Asset();
+    AssetEntity microsoft = new AssetEntity();
     microsoft.setSymbol("MSFT.US");
     microsoft.setMarketPriceUsd(100.0);
 
@@ -1205,10 +1205,10 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
-    List<AccountDaily> rows = toList(dailyCaptor.getValue());
-    AccountDaily february =
+    List<AccountDailyEntity> rows = toList(dailyCaptor.getValue());
+    AccountDailyEntity february =
         rows.stream()
             .filter(row -> row.getDate().equals(februaryClose.toLocalDate()))
             .findFirst()
@@ -1235,21 +1235,21 @@ class PortfolioProjectionServiceTest {
     opened.setPurchaseValue(1000.0);
     opened.setOpenTime(tradeDate);
 
-    CashOperation deposit = new CashOperation();
+    CashOperationEntity deposit = new CashOperationEntity();
     deposit.setAccount(51551301L);
     deposit.setType(CashOperationType.DEPOSIT);
     deposit.setAmount(1000.0);
     deposit.setCurrency(CurrencyType.PLN);
     deposit.setDate(tradeDate.minusDays(1));
 
-    CashOperation stockPurchase = new CashOperation();
+    CashOperationEntity stockPurchase = new CashOperationEntity();
     stockPurchase.setAccount(51551301L);
     stockPurchase.setType(CashOperationType.STOCK_PURCHASE);
     stockPurchase.setAmount(-990.0);
     stockPurchase.setCurrency(CurrencyType.PLN);
     stockPurchase.setDate(tradeDate);
 
-    Asset asset = new Asset();
+    AssetEntity asset = new AssetEntity();
     asset.setSymbol("PKO.WA");
     asset.setMarketPriceUsd(100.0);
 
@@ -1268,9 +1268,9 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
-    AccountDaily january =
+    AccountDailyEntity january =
         toList(dailyCaptor.getValue()).stream()
             .filter(row -> row.getDate().equals(tradeDate.toLocalDate()))
             .findFirst()
@@ -1287,14 +1287,14 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime depositDate = ZonedDateTime.parse("2026-01-09T12:00:00Z");
     ZonedDateTime tradeDate = ZonedDateTime.parse("2026-01-10T12:00:00Z");
 
-    CashOperation deposit = new CashOperation();
+    CashOperationEntity deposit = new CashOperationEntity();
     deposit.setAccount(17959259L);
     deposit.setType(CashOperationType.DEPOSIT);
     deposit.setAmount(1000.0);
     deposit.setCurrency(CurrencyType.USD);
     deposit.setDate(depositDate);
 
-    CashOperation stockPurchase = new CashOperation();
+    CashOperationEntity stockPurchase = new CashOperationEntity();
     stockPurchase.setAccount(17959259L);
     stockPurchase.setType(CashOperationType.STOCK_PURCHASE);
     stockPurchase.setAmount(-900.0);
@@ -1316,9 +1316,9 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
-    AccountDaily tradeDay =
+    AccountDailyEntity tradeDay =
         toList(dailyCaptor.getValue()).stream()
             .filter(row -> row.getDate().equals(tradeDate.toLocalDate()))
             .findFirst()
@@ -1334,14 +1334,14 @@ class PortfolioProjectionServiceTest {
   void recalculateAll_countsTransfersInAccountStatisticsNetDeposit() {
     ZonedDateTime transferDate = ZonedDateTime.parse("2026-01-10T12:00:00Z");
 
-    CashOperation transferOut = new CashOperation();
+    CashOperationEntity transferOut = new CashOperationEntity();
     transferOut.setAccount(51499241L);
     transferOut.setType(CashOperationType.SUBACCOUNT_TRANSFER);
     transferOut.setAmount(-500.0);
     transferOut.setCurrency(CurrencyType.USD);
     transferOut.setDate(transferDate);
 
-    CashOperation transferIn = new CashOperation();
+    CashOperationEntity transferIn = new CashOperationEntity();
     transferIn.setAccount(51822121L);
     transferIn.setType(CashOperationType.SUBACCOUNT_TRANSFER);
     transferIn.setAmount(500.0);
@@ -1371,7 +1371,7 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime depositDate = ZonedDateTime.parse("2026-01-05T12:00:00Z");
     ZonedDateTime callDate = ZonedDateTime.parse("2026-02-27T12:00:00Z");
 
-    CashOperation deposit = new CashOperation();
+    CashOperationEntity deposit = new CashOperationEntity();
     deposit.setAccount(17959259L);
     deposit.setType(CashOperationType.DEPOSIT);
     deposit.setAmount(48_131.0);
@@ -1379,7 +1379,7 @@ class PortfolioProjectionServiceTest {
     deposit.setDate(depositDate);
     deposit.setComment("Electronic Fund Transfer");
 
-    CashOperation bondPurchase = new CashOperation();
+    CashOperationEntity bondPurchase = new CashOperationEntity();
     bondPurchase.setAccount(17959259L);
     bondPurchase.setType(CashOperationType.STOCK_PURCHASE);
     bondPurchase.setAmount(-10_000.0);
@@ -1388,7 +1388,7 @@ class PortfolioProjectionServiceTest {
     bondPurchase.setSymbol("US91282CKB62");
     bondPurchase.setComment("T 4 5/8 02/28/26");
 
-    CashOperation bondCall = new CashOperation();
+    CashOperationEntity bondCall = new CashOperationEntity();
     bondCall.setAccount(17959259L);
     bondCall.setType(CashOperationType.TRANSFER);
     bondCall.setAmount(10_000.0);
@@ -1433,7 +1433,7 @@ class PortfolioProjectionServiceTest {
   void recalculateAll_usesXtbCurrencyConversionRateForAccountBoundaryFunding() {
     ZonedDateTime conversionDate = ZonedDateTime.parse("2026-01-10T12:00:00Z");
 
-    CashOperation plnOut = new CashOperation();
+    CashOperationEntity plnOut = new CashOperationEntity();
     plnOut.setAccount(50290466L);
     plnOut.setType(CashOperationType.TRANSFER);
     plnOut.setAmount(-20_000.0);
@@ -1442,7 +1442,7 @@ class PortfolioProjectionServiceTest {
     plnOut.setComment(
         "Currency conversion, PLN to USD from TA: 50290466 to: 51499241, Exchange rate:0.250206");
 
-    CashOperation usdIn = new CashOperation();
+    CashOperationEntity usdIn = new CashOperationEntity();
     usdIn.setAccount(51499241L);
     usdIn.setType(CashOperationType.TRANSFER);
     usdIn.setAmount(5_004.12);
@@ -1472,7 +1472,7 @@ class PortfolioProjectionServiceTest {
   void recalculateAll_usesIbkrForexBaseAmountForCashFlowValuation() {
     ZonedDateTime tradeDate = ZonedDateTime.parse("2026-05-08T12:00:00Z");
 
-    CashOperation forex = new CashOperation();
+    CashOperationEntity forex = new CashOperationEntity();
     forex.setAccount(17959259L);
     forex.setType(CashOperationType.DEPOSIT);
     forex.setAmount(-0.0158696);
@@ -1487,9 +1487,9 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
-    AccountDaily daily = toList(dailyCaptor.getValue()).getFirst();
+    AccountDailyEntity daily = toList(dailyCaptor.getValue()).getFirst();
 
     assertEquals(0.0, daily.getWithdrawals(), 0.01);
   }
@@ -1499,7 +1499,7 @@ class PortfolioProjectionServiceTest {
   void recalculateAll_countsXtbTransferOutOperationAsAccountWithdrawal() {
     ZonedDateTime transferDate = ZonedDateTime.parse("2026-04-20T12:00:00Z");
 
-    CashOperation transferOut = new CashOperation();
+    CashOperationEntity transferOut = new CashOperationEntity();
     transferOut.setAccount(50290466L);
     transferOut.setType(CashOperationType.DEPOSIT);
     transferOut.setAmount(-5_000.0);
@@ -1529,14 +1529,14 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime depositDate = ZonedDateTime.parse("2026-01-10T12:00:00Z");
     ZonedDateTime withdrawalDate = ZonedDateTime.parse("2026-03-10T12:00:00Z");
 
-    CashOperation deposit = new CashOperation();
+    CashOperationEntity deposit = new CashOperationEntity();
     deposit.setAccount(51548444L);
     deposit.setType(CashOperationType.DEPOSIT);
     deposit.setAmount(100.0);
     deposit.setCurrency(CurrencyType.EUR);
     deposit.setDate(depositDate);
 
-    CashOperation withdrawal = new CashOperation();
+    CashOperationEntity withdrawal = new CashOperationEntity();
     withdrawal.setAccount(51548444L);
     withdrawal.setType(CashOperationType.WITHDRAWAL);
     withdrawal.setAmount(-100.0);
@@ -1562,9 +1562,9 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
-    AccountDaily latest =
+    AccountDailyEntity latest =
         toList(dailyCaptor.getValue()).stream()
             .filter(row -> row.getDate().equals(withdrawalDate.toLocalDate()))
             .findFirst()
@@ -1578,7 +1578,7 @@ class PortfolioProjectionServiceTest {
   void recalculateAll_clearsDepositBasisForNearEmptyAccountResiduals() {
     ZonedDateTime transferDate = ZonedDateTime.parse("2026-01-10T12:00:00Z");
 
-    CashOperation residualFunding = new CashOperation();
+    CashOperationEntity residualFunding = new CashOperationEntity();
     residualFunding.setAccount(50290466L);
     residualFunding.setType(CashOperationType.TRANSFER);
     residualFunding.setAmount(127.0);
@@ -1587,7 +1587,7 @@ class PortfolioProjectionServiceTest {
     residualFunding.setComment(
         "Currency conversion, USD to PLN from TA: 51499241 to: 50290466, Exchange rate:3.569154");
 
-    CashOperation residualCashOut = new CashOperation();
+    CashOperationEntity residualCashOut = new CashOperationEntity();
     residualCashOut.setAccount(50290466L);
     residualCashOut.setType(CashOperationType.CORRECTION);
     residualCashOut.setAmount(-114.0);
@@ -1617,14 +1617,14 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime day1 = ZonedDateTime.parse("2026-01-10T12:00:00Z");
     ZonedDateTime day2 = ZonedDateTime.parse("2026-01-11T12:00:00Z");
 
-    CashOperation deposit = new CashOperation();
+    CashOperationEntity deposit = new CashOperationEntity();
     deposit.setAccount(17959259L);
     deposit.setType(CashOperationType.DEPOSIT);
     deposit.setAmount(100.0);
     deposit.setCurrency(CurrencyType.USD);
     deposit.setDate(day1);
 
-    CashOperation dividend = new CashOperation();
+    CashOperationEntity dividend = new CashOperationEntity();
     dividend.setAccount(17959259L);
     dividend.setType(CashOperationType.DIVIDEND);
     dividend.setAmount(4.0);
@@ -1632,28 +1632,28 @@ class PortfolioProjectionServiceTest {
     dividend.setDate(day2);
     dividend.setSymbol("AAPL.US");
 
-    CashOperation interest = new CashOperation();
+    CashOperationEntity interest = new CashOperationEntity();
     interest.setAccount(17959259L);
     interest.setType(CashOperationType.FREE_FUNDS_INTEREST);
     interest.setAmount(3.0);
     interest.setCurrency(CurrencyType.USD);
     interest.setDate(day2);
 
-    CashOperation commission = new CashOperation();
+    CashOperationEntity commission = new CashOperationEntity();
     commission.setAccount(17959259L);
     commission.setType(CashOperationType.COMMISSION);
     commission.setAmount(-54.34);
     commission.setCurrency(CurrencyType.USD);
     commission.setDate(day2);
 
-    CashOperation secFee = new CashOperation();
+    CashOperationEntity secFee = new CashOperationEntity();
     secFee.setAccount(17959259L);
     secFee.setType(CashOperationType.SEC_FEE);
     secFee.setAmount(-0.03);
     secFee.setCurrency(CurrencyType.USD);
     secFee.setDate(day2);
 
-    CashOperation commissionRefund = new CashOperation();
+    CashOperationEntity commissionRefund = new CashOperationEntity();
     commissionRefund.setAccount(17959259L);
     commissionRefund.setType(CashOperationType.CORRECTION);
     commissionRefund.setAmount(10.00);
@@ -1661,7 +1661,7 @@ class PortfolioProjectionServiceTest {
     commissionRefund.setDate(day2);
     commissionRefund.setComment("Commission Refund");
 
-    CashOperation secFeeAdjustment = new CashOperation();
+    CashOperationEntity secFeeAdjustment = new CashOperationEntity();
     secFeeAdjustment.setAccount(17959259L);
     secFeeAdjustment.setType(CashOperationType.CORRECTION);
     secFeeAdjustment.setAmount(0.01);
@@ -1669,7 +1669,7 @@ class PortfolioProjectionServiceTest {
     secFeeAdjustment.setDate(day2);
     secFeeAdjustment.setComment("corr Sec Fee adj");
 
-    CashOperation withholdingTax = new CashOperation();
+    CashOperationEntity withholdingTax = new CashOperationEntity();
     withholdingTax.setAccount(17959259L);
     withholdingTax.setType(CashOperationType.WITHHOLDING_TAX);
     withholdingTax.setAmount(-1.25);
@@ -1677,7 +1677,7 @@ class PortfolioProjectionServiceTest {
     withholdingTax.setDate(day2);
     withholdingTax.setSymbol("AAPL.US");
 
-    CashOperation withdrawal = new CashOperation();
+    CashOperationEntity withdrawal = new CashOperationEntity();
     withdrawal.setAccount(17959259L);
     withdrawal.setType(CashOperationType.WITHDRAWAL);
     withdrawal.setAmount(-20.0);
@@ -1709,17 +1709,17 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
-    List<AccountDaily> rows = toList(dailyCaptor.getValue());
+    List<AccountDailyEntity> rows = toList(dailyCaptor.getValue());
 
-    AccountDaily firstDay =
+    AccountDailyEntity firstDay =
         rows.stream()
             .filter(row -> row.getAccountId().equals(17959259L))
             .filter(row -> row.getDate().equals(day1.toLocalDate()))
             .findFirst()
             .orElseThrow();
-    AccountDaily secondDay =
+    AccountDailyEntity secondDay =
         rows.stream()
             .filter(row -> row.getAccountId().equals(17959259L))
             .filter(row -> row.getDate().equals(day2.toLocalDate()))
@@ -1754,14 +1754,14 @@ class PortfolioProjectionServiceTest {
   void recalculateAll_projectsSingleFeeRowsExactlyOnce() {
     ZonedDateTime day = ZonedDateTime.parse("2026-01-10T12:00:00Z");
 
-    CashOperation commission = new CashOperation();
+    CashOperationEntity commission = new CashOperationEntity();
     commission.setAccount(17959259L);
     commission.setType(CashOperationType.COMMISSION);
     commission.setAmount(-54.34);
     commission.setCurrency(CurrencyType.USD);
     commission.setDate(day);
 
-    CashOperation secFee = new CashOperation();
+    CashOperationEntity secFee = new CashOperationEntity();
     secFee.setAccount(17959259L);
     secFee.setType(CashOperationType.SEC_FEE);
     secFee.setAmount(-0.03);
@@ -1782,9 +1782,9 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
-    AccountDaily daily = toList(dailyCaptor.getValue()).getFirst();
+    AccountDailyEntity daily = toList(dailyCaptor.getValue()).getFirst();
 
     assertEquals(54.37, daily.getFees(), 0.0001);
     assertEquals(-54.37, daily.getCashBalance(), 0.0001);
@@ -1818,10 +1818,10 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> accountDailyCaptor =
+    ArgumentCaptor<Iterable<AccountDailyEntity>> accountDailyCaptor =
         ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(accountDailyCaptor.capture());
-    List<AccountDaily> rows = toList(accountDailyCaptor.getValue());
+    List<AccountDailyEntity> rows = toList(accountDailyCaptor.getValue());
 
     assertEquals(
         LocalDate.of(2026, 1, 16),
@@ -1864,12 +1864,12 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> accountDailyCaptor =
+    ArgumentCaptor<Iterable<AccountDailyEntity>> accountDailyCaptor =
         ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(accountDailyCaptor.capture());
-    List<AccountDaily> rows = toList(accountDailyCaptor.getValue());
+    List<AccountDailyEntity> rows = toList(accountDailyCaptor.getValue());
 
-    AccountDaily closeDay =
+    AccountDailyEntity closeDay =
         rows.stream()
             .filter(row -> row.getAccountId().equals(PortfolioTestData.IBKR_USD_ACCOUNT_ID))
             .filter(row -> row.getDate().equals(LocalDate.of(2026, 7, 24)))
@@ -1885,14 +1885,14 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime day1 = ZonedDateTime.parse("2026-01-10T12:00:00Z");
     ZonedDateTime day2 = ZonedDateTime.parse("2026-01-11T12:00:00Z");
 
-    CashOperation deposit = new CashOperation();
+    CashOperationEntity deposit = new CashOperationEntity();
     deposit.setAccount(17959259L);
     deposit.setType(CashOperationType.DEPOSIT);
     deposit.setAmount(100.0);
     deposit.setCurrency(CurrencyType.USD);
     deposit.setDate(day1);
 
-    CashOperation withdrawal = new CashOperation();
+    CashOperationEntity withdrawal = new CashOperationEntity();
     withdrawal.setAccount(17959259L);
     withdrawal.setType(CashOperationType.WITHDRAWAL);
     withdrawal.setAmount(-20.0);
@@ -1913,17 +1913,17 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
-    List<AccountDaily> rows = toList(dailyCaptor.getValue());
+    List<AccountDailyEntity> rows = toList(dailyCaptor.getValue());
 
-    AccountDaily firstDay =
+    AccountDailyEntity firstDay =
         rows.stream()
             .filter(row -> row.getAccountId().equals(17959259L))
             .filter(row -> row.getDate().equals(day1.toLocalDate()))
             .findFirst()
             .orElseThrow();
-    AccountDaily secondDay =
+    AccountDailyEntity secondDay =
         rows.stream()
             .filter(row -> row.getAccountId().equals(17959259L))
             .filter(row -> row.getDate().equals(day2.toLocalDate()))
@@ -1940,14 +1940,14 @@ class PortfolioProjectionServiceTest {
     ZonedDateTime day1 = ZonedDateTime.parse("2026-06-16T12:00:00Z");
     ZonedDateTime day2 = ZonedDateTime.parse("2026-06-17T12:00:00Z");
 
-    CashOperation deposit = new CashOperation();
+    CashOperationEntity deposit = new CashOperationEntity();
     deposit.setAccount(17959259L);
     deposit.setType(CashOperationType.DEPOSIT);
     deposit.setAmount(10000.0);
     deposit.setCurrency(CurrencyType.USD);
     deposit.setDate(day1);
 
-    CashOperation bookkeeping = new CashOperation();
+    CashOperationEntity bookkeeping = new CashOperationEntity();
     bookkeeping.setAccount(17959259L);
     bookkeeping.setType(CashOperationType.SUBACCOUNT_TRANSFER);
     bookkeeping.setAmount(6044.12);
@@ -1955,7 +1955,7 @@ class PortfolioProjectionServiceTest {
     bookkeeping.setComment("Transfer from 51993106 to 17959259");
     bookkeeping.setDate(day2);
 
-    CashOperation rebookedPurchase = new CashOperation();
+    CashOperationEntity rebookedPurchase = new CashOperationEntity();
     rebookedPurchase.setAccount(17959259L);
     rebookedPurchase.setType(CashOperationType.STOCK_PURCHASE);
     rebookedPurchase.setAmount(-6044.12);
@@ -1978,9 +1978,9 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    ArgumentCaptor<Iterable<AccountDaily>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
+    ArgumentCaptor<Iterable<AccountDailyEntity>> dailyCaptor = ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(dailyCaptor.capture());
-    AccountDaily rebookingDay =
+    AccountDailyEntity rebookingDay =
         toList(dailyCaptor.getValue()).stream()
             .filter(row -> row.getAccountId().equals(17959259L))
             .filter(row -> row.getDate().equals(day2.toLocalDate()))
@@ -2095,8 +2095,8 @@ class PortfolioProjectionServiceTest {
     };
   }
 
-  private static Account account(Long id, CurrencyType currency) {
-    Account account = new Account();
+  private static AccountEntity account(Long id, CurrencyType currency) {
+    AccountEntity account = new AccountEntity();
     account.setId(id);
     account.setCurrency(currency);
     account.setName(String.valueOf(id));
@@ -2104,7 +2104,7 @@ class PortfolioProjectionServiceTest {
     return account;
   }
 
-  private static List<Account> defaultAccounts() {
+  private static List<AccountEntity> defaultAccounts() {
     return List.of(
         account(PortfolioTestData.IBKR_USD_ACCOUNT_ID, CurrencyType.USD),
         account(50290466L, CurrencyType.PLN),
@@ -2116,24 +2116,24 @@ class PortfolioProjectionServiceTest {
         account(PortfolioTestData.CRYPTO_USD_ACCOUNT_ID, CurrencyType.USD));
   }
 
-  private static CurrencyType defaultPortfolioBaseCurrency(Account account) {
+  private static CurrencyType defaultPortfolioBaseCurrency(AccountEntity account) {
     return CurrencyType.USD;
   }
 
-  private static CurrencyType accountCurrency(CashOperation operation) {
+  private static CurrencyType accountCurrency(CashOperationEntity operation) {
     if (operation == null) {
       return CurrencyType.USD;
     }
     return defaultAccounts().stream()
         .filter(
             account -> account.getId() != null && account.getId().equals(operation.getAccount()))
-        .map(Account::getCurrency)
+        .map(AccountEntity::getCurrency)
         .findFirst()
         .orElseGet(
             () -> operation.getCurrency() != null ? operation.getCurrency() : CurrencyType.USD);
   }
 
-  private static CurrencyType defaultPortfolioBaseCurrency(CashOperation operation) {
+  private static CurrencyType defaultPortfolioBaseCurrency(CashOperationEntity operation) {
     if (operation == null) {
       return CurrencyType.USD;
     }
@@ -2154,11 +2154,11 @@ class PortfolioProjectionServiceTest {
   }
 
   private static void assertEquivalentProjectionRows(
-      List<AccountDaily> expected, List<AccountDaily> actual) {
+      List<AccountDailyEntity> expected, List<AccountDailyEntity> actual) {
     assertEquals(expected.size(), actual.size());
     for (int i = 0; i < expected.size(); i++) {
-      AccountDaily left = expected.get(i);
-      AccountDaily right = actual.get(i);
+      AccountDailyEntity left = expected.get(i);
+      AccountDailyEntity right = actual.get(i);
       assertEquals(left.getAccountId(), right.getAccountId());
       assertEquals(left.getDate(), right.getDate());
       assertEquals(left.getValuationCurrency(), right.getValuationCurrency());
@@ -2306,7 +2306,7 @@ class PortfolioProjectionServiceTest {
     position.setCommissionCurrency(currency);
   }
 
-  private Double amountInBaseCurrency(CashOperation operation) {
+  private Double amountInBaseCurrency(CashOperationEntity operation) {
     if (operation == null || operation.getAmount() == null) {
       return 0.0;
     }

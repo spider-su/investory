@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
-public interface NormalizedCashOperationRepository extends Repository<CashOperation, Long> {
+public interface NormalizedCashOperationRepository extends Repository<CashOperationEntity, Long> {
 
   /**
    * Returns the net-deposit data used by the dashboard, aggregated by account, day and category.

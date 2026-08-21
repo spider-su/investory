@@ -14,7 +14,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.accounting.PortfolioProjectionService;
-import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistory;
+import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
 import com.smartbox.investory.investment.market.price.AssetPriceFallbackService;
 import com.smartbox.investory.investment.reconciliation.ReconciliationRefreshService;
 import com.smartbox.investory.testsupport.portfolio.PortfolioScenarios;
@@ -79,12 +79,12 @@ class ImportHistoryOrchestratorServiceTest {
             portfolioProjectionService,
             reconciliationRefreshService);
     PortfolioTestContext duplicateScenario = PortfolioScenarios.createDuplicateImportScenario();
-    ImportHistory existing = duplicateScenario.imports().firstImport();
-    ImportHistory reprocess = batch(88L, ImportBatchStatus.STARTED, null, 0, 0, 0);
+    ImportHistoryEntity existing = duplicateScenario.imports().firstImport();
+    ImportHistoryEntity reprocess = batch(88L, ImportBatchStatus.STARTED, null, 0, 0, 0);
     when(auditWriter.findExistingAppliedBatch(eq(BrokerType.IBKR), anyString()))
         .thenReturn(Optional.of(existing));
     when(auditWriter.startReprocessBatch(existing)).thenReturn(reprocess);
-    ImportHistory applied = batch(88L, ImportBatchStatus.COMPLETED, "repaired", 1, 1, 0);
+    ImportHistoryEntity applied = batch(88L, ImportBatchStatus.COMPLETED, "repaired", 1, 1, 0);
     when(auditWriter.finalizeApplied(88L, new ImportExecutionResult(1, 1, 0, "repaired")))
         .thenReturn(applied);
     when(ibkrParser.importFile(any(), eq("ibkr.csv")))
@@ -109,9 +109,9 @@ class ImportHistoryOrchestratorServiceTest {
 
   @Test
   void importFile_reprocessesDuplicateXtbFileAndReturnsReloadedBatchState() throws Exception {
-    ImportHistory existing = batch(77L, ImportBatchStatus.COMPLETED, "stale", 12, 12, 0);
-    ImportHistory reprocess = batch(78L, ImportBatchStatus.STARTED, null, 0, 0, 0);
-    ImportHistory refreshed = batch(78L, ImportBatchStatus.COMPLETED, "refreshed", 12, 12, 0);
+    ImportHistoryEntity existing = batch(77L, ImportBatchStatus.COMPLETED, "stale", 12, 12, 0);
+    ImportHistoryEntity reprocess = batch(78L, ImportBatchStatus.STARTED, null, 0, 0, 0);
+    ImportHistoryEntity refreshed = batch(78L, ImportBatchStatus.COMPLETED, "refreshed", 12, 12, 0);
     when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
         .thenReturn(Optional.of(existing))
         .thenReturn(Optional.of(existing));
@@ -140,14 +140,14 @@ class ImportHistoryOrchestratorServiceTest {
 
   @Test
   void importFile_reprocessesCompletedAttemptAfterNewerFailedAttempt() throws Exception {
-    ImportHistory completed = batch(77L, ImportBatchStatus.COMPLETED, "ok", 12, 12, 0);
+    ImportHistoryEntity completed = batch(77L, ImportBatchStatus.COMPLETED, "ok", 12, 12, 0);
     completed.setAttemptNo(1);
-    ImportHistory failed = batch(78L, ImportBatchStatus.FAILED, "boom", 12, 0, 1);
+    ImportHistoryEntity failed = batch(78L, ImportBatchStatus.FAILED, "boom", 12, 0, 1);
     failed.setAttemptNo(2);
-    ImportHistory reprocess = batch(79L, ImportBatchStatus.STARTED, null, 0, 0, 0);
+    ImportHistoryEntity reprocess = batch(79L, ImportBatchStatus.STARTED, null, 0, 0, 0);
     reprocess.setAttemptNo(3);
     reprocess.setReprocessOf(completed.getId());
-    ImportHistory applied = batch(79L, ImportBatchStatus.COMPLETED, "ok", 12, 12, 0);
+    ImportHistoryEntity applied = batch(79L, ImportBatchStatus.COMPLETED, "ok", 12, 12, 0);
     applied.setAttemptNo(3);
     applied.setReprocessOf(completed.getId());
     when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
@@ -176,8 +176,8 @@ class ImportHistoryOrchestratorServiceTest {
 
   @Test
   void importFile_reprocessesDuplicateXtbFileWithoutMutatingExistingBatch() throws Exception {
-    ImportHistory existing = batch(77L, ImportBatchStatus.COMPLETED, "ok", 12, 12, 0);
-    ImportHistory reprocess = batch(78L, ImportBatchStatus.STARTED, null, 0, 0, 0);
+    ImportHistoryEntity existing = batch(77L, ImportBatchStatus.COMPLETED, "ok", 12, 12, 0);
+    ImportHistoryEntity reprocess = batch(78L, ImportBatchStatus.STARTED, null, 0, 0, 0);
     when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
         .thenReturn(Optional.of(existing));
     when(auditWriter.startReprocessBatch(existing)).thenReturn(reprocess);
@@ -210,13 +210,13 @@ class ImportHistoryOrchestratorServiceTest {
   void importFile_processesNewFileAndReturnsAppliedSummary() throws Exception {
     when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
         .thenReturn(Optional.empty());
-    ImportHistory received = batch(1L, ImportBatchStatus.STARTED, null, 0, 0, 0);
+    ImportHistoryEntity received = batch(1L, ImportBatchStatus.STARTED, null, 0, 0, 0);
     when(auditWriter.startBatch(
             eq(BrokerType.XTB), eq(ImportSourceType.MANUAL), any(), eq("file.xlsx"), anyString()))
         .thenReturn(received);
     ImportExecutionResult parserResult = new ImportExecutionResult(10, 9, 1, "ok");
     when(xtbParser.importFile(any(), eq("file.xlsx"))).thenReturn(parserResult);
-    ImportHistory applied = batch(1L, ImportBatchStatus.COMPLETED, "ok", 10, 9, 1);
+    ImportHistoryEntity applied = batch(1L, ImportBatchStatus.COMPLETED, "ok", 10, 9, 1);
     when(auditWriter.finalizeApplied(1L, parserResult)).thenReturn(applied);
 
     ImportBatchResponse response =
@@ -243,9 +243,9 @@ class ImportHistoryOrchestratorServiceTest {
   void importFile_changedWindowStartsNewBatchAndKeepsPriorImport() throws Exception {
     when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
         .thenReturn(Optional.empty());
-    ImportHistory started = batch(2L, ImportBatchStatus.STARTED, null, 0, 0, 0);
+    ImportHistoryEntity started = batch(2L, ImportBatchStatus.STARTED, null, 0, 0, 0);
     ImportExecutionResult result = new ImportExecutionResult(3, 3, 0, "changed window");
-    ImportHistory applied = batch(2L, ImportBatchStatus.COMPLETED, "changed window", 3, 3, 0);
+    ImportHistoryEntity applied = batch(2L, ImportBatchStatus.COMPLETED, "changed window", 3, 3, 0);
     when(auditWriter.startBatch(
             eq(BrokerType.XTB), eq(ImportSourceType.MANUAL), any(), eq("file.xlsx"), anyString()))
         .thenReturn(started);
@@ -273,9 +273,9 @@ class ImportHistoryOrchestratorServiceTest {
   void importFile_rejectsZeroAppliedResultWithoutRefreshingDerivedData() throws Exception {
     when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
         .thenReturn(Optional.empty());
-    ImportHistory started = batch(95L, ImportBatchStatus.STARTED, null, 0, 0, 0);
+    ImportHistoryEntity started = batch(95L, ImportBatchStatus.STARTED, null, 0, 0, 0);
     ImportExecutionResult result = new ImportExecutionResult(10, 0, 10, "10 rejected rows");
-    ImportHistory failed = batch(95L, ImportBatchStatus.FAILED, "10 rejected rows", 10, 0, 10);
+    ImportHistoryEntity failed = batch(95L, ImportBatchStatus.FAILED, "10 rejected rows", 10, 0, 10);
     when(auditWriter.startBatch(any(), any(), any(), anyString(), anyString())).thenReturn(started);
     when(xtbParser.importFile(any(), anyString())).thenReturn(result);
     when(auditWriter.finalizeApplied(95L, result)).thenReturn(failed);
@@ -301,13 +301,13 @@ class ImportHistoryOrchestratorServiceTest {
   void importFile_retriesSameChecksumAfterFailedBatch() throws Exception {
     when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
         .thenReturn(Optional.empty());
-    ImportHistory recycled = batch(7L, ImportBatchStatus.STARTED, null, 0, 0, 0);
+    ImportHistoryEntity recycled = batch(7L, ImportBatchStatus.STARTED, null, 0, 0, 0);
     when(auditWriter.startBatch(
             eq(BrokerType.XTB), eq(ImportSourceType.MANUAL), any(), eq("file.xlsx"), anyString()))
         .thenReturn(recycled);
     ImportExecutionResult parserResult = new ImportExecutionResult(4, 4, 0, "retried ok");
     when(xtbParser.importFile(any(), eq("file.xlsx"))).thenReturn(parserResult);
-    ImportHistory applied = batch(7L, ImportBatchStatus.COMPLETED, "retried ok", 4, 4, 0);
+    ImportHistoryEntity applied = batch(7L, ImportBatchStatus.COMPLETED, "retried ok", 4, 4, 0);
     when(auditWriter.finalizeApplied(7L, parserResult)).thenReturn(applied);
 
     ImportBatchResponse response =
@@ -332,10 +332,10 @@ class ImportHistoryOrchestratorServiceTest {
   void importFile_marksBatchNotReadyWhenProjectionRefreshFails() throws Exception {
     when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
         .thenReturn(Optional.empty());
-    ImportHistory started = batch(90L, ImportBatchStatus.STARTED, null, 0, 0, 0);
+    ImportHistoryEntity started = batch(90L, ImportBatchStatus.STARTED, null, 0, 0, 0);
     ImportExecutionResult result = new ImportExecutionResult(1, 1, 0, "imported");
-    ImportHistory applied = batch(90L, ImportBatchStatus.COMPLETED, "imported", 1, 1, 0);
-    ImportHistory notReady = batch(90L, ImportBatchStatus.NOT_READY, "projection failed", 1, 1, 0);
+    ImportHistoryEntity applied = batch(90L, ImportBatchStatus.COMPLETED, "imported", 1, 1, 0);
+    ImportHistoryEntity notReady = batch(90L, ImportBatchStatus.NOT_READY, "projection failed", 1, 1, 0);
     when(auditWriter.startBatch(any(), any(), any(), anyString(), anyString())).thenReturn(started);
     when(xtbParser.importFile(any(), anyString())).thenReturn(result);
     when(auditWriter.finalizeApplied(90L, result)).thenReturn(applied);
@@ -363,7 +363,7 @@ class ImportHistoryOrchestratorServiceTest {
   void importFile_returnsCompletedWhenReconciliationRefreshIsScheduled() throws Exception {
     when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
         .thenReturn(Optional.empty());
-    ImportHistory started = batch(91L, ImportBatchStatus.STARTED, null, 0, 0, 0);
+    ImportHistoryEntity started = batch(91L, ImportBatchStatus.STARTED, null, 0, 0, 0);
     ImportExecutionResult result = new ImportExecutionResult(1, 1, 0, "imported");
     when(auditWriter.startBatch(any(), any(), any(), anyString(), anyString())).thenReturn(started);
     when(xtbParser.importFile(any(), anyString())).thenReturn(result);
@@ -384,8 +384,8 @@ class ImportHistoryOrchestratorServiceTest {
 
   @Test
   void duplicateReprocessAlsoBecomesNotReadyWhenDerivedRefreshFails() throws Exception {
-    ImportHistory existing = batch(92L, ImportBatchStatus.COMPLETED, "old", 1, 1, 0);
-    ImportHistory started = batch(93L, ImportBatchStatus.STARTED, null, 0, 0, 0);
+    ImportHistoryEntity existing = batch(92L, ImportBatchStatus.COMPLETED, "old", 1, 1, 0);
+    ImportHistoryEntity started = batch(93L, ImportBatchStatus.STARTED, null, 0, 0, 0);
     ImportExecutionResult result = new ImportExecutionResult(1, 1, 0, "reprocessed");
     when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
         .thenReturn(Optional.of(existing));
@@ -415,7 +415,7 @@ class ImportHistoryOrchestratorServiceTest {
   void importFile_recordsFailedBatchAndRowErrorWhenParserThrows() throws Exception {
     when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
         .thenReturn(Optional.empty());
-    ImportHistory received = batch(2L, ImportBatchStatus.STARTED, null, 0, 0, 0);
+    ImportHistoryEntity received = batch(2L, ImportBatchStatus.STARTED, null, 0, 0, 0);
     when(auditWriter.startBatch(any(), any(), any(), anyString(), anyString()))
         .thenReturn(received);
     when(xtbParser.importFile(any(), anyString())).thenThrow(new IllegalStateException("boom"));
@@ -451,9 +451,9 @@ class ImportHistoryOrchestratorServiceTest {
     verify(auditWriter, never()).startBatch(any(), any(), any(), anyString(), anyString());
   }
 
-  private static ImportHistory batch(
+  private static ImportHistoryEntity batch(
       Long id, ImportBatchStatus status, String message, int total, int applied, int failed) {
-    ImportHistory b = new ImportHistory();
+    ImportHistoryEntity b = new ImportHistoryEntity();
     b.setId(id);
     b.setBroker(BrokerType.XTB);
     b.setStatus(status);
