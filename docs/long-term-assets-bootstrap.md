@@ -15,7 +15,7 @@ The process exits after the command. `--dry-run` validates and reports counts/to
 
 ## Format and behavior
 
-The JSON document contains `portfolioId`, rental-tax policies, and assets. Assets use the existing domain enums and support cash-flow periods, valuation periods, bond-rate periods, bond details, and deposit details. See `app/src/main/resources/bootstrap/example-long-term-assets.json`.
+The JSON document contains `portfolioId`, rental-tax policies, and assets. Real-estate rental history is normalized into dated rental contracts with contract terms; legacy `cashFlows` input remains accepted and is converted transactionally. Assets also support valuation periods, bond-rate periods, bond details, and deposit details. See `app/src/main/resources/bootstrap/example-long-term-assets.json`.
 
 Assets use `externalKey` as a stable identity scoped to a portfolio. Real-estate assets may provide
 `taxBase` and `rentalTaxPaidByTenant`; expense cash-flow entries may provide `paidByTenant`. Omitted

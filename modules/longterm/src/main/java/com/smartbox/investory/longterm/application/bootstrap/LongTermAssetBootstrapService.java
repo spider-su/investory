@@ -11,6 +11,7 @@ import java.time.LocalDate;
 import java.util.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -28,6 +29,7 @@ public class LongTermAssetBootstrapService {
   private final PortfolioContextReader portfolioContextReader;
 
   private final com.smartbox.investory.longterm.application.LongTermAssetLifecycleService lifecycle;
+  @Autowired private LongTermAssetRentalContractRepository rentalContracts;
 
   @Transactional
   public LongTermAssetBootstrapResult importDocument(
@@ -332,10 +334,33 @@ public class LongTermAssetBootstrapService {
     asset = assets.save(asset);
     lifecycle.ensureInitialPeriod(asset);
     for (var flow : safe(input.cashFlows())) upsertCashFlow(asset.getId(), flow);
+    if (asset.getType() == LongTermAssetType.REAL_ESTATE && rentalContracts != null)
+      upsertRentalContracts(asset.getId());
     for (var period : safe(input.valuationPeriods())) upsertValuation(asset.getId(), period);
     for (var period : safe(input.bondRatePeriods())) upsertBondRate(asset.getId(), period);
     if (input.bond() != null) upsertBondDetails(asset.getId(), input.bond());
     if (input.deposit() != null) upsertDepositDetails(asset.getId(), input.deposit());
+  }
+
+  private void upsertRentalContracts(Long assetId) {
+    var flows = cashFlows.findAllByAssetIdOrderByValidFrom(assetId);
+    var grouped = flows.stream().collect(java.util.stream.Collectors.groupingBy(
+        f -> f.getValidFrom() + "|" + f.getValidTo(), java.util.LinkedHashMap::new, java.util.stream.Collectors.toList()));
+    for (var group : grouped.values()) {
+      var first = group.get(0);
+      var contract = rentalContracts.findAllByAssetIdOrderByStartDate(assetId).stream()
+          .filter(c -> c.getStartDate().equals(first.getValidFrom()) && Objects.equals(c.getEndDate(), first.getValidTo()))
+          .findFirst().orElseGet(LongTermAssetRentalContract::new);
+      contract.setAssetId(assetId); contract.setStartDate(first.getValidFrom()); contract.setEndDate(first.getValidTo());
+      contract.getTerms().clear();
+      for (var flow : group) {
+        var term = new LongTermAssetRentalContractTerm();
+        term.setContract(contract); term.setType(flow.getType()); term.setAmount(flow.getAmount());
+        term.setFrequency(flow.getFrequency()); term.setPaidByTenant(flow.isPaidByTenant());
+        contract.getTerms().add(term);
+      }
+      rentalContracts.save(contract);
+    }
   }
 
   private void upsertCashFlow(Long assetId, LongTermAssetBootstrapDocument.CashFlow input) {

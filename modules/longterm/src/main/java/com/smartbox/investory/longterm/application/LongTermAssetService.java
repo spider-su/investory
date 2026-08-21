@@ -16,6 +16,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.*;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +37,8 @@ public class LongTermAssetService {
   private final LongTermAssetLifecycleService lifecycle;
   private final LongTermAssetCashFlowService cashFlowService;
   private final Clock applicationClock;
+  /** Optional for old unit fixtures; production uses normalized contracts first. */
+  @Autowired private LongTermAssetRentalContractRepository rentalContracts;
 
   @Value("${app.long-term-assets.planning-currency:PLN}")
   private CurrencyType planningCurrency = CurrencyType.PLN;
@@ -269,7 +272,7 @@ public class LongTermAssetService {
       if (activeOnly && !asset.isActive()) continue;
       if (!activeOnly && !activeOn(asset, effectivePolicyDate)) continue;
       List<LongTermAssetProjectionInput.Period> periods = new ArrayList<>();
-      for (LongTermAssetCashFlow flow : cashFlows.findAllByAssetIdOrderByValidFrom(asset.getId())) {
+      for (LongTermAssetCashFlow flow : rentalAwareFlows(asset.getId())) {
         BigDecimal annual = LongTermAssetCalculator.annualAmount(flow);
         periods.add(
             new LongTermAssetProjectionInput.Period(
@@ -693,7 +696,7 @@ public class LongTermAssetService {
         tax = BigDecimal.ZERO,
         rate = BigDecimal.ZERO;
     LocalDate maturity = null;
-    List<LongTermAssetCashFlow> flows = cashFlows.findAllByAssetIdOrderByValidFrom(a.getId());
+    List<LongTermAssetCashFlow> flows = rentalAwareFlows(a.getId());
     RealEstatePlanningSummary realEstatePlanning = null;
     BondPlanningSummary bondPlanning = null;
     LocalDate rentEnd = null;
@@ -1156,6 +1159,29 @@ public class LongTermAssetService {
     return t == CashFlowType.RENT
         || t == CashFlowType.PARKING_RENT
         || t == CashFlowType.OTHER_INCOME;
+  }
+
+  private List<LongTermAssetCashFlow> rentalAwareFlows(Long assetId) {
+    if (rentalContracts == null) return cashFlows.findAllByAssetIdOrderByValidFrom(assetId);
+    List<LongTermAssetRentalContract> contracts = rentalContracts.findAllByAssetIdOrderByStartDate(assetId);
+    if (contracts.isEmpty()) return cashFlows.findAllByAssetIdOrderByValidFrom(assetId);
+    List<LongTermAssetCashFlow> result = new ArrayList<>();
+    for (var contract : contracts) {
+      for (var term : contract.getTerms()) {
+        var flow = new LongTermAssetCashFlow();
+        flow.setAssetId(assetId); flow.setType(term.getType()); flow.setAmount(term.getAmount());
+        flow.setFrequency(term.getFrequency()); flow.setValidFrom(contract.getStartDate());
+        flow.setValidTo(effectiveContractEnd(contract)); flow.setPaidByTenant(term.isPaidByTenant());
+        result.add(flow);
+      }
+    }
+    return result;
+  }
+
+  private static LocalDate effectiveContractEnd(LongTermAssetRentalContract c) {
+    if (c.getEndDate() == null) return c.getTerminatedDate();
+    if (c.getTerminatedDate() == null) return c.getEndDate();
+    return c.getEndDate().isBefore(c.getTerminatedDate()) ? c.getEndDate() : c.getTerminatedDate();
   }
 
   public record RentalPeriod(LocalDate effectiveFrom, LocalDate endDate) {}

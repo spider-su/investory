@@ -11,6 +11,7 @@
 <body>
 <main class="container-xl py-4">
   <div class="alert alert-danger" role="alert" th:if="${rentalPeriodError != null}" th:text="${rentalPeriodError}">Rental period error</div>
+  <section class="card mb-4" th:if="${contracts != null}"><div class="card-header"><h2 class="card-title">Rental contract history</h2></div><div class="table-responsive"><table class="table card-table"><thead><tr><th>Contract</th><th>From</th><th>Expected to</th><th>Terminated</th><th>Terms</th></tr></thead><tbody><tr th:each="contract : ${contracts}"><td th:text="${contract.id}">1</td><td th:text="${contract.startDate}">2024-01-01</td><td th:text="${contract.endDate ?: '-'}">-</td><td th:text="${contract.terminatedDate ?: '-'}">-</td><td><span th:each="term : ${contract.terms}" th:text="${term.type + ': ' + term.amount + ' ' + term.frequency}" class="me-2">RENT: 3000 MONTHLY</span></td></tr></tbody></table></div></section>
   <div class="d-flex justify-content-between align-items-center mb-3"><h1 class="h2 mb-0" th:text="${asset.name}">Real estate</h1><a class="btn btn-outline-secondary" th:href="@{/long-term-assets(portfolioId=${portfolioId})}">Back</a></div>
   <form class="card mb-4" method="post" th:action="@{/long-term-assets/{id}(id=${asset.id})}">
     <div class="card-body">

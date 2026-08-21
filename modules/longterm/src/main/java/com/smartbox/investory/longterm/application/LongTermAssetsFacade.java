@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class LongTermAssetsFacade {
   private final LongTermAssetService service;
+  private final RentalContractService rentalContracts;
 
   @Transactional(readOnly = true)
   public List<LongTermAssetSummary> list(Long portfolioId, LocalDate date) {
@@ -51,7 +52,8 @@ public class LongTermAssetsFacade {
         service.currentCashFlows(portfolioId, id, date).stream().map(FlowView::from).toList(),
         service.rentalPeriod(portfolioId, id, date),
         service.availableCashFlowTypes(portfolioId, id, date),
-        service.expectedPropertyGrowth(portfolioId, id, date));
+        service.expectedPropertyGrowth(portfolioId, id, date),
+        rentalContracts.list(portfolioId, id).stream().map(ContractView::from).toList());
   }
 
   public AssetView create(AssetCommand command) {
@@ -141,8 +143,19 @@ public class LongTermAssetsFacade {
   }
 
   public void saveRealEstate(Long portfolioId, RealEstateEntry entry) {
-    service.saveRealEstateEntry(
+    var saved = service.saveRealEstateEntry(
         portfolioId, null, withGrowth(entry, percentToRate(entry.expectedAnnualGrowthRate())));
+    rentalContracts.create(portfolioId, saved.getId(), entry.effectiveFrom(), null, List.of(
+        term(CashFlowType.RENT, entry.monthlyRent(), Frequency.MONTHLY, false),
+        term(CashFlowType.PARKING_RENT, entry.monthlyParkingIncome(), Frequency.MONTHLY, false),
+        term(CashFlowType.ADMIN_FEE, entry.monthlyAdministrationCost(), Frequency.MONTHLY, true),
+        term(CashFlowType.OTHER_EXPENSE, entry.monthlyOtherCost(), Frequency.MONTHLY, false),
+        term(CashFlowType.PROPERTY_TAX, entry.annualPropertyTax(), Frequency.ANNUAL, false),
+        term(CashFlowType.INSURANCE, entry.annualInsurance(), Frequency.ANNUAL, false)));
+  }
+
+  private static RentalContract.Term term(CashFlowType type, BigDecimal amount, Frequency frequency, boolean tenant) {
+    return new RentalContract.Term(type, amount == null ? BigDecimal.ZERO : amount, frequency, tenant);
   }
 
   public void saveTaxBase(Long portfolioId, Long id, BigDecimal value) {
@@ -548,5 +561,15 @@ public class LongTermAssetsFacade {
       List<FlowView> currentCashFlows,
       LongTermAssetService.RentalPeriod rentalPeriod,
       List<CashFlowType> availableCashFlowTypes,
-      BigDecimal expectedPropertyGrowth) {}
+      BigDecimal expectedPropertyGrowth,
+      List<ContractView> contracts) {}
+
+  public record ContractView(Long id, LocalDate startDate, LocalDate endDate, LocalDate terminatedDate, List<TermView> terms) {
+    static ContractView from(LongTermAssetRentalContract c) {
+      return new ContractView(c.getId(), c.getStartDate(), c.getEndDate(), c.getTerminatedDate(), c.getTerms().stream()
+          .map(t -> new TermView(t.getType(), t.getAmount(), t.getFrequency(), t.isPaidByTenant())).toList());
+    }
+  }
+
+  public record TermView(CashFlowType type, BigDecimal amount, Frequency frequency, boolean paidByTenant) {}
 }

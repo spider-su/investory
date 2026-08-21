@@ -253,7 +253,9 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
         v.currentCashFlows().stream().map(LongTermAssetsApplicationService::flow).toList(),
         new RentalPeriodView(v.rentalPeriod().effectiveFrom(), v.rentalPeriod().endDate()),
         v.availableCashFlowTypes(),
-        v.expectedPropertyGrowth());
+        v.expectedPropertyGrowth(),
+        v.contracts().stream().map(c -> new RentalContractView(c.id(), c.startDate(), c.endDate(), c.terminatedDate(),
+            c.terms().stream().map(t -> new RentalTermView(t.type(), t.amount(), t.frequency(), t.paidByTenant())).toList())).toList());
   }
 
   private static AssetSummaryView summary(LongTermAssetSummary s) {

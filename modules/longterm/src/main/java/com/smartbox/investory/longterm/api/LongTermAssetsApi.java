@@ -305,5 +305,10 @@ public interface LongTermAssetsApi {
       List<FlowView> currentCashFlows,
       RentalPeriodView rentalPeriod,
       List<CashFlowType> availableCashFlowTypes,
-      BigDecimal expectedPropertyGrowth) {}
+      BigDecimal expectedPropertyGrowth,
+      List<RentalContractView> contracts) {}
+
+  record RentalContractView(Long id, LocalDate startDate, LocalDate endDate, LocalDate terminatedDate, List<RentalTermView> terms) {}
+
+  record RentalTermView(CashFlowType type, BigDecimal amount, Frequency frequency, boolean paidByTenant) {}
 }

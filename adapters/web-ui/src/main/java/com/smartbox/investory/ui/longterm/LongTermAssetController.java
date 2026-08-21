@@ -172,6 +172,7 @@ public class LongTermAssetController {
     model.addAttribute("portfolioId", portfolioId);
     model.addAttribute("summary", view.summary());
     model.addAttribute("cashFlows", view.cashFlows());
+    model.addAttribute("contracts", view.contracts());
     model.addAttribute("bondDetails", view.bondDetails());
     model.addAttribute("depositDetails", view.depositDetails());
     model.addAttribute("valuationPeriods", view.valuationPeriods());
