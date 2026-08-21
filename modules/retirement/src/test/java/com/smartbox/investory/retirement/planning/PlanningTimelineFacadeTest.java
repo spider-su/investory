@@ -31,7 +31,7 @@ class PlanningTimelineFacadeTest {
   @Mock PlanningYearRepository years;
   @Mock PlanningYearValueRepository values;
   @Mock PortfolioMonthlyPerformanceRepository performance;
-  @Mock RetirementSimulationService simulations;
+  @Mock RetirementSimulation simulations;
   @Mock CurrentYearProjectionBridge projectionBridge;
   @Mock HistoricalLongTermAssetYearSource longTermAssets;
   @Mock LongTermAssetAnnualSnapshotReader currentLongTermAssets;

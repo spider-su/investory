@@ -54,6 +54,7 @@ public final class RealEstatePlanningCalculator {
     }
     BigDecimal annualTax =
         rentalTaxPaidByTenant ? BigDecimal.ZERO : annualRentalTax(taxBase, taxRate);
+    landlordExpenses = normalizeMoney(landlordExpenses);
     BigDecimal reduce = landlordExpenses.add(annualTax).divide(TWELVE, 18, RoundingMode.HALF_UP);
     BigDecimal netIncome = income.subtract(reduce);
     BigDecimal yield =
@@ -94,16 +95,23 @@ public final class RealEstatePlanningCalculator {
           term.frequency() == FrequencyModel.MONTHLY
               ? term.amount()
               : term.amount().divide(TWELVE, 18, RoundingMode.HALF_UP);
+      BigDecimal annual =
+          term.frequency() == FrequencyModel.MONTHLY
+              ? term.amount().multiply(TWELVE)
+              : term.amount();
       if (isIncome(term.type())) income = income.add(monthly);
-      if (isPayment(term.type())) payment = payment.add(monthly);
-      if (isExpense(term.type()) && !term.paidByTenant())
-        expenses = expenses.add(monthly.multiply(TWELVE));
+      // Payment is the recurring tenant turnover shown in planning. Annual landlord
+      // costs are reductions, not part of the monthly payment amount.
+      if (isPayment(term.type()) && term.frequency() == FrequencyModel.MONTHLY)
+        payment = payment.add(monthly);
+      if (isExpense(term.type()) && !term.paidByTenant()) expenses = expenses.add(annual);
     }
     boolean tenant =
         contract.rentalTaxPaidByTenant() == null
             ? assetTaxPaidByTenant
             : contract.rentalTaxPaidByTenant();
     BigDecimal annualTax = tenant ? BigDecimal.ZERO : annualRentalTax(taxBase, taxRate);
+    expenses = normalizeMoney(expenses);
     BigDecimal reduce = expenses.add(annualTax).divide(TWELVE, 18, RoundingMode.HALF_UP);
     BigDecimal net = income.subtract(reduce);
     BigDecimal yield =
@@ -117,8 +125,7 @@ public final class RealEstatePlanningCalculator {
     return type == CashFlowType.RENT
         || type == CashFlowType.PARKING_RENT
         || type == CashFlowType.ADMIN_FEE
-        || type == CashFlowType.UTILITIES
-        || isExpense(type);
+        || type == CashFlowType.UTILITIES;
   }
 
   private static boolean isIncome(CashFlowType type) {
@@ -139,8 +146,7 @@ public final class RealEstatePlanningCalculator {
     return type == CashFlowTypeModel.RENT
         || type == CashFlowTypeModel.PARKING_RENT
         || type == CashFlowTypeModel.ADMIN_FEE
-        || type == CashFlowTypeModel.UTILITIES
-        || isExpense(type);
+        || type == CashFlowTypeModel.UTILITIES;
   }
 
   private static boolean isIncome(CashFlowTypeModel type) {
@@ -155,5 +161,12 @@ public final class RealEstatePlanningCalculator {
         || type == CashFlowTypeModel.PROPERTY_TAX
         || type == CashFlowTypeModel.INSURANCE
         || type == CashFlowTypeModel.OTHER_EXPENSE;
+  }
+
+  private static BigDecimal normalizeMoney(BigDecimal value) {
+    BigDecimal rounded = value.setScale(3, RoundingMode.HALF_UP);
+    return rounded.stripTrailingZeros().scale() <= 0
+        ? rounded.setScale(0)
+        : rounded.stripTrailingZeros();
   }
 }

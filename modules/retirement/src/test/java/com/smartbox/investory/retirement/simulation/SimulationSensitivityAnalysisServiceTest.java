@@ -25,14 +25,7 @@ class SimulationSensitivityAnalysisServiceTest {
     assertEquals(SensitivityDriver.RECURRING_SPENDING, result.drivers().get(0).driver());
     assertEquals(
         SensitivityDriverCategory.POLICY_LEVER, SensitivityDriver.RECURRING_SPENDING.category());
-    assertEquals(SensitivityDriverCategory.RISK, SensitivityDriver.EQUITY_RETURN.category());
     assertEquals(SensitivityImpact.CRITICAL, result.drivers().get(0).impact());
-    assertTrue(
-        result.drivers().stream()
-            .anyMatch(
-                driver ->
-                    driver.driver() == SensitivityDriver.EQUITY_RETURN
-                        && driver.impact() == SensitivityImpact.WEALTH_ONLY));
     verify(evaluations, atLeast(1)).evaluate(eq(profile), any(), eq(SimulationScenario.BASE));
   }
 
@@ -62,15 +55,8 @@ class SimulationSensitivityAnalysisServiceTest {
     assertEquals(
         List.of(
             SensitivityDriver.RECURRING_SPENDING,
-            SensitivityDriver.SPENDING_GROWTH,
-            SensitivityDriver.SAFE_RESERVE_YEARS),
+            SensitivityDriver.SPENDING_GROWTH),
         result.drivers().stream().map(SimulationSensitivityResult::driver).toList());
-  }
-
-  @Test
-  void reservePolicyIsAPlanningLeverNotAnExternalRisk() {
-    assertEquals(
-        SensitivityDriverCategory.POLICY_LEVER, SensitivityDriver.SAFE_RESERVE_YEARS.category());
   }
 
   @Test
@@ -111,7 +97,7 @@ class SimulationSensitivityAnalysisServiceTest {
         new ProjectedLongTermAsset(
             1L,
             "Property",
-            com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType.REAL_ESTATE,
+            com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel.REAL_ESTATE,
             EconomicBucket.REAL_ESTATE,
             CurrencyType.PLN,
             new BigDecimal("100"),
@@ -146,7 +132,7 @@ class SimulationSensitivityAnalysisServiceTest {
         new ProjectedLongTermAsset(
             1L,
             "Property",
-            com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType.REAL_ESTATE,
+            com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel.REAL_ESTATE,
             EconomicBucket.REAL_ESTATE,
             CurrencyType.PLN,
             new BigDecimal("100"),
@@ -186,7 +172,7 @@ class SimulationSensitivityAnalysisServiceTest {
         new ProjectedLongTermAsset(
             1L,
             "Historical property",
-            com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType.REAL_ESTATE,
+            com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel.REAL_ESTATE,
             EconomicBucket.REAL_ESTATE,
             CurrencyType.PLN,
             BigDecimal.ZERO,
@@ -397,7 +383,7 @@ class SimulationSensitivityAnalysisServiceTest {
     return new ProjectedLongTermAsset(
         id,
         "Property " + id,
-        com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType.REAL_ESTATE,
+        com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel.REAL_ESTATE,
         EconomicBucket.REAL_ESTATE,
         CurrencyType.PLN,
         new BigDecimal("100"),

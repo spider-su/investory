@@ -105,20 +105,17 @@ public class PlanEditorPreviewService {
         displayCanonical(row.pensionIncome(), displayCurrency),
         displayCanonical(row.preRetirementContribution(), displayCurrency),
         displayCanonical(row.totalIncome(), displayCurrency),
-        displayCanonical(row.recurringFundingGap(), displayCurrency),
-        displayCanonical(row.safeReserveTarget(), displayCurrency),
+        displayCanonical(row.incomeGap(), displayCurrency),
         displayCanonical(row.safeReserveStart(), displayCurrency),
+        displayCanonical(row.manualLiquidReserveWithdrawal(), displayCurrency),
         displayCanonical(row.safeReserveEnd(), displayCurrency),
-        displayCanonical(row.equityToFixedIncomeTransfer(), displayCurrency),
-        displayCanonical(row.emergencyEquityWithdrawal(), displayCurrency),
-        displayCanonical(row.cashStart(), displayCurrency),
-        displayCanonical(row.cashEnd(), displayCurrency),
-        displayCanonical(row.fixedIncomeStart(), displayCurrency),
-        displayCanonical(row.fixedIncomeEnd(), displayCurrency),
+        displayCanonical(row.contractualAssetsEnd(), displayCurrency),
+        displayCanonical(row.actualPortfolioWithdrawal().subtract(row.manualLiquidReserveWithdrawal()).max(BigDecimal.ZERO), displayCurrency),
         displayCanonical(row.equityStart(), displayCurrency),
-        displayCanonical(row.equityEnd(), displayCurrency),
         displayCanonical(row.equityGain(), displayCurrency),
-        row.equityReturnRate());
+        displayCanonical(row.actualPortfolioWithdrawal().subtract(row.manualLiquidReserveWithdrawal()).max(BigDecimal.ZERO), displayCurrency),
+        displayCanonical(row.equityEnd(), displayCurrency),
+        displayCanonical(row.unfundedAmount(), displayCurrency));
   }
 
   private PreviewYear currentYear(
@@ -154,19 +151,7 @@ public class PlanEditorPreviewService {
         displayCanonical(contribution, displayCurrency),
         displayCanonical(totalIncome, displayCurrency),
         zero,
-        zero,
-        zero,
-        zero,
-        zero,
-        zero,
-        zero,
-        zero,
-        zero,
-        zero,
-        zero,
-        zero,
-        zero,
-        assumptions.equityReturnRate());
+        zero, zero, zero, zero, zero, zero, zero, zero, zero, zero);
   }
 
   private static BigDecimal zeroIfNull(BigDecimal value) {
@@ -205,18 +190,15 @@ public class PlanEditorPreviewService {
       BigDecimal pension,
       BigDecimal contribution,
       BigDecimal totalIncome,
-      BigDecimal portfolioNeed,
-      BigDecimal reserveTarget,
-      BigDecimal reserveBefore,
-      BigDecimal reserveAfter,
-      BigDecimal equityHarvest,
-      BigDecimal emergencyEquityWithdrawal,
-      BigDecimal cashStart,
-      BigDecimal cashEnd,
-      BigDecimal fixedIncomeStart,
-      BigDecimal fixedIncomeEnd,
-      BigDecimal equityStart,
-      BigDecimal equityEnd,
-      BigDecimal equityGain,
-      BigDecimal equityReturn) {}
+      BigDecimal fundingGap,
+      BigDecimal reserveStart,
+      BigDecimal reserveWithdrawal,
+      BigDecimal reserveEnd,
+      BigDecimal longTermAvailable,
+      BigDecimal longTermWithdrawal,
+      BigDecimal investmentStart,
+      BigDecimal investmentReturn,
+      BigDecimal investmentWithdrawal,
+      BigDecimal investmentEnd,
+      BigDecimal unfunded) {}
 }

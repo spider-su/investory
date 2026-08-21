@@ -46,11 +46,11 @@ class GenericPlanningModelTest {
 
   @Test
   void genericSimulationUsesReserveBeforeCapitalAndDoesNotSaveSurplus() {
-    var input = new SimplifiedRetirementSimulation.GenericPlanningInput(2026, 2027, bd("60"), bd("100"),
+    var input = new RetirementSimulationOrchestrator.GenericPlanningInput(2026, 2027, bd("60"), bd("100"),
         List.of(flow("cost", "x", CashFlowDirection.EXPENSE, CashFlowCadence.ANNUAL, "100", 2026, 1, 1)),
         (year, start, withdrawal) -> new CapitalProjection(year, start, BigDecimal.ZERO, BigDecimal.ZERO,
             start, withdrawal, withdrawal.min(start), start.subtract(withdrawal.min(start)), ProjectionSource.PROJECTED));
-    var result = new SimplifiedRetirementSimulation(null, null).run(input);
+    var result = new RetirementSimulationOrchestrator(null, null).run(input);
     assertThat(result.years().getFirst().reserve().withdrawal()).isEqualByComparingTo("60");
     assertThat(result.years().getFirst().capital().actualWithdrawal()).isEqualByComparingTo("40");
     assertThat(result.years().getFirst().unfundedGap()).isZero();
@@ -60,8 +60,8 @@ class GenericPlanningModelTest {
 
   @Test
   void insufficientReserveAndCapitalProducesUnfundedGap() {
-    var result = new SimplifiedRetirementSimulation(null, null).run(
-        new SimplifiedRetirementSimulation.GenericPlanningInput(2026, 2026, bd("10"), bd("20"),
+    var result = new RetirementSimulationOrchestrator(null, null).run(
+        new RetirementSimulationOrchestrator.GenericPlanningInput(2026, 2026, bd("10"), bd("20"),
             List.of(flow("cost", "x", CashFlowDirection.EXPENSE, CashFlowCadence.ANNUAL, "100", 2026, 1, 1)),
             (year, start, withdrawal) -> new CapitalProjection(year, start, BigDecimal.ZERO, BigDecimal.ZERO,
                 start, withdrawal, withdrawal.min(start), start.subtract(withdrawal.min(start)), ProjectionSource.PROJECTED)));

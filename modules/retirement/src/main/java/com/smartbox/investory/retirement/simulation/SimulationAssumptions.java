@@ -5,15 +5,21 @@ import java.math.BigDecimal;
 import java.util.HashSet;
 import java.util.List;
 
+/**
+ * Retirement-owned lifecycle and cash-flow assumptions.
+ *
+ * <p>The asset-specific return, funding-strategy, and harvest components are retained only for
+ * persisted-plan read compatibility. The canonical orchestrator does not use them.
+ */
 public record SimulationAssumptions(
     int currentAge,
     int endAge,
     BigDecimal annualLivingExpenses,
     BigDecimal inflationRate,
-    BigDecimal cashReturnRate,
-    BigDecimal fixedIncomeReturnRate,
+    @Deprecated BigDecimal cashReturnRate,
+    @Deprecated BigDecimal fixedIncomeReturnRate,
     BigDecimal equityReturnRate,
-    BigDecimal realEstateReturnRate,
+    @Deprecated BigDecimal realEstateReturnRate,
     BigDecimal otherReturnRate,
     int pensionStartAge,
     BigDecimal annualPension,
@@ -23,15 +29,15 @@ public record SimulationAssumptions(
     List<SimulationEvent> futureEvents,
     BigDecimal rentalIncomeGrowthRate,
     BigDecimal spendingGrowthRate,
-    SimulationFundingStrategy fundingStrategy,
+    @Deprecated SimulationFundingStrategy fundingStrategy,
     BigDecimal safeReserveYears,
-    BigDecimal equityHarvestMinimumReturnRate,
-    BigDecimal equityGainHarvestRate,
-    boolean allowEmergencyEquityWithdrawal,
+    @Deprecated BigDecimal equityHarvestMinimumReturnRate,
+    @Deprecated BigDecimal equityGainHarvestRate,
+    @Deprecated boolean allowEmergencyEquityWithdrawal,
     int retirementAge,
     BigDecimal annualEmploymentIncome,
     BigDecimal annualPreRetirementContribution,
-    List<FundingSource> fundingOrder,
+    @Deprecated List<FundingSource> fundingOrder,
     ExpenseProfile expenseProfile) {
   public static final BigDecimal DEFAULT_RENTAL_INCOME_GROWTH_RATE = new BigDecimal("0.020");
   public static final BigDecimal DEFAULT_SPENDING_GROWTH_RATE = new BigDecimal("0.025");

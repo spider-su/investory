@@ -42,6 +42,7 @@ class SimulationScenarioComparisonTest {
             + "minimum reserve coverage is 1.2 years.",
         comparison.interpretation());
     assertEquals(3, comparison.scenarios().size());
+    assertEquals("100", comparison.scenarios().getFirst().finalSpendableAssetsDisplay());
   }
 
   @Test

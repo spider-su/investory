@@ -12,7 +12,7 @@ import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-class SimplifiedRetirementSimulationTest {
+class RetirementSimulationOrchestratorTest {
   private final LongTermAnnualProjectionApi longTerm = new LongTermAnnualProjectionService();
   private final InvestmentAnnualProjectionApi investments = new InvestmentAnnualProjectionService();
 
@@ -32,7 +32,7 @@ class SimplifiedRetirementSimulationTest {
 
   @Test
   void employmentStopsAtRetirementAndSpendingStartsThenGrows() {
-    var result = new SimplifiedRetirementSimulation(longTerm, investments).run(input(64, 66, 65, bd("100"), bd("100"), bd("0"), bd("0"), List.of(), List.of(), List.of()));
+    var result = new RetirementSimulationOrchestrator(longTerm, investments).run(input(64, 66, 65, bd("100"), bd("100"), bd("0"), bd("0"), List.of(), List.of(), List.of()));
 
     assertThat(result.years().get(0).expenses()).isZero();
     assertThat(result.years().get(0).employmentIncome()).isEqualByComparingTo("100");
@@ -95,10 +95,10 @@ class SimplifiedRetirementSimulationTest {
         List.of(new LongTermAnnualProjectionApi.Bond("bond", bd("100"), LocalDate.of(2026, 1, 1), bd("100"), bd("0"), strategy, 3, bd(".02"))), List.of()));
   }
 
-  private SimplifiedRetirementSimulation.Year run(int age, int endAge, int retirementAge, BigDecimal expenses,
+  private RetirementSimulationOrchestrator.Year run(int age, int endAge, int retirementAge, BigDecimal expenses,
       BigDecimal employment, BigDecimal pension, BigDecimal reserve, List<LongTermAnnualProjectionApi.RentalIncome> rent,
       List<LongTermAnnualProjectionApi.Bond> bonds, List<SimulationEvent> events) {
-    return new SimplifiedRetirementSimulation(longTerm, investments).run(
+    return new RetirementSimulationOrchestrator(longTerm, investments).run(
         input(age, endAge, retirementAge, expenses, employment, pension, reserve, rent, bonds, events)).years().getFirst();
   }
 

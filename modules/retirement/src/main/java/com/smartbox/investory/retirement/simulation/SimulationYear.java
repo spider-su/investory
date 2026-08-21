@@ -55,6 +55,53 @@ public record SimulationYear(
     BigDecimal incomeGap,
     BigDecimal bondValueEnd,
     BigDecimal bondIncome) {
+  /**
+   * Creates the compatibility-shaped timeline row from the generic orchestrator result.
+   * Asset-specific legacy buckets remain zero; reserve and Investment are the only
+   * spendable sources represented by the canonical simulator.
+   */
+  public static SimulationYear generic(
+      int age,
+      int year,
+      boolean retired,
+      BigDecimal expenses,
+      BigDecimal eventExpenses,
+      BigDecimal employmentIncome,
+      BigDecimal pensionIncome,
+      BigDecimal eventIncome,
+      BigDecimal rentalIncome,
+      BigDecimal bondIncome,
+      BigDecimal reserveStart,
+      BigDecimal reserveWithdrawal,
+      BigDecimal reserveEnd,
+      BigDecimal investmentStart,
+      BigDecimal investmentReturn,
+      BigDecimal investmentWithdrawal,
+      BigDecimal investmentEnd,
+      BigDecimal unfundedAmount) {
+    BigDecimal totalExpenses = expenses.add(eventExpenses);
+    BigDecimal passiveIncome = rentalIncome.add(bondIncome);
+    BigDecimal totalIncome = passiveIncome.add(pensionIncome).add(employmentIncome).add(eventIncome);
+    BigDecimal netCashFlow = totalIncome.subtract(totalExpenses);
+    BigDecimal gap = netCashFlow.negate().max(BigDecimal.ZERO);
+    BigDecimal spendableEnd = reserveEnd.add(investmentEnd);
+    return new SimulationYear(
+        age, year, reserveStart.add(investmentStart),
+        retired ? expenses : BigDecimal.ZERO, BigDecimal.ZERO, eventExpenses, totalExpenses,
+        passiveIncome, pensionIncome, eventIncome, totalIncome,
+        gap, reserveWithdrawal.add(investmentWithdrawal), reserveWithdrawal, gap,
+        reserveStart, BigDecimal.ZERO, reserveEnd, BigDecimal.ZERO,
+        BigDecimal.ZERO, investmentReturn, BigDecimal.ZERO, BigDecimal.ZERO,
+        reserveStart, reserveEnd, BigDecimal.ZERO, BigDecimal.ZERO,
+        investmentStart, investmentEnd, BigDecimal.ZERO, BigDecimal.ZERO,
+        BigDecimal.ZERO, BigDecimal.ZERO, reserveStart, reserveEnd,
+        BigDecimal.ZERO, BigDecimal.ZERO, spendableEnd, spendableEnd,
+        spendableEnd, BigDecimal.ZERO, spendableEnd, unfundedAmount.signum() > 0,
+        unfundedAmount, retired ? SimulationLifecyclePhase.RETIRED : SimulationLifecyclePhase.WORKING,
+        employmentIncome, BigDecimal.ZERO, false,
+        rentalIncome, gap, BigDecimal.ZERO, bondIncome);
+  }
+
   /** Compatibility constructor for the pre-retirement-lifecycle yearly result shape. */
   public SimulationYear(
       int age,

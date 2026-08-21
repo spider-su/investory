@@ -9,7 +9,6 @@ import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileAssetModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSummaryModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.retirement.profile.*;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -44,7 +43,7 @@ public class InvestmentProfileFacade {
       values.merge(bucket, toUsd(position.value(), market.baseCurrency(), date), BigDecimal::add);
     }
     for (LongTermAssetProfileAssetModel asset : longTermAssets.list(portfolioId, date)) {
-      EconomicBucket bucket = classify(LongTermAssetType.valueOf(asset.type().name()));
+      EconomicBucket bucket = classify(asset.type());
       BigDecimal value = asset.currentValue();
       values.merge(bucket, value, BigDecimal::add);
     }
@@ -64,11 +63,11 @@ public class InvestmentProfileFacade {
                     new ProjectedLongTermAsset(
                         input.id(),
                         input.name(),
-                        LongTermAssetType.valueOf(input.type().name()),
-                        classify(LongTermAssetType.valueOf(input.type().name())),
+                        input.type(),
+                        classify(input.type()),
                         CurrencyType.USD,
                         input.currentValue(),
-                        liquidity(classify(LongTermAssetType.valueOf(input.type().name()))),
+                        liquidity(classify(input.type())),
                         input.periods().stream()
                             .map(
                                 period ->
@@ -78,7 +77,7 @@ public class InvestmentProfileFacade {
                                         period.annualIncome(),
                                         period.annualExpense(),
                                         period.annualReturnRate(),
-                                        period.cashFlowType() == null ? null : com.smartbox.investory.longterm.infrastructure.rental.CashFlowType.valueOf(period.cashFlowType().name()),
+                                        period.cashFlowType(),
                                         period.paidByTenant()))
                             .toList(),
                         input.rentalContracts(),
@@ -86,7 +85,7 @@ public class InvestmentProfileFacade {
                         input.redemptionValue() == null ? null : input.redemptionValue(),
                         input.interestTreatment() == null
                             ? null
-                            : com.smartbox.investory.longterm.infrastructure.InterestTreatment.valueOf(input.interestTreatment().name()),
+                            : input.interestTreatment(),
                         input.taxRate(),
                         input.taxBase() == null ? null : input.taxBase(),
                         input.rentalTaxPaidByTenant()))
@@ -151,7 +150,7 @@ public class InvestmentProfileFacade {
     };
   }
 
-  private EconomicBucket classify(LongTermAssetType type) {
+  private EconomicBucket classify(com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel type) {
     return switch (type) {
       case REAL_ESTATE -> EconomicBucket.REAL_ESTATE;
       case BOND -> EconomicBucket.FIXED_INCOME;
@@ -161,7 +160,8 @@ public class InvestmentProfileFacade {
   }
 
   private boolean isContractual(ProjectedLongTermAsset asset) {
-    return asset.type() == LongTermAssetType.BOND || asset.type() == LongTermAssetType.DEPOSIT;
+    return asset.type() == com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel.BOND
+        || asset.type() == com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel.DEPOSIT;
   }
 
   private BigDecimal toUsd(BigDecimal value, CurrencyType source, java.time.LocalDate date) {

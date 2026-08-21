@@ -348,7 +348,6 @@ class RetirementSimulationControllerTest {
                 .param("portfolioId", "1")
                 .param("planId", "9")
                 .param("name", "Plan")
-                .param("currentAge", "40")
                 .param("endAge", "80")
                 .param("retirementAge", "45")
                 .param("annualEmploymentIncome", "240000")
@@ -363,14 +362,9 @@ class RetirementSimulationControllerTest {
                 .param("equityHarvestMinimumReturn", "7")
                 .param("equityGainHarvest", "75")
                 .param("allowEmergencyEquityWithdrawal", "true")
-                .param("cashReturn", "1")
-                .param("fixedIncomeReturn", "4")
                 .param("equityReturn", "8")
-                .param("realEstateReturn", "3")
-                .param("otherReturn", "1")
                 .param("pensionStartAge", "67")
                 .param("annualPension", "0")
-                .param("capitalGainTaxRate", "19")
                 .param("planningDisplayCurrency", "PLN")
                 .param("selectedScenario", "BASE"))
         .andExpect(status().is3xxRedirection());
@@ -384,6 +378,10 @@ class RetirementSimulationControllerTest {
     assertEquals(new BigDecimal("240000"), saved.annualEmploymentIncome());
     assertEquals(new BigDecimal("50000"), saved.annualPreRetirementContribution());
     assertEquals(new BigDecimal("180000"), saved.annualLivingExpenses());
+    assertEquals(0, saved.cashReturnRate().compareTo(BigDecimal.ZERO));
+    assertEquals(0, saved.fixedIncomeReturnRate().compareTo(BigDecimal.ZERO));
+    assertEquals(0, saved.otherReturnRate().compareTo(BigDecimal.ZERO));
+    assertEquals(0, saved.capitalGainTaxRate().compareTo(BigDecimal.ZERO));
     var forward =
         new ForwardSimulationContextFactory(
                 Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC))

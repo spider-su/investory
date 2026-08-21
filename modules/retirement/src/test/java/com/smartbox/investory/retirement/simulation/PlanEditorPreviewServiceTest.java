@@ -24,22 +24,22 @@ import org.junit.jupiter.api.Test;
 
 class PlanEditorPreviewServiceTest {
   @Test
-  void previewUsesFixedIncomeNamesForMarketBucketFields() {
+  void previewUsesGenericCapitalFields() {
     var names =
         java.util.Arrays.stream(PlanEditorPreviewService.PreviewYear.class.getRecordComponents())
             .map(java.lang.reflect.RecordComponent::getName)
             .toList();
 
-    assertTrue(names.contains("fixedIncomeStart"));
-    assertTrue(names.contains("fixedIncomeEnd"));
-    assertFalse(names.contains("bondsStart"));
-    assertFalse(names.contains("bondsEnd"));
+    assertTrue(names.contains("investmentStart"));
+    assertTrue(names.contains("investmentEnd"));
+    assertTrue(names.contains("fundingGap"));
+    assertFalse(names.contains("equityHarvest"));
   }
 
   @Test
   void currentFactsComeFromCanonicalLongTermAssetSnapshot() {
     ForwardSimulationInputService inputs = mock(ForwardSimulationInputService.class);
-    RetirementSimulationService simulations = mock(RetirementSimulationService.class);
+    RetirementSimulation simulations = mock(RetirementSimulation.class);
     LongTermAssetAnnualSnapshotReader longTermAssets =
         mock(LongTermAssetAnnualSnapshotReader.class);
     PlanningCurrencyPresentationService presentation =
@@ -67,7 +67,7 @@ class PlanEditorPreviewServiceTest {
   @Test
   void previewUsesRoundedDivisionForNonTerminatingMonthlyCosts() {
     ForwardSimulationInputService inputs = mock(ForwardSimulationInputService.class);
-    RetirementSimulationService simulations = mock(RetirementSimulationService.class);
+    RetirementSimulation simulations = mock(RetirementSimulation.class);
     LongTermAssetAnnualSnapshotReader longTermAssets =
         mock(LongTermAssetAnnualSnapshotReader.class);
     PlanningCurrencyPresentationService presentation =
@@ -117,7 +117,7 @@ class PlanEditorPreviewServiceTest {
   @Test
   void incomePreviewStartsWithCurrentYearCanonicalFacts() {
     ForwardSimulationInputService inputs = mock(ForwardSimulationInputService.class);
-    RetirementSimulationService simulations = mock(RetirementSimulationService.class);
+    RetirementSimulation simulations = mock(RetirementSimulation.class);
     LongTermAssetAnnualSnapshotReader longTermAssets =
         mock(LongTermAssetAnnualSnapshotReader.class);
     PlanningCurrencyPresentationService presentation =

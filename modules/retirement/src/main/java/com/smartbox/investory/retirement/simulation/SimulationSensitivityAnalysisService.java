@@ -1,7 +1,5 @@
 package com.smartbox.investory.retirement.simulation;
 
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
-import com.smartbox.investory.retirement.profile.EconomicBucket;
 import com.smartbox.investory.retirement.profile.InvestmentProfile;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -14,9 +12,6 @@ import org.springframework.stereotype.Service;
 public class SimulationSensitivityAnalysisService {
   private static final BigDecimal TEN_PERCENT = new BigDecimal("0.10");
   private static final BigDecimal HALF_PERCENTAGE_POINT = new BigDecimal("0.005");
-  private static final BigDecimal ONE_PERCENTAGE_POINT = new BigDecimal("0.010");
-  private static final BigDecimal RESERVE_YEAR = BigDecimal.ONE;
-  private static final BigDecimal MATERIAL_RESERVE_YEARS = new BigDecimal("0.1");
 
   private final SimulationEvaluationService evaluations;
 
@@ -52,44 +47,6 @@ public class SimulationSensitivityAnalysisService {
                 assumptions.spendingGrowthRate().add(HALF_PERCENTAGE_POINT)),
             assumptions.withSpendingGrowthRate(
                 assumptions.spendingGrowthRate().subtract(HALF_PERCENTAGE_POINT))));
-    if (hasBucket(profile, EconomicBucket.EQUITY))
-      results.add(
-          result(
-              profile,
-              assumptions,
-              baseline,
-              SensitivityDriver.EQUITY_RETURN,
-              "−1.0 pp",
-              assumptions.withEquityReturnRate(
-                  assumptions.equityReturnRate().subtract(ONE_PERCENTAGE_POINT)),
-              assumptions.withEquityReturnRate(
-                  assumptions.equityReturnRate().add(ONE_PERCENTAGE_POINT))));
-    if (hasBucket(profile, EconomicBucket.FIXED_INCOME))
-      results.add(
-          result(
-              profile,
-              assumptions,
-              baseline,
-              SensitivityDriver.FIXED_INCOME_RETURN,
-              "−1.0 pp",
-              assumptions.withFixedIncomeReturnRate(
-                  assumptions.fixedIncomeReturnRate().subtract(ONE_PERCENTAGE_POINT)),
-              assumptions.withFixedIncomeReturnRate(
-                  assumptions.fixedIncomeReturnRate().add(ONE_PERCENTAGE_POINT))));
-    if (hasActiveRentalIncome(profile))
-      results.add(
-          result(
-              profile,
-              assumptions,
-              baseline,
-              SensitivityDriver.RENTAL_INCOME_GROWTH,
-              "−0.5 pp",
-              assumptions.withRentalIncomeGrowthRate(
-                  assumptions.rentalIncomeGrowthRate().subtract(HALF_PERCENTAGE_POINT)),
-              assumptions.withRentalIncomeGrowthRate(
-                  assumptions.rentalIncomeGrowthRate().add(HALF_PERCENTAGE_POINT))));
-    if (assumptions.fundingStrategy() == SimulationFundingStrategy.RESERVE_AND_HARVEST)
-      results.add(policyReserveResult(profile, assumptions, baseline));
     if (assumptions.annualPension().signum() > 0
         && assumptions.pensionStartAge() <= assumptions.endAge())
       results.add(
@@ -105,25 +62,6 @@ public class SimulationSensitivityAnalysisService {
                   assumptions.annualPension().multiply(new BigDecimal("1.10")))));
     results.sort(worstFirst());
     return new SimulationSensitivityAnalysis(baseline, results, interpretation(results));
-  }
-
-  private SimulationSensitivityResult policyReserveResult(
-      InvestmentProfile profile, SimulationAssumptions assumptions, SimulationEvaluation baseline) {
-    SimulationEvaluation lower =
-        evaluations.evaluate(
-            profile,
-            assumptions.withSafeReserveYears(
-                assumptions.safeReserveYears().subtract(RESERVE_YEAR).max(BigDecimal.ZERO)),
-            SimulationScenario.BASE);
-    SimulationEvaluation higher =
-        evaluations.evaluate(
-            profile,
-            assumptions.withSafeReserveYears(assumptions.safeReserveYears().add(RESERVE_YEAR)),
-            SimulationScenario.BASE);
-    SimulationEvaluation adverse = worse(baseline, lower, higher);
-    SimulationEvaluation favorable = adverse == lower ? higher : lower;
-    String direction = adverse == lower ? "−1 year" : "+1 year";
-    return measured(SensitivityDriver.SAFE_RESERVE_YEARS, direction, baseline, adverse, favorable);
   }
 
   private SimulationSensitivityResult result(
@@ -203,10 +141,6 @@ public class SimulationSensitivityAnalysisService {
         > 0) return SensitivityImpact.HIGH;
     if (!baseline.sustainability().recurringFundingGapRequired()
         && adverse.sustainability().recurringFundingGapRequired()) return SensitivityImpact.HIGH;
-    if (reserveDelta.compareTo(MATERIAL_RESERVE_YEARS.negate()) <= 0
-        && (baseline.sustainability().recurringFundingGapRequired()
-            || adverse.sustainability().recurringFundingGapRequired()))
-      return SensitivityImpact.HIGH;
     if (spendableDelta.signum() < 0) return SensitivityImpact.MODERATE;
     BigDecimal baselineWealth = baseline.sustainability().finalNetWorth().abs();
     if (wealthDelta.signum() < 0
@@ -256,45 +190,4 @@ public class SimulationSensitivityAnalysisService {
     return assumptions.annualLivingExpenses().add(assumptions.annualDiscretionaryExpenses());
   }
 
-  private static boolean hasBucket(InvestmentProfile profile, EconomicBucket bucket) {
-    return profile.allocations().stream().anyMatch(a -> a.bucket() == bucket && a.isNonZero());
-  }
-
-  private static boolean hasActiveRentalIncome(InvestmentProfile profile) {
-    return profile.longTermAssets().stream()
-        .anyMatch(
-            a ->
-                a.currentValue().signum() != 0
-                    && a.periods().stream()
-                        .anyMatch(
-                            p ->
-                                p.cashFlowType() == CashFlowType.RENT
-                                    || p.cashFlowType() == CashFlowType.PARKING_RENT
-                                    || p.cashFlowType() == CashFlowType.OTHER_INCOME));
-  }
-
-  private static SimulationEvaluation worse(
-      SimulationEvaluation baseline, SimulationEvaluation first, SimulationEvaluation second) {
-    return compareRisk(baseline, first, second) >= 0 ? first : second;
-  }
-
-  private static int compareRisk(
-      SimulationEvaluation baseline, SimulationEvaluation first, SimulationEvaluation second) {
-    boolean firstFailure = baseline.sustainable() && !first.sustainable();
-    boolean secondFailure = baseline.sustainable() && !second.sustainable();
-    if (firstFailure != secondFailure) return firstFailure ? 1 : -1;
-    return compareReserveCoverage(second.sustainability(), first.sustainability());
-  }
-
-  private static int compareReserveCoverage(
-      PlanSustainabilityAssessment first, PlanSustainabilityAssessment second) {
-    if (first.recurringFundingGapRequired() != second.recurringFundingGapRequired()) {
-      return first.recurringFundingGapRequired() ? 1 : -1;
-    }
-    return first.recurringFundingGapRequired()
-        ? second
-            .minimumSafeReserveCoverageYears()
-            .compareTo(first.minimumSafeReserveCoverageYears())
-        : 0;
-  }
 }

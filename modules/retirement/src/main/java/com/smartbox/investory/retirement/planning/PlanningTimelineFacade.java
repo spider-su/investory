@@ -4,7 +4,7 @@ import com.smartbox.investory.investment.api.HistoricalPortfolioActualsReader;
 import com.smartbox.investory.investment.api.HistoricalPortfolioYear;
 import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
 import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
+import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
 import com.smartbox.investory.retirement.infrastructure.planning.*;
 import com.smartbox.investory.retirement.profile.*;
 import com.smartbox.investory.retirement.simulation.*;
@@ -582,15 +582,15 @@ public class PlanningTimelineFacade {
         .forEach(value -> allocation.merge(value.bucket(), value.value(), BigDecimal::add));
     BigDecimal manualReserve =
         profile.longTermAssets().stream()
-            .filter(asset -> asset.type() == LongTermAssetType.CASH_RESERVE)
+            .filter(asset -> asset.type() == LongTermAssetTypeModel.CASH_RESERVE)
             .map(ProjectedLongTermAsset::currentValue)
             .reduce(ZERO, BigDecimal::add);
     BigDecimal locked =
         profile.longTermAssets().stream()
             .filter(
                 asset ->
-                    asset.type() == LongTermAssetType.BOND
-                        || asset.type() == LongTermAssetType.DEPOSIT)
+                    asset.type() == LongTermAssetTypeModel.BOND
+                        || asset.type() == LongTermAssetTypeModel.DEPOSIT)
             .map(ProjectedLongTermAsset::currentValue)
             .reduce(ZERO, BigDecimal::add);
     BigDecimal fixed =
@@ -598,7 +598,7 @@ public class PlanningTimelineFacade {
             .getOrDefault(EconomicBucket.FIXED_INCOME, ZERO)
             .subtract(
                 profile.longTermAssets().stream()
-                    .filter(asset -> asset.type() == LongTermAssetType.BOND)
+                    .filter(asset -> asset.type() == LongTermAssetTypeModel.BOND)
                     .map(ProjectedLongTermAsset::currentValue)
                     .reduce(ZERO, BigDecimal::add))
             .max(ZERO);

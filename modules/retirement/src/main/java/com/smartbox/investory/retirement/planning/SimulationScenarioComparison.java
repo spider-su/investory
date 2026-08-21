@@ -41,7 +41,8 @@ public record SimulationScenarioComparison(
                       display.minimumSafeReserveCoverageYearsDisplay(),
                       failureDisplay(summary),
                       display.minimumSpendableAssetsDisplay(),
-                      display.finalNetWorthDisplay());
+                      display.finalNetWorthDisplay(),
+                      display.finalSpendableAssetsDisplay());
                 })
             .toList();
     return new SimulationScenarioComparison(rows, interpretation(available, limiting), limiting);
@@ -125,5 +126,6 @@ public record SimulationScenarioComparison(
       String minimumReserveCoverageDisplay,
       String firstFailureDisplay,
       String minimumSpendableAssetsDisplay,
-      String finalNetWorthDisplay) {}
+      String finalNetWorthDisplay,
+      String finalSpendableAssetsDisplay) {}
 }

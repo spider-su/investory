@@ -8,11 +8,11 @@ import java.util.List;
 import java.time.LocalDate;
 
 /** Coordinates yearly income-gap funding. It owns no asset or investment mechanics. */
-public final class SimplifiedRetirementSimulation {
+public final class RetirementSimulationOrchestrator {
   private final LongTermAnnualProjectionApi longTerm;
   private final InvestmentAnnualProjectionApi investments;
 
-  public SimplifiedRetirementSimulation(
+  public RetirementSimulationOrchestrator(
       LongTermAnnualProjectionApi longTerm, InvestmentAnnualProjectionApi investments) {
     this.longTerm = longTerm;
     this.investments = investments;
@@ -36,10 +36,18 @@ public final class SimplifiedRetirementSimulation {
       if (!assets.bonds().isEmpty() || !assets.rentalIncome().isEmpty()) bonds = assets.bonds();
       var preview = longTerm.project(new LongTermAnnualProjectionApi.ProjectionRequest(
           year, reserve, BigDecimal.ZERO, bonds, assets.rentalIncome()));
-      BigDecimal gap = expenses.add(eventExpenses)
-          .subtract(preview.monthlyNetRentalIncome().multiply(BigDecimal.valueOf(12)))
-          .subtract(preview.netBondIncome())
-          .subtract(pension).subtract(employment).subtract(eventIncome);
+      List<PlannedCashFlow> flows = new ArrayList<>();
+      addAnnual(flows, "retirement-expenses", CashFlowDirection.EXPENSE, expenses, year);
+      addAnnual(flows, "event-expenses", CashFlowDirection.EXPENSE, eventExpenses, year);
+      addAnnual(flows, "rental-income", CashFlowDirection.INCOME,
+          preview.monthlyNetRentalIncome().multiply(BigDecimal.valueOf(12)), year);
+      addAnnual(flows, "bond-income", CashFlowDirection.INCOME, preview.netBondIncome(), year);
+      addAnnual(flows, "pension", CashFlowDirection.INCOME, pension, year);
+      addAnnual(flows, "employment", CashFlowDirection.INCOME, employment, year);
+      addAnnual(flows, "event-income", CashFlowDirection.INCOME, eventIncome, year);
+      CashFlowAggregationService.Result cashFlow = new CashFlowAggregationService()
+          .aggregateProjected(new Period(LocalDate.of(year, 1, 1), LocalDate.of(year, 12, 31)), flows);
+      BigDecimal gap = cashFlow.netCashFlow().negate();
       BigDecimal required = gap.max(BigDecimal.ZERO);
       BigDecimal surplus = gap.negate().max(BigDecimal.ZERO);
       var assetYear = longTerm.project(new LongTermAnnualProjectionApi.ProjectionRequest(
@@ -126,6 +134,15 @@ public final class SimplifiedRetirementSimulation {
   private static BigDecimal events(RetirementSimulationInput i, int year, SimulationEventType type) {
     return i.events().stream().filter(e -> e.year() == year && e.type() == type)
         .map(SimulationEvent::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+
+  private static void addAnnual(List<PlannedCashFlow> flows, String id, CashFlowDirection direction,
+      BigDecimal amount, int year) {
+    if (amount.signum() > 0) {
+      LocalDate date = LocalDate.of(year, 1, 1);
+      flows.add(new PlannedCashFlow(id, id, direction, CashFlowCadence.ANNUAL, amount, date,
+          ProjectionSource.PROJECTED));
+    }
   }
 
   private static BigDecimal nz(BigDecimal value) { return value == null ? BigDecimal.ZERO : value; }

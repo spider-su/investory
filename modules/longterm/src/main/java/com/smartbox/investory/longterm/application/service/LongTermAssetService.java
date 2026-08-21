@@ -766,6 +766,13 @@ public class LongTermAssetService {
         rentEnd =
             contractModels.stream()
                 .filter(c -> c.startDate() != null && !c.startDate().isAfter(effectiveDate))
+                .filter(
+                    c ->
+                        c.terms().stream()
+                            .anyMatch(
+                                t ->
+                                    t.type()
+                                        == com.smartbox.investory.longterm.api.model.CashFlowTypeModel.RENT))
                 .max(Comparator.comparing(RentalContractModel::startDate))
                 .map(RentalContractModel::endDate)
                 .orElse(null);
@@ -779,12 +786,13 @@ public class LongTermAssetService {
                 rentalTaxPolicy(a.getPortfolioId(), effectiveDate)
                     .map(RentalTaxPolicyEntity::getRate)
                     .orElse(REAL_ESTATE_TAX_RATE));
-        gross = realEstatePlanning.monthlyIncome().multiply(BigDecimal.valueOf(12));
+        gross = normalizeMoney(realEstatePlanning.monthlyIncome().multiply(BigDecimal.valueOf(12)));
         expenses =
-            realEstatePlanning
-                .monthlyReduce()
-                .multiply(BigDecimal.valueOf(12))
-                .subtract(realEstatePlanning.annualTax());
+            normalizeMoney(
+                realEstatePlanning
+                    .monthlyReduce()
+                    .multiply(BigDecimal.valueOf(12))
+                    .subtract(realEstatePlanning.annualTax()));
       }
       tax = realEstatePlanning.annualTax();
     } else if (a.getType() == LongTermAssetType.BOND) {
@@ -980,6 +988,13 @@ public class LongTermAssetService {
 
   private boolean activeOn(LongTermAssetEntity asset, LocalDate date) {
     return lifecycle.activeOn(asset, date);
+  }
+
+  private static BigDecimal normalizeMoney(BigDecimal value) {
+    BigDecimal rounded = value.setScale(3, java.math.RoundingMode.HALF_UP);
+    return rounded.stripTrailingZeros().scale() <= 0
+        ? rounded.setScale(0)
+        : rounded.stripTrailingZeros();
   }
 
   public record AggregateSummary(
