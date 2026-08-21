@@ -4,9 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
+import com.smartbox.investory.longterm.api.model.CashFlowTypeModel;
+import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
 import com.smartbox.investory.longterm.api.model.RentalIncomeProjectionModel;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 class RentalIncomeProjectionTest {
   @Test
   void openEndedIncomeUsesConfiguredGrowth() {
-    var asset = asset(period(2027, null, "180000", CashFlowType.RENT));
+    var asset = asset(period(2027, null, "180000", CashFlowTypeModel.RENT));
     var first = RentalIncomeProjectionModel.project(asset, Map.of(), 2027, bd("0.01"));
     var second = RentalIncomeProjectionModel.project(asset, first.incomeByType(), 2028, bd("0.01"));
     var third = RentalIncomeProjectionModel.project(asset, second.incomeByType(), 2029, bd("0.01"));
@@ -31,8 +31,8 @@ class RentalIncomeProjectionTest {
   void explicitPeriodWinsAndGrowthContinuesFromIt() {
     var asset =
         asset(
-            period(2027, 2027, "180000", CashFlowType.RENT),
-            period(2028, null, "210000", CashFlowType.RENT));
+            period(2027, 2027, "180000", CashFlowTypeModel.RENT),
+            period(2028, null, "210000", CashFlowTypeModel.RENT));
     var first = RentalIncomeProjectionModel.project(asset, Map.of(), 2027, bd("0.10"));
     var second = RentalIncomeProjectionModel.project(asset, first.incomeByType(), 2028, bd("0.10"));
     var third = RentalIncomeProjectionModel.project(asset, second.incomeByType(), 2029, bd("0.10"));
@@ -44,7 +44,7 @@ class RentalIncomeProjectionTest {
 
   @Test
   void storedEndDateDoesNotExpireForwardBaseline() {
-    var asset = asset(period(2027, 2028, "180000", CashFlowType.RENT));
+    var asset = asset(period(2027, 2028, "180000", CashFlowTypeModel.RENT));
     var active = RentalIncomeProjectionModel.project(asset, Map.of(), 2028, BigDecimal.ZERO);
     var expired =
         RentalIncomeProjectionModel.project(asset, active.incomeByType(), 2029, BigDecimal.ZERO);
@@ -57,8 +57,8 @@ class RentalIncomeProjectionTest {
   void explicitZeroReplacementTerminatesIncome() {
     var asset =
         asset(
-            period(2027, 2027, "180000", CashFlowType.RENT),
-            period(2028, null, "0", CashFlowType.RENT));
+            period(2027, 2027, "180000", CashFlowTypeModel.RENT),
+            period(2028, null, "0", CashFlowTypeModel.RENT));
     var first = RentalIncomeProjectionModel.project(asset, Map.of(), 2027, bd("0.10"));
     var replacement =
         RentalIncomeProjectionModel.project(asset, first.incomeByType(), 2028, bd("0.10"));
@@ -75,8 +75,8 @@ class RentalIncomeProjectionTest {
     var asset =
         asset(
             periodBetween(
-                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 6, 30), "24000", CashFlowType.RENT),
-            periodBetween(LocalDate.of(2026, 7, 1), null, "27600", CashFlowType.RENT));
+                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 6, 30), "24000", CashFlowTypeModel.RENT),
+            periodBetween(LocalDate.of(2026, 7, 1), null, "27600", CashFlowTypeModel.RENT));
 
     var result = RentalIncomeProjectionModel.actualYear(asset, 2026);
     var expected =
@@ -93,14 +93,14 @@ class RentalIncomeProjectionTest {
   void expensesCarryForwardWithoutRentalGrowth() {
     var asset =
         asset(
-            period(2027, 2028, "180000", CashFlowType.RENT),
+            period(2027, 2028, "180000", CashFlowTypeModel.RENT),
             new LongTermAssetProjectionModel.Period(
                 LocalDate.of(2027, 1, 1),
                 LocalDate.of(2028, 12, 31),
                 BigDecimal.ZERO,
                 bd("12000"),
                 BigDecimal.ZERO,
-                CashFlowType.ADMIN_FEE));
+                CashFlowTypeModel.ADMIN_FEE));
     var first = RentalIncomeProjectionModel.project(asset, Map.of(), 2027, bd("0.10"));
     var second = RentalIncomeProjectionModel.project(asset, first.incomeByType(), 2028, bd("0.10"));
 
@@ -119,21 +119,21 @@ class RentalIncomeProjectionTest {
                 bd("120000"),
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
-                CashFlowType.RENT),
+                CashFlowTypeModel.RENT),
             new LongTermAssetProjectionModel.Period(
                 LocalDate.of(2027, 1, 1),
                 null,
                 bd("12000"),
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
-                CashFlowType.PARKING_RENT),
+                CashFlowTypeModel.PARKING_RENT),
             new LongTermAssetProjectionModel.Period(
                 LocalDate.of(2027, 1, 1),
                 null,
                 BigDecimal.ZERO,
                 bd("10000"),
                 BigDecimal.ZERO,
-                CashFlowType.ADMIN_FEE));
+                CashFlowTypeModel.ADMIN_FEE));
     var result = RentalIncomeProjectionModel.project(asset, Map.of(), 2027, bd("0.02"));
 
     assertBd("132000", result.grossIncome());
@@ -151,7 +151,7 @@ class RentalIncomeProjectionTest {
                 bd("180000"),
                 bd("34054"),
                 BigDecimal.ZERO,
-                CashFlowType.RENT));
+                CashFlowTypeModel.RENT));
 
     assertBd(
         "145946",
@@ -163,7 +163,7 @@ class RentalIncomeProjectionTest {
     return new LongTermAssetProjectionModel(
         1L,
         "Rental",
-        LongTermAssetType.REAL_ESTATE,
+        LongTermAssetTypeModel.REAL_ESTATE,
         CurrencyType.USD,
         BigDecimal.ZERO,
         List.of(periods),
@@ -175,7 +175,7 @@ class RentalIncomeProjectionTest {
   }
 
   private static LongTermAssetProjectionModel.Period period(
-      int from, Integer to, String amount, CashFlowType type) {
+      int from, Integer to, String amount, CashFlowTypeModel type) {
     return new LongTermAssetProjectionModel.Period(
         LocalDate.of(from, 1, 1),
         to == null ? null : LocalDate.of(to, 12, 31),
@@ -186,7 +186,7 @@ class RentalIncomeProjectionTest {
   }
 
   private static LongTermAssetProjectionModel.Period periodBetween(
-      LocalDate from, LocalDate to, String amount, CashFlowType type) {
+      LocalDate from, LocalDate to, String amount, CashFlowTypeModel type) {
     return new LongTermAssetProjectionModel.Period(
         from, to, bd(amount), BigDecimal.ZERO, BigDecimal.ZERO, type);
   }

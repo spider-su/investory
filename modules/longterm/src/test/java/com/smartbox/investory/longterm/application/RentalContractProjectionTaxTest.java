@@ -3,12 +3,12 @@ package com.smartbox.investory.longterm.application;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
+import com.smartbox.investory.longterm.api.model.CashFlowTypeModel;
+import com.smartbox.investory.longterm.api.model.FrequencyModel;
 import com.smartbox.investory.longterm.api.model.RentalContractModel;
 import com.smartbox.investory.longterm.api.model.RentalIncomeProjectionModel;
-import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
-import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
+import com.smartbox.investory.longterm.api.model.InterestTreatmentModel;
+import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -23,9 +23,9 @@ class RentalContractProjectionTaxTest {
         contract(
             LocalDate.of(2026, 1, 1),
             true,
-            term(CashFlowType.RENT, "3000", false),
-            term(CashFlowType.PARKING_RENT, "300", false));
-    var b = contract(LocalDate.of(2027, 1, 1), false, term(CashFlowType.RENT, "3500", false));
+            term(CashFlowTypeModel.RENT, "3000", false),
+            term(CashFlowTypeModel.PARKING_RENT, "300", false));
+    var b = contract(LocalDate.of(2027, 1, 1), false, term(CashFlowTypeModel.RENT, "3500", false));
     var asset = asset(List.of(a, b), false);
     var result = RentalIncomeProjectionModel.project(asset, Map.of(), 2027, BigDecimal.ZERO);
     assertEquals(new BigDecimal("42000"), result.grossIncome());
@@ -39,7 +39,7 @@ class RentalContractProjectionTaxTest {
     var asset =
         asset(
             List.of(
-                contract(LocalDate.of(2026, 1, 1), null, term(CashFlowType.RENT, "3000", false))),
+                contract(LocalDate.of(2026, 1, 1), null, term(CashFlowTypeModel.RENT, "3000", false))),
             true);
     assertEquals(
         BigDecimal.ZERO,
@@ -51,8 +51,8 @@ class RentalContractProjectionTaxTest {
     return new RentalContractModel(null, start, null, null, tax, List.of(terms));
   }
 
-  private static RentalContractModel.Term term(CashFlowType type, String amount, boolean tenant) {
-    return new RentalContractModel.Term(type, new BigDecimal(amount), Frequency.MONTHLY, tenant);
+  private static RentalContractModel.Term term(CashFlowTypeModel type, String amount, boolean tenant) {
+    return new RentalContractModel.Term(type, new BigDecimal(amount), FrequencyModel.MONTHLY, tenant);
   }
 
   private static LongTermAssetProjectionModel asset(
@@ -60,14 +60,14 @@ class RentalContractProjectionTaxTest {
     return new LongTermAssetProjectionModel(
         1L,
         "A",
-        LongTermAssetType.REAL_ESTATE,
+        LongTermAssetTypeModel.REAL_ESTATE,
         CurrencyType.USD,
         BigDecimal.ZERO,
         List.of(),
         contracts,
         null,
         null,
-        (InterestTreatment) null,
+        (InterestTreatmentModel) null,
         new BigDecimal("0.085"),
         new BigDecimal("10000"),
         taxTenant);

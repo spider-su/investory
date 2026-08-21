@@ -61,7 +61,15 @@ public class LongTermAssetController {
     model.addAttribute(
         "longTermGrossYield",
         FinancialPresentation.percentage(total.annualEconomics().grossYield()));
-    groups.stream()
+      model.addAttribute(
+              "groupShares",
+              groups.stream()
+                      .collect(
+                              java.util.stream.Collectors.toMap(
+                                      LongTermAssetsApi.AssetGroupView::key,
+                                      group -> share(group.totalValue(), total.totalCurrentValue()))));
+
+      groups.stream()
         .max(java.util.Comparator.comparing(g -> g.totalValue()))
         .ifPresent(
             g -> {

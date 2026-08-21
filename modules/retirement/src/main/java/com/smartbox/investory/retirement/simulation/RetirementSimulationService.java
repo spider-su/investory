@@ -556,7 +556,9 @@ public class RetirementSimulationService {
             .toList(),
         asset.maturityDate(),
         asset.redemptionValue(),
-        com.smartbox.investory.longterm.api.model.InterestTreatmentModel.valueOf(asset.interestTreatment().name()),
+        asset.interestTreatment() == null
+            ? null
+            : com.smartbox.investory.longterm.api.model.InterestTreatmentModel.valueOf(asset.interestTreatment().name()),
         asset.taxRate(),
         asset.taxBase(),
         asset.rentalTaxPaidByTenant());

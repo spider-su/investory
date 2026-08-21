@@ -94,7 +94,9 @@ public class LongTermAssetReadService
                         .toList(),
                     input.maturityDate(),
                     toUsd(input.redemptionValue(), input.currency(), date),
-                    InterestTreatmentModel.valueOf(input.interestTreatment().name()),
+                    input.interestTreatment() == null
+                        ? null
+                        : InterestTreatmentModel.valueOf(input.interestTreatment().name()),
                     input.taxRate(),
                     toUsd(input.taxBase(), input.currency(), date),
                     input.rentalTaxPaidByTenant()))
