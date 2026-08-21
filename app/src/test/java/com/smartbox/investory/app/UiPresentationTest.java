@@ -2,6 +2,7 @@ package com.smartbox.investory.app;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.smartbox.investory.longterm.api.model.CashFlowTypeModel;
 import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.retirement.planning.PlanningMetric;
@@ -36,6 +37,7 @@ class UiPresentationTest {
   void labelsPlanningEnumsForPeople() {
     assertEquals("Fixed income", UiPresentation.bucket(EconomicBucket.FIXED_INCOME));
     assertEquals("Parking rent", UiPresentation.cashFlowType(CashFlowType.PARKING_RENT));
+    assertEquals("Parking rent", UiPresentation.cashFlowType(CashFlowTypeModel.PARKING_RENT));
     assertEquals("Accumulative", UiPresentation.interestTreatment(InterestTreatment.CAPITALIZE));
     assertEquals("Distributed", UiPresentation.interestTreatment(InterestTreatment.PAY_OUT));
   }

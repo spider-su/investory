@@ -6,6 +6,15 @@ import java.math.BigDecimal;
 public interface InvestmentAnnualProjectionApi {
   AnnualProjection project(ProjectionRequest request);
 
+  default CapitalProjection projectCapital(CapitalRequest request) {
+    AnnualProjection annual = project(new ProjectionRequest(
+        request.year(), request.startValue(), request.annualReturnRate(), request.requestedWithdrawal(), request.source()));
+    BigDecimal available = annual.startValue().add(annual.annualReturnAmount()).max(BigDecimal.ZERO);
+    return new CapitalProjection(annual.year(), annual.startValue(), BigDecimal.ZERO,
+        annual.annualReturnAmount(), available, request.requestedWithdrawal(), annual.withdrawal(),
+        annual.endValue(), Source.valueOf(annual.source().name()));
+  }
+
   record ProjectionRequest(
       int year, BigDecimal startValue, BigDecimal annualReturnRate, BigDecimal withdrawal, Source source) {
     public ProjectionRequest {
@@ -23,6 +32,15 @@ public interface InvestmentAnnualProjectionApi {
       BigDecimal withdrawal,
       BigDecimal endValue,
       Source source) {}
+
+  record CapitalRequest(
+      int year, BigDecimal startValue, BigDecimal annualReturnRate,
+      BigDecimal requestedWithdrawal, Source source) {}
+
+  record CapitalProjection(
+      int year, BigDecimal startValue, BigDecimal annualIncome, BigDecimal annualReturn,
+      BigDecimal availableForWithdrawal, BigDecimal requestedWithdrawal,
+      BigDecimal actualWithdrawal, BigDecimal endValue, Source source) {}
 
   enum Source {
     ACTUAL,

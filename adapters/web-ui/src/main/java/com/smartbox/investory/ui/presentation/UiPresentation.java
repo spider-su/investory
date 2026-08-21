@@ -1,5 +1,7 @@
 package com.smartbox.investory.ui.presentation;
 
+import com.smartbox.investory.longterm.api.model.CashFlowTypeModel;
+import com.smartbox.investory.longterm.api.model.FrequencyModel;
 import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
@@ -157,7 +159,17 @@ public final class UiPresentation {
     };
   }
 
+  /** Formats the stable Long-Term public API cash-flow type used by current templates. */
+  public static String cashFlowType(CashFlowTypeModel value) {
+    return value == null ? "—" : cashFlowType(CashFlowType.valueOf(value.name()));
+  }
+
   public static String frequency(Frequency value) {
+    return title(value);
+  }
+
+  /** Formats the stable Long-Term public API frequency used by current templates. */
+  public static String frequency(FrequencyModel value) {
     return title(value);
   }
 

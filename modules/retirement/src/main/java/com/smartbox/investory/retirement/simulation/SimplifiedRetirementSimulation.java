@@ -5,6 +5,7 @@ import com.smartbox.investory.longterm.api.LongTermAnnualProjectionApi;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.time.LocalDate;
 
 /** Coordinates yearly income-gap funding. It owns no asset or investment mechanics. */
 public final class SimplifiedRetirementSimulation {
@@ -59,6 +60,62 @@ public final class SimplifiedRetirementSimulation {
     return new Result(years);
   }
 
+  /** Generic planning entry point used by annual and review callers. */
+  public GenericResult run(GenericPlanningInput input) {
+    List<GenericYear> years = new ArrayList<>();
+    BigDecimal reserve = input.reserveStart();
+    BigDecimal capitalStart = input.capitalStart();
+    for (int year = input.startYear(); year <= input.endYear(); year++) {
+      Period period = new Period(LocalDate.of(year, 1, 1), LocalDate.of(year, 12, 31));
+      CashFlowAggregationService.Result aggregation = new CashFlowAggregationService()
+          .aggregateProjected(period, input.flows());
+      BigDecimal gap = aggregation.fundingGap();
+      BigDecimal surplus = aggregation.surplus();
+      ReserveState reserveState = new ReserveState(
+          reserve, reserve.min(gap), BigDecimal.ZERO, BigDecimal.ZERO, ProjectionSource.PROJECTED);
+      BigDecimal remaining = gap.subtract(reserveState.withdrawal()).max(BigDecimal.ZERO);
+      CapitalProjection capital = input.capital().project(year, capitalStart, remaining);
+      BigDecimal unfunded = remaining.subtract(capital.actualWithdrawal()).max(BigDecimal.ZERO);
+      years.add(new GenericYear(year, aggregation, gap, surplus, reserveState, capital, unfunded));
+      reserve = reserveState.endValue();
+      capitalStart = capital.endValue();
+    }
+    return new GenericResult(years);
+  }
+
+  @FunctionalInterface
+  public interface CapitalProvider {
+    CapitalProjection project(int year, BigDecimal startValue, BigDecimal requestedWithdrawal);
+  }
+
+  public record GenericPlanningInput(
+      int startYear,
+      int endYear,
+      BigDecimal reserveStart,
+      BigDecimal capitalStart,
+      List<PlannedCashFlow> flows,
+      CapitalProvider capital) {
+    public GenericPlanningInput {
+      if (endYear < startYear || capital == null) throw new IllegalArgumentException("Invalid planning input");
+      reserveStart = nz(reserveStart);
+      capitalStart = nz(capitalStart);
+      flows = flows == null ? List.of() : List.copyOf(flows);
+    }
+  }
+
+  public record GenericResult(List<GenericYear> years) {
+    public GenericResult { years = List.copyOf(years == null ? List.of() : years); }
+  }
+
+  public record GenericYear(
+      int year,
+      CashFlowAggregationService.Result cashFlow,
+      BigDecimal fundingGap,
+      BigDecimal surplus,
+      ReserveState reserve,
+      CapitalProjection capital,
+      BigDecimal unfundedGap) {}
+
   private static RetirementSimulationInput.LongTermYearInput assets(RetirementSimulationInput i, int year) {
     return i.longTermYears().stream().filter(a -> a.year() == year).findFirst()
         .orElse(new RetirementSimulationInput.LongTermYearInput(year, List.of(), List.of()));
@@ -68,6 +125,8 @@ public final class SimplifiedRetirementSimulation {
     return i.events().stream().filter(e -> e.year() == year && e.type() == type)
         .map(SimulationEvent::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
   }
+
+  private static BigDecimal nz(BigDecimal value) { return value == null ? BigDecimal.ZERO : value; }
 
   public record Result(List<Year> years) { public Result { years = List.copyOf(years); } }
 

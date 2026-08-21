@@ -8,6 +8,15 @@ import java.util.List;
 public interface LongTermAnnualProjectionApi {
   AnnualProjection project(ProjectionRequest request);
 
+  /** Aggregate capital result; bond maturity remains inside the implementation. */
+  default CapitalProjection projectCapital(ProjectionRequest request) {
+    AnnualProjection annual = project(request);
+    BigDecimal available = annual.maturedFunding();
+    return new CapitalProjection(request.year(), BigDecimal.ZERO, annual.netBondIncome(),
+        BigDecimal.ZERO, available, request.requiredFunding(), available, BigDecimal.ZERO,
+        annual.source());
+  }
+
   record ProjectionRequest(
       int year,
       BigDecimal reserve,
@@ -71,6 +80,17 @@ public interface LongTermAnnualProjectionApi {
       source = source == null ? Source.PROJECTED : source;
     }
   }
+
+  record CapitalProjection(
+      int year,
+      BigDecimal startValue,
+      BigDecimal annualIncome,
+      BigDecimal annualReturn,
+      BigDecimal availableForWithdrawal,
+      BigDecimal requestedWithdrawal,
+      BigDecimal actualWithdrawal,
+      BigDecimal endValue,
+      Source source) {}
 
   enum Source {
     ACTUAL,

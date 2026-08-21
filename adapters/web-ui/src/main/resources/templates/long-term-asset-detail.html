@@ -1,10 +1,106 @@
-<!DOCTYPE html><html lang="en" xmlns:th="http://www.thymeleaf.org"><head><th:block th:replace="~{fragments/theme-head :: theme}"></th:block><meta charset="UTF-8"><title th:text="${asset.name + ' · Investory'}">Long-term asset</title><meta name="viewport" content="width=device-width, initial-scale=1"><link href="/css/tabler.min.css" rel="stylesheet"><link href="/css/main.css" rel="stylesheet"></head><body><main class="container-xl py-4">
-<div class="d-flex justify-content-between mb-4"><h1 th:text="${asset.name}">Asset</h1><a class="btn btn-outline-secondary" th:href="@{/long-term-assets(portfolioId=${portfolioId})}">Back</a></div>
-<div class="alert alert-danger" th:if="${param.error}" th:text="${param.error}">Validation error.</div>
-<form class="card mb-4" method="post" th:action="@{/long-term-assets/{id}(id=${asset.id})}"><div class="card-body"><input type="hidden" name="portfolioId" th:value="${portfolioId}"><div class="row g-3"><div class="col-md-6"><label class="form-label">Name</label><input class="form-control" name="name" th:value="${asset.name}" required></div><div class="col-md-3"><label class="form-label">Type</label><select class="form-select" name="type"><option th:each="type : ${T(com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel).values()}" th:value="${type}" th:text="${type}" th:selected="${type.name() == asset.type.name()}"></option></select></div><div class="col-md-3"><label class="form-label">Currency</label><select class="form-select" name="currency"><option th:each="currency : ${T(com.smartbox.investory.shared.currency.CurrencyType).values()}" th:value="${currency}" th:text="${currency}" th:selected="${currency == asset.currency}"></option></select></div><div class="col-md-4"><label class="form-label">Current value</label><input class="form-control" name="currentValue" type="number" step="0.01" min="0" th:value="${asset.currentValue}" required></div><div class="col-md-4"><label class="form-label">Acquisition date</label><input class="form-control" name="acquisitionDate" type="date" th:value="${asset.acquisitionDate}"></div><div class="col-md-4"><label class="form-label">Acquisition value</label><input class="form-control" name="acquisitionValue" type="number" step="0.01" min="0" th:value="${asset.acquisitionValue}"></div><div class="col-12"><label class="form-label">Notes</label><textarea class="form-control" name="notes" rows="3" th:text="${asset.notes}"></textarea></div></div></div><div class="card-footer"><button class="btn btn-primary">Save changes</button></div></form>
-<div class="row row-cards mb-4"><div class="col-md-3"><div class="card"><div class="card-body"><div class="text-secondary">Gross annual income</div><strong th:text="${T(com.smartbox.investory.shared.presentation.FinancialPrecision).money(summary.annualEconomics.grossAnnualIncome)}">0.00</strong></div></div></div><div class="col-md-3"><div class="card"><div class="card-body"><div class="text-secondary">Expenses</div><strong th:text="${T(com.smartbox.investory.shared.presentation.FinancialPrecision).money(summary.annualEconomics.annualExpenses)}">0.00</strong></div></div></div><div class="col-md-3"><div class="card"><div class="card-body"><div class="text-secondary">Net before tax</div><strong th:text="${T(com.smartbox.investory.shared.presentation.FinancialPrecision).money(summary.annualEconomics.netAnnualIncomeBeforeTax)}">0.00</strong></div></div></div><div class="col-md-3"><div class="card"><div class="card-body"><div class="text-secondary">Net after tax</div><strong th:text="${T(com.smartbox.investory.shared.presentation.FinancialPrecision).money(summary.annualEconomics.netAnnualIncomeAfterTax)}">0.00</strong></div></div></div></div>
-<section class="card mb-4" th:if="${asset.type.name() == 'BOND' or asset.type.name() == 'DEPOSIT'}"><div class="card-body"><h2 class="card-title">Interest details</h2><div class="row g-3"><div class="col-md-4"><span class="text-secondary">Maturity</span><div th:text="${summary.maturityDate == null ? 'Not configured' : summary.maturityDate}">Not configured</div></div><div class="col-md-4"><span class="text-secondary">Current annual rate</span><div th:text="${T(com.smartbox.investory.shared.presentation.FinancialPrecision).rate(summary.currentAnnualRate)}">0.000000</div></div><div class="col-md-4"><span class="text-secondary">Expected net interest</span><div th:text="${summary.annualEconomics.netAnnualIncomeAfterTax}">0</div></div></div><form class="row g-2 mt-3" method="post" th:if="${asset.type.name() == 'BOND'}" th:action="@{/long-term-assets/{id}/bond-details(id=${asset.id})}"><input type="hidden" name="portfolioId" th:value="${portfolioId}"><div class="col-md-3"><input class="form-control" name="maturityDate" type="date" th:value="${bondDetails == null ? '' : bondDetails.maturityDate}" required></div><div class="col-md-2"><input class="form-control" name="taxRate" type="number" step="0.0001" min="0" max="1" placeholder="Tax rate" th:value="${bondDetails == null ? '0.19' : bondDetails.taxRate}" required></div><div class="col-md-2"><select class="form-select" name="interestTreatment"><option th:each="t : ${T(com.smartbox.investory.longterm.api.model.InterestTreatmentModel).values()}" th:value="${t}" th:text="${t}" th:selected="${bondDetails != null and t == bondDetails.interestTreatment}"></option></select></div><div class="col-md-3"><input class="form-control" name="redemptionValue" type="number" step="0.01" placeholder="Redemption value" th:value="${bondDetails == null ? '' : bondDetails.redemptionValue}"></div><div class="col-md-2"><button class="btn btn-primary">Save bond details</button></div></form><form class="row g-2 mt-3" method="post" th:if="${asset.type.name() == 'DEPOSIT'}" th:action="@{/long-term-assets/{id}/deposit-details(id=${asset.id})}"><input type="hidden" name="portfolioId" th:value="${portfolioId}"><div class="col-md-3"><input class="form-control" name="maturityDate" type="date" th:value="${depositDetails == null ? '' : depositDetails.maturityDate}"></div><div class="col-md-2"><input class="form-control" name="annualInterestRate" type="number" step="0.0001" min="0" placeholder="Annual rate" th:value="${depositDetails == null ? '0' : depositDetails.annualInterestRate}" required></div><div class="col-md-2"><input class="form-control" name="taxRate" type="number" step="0.0001" min="0" max="1" placeholder="Tax rate" th:value="${depositDetails == null ? '0.19' : depositDetails.taxRate}" required></div><div class="col-md-2"><select class="form-select" name="interestTreatment"><option th:each="t : ${T(com.smartbox.investory.longterm.api.model.InterestTreatmentModel).values()}" th:value="${t}" th:text="${t}" th:selected="${depositDetails != null and t == depositDetails.interestTreatment}"></option></select></div><div class="col-md-2"><button class="btn btn-primary">Save deposit details</button></div></form></div></section>
-<section class="card mb-4"><div class="card-header"><h2 class="card-title">Recurring cash flows</h2></div><div class="table-responsive"><table class="table card-table"><thead><tr><th>Type</th><th>Amount</th><th>Frequency</th><th>From</th><th>To</th></tr></thead><tbody><tr th:each="flow : ${cashFlows}"><td th:text="${flow.type}">RENT</td><td th:text="${T(com.smartbox.investory.shared.presentation.FinancialPrecision).money(flow.amount) + ' ' + asset.currency}">0.00</td><td th:text="${flow.frequency}">MONTHLY</td><td th:text="${flow.validFrom}">2026-01-01</td><td th:text="${flow.validTo}">-</td></tr></tbody></table></div><form class="card-body border-top" method="post" th:action="@{/long-term-assets/{id}/cash-flows(id=${asset.id})}"><input type="hidden" name="portfolioId" th:value="${portfolioId}"><div class="row g-2"><div class="col-md-3"><select class="form-select" name="type"><option th:each="type : ${T(com.smartbox.investory.longterm.api.model.CashFlowTypeModel).values()}" th:value="${type}" th:text="${type}"></option></select></div><div class="col-md-2"><input class="form-control" name="amount" type="number" step="0.01" min="0" placeholder="Amount" required></div><div class="col-md-2"><select class="form-select" name="frequency"><option th:each="frequency : ${T(com.smartbox.investory.longterm.api.model.FrequencyModel).values()}" th:value="${frequency}" th:text="${frequency}"></option></select></div><div class="col-md-2"><input class="form-control" name="validFrom" type="date" required></div><div class="col-md-2"><input class="form-control" name="validTo" type="date"></div><div class="col-md-1"><button class="btn btn-primary">Add</button></div></div></form></section>
-<section class="card mb-4"><div class="card-header"><h2 class="card-title">Planning periods</h2></div><div class="card-body"><table class="table"><thead><tr><th>From</th><th>To</th><th>Growth rate</th></tr></thead><tbody><tr th:each="p : ${valuationPeriods}"><td th:text="${p.validFrom}">2026-01-01</td><td th:text="${p.validTo}">-</td><td th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).percentage(p.expectedAnnualGrowthRate)}">0.0%</td></tr></tbody></table><form class="row g-2" method="post" th:action="@{/long-term-assets/{id}/valuation-periods(id=${asset.id})}"><input type="hidden" name="portfolioId" th:value="${portfolioId}"><div class="col-md-3"><input class="form-control" name="validFrom" type="date" required></div><div class="col-md-3"><input class="form-control" name="validTo" type="date"></div><div class="col-md-3"><div class="input-group"><input class="form-control" name="expectedAnnualGrowthRatePercent" type="number" step="0.01" min="-100" max="100" placeholder="Growth rate" required><span class="input-group-text">%</span></div></div><div class="col-md-2"><button class="btn btn-primary">Add valuation period</button></div></form></div></section>
-<section class="card mb-4" th:if="${asset.type.name() == 'BOND'}"><div class="card-header"><h2 class="card-title">Bond rate periods</h2></div><div class="card-body"><table class="table"><thead><tr><th>From</th><th>To</th><th>Annual rate</th></tr></thead><tbody><tr th:each="p : ${bondRatePeriods}"><td th:text="${p.validFrom}">2026-01-01</td><td th:text="${p.validTo}">-</td><td th:text="${T(com.smartbox.investory.shared.presentation.FinancialPrecision).rate(p.annualInterestRate)}">0.0%</td></tr></tbody></table><form class="row g-2" method="post" th:action="@{/long-term-assets/{id}/bond-rate-periods(id=${asset.id})}"><input type="hidden" name="portfolioId" th:value="${portfolioId}"><div class="col-md-3"><input class="form-control" name="validFrom" type="date" required></div><div class="col-md-3"><input class="form-control" name="validTo" type="date"></div><div class="col-md-3"><input class="form-control" name="annualInterestRate" type="number" step="0.0001" min="0" required></div><div class="col-md-2"><button class="btn btn-primary">Add rate period</button></div></form></div></section>
-<div class="d-flex gap-2"><form method="post" th:action="@{/long-term-assets/{id}/archive(id=${asset.id})}"><input type="hidden" name="portfolioId" th:value="${portfolioId}"><button class="btn btn-outline-danger" th:if="${asset.active}">Archive</button></form><form method="post" th:action="@{/long-term-assets/{id}/reactivate(id=${asset.id})}"><input type="hidden" name="portfolioId" th:value="${portfolioId}"><button class="btn btn-outline-success" th:unless="${asset.active}">Reactivate</button></form></div></main></body></html>
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <th:block th:replace="~{fragments/theme-head :: theme}"></th:block>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title th:text="${asset.name + ' · Investory'}">Long-term asset · Investory</title>
+  <link href="/css/tabler.min.css" rel="stylesheet">
+  <link href="/css/main.css" rel="stylesheet">
+  <link href="/css/asset-detail.css" rel="stylesheet">
+</head>
+<body>
+<main class="container-xl py-4">
+  <header class="iv-asset-page__header">
+    <div>
+      <div class="iv-asset-page__eyebrow" th:text="${#strings.capitalize(#strings.toLowerCase(#strings.replace(asset.type.name(), '_', ' ')))}">Asset</div>
+      <h1 class="h2 mb-0" th:text="${asset.name}">Asset</h1>
+    </div>
+    <a class="btn btn-outline-secondary" th:href="@{/long-term-assets(portfolioId=${portfolioId})}">Back</a>
+  </header>
+
+  <div class="alert alert-danger" th:if="${param.error}" th:text="${param.error}">Validation error.</div>
+
+  <form class="card mb-4" method="post" th:action="@{/long-term-assets/{id}(id=${asset.id})}">
+    <div class="card-header"><h2 class="card-title">Asset details</h2></div>
+    <div class="card-body">
+      <input type="hidden" name="portfolioId" th:value="${portfolioId}">
+      <input type="hidden" name="active" th:value="${asset.active}">
+      <div class="row g-3">
+        <div class="col-lg-6"><label class="form-label" for="asset-name">Name</label><input id="asset-name" class="form-control" name="name" th:value="${asset.name}" required></div>
+        <div class="col-sm-6 col-lg-3"><label class="form-label" for="asset-type">Type</label><select id="asset-type" class="form-select" name="type"><option th:each="type : ${T(com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel).values()}" th:value="${type}" th:text="${#strings.capitalize(#strings.toLowerCase(#strings.replace(type.name(), '_', ' ')))}" th:selected="${type.name() == asset.type.name()}"></option></select></div>
+        <div class="col-sm-6 col-lg-3"><label class="form-label" for="asset-currency">Currency</label><select id="asset-currency" class="form-select" name="currency"><option th:each="currency : ${T(com.smartbox.investory.shared.currency.CurrencyType).values()}" th:value="${currency}" th:text="${currency}" th:selected="${currency == asset.currency}"></option></select></div>
+        <div class="col-sm-6 col-lg-4"><label class="form-label" for="asset-current-value">Current value</label><input id="asset-current-value" class="form-control" name="currentValue" type="number" step="0.01" min="0" th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).moneyInput(asset.currentValue)}" required></div>
+        <div class="col-sm-6 col-lg-4"><label class="form-label" for="asset-acquisition-date">Acquisition date</label><input id="asset-acquisition-date" class="form-control" name="acquisitionDate" type="date" th:value="${asset.acquisitionDate}"></div>
+        <div class="col-sm-6 col-lg-4"><label class="form-label" for="asset-acquisition-value">Acquisition value</label><input id="asset-acquisition-value" class="form-control" name="acquisitionValue" type="number" step="0.01" min="0" th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).moneyInput(asset.acquisitionValue)}"></div>
+        <div class="col-12"><label class="form-label" for="asset-notes">Notes</label><textarea id="asset-notes" class="form-control" name="notes" rows="4" th:text="${asset.notes}"></textarea></div>
+      </div>
+    </div>
+    <div class="card-footer"><button class="btn btn-primary">Save changes</button></div>
+  </form>
+
+  <section class="iv-asset-metrics">
+    <div class="card"><div class="card-body"><div class="text-secondary">Gross annual income</div><strong class="iv-asset-metric" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(summary.annualEconomics.grossAnnualIncome, asset.currency)}">0.00 PLN</strong></div></div>
+    <div class="card"><div class="card-body"><div class="text-secondary">Expenses</div><strong class="iv-asset-metric" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(summary.annualEconomics.annualExpenses, asset.currency)}">0.00 PLN</strong></div></div>
+    <div class="card"><div class="card-body"><div class="text-secondary">Net before tax</div><strong class="iv-asset-metric" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(summary.annualEconomics.netAnnualIncomeBeforeTax, asset.currency)}">0.00 PLN</strong></div></div>
+    <div class="card"><div class="card-body"><div class="text-secondary">Net after tax</div><strong class="iv-asset-metric" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(summary.annualEconomics.netAnnualIncomeAfterTax, asset.currency)}">0.00 PLN</strong></div></div>
+  </section>
+
+  <section class="card mb-4" th:if="${asset.type.name() == 'DEPOSIT'}">
+    <div class="card-header"><h2 class="card-title">Deposit details</h2></div>
+    <div class="card-body">
+      <form class="iv-asset-section-form" method="post" th:action="@{/long-term-assets/{id}/deposit-details(id=${asset.id})}">
+        <input type="hidden" name="portfolioId" th:value="${portfolioId}">
+        <div><label class="form-label" for="deposit-maturity">Maturity</label><input id="deposit-maturity" class="form-control" name="maturityDate" type="date" th:value="${depositDetails == null ? '' : depositDetails.maturityDate}"></div>
+        <div><label class="form-label" for="deposit-rate">Annual rate</label><input id="deposit-rate" class="form-control" name="annualInterestRate" type="number" step="0.0001" min="0" max="1" th:value="${depositDetails == null ? '0' : depositDetails.annualInterestRate}" required></div>
+        <div><label class="form-label" for="deposit-tax">Tax rate</label><input id="deposit-tax" class="form-control" name="taxRate" type="number" step="0.0001" min="0" max="1" th:value="${depositDetails == null ? '0.19' : depositDetails.taxRate}" required></div>
+        <div><label class="form-label" for="deposit-interest-mode">Interest mode</label><select id="deposit-interest-mode" class="form-select" name="interestTreatment"><option th:each="t : ${T(com.smartbox.investory.longterm.api.model.InterestTreatmentModel).values()}" th:value="${t}" th:text="${t.name() == 'PAY_OUT' ? 'Distributed' : 'Accumulative'}" th:selected="${depositDetails != null and t == depositDetails.interestTreatment}"></option></select></div>
+        <button class="btn btn-primary">Save deposit details</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="card mb-4">
+    <div class="card-header"><h2 class="card-title">Recurring cash flows</h2></div>
+    <div class="card-body text-secondary" th:if="${#lists.isEmpty(cashFlows)}">No recurring cash flows configured.</div>
+    <div class="table-responsive" th:unless="${#lists.isEmpty(cashFlows)}">
+      <table class="table card-table iv-asset-table">
+        <thead><tr><th>Type</th><th>Amount</th><th>Frequency</th><th>From</th><th>To</th></tr></thead>
+        <tbody><tr th:each="flow : ${cashFlows}"><td th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).cashFlowType(flow.type)}">Rent</td><td th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(flow.amount, asset.currency)}">0.00 PLN</td><td th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).frequency(flow.frequency)}">Monthly</td><td th:text="${flow.validFrom ?: '—'}">—</td><td th:text="${flow.validTo ?: 'Open'}">Open</td></tr></tbody>
+      </table>
+    </div>
+    <form class="card-body border-top" method="post" th:action="@{/long-term-assets/{id}/cash-flows(id=${asset.id})}">
+      <input type="hidden" name="portfolioId" th:value="${portfolioId}">
+      <div class="iv-asset-section-form">
+        <div><label class="form-label" for="flow-type">Type</label><select id="flow-type" class="form-select" name="type"><option th:each="type : ${T(com.smartbox.investory.longterm.api.model.CashFlowTypeModel).values()}" th:value="${type}" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).cashFlowType(type)}"></option></select></div>
+        <div><label class="form-label" for="flow-amount">Amount</label><input id="flow-amount" class="form-control" name="amount" type="number" step="0.01" min="0" required></div>
+        <div><label class="form-label" for="flow-frequency">Frequency</label><select id="flow-frequency" class="form-select" name="frequency"><option th:each="frequency : ${T(com.smartbox.investory.longterm.api.model.FrequencyModel).values()}" th:value="${frequency}" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).frequency(frequency)}"></option></select></div>
+        <div><label class="form-label" for="flow-from">From</label><input id="flow-from" class="form-control" name="validFrom" type="date"></div>
+        <div><label class="form-label" for="flow-to">To</label><input id="flow-to" class="form-control" name="validTo" type="date"></div>
+        <button class="btn btn-primary">Add cash flow</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card mb-4">
+    <div class="card-header"><h2 class="card-title">Planning periods</h2></div>
+    <div class="card-body text-secondary" th:if="${#lists.isEmpty(valuationPeriods)}">No planning periods configured.</div>
+    <div class="table-responsive" th:unless="${#lists.isEmpty(valuationPeriods)}"><table class="table card-table iv-asset-table"><thead><tr><th>From</th><th>To</th><th>Growth rate</th></tr></thead><tbody><tr th:each="p : ${valuationPeriods}"><td th:text="${p.validFrom}">2026-01-01</td><td th:text="${p.validTo ?: 'Open'}">Open</td><td th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).percentage(p.expectedAnnualGrowthRate)}">0.0%</td></tr></tbody></table></div>
+    <form class="card-body border-top" method="post" th:action="@{/long-term-assets/{id}/valuation-periods(id=${asset.id})}">
+      <input type="hidden" name="portfolioId" th:value="${portfolioId}">
+      <div class="iv-asset-section-form">
+        <div><label class="form-label" for="planning-from">From</label><input id="planning-from" class="form-control" name="validFrom" type="date" required></div>
+        <div><label class="form-label" for="planning-to">To</label><input id="planning-to" class="form-control" name="validTo" type="date"></div>
+        <div><label class="form-label" for="planning-growth">Growth rate</label><div class="input-group"><input id="planning-growth" class="form-control" name="expectedAnnualGrowthRatePercent" type="number" step="0.01" min="-100" max="100" required><span class="input-group-text">%</span></div></div>
+        <button class="btn btn-primary">Add planning period</button>
+      </div>
+    </form>
+  </section>
+
+  <div class="iv-asset-page__actions">
+    <form method="post" th:action="@{/long-term-assets/{id}/archive(id=${asset.id})}"><input type="hidden" name="portfolioId" th:value="${portfolioId}"><button class="btn btn-outline-danger" th:if="${asset.active}">Archive</button></form>
+    <form method="post" th:action="@{/long-term-assets/{id}/reactivate(id=${asset.id})}"><input type="hidden" name="portfolioId" th:value="${portfolioId}"><button class="btn btn-outline-success" th:unless="${asset.active}">Reactivate</button></form>
+  </div>
+</main>
+</body>
+</html>

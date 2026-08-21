@@ -1,85 +1,136 @@
-# Retirement simulation
+# Generic retirement planning and simulation
 
-This document defines the simplified annual simulation contract.
+Retirement planning consumes only three things: planned cash flows, one liquid reserve, and capital
+projections. It does not calculate rental yield, bond interest, tax, inflation, investment return,
+maturity, or asset valuation.
 
-## Module ownership
-
-The dependency direction is:
-
-```text
-Retirement -> Long-Term public API
-Retirement -> Investment public API
-```
-
-Retirement owns assumptions, expenses, pension, employment income, one-off events, the signed
-income-gap calculation, funding orchestration, the timeline, and result presentation. It does not
-read persistence entities or infrastructure packages from another module.
-
-Long-Term owns rental income, free reserve (cash and immediately available deposits), bonds, bond
-maturity, reinvestment, and yearly long-term asset projections. Rental and bond income are net of
-tax and costs. Long-Term exposes immutable annual values and does not expose persistence models.
-
-Investment is one black box. Its annual public projection contains only year, start value, annual
-return amount, withdrawal, end value, and source (`ACTUAL` or `PROJECTED`). Investment owns return
-and end-value calculation.
-
-## Annual calculation
-
-Use signed values internally:
+## Ownership and dependency direction
 
 ```text
-annualIncomeGap =
-    annualExpenses
-    + eventExpenses
-    - sum(monthlyNetRentalIncome) * 12
-    - sum(netBondIncome)
-    - monthlyPension
-    - netEmploymentIncome
-    - eventIncome
-
-requiredFunding = max(annualIncomeGap, 0)
-annualSurplus   = max(-annualIncomeGap, 0)
+Retirement/Simulation -> Long-Term public API
+Retirement/Simulation -> Investment public API
 ```
 
-Investment return is not income. It never reduces the gap; it changes the investment end value
-after the requested withdrawal.
+Retirement owns the requested period, lifecycle assumptions, generic flow aggregation, funding gap,
+reserve withdrawal, capital-funding orchestration, timeline, and reporting. Long-Term Assets owns
+rental and bond/deposit projections, maturity, redemption, reinvestment, availability, and asset
+capital values. Investment owns portfolio valuation, return, withdrawal, and end value. Neither
+asset module depends on Retirement.
 
-Funding is always performed in this order:
+Taxes and costs are already reflected in supplied net flow values.
 
-1. annual income offsets expenses;
-2. free reserve;
-3. matured bond principal allowed by its maturity strategy;
-4. investment withdrawal;
-5. unfunded shortfall.
+## Planned cash flows
 
-This order is fixed and is not configurable.
+The generic flow contract is:
 
-## Bond maturity strategies
+```text
+PlannedCashFlow(id, category, direction, cadence, amount, effectiveDate, source)
+```
 
-Each bond has a maturity date, redemption value, net annual income, source, and strategy:
+`direction` is `INCOME` or `EXPENSE`; `cadence` is `MONTHLY`, `ANNUAL`, or `ONE_OFF`; `source` is
+`ACTUAL` or `PROJECTED`. `category` is reporting metadata only. Employment is an ordinary planned
+income flow while working and is absent after employment ends. Pension, rental, bond income, living
+costs, events, and vacations use the same contract.
 
-- `REINVEST`: renew the matured principal using the configured renewal term and net rate;
-- `MOVE_TO_RESERVE`: move redemption proceeds to free reserve;
-- `FUND_GAP`: use proceeds for the current annual gap and move unused proceeds to free reserve.
+For any period:
 
-Missing strategy means `REINVEST`. Reinvested principal is unavailable for current funding.
+```text
+periodIncome  = all applicable income
+periodExpense = all applicable expenses
+netCashFlow   = periodIncome - periodExpense
+fundingGap    = max(-netCashFlow, 0)
+surplus       = max(netCashFlow, 0)
+```
 
-## Lifecycle
+For a full year this becomes:
 
-Working years include configured employment income and have no retirement spending. Employment
-income is zero from retirement onward. Pension applies only from its configured start age/date.
-One-off events remain active in working and retired years.
+```text
+12 * monthlyIncome - 12 * monthlyExpense
++ annualIncome - annualExpense
++ eventIncome - eventExpense
+```
 
-Retirement spending starts at retirement. Spending growth compounds only after retirement; it does
-not grow during working years. A forward rebase carries the accumulated retirement spending into
-the new forward boundary and must not reset it.
+The same aggregation service handles annual, quarterly, and partial periods. Actual flows replace
+projected flows with the same stable identity and covered date; they are never added twice.
 
-Values are marked actual or projected at the public module boundaries. The simulation does not
-invent actual values from projections.
+Future simulation uses projected flows only. Review uses actual flows through the review date and
+projected flows for the remaining period.
+
+## Reserve
+
+Reserve combines cash and immediately available deposits. Simulation may withdraw it but never
+automatically adds annual surplus to it. Future simulation always uses:
+
+```text
+reviewAdjustment = 0
+reserveWithdrawal = min(startValue, fundingGap)
+endValue = startValue - reserveWithdrawal
+```
+
+Review may apply an explicit, separately reported reserve adjustment. External contributions do not
+exist inside future simulation. Unused surplus stays informational unless a review allocates it.
+
+## Capital projections
+
+The conceptual capital result contains:
+
+```text
+year, startValue, annualIncome, annualReturn,
+availableForWithdrawal, requestedWithdrawal, actualWithdrawal, endValue, source
+```
+
+`annualIncome` is a cash flow and enters aggregation. `annualReturn` changes capital value only and
+does not reduce the funding gap. The owning module decides availability, withdrawal, and end value;
+actual withdrawal cannot exceed availability or value.
+
+Long-Term maturity strategies are `REINVEST`, `MOVE_TO_RESERVE`, and `FUND_GAP`, defaulting to
+`REINVEST`. Reinvested principal remains unavailable to Simulation. Move-to-reserve proceeds are a
+reserve transfer. Fund-gap proceeds cover the current request and unused proceeds transfer to
+reserve. Bond dates and maturity processing stay inside Long-Term.
+
+Investment is a black box. Simulation sees no equity, fixed-income, market-cash, allocation, or
+portfolio internals.
+
+## Annual orchestration
+
+Each year:
+
+1. request planned flows and capital projections;
+2. combine module flows with Retirement-owned flows;
+3. aggregate income and expenses;
+4. calculate signed net flow, gap, and surplus;
+5. apply Long-Term reserve transfers;
+6. withdraw free reserve;
+7. request Long-Term capital explicitly available by strategy;
+8. request the remaining amount from Investment;
+9. record any unfunded amount;
+10. carry returned end values to the next year.
+
+Funding order is fixed: cash-flow income, free reserve, Long-Term capital, Investment, unfunded gap.
+Annual surplus never refills reserve or capital automatically.
+
+Example: monthly income 2,000, monthly expense 2,500, annual expense 1,000, annual income 600,
+and a 200 one-off expense gives:
+
+```text
+netCashFlow = 12*2000 - 12*2500 + 600 - 1000 - 200 = -6600
+fundingGap = 6600
+```
+
+## Lifecycle and reviews
+
+Working years include employment flow and no retirement spending. Employment is zero after
+retirement. Pension starts only at its configured date. One-off flows remain active in both phases.
+Spending starts at retirement and grows only afterward. Forward rebasing carries accumulated
+retirement spending instead of resetting it.
+
+An open-year result exposes actual income/expenses, projected remaining income/expenses, expected
+full-year net result, variance from the original plan, and any explicit reserve adjustment.
 
 ## Exclusions
 
-The simplified model has no economic buckets, separate market-cash/equity/fixed-income simulation,
-configurable withdrawal order, reserve-target calculation, equity harvesting, emergency equity
-withdrawal, synthetic bonds, rental-property valuation or growth, or duplicated maturity/return
-calculation in Retirement.
+The model excludes economic buckets, market-cash/equity/fixed-income simulation, configurable
+withdrawal order, equity harvesting, emergency equity withdrawals, synthetic bonds, reserve targets
+or refill rules, property valuation/growth inside Retirement, and duplicated asset formulas.
+Legacy UI adapters may remain temporarily where external screens still require them; they are not
+part of the generic simulation contract.
