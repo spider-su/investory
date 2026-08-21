@@ -3,6 +3,7 @@ package com.smartbox.investory.ui.retirement;
 import com.smartbox.investory.retirement.api.InvestmentProfileFacade;
 import com.smartbox.investory.retirement.planning.*;
 import com.smartbox.investory.retirement.planning.PlanningPresentation;
+import com.smartbox.investory.retirement.profile.InvestmentProfile;
 import com.smartbox.investory.retirement.simulation.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -216,19 +217,11 @@ public class RetirementSimulationController {
             base.annualPreRetirementContribution(),
             SimulationAssumptions.DEFAULT_FUNDING_ORDER,
             base.expenseProfile());
-    var forward = forwardInputs.prepare(profile, assumptions);
-    var projectedAssumptions = forward.forwardAssumptions().orElse(assumptions);
-    var projectedProfile = forward.bridgedProfile();
-    var results =
-        forward.forwardAssumptions().isPresent()
-            ? simulations.compareScenarios(projectedProfile, projectedAssumptions)
-            : new java.util.EnumMap<SimulationScenario, SimulationResult>(SimulationScenario.class);
-    var summaries =
-        new java.util.EnumMap<SimulationScenario, SimulationDecisionSummary>(
-            SimulationScenario.class);
-    results.forEach(
-        (scenario, result) ->
-            summaries.put(scenario, SimulationDecisionSummary.from(result, projectedAssumptions)));
+    var projection = project(profile, assumptions);
+    var projectedAssumptions = projection.assumptions();
+    var projectedProfile = projection.profile();
+    var results = projection.results();
+    var summaries = projection.summaries();
     Map<Long, BigDecimal> displayEventAmounts = new LinkedHashMap<>();
     projectedAssumptions
         .futureEvents()
@@ -238,7 +231,7 @@ public class RetirementSimulationController {
                     event.id(),
                     planningPresentation.toDisplay(event.amount(), planningDisplayCurrency)));
     PlanningTimeline timeline =
-        planningTimeline.loadForwardTimeline(portfolioId, profile, forward, selectedScenario);
+        planningTimeline.loadForwardTimeline(portfolioId, profile, projection.forward(), selectedScenario);
     SimulationChartData canonicalCharts = SimulationChartData.from(results, projectedAssumptions);
     boolean currentYearCloseAllowed =
         timeline.years().stream()
@@ -363,19 +356,12 @@ public class RetirementSimulationController {
         planId == null
             ? SimulationAssumptions.defaults(profile, 40, 95, Year.now(clock).getValue())
             : plans.assumptions(portfolioId, planId);
-    var forward = forwardInputs.prepare(profile, assumptions);
-    var projectedAssumptions = forward.forwardAssumptions().orElse(assumptions);
-    var projectedProfile = forward.bridgedProfile();
-    var results =
-        forward.forwardAssumptions().isPresent()
-            ? simulations.compareScenarios(projectedProfile, projectedAssumptions)
-            : new java.util.EnumMap<SimulationScenario, SimulationResult>(SimulationScenario.class);
-    var summaries =
-        new java.util.EnumMap<SimulationScenario, SimulationDecisionSummary>(
-            SimulationScenario.class);
-    results.forEach(
-        (scenario, result) ->
-            summaries.put(scenario, SimulationDecisionSummary.from(result, projectedAssumptions)));
+    var projection = project(profile, assumptions);
+    var forward = projection.forward();
+    var projectedAssumptions = projection.assumptions();
+    var projectedProfile = projection.profile();
+    var results = projection.results();
+    var summaries = projection.summaries();
     var displaySummaries =
         new LinkedHashMap<>(
             planningPresentation.displaySummaries(summaries, planningDisplayCurrency));
@@ -414,6 +400,30 @@ public class RetirementSimulationController {
     model.addAttribute("analysisHorizon", projectedAssumptions.currentAge() + " → " + projectedAssumptions.endAge());
     return "retirement-analysis";
   }
+
+  /** Single boundary from projection mathematics to both retirement boards. */
+  private SimulationProjection project(InvestmentProfile profile, SimulationAssumptions assumptions) {
+    var forward = forwardInputs.prepare(profile, assumptions);
+    var projectedAssumptions = forward.forwardAssumptions().orElse(assumptions);
+    var projectedProfile = forward.bridgedProfile();
+    var results =
+        forward.forwardAssumptions().isPresent()
+            ? simulations.compareScenarios(projectedProfile, projectedAssumptions)
+            : new java.util.EnumMap<SimulationScenario, SimulationResult>(SimulationScenario.class);
+    var summaries =
+        new java.util.EnumMap<SimulationScenario, SimulationDecisionSummary>(SimulationScenario.class);
+    results.forEach(
+        (scenario, result) ->
+            summaries.put(scenario, SimulationDecisionSummary.from(result, projectedAssumptions)));
+    return new SimulationProjection(forward, projectedProfile, projectedAssumptions, results, summaries);
+  }
+
+  private record SimulationProjection(
+      ForwardSimulationInput forward,
+      InvestmentProfile profile,
+      SimulationAssumptions assumptions,
+      Map<SimulationScenario, SimulationResult> results,
+      java.util.EnumMap<SimulationScenario, SimulationDecisionSummary> summaries) {}
 
   @GetMapping("/simulation/plan/edit")
   public String editPlan(
