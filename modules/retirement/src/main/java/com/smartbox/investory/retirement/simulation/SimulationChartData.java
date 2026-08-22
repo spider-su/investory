@@ -173,7 +173,7 @@ public record SimulationChartData(
             assumptions.endAge(),
             failures,
             assumptions.expenseProfile().steps().stream()
-                .map(step -> assumptions.startYear() + step.fromYear())
+                .map(assumptions::expenseProfileStageYear)
                 .toList()));
   }
 

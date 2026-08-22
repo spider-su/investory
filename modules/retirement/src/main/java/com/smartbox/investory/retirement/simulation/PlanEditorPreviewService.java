@@ -84,8 +84,7 @@ public class PlanEditorPreviewService {
         plannedIncomeYear == null ? null : displayCanonical(plannedIncomeYear.bondIncome(), displayCurrency),
         plannedIncomeYear == null ? null : displayCanonical(plannedIncomeYear.funding().investmentReturn(), displayCurrency),
         plannedIncomeYear == null ? null : displayCanonical(plannedIncomeYear.pensionIncome(), displayCurrency),
-        plannedIncomeYear == null ? null : displayCanonical(plannedIncomeYear.rentalIncome().add(plannedIncomeYear.bondIncome())
-            .add(plannedIncomeYear.funding().investmentReturn()).add(plannedIncomeYear.pensionIncome()), displayCurrency),
+        plannedIncomeYear == null ? null : displayCanonical(plannedIncomeYear.totalIncome(), displayCurrency),
         assumptions, result.failureAge(), List.copyOf(previewYears),
         first == null ? null : year(first, assumptions, displayCurrency));
   }
@@ -100,13 +99,13 @@ public class PlanEditorPreviewService {
     return new PreviewYear(row.year(), row.age(), "PROJECTED", row.lifecyclePhase().name(),
         displayCanonical(row.coreExpenses().add(row.discretionaryExpenses()), displayCurrency),
         displayCanonical(row.eventExpenses(), displayCurrency), displayCanonical(row.totalExpenses(), displayCurrency),
-        assumptions.effectiveSpendingGrowthRate(), assumptions.expenseProfile().factorForYear(row.year() - assumptions.planStartYear()),
+        assumptions.effectiveSpendingGrowthRate(), assumptions.expenseProfileFactorForCalendarYear(row.year()),
         displayCanonical(row.employmentIncome(), displayCurrency), displayCanonical(row.rentalIncome(), displayCurrency),
         displayCanonical(row.bondIncome(), displayCurrency), displayCanonical(funding.investmentReturn(), displayCurrency),
         displayCanonical(row.pensionIncome(), displayCurrency), displayCanonical(row.eventIncome(), displayCurrency),
         displayCanonical(row.totalIncome(), displayCurrency), displayCanonical(funding.fundingGap(), displayCurrency),
         displayCanonical(row.totalIncome().subtract(row.totalExpenses()).max(BigDecimal.ZERO), displayCurrency),
-        displayCanonical(funding.reserveStart(), displayCurrency), displayCanonical(funding.reserveTransfer(), displayCurrency),
+        displayCanonical(funding.reserveStart(), displayCurrency), displayCanonical(funding.maturityToReserveOrOtherTransfer(), displayCurrency),
         displayCanonical(funding.reserveWithdrawal(), displayCurrency), displayCanonical(funding.reserveEnd(), displayCurrency),
         displayCanonical(funding.longTermFunding(), displayCurrency), displayCanonical(funding.longTermCapitalEnd(), displayCurrency),
         displayCanonical(funding.investmentStart(), displayCurrency), displayCanonical(funding.investmentReturn(), displayCurrency),

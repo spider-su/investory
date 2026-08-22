@@ -741,6 +741,19 @@ public record SimulationAssumptions(
         value);
   }
 
+  /** Calendar context for an expense stage. The persisted stage offset starts at plan start. */
+  public int expenseProfileStageYear(ExpenseProfileStep stage) {
+    return planStartYear() + stage.fromYear();
+  }
+
+  public int expenseProfileStageAge(ExpenseProfileStep stage) {
+    return ageAtPlanStart() + stage.fromYear();
+  }
+
+  public BigDecimal expenseProfileFactorForCalendarYear(int calendarYear) {
+    return expenseProfile.factorForYear(calendarYear - planStartYear());
+  }
+
   private SimulationAssumptions copy(
       BigDecimal spendingGrowth,
       BigDecimal rentalGrowth,

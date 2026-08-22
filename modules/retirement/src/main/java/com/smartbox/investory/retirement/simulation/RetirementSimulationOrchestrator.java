@@ -29,7 +29,7 @@ public final class RetirementSimulationOrchestrator {
       int year = input.startYear() + age - input.currentAge();
       boolean retired = age >= input.retirementAge();
       BigDecimal expenses = retired
-          ? spending.multiply(input.expenseProfile().factorForYear(year - input.startYear())) : ZERO;
+          ? spending.multiply(input.expenseProfileFactorForCalendarYear(year)) : ZERO;
       BigDecimal employment = retired ? ZERO : input.annualEmploymentIncome();
       BigDecimal pension = age >= input.pensionStartAge() ? input.annualPension() : ZERO;
 

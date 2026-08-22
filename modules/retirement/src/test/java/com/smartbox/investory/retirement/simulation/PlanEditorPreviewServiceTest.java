@@ -288,7 +288,7 @@ class PlanEditorPreviewServiceTest {
     assertEquals(2027, previewYear.year());
     assertEquals(new BigDecimal("732"), previewYear.investmentReturn());
     assertEquals(2027, preview.plannedIncomeReferenceYear());
-    assertEquals(new BigDecimal("732"), preview.plannedAnnualIncome());
+    assertEquals(BigDecimal.ZERO, preview.plannedAnnualIncome());
     assertEquals(
         previewYear.fundingGap(),
         previewYear.reserveWithdrawal()

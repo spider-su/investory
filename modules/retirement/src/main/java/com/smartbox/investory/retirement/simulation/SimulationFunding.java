@@ -33,6 +33,11 @@ public record SimulationFunding(
     unfunded = value(unfunded);
   }
 
+  /** Capital moved into the reserve before the reserve withdrawal is applied. */
+  public BigDecimal maturityToReserveOrOtherTransfer() {
+    return reserveTransfer;
+  }
+
   static SimulationFunding legacy() {
     return new SimulationFunding(
         ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO);

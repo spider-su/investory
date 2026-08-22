@@ -149,7 +149,13 @@ retirement spending instead of resetting it. This is deliberate: `annualLivingEx
 `annualDiscretionaryExpenses` represent retirement spending, not a household budget before
 retirement.
 
-Long-Term supplies rental and fixed-income flows through its public planning API. Rental growth,
+Long-Term supplies rental and fixed-income flows through its public planning API. Rental values in
+the current-year bridge are canonical facts; the next projected year is produced by the Long-Term
+contract/period projection and effective growth rules, so it need not equal a naive rounded
+`current × (1 + growth)` calculation. Cash income
+(rental, bond interest, employment, pension, and events) funds spending; investment return changes
+portfolio value and is not cash income. Bond interest, maturity moved to reserve, and maturity used
+directly for a funding gap are separate events. Rental growth,
 interest treatment, tax, maturity and Long-Term valuation are owned by Long-Term. Capitalized
 interest is not a cash-flow income source.
 

@@ -12,8 +12,16 @@ The effective recurring expense for a simulation year is:
 inflation-adjusted base expense × expense profile factor
 ```
 
-The profile is an immutable schedule relative to the simulation start year. A step applies from its
-`fromYear` until the next step. Missing or empty configuration uses factor `1.00` everywhere and
+The profile is an immutable schedule relative to the plan start year. A step applies from its
+`fromYear` until the next step. Its calendar context is always derived from the plan anchor:
+
+```text
+stageYear = planStartYear + fromYear
+stageAge = ageAtPlanStart + fromYear
+```
+
+For a plan starting in 2025 at age 40, `fromYear = 20` means calendar year 2045 and age 60.
+Missing or empty configuration uses factor `1.00` everywhere and
 preserves legacy simulations.
 
 Example plan value:

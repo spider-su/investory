@@ -206,6 +206,31 @@ class RetirementSimulationControllerTest {
   }
 
   @Test
+  void simulationRoundsPlanInputMoneyForDisplay() throws Exception {
+    InvestmentProfile p = profile();
+    var saved =
+        SimulationAssumptions.defaults(p, 45, 90, 2026)
+            .withRecurringSpending(new BigDecimal("180000.00071684"))
+            .withAnnualPension(new BigDecimal("7000.00002787"));
+    when(profiles.loadProfile(1L)).thenReturn(p);
+    when(plans.assumptions(1L, 7L)).thenReturn(saved);
+    when(plans.name(1L, 7L)).thenReturn("Plan");
+    when(simulations.compareScenarios(eq(p), any())).thenReturn(Map.of());
+
+    var result =
+        mockMvc
+            .perform(get("/simulation").param("portfolioId", "1").param("planId", "7"))
+            .andExpect(status().isOk())
+            .andReturn();
+    var page =
+        (RetirementSimulationPageView)
+            result.getModelAndView().getModel().get("simulationPage");
+
+    assertEquals("180,000", page.annualLivingExpenses());
+    assertEquals("7,000", page.annualPension());
+  }
+
+  @Test
   void simulationWithoutPlanIdUsesTheLatestSavedPlan() throws Exception {
     InvestmentProfile profile = profile();
     SimulationAssumptions latest = SimulationAssumptions.defaults(profile, 45, 90, 2026);
@@ -424,7 +449,7 @@ class RetirementSimulationControllerTest {
                 .param("annualPreRetirementContribution", "50000")
                 .param("monthlyLivingCosts", "15000")
                 .param("discretionaryExpenses", "0")
-                .param("inflation", "2")
+                .param("inflation", "3")
                 .param("rentalIncomeGrowth", "2")
                 .param("spendingGrowth", "2.5")
                 .param("fundingStrategy", "RESERVE_AND_HARVEST")
@@ -447,6 +472,9 @@ class RetirementSimulationControllerTest {
     assertEquals(2030, saved.startYear() + saved.retirementAge() - saved.currentAge());
     assertEquals(new BigDecimal("240000"), saved.annualEmploymentIncome());
     assertEquals(new BigDecimal("50000"), saved.annualPreRetirementContribution());
+    assertEquals(new BigDecimal("0.03"), saved.inflationRate());
+    assertEquals(new BigDecimal("0.05"), saved.effectiveRentalIncomeGrowthRate());
+    assertEquals(new BigDecimal("0.055"), saved.effectiveSpendingGrowthRate());
     assertEquals(new BigDecimal("180000"), saved.annualLivingExpenses());
     assertEquals(0, saved.cashReturnRate().compareTo(BigDecimal.ZERO));
     assertEquals(0, saved.fixedIncomeReturnRate().compareTo(BigDecimal.ZERO));

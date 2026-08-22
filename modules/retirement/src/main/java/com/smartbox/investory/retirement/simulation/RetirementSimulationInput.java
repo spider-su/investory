@@ -42,6 +42,11 @@ public record RetirementSimulationInput(
         ? LongTermAnnualProjectionApi.PlanningState.EMPTY : longTermPlanningState;
   }
 
+  /** Resolve a persisted expense stage against the original plan-year anchor. */
+  public BigDecimal expenseProfileFactorForCalendarYear(int calendarYear) {
+    return expenseProfile.factorForYear(calendarYear - startYear);
+  }
+
   private static BigDecimal nz(BigDecimal value) {
     return value == null ? BigDecimal.ZERO : value;
   }
