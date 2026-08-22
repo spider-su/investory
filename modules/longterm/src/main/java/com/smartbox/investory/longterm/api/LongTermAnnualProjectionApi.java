@@ -48,6 +48,9 @@ public interface LongTermAnnualProjectionApi {
       rentalIncomeGrowthRate = nz(rentalIncomeGrowthRate);
       source = source == null ? Source.PROJECTED : source;
     }
+
+    /** Active terminology; the legacy accessor remains source-compatible. */
+    public BigDecimal rentalIncomeGrowthSpread() { return rentalIncomeGrowthRate; }
   }
 
   enum CashFlowKind { RENTAL_INCOME, FIXED_INCOME }

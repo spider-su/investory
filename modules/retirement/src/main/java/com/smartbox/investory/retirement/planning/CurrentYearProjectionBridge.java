@@ -93,8 +93,9 @@ public class CurrentYearProjectionBridge {
   BigDecimal remainingYearFraction(int year) {
     LocalDate today = LocalDate.now(clock);
     if (today.getYear() != year) return today.isAfter(Year.of(year).atDay(1)) ? ZERO : BigDecimal.ONE;
-    return BigDecimal.valueOf(Year.of(year).length() - today.getDayOfYear())
-        .divide(BigDecimal.valueOf(Year.of(year).length()), 12, java.math.RoundingMode.HALF_UP);
+    LocalDate yearEnd = Year.of(year).atDay(Year.of(year).length());
+    if (today.equals(yearEnd)) return ZERO;
+    return SimulationPeriod.of(today.plusDays(1), yearEnd).yearFraction();
   }
 
   private static CurrentYearBridgeResult result(ForwardSimulationContext context, InvestmentProfile profile,
