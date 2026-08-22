@@ -245,6 +245,25 @@ class PlanningCurrencyPresentationServiceTest {
   }
 
   @Test
+  void leavesNeedsReviewTimelineRowsEmptyUntilHistoricalFactsOrProjectionExists() {
+    PlanningTimeline timeline =
+        new PlanningTimeline(List.of(
+            new PlanningTimelineYear(2025, 40, PlanningTimelineState.NEEDS_REVIEW, null, null, null)));
+
+    PlanningTimelineMoney displayed =
+        new PlanningCurrencyPresentationService(
+                Mockito.mock(CurrencyConversion.class),
+                Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC))
+            .displayTimelineMoney(timeline, CurrencyType.USD)
+            .get(2025);
+
+    assertNull(displayed.annualCosts());
+    assertNull(displayed.totalIncome());
+    assertNull(displayed.fundingGap());
+    assertNull(displayed.investmentEnd());
+  }
+
+  @Test
   void liveTimelineUsesAllKnownIncomeForItsFundingGap() {
     Map<PlanningMetric, PlanningMetricValue> live =
         Map.of(

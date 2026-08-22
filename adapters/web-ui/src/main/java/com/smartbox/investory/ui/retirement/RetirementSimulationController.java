@@ -312,6 +312,7 @@ public class RetirementSimulationController {
       model.addAttribute("plannedRentalIncome", preview.plannedRentalIncome());
       model.addAttribute("plannedBondIncome", preview.plannedBondIncome());
       model.addAttribute("plannedInvestmentProfit", preview.plannedInvestmentProfit());
+      model.addAttribute("plannedCapitalizedBondReturn", preview.plannedCapitalizedBondReturn());
       model.addAttribute("plannedPension", preview.plannedPension());
       model.addAttribute("plannedAnnualIncome", preview.plannedAnnualIncome());
       if (developMode) model.addAttribute("planPreview", preview);
@@ -496,7 +497,8 @@ public class RetirementSimulationController {
       @RequestParam(required = false) Long planId,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
     planningTimeline.createHistoricalDraft(portfolioId, year);
-    return simulationRedirect(portfolioId, planId, planningDisplayCurrency, selectedScenario);
+    return planningYearRedirect(
+        portfolioId, year, planningDisplayCurrency, planId, selectedScenario);
   }
 
   @PostMapping("/simulation/timeline/prefill")
@@ -823,6 +825,7 @@ public class RetirementSimulationController {
         inflation,
         rentalIncomeGrowthSpread,
         spendingGrowthSpread,
+        "SOURCE", null, "SOURCE", null,
         fundingStrategy,
         "CASH,BONDS,STOCKS",
         "",
@@ -886,6 +889,7 @@ public class RetirementSimulationController {
         inflation,
         rentalIncomeGrowthSpread,
         spendingGrowthSpread,
+        "SOURCE", null, "SOURCE", null,
         fundingStrategy,
         "CASH,BONDS,STOCKS",
         "",
@@ -925,6 +929,10 @@ public class RetirementSimulationController {
       @RequestParam BigDecimal inflation,
       @RequestParam(defaultValue = "2") BigDecimal rentalIncomeGrowthSpread,
       @RequestParam(defaultValue = "2.5") BigDecimal spendingGrowthSpread,
+      @RequestParam(defaultValue = "SOURCE") String rentalIncomeMode,
+      @RequestParam(required = false) BigDecimal manualRentalIncome,
+      @RequestParam(defaultValue = "SOURCE") String bondCashIncomeMode,
+      @RequestParam(required = false) BigDecimal manualBondCashIncome,
       @RequestParam(defaultValue = "SIMPLE_WATERFALL") SimulationFundingStrategy fundingStrategy,
       @RequestParam(defaultValue = "CASH,BONDS,STOCKS") String fundingOrder,
       @RequestParam(defaultValue = "") String expenseProfile,
@@ -1025,6 +1033,10 @@ public class RetirementSimulationController {
                         Map.entry("inflation", String.valueOf(inflation)),
                         Map.entry("rentalIncomeGrowthSpread", String.valueOf(rentalIncomeGrowthSpread)),
                         Map.entry("spendingGrowthSpread", String.valueOf(spendingGrowthSpread)),
+                        Map.entry("rentalIncomeMode", rentalIncomeMode),
+                        Map.entry("manualRentalIncome", String.valueOf(manualRentalIncome == null ? "" : manualRentalIncome)),
+                        Map.entry("bondCashIncomeMode", bondCashIncomeMode),
+                        Map.entry("manualBondCashIncome", String.valueOf(manualBondCashIncome == null ? "" : manualBondCashIncome)),
                         Map.entry("equityReturn", String.valueOf(equityReturn)),
                         Map.entry("safeReserveYears", String.valueOf(safeReserveYears)),
                         Map.entry("equityHarvestThreshold", String.valueOf(equityHarvestMinimumReturn)),

@@ -12,6 +12,10 @@ import com.smartbox.investory.retirement.infrastructure.simulation.*;
 import com.smartbox.investory.retirement.profile.InvestmentProfile;
 import com.smartbox.investory.retirement.simulation.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.longterm.api.LongTermAnnualProjectionApi;
+import com.smartbox.investory.longterm.api.model.InterestTreatmentModel;
+import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
+import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -65,6 +69,39 @@ class RetirementFrozenPlanLifecycleIntegrationTest {
     planService.update(1L, plan.getId(), "Frozen", assumptionsB);
     assertThat(planService.baseline(1L, plan.getId()).investmentCapital())
         .isEqualByComparingTo("900000");
+  }
+
+  @Test
+  void newlySavedBaselineRetainsLongTermBondProjectionInputs() {
+    var bonds = java.util.stream.IntStream.range(0, 6)
+        .mapToObj(i -> new LongTermAssetProjectionModel(
+            (long) i, "Bond " + i, LongTermAssetTypeModel.BOND, CurrencyType.PLN,
+            new BigDecimal("150000"),
+            List.of(new LongTermAssetProjectionModel.Period(
+                java.time.LocalDate.of(2025, 1, 1), java.time.LocalDate.of(2028, 12, 31),
+                new BigDecimal("8000"), BigDecimal.ZERO, BigDecimal.ZERO)),
+            java.time.LocalDate.of(2028, 12, 31), new BigDecimal("150000"),
+            InterestTreatmentModel.PAY_OUT, new BigDecimal("0.19")))
+        .toList();
+    var source = profile("700000", "575000");
+    source = new InvestmentProfile(source.portfolioId(), source.currency(), source.marketPortfolioValue(),
+        new BigDecimal("900000"), new BigDecimal("3175000"), source.historicalMarketInvestmentIncome(),
+        new BigDecimal("38880"), source.totalInvestmentIncome(), source.liquidAssets(), source.illiquidAssets(),
+        source.allocations(), source.longTermAssets(), BigDecimal.ZERO, new BigDecimal("38880"),
+        new LongTermAnnualProjectionApi.PlanningState(bonds, BigDecimal.ZERO, 2026, LongTermAnnualProjectionApi.Source.PROJECTED),
+        source.retirementReserve(), source.investmentCapital());
+    var store = newPlanStore();
+    var plan = store.service().create(1L, "Bonds", SimulationAssumptions.defaults(source, 40, 45, 2025),
+        PlanningBaseline.fromProfile(source, 2026));
+
+    var restored = store.service().baseline(1L, plan.getId());
+    assertThat(restored.longTermPlanningState().assets()).hasSize(6);
+    var quote = new LongTermAnnualProjectionService().quote(new LongTermAnnualProjectionApi.PlanningRequest(
+        2027, BigDecimal.ZERO, restored.longTermPlanningState()));
+    assertThat(quote.plannedCashFlows().stream()
+        .filter(f -> f.kind() == LongTermAnnualProjectionApi.CashFlowKind.FIXED_INCOME)
+        .map(LongTermAnnualProjectionApi.PlannedCashFlow::annualAmount)
+        .reduce(BigDecimal.ZERO, BigDecimal::add)).isEqualByComparingTo("48000");
   }
 
   private static InMemoryPlanStore newPlanStore() {

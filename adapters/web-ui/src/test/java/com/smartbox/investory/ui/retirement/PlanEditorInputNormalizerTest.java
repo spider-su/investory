@@ -40,6 +40,8 @@ class PlanEditorInputNormalizerTest {
     assertEquals(new BigDecimal("0.03"), normalized.assumptions().inflationRate());
     assertEquals(new BigDecimal("0.085"), normalized.assumptions().equityReturnRate());
     assertEquals(new BigDecimal("-0.02"), normalized.assumptions().rentalIncomeGrowthSpread());
+    assertEquals(new BigDecimal("0.01"), normalized.assumptions().effectiveRentalIncomeGrowthRate());
+    assertEquals(new BigDecimal("0.015"), normalized.assumptions().effectiveSpendingGrowthRate());
     var stage = normalized.assumptions().expenseProfile().steps().get(1);
     assertEquals(20, stage.fromYear());
     assertEquals(new BigDecimal("0.85"), stage.factor());

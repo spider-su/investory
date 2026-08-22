@@ -252,6 +252,33 @@ class LongTermAssetServiceTest {
   }
 
   @Test
+  void projectionInputsCarryBondRatePeriodsIntoFuturePlanningState() {
+    LongTermAssetEntity bond = asset(LongTermAssetType.BOND, "900000");
+    LongTermAssetBondDetailsEntity details = new LongTermAssetBondDetailsEntity();
+    details.setTaxRate(new BigDecimal("0.19"));
+    details.setMaturityDate(LocalDate.of(2028, 12, 31));
+    details.setInterestTreatment(InterestTreatment.PAY_OUT);
+    LongTermAssetBondRatePeriodEntity rate = new LongTermAssetBondRatePeriodEntity();
+    rate.setValidFrom(LocalDate.of(2025, 1, 1));
+    rate.setValidTo(LocalDate.of(2028, 12, 31));
+    rate.setAnnualInterestRate(new BigDecimal("0.053333333333333333"));
+    when(assets.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of(bond));
+    when(cashFlows.findAllByAssetIdOrderByValidFrom(1L)).thenReturn(List.of());
+    when(valuations.findAllByAssetIdOrderByValidFrom(1L)).thenReturn(List.of());
+    when(bondRates.findAllByAssetIdOrderByValidFrom(1L)).thenReturn(List.of(rate));
+    when(bonds.findById(1L)).thenReturn(Optional.of(details));
+
+    var input = service.projectionInputs(1L, DATE).getFirst();
+
+    assertEquals(LongTermAssetType.BOND, input.type());
+    assertEquals(new BigDecimal("900000"), input.currentValue());
+    assertEquals(1, input.periods().size());
+    assertEquals(new BigDecimal("0.053333333333333333"), input.periods().getFirst().annualReturnRate());
+    assertEquals(LocalDate.of(2028, 12, 31), input.periods().getFirst().validTo());
+    assertEquals(InterestTreatment.PAY_OUT, input.interestTreatment());
+  }
+
+  @Test
   void archivedAssetsAreExcludedFromList() {
     LongTermAssetEntity a = asset(LongTermAssetType.OTHER, "10");
     a.setActive(false);

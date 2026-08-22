@@ -713,7 +713,7 @@ public class PlanningCurrencyPresentationService {
         totalIncome = employment.add(zero(rentalIncome)).add(zero(bondIncome)).add(pension).add(eventIncome);
         fundingGap = gap(annualCosts, totalIncome);
         reserveEnd = planningValue(currentValues, PlanningMetric.SAFE_RESERVE);
-      } else {
+      } else if (row.state() == PlanningTimelineState.PROJECTED && row.projection() != null) {
         annualCosts = row.projection().totalExpenses();
         rentalIncome = row.projection().rentalIncome();
         bondIncome = row.projection().bondIncome();

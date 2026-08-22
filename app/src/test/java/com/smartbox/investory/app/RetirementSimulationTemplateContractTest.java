@@ -13,6 +13,10 @@ class RetirementSimulationTemplateContractTest {
     String html = Files.readString(Path.of("../adapters/web-ui/src/main/resources/templates/simulation.html"));
     assertTrue(html.contains("Scenario"));
     assertTrue(html.contains("Retirement outcome"));
+    assertTrue(html.contains("Historical year review"));
+    assertTrue(html.contains("Needs review"));
+    assertTrue(html.contains("View review"));
+    assertTrue(html.contains("/simulation/timeline/past/{year}"));
     assertFalse(html.contains("Scenario comparison"));
   }
 
