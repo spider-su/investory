@@ -141,8 +141,10 @@ does not reduce the funding gap. The owning module decides availability, withdra
 actual withdrawal cannot exceed availability or value.
 
 Long-Term decides maturity, redemption/reinvestment, tax, income and availability. Its annual
-planning boundary performs one non-consuming quote and one state transition for a year; Retirement
-never calls the consuming transition twice. It returns
+planning boundary exposes a non-consuming `quote` containing current-year cash flows and capital
+available for withdrawal. `plan` is the single committed transition: it applies the request,
+reinvests unused maturity capital, and returns the only valid `endState` for the next year.
+Retirement may quote once and execute once; it never uses quote state as a future state. It returns
 ordinary annual income flows, explicit reserve transfers, actual capital provided, end capital,
 and its next state. Retirement does not construct bond/deposit inputs or inspect maturity rules.
 

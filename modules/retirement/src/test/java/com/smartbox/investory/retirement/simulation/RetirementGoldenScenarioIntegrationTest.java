@@ -25,7 +25,7 @@ class RetirementGoldenScenarioIntegrationTest {
     assertThat(result.simulationFailed()).isFalse();
     assertThat(result.failureAge()).isNull();
     assertThat(result.totalUnfundedAmount()).isZero();
-    assertCheckpoints(result);
+    assertCheckpoints(result, false);
   }
 
   @Test
@@ -37,13 +37,13 @@ class RetirementGoldenScenarioIntegrationTest {
     assertThat(result.failureAge()).isEqualTo(62);
     assertThat(money(result.firstFailureShortfall())).isEqualByComparingTo("38160.71");
     assertThat(money(result.totalUnfundedAmount())).isEqualByComparingTo("911781.60");
-    assertCheckpoints(result);
+    assertCheckpoints(result, true);
     var failure = result.years().stream().filter(y -> y.unfundedAmount().signum() > 0).findFirst().orElseThrow();
     assertThat(failure.year()).isEqualTo(2047);
     assertThat(failure.age()).isEqualTo(62);
   }
 
-  private static void assertCheckpoints(SimulationResult result) {
+  private static void assertCheckpoints(SimulationResult result, boolean longHorizon) {
     assertYear(result, 2025, 40, "0", "333683.62", "174803.62", "38880", "100000", "512250");
     assertYear(result, 2026, 41, "0", "335431.66", "176551.66", "38880", "100000", "579791.25");
     assertYear(result, 2027, 42, "240000", "217197.17", "178317.17", "38880", "114014.14", "592256.54");
@@ -51,20 +51,29 @@ class RetirementGoldenScenarioIntegrationTest {
     var y2045 = result.years().stream().filter(y -> y.year() == 2045).findFirst().orElseThrow();
     assertThat(money(y2045.totalExpenses())).isEqualByComparingTo("266697.49");
     assertThat(money(y2045.rentalIncome())).isEqualByComparingTo("213293.64");
-    result.years().stream().filter(y -> y.year() == 2052).findFirst().ifPresent(y2052 -> {
+    if (longHorizon) { var y2052 = result.years().stream().filter(y -> y.year() == 2052).findFirst().orElseThrow();
       assertThat(y2052.age()).isEqualTo(67);
       assertThat(money(y2052.pensionIncome())).isEqualByComparingTo("7000");
-    });
-    result.years().stream().filter(y -> y.year() == 2055).findFirst().ifPresent(y2055 -> {
+      var y2055 = result.years().stream().filter(y -> y.year() == 2055).findFirst().orElseThrow();
       assertThat(money(y2055.totalExpenses())).isEqualByComparingTo("273099.99");
       assertThat(y2055.age()).isEqualTo(70);
-    });
-    assertThat(result.years()).extracting(SimulationYear::year)
-        .isSorted().allMatch(year -> year >= 2025 && year < 3000);
+    }
+    var years = result.years().stream().map(SimulationYear::year).toList();
+    assertThat(years).allMatch(year -> year >= 2025 && year < 3000);
+    for (int i = 1; i < years.size(); i++) assertThat(years.get(i)).isEqualTo(years.get(i - 1) + 1);
     for (SimulationYear year : result.years()) {
       assertThat(year.requiredPortfolioFunding()).isEqualByComparingTo(
           year.totalExpenses().subtract(year.totalIncome()).max(BigDecimal.ZERO));
       assertThat(year.failed()).isEqualTo(year.unfundedAmount().signum() > 0);
+      var f = year.funding();
+      assertThat(f.reserveEnd()).isEqualByComparingTo(f.reserveStart()
+          .add(f.reserveTransfer()).add(f.equityHarvestToReserve()).subtract(f.reserveWithdrawal()));
+      assertThat(f.investmentEnd()).isEqualByComparingTo(f.investmentStart()
+          .add(year.preRetirementContribution()).add(f.investmentReturn())
+          .subtract(f.investmentWithdrawal()).subtract(f.equityHarvestToReserve()));
+      assertThat(f.reserveEnd()).isGreaterThanOrEqualTo(BigDecimal.ZERO);
+      assertThat(f.investmentEnd()).isGreaterThanOrEqualTo(BigDecimal.ZERO);
+      assertThat(f.longTermCapitalEnd()).isGreaterThanOrEqualTo(BigDecimal.ZERO);
     }
     var maturityYear = result.years().stream().filter(y -> y.year() == 2028).findFirst().orElseThrow();
     assertThat(money(maturityYear.bondIncome())).isEqualByComparingTo("38880");

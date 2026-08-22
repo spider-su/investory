@@ -128,8 +128,7 @@ public class SimulationPlanRevisionEntity {
   private BigDecimal baselineLongTermIncome;
 
   /** Serialized Long-Term public planning state, never a persistence entity snapshot. */
-  @Lob
-  @Column(name = "baseline_long_term_state")
+  @Column(name = "baseline_long_term_state", columnDefinition = "text")
   private String baselineLongTermState;
 
   @Column(name = "baseline_long_term_state_version")

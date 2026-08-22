@@ -16,6 +16,29 @@ import org.junit.jupiter.api.Test;
 
 class LongTermAnnualProjectionServiceTest {
   @Test
+  void quoteIsNonConsumingAndMaturityIsConservedOnCommit() {
+    var bond = new LongTermAssetProjectionModel(9L, "Maturity", LongTermAssetTypeModel.BOND,
+        CurrencyType.USD, new BigDecimal("100000"), List.of(), LocalDate.of(2030, 12, 31),
+        new BigDecimal("100000"), InterestTreatmentModel.PAY_OUT, BigDecimal.ZERO);
+    var state = new LongTermAnnualProjectionApi.PlanningState(List.of(bond), BigDecimal.ZERO, 2030,
+        LongTermAnnualProjectionApi.Source.PROJECTED);
+    var service = new LongTermAnnualProjectionService();
+    var request = new LongTermAnnualProjectionApi.PlanningRequest(2030, new BigDecimal("60000"), state);
+    var first = service.quote(request);
+    var second = service.quote(request);
+    assertThat(first).isEqualTo(second);
+    assertThat(first.capitalAvailable()).isEqualByComparingTo("100000");
+    var committed = service.plan(request);
+    assertThat(committed.actualCapitalProvided()).isEqualByComparingTo("60000");
+    assertThat(committed.endCapital()).isEqualByComparingTo("40000");
+    assertThat(committed.endState().assets()).singleElement()
+        .extracting(LongTermAssetProjectionModel::currentValue)
+        .isEqualTo(new BigDecimal("40000"));
+    var retained = service.plan(new LongTermAnnualProjectionApi.PlanningRequest(2030, BigDecimal.ZERO, state));
+    assertThat(retained.actualCapitalProvided()).isZero();
+    assertThat(retained.endCapital()).isEqualByComparingTo("100000");
+  }
+  @Test
   void carriesRentalForwardAtEffectiveInflationPlusSpreadGrowth() {
     var asset =
         new LongTermAssetProjectionModel(

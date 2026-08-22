@@ -22,7 +22,37 @@ public class LongTermAnnualProjectionService implements LongTermAnnualProjection
    * asset type, rate period, tax, rental contract, or maturity details.
    */
   @Override
+  public PlanningQuote quote(PlanningRequest request) {
+    AnnualEvaluation evaluation = evaluate(request);
+    return new PlanningQuote(request.year(), evaluation.flows(), evaluation.reserveTransfer(),
+        evaluation.availableCapital(), request.state().source());
+  }
+
+  @Override
   public PlanningProjection plan(PlanningRequest request) {
+    AnnualEvaluation evaluation = evaluate(request);
+    List<PlannedCashFlow> flows = evaluation.flows();
+    List<LongTermAssetProjectionModel> nextAssets = new ArrayList<>(evaluation.nonMaturedAssets());
+    BigDecimal reserveTransfer = evaluation.reserveTransfer();
+    BigDecimal availableCapital = evaluation.availableCapital();
+    BigDecimal endCapital = evaluation.nonMaturedCapital();
+    BigDecimal actual = availableCapital.min(request.requestedCapital());
+    BigDecimal unspentMaturity = availableCapital.subtract(actual);
+    // Unused maturity remains Long-Term capital for the next deterministic year.
+    if (unspentMaturity.signum() > 0) {
+      nextAssets.add(new LongTermAssetProjectionModel(
+          null, "matured-long-term-capital", LongTermAssetTypeModel.DEPOSIT,
+          null, unspentMaturity, List.of(), null, unspentMaturity,
+          InterestTreatmentModel.CAPITALIZE, ZERO));
+      endCapital = endCapital.add(unspentMaturity);
+    }
+    PlanningState endState = new PlanningState(nextAssets, request.state().rentalIncomeGrowthRate(),
+        request.state().rentalIncomeBaseYear(), request.state().source());
+    return new PlanningProjection(request.year(), flows, reserveTransfer, request.requestedCapital(),
+        actual, endCapital, endState, request.state().source());
+  }
+
+  private AnnualEvaluation evaluate(PlanningRequest request) {
     List<PlannedCashFlow> flows = new ArrayList<>();
     List<LongTermAssetProjectionModel> nextAssets = new ArrayList<>();
     BigDecimal reserveTransfer = ZERO;
@@ -65,21 +95,13 @@ public class LongTermAnnualProjectionService implements LongTermAnnualProjection
       nextAssets.add(asset);
       endCapital = endCapital.add(nz(asset.currentValue()));
     }
-    BigDecimal actual = availableCapital.min(request.requestedCapital());
-    BigDecimal unspentMaturity = availableCapital.subtract(actual);
-    // Unspent maturity remains Long-Term capital for the next deterministic year.
-    if (unspentMaturity.signum() > 0) {
-      nextAssets.add(new LongTermAssetProjectionModel(
-          null, "matured-long-term-capital", LongTermAssetTypeModel.DEPOSIT,
-          null, unspentMaturity, List.of(), null, unspentMaturity,
-          InterestTreatmentModel.CAPITALIZE, ZERO));
-      endCapital = endCapital.add(unspentMaturity);
-    }
-    PlanningState endState = new PlanningState(nextAssets, request.state().rentalIncomeGrowthRate(),
-        request.state().rentalIncomeBaseYear(), request.state().source());
-    return new PlanningProjection(request.year(), flows, reserveTransfer, request.requestedCapital(),
-        actual, endCapital, endState, request.state().source());
+    return new AnnualEvaluation(List.copyOf(flows), reserveTransfer, availableCapital,
+        List.copyOf(nextAssets), endCapital);
   }
+
+  private record AnnualEvaluation(List<PlannedCashFlow> flows, BigDecimal reserveTransfer,
+      BigDecimal availableCapital, List<LongTermAssetProjectionModel> nonMaturedAssets,
+      BigDecimal nonMaturedCapital) {}
 
   private static BigDecimal annualRentalIncome(
       LongTermAssetProjectionModel asset, int year, PlanningState state) {
