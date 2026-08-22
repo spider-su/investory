@@ -91,6 +91,8 @@ public class CurrentYearProjectionBridge {
   }
 
   BigDecimal remainingYearFraction(int year) {
+    // The current date belongs to live/current facts; forward projection starts tomorrow.
+    // Consequently 31 December has no remaining projected fraction.
     LocalDate today = LocalDate.now(clock);
     if (today.getYear() != year) return today.isAfter(Year.of(year).atDay(1)) ? ZERO : BigDecimal.ONE;
     LocalDate yearEnd = Year.of(year).atDay(Year.of(year).length());
