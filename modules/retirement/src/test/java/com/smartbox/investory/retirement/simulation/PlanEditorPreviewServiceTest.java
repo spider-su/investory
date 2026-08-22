@@ -34,8 +34,13 @@ class PlanEditorPreviewServiceTest {
     assertTrue(names.contains("investmentStart"));
     assertTrue(names.contains("investmentEnd"));
     assertTrue(names.contains("fundingGap"));
+    assertTrue(names.contains("reserveTransfer"));
+    assertTrue(names.contains("longTermFunding"));
+    assertTrue(names.contains("investmentReturn"));
+    assertTrue(names.contains("status"));
     assertTrue(names.contains("state"));
     assertFalse(names.contains("equityHarvest"));
+    assertFalse(names.contains("longTermAvailable"));
   }
 
   @Test
@@ -276,10 +281,19 @@ class PlanEditorPreviewServiceTest {
         .thenReturn(new LongTermAssetAnnualSnapshotModel(null, null, null, null, null, null));
     when(presentation.toDisplay(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-    PlanEditorPreviewService.PreviewYear previewYear =
-        service.preview(profile, assumptions, CurrencyType.PLN).years().get(1);
+    PlanEditorPreviewService.PlanEditorPreview preview =
+        service.preview(profile, assumptions, CurrencyType.PLN);
+    PlanEditorPreviewService.PreviewYear previewYear = preview.years().get(1);
 
     assertEquals(2027, previewYear.year());
     assertEquals(new BigDecimal("732"), previewYear.investmentReturn());
+    assertEquals(2027, preview.plannedIncomeReferenceYear());
+    assertEquals(new BigDecimal("732"), preview.plannedAnnualIncome());
+    assertEquals(
+        previewYear.fundingGap(),
+        previewYear.reserveWithdrawal()
+            .add(previewYear.longTermFunding())
+            .add(previewYear.investmentWithdrawal())
+            .add(previewYear.unfunded()));
   }
 }

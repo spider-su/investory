@@ -29,8 +29,7 @@ class RetirementSimulationTemplateContractTest {
     assertTrue(editor.contains("Total annual spending"));
     assertTrue(editor.contains("Growth vs inflation"));
     assertTrue(editor.contains("Spending changes by age"));
-    assertTrue(editor.contains("Current asset facts"));
-    assertTrue(editor.contains("Current fact"));
+    assertTrue(editor.contains("Projected plan value"));
     assertTrue(editor.contains("Investment profit"));
     assertTrue(editor.contains("Planned annual income"));
     assertTrue(editor.contains("Investment return"));
@@ -91,6 +90,9 @@ class RetirementSimulationTemplateContractTest {
     assertTrue(editor.contains("data-plan-warning=\"equityReturn\""));
     assertTrue(editor.contains("map(v=>v[0]+':'+v[1])"));
     assertFalse(editor.contains("Number(v[1])/100"));
+    assertFalse(editor.contains("investment value × return"));
+    assertFalse(editor.contains("investmentValue *"));
+    assertFalse(editor.contains("rentalIncome *"));
     assertFalse(editor.contains("equity-return\" class=\"form-control\" form=\"plan-editor-form\" name=\"equityReturn\" type=\"number\" step=\"0.1\" min=\"1\""));
   }
 }

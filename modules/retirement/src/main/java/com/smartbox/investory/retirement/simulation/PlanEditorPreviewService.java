@@ -123,7 +123,7 @@ public class PlanEditorPreviewService {
         null, null, null, null, null, displayCanonical(employment, displayCurrency), displayCanonical(facts.rentalIncome(), displayCurrency),
         displayCanonical(facts.bondIncome(), displayCurrency),
         bridge == null ? null : displayCanonical(bridge.investmentAnnualReturn(), displayCurrency),
-        displayCanonical(pension, displayCurrency), null, null, null, null, null, null, null, null, null, null, null, null, null, null, "CURRENT FACTS");
+        displayCanonical(pension, displayCurrency), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, "CURRENT FACTS");
   }
 
   private PreviewYear historicalYear(int year, int age, LongTermAssetAnnualSnapshotModel facts,
