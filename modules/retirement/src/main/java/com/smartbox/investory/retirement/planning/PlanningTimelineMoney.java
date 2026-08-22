@@ -2,41 +2,17 @@ package com.smartbox.investory.retirement.planning;
 
 import java.math.BigDecimal;
 
-/** Display-only money values. The timeline source records remain canonical. */
+/** Display-only canonical cash-flow, funding, and ending-balance facts for a timeline row. */
 public record PlanningTimelineMoney(
     BigDecimal annualCosts,
+    BigDecimal totalIncome,
     BigDecimal rentalIncome,
-    BigDecimal incomeGap,
-    BigDecimal fundingNeed,
-    BigDecimal portfolioWithdrawal,
+    BigDecimal bondIncome,
+    BigDecimal fundingGap,
+    BigDecimal reserveWithdrawal,
+    BigDecimal longTermFunding,
+    BigDecimal investmentWithdrawal,
     BigDecimal unfunded,
-    BigDecimal cash,
-    BigDecimal safeReserve,
-    BigDecimal bondsValue,
-    BigDecimal bondsIncome,
-    BigDecimal equityValue,
-    BigDecimal equityGain,
-    BigDecimal fixedIncome,
-    BigDecimal equity) {
-  public PlanningTimelineMoney(
-      BigDecimal annualCosts,
-      BigDecimal portfolioWithdrawal,
-      BigDecimal fixedIncome,
-      BigDecimal equity) {
-    this(
-        annualCosts,
-        null,
-        null,
-        null,
-        portfolioWithdrawal,
-        null,
-        null,
-        null,
-        null,
-        null,
-        equity,
-        null,
-        fixedIncome,
-        equity);
-  }
-}
+    BigDecimal reserveEnd,
+    BigDecimal longTermCapitalEnd,
+    BigDecimal investmentEnd) {}

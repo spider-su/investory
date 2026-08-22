@@ -80,7 +80,8 @@ public class RetirementSimulationService implements RetirementSimulation {
           year.age(), year.year(), year.retired(), year.expenses(), year.eventExpenses(),
           year.employmentIncome(), year.pensionIncome(), year.eventIncome(),
           year.annualRentalIncome(), year.netBondIncome(),
-          reserveStart, year.reserveWithdrawal().add(year.maturedBondFunding()), year.reserveEnd(),
+          reserveStart, year.reserveWithdrawal(), year.reserveEnd(), year.reserveTransfer(),
+          year.maturedBondFunding(), year.longTermCapitalEnd(),
           investmentStart, investment.annualReturnAmount(), year.investmentWithdrawal(), investment.endValue(),
           year.unfundedShortfall(),
           year.retired() ? ZERO : assumptions.annualPreRetirementContribution()));

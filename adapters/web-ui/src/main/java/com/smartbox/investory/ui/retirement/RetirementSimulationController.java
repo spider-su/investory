@@ -32,6 +32,7 @@ public class RetirementSimulationController {
   private final AnnualPlanningRolloverService rollover;
   private final PlanningReconciliationService reconciliation;
   private final Clock clock;
+  private final PlanEditorInputNormalizer planEditorInputNormalizer;
 
   @Autowired(required = false)
   private PlanEditorPreviewService planEditorPreview;
@@ -57,6 +58,7 @@ public class RetirementSimulationController {
     this.rollover = rollover;
     this.reconciliation = reconciliation;
     this.clock = clock;
+    this.planEditorInputNormalizer = new PlanEditorInputNormalizer(planningPresentation, clock);
   }
 
   public RetirementSimulationController(
@@ -366,7 +368,7 @@ public class RetirementSimulationController {
       @RequestParam(required = false) Long planId,
       @RequestParam(defaultValue = "PLN") CurrencyType planningDisplayCurrency,
       @RequestParam Map<String, String> fields) {
-    if (!developMode || planEditorPreview == null)
+    if (planEditorPreview == null)
       return org.springframework.http.ResponseEntity.notFound().build();
     try {
       var profile = profiles.loadProfile(portfolioId);
@@ -375,11 +377,15 @@ public class RetirementSimulationController {
           selectedPlanId == null
               ? SimulationAssumptions.defaults(profile, 40, 95, Year.now(clock).getValue())
               : plans.assumptions(portfolioId, selectedPlanId);
+      var normalized =
+          planEditorInputNormalizer.normalize(
+              PlanEditorInput.from(fields), base, planningDisplayCurrency);
       return org.springframework.http.ResponseEntity.ok(
-          planEditorPreview.preview(
-              profile,
-              previewAssumptions(base, fields, planningDisplayCurrency),
-              planningDisplayCurrency));
+          java.util.Map.of(
+              "available", true,
+              "warnings", normalized.warnings(),
+              "preview",
+              planEditorPreview.preview(profile, normalized.assumptions(), planningDisplayCurrency)));
     } catch (IllegalArgumentException | ArithmeticException ex) {
       return org.springframework.http.ResponseEntity.unprocessableEntity()
           .body(java.util.Map.of("available", false));
@@ -938,7 +944,7 @@ public class RetirementSimulationController {
             ? annualExpenses
             : monthlyLivingCosts.multiply(BigDecimal.valueOf(12));
     if (annualLivingCostsInput == null) annualLivingCostsInput = BigDecimal.ZERO;
-    SimulationAssumptions a =
+    SimulationAssumptions legacyAssumptions =
         new SimulationAssumptions(
                 effectiveAgeAtPlanStart,
                 endAge,
@@ -982,7 +988,32 @@ public class RetirementSimulationController {
                 planningPresentation.fromDisplay(
                     annualPreRetirementContribution, planningDisplayCurrency, BigDecimal.ZERO))
             .withFundingOrder(SimulationAssumptions.DEFAULT_FUNDING_ORDER)
-            .withExpenseProfile(parseExpenseProfile(expenseProfile));
+            .withExpenseProfile(ExpenseProfile.EMPTY);
+    SimulationAssumptions a =
+        monthlyLivingCosts == null && annualExpenses != null
+            ? legacyAssumptions.withExpenseProfile(parseExpenseProfile(expenseProfile))
+            : planEditorInputNormalizer
+            .normalize(
+                PlanEditorInput.from(
+                    Map.ofEntries(
+                        Map.entry("ageAtPlanStart", String.valueOf(effectiveAgeAtPlanStart)),
+                        Map.entry("startYear", String.valueOf(effectiveStartYear)),
+                        Map.entry("endAge", String.valueOf(endAge)),
+                        Map.entry("retirementAge", String.valueOf(retirementAge == null ? effectiveAgeAtPlanStart : retirementAge)),
+                        Map.entry("monthlyLivingCosts", String.valueOf(monthlyLivingCosts == null ? annualLivingCostsInput.divide(BigDecimal.valueOf(12), 12, java.math.RoundingMode.HALF_UP) : monthlyLivingCosts)),
+                        Map.entry("discretionaryExpenses", String.valueOf(discretionaryExpenses)),
+                        Map.entry("inflation", String.valueOf(inflation)),
+                        Map.entry("rentalIncomeGrowthSpread", String.valueOf(rentalIncomeGrowthSpread)),
+                        Map.entry("spendingGrowthSpread", String.valueOf(spendingGrowthSpread)),
+                        Map.entry("equityReturn", String.valueOf(equityReturn)),
+                        Map.entry("annualEmploymentIncome", String.valueOf(annualEmploymentIncome)),
+                        Map.entry("annualPreRetirementContribution", String.valueOf(annualPreRetirementContribution)),
+                        Map.entry("annualPension", String.valueOf(annualPension)),
+                        Map.entry("pensionStartAge", pensionStartAge == null ? "" : String.valueOf(pensionStartAge)),
+                        Map.entry("expenseProfile", expenseProfile))),
+                legacyAssumptions,
+                planningDisplayCurrency)
+            .assumptions();
     Long savedPlanId =
         planId == null || saveAs
             ? plans.createId(portfolioId, name, a)

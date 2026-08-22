@@ -79,5 +79,10 @@ class RetirementSimulationTemplateContractTest {
     assertTrue(editor.contains("/simulation/plans/{id}/events"));
     assertTrue(editor.contains("/simulation/plans/{id}/events/{eventId}/delete"));
     assertTrue(editor.contains("form=\"plan-editor-form\""));
+    assertTrue(editor.contains("data-plan-warning=\"inflation\""));
+    assertTrue(editor.contains("data-plan-warning=\"equityReturn\""));
+    assertTrue(editor.contains("map(v=>v[0]+':'+v[1])"));
+    assertFalse(editor.contains("Number(v[1])/100"));
+    assertFalse(editor.contains("equity-return\" class=\"form-control\" form=\"plan-editor-form\" name=\"equityReturn\" type=\"number\" step=\"0.1\" min=\"1\""));
   }
 }

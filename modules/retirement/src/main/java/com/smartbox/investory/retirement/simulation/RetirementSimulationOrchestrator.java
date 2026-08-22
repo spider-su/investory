@@ -66,7 +66,8 @@ public final class RetirementSimulationOrchestrator {
           events(input, year, SimulationEventType.ONE_OFF_EXPENSE),
           rentalIncome.divide(BigDecimal.valueOf(12), 12, java.math.RoundingMode.HALF_UP), rentalIncome, bondIncome,
           cashFlow.netCashFlow().negate(), fundingGap, cashFlow.surplus(), reserveWithdrawal,
-          longTermFunding.actualCapitalProvided(), investment.withdrawal(), unfunded, reserveEnd,
+          longTermIncome.reserveTransfer(), longTermFunding.actualCapitalProvided(),
+          longTermFunding.endCapital(), investment.withdrawal(), unfunded, reserveEnd,
           investment, longTermFunding.source()));
       reserve = reserveEnd;
       investmentValue = investment.endValue();
@@ -118,7 +119,8 @@ public final class RetirementSimulationOrchestrator {
       BigDecimal employmentIncome, BigDecimal pensionIncome, BigDecimal eventIncome,
       BigDecimal eventExpenses, BigDecimal monthlyNetRentalIncome, BigDecimal annualRentalIncome, BigDecimal netBondIncome,
       BigDecimal incomeGap, BigDecimal requiredFunding, BigDecimal annualSurplus,
-      BigDecimal reserveWithdrawal, BigDecimal maturedBondFunding,
+      BigDecimal reserveWithdrawal, BigDecimal reserveTransfer, BigDecimal maturedBondFunding,
+      BigDecimal longTermCapitalEnd,
       BigDecimal investmentWithdrawal, BigDecimal unfundedShortfall, BigDecimal reserveEnd,
       InvestmentAnnualProjectionApi.AnnualProjection investment,
       LongTermAnnualProjectionApi.Source longTermSource) {}

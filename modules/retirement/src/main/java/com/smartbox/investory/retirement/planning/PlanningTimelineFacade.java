@@ -343,7 +343,7 @@ public class PlanningTimelineFacade {
     for (SimulationYear projection : future(profile, assumptions, current)) {
       result.add(
           new PlanningTimelineYear(
-              current + 1 + projection.year(),
+              projection.year(),
               projection.age(),
               PlanningTimelineState.PROJECTED,
               null,
@@ -396,7 +396,7 @@ public class PlanningTimelineFacade {
       for (SimulationYear projection : future(forward, current, scenario))
         result.add(
             new PlanningTimelineYear(
-                projection.year() + forward.context().firstProjectedYear(),
+                projection.year(),
                 projection.age(),
                 PlanningTimelineState.PROJECTED,
                 null,
@@ -798,13 +798,32 @@ public class PlanningTimelineFacade {
     BigDecimal costs =
         assumptions.annualLivingExpenses().add(assumptions.annualDiscretionaryExpenses());
     BigDecimal rental = planningAmount(live, PlanningMetric.RENTAL_INCOME);
+    BigDecimal bond = planningAmount(live, PlanningMetric.BOND_INCOME);
     int currentAge = ForwardSimulationContextFactory.currentPlanningAge(assumptions, year);
     BigDecimal employment =
         currentAge < assumptions.retirementAge() ? assumptions.annualEmploymentIncome() : ZERO;
     BigDecimal pension =
         currentAge >= assumptions.pensionStartAge() ? assumptions.annualPension() : ZERO;
-    if (rental != null) {
-      BigDecimal funding = costs.subtract(rental).subtract(employment).subtract(pension).max(ZERO);
+    if (rental != null || bond != null) {
+      BigDecimal eventIncome =
+          assumptions.futureEvents().stream()
+              .filter(event -> event.year() == year && event.type() == SimulationEventType.ONE_OFF_INCOME)
+              .map(SimulationEvent::amount)
+              .reduce(ZERO, BigDecimal::add);
+      BigDecimal eventExpenses =
+          assumptions.futureEvents().stream()
+              .filter(event -> event.year() == year && event.type() == SimulationEventType.ONE_OFF_EXPENSE)
+              .map(SimulationEvent::amount)
+              .reduce(ZERO, BigDecimal::add);
+      BigDecimal funding =
+          costs
+              .add(eventExpenses)
+              .subtract(zero(rental))
+              .subtract(zero(bond))
+              .subtract(employment)
+              .subtract(pension)
+              .subtract(eventIncome)
+              .max(ZERO);
       live.put(
           PlanningMetric.PORTFOLIO_FUNDING,
           derived(
@@ -829,6 +848,10 @@ public class PlanningTimelineFacade {
       Map<PlanningMetric, PlanningMetricValue> values, PlanningMetric metric) {
     PlanningMetricValue value = values.get(metric);
     return value == null ? null : value.value();
+  }
+
+  private static BigDecimal zero(BigDecimal value) {
+    return value == null ? ZERO : value;
   }
 
   private static String unavailableNote(PlanningMetric metric) {

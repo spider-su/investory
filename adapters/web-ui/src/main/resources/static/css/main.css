@@ -2425,6 +2425,8 @@ body.iv-modal-open { overflow: hidden; }
 .iv-simulation-editor__primary-value strong { color: var(--iv-text); font-size: 1.1rem; font-variant-numeric: tabular-nums; }
 .iv-simulation-editor__primary-value { align-self: end; padding: 8px 12px; border-left: 3px solid var(--iv-primary); background: var(--iv-primary-soft); }
 .iv-simulation-editor__development { display: grid; gap: 10px; }
+.iv-plan-input-warning { min-height: 0; margin-top: 5px; color: var(--iv-warning, #b66a00); font-size: .72rem; font-weight: 600; }
+.iv-plan-input-warning:not(:empty)::before { content: "⚠ "; }
 .iv-expense-profile { grid-column: 1 / -1; }
 .iv-expense-profile__head,
 .iv-expense-profile__row { display: grid; grid-template-columns: minmax(120px, .7fr) minmax(160px, 1fr) auto; gap: 8px; align-items: center; }

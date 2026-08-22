@@ -54,7 +54,8 @@ public record SimulationYear(
     BigDecimal rentalIncome,
     BigDecimal incomeGap,
     BigDecimal bondValueEnd,
-    BigDecimal bondIncome) {
+    BigDecimal bondIncome,
+    SimulationFunding funding) {
   /**
    * Creates the compatibility-shaped timeline row from the generic orchestrator result.
    * Asset-specific legacy buckets remain zero; reserve and Investment are the only
@@ -74,6 +75,54 @@ public record SimulationYear(
       BigDecimal reserveStart,
       BigDecimal reserveWithdrawal,
       BigDecimal reserveEnd,
+      BigDecimal investmentStart,
+      BigDecimal investmentReturn,
+      BigDecimal investmentWithdrawal,
+      BigDecimal investmentEnd,
+      BigDecimal unfundedAmount,
+      BigDecimal preRetirementContribution) {
+    return generic(
+        age,
+        year,
+        retired,
+        expenses,
+        eventExpenses,
+        employmentIncome,
+        pensionIncome,
+        eventIncome,
+        rentalIncome,
+        bondIncome,
+        reserveStart,
+        reserveWithdrawal,
+        reserveEnd,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        investmentStart,
+        investmentReturn,
+        investmentWithdrawal,
+        investmentEnd,
+        unfundedAmount,
+        preRetirementContribution);
+  }
+
+  public static SimulationYear generic(
+      int age,
+      int year,
+      boolean retired,
+      BigDecimal expenses,
+      BigDecimal eventExpenses,
+      BigDecimal employmentIncome,
+      BigDecimal pensionIncome,
+      BigDecimal eventIncome,
+      BigDecimal rentalIncome,
+      BigDecimal bondIncome,
+      BigDecimal reserveStart,
+      BigDecimal reserveWithdrawal,
+      BigDecimal reserveEnd,
+      BigDecimal reserveTransfer,
+      BigDecimal longTermFunding,
+      BigDecimal longTermCapitalEnd,
       BigDecimal investmentStart,
       BigDecimal investmentReturn,
       BigDecimal investmentWithdrawal,
@@ -100,7 +149,23 @@ public record SimulationYear(
         spendableEnd, BigDecimal.ZERO, spendableEnd, unfundedAmount.signum() > 0,
         unfundedAmount, retired ? SimulationLifecyclePhase.RETIRED : SimulationLifecyclePhase.WORKING,
         employmentIncome, preRetirementContribution, false,
-        rentalIncome, gap, BigDecimal.ZERO, bondIncome);
+        rentalIncome,
+        gap,
+        BigDecimal.ZERO,
+        bondIncome,
+        new SimulationFunding(
+            gap,
+            reserveStart,
+            reserveTransfer,
+            reserveWithdrawal,
+            reserveEnd,
+            longTermFunding,
+            longTermCapitalEnd,
+            investmentStart,
+            investmentReturn,
+            investmentWithdrawal,
+            investmentEnd,
+            unfundedAmount));
   }
 
   /** Compatibility constructor for the pre-retirement-lifecycle yearly result shape. */
@@ -201,7 +266,8 @@ public record SimulationYear(
         BigDecimal.ZERO,
         BigDecimal.ZERO,
         BigDecimal.ZERO,
-        BigDecimal.ZERO);
+        BigDecimal.ZERO,
+        SimulationFunding.legacy());
   }
 
   /**
@@ -287,7 +353,8 @@ public record SimulationYear(
         BigDecimal.ZERO,
         BigDecimal.ZERO,
         BigDecimal.ZERO,
-        BigDecimal.ZERO);
+        BigDecimal.ZERO,
+        SimulationFunding.legacy());
   }
 
   public BigDecimal livingExpenses() {

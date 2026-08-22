@@ -665,19 +665,17 @@ public class PlanningCurrencyPresentationService {
     Map<Integer, PlanningTimelineMoney> result = new LinkedHashMap<>();
     for (PlanningTimelineYear row : timeline.years()) {
       BigDecimal annualCosts = null,
+          totalIncome = null,
           rentalIncome = null,
-          incomeGap = null,
-          fundingNeed = null,
-          portfolioWithdrawal = null,
+          bondIncome = null,
+          fundingGap = null,
+          reserveWithdrawal = null,
+          longTermFunding = null,
+          investmentWithdrawal = null,
           unfunded = null,
-          cash = null,
-          safeReserve = null,
-          bondsValue = null,
-          bondsIncome = null,
-          equityValue = null,
-          equityGain = null,
-          legacyFixedIncome = null,
-          legacyEquity = null;
+          reserveEnd = null,
+          longTermCapitalEnd = null,
+          investmentEnd = null;
       if ((row.state() == PlanningTimelineState.ACTUAL
               || row.state() == PlanningTimelineState.NEEDS_REVIEW)
           && row.past() != null) {
@@ -685,13 +683,9 @@ public class PlanningCurrencyPresentationService {
         rentalIncome =
             firstValue(
                 row.past().values(), PlanningMetric.RENTAL_INCOME, PlanningMetric.PASSIVE_INCOME);
-        incomeGap = difference(annualCosts, rentalIncome);
-        fundingNeed = planningValue(row.past().values(), PlanningMetric.PORTFOLIO_FUNDING);
-        portfolioWithdrawal = planningValue(row.past().values(), PlanningMetric.MARKET_WITHDRAWAL);
-        cash = planningValue(row.past().values(), PlanningMetric.CASH_RESERVE_VALUE);
-        safeReserve = planningValue(row.past().values(), PlanningMetric.SAFE_RESERVE);
-        legacyFixedIncome = planningValue(row.past().values(), PlanningMetric.FIXED_INCOME);
-        legacyEquity = planningValue(row.past().values(), PlanningMetric.EQUITY);
+        bondIncome = planningValue(row.past().values(), PlanningMetric.BOND_INCOME);
+        totalIncome = sumKnown(rentalIncome, bondIncome);
+        reserveEnd = planningValue(row.past().values(), PlanningMetric.CASH_RESERVE_VALUE);
       } else if (row.state() == PlanningTimelineState.LIVE) {
         Map<PlanningMetric, PlanningMetricValue> currentValues = row.current().actualValues();
         annualCosts = annualCosts(currentValues);
@@ -699,49 +693,56 @@ public class PlanningCurrencyPresentationService {
           annualCosts = annualCostsFor(assumptions, row.year(), BigDecimal.ZERO);
         rentalIncome =
             firstValue(currentValues, PlanningMetric.RENTAL_INCOME, PlanningMetric.PASSIVE_INCOME);
-        incomeGap = difference(annualCosts, rentalIncome);
-        fundingNeed = planningValue(currentValues, PlanningMetric.PORTFOLIO_FUNDING);
-        portfolioWithdrawal = planningValue(currentValues, PlanningMetric.MARKET_WITHDRAWAL);
-        cash = planningValue(currentValues, PlanningMetric.CASH_RESERVE_VALUE);
-        safeReserve = planningValue(currentValues, PlanningMetric.SAFE_RESERVE);
-        bondsValue = planningValue(currentValues, PlanningMetric.BOND_VALUE);
-        bondsIncome = planningValue(currentValues, PlanningMetric.BOND_INCOME);
-        equityValue = planningValue(currentValues, PlanningMetric.EQUITY);
-        legacyFixedIncome = planningValue(currentValues, PlanningMetric.FIXED_INCOME);
-        legacyEquity = equityValue;
+        bondIncome = planningValue(currentValues, PlanningMetric.BOND_INCOME);
+        BigDecimal employment =
+            assumptions != null
+                    && ForwardSimulationContextFactory.currentPlanningAge(assumptions, row.year())
+                        < assumptions.retirementAge()
+                ? assumptions.annualEmploymentIncome()
+                : BigDecimal.ZERO;
+        BigDecimal pension =
+            assumptions != null
+                    && ForwardSimulationContextFactory.currentPlanningAge(assumptions, row.year())
+                        >= assumptions.pensionStartAge()
+                ? assumptions.annualPension()
+                : BigDecimal.ZERO;
+        BigDecimal eventIncome = eventAmount(assumptions, row.year(), SimulationEventType.ONE_OFF_INCOME);
+        BigDecimal eventExpenses =
+            eventAmount(assumptions, row.year(), SimulationEventType.ONE_OFF_EXPENSE);
+        annualCosts = annualCosts == null ? null : annualCosts.add(eventExpenses);
+        totalIncome = employment.add(zero(rentalIncome)).add(zero(bondIncome)).add(pension).add(eventIncome);
+        fundingGap = gap(annualCosts, totalIncome);
+        reserveEnd = planningValue(currentValues, PlanningMetric.SAFE_RESERVE);
       } else {
         annualCosts = row.projection().totalExpenses();
         rentalIncome = row.projection().rentalIncome();
-        incomeGap = row.projection().incomeGap();
-        fundingNeed = nonNegative(row.projection().requiredPortfolioFunding());
-        portfolioWithdrawal = nonNegative(row.projection().actualPortfolioWithdrawal());
-        unfunded = nonNegative(row.projection().unfundedAmount());
-        cash = row.projection().cashEnd();
-        safeReserve = row.projection().safeReserveEnd();
-        bondsValue = row.projection().bondValueEnd();
-        bondsIncome = row.projection().bondIncome();
-        equityValue = row.projection().equityEnd();
-        equityGain = row.projection().equityGain();
-        legacyFixedIncome = row.projection().fixedIncomeEnd();
-        legacyEquity = equityValue;
+        bondIncome = row.projection().bondIncome();
+        totalIncome = row.projection().totalIncome();
+        SimulationFunding funding = row.projection().funding();
+        fundingGap = funding.fundingGap();
+        reserveWithdrawal = funding.reserveWithdrawal();
+        longTermFunding = funding.longTermFunding();
+        investmentWithdrawal = funding.investmentWithdrawal();
+        unfunded = funding.unfunded();
+        reserveEnd = funding.reserveEnd();
+        longTermCapitalEnd = funding.longTermCapitalEnd();
+        investmentEnd = funding.investmentEnd();
       }
       result.put(
           row.year(),
           new PlanningTimelineMoney(
               toDisplay(annualCosts, currency),
+              toDisplay(totalIncome, currency),
               toDisplay(rentalIncome, currency),
-              toDisplay(incomeGap, currency),
-              toDisplay(fundingNeed, currency),
-              toDisplay(nonNegative(portfolioWithdrawal), currency),
+              toDisplay(bondIncome, currency),
+              toDisplay(fundingGap, currency),
+              toDisplay(reserveWithdrawal, currency),
+              toDisplay(longTermFunding, currency),
+              toDisplay(investmentWithdrawal, currency),
               toDisplay(unfunded, currency),
-              toDisplay(cash, currency),
-              toDisplay(safeReserve, currency),
-              toDisplay(bondsValue, currency),
-              toDisplay(bondsIncome, currency),
-              toDisplay(equityValue, currency),
-              toDisplay(equityGain, currency),
-              toDisplay(legacyFixedIncome, currency),
-              toDisplay(legacyEquity, currency)));
+              toDisplay(reserveEnd, currency),
+              toDisplay(longTermCapitalEnd, currency),
+              toDisplay(investmentEnd, currency)));
     }
     return result;
   }
@@ -762,6 +763,34 @@ public class PlanningCurrencyPresentationService {
         .add(assumptions.annualDiscretionaryExpenses())
         .multiply(growth)
         .add(eventExpenses == null ? BigDecimal.ZERO : eventExpenses);
+  }
+
+  private static BigDecimal eventAmount(
+      SimulationAssumptions assumptions, int year, SimulationEventType type) {
+    if (assumptions == null) return BigDecimal.ZERO;
+    return assumptions.futureEvents().stream()
+        .filter(event -> event.year() == year && event.type() == type)
+        .map(SimulationEvent::amount)
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+
+  private static BigDecimal sumKnown(BigDecimal... values) {
+    boolean known = false;
+    BigDecimal total = BigDecimal.ZERO;
+    for (BigDecimal value : values)
+      if (value != null) {
+        known = true;
+        total = total.add(value);
+      }
+    return known ? total : null;
+  }
+
+  private static BigDecimal gap(BigDecimal expenses, BigDecimal income) {
+    return expenses == null || income == null ? null : expenses.subtract(income).max(BigDecimal.ZERO);
+  }
+
+  private static BigDecimal zero(BigDecimal value) {
+    return value == null ? BigDecimal.ZERO : value;
   }
 
   private static BigDecimal nonNegative(BigDecimal value) {
