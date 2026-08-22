@@ -45,13 +45,13 @@ public record PlanningBuckets(PlanningBucket cash, PlanningBucket bonds, Plannin
       BigDecimal equityYield,
       BigDecimal bondYield) {
     BigDecimal bonds = allocation(profile, EconomicBucket.FIXED_INCOME);
-    if (bonds.signum() == 0) bonds = profile.longTermAssets().stream()
+    if (!hasAllocation(profile, EconomicBucket.FIXED_INCOME)) bonds = profile.longTermAssets().stream()
         .filter(a -> a.bucket() == EconomicBucket.FIXED_INCOME)
         .map(a -> nz(a.currentValue())).reduce(BigDecimal.ZERO, BigDecimal::add);
     BigDecimal equities = allocation(profile, EconomicBucket.EQUITY);
-    if (equities.signum() == 0) equities = nz(profile.investmentCapital());
+    if (!hasAllocation(profile, EconomicBucket.EQUITY)) equities = nz(profile.investmentCapital());
     BigDecimal realEstate = allocation(profile, EconomicBucket.REAL_ESTATE);
-    if (realEstate.signum() == 0) realEstate = profile.longTermAssets().stream()
+    if (!hasAllocation(profile, EconomicBucket.REAL_ESTATE)) realEstate = profile.longTermAssets().stream()
         .filter(a -> a.bucket() == EconomicBucket.REAL_ESTATE)
         .map(a -> nz(a.currentValue())).reduce(BigDecimal.ZERO, BigDecimal::add);
     return of(nz(profile.retirementReserve()), bonds, equities, realEstate, nz(bondYield),
@@ -61,7 +61,7 @@ public record PlanningBuckets(PlanningBucket cash, PlanningBucket bonds, Plannin
   /** Derives the normalized BASE bond yield from the frozen reviewed source state. */
   public static BigDecimal baseBondYield(InvestmentProfile profile, BigDecimal fallbackBondYield) {
     BigDecimal bonds = allocation(profile, EconomicBucket.FIXED_INCOME);
-    if (bonds.signum() == 0) bonds = profile.longTermAssets().stream()
+    if (!hasAllocation(profile, EconomicBucket.FIXED_INCOME)) bonds = profile.longTermAssets().stream()
         .filter(a -> a.bucket() == EconomicBucket.FIXED_INCOME)
         .map(a -> nz(a.currentValue())).reduce(BigDecimal.ZERO, BigDecimal::add);
     BigDecimal bondIncome = nz(profile.currentBondIncome());
@@ -79,7 +79,7 @@ public record PlanningBuckets(PlanningBucket cash, PlanningBucket bonds, Plannin
   /** True when the frozen source state contains enough data to derive a bond yield. */
   public static boolean hasSourceBondYield(InvestmentProfile profile) {
     BigDecimal bonds = allocation(profile, EconomicBucket.FIXED_INCOME);
-    if (bonds.signum() == 0) bonds = profile.longTermAssets().stream()
+    if (!hasAllocation(profile, EconomicBucket.FIXED_INCOME)) bonds = profile.longTermAssets().stream()
         .filter(a -> a.bucket() == EconomicBucket.FIXED_INCOME)
         .map(a -> nz(a.currentValue())).reduce(BigDecimal.ZERO, BigDecimal::add);
     BigDecimal bondIncome = nz(profile.currentBondIncome());
@@ -95,6 +95,9 @@ public record PlanningBuckets(PlanningBucket cash, PlanningBucket bonds, Plannin
   private static BigDecimal allocation(InvestmentProfile profile, EconomicBucket bucket) {
     return profile.allocations().stream().filter(a -> a.bucket() == bucket)
         .map(a -> nz(a.value())).reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+  private static boolean hasAllocation(InvestmentProfile profile, EconomicBucket bucket) {
+    return profile.allocations().stream().anyMatch(a -> a.bucket() == bucket);
   }
   private static BigDecimal nz(BigDecimal value) { return value == null ? BigDecimal.ZERO : value; }
 }

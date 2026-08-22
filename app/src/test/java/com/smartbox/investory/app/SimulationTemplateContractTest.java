@@ -13,7 +13,7 @@ class SimulationTemplateContractTest {
         Files.readString(
             Path.of("../adapters/web-ui/src/main/resources/templates/simulation.html"));
     assertAll(
-        () -> assertTrue(html.contains("Bucket cells show annual return/income above")),
+        () -> assertTrue(html.contains("Current cash shows Now and Expected year end")),
         () -> assertTrue(html.contains("Cash flow ·")),
         () -> assertTrue(html.contains("Incoming cash")),
         () -> assertTrue(html.contains("Funding used")),

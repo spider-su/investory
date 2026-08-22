@@ -60,6 +60,14 @@ public final class UiPresentation {
     return number(amount, 0, 0);
   }
 
+  /** Compact money with an explicit sign for internal transfers and net changes. */
+  public static String signedCompactMoney(BigDecimal value) {
+    BigDecimal amount = value == null ? BigDecimal.ZERO : value;
+    if (amount.signum() > 0) return "+" + compactMoney(amount);
+    if (amount.signum() < 0) return "−" + compactMoney(amount.abs());
+    return compactMoney(amount);
+  }
+
   /** Formats an already grouped UI amount, for example {@code "213,684"}. */
   public static String thousands(String value) {
     return thousands(

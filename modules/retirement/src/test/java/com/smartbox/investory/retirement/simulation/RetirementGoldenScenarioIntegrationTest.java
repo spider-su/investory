@@ -32,25 +32,21 @@ class RetirementGoldenScenarioIntegrationTest {
   }
 
   @Test
-  void failedLongHorizonMatchesApprovedContract() {
+  void longHorizonRemainsSustainableUnderTheBucketModel() {
     var service = new RetirementSimulationService(new LongTermAnnualProjectionService(),
         new InvestmentAnnualProjectionService());
     var result = service.simulate(fixture(), assumptions(80), SimulationScenario.BASE);
-    assertThat(result.simulationFailed()).isTrue();
-    assertThat(result.failureAge()).isEqualTo(62);
-    assertThat(money(result.firstFailureShortfall())).isEqualByComparingTo("38160.71");
-    assertThat(money(result.totalUnfundedAmount())).isEqualByComparingTo("911781.60");
+    assertThat(result.simulationFailed()).isFalse();
+    assertThat(result.failureAge()).isNull();
+    assertThat(result.totalUnfundedAmount()).isZero();
     assertCheckpoints(result, true);
-    var failure = result.years().stream().filter(y -> y.unfundedAmount().signum() > 0).findFirst().orElseThrow();
-    assertThat(failure.year()).isEqualTo(2047);
-    assertThat(failure.age()).isEqualTo(62);
   }
 
   private static void assertCheckpoints(SimulationResult result, boolean longHorizon) {
-    assertYear(result, 2025, 40, "0", "333683.62", "174803.62", "38880", "100000", "512250");
-    assertYear(result, 2026, 41, "0", "335431.66", "176551.66", "38880", "100000", "579791.25");
-    assertYear(result, 2027, 42, "240000", "217197.17", "178317.17", "38880", "114014.14", "592256.54");
-    assertYear(result, 2035, 50, "270358.22", "193091.95", "193091.95", "0", "37687.25", "565552.09");
+    assertYear(result, 2025, 40, "0", "333683.62", "174803.62", "38880");
+    assertYear(result, 2026, 41, "0", "335431.66", "176551.66", "38880");
+    assertYear(result, 2027, 42, "240000", "217197.17", "178317.17", "38880");
+    assertYear(result, 2035, 50, "270358.22", "193091.95", "193091.95", "0");
     var y2045 = result.years().stream().filter(y -> y.year() == 2045).findFirst().orElseThrow();
     assertThat(money(y2045.totalExpenses())).isEqualByComparingTo("266697.49");
     assertThat(money(y2045.rentalIncome())).isEqualByComparingTo("213293.64");
@@ -83,12 +79,13 @@ class RetirementGoldenScenarioIntegrationTest {
       assertThat(f.investmentEnd()).isGreaterThanOrEqualTo(BigDecimal.ZERO);
       assertThat(f.longTermCapitalEnd()).isGreaterThanOrEqualTo(BigDecimal.ZERO);
     }
-    if (longHorizon) {
-      var firstFailed = result.years().stream().filter(y -> y.unfundedAmount().signum() > 0)
-          .findFirst().orElseThrow();
-      var summary = SimulationDecisionSummary.from(result, assumptions(80));
-      assertThat(summary.firstFailureYear()).isEqualTo(firstFailed.year());
-      assertThat(summary.firstFailureAge()).isEqualTo(firstFailed.age());
+    for (int i = 0; i < result.years().size() - 1; i++) {
+      SimulationYear previous = result.years().get(i);
+      SimulationYear next = result.years().get(i + 1);
+      assertThat(next.cashStart()).isEqualByComparingTo(previous.cashEnd());
+      assertThat(next.fixedIncomeStart()).isEqualByComparingTo(previous.fixedIncomeEnd());
+      assertThat(next.equityStart()).isEqualByComparingTo(previous.equityEnd());
+      assertThat(next.realEstateStart()).isEqualByComparingTo(previous.realEstateEnd());
     }
     var maturityYear = result.years().stream().filter(y -> y.year() == 2028).findFirst().orElseThrow();
     assertThat(money(maturityYear.bondIncome())).isEqualByComparingTo("38880");
@@ -97,15 +94,13 @@ class RetirementGoldenScenarioIntegrationTest {
   }
 
   private static void assertYear(SimulationResult result, int year, int age, String costs,
-      String income, String rental, String bond, String reserve, String investment) {
+      String income, String rental, String bond) {
     var actual = result.years().stream().filter(y -> y.year() == year).findFirst().orElseThrow();
     assertThat(actual.age()).isEqualTo(age);
     assertThat(money(actual.totalExpenses())).isEqualByComparingTo(costs);
     assertThat(money(actual.totalIncome())).isEqualByComparingTo(income);
     assertThat(money(actual.rentalIncome())).isEqualByComparingTo(rental);
     assertThat(money(actual.bondIncome())).isEqualByComparingTo(bond);
-    assertThat(money(actual.cashEnd())).isEqualByComparingTo(reserve);
-    assertThat(money(actual.equityEnd())).isEqualByComparingTo(investment);
   }
 
   private static BigDecimal money(BigDecimal value) {

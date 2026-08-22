@@ -699,6 +699,7 @@ public class PlanningCurrencyPresentationService {
         realEstateEnd = planningValue(row.past().values(), PlanningMetric.REAL_ESTATE);
       } else if (row.state() == PlanningTimelineState.LIVE) {
         Map<PlanningMetric, PlanningMetricValue> currentValues = row.current().actualValues();
+        Map<PlanningMetric, PlanningMetricValue> expectedValues = row.current().expectedValues();
         annualCosts = annualCosts(currentValues);
         if (annualCosts == null && assumptions != null)
           annualCosts = annualCostsFor(assumptions, row.year(), BigDecimal.ZERO);
@@ -723,11 +724,23 @@ public class PlanningCurrencyPresentationService {
         annualCosts = annualCosts == null ? null : annualCosts.add(eventExpenses);
         totalIncome = employment.add(zero(rentalIncome)).add(zero(bondIncome)).add(pension).add(eventIncome);
         fundingGap = gap(annualCosts, totalIncome);
-        cashEnd = firstValue(currentValues, PlanningMetric.SAFE_RESERVE, PlanningMetric.CASH_RESERVE_VALUE, PlanningMetric.MANUAL_LIQUID_RESERVE);
+        cashStart = firstValue(currentValues, PlanningMetric.CASH_RESERVE_VALUE,
+            PlanningMetric.MANUAL_LIQUID_RESERVE, PlanningMetric.SAFE_RESERVE);
+        cashEnd = firstValue(expectedValues, PlanningMetric.CASH_RESERVE_VALUE,
+            PlanningMetric.MANUAL_LIQUID_RESERVE, PlanningMetric.SAFE_RESERVE);
+        if (cashEnd == null) cashEnd = cashStart;
+        cashWithdrawal = cashStart == null || cashEnd == null
+            ? null : cashStart.subtract(cashEnd).max(BigDecimal.ZERO);
         reserveEnd = cashEnd;
-        bondsEnd = firstValue(currentValues, PlanningMetric.BOND_VALUE, PlanningMetric.FIXED_INCOME);
-        equitiesEnd = firstValue(currentValues, PlanningMetric.EQUITY, PlanningMetric.MARKET_ASSETS);
-        realEstateEnd = planningValue(currentValues, PlanningMetric.REAL_ESTATE);
+        bondsStart = firstValue(currentValues, PlanningMetric.BOND_VALUE, PlanningMetric.FIXED_INCOME);
+        bondsEnd = firstValue(expectedValues, PlanningMetric.BOND_VALUE, PlanningMetric.FIXED_INCOME);
+        if (bondsEnd == null) bondsEnd = bondsStart;
+        equitiesStart = firstValue(currentValues, PlanningMetric.EQUITY, PlanningMetric.MARKET_ASSETS);
+        equitiesEnd = firstValue(expectedValues, PlanningMetric.EQUITY, PlanningMetric.MARKET_ASSETS);
+        if (equitiesEnd == null) equitiesEnd = equitiesStart;
+        realEstateStart = planningValue(currentValues, PlanningMetric.REAL_ESTATE);
+        realEstateEnd = planningValue(expectedValues, PlanningMetric.REAL_ESTATE);
+        if (realEstateEnd == null) realEstateEnd = realEstateStart;
       } else if (row.state() == PlanningTimelineState.PROJECTED && row.projection() != null) {
         annualCosts = row.projection().totalExpenses();
         rentalIncome = row.projection().rentalIncome();

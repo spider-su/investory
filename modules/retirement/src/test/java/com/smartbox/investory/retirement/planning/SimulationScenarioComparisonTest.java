@@ -39,7 +39,7 @@ class SimulationScenarioComparisonTest {
     assertEquals(SimulationScenario.CONSERVATIVE, comparison.limitingScenario());
     assertEquals(
         "Plan remains sustainable in all scenarios. Conservative is the limiting scenario; "
-            + "minimum reserve coverage is 1.2 years.",
+            + "minimum liquid assets are 80.",
         comparison.interpretation());
     assertEquals(3, comparison.scenarios().size());
     assertEquals("100", comparison.scenarios().getFirst().finalSpendableAssetsDisplay());

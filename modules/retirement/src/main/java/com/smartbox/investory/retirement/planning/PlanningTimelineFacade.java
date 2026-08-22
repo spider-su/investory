@@ -404,7 +404,7 @@ public class PlanningTimelineFacade {
             age(assumptions, current),
             PlanningTimelineState.LIVE,
             null,
-            currentForTimeline(portfolioId, current, profile, assumptions),
+            currentForTimeline(portfolioId, current, profile, assumptions, null),
             null));
     for (SimulationYear projection : future(profile, assumptions, current)) {
       result.add(
@@ -456,7 +456,8 @@ public class PlanningTimelineFacade {
             PlanningTimelineState.LIVE,
             null,
             currentForTimeline(
-                portfolioId, current, profile, forward.context().originalAssumptions()),
+                portfolioId, current, profile, forward.context().originalAssumptions(),
+                forward.currentYearBridge()),
             null));
     if (forward.forwardAssumptions().isPresent())
       for (SimulationYear projection : future(forward, current, scenario))
@@ -709,6 +710,12 @@ public class PlanningTimelineFacade {
         PlanningMetric.SAFE_RESERVE,
         derived(PlanningMetric.SAFE_RESERVE, safeReserve, PlanningValueSource.PORTFOLIO_DERIVED));
     result.put(
+        PlanningMetric.CASH_RESERVE_VALUE,
+        derived(
+            PlanningMetric.CASH_RESERVE_VALUE,
+            profile.retirementReserve(),
+            PlanningValueSource.PORTFOLIO_DERIVED));
+    result.put(
         PlanningMetric.MANUAL_LIQUID_RESERVE,
         derived(
             PlanningMetric.MANUAL_LIQUID_RESERVE,
@@ -839,7 +846,11 @@ public class PlanningTimelineFacade {
   }
 
   private CurrentPlanningYear currentForTimeline(
-      Long portfolioId, int year, InvestmentProfile profile, SimulationAssumptions assumptions) {
+      Long portfolioId,
+      int year,
+      InvestmentProfile profile,
+      SimulationAssumptions assumptions,
+      CurrentYearBridgeResult bridge) {
     CurrentPlanningYear current = current(portfolioId, year, profile);
     Map<PlanningMetric, PlanningMetricValue> live = new EnumMap<>(current.actualValues());
     live.put(
@@ -854,6 +865,12 @@ public class PlanningTimelineFacade {
             PlanningMetric.DISCRETIONARY_SPENDING,
             assumptions.annualDiscretionaryExpenses(),
             PlanningValueSource.SIMULATION_BASELINE));
+    live.put(
+        PlanningMetric.CASH_RESERVE_VALUE,
+        derived(
+            PlanningMetric.CASH_RESERVE_VALUE,
+            profile.retirementReserve(),
+            PlanningValueSource.PORTFOLIO_DERIVED));
     if (longTermAssets != null) {
       LongTermAssetAnnualSnapshotModel facts =
           longTermAssets.currentAnnualSnapshot(portfolioId, LocalDate.now(clock));
@@ -895,13 +912,31 @@ public class PlanningTimelineFacade {
           derived(
               PlanningMetric.PORTFOLIO_FUNDING, funding, PlanningValueSource.SIMULATION_BASELINE));
     }
+    Map<PlanningMetric, PlanningMetricValue> expected = new EnumMap<>(PlanningMetric.class);
+    expected.putAll(current.expectedValues());
+    if (bridge != null) {
+      putExpectedBucket(expected, PlanningMetric.CASH_RESERVE_VALUE, bridge.expectedEnd(BucketType.CASH));
+      putExpectedBucket(expected, PlanningMetric.SAFE_RESERVE, bridge.expectedEnd(BucketType.CASH));
+      putExpectedBucket(expected, PlanningMetric.FIXED_INCOME, bridge.expectedEnd(BucketType.BONDS));
+      putExpectedBucket(expected, PlanningMetric.BOND_VALUE, bridge.expectedEnd(BucketType.BONDS));
+      putExpectedBucket(expected, PlanningMetric.EQUITY, bridge.expectedEnd(BucketType.EQUITIES));
+      putExpectedBucket(expected, PlanningMetric.REAL_ESTATE, bridge.expectedEnd(BucketType.REAL_ESTATE));
+      putExpectedBucket(expected, PlanningMetric.NET_WORTH, bridge.bridgedProfile().totalNetWorth());
+    }
     return new CurrentPlanningYear(
         current.year(),
         current.baselinePlanId(),
         current.baselineRevisionId(),
         current.baselineCreatedAt(),
         live,
-        current.expectedValues());
+        expected);
+  }
+
+  private static void putExpectedBucket(
+      Map<PlanningMetric, PlanningMetricValue> values,
+      PlanningMetric metric,
+      BigDecimal amount) {
+    if (amount != null) values.put(metric, derived(metric, amount, PlanningValueSource.SIMULATION_BASELINE));
   }
 
   private static void putCurrentFact(

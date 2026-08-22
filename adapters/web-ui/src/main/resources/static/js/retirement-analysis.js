@@ -26,12 +26,6 @@
     {label: "Funding need", data: funding.map(point => point.requiredPortfolioFunding || 0), borderColor: "#206bc4", borderWidth: 3, pointRadius: 0},
     {label: "Unfunded", data: funding.map(point => point.unfundedAmount || 0), borderColor: "#ff922b", borderWidth: 3, pointRadius: 0}
   ]}, options});
-  const reserves = (charts.reserves || {})[selected] || [];
-  const reserve = document.getElementById("analysis-reserve");
-  if (reserve) new Chart(reserve, {type: "line", data: {labels: reserves.map(point => point.year), datasets: [
-    {label: "Available reserve coverage", data: reserves.map(point => point.safeReserveCoverageYears), borderColor: "#4dabf7", pointRadius: 0},
-    {label: "Target reserve coverage", data: reserves.map(point => point.safeReserveTargetCoverageYears), borderColor: "#ffd43b", borderDash: [5, 4], pointRadius: 0}
-  ]}, options: {...options, scales: {...options.scales, y: {...options.scales.y, ticks: {callback: value => `${value} years`}}}}});
   document.querySelectorAll("[data-analysis-tab]").forEach(tab => tab.addEventListener("click", () => {
     document.querySelectorAll("[data-analysis-tab]").forEach(item => {
       const active = item === tab;

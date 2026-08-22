@@ -56,7 +56,6 @@ public record SimulationScenarioComparison(
         .thenComparing(
             summary ->
                 summary.firstFailureYear() == null ? Integer.MAX_VALUE : summary.firstFailureYear())
-        .thenComparing(SimulationScenarioComparison::compareReserveCoverage)
         .thenComparing(SimulationDecisionSummary::minimumLiquidAssets);
   }
 
@@ -66,8 +65,8 @@ public record SimulationScenarioComparison(
     if (!worst.failed()) {
       return "Plan remains sustainable in all scenarios. "
           + label(limiting)
-          + " is the limiting scenario; minimum reserve coverage is "
-          + reserveCoverageDisplay(worst)
+          + " is the limiting scenario; minimum liquid assets are "
+          + PlanningPresentation.wholeNumber(worst.minimumLiquidAssets())
           + ".";
     }
     long failed = summaries.values().stream().filter(SimulationDecisionSummary::failed).count();
@@ -90,28 +89,10 @@ public record SimulationScenarioComparison(
   private static String healthLabel(SimulationDecisionSummary summary) {
     if (summary.failed()) return "Fails";
     if (summary.recurringFundingGapRequired()
-        && summary.minimumSafeReserveCoverageYears().compareTo(java.math.BigDecimal.ONE) < 0) {
+        && summary.minimumLiquidAssets().compareTo(java.math.BigDecimal.ONE) < 0) {
       return "Fragile";
     }
     return "Sustainable";
-  }
-
-  private static int compareReserveCoverage(
-      SimulationDecisionSummary first, SimulationDecisionSummary second) {
-    if (first.recurringFundingGapRequired() != second.recurringFundingGapRequired()) {
-      return first.recurringFundingGapRequired() ? -1 : 1;
-    }
-    return first.recurringFundingGapRequired()
-        ? first
-            .minimumSafeReserveCoverageYears()
-            .compareTo(second.minimumSafeReserveCoverageYears())
-        : 0;
-  }
-
-  private static String reserveCoverageDisplay(SimulationDecisionSummary summary) {
-    return summary.recurringFundingGapRequired()
-        ? PlanningPresentation.years(summary.minimumSafeReserveCoverageYears()) + " years"
-        : "reserve coverage is not required";
   }
 
   private static String label(SimulationScenario scenario) {
@@ -129,5 +110,9 @@ public record SimulationScenarioComparison(
       String firstFailureDisplay,
       String minimumSpendableAssetsDisplay,
       String finalNetWorthDisplay,
-      String finalSpendableAssetsDisplay) {}
+      String finalSpendableAssetsDisplay) {
+    public String minimumLiquidAssetsDisplay() {
+      return minimumSpendableAssetsDisplay;
+    }
+  }
 }

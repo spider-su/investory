@@ -38,7 +38,12 @@ public final class RetirementBucketEngine {
     return new Result(Map.copyOf(rows), gap, cashIncome, harvest);
   }
   public record BucketResult(BucketType bucket, BigDecimal startValue, BigDecimal returnAmount,
-      BigDecimal refill, BigDecimal withdrawal, BigDecimal expectedEndValue) {}
+      BigDecimal refill, BigDecimal withdrawal, BigDecimal expectedEndValue) {
+    /** Signed net internal transfer. Kept separate from the legacy component name. */
+    public BigDecimal transfer() {
+      return refill;
+    }
+  }
   public record Result(Map<BucketType, BucketResult> buckets, BigDecimal unfunded,
       BigDecimal cashIncome, BigDecimal equityHarvestToBonds) {
     public Result { buckets = Map.copyOf(buckets); unfunded = nz(unfunded); }

@@ -238,11 +238,7 @@ public class RetirementSimulationController {
             + " · Retire at "
             + projectedAssumptions.retirementAge()
             + " · Effective cost growth "
-            + PlanningPresentation.percentage(projectedAssumptions.effectiveSpendingGrowthRate())
-            + " · "
-            + PlanningPresentation.years(projectedAssumptions.safeReserveYears())
-            + "-year reserve · "
-            + PlanningPresentation.fundingStrategy(projectedAssumptions.fundingStrategy());
+            + PlanningPresentation.percentage(projectedAssumptions.effectiveSpendingGrowthRate());
     var displaySummaries =
         new LinkedHashMap<>(
             planningPresentation.displaySummaries(summaries, planningDisplayCurrency));

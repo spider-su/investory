@@ -39,14 +39,16 @@ class UiPresentationTest {
   @Test
   void formatsCompactSummaryMoney() {
     assertEquals("999", UiPresentation.compactMoney(new BigDecimal("999")));
-    assertEquals("1K", UiPresentation.compactMoney(new BigDecimal("1000")));
+    assertEquals("1.0K", UiPresentation.compactMoney(new BigDecimal("1000")));
     assertEquals("1.3K", UiPresentation.compactMoney(new BigDecimal("1250")));
     assertEquals("174.8K", UiPresentation.compactMoney(new BigDecimal("174803.62")));
-    assertEquals("900K", UiPresentation.compactMoney(new BigDecimal("900000")));
+    assertEquals("900.0K", UiPresentation.compactMoney(new BigDecimal("900000")));
     assertEquals("1M", UiPresentation.compactMoney(new BigDecimal("1000000")));
     assertEquals("4.55M", UiPresentation.compactMoney(new BigDecimal("4550000")));
     assertEquals("-174.8K", UiPresentation.compactMoney(new BigDecimal("-174803.62")));
     assertEquals("1M", UiPresentation.compactMoney(new BigDecimal("999950")));
+    assertEquals("+36.6K", UiPresentation.signedCompactMoney(new BigDecimal("36600")));
+    assertEquals("−36.6K", UiPresentation.signedCompactMoney(new BigDecimal("-36600")));
   }
 
   @Test

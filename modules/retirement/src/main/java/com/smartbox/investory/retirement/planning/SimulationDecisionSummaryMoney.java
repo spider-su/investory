@@ -124,6 +124,15 @@ public record SimulationDecisionSummaryMoney(
     return PlanningPresentation.wholeNumber(minimumSpendableAssets);
   }
 
+  /** Canonical bucket-model name; the record field remains for API compatibility. */
+  public BigDecimal minimumLiquidAssets() {
+    return minimumSpendableAssets;
+  }
+
+  public String minimumLiquidAssetsDisplay() {
+    return PlanningPresentation.wholeNumber(minimumSpendableAssets);
+  }
+
   public String finalSpendableAssetsDisplay() {
     return PlanningPresentation.wholeNumber(finalSpendableAssets);
   }

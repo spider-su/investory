@@ -8,7 +8,7 @@ does not simulate individual holdings, bond ladders, rental contracts, maturitie
 
 Each projected year executes cash income, aggregate returns, costs, Cash withdrawal, Bonds
 withdrawal, Equities withdrawal when enabled, Real Estate withdrawal only after all liquid buckets
-reach zero, then positive equity-gain harvest to refill Bonds up to the frozen initial Bond target.
+reach zero, then positive equity-gain transfer to Bonds up to the frozen initial Bond target.
 Cash has zero yield and is never auto-refilled. Bond return stays in Bonds; equity return stays in
 Equities unless the harvest policy moves an eligible share to Bonds. Remaining balances carry into
 the next year. `UNFUNDED` is recalculated per year and is not sticky.
@@ -20,7 +20,7 @@ reconcile to projected mechanics.
 Retirement planning consumes normalized economic contracts and freezes them into four aggregate
 planning buckets: **Cash, Bonds, Equities, and Real Estate**. Source domains own the current factual
 composition of those buckets; Retirement owns how the frozen aggregate balances are projected,
-reinvested, refilled, and consumed by the plan.
+reinvested, transferred, and consumed by the plan.
 
 Retirement does not consume concrete holdings. Investment and Long-Term remain responsible for
 current valuation, source-domain tax/return facts, rental contracts, individual bonds, maturities,
@@ -43,7 +43,7 @@ Retirement/Simulation -> Investment public API
 ```
 
 Retirement owns lifecycle assumptions, generic flow aggregation, funding gap, bucket transitions,
-funding priority, bond refill from eligible equity gains, timeline, and reporting. Long-Term Assets
+funding priority, Bond transfers from eligible Equity gains, timeline, and reporting. Long-Term Assets
 owns the factual/current composition and economics of bonds, cash reserves, real estate, and rental
 contracts. Investment owns the factual/current brokerage/investment state. Neither asset module
 depends on Retirement.
@@ -153,7 +153,7 @@ projected flows for the remaining period.
 
 Future Retirement projection uses four aggregate buckets:
 
-| Bucket | Role | Planned yield | Spending priority | Automatic refill |
+| Bucket | Role | Planned yield | Spending priority | Automatic transfer |
 | --- | --- | ---: | ---: | --- |
 | Cash | immediate spending liquidity | `0%` | 1 | none |
 | Bonds | defensive capital | frozen bond planning yield | 2 | eligible Equity gains |
@@ -168,9 +168,9 @@ Every yearly bucket result exposes, conceptually:
 ```text
 startValue
 returnOrGrowth
-refill
+netTransfer
 withdrawal
-endValue
+expectedEndValue
 ```
 
 Derived end values are simulation output and are not persisted as plan inputs.
@@ -197,7 +197,7 @@ principal when funding a deficit: available Bond capital is spendable after Cash
 ```text
 bondsBeforeSpending = bondsStart + bondReturn
 bondsAfterSpending = max(0, bondsBeforeSpending - bondWithdrawal)
-bondsEnd = bondsAfterSpending + equityRefill
+bondsExpectedEnd = bondsAfterSpending + bondTransfer
 ```
 
 Unused Bond capital is considered reinvested automatically and becomes the next year's Bond start.
@@ -213,13 +213,14 @@ equityReturn = equitiesStart * equityReturnRate
 equitiesBeforeRefill = equitiesStart + equityReturn
 ```
 
-Positive eligible Equity gain may refill Bonds toward the configured Bond target. The refill is a
-capital transfer, not cash income:
+Positive eligible Equity gain may transfer value to Bonds toward the configured Bond target. The
+transfer is internal capital movement, not cash income:
 
 ```text
 eligibleGain = max(0, equityReturn)
 harvest = eligibleGain * equityGainHarvestRate
-bondRefill = min(harvest, max(0, bondTarget - bondsAfterSpending))
+bondTransfer = min(harvest, max(0, bondTarget - bondsAfterSpending))
+equityTransfer = -bondTransfer
 ```
 
 The existing minimum-return threshold gates whether harvesting is permitted. Any unharvested gain
@@ -307,7 +308,7 @@ Each projected year is evaluated from scratch from the previous year's end state
 6. withdraw Bonds;
 7. withdraw Equities when policy allows and a gap remains;
 8. withdraw Real Estate only after Cash, Bonds, and Equities are exhausted;
-9. if eligible positive Equity gain remains, refill Bonds toward the Bond target;
+9. if eligible positive Equity gain remains, transfer value to Bonds toward the Bond target;
 10. calculate end values for all four buckets;
 11. record any amount still unfunded;
 12. carry the end values into the next year.
@@ -318,11 +319,38 @@ The canonical spending priority is therefore:
 cash income -> Cash -> Bonds -> Equities -> Real Estate -> unfunded
 ```
 
-Bond refill is the reverse capital-maintenance path:
+Bond transfer is the reverse capital-maintenance path:
 
 ```text
 eligible Equity gain -> Bonds (up to target)
 ```
+
+The developer table shows this as a signed `Transfer`: Bonds receive `+X` and Equities show
+`-X`. Internal transfers conserve value:
+
+```text
+sum(all bucket net transfers) = 0
+```
+
+For every applicable consecutive pair of projected rows, the authoritative bucket identity is:
+
+```text
+Expected end = Start + Return + Net internal transfer - Withdrawal
+ExpectedEnd(year N) = Start(year N+1)
+```
+
+### Current/live and projected boundaries
+
+`CURRENT`/`LIVE` has two distinct boundaries. The opening value is the current factual bucket
+balance. The bridge projects only the remaining part of the current calendar year using the same
+authoritative simulator, and exposes the resulting expected year-end bucket value. This is why
+`Cash now` can be higher than `Expected year end`; the difference is the remaining current-year
+cash use after income.
+
+The first `PROJECTED` year opens from those expected current-year end values. Each projected year
+applies the scenario return assumptions, signed internal transfers, and external withdrawals;
+its expected end is the next year's start. Current factual balances are never presented as if they
+were final current-year balances.
 
 Cash is not automatically refilled. Remaining Bonds and Equities are automatically reinvested under
 the same frozen assumptions.
@@ -419,7 +447,7 @@ property capital                             -> Real Estate
 ```
 
 The reviewed baseline also carries the planning assumptions needed to project those balances, such as
-Bond yield, Equity return, rental income/growth, Bond refill target, harvest threshold/share, and
+Bond yield, Equity return, rental income/growth, Bond target, harvest threshold/share, and
 whether Equity principal may be used for spending.
 
 Current/live source changes affect CURRENT immediately. Future changes only after an explicit

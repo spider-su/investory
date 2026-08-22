@@ -22,7 +22,7 @@ public record RetirementYearSummaryView(
     BucketSummary realEstate,
     String status) {
 
-  public record BucketSummary(BigDecimal annualValue, BigDecimal endValue) {}
+  public record BucketSummary(BigDecimal startValue, BigDecimal annualValue, BigDecimal endValue) {}
 
   public static Map<Integer, RetirementYearSummaryView> from(
       PlanningTimeline timeline, Map<Integer, PlanningTimelineMoney> moneyByYear) {
@@ -42,10 +42,10 @@ public record RetirementYearSummaryView(
               spending,
               income,
               netCash,
-              new BucketSummary(null, money == null ? null : money.cashEnd()),
-              new BucketSummary(money == null ? null : money.bondReturn(), money == null ? null : money.bondsEnd()),
-              new BucketSummary(money == null ? null : money.equityReturn(), money == null ? null : money.equitiesEnd()),
-              new BucketSummary(money == null ? null : money.rentalIncome(), money == null ? null : money.realEstateEnd()),
+              new BucketSummary(money == null ? null : money.cashStart(), null, money == null ? null : money.cashEnd()),
+              new BucketSummary(money == null ? null : money.bondsStart(), money == null ? null : money.bondReturn(), money == null ? null : money.bondsEnd()),
+              new BucketSummary(money == null ? null : money.equitiesStart(), money == null ? null : money.equityReturn(), money == null ? null : money.equitiesEnd()),
+              new BucketSummary(money == null ? null : money.realEstateStart(), money == null ? null : money.rentalIncome(), money == null ? null : money.realEstateEnd()),
               status));
     }
     return Collections.unmodifiableMap(result);

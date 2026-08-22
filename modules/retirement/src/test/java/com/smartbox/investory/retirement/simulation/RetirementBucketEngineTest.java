@@ -31,6 +31,37 @@ class RetirementBucketEngineTest {
     assertThat(r.buckets().get(BucketType.EQUITIES).expectedEndValue()).isEqualByComparingTo("1100");
   }
 
+  @Test
+  void equityToBondTransferIsSignedAndPortfolioValueNeutral() {
+    var r = engine.simulate(
+        PlanningBuckets.of(bd("0"), bd("80"), bd("1000"), bd("0"), bd("0.10"), bd("0.10"),
+            bd("100"), bd("0")),
+        BigDecimal.ZERO, BigDecimal.ZERO, policy());
+
+    var bonds = r.buckets().get(BucketType.BONDS);
+    var equities = r.buckets().get(BucketType.EQUITIES);
+    assertThat(bonds.transfer()).isEqualByComparingTo("12");
+    assertThat(equities.transfer()).isEqualByComparingTo("-12");
+    assertThat(r.buckets().values().stream().map(RetirementBucketEngine.BucketResult::transfer)
+        .reduce(BigDecimal.ZERO, BigDecimal::add)).isZero();
+
+    BigDecimal beforeTransfer = bonds.startValue().add(bonds.returnAmount())
+        .add(equities.startValue()).add(equities.returnAmount());
+    BigDecimal afterTransfer = bonds.expectedEndValue().add(equities.expectedEndValue());
+    assertThat(afterTransfer).isEqualByComparingTo(beforeTransfer);
+  }
+
+  @Test
+  void bondsAtTargetDoNotReceiveUnnecessaryEquityTransfer() {
+    var r = engine.simulate(
+        PlanningBuckets.of(bd("0"), bd("100"), bd("1000"), bd("0"), bd("0.10"), bd("0.10"),
+            bd("100"), bd("0")),
+        BigDecimal.ZERO, BigDecimal.ZERO, policy());
+
+    assertThat(r.buckets().get(BucketType.BONDS).transfer()).isZero();
+    assertThat(r.buckets().get(BucketType.EQUITIES).transfer()).isZero();
+  }
+
   @Test void unfundedIsPerYearAndCanRecover() {
     var start = buckets("0", "0", "0", "0", "0", "0");
     assertThat(engine.simulate(start, bd("100"), BigDecimal.ZERO, policy()).unfunded()).isEqualByComparingTo("100");

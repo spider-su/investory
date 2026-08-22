@@ -24,7 +24,12 @@ public record PlanningTimelineMoney(
     BigDecimal equityWithdrawal, BigDecimal realEstateWithdrawal,
     BigDecimal bondReturn, BigDecimal equityReturn, BigDecimal equityRefill) {
 
-  /** Transfer is positive into Bonds and negative out of Equities. */
+  /** Net internal transfer received by Bonds; positive means Bonds receive value. */
+  public BigDecimal bondTransfer() {
+    return equityRefill;
+  }
+
+  /** Net internal transfer received by Equities; negative means value leaves Equities. */
   public BigDecimal equityTransfer() {
     return equityRefill == null ? null : equityRefill.negate();
   }

@@ -1,7 +1,9 @@
 package com.smartbox.investory.retirement.simulation;
 
 import com.smartbox.investory.retirement.profile.InvestmentProfile;
+import com.smartbox.investory.retirement.profile.ProjectedLongTermAsset;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.Year;
 import java.util.EnumMap;
 import java.util.Map;
@@ -49,7 +51,8 @@ public class RetirementSimulationService implements RetirementSimulation {
       BigDecimal pension = age >= assumptions.pensionStartAge() ? assumptions.annualPension() : ZERO;
       BigDecimal eventIncome = assumptions.futureEvents().stream().filter(e -> e.year() == year && e.type() == SimulationEventType.ONE_OFF_INCOME).map(SimulationEvent::amount).reduce(ZERO, BigDecimal::add);
       BigDecimal eventExpense = assumptions.futureEvents().stream().filter(e -> e.year() == year && e.type() == SimulationEventType.ONE_OFF_EXPENSE).map(SimulationEvent::amount).reduce(ZERO, BigDecimal::add);
-      BigDecimal cashIncome = employment.add(pension).add(eventIncome).add(rental);
+      BigDecimal bondIncome = bondCashIncome(profile, assumptions, year);
+      BigDecimal cashIncome = employment.add(pension).add(eventIncome).add(rental).add(bondIncome);
       var result = engine.simulate(current, costs.add(eventExpense), cashIncome, assumptions.fundingPolicy());
       var c = result.buckets().get(BucketType.CASH); var b = result.buckets().get(BucketType.BONDS);
       var rawEquities = result.buckets().get(BucketType.EQUITIES);
@@ -61,7 +64,8 @@ public class RetirementSimulationService implements RetirementSimulation {
       if (result.unfunded().signum() > 0 && failureAge == null) { failureAge = age; firstShortfall = result.unfunded(); }
       totalUnfunded = totalUnfunded.add(result.unfunded());
       years.add(SimulationYear.bucket(age, year, retired, costs, eventExpense, employment, pension, eventIncome,
-          rental, cashIncome, c, b, e, re, result.unfunded(), retired ? ZERO : assumptions.annualPreRetirementContribution()));
+          rental, cashIncome, bondIncome, c, b, e, re, result.unfunded(),
+          retired ? ZERO : assumptions.annualPreRetirementContribution()));
       BigDecimal nextEquities = e.expectedEndValue();
       current = new PlanningBuckets(
           new PlanningBucket(BucketType.CASH, c.expectedEndValue(), ZERO, 1, ZERO, RefillPolicy.NONE),
@@ -73,6 +77,38 @@ public class RetirementSimulationService implements RetirementSimulation {
       if (retired) spending = spending.multiply(BigDecimal.ONE.add(effective.spendingGrowthRate()));
     }
     return new SimulationResult(scenario, failureAge != null, failureAge, firstShortfall, totalUnfunded, years);
+  }
+
+  private static BigDecimal bondCashIncome(
+      InvestmentProfile profile, SimulationAssumptions assumptions, int year) {
+    ProjectedIncomePolicy policy = assumptions.projectedIncomePolicy();
+    if (policy.bondCashIncomeMode() == ProjectedIncomePolicy.IncomeMode.MANUAL) {
+      return policy.manualBondCashIncome() == null ? ZERO : policy.manualBondCashIncome();
+    }
+    BigDecimal projected = profile.longTermAssets().stream()
+        .filter(asset -> asset.bucket() == com.smartbox.investory.retirement.profile.EconomicBucket.FIXED_INCOME)
+        .filter(asset -> asset.maturityDate() == null || year <= asset.maturityDate().getYear())
+        .map(asset -> periodBondIncome(asset, year))
+        .reduce(ZERO, BigDecimal::add);
+    return projected.signum() == 0 ? zero(profile.currentBondIncome()) : projected;
+  }
+
+  private static BigDecimal periodBondIncome(ProjectedLongTermAsset asset, int year) {
+    LocalDate date = LocalDate.of(year, 12, 31);
+    return asset.periods().stream()
+        .filter(period -> !date.isBefore(period.validFrom()))
+        .filter(period -> period.validTo() == null || !date.isAfter(period.validTo()))
+        .map(period -> {
+          if (period.annualIncome() != null && period.annualIncome().signum() != 0) return period.annualIncome();
+          BigDecimal rate = period.annualReturnRate() == null ? ZERO : period.annualReturnRate();
+          BigDecimal tax = asset.taxRate() == null ? ZERO : asset.taxRate();
+          return zero(asset.currentValue()).multiply(rate).multiply(BigDecimal.ONE.subtract(tax));
+        })
+        .findFirst().orElse(ZERO);
+  }
+
+  private static BigDecimal zero(BigDecimal value) {
+    return value == null ? ZERO : value;
   }
 
   @Override
