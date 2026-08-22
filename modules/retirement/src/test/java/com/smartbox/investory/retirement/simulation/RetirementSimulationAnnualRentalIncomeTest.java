@@ -14,10 +14,27 @@ import com.smartbox.investory.retirement.profile.ProjectedLongTermAsset;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.Year;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class RetirementSimulationAnnualRentalIncomeTest {
+
+  @Test
+  void firstProjectedYearAdvancesCurrentRentalBaseline() {
+    var service = new RetirementSimulationService(
+        new LongTermAnnualProjectionService(), new InvestmentAnnualProjectionService());
+    var profile = profile(BigDecimal.ZERO, List.of(), new BigDecimal("174803.62"));
+    int firstProjectedYear = Year.now().getValue() + 1;
+    var assumptions = SimulationAssumptions.defaults(profile, 65, 65, firstProjectedYear)
+        .withInflationRate(new BigDecimal("0.030"))
+        .withRentalIncomeGrowthSpread(new BigDecimal("-0.020"));
+
+    var year = service.simulate(profile, assumptions, SimulationScenario.BASE).years().getFirst();
+
+    assertThat(year.year()).isEqualTo(firstProjectedYear);
+    assertThat(year.rentalIncome()).isEqualByComparingTo("176551.6562");
+  }
   @Test
   void supportsAnnualRentalIncomeThatDoesNotDivideEvenlyIntoMonths() {
     var service =

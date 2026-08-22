@@ -1,5 +1,7 @@
 package com.smartbox.investory.retirement.simulation;
 
+import com.smartbox.investory.retirement.profile.EconomicBucket;
+import com.smartbox.investory.retirement.profile.InvestmentProfile;
 import java.math.BigDecimal;
 import java.util.EnumMap;
 import java.util.Map;
@@ -29,6 +31,38 @@ public record PlanningBuckets(PlanningBucket cash, PlanningBucket bonds, Plannin
         new PlanningBucket(BucketType.EQUITIES, equities, equityYield, 3, BigDecimal.ZERO, RefillPolicy.EQUITY_HARVEST),
         new PlanningBucket(BucketType.REAL_ESTATE, realEstate, BigDecimal.ZERO, 4, BigDecimal.ZERO, RefillPolicy.NONE),
         rentalIncome, BigDecimal.ZERO);
+  }
+
+  /** Maps the reviewed source snapshot once, before future-year simulation begins. */
+  public static PlanningBuckets fromProfile(InvestmentProfile profile, BigDecimal equityYield,
+      BigDecimal fallbackBondYield) {
+    BigDecimal bonds = allocation(profile, EconomicBucket.FIXED_INCOME);
+    if (bonds.signum() == 0) bonds = profile.longTermAssets().stream()
+        .filter(a -> a.bucket() == EconomicBucket.FIXED_INCOME)
+        .map(a -> nz(a.currentValue())).reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal equities = allocation(profile, EconomicBucket.EQUITY);
+    if (equities.signum() == 0) equities = nz(profile.investmentCapital());
+    BigDecimal realEstate = allocation(profile, EconomicBucket.REAL_ESTATE);
+    if (realEstate.signum() == 0) realEstate = profile.longTermAssets().stream()
+        .filter(a -> a.bucket() == EconomicBucket.REAL_ESTATE)
+        .map(a -> nz(a.currentValue())).reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal bondIncome = nz(profile.currentBondIncome());
+    if (bondIncome.signum() == 0) bondIncome = profile.longTermAssets().stream()
+        .filter(a -> a.bucket() == EconomicBucket.FIXED_INCOME)
+        .map(a -> nz(a.currentValue()).multiply(a.periods().isEmpty() ? BigDecimal.ZERO
+            : nz(a.periods().getFirst().annualReturnRate()))
+            .multiply(BigDecimal.ONE.subtract(nz(a.taxRate()))))
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal bondYield = bonds.signum() == 0 ? nz(fallbackBondYield)
+        : (bondIncome.signum() == 0 ? nz(fallbackBondYield)
+            : bondIncome.divide(bonds, 12, java.math.RoundingMode.HALF_UP));
+    return of(nz(profile.retirementReserve()), bonds, equities, realEstate, bondYield,
+        nz(equityYield), bonds, profile.currentRentalIncome());
+  }
+
+  private static BigDecimal allocation(InvestmentProfile profile, EconomicBucket bucket) {
+    return profile.allocations().stream().filter(a -> a.bucket() == bucket)
+        .map(a -> nz(a.value())).reduce(BigDecimal.ZERO, BigDecimal::add);
   }
   private static BigDecimal nz(BigDecimal value) { return value == null ? BigDecimal.ZERO : value; }
 }

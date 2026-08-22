@@ -675,7 +675,14 @@ public class PlanningCurrencyPresentationService {
           unfunded = null,
           reserveEnd = null,
           longTermCapitalEnd = null,
-          investmentEnd = null;
+          investmentEnd = null,
+          cashStart = null, cashEnd = null,
+          bondsStart = null, bondsEnd = null,
+          equitiesStart = null, equitiesEnd = null,
+          realEstateStart = null, realEstateEnd = null,
+          cashWithdrawal = null, bondWithdrawal = null,
+          equityWithdrawal = null, realEstateWithdrawal = null,
+          bondReturn = null, equityReturn = null, equityRefill = null;
       if ((row.state() == PlanningTimelineState.ACTUAL
               || row.state() == PlanningTimelineState.NEEDS_REVIEW)
           && row.past() != null) {
@@ -727,6 +734,22 @@ public class PlanningCurrencyPresentationService {
         reserveEnd = funding.reserveEnd();
         longTermCapitalEnd = funding.longTermCapitalEnd();
         investmentEnd = funding.investmentEnd();
+        cashStart = row.projection().cashStart();
+        cashEnd = row.projection().cashEnd();
+        bondsStart = row.projection().fixedIncomeStart();
+        bondsEnd = row.projection().fixedIncomeEnd();
+        equitiesStart = row.projection().equityStart();
+        equitiesEnd = row.projection().equityEnd();
+        realEstateStart = row.projection().realEstateStart();
+        realEstateEnd = row.projection().realEstateEnd();
+        cashWithdrawal = row.projection().manualLiquidReserveWithdrawal();
+        bondWithdrawal = funding.longTermFunding();
+        equityWithdrawal = row.projection().emergencyEquityWithdrawal();
+        realEstateWithdrawal = zero(row.projection().realEstateStart())
+            .subtract(zero(row.projection().realEstateEnd())).max(BigDecimal.ZERO);
+        bondReturn = row.projection().capitalizedBondReturn();
+        equityReturn = row.projection().equityGain();
+        equityRefill = row.projection().equityToFixedIncomeTransfer();
       }
       result.put(
           row.year(),
@@ -742,7 +765,15 @@ public class PlanningCurrencyPresentationService {
               toDisplay(unfunded, currency),
               toDisplay(reserveEnd, currency),
               toDisplay(longTermCapitalEnd, currency),
-              toDisplay(investmentEnd, currency)));
+              toDisplay(investmentEnd, currency),
+              toDisplay(cashStart, currency), toDisplay(cashEnd, currency),
+              toDisplay(bondsStart, currency), toDisplay(bondsEnd, currency),
+              toDisplay(equitiesStart, currency), toDisplay(equitiesEnd, currency),
+              toDisplay(realEstateStart, currency), toDisplay(realEstateEnd, currency),
+              toDisplay(cashWithdrawal, currency), toDisplay(bondWithdrawal, currency),
+              toDisplay(equityWithdrawal, currency), toDisplay(realEstateWithdrawal, currency),
+              toDisplay(bondReturn, currency), toDisplay(equityReturn, currency),
+              toDisplay(equityRefill, currency)));
     }
     return result;
   }

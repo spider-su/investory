@@ -295,6 +295,8 @@ public class RetirementSimulationController {
     model.addAttribute(
         "displayProfile", planningPresentation.displayProfile(profile, planningDisplayCurrency));
     model.addAttribute("assumptions", assumptions);
+    model.addAttribute("planningBuckets", PlanningBuckets.fromProfile(profile,
+        assumptions.equityReturnRate(), assumptions.fixedIncomeReturnRate()));
     model.addAttribute("planStartYear", assumptions.planStartYear());
     model.addAttribute("ageAtPlanStart", assumptions.ageAtPlanStart());
     model.addAttribute(

@@ -42,6 +42,24 @@ public final class UiPresentation {
     return number(amount.divide(BigDecimal.valueOf(1000)), 1, 1);
   }
 
+  /** Compact summary money, with a locale-stable K/M suffix and no scientific notation. */
+  public static String compactMoney(BigDecimal value) {
+    BigDecimal amount = value == null ? BigDecimal.ZERO : value;
+    BigDecimal absolute = amount.abs();
+    if (absolute.compareTo(BigDecimal.valueOf(1_000_000)) >= 0) {
+      return number(amount.divide(BigDecimal.valueOf(1_000_000)), 0, 2) + "M";
+    }
+    if (absolute.compareTo(BigDecimal.valueOf(1_000)) >= 0) {
+      BigDecimal thousands = amount.divide(BigDecimal.valueOf(1_000)).setScale(1, RoundingMode.HALF_UP);
+      if (thousands.abs()
+          .compareTo(BigDecimal.valueOf(1_000)) >= 0) {
+        return number(amount.divide(BigDecimal.valueOf(1_000_000)), 0, 2) + "M";
+      }
+      return number(thousands, 0, 1) + "K";
+    }
+    return number(amount, 0, 0);
+  }
+
   /** Formats an already grouped UI amount, for example {@code "213,684"}. */
   public static String thousands(String value) {
     return thousands(
@@ -57,7 +75,7 @@ public final class UiPresentation {
 
   /** Formats planning durations with one decimal place for coverage/runway values. */
   public static String years(BigDecimal value) {
-    return number(value == null ? BigDecimal.ZERO : value, 1, 1);
+    return number(value == null ? BigDecimal.ZERO : value, 0, 1);
   }
 
   /** Browser-safe unitless decimal form value. */
@@ -97,7 +115,7 @@ public final class UiPresentation {
 
   public static String percentage(BigDecimal ratio) {
     return number(ratio == null ? BigDecimal.ZERO : ratio.multiply(BigDecimal.valueOf(100)), 1, 1)
-        + "%";
+        + " %";
   }
 
   public static String signedPercentage(BigDecimal ratio) {

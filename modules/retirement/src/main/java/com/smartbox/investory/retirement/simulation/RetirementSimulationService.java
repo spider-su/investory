@@ -5,6 +5,7 @@ import com.smartbox.investory.longterm.api.LongTermAnnualProjectionApi;
 import com.smartbox.investory.retirement.profile.InvestmentProfile;
 import com.smartbox.investory.retirement.profile.EconomicBucket;
 import java.math.BigDecimal;
+import java.time.Year;
 import java.util.EnumMap;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,12 +33,18 @@ public class RetirementSimulationService implements RetirementSimulation {
   public SimulationResult simulate(InvestmentProfile profile, SimulationAssumptions assumptions,
       SimulationScenario scenario, boolean actualRentalYear) {
     SimulationScenarioSettings settings = SimulationScenarioSettings.forScenario(scenario, assumptions);
-    PlanningBuckets buckets = frozenBuckets(profile, assumptions, settings);
+    PlanningBuckets buckets = PlanningBuckets.fromProfile(profile, settings.equityReturnRate(),
+        assumptions.fixedIncomeReturnRate());
     var engine = new RetirementBucketEngine();
     var years = new java.util.ArrayList<SimulationYear>();
     Integer failureAge = null; BigDecimal firstShortfall = ZERO, totalUnfunded = ZERO;
     BigDecimal spending = assumptions.annualLivingExpenses().add(assumptions.annualDiscretionaryExpenses());
-    BigDecimal rental = buckets.rentalCashIncome();
+    // Profile rental income is the frozen current-year baseline. Forward contexts are rebased
+    // to the first projected year, so advance that baseline before emitting the first row.
+    int baselineYear = Year.now().getValue();
+    int yearsFromBaseline = Math.max(0, assumptions.startYear() - baselineYear);
+    BigDecimal rental = buckets.rentalCashIncome().multiply(
+        BigDecimal.ONE.add(settings.effectiveRentalIncomeGrowthRate()).pow(yearsFromBaseline));
     PlanningBuckets current = buckets;
     for (int age = assumptions.currentAge(); age <= assumptions.endAge(); age++) {
       int year = assumptions.startYear() + age - assumptions.currentAge();
@@ -71,31 +78,6 @@ public class RetirementSimulationService implements RetirementSimulation {
       if (retired) spending = spending.multiply(BigDecimal.ONE.add(settings.effectiveSpendingGrowthRate()));
     }
     return new SimulationResult(scenario, failureAge != null, failureAge, firstShortfall, totalUnfunded, years);
-  }
-
-  private static PlanningBuckets frozenBuckets(InvestmentProfile profile, SimulationAssumptions assumptions,
-      SimulationScenarioSettings settings) {
-    BigDecimal bonds = allocation(profile, EconomicBucket.FIXED_INCOME);
-    if (bonds.signum() == 0) bonds = profile.longTermAssets().stream()
-        .filter(a -> a.bucket() == EconomicBucket.FIXED_INCOME).map(a -> nz(a.currentValue())).reduce(ZERO, BigDecimal::add);
-    BigDecimal equities = allocation(profile, EconomicBucket.EQUITY);
-    if (equities.signum() == 0) equities = nz(profile.investmentCapital());
-    BigDecimal realEstate = allocation(profile, EconomicBucket.REAL_ESTATE);
-    if (realEstate.signum() == 0) realEstate = profile.longTermAssets().stream()
-        .filter(a -> a.bucket() == EconomicBucket.REAL_ESTATE).map(a -> nz(a.currentValue())).reduce(ZERO, BigDecimal::add);
-    BigDecimal bondIncome = nz(profile.currentBondIncome());
-    if (bondIncome.signum() == 0) bondIncome = profile.longTermAssets().stream()
-        .filter(a -> a.bucket() == EconomicBucket.FIXED_INCOME)
-        .map(a -> a.currentValue().multiply(a.periods().isEmpty() ? BigDecimal.ZERO : nz(a.periods().getFirst().annualReturnRate()))
-            .multiply(BigDecimal.ONE.subtract(nz(a.taxRate())))).reduce(ZERO, BigDecimal::add);
-    BigDecimal bondYield = bonds.signum() == 0 ? assumptions.fixedIncomeReturnRate()
-        : bondIncome.divide(bonds, 12, java.math.RoundingMode.HALF_UP);
-    return PlanningBuckets.of(nz(profile.retirementReserve()), bonds, equities, realEstate,
-        bondYield, settings.equityReturnRate(), bonds, profile.currentRentalIncome());
-  }
-
-  private static BigDecimal allocation(InvestmentProfile profile, EconomicBucket bucket) {
-    return profile.allocations().stream().filter(a -> a.bucket() == bucket).map(a -> nz(a.value())).reduce(ZERO, BigDecimal::add);
   }
 
   @Override
