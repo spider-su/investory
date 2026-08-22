@@ -78,7 +78,8 @@ public record SimulationYear(
       BigDecimal investmentReturn,
       BigDecimal investmentWithdrawal,
       BigDecimal investmentEnd,
-      BigDecimal unfundedAmount) {
+      BigDecimal unfundedAmount,
+      BigDecimal preRetirementContribution) {
     BigDecimal totalExpenses = expenses.add(eventExpenses);
     BigDecimal passiveIncome = rentalIncome.add(bondIncome);
     BigDecimal totalIncome = passiveIncome.add(pensionIncome).add(employmentIncome).add(eventIncome);
@@ -98,7 +99,7 @@ public record SimulationYear(
         BigDecimal.ZERO, BigDecimal.ZERO, spendableEnd, spendableEnd,
         spendableEnd, BigDecimal.ZERO, spendableEnd, unfundedAmount.signum() > 0,
         unfundedAmount, retired ? SimulationLifecyclePhase.RETIRED : SimulationLifecyclePhase.WORKING,
-        employmentIncome, BigDecimal.ZERO, false,
+        employmentIncome, preRetirementContribution, false,
         rentalIncome, gap, BigDecimal.ZERO, bondIncome);
   }
 

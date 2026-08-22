@@ -40,6 +40,16 @@ class ForwardSimulationContextFactoryTest {
   }
 
   @Test
+  void historicalPlanAnchorDerivesCurrentAgeAndRetirementYear() {
+    SimulationAssumptions assumptions = assumptions(2023, 37, 80).withRetirementAge(42);
+
+    assertEquals(40, ForwardSimulationContextFactory.currentPlanningAge(assumptions, 2026));
+    assertEquals(2028, ForwardSimulationContextFactory.retirementYear(assumptions));
+    assertEquals(37, assumptions.ageAtPlanStart());
+    assertEquals(2023, assumptions.planStartYear());
+  }
+
+  @Test
   void sameYearKeepsSavedAgeAndStartsWithTheNextFullYear() {
     SimulationAssumptions assumptions = assumptions(2026, 40, 80);
 

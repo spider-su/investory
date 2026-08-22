@@ -287,6 +287,9 @@ public class RetirementSimulationController {
         "displayProfile", planningPresentation.displayProfile(profile, planningDisplayCurrency));
     model.addAttribute("assumptions", assumptions);
     model.addAttribute("existingPlan", planId != null);
+    model.addAttribute("planStartYear", assumptions.planStartYear());
+    model.addAttribute("ageAtPlanStart", assumptions.ageAtPlanStart());
+    model.addAttribute("currentPlanningYear", currentYear);
     model.addAttribute(
         "currentPlanningAge",
         ForwardSimulationContextFactory.currentPlanningAge(assumptions, currentYear));
@@ -396,7 +399,10 @@ public class RetirementSimulationController {
                 displayCurrency,
                 base.annualLivingExpenses());
     return new SimulationAssumptions(
-        integer(fields, "currentAge", base.currentAge()),
+        integer(
+            fields,
+            "ageAtPlanStart",
+            integer(fields, "currentAge", base.ageAtPlanStart())),
         integer(fields, "endAge", base.endAge()),
         annualLiving,
         percent(fields, "inflation", base.inflationRate()),
@@ -408,7 +414,7 @@ public class RetirementSimulationController {
         integer(fields, "pensionStartAge", base.pensionStartAge()),
         money(fields, "annualPension", displayCurrency, base.annualPension()),
         percent(fields, "capitalGainTaxRate", base.capitalGainTaxRate()),
-        base.startYear(),
+        integer(fields, "startYear", base.planStartYear()),
         money(fields, "discretionaryExpenses", displayCurrency, base.annualDiscretionaryExpenses()),
         base.futureEvents(),
         percent(fields, "rentalIncomeGrowth", base.rentalIncomeGrowthRate()),
@@ -477,6 +483,20 @@ public class RetirementSimulationController {
       @RequestParam(required = false) Long planId,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
     planningTimeline.createHistoricalDraft(portfolioId, year);
+    return simulationRedirect(portfolioId, planId, planningDisplayCurrency, selectedScenario);
+  }
+
+  @PostMapping("/simulation/timeline/prefill")
+  public String prefillHistoricalYears(
+      @RequestParam Long portfolioId,
+      @RequestParam(required = false) Long planId,
+      @RequestParam(defaultValue = "PLN") CurrencyType planningDisplayCurrency,
+      @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
+    int startYear =
+        planId == null
+            ? Year.now(clock).getValue()
+            : plans.assumptions(portfolioId, planId).planStartYear();
+    planningTimeline.prefillHistoricalYears(portfolioId, startYear);
     return simulationRedirect(portfolioId, planId, planningDisplayCurrency, selectedScenario);
   }
 
@@ -766,7 +786,9 @@ public class RetirementSimulationController {
         portfolioId,
         planId,
         name,
-        currentAge,
+        planId == null ? currentAge : plans.assumptions(portfolioId, planId).currentAge(),
+        planId == null ? null : plans.assumptions(portfolioId, planId).currentAge(),
+        planId == null ? null : plans.assumptions(portfolioId, planId).startYear(),
         endAge,
         retirementAge,
         annualEmploymentIncome,
@@ -828,6 +850,8 @@ public class RetirementSimulationController {
         planId,
         name,
         currentAge,
+        null,
+        null,
         endAge,
         currentAge,
         BigDecimal.ZERO,
@@ -865,6 +889,8 @@ public class RetirementSimulationController {
       @RequestParam(required = false) Long planId,
       @RequestParam String name,
       @RequestParam(defaultValue = "40") int currentAge,
+      @RequestParam(required = false) Integer ageAtPlanStart,
+      @RequestParam(required = false) Integer startYear,
       @RequestParam(defaultValue = "95") int endAge,
       @RequestParam(required = false) Integer retirementAge,
       @RequestParam(defaultValue = "0") BigDecimal annualEmploymentIncome,
@@ -899,8 +925,16 @@ public class RetirementSimulationController {
         storedAssumptions != null
             ? storedAssumptions.futureEvents()
             : java.util.List.<SimulationEvent>of();
-    int preservedCurrentAge =
-        storedAssumptions == null ? currentAge : storedAssumptions.currentAge();
+    int effectiveAgeAtPlanStart = ageAtPlanStart == null ? currentAge : ageAtPlanStart;
+    int effectiveStartYear =
+        startYear == null
+            ? (storedAssumptions == null ? Year.now(clock).getValue() : storedAssumptions.startYear())
+            : startYear;
+    validateTemporalAnchor(
+        effectiveStartYear,
+        effectiveAgeAtPlanStart,
+        endAge,
+        retirementAge == null ? effectiveAgeAtPlanStart : retirementAge);
     BigDecimal annualLivingCostsInput =
         monthlyLivingCosts == null
             ? annualExpenses
@@ -908,7 +942,7 @@ public class RetirementSimulationController {
     if (annualLivingCostsInput == null) annualLivingCostsInput = BigDecimal.ZERO;
     SimulationAssumptions a =
         new SimulationAssumptions(
-                preservedCurrentAge,
+                effectiveAgeAtPlanStart,
                 endAge,
                 planningPresentation.fromDisplay(
                     annualLivingCostsInput, planningDisplayCurrency, BigDecimal.ZERO),
@@ -926,9 +960,7 @@ public class RetirementSimulationController {
                 planningPresentation.fromDisplay(
                     annualPension, planningDisplayCurrency, BigDecimal.ZERO),
                 percentInputToRate(capitalGainTaxRate, BigDecimal.ZERO),
-                storedAssumptions == null
-                    ? Year.now(clock).getValue()
-                    : storedAssumptions.startYear(),
+                effectiveStartYear,
                 planningPresentation.fromDisplay(
                     discretionaryExpenses, planningDisplayCurrency, BigDecimal.ZERO),
                 existingEvents,
@@ -946,7 +978,7 @@ public class RetirementSimulationController {
                 percentInputToRate(
                     equityGainHarvest, SimulationAssumptions.DEFAULT_EQUITY_GAIN_HARVEST_RATE),
                 allowEmergencyEquityWithdrawal,
-                retirementAge == null ? preservedCurrentAge : retirementAge,
+                retirementAge == null ? effectiveAgeAtPlanStart : retirementAge,
                 planningPresentation.fromDisplay(
                     annualEmploymentIncome, planningDisplayCurrency, BigDecimal.ZERO),
                 planningPresentation.fromDisplay(
@@ -968,6 +1000,18 @@ public class RetirementSimulationController {
         + returnCurrency
         + "&selectedScenario="
         + selectedScenario;
+  }
+
+  private void validateTemporalAnchor(
+      int startYear, int ageAtPlanStart, int endAge, int retirementAge) {
+    int currentYear = Year.now(clock).getValue();
+    int currentPlanningAge = ageAtPlanStart + currentYear - startYear;
+    if (startYear > currentYear)
+      throw new IllegalArgumentException("Plan start year cannot be in the future");
+    if (ageAtPlanStart < 0 || endAge < currentPlanningAge)
+      throw new IllegalArgumentException("Invalid plan temporal ages");
+    if (retirementAge < ageAtPlanStart || retirementAge > endAge)
+      throw new IllegalArgumentException("Invalid retirement age");
   }
 
   private static List<FundingSource> parseFundingOrder(String value) {

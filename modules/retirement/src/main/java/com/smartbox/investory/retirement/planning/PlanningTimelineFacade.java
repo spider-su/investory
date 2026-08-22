@@ -368,20 +368,21 @@ public class PlanningTimelineFacade {
       SimulationScenario scenario) {
     int current = activeCurrentYear(portfolioId);
     List<PlanningTimelineYear> result = new ArrayList<>();
-    years.findAllByPortfolioIdOrderByYearAsc(portfolioId).stream()
-        .filter(year -> year.getYear() < current)
-        .forEach(
-            year ->
-                result.add(
-                    new PlanningTimelineYear(
-                        year.getYear(),
-                        forward.context().originalCurrentAge()
-                            + year.getYear()
-                            - forward.context().originalStartYear(),
-                        state(year),
-                        past(year),
-                        null,
-                        null)));
+    int planStartYear = forward.context().originalStartYear();
+    for (int year = planStartYear; year < current; year++) {
+      PlanningYearEntity stored =
+          years.findByPortfolioIdAndYear(portfolioId, year).orElse(null);
+      result.add(
+          new PlanningTimelineYear(
+              year,
+              forward.context().originalCurrentAge()
+                  + year
+                  - forward.context().originalStartYear(),
+              stored == null ? PlanningTimelineState.NEEDS_REVIEW : state(stored),
+              stored == null ? null : past(stored),
+              null,
+              null));
+    }
     result.add(
         new PlanningTimelineYear(
             current,
@@ -402,6 +403,20 @@ public class PlanningTimelineFacade {
                 null,
                 projection));
     return new PlanningTimeline(result);
+  }
+
+  /** Explicitly creates and derives missing historical years without changing closed/manual data. */
+  @Transactional
+  public List<Integer> prefillHistoricalYears(Long portfolioId, int planStartYear) {
+    int current = activeCurrentYear(portfolioId);
+    if (planStartYear > current)
+      throw new IllegalArgumentException("Plan start year cannot be in the future");
+    List<Integer> populated = new ArrayList<>();
+    for (int year = planStartYear; year < current; year++) {
+      createHistoricalDraft(portfolioId, year);
+      populated.add(year);
+    }
+    return List.copyOf(populated);
   }
 
   @Transactional(readOnly = true)

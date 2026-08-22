@@ -678,8 +678,9 @@ public class PlanningCurrencyPresentationService {
           equityGain = null,
           legacyFixedIncome = null,
           legacyEquity = null;
-      if (row.state() == PlanningTimelineState.ACTUAL
-          || row.state() == PlanningTimelineState.NEEDS_REVIEW) {
+      if ((row.state() == PlanningTimelineState.ACTUAL
+              || row.state() == PlanningTimelineState.NEEDS_REVIEW)
+          && row.past() != null) {
         annualCosts = annualCosts(row.past().values());
         rentalIncome =
             firstValue(

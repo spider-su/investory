@@ -3,6 +3,7 @@ package com.smartbox.investory.retirement.simulation;
 import com.smartbox.investory.investment.api.InvestmentAnnualProjectionApi;
 import com.smartbox.investory.longterm.api.LongTermAnnualProjectionApi;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.time.LocalDate;
@@ -40,7 +41,7 @@ public final class RetirementSimulationOrchestrator {
       addAnnual(flows, "retirement-expenses", CashFlowDirection.EXPENSE, expenses, year);
       addAnnual(flows, "event-expenses", CashFlowDirection.EXPENSE, eventExpenses, year);
       addAnnual(flows, "rental-income", CashFlowDirection.INCOME,
-          preview.monthlyNetRentalIncome().multiply(BigDecimal.valueOf(12)), year);
+          annualRentalIncome(preview.monthlyNetRentalIncome()), year);
       addAnnual(flows, "bond-income", CashFlowDirection.INCOME, preview.netBondIncome(), year);
       addAnnual(flows, "pension", CashFlowDirection.INCOME, pension, year);
       addAnnual(flows, "employment", CashFlowDirection.INCOME, employment, year);
@@ -146,6 +147,10 @@ public final class RetirementSimulationOrchestrator {
   }
 
   private static BigDecimal nz(BigDecimal value) { return value == null ? BigDecimal.ZERO : value; }
+
+  private static BigDecimal annualRentalIncome(BigDecimal monthly) {
+    return monthly.multiply(BigDecimal.valueOf(12)).setScale(8, RoundingMode.HALF_UP);
+  }
 
   public record Result(List<Year> years) { public Result { years = List.copyOf(years); } }
 

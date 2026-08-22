@@ -1,0 +1,530 @@
+diff --git a/docs/domain/retirement-simulation.md b/docs/domain/retirement-simulation.md
+index 7900f2f..dc5d8d8 100644
+--- a/docs/domain/retirement-simulation.md
++++ b/docs/domain/retirement-simulation.md
+@@ -128,7 +128,15 @@ fundingGap = 6600
+ Working years include employment flow and no retirement spending. Employment is zero after
+ retirement. Pension starts only at its configured date. One-off flows remain active in both phases.
+ Spending starts at retirement and grows only afterward. Forward rebasing carries accumulated
+-retirement spending instead of resetting it.
++retirement spending instead of resetting it. This is deliberate: `annualLivingExpenses` and
++`annualDiscretionaryExpenses` represent retirement spending, not a household budget before
++retirement.
++
++For contractual bonds and deposits, Retirement passes the Long-Term API the net payout for
++`PAY_OUT` instruments: applicable annual rate × principal × (1 − tax rate). A maturity uses the
++Long-Term-provided strategy; the default is reinvestment, while `MOVE_TO_RESERVE` transfers
++proceeds to reserve and `FUND_GAP` uses proceeds only after reserve funding. Capitalized interest
++is not a cash-flow income source.
+ 
+ The current-year bridge is explicit: actual state plus projected remaining current-year flows and
+ returns produces the expected year-end state, which is the next projected year's start. If there is
+diff --git a/modules/longterm/src/main/java/com/smartbox/investory/longterm/api/LongTermAnnualProjectionApi.java b/modules/longterm/src/main/java/com/smartbox/investory/longterm/api/LongTermAnnualProjectionApi.java
+index 879aad2..001fabd 100644
+--- a/modules/longterm/src/main/java/com/smartbox/investory/longterm/api/LongTermAnnualProjectionApi.java
++++ b/modules/longterm/src/main/java/com/smartbox/investory/longterm/api/LongTermAnnualProjectionApi.java
+@@ -50,10 +50,19 @@ public interface LongTermAnnualProjectionApi {
+     }
+   }
+ 
+-  record RentalIncome(BigDecimal monthlyNetIncome, Source source) {
++  record RentalIncome(
++      BigDecimal monthlyNetIncome,
++      Source source,
++      int baseYear,
++      BigDecimal annualGrowthRate) {
++    public RentalIncome(BigDecimal monthlyNetIncome, Source source) {
++      this(monthlyNetIncome, source, 0, BigDecimal.ZERO);
++    }
++
+     public RentalIncome {
+       monthlyNetIncome = nz(monthlyNetIncome);
+       source = source == null ? Source.PROJECTED : source;
++      annualGrowthRate = nz(annualGrowthRate);
+     }
+   }
+ 
+diff --git a/modules/longterm/src/main/java/com/smartbox/investory/longterm/application/service/LongTermAnnualProjectionService.java b/modules/longterm/src/main/java/com/smartbox/investory/longterm/application/service/LongTermAnnualProjectionService.java
+index 7ee99a0..340f44d 100644
+--- a/modules/longterm/src/main/java/com/smartbox/investory/longterm/application/service/LongTermAnnualProjectionService.java
++++ b/modules/longterm/src/main/java/com/smartbox/investory/longterm/application/service/LongTermAnnualProjectionService.java
+@@ -64,7 +64,7 @@ public class LongTermAnnualProjectionService implements LongTermAnnualProjection
+     maturedFunding = fundGapProceeds.min(request.requiredFunding().subtract(reserveUsed).max(BigDecimal.ZERO));
+     reserve = reserve.add(fundGapProceeds.subtract(maturedFunding));
+     BigDecimal rental = request.rentalIncome().stream()
+-        .map(LongTermAnnualProjectionApi.RentalIncome::monthlyNetIncome)
++        .map(income -> projectedRentalIncome(income, request.year()))
+         .reduce(BigDecimal.ZERO, BigDecimal::add);
+     return new AnnualProjection(
+         request.year(), rental, bondIncome, reserveStart,
+@@ -75,4 +75,11 @@ public class LongTermAnnualProjectionService implements LongTermAnnualProjection
+             ? LongTermAnnualProjectionApi.Source.ACTUAL
+             : LongTermAnnualProjectionApi.Source.PROJECTED);
+   }
++
++  private static BigDecimal projectedRentalIncome(
++      RentalIncome income, int year) {
++    int elapsedYears = Math.max(0, year - income.baseYear());
++    return income.monthlyNetIncome()
++        .multiply(BigDecimal.ONE.add(income.annualGrowthRate()).pow(elapsedYears));
++  }
+ }
+diff --git a/modules/retirement/src/main/java/com/smartbox/investory/retirement/simulation/PlanEditorPreviewService.java b/modules/retirement/src/main/java/com/smartbox/investory/retirement/simulation/PlanEditorPreviewService.java
+index 589defe..f95d535 100644
+--- a/modules/retirement/src/main/java/com/smartbox/investory/retirement/simulation/PlanEditorPreviewService.java
++++ b/modules/retirement/src/main/java/com/smartbox/investory/retirement/simulation/PlanEditorPreviewService.java
+@@ -59,7 +59,7 @@ public class PlanEditorPreviewService {
+             currentYear, currentPlanningAge, facts, assumptions, displayCurrency));
+     previewYears.addAll(
+         result.years().stream()
+-            .map(row -> year(row, projected.startYear(), displayCurrency))
++            .map(row -> year(row, displayCurrency))
+             .toList());
+     BigDecimal nextYearCosts =
+         first == null ? null : displayCanonical(first.totalExpenses(), displayCurrency);
+@@ -84,7 +84,7 @@ public class PlanEditorPreviewService {
+         assumptions,
+         result.failureAge(),
+         List.copyOf(previewYears),
+-        first == null ? null : year(first, projected.startYear(), displayCurrency));
++        first == null ? null : year(first, displayCurrency));
+   }
+ 
+   /** Current Long-term Assets facts used by the editor's read-only fields. */
+@@ -93,9 +93,9 @@ public class PlanEditorPreviewService {
+   }
+ 
+   private PreviewYear year(
+-      SimulationYear row, int projectedStartYear, CurrencyType displayCurrency) {
++      SimulationYear row, CurrencyType displayCurrency) {
+     return new PreviewYear(
+-        projectedStartYear + row.year(),
++        row.year(),
+         row.age(),
+         row.lifecyclePhase().name(),
+         displayCanonical(row.totalExpenses(), displayCurrency),
+diff --git a/modules/retirement/src/main/java/com/smartbox/investory/retirement/simulation/RetirementSimulationOrchestrator.java b/modules/retirement/src/main/java/com/smartbox/investory/retirement/simulation/RetirementSimulationOrchestrator.java
+index 8703ced..8275f85 100644
+--- a/modules/retirement/src/main/java/com/smartbox/investory/retirement/simulation/RetirementSimulationOrchestrator.java
++++ b/modules/retirement/src/main/java/com/smartbox/investory/retirement/simulation/RetirementSimulationOrchestrator.java
+@@ -3,6 +3,7 @@ package com.smartbox.investory.retirement.simulation;
+ import com.smartbox.investory.investment.api.InvestmentAnnualProjectionApi;
+ import com.smartbox.investory.longterm.api.LongTermAnnualProjectionApi;
+ import java.math.BigDecimal;
++import java.math.RoundingMode;
+ import java.util.ArrayList;
+ import java.util.List;
+ import java.time.LocalDate;
+@@ -40,7 +41,7 @@ public final class RetirementSimulationOrchestrator {
+       addAnnual(flows, "retirement-expenses", CashFlowDirection.EXPENSE, expenses, year);
+       addAnnual(flows, "event-expenses", CashFlowDirection.EXPENSE, eventExpenses, year);
+       addAnnual(flows, "rental-income", CashFlowDirection.INCOME,
+-          preview.monthlyNetRentalIncome().multiply(BigDecimal.valueOf(12)), year);
++          annualRentalIncome(preview.monthlyNetRentalIncome()), year);
+       addAnnual(flows, "bond-income", CashFlowDirection.INCOME, preview.netBondIncome(), year);
+       addAnnual(flows, "pension", CashFlowDirection.INCOME, pension, year);
+       addAnnual(flows, "employment", CashFlowDirection.INCOME, employment, year);
+@@ -147,6 +148,10 @@ public final class RetirementSimulationOrchestrator {
+ 
+   private static BigDecimal nz(BigDecimal value) { return value == null ? BigDecimal.ZERO : value; }
+ 
++  private static BigDecimal annualRentalIncome(BigDecimal monthly) {
++    return monthly.multiply(BigDecimal.valueOf(12)).setScale(8, RoundingMode.HALF_UP);
++  }
++
+   public record Result(List<Year> years) { public Result { years = List.copyOf(years); } }
+ 
+   public record Year(
+diff --git a/modules/retirement/src/main/java/com/smartbox/investory/retirement/simulation/RetirementSimulationService.java b/modules/retirement/src/main/java/com/smartbox/investory/retirement/simulation/RetirementSimulationService.java
+index c3a549b..f3731fd 100644
+--- a/modules/retirement/src/main/java/com/smartbox/investory/retirement/simulation/RetirementSimulationService.java
++++ b/modules/retirement/src/main/java/com/smartbox/investory/retirement/simulation/RetirementSimulationService.java
+@@ -2,7 +2,10 @@ package com.smartbox.investory.retirement.simulation;
+ 
+ import com.smartbox.investory.investment.api.InvestmentAnnualProjectionApi;
+ import com.smartbox.investory.longterm.api.LongTermAnnualProjectionApi;
++import com.smartbox.investory.longterm.api.model.InterestTreatmentModel;
++import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
+ import com.smartbox.investory.retirement.profile.InvestmentProfile;
++import com.smartbox.investory.retirement.profile.ProjectedLongTermAsset;
+ import java.math.BigDecimal;
+ import java.math.RoundingMode;
+ import java.util.EnumMap;
+@@ -35,7 +38,16 @@ public class RetirementSimulationService implements RetirementSimulation {
+     SimulationScenarioSettings settings = SimulationScenarioSettings.forScenario(scenario, assumptions);
+     BigDecimal reserve = nz(profile.liquidAssets());
+     BigDecimal investmentStart = nz(profile.marketPortfolioValue()).subtract(reserve).max(ZERO);
+-    BigDecimal annualRentalIncome = nz(profile.expectedLongTermAssetIncome());
++    List<LongTermAnnualProjectionApi.Bond> projectedBonds =
++        bonds(profile, settings, assumptions.startYear());
++    BigDecimal bondIncome =
++        projectedBonds.stream()
++            .map(LongTermAnnualProjectionApi.Bond::netAnnualIncome)
++            .reduce(ZERO, BigDecimal::add);
++    // The profile aggregate includes both rental and bond income. Keep the two
++    // cash-flow sources separate before passing them to Long-Term Assets.
++    BigDecimal annualRentalIncome =
++        nz(profile.expectedLongTermAssetIncome()).subtract(bondIncome).max(ZERO);
+     var input = new RetirementSimulationInput(
+         assumptions.currentAge(), assumptions.endAge(), assumptions.startYear(),
+         assumptions.retirementAge(),
+@@ -43,7 +55,13 @@ public class RetirementSimulationService implements RetirementSimulation {
+         settings.spendingGrowthRate(), assumptions.annualPension(), assumptions.pensionStartAge(),
+         assumptions.annualEmploymentIncome(), assumptions.annualPreRetirementContribution(),
+         reserve, investmentStart, settings.equityReturnRate(),
+-        longTermInputs(annualRentalIncome, bonds(profile), assumptions.startYear(), assumptions.endAge(), actualRentalYear),
++        longTermInputs(
++            annualRentalIncome,
++            projectedBonds,
++            settings.rentalIncomeGrowthRate(),
++            assumptions.startYear(),
++            assumptions.endAge(),
++            actualRentalYear),
+         assumptions.futureEvents(), InvestmentAnnualProjectionApi.Source.PROJECTED);
+     var result = new RetirementSimulationOrchestrator(longTerm, investments).run(input);
+     return map(result, scenario, assumptions, reserve, investmentStart);
+@@ -57,21 +75,73 @@ public class RetirementSimulationService implements RetirementSimulation {
+     return results;
+   }
+ 
+-  private static List<LongTermAnnualProjectionApi.Bond> bonds(InvestmentProfile profile) {
+-    return profile.longTermAssets().stream().filter(asset -> asset.maturityDate() != null)
+-        .map(asset -> new LongTermAnnualProjectionApi.Bond(String.valueOf(asset.id()), nz(asset.currentValue()),
+-            asset.maturityDate(), asset.redemptionValue(), ZERO, null, 3, ZERO)).toList();
++  private static List<LongTermAnnualProjectionApi.Bond> bonds(
++      InvestmentProfile profile, SimulationScenarioSettings settings, int year) {
++    return profile.longTermAssets().stream()
++        .filter(
++            asset ->
++                asset.type() == LongTermAssetTypeModel.BOND
++                    || asset.type() == LongTermAssetTypeModel.DEPOSIT)
++        .map(
++            asset -> {
++              BigDecimal netRate = netAnnualRate(asset, settings, year);
++              BigDecimal payoutIncome =
++                  asset.interestTreatment() == InterestTreatmentModel.PAY_OUT
++                      ? nz(asset.currentValue()).multiply(netRate)
++                      : ZERO;
++              return new LongTermAnnualProjectionApi.Bond(
++                  String.valueOf(asset.id()),
++                  nz(asset.currentValue()),
++                  asset.maturityDate(),
++                  asset.redemptionValue(),
++                  payoutIncome,
++                  null,
++                  3,
++                  netRate);
++            })
++        .toList();
+   }
+ 
+-  private static List<RetirementSimulationInput.LongTermYearInput> longTermInputs(BigDecimal annualRentalIncome,
+-      List<LongTermAnnualProjectionApi.Bond> bonds, int startYear, int endAge, boolean actualRentalYear) {
+-    var source = actualRentalYear ? LongTermAnnualProjectionApi.Source.ACTUAL : LongTermAnnualProjectionApi.Source.PROJECTED;
+-    var rental =
+-        List.of(
+-            new LongTermAnnualProjectionApi.RentalIncome(
+-                annualRentalIncome.divide(BigDecimal.valueOf(12), 12, RoundingMode.HALF_UP), source));
++  private static BigDecimal netAnnualRate(
++      ProjectedLongTermAsset asset, SimulationScenarioSettings settings, int year) {
++    BigDecimal grossRate =
++        asset.periods().stream()
++            .filter(period -> applies(period, year))
++            .map(ProjectedLongTermAsset.Period::annualReturnRate)
++            .findFirst()
++            .orElse(settings.fixedIncomeReturnRate());
++    return grossRate.multiply(BigDecimal.ONE.subtract(nz(asset.taxRate())));
++  }
++
++  private static boolean applies(ProjectedLongTermAsset.Period period, int year) {
++    return period.validFrom().getYear() <= year
++        && (period.validTo() == null || period.validTo().getYear() >= year);
++  }
++
++  private static List<RetirementSimulationInput.LongTermYearInput> longTermInputs(
++      BigDecimal annualRentalIncome,
++      List<LongTermAnnualProjectionApi.Bond> bonds,
++      BigDecimal rentalIncomeGrowthRate,
++      int startYear,
++      int endAge,
++      boolean actualRentalYear) {
+     return java.util.stream.IntStream.rangeClosed(startYear, startYear + endAge)
+-        .mapToObj(year -> new RetirementSimulationInput.LongTermYearInput(year, bonds, rental)).toList();
++        .mapToObj(
++            year -> {
++              var source =
++                  actualRentalYear && year == startYear
++                      ? LongTermAnnualProjectionApi.Source.ACTUAL
++                      : LongTermAnnualProjectionApi.Source.PROJECTED;
++              var rental =
++                  List.of(
++                      new LongTermAnnualProjectionApi.RentalIncome(
++                          annualRentalIncome.divide(BigDecimal.valueOf(12), 12, RoundingMode.HALF_UP),
++                          source,
++                          startYear,
++                          rentalIncomeGrowthRate));
++              return new RetirementSimulationInput.LongTermYearInput(year, bonds, rental);
++            })
++        .toList();
+   }
+ 
+   private static SimulationResult map(RetirementSimulationOrchestrator.Result result, SimulationScenario scenario,
+@@ -90,14 +160,19 @@ public class RetirementSimulationService implements RetirementSimulation {
+       years.add(SimulationYear.generic(
+           year.age(), year.year(), year.retired(), year.expenses(), year.eventExpenses(),
+           year.employmentIncome(), year.pensionIncome(), year.eventIncome(),
+-          year.monthlyNetRentalIncome().multiply(BigDecimal.valueOf(12)), year.netBondIncome(),
++          annualRentalIncome(year.monthlyNetRentalIncome()), year.netBondIncome(),
+           reserveStart, year.reserveWithdrawal().add(year.maturedBondFunding()), year.reserveEnd(),
+           investmentStart, investment.annualReturnAmount(), year.investmentWithdrawal(), investment.endValue(),
+-          year.unfundedShortfall()));
++          year.unfundedShortfall(),
++          year.retired() ? ZERO : assumptions.annualPreRetirementContribution()));
+       reserveStart = year.reserveEnd(); investmentStart = investment.endValue();
+     }
+     return new SimulationResult(scenario, failureAge != null, failureAge, firstShortfall, totalUnfunded, years);
+   }
+ 
+   private static BigDecimal nz(BigDecimal value) { return value == null ? ZERO : value; }
++
++  private static BigDecimal annualRentalIncome(BigDecimal monthly) {
++    return monthly.multiply(BigDecimal.valueOf(12)).setScale(8, RoundingMode.HALF_UP);
++  }
+ }
+diff --git a/modules/retirement/src/main/java/com/smartbox/investory/retirement/simulation/SimulationYear.java b/modules/retirement/src/main/java/com/smartbox/investory/retirement/simulation/SimulationYear.java
+index 4736e8b..ae3e951 100644
+--- a/modules/retirement/src/main/java/com/smartbox/investory/retirement/simulation/SimulationYear.java
++++ b/modules/retirement/src/main/java/com/smartbox/investory/retirement/simulation/SimulationYear.java
+@@ -78,7 +78,8 @@ public record SimulationYear(
+       BigDecimal investmentReturn,
+       BigDecimal investmentWithdrawal,
+       BigDecimal investmentEnd,
+-      BigDecimal unfundedAmount) {
++      BigDecimal unfundedAmount,
++      BigDecimal preRetirementContribution) {
+     BigDecimal totalExpenses = expenses.add(eventExpenses);
+     BigDecimal passiveIncome = rentalIncome.add(bondIncome);
+     BigDecimal totalIncome = passiveIncome.add(pensionIncome).add(employmentIncome).add(eventIncome);
+@@ -98,7 +99,7 @@ public record SimulationYear(
+         BigDecimal.ZERO, BigDecimal.ZERO, spendableEnd, spendableEnd,
+         spendableEnd, BigDecimal.ZERO, spendableEnd, unfundedAmount.signum() > 0,
+         unfundedAmount, retired ? SimulationLifecyclePhase.RETIRED : SimulationLifecyclePhase.WORKING,
+-        employmentIncome, BigDecimal.ZERO, false,
++        employmentIncome, preRetirementContribution, false,
+         rentalIncome, gap, BigDecimal.ZERO, bondIncome);
+   }
+ 
+diff --git a/modules/retirement/src/test/java/com/smartbox/investory/retirement/simulation/PlanEditorPreviewServiceTest.java b/modules/retirement/src/test/java/com/smartbox/investory/retirement/simulation/PlanEditorPreviewServiceTest.java
+index b8d6de1..b37e191 100644
+--- a/modules/retirement/src/test/java/com/smartbox/investory/retirement/simulation/PlanEditorPreviewServiceTest.java
++++ b/modules/retirement/src/test/java/com/smartbox/investory/retirement/simulation/PlanEditorPreviewServiceTest.java
+@@ -157,4 +157,38 @@ class PlanEditorPreviewServiceTest {
+     assertEquals(new BigDecimal("10545"), current.bondIncome());
+     assertEquals(new BigDecimal("12000"), current.contribution());
+   }
++
++  @Test
++  void projectedPreviewUsesSimulationYearDirectly() {
++    ForwardSimulationInputService inputs = mock(ForwardSimulationInputService.class);
++    RetirementSimulation simulations = mock(RetirementSimulation.class);
++    LongTermAssetAnnualSnapshotReader longTermAssets = mock(LongTermAssetAnnualSnapshotReader.class);
++    PlanningCurrencyPresentationService presentation = mock(PlanningCurrencyPresentationService.class);
++    Clock clock = Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC);
++    PlanEditorPreviewService service =
++        new PlanEditorPreviewService(inputs, simulations, longTermAssets, presentation, clock);
++    InvestmentProfile profile = mock(InvestmentProfile.class);
++    SimulationAssumptions assumptions = SimulationAssumptions.defaults(profile, 40, 41, 2026);
++    var context = mock(ForwardSimulationContext.class);
++    var projected = assumptions;
++    var row =
++        SimulationYear.generic(
++            41, 2027, true, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
++            BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
++            BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
++            BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
++            BigDecimal.ZERO);
++    when(profile.portfolioId()).thenReturn(7L);
++    when(inputs.prepare(any(), any()))
++        .thenReturn(
++            new com.smartbox.investory.retirement.planning.ForwardSimulationInput(
++                context, profile, Optional.of(projected)));
++    when(simulations.simulate(profile, projected, SimulationScenario.BASE))
++        .thenReturn(new SimulationResult(SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of(row)));
++    when(longTermAssets.currentAnnualSnapshot(any(), any()))
++        .thenReturn(new LongTermAssetAnnualSnapshotModel(null, null, null, null, null, null));
++    when(presentation.toDisplay(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
++
++    assertEquals(2027, service.preview(profile, assumptions, CurrencyType.PLN).years().get(1).year());
++  }
+ }
+diff --git a/modules/retirement/src/test/java/com/smartbox/investory/retirement/simulation/RetirementSimulationAnnualRentalIncomeTest.java b/modules/retirement/src/test/java/com/smartbox/investory/retirement/simulation/RetirementSimulationAnnualRentalIncomeTest.java
+index 3c5a8a2..308eed5 100644
+--- a/modules/retirement/src/test/java/com/smartbox/investory/retirement/simulation/RetirementSimulationAnnualRentalIncomeTest.java
++++ b/modules/retirement/src/test/java/com/smartbox/investory/retirement/simulation/RetirementSimulationAnnualRentalIncomeTest.java
+@@ -1,12 +1,19 @@
+ package com.smartbox.investory.retirement.simulation;
+ 
++import static org.assertj.core.api.Assertions.assertThat;
+ import static org.assertj.core.api.Assertions.assertThatCode;
+ 
+ import com.smartbox.investory.investment.application.InvestmentAnnualProjectionService;
+ import com.smartbox.investory.longterm.application.service.LongTermAnnualProjectionService;
++import com.smartbox.investory.longterm.api.model.InterestTreatmentModel;
++import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
++import com.smartbox.investory.retirement.profile.EconomicBucket;
+ import com.smartbox.investory.retirement.profile.InvestmentProfile;
++import com.smartbox.investory.retirement.profile.Liquidity;
++import com.smartbox.investory.retirement.profile.ProjectedLongTermAsset;
+ import com.smartbox.investory.shared.currency.CurrencyType;
+ import java.math.BigDecimal;
++import java.time.LocalDate;
+ import java.util.List;
+ import org.junit.jupiter.api.Test;
+ 
+@@ -30,9 +37,145 @@ class RetirementSimulationAnnualRentalIncomeTest {
+             BigDecimal.ZERO,
+             List.of(),
+             List.of());
+-    var assumptions = SimulationAssumptions.defaults(profile, 65, 65, 2026);
++    var assumptions = SimulationAssumptions.defaults(profile, 65, 66, 2026);
++
++    var result = service.simulate(profile, assumptions, SimulationScenario.BASE);
+ 
+     assertThatCode(() -> service.simulate(profile, assumptions, SimulationScenario.BASE))
+         .doesNotThrowAnyException();
++    assertThat(result.years().get(0).rentalIncome()).isEqualByComparingTo("1");
++    assertThat(result.years().get(1).rentalIncome()).isEqualByComparingTo("1.02");
++  }
++
++  @Test
++  void separatesAggregateLongTermIncomeIntoRentalAndBondIncome() {
++    var service =
++        new RetirementSimulationService(
++            new LongTermAnnualProjectionService(), new InvestmentAnnualProjectionService());
++    var bond =
++        new ProjectedLongTermAsset(
++            10L,
++            "Bond",
++            LongTermAssetTypeModel.BOND,
++            EconomicBucket.FIXED_INCOME,
++            CurrencyType.USD,
++            new BigDecimal("1000"),
++            Liquidity.LIQUID,
++            List.of(
++                new ProjectedLongTermAsset.Period(
++                    LocalDate.of(2020, 1, 1),
++                    null,
++                    BigDecimal.ZERO,
++                    BigDecimal.ZERO,
++                    new BigDecimal("0.10"))),
++            List.of(),
++            LocalDate.of(2028, 12, 31),
++            new BigDecimal("1000"),
++            InterestTreatmentModel.PAY_OUT,
++            new BigDecimal("0.20"),
++            null,
++            false);
++    var profile = profile(BigDecimal.ZERO, List.of(bond), new BigDecimal("100"));
++
++    var year =
++        service
++            .simulate(profile, SimulationAssumptions.defaults(profile, 65, 65, 2026), SimulationScenario.BASE)
++            .years()
++            .getFirst();
++
++    assertThat(year.rentalIncome()).isEqualByComparingTo("20");
++    assertThat(year.bondIncome()).isEqualByComparingTo("80");
++  }
++
++  @Test
++  void compoundsRentalIncomeThroughLongTermProjectionBoundary() {
++    var service =
++        new RetirementSimulationService(
++            new LongTermAnnualProjectionService(), new InvestmentAnnualProjectionService());
++    var profile = profile(BigDecimal.ZERO, List.of(), new BigDecimal("100"));
++    var assumptions =
++        SimulationAssumptions.defaults(profile, 65, 67, 2026)
++            .withRentalIncomeGrowthRate(new BigDecimal("0.005"));
++
++    var years = service.simulate(profile, assumptions, SimulationScenario.BASE).years();
++
++    assertThat(years.get(0).rentalIncome()).isEqualByComparingTo("100");
++    assertThat(years.get(1).rentalIncome()).isEqualByComparingTo("100.5");
++    assertThat(years.get(2).rentalIncome()).isEqualByComparingTo("101.0025");
++  }
++
++  @Test
++  void preservesBondPayoutIncomeAndNetRenewalRate() {
++    var service = new RetirementSimulationService(new LongTermAnnualProjectionService(), new InvestmentAnnualProjectionService());
++    var bond =
++        new ProjectedLongTermAsset(
++            10L,
++            "Bond",
++            LongTermAssetTypeModel.BOND,
++            EconomicBucket.FIXED_INCOME,
++            CurrencyType.USD,
++            new BigDecimal("1000"),
++            Liquidity.LIQUID,
++            List.of(
++                new ProjectedLongTermAsset.Period(
++                    LocalDate.of(2020, 1, 1), null, BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("0.10"))),
++            List.of(),
++            LocalDate.of(2028, 12, 31),
++            new BigDecimal("1000"),
++            InterestTreatmentModel.PAY_OUT,
++            new BigDecimal("0.20"),
++            null,
++            false);
++    var profile = profile(BigDecimal.ZERO, List.of(bond));
++    var assumptions =
++        SimulationAssumptions.defaults(profile, 65, 65, 2026).withRecurringSpending(new BigDecimal("80"));
++
++    var year = service.simulate(profile, assumptions, SimulationScenario.BASE).years().getFirst();
++
++    assertThat(year.bondIncome()).isEqualByComparingTo("80");
++    assertThat(year.requiredPortfolioFunding()).isZero();
++    assertThat(year.unfundedAmount()).isZero();
++  }
++
++  @Test
++  void recordsPreRetirementContributionAndAppliesItBeforeInvestmentWithdrawal() {
++    var service = new RetirementSimulationService(new LongTermAnnualProjectionService(), new InvestmentAnnualProjectionService());
++    var profile = profile(new BigDecimal("100"), List.of());
++    var assumptions =
++        SimulationAssumptions.defaults(profile, 60, 61, 2026)
++            .withRetirementAge(61)
++            .withAnnualPreRetirementContribution(new BigDecimal("100"));
++
++    var workingYear = service.simulate(profile, assumptions, SimulationScenario.BASE).years().getFirst();
++
++    assertThat(workingYear.livingExpenses()).isZero();
++    assertThat(workingYear.preRetirementContribution()).isEqualByComparingTo("100");
++    assertThat(workingYear.equityEnd()).isEqualByComparingTo("206");
++  }
++
++  private static InvestmentProfile profile(
++      BigDecimal marketPortfolioValue, List<ProjectedLongTermAsset> longTermAssets) {
++    return profile(marketPortfolioValue, longTermAssets, BigDecimal.ZERO);
++  }
++
++  private static InvestmentProfile profile(
++      BigDecimal marketPortfolioValue,
++      List<ProjectedLongTermAsset> longTermAssets,
++      BigDecimal expectedLongTermIncome) {
++    return new InvestmentProfile(
++        1L,
++        CurrencyType.USD,
++        marketPortfolioValue,
++        longTermAssets.stream()
++            .map(ProjectedLongTermAsset::currentValue)
++            .reduce(BigDecimal.ZERO, BigDecimal::add),
++        marketPortfolioValue,
++        BigDecimal.ZERO,
++        expectedLongTermIncome,
++        BigDecimal.ZERO,
++        BigDecimal.ZERO,
++        BigDecimal.ZERO,
++        List.of(),
++        longTermAssets);
+   }
+ }

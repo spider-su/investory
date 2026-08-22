@@ -459,10 +459,11 @@ class PlanningTimelineFacadeTest {
     past.setYear(2025);
     past.setStatus(PlanningYearStatus.DRAFT);
     when(years.findAllByPortfolioIdOrderByYearAsc(1L)).thenReturn(List.of(past));
+    SimulationAssumptions anchored = assumptions().rebasedTo(39, 2025, List.of());
     ForwardSimulationContext context =
         new ForwardSimulationContextFactory(
                 Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC))
-            .create(profile(), assumptions());
+            .create(profile(), anchored);
     ForwardSimulationInput forward =
         new ForwardSimulationInput(context, profile(), Optional.empty());
 

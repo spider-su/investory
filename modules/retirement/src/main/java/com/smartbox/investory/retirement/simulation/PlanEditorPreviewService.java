@@ -59,15 +59,18 @@ public class PlanEditorPreviewService {
             currentYear, currentPlanningAge, facts, assumptions, displayCurrency));
     previewYears.addAll(
         result.years().stream()
-            .map(row -> year(row, projected.startYear(), displayCurrency))
+            .map(row -> year(row, displayCurrency))
             .toList());
     BigDecimal nextYearCosts =
         first == null ? null : displayCanonical(first.totalExpenses(), displayCurrency);
     return new PlanEditorPreview(
+        assumptions.planStartYear(),
+        assumptions.ageAtPlanStart(),
+        currentYear,
         currentPlanningAge,
         retirementYear,
         Math.max(retirementYear - currentYear, 0),
-        Math.max(assumptions.endAge() - assumptions.currentAge() + 1, 0),
+        Math.max(assumptions.endAge() - assumptions.ageAtPlanStart() + 1, 0),
         displayCanonical(
             assumptions
                 .annualLivingExpenses()
@@ -84,7 +87,7 @@ public class PlanEditorPreviewService {
         assumptions,
         result.failureAge(),
         List.copyOf(previewYears),
-        first == null ? null : year(first, projected.startYear(), displayCurrency));
+        first == null ? null : year(first, displayCurrency));
   }
 
   /** Current Long-term Assets facts used by the editor's read-only fields. */
@@ -93,9 +96,9 @@ public class PlanEditorPreviewService {
   }
 
   private PreviewYear year(
-      SimulationYear row, int projectedStartYear, CurrencyType displayCurrency) {
+      SimulationYear row, CurrencyType displayCurrency) {
     return new PreviewYear(
-        projectedStartYear + row.year(),
+        row.year(),
         row.age(),
         row.lifecyclePhase().name(),
         displayCanonical(row.totalExpenses(), displayCurrency),
@@ -163,6 +166,9 @@ public class PlanEditorPreviewService {
   }
 
   public record PlanEditorPreview(
+      int planStartYear,
+      int ageAtPlanStart,
+      int currentPlanningYear,
       int currentPlanningAge,
       int retirementYear,
       int yearsUntilRetirement,

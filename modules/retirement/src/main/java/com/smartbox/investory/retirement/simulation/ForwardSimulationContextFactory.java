@@ -68,10 +68,12 @@ public class ForwardSimulationContextFactory {
 
   /** Returns the age represented by a saved plan at the supplied calendar year. */
   public static int currentPlanningAge(SimulationAssumptions assumptions, int calendarYear) {
-    return assumptions.currentAge() + calendarYear - assumptions.startYear();
+    return assumptions.ageAtPlanStart() + calendarYear - assumptions.planStartYear();
   }
 
   public static int retirementYear(SimulationAssumptions assumptions) {
-    return assumptions.startYear() + assumptions.retirementAge() - assumptions.currentAge();
+    return assumptions.planStartYear()
+        + assumptions.retirementAge()
+        - assumptions.ageAtPlanStart();
   }
 }

@@ -33,19 +33,23 @@
       <div class="iv-card-section-header"><span class="iv-card-section-header__title">Plan</span></div>
       <div class="card-body iv-simulation-editor__grid">
         <div><label class="form-label" for="plan-name">Plan name</label><input id="plan-name" class="form-control" name="name" th:value="${planName}" placeholder="Current plan" required></div>
-        <div th:if="${!existingPlan}"><label class="form-label" for="current-age">Current age</label><input id="current-age" class="form-control" name="currentAge" type="number" min="0" th:value="${assumptions.currentAge}" required></div>
-        <div th:if="${existingPlan}"><label class="form-label">Age at plan start (<span th:text="${assumptions.startYear}">2025</span>)</label><div class="form-control-plaintext" th:text="${assumptions.currentAge}">40</div><div class="form-hint">This temporal anchor is read-only.</div></div>
-        <div th:if="${existingPlan}"><label class="form-label">Current planning age</label><div class="form-control-plaintext" th:text="${currentPlanningAge}">41</div></div>
+        <div><label class="form-label" for="plan-start-year">Plan start year</label><input id="plan-start-year" class="form-control" name="startYear" type="number" min="1900" max="9999" th:value="${planStartYear}" required><div class="form-hint">Historical starts are supported; future starts are not.</div></div>
+        <div><label class="form-label" for="age-at-plan-start">Age at plan start</label><input id="age-at-plan-start" class="form-control" name="ageAtPlanStart" type="number" min="0" th:value="${ageAtPlanStart}" required></div>
+        <div><label class="form-label">Current planning year</label><div class="form-control-plaintext" th:text="${currentPlanningYear}">2026</div></div>
+        <div><label class="form-label">Current planning age</label><div class="form-control-plaintext" th:text="${currentPlanningAge}">41</div><div class="form-hint">Derived from the plan start year and age at plan start.</div></div>
         <div><label class="form-label" for="end-age">End age</label><input id="end-age" class="form-control" name="endAge" type="number" min="1" th:value="${assumptions.endAge}" required></div>
         <div><label class="form-label" for="retirement-age">Retirement age</label><input id="retirement-age" class="form-control" name="retirementAge" type="number" min="0" th:value="${assumptions.retirementAge}" required><div class="form-hint">Planned retirement: <span th:text="${plannedRetirementYear}">2030</span>. Employment and contributions stop; retirement spending starts.</div></div>
       </div>
       <div class="card-body border-top" th:if="${developMode != null and developMode and planPreview != null}">
         <div class="text-secondary small mb-2">Development preview · temporal assumptions</div>
         <table class="table table-sm mb-0"><tbody>
+          <tr><td>Plan start year</td><td class="text-end" id="preview-start-year" th:text="${planPreview.planStartYear}">2023</td></tr>
+          <tr><td>Age at plan start</td><td class="text-end" id="preview-age-at-start" th:text="${planPreview.ageAtPlanStart}">37</td></tr>
+          <tr><td>Current planning year</td><td class="text-end" id="preview-current-year" th:text="${planPreview.currentPlanningYear}">2026</td></tr>
           <tr><td>Current planning age</td><td class="text-end" id="preview-current-age" th:text="${planPreview.currentPlanningAge}">41</td></tr>
           <tr><td>Planned retirement year</td><td class="text-end" id="preview-retirement-year" th:text="${planPreview.retirementYear}">2027</td></tr>
           <tr><td>Years until retirement</td><td class="text-end" id="preview-years-retirement" th:text="${planPreview.yearsUntilRetirement}">1</td></tr>
-          <tr><td>Plan horizon</td><td class="text-end" id="preview-horizon" th:text="${planPreview.planHorizonYears}">39</td></tr>
+          <tr><td>Full plan horizon</td><td class="text-end" id="preview-horizon" th:text="${planPreview.planHorizonYears}">39</td></tr>
         </tbody></table>
       </div>
     </section>

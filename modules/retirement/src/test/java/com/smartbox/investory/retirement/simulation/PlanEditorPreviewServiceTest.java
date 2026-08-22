@@ -112,6 +112,11 @@ class PlanEditorPreviewServiceTest {
         service.preview(profile, assumptions, CurrencyType.PLN);
 
     assertEquals(new BigDecimal("0.083333333333"), preview.monthlyLivingCosts());
+    assertEquals(2026, preview.planStartYear());
+    assertEquals(40, preview.ageAtPlanStart());
+    assertEquals(2026, preview.currentPlanningYear());
+    assertEquals(40, preview.currentPlanningAge());
+    assertEquals(1, preview.planHorizonYears());
   }
 
   @Test
@@ -156,5 +161,39 @@ class PlanEditorPreviewServiceTest {
     assertEquals(new BigDecimal("47411"), current.rentalIncome());
     assertEquals(new BigDecimal("10545"), current.bondIncome());
     assertEquals(new BigDecimal("12000"), current.contribution());
+  }
+
+  @Test
+  void projectedPreviewUsesSimulationYearDirectly() {
+    ForwardSimulationInputService inputs = mock(ForwardSimulationInputService.class);
+    RetirementSimulation simulations = mock(RetirementSimulation.class);
+    LongTermAssetAnnualSnapshotReader longTermAssets = mock(LongTermAssetAnnualSnapshotReader.class);
+    PlanningCurrencyPresentationService presentation = mock(PlanningCurrencyPresentationService.class);
+    Clock clock = Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC);
+    PlanEditorPreviewService service =
+        new PlanEditorPreviewService(inputs, simulations, longTermAssets, presentation, clock);
+    InvestmentProfile profile = mock(InvestmentProfile.class);
+    SimulationAssumptions assumptions = SimulationAssumptions.defaults(profile, 40, 41, 2026);
+    var context = mock(ForwardSimulationContext.class);
+    var projected = assumptions;
+    var row =
+        SimulationYear.generic(
+            41, 2027, true, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+            BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+            BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+            BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+            BigDecimal.ZERO);
+    when(profile.portfolioId()).thenReturn(7L);
+    when(inputs.prepare(any(), any()))
+        .thenReturn(
+            new com.smartbox.investory.retirement.planning.ForwardSimulationInput(
+                context, profile, Optional.of(projected)));
+    when(simulations.simulate(profile, projected, SimulationScenario.BASE))
+        .thenReturn(new SimulationResult(SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of(row)));
+    when(longTermAssets.currentAnnualSnapshot(any(), any()))
+        .thenReturn(new LongTermAssetAnnualSnapshotModel(null, null, null, null, null, null));
+    when(presentation.toDisplay(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+    assertEquals(2027, service.preview(profile, assumptions, CurrencyType.PLN).years().get(1).year());
   }
 }

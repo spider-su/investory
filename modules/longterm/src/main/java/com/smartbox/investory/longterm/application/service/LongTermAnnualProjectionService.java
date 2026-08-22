@@ -64,7 +64,7 @@ public class LongTermAnnualProjectionService implements LongTermAnnualProjection
     maturedFunding = fundGapProceeds.min(request.requiredFunding().subtract(reserveUsed).max(BigDecimal.ZERO));
     reserve = reserve.add(fundGapProceeds.subtract(maturedFunding));
     BigDecimal rental = request.rentalIncome().stream()
-        .map(LongTermAnnualProjectionApi.RentalIncome::monthlyNetIncome)
+        .map(income -> projectedRentalIncome(income, request.year()))
         .reduce(BigDecimal.ZERO, BigDecimal::add);
     return new AnnualProjection(
         request.year(), rental, bondIncome, reserveStart,
@@ -74,5 +74,12 @@ public class LongTermAnnualProjectionService implements LongTermAnnualProjection
                     .allMatch(i -> i.source() == LongTermAnnualProjectionApi.Source.ACTUAL)
             ? LongTermAnnualProjectionApi.Source.ACTUAL
             : LongTermAnnualProjectionApi.Source.PROJECTED);
+  }
+
+  private static BigDecimal projectedRentalIncome(
+      RentalIncome income, int year) {
+    int elapsedYears = Math.max(0, year - income.baseYear());
+    return income.monthlyNetIncome()
+        .multiply(BigDecimal.ONE.add(income.annualGrowthRate()).pow(elapsedYears));
   }
 }

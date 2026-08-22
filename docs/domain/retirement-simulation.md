@@ -128,7 +128,15 @@ fundingGap = 6600
 Working years include employment flow and no retirement spending. Employment is zero after
 retirement. Pension starts only at its configured date. One-off flows remain active in both phases.
 Spending starts at retirement and grows only afterward. Forward rebasing carries accumulated
-retirement spending instead of resetting it.
+retirement spending instead of resetting it. This is deliberate: `annualLivingExpenses` and
+`annualDiscretionaryExpenses` represent retirement spending, not a household budget before
+retirement.
+
+For contractual bonds and deposits, Retirement passes the Long-Term API the net payout for
+`PAY_OUT` instruments: applicable annual rate × principal × (1 − tax rate). A maturity uses the
+Long-Term-provided strategy; the default is reinvestment, while `MOVE_TO_RESERVE` transfers
+proceeds to reserve and `FUND_GAP` uses proceeds only after reserve funding. Capitalized interest
+is not a cash-flow income source.
 
 The current-year bridge is explicit: actual state plus projected remaining current-year flows and
 returns produces the expected year-end state, which is the next projected year's start. If there is

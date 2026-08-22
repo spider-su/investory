@@ -2,6 +2,8 @@ package com.smartbox.investory.retirement.simulation;
 
 import com.smartbox.investory.retirement.profile.InvestmentProfile;
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Year;
 import java.util.HashSet;
 import java.util.List;
 
@@ -387,9 +389,19 @@ public record SimulationAssumptions(
     fundingOrder = List.copyOf(fundingOrder);
   }
 
+  /** The persisted age is the age at the plan start year, not an independently changing age. */
+  public int ageAtPlanStart() {
+    return currentAge;
+  }
+
+  /** The persisted start year is the temporal anchor for every derived planning year. */
+  public int planStartYear() {
+    return startYear;
+  }
+
   public static SimulationAssumptions defaults(
       InvestmentProfile profile, int currentAge, int endAge) {
-    return defaults(profile, currentAge, endAge, 2026);
+    return defaults(profile, currentAge, endAge, Year.now(Clock.systemDefaultZone()).getValue());
   }
 
   public static SimulationAssumptions defaults(

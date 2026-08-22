@@ -50,10 +50,19 @@ public interface LongTermAnnualProjectionApi {
     }
   }
 
-  record RentalIncome(BigDecimal monthlyNetIncome, Source source) {
+  record RentalIncome(
+      BigDecimal monthlyNetIncome,
+      Source source,
+      int baseYear,
+      BigDecimal annualGrowthRate) {
+    public RentalIncome(BigDecimal monthlyNetIncome, Source source) {
+      this(monthlyNetIncome, source, 0, BigDecimal.ZERO);
+    }
+
     public RentalIncome {
       monthlyNetIncome = nz(monthlyNetIncome);
       source = source == null ? Source.PROJECTED : source;
+      annualGrowthRate = nz(annualGrowthRate);
     }
   }
 

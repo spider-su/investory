@@ -185,16 +185,27 @@ the previous bridge effects are outside the forward event set and cannot execute
 Saved plans retain their temporal anchor:
 
 ```text
+currentYear = application clock year
+currentPlanningAge = ageAtPlanStart + currentYear - planStartYear
+retirementYear = planStartYear + retirementAge - ageAtPlanStart
 age(year) = ageAtPlanStart + year - planStartYear
 ```
 
 New plans may default their `planStartYear` to the current calendar year. Opening or editing a saved plan
 never moves its anchor.
 
-The Plan Editor shows this distinction for saved plans: age at plan start is read-only, while current
-planning age is derived from the application calendar. Retirement age remains an editable absolute
-age boundary and its calendar year is shown as `startYear + retirementAge - ageAtPlanStart`. Save As
-copies the source plan's temporal anchor rather than silently creating a new current-year anchor.
+The Plan Editor exposes plan start year and age at plan start as the editable temporal anchor. Current
+planning year and current planning age are read-only values derived from the application `Clock`.
+Retirement age remains an editable absolute age boundary and its calendar year is shown as
+`startYear + retirementAge - ageAtPlanStart`. Save As copies the source plan's temporal anchor rather
+than silently creating a new current-year anchor.
+
+Historical years from the plan start through the year before the current year are shown as
+`NEEDS_REVIEW` until they have a planning record. The explicit **Prefill historical years from
+Investory** action creates those records and derives only data available from canonical portfolio and
+Long-Term readers. It never overwrites closed or manually entered values. Missing facts remain
+manual/unavailable; the current year remains live and future years remain projected from the current-year
+bridge.
 
 When a historical draft is populated, the same complete-calendar-year rule applies: missing or
 duplicated months leave annual market metrics unavailable. With twelve calendar months, Market return
