@@ -63,6 +63,13 @@ public record RetirementSimulationInput(
     return expenseProfile.factorForYear(calendarYear - startYear);
   }
 
+  public RetirementSimulationInput withFundingPolicy(RetirementFundingPolicy policy) {
+    return new RetirementSimulationInput(currentAge, endAge, startYear, retirementAge, annualExpenses,
+        spendingGrowthRate, annualPension, pensionStartAge, annualEmploymentIncome,
+        annualPreRetirementContribution, initialReserve, initialInvestmentValue,
+        investmentReturnRate, events, investmentSource, expenseProfile, longTermPlanningState, policy);
+  }
+
   private static BigDecimal nz(BigDecimal value) {
     return value == null ? BigDecimal.ZERO : value;
   }

@@ -129,6 +129,7 @@ public class RetirementSimulationController {
       @RequestParam(required = false) BigDecimal rentalIncomeGrowthSpread,
       @RequestParam(required = false) BigDecimal spendingGrowthSpread,
       @RequestParam(required = false) SimulationFundingStrategy fundingStrategy,
+      @RequestParam(required = false) String fundingOrder,
       @RequestParam(required = false) BigDecimal safeReserveYears,
       @RequestParam(required = false) BigDecimal equityHarvestMinimumReturn,
       @RequestParam(required = false) BigDecimal equityGainHarvest,
@@ -197,17 +198,21 @@ public class RetirementSimulationController {
             base.futureEvents(),
             percentInputToRate(rentalIncomeGrowthSpread, base.rentalIncomeGrowthSpread()),
             percentInputToRate(spendingGrowthSpread, base.spendingGrowthSpread()),
-            SimulationFundingStrategy.SIMPLE_WATERFALL,
-            base.safeReserveYears(),
-            base.equityHarvestMinimumReturnRate(),
-            base.equityGainHarvestRate(),
-            base.allowEmergencyEquityWithdrawal(),
+            fundingStrategy == null ? base.fundingStrategy() : fundingStrategy,
+            safeReserveYears == null ? base.safeReserveYears() : safeReserveYears,
+            equityHarvestMinimumReturn == null ? base.equityHarvestMinimumReturnRate()
+                : percentInputToRate(equityHarvestMinimumReturn, base.equityHarvestMinimumReturnRate()),
+            equityGainHarvest == null ? base.equityGainHarvestRate()
+                : percentInputToRate(equityGainHarvest, base.equityGainHarvestRate()),
+            allowEmergencyEquityWithdrawal == null ? base.allowEmergencyEquityWithdrawal()
+                : allowEmergencyEquityWithdrawal,
             base.retirementAge(),
             base.annualEmploymentIncome(),
             base.annualPreRetirementContribution(),
-            SimulationAssumptions.DEFAULT_FUNDING_ORDER,
+            fundingOrder == null ? base.fundingOrder() : parseFundingOrder(fundingOrder),
             base.expenseProfile());
-    var projection = projections.project(profile, assumptions);
+    var baseline = selectedPlanId == null ? null : plans.baseline(portfolioId, selectedPlanId);
+    var projection = projections.project(profile, assumptions, baseline);
     var projectedAssumptions = projection.projectedAssumptions();
     var summaries = projection.summaries();
     PlanningTimeline timeline =
@@ -618,6 +623,17 @@ public class RetirementSimulationController {
     return simulationRedirect(portfolioId, planId, planningDisplayCurrency, selectedScenario);
   }
 
+  @PostMapping("/simulation/plans/{planId}/rebaseline")
+  public String rebaselinePlan(
+      @RequestParam Long portfolioId,
+      @PathVariable Long planId,
+      @RequestParam(defaultValue = "PLN") CurrencyType planningDisplayCurrency,
+      @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
+    plans.rebaseline(portfolioId, planId,
+        PlanningBaseline.fromProfile(profiles.loadProfile(portfolioId), Year.now(clock).getValue()));
+    return simulationRedirect(portfolioId, planId, planningDisplayCurrency, selectedScenario);
+  }
+
   @PostMapping("/simulation/timeline/current/{year}/manual")
   public String saveCurrentManual(
       @RequestParam Long portfolioId,
@@ -1024,8 +1040,10 @@ public class RetirementSimulationController {
             .assumptions();
     Long savedPlanId =
         planId == null || saveAs
-            ? plans.createId(portfolioId, name, a)
-            : plans.updateId(portfolioId, planId, name, a);
+            ? plans.createId(portfolioId, name, a,
+                PlanningBaseline.fromProfile(profiles.loadProfile(portfolioId), Year.now(clock).getValue()))
+            : plans.updateId(portfolioId, planId, name, a,
+                PlanningBaseline.fromProfile(profiles.loadProfile(portfolioId), Year.now(clock).getValue()));
     CurrencyType returnCurrency =
         returnPlanningDisplayCurrency == null
             ? planningDisplayCurrency

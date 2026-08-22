@@ -75,6 +75,28 @@ public record InvestmentProfile(
         ? LongTermAnnualProjectionApi.PlanningState.EMPTY : longTermPlanningState;
   }
 
+  /** Returns an immutable economic view with the reviewed planning baseline applied. */
+  public InvestmentProfile withPlanningBaseline(
+      BigDecimal reserve, BigDecimal investmentCapital, BigDecimal longTermCapital,
+      BigDecimal rentalAnnualIncome, BigDecimal bondAnnualIncome) {
+    return withPlanningBaseline(reserve, investmentCapital, longTermCapital,
+        rentalAnnualIncome, bondAnnualIncome, longTermPlanningState);
+  }
+
+  public InvestmentProfile withPlanningBaseline(
+      BigDecimal reserve, BigDecimal investmentCapital, BigDecimal longTermCapital,
+      BigDecimal rentalAnnualIncome, BigDecimal bondAnnualIncome,
+      LongTermAnnualProjectionApi.PlanningState planningState) {
+    BigDecimal frozenReserve = reserve == null ? BigDecimal.ZERO : reserve;
+    BigDecimal frozenInvestment = investmentCapital == null ? BigDecimal.ZERO : investmentCapital;
+    BigDecimal frozenLongTerm = longTermCapital == null ? BigDecimal.ZERO : longTermCapital;
+    return new InvestmentProfile(portfolioId, currency, frozenReserve.add(frozenInvestment),
+        frozenLongTerm, frozenReserve.add(frozenInvestment).add(frozenLongTerm),
+        historicalMarketInvestmentIncome, expectedLongTermAssetIncome, totalInvestmentIncome,
+        frozenReserve, illiquidAssets, allocations, longTermAssets,
+        rentalAnnualIncome, bondAnnualIncome, planningState);
+  }
+
   public BigDecimal marketPortfolioPercentage() {
     return percentageOfTotal(marketPortfolioValue);
   }

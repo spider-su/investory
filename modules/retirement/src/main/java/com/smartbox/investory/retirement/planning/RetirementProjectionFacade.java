@@ -43,7 +43,8 @@ public class RetirementProjectionFacade {
   public RetirementProjectionContext load(
       Long portfolioId, Long planId, int defaultCurrentAge, int defaultEndAge) {
     RetirementProjectionInput input = loadInput(portfolioId, planId, defaultCurrentAge, defaultEndAge);
-    return project(input.profile(), input.assumptions());
+    return project(input.profile(), input.assumptions(),
+        planId == null ? null : plans.baseline(portfolioId, planId));
   }
 
   public RetirementProjectionInput loadInput(
@@ -59,7 +60,17 @@ public class RetirementProjectionFacade {
 
   public RetirementProjectionContext project(
       InvestmentProfile profile, SimulationAssumptions assumptions) {
-    ForwardSimulationInput forward = forwardInputs.prepare(profile, assumptions);
+    return project(profile, assumptions, null);
+  }
+
+  /** Projects from a reviewed baseline without substituting newer live balances. */
+  public RetirementProjectionContext project(
+      InvestmentProfile profile, SimulationAssumptions assumptions, PlanningBaseline baseline) {
+    InvestmentProfile projectionProfile = baseline == null ? profile : profile.withPlanningBaseline(
+        baseline.reserve(), baseline.investmentCapital(), baseline.longTermCapital(),
+        baseline.rentalAnnualIncome(), baseline.longTermAnnualIncome(),
+        baseline.longTermPlanningState());
+    ForwardSimulationInput forward = forwardInputs.prepare(projectionProfile, assumptions);
     SimulationAssumptions projectedAssumptions = forward.forwardAssumptions().orElse(assumptions);
     InvestmentProfile projectedProfile = forward.bridgedProfile();
     Map<SimulationScenario, SimulationResult> results =

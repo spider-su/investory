@@ -120,8 +120,11 @@ reserveEnd = reserveStart + explicitReserveTransfers - reserveWithdrawal
 
 Review may apply an explicit, separately reported reserve adjustment. External contributions do not
 exist inside future simulation. Unused surplus stays informational unless a review allocates it.
-Any reserve target is informational (`recurring funding need * target years`); it never refills the
-reserve and never causes equity or bond harvesting.
+The active RetirementFundingPolicy uses `reserveTargetYears * recurringFundingGap` as a refill
+target. Funding order is configurable at the economic level (`RESERVE -> LONG_TERM -> INVESTMENT`;
+legacy `CASH,BONDS,STOCKS` values are mapped at the boundary). When permitted, positive Investment
+gain at or above the policy threshold may transfer a capped share to Reserve. This transfer is capital,
+not income, and is tracked separately from spending withdrawal.
 
 ## Capital projections
 
@@ -245,14 +248,13 @@ full-year net result, variance from the original plan, and any explicit reserve 
 
 ## Exclusions
 
-The model excludes economic buckets, market-cash/equity/fixed-income simulation, configurable
-withdrawal order, equity harvesting, emergency equity withdrawals, synthetic bonds, reserve refill
-rules, property valuation/growth inside Retirement, and duplicated asset formulas. A target reserve
-may be reported as a policy metric, but is never a funding action. Actual and projected source
-labels remain separate; a projected return assumption is never labelled actual.
+The model excludes economic buckets, market-cash/equity/fixed-income simulation, bond maturity or
+rental-contract mechanics, property valuation/growth inside Retirement, and duplicated asset formulas.
+Retirement owns only configurable economic withdrawal order, reserve targeting, Investment harvest,
+and optional Investment withdrawal. Actual and projected source labels remain separate; a projected
+return assumption is never labelled actual.
 
 Retirement also excludes direct dependencies on source-domain entities and concrete asset types.
 Adding a new Investment instrument or Long-Term asset type should require a Retirement change only
 when it introduces genuinely new economic semantics that cannot be represented by the existing
 public planning contracts.
-

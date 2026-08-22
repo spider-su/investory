@@ -12,28 +12,80 @@ import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 /** Approved cross-module financial contract. Do not refresh constants from production output. */
 class RetirementGoldenScenarioIntegrationTest {
   @Test
-  void printBaseline() {
+  void sustainableShortHorizonMatchesApprovedContract() {
     var service = new RetirementSimulationService(new LongTermAnnualProjectionService(),
         new InvestmentAnnualProjectionService());
-    for (int endAge : List.of(60, 80)) {
-      var result = service.simulate(fixture(), assumptions(endAge), SimulationScenario.BASE);
-      System.out.println("GOLDEN endAge=" + endAge + " failed=" + result.simulationFailed()
-          + " failureAge=" + result.failureAge() + " totalUnfunded=" + result.totalUnfundedAmount());
-      result.years().forEach(y -> {
-        if (List.of(2025, 2026, 2027, 2035, 2045, 2055, 2065).contains(y.year())
-            || y.unfundedAmount().signum() > 0)
-          System.out.println(y.year() + " age=" + y.age() + " costs=" + y.totalExpenses()
-              + " income=" + y.totalIncome() + " gap=" + y.requiredPortfolioFunding()
-              + " rent=" + y.rentalIncome() + " bond=" + y.bondIncome()
-              + " reserve=" + y.cashEnd() + " inv=" + y.equityEnd()
-              + " unfunded=" + y.unfundedAmount());
-      });
+    var result = service.simulate(fixture(), assumptions(60), SimulationScenario.BASE);
+    assertThat(result.simulationFailed()).isFalse();
+    assertThat(result.failureAge()).isNull();
+    assertThat(result.totalUnfundedAmount()).isZero();
+    assertCheckpoints(result);
+  }
+
+  @Test
+  void failedLongHorizonMatchesApprovedContract() {
+    var service = new RetirementSimulationService(new LongTermAnnualProjectionService(),
+        new InvestmentAnnualProjectionService());
+    var result = service.simulate(fixture(), assumptions(80), SimulationScenario.BASE);
+    assertThat(result.simulationFailed()).isTrue();
+    assertThat(result.failureAge()).isEqualTo(62);
+    assertThat(money(result.firstFailureShortfall())).isEqualByComparingTo("38160.71");
+    assertThat(money(result.totalUnfundedAmount())).isEqualByComparingTo("911781.60");
+    assertCheckpoints(result);
+    var failure = result.years().stream().filter(y -> y.unfundedAmount().signum() > 0).findFirst().orElseThrow();
+    assertThat(failure.year()).isEqualTo(2047);
+    assertThat(failure.age()).isEqualTo(62);
+  }
+
+  private static void assertCheckpoints(SimulationResult result) {
+    assertYear(result, 2025, 40, "0", "333683.62", "174803.62", "38880", "100000", "512250");
+    assertYear(result, 2026, 41, "0", "335431.66", "176551.66", "38880", "100000", "579791.25");
+    assertYear(result, 2027, 42, "240000", "217197.17", "178317.17", "38880", "114014.14", "592256.54");
+    assertYear(result, 2035, 50, "270358.22", "193091.95", "193091.95", "0", "37687.25", "565552.09");
+    var y2045 = result.years().stream().filter(y -> y.year() == 2045).findFirst().orElseThrow();
+    assertThat(money(y2045.totalExpenses())).isEqualByComparingTo("266697.49");
+    assertThat(money(y2045.rentalIncome())).isEqualByComparingTo("213293.64");
+    result.years().stream().filter(y -> y.year() == 2052).findFirst().ifPresent(y2052 -> {
+      assertThat(y2052.age()).isEqualTo(67);
+      assertThat(money(y2052.pensionIncome())).isEqualByComparingTo("7000");
+    });
+    result.years().stream().filter(y -> y.year() == 2055).findFirst().ifPresent(y2055 -> {
+      assertThat(money(y2055.totalExpenses())).isEqualByComparingTo("273099.99");
+      assertThat(y2055.age()).isEqualTo(70);
+    });
+    assertThat(result.years()).extracting(SimulationYear::year)
+        .isSorted().allMatch(year -> year >= 2025 && year < 3000);
+    for (SimulationYear year : result.years()) {
+      assertThat(year.requiredPortfolioFunding()).isEqualByComparingTo(
+          year.totalExpenses().subtract(year.totalIncome()).max(BigDecimal.ZERO));
+      assertThat(year.failed()).isEqualTo(year.unfundedAmount().signum() > 0);
     }
+    var maturityYear = result.years().stream().filter(y -> y.year() == 2028).findFirst().orElseThrow();
+    assertThat(money(maturityYear.bondIncome())).isEqualByComparingTo("38880");
+    var postMaturity = result.years().stream().filter(y -> y.year() == 2029).findFirst().orElseThrow();
+    assertThat(postMaturity.bondIncome()).isZero();
+  }
+
+  private static void assertYear(SimulationResult result, int year, int age, String costs,
+      String income, String rental, String bond, String reserve, String investment) {
+    var actual = result.years().stream().filter(y -> y.year() == year).findFirst().orElseThrow();
+    assertThat(actual.age()).isEqualTo(age);
+    assertThat(money(actual.totalExpenses())).isEqualByComparingTo(costs);
+    assertThat(money(actual.totalIncome())).isEqualByComparingTo(income);
+    assertThat(money(actual.rentalIncome())).isEqualByComparingTo(rental);
+    assertThat(money(actual.bondIncome())).isEqualByComparingTo(bond);
+    assertThat(money(actual.cashEnd())).isEqualByComparingTo(reserve);
+    assertThat(money(actual.equityEnd())).isEqualByComparingTo(investment);
+  }
+
+  private static BigDecimal money(BigDecimal value) {
+    return value.setScale(2, java.math.RoundingMode.HALF_UP);
   }
 
   private static SimulationAssumptions assumptions(int endAge) {
@@ -67,8 +119,8 @@ class RetirementGoldenScenarioIntegrationTest {
         List.of(new ProjectedLongTermAsset.Period(LocalDate.of(2020, 1, 1), null,
             new BigDecimal("174803.62"), BigDecimal.ZERO, BigDecimal.ZERO)),
         List.of(), null, null, InterestTreatmentModel.PAY_OUT, BigDecimal.ZERO, null, false);
-    return new InvestmentProfile(1L, CurrencyType.PLN, new BigDecimal("1100000"),
-        new BigDecimal("3486000"), new BigDecimal("4586000"), BigDecimal.ZERO,
+    return new InvestmentProfile(1L, CurrencyType.PLN, new BigDecimal("550000"),
+        new BigDecimal("3486000"), new BigDecimal("4036000"), BigDecimal.ZERO,
         new BigDecimal("213683.62"), BigDecimal.ZERO, new BigDecimal("100000"),
         new BigDecimal("3000000"), List.of(), List.of(rental, bond),
         new BigDecimal("174803.62"), new BigDecimal("38880"));

@@ -41,5 +41,12 @@ public record RetirementFundingPolicy(
         assumptions.allowEmergencyEquityWithdrawal(), assumptions.fundingOrder());
   }
 
+  /** Domain-neutral names used by the active policy; legacy accessors remain persistence-compatible. */
+  public BigDecimal investmentHarvestThresholdRate() { return equityHarvestThresholdRate; }
+
+  public BigDecimal investmentHarvestShare() { return equityHarvestShare; }
+
+  public boolean allowInvestmentWithdrawal() { return allowEmergencyEquityWithdrawal; }
+
   private static BigDecimal nz(BigDecimal value) { return value == null ? BigDecimal.ZERO : value; }
 }

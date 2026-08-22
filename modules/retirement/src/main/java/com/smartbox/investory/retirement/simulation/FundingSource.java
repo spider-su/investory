@@ -1,8 +1,16 @@
 package com.smartbox.investory.retirement.simulation;
 
-/** Deterministic asset buckets that may fund a portfolio spending requirement. */
+/** Persisted compatibility values mapped to Retirement's economic funding sources. */
 public enum FundingSource {
   CASH,
   BONDS,
-  STOCKS
+  STOCKS;
+
+  public String economicName() {
+    return switch (this) {
+      case CASH -> "RESERVE";
+      case BONDS -> "LONG_TERM";
+      case STOCKS -> "INVESTMENT";
+    };
+  }
 }

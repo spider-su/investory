@@ -13,10 +13,10 @@ public final class RetirementReserveRebalancer {
     BigDecimal shortfall = nz(reserveTarget).subtract(nz(reserveBeforeHarvest)).max(ZERO);
     BigDecimal gain = nz(investment.annualReturnAmount());
     if (shortfall.signum() == 0 || gain.signum() <= 0
-        || annualReturnRate.compareTo(policy.equityHarvestThresholdRate()) < 0) {
+        || annualReturnRate.compareTo(policy.investmentHarvestThresholdRate()) < 0) {
       return new Result(investment, ZERO);
     }
-    BigDecimal harvest = gain.multiply(policy.equityHarvestShare())
+    BigDecimal harvest = gain.multiply(policy.investmentHarvestShare())
         .min(shortfall).min(nz(investment.endValue()).max(ZERO));
     if (harvest.signum() == 0) return new Result(investment, ZERO);
     var adjusted = new InvestmentAnnualProjectionApi.AnnualProjection(

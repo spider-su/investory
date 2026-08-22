@@ -109,6 +109,29 @@ public class SimulationPlanRevisionEntity {
   @Column(name = "capital_gain_tax_rate", nullable = false, precision = 20, scale = 12)
   private BigDecimal capitalGainTaxRate;
 
+  @Column(name = "baseline_as_of_year")
+  private Integer baselineAsOfYear;
+
+  @Column(name = "baseline_reserve", precision = 30, scale = 12)
+  private BigDecimal baselineReserve;
+
+  @Column(name = "baseline_investment_capital", precision = 30, scale = 12)
+  private BigDecimal baselineInvestmentCapital;
+
+  @Column(name = "baseline_long_term_capital", precision = 30, scale = 12)
+  private BigDecimal baselineLongTermCapital;
+
+  @Column(name = "baseline_rental_income", precision = 30, scale = 12)
+  private BigDecimal baselineRentalIncome;
+
+  @Column(name = "baseline_long_term_income", precision = 30, scale = 12)
+  private BigDecimal baselineLongTermIncome;
+
+  /** Serialized Long-Term public planning state, never a persistence entity snapshot. */
+  @Lob
+  @Column(name = "baseline_long_term_state")
+  private String baselineLongTermState;
+
   @Column(name = "created_at", nullable = false)
   private Instant createdAt;
 

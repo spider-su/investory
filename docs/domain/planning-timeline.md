@@ -279,7 +279,8 @@ baseline data from this completed context; it must not create a separate base pr
 
 A saved retirement plan has a stable logical identity and an immutable linear revision history. A
 revision contains every Base simulation assumption, its life-event snapshots, and the normalized
-economic input snapshot required to reproduce its future projection. Editing assumptions or accepting
+economic planning baseline (as-of year, reserve, Investment capital, Long-Term capital, and canonical
+recurring income) required to reproduce its future projection. Editing assumptions or accepting
 new source-domain state creates a new revision and makes it current; it never edits a revision already
 used by a baseline. Rollover does not create revisions, and scenario transforms remain runtime-only.
 
@@ -294,8 +295,9 @@ Baselines store the exact revision ID used to calculate their expected values. H
 detail can therefore identify the assumptions behind a baseline independently of later plan edits.
 Save As creates a new logical plan with revision 1 and copies the current event set, not the source
 revision history. Renaming is logical-plan metadata; archiving preserves revisions referenced by
-history. Legacy plans are migrated to an initial revision representing the plan state known at
-migration time; the database cannot reconstruct revisions that did not previously exist.
+history. Legacy revisions without a stored economic baseline remain readable for compatibility. They
+are not silently rewritten on page load; the next explicit save/rebaseline records a baseline. Until
+then, their projection uses the existing compatibility path.
 
 Plan revision provenance is separate from accounting reconciliation and from annual rollover. Stored
 assumptions use canonical currency values; display currency never creates a revision or changes one.

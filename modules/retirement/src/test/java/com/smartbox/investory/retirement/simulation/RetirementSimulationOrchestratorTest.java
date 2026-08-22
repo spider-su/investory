@@ -11,6 +11,36 @@ import org.junit.jupiter.api.Test;
 
 class RetirementSimulationOrchestratorTest {
   @Test
+  void honorsConfiguredLongTermBeforeReserveOrder() {
+    List<BigDecimal> longTermRequests = new ArrayList<>();
+    List<BigDecimal> investmentRequests = new ArrayList<>();
+    LongTermAnnualProjectionApi longTerm = longTerm(request -> {
+      longTermRequests.add(request.requestedCapital());
+      return new LongTermAnnualProjectionApi.PlanningProjection(request.year(), List.of(), BigDecimal.ZERO,
+          request.requestedCapital(), request.requestedCapital().min(bd("30")), BigDecimal.ZERO,
+          request.state(), LongTermAnnualProjectionApi.Source.PROJECTED);
+    });
+    InvestmentAnnualProjectionApi investment = request -> {
+      investmentRequests.add(request.withdrawal());
+      return new InvestmentAnnualProjectionApi.AnnualProjection(request.year(), request.startValue(),
+          request.externalContribution(), BigDecimal.ZERO, request.withdrawal().min(bd("40")),
+          request.startValue().subtract(request.withdrawal().min(bd("40"))), request.source());
+    };
+    var year = new RetirementSimulationOrchestrator(longTerm, investment)
+        .run(input(65, 65, bd("100"), bd("20"))
+            .withFundingPolicy(new RetirementFundingPolicy(BigDecimal.ZERO, BigDecimal.ONE,
+                BigDecimal.ZERO, true, List.of(FundingSource.BONDS, FundingSource.CASH, FundingSource.STOCKS))))
+        .years().getFirst();
+    assertThat(longTermRequests).usingComparatorForType(BigDecimal::compareTo, BigDecimal.class)
+        .containsExactly(bd("0"), bd("100"));
+    assertThat(investmentRequests).usingComparatorForType(BigDecimal::compareTo, BigDecimal.class)
+        .containsExactly(bd("50"));
+    assertThat(year.reserveWithdrawal()).isEqualByComparingTo("20");
+    assertThat(year.maturedBondFunding()).isEqualByComparingTo("30");
+    assertThat(year.investmentWithdrawal()).isEqualByComparingTo("40");
+  }
+
+  @Test
   void usesFixedFundingOrderAndCarriesProviderEndStates() {
     List<BigDecimal> longTermRequests = new ArrayList<>();
     List<BigDecimal> investmentRequests = new ArrayList<>();

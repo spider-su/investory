@@ -1,6 +1,9 @@
 package com.smartbox.investory.retirement.simulation;
 
 import com.smartbox.investory.retirement.infrastructure.simulation.*;
+import com.smartbox.investory.retirement.planning.PlanningBaseline;
+import com.smartbox.investory.longterm.api.LongTermAnnualProjectionApi;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
@@ -15,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional
 public class SimulationPlanService {
+  private static final ObjectMapper JSON = new ObjectMapper().findAndRegisterModules();
   private final SimulationPlanRepository plans;
   private final SimulationPlanEventRepository legacyEvents;
   private final SimulationPlanRevisionRepository revisions;
@@ -79,17 +83,32 @@ public class SimulationPlanService {
     return create(portfolioId, name, assumptions).getId();
   }
 
+  public Long createId(Long portfolioId, String name, SimulationAssumptions assumptions,
+      PlanningBaseline baseline) {
+    return create(portfolioId, name, assumptions, baseline).getId();
+  }
+
   public Long updateId(Long portfolioId, Long id, String name, SimulationAssumptions assumptions) {
     return update(portfolioId, id, name, assumptions).getId();
   }
 
+  public Long updateId(Long portfolioId, Long id, String name, SimulationAssumptions assumptions,
+      PlanningBaseline baseline) {
+    return update(portfolioId, id, name, assumptions, baseline).getId();
+  }
+
   public SimulationPlanEntity create(
       Long portfolioId, String name, SimulationAssumptions assumptions) {
+    return create(portfolioId, name, assumptions, null);
+  }
+
+  public SimulationPlanEntity create(Long portfolioId, String name,
+      SimulationAssumptions assumptions, PlanningBaseline baseline) {
     validateName(portfolioId, name, null);
     SimulationPlanEntity saved =
         plans.save(copy(new SimulationPlanEntity(), portfolioId, name, assumptions));
     if (revisioned()) {
-      SimulationPlanRevisionEntity revision = createRevision(saved, assumptions, 1);
+      SimulationPlanRevisionEntity revision = createRevision(saved, assumptions, 1, baseline);
       saved.setCurrentRevisionId(revision.getId());
       plans.save(saved);
       saveRevisionEvents(revision, assumptions.futureEvents());
@@ -101,6 +120,11 @@ public class SimulationPlanService {
 
   public SimulationPlanEntity update(
       Long portfolioId, Long id, String name, SimulationAssumptions assumptions) {
+    return update(portfolioId, id, name, assumptions, null);
+  }
+
+  public SimulationPlanEntity update(Long portfolioId, Long id, String name,
+      SimulationAssumptions assumptions, PlanningBaseline baseline) {
     SimulationPlanEntity plan = get(portfolioId, id);
     validateName(portfolioId, name, id);
     if (revisioned()) {
@@ -114,7 +138,7 @@ public class SimulationPlanService {
                   .max()
                   .orElse(0)
               + 1;
-      SimulationPlanRevisionEntity revision = createRevision(plan, assumptions, nextNumber);
+      SimulationPlanRevisionEntity revision = createRevision(plan, assumptions, nextNumber, baseline);
       plan.setCurrentRevisionId(revision.getId());
       // Keep legacy columns synchronized for old readers; revisions are the authoritative source.
       copy(plan, portfolioId, name, assumptions);
@@ -251,16 +275,20 @@ public class SimulationPlanService {
                 .max()
                 .orElse(0)
             + 1;
-    SimulationPlanRevisionEntity revision = createRevision(plan, current, nextNumber);
+    PlanningBaseline baseline = plan.getCurrentRevisionId() == null ? null
+        : revisions.findByIdAndSimulationPlanId(plan.getCurrentRevisionId(), plan.getId())
+            .map(this::baseline).orElse(null);
+    SimulationPlanRevisionEntity revision = createRevision(plan, current, nextNumber, baseline);
     return revision;
   }
 
   private SimulationPlanRevisionEntity createRevision(
-      SimulationPlanEntity plan, SimulationAssumptions assumptions, int number) {
+      SimulationPlanEntity plan, SimulationAssumptions assumptions, int number,
+      PlanningBaseline baseline) {
     SimulationPlanRevisionEntity revision = new SimulationPlanRevisionEntity();
     revision.setSimulationPlanId(plan.getId());
     revision.setRevisionNumber(number);
-    copy(revision, assumptions);
+    copy(revision, assumptions, baseline);
     return revisions.save(revision);
   }
 
@@ -419,7 +447,8 @@ public class SimulationPlanService {
         .withExpenseProfile(parseExpenseProfile(revision.getExpenseProfile()));
   }
 
-  private static void copy(SimulationPlanRevisionEntity target, SimulationAssumptions a) {
+  private static void copy(SimulationPlanRevisionEntity target, SimulationAssumptions a,
+      PlanningBaseline baseline) {
     target.setCurrentAge(a.currentAge());
     target.setStartYear(a.startYear());
     target.setEndAge(a.endAge());
@@ -446,6 +475,64 @@ public class SimulationPlanService {
     target.setPensionStartAge(a.pensionStartAge());
     target.setAnnualPension(a.annualPension());
     target.setCapitalGainTaxRate(a.capitalGainTaxRate());
+    if (baseline != null) {
+      target.setBaselineAsOfYear(baseline.asOfYear());
+      target.setBaselineReserve(baseline.reserve());
+      target.setBaselineInvestmentCapital(baseline.investmentCapital());
+      target.setBaselineLongTermCapital(baseline.longTermCapital());
+      target.setBaselineRentalIncome(baseline.rentalAnnualIncome());
+      target.setBaselineLongTermIncome(baseline.longTermAnnualIncome());
+      target.setBaselineLongTermState(serializePlanningState(baseline.longTermPlanningState()));
+    }
+  }
+
+  /** Explicit review action: accepts current normalized state as a new immutable revision baseline. */
+  public SimulationPlanRevisionEntity rebaseline(Long portfolioId, Long planId,
+      PlanningBaseline baseline) {
+    SimulationPlanEntity plan = get(portfolioId, planId);
+    if (!revisioned()) throw new IllegalStateException("Plan revisions are not configured");
+    SimulationAssumptions current = assumptions(plan);
+    int nextNumber = revisions.findAllBySimulationPlanIdOrderByRevisionNumberDesc(planId).stream()
+        .mapToInt(SimulationPlanRevisionEntity::getRevisionNumber).max().orElse(0) + 1;
+    SimulationPlanRevisionEntity revision = createRevision(plan, current, nextNumber, baseline);
+    plan.setCurrentRevisionId(revision.getId());
+    plans.save(plan);
+    saveRevisionEvents(revision, current.futureEvents());
+    return revision;
+  }
+
+  private PlanningBaseline baseline(SimulationPlanRevisionEntity revision) {
+    return revision.getBaselineAsOfYear() == null ? null : new PlanningBaseline(
+        revision.getBaselineAsOfYear(), revision.getBaselineReserve(), revision.getBaselineInvestmentCapital(),
+        revision.getBaselineLongTermCapital(), revision.getBaselineRentalIncome(), revision.getBaselineLongTermIncome(),
+        deserializePlanningState(revision.getBaselineLongTermState()));
+  }
+
+  @Transactional(readOnly = true)
+  public PlanningBaseline baseline(Long portfolioId, Long planId) {
+    SimulationPlanRevisionEntity revision = currentRevision(portfolioId, planId);
+    if (revision == null || revision.getBaselineAsOfYear() == null) return null;
+    return new PlanningBaseline(revision.getBaselineAsOfYear(), revision.getBaselineReserve(),
+        revision.getBaselineInvestmentCapital(), revision.getBaselineLongTermCapital(),
+        revision.getBaselineRentalIncome(), revision.getBaselineLongTermIncome(),
+        deserializePlanningState(revision.getBaselineLongTermState()));
+  }
+
+  private static String serializePlanningState(LongTermAnnualProjectionApi.PlanningState state) {
+    try {
+      return JSON.writeValueAsString(state);
+    } catch (Exception e) {
+      throw new IllegalStateException("Unable to persist Long-Term planning baseline", e);
+    }
+  }
+
+  private static LongTermAnnualProjectionApi.PlanningState deserializePlanningState(String value) {
+    if (value == null || value.isBlank()) return LongTermAnnualProjectionApi.PlanningState.EMPTY;
+    try {
+      return JSON.readValue(value, LongTermAnnualProjectionApi.PlanningState.class);
+    } catch (Exception e) {
+      throw new IllegalStateException("Unable to read Long-Term planning baseline", e);
+    }
   }
 
   private static SimulationPlanEntity copy(

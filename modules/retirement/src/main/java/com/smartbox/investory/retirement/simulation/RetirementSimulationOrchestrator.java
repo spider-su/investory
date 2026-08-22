@@ -47,22 +47,24 @@ public final class RetirementSimulationOrchestrator {
       BigDecimal fundingGap = cashFlow.fundingGap();
       BigDecimal reserveAfterTransfer = reserve.add(longTermIncome.reserveTransfer());
       LongTermAnnualProjectionApi.PlanningState longTermStateAfterIncome = longTermIncome.endState();
-      var reserveAllocation = fundingAllocator.allocateReserve(fundingGap, reserveAfterTransfer,
-          input.fundingPolicy());
-      BigDecimal reserveWithdrawal = reserveAllocation.reserveWithdrawal();
-      BigDecimal remaining = reserveAllocation.remainingGap();
+      BigDecimal reserveWithdrawal = ZERO;
+      BigDecimal remaining = fundingGap;
       LongTermAnnualProjectionApi.PlanningProjection longTermFunding =
           new LongTermAnnualProjectionApi.PlanningProjection(year, List.of(), ZERO, remaining, ZERO,
               ZERO, longTermStateAfterIncome, longTermIncome.source());
       InvestmentAnnualProjectionApi.AnnualProjection investment = null;
       for (FundingSource source : input.fundingPolicy().fundingOrder()) {
         if (remaining.signum() == 0) break;
-        if (source == FundingSource.CASH) continue;
-        if (source == FundingSource.BONDS) {
+        if (source == FundingSource.CASH) {
+          var allocation = fundingAllocator.allocateReserve(remaining, reserveAfterTransfer.subtract(reserveWithdrawal),
+              input.fundingPolicy());
+          reserveWithdrawal = reserveWithdrawal.add(allocation.reserveWithdrawal());
+          remaining = allocation.remainingGap();
+        } else if (source == FundingSource.BONDS) {
           longTermFunding = longTerm.plan(new LongTermAnnualProjectionApi.PlanningRequest(
               year, remaining, longTermStateAfterIncome));
           remaining = remaining.subtract(longTermFunding.actualCapitalProvided()).max(ZERO);
-        } else if (source == FundingSource.STOCKS && input.fundingPolicy().allowEmergencyEquityWithdrawal()) {
+        } else if (source == FundingSource.STOCKS && input.fundingPolicy().allowInvestmentWithdrawal()) {
           investment = investments.project(new InvestmentAnnualProjectionApi.ProjectionRequest(
               year, investmentValue, retired ? ZERO : input.annualPreRetirementContribution(),
               input.investmentReturnRate(), remaining, input.investmentSource()));
