@@ -92,6 +92,8 @@ class RetirementSimulationTemplateContractTest {
     assertTrue(editor.contains("Calendar year"));
     assertTrue(editor.contains("year+age-planAge"));
     assertTrue(editor.contains("ageAtPlanStart + step.fromYear"));
+    assertTrue(editor.contains("planPreview.ageAtPlanStart + step.fromYear"));
+    assertTrue(editor.contains("planPreview.planStartYear + step.fromYear"));
     assertTrue(editor.contains("Stage age cannot be before plan-start age"));
     assertFalse(editor.contains("Number(v[1])/100"));
     assertFalse(editor.contains("investment value × return"));
