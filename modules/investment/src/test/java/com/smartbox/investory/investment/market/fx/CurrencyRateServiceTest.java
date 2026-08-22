@@ -59,14 +59,14 @@ class CurrencyRateServiceTest {
 
   @Test
   void convertToBaseCurrency_usesHistoricalRateForRequestedDate() {
-    when(currencyRateRepository.resolveFxRate(LocalDate.of(2026, 6, 15), "EUR", "USD", "VALUATION"))
+    when(currencyRateRepository.resolveFxRatesForDate(LocalDate.of(2026, 6, 15)))
         .thenReturn(
-            Optional.of(
+            List.of(
                 resolution(
                     "EUR", "USD", "1.1", "HISTORICAL_MONTHLY", "NBP", "2026-06-01", "ESTIMATED")));
-    when(currencyRateRepository.resolveFxRate(LocalDate.of(2026, 7, 5), "EUR", "USD", "VALUATION"))
+    when(currencyRateRepository.resolveFxRatesForDate(LocalDate.of(2026, 7, 5)))
         .thenReturn(
-            Optional.of(
+            List.of(
                 resolution(
                     "EUR", "USD", "1.1", "HISTORICAL_MONTHLY", "NBP", "2026-06-01", "ESTIMATED")));
     // Direct EUR->USD rate exists for 2026-06-01, so direct wins over inverse USD->EUR.
@@ -86,9 +86,9 @@ class CurrencyRateServiceTest {
   @Test
   void sharedConversionKeepsHistoricalBigDecimalResult() {
     LocalDate date = LocalDate.of(2026, 6, 15);
-    when(currencyRateRepository.resolveFxRate(date, "EUR", "USD", "VALUATION"))
+    when(currencyRateRepository.resolveFxRatesForDate(date))
         .thenReturn(
-            Optional.of(
+            List.of(
                 resolution(
                     "EUR", "USD", "1.1", "HISTORICAL_MONTHLY", "NBP", "2026-06-01", "ESTIMATED")));
 
@@ -125,9 +125,9 @@ class CurrencyRateServiceTest {
 
   @Test
   void convertToBaseCurrency_usesInverseRateWhenDirectMissing() {
-    when(currencyRateRepository.resolveFxRate(LocalDate.of(2026, 6, 15), "EUR", "USD", "VALUATION"))
+    when(currencyRateRepository.resolveFxRatesForDate(LocalDate.of(2026, 6, 15)))
         .thenReturn(
-            Optional.of(
+            List.of(
                 resolution(
                     "EUR", "USD", "1.1", "INVERSE", "STATIC_BOOTSTRAP", "2026-06-01", "OK")));
     CurrencyRateService freshService = new CurrencyRateService(currencyRateRepository);
@@ -205,9 +205,9 @@ class CurrencyRateServiceTest {
 
   @Test
   void getRate_returnsPersistedRate() {
-    when(currencyRateRepository.resolveFxRate(LocalDate.of(2026, 7, 5), "USD", "EUR", "VALUATION"))
+    when(currencyRateRepository.resolveFxRatesForDate(LocalDate.of(2026, 7, 5)))
         .thenReturn(
-            Optional.of(
+            List.of(
                 resolution(
                     "USD", "EUR", "0.91", "DIRECT", "EXCHANGERATE_HOST", "2026-07-01", "OK")));
     CurrencyRateService freshService = new CurrencyRateService(currencyRateRepository);
@@ -285,11 +285,11 @@ class CurrencyRateServiceTest {
   }
 
   @Test
-  void cachesUsableCanonicalResolutionByDateAndPair() {
+  void cachesCompleteMatrixForRepeatedSamePair() {
     LocalDate date = LocalDate.of(2026, 8, 10);
-    when(currencyRateRepository.resolveFxRate(date, "PLN", "USD", "VALUATION"))
+    when(currencyRateRepository.resolveFxRatesForDate(date))
         .thenReturn(
-            Optional.of(
+            List.of(
                 resolution("PLN", "USD", "0.25", "MARKET_DAILY", "NBP", "2026-08-10", "OK")));
 
     for (int index = 0; index < 100; index++) {
@@ -297,54 +297,57 @@ class CurrencyRateServiceTest {
           25.0, service.convertToBaseCurrency(100.0, CurrencyType.USD, CurrencyType.PLN, date));
     }
 
-    verify(currencyRateRepository, times(1)).resolveFxRate(date, "PLN", "USD", "VALUATION");
+    verify(currencyRateRepository, times(1)).resolveFxRatesForDate(date);
   }
 
   @Test
-  void cacheInvalidatesAfterRatesChangeAndDoesNotCacheStaleResults() {
+  void cachesCompleteMatrixForMultiplePairsAndMissingResults() {
     LocalDate date = LocalDate.of(2026, 8, 10);
-    when(currencyRateRepository.resolveFxRate(date, "PLN", "USD", "VALUATION"))
+    when(currencyRateRepository.resolveFxRatesForDate(date))
         .thenReturn(
-            Optional.of(
-                resolution("PLN", "USD", "0.25", "MARKET_DAILY", "NBP", "2026-08-10", "OK")));
-    service.resolveRate(CurrencyType.PLN, CurrencyType.USD, date);
-    service.updateRates(CurrencyType.USD, Map.of(), date);
-    service.resolveRate(CurrencyType.PLN, CurrencyType.USD, date);
-    verify(currencyRateRepository, times(2)).resolveFxRate(date, "PLN", "USD", "VALUATION");
-
-    when(currencyRateRepository.resolveFxRate(date, "EUR", "USD", "VALUATION"))
-        .thenReturn(
-            Optional.of(
+            List.of(
+                resolution("USD", "PLN", "4.0", "MARKET_DAILY", "NBP", "2026-08-10", "OK"),
+                resolution("EUR", "PLN", "4.3", "MARKET_DAILY", "NBP", "2026-08-10", "OK"),
+                resolution("PLN", "EUR", "0.23", "MARKET_DAILY", "NBP", "2026-08-10", "OK"),
                 resolution("EUR", "USD", "1", "HISTORICAL_MONTHLY", "NBP", "2026-07-31", "STALE")));
+
+    assertTrue(service.resolveRate(CurrencyType.USD, CurrencyType.PLN, date).isUsable());
+    assertTrue(service.resolveRate(CurrencyType.EUR, CurrencyType.PLN, date).isUsable());
+    assertTrue(service.resolveRate(CurrencyType.PLN, CurrencyType.EUR, date).isUsable());
     assertFalse(service.resolveRate(CurrencyType.EUR, CurrencyType.USD, date).isUsable());
-    assertFalse(service.resolveRate(CurrencyType.EUR, CurrencyType.USD, date).isUsable());
-    verify(currencyRateRepository, times(2)).resolveFxRate(date, "EUR", "USD", "VALUATION");
+    assertFalse(service.resolveRate(CurrencyType.USD, CurrencyType.EUR, date).isUsable());
+    assertFalse(service.resolveRate(CurrencyType.USD, CurrencyType.EUR, date).isUsable());
+
+    verify(currencyRateRepository, times(1)).resolveFxRatesForDate(date);
+    verify(currencyRateRepository, org.mockito.Mockito.never())
+        .resolveFxRate(date, "USD", "EUR", "VALUATION");
   }
 
   @Test
-  void cacheSeparatesDatesAndCurrencyPairs() {
+  void cacheSeparatesDatesAndInvalidatesAfterClearOrRateUpdate() {
     LocalDate first = LocalDate.of(2026, 8, 10);
     LocalDate second = first.plusDays(1);
-    when(currencyRateRepository.resolveFxRate(first, "PLN", "USD", "VALUATION"))
+    when(currencyRateRepository.resolveFxRatesForDate(first))
         .thenReturn(
-            Optional.of(
+            List.of(
                 resolution("PLN", "USD", "0.25", "MARKET_DAILY", "NBP", "2026-08-10", "OK")));
-    when(currencyRateRepository.resolveFxRate(second, "PLN", "USD", "VALUATION"))
+    when(currencyRateRepository.resolveFxRatesForDate(second))
         .thenReturn(
-            Optional.of(
+            List.of(
                 resolution("PLN", "USD", "0.24", "MARKET_DAILY", "NBP", "2026-08-11", "OK")));
-    when(currencyRateRepository.resolveFxRate(first, "EUR", "USD", "VALUATION"))
-        .thenReturn(
-            Optional.of(
-                resolution("EUR", "USD", "1.1", "MARKET_DAILY", "NBP", "2026-08-10", "OK")));
 
     service.resolveRate(CurrencyType.PLN, CurrencyType.USD, first);
     service.resolveRate(CurrencyType.PLN, CurrencyType.USD, second);
-    service.resolveRate(CurrencyType.EUR, CurrencyType.USD, first);
+    verify(currencyRateRepository, times(1)).resolveFxRatesForDate(first);
+    verify(currencyRateRepository, times(1)).resolveFxRatesForDate(second);
 
-    verify(currencyRateRepository).resolveFxRate(first, "PLN", "USD", "VALUATION");
-    verify(currencyRateRepository).resolveFxRate(second, "PLN", "USD", "VALUATION");
-    verify(currencyRateRepository).resolveFxRate(first, "EUR", "USD", "VALUATION");
+    service.clearValuationResolutionCache();
+    service.resolveRate(CurrencyType.PLN, CurrencyType.USD, first);
+    verify(currencyRateRepository, times(2)).resolveFxRatesForDate(first);
+
+    service.updateRates(CurrencyType.USD, Map.of(), first);
+    service.resolveRate(CurrencyType.PLN, CurrencyType.USD, first);
+    verify(currencyRateRepository, times(3)).resolveFxRatesForDate(first);
   }
 
   private static CurrencyRateEntity rate(

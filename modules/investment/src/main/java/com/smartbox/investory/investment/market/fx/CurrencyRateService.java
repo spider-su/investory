@@ -11,11 +11,13 @@ import java.math.MathContext;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
@@ -38,7 +40,7 @@ public class CurrencyRateService implements CurrencyConversion {
 
   private final CurrencyRateRepository currencyRateRepository;
 
-  private final Map<FxResolutionKey, FxRateResolution> valuationResolutionCache =
+  private final ConcurrentMap<LocalDate, Map<FxPair, FxRateResolution>> valuationMatrices =
       new ConcurrentHashMap<>();
 
   public double convertToBaseCurrency(
@@ -113,7 +115,7 @@ public class CurrencyRateService implements CurrencyConversion {
   }
 
   public void clearValuationResolutionCache() {
-    valuationResolutionCache.clear();
+    valuationMatrices.clear();
   }
 
   public void harvestXtbExecutionRates(List<CashOperationEntity> operations) {
@@ -318,50 +320,38 @@ public class CurrencyRateService implements CurrencyConversion {
           "SAME_CURRENCY",
           "SAME_CURRENCY");
     }
-    FxResolutionKey key = new FxResolutionKey(effectiveDate, sourceCurrency, targetCurrency);
-    FxRateResolution cached = valuationResolutionCache.get(key);
-    if (cached != null) {
-      return cached;
-    }
-    FxRateResolution resolved = resolveCanonicalValuationRate(key);
-    if (resolved.isUsable()) {
-      valuationResolutionCache.putIfAbsent(key, resolved);
-    }
-    return resolved;
+    Map<FxPair, FxRateResolution> matrix =
+        valuationMatrices.computeIfAbsent(effectiveDate, this::loadValuationMatrix);
+    return matrix.getOrDefault(
+        new FxPair(sourceCurrency, targetCurrency), missingValuationRate());
   }
 
-  private FxRateResolution resolveCanonicalValuationRate(FxResolutionKey key) {
-    List<FxRateResolutionRow> batch =
-        currencyRateRepository.resolveFxRatesForDate(key.valuationDate());
-    if (!batch.isEmpty()) {
-      batch.forEach(
-          row ->
-              valuationResolutionCache.putIfAbsent(
-                  new FxResolutionKey(
-                      key.valuationDate(),
-                      CurrencyType.valueOf(row.getSourceCurrency()),
-                      CurrencyType.valueOf(row.getTargetCurrency())),
-                  toResolution(row)));
-      FxRateResolution resolved = valuationResolutionCache.get(key);
-      if (resolved != null) return resolved;
+  private Map<FxPair, FxRateResolution> loadValuationMatrix(LocalDate valuationDate) {
+    Map<FxPair, FxRateResolution> matrix = new HashMap<>();
+    for (FxRateResolutionRow row : currencyRateRepository.resolveFxRatesForDate(valuationDate)) {
+      matrix.put(
+          new FxPair(
+              CurrencyType.valueOf(row.getSourceCurrency()),
+              CurrencyType.valueOf(row.getTargetCurrency())),
+          toResolution(row));
     }
-    Optional<FxRateResolutionRow> row =
-        currencyRateRepository.resolveFxRate(
-            key.valuationDate(),
-            key.sourceCurrency().name(),
-            key.targetCurrency().name(),
-            "VALUATION");
-    if (row.isEmpty()) {
-      return new FxRateResolution(
-          BigDecimal.ZERO.setScale(FX_SCALE, RoundingMode.HALF_UP),
-          "MISSING",
-          null,
-          null,
-          "MISSING_RATE",
-          null,
-          null);
+    for (CurrencyType source : CurrencyType.values()) {
+      for (CurrencyType target : CurrencyType.values()) {
+        if (source != target) matrix.putIfAbsent(new FxPair(source, target), missingValuationRate());
+      }
     }
-    return toResolution(row.get());
+    return Map.copyOf(matrix);
+  }
+
+  private FxRateResolution missingValuationRate() {
+    return new FxRateResolution(
+        BigDecimal.ZERO.setScale(FX_SCALE, RoundingMode.HALF_UP),
+        "MISSING",
+        null,
+        null,
+        "MISSING_RATE",
+        null,
+        null);
   }
 
   private FxRateResolution toResolution(FxRateResolutionRow value) {
@@ -375,8 +365,7 @@ public class CurrencyRateService implements CurrencyConversion {
         value.getRateSource());
   }
 
-  private record FxResolutionKey(
-      LocalDate valuationDate, CurrencyType sourceCurrency, CurrencyType targetCurrency) {}
+  private record FxPair(CurrencyType sourceCurrency, CurrencyType targetCurrency) {}
 
   public static boolean isUsableStatus(String status) {
     return "OK".equals(status) || "ESTIMATED".equals(status) || "SAME_CURRENCY".equals(status);
