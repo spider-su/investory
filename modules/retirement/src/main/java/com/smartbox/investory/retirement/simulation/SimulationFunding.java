@@ -50,6 +50,11 @@ public record SimulationFunding(
     return reserveTransfer;
   }
 
+  /** Domain-neutral name for the Investment-to-reserve capital transfer. */
+  public BigDecimal investmentHarvestToReserve() {
+    return equityHarvestToReserve;
+  }
+
   static SimulationFunding legacy() {
     return new SimulationFunding(
         ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO);

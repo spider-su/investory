@@ -59,9 +59,14 @@ class RetirementGoldenScenarioIntegrationTest {
       assertThat(y2055.age()).isEqualTo(70);
     }
     var years = result.years().stream().map(SimulationYear::year).toList();
+    assertThat(years.getFirst()).isEqualTo(2025);
+    assertThat(years.getLast()).isEqualTo(longHorizon ? 2065 : 2045);
     assertThat(years).allMatch(year -> year >= 2025 && year < 3000);
     for (int i = 1; i < years.size(); i++) assertThat(years.get(i)).isEqualTo(years.get(i - 1) + 1);
     for (SimulationYear year : result.years()) {
+      BigDecimal cashIncome = year.employmentIncome().add(year.rentalIncome())
+          .add(year.bondIncome()).add(year.pensionIncome()).add(year.eventIncome());
+      assertThat(year.totalIncome()).isEqualByComparingTo(cashIncome);
       assertThat(year.requiredPortfolioFunding()).isEqualByComparingTo(
           year.totalExpenses().subtract(year.totalIncome()).max(BigDecimal.ZERO));
       assertThat(year.failed()).isEqualTo(year.unfundedAmount().signum() > 0);
@@ -74,6 +79,13 @@ class RetirementGoldenScenarioIntegrationTest {
       assertThat(f.reserveEnd()).isGreaterThanOrEqualTo(BigDecimal.ZERO);
       assertThat(f.investmentEnd()).isGreaterThanOrEqualTo(BigDecimal.ZERO);
       assertThat(f.longTermCapitalEnd()).isGreaterThanOrEqualTo(BigDecimal.ZERO);
+    }
+    if (longHorizon) {
+      var firstFailed = result.years().stream().filter(y -> y.unfundedAmount().signum() > 0)
+          .findFirst().orElseThrow();
+      var summary = SimulationDecisionSummary.from(result, assumptions(80));
+      assertThat(summary.firstFailureYear()).isEqualTo(firstFailed.year());
+      assertThat(summary.firstFailureAge()).isEqualTo(firstFailed.age());
     }
     var maturityYear = result.years().stream().filter(y -> y.year() == 2028).findFirst().orElseThrow();
     assertThat(money(maturityYear.bondIncome())).isEqualByComparingTo("38880");

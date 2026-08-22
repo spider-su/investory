@@ -138,7 +138,10 @@ public class SimulationPlanService {
                   .max()
                   .orElse(0)
               + 1;
-      SimulationPlanRevisionEntity revision = createRevision(plan, assumptions, nextNumber, baseline);
+      // Ordinary assumption edits keep the reviewed economic baseline. A new baseline is
+      // supplied only by the explicit review/rebaseline workflow (or a new plan).
+      PlanningBaseline effectiveBaseline = baseline == null ? currentBaseline(plan) : baseline;
+      SimulationPlanRevisionEntity revision = createRevision(plan, assumptions, nextNumber, effectiveBaseline);
       plan.setCurrentRevisionId(revision.getId());
       // Keep legacy columns synchronized for old readers; revisions are the authoritative source.
       copy(plan, portfolioId, name, assumptions);
@@ -487,6 +490,12 @@ public class SimulationPlanService {
     }
   }
 
+  private PlanningBaseline currentBaseline(SimulationPlanEntity plan) {
+    if (!revisioned() || plan.getCurrentRevisionId() == null) return null;
+    return revisions.findByIdAndSimulationPlanId(plan.getCurrentRevisionId(), plan.getId())
+        .map(this::baseline).orElse(null);
+  }
+
   /** Explicit review action: accepts current normalized state as a new immutable revision baseline. */
   public SimulationPlanRevisionEntity rebaseline(Long portfolioId, Long planId,
       PlanningBaseline baseline) {
@@ -520,6 +529,8 @@ public class SimulationPlanService {
   }
 
   private static String serializePlanningState(LongTermAnnualProjectionApi.PlanningState state) {
+    // Temporary compatibility envelope for deterministic replay. Retirement treats the payload
+    // as opaque Long-Term API state; asset-level fields must not be inspected here.
     try {
       return JSON.writeValueAsString(java.util.Map.of("version", 1, "payload", state));
     } catch (Exception e) {

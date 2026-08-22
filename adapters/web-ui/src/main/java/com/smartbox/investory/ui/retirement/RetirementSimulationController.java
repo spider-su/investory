@@ -1038,9 +1038,13 @@ public class RetirementSimulationController {
                 legacyAssumptions,
                 planningDisplayCurrency)
             .assumptions();
+    // Existing-plan edits preserve its reviewed baseline. Live state becomes a frozen baseline
+    // only when creating a plan or explicitly rebaselining it.
     var liveProfile = profiles.loadProfile(portfolioId);
-    var planningBaseline = liveProfile == null
-        ? null : PlanningBaseline.fromProfile(liveProfile, Year.now(clock).getValue());
+    var planningBaseline = planId != null && !saveAs
+        ? plans.baseline(portfolioId, planId)
+        : liveProfile == null
+            ? null : PlanningBaseline.fromProfile(liveProfile, Year.now(clock).getValue());
     Long savedPlanId;
     if (planningBaseline == null) {
       savedPlanId = planId == null || saveAs

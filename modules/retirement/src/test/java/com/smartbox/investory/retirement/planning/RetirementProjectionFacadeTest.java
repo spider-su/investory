@@ -98,4 +98,40 @@ class RetirementProjectionFacadeTest {
     assertTrue(result.summaries().isEmpty());
     verifyNoInteractions(simulations);
   }
+
+  @Test
+  void savedPlanKeepsFutureFrozenWhileCurrentProfileFollowsLiveReader() {
+    var liveA = profile(new BigDecimal("700000"), new BigDecimal("575000"));
+    var liveB = profile(new BigDecimal("900000"), new BigDecimal("900000"));
+    var assumptions = SimulationAssumptions.defaults(liveA, 40, 45, 2025);
+    var baseline = PlanningBaseline.fromProfile(liveA, 2026);
+    var profiles = mock(InvestmentProfileFacade.class);
+    var plans = mock(SimulationPlanService.class);
+    var forwardInputs = mock(ForwardSimulationInputService.class);
+    var clock = Clock.fixed(Instant.parse("2026-08-22T00:00:00Z"), ZoneOffset.UTC);
+    when(plans.assumptions(1L, 7L)).thenReturn(assumptions);
+    when(plans.baseline(1L, 7L)).thenReturn(baseline);
+    when(profiles.loadProfile(1L)).thenReturn(liveA, liveB);
+    when(forwardInputs.prepare(any(), eq(assumptions))).thenAnswer(invocation -> {
+      InvestmentProfile prepared = invocation.getArgument(0);
+      var context = new ForwardSimulationContextFactory(clock).create(prepared, assumptions);
+      return new ForwardSimulationInput(context, prepared, Optional.empty());
+    });
+    var facade = new RetirementProjectionFacade(profiles, plans, forwardInputs,
+        mock(RetirementSimulation.class), clock);
+
+    RetirementProjectionContext first = facade.load(1L, 7L, 40, 45);
+    RetirementProjectionContext second = facade.load(1L, 7L, 40, 45);
+
+    assertEquals(liveA, first.profile());
+    assertEquals(liveB, second.profile());
+    assertEquals(first.projectedProfile(), second.projectedProfile());
+    verify(forwardInputs, times(2)).prepare(any(), eq(assumptions));
+  }
+
+  private static InvestmentProfile profile(BigDecimal reserve, BigDecimal investment) {
+    return new InvestmentProfile(1L, CurrencyType.PLN, reserve.add(investment), BigDecimal.ZERO,
+        reserve.add(investment), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+        reserve, BigDecimal.ZERO, List.of(), List.of(), new BigDecimal("100"), BigDecimal.ZERO);
+  }
 }

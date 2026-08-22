@@ -33,3 +33,8 @@ cash flows, capital availability, and projections.
 Retirement must not inspect Long-Term entities or reproduce those calculations. A reviewed Retirement
 plan may freeze the normalized values returned by this boundary for reproducibility; that snapshot is
 Retirement planning provenance and does not replace Long-Term as the source of current asset state.
+
+For annual retirement planning, `quote` is a non-consuming economic view of one year. It may be used
+to determine cash flows and capital availability, but it never advances maturity or reinvestment
+state. `plan` is the single committed annual transition; only its returned end state is passed to
+the next year.

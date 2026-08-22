@@ -85,6 +85,86 @@ class SimulationPlanServiceTest {
   }
 
   @Test
+  void assumptionOnlyRevisionKeepsExistingFrozenBaseline() {
+    var revisions = mock(SimulationPlanRevisionRepository.class);
+    var revisionEvents = mock(SimulationPlanRevisionEventRepository.class);
+    var revision = new SimulationPlanRevisionEntity();
+    revision.setId(11L);
+    revision.setSimulationPlanId(7L);
+    revision.setRevisionNumber(1);
+    revision.setBaselineAsOfYear(2026);
+    revision.setBaselineReserve(new BigDecimal("700000"));
+    revision.setBaselineInvestmentCapital(new BigDecimal("575000"));
+    revision.setBaselineLongTermCapital(new BigDecimal("4000000"));
+    var plan = basicPlan();
+    plan.setId(7L);
+    plan.setPortfolioId(1L);
+    plan.setCurrentRevisionId(11L);
+    when(repository.findByIdAndPortfolioId(7L, 1L)).thenReturn(Optional.of(plan));
+    when(repository.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of(plan));
+    when(revisions.findByIdAndSimulationPlanId(11L, 7L)).thenReturn(Optional.of(revision));
+    when(revisions.findAllBySimulationPlanIdOrderByRevisionNumberDesc(7L)).thenReturn(List.of(revision));
+    when(revisionEvents.findAllByRevisionIdOrderByYearAscIdAsc(11L)).thenReturn(List.of());
+    when(revisions.save(any())).thenAnswer(invocation -> {
+      var saved = invocation.getArgument(0, SimulationPlanRevisionEntity.class);
+      saved.setId(12L);
+      return saved;
+    });
+    when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+    var service = spy(new SimulationPlanService(repository, eventRepository, revisions, revisionEvents));
+    doReturn(assumptions).when(service).assumptions(plan);
+
+    service.update(1L, 7L, "Updated", assumptions.withRetirementAge(43));
+
+    var captured = ArgumentCaptor.forClass(SimulationPlanRevisionEntity.class);
+    verify(revisions).save(captured.capture());
+    assertEquals(2026, captured.getValue().getBaselineAsOfYear());
+    assertEquals(new BigDecimal("700000"), captured.getValue().getBaselineReserve());
+    assertEquals(new BigDecimal("575000"), captured.getValue().getBaselineInvestmentCapital());
+  }
+
+  @Test
+  void explicitRebaselineCreatesNewRevisionAndLeavesOldBaselineUntouched() {
+    var revisions = mock(SimulationPlanRevisionRepository.class);
+    var revisionEvents = mock(SimulationPlanRevisionEventRepository.class);
+    var old = new SimulationPlanRevisionEntity();
+    old.setId(11L);
+    old.setSimulationPlanId(7L);
+    old.setRevisionNumber(1);
+    old.setBaselineAsOfYear(2026);
+    old.setBaselineReserve(new BigDecimal("700000"));
+    var plan = basicPlan();
+    plan.setId(7L);
+    plan.setPortfolioId(1L);
+    plan.setCurrentRevisionId(11L);
+    when(repository.findByIdAndPortfolioId(7L, 1L)).thenReturn(Optional.of(plan));
+    when(repository.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of(plan));
+    when(revisions.findAllBySimulationPlanIdOrderByRevisionNumberDesc(7L)).thenReturn(List.of(old));
+    when(revisions.findByIdAndSimulationPlanId(11L, 7L)).thenReturn(Optional.of(old));
+    when(revisionEvents.findAllByRevisionIdOrderByYearAscIdAsc(11L)).thenReturn(List.of());
+    when(revisions.save(any())).thenAnswer(invocation -> {
+      var saved = invocation.getArgument(0, SimulationPlanRevisionEntity.class);
+      saved.setId(12L);
+      return saved;
+    });
+    when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+    var service = spy(new SimulationPlanService(repository, eventRepository, revisions, revisionEvents));
+    doReturn(assumptions).when(service).assumptions(plan);
+
+    var replacement = new com.smartbox.investory.retirement.planning.PlanningBaseline(
+        2026, new BigDecimal("900000"), new BigDecimal("900000"), BigDecimal.ZERO,
+        BigDecimal.ZERO, BigDecimal.ZERO);
+    var created = service.rebaseline(1L, 7L, replacement);
+
+    assertEquals(12L, created.getId());
+    assertEquals(2, created.getRevisionNumber());
+    assertEquals(new BigDecimal("900000"), created.getBaselineReserve());
+    assertEquals(11L, old.getId());
+    assertEquals(new BigDecimal("700000"), old.getBaselineReserve());
+    assertEquals(12L, plan.getCurrentRevisionId());
+  }
+
+  @Test
   void duplicateNamesAreRejectedWithinPortfolio() {
     SimulationPlanEntity existing = new SimulationPlanEntity();
     existing.setId(1L);
