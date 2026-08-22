@@ -77,7 +77,7 @@ public class CurrentYearProjectionBridge {
         zero(profile.totalNetWorth()).add(marketDelta), profile.historicalMarketInvestmentIncome(),
         profile.expectedLongTermAssetIncome(), profile.totalInvestmentIncome(), reserveEnd,
         profile.illiquidAssets(), profile.allocations(), profile.longTermAssets(),
-        profile.currentRentalIncome(), profile.currentBondIncome());
+        profile.currentRentalIncome(), profile.currentBondIncome(), profile.longTermPlanningState());
   }
 
   private static BigDecimal interpolate(BigDecimal start, BigDecimal end, BigDecimal fraction) {

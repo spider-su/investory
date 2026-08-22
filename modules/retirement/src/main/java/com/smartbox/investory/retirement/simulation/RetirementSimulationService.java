@@ -37,7 +37,9 @@ public class RetirementSimulationService implements RetirementSimulation {
     // asset type, periods, interest treatment, tax, rental, or maturity semantics.
     var longTermState = new LongTermAnnualProjectionApi.PlanningState(
         profile.longTermPlanningState().assets(), settings.effectiveRentalIncomeGrowthRate(),
-        assumptions.startYear(), actualRentalYear ? LongTermAnnualProjectionApi.Source.ACTUAL
+        profile.longTermPlanningState().rentalIncomeBaseYear() > 0
+            ? profile.longTermPlanningState().rentalIncomeBaseYear()
+            : assumptions.startYear(), actualRentalYear ? LongTermAnnualProjectionApi.Source.ACTUAL
             : profile.longTermPlanningState().source());
     var input = new RetirementSimulationInput(
         assumptions.currentAge(), assumptions.endAge(), assumptions.startYear(),

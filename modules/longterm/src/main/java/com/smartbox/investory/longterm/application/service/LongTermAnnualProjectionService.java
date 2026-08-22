@@ -3,6 +3,7 @@ package com.smartbox.investory.longterm.application.service;
 import com.smartbox.investory.longterm.api.LongTermAnnualProjectionApi;
 import com.smartbox.investory.longterm.api.MaturityStrategy;
 import com.smartbox.investory.longterm.api.model.InterestTreatmentModel;
+import com.smartbox.investory.longterm.api.model.RentalIncomeProjectionModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
 import java.math.BigDecimal;
@@ -80,20 +81,33 @@ public class LongTermAnnualProjectionService implements LongTermAnnualProjection
 
   private static BigDecimal annualRentalIncome(
       LongTermAssetProjectionModel asset, int year, PlanningState state) {
-    BigDecimal annual;
-    if (!asset.rentalContracts().isEmpty()) {
-      annual = new RealEstatePlanningCalculator()
-          .calculate(asset.currentValue(), asset.taxBase(), asset.rentalTaxPaidByTenant(),
-              asset.rentalContracts(), LocalDate.of(year, 1, 1), asset.taxRate())
-          .netMonthlyIncome().multiply(BigDecimal.valueOf(12));
-    } else {
-      annual = asset.periods().stream()
-          .filter(period -> applies(period, year))
-          .map(period -> nz(period.annualIncome()).subtract(nz(period.annualExpense())))
-          .reduce(ZERO, BigDecimal::add);
+    if (asset.rentalContracts().isEmpty()
+        && asset.periods().stream().noneMatch(period -> period.cashFlowType() != null)) {
+      BigDecimal annual =
+          asset.periods().stream()
+              .filter(period -> applies(period, year))
+              .map(period -> nz(period.annualIncome()).subtract(nz(period.annualExpense())))
+              .reduce(ZERO, BigDecimal::add);
+      int elapsed = Math.max(0, year - state.rentalIncomeBaseYear());
+      return annual
+          .multiply(BigDecimal.ONE.add(state.rentalIncomeGrowthRate()).pow(elapsed))
+          .max(ZERO);
     }
-    int elapsed = Math.max(0, year - state.rentalIncomeBaseYear());
-    return annual.multiply(BigDecimal.ONE.add(state.rentalIncomeGrowthRate()).pow(elapsed));
+    int baseYear =
+        state.rentalIncomeBaseYear() > 0 && state.rentalIncomeBaseYear() <= year
+            ? state.rentalIncomeBaseYear()
+            : year;
+    var previousIncome = java.util.Map.<com.smartbox.investory.longterm.api.model.CashFlowTypeModel, BigDecimal>of();
+    RentalIncomeProjectionModel.Result projection = null;
+    for (int projectedYear = baseYear; projectedYear <= year; projectedYear++) {
+      projection =
+          RentalIncomeProjectionModel.project(
+              asset, previousIncome, projectedYear, state.rentalIncomeGrowthRate());
+      previousIncome = projection.incomeByType();
+    }
+    // Ordinary growth never turns a rental cash flow into a negative income source. An explicit
+    // zero replacement remains zero; asset-level expenses stay within Long-Term economics.
+    return projection == null ? ZERO : projection.netIncome().max(ZERO);
   }
 
   private static BigDecimal netBondInterest(LongTermAssetProjectionModel asset, int year) {

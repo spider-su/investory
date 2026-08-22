@@ -125,6 +125,11 @@ class RetirementSimulationTemplateContractTest {
     assertTrue(editor.contains("Investment · equity return"));
     assertTrue(editor.contains("Investment · projected first-year return"));
     assertTrue(editor.contains("Current Investment fact · read-only"));
+    assertTrue(editor.contains("<th class=\"text-end\">Investment interest</th>"));
+    assertFalse(editor.contains("<th>State</th><th>Lifecycle</th>"));
+    assertFalse(editor.contains("<th class=\"text-end\">Employment</th>"));
+    assertFalse(editor.contains("<th class=\"text-end\">Event expense</th>"));
+    assertFalse(editor.contains("<th class=\"text-end\">Contribution</th>"));
     assertTrue(editor.indexOf("for=\"inflation\"") < editor.indexOf("iv-card-section-header__title\">Spending"));
     assertTrue(editor.indexOf("Investment · current value") < editor.indexOf("Funding &amp; reserve strategy"));
     assertFalse(editor.contains("preview-income-investment-withdrawal"));
