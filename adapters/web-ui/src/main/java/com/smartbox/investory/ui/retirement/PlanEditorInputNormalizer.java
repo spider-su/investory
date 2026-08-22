@@ -4,6 +4,7 @@ import com.smartbox.investory.retirement.planning.PlanningCurrencyPresentationSe
 import com.smartbox.investory.retirement.simulation.ExpenseProfile;
 import com.smartbox.investory.retirement.simulation.ExpenseProfileStep;
 import com.smartbox.investory.retirement.simulation.SimulationAssumptions;
+import com.smartbox.investory.retirement.simulation.ProjectedIncomePolicy;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -77,8 +78,13 @@ public final class PlanEditorInputNormalizer {
             .withFundingOrder(base.fundingOrder())
             .withExpenseProfile(
                 expenseProfile(input.value("expenseProfile"), base.expenseProfile(), ageAtStart, endAge));
+    ProjectedIncomePolicy incomePolicy = new ProjectedIncomePolicy(
+        mode(input.value("rentalIncomeMode"), base.projectedIncomePolicy().rentalIncomeMode()),
+        money(input, "manualRentalIncome", displayCurrency, base.projectedIncomePolicy().manualRentalIncome()),
+        mode(input.value("bondCashIncomeMode"), base.projectedIncomePolicy().bondCashIncomeMode()),
+        money(input, "manualBondCashIncome", displayCurrency, base.projectedIncomePolicy().manualBondCashIncome()));
     return new Normalized(
-        assumptions,
+        assumptions.withProjectedIncomePolicy(incomePolicy),
         warnings(
             inflation,
             investmentReturn,
@@ -88,6 +94,11 @@ public final class PlanEditorInputNormalizer {
             ageAtStart,
             ageAtStart + Year.now(clock).getValue() - startYear,
             retirementAge));
+  }
+
+  private static ProjectedIncomePolicy.IncomeMode mode(String value, ProjectedIncomePolicy.IncomeMode fallback) {
+    if (value == null || value.isBlank()) return fallback;
+    return ProjectedIncomePolicy.IncomeMode.valueOf(value.trim().toUpperCase(java.util.Locale.ROOT));
   }
 
   private List<PlanInputWarning> warnings(

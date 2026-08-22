@@ -38,6 +38,7 @@ public final class RetirementSimulationOrchestrator {
       // 1. Every source enters aggregation as a planned cash flow.
       var longTermQuote = longTerm.quote(new LongTermAnnualProjectionApi.PlanningRequest(
           year, ZERO, longTermState));
+      longTermQuote = applyIncomePolicy(longTermQuote, year, longTermState, input);
       List<PlannedCashFlow> flows = lifecycleFlows(input, year, expenses, employment, pension);
       addLongTermFlows(flows, year, longTermQuote.plannedCashFlows());
       var cashFlow = new CashFlowAggregationService().aggregateProjected(
@@ -103,7 +104,7 @@ public final class RetirementSimulationOrchestrator {
           cashFlow.netCashFlow().negate(), fundingGap, cashFlow.surplus(), reserveWithdrawal,
           longTermQuote.reserveTransfer(), longTermFunding.actualCapitalProvided(),
           longTermFunding.endCapital(), investment.withdrawal(), unfunded, reserveEnd,
-          investment, longTermFunding.source(), harvest));
+          investment, longTermFunding.source(), harvest, longTermQuote.capitalizedBondReturn()));
       reserve = reserveEnd;
       investmentValue = investment.endValue();
       longTermState = longTermFunding.endState();
@@ -137,6 +138,32 @@ public final class RetirementSimulationOrchestrator {
         .map(LongTermAnnualProjectionApi.PlannedCashFlow::annualAmount).reduce(ZERO, BigDecimal::add);
   }
 
+  private static LongTermAnnualProjectionApi.PlanningQuote applyIncomePolicy(
+      LongTermAnnualProjectionApi.PlanningQuote source, int year,
+      LongTermAnnualProjectionApi.PlanningState state, RetirementSimulationInput input) {
+    var policy = input.fundingPolicy().projectedIncomePolicy();
+    var flows = new ArrayList<>(source.plannedCashFlows());
+    if (policy.rentalIncomeMode() == ProjectedIncomePolicy.IncomeMode.MANUAL) {
+      flows.removeIf(flow -> flow.kind() == LongTermAnnualProjectionApi.CashFlowKind.RENTAL_INCOME);
+      BigDecimal base = policy.manualRentalIncome() == null ? ZERO : policy.manualRentalIncome();
+      int baseYear = state.rentalIncomeBaseYear() > 0 ? state.rentalIncomeBaseYear() : input.startYear();
+      BigDecimal amount = base.multiply(BigDecimal.ONE.add(state.rentalIncomeGrowthRate())
+          .pow(Math.max(0, year - baseYear)));
+      if (amount.signum() != 0)
+        flows.add(new LongTermAnnualProjectionApi.PlannedCashFlow("manual-rental", "Manual rental cash income",
+            LongTermAnnualProjectionApi.CashFlowKind.RENTAL_INCOME, amount, source.source()));
+    }
+    if (policy.bondCashIncomeMode() == ProjectedIncomePolicy.IncomeMode.MANUAL) {
+      flows.removeIf(flow -> flow.kind() == LongTermAnnualProjectionApi.CashFlowKind.FIXED_INCOME);
+      BigDecimal amount = policy.manualBondCashIncome() == null ? ZERO : policy.manualBondCashIncome();
+      if (amount.signum() != 0)
+        flows.add(new LongTermAnnualProjectionApi.PlannedCashFlow("manual-bond-cash", "Manual bond cash income",
+            LongTermAnnualProjectionApi.CashFlowKind.FIXED_INCOME, amount, source.source()));
+    }
+    return new LongTermAnnualProjectionApi.PlanningQuote(source.year(), flows, source.reserveTransfer(),
+        source.capitalAvailable(), source.source(), source.capitalizedBondReturn());
+  }
+
   private static BigDecimal events(RetirementSimulationInput input, int year, SimulationEventType type) {
     return input.events().stream().filter(e -> e.year() == year && e.type() == type)
         .map(SimulationEvent::amount).reduce(ZERO, BigDecimal::add);
@@ -159,5 +186,6 @@ public final class RetirementSimulationOrchestrator {
       BigDecimal investmentWithdrawal, BigDecimal unfundedShortfall, BigDecimal reserveEnd,
       InvestmentAnnualProjectionApi.AnnualProjection investment,
       LongTermAnnualProjectionApi.Source longTermSource,
-      BigDecimal equityHarvestToReserve) {}
+      BigDecimal equityHarvestToReserve,
+      BigDecimal capitalizedBondReturn) {}
 }

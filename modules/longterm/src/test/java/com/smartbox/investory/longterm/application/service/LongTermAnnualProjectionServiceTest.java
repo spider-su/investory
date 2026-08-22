@@ -179,6 +179,48 @@ class LongTermAnnualProjectionServiceTest {
         flow -> flow.kind() == LongTermAnnualProjectionApi.CashFlowKind.FIXED_INCOME);
     assertThat(first.endCapital()).isEqualByComparingTo("1100");
     assertThat(second.endCapital()).isEqualByComparingTo("1210");
+    assertThat(first.capitalizedBondReturn()).isEqualByComparingTo("100");
+  }
+
+  @Test
+  void separatesNetCapitalizedReturnFromSpendableCash() {
+    var bond = new LongTermAssetProjectionModel(4L, "Capitalized", LongTermAssetTypeModel.BOND,
+        CurrencyType.USD, new BigDecimal("100000"),
+        List.of(new LongTermAssetProjectionModel.Period(LocalDate.of(2026, 1, 1), null,
+            BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("0.06"))),
+        LocalDate.of(2030, 12, 31), new BigDecimal("100000"),
+        InterestTreatmentModel.CAPITALIZE, new BigDecimal("0.19"));
+    var state = new LongTermAnnualProjectionApi.PlanningState(List.of(bond), BigDecimal.ZERO, 2026,
+        LongTermAnnualProjectionApi.Source.PROJECTED);
+    var quote = new LongTermAnnualProjectionService().quote(
+        new LongTermAnnualProjectionApi.PlanningRequest(2027, BigDecimal.ZERO, state));
+    var plan = new LongTermAnnualProjectionService().plan(
+        new LongTermAnnualProjectionApi.PlanningRequest(2027, BigDecimal.ZERO, state));
+
+    assertThat(quote.plannedCashFlows()).noneMatch(flow ->
+        flow.kind() == LongTermAnnualProjectionApi.CashFlowKind.FIXED_INCOME);
+    assertThat(quote.capitalizedBondReturn()).isEqualByComparingTo("4860");
+    assertThat(plan.endCapital()).isEqualByComparingTo("104860");
+  }
+
+  @Test
+  void paysOutNetBondInterestWithoutCapitalizingIt() {
+    var bond = new LongTermAssetProjectionModel(5L, "Payout", LongTermAssetTypeModel.BOND,
+        CurrencyType.USD, new BigDecimal("100000"),
+        List.of(new LongTermAssetProjectionModel.Period(LocalDate.of(2026, 1, 1), null,
+            BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("0.06"))),
+        LocalDate.of(2030, 12, 31), new BigDecimal("100000"),
+        InterestTreatmentModel.PAY_OUT, new BigDecimal("0.19"));
+    var state = new LongTermAnnualProjectionApi.PlanningState(List.of(bond), BigDecimal.ZERO, 2026,
+        LongTermAnnualProjectionApi.Source.PROJECTED);
+    var projection = new LongTermAnnualProjectionService().plan(
+        new LongTermAnnualProjectionApi.PlanningRequest(2027, BigDecimal.ZERO, state));
+
+    assertThat(projection.plannedCashFlows()).singleElement()
+        .extracting(LongTermAnnualProjectionApi.PlannedCashFlow::annualAmount)
+        .isEqualTo(new BigDecimal("4860.0000"));
+    assertThat(projection.capitalizedBondReturn()).isZero();
+    assertThat(projection.endCapital()).isEqualByComparingTo("100000");
   }
 
   @Test

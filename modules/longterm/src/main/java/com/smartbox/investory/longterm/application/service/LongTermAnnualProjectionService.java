@@ -25,7 +25,7 @@ public class LongTermAnnualProjectionService implements LongTermAnnualProjection
   public PlanningQuote quote(PlanningRequest request) {
     AnnualEvaluation evaluation = evaluate(request);
     return new PlanningQuote(request.year(), evaluation.flows(), evaluation.reserveTransfer(),
-        evaluation.availableCapital(), request.state().source());
+        evaluation.availableCapital(), request.state().source(), evaluation.capitalizedBondReturn());
   }
 
   @Override
@@ -49,7 +49,7 @@ public class LongTermAnnualProjectionService implements LongTermAnnualProjection
     PlanningState endState = new PlanningState(nextAssets, request.state().rentalIncomeGrowthRate(),
         request.state().rentalIncomeBaseYear(), request.state().source());
     return new PlanningProjection(request.year(), flows, reserveTransfer, request.requestedCapital(),
-        actual, endCapital, endState, request.state().source());
+        actual, endCapital, endState, request.state().source(), evaluation.capitalizedBondReturn());
   }
 
   private AnnualEvaluation evaluate(PlanningRequest request) {
@@ -58,6 +58,7 @@ public class LongTermAnnualProjectionService implements LongTermAnnualProjection
     BigDecimal reserveTransfer = ZERO;
     BigDecimal availableCapital = ZERO;
     BigDecimal endCapital = ZERO;
+    BigDecimal capitalizedBondReturn = ZERO;
     for (LongTermAssetProjectionModel asset : request.state().assets()) {
       if (asset.type() == LongTermAssetTypeModel.CASH_RESERVE) {
         reserveTransfer = reserveTransfer.add(nz(asset.currentValue()));
@@ -81,6 +82,7 @@ public class LongTermAnnualProjectionService implements LongTermAnnualProjection
           flows.add(new PlannedCashFlow("long-term-interest-" + asset.id(), asset.name(), CashFlowKind.FIXED_INCOME, netInterest,
               request.state().source()));
         BigDecimal carriedValue = paysOut ? value : value.add(netInterest);
+        if (!paysOut) capitalizedBondReturn = capitalizedBondReturn.add(netInterest);
         boolean matured = asset.maturityDate() != null
             && !asset.maturityDate().isAfter(LocalDate.of(request.year(), 12, 31));
         if (matured) {
@@ -96,12 +98,12 @@ public class LongTermAnnualProjectionService implements LongTermAnnualProjection
       endCapital = endCapital.add(nz(asset.currentValue()));
     }
     return new AnnualEvaluation(List.copyOf(flows), reserveTransfer, availableCapital,
-        List.copyOf(nextAssets), endCapital);
+        List.copyOf(nextAssets), endCapital, capitalizedBondReturn);
   }
 
   private record AnnualEvaluation(List<PlannedCashFlow> flows, BigDecimal reserveTransfer,
       BigDecimal availableCapital, List<LongTermAssetProjectionModel> nonMaturedAssets,
-      BigDecimal nonMaturedCapital) {}
+      BigDecimal nonMaturedCapital, BigDecimal capitalizedBondReturn) {}
 
   private static BigDecimal annualRentalIncome(
       LongTermAssetProjectionModel asset, int year, PlanningState state) {

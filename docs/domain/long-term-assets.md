@@ -39,6 +39,9 @@ to determine cash flows and capital availability, but it never advances maturity
 state. `plan` is the single committed annual transition; only its returned end state is passed to
 the next year.
 
+Bond interest paid out is a spendable fixed-income cash flow. Capitalized bond interest is retained
+in Long-Term capital and is reported separately from cash income; it is never counted in both places.
+
 Generic cash-flow rows remain supported for non-real-estate assets and legacy/bootstrap imports.
 Real-estate rental economics use rental contracts; the legacy rental-period projection fallback is
 compatibility-only and is not the normal persisted runtime path.

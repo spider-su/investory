@@ -10,7 +10,14 @@ public record RetirementFundingPolicy(
     BigDecimal equityHarvestThresholdRate,
     BigDecimal equityHarvestShare,
     boolean allowEmergencyEquityWithdrawal,
-    List<FundingSource> fundingOrder) {
+    List<FundingSource> fundingOrder,
+    ProjectedIncomePolicy projectedIncomePolicy) {
+  public RetirementFundingPolicy(BigDecimal reserveTargetYears,
+      BigDecimal equityHarvestThresholdRate, BigDecimal equityHarvestShare,
+      boolean allowEmergencyEquityWithdrawal, List<FundingSource> fundingOrder) {
+    this(reserveTargetYears, equityHarvestThresholdRate, equityHarvestShare,
+        allowEmergencyEquityWithdrawal, fundingOrder, ProjectedIncomePolicy.SOURCE);
+  }
   public static final BigDecimal DEFAULT_RESERVE_TARGET_YEARS = BigDecimal.valueOf(5);
   public static final BigDecimal DEFAULT_HARVEST_THRESHOLD = BigDecimal.valueOf(0.07);
   public static final BigDecimal DEFAULT_HARVEST_SHARE = BigDecimal.valueOf(0.75);
@@ -25,6 +32,7 @@ public record RetirementFundingPolicy(
     if (equityHarvestShare.signum() < 0 || equityHarvestShare.compareTo(BigDecimal.ONE) > 0)
       throw new IllegalArgumentException("Harvest share must be between 0 and 1");
     fundingOrder = fundingOrder == null || fundingOrder.isEmpty() ? DEFAULT_ORDER : List.copyOf(fundingOrder);
+    projectedIncomePolicy = projectedIncomePolicy == null ? ProjectedIncomePolicy.SOURCE : projectedIncomePolicy;
     if (fundingOrder.stream().anyMatch(source -> source == null)
         || new HashSet<>(fundingOrder).size() != fundingOrder.size())
       throw new IllegalArgumentException("Funding order must contain unique sources");
@@ -32,13 +40,13 @@ public record RetirementFundingPolicy(
 
   public static RetirementFundingPolicy defaults() {
     return new RetirementFundingPolicy(DEFAULT_RESERVE_TARGET_YEARS, DEFAULT_HARVEST_THRESHOLD,
-        DEFAULT_HARVEST_SHARE, true, DEFAULT_ORDER);
+        DEFAULT_HARVEST_SHARE, true, DEFAULT_ORDER, ProjectedIncomePolicy.SOURCE);
   }
 
   public static RetirementFundingPolicy fromLegacy(SimulationAssumptions assumptions) {
     return new RetirementFundingPolicy(assumptions.safeReserveYears(),
         assumptions.equityHarvestMinimumReturnRate(), assumptions.equityGainHarvestRate(),
-        assumptions.allowEmergencyEquityWithdrawal(), assumptions.fundingOrder());
+        assumptions.allowEmergencyEquityWithdrawal(), assumptions.fundingOrder(), assumptions.projectedIncomePolicy());
   }
 
   /** Domain-neutral names used by the active policy; legacy accessors remain persistence-compatible. */

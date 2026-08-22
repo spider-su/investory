@@ -413,7 +413,10 @@ public class SimulationPlanService {
                 : plan.getAnnualPreRetirementContribution());
     return result
         .withFundingOrder(parseFundingOrder(plan.getFundingOrder()))
-        .withExpenseProfile(parseExpenseProfile(plan.getExpenseProfile()));
+        .withExpenseProfile(parseExpenseProfile(plan.getExpenseProfile()))
+        .withProjectedIncomePolicy(new ProjectedIncomePolicy(
+            plan.getRentalIncomeMode(), plan.getManualRentalIncome(),
+            plan.getBondCashIncomeMode(), plan.getManualBondCashIncome()));
   }
 
   private SimulationAssumptions assumptions(
@@ -447,7 +450,10 @@ public class SimulationPlanService {
             revision.getAnnualPreRetirementContribution());
     return result
         .withFundingOrder(parseFundingOrder(revision.getFundingOrder()))
-        .withExpenseProfile(parseExpenseProfile(revision.getExpenseProfile()));
+        .withExpenseProfile(parseExpenseProfile(revision.getExpenseProfile()))
+        .withProjectedIncomePolicy(new ProjectedIncomePolicy(
+            revision.getRentalIncomeMode(), revision.getManualRentalIncome(),
+            revision.getBondCashIncomeMode(), revision.getManualBondCashIncome()));
   }
 
   private static void copy(SimulationPlanRevisionEntity target, SimulationAssumptions a,
@@ -463,6 +469,10 @@ public class SimulationPlanService {
     target.setInflationRate(a.inflationRate());
     target.setRentalIncomeGrowthSpread(a.rentalIncomeGrowthSpread());
     target.setSpendingGrowthSpread(a.spendingGrowthSpread());
+    target.setRentalIncomeMode(a.projectedIncomePolicy().rentalIncomeMode());
+    target.setManualRentalIncome(a.projectedIncomePolicy().manualRentalIncome());
+    target.setBondCashIncomeMode(a.projectedIncomePolicy().bondCashIncomeMode());
+    target.setManualBondCashIncome(a.projectedIncomePolicy().manualBondCashIncome());
     target.setFundingStrategy(a.fundingStrategy());
     target.setFundingOrder(serializeFundingOrder(a.fundingOrder()));
     target.setExpenseProfile(serializeExpenseProfile(a.expenseProfile()));
@@ -565,6 +575,10 @@ public class SimulationPlanService {
     p.setInflationRate(a.inflationRate());
     p.setRentalIncomeGrowthSpread(a.rentalIncomeGrowthSpread());
     p.setSpendingGrowthSpread(a.spendingGrowthSpread());
+    p.setRentalIncomeMode(a.projectedIncomePolicy().rentalIncomeMode());
+    p.setManualRentalIncome(a.projectedIncomePolicy().manualRentalIncome());
+    p.setBondCashIncomeMode(a.projectedIncomePolicy().bondCashIncomeMode());
+    p.setManualBondCashIncome(a.projectedIncomePolicy().manualBondCashIncome());
     p.setFundingStrategy(a.fundingStrategy());
     p.setFundingOrder(serializeFundingOrder(a.fundingOrder()));
     p.setExpenseProfile(serializeExpenseProfile(a.expenseProfile()));

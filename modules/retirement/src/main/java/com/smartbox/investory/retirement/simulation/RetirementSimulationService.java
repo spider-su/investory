@@ -85,7 +85,7 @@ public class RetirementSimulationService implements RetirementSimulation {
           year.maturedBondFunding(), year.longTermCapitalEnd(),
           investmentStart, investment.annualReturnAmount(), year.investmentWithdrawal(), investment.endValue(),
           year.unfundedShortfall(),
-          preRetirementContribution, year.equityHarvestToReserve()));
+          preRetirementContribution, year.equityHarvestToReserve(), year.capitalizedBondReturn()));
       reserveStart = year.reserveEnd(); investmentStart = investment.endValue();
     }
     return new SimulationResult(scenario, failureAge != null, failureAge, firstShortfall, totalUnfunded, years);

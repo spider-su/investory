@@ -21,7 +21,7 @@ public interface LongTermAnnualProjectionApi {
   default PlanningQuote quote(PlanningRequest request) {
     PlanningProjection projection = plan(new PlanningRequest(request.year(), BigDecimal.ZERO, request.state()));
     return new PlanningQuote(projection.year(), projection.plannedCashFlows(), projection.reserveTransfer(),
-        projection.endCapital(), projection.source());
+        projection.endCapital(), projection.source(), projection.capitalizedBondReturn());
   }
 
   record PlanningRequest(
@@ -71,7 +71,14 @@ public interface LongTermAnnualProjectionApi {
       BigDecimal actualCapitalProvided,
       BigDecimal endCapital,
       PlanningState endState,
-      Source source) {
+      Source source,
+      BigDecimal capitalizedBondReturn) {
+    public PlanningProjection(int year, List<PlannedCashFlow> plannedCashFlows,
+        BigDecimal reserveTransfer, BigDecimal requestedCapital, BigDecimal actualCapitalProvided,
+        BigDecimal endCapital, PlanningState endState, Source source) {
+      this(year, plannedCashFlows, reserveTransfer, requestedCapital, actualCapitalProvided,
+          endCapital, endState, source, BigDecimal.ZERO);
+    }
     public PlanningProjection {
       plannedCashFlows = plannedCashFlows == null ? List.of() : List.copyOf(plannedCashFlows);
       reserveTransfer = nz(reserveTransfer);
@@ -80,16 +87,23 @@ public interface LongTermAnnualProjectionApi {
       endCapital = nz(endCapital);
       endState = endState == null ? PlanningState.EMPTY : endState;
       source = source == null ? Source.PROJECTED : source;
+      capitalizedBondReturn = nz(capitalizedBondReturn);
     }
   }
 
   record PlanningQuote(int year, List<PlannedCashFlow> plannedCashFlows,
-      BigDecimal reserveTransfer, BigDecimal capitalAvailable, Source source) {
+      BigDecimal reserveTransfer, BigDecimal capitalAvailable, Source source,
+      BigDecimal capitalizedBondReturn) {
+    public PlanningQuote(int year, List<PlannedCashFlow> plannedCashFlows,
+        BigDecimal reserveTransfer, BigDecimal capitalAvailable, Source source) {
+      this(year, plannedCashFlows, reserveTransfer, capitalAvailable, source, BigDecimal.ZERO);
+    }
     public PlanningQuote {
       plannedCashFlows = plannedCashFlows == null ? List.of() : List.copyOf(plannedCashFlows);
       reserveTransfer = nz(reserveTransfer);
       capitalAvailable = nz(capitalAvailable);
       source = source == null ? Source.PROJECTED : source;
+      capitalizedBondReturn = nz(capitalizedBondReturn);
     }
   }
 

@@ -278,6 +278,35 @@ class RetirementSimulationOrchestratorTest {
     assertThat(year.funding().fundingGap()).isZero();
   }
 
+  @Test
+  void manualProjectedIncomeReplacesSourceCashFlowsWithoutChangingCapitalizedReturn() {
+    LongTermAnnualProjectionApi longTerm = longTerm(request ->
+        new LongTermAnnualProjectionApi.PlanningProjection(request.year(), List.of(
+            new LongTermAnnualProjectionApi.PlannedCashFlow("rent", "Rent",
+                LongTermAnnualProjectionApi.CashFlowKind.RENTAL_INCOME, bd("100"),
+                LongTermAnnualProjectionApi.Source.PROJECTED),
+            new LongTermAnnualProjectionApi.PlannedCashFlow("bond", "Bond",
+                LongTermAnnualProjectionApi.CashFlowKind.FIXED_INCOME, bd("40"),
+                LongTermAnnualProjectionApi.Source.PROJECTED)), BigDecimal.ZERO,
+            request.requestedCapital(), BigDecimal.ZERO, BigDecimal.ZERO, request.state(),
+            LongTermAnnualProjectionApi.Source.PROJECTED, bd("25")));
+    InvestmentAnnualProjectionApi investment = request -> new InvestmentAnnualProjectionApi.AnnualProjection(
+        request.year(), request.startValue(), request.externalContribution(), BigDecimal.ZERO,
+        BigDecimal.ZERO, request.startValue(), request.source());
+    var policy = new ProjectedIncomePolicy(ProjectedIncomePolicy.IncomeMode.MANUAL, bd("200"),
+        ProjectedIncomePolicy.IncomeMode.MANUAL, bd("30"));
+    var input = input(65, 65, bd("500"), bd("100"))
+        .withFundingPolicy(new RetirementFundingPolicy(BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO,
+            false, List.of(FundingSource.CASH), policy));
+
+    var year = new RetirementSimulationOrchestrator(longTerm, investment).run(input).years().getFirst();
+
+    assertThat(year.annualRentalIncome()).isEqualByComparingTo("200");
+    assertThat(year.netBondIncome()).isEqualByComparingTo("30");
+    assertThat(year.capitalizedBondReturn()).isEqualByComparingTo("25");
+    assertThat(year.requiredFunding()).isEqualByComparingTo("270");
+  }
+
   private static RetirementSimulationInput input(
       int age, int endAge, BigDecimal expenses, BigDecimal reserve) {
     return input(age, endAge, expenses, reserve, BigDecimal.ZERO);
@@ -328,7 +357,8 @@ class RetirementSimulationOrchestratorTest {
       @Override
       public PlanningQuote quote(PlanningRequest request) {
         PlanningProjection p = projection.apply(new PlanningRequest(request.year(), BigDecimal.ZERO, request.state()));
-        return new PlanningQuote(p.year(), p.plannedCashFlows(), p.reserveTransfer(), p.endCapital(), p.source());
+        return new PlanningQuote(p.year(), p.plannedCashFlows(), p.reserveTransfer(), p.endCapital(), p.source(),
+            p.capitalizedBondReturn());
       }
     };
   }

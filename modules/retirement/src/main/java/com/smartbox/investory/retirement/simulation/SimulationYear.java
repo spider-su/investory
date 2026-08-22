@@ -56,6 +56,16 @@ public record SimulationYear(
     BigDecimal bondValueEnd,
     BigDecimal bondIncome,
     SimulationFunding funding) {
+
+  /** Spendable fixed-income cash paid by Long-Term; capitalized return is separate. */
+  public BigDecimal bondCashIncome() {
+    return bondIncome;
+  }
+
+  /** Long-Term bond return retained in capital, never spendable cash income. */
+  public BigDecimal capitalizedBondReturn() {
+    return funding.capitalizedBondReturn();
+  }
   /**
    * Creates the compatibility-shaped timeline row from the generic orchestrator result.
    * Asset-specific legacy buckets remain zero; reserve and Investment are the only
@@ -112,6 +122,22 @@ public record SimulationYear(
       BigDecimal unfundedAmount,
       BigDecimal preRetirementContribution,
       BigDecimal equityHarvestToReserve) {
+    return generic(age, year, retired, expenses, eventExpenses, employmentIncome, pensionIncome,
+        eventIncome, rentalIncome, bondIncome, reserveStart, reserveWithdrawal, reserveEnd,
+        reserveTransfer, longTermFunding, longTermCapitalEnd, investmentStart, investmentReturn,
+        investmentWithdrawal, investmentEnd, unfundedAmount, preRetirementContribution,
+        equityHarvestToReserve, BigDecimal.ZERO);
+  }
+
+  public static SimulationYear generic(
+      int age, int year, boolean retired, BigDecimal expenses, BigDecimal eventExpenses,
+      BigDecimal employmentIncome, BigDecimal pensionIncome, BigDecimal eventIncome,
+      BigDecimal rentalIncome, BigDecimal bondIncome, BigDecimal reserveStart,
+      BigDecimal reserveWithdrawal, BigDecimal reserveEnd, BigDecimal reserveTransfer,
+      BigDecimal longTermFunding, BigDecimal longTermCapitalEnd, BigDecimal investmentStart,
+      BigDecimal investmentReturn, BigDecimal investmentWithdrawal, BigDecimal investmentEnd,
+      BigDecimal unfundedAmount, BigDecimal preRetirementContribution,
+      BigDecimal equityHarvestToReserve, BigDecimal capitalizedBondReturn) {
     BigDecimal totalExpenses = expenses.add(eventExpenses);
     BigDecimal passiveIncome = rentalIncome.add(bondIncome);
     BigDecimal totalIncome = passiveIncome.add(pensionIncome).add(employmentIncome).add(eventIncome);
@@ -149,7 +175,8 @@ public record SimulationYear(
             investmentWithdrawal,
             investmentEnd,
             equityHarvestToReserve,
-            unfundedAmount));
+            unfundedAmount,
+            capitalizedBondReturn));
   }
 
   /** Compatibility constructor for the pre-retirement-lifecycle yearly result shape. */

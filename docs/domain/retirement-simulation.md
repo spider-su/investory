@@ -29,6 +29,13 @@ asset module depends on Retirement.
 
 Taxes and costs are already reflected in supplied net flow values.
 
+Long-Term bond returns remain distinct from cash income. `PAY_OUT` interest is emitted as bond cash
+income and participates in the funding gap; `CAPITALIZE` interest is exposed as capitalized bond
+return and increases Long-Term capital without entering cash income. Investment return is likewise
+portfolio value change, not cash income. Retirement may explicitly select SOURCE (the frozen
+Long-Term baseline) or MANUAL rental/bond cash-income planning assumptions; these choices are stored
+on the immutable revision and never read live source state during Future projection.
+
 The public contracts form an anti-corruption boundary. Retirement must not inspect whether capital
 came from an ETF, brokerage cash position, individual bond, deposit, property, rental contract, or
 another implementation-specific source. The owning module converts those details to economic meaning

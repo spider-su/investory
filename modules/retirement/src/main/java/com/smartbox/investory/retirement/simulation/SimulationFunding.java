@@ -16,7 +16,8 @@ public record SimulationFunding(
     BigDecimal investmentWithdrawal,
     BigDecimal investmentEnd,
     BigDecimal equityHarvestToReserve,
-    BigDecimal unfunded) {
+    BigDecimal unfunded,
+    BigDecimal capitalizedBondReturn) {
   private static final BigDecimal ZERO = BigDecimal.ZERO;
 
   public SimulationFunding {
@@ -33,6 +34,7 @@ public record SimulationFunding(
     investmentEnd = value(investmentEnd);
     equityHarvestToReserve = value(equityHarvestToReserve);
     unfunded = value(unfunded);
+    capitalizedBondReturn = value(capitalizedBondReturn);
   }
 
   public SimulationFunding(
@@ -42,7 +44,7 @@ public record SimulationFunding(
       BigDecimal investmentWithdrawal, BigDecimal investmentEnd, BigDecimal unfunded) {
     this(fundingGap, reserveStart, reserveTransfer, reserveWithdrawal, reserveEnd, longTermFunding,
         longTermCapitalEnd, investmentStart, investmentReturn, investmentWithdrawal, investmentEnd,
-        BigDecimal.ZERO, unfunded);
+        BigDecimal.ZERO, unfunded, BigDecimal.ZERO);
   }
 
   /** Capital moved into the reserve before the reserve withdrawal is applied. */
@@ -57,7 +59,7 @@ public record SimulationFunding(
 
   static SimulationFunding legacy() {
     return new SimulationFunding(
-        ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO);
+        ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO);
   }
 
   private static BigDecimal value(BigDecimal value) {

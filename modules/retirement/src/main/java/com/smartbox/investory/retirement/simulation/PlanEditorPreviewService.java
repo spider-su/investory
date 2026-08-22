@@ -83,6 +83,7 @@ public class PlanEditorPreviewService {
         plannedIncomeYear == null ? null : displayCanonical(plannedIncomeYear.rentalIncome(), displayCurrency),
         plannedIncomeYear == null ? null : displayCanonical(plannedIncomeYear.bondIncome(), displayCurrency),
         plannedIncomeYear == null ? null : displayCanonical(plannedIncomeYear.funding().investmentReturn(), displayCurrency),
+        plannedIncomeYear == null ? null : displayCanonical(plannedIncomeYear.funding().capitalizedBondReturn(), displayCurrency),
         plannedIncomeYear == null ? null : displayCanonical(plannedIncomeYear.pensionIncome(), displayCurrency),
         plannedIncomeYear == null ? null : displayCanonical(plannedIncomeYear.totalIncome(), displayCurrency),
         assumptions, result.failureAge(), List.copyOf(previewYears),
@@ -102,6 +103,7 @@ public class PlanEditorPreviewService {
         assumptions.effectiveSpendingGrowthRate(), assumptions.expenseProfileFactorForCalendarYear(row.year()),
         displayCanonical(row.employmentIncome(), displayCurrency), displayCanonical(row.rentalIncome(), displayCurrency),
         displayCanonical(row.bondIncome(), displayCurrency), displayCanonical(funding.investmentReturn(), displayCurrency),
+        displayCanonical(funding.capitalizedBondReturn(), displayCurrency),
         displayCanonical(row.pensionIncome(), displayCurrency), displayCanonical(row.eventIncome(), displayCurrency),
         displayCanonical(row.totalIncome(), displayCurrency), displayCanonical(funding.fundingGap(), displayCurrency),
         displayCanonical(row.totalIncome().subtract(row.totalExpenses()).max(BigDecimal.ZERO), displayCurrency),
@@ -122,6 +124,7 @@ public class PlanEditorPreviewService {
         null, null, null, null, null, displayCanonical(employment, displayCurrency), displayCanonical(facts.rentalIncome(), displayCurrency),
         displayCanonical(facts.bondIncome(), displayCurrency),
         bridge == null ? null : displayCanonical(bridge.investmentAnnualReturn(), displayCurrency),
+        null,
         displayCanonical(pension, displayCurrency), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, "CURRENT FACTS");
   }
 
@@ -133,7 +136,7 @@ public class PlanEditorPreviewService {
     boolean retired = age >= assumptions.retirementAge();
     return new PreviewYear(year, age, "HISTORICAL", retired ? SimulationLifecyclePhase.RETIRED.name() : SimulationLifecyclePhase.WORKING.name(),
         null, null, null, null, null, null, displayCanonical(rental, displayCurrency), displayCanonical(bond, displayCurrency),
-        null, null, null, displayCanonical(totalIncome, displayCurrency), null, null, null, null, null, null, null, null, null, null, null, null, null, "HISTORICAL");
+        null, null, null, null, displayCanonical(totalIncome, displayCurrency), null, null, null, null, null, null, null, null, null, null, null, null, null, "HISTORICAL");
   }
 
   private static LongTermAssetAnnualSnapshotModel facts(LongTermAssetAnnualSnapshotModel facts) {
@@ -156,7 +159,8 @@ public class PlanEditorPreviewService {
       BigDecimal effectiveSpendingGrowthRate, BigDecimal monthlyLivingCosts, BigDecimal annualLivingCosts,
       BigDecimal annualExtras, BigDecimal totalAnnualCosts, BigDecimal nextYearCosts, BigDecimal rentalIncome,
       BigDecimal bondIncome, Integer plannedIncomeReferenceYear, BigDecimal plannedRentalIncome,
-      BigDecimal plannedBondIncome, BigDecimal plannedInvestmentProfit, BigDecimal plannedPension,
+      BigDecimal plannedBondIncome, BigDecimal plannedInvestmentProfit, BigDecimal plannedCapitalizedBondReturn,
+      BigDecimal plannedPension,
       BigDecimal plannedAnnualIncome, SimulationAssumptions assumptions, Integer firstFailureAge,
       List<PreviewYear> years, PreviewYear firstProjectedYear) {}
 
@@ -164,7 +168,8 @@ public class PlanEditorPreviewService {
   public record PreviewYear(
       int year, int age, String state, String lifecycle, BigDecimal recurringCosts, BigDecimal eventExpenses,
       BigDecimal totalCosts, BigDecimal spendingGrowthRate, BigDecimal expenseProfile, BigDecimal employmentIncome,
-      BigDecimal rentalIncome, BigDecimal bondIncome, BigDecimal investmentReturn, BigDecimal pension,
+      BigDecimal rentalIncome, BigDecimal bondIncome, BigDecimal investmentReturn, BigDecimal capitalizedBondReturn,
+      BigDecimal pension,
       BigDecimal eventIncome, BigDecimal totalIncome, BigDecimal fundingGap, BigDecimal surplus,
       BigDecimal reserveStart, BigDecimal reserveTransfer, BigDecimal reserveWithdrawal, BigDecimal reserveEnd,
       BigDecimal longTermFunding, BigDecimal longTermEnd, BigDecimal investmentStart,
