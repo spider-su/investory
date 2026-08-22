@@ -2064,7 +2064,8 @@ body.iv-modal-open { overflow: hidden; }
     white-space: nowrap;
 }
 .iv-planning-actions > a { text-decoration: none; }
-.iv-planning-actions--single { grid-template-columns: minmax(0, 1fr); grid-template-rows: 34px; }
+.iv-planning-actions--single { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 34px; }
+.iv-planning-actions--single .iv-planning-base { width: auto; }
 .iv-planning-actions svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 .iv-planning-base { cursor: default; }
 .iv-planning-base strong { color: var(--iv-text); }

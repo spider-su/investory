@@ -36,6 +36,12 @@ public final class UiPresentation {
     return number(value, 0, 0);
   }
 
+  /** Formats monetary planning values in thousands with one decimal place. */
+  public static String thousands(BigDecimal value) {
+    BigDecimal amount = value == null ? BigDecimal.ZERO : value;
+    return number(amount.divide(BigDecimal.valueOf(1000)), 1, 1);
+  }
+
   /** Natural, unitless decimal display for values such as reserve coverage years. */
   public static String decimal(BigDecimal value) {
     return money(value);

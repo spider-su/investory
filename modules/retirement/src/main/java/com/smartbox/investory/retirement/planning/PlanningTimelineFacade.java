@@ -115,6 +115,65 @@ public class PlanningTimelineFacade {
     return past(planningYear);
   }
 
+  /**
+   * Adds a retrospective Planned reference to a historical draft when the selected plan starts in
+   * that year or earlier. This does not reconstruct historical facts: it freezes what the selected
+   * current plan says for that calendar year so the reviewer can compare Planned vs Actual.
+   */
+  @Transactional
+  public PastPlanningYear seedHistoricalBaselineFromPlan(
+      Long portfolioId,
+      int year,
+      Long planId,
+      Long revisionId,
+      InvestmentProfile profile,
+      SimulationAssumptions assumptions) {
+    if (year >= activeCurrentYear(portfolioId))
+      throw new IllegalArgumentException(
+          "Historical planning year must be before the current year");
+    if (year < assumptions.planStartYear()) return createHistoricalDraft(portfolioId, year);
+
+    PlanningYearEntity planningYear = year(portfolioId, year);
+    if (planningYear.getStatus() == PlanningYearStatus.CLOSED) return past(planningYear);
+    createHistoricalDraft(portfolioId, year);
+
+    if (!values
+        .findAllByPlanningYearIdAndValueKind(planningYear.getId(), PlanningValueKind.BASELINE)
+        .isEmpty()) return past(planningYear);
+
+    SimulationYear expected =
+        simulations
+            .simulate(
+                profile,
+                assumptionsForYear(assumptions, year),
+                SimulationScenario.BASE)
+            .years()
+            .getFirst();
+
+    Map<PlanningMetric, BigDecimal> planned = new EnumMap<>(expectedValues(expected));
+    // A retrospective plan has no contemporaneous market snapshot. Use the selected current
+    // plan/profile value as the explicit Planned reference for this historical comparison.
+    planned.putIfAbsent(PlanningMetric.MARKET_ASSETS, profile.marketPortfolioValue());
+
+    planned.forEach(
+            (metric, amount) ->
+                upsert(
+                    planningYear,
+                    PlanningValueKind.BASELINE,
+                    new PlanningMetricValue(
+                        metric,
+                        amount,
+                        null,
+                        PlanningValueSource.SIMULATION_BASELINE,
+                        "Retrospective reference from selected plan")));
+
+    planningYear.setBaselinePlanId(planId);
+    planningYear.setBaselineRevisionId(revisionId);
+    planningYear.setBaselineCreatedAt(Instant.now(clock));
+    years.save(planningYear);
+    return past(planningYear);
+  }
+
   /** Refreshes accounting- and supported Long-term AssetEntity-derived metrics on an open year. */
   @Transactional
   public PastPlanningYear refreshHistoricalDerivedValues(Long portfolioId, int year) {
@@ -940,9 +999,6 @@ public class PlanningTimelineFacade {
       missing.add("Net worth or market assets");
     for (PlanningMetric metric : PlanningMetric.values())
       if (metric.isRequiredForClose() && value(actual, metric) == null) missing.add(metric.label());
-    PlanningMetricValue realEstate = actual.get(PlanningMetric.REAL_ESTATE);
-    if (realEstate != null && realEstate.value() == null)
-      missing.add(PlanningMetric.REAL_ESTATE.label());
     return new PlanningYearCloseStatus(missing.isEmpty(), List.copyOf(missing));
   }
 

@@ -70,8 +70,9 @@
         </div>
         <div class="iv-topbar__meta iv-app-header-shell__actions iv-planning-actions iv-planning-actions--single" th:if="${actionMode == 'simulation'}" aria-label="Simulation actions">
             <a class="iv-topbar-action-button iv-badge iv-badge--muted" th:href="@{/simulation/plan/edit(portfolioId=${portfolioId},planId=${selectedPlanId},planningDisplayCurrency=${currency},selectedScenario=${selectedScenario})}">Edit plan</a>
+            <span class="iv-topbar-action-button iv-planning-base" th:text="${'Base: ' + currency}">Base: PLN</span>
         </div>
-        <div class="iv-planning-topbar__currency iv-planning-topbar__currency--primary" th:unless="${actionMode == 'assets'}" th:text="${'Base: ' + currency}">Base: USD</div>
+        <div class="iv-planning-topbar__currency iv-planning-topbar__currency--primary" th:if="${actionMode != 'assets' and actionMode != 'simulation'}" th:text="${'Base: ' + currency}">Base: USD</div>
     </div>
     <div class="iv-topbar__secondary iv-app-header-shell__secondary iv-planning-topbar__secondary">
         <div></div>

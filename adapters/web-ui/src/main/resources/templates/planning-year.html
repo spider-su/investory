@@ -18,22 +18,35 @@
     <form class="mt-2" method="post" th:action="@{/simulation/timeline/past/{year}/refresh-derived(year=${planningYear.year})}"><input type="hidden" name="portfolioId" th:value="${profile.portfolioId}"><input type="hidden" name="planId" th:value="${selectedPlanId}"><input type="hidden" name="selectedScenario" th:value="${selectedScenario}"><input type="hidden" name="planningDisplayCurrency" th:value="${planningDisplayCurrency}"><button class="btn btn-sm btn-outline-secondary" type="submit">Refresh derived values</button></form>
   </div></section>
 
-  <section class="card"><details th:open="${planningYear.status.name() != 'CLOSED'}"><summary class="card-header" th:if="${planningYear.status.name() == 'CLOSED'}">Frozen planning values</summary><div class="table-responsive"><table class="table card-table align-middle"><thead><tr><th>Metric</th><th class="text-end">Planned</th><th class="text-end">Actual</th><th class="text-end">Difference</th><th>Source</th><th>Note</th><th>Action</th></tr></thead><tbody>
-    <tr th:each="entry : ${planningYear.values}" th:with="expected=${planningYear.expectedValues.get(entry.key)}">
-      <td th:text="${entry.key.label()}">Net worth</td>
-      <td class="text-end" th:text="${expected == null or expected.value() == null ? '—' : T(com.smartbox.investory.ui.presentation.UiPresentation).planningMetric(entry.key, expected.value())}">—</td>
+  <section class="card mb-3">
+    <div class="card-body pb-0">
+      <div class="iv-card-section-header"><span class="iv-card-section-header__title">Plan vs actual</span><span class="text-secondary">Review the year against the selected plan.</span></div>
+      <p class="small text-secondary mb-2">For plans created with a start year in the past, Planned is a retrospective reference captured from the selected current plan. Actual remains historical/accounting data or an explicit reviewed value.</p>
+    </div>
+    <div class="table-responsive"><table class="table card-table align-middle"><thead><tr><th>Item</th><th class="text-end">Planned</th><th class="text-end">Actual</th><th class="text-end">Difference</th></tr></thead><tbody>
+    <tr th:each="entry : ${planningYear.values}" th:if="${reviewMetrics.contains(entry.key)}" th:with="expected=${planningYear.expectedValues.get(entry.key)}">
+      <td th:text="${entry.key.label()}">Annual living costs</td>
+      <td class="text-end" th:text="${expected == null or expected.value() == null ? 'No baseline' : T(com.smartbox.investory.ui.presentation.UiPresentation).planningMetric(entry.key, expected.value())}">No baseline</td>
       <td th:if="${planningYear.status.name() == 'DRAFT' and editableMetrics.contains(entry.key)}">
-        <form class="d-flex gap-1" method="post" th:action="@{/simulation/timeline/past/{year}/manual(year=${planningYear.year})}">
+        <form class="d-flex gap-1 justify-content-end" method="post" th:action="@{/simulation/timeline/past/{year}/manual(year=${planningYear.year})}">
           <input type="hidden" name="portfolioId" th:value="${profile.portfolioId}"><input type="hidden" name="planId" th:value="${selectedPlanId}"><input type="hidden" name="selectedScenario" th:value="${selectedScenario}"><input type="hidden" name="metric" th:value="${entry.key.name()}"><input type="hidden" name="planningDisplayCurrency" th:value="${planningDisplayCurrency}">
-          <input class="form-control form-control-sm" type="number" min="0" step="0.01" name="amount" aria-label="Actual value" th:value="${entry.value.approvedValue == null ? '' : T(com.smartbox.investory.ui.presentation.UiPresentation).moneyInput(entry.value.approvedValue)}" required>
-          <input class="form-control form-control-sm" type="text" name="note" aria-label="Planning note" placeholder="Note" th:value="${entry.value.note}">
+          <input class="form-control form-control-sm" style="max-width: 12rem" type="number" min="0" step="0.01" name="amount" aria-label="Actual value" th:value="${entry.value.approvedValue == null ? '' : T(com.smartbox.investory.ui.presentation.UiPresentation).moneyInput(entry.value.approvedValue)}" required>
           <button class="btn btn-sm btn-primary" type="submit">Save</button>
         </form>
       </td>
-      <td class="text-end" th:if="${not (planningYear.status.name() == 'DRAFT' and editableMetrics.contains(entry.key))}" th:text="${entry.value.value() == null ? '—' : T(com.smartbox.investory.ui.presentation.UiPresentation).planningMetric(entry.key, entry.value.value())}">—</td>
+      <td class="text-end" th:if="${not (planningYear.status.name() == 'DRAFT' and editableMetrics.contains(entry.key))}" th:text="${entry.value.value() == null ? 'Unavailable' : T(com.smartbox.investory.ui.presentation.UiPresentation).planningMetric(entry.key, entry.value.value())}">Unavailable</td>
+      <td class="text-end" th:text="${planningYear.variance(entry.key) == null ? '—' : T(com.smartbox.investory.ui.presentation.UiPresentation).planningMetric(entry.key, planningYear.variance(entry.key))}">—</td>
+    </tr>
+  </tbody></table></div></section>
+
+  <section class="card"><details><summary class="card-header">Data details and sources</summary><div class="table-responsive"><table class="table card-table align-middle"><thead><tr><th>Metric</th><th class="text-end">Planned reference</th><th class="text-end">Reviewed value</th><th class="text-end">Difference</th><th>Source</th><th>Note</th></tr></thead><tbody>
+    <tr th:each="entry : ${planningYear.values}" th:with="expected=${planningYear.expectedValues.get(entry.key)}">
+      <td th:text="${entry.key.label()}">Net worth</td>
+      <td class="text-end" th:text="${expected == null or expected.value() == null ? '—' : T(com.smartbox.investory.ui.presentation.UiPresentation).planningMetric(entry.key, expected.value())}">—</td>
+      <td class="text-end" th:text="${entry.value.value() == null ? '—' : T(com.smartbox.investory.ui.presentation.UiPresentation).planningMetric(entry.key, entry.value.value())}">—</td>
       <td class="text-end" th:text="${planningYear.variance(entry.key) == null ? '—' : T(com.smartbox.investory.ui.presentation.UiPresentation).planningMetric(entry.key, planningYear.variance(entry.key))}">—</td>
       <td th:text="${entry.value.source.name().replace('_', ' ')}">Derived</td>
-      <td th:text="${entry.value.note == null ? '—' : entry.value.note}">—</td><td></td>
+      <td th:text="${entry.value.note == null ? '—' : entry.value.note}">—</td>
     </tr>
   </tbody></table></div></details></section>
 

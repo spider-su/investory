@@ -285,6 +285,36 @@ class PlanningTimelineFacadeTest {
   }
 
   @Test
+  void unavailableOptionalRealEstateDoesNotBlockHistoricalClose() {
+    PlanningYearEntity past = new PlanningYearEntity();
+    past.setId(8L);
+    past.setPortfolioId(1L);
+    past.setYear(2025);
+    past.setStatus(PlanningYearStatus.DRAFT);
+    when(years.findByPortfolioIdAndYear(1L, 2025)).thenReturn(Optional.of(past));
+
+    PlanningYearValueEntity market =
+        stored(PlanningMetric.MARKET_ASSETS, "377857", PlanningValueSource.ACCOUNTING_DERIVED);
+    PlanningYearValueEntity living =
+        stored(PlanningMetric.CORE_SPENDING, "180000", PlanningValueSource.USER_OVERRIDE);
+    PlanningYearValueEntity extras =
+        stored(PlanningMetric.DISCRETIONARY_SPENDING, "55000", PlanningValueSource.USER_OVERRIDE);
+    PlanningYearValueEntity unavailableRealEstate = new PlanningYearValueEntity();
+    unavailableRealEstate.setPlanningYearId(8L);
+    unavailableRealEstate.setValueKind(PlanningValueKind.ACTUAL);
+    unavailableRealEstate.setMetric(PlanningMetric.REAL_ESTATE);
+    unavailableRealEstate.setSourceType(PlanningValueSource.UNAVAILABLE);
+
+    when(values.findAllByPlanningYearIdAndValueKind(8L, PlanningValueKind.ACTUAL))
+        .thenReturn(List.of(market, living, extras, unavailableRealEstate));
+
+    PlanningYearCloseStatus status = facade.historicalCloseStatus(1L, 2025);
+
+    assertTrue(status.canClose());
+    assertTrue(status.missingMetrics().isEmpty());
+  }
+
+  @Test
   void baselineStoresOnlySimulationExpectationAndIsIndependentOfLiveFacts() {
     SimulationYear projected = projected();
     when(simulations.simulate(eq(profile()), any(), eq(SimulationScenario.BASE)))

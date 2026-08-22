@@ -69,6 +69,18 @@ class SimulationTemplateContractTest {
   }
 
   @Test
+  void simulationHeaderPlacesBaseCurrencyAfterEditPlan() throws Exception {
+    String header =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/fragments/app-header.html"));
+    int actionsStart = header.indexOf("iv-planning-actions--single");
+    int actionsEnd = header.indexOf("</div>", actionsStart);
+    String simulationActions = header.substring(actionsStart, actionsEnd);
+
+    assertTrue(simulationActions.indexOf(">Edit plan</a>") < simulationActions.indexOf("iv-planning-base"));
+  }
+
+  @Test
   void developerPreviewIsConfigurableAndReadOnlyFactsAreNotPlanInputs() throws Exception {
     String editor =
         Files.readString(

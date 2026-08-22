@@ -496,7 +496,17 @@ public class RetirementSimulationController {
       @RequestParam(defaultValue = "PLN") CurrencyType planningDisplayCurrency,
       @RequestParam(required = false) Long planId,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
-    planningTimeline.createHistoricalDraft(portfolioId, year);
+    if (planId == null) {
+      planningTimeline.createHistoricalDraft(portfolioId, year);
+    } else {
+      planningTimeline.seedHistoricalBaselineFromPlan(
+          portfolioId,
+          year,
+          planId,
+          plans.currentRevisionId(portfolioId, planId),
+          profiles.loadProfile(portfolioId),
+          plans.assumptions(portfolioId, planId));
+    }
     return planningYearRedirect(
         portfolioId, year, planningDisplayCurrency, planId, selectedScenario);
   }
@@ -591,6 +601,17 @@ public class RetirementSimulationController {
     model.addAttribute("editableMetrics", editableMetrics);
     model.addAttribute(
         "planningCloseStatus", planningTimeline.historicalCloseStatus(portfolioId, year));
+    model.addAttribute(
+        "reviewMetrics",
+        java.util.List.of(
+            PlanningMetric.NET_WORTH,
+            PlanningMetric.MARKET_ASSETS,
+            PlanningMetric.RENTAL_INCOME,
+            PlanningMetric.BOND_INCOME,
+            PlanningMetric.CORE_SPENDING,
+            PlanningMetric.DISCRETIONARY_SPENDING,
+            PlanningMetric.MARKET_RETURN,
+            PlanningMetric.MARKET_WITHDRAWAL));
     PlanningMetricValue netWorth = stored.values().get(PlanningMetric.NET_WORTH);
     PlanningMetricValue marketAssets = stored.values().get(PlanningMetric.MARKET_ASSETS);
     model.addAttribute(
