@@ -895,15 +895,11 @@ public class LongTermAssetService {
             .map(asset -> summary(asset, date))
             .filter(row -> historicalAssetIds.contains(row.id()))
             .toList();
-    Map<Long, LongTermAssetProjectionInput> projectionInputs =
-        projectionInputsAt(portfolioId, date, false).stream()
-            .collect(java.util.stream.Collectors.toMap(LongTermAssetProjectionInput::id, x -> x));
     BigDecimal rentalIncome =
         rows.stream()
             .filter(row -> row.type() == LongTermAssetType.REAL_ESTATE)
             .map(
                 row -> {
-                  LongTermAssetProjectionInput input = projectionInputs.get(row.id());
                   BigDecimal amount;
                   // Historical snapshots expose the annual economics effective at the
                   // boundary date.  They intentionally do not prorate a period that began
@@ -914,8 +910,14 @@ public class LongTermAssetService {
                       ? amount
                       : currencyRates.convertToBaseCurrency(
                           amount, CurrencyType.USD, row.currency(), date);
-                })
+            })
             .reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal bondIncome =
+        sumCanonical(
+            rows,
+            LongTermAssetType.BOND,
+            row -> row.annualEconomics().netAnnualIncomeAfterTax(),
+            date);
     boolean hasRealEstate =
         rows.stream().anyMatch(row -> row.type() == LongTermAssetType.REAL_ESTATE);
     boolean rentalDataComplete =
@@ -926,7 +928,12 @@ public class LongTermAssetService {
                     !cashFlows.findAllByAssetIdOrderByValidFrom(row.id()).isEmpty()
                         || !rentalContracts.findAllByAssetIdOrderByStartDate(row.id()).isEmpty());
     return new LongTermAssetAnnualSnapshotModel(
-        null, !hasRealEstate || rentalDataComplete ? rentalIncome : null, null, null, null, null);
+        null,
+        !hasRealEstate || rentalDataComplete ? rentalIncome : null,
+        null,
+        bondIncome,
+        null,
+        null);
   }
 
   /** Returns current Long-Term facts in the canonical USD application currency. */

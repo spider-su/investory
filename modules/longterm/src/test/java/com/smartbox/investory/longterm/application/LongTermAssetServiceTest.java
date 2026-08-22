@@ -1020,6 +1020,28 @@ class LongTermAssetServiceTest {
   }
 
   @Test
+  void historicalAnnualSnapshotExposesBondPayoutIncome() {
+    LongTermAssetEntity bond = asset(LongTermAssetType.BOND, "100000");
+    LongTermAssetBondDetailsEntity details = new LongTermAssetBondDetailsEntity();
+    details.setTaxRate(new BigDecimal("0.19"));
+    details.setMaturityDate(DATE.plusYears(2));
+    details.setInterestTreatment(InterestTreatment.PAY_OUT);
+    LongTermAssetBondRatePeriodEntity rate = new LongTermAssetBondRatePeriodEntity();
+    rate.setValidFrom(LocalDate.of(2025, 1, 1));
+    rate.setAnnualInterestRate(new BigDecimal("0.06"));
+    when(assets.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of(bond));
+    when(bonds.findById(1L)).thenReturn(Optional.of(details));
+    when(bondRates.findAllByAssetIdOrderByValidFrom(1L)).thenReturn(List.of(rate));
+    when(currencyRates.convertToBaseCurrency(
+            any(BigDecimal.class), eq(CurrencyType.USD), eq(CurrencyType.PLN), any(LocalDate.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0, BigDecimal.class));
+
+    BigDecimal income = service.historicalAnnualSnapshot(1L, 2025).bondIncome();
+
+    assertEquals(0, new BigDecimal("4860.0000").compareTo(income));
+  }
+
+  @Test
   void annualSnapshotsNormalizeNativePlnMoneyToCanonicalUsd() {
     LongTermAssetEntity apartment = asset(LongTermAssetType.REAL_ESTATE, "4000000");
     apartment.setTaxBase(BigDecimal.ZERO);
