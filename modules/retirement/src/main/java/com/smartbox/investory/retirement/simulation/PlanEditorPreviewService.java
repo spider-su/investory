@@ -192,7 +192,6 @@ public class PlanEditorPreviewService {
         bridge == null ? null : displayCanonical(bridge.investmentAnnualReturn(), displayCurrency),
         zero,
         zero,
-        zero,
         zero);
   }
 
