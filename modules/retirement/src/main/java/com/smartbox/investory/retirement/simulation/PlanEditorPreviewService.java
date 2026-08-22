@@ -67,7 +67,12 @@ public class PlanEditorPreviewService {
     }
     previewYears.add(
         currentYear(
-            currentYear, currentPlanningAge, facts, assumptions, displayCurrency));
+            currentYear,
+            currentPlanningAge,
+            facts,
+            assumptions,
+            forward.currentYearBridge(),
+            displayCurrency));
     previewYears.addAll(
         result.years().stream()
             .filter(row -> row.year() > currentYear)
@@ -146,6 +151,7 @@ public class PlanEditorPreviewService {
       int age,
       LongTermAssetAnnualSnapshotModel facts,
       SimulationAssumptions assumptions,
+      com.smartbox.investory.retirement.planning.CurrentYearBridgeResult bridge,
       CurrencyType displayCurrency) {
     boolean retired = age >= assumptions.retirementAge();
     BigDecimal employment = retired ? BigDecimal.ZERO : assumptions.annualEmploymentIncome();
@@ -177,7 +183,17 @@ public class PlanEditorPreviewService {
         displayCanonical(contribution, displayCurrency),
         displayCanonical(totalIncome, displayCurrency),
         zero,
-        zero, zero, zero, zero, zero, zero, zero, zero, zero, zero);
+        zero,
+        zero,
+        zero,
+        zero,
+        zero,
+        zero,
+        bridge == null ? null : displayCanonical(bridge.investmentAnnualReturn(), displayCurrency),
+        zero,
+        zero,
+        zero,
+        zero);
   }
 
   private PreviewYear historicalYear(

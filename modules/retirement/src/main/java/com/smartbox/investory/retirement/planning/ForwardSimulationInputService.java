@@ -22,7 +22,11 @@ public class ForwardSimulationInputService {
   public ForwardSimulationInput prepare(
       InvestmentProfile profile, SimulationAssumptions assumptions) {
     var context = contexts.create(profile, assumptions);
-    var bridged = bridge.projectCurrentYearEnd(context).bridgedProfile();
-    return new ForwardSimulationInput(context, bridged, context.forwardAssumptions());
+    var currentYearBridge = bridge.projectCurrentYearEnd(context);
+    return new ForwardSimulationInput(
+        context,
+        currentYearBridge.bridgedProfile(),
+        context.forwardAssumptions(),
+        currentYearBridge);
   }
 }

@@ -247,10 +247,24 @@ class PlanEditorPreviewServiceTest {
     var projected = assumptions;
     var row =
         SimulationYear.generic(
-            41, 2027, true, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-            BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-            BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-            BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+            41,
+            2027,
+            true,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            new BigDecimal("8614"),
+            new BigDecimal("732"),
+            BigDecimal.ZERO,
+            new BigDecimal("9346"),
+            BigDecimal.ZERO,
             BigDecimal.ZERO);
     when(profile.portfolioId()).thenReturn(7L);
     when(inputs.prepare(any(), any()))
@@ -263,6 +277,10 @@ class PlanEditorPreviewServiceTest {
         .thenReturn(new LongTermAssetAnnualSnapshotModel(null, null, null, null, null, null));
     when(presentation.toDisplay(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-    assertEquals(2027, service.preview(profile, assumptions, CurrencyType.PLN).years().get(1).year());
+    PlanEditorPreviewService.PreviewYear previewYear =
+        service.preview(profile, assumptions, CurrencyType.PLN).years().get(1);
+
+    assertEquals(2027, previewYear.year());
+    assertEquals(new BigDecimal("732"), previewYear.investmentReturn());
   }
 }

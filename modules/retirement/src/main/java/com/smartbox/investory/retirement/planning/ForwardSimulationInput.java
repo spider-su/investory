@@ -9,7 +9,15 @@ import java.util.Optional;
 public record ForwardSimulationInput(
     ForwardSimulationContext context,
     InvestmentProfile bridgedProfile,
-    Optional<SimulationAssumptions> forwardAssumptions) {
+    Optional<SimulationAssumptions> forwardAssumptions,
+    CurrentYearBridgeResult currentYearBridge) {
+  public ForwardSimulationInput(
+      ForwardSimulationContext context,
+      InvestmentProfile bridgedProfile,
+      Optional<SimulationAssumptions> forwardAssumptions) {
+    this(context, bridgedProfile, forwardAssumptions, null);
+  }
+
   public ForwardSimulationInput {
     if (context == null || bridgedProfile == null || forwardAssumptions == null)
       throw new IllegalArgumentException("Forward simulation input requires complete values");

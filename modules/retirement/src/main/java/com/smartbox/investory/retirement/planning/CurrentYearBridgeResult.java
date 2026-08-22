@@ -20,6 +20,7 @@ public record CurrentYearBridgeResult(
     BigDecimal pensionIncomeUsed,
     BigDecimal contractualIncomeApplied,
     BigDecimal redemptionCashApplied,
+    BigDecimal investmentAnnualReturn,
     List<SimulationEvent> currentYearEventsApplied) {
 
   public CurrentYearBridgeResult {

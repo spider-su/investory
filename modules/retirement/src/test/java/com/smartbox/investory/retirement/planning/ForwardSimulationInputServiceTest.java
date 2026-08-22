@@ -42,6 +42,7 @@ class ForwardSimulationInputServiceTest {
     assertEquals(
         new BigDecimal("50000"),
         input.forwardAssumptions().orElseThrow().annualPreRetirementContribution());
+    assertEquals(bridged, input.currentYearBridge());
     verify(bridge).projectCurrentYearEnd(context);
   }
 

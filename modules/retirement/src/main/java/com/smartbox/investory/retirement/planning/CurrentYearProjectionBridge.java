@@ -44,13 +44,14 @@ public class CurrentYearProjectionBridge {
     InvestmentProfile profile = context.currentProfile();
     SimulationAssumptions assumptions = context.originalAssumptions();
     if (!context.requiresCurrentYearBridge()) {
-      return result(context, profile, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO);
+      return result(context, profile, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, null);
     }
     int year = context.asOfYear();
     BigDecimal fraction = remainingYearFraction(year);
     SimulationYear projected = simulations.simulate(profile, assumptions, SimulationScenario.BASE, true)
         .years().stream().findFirst().orElse(null);
-    if (projected == null) return result(context, profile, fraction, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO);
+    if (projected == null)
+      return result(context, profile, fraction, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, null);
     BigDecimal spending = projected.totalExpenses().multiply(fraction);
     BigDecimal passive = projected.passiveIncome().multiply(fraction);
     BigDecimal pension = projected.pensionIncome().multiply(fraction);
@@ -60,7 +61,8 @@ public class CurrentYearProjectionBridge {
     BigDecimal contribution = projected.preRetirementContribution().multiply(fraction);
     InvestmentProfile bridgedProfile = rebaseSpendableState(profile, projected, fraction);
     return result(context, bridgedProfile, fraction, contribution, spending, funding, passive, pension,
-        projected.rentalIncome().add(projected.bondIncome()).multiply(fraction), ZERO);
+        projected.rentalIncome().add(projected.bondIncome()).multiply(fraction), ZERO,
+        projected.equityGain());
   }
 
   /** Carry the returned reserve/Investment end state into the next projected year. */
@@ -97,11 +99,13 @@ public class CurrentYearProjectionBridge {
 
   private static CurrentYearBridgeResult result(ForwardSimulationContext context, InvestmentProfile profile,
       BigDecimal fraction, BigDecimal contribution, BigDecimal spending, BigDecimal funding,
-      BigDecimal passive, BigDecimal pension, BigDecimal contractualIncome, BigDecimal redemption) {
+      BigDecimal passive, BigDecimal pension, BigDecimal contractualIncome, BigDecimal redemption,
+      BigDecimal investmentAnnualReturn) {
     return new CurrentYearBridgeResult(profile, context.asOfYear(), context.firstProjectedYear(),
         context.asOfAge() >= context.originalAssumptions().retirementAge()
             ? SimulationLifecyclePhase.RETIRED : SimulationLifecyclePhase.WORKING,
         fraction, contribution, spending, funding, passive, pension, contractualIncome, redemption,
+        investmentAnnualReturn,
         context.currentYearEvents());
   }
 }
