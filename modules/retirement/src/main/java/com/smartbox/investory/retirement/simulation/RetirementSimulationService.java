@@ -49,7 +49,7 @@ public class RetirementSimulationService implements RetirementSimulation {
         assumptions.annualEmploymentIncome(), assumptions.annualPreRetirementContribution(),
         reserve, investmentStart, settings.equityReturnRate(),
         assumptions.futureEvents(), InvestmentAnnualProjectionApi.Source.PROJECTED,
-        assumptions.expenseProfile(), longTermState);
+        assumptions.expenseProfile(), longTermState, RetirementFundingPolicy.fromLegacy(assumptions));
     var result = new RetirementSimulationOrchestrator(longTerm, investments).run(input);
     return map(result, scenario, assumptions, reserve, investmentStart);
   }
@@ -76,6 +76,7 @@ public class RetirementSimulationService implements RetirementSimulation {
       BigDecimal spendableEnd = year.reserveEnd().add(investment.endValue());
       if (year.unfundedShortfall().signum() > 0 && failureAge == null) { failureAge = year.age(); firstShortfall = year.unfundedShortfall(); }
       totalUnfunded = totalUnfunded.add(year.unfundedShortfall());
+      BigDecimal preRetirementContribution = year.retired() ? ZERO : assumptions.annualPreRetirementContribution();
       years.add(SimulationYear.generic(
           year.age(), year.year(), year.retired(), year.expenses(), year.eventExpenses(),
           year.employmentIncome(), year.pensionIncome(), year.eventIncome(),
@@ -84,7 +85,7 @@ public class RetirementSimulationService implements RetirementSimulation {
           year.maturedBondFunding(), year.longTermCapitalEnd(),
           investmentStart, investment.annualReturnAmount(), year.investmentWithdrawal(), investment.endValue(),
           year.unfundedShortfall(),
-          year.retired() ? ZERO : assumptions.annualPreRetirementContribution()));
+          preRetirementContribution, year.equityHarvestToReserve()));
       reserveStart = year.reserveEnd(); investmentStart = investment.endValue();
     }
     return new SimulationResult(scenario, failureAge != null, failureAge, firstShortfall, totalUnfunded, years);

@@ -23,7 +23,8 @@ public record RetirementSimulationInput(
     List<SimulationEvent> events,
     InvestmentAnnualProjectionApi.Source investmentSource,
     ExpenseProfile expenseProfile,
-    LongTermAnnualProjectionApi.PlanningState longTermPlanningState) {
+    LongTermAnnualProjectionApi.PlanningState longTermPlanningState,
+    RetirementFundingPolicy fundingPolicy) {
   public RetirementSimulationInput {
     if (currentAge < 0 || endAge < currentAge || retirementAge < 0 || retirementAge > endAge)
       throw new IllegalArgumentException("Invalid retirement horizon");
@@ -40,6 +41,21 @@ public record RetirementSimulationInput(
     expenseProfile = expenseProfile == null ? ExpenseProfile.EMPTY : expenseProfile;
     longTermPlanningState = longTermPlanningState == null
         ? LongTermAnnualProjectionApi.PlanningState.EMPTY : longTermPlanningState;
+    fundingPolicy = fundingPolicy == null ? RetirementFundingPolicy.defaults() : fundingPolicy;
+  }
+
+  /** Compatibility constructor for callers that predate explicit funding policy. */
+  public RetirementSimulationInput(
+      int currentAge, int endAge, int startYear, int retirementAge, BigDecimal annualExpenses,
+      BigDecimal spendingGrowthRate, BigDecimal annualPension, int pensionStartAge,
+      BigDecimal annualEmploymentIncome, BigDecimal annualPreRetirementContribution,
+      BigDecimal initialReserve, BigDecimal initialInvestmentValue, BigDecimal investmentReturnRate,
+      List<SimulationEvent> events, InvestmentAnnualProjectionApi.Source investmentSource,
+      ExpenseProfile expenseProfile, LongTermAnnualProjectionApi.PlanningState longTermPlanningState) {
+    this(currentAge, endAge, startYear, retirementAge, annualExpenses, spendingGrowthRate,
+        annualPension, pensionStartAge, annualEmploymentIncome, annualPreRetirementContribution,
+        initialReserve, initialInvestmentValue, investmentReturnRate, events, investmentSource,
+        expenseProfile, longTermPlanningState, RetirementFundingPolicy.defaults());
   }
 
   /** Resolve a persisted expense stage against the original plan-year anchor. */

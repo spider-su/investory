@@ -403,6 +403,11 @@ public record SimulationAssumptions(
     return startYear;
   }
 
+  /** Active withdrawal and reserve-replenishment policy, backed by legacy persisted fields. */
+  public RetirementFundingPolicy fundingPolicy() {
+    return RetirementFundingPolicy.fromLegacy(this);
+  }
+
   /** Nominal rental growth: economy-wide inflation plus the persisted rental spread. */
   public BigDecimal effectiveRentalIncomeGrowthRate() {
     return SimulationScenarioSettings.effectiveGrowthRate(

@@ -62,48 +62,30 @@ public record SimulationYear(
    * spendable sources represented by the canonical simulator.
    */
   public static SimulationYear generic(
-      int age,
-      int year,
-      boolean retired,
-      BigDecimal expenses,
-      BigDecimal eventExpenses,
-      BigDecimal employmentIncome,
-      BigDecimal pensionIncome,
-      BigDecimal eventIncome,
-      BigDecimal rentalIncome,
-      BigDecimal bondIncome,
-      BigDecimal reserveStart,
-      BigDecimal reserveWithdrawal,
-      BigDecimal reserveEnd,
-      BigDecimal investmentStart,
-      BigDecimal investmentReturn,
-      BigDecimal investmentWithdrawal,
-      BigDecimal investmentEnd,
-      BigDecimal unfundedAmount,
-      BigDecimal preRetirementContribution) {
-    return generic(
-        age,
-        year,
-        retired,
-        expenses,
-        eventExpenses,
-        employmentIncome,
-        pensionIncome,
-        eventIncome,
-        rentalIncome,
-        bondIncome,
-        reserveStart,
-        reserveWithdrawal,
-        reserveEnd,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        investmentStart,
-        investmentReturn,
-        investmentWithdrawal,
-        investmentEnd,
-        unfundedAmount,
-        preRetirementContribution);
+      int age, int year, boolean retired, BigDecimal expenses, BigDecimal eventExpenses,
+      BigDecimal employmentIncome, BigDecimal pensionIncome, BigDecimal eventIncome,
+      BigDecimal rentalIncome, BigDecimal bondIncome, BigDecimal reserveStart,
+      BigDecimal reserveWithdrawal, BigDecimal reserveEnd, BigDecimal investmentStart,
+      BigDecimal investmentReturn, BigDecimal investmentWithdrawal, BigDecimal investmentEnd,
+      BigDecimal unfundedAmount, BigDecimal preRetirementContribution) {
+    return generic(age, year, retired, expenses, eventExpenses, employmentIncome, pensionIncome,
+        eventIncome, rentalIncome, bondIncome, reserveStart, reserveWithdrawal, reserveEnd,
+        BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, investmentStart, investmentReturn,
+        investmentWithdrawal, investmentEnd, unfundedAmount, preRetirementContribution);
+  }
+
+  public static SimulationYear generic(
+      int age, int year, boolean retired, BigDecimal expenses, BigDecimal eventExpenses,
+      BigDecimal employmentIncome, BigDecimal pensionIncome, BigDecimal eventIncome,
+      BigDecimal rentalIncome, BigDecimal bondIncome, BigDecimal reserveStart,
+      BigDecimal reserveWithdrawal, BigDecimal reserveEnd, BigDecimal reserveTransfer,
+      BigDecimal longTermFunding, BigDecimal longTermCapitalEnd, BigDecimal investmentStart,
+      BigDecimal investmentReturn, BigDecimal investmentWithdrawal, BigDecimal investmentEnd,
+      BigDecimal unfundedAmount, BigDecimal preRetirementContribution) {
+    return generic(age, year, retired, expenses, eventExpenses, employmentIncome, pensionIncome,
+        eventIncome, rentalIncome, bondIncome, reserveStart, reserveWithdrawal, reserveEnd,
+        reserveTransfer, longTermFunding, longTermCapitalEnd, investmentStart, investmentReturn,
+        investmentWithdrawal, investmentEnd, unfundedAmount, preRetirementContribution, BigDecimal.ZERO);
   }
 
   public static SimulationYear generic(
@@ -128,7 +110,8 @@ public record SimulationYear(
       BigDecimal investmentWithdrawal,
       BigDecimal investmentEnd,
       BigDecimal unfundedAmount,
-      BigDecimal preRetirementContribution) {
+      BigDecimal preRetirementContribution,
+      BigDecimal equityHarvestToReserve) {
     BigDecimal totalExpenses = expenses.add(eventExpenses);
     BigDecimal passiveIncome = rentalIncome.add(bondIncome);
     BigDecimal totalIncome = passiveIncome.add(pensionIncome).add(employmentIncome).add(eventIncome);
@@ -165,6 +148,7 @@ public record SimulationYear(
             investmentReturn,
             investmentWithdrawal,
             investmentEnd,
+            equityHarvestToReserve,
             unfundedAmount));
   }
 

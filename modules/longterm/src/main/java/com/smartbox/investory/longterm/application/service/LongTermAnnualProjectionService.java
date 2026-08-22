@@ -46,17 +46,19 @@ public class LongTermAnnualProjectionService implements LongTermAnnualProjection
           || asset.type() == LongTermAssetTypeModel.DEPOSIT) {
         BigDecimal value = nz(asset.currentValue());
         BigDecimal netInterest = netBondInterest(asset, request.year());
-        if (asset.interestTreatment() == InterestTreatmentModel.PAY_OUT && netInterest.signum() != 0)
+        boolean paysOut = asset.interestTreatment() != InterestTreatmentModel.CAPITALIZE;
+        if (paysOut && netInterest.signum() != 0)
           flows.add(new PlannedCashFlow("long-term-interest-" + asset.id(), asset.name(), CashFlowKind.FIXED_INCOME, netInterest,
               request.state().source()));
+        BigDecimal carriedValue = paysOut ? value : value.add(netInterest);
         boolean matured = asset.maturityDate() != null
             && !asset.maturityDate().isAfter(LocalDate.of(request.year(), 12, 31));
         if (matured) {
           availableCapital = availableCapital.add(
-              asset.redemptionValue() == null ? value : asset.redemptionValue());
+              asset.redemptionValue() == null ? carriedValue : asset.redemptionValue());
         } else {
-          nextAssets.add(asset);
-          endCapital = endCapital.add(value);
+          nextAssets.add(withCurrentValue(asset, carriedValue));
+          endCapital = endCapital.add(carriedValue);
         }
         continue;
       }
@@ -111,10 +113,24 @@ public class LongTermAnnualProjectionService implements LongTermAnnualProjection
   }
 
   private static BigDecimal netBondInterest(LongTermAssetProjectionModel asset, int year) {
-    BigDecimal rate = asset.periods().stream().filter(period -> applies(period, year))
+    var activePeriods = asset.periods().stream().filter(period -> applies(period, year)).toList();
+    BigDecimal declaredIncome = activePeriods.stream()
+        .map(LongTermAssetProjectionModel.Period::annualIncome)
+        .filter(java.util.Objects::nonNull)
+        .reduce(ZERO, BigDecimal::add);
+    if (declaredIncome.signum() != 0) return declaredIncome;
+    BigDecimal rate = activePeriods.stream()
         .map(LongTermAssetProjectionModel.Period::annualReturnRate).filter(java.util.Objects::nonNull)
         .findFirst().orElse(ZERO);
     return nz(asset.currentValue()).multiply(rate).multiply(BigDecimal.ONE.subtract(nz(asset.taxRate())));
+  }
+
+  private static LongTermAssetProjectionModel withCurrentValue(
+      LongTermAssetProjectionModel asset, BigDecimal currentValue) {
+    return new LongTermAssetProjectionModel(
+        asset.id(), asset.name(), asset.type(), asset.currency(), currentValue, asset.periods(),
+        asset.rentalContracts(), asset.maturityDate(), asset.redemptionValue(),
+        asset.interestTreatment(), asset.taxRate(), asset.taxBase(), asset.rentalTaxPaidByTenant());
   }
 
   private static boolean applies(LongTermAssetProjectionModel.Period period, int year) {
