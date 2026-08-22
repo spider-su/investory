@@ -31,7 +31,8 @@ class RetirementSimulationTemplateContractTest {
     assertTrue(editor.contains("Spending changes by age"));
     assertTrue(editor.contains("Current asset facts"));
     assertTrue(editor.contains("Current fact"));
-    assertTrue(editor.contains("Investment value"));
+    assertTrue(editor.contains("Investment profit"));
+    assertTrue(editor.contains("Planned annual income"));
     assertTrue(editor.contains("Investment return"));
     assertTrue(editor.contains("Assumption"));
     assertTrue(editor.contains("No future events."));
@@ -39,14 +40,21 @@ class RetirementSimulationTemplateContractTest {
     assertTrue(editor.contains("Funding policy"));
     assertTrue(editor.contains("Fixed by the planning model."));
     assertTrue(editor.contains("Development"));
-    assertTrue(editor.contains("Timeline inputs"));
-    assertTrue(editor.contains("Spending calculation"));
-    assertTrue(editor.contains("Income projection"));
-    assertTrue(editor.contains("Funding calculation"));
+    assertTrue(editor.contains("<summary>Timeline</summary>"));
+    assertTrue(editor.contains("<summary>Spending</summary>"));
+    assertTrue(editor.contains("<summary>Income</summary>"));
+    assertTrue(editor.contains("<summary>Funding &amp; balances</summary>"));
+    assertTrue(editor.contains("Reserve transfer"));
+    assertTrue(editor.contains("Investment withdrawal"));
+    assertTrue(editor.contains("year.investmentReturn"));
+    assertTrue(editor.contains("year.rentalIncome == null ? '—'"));
+    assertTrue(editor.contains("developMode != null and developMode and planPreview != null"));
 
     assertFalse(editor.contains("Funding &amp; reserve strategy"));
     assertFalse(editor.contains("Investment · projected first-year return"));
     assertFalse(editor.contains("Development preview ·"));
+    assertFalse(editor.contains("Timeline inputs"));
+    assertFalse(editor.contains("Funding calculation"));
     assertFalse(editor.contains("Saved plans</span>"));
   }
 

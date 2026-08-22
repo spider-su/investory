@@ -301,13 +301,16 @@ public class RetirementSimulationController {
     model.addAttribute("planningDisplayCurrency", planningDisplayCurrency);
     model.addAttribute("developMode", Boolean.valueOf(developMode));
     if (planEditorPreview != null) {
-      var facts = planEditorPreview.currentFacts(profile);
-      model.addAttribute(
-          "currentRentalIncome",
-          planningPresentation.toDisplay(facts.rentalIncome(), planningDisplayCurrency));
-      model.addAttribute(
-          "currentBondIncome",
-          planningPresentation.toDisplay(facts.bondIncome(), planningDisplayCurrency));
+      var preview = planEditorPreview.preview(profile, assumptions, planningDisplayCurrency);
+      model.addAttribute("currentRentalIncome", preview.rentalIncome());
+      model.addAttribute("currentBondIncome", preview.bondIncome());
+      model.addAttribute("plannedIncomeReferenceYear", preview.plannedIncomeReferenceYear());
+      model.addAttribute("plannedRentalIncome", preview.plannedRentalIncome());
+      model.addAttribute("plannedBondIncome", preview.plannedBondIncome());
+      model.addAttribute("plannedInvestmentProfit", preview.plannedInvestmentProfit());
+      model.addAttribute("plannedPension", preview.plannedPension());
+      model.addAttribute("plannedAnnualIncome", preview.plannedAnnualIncome());
+      if (developMode) model.addAttribute("planPreview", preview);
     }
     model.addAttribute("plans", plans.list(portfolioId));
     model.addAttribute(
@@ -354,10 +357,6 @@ public class RetirementSimulationController {
                     event.id(),
                     planningPresentation.toDisplay(event.amount(), planningDisplayCurrency)));
     model.addAttribute("displayEventAmounts", displayEventAmounts);
-    if (developMode && planEditorPreview != null) {
-      model.addAttribute(
-          "planPreview", planEditorPreview.preview(profile, assumptions, planningDisplayCurrency));
-    }
     return "simulation-plan-edit";
   }
 

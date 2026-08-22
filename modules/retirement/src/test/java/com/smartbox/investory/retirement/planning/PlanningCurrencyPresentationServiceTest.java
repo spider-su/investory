@@ -7,7 +7,10 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.retirement.profile.InvestmentProfile;
+import com.smartbox.investory.retirement.simulation.SimulationAssumptions;
 import com.smartbox.investory.retirement.simulation.SimulationChartData;
+import com.smartbox.investory.retirement.simulation.SimulationFunding;
+import com.smartbox.investory.retirement.simulation.SimulationFundingStrategy;
 import com.smartbox.investory.retirement.simulation.SimulationScenario;
 import com.smartbox.investory.retirement.simulation.SimulationYear;
 import com.smartbox.investory.retirement.simulation.SustainableSpendingAnalysis;
@@ -204,7 +207,7 @@ class PlanningCurrencyPresentationServiceTest {
   }
 
   @Test
-  void timelineUsesAnnualCostsNetWithdrawalAndAssetBucketsForHistoricalRows() {
+  void historicalTimelineDoesNotInventFundingSourcesFromAccountingBuckets() {
     PlanningMetricValue core = value(PlanningMetric.CORE_SPENDING, "180000");
     PlanningMetricValue extras = value(PlanningMetric.DISCRETIONARY_SPENDING, "60000");
     PlanningMetricValue withdrawal = value(PlanningMetric.MARKET_WITHDRAWAL, "74320");
@@ -236,23 +239,23 @@ class PlanningCurrencyPresentationServiceTest {
             .get(2025);
 
     assertEquals(new BigDecimal("240000"), displayed.annualCosts());
-    assertEquals(new BigDecimal("74320"), displayed.portfolioWithdrawal());
-    assertEquals(new BigDecimal("135849"), displayed.fixedIncome());
-    assertEquals(new BigDecimal("578516"), displayed.equity());
+    assertNull(displayed.totalIncome());
+    assertNull(displayed.reserveWithdrawal());
+    assertNull(displayed.investmentEnd());
   }
 
   @Test
-  void liveTimelineDisplaysStartingStateAndDoesNotReplaceItWithBaseline() {
+  void liveTimelineUsesAllKnownIncomeForItsFundingGap() {
     Map<PlanningMetric, PlanningMetricValue> live =
         Map.of(
-            PlanningMetric.CORE_SPENDING, value(PlanningMetric.CORE_SPENDING, "192000"),
+            PlanningMetric.CORE_SPENDING, value(PlanningMetric.CORE_SPENDING, "240000"),
             PlanningMetric.DISCRETIONARY_SPENDING,
-                value(PlanningMetric.DISCRETIONARY_SPENDING, "70000"),
-            PlanningMetric.RENTAL_INCOME, value(PlanningMetric.RENTAL_INCOME, "180000"),
+                value(PlanningMetric.DISCRETIONARY_SPENDING, "0"),
+            PlanningMetric.RENTAL_INCOME, value(PlanningMetric.RENTAL_INCOME, "174804"),
             PlanningMetric.PORTFOLIO_FUNDING, value(PlanningMetric.PORTFOLIO_FUNDING, "0"),
             PlanningMetric.SAFE_RESERVE, value(PlanningMetric.SAFE_RESERVE, "135849"),
             PlanningMetric.BOND_VALUE, value(PlanningMetric.BOND_VALUE, "900000"),
-            PlanningMetric.BOND_INCOME, value(PlanningMetric.BOND_INCOME, "48000"),
+            PlanningMetric.BOND_INCOME, value(PlanningMetric.BOND_INCOME, "38880"),
             PlanningMetric.EQUITY, value(PlanningMetric.EQUITY, "578516"));
     CurrentPlanningYear current =
         new CurrentPlanningYear(
@@ -272,37 +275,40 @@ class PlanningCurrencyPresentationServiceTest {
         new PlanningCurrencyPresentationService(
                 Mockito.mock(CurrencyConversion.class),
                 Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC))
-            .displayTimelineMoney(timeline, CurrencyType.USD)
+            .displayTimelineMoney(timeline, CurrencyType.USD, liveAssumptions())
             .get(2026);
 
-    assertEquals(new BigDecimal("262000"), displayed.annualCosts());
-    assertEquals(new BigDecimal("180000"), displayed.rentalIncome());
-    assertEquals(new BigDecimal("82000"), displayed.incomeGap());
-    assertNull(displayed.portfolioWithdrawal());
-    assertEquals(BigDecimal.ZERO, displayed.fundingNeed());
-    assertEquals(new BigDecimal("135849"), displayed.safeReserve());
-    assertEquals(new BigDecimal("900000"), displayed.bondsValue());
-    assertEquals(new BigDecimal("48000"), displayed.bondsIncome());
-    assertEquals(new BigDecimal("578516"), displayed.equityValue());
-    assertNull(displayed.equityGain());
+    assertEquals(new BigDecimal("240000"), displayed.annualCosts());
+    assertEquals(new BigDecimal("333684"), displayed.totalIncome());
+    assertEquals(new BigDecimal("174804"), displayed.rentalIncome());
+    assertEquals(new BigDecimal("38880"), displayed.bondIncome());
+    assertEquals(BigDecimal.ZERO, displayed.fundingGap());
+    assertNull(displayed.reserveWithdrawal());
+    assertEquals(new BigDecimal("135849"), displayed.reserveEnd());
   }
 
   @Test
-  void projectedTimelineSeparatesNeedWithdrawalUnfundedCashAndSafeReserve() {
+  void projectedTimelineUsesCanonicalFundingComponents() {
     SimulationYear projection = Mockito.mock(SimulationYear.class);
     when(projection.totalExpenses()).thenReturn(new BigDecimal("100"));
     when(projection.rentalIncome()).thenReturn(BigDecimal.ZERO);
-    when(projection.incomeGap()).thenReturn(new BigDecimal("100"));
-    when(projection.requiredPortfolioFunding()).thenReturn(new BigDecimal("100"));
-    when(projection.actualPortfolioWithdrawal()).thenReturn(new BigDecimal("70"));
-    when(projection.unfundedAmount()).thenReturn(new BigDecimal("30"));
-    when(projection.cashEnd()).thenReturn(new BigDecimal("20"));
-    when(projection.safeReserveEnd()).thenReturn(new BigDecimal("80"));
-    when(projection.bondValueEnd()).thenReturn(new BigDecimal("60"));
+    when(projection.totalIncome()).thenReturn(BigDecimal.ZERO);
     when(projection.bondIncome()).thenReturn(BigDecimal.ZERO);
-    when(projection.equityEnd()).thenReturn(new BigDecimal("200"));
-    when(projection.equityGain()).thenReturn(BigDecimal.ZERO);
-    when(projection.fixedIncomeEnd()).thenReturn(new BigDecimal("60"));
+    when(projection.funding())
+        .thenReturn(
+            new SimulationFunding(
+                new BigDecimal("100"),
+                new BigDecimal("80"),
+                BigDecimal.ZERO,
+                new BigDecimal("20"),
+                new BigDecimal("60"),
+                new BigDecimal("30"),
+                new BigDecimal("70"),
+                new BigDecimal("200"),
+                BigDecimal.ZERO,
+                new BigDecimal("40"),
+                new BigDecimal("160"),
+                new BigDecimal("10")));
 
     PlanningTimeline timeline =
         new PlanningTimeline(
@@ -317,16 +323,48 @@ class PlanningCurrencyPresentationServiceTest {
             .displayTimelineMoney(timeline, CurrencyType.USD)
             .get(2027);
 
-    assertEquals(new BigDecimal("100"), displayed.fundingNeed());
-    assertEquals(new BigDecimal("70"), displayed.portfolioWithdrawal());
-    assertEquals(new BigDecimal("30"), displayed.unfunded());
-    assertEquals(new BigDecimal("20"), displayed.cash());
-    assertEquals(new BigDecimal("80"), displayed.safeReserve());
+    assertEquals(new BigDecimal("100"), displayed.fundingGap());
+    assertEquals(new BigDecimal("20"), displayed.reserveWithdrawal());
+    assertEquals(new BigDecimal("30"), displayed.longTermFunding());
+    assertEquals(new BigDecimal("40"), displayed.investmentWithdrawal());
+    assertEquals(new BigDecimal("10"), displayed.unfunded());
+    assertEquals(new BigDecimal("60"), displayed.reserveEnd());
+    assertEquals(new BigDecimal("70"), displayed.longTermCapitalEnd());
+    assertEquals(new BigDecimal("160"), displayed.investmentEnd());
   }
 
   private static PlanningMetricValue value(PlanningMetric metric, String amount) {
     return new PlanningMetricValue(
         metric, new BigDecimal(amount), null, PlanningValueSource.ACCOUNTING_DERIVED, null);
+  }
+
+  private static SimulationAssumptions liveAssumptions() {
+    return new SimulationAssumptions(
+        41,
+        95,
+        new BigDecimal("240000"),
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        67,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        2026,
+        BigDecimal.ZERO,
+        List.of(),
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        SimulationFundingStrategy.RESERVE_AND_HARVEST,
+        BigDecimal.ONE,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        true,
+        65,
+        new BigDecimal("120000"),
+        BigDecimal.ZERO);
   }
 
   @Test

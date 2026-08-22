@@ -162,7 +162,6 @@ class PlanEditorPreviewServiceTest {
     assertEquals(new BigDecimal("120000"), current.employmentIncome());
     assertEquals(new BigDecimal("47411"), current.rentalIncome());
     assertEquals(new BigDecimal("10545"), current.bondIncome());
-    assertEquals(new BigDecimal("12000"), current.contribution());
     assertEquals("CURRENT", current.state());
   }
 

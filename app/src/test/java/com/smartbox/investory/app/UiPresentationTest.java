@@ -23,6 +23,9 @@ class UiPresentationTest {
     assertEquals("1,030", UiPresentation.money(new BigDecimal("1030.00000000")));
     assertEquals("1,030.50", UiPresentation.money(new BigDecimal("1030.50000000")));
     assertEquals("1,030.57", UiPresentation.money(new BigDecimal("1030.5678")));
+    assertEquals("0", UiPresentation.money(new BigDecimal("0E-8")));
+    assertEquals("38,880", UiPresentation.money(new BigDecimal("38880.00015480")));
+    assertEquals("178,961.17", UiPresentation.money(new BigDecimal("178961.16944085")));
     assertEquals("7.0%", UiPresentation.percentage(new BigDecimal("0.07")));
     assertEquals("75.0%", UiPresentation.percentage(new BigDecimal("0.75")));
     assertEquals("2.5", UiPresentation.percentageInput(new BigDecimal("0.025")));

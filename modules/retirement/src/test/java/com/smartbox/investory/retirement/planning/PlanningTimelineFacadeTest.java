@@ -325,17 +325,48 @@ class PlanningTimelineFacadeTest {
                 null,
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
-                List.of(projected())));
+                List.of(projected(2027), projected(2028), projected(2029))));
     PlanningTimeline timeline = facade.loadTimeline(1L, profile(), assumptions());
     assertEquals(
-        List.of(2025, 2026, 2027),
+        List.of(2025, 2026, 2027, 2028, 2029),
         timeline.years().stream().map(PlanningTimelineYear::year).toList());
     assertEquals(
         List.of(
             PlanningTimelineState.ACTUAL,
             PlanningTimelineState.LIVE,
+            PlanningTimelineState.PROJECTED,
+            PlanningTimelineState.PROJECTED,
             PlanningTimelineState.PROJECTED),
         timeline.years().stream().map(PlanningTimelineYear::state).toList());
+  }
+
+  @Test
+  void forwardTimelineKeepsAbsoluteProjectedYearsForOlderPlanStarts() {
+    SimulationAssumptions anchored = assumptions().rebasedTo(37, 2023, List.of());
+    ForwardSimulationContext context =
+        new ForwardSimulationContextFactory(
+                Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC))
+            .create(profile(), anchored);
+    when(simulations.simulate(eq(profile()), any(), eq(SimulationScenario.BASE)))
+        .thenReturn(
+            new SimulationResult(
+                SimulationScenario.BASE,
+                false,
+                null,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                List.of(projected(2027), projected(2028), projected(2029))));
+
+    PlanningTimeline timeline =
+        facade.loadForwardTimeline(
+            1L,
+            profile(),
+            new ForwardSimulationInput(context, profile(), context.forwardAssumptions()));
+
+    assertEquals(
+        List.of(2023, 2024, 2025, 2026, 2027, 2028, 2029),
+        timeline.years().stream().map(PlanningTimelineYear::year).toList());
+    assertFalse(timeline.years().stream().anyMatch(row -> row.year() >= 4000));
   }
 
   @Test
@@ -601,10 +632,14 @@ class PlanningTimelineFacadeTest {
   }
 
   private static SimulationYear projected() {
+    return projected(2027);
+  }
+
+  private static SimulationYear projected(int year) {
     BigDecimal z = BigDecimal.ZERO;
     return new SimulationYear(
         41,
-        0,
+        year,
         new BigDecimal("1000"),
         new BigDecimal("100"),
         z,

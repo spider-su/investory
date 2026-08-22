@@ -8,56 +8,46 @@ import org.junit.jupiter.api.Test;
 
 class SimulationTemplateContractTest {
   @Test
-  void javascriptInlineTemplateDoesNotUseArraySyntaxThatThymeleafParsesAsAnExpression()
-      throws Exception {
+  void simulationTemplateKeepsProjectionPresentationServerBacked() throws Exception {
     String html =
         Files.readString(
             Path.of("../adapters/web-ui/src/main/resources/templates/simulation.html"));
     assertAll(
-        () -> assertFalse(html.contains("flowFields=[[")),
-        () -> assertFalse(html.contains("fields=[[")),
-        () -> assertTrue(html.contains("const funding = simulationCharts.funding")),
-        () -> assertTrue(html.contains("requiredPortfolioFunding")),
-        () -> assertTrue(html.contains("safeReserve")),
-        () -> assertTrue(html.contains("plannedSpending")),
-        () -> assertTrue(html.contains("simulation-liquid")),
-        () -> assertFalse(html.contains("simulation-composition")),
-        () -> assertFalse(html.contains("Market fixed income\"}, {key: \"equity")));
+        () -> assertTrue(html.contains("Authoritative simulation output")),
+        () -> assertTrue(html.contains("timelineMoney[row.year].fundingGap")),
+        () -> assertFalse(html.contains("actualPortfolioWithdrawal")),
+        () -> assertFalse(html.contains("manualLiquidReserveWithdrawal")),
+        () -> assertFalse(html.contains("equityEnd")));
   }
 
   @Test
-  void planningTimelineIsSummaryOnlyAndRoutesHistoricalWorkToDetail() throws Exception {
+  void planningTimelineUsesExplicitCanonicalFundingColumns() throws Exception {
     String html =
         Files.readString(
             Path.of("../adapters/web-ui/src/main/resources/templates/simulation.html"));
     assertAll(
-        () -> assertTrue(html.contains("<th>Action</th>")),
         () -> assertTrue(html.contains("<th>Annual costs</th>")),
-        () -> assertTrue(html.contains("<th>Funding need</th>")),
-        () -> assertTrue(html.contains("<th>Portfolio withdrawal</th>")),
+        () -> assertTrue(html.contains("<th>Total income</th>")),
+        () -> assertTrue(html.contains("<th>Funding gap</th>")),
+        () -> assertTrue(html.contains("<th>Reserve withdrawal</th>")),
+        () -> assertTrue(html.contains("<th>Long-Term funding</th>")),
+        () -> assertTrue(html.contains("<th>Investment withdrawal</th>")),
         () -> assertTrue(html.contains("<th>Unfunded</th>")),
-        () -> assertTrue(html.contains("<th>Cash</th>")),
-        () -> assertTrue(html.contains("<th>Bonds value</th>")),
-        () -> assertTrue(html.contains("<th>Equity gain</th>")),
-        () -> assertFalse(html.contains("<th>Net worth</th>")),
-        () -> assertTrue(html.contains("<th>Safe reserve</th>")),
-        () -> assertTrue(html.contains("timeline.firstFailureYear()")),
+        () -> assertTrue(html.contains("<th>Reserve end</th>")),
+        () -> assertTrue(html.contains("<th>Long-Term capital</th>")),
+        () -> assertTrue(html.contains("<th>Investment end</th>")),
+        () -> assertFalse(html.contains("<th>Funding need</th>")),
+        () -> assertFalse(html.contains("<th>Portfolio withdrawal</th>")),
+        () -> assertFalse(html.contains("<th>Cash reserve</th>")),
+        () -> assertFalse(html.contains("<th>Bonds</th>")),
+        () -> assertFalse(html.contains("<th>Equity</th>")),
         () -> assertTrue(html.contains("'Failed'")),
-        () -> assertTrue(html.contains("Review")),
-        () -> assertTrue(html.contains("planningDisplayCurrency=${planningDisplayCurrency}")),
-        () ->
-            assertTrue(
-                html.contains(
-                    "timeline.years.?[state.name() == 'ACTUAL' and year == 2025].isEmpty()")),
-        () -> assertTrue(html.contains("currentYearCloseAllowed")),
-        () -> assertFalse(html.contains("Approve and close")),
-        () -> assertFalse(html.contains("Save correction")),
-        () -> assertFalse(html.contains("/timeline/past/{year}/manual")),
-        () -> assertFalse(html.contains("/timeline/past/{year}/close")));
+        () -> assertTrue(html.contains("timelineMoney[row.year].totalIncome")),
+        () -> assertTrue(html.contains("timelineMoney[row.year].longTermFunding")));
   }
 
   @Test
-  void simulationKeepsDecisionContentVisibleAndMovesConfigurationToEditor() throws Exception {
+  void simulationKeepsScenarioAndPlanNavigation() throws Exception {
     String html =
         Files.readString(
             Path.of("../adapters/web-ui/src/main/resources/templates/simulation.html"));
@@ -69,35 +59,13 @@ class SimulationTemplateContractTest {
             Path.of("../adapters/web-ui/src/main/resources/templates/fragments/app-header.html"));
     assertAll(
         () -> assertTrue(html.contains("planningHeader('simulation'")),
-        () -> assertTrue(html.contains("Retirement outlook")),
-        () -> assertTrue(html.contains("Starting position")),
-        () -> assertTrue(html.contains("Planning flexibility")),
-        () -> assertTrue(html.contains("planningFlexibility.spending.conservativeLimit")),
-        () -> assertTrue(html.contains("Plan risks")),
-        () -> assertTrue(html.contains("planRisks.primaryRisks")),
-        () -> assertTrue(html.contains("View all tested assumptions")),
-        () -> assertTrue(html.contains("planRisks.planningLevers")),
-        () -> assertFalse(html.contains("Plan sensitivity")),
-        () -> assertTrue(html.contains("Spending flexibility")),
-        () -> assertTrue(html.contains("planningFlexibility.retirement.conservative.earliest")),
-        () -> assertFalse(html.contains("aria-label=\"Sustainable spending\"")),
-        () -> assertFalse(html.contains("aria-label=\"Retirement timing\"")),
-        () -> assertTrue(html.contains("Decision charts")),
-        () -> assertTrue(html.contains("View yearly details")),
-        () -> assertTrue(header.contains("Edit plan")),
-        () -> assertFalse(html.contains("<summary>Diagnostics</summary>")),
-        () -> assertFalse(html.contains("Advanced assumptions")),
-        () -> assertFalse(html.contains("Saved plans")),
-        () -> assertTrue(editor.contains("Saved plans")),
-        () -> assertTrue(editor.contains("Life events")),
-        () -> assertTrue(editor.contains("Funding &amp; reserve strategy")),
         () -> assertTrue(html.contains("simulation-scenario-tabs")),
-        () -> assertTrue(html.contains("Plan vs reality")),
-        () -> assertTrue(html.contains("Actual → needs review → current → projected")),
+        () -> assertTrue(html.contains("Edit assumptions")),
+        () -> assertTrue(html.contains("Yearly projection")),
+        () -> assertTrue(header.contains("Edit plan")),
         () -> assertTrue(html.contains("aria-selected")),
-        () -> assertTrue(html.contains("selectedSummary")),
-        () -> assertFalse(html.contains("displaySummaries[selectedScenario]")),
-        () -> assertTrue(html.contains("simulation-net-worth")));
+        () -> assertTrue(editor.contains("Current asset facts")),
+        () -> assertTrue(editor.contains("4. Events")));
   }
 
   @Test
@@ -105,14 +73,9 @@ class SimulationTemplateContractTest {
     String editor =
         Files.readString(
             Path.of("../adapters/web-ui/src/main/resources/templates/simulation-plan-edit.html"));
-    String config = Files.readString(Path.of("src/main/resources/application.yml"));
     assertAll(
-        () -> assertTrue(config.contains("mode: ${DEVELOP_MODE:true}")),
         () -> assertTrue(editor.contains("currentRentalIncome")),
         () -> assertTrue(editor.contains("currentBondIncome")),
-        () -> assertTrue(editor.contains("First projected-year costs")),
-        () -> assertTrue(editor.contains("money(year.employmentIncome)")),
-        () -> assertTrue(editor.contains("<td th:text=\"${year.year}\">")),
         () -> assertFalse(editor.contains("name=\"rentalIncome\"")),
         () -> assertFalse(editor.contains("name=\"bondIncome\"")));
   }
@@ -124,6 +87,6 @@ class SimulationTemplateContractTest {
             Path.of("../adapters/web-ui/src/main/resources/templates/simulation-plan-edit.html"));
     assertTrue(editor.contains("form.addEventListener('submit'"));
     assertTrue(editor.contains("clearTimeout(timer)"));
-    assertTrue(editor.contains("controller.abort()"));
+    assertTrue(editor.contains("setTimeout(async()=>"));
   }
 }
