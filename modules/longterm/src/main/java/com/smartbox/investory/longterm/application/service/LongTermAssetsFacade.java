@@ -54,6 +54,9 @@ public class LongTermAssetsFacade {
   @Transactional(readOnly = true)
   public DetailView details(Long portfolioId, Long id, LocalDate date) {
     AssetView asset = asset(portfolioId, id);
+    List<ContractView> contracts = asset.type() == LongTermAssetType.REAL_ESTATE
+        ? rentalContracts.list(portfolioId, id).stream().map(ContractView::from).toList()
+        : List.of();
     return new DetailView(
         asset,
         service.summary(toEntity(asset), date),
@@ -62,7 +65,7 @@ public class LongTermAssetsFacade {
         service.valuationPeriods(portfolioId, id).stream().map(ValuationView::from).toList(),
         service.bondRatePeriods(portfolioId, id).stream().map(BondRateView::from).toList(),
         service.expectedPropertyGrowth(portfolioId, id, date),
-        rentalContracts.list(portfolioId, id).stream().map(ContractView::from).toList());
+        contracts);
   }
 
   public AssetView create(AssetCommand command) {

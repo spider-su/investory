@@ -22,6 +22,12 @@ public final class RentalIncomeProjectionModel {
       Map<CashFlowTypeModel, BigDecimal> previousIncome,
       int year,
       BigDecimal growthRate) {
+    // Forward planning is assumption-based, not a replay of contract termination. The latest
+    // known contract remains the baseline after its historical end/termination until a newer
+    // contract starts; a newer contract (including an explicit zero-rent contract) replaces it.
+    // actualYear below is the separate historical/actual path and always honors real dates.
+    // Compatibility-only fallback for legacy/bootstrap planning inputs with untyped periods.
+    // Normal persisted real-estate runtime projections use rentalContracts.
     if (asset.rentalContracts().isEmpty())
       return legacyProject(asset, previousIncome, year, growthRate);
     var contract = latestContract(asset, year);
@@ -87,6 +93,8 @@ public final class RentalIncomeProjectionModel {
 
   /** Calculates covered rental economics. Rental tax is prorated by covered calendar days. */
   public static Result actualYear(LongTermAssetProjectionModel asset, int year) {
+    // Retained only for legacy/bootstrap snapshots; contract-backed runtime data follows the
+    // date-aware calculation below.
     if (asset.rentalContracts().isEmpty()) return legacyActualYear(asset, year);
     EnumMap<CashFlowTypeModel, BigDecimal> income = new EnumMap<>(CashFlowTypeModel.class);
     BigDecimal expenses = ZERO, tax = ZERO;

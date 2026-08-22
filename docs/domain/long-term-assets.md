@@ -38,3 +38,7 @@ For annual retirement planning, `quote` is a non-consuming economic view of one 
 to determine cash flows and capital availability, but it never advances maturity or reinvestment
 state. `plan` is the single committed annual transition; only its returned end state is passed to
 the next year.
+
+Generic cash-flow rows remain supported for non-real-estate assets and legacy/bootstrap imports.
+Real-estate rental economics use rental contracts; the legacy rental-period projection fallback is
+compatibility-only and is not the normal persisted runtime path.
