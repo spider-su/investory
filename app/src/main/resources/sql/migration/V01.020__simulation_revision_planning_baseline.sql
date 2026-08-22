@@ -7,7 +7,8 @@ ALTER TABLE investory.simulation_plan_revisions
   ADD COLUMN baseline_long_term_capital numeric(30,12),
   ADD COLUMN baseline_rental_income numeric(30,12),
   ADD COLUMN baseline_long_term_income numeric(30,12),
-  ADD COLUMN baseline_long_term_state text;
+  ADD COLUMN baseline_long_term_state text,
+  ADD COLUMN baseline_long_term_state_version integer;
 
 COMMENT ON COLUMN investory.simulation_plan_revisions.baseline_as_of_year IS
   'As-of year for the frozen economic planning baseline; null means legacy revision.';

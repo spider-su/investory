@@ -36,40 +36,41 @@ public final class RetirementSimulationOrchestrator {
       BigDecimal pension = age >= input.pensionStartAge() ? input.annualPension() : ZERO;
 
       // 1. Every source enters aggregation as a planned cash flow.
-      var longTermIncome = longTerm.plan(new LongTermAnnualProjectionApi.PlanningRequest(
+      var longTermQuote = longTerm.quote(new LongTermAnnualProjectionApi.PlanningRequest(
           year, ZERO, longTermState));
       List<PlannedCashFlow> flows = lifecycleFlows(input, year, expenses, employment, pension);
-      addLongTermFlows(flows, year, longTermIncome.plannedCashFlows());
+      addLongTermFlows(flows, year, longTermQuote.plannedCashFlows());
       var cashFlow = new CashFlowAggregationService().aggregateProjected(
           new Period(LocalDate.of(year, 1, 1), LocalDate.of(year, 12, 31)), flows);
 
       // 2-6. Gap/surplus and withdrawals follow the explicit policy order.
       BigDecimal fundingGap = cashFlow.fundingGap();
-      BigDecimal reserveAfterTransfer = reserve.add(longTermIncome.reserveTransfer());
-      LongTermAnnualProjectionApi.PlanningState longTermStateAfterIncome = longTermIncome.endState();
+      BigDecimal reserveAfterTransfer = reserve.add(longTermQuote.reserveTransfer());
       BigDecimal reserveWithdrawal = ZERO;
       BigDecimal remaining = fundingGap;
-      LongTermAnnualProjectionApi.PlanningProjection longTermFunding =
-          new LongTermAnnualProjectionApi.PlanningProjection(year, List.of(), ZERO, remaining, ZERO,
-              ZERO, longTermStateAfterIncome, longTermIncome.source());
+      LongTermAnnualProjectionApi.PlanningProjection longTermFunding = null;
       InvestmentAnnualProjectionApi.AnnualProjection investment = null;
-      for (FundingSource source : input.fundingPolicy().fundingOrder()) {
+      for (RetirementFundingSource source : input.fundingPolicy().economicFundingOrder()) {
         if (remaining.signum() == 0) break;
-        if (source == FundingSource.CASH) {
+        if (source == RetirementFundingSource.RESERVE) {
           var allocation = fundingAllocator.allocateReserve(remaining, reserveAfterTransfer.subtract(reserveWithdrawal),
               input.fundingPolicy());
           reserveWithdrawal = reserveWithdrawal.add(allocation.reserveWithdrawal());
           remaining = allocation.remainingGap();
-        } else if (source == FundingSource.BONDS) {
+        } else if (source == RetirementFundingSource.LONG_TERM) {
           longTermFunding = longTerm.plan(new LongTermAnnualProjectionApi.PlanningRequest(
-              year, remaining, longTermStateAfterIncome));
+              year, remaining, longTermState));
           remaining = remaining.subtract(longTermFunding.actualCapitalProvided()).max(ZERO);
-        } else if (source == FundingSource.STOCKS && input.fundingPolicy().allowInvestmentWithdrawal()) {
+        } else if (source == RetirementFundingSource.INVESTMENT && input.fundingPolicy().allowInvestmentWithdrawal()) {
           investment = investments.project(new InvestmentAnnualProjectionApi.ProjectionRequest(
               year, investmentValue, retired ? ZERO : input.annualPreRetirementContribution(),
               input.investmentReturnRate(), remaining, input.investmentSource()));
           remaining = remaining.subtract(investment.withdrawal()).max(ZERO);
         }
+      }
+      if (longTermFunding == null) {
+        longTermFunding = longTerm.plan(new LongTermAnnualProjectionApi.PlanningRequest(
+            year, ZERO, longTermState));
       }
       // Investment still projects returns when it is not an allowed withdrawal source.
       if (investment == null)
@@ -77,9 +78,9 @@ public final class RetirementSimulationOrchestrator {
             year, investmentValue, retired ? ZERO : input.annualPreRetirementContribution(),
             input.investmentReturnRate(), ZERO, input.investmentSource()));
       // 8. A positive return may refill reserve after spending withdrawals.
-      BigDecimal recurringIncome = amount(longTermIncome.plannedCashFlows(),
+      BigDecimal recurringIncome = amount(longTermQuote.plannedCashFlows(),
           LongTermAnnualProjectionApi.CashFlowKind.RENTAL_INCOME)
-          .add(amount(longTermIncome.plannedCashFlows(), LongTermAnnualProjectionApi.CashFlowKind.FIXED_INCOME))
+          .add(amount(longTermQuote.plannedCashFlows(), LongTermAnnualProjectionApi.CashFlowKind.FIXED_INCOME))
           .add(employment).add(pension);
       BigDecimal reserveTarget = input.fundingPolicy().reserveTargetYears()
           .multiply(expenses.subtract(recurringIncome).max(ZERO));
@@ -90,9 +91,9 @@ public final class RetirementSimulationOrchestrator {
       BigDecimal harvest = rebalance.harvestToReserve();
       // 9-10. Returned end states are the only next-year state.
       BigDecimal unfunded = remaining;
-      BigDecimal rentalIncome = amount(longTermIncome.plannedCashFlows(),
+      BigDecimal rentalIncome = amount(longTermQuote.plannedCashFlows(),
           LongTermAnnualProjectionApi.CashFlowKind.RENTAL_INCOME);
-      BigDecimal bondIncome = amount(longTermIncome.plannedCashFlows(),
+      BigDecimal bondIncome = amount(longTermQuote.plannedCashFlows(),
           LongTermAnnualProjectionApi.CashFlowKind.FIXED_INCOME);
       BigDecimal reserveEnd = reserveAfterTransfer.subtract(reserveWithdrawal).add(harvest);
       years.add(new Year(age, year, retired, expenses, employment, pension,
@@ -100,7 +101,7 @@ public final class RetirementSimulationOrchestrator {
           events(input, year, SimulationEventType.ONE_OFF_EXPENSE),
           rentalIncome.divide(BigDecimal.valueOf(12), 12, java.math.RoundingMode.HALF_UP), rentalIncome, bondIncome,
           cashFlow.netCashFlow().negate(), fundingGap, cashFlow.surplus(), reserveWithdrawal,
-          longTermIncome.reserveTransfer(), longTermFunding.actualCapitalProvided(),
+          longTermQuote.reserveTransfer(), longTermFunding.actualCapitalProvided(),
           longTermFunding.endCapital(), investment.withdrawal(), unfunded, reserveEnd,
           investment, longTermFunding.source(), harvest));
       reserve = reserveEnd;

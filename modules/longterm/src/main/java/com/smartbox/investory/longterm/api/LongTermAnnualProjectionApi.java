@@ -17,6 +17,13 @@ public interface LongTermAnnualProjectionApi {
     throw new UnsupportedOperationException("Long-Term planning is not configured");
   }
 
+  /** Non-consuming annual preparation. It never advances the Long-Term planning state. */
+  default PlanningQuote quote(PlanningRequest request) {
+    PlanningProjection projection = plan(new PlanningRequest(request.year(), BigDecimal.ZERO, request.state()));
+    return new PlanningQuote(projection.year(), projection.plannedCashFlows(), projection.reserveTransfer(),
+        projection.endCapital(), projection.source());
+  }
+
   record PlanningRequest(
       int year,
       BigDecimal requestedCapital,
@@ -69,6 +76,16 @@ public interface LongTermAnnualProjectionApi {
       actualCapitalProvided = nz(actualCapitalProvided);
       endCapital = nz(endCapital);
       endState = endState == null ? PlanningState.EMPTY : endState;
+      source = source == null ? Source.PROJECTED : source;
+    }
+  }
+
+  record PlanningQuote(int year, List<PlannedCashFlow> plannedCashFlows,
+      BigDecimal reserveTransfer, BigDecimal capitalAvailable, Source source) {
+    public PlanningQuote {
+      plannedCashFlows = plannedCashFlows == null ? List.of() : List.copyOf(plannedCashFlows);
+      reserveTransfer = nz(reserveTransfer);
+      capitalAvailable = nz(capitalAvailable);
       source = source == null ? Source.PROJECTED : source;
     }
   }

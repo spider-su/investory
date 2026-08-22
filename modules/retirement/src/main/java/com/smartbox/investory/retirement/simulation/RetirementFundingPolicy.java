@@ -48,5 +48,13 @@ public record RetirementFundingPolicy(
 
   public boolean allowInvestmentWithdrawal() { return allowEmergencyEquityWithdrawal; }
 
+  public List<RetirementFundingSource> economicFundingOrder() {
+    return fundingOrder.stream().map(source -> switch (source) {
+      case CASH -> RetirementFundingSource.RESERVE;
+      case BONDS -> RetirementFundingSource.LONG_TERM;
+      case STOCKS -> RetirementFundingSource.INVESTMENT;
+    }).toList();
+  }
+
   private static BigDecimal nz(BigDecimal value) { return value == null ? BigDecimal.ZERO : value; }
 }

@@ -324,6 +324,12 @@ class RetirementSimulationOrchestratorTest {
       public PlanningProjection plan(PlanningRequest request) {
         return projection.apply(request);
       }
+
+      @Override
+      public PlanningQuote quote(PlanningRequest request) {
+        PlanningProjection p = projection.apply(new PlanningRequest(request.year(), BigDecimal.ZERO, request.state()));
+        return new PlanningQuote(p.year(), p.plannedCashFlows(), p.reserveTransfer(), p.endCapital(), p.source());
+      }
     };
   }
 }

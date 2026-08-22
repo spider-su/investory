@@ -483,6 +483,7 @@ public class SimulationPlanService {
       target.setBaselineRentalIncome(baseline.rentalAnnualIncome());
       target.setBaselineLongTermIncome(baseline.longTermAnnualIncome());
       target.setBaselineLongTermState(serializePlanningState(baseline.longTermPlanningState()));
+      target.setBaselineLongTermStateVersion(1);
     }
   }
 
@@ -520,7 +521,7 @@ public class SimulationPlanService {
 
   private static String serializePlanningState(LongTermAnnualProjectionApi.PlanningState state) {
     try {
-      return JSON.writeValueAsString(state);
+      return JSON.writeValueAsString(java.util.Map.of("version", 1, "payload", state));
     } catch (Exception e) {
       throw new IllegalStateException("Unable to persist Long-Term planning baseline", e);
     }
@@ -529,7 +530,10 @@ public class SimulationPlanService {
   private static LongTermAnnualProjectionApi.PlanningState deserializePlanningState(String value) {
     if (value == null || value.isBlank()) return LongTermAnnualProjectionApi.PlanningState.EMPTY;
     try {
-      return JSON.readValue(value, LongTermAnnualProjectionApi.PlanningState.class);
+      var tree = JSON.readTree(value);
+      if (tree.has("payload")) return JSON.treeToValue(tree.get("payload"), LongTermAnnualProjectionApi.PlanningState.class);
+      // Legacy V01.020 payloads were unwrapped; keep them readable.
+      return JSON.treeToValue(tree, LongTermAnnualProjectionApi.PlanningState.class);
     } catch (Exception e) {
       throw new IllegalStateException("Unable to read Long-Term planning baseline", e);
     }

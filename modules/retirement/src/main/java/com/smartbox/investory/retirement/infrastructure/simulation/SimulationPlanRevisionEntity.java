@@ -132,6 +132,9 @@ public class SimulationPlanRevisionEntity {
   @Column(name = "baseline_long_term_state")
   private String baselineLongTermState;
 
+  @Column(name = "baseline_long_term_state_version")
+  private Integer baselineLongTermStateVersion;
+
   @Column(name = "created_at", nullable = false)
   private Instant createdAt;
 

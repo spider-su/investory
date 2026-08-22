@@ -110,8 +110,9 @@ projected flows for the remaining period.
 
 ## Reserve
 
-Reserve is a generic planning balance. Simulation may withdraw it but never
-automatically adds annual surplus to it. Future simulation always uses:
+Reserve is a generic planning balance. Simulation may withdraw it and, when the active
+RetirementFundingPolicy permits, refill it from explicitly reported capital transfers. Future
+simulation uses:
 
 ```text
 reserveWithdrawal = min(reserveStart + explicitReserveTransfers, fundingGap)
@@ -119,7 +120,7 @@ reserveEnd = reserveStart + explicitReserveTransfers - reserveWithdrawal
 ```
 
 Review may apply an explicit, separately reported reserve adjustment. External contributions do not
-exist inside future simulation. Unused surplus stays informational unless a review allocates it.
+exist inside future simulation. Unused Long-Term and Investment capital remains with its owning module.
 The active RetirementFundingPolicy uses `reserveTargetYears * recurringFundingGap` as a refill
 target. Funding order is configurable at the economic level (`RESERVE -> LONG_TERM -> INVESTMENT`;
 legacy `CASH,BONDS,STOCKS` values are mapped at the boundary). When permitted, positive Investment
@@ -139,7 +140,9 @@ availableForWithdrawal, requestedWithdrawal, actualWithdrawal, endValue, source
 does not reduce the funding gap. The owning module decides availability, withdrawal, and end value;
 actual withdrawal cannot exceed availability or value.
 
-Long-Term decides maturity, redemption/reinvestment, tax, income and availability. It returns
+Long-Term decides maturity, redemption/reinvestment, tax, income and availability. Its annual
+planning boundary performs one non-consuming quote and one state transition for a year; Retirement
+never calls the consuming transition twice. It returns
 ordinary annual income flows, explicit reserve transfers, actual capital provided, end capital,
 and its next state. Retirement does not construct bond/deposit inputs or inspect maturity rules.
 

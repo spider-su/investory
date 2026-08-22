@@ -1038,12 +1038,19 @@ public class RetirementSimulationController {
                 legacyAssumptions,
                 planningDisplayCurrency)
             .assumptions();
-    Long savedPlanId =
-        planId == null || saveAs
-            ? plans.createId(portfolioId, name, a,
-                PlanningBaseline.fromProfile(profiles.loadProfile(portfolioId), Year.now(clock).getValue()))
-            : plans.updateId(portfolioId, planId, name, a,
-                PlanningBaseline.fromProfile(profiles.loadProfile(portfolioId), Year.now(clock).getValue()));
+    var liveProfile = profiles.loadProfile(portfolioId);
+    var planningBaseline = liveProfile == null
+        ? null : PlanningBaseline.fromProfile(liveProfile, Year.now(clock).getValue());
+    Long savedPlanId;
+    if (planningBaseline == null) {
+      savedPlanId = planId == null || saveAs
+          ? plans.createId(portfolioId, name, a)
+          : plans.updateId(portfolioId, planId, name, a);
+    } else {
+      savedPlanId = planId == null || saveAs
+          ? plans.createId(portfolioId, name, a, planningBaseline)
+          : plans.updateId(portfolioId, planId, name, a, planningBaseline);
+    }
     CurrencyType returnCurrency =
         returnPlanningDisplayCurrency == null
             ? planningDisplayCurrency

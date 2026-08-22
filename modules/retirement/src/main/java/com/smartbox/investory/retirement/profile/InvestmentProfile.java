@@ -76,6 +76,8 @@ public record InvestmentProfile(
   }
 
   /** Returns an immutable economic view with the reviewed planning baseline applied. */
+  /** @deprecated Use PlanningBaseline as an explicit future input; retained for compatibility. */
+  @Deprecated
   public InvestmentProfile withPlanningBaseline(
       BigDecimal reserve, BigDecimal investmentCapital, BigDecimal longTermCapital,
       BigDecimal rentalAnnualIncome, BigDecimal bondAnnualIncome) {
