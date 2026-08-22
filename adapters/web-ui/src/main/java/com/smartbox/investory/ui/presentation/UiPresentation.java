@@ -55,7 +55,7 @@ public final class UiPresentation {
           .compareTo(BigDecimal.valueOf(1_000)) >= 0) {
         return number(amount.divide(BigDecimal.valueOf(1_000_000)), 0, 2) + "M";
       }
-      return number(thousands, 0, 1) + "K";
+      return number(thousands, 1, 1) + "K";
     }
     return number(amount, 0, 0);
   }
