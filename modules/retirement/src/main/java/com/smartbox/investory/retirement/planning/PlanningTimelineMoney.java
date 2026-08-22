@@ -24,6 +24,11 @@ public record PlanningTimelineMoney(
     BigDecimal equityWithdrawal, BigDecimal realEstateWithdrawal,
     BigDecimal bondReturn, BigDecimal equityReturn, BigDecimal equityRefill) {
 
+  /** Transfer is positive into Bonds and negative out of Equities. */
+  public BigDecimal equityTransfer() {
+    return equityRefill == null ? null : equityRefill.negate();
+  }
+
   /** Binary/source compatibility for already running web-ui classes during hot reload. */
   public PlanningTimelineMoney(
       BigDecimal annualCosts,

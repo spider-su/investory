@@ -94,6 +94,20 @@ before calling Simulation; scenario selection is not a branch inside the yearly 
 plan columns retain their legacy `*_growth_rate` names for compatibility, but their values are
 spreads.
 
+### Scenario overlay
+
+Scenario selection is a runtime overlay on the frozen plan revision. Historical and current rows
+remain factual; only projected rows use the overlay. Active projected modifiers are inflation,
+rental growth, spending growth, Bond return, and Equity return. The BASE Bond yield is derived
+from the frozen Bond capital and reviewed Bond income when available, then the selected scenario's
+fixed-income delta is added. If source income is unavailable, the selected scenario fixed-income
+rate is used as the fallback.
+
+Cash return is retained only for persisted-plan compatibility and is ignored because Cash has a
+canonical 0% yield. Real Estate capital appreciation and `otherReturnRate` are also compatibility
+fields and are not modeled by the aggregate Retirement bucket engine; Real Estate currently changes
+through rental cash income/growth only. Scenario selection never writes a plan revision.
+
 All values cross the plan boundary in the plan currency. Source-currency asset values are converted
 once, using the shared target-currency-first conversion service, before they become a flow, capital
 projection, or page view value. A display-currency change only formats the already-normalized value.

@@ -226,8 +226,8 @@ class RetirementSimulationControllerTest {
         (RetirementSimulationPageView)
             result.getModelAndView().getModel().get("simulationPage");
 
-    assertEquals("180,000", page.annualLivingExpenses());
-    assertEquals("7,000", page.annualPension());
+    assertEquals(0, new BigDecimal("180000").compareTo(page.annualLivingExpenses()));
+    assertEquals(0, new BigDecimal("7000").compareTo(page.annualPension()));
   }
 
   @Test

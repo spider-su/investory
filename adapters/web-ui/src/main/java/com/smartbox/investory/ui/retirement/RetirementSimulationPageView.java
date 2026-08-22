@@ -7,7 +7,9 @@ import com.smartbox.investory.retirement.planning.SimulationDecisionSummaryMoney
 import com.smartbox.investory.retirement.profile.InvestmentProfile;
 import com.smartbox.investory.retirement.simulation.SimulationAssumptions;
 import com.smartbox.investory.retirement.simulation.SimulationScenario;
+import com.smartbox.investory.retirement.simulation.ScenarioEffectiveAssumptions;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -23,10 +25,11 @@ public record RetirementSimulationPageView(
     String activePlanName,
     String activePlanSummary,
     SimulationScenario selectedScenario,
+    ScenarioEffectiveAssumptions scenarioAssumptions,
     SimulationDecisionSummaryMoney outlook,
-    String annualLivingExpenses,
-    String annualDiscretionaryExpenses,
-    String annualPension,
+    BigDecimal annualLivingExpenses,
+    BigDecimal annualDiscretionaryExpenses,
+    BigDecimal annualPension,
     PlanningTimeline timeline,
     Map<Integer, PlanningTimelineMoney> timelineMoney,
     Map<Integer, RetirementYearSummaryView> yearlySummaries,

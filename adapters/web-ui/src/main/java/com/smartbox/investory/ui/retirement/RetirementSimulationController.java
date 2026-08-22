@@ -8,6 +8,7 @@ import com.smartbox.investory.retirement.simulation.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.ui.presentation.UiPresentation;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Year;
 import java.util.Arrays;
@@ -222,16 +223,12 @@ public class RetirementSimulationController {
             .filter(row -> row.state() == PlanningTimelineState.LIVE)
             .anyMatch(row -> row.year() < Year.now(clock).getValue());
     var startingPosition = planningPresentation.displayProfile(profile, planningDisplayCurrency);
-    String displayAnnualExpenses =
-        UiPresentation.money(
-            planningPresentation.toDisplay(assumptions.annualLivingExpenses(), planningDisplayCurrency));
-    String displayDiscretionaryExpenses =
-        UiPresentation.money(
-            planningPresentation.toDisplay(
-                assumptions.annualDiscretionaryExpenses(), planningDisplayCurrency));
-    String displayAnnualPension =
-        UiPresentation.money(
-            planningPresentation.toDisplay(assumptions.annualPension(), planningDisplayCurrency));
+    BigDecimal displayAnnualExpenses =
+        displayMoney(assumptions.annualLivingExpenses(), planningDisplayCurrency);
+    BigDecimal displayDiscretionaryExpenses =
+        displayMoney(assumptions.annualDiscretionaryExpenses(), planningDisplayCurrency);
+    BigDecimal displayAnnualPension =
+        displayMoney(assumptions.annualPension(), planningDisplayCurrency);
     String activePlanName =
         selectedPlanId == null ? "Current assumptions" : plans.name(portfolioId, selectedPlanId);
     String activePlanSummary =
@@ -253,6 +250,8 @@ public class RetirementSimulationController {
         planningPresentation.displayTimelineMoney(timeline, planningDisplayCurrency, projectedAssumptions);
     var yearlySummaries = RetirementYearSummaryView.from(timeline, timelineMoney);
     var cashFlow = CashFlowSectionView.from(timeline, timelineMoney, projectedAssumptions);
+    var scenarioAssumptions = ScenarioEffectiveAssumptions.forScenario(
+        projection.projectedProfile(), projectedAssumptions, selectedScenario);
     model.addAttribute(
         "simulationPage",
         new RetirementSimulationPageView(
@@ -265,6 +264,7 @@ public class RetirementSimulationController {
             activePlanName,
             activePlanSummary,
             selectedScenario,
+            scenarioAssumptions,
             displaySummaries.get(selectedScenario),
             displayAnnualExpenses,
             displayDiscretionaryExpenses,
@@ -275,6 +275,12 @@ public class RetirementSimulationController {
             cashFlow,
             currentYearCloseAllowed));
     return "simulation";
+  }
+
+  private BigDecimal displayMoney(BigDecimal amount, CurrencyType currency) {
+    return planningPresentation.toDisplay(amount, currency)
+        .setScale(2, RoundingMode.HALF_UP)
+        .stripTrailingZeros();
   }
 
   @GetMapping("/simulation/plan/edit")
@@ -299,8 +305,9 @@ public class RetirementSimulationController {
     model.addAttribute(
         "displayProfile", planningPresentation.displayProfile(profile, planningDisplayCurrency));
     model.addAttribute("assumptions", assumptions);
-    model.addAttribute("planningBuckets", PlanningBuckets.fromProfile(profile,
-        assumptions.equityReturnRate(), assumptions.fixedIncomeReturnRate()));
+    model.addAttribute("planningBuckets", PlanningBuckets.fromProfileWithBondYield(profile,
+        assumptions.equityReturnRate(),
+        PlanningBuckets.baseBondYield(profile, assumptions.fixedIncomeReturnRate())));
     model.addAttribute("planStartYear", assumptions.planStartYear());
     model.addAttribute("ageAtPlanStart", assumptions.ageAtPlanStart());
     model.addAttribute(

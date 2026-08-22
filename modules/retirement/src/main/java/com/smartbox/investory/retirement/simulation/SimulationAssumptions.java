@@ -22,7 +22,7 @@ public record SimulationAssumptions(
     @Deprecated BigDecimal fixedIncomeReturnRate,
     BigDecimal equityReturnRate,
     @Deprecated BigDecimal realEstateReturnRate,
-    BigDecimal otherReturnRate,
+    @Deprecated BigDecimal otherReturnRate,
     int pensionStartAge,
     BigDecimal annualPension,
     BigDecimal capitalGainTaxRate,

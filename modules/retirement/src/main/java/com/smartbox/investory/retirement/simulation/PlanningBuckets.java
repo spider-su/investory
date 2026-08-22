@@ -33,9 +33,17 @@ public record PlanningBuckets(PlanningBucket cash, PlanningBucket bonds, Plannin
         rentalIncome, BigDecimal.ZERO);
   }
 
-  /** Maps the reviewed source snapshot once, before future-year simulation begins. */
+  /** Compatibility mapper; derives the BASE Bond yield from the reviewed source snapshot. */
   public static PlanningBuckets fromProfile(InvestmentProfile profile, BigDecimal equityYield,
       BigDecimal fallbackBondYield) {
+    return fromProfileWithBondYield(profile, equityYield,
+        baseBondYield(profile, fallbackBondYield));
+  }
+
+  /** Maps the reviewed source snapshot once, with an explicit normalized future Bond yield. */
+  public static PlanningBuckets fromProfileWithBondYield(InvestmentProfile profile,
+      BigDecimal equityYield,
+      BigDecimal bondYield) {
     BigDecimal bonds = allocation(profile, EconomicBucket.FIXED_INCOME);
     if (bonds.signum() == 0) bonds = profile.longTermAssets().stream()
         .filter(a -> a.bucket() == EconomicBucket.FIXED_INCOME)
@@ -46,6 +54,16 @@ public record PlanningBuckets(PlanningBucket cash, PlanningBucket bonds, Plannin
     if (realEstate.signum() == 0) realEstate = profile.longTermAssets().stream()
         .filter(a -> a.bucket() == EconomicBucket.REAL_ESTATE)
         .map(a -> nz(a.currentValue())).reduce(BigDecimal.ZERO, BigDecimal::add);
+    return of(nz(profile.retirementReserve()), bonds, equities, realEstate, nz(bondYield),
+        nz(equityYield), bonds, profile.currentRentalIncome());
+  }
+
+  /** Derives the normalized BASE bond yield from the frozen reviewed source state. */
+  public static BigDecimal baseBondYield(InvestmentProfile profile, BigDecimal fallbackBondYield) {
+    BigDecimal bonds = allocation(profile, EconomicBucket.FIXED_INCOME);
+    if (bonds.signum() == 0) bonds = profile.longTermAssets().stream()
+        .filter(a -> a.bucket() == EconomicBucket.FIXED_INCOME)
+        .map(a -> nz(a.currentValue())).reduce(BigDecimal.ZERO, BigDecimal::add);
     BigDecimal bondIncome = nz(profile.currentBondIncome());
     if (bondIncome.signum() == 0) bondIncome = profile.longTermAssets().stream()
         .filter(a -> a.bucket() == EconomicBucket.FIXED_INCOME)
@@ -53,11 +71,25 @@ public record PlanningBuckets(PlanningBucket cash, PlanningBucket bonds, Plannin
             : nz(a.periods().getFirst().annualReturnRate()))
             .multiply(BigDecimal.ONE.subtract(nz(a.taxRate()))))
         .reduce(BigDecimal.ZERO, BigDecimal::add);
-    BigDecimal bondYield = bonds.signum() == 0 ? nz(fallbackBondYield)
-        : (bondIncome.signum() == 0 ? nz(fallbackBondYield)
-            : bondIncome.divide(bonds, 12, java.math.RoundingMode.HALF_UP));
-    return of(nz(profile.retirementReserve()), bonds, equities, realEstate, bondYield,
-        nz(equityYield), bonds, profile.currentRentalIncome());
+    return bonds.signum() == 0 || bondIncome.signum() == 0
+        ? nz(fallbackBondYield)
+        : bondIncome.divide(bonds, 12, java.math.RoundingMode.HALF_UP);
+  }
+
+  /** True when the frozen source state contains enough data to derive a bond yield. */
+  public static boolean hasSourceBondYield(InvestmentProfile profile) {
+    BigDecimal bonds = allocation(profile, EconomicBucket.FIXED_INCOME);
+    if (bonds.signum() == 0) bonds = profile.longTermAssets().stream()
+        .filter(a -> a.bucket() == EconomicBucket.FIXED_INCOME)
+        .map(a -> nz(a.currentValue())).reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal bondIncome = nz(profile.currentBondIncome());
+    if (bondIncome.signum() == 0) bondIncome = profile.longTermAssets().stream()
+        .filter(a -> a.bucket() == EconomicBucket.FIXED_INCOME)
+        .map(a -> nz(a.currentValue()).multiply(a.periods().isEmpty() ? BigDecimal.ZERO
+            : nz(a.periods().getFirst().annualReturnRate()))
+            .multiply(BigDecimal.ONE.subtract(nz(a.taxRate()))))
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
+    return bonds.signum() != 0 && bondIncome.signum() != 0;
   }
 
   private static BigDecimal allocation(InvestmentProfile profile, EconomicBucket bucket) {

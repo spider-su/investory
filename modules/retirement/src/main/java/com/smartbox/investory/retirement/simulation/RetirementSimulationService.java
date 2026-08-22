@@ -1,29 +1,23 @@
 package com.smartbox.investory.retirement.simulation;
 
-import com.smartbox.investory.investment.api.InvestmentAnnualProjectionApi;
-import com.smartbox.investory.longterm.api.LongTermAnnualProjectionApi;
 import com.smartbox.investory.retirement.profile.InvestmentProfile;
-import com.smartbox.investory.retirement.profile.EconomicBucket;
 import java.math.BigDecimal;
 import java.time.Year;
 import java.util.EnumMap;
 import java.util.Map;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /** Canonical retirement orchestrator. Asset mechanics remain behind public module APIs. */
 @Service
 public class RetirementSimulationService implements RetirementSimulation {
   private static final BigDecimal ZERO = BigDecimal.ZERO;
-  private final LongTermAnnualProjectionApi longTerm;
-  private final InvestmentAnnualProjectionApi investments;
 
-  @Autowired
-  public RetirementSimulationService(LongTermAnnualProjectionApi longTerm,
-      InvestmentAnnualProjectionApi investments) {
-    this.longTerm = longTerm;
-    this.investments = investments;
-  }
+  public RetirementSimulationService() {}
+
+  /** @deprecated Source projection services are no longer consulted by the bucket engine. */
+  @Deprecated
+  public RetirementSimulationService(Object ignoredLongTermProjection,
+      Object ignoredInvestmentProjection) {}
 
   @Override
   public SimulationResult simulate(InvestmentProfile profile, SimulationAssumptions assumptions,
@@ -32,9 +26,10 @@ public class RetirementSimulationService implements RetirementSimulation {
   @Override
   public SimulationResult simulate(InvestmentProfile profile, SimulationAssumptions assumptions,
       SimulationScenario scenario, boolean actualRentalYear) {
-    SimulationScenarioSettings settings = SimulationScenarioSettings.forScenario(scenario, assumptions);
-    PlanningBuckets buckets = PlanningBuckets.fromProfile(profile, settings.equityReturnRate(),
-        assumptions.fixedIncomeReturnRate());
+    ScenarioEffectiveAssumptions effective =
+        ScenarioEffectiveAssumptions.forScenario(profile, assumptions, scenario);
+    PlanningBuckets buckets = PlanningBuckets.fromProfileWithBondYield(profile,
+        effective.equityReturnRate(), effective.bondReturnRate());
     var engine = new RetirementBucketEngine();
     var years = new java.util.ArrayList<SimulationYear>();
     Integer failureAge = null; BigDecimal firstShortfall = ZERO, totalUnfunded = ZERO;
@@ -44,7 +39,7 @@ public class RetirementSimulationService implements RetirementSimulation {
     int baselineYear = Year.now().getValue();
     int yearsFromBaseline = Math.max(0, assumptions.startYear() - baselineYear);
     BigDecimal rental = buckets.rentalCashIncome().multiply(
-        BigDecimal.ONE.add(settings.effectiveRentalIncomeGrowthRate()).pow(yearsFromBaseline));
+        BigDecimal.ONE.add(effective.rentalIncomeGrowthRate()).pow(yearsFromBaseline));
     PlanningBuckets current = buckets;
     for (int age = assumptions.currentAge(); age <= assumptions.endAge(); age++) {
       int year = assumptions.startYear() + age - assumptions.currentAge();
@@ -74,8 +69,8 @@ public class RetirementSimulationService implements RetirementSimulation {
           new PlanningBucket(BucketType.EQUITIES, nextEquities, current.equities().plannedYieldRate(), 3, ZERO, RefillPolicy.EQUITY_HARVEST),
           new PlanningBucket(BucketType.REAL_ESTATE, re.expectedEndValue(), ZERO, 4, ZERO, RefillPolicy.NONE),
           rental, current.realEstateGrowthRate());
-      rental = rental.multiply(BigDecimal.ONE.add(settings.effectiveRentalIncomeGrowthRate()));
-      if (retired) spending = spending.multiply(BigDecimal.ONE.add(settings.effectiveSpendingGrowthRate()));
+      rental = rental.multiply(BigDecimal.ONE.add(effective.rentalIncomeGrowthRate()));
+      if (retired) spending = spending.multiply(BigDecimal.ONE.add(effective.spendingGrowthRate()));
     }
     return new SimulationResult(scenario, failureAge != null, failureAge, firstShortfall, totalUnfunded, years);
   }
@@ -87,6 +82,4 @@ public class RetirementSimulationService implements RetirementSimulation {
     for (SimulationScenario scenario : SimulationScenario.values()) results.put(scenario, simulate(profile, assumptions, scenario));
     return results;
   }
-  private static BigDecimal nz(BigDecimal value) { return value == null ? ZERO : value; }
-
 }

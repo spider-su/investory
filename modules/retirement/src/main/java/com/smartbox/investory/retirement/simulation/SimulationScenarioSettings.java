@@ -2,13 +2,14 @@ package com.smartbox.investory.retirement.simulation;
 
 import java.math.BigDecimal;
 
+/** Runtime scenario overlay. Cash and non-modeled capital-return fields are compatibility only. */
 public record SimulationScenarioSettings(
     BigDecimal inflationRate,
-    BigDecimal cashReturnRate,
+    @Deprecated BigDecimal cashReturnRate,
     BigDecimal fixedIncomeReturnRate,
     BigDecimal equityReturnRate,
-    BigDecimal realEstateReturnRate,
-    BigDecimal otherReturnRate,
+    @Deprecated BigDecimal realEstateReturnRate,
+    @Deprecated BigDecimal otherReturnRate,
     BigDecimal rentalIncomeGrowthSpread,
     BigDecimal spendingGrowthSpread) {
   public static SimulationScenarioSettings forScenario(
