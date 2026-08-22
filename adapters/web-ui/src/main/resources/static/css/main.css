@@ -2436,9 +2436,12 @@ body.iv-modal-open { overflow: hidden; }
 .iv-plan-input-warning:not(:empty)::before { content: "⚠ "; }
 .iv-expense-profile { grid-column: 1 / -1; }
 .iv-expense-profile__head,
-.iv-expense-profile__row { display: grid; grid-template-columns: minmax(120px, .7fr) minmax(160px, 1fr) auto; gap: 8px; align-items: center; }
+.iv-expense-profile__row { display: grid; grid-template-columns: minmax(100px, .6fr) minmax(100px, .6fr) minmax(160px, 1fr) auto; gap: 8px; align-items: center; }
 .iv-expense-profile__head { margin-bottom: 6px; color: var(--iv-text-muted); font-size: .75rem; font-weight: 600; }
 .iv-expense-profile__rows { display: grid; gap: 8px; }
+.iv-expense-profile__row .iv-plan-input-error,
+.iv-expense-profile__row .iv-plan-input-warning { grid-column: 1 / -1; }
+.iv-plan-input-error { min-height: 0; color: var(--tblr-danger, #d63939); font-size: .72rem; font-weight: 600; }
 .iv-simulation-editor__section h2 { margin: 0 0 12px; font-size: .9rem; }
 .iv-simulation-editor__advanced { margin-top: 12px; border-top: 1px solid var(--iv-border); }
 .iv-simulation-editor__advanced > summary { padding: 12px 0 0; color: var(--iv-primary); cursor: pointer; font-weight: 700; }

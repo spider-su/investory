@@ -35,12 +35,15 @@ class PlanEditorInputNormalizerTest {
         PlanEditorInput.from(Map.of(
             "inflation", "3.0", "equityReturn", "8.5",
             "rentalIncomeGrowthSpread", "-2.0", "spendingGrowthSpread", "-1.5",
-            "expenseProfile", "0:100;80:85")),
+            "expenseProfile", "40:100;60:85")),
         base, CurrencyType.USD);
     assertEquals(new BigDecimal("0.03"), normalized.assumptions().inflationRate());
     assertEquals(new BigDecimal("0.085"), normalized.assumptions().equityReturnRate());
     assertEquals(new BigDecimal("-0.02"), normalized.assumptions().rentalIncomeGrowthSpread());
-    assertEquals(new BigDecimal("0.85"), normalized.assumptions().expenseProfile().steps().get(1).factor());
+    var stage = normalized.assumptions().expenseProfile().steps().get(1);
+    assertEquals(20, stage.fromYear());
+    assertEquals(new BigDecimal("0.85"), stage.factor());
+    assertEquals(2045, 2025 + stage.fromYear());
   }
 
   @Test
@@ -52,6 +55,37 @@ class PlanEditorInputNormalizerTest {
     assertThrows(IllegalArgumentException.class, () -> normalizer.normalize(
         PlanEditorInput.from(Map.of("inflation", "-100")), base, CurrencyType.USD));
     assertThrows(IllegalArgumentException.class, () -> normalizer.normalize(
-        PlanEditorInput.from(Map.of("expenseProfile", "0:100;0:85")), base, CurrencyType.USD));
+        PlanEditorInput.from(Map.of("expenseProfile", "40:100;40:85")), base, CurrencyType.USD));
+  }
+
+  @Test
+  void sortsSemanticAgesAndWarnsForUnusualValidStages() {
+    var normalized = normalizer.normalize(
+        PlanEditorInput.from(Map.of(
+            "startYear", "2025", "ageAtPlanStart", "40", "retirementAge", "65",
+            "expenseProfile", "60:150;50:40")),
+        base, CurrencyType.USD);
+
+    assertEquals(List.of(10, 20), normalized.assumptions().expenseProfile().steps().stream()
+        .map(step -> step.fromYear()).toList());
+    assertEquals(4, normalized.warnings().size());
+  }
+
+  @Test
+  void rejectsInvalidSemanticStageAgesAndLevels() {
+    for (String profile : List.of("39:100", "96:100", "40:100;40:85", "40:-1", "40:201", "40.5:100")) {
+      assertThrows(
+          IllegalArgumentException.class,
+          () -> normalizer.normalize(PlanEditorInput.from(Map.of("expenseProfile", profile)), base, CurrencyType.USD),
+          profile);
+    }
+  }
+
+  @Test
+  void acceptsZeroPercentAsTheLowerSpendingLevelBoundary() {
+    var normalized = normalizer.normalize(
+        PlanEditorInput.from(Map.of("expenseProfile", "40:0")), base, CurrencyType.USD);
+
+    assertEquals(BigDecimal.ZERO, normalized.assumptions().expenseProfile().steps().getFirst().factor());
   }
 }

@@ -35,7 +35,7 @@ class ExpenseProfileTest {
             new ExpenseProfileStep(2, BigDecimal.ONE),
             new ExpenseProfileStep(1, BigDecimal.ONE))));
     assertThrows(IllegalArgumentException.class,
-        () -> new ExpenseProfile(List.of(new ExpenseProfileStep(0, BigDecimal.ZERO))));
+        () -> new ExpenseProfile(List.of(new ExpenseProfileStep(0, BigDecimal.ONE.negate()))));
   }
 
   private static void assertBd(String expected, BigDecimal actual) {

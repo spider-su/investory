@@ -66,13 +66,25 @@ public final class PlanEditorInputNormalizer {
                 base.equityHarvestMinimumReturnRate(), base.equityGainHarvestRate(),
                 base.allowEmergencyEquityWithdrawal(), retirementAge, employment, contribution)
             .withFundingOrder(base.fundingOrder())
-            .withExpenseProfile(expenseProfile(input.value("expenseProfile"), base.expenseProfile()));
-    return new Normalized(assumptions, warnings(inflation, investmentReturn, effectiveRental, effectiveSpending, assumptions.expenseProfile()));
+            .withExpenseProfile(
+                expenseProfile(input.value("expenseProfile"), base.expenseProfile(), ageAtStart, endAge));
+    return new Normalized(
+        assumptions,
+        warnings(
+            inflation,
+            investmentReturn,
+            effectiveRental,
+            effectiveSpending,
+            assumptions.expenseProfile(),
+            ageAtStart,
+            ageAtStart + Year.now(clock).getValue() - startYear,
+            retirementAge));
   }
 
   private List<PlanInputWarning> warnings(
       BigDecimal inflation, BigDecimal investmentReturn, BigDecimal effectiveRental,
-      BigDecimal effectiveSpending, ExpenseProfile profile) {
+      BigDecimal effectiveSpending, ExpenseProfile profile, int ageAtPlanStart,
+      int currentPlanningAge, int retirementAge) {
     List<PlanInputWarning> warnings = new ArrayList<>();
     if (inflation.compareTo(new BigDecimal("-0.05")) < 0 || inflation.compareTo(new BigDecimal("0.30")) > 0)
       warnings.add(new PlanInputWarning("inflation", "INFLATION_UNUSUAL", "Inflation is unusually high or low for a long-term planning assumption. The value will still be used."));
@@ -80,8 +92,22 @@ public final class PlanEditorInputNormalizer {
       warnings.add(new PlanInputWarning("equityReturn", "INVESTMENT_RETURN_UNUSUAL", "Investment return is unusual. The value will still be used."));
     warnEffective(warnings, "rentalIncomeGrowthSpread", "RENTAL_GROWTH_UNUSUAL", effectiveRental);
     warnEffective(warnings, "spendingGrowthSpread", "SPENDING_GROWTH_UNUSUAL", effectiveSpending);
-    if (profile.steps().stream().anyMatch(step -> step.factor().compareTo(new BigDecimal("1.20")) > 0))
-      warnings.add(new PlanInputWarning("expenseProfile", "EXPENSE_LEVEL_UNUSUAL", "A spending level above 120% is unusual. The value will still be used."));
+    for (ExpenseProfileStep step : profile.steps()) {
+      int stageAge = ageAtPlanStart + step.fromYear();
+      String field = "expenseProfile:" + stageAge;
+      if (stageAge < currentPlanningAge)
+        warnings.add(new PlanInputWarning(field, "STAGE_BEFORE_CURRENT_AGE",
+            "This stage starts before the current planning age and affects historical/current plan years."));
+      if (stageAge < retirementAge)
+        warnings.add(new PlanInputWarning(field, "STAGE_BEFORE_RETIREMENT",
+            "This spending stage starts before retirement."));
+      if (step.factor().compareTo(new BigDecimal("1.20")) > 0)
+        warnings.add(new PlanInputWarning(field, "EXPENSE_LEVEL_HIGH",
+            "A spending level above 120% is unusually high for a long-term stage."));
+      if (step.factor().compareTo(new BigDecimal("0.50")) < 0)
+        warnings.add(new PlanInputWarning(field, "EXPENSE_LEVEL_LOW",
+            "A spending level below 50% is unusually low for a long-term stage."));
+    }
     return List.copyOf(warnings);
   }
 
@@ -90,20 +116,34 @@ public final class PlanEditorInputNormalizer {
       warnings.add(new PlanInputWarning(field, code, "Effective growth is unusual. The value will still be used."));
   }
 
-  private ExpenseProfile expenseProfile(String raw, ExpenseProfile fallback) {
-    if (raw == null || raw.isBlank()) return fallback;
+  private ExpenseProfile expenseProfile(String raw, ExpenseProfile fallback, int ageAtPlanStart, int endAge) {
+    if (raw == null) return fallback;
+    if (raw.isBlank()) return ExpenseProfile.EMPTY;
     List<ExpenseProfileStep> steps = new ArrayList<>();
     HashSet<Integer> ages = new HashSet<>();
     for (String entry : raw.split(";")) {
       String[] values = entry.split(":", -1);
       if (values.length != 2) throw new IllegalArgumentException("Invalid expense profile");
-      int age = Integer.parseInt(values[0].trim());
+      int age = stageAge(values[0]);
       BigDecimal level = new BigDecimal(values[1].trim());
-      if (age < 0 || level.signum() < 0 || level.compareTo(new BigDecimal("200")) > 0 || !ages.add(age))
-        throw new IllegalArgumentException("Invalid expense profile");
-      steps.add(new ExpenseProfileStep(age, level.divide(ONE_HUNDRED)));
+      if (age < ageAtPlanStart)
+        throw new IllegalArgumentException("Stage age cannot be before plan-start age " + ageAtPlanStart);
+      if (age > endAge) throw new IllegalArgumentException("Stage age cannot be after end age " + endAge);
+      if (level.signum() < 0 || level.compareTo(new BigDecimal("200")) > 0)
+        throw new IllegalArgumentException("Spending level must be between 0% and 200%");
+      if (!ages.add(age)) throw new IllegalArgumentException("Duplicate stage age " + age);
+      steps.add(new ExpenseProfileStep(age - ageAtPlanStart, level.divide(ONE_HUNDRED)));
     }
+    steps.sort(java.util.Comparator.comparingInt(ExpenseProfileStep::fromYear));
     return new ExpenseProfile(steps);
+  }
+
+  private static int stageAge(String value) {
+    try {
+      return new BigDecimal(value.trim()).intValueExact();
+    } catch (NumberFormatException | ArithmeticException exception) {
+      throw new IllegalArgumentException("Stage age must be an integer", exception);
+    }
   }
 
   private void validateTimeline(int startYear, int ageAtStart, int retirementAge, int endAge) {

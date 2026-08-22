@@ -88,7 +88,11 @@ class RetirementSimulationTemplateContractTest {
     assertTrue(editor.contains("form=\"plan-editor-form\""));
     assertTrue(editor.contains("data-plan-warning=\"inflation\""));
     assertTrue(editor.contains("data-plan-warning=\"equityReturn\""));
-    assertTrue(editor.contains("map(v=>v[0]+':'+v[1])"));
+    assertTrue(editor.contains("data-expense-age"));
+    assertTrue(editor.contains("Calendar year"));
+    assertTrue(editor.contains("year+age-planAge"));
+    assertTrue(editor.contains("ageAtPlanStart + step.fromYear"));
+    assertTrue(editor.contains("Stage age cannot be before plan-start age"));
     assertFalse(editor.contains("Number(v[1])/100"));
     assertFalse(editor.contains("investment value × return"));
     assertFalse(editor.contains("investmentValue *"));
