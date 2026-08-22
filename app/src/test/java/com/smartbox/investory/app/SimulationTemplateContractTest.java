@@ -13,38 +13,46 @@ class SimulationTemplateContractTest {
         Files.readString(
             Path.of("../adapters/web-ui/src/main/resources/templates/simulation.html"));
     assertAll(
-        () -> assertTrue(html.contains("Authoritative simulation output")),
-        () -> assertTrue(html.contains("timelineMoney[row.year].fundingGap")),
+        () -> assertTrue(html.contains("Bucket cells show annual return/income above")),
+        () -> assertTrue(html.contains("Cash flow ·")),
+        () -> assertTrue(html.contains("Incoming cash")),
+        () -> assertTrue(html.contains("Funding used")),
+        () -> assertTrue(html.contains("compactMoney(flow.amount)")),
+        () -> assertTrue(html.contains("flow.amount + ' ' + simulationPage.displayCurrency")),
+        () -> assertTrue(html.contains("timelineMoney[row.year].cashStart")),
         () -> assertFalse(html.contains("actualPortfolioWithdrawal")),
         () -> assertFalse(html.contains("manualLiquidReserveWithdrawal")),
         () -> assertFalse(html.contains("equityEnd")));
   }
 
   @Test
-  void planningTimelineUsesExplicitCanonicalFundingColumns() throws Exception {
+  void planningTimelineUsesCompactBucketSummaryColumns() throws Exception {
     String html =
         Files.readString(
             Path.of("../adapters/web-ui/src/main/resources/templates/simulation.html"));
     assertAll(
-        () -> assertTrue(html.contains("<th>Annual costs</th>")),
-        () -> assertTrue(html.contains("<th>Total income</th>")),
-        () -> assertTrue(html.contains("<th>Funding gap</th>")),
-        () -> assertTrue(html.contains("<th>Bond cash income</th>")),
-        () -> assertTrue(html.contains("<th>Reserve withdrawal</th>")),
-        () -> assertTrue(html.contains("<th>Long-Term funding</th>")),
-        () -> assertTrue(html.contains("<th>Investment withdrawal</th>")),
-        () -> assertTrue(html.contains("<th>Unfunded</th>")),
-        () -> assertTrue(html.contains("<th>Reserve end</th>")),
-        () -> assertTrue(html.contains("<th>Long-Term capital</th>")),
-        () -> assertTrue(html.contains("<th>Investment end</th>")),
+        () -> assertTrue(html.contains("<th>Year</th><th>State</th><th>Spending</th><th>Income</th><th>Gap / surplus</th><th>Cash</th><th>Bonds</th><th>Equities</th><th>Real estate</th><th>Status</th>")),
+        () -> assertTrue(html.contains("yearlySummaries.values()")),
+        () -> assertTrue(html.contains("compactMoney(summary.bonds.annualValue)")),
+        () -> assertTrue(html.contains("compactMoney(summary.equities.annualValue)")),
+        () -> assertTrue(html.contains("compactMoney(summary.realEstate.annualValue)")),
+        () -> assertFalse(html.contains("<th>Annual costs</th>")),
+        () -> assertFalse(html.contains("<th>Total income</th>")),
+        () -> assertFalse(html.contains("<th>Funding gap</th>")),
+        () -> assertFalse(html.contains("<th>Reserve withdrawal</th>")),
+        () -> assertFalse(html.contains("<th>Long-Term funding</th>")),
+        () -> assertFalse(html.contains("<th>Investment withdrawal</th>")),
+        () -> assertFalse(html.contains("<th>Unfunded</th>")),
+        () -> assertFalse(html.contains("<th>Reserve end</th>")),
+        () -> assertFalse(html.contains("<th>Long-Term capital</th>")),
+        () -> assertFalse(html.contains("<th>Investment end</th>")),
         () -> assertFalse(html.contains("<th>Funding need</th>")),
         () -> assertFalse(html.contains("<th>Portfolio withdrawal</th>")),
         () -> assertFalse(html.contains("<th>Cash reserve</th>")),
-        () -> assertFalse(html.contains("<th>Bonds</th>")),
-        () -> assertFalse(html.contains("<th>Equity</th>")),
-        () -> assertTrue(html.contains("'Failed'")),
-        () -> assertTrue(html.contains("timelineMoney[row.year].totalIncome")),
-        () -> assertTrue(html.contains("timelineMoney[row.year].longTermFunding")));
+        () -> assertTrue(html.contains("<th>Bonds</th>")),
+        () -> assertTrue(html.contains("<th>Equities</th>")),
+        () -> assertTrue(html.contains("<th>Bucket</th>")),
+        () -> assertTrue(html.contains("timelineMoney[row.year].bondReturn")));
   }
 
   @Test

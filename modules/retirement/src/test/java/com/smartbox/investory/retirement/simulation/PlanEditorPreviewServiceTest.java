@@ -232,6 +232,7 @@ class PlanEditorPreviewServiceTest {
     assertEquals(new BigDecimal("30000"), years.get(0).bondIncome());
     assertEquals(new BigDecimal("174804"), years.get(1).rentalIncome());
     assertEquals(new BigDecimal("38880"), years.get(1).bondIncome());
+    assertEquals(new BigDecimal("213684"), years.get(1).totalIncome());
     verify(longTermAssets).historicalAnnualSnapshot(7L, 2025);
     verify(longTermAssets).currentAnnualSnapshot(7L, Instant.now(clock).atZone(ZoneOffset.UTC).toLocalDate());
   }

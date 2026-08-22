@@ -46,6 +46,11 @@ class RetirementSimulationTemplateContractTest {
     assertTrue(editor.contains("<summary>Timeline</summary>"));
     assertTrue(editor.contains("<summary>Spending</summary>"));
     assertTrue(editor.contains("<summary>Income</summary>"));
+    assertTrue(editor.contains("<th>State</th><th class=\"text-end\">Total spending</th><th class=\"text-end\">Event spending</th><th class=\"text-end\">Growth</th>"));
+    assertTrue(editor.contains("<th>State</th><th class=\"text-end\">Income total</th><th class=\"text-end\">Rents</th><th class=\"text-end\">Bonds</th><th class=\"text-end\">Equities</th><th class=\"text-end\">Salary</th><th class=\"text-end\">Pension</th><th class=\"text-end\">Events</th>"));
+    assertTrue(editor.contains("compactMoney(year.totalCosts)"));
+    assertTrue(editor.contains("compactMoney(year.totalIncome)"));
+    assertFalse(editor.contains("<th class=\"text-end\">Recurring costs</th>"));
     assertTrue(editor.contains("<summary>Funding &amp; balances</summary>"));
     assertTrue(editor.contains("Reserve transfer"));
     assertTrue(editor.contains("Investment withdrawal"));

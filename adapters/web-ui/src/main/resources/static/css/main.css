@@ -63,6 +63,20 @@
     --iv-metric-divider: color-mix(in srgb, var(--iv-border) 72%, transparent);
 }
 
+.iv-cash-flow-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 18px; }
+.iv-cash-flow-lane h3, .iv-cash-flow-funding h3 { margin: 0 0 8px; color: var(--iv-text-muted); font-size: .72rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.iv-cash-flow-row { display: grid; grid-template-columns: minmax(90px, .7fr) minmax(80px, 1fr) auto; align-items: center; gap: 10px; min-height: 30px; font-size: .82rem; }
+.iv-cash-flow-row > strong { min-width: 58px; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.iv-cash-flow-row__track { height: 7px; overflow: hidden; border-radius: 99px; background: var(--iv-surface-muted, rgba(127,127,127,.12)); }
+.iv-cash-flow-row__bar { height: 100%; min-width: 2px; border-radius: inherit; background: var(--iv-primary); }
+.iv-cash-flow-funding { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--iv-border); }
+.iv-cash-flow-connector { color: var(--iv-primary); font-size: 1.35rem; font-weight: 800; }
+.iv-cash-flow-empty { margin: 6px 0 0; color: var(--iv-text-muted); font-size: .78rem; }
+@media (max-width: 720px) {
+    .iv-cash-flow-grid { grid-template-columns: 1fr; gap: 12px; }
+    .iv-cash-flow-connector { display: none; }
+}
+
 /* Retirement planning surfaces: compact hierarchy, readable state, and safe wide tables. */
 .iv-retirement-surface { display: grid; gap: 16px; }
 .iv-retirement-surface > .card,

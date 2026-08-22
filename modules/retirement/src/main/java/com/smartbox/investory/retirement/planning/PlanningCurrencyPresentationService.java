@@ -692,7 +692,11 @@ public class PlanningCurrencyPresentationService {
                 row.past().values(), PlanningMetric.RENTAL_INCOME, PlanningMetric.PASSIVE_INCOME);
         bondIncome = planningValue(row.past().values(), PlanningMetric.BOND_INCOME);
         totalIncome = sumKnown(rentalIncome, bondIncome);
-        reserveEnd = planningValue(row.past().values(), PlanningMetric.CASH_RESERVE_VALUE);
+        cashEnd = firstValue(row.past().values(), PlanningMetric.CASH_RESERVE_VALUE, PlanningMetric.SAFE_RESERVE, PlanningMetric.MANUAL_LIQUID_RESERVE);
+        reserveEnd = cashEnd;
+        bondsEnd = firstValue(row.past().values(), PlanningMetric.BOND_VALUE, PlanningMetric.FIXED_INCOME);
+        equitiesEnd = firstValue(row.past().values(), PlanningMetric.EQUITY, PlanningMetric.MARKET_ASSETS);
+        realEstateEnd = planningValue(row.past().values(), PlanningMetric.REAL_ESTATE);
       } else if (row.state() == PlanningTimelineState.LIVE) {
         Map<PlanningMetric, PlanningMetricValue> currentValues = row.current().actualValues();
         annualCosts = annualCosts(currentValues);
@@ -719,7 +723,11 @@ public class PlanningCurrencyPresentationService {
         annualCosts = annualCosts == null ? null : annualCosts.add(eventExpenses);
         totalIncome = employment.add(zero(rentalIncome)).add(zero(bondIncome)).add(pension).add(eventIncome);
         fundingGap = gap(annualCosts, totalIncome);
-        reserveEnd = planningValue(currentValues, PlanningMetric.SAFE_RESERVE);
+        cashEnd = firstValue(currentValues, PlanningMetric.SAFE_RESERVE, PlanningMetric.CASH_RESERVE_VALUE, PlanningMetric.MANUAL_LIQUID_RESERVE);
+        reserveEnd = cashEnd;
+        bondsEnd = firstValue(currentValues, PlanningMetric.BOND_VALUE, PlanningMetric.FIXED_INCOME);
+        equitiesEnd = firstValue(currentValues, PlanningMetric.EQUITY, PlanningMetric.MARKET_ASSETS);
+        realEstateEnd = planningValue(currentValues, PlanningMetric.REAL_ESTATE);
       } else if (row.state() == PlanningTimelineState.PROJECTED && row.projection() != null) {
         annualCosts = row.projection().totalExpenses();
         rentalIncome = row.projection().rentalIncome();
@@ -840,10 +848,12 @@ public class PlanningCurrencyPresentationService {
 
   private static BigDecimal firstValue(
       Map<PlanningMetric, PlanningMetricValue> values,
-      PlanningMetric primary,
-      PlanningMetric fallback) {
-    BigDecimal value = planningValue(values, primary);
-    return value == null ? planningValue(values, fallback) : value;
+      PlanningMetric... metrics) {
+    for (PlanningMetric metric : metrics) {
+      BigDecimal value = planningValue(values, metric);
+      if (value != null) return value;
+    }
+    return null;
   }
 
   private Map<PlanningMetric, PlanningMetricValue> displayValues(

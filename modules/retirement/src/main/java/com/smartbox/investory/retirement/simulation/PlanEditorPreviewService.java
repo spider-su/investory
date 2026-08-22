@@ -120,12 +120,13 @@ public class PlanEditorPreviewService {
     boolean retired = age >= assumptions.retirementAge();
     BigDecimal employment = retired ? BigDecimal.ZERO : assumptions.annualEmploymentIncome();
     BigDecimal pension = age >= assumptions.pensionStartAge() ? assumptions.annualPension() : BigDecimal.ZERO;
+    BigDecimal currentIncomeTotal = sumKnown(employment, facts.rentalIncome(), facts.bondIncome(), pension);
     return new PreviewYear(year, age, "CURRENT", retired ? SimulationLifecyclePhase.RETIRED.name() : SimulationLifecyclePhase.WORKING.name(),
         null, null, null, null, null, displayCanonical(employment, displayCurrency), displayCanonical(facts.rentalIncome(), displayCurrency),
         displayCanonical(facts.bondIncome(), displayCurrency),
         bridge == null ? null : displayCanonical(bridge.investmentAnnualReturn(), displayCurrency),
         null,
-        displayCanonical(pension, displayCurrency), null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, "CURRENT FACTS");
+        displayCanonical(pension, displayCurrency), null, displayCanonical(currentIncomeTotal, displayCurrency), null, null, null, null, null, null, null, null, null, null, null, null, null, "CURRENT FACTS");
   }
 
   private PreviewYear historicalYear(int year, int age, LongTermAssetAnnualSnapshotModel facts,
@@ -145,6 +146,19 @@ public class PlanEditorPreviewService {
 
   private static BigDecimal zeroIfNull(BigDecimal value) {
     return value == null ? BigDecimal.ZERO : value;
+  }
+
+  /** Sum known cash-income facts while preserving unknown when no component is available. */
+  private static BigDecimal sumKnown(BigDecimal... values) {
+    BigDecimal total = BigDecimal.ZERO;
+    boolean known = false;
+    for (BigDecimal value : values) {
+      if (value != null) {
+        total = total.add(value);
+        known = true;
+      }
+    }
+    return known ? total : null;
   }
 
   private BigDecimal displayCanonical(BigDecimal value, CurrencyType displayCurrency) {

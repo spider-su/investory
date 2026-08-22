@@ -251,6 +251,8 @@ public class RetirementSimulationController {
             planningPresentation.displaySummaries(summaries, planningDisplayCurrency));
     var timelineMoney =
         planningPresentation.displayTimelineMoney(timeline, planningDisplayCurrency, projectedAssumptions);
+    var yearlySummaries = RetirementYearSummaryView.from(timeline, timelineMoney);
+    var cashFlow = CashFlowSectionView.from(timeline, timelineMoney, projectedAssumptions);
     model.addAttribute(
         "simulationPage",
         new RetirementSimulationPageView(
@@ -269,6 +271,8 @@ public class RetirementSimulationController {
             displayAnnualPension,
             timeline,
             timelineMoney,
+            yearlySummaries,
+            cashFlow,
             currentYearCloseAllowed));
     return "simulation";
   }
