@@ -40,7 +40,7 @@ class RetirementSimulationTemplateContractTest {
   }
 
   @Test
-  void normalAssumptionsExposeIndependentGrowthRatesButNotRecurringOneOffExpenses()
+  void normalAssumptionsExposeInflationRelativeGrowthSpreadsButNotRecurringOneOffExpenses()
       throws Exception {
     String html =
         Files.readString(
@@ -48,21 +48,21 @@ class RetirementSimulationTemplateContractTest {
     String editor =
         Files.readString(
             Path.of("../adapters/web-ui/src/main/resources/templates/simulation-plan-edit.html"));
-    assertTrue(editor.contains("Rental income growth"));
+    assertTrue(editor.contains("Rental growth vs inflation"));
     assertFalse(editor.contains("Real-estate return"));
-    assertTrue(editor.contains("name=\"rentalIncomeGrowth\""));
+    assertTrue(editor.contains("name=\"rentalIncomeGrowthSpread\""));
     assertTrue(editor.contains("Age at plan start"));
     assertTrue(editor.contains("Current planning age"));
     assertTrue(editor.contains("plannedRetirementYear"));
     assertTrue(editor.contains("existingPlan"));
     assertTrue(editor.contains("Monthly living costs"));
     assertTrue(editor.contains("Annual extras"));
-    assertTrue(editor.contains("Cost growth"));
+    assertTrue(editor.contains("Cost growth vs inflation"));
     assertTrue(editor.contains("name=\"monthlyLivingCosts\""));
     assertFalse(editor.contains("Core living expenses / year"));
     assertFalse(editor.contains("Discretionary spending / year"));
     assertFalse(editor.contains("Spending growth"));
-    assertTrue(editor.contains("name=\"spendingGrowth\""));
+    assertTrue(editor.contains("name=\"spendingGrowthSpread\""));
     assertTrue(editor.contains("Funding order"));
     assertFalse(editor.contains("name=\"fundingStrategy\""));
     assertTrue(editor.contains("developMode"));
@@ -76,10 +76,14 @@ class RetirementSimulationTemplateContractTest {
     assertTrue(editor.contains("AbortController"));
     assertTrue(
         editor.contains(
-            "name=\"spendingGrowth\" type=\"number\" step=\"0.1\" min=\"1\" max=\"99\""));
+            "name=\"spendingGrowthSpread\" type=\"number\" step=\"0.1\" min=\"-99\" max=\"999\""));
     assertTrue(
         editor.contains(
-            "name=\"rentalIncomeGrowth\" type=\"number\" step=\"0.1\" min=\"1\" max=\"99\""));
+            "name=\"rentalIncomeGrowthSpread\" type=\"number\" step=\"0.1\" min=\"-99\" max=\"999\""));
+    assertTrue(editor.contains("Effective rental growth"));
+    assertTrue(editor.contains("Effective cost growth"));
+    assertTrue(editor.contains("Event income"));
+    assertTrue(editor.contains("Event expense"));
     assertTrue(html.contains("for=\"planning-display-currency\">Currency"));
     assertFalse(html.contains("Planning currency"));
     assertTrue(html.contains("name=\"planningDisplayCurrency\""));
@@ -115,7 +119,11 @@ class RetirementSimulationTemplateContractTest {
     assertTrue(editor.contains("<details class=\"iv-expandable-card\""));
     assertTrue(editor.contains("Development preview · temporal assumptions"));
     assertTrue(editor.contains("Development preview · income"));
-    assertTrue(editor.contains("Development preview · first projected year"));
+    assertTrue(editor.contains("Investment · first projected year"));
+    assertFalse(editor.contains("Portfolio assumptions"));
+    assertTrue(editor.contains("Investment · equity return"));
+    assertTrue(editor.indexOf("for=\"inflation\"") < editor.indexOf("iv-card-section-header__title\">Spending"));
+    assertTrue(editor.indexOf("Investment · first projected year") < editor.indexOf("Funding &amp; reserve strategy"));
     assertFalse(editor.contains("iv-simulation-editor__advanced"));
     assertTrue(editor.contains("name=\"startYear\""));
     assertTrue(editor.contains("name=\"annualEmploymentIncome\""));

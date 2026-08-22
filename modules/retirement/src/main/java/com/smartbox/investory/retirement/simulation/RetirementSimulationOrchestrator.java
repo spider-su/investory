@@ -3,18 +3,18 @@ package com.smartbox.investory.retirement.simulation;
 import com.smartbox.investory.investment.api.InvestmentAnnualProjectionApi;
 import com.smartbox.investory.longterm.api.LongTermAnnualProjectionApi;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.time.LocalDate;
 
-/** Coordinates yearly income-gap funding. It owns no asset or investment mechanics. */
+/** One deterministic yearly funding pipeline. Lifecycle only contributes cash flows. */
 public final class RetirementSimulationOrchestrator {
+  private static final BigDecimal ZERO = BigDecimal.ZERO;
   private final LongTermAnnualProjectionApi longTerm;
   private final InvestmentAnnualProjectionApi investments;
 
-  public RetirementSimulationOrchestrator(
-      LongTermAnnualProjectionApi longTerm, InvestmentAnnualProjectionApi investments) {
+  public RetirementSimulationOrchestrator(LongTermAnnualProjectionApi longTerm,
+      InvestmentAnnualProjectionApi investments) {
     this.longTerm = longTerm;
     this.investments = investments;
   }
@@ -23,146 +23,103 @@ public final class RetirementSimulationOrchestrator {
     List<Year> years = new ArrayList<>();
     BigDecimal reserve = input.initialReserve();
     BigDecimal investmentValue = input.initialInvestmentValue();
-    List<LongTermAnnualProjectionApi.Bond> bonds = List.of();
     BigDecimal spending = input.annualExpenses();
+    LongTermAnnualProjectionApi.PlanningState longTermState = input.longTermPlanningState();
     for (int age = input.currentAge(); age <= input.endAge(); age++) {
       int year = input.startYear() + age - input.currentAge();
       boolean retired = age >= input.retirementAge();
-      BigDecimal expenses =
-          retired
-              ? spending.multiply(input.expenseProfile().factorForYear(year - input.startYear()))
-              : BigDecimal.ZERO;
-      BigDecimal employment = retired ? BigDecimal.ZERO : input.annualEmploymentIncome();
-      BigDecimal pension = age >= input.pensionStartAge() ? input.annualPension() : BigDecimal.ZERO;
-      BigDecimal eventIncome = events(input, year, SimulationEventType.ONE_OFF_INCOME);
-      BigDecimal eventExpenses = events(input, year, SimulationEventType.ONE_OFF_EXPENSE);
-      RetirementSimulationInput.LongTermYearInput assets = assets(input, year);
-      if (!assets.bonds().isEmpty() || !assets.rentalIncome().isEmpty()) bonds = assets.bonds();
-      var preview = longTerm.project(new LongTermAnnualProjectionApi.ProjectionRequest(
-          year, reserve, BigDecimal.ZERO, bonds, assets.rentalIncome()));
-      List<PlannedCashFlow> flows = new ArrayList<>();
-      addAnnual(flows, "retirement-expenses", CashFlowDirection.EXPENSE, expenses, year);
-      addAnnual(flows, "event-expenses", CashFlowDirection.EXPENSE, eventExpenses, year);
-      addAnnual(flows, "rental-income", CashFlowDirection.INCOME,
-          annualRentalIncome(preview.monthlyNetRentalIncome()), year);
-      addAnnual(flows, "bond-income", CashFlowDirection.INCOME, preview.netBondIncome(), year);
-      addAnnual(flows, "pension", CashFlowDirection.INCOME, pension, year);
-      addAnnual(flows, "employment", CashFlowDirection.INCOME, employment, year);
-      addAnnual(flows, "event-income", CashFlowDirection.INCOME, eventIncome, year);
-      CashFlowAggregationService.Result cashFlow = new CashFlowAggregationService()
-          .aggregateProjected(new Period(LocalDate.of(year, 1, 1), LocalDate.of(year, 12, 31)), flows);
-      BigDecimal gap = cashFlow.netCashFlow().negate();
-      BigDecimal required = gap.max(BigDecimal.ZERO);
-      BigDecimal surplus = gap.negate().max(BigDecimal.ZERO);
-      var assetYear = longTerm.project(new LongTermAnnualProjectionApi.ProjectionRequest(
-          year, reserve, required, bonds, assets.rentalIncome()));
-      BigDecimal remaining = required.subtract(assetYear.reserveUsed()).subtract(assetYear.maturedFunding()).max(BigDecimal.ZERO);
-      var investmentYear = investments.project(new InvestmentAnnualProjectionApi.ProjectionRequest(
-          year, investmentValue,
-          retired ? BigDecimal.ZERO : input.annualPreRetirementContribution(),
+      BigDecimal expenses = retired
+          ? spending.multiply(input.expenseProfile().factorForYear(year - input.startYear())) : ZERO;
+      BigDecimal employment = retired ? ZERO : input.annualEmploymentIncome();
+      BigDecimal pension = age >= input.pensionStartAge() ? input.annualPension() : ZERO;
+
+      // 1. Every source enters aggregation as a planned cash flow.
+      var longTermIncome = longTerm.plan(new LongTermAnnualProjectionApi.PlanningRequest(
+          year, ZERO, longTermState));
+      List<PlannedCashFlow> flows = lifecycleFlows(input, year, expenses, employment, pension);
+      addLongTermFlows(flows, year, longTermIncome.plannedCashFlows());
+      var cashFlow = new CashFlowAggregationService().aggregateProjected(
+          new Period(LocalDate.of(year, 1, 1), LocalDate.of(year, 12, 31)), flows);
+
+      // 2-6. Gap/surplus and reserve are independent of cash-flow category.
+      BigDecimal fundingGap = cashFlow.fundingGap();
+      BigDecimal reserveAfterTransfer = reserve.add(longTermIncome.reserveTransfer());
+      BigDecimal reserveWithdrawal = reserveAfterTransfer.min(fundingGap);
+      BigDecimal remaining = fundingGap.subtract(reserveWithdrawal);
+      // 7. Long-Term capital is requested before investment.
+      var longTermFunding = longTerm.plan(new LongTermAnnualProjectionApi.PlanningRequest(
+          year, remaining, longTermState));
+      remaining = remaining.subtract(longTermFunding.actualCapitalProvided()).max(ZERO);
+      // 8. Investment owns returns, valuation, and withdrawal limits.
+      var investment = investments.project(new InvestmentAnnualProjectionApi.ProjectionRequest(
+          year, investmentValue, retired ? ZERO : input.annualPreRetirementContribution(),
           input.investmentReturnRate(), remaining, input.investmentSource()));
-      BigDecimal unfunded = remaining.subtract(investmentYear.withdrawal()).max(BigDecimal.ZERO);
-      years.add(new Year(age, year, retired, expenses, employment, pension, eventIncome, eventExpenses,
-          preview.monthlyNetRentalIncome(), preview.netBondIncome(), gap, required, surplus,
-          assetYear.reserveUsed(), assetYear.maturedFunding(), investmentYear.withdrawal(), unfunded,
-          assetYear.reserveEnd(), investmentYear, assetYear.source()));
-      reserve = assetYear.reserveEnd();
-      investmentValue = investmentYear.endValue();
-      bonds = assetYear.nextBonds();
+      // 9-10. Returned end states are the only next-year state.
+      BigDecimal unfunded = remaining.subtract(investment.withdrawal()).max(ZERO);
+      BigDecimal rentalIncome = amount(longTermIncome.plannedCashFlows(),
+          LongTermAnnualProjectionApi.CashFlowKind.RENTAL_INCOME);
+      BigDecimal bondIncome = amount(longTermIncome.plannedCashFlows(),
+          LongTermAnnualProjectionApi.CashFlowKind.FIXED_INCOME);
+      BigDecimal reserveEnd = reserveAfterTransfer.subtract(reserveWithdrawal);
+      years.add(new Year(age, year, retired, expenses, employment, pension,
+          events(input, year, SimulationEventType.ONE_OFF_INCOME),
+          events(input, year, SimulationEventType.ONE_OFF_EXPENSE),
+          rentalIncome.divide(BigDecimal.valueOf(12), 12, java.math.RoundingMode.HALF_UP), rentalIncome, bondIncome,
+          cashFlow.netCashFlow().negate(), fundingGap, cashFlow.surplus(), reserveWithdrawal,
+          longTermFunding.actualCapitalProvided(), investment.withdrawal(), unfunded, reserveEnd,
+          investment, longTermFunding.source()));
+      reserve = reserveEnd;
+      investmentValue = investment.endValue();
+      longTermState = longTermFunding.endState();
       if (retired) spending = spending.multiply(BigDecimal.ONE.add(input.spendingGrowthRate()));
     }
     return new Result(years);
   }
 
-  /** Generic planning entry point used by annual and review callers. */
-  public GenericResult run(GenericPlanningInput input) {
-    List<GenericYear> years = new ArrayList<>();
-    BigDecimal reserve = input.reserveStart();
-    BigDecimal capitalStart = input.capitalStart();
-    for (int year = input.startYear(); year <= input.endYear(); year++) {
-      Period period = new Period(LocalDate.of(year, 1, 1), LocalDate.of(year, 12, 31));
-      CashFlowAggregationService.Result aggregation = new CashFlowAggregationService()
-          .aggregateProjected(period, input.flows());
-      BigDecimal gap = aggregation.fundingGap();
-      BigDecimal surplus = aggregation.surplus();
-      ReserveState reserveState = new ReserveState(
-          reserve, reserve.min(gap), BigDecimal.ZERO, BigDecimal.ZERO, ProjectionSource.PROJECTED);
-      BigDecimal remaining = gap.subtract(reserveState.withdrawal()).max(BigDecimal.ZERO);
-      CapitalProjection capital = input.capital().project(year, capitalStart, remaining);
-      BigDecimal unfunded = remaining.subtract(capital.actualWithdrawal()).max(BigDecimal.ZERO);
-      years.add(new GenericYear(year, aggregation, gap, surplus, reserveState, capital, unfunded));
-      reserve = reserveState.endValue();
-      capitalStart = capital.endValue();
-    }
-    return new GenericResult(years);
+  private static List<PlannedCashFlow> lifecycleFlows(RetirementSimulationInput input, int year,
+      BigDecimal expenses, BigDecimal employment, BigDecimal pension) {
+    List<PlannedCashFlow> flows = new ArrayList<>();
+    addAnnual(flows, "retirement-expenses", CashFlowDirection.EXPENSE, expenses, year);
+    addAnnual(flows, "event-expenses", CashFlowDirection.EXPENSE,
+        events(input, year, SimulationEventType.ONE_OFF_EXPENSE), year);
+    addAnnual(flows, "employment", CashFlowDirection.INCOME, employment, year);
+    addAnnual(flows, "pension", CashFlowDirection.INCOME, pension, year);
+    addAnnual(flows, "event-income", CashFlowDirection.INCOME,
+        events(input, year, SimulationEventType.ONE_OFF_INCOME), year);
+    return flows;
   }
 
-  @FunctionalInterface
-  public interface CapitalProvider {
-    CapitalProjection project(int year, BigDecimal startValue, BigDecimal requestedWithdrawal);
+  private static void addLongTermFlows(List<PlannedCashFlow> flows, int year,
+      List<LongTermAnnualProjectionApi.PlannedCashFlow> longTermFlows) {
+    for (var flow : longTermFlows)
+      addAnnual(flows, flow.id(), CashFlowDirection.INCOME, flow.annualAmount(), year);
   }
 
-  public record GenericPlanningInput(
-      int startYear,
-      int endYear,
-      BigDecimal reserveStart,
-      BigDecimal capitalStart,
-      List<PlannedCashFlow> flows,
-      CapitalProvider capital) {
-    public GenericPlanningInput {
-      if (endYear < startYear || capital == null) throw new IllegalArgumentException("Invalid planning input");
-      reserveStart = nz(reserveStart);
-      capitalStart = nz(capitalStart);
-      flows = flows == null ? List.of() : List.copyOf(flows);
-    }
+  private static BigDecimal amount(List<LongTermAnnualProjectionApi.PlannedCashFlow> flows,
+      LongTermAnnualProjectionApi.CashFlowKind kind) {
+    return flows.stream().filter(flow -> flow.kind() == kind)
+        .map(LongTermAnnualProjectionApi.PlannedCashFlow::annualAmount).reduce(ZERO, BigDecimal::add);
   }
 
-  public record GenericResult(List<GenericYear> years) {
-    public GenericResult { years = List.copyOf(years == null ? List.of() : years); }
-  }
-
-  public record GenericYear(
-      int year,
-      CashFlowAggregationService.Result cashFlow,
-      BigDecimal fundingGap,
-      BigDecimal surplus,
-      ReserveState reserve,
-      CapitalProjection capital,
-      BigDecimal unfundedGap) {}
-
-  private static RetirementSimulationInput.LongTermYearInput assets(RetirementSimulationInput i, int year) {
-    return i.longTermYears().stream().filter(a -> a.year() == year).findFirst()
-        .orElse(new RetirementSimulationInput.LongTermYearInput(year, List.of(), List.of()));
-  }
-
-  private static BigDecimal events(RetirementSimulationInput i, int year, SimulationEventType type) {
-    return i.events().stream().filter(e -> e.year() == year && e.type() == type)
-        .map(SimulationEvent::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
+  private static BigDecimal events(RetirementSimulationInput input, int year, SimulationEventType type) {
+    return input.events().stream().filter(e -> e.year() == year && e.type() == type)
+        .map(SimulationEvent::amount).reduce(ZERO, BigDecimal::add);
   }
 
   private static void addAnnual(List<PlannedCashFlow> flows, String id, CashFlowDirection direction,
       BigDecimal amount, int year) {
-    if (amount.signum() > 0) {
-      LocalDate date = LocalDate.of(year, 1, 1);
-      flows.add(new PlannedCashFlow(id, id, direction, CashFlowCadence.ANNUAL, amount, date,
-          ProjectionSource.PROJECTED));
-    }
-  }
-
-  private static BigDecimal nz(BigDecimal value) { return value == null ? BigDecimal.ZERO : value; }
-
-  private static BigDecimal annualRentalIncome(BigDecimal monthly) {
-    return monthly.multiply(BigDecimal.valueOf(12)).setScale(8, RoundingMode.HALF_UP);
+    if (amount.signum() > 0) flows.add(new PlannedCashFlow(id, id, direction,
+        CashFlowCadence.ANNUAL, amount, LocalDate.of(year, 1, 1), ProjectionSource.PROJECTED));
   }
 
   public record Result(List<Year> years) { public Result { years = List.copyOf(years); } }
 
-  public record Year(
-      int age, int year, boolean retired, BigDecimal expenses, BigDecimal employmentIncome,
-      BigDecimal pensionIncome, BigDecimal eventIncome, BigDecimal eventExpenses,
-      BigDecimal monthlyNetRentalIncome, BigDecimal netBondIncome, BigDecimal incomeGap,
-      BigDecimal requiredFunding, BigDecimal annualSurplus, BigDecimal reserveWithdrawal,
-      BigDecimal maturedBondFunding, BigDecimal investmentWithdrawal, BigDecimal unfundedShortfall,
-      BigDecimal reserveEnd, InvestmentAnnualProjectionApi.AnnualProjection investment,
+  public record Year(int age, int year, boolean retired, BigDecimal expenses,
+      BigDecimal employmentIncome, BigDecimal pensionIncome, BigDecimal eventIncome,
+      BigDecimal eventExpenses, BigDecimal monthlyNetRentalIncome, BigDecimal annualRentalIncome, BigDecimal netBondIncome,
+      BigDecimal incomeGap, BigDecimal requiredFunding, BigDecimal annualSurplus,
+      BigDecimal reserveWithdrawal, BigDecimal maturedBondFunding,
+      BigDecimal investmentWithdrawal, BigDecimal unfundedShortfall, BigDecimal reserveEnd,
+      InvestmentAnnualProjectionApi.AnnualProjection investment,
       LongTermAnnualProjectionApi.Source longTermSource) {}
 }

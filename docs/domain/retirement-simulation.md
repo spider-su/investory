@@ -1,4 +1,4 @@
-# Generic retirement planning and simulation
+# Deterministic planning timeline and simulation
 
 Retirement planning consumes only three things: planned cash flows, one liquid reserve, and capital
 projections. It does not calculate rental yield, bond interest, tax, inflation, investment return,
@@ -33,9 +33,10 @@ For example, inflation `+2.5%`, rental spread `+0.5%`, and spending spread `+1.5
 nominal rental growth of `+3.0%` and nominal spending growth of `+4.0%`. Negative spreads are
 valid when the effective multiplicative rate remains at least `-100%`.
 
-Scenarios adjust inflation and each spread before deriving the effective nominal rates. Stored
-spread values stay unchanged when inflation changes. Physical plan columns retain their legacy
-`*_growth_rate` names for compatibility, but their values are spreads.
+Simulation executes one prepared set of assumptions. Analysis may prepare alternative assumptions
+before calling Simulation; scenario selection is not a branch inside the yearly engine. Physical
+plan columns retain their legacy `*_growth_rate` names for compatibility, but their values are
+spreads.
 
 All values cross the plan boundary in the plan currency. Source-currency asset values are converted
 once, using the shared target-currency-first conversion service, before they become a flow, capital
@@ -80,13 +81,12 @@ projected flows for the remaining period.
 
 ## Reserve
 
-Reserve combines cash and immediately available deposits. Simulation may withdraw it but never
+Reserve is a generic planning balance. Simulation may withdraw it but never
 automatically adds annual surplus to it. Future simulation always uses:
 
 ```text
-reviewAdjustment = 0
-reserveWithdrawal = min(startValue, fundingGap)
-endValue = startValue - reserveWithdrawal
+reserveWithdrawal = min(reserveStart + explicitReserveTransfers, fundingGap)
+reserveEnd = reserveStart + explicitReserveTransfers - reserveWithdrawal
 ```
 
 Review may apply an explicit, separately reported reserve adjustment. External contributions do not
@@ -107,10 +107,9 @@ availableForWithdrawal, requestedWithdrawal, actualWithdrawal, endValue, source
 does not reduce the funding gap. The owning module decides availability, withdrawal, and end value;
 actual withdrawal cannot exceed availability or value.
 
-Long-Term maturity strategies are `REINVEST`, `MOVE_TO_RESERVE`, and `FUND_GAP`, defaulting to
-`REINVEST`. Reinvested principal remains unavailable to Simulation. Move-to-reserve proceeds are a
-reserve transfer. Fund-gap proceeds cover the current request and unused proceeds transfer to
-reserve. Bond dates and maturity processing stay inside Long-Term.
+Long-Term decides maturity, redemption/reinvestment, tax, income and availability. It returns
+ordinary annual income flows, explicit reserve transfers, actual capital provided, end capital,
+and its next state. Retirement does not construct bond/deposit inputs or inspect maturity rules.
 
 Investment is a black box. Simulation sees no equity, fixed-income, market-cash, allocation, or
 portfolio internals.
@@ -150,15 +149,26 @@ retirement spending instead of resetting it. This is deliberate: `annualLivingEx
 `annualDiscretionaryExpenses` represent retirement spending, not a household budget before
 retirement.
 
-For contractual bonds and deposits, Retirement passes the Long-Term API the net payout for
-`PAY_OUT` instruments: applicable annual rate × principal × (1 − tax rate). A maturity uses the
-Long-Term-provided strategy; the default is reinvestment, while `MOVE_TO_RESERVE` transfers
-proceeds to reserve and `FUND_GAP` uses proceeds only after reserve funding. Capitalized interest
-is not a cash-flow income source.
+Long-Term supplies rental and fixed-income flows through its public planning API. Rental growth,
+interest treatment, tax, maturity and Long-Term valuation are owned by Long-Term. Capitalized
+interest is not a cash-flow income source.
 
-The current-year bridge is explicit: actual state plus projected remaining current-year flows and
-returns produces the expected year-end state, which is the next projected year's start. If there is
-no approved baseline, future rows are not presented as a continuous trusted projection.
+## Canonical timeline
+
+`PlanningTimeline` is the application-facing plan representation:
+
+```text
+historical actual diary facts -> current actual YTD + projected remainder -> future deterministic projection
+```
+
+Closed historical rows are immutable facts and are never re-simulated. Draft historical rows may
+be refreshed or corrected and remain `NEEDS_REVIEW` when facts are unavailable. The current-year
+bridge is explicit: actual state plus projected remaining current-year flows and returns produces
+the expected year-end state exactly once; that state starts the first future row. The timeline
+begins at the configured plan start year and includes missing historical rows explicitly.
+
+Sandbox is not implemented. It will be another prepared input source for the same deterministic
+engine. Analysis is scenario/risk evaluation that prepares inputs; Simulation is plan execution.
 
 An open-year result exposes actual income/expenses, projected remaining income/expenses, expected
 full-year net result, variance from the original plan, and any explicit reserve adjustment.

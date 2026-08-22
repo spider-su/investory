@@ -1,5 +1,6 @@
 package com.smartbox.investory.longterm.api;
 
+import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -7,6 +8,70 @@ import java.util.List;
 /** Stable annual simulation boundary owned by Long-Term Assets. */
 public interface LongTermAnnualProjectionApi {
   AnnualProjection project(ProjectionRequest request);
+
+  /**
+   * Planning boundary used by Retirement.  The caller supplies Long-Term source facts and asks
+   * only for annual cash flows and capital; all instrument interpretation stays here.
+   */
+  default PlanningProjection plan(PlanningRequest request) {
+    throw new UnsupportedOperationException("Long-Term planning is not configured");
+  }
+
+  record PlanningRequest(
+      int year,
+      BigDecimal requestedCapital,
+      PlanningState state) {
+    public PlanningRequest {
+      requestedCapital = nz(requestedCapital).max(BigDecimal.ZERO);
+      state = state == null ? PlanningState.EMPTY : state;
+    }
+  }
+
+  /** Opaque-to-Retirement Long-Term planning state, based exclusively on Long-Term public data. */
+  record PlanningState(
+      List<LongTermAssetProjectionModel> assets,
+      BigDecimal rentalIncomeGrowthRate,
+      int rentalIncomeBaseYear,
+      Source source) {
+    public static final PlanningState EMPTY =
+        new PlanningState(List.of(), BigDecimal.ZERO, 0, Source.PROJECTED);
+
+    public PlanningState {
+      assets = assets == null ? List.of() : List.copyOf(assets);
+      rentalIncomeGrowthRate = nz(rentalIncomeGrowthRate);
+      source = source == null ? Source.PROJECTED : source;
+    }
+  }
+
+  enum CashFlowKind { RENTAL_INCOME, FIXED_INCOME }
+
+  record PlannedCashFlow(
+      String id, String label, CashFlowKind kind, BigDecimal annualAmount, Source source) {
+    public PlannedCashFlow {
+      annualAmount = nz(annualAmount);
+      source = source == null ? Source.PROJECTED : source;
+    }
+  }
+
+  record PlanningProjection(
+      int year,
+      List<PlannedCashFlow> plannedCashFlows,
+      BigDecimal reserveTransfer,
+      BigDecimal requestedCapital,
+      BigDecimal actualCapitalProvided,
+      BigDecimal endCapital,
+      PlanningState endState,
+      Source source) {
+    public PlanningProjection {
+      plannedCashFlows = plannedCashFlows == null ? List.of() : List.copyOf(plannedCashFlows);
+      reserveTransfer = nz(reserveTransfer);
+      requestedCapital = nz(requestedCapital);
+      actualCapitalProvided = nz(actualCapitalProvided);
+      endCapital = nz(endCapital);
+      endState = endState == null ? PlanningState.EMPTY : endState;
+      source = source == null ? Source.PROJECTED : source;
+    }
+  }
 
   /** Aggregate capital result; bond maturity remains inside the implementation. */
   default CapitalProjection projectCapital(ProjectionRequest request) {

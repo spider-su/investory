@@ -1,6 +1,9 @@
 package com.smartbox.investory.retirement.profile;
 
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.longterm.api.LongTermAnnualProjectionApi;
+import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
+import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -18,7 +21,21 @@ public record InvestmentProfile(
     List<ProfileAllocation> allocations,
     List<ProjectedLongTermAsset> longTermAssets,
     BigDecimal currentRentalIncome,
-    BigDecimal currentBondIncome) {
+    BigDecimal currentBondIncome,
+    LongTermAnnualProjectionApi.PlanningState longTermPlanningState) {
+  /** Compatibility constructor for profile read models not yet carrying Long-Term planning state. */
+  public InvestmentProfile(
+      Long portfolioId, CurrencyType currency, BigDecimal marketPortfolioValue,
+      BigDecimal longTermAssetValue, BigDecimal totalNetWorth,
+      BigDecimal historicalMarketInvestmentIncome, BigDecimal expectedLongTermAssetIncome,
+      BigDecimal totalInvestmentIncome, BigDecimal liquidAssets, BigDecimal illiquidAssets,
+      List<ProfileAllocation> allocations, List<ProjectedLongTermAsset> longTermAssets,
+      BigDecimal currentRentalIncome, BigDecimal currentBondIncome) {
+    this(portfolioId, currency, marketPortfolioValue, longTermAssetValue, totalNetWorth,
+        historicalMarketInvestmentIncome, expectedLongTermAssetIncome, totalInvestmentIncome,
+        liquidAssets, illiquidAssets, allocations, longTermAssets, currentRentalIncome,
+        currentBondIncome, legacyPlanningState(longTermAssets, currentRentalIncome));
+  }
   /** Compatibility constructor for callers that do not yet provide annual Long-Term facts. */
   public InvestmentProfile(
       Long portfolioId,
@@ -47,12 +64,15 @@ public record InvestmentProfile(
         allocations,
         longTermAssets,
         null,
-        null);
+        null,
+        LongTermAnnualProjectionApi.PlanningState.EMPTY);
   }
 
   public InvestmentProfile {
     allocations = allocations == null ? List.of() : List.copyOf(allocations);
     longTermAssets = longTermAssets == null ? List.of() : List.copyOf(longTermAssets);
+    longTermPlanningState = longTermPlanningState == null
+        ? LongTermAnnualProjectionApi.PlanningState.EMPTY : longTermPlanningState;
   }
 
   public BigDecimal marketPortfolioPercentage() {
@@ -217,5 +237,30 @@ public record InvestmentProfile(
     return totalNetWorth == null || totalNetWorth.signum() == 0 || value == null
         ? BigDecimal.ZERO
         : value.divide(totalNetWorth, 8, java.math.RoundingMode.HALF_UP);
+  }
+
+  /**
+   * Read compatibility only for profiles created before the Long-Term planning state existed.
+   * The canonical profile is populated by {@code InvestmentProfileFacade} directly from the
+   * Long-Term public projection model.
+   */
+  @Deprecated
+  private static LongTermAnnualProjectionApi.PlanningState legacyPlanningState(
+      List<ProjectedLongTermAsset> assets, BigDecimal currentRentalIncome) {
+    List<LongTermAssetProjectionModel> models = (assets == null ? List.<ProjectedLongTermAsset>of() : assets)
+        .stream().map(asset -> new LongTermAssetProjectionModel(asset.id(), asset.name(), asset.type(),
+            asset.currency(), asset.currentValue(), asset.periods().stream()
+                .map(period -> new LongTermAssetProjectionModel.Period(period.validFrom(), period.validTo(),
+                    period.annualIncome(), period.annualExpense(), period.annualReturnRate(),
+                    period.cashFlowType(), period.paidByTenant())).toList(), asset.rentalContracts(),
+            asset.maturityDate(), asset.redemptionValue(), asset.interestTreatment(), asset.taxRate(),
+            asset.taxBase(), asset.rentalTaxPaidByTenant())).collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
+    if (currentRentalIncome != null && currentRentalIncome.signum() != 0 && models.stream()
+        .noneMatch(asset -> asset.type() == LongTermAssetTypeModel.REAL_ESTATE))
+      models.add(new LongTermAssetProjectionModel(null, "legacy-rental", LongTermAssetTypeModel.REAL_ESTATE,
+          null, BigDecimal.ZERO, List.of(new LongTermAssetProjectionModel.Period(null, null,
+              currentRentalIncome, BigDecimal.ZERO, BigDecimal.ZERO)), null, null, null, BigDecimal.ZERO));
+    return new LongTermAnnualProjectionApi.PlanningState(models, BigDecimal.ZERO, 0,
+        LongTermAnnualProjectionApi.Source.PROJECTED);
   }
 }

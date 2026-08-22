@@ -7,6 +7,7 @@ import com.smartbox.investory.investment.api.BrokeragePositionSnapshot;
 import com.smartbox.investory.investment.api.SharedBrokeragePortfolioSnapshot;
 import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
 import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
+import com.smartbox.investory.longterm.api.LongTermAnnualProjectionApi;
 import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileAssetModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSummaryModel;
@@ -59,9 +60,10 @@ public class InvestmentProfileFacade {
     BigDecimal longTermIncome = longTerm.netAnnualIncomeAfterTax();
     LongTermAssetAnnualSnapshotModel annualFacts =
         longTermAnnualFacts.currentAnnualSnapshot(portfolioId, date);
+    List<LongTermAssetProjectionModel> projectionInputs =
+        Optional.ofNullable(longTermAssets.projectionInputs(portfolioId, date)).orElse(List.of());
     List<ProjectedLongTermAsset> manualAssets =
-        Optional.ofNullable(longTermAssets.projectionInputs(portfolioId, date))
-            .orElse(List.of())
+        projectionInputs
             .stream()
             .map(
                 (LongTermAssetProjectionModel input) ->
@@ -127,7 +129,9 @@ public class InvestmentProfileFacade {
         allocations(values, total),
         manualAssets,
         annualFacts == null ? null : annualFacts.rentalIncome(),
-        annualFacts == null ? null : annualFacts.bondIncome());
+        annualFacts == null ? null : annualFacts.bondIncome(),
+        new LongTermAnnualProjectionApi.PlanningState(
+            projectionInputs, BigDecimal.ZERO, date.getYear(), LongTermAnnualProjectionApi.Source.PROJECTED));
   }
 
   public List<LongTermAssetProfileAssetModel> loadLongTermAssets(Long portfolioId) {
