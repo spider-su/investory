@@ -128,6 +128,9 @@ class RetirementSimulationControllerTest {
         .when(planningPresentation.displayCharts(any(), any()))
         .thenAnswer(i -> i.getArgument(0));
     lenient().when(planningPresentation.displayTimelineMoney(any(), any())).thenReturn(Map.of());
+    lenient()
+        .when(plans.resolvePlanId(anyLong(), nullable(Long.class)))
+        .thenAnswer(invocation -> Optional.ofNullable(invocation.getArgument(1)));
     mockMvc = MockMvcBuilders.standaloneSetup(controller).setViewResolvers(resolver).build();
   }
 
@@ -151,11 +154,18 @@ class RetirementSimulationControllerTest {
     when(simulations.compareScenarios(
             org.mockito.ArgumentMatchers.eq(p), org.mockito.ArgumentMatchers.any()))
         .thenReturn(Map.of());
-    mockMvc
-        .perform(get("/simulation"))
-        .andExpect(status().isOk())
-        .andExpect(view().name("simulation"))
-        .andExpect(model().attributeExists("simulationPage"));
+    var result =
+        mockMvc
+            .perform(get("/simulation"))
+            .andExpect(status().isOk())
+            .andExpect(view().name("simulation"))
+            .andExpect(model().attributeExists("simulationPage"))
+            .andReturn();
+    var page =
+        (RetirementSimulationPageView)
+            result.getModelAndView().getModel().get("simulationPage");
+    assertEquals(null, page.selectedPlanId());
+    assertEquals("Current assumptions", page.activePlanName());
   }
 
   @Test
@@ -193,6 +203,74 @@ class RetirementSimulationControllerTest {
     assertEquals(60, captured.getValue().retirementAge());
     assertEquals(new BigDecimal("240000"), captured.getValue().annualEmploymentIncome());
     assertEquals(new BigDecimal("50000"), captured.getValue().annualPreRetirementContribution());
+  }
+
+  @Test
+  void simulationWithoutPlanIdUsesTheLatestSavedPlan() throws Exception {
+    InvestmentProfile profile = profile();
+    SimulationAssumptions latest = SimulationAssumptions.defaults(profile, 45, 90, 2026);
+    when(profiles.loadProfile(1L)).thenReturn(profile);
+    when(plans.resolvePlanId(1L, null)).thenReturn(Optional.of(8L));
+    when(plans.assumptions(1L, 8L)).thenReturn(latest);
+    when(plans.name(1L, 8L)).thenReturn("Plan B");
+    when(simulations.compareScenarios(eq(profile), any())).thenReturn(Map.of());
+
+    var result = mockMvc.perform(get("/simulation").param("portfolioId", "1")).andReturn();
+    var page =
+        (RetirementSimulationPageView)
+            result.getModelAndView().getModel().get("simulationPage");
+
+    assertEquals(8L, page.selectedPlanId());
+    assertEquals("Plan B", page.activePlanName());
+    verify(plans).resolvePlanId(1L, null);
+  }
+
+  @Test
+  void simulationKeepsAnExplicitPlanIdWhenANewerPlanExists() throws Exception {
+    InvestmentProfile profile = profile();
+    SimulationAssumptions explicit = SimulationAssumptions.defaults(profile, 45, 90, 2026);
+    when(profiles.loadProfile(1L)).thenReturn(profile);
+    when(plans.resolvePlanId(1L, 7L)).thenReturn(Optional.of(7L));
+    when(plans.assumptions(1L, 7L)).thenReturn(explicit);
+    when(plans.name(1L, 7L)).thenReturn("Plan A");
+    when(simulations.compareScenarios(eq(profile), any())).thenReturn(Map.of());
+
+    var result =
+        mockMvc
+            .perform(get("/simulation").param("portfolioId", "1").param("planId", "7"))
+            .andReturn();
+    var page =
+        (RetirementSimulationPageView)
+            result.getModelAndView().getModel().get("simulationPage");
+
+    assertEquals(7L, page.selectedPlanId());
+    assertEquals("Plan A", page.activePlanName());
+    verify(plans).resolvePlanId(1L, 7L);
+  }
+
+  @Test
+  void editPageUsesTheSameLatestPlanResolutionAndFallsBackToDefaults() {
+    InvestmentProfile profile = profile();
+    SimulationAssumptions latest = SimulationAssumptions.defaults(profile, 45, 90, 2026);
+    when(profiles.loadProfile(1L)).thenReturn(profile);
+    when(plans.resolvePlanId(1L, null)).thenReturn(Optional.of(8L));
+    when(plans.assumptions(1L, 8L)).thenReturn(latest);
+    when(plans.name(1L, 8L)).thenReturn("Plan B");
+    when(plans.list(1L)).thenReturn(List.of());
+    when(plans.revisionHistory(1L, 8L)).thenReturn(List.of());
+
+    ExtendedModelMap savedModel = new ExtendedModelMap();
+    assertEquals(
+        "simulation-plan-edit",
+        controller.editPlan(1L, null, CurrencyType.PLN, SimulationScenario.BASE, savedModel));
+    assertEquals(8L, savedModel.getAttribute("selectedPlanId"));
+    assertEquals("Plan B", savedModel.getAttribute("planName"));
+
+    when(plans.resolvePlanId(1L, null)).thenReturn(Optional.empty());
+    ExtendedModelMap defaultModel = new ExtendedModelMap();
+    controller.editPlan(1L, null, CurrencyType.PLN, SimulationScenario.BASE, defaultModel);
+    assertEquals(null, defaultModel.getAttribute("selectedPlanId"));
+    assertEquals("", defaultModel.getAttribute("planName"));
   }
 
   @Test
@@ -445,12 +523,13 @@ class RetirementSimulationControllerTest {
 
   @Test
   void deletingActivePlanReturnsToEditorWithoutDeletedPlanContext() {
+    when(plans.resolvePlanId(1L, null)).thenReturn(Optional.of(6L));
     String redirect =
         controller.deletePlan(7L, 1L, CurrencyType.EUR, 7L, true, SimulationScenario.CONSERVATIVE);
 
     verify(plans).delete(1L, 7L);
     assertEquals(
-        "redirect:/simulation/plan/edit?portfolioId=1&planningDisplayCurrency=EUR&selectedScenario=CONSERVATIVE",
+        "redirect:/simulation/plan/edit?portfolioId=1&planId=6&planningDisplayCurrency=EUR&selectedScenario=CONSERVATIVE",
         redirect);
   }
 
@@ -643,5 +722,21 @@ class RetirementSimulationControllerTest {
         "redirect:/simulation?portfolioId=1&planningDisplayCurrency=EUR",
         controller.createPastYear(1L, 2025, CurrencyType.EUR));
     verify(planningTimeline).createHistoricalDraft(1L, 2025);
+  }
+
+  private static InvestmentProfile profile() {
+    return new InvestmentProfile(
+        1L,
+        CurrencyType.PLN,
+        new BigDecimal("1000"),
+        BigDecimal.ZERO,
+        new BigDecimal("1000"),
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        new BigDecimal("1000"),
+        BigDecimal.ZERO,
+        List.of(),
+        List.of());
   }
 }

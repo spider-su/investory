@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +43,15 @@ public class SimulationPlanService {
     return plans.findAllByPortfolioIdOrderByName(portfolioId).stream()
         .filter(plan -> !plan.isArchived())
         .toList();
+  }
+
+  /** Resolves an explicit owned plan first; otherwise returns the most recently updated saved plan. */
+  @Transactional(readOnly = true)
+  public Optional<Long> resolvePlanId(Long portfolioId, Long requestedPlanId) {
+    if (requestedPlanId != null) return Optional.of(get(portfolioId, requestedPlanId).getId());
+    return plans
+        .findFirstByPortfolioIdAndArchivedFalseOrderByUpdatedAtDescIdDesc(portfolioId)
+        .map(SimulationPlanEntity::getId);
   }
 
   @Transactional(readOnly = true)

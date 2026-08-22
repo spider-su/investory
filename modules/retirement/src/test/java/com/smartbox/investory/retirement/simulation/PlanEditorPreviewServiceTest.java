@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
@@ -33,6 +34,7 @@ class PlanEditorPreviewServiceTest {
     assertTrue(names.contains("investmentStart"));
     assertTrue(names.contains("investmentEnd"));
     assertTrue(names.contains("fundingGap"));
+    assertTrue(names.contains("state"));
     assertFalse(names.contains("equityHarvest"));
   }
 
@@ -161,6 +163,73 @@ class PlanEditorPreviewServiceTest {
     assertEquals(new BigDecimal("47411"), current.rentalIncome());
     assertEquals(new BigDecimal("10545"), current.bondIncome());
     assertEquals(new BigDecimal("12000"), current.contribution());
+    assertEquals("CURRENT", current.state());
+  }
+
+  @Test
+  void previewIncludesHistoricalCurrentAndProjectedYearsFromTheTemporalAnchor() {
+    ForwardSimulationInputService inputs = mock(ForwardSimulationInputService.class);
+    RetirementSimulation simulations = mock(RetirementSimulation.class);
+    LongTermAssetAnnualSnapshotReader longTermAssets = mock(LongTermAssetAnnualSnapshotReader.class);
+    PlanningCurrencyPresentationService presentation = mock(PlanningCurrencyPresentationService.class);
+    Clock clock = Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC);
+    PlanEditorPreviewService service =
+        new PlanEditorPreviewService(inputs, simulations, longTermAssets, presentation, clock);
+    InvestmentProfile profile = mock(InvestmentProfile.class);
+    SimulationAssumptions assumptions =
+        SimulationAssumptions.defaults(profile, 40, 50, 2025).withRetirementAge(45);
+    SimulationYear projected =
+        SimulationYear.generic(
+            42,
+            2027,
+            false,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO);
+    LongTermAssetAnnualSnapshotModel historical =
+        new LongTermAssetAnnualSnapshotModel(
+            null, new BigDecimal("170000"), null, new BigDecimal("30000"), null, null);
+    LongTermAssetAnnualSnapshotModel current =
+        new LongTermAssetAnnualSnapshotModel(
+            null, new BigDecimal("174804"), null, new BigDecimal("38880"), null, null);
+    when(profile.portfolioId()).thenReturn(7L);
+    when(inputs.prepare(any(), any()))
+        .thenReturn(
+            new com.smartbox.investory.retirement.planning.ForwardSimulationInput(
+                mock(ForwardSimulationContext.class), profile, Optional.of(assumptions)));
+    when(simulations.simulate(profile, assumptions, SimulationScenario.BASE))
+        .thenReturn(
+            new SimulationResult(
+                SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of(projected)));
+    when(longTermAssets.historicalAnnualSnapshot(7L, 2025)).thenReturn(historical);
+    when(longTermAssets.currentAnnualSnapshot(any(), any())).thenReturn(current);
+    when(presentation.toDisplay(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+    List<PlanEditorPreviewService.PreviewYear> years =
+        service.preview(profile, assumptions, CurrencyType.PLN).years();
+
+    assertEquals(List.of(2025, 2026, 2027), years.stream().map(year -> year.year()).toList());
+    assertEquals(List.of(40, 41, 42), years.stream().map(year -> year.age()).toList());
+    assertEquals(List.of("HISTORICAL", "CURRENT", "PROJECTED"), years.stream().map(year -> year.state()).toList());
+    assertEquals(new BigDecimal("170000"), years.get(0).rentalIncome());
+    assertEquals(new BigDecimal("30000"), years.get(0).bondIncome());
+    assertEquals(new BigDecimal("174804"), years.get(1).rentalIncome());
+    assertEquals(new BigDecimal("38880"), years.get(1).bondIncome());
+    verify(longTermAssets).historicalAnnualSnapshot(7L, 2025);
+    verify(longTermAssets).currentAnnualSnapshot(7L, Instant.now(clock).atZone(ZoneOffset.UTC).toLocalDate());
   }
 
   @Test

@@ -6,6 +6,8 @@ import com.smartbox.investory.investment.api.BrokeragePortfolioReader;
 import com.smartbox.investory.investment.api.BrokeragePositionSnapshot;
 import com.smartbox.investory.investment.api.SharedBrokeragePortfolioSnapshot;
 import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
+import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
+import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileAssetModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSummaryModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
@@ -26,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class InvestmentProfileFacade {
   private final BrokeragePortfolioReader brokeragePortfolioReadService;
   private final LongTermAssetProfileReader longTermAssets;
+  private final LongTermAssetAnnualSnapshotReader longTermAnnualFacts;
   private final BrokerageAssetClassificationReader brokerageAssetClassificationReader;
   private final CurrencyConversion currencyRates;
   private final Clock clock;
@@ -54,6 +57,8 @@ public class InvestmentProfileFacade {
         toUsd(market.dividends(), market.baseCurrency(), date)
             .add(toUsd(market.interest(), market.baseCurrency(), date));
     BigDecimal longTermIncome = longTerm.netAnnualIncomeAfterTax();
+    LongTermAssetAnnualSnapshotModel annualFacts =
+        longTermAnnualFacts.currentAnnualSnapshot(portfolioId, date);
     List<ProjectedLongTermAsset> manualAssets =
         Optional.ofNullable(longTermAssets.projectionInputs(portfolioId, date))
             .orElse(List.of())
@@ -120,7 +125,9 @@ public class InvestmentProfileFacade {
         liquid,
         illiquid,
         allocations(values, total),
-        manualAssets);
+        manualAssets,
+        annualFacts == null ? null : annualFacts.rentalIncome(),
+        annualFacts == null ? null : annualFacts.bondIncome());
   }
 
   public List<LongTermAssetProfileAssetModel> loadLongTermAssets(Long portfolioId) {

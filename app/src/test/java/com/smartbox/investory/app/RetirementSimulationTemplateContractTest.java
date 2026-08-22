@@ -100,4 +100,25 @@ class RetirementSimulationTemplateContractTest {
     assertFalse(html.contains("${summaries"));
     assertFalse(html.contains("One-off expenses"));
   }
+
+  @Test
+  void planManagementAndDevelopmentPreviewsUseOneCollapsedPlanArea() throws Exception {
+    String editor =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/simulation-plan-edit.html"));
+
+    assertTrue(editor.contains("Active plan"));
+    assertTrue(editor.contains("Not saved"));
+    assertTrue(editor.contains("Saved plans"));
+    assertTrue(editor.contains("Revision history ("));
+    assertFalse(editor.contains("Plan revision"));
+    assertTrue(editor.contains("<details class=\"iv-expandable-card\""));
+    assertTrue(editor.contains("Development preview · temporal assumptions"));
+    assertTrue(editor.contains("Development preview · income"));
+    assertTrue(editor.contains("Development preview · first projected year"));
+    assertFalse(editor.contains("iv-simulation-editor__advanced"));
+    assertTrue(editor.contains("name=\"startYear\""));
+    assertTrue(editor.contains("name=\"annualEmploymentIncome\""));
+    assertTrue(editor.contains("name=\"equityReturn\""));
+  }
 }

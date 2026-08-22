@@ -16,7 +16,40 @@ public record InvestmentProfile(
     BigDecimal liquidAssets,
     BigDecimal illiquidAssets,
     List<ProfileAllocation> allocations,
-    List<ProjectedLongTermAsset> longTermAssets) {
+    List<ProjectedLongTermAsset> longTermAssets,
+    BigDecimal currentRentalIncome,
+    BigDecimal currentBondIncome) {
+  /** Compatibility constructor for callers that do not yet provide annual Long-Term facts. */
+  public InvestmentProfile(
+      Long portfolioId,
+      CurrencyType currency,
+      BigDecimal marketPortfolioValue,
+      BigDecimal longTermAssetValue,
+      BigDecimal totalNetWorth,
+      BigDecimal historicalMarketInvestmentIncome,
+      BigDecimal expectedLongTermAssetIncome,
+      BigDecimal totalInvestmentIncome,
+      BigDecimal liquidAssets,
+      BigDecimal illiquidAssets,
+      List<ProfileAllocation> allocations,
+      List<ProjectedLongTermAsset> longTermAssets) {
+    this(
+        portfolioId,
+        currency,
+        marketPortfolioValue,
+        longTermAssetValue,
+        totalNetWorth,
+        historicalMarketInvestmentIncome,
+        expectedLongTermAssetIncome,
+        totalInvestmentIncome,
+        liquidAssets,
+        illiquidAssets,
+        allocations,
+        longTermAssets,
+        null,
+        null);
+  }
+
   public InvestmentProfile {
     allocations = allocations == null ? List.of() : List.copyOf(allocations);
     longTermAssets = longTermAssets == null ? List.of() : List.copyOf(longTermAssets);

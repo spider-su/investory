@@ -39,7 +39,8 @@ public class RetirementAnalysisController {
       @RequestParam(defaultValue = "PLN") CurrencyType planningDisplayCurrency,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario,
       Model model) {
-    var projection = projections.load(portfolioId, planId);
+    Long selectedPlanId = plans.resolvePlanId(portfolioId, planId).orElse(null);
+    var projection = projections.load(portfolioId, selectedPlanId);
     var result = analyses.analyze(projection);
     var displaySummaries =
         new LinkedHashMap<>(
@@ -47,8 +48,8 @@ public class RetirementAnalysisController {
     var page =
         new RetirementAnalysisPageView(
             portfolioId,
-            planId,
-            planId == null ? "Current assumptions" : plans.name(portfolioId, planId),
+            selectedPlanId,
+            selectedPlanId == null ? "Current assumptions" : plans.name(portfolioId, selectedPlanId),
             planningDisplayCurrency,
             selectedScenario,
             displaySummaries.get(selectedScenario),

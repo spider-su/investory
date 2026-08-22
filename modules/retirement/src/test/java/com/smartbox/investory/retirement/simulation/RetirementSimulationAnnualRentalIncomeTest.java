@@ -36,7 +36,9 @@ class RetirementSimulationAnnualRentalIncomeTest {
             BigDecimal.ZERO,
             BigDecimal.ZERO,
             List.of(),
-            List.of());
+            List.of(),
+            BigDecimal.ONE,
+            BigDecimal.ZERO);
     var assumptions = SimulationAssumptions.defaults(profile, 65, 66, 2026);
 
     var result = service.simulate(profile, assumptions, SimulationScenario.BASE);
@@ -48,7 +50,7 @@ class RetirementSimulationAnnualRentalIncomeTest {
   }
 
   @Test
-  void separatesAggregateLongTermIncomeIntoRentalAndBondIncome() {
+  void keepsCanonicalRentalAndBondIncomeSeparate() {
     var service =
         new RetirementSimulationService(
             new LongTermAnnualProjectionService(), new InvestmentAnnualProjectionService());
@@ -59,7 +61,7 @@ class RetirementSimulationAnnualRentalIncomeTest {
             LongTermAssetTypeModel.BOND,
             EconomicBucket.FIXED_INCOME,
             CurrencyType.USD,
-            new BigDecimal("1000"),
+            new BigDecimal("486000"),
             Liquidity.LIQUID,
             List.of(
                 new ProjectedLongTermAsset.Period(
@@ -70,21 +72,23 @@ class RetirementSimulationAnnualRentalIncomeTest {
                     new BigDecimal("0.10"))),
             List.of(),
             LocalDate.of(2028, 12, 31),
-            new BigDecimal("1000"),
+            new BigDecimal("486000"),
             InterestTreatmentModel.PAY_OUT,
             new BigDecimal("0.20"),
             null,
             false);
-    var profile = profile(BigDecimal.ZERO, List.of(bond), new BigDecimal("100"));
+    var profile = profile(BigDecimal.ZERO, List.of(bond), new BigDecimal("174804"));
+    var assumptions =
+        SimulationAssumptions.defaults(profile, 65, 67, 2026)
+            .withRentalIncomeGrowthRate(new BigDecimal("0.005"));
 
-    var year =
-        service
-            .simulate(profile, SimulationAssumptions.defaults(profile, 65, 65, 2026), SimulationScenario.BASE)
-            .years()
-            .getFirst();
+    var years = service.simulate(profile, assumptions, SimulationScenario.BASE).years();
 
-    assertThat(year.rentalIncome()).isEqualByComparingTo("20");
-    assertThat(year.bondIncome()).isEqualByComparingTo("80");
+    assertThat(years.get(0).rentalIncome()).isEqualByComparingTo("174804");
+    assertThat(years.get(0).bondIncome()).isEqualByComparingTo("38880");
+    assertThat(years.get(1).rentalIncome()).isEqualByComparingTo("175678.02");
+    assertThat(years.get(1).rentalIncome()).isNotEqualByComparingTo("213684");
+    assertThat(years.get(1).bondIncome()).isEqualByComparingTo("38880");
   }
 
   @Test
@@ -161,7 +165,7 @@ class RetirementSimulationAnnualRentalIncomeTest {
   private static InvestmentProfile profile(
       BigDecimal marketPortfolioValue,
       List<ProjectedLongTermAsset> longTermAssets,
-      BigDecimal expectedLongTermIncome) {
+      BigDecimal rentalIncome) {
     return new InvestmentProfile(
         1L,
         CurrencyType.USD,
@@ -171,11 +175,13 @@ class RetirementSimulationAnnualRentalIncomeTest {
             .reduce(BigDecimal.ZERO, BigDecimal::add),
         marketPortfolioValue,
         BigDecimal.ZERO,
-        expectedLongTermIncome,
+        rentalIncome,
         BigDecimal.ZERO,
         BigDecimal.ZERO,
         BigDecimal.ZERO,
         List.of(),
-        longTermAssets);
+        longTermAssets,
+        rentalIncome,
+        BigDecimal.ZERO);
   }
 }

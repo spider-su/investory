@@ -37,7 +37,12 @@ class RetirementAnalysisTemplateContractTest {
 
     assertTrue(simulation.contains("href=\"#\">Simulation</a>"));
     assertTrue(simulation.contains("/analysis("));
+    assertTrue(simulation.contains("planId=${simulationPage.selectedPlanId}"));
+    assertTrue(simulation.contains("/simulation/plan/edit("));
     assertTrue(analysis.contains("/simulation("));
+    assertTrue(analysis.contains("planId=${analysisPage.planId}"));
+    assertTrue(analysis.contains("planningDisplayCurrency=${analysisPage.displayCurrency}"));
+    assertTrue(analysis.contains("selectedScenario=${analysisPage.selectedScenario}"));
     assertTrue(analysis.contains("aria-current=\"page\""));
   }
 }

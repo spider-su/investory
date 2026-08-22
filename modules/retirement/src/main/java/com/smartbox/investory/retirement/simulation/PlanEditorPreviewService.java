@@ -19,6 +19,8 @@ import org.springframework.stereotype.Service;
 /** Read-only developer projection over the same forward simulation boundary used by Simulation. */
 @Service
 public class PlanEditorPreviewService {
+  private static final LongTermAssetAnnualSnapshotModel NO_LONG_TERM_FACTS =
+      new LongTermAssetAnnualSnapshotModel(null, null, null, null, null, null);
   private final ForwardSimulationInputService forwardInputs;
   private final RetirementSimulation simulations;
   private final LongTermAssetAnnualSnapshotReader longTermAssets;
@@ -47,18 +49,28 @@ public class PlanEditorPreviewService {
             ? simulations.simulate(forward.bridgedProfile(), projected, SimulationScenario.BASE)
             : new SimulationResult(
                 SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of());
-    LongTermAssetAnnualSnapshotModel facts = currentFacts(profile);
+    LongTermAssetAnnualSnapshotModel facts = facts(currentFacts(profile));
     int currentYear = Year.now(clock).getValue();
     int retirementYear = ForwardSimulationContextFactory.retirementYear(assumptions);
     SimulationYear first = result.years().isEmpty() ? null : result.years().get(0);
     int currentPlanningAge =
         ForwardSimulationContextFactory.currentPlanningAge(assumptions, currentYear);
     List<PreviewYear> previewYears = new ArrayList<>();
+    for (int year = assumptions.planStartYear(); year < currentYear; year++) {
+      previewYears.add(
+          historicalYear(
+              year,
+              assumptions.ageAtPlanStart() + year - assumptions.planStartYear(),
+              facts(longTermAssets.historicalAnnualSnapshot(profile.portfolioId(), year)),
+              assumptions,
+              displayCurrency));
+    }
     previewYears.add(
         currentYear(
             currentYear, currentPlanningAge, facts, assumptions, displayCurrency));
     previewYears.addAll(
         result.years().stream()
+            .filter(row -> row.year() > currentYear)
             .map(row -> year(row, displayCurrency))
             .toList());
     BigDecimal nextYearCosts =
@@ -100,6 +112,7 @@ public class PlanEditorPreviewService {
     return new PreviewYear(
         row.year(),
         row.age(),
+        "PROJECTED",
         row.lifecyclePhase().name(),
         displayCanonical(row.totalExpenses(), displayCurrency),
         displayCanonical(row.employmentIncome(), displayCurrency),
@@ -143,6 +156,7 @@ public class PlanEditorPreviewService {
     return new PreviewYear(
         year,
         age,
+        "CURRENT",
         retired ? SimulationLifecyclePhase.RETIRED.name() : SimulationLifecyclePhase.WORKING.name(),
         displayCanonical(
             expenses,
@@ -157,12 +171,54 @@ public class PlanEditorPreviewService {
         zero, zero, zero, zero, zero, zero, zero, zero, zero, zero);
   }
 
+  private PreviewYear historicalYear(
+      int year,
+      int age,
+      LongTermAssetAnnualSnapshotModel facts,
+      SimulationAssumptions assumptions,
+      CurrencyType displayCurrency) {
+    BigDecimal rental = facts.rentalIncome();
+    BigDecimal bond = facts.bondIncome();
+    BigDecimal totalIncome =
+        rental == null && bond == null
+            ? null
+            : zeroIfNull(rental).add(zeroIfNull(bond));
+    boolean retired = age >= assumptions.retirementAge();
+    return new PreviewYear(
+        year,
+        age,
+        "HISTORICAL",
+        retired ? SimulationLifecyclePhase.RETIRED.name() : SimulationLifecyclePhase.WORKING.name(),
+        null,
+        null,
+        displayCanonical(rental, displayCurrency),
+        displayCanonical(bond, displayCurrency),
+        null,
+        null,
+        displayCanonical(totalIncome, displayCurrency),
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null);
+  }
+
+  private static LongTermAssetAnnualSnapshotModel facts(LongTermAssetAnnualSnapshotModel facts) {
+    return facts == null ? NO_LONG_TERM_FACTS : facts;
+  }
+
   private static BigDecimal zeroIfNull(BigDecimal value) {
     return value == null ? BigDecimal.ZERO : value;
   }
 
   private BigDecimal displayCanonical(BigDecimal value, CurrencyType displayCurrency) {
-    return presentation.toDisplay(value, displayCurrency);
+    return value == null ? null : presentation.toDisplay(value, displayCurrency);
   }
 
   public record PlanEditorPreview(
@@ -188,6 +244,7 @@ public class PlanEditorPreviewService {
   public record PreviewYear(
       int year,
       int age,
+      String state,
       String lifecycle,
       BigDecimal annualCosts,
       BigDecimal employmentIncome,

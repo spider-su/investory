@@ -95,6 +95,27 @@ class SimulationPlanServiceTest {
   }
 
   @Test
+  void resolvePlanIdUsesTheLatestUnarchivedPlanWhenNoPlanIsRequested() {
+    SimulationPlanEntity latest = basicPlan();
+    latest.setId(8L);
+    when(repository.findFirstByPortfolioIdAndArchivedFalseOrderByUpdatedAtDescIdDesc(1L))
+        .thenReturn(Optional.of(latest));
+
+    assertEquals(Optional.of(8L), service.resolvePlanId(1L, null));
+    verify(repository).findFirstByPortfolioIdAndArchivedFalseOrderByUpdatedAtDescIdDesc(1L);
+  }
+
+  @Test
+  void resolvePlanIdKeepsAnExplicitOwnedPlan() {
+    SimulationPlanEntity explicit = basicPlan();
+    explicit.setId(7L);
+    when(repository.findByIdAndPortfolioId(7L, 1L)).thenReturn(Optional.of(explicit));
+
+    assertEquals(Optional.of(7L), service.resolvePlanId(1L, 7L));
+    verify(repository, never()).findFirstByPortfolioIdAndArchivedFalseOrderByUpdatedAtDescIdDesc(any());
+  }
+
+  @Test
   void deleteUsesPortfolioOwnership() {
     SimulationPlanEntity plan = new SimulationPlanEntity();
     plan.setId(7L);

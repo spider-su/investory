@@ -12,6 +12,8 @@ import com.smartbox.investory.investment.api.BrokeragePortfolioReader;
 import com.smartbox.investory.investment.api.BrokeragePositionSnapshot;
 import com.smartbox.investory.investment.api.SharedBrokeragePortfolioSnapshot;
 import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
+import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
+import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileAssetModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSummaryModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
@@ -36,6 +38,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class InvestmentProfileFacadeTest {
   @Mock BrokeragePortfolioReader brokeragePortfolioReadService;
   @Mock LongTermAssetProfileReader longTermAssets;
+  @Mock LongTermAssetAnnualSnapshotReader longTermAnnualFacts;
   @Mock BrokerageAssetClassificationReader brokerageAssetClassificationReader;
   @Mock CurrencyConversion currencyRates;
   private InvestmentProfileFacade facade;
@@ -48,6 +51,7 @@ class InvestmentProfileFacadeTest {
         new InvestmentProfileFacade(
             brokeragePortfolioReadService,
             longTermAssets,
+            longTermAnnualFacts,
             brokerageAssetClassificationReader,
             currencyRates,
             Clock.fixed(Instant.parse("2026-06-01T00:00:00Z"), ZoneOffset.UTC));
@@ -65,11 +69,16 @@ class InvestmentProfileFacadeTest {
                 CurrencyType.USD, new BigDecimal("3000"), new BigDecimal("260")));
     when(longTermAssets.list(PORTFOLIO, DATE))
         .thenReturn(List.of(summary(LongTermAssetTypeModel.REAL_ESTATE, "3000", "260")));
+    when(longTermAnnualFacts.currentAnnualSnapshot(PORTFOLIO, DATE))
+        .thenReturn(
+            new LongTermAssetAnnualSnapshotModel(
+                null, new BigDecimal("260"), null, BigDecimal.ZERO, null, null));
     InvestmentProfile profile = facade.loadProfile(PORTFOLIO);
     assertEquals(new BigDecimal("5000.0"), profile.totalNetWorth());
     assertEquals(new BigDecimal("2000.0"), profile.liquidAssets());
     assertEquals(new BigDecimal("3000"), profile.illiquidAssets());
     assertEquals(new BigDecimal("380.0"), profile.totalInvestmentIncome());
+    assertEquals(new BigDecimal("260"), profile.currentRentalIncome());
   }
 
   @Test
@@ -83,6 +92,8 @@ class InvestmentProfileFacadeTest {
             new LongTermAssetProfileSummaryModel(
                 CurrencyType.USD, BigDecimal.ZERO, BigDecimal.ZERO));
     when(longTermAssets.list(PORTFOLIO, DATE)).thenReturn(List.of());
+    when(longTermAnnualFacts.currentAnnualSnapshot(PORTFOLIO, DATE))
+        .thenReturn(new LongTermAssetAnnualSnapshotModel(null, null, null, null, null, null));
     ProfileAllocation other =
         facade.loadProfile(PORTFOLIO).allocations().stream()
             .filter(a -> a.bucket() == EconomicBucket.OTHER)

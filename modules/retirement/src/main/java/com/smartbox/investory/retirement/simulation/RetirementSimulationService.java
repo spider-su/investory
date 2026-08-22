@@ -40,14 +40,9 @@ public class RetirementSimulationService implements RetirementSimulation {
     BigDecimal investmentStart = nz(profile.marketPortfolioValue()).subtract(reserve).max(ZERO);
     List<LongTermAnnualProjectionApi.Bond> projectedBonds =
         bonds(profile, settings, assumptions.startYear());
-    BigDecimal bondIncome =
-        projectedBonds.stream()
-            .map(LongTermAnnualProjectionApi.Bond::netAnnualIncome)
-            .reduce(ZERO, BigDecimal::add);
-    // The profile aggregate includes both rental and bond income. Keep the two
-    // cash-flow sources separate before passing them to Long-Term Assets.
-    BigDecimal annualRentalIncome =
-        nz(profile.expectedLongTermAssetIncome()).subtract(bondIncome).max(ZERO);
+    // Rental comes from the canonical Long-Term annual snapshot. Bond cash flow stays in the
+    // instrument-level Long-Term projection input below; never reconstruct rental from aggregate income.
+    BigDecimal annualRentalIncome = nz(profile.currentRentalIncome());
     var input = new RetirementSimulationInput(
         assumptions.currentAge(), assumptions.endAge(), assumptions.startYear(),
         assumptions.retirementAge(),

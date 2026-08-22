@@ -150,11 +150,12 @@ public class RetirementSimulationController {
     int requestedCurrentAge = currentAge == null ? 40 : currentAge;
     int requestedEndAge = endAge == null ? 95 : endAge;
     var profile = profiles.loadProfile(portfolioId);
+    Long selectedPlanId = plans.resolvePlanId(portfolioId, planId).orElse(null);
     var base =
-        planId == null
+        selectedPlanId == null
             ? SimulationAssumptions.defaults(
                 profile, requestedCurrentAge, requestedEndAge, Year.now(clock).getValue())
-            : plans.assumptions(portfolioId, planId);
+            : plans.assumptions(portfolioId, selectedPlanId);
     CurrencyType submittedCurrency =
         submittedPlanningDisplayCurrency == null
             ? planningDisplayCurrency
@@ -225,7 +226,8 @@ public class RetirementSimulationController {
         planningPresentation
             .toDisplay(assumptions.annualPension(), planningDisplayCurrency)
             .toPlainString();
-    String activePlanName = planId == null ? "Current assumptions" : plans.name(portfolioId, planId);
+    String activePlanName =
+        selectedPlanId == null ? "Current assumptions" : plans.name(portfolioId, selectedPlanId);
     String activePlanSummary =
         projectedAssumptions.currentAge()
             + " → "
@@ -251,7 +253,7 @@ public class RetirementSimulationController {
             assumptions,
             projectedAssumptions,
             planningDisplayCurrency,
-            planId,
+            selectedPlanId,
             activePlanName,
             activePlanSummary,
             selectedScenario,
@@ -274,19 +276,20 @@ public class RetirementSimulationController {
       Model model) {
     var profile = profiles.loadProfile(portfolioId);
     int currentYear = Year.now(clock).getValue();
+    Long selectedPlanId = plans.resolvePlanId(portfolioId, planId).orElse(null);
     SimulationAssumptions assumptions;
     String planName = "";
-    if (planId == null) {
+    if (selectedPlanId == null) {
       assumptions = SimulationAssumptions.defaults(profile, 40, 95, currentYear);
     } else {
-      assumptions = plans.assumptions(portfolioId, planId);
-      planName = plans.name(portfolioId, planId);
+      assumptions = plans.assumptions(portfolioId, selectedPlanId);
+      planName = plans.name(portfolioId, selectedPlanId);
     }
     model.addAttribute("profile", profile);
     model.addAttribute(
         "displayProfile", planningPresentation.displayProfile(profile, planningDisplayCurrency));
     model.addAttribute("assumptions", assumptions);
-    model.addAttribute("existingPlan", planId != null);
+    model.addAttribute("existingPlan", selectedPlanId != null);
     model.addAttribute("planStartYear", assumptions.planStartYear());
     model.addAttribute("ageAtPlanStart", assumptions.ageAtPlanStart());
     model.addAttribute("currentPlanningYear", currentYear);
@@ -296,7 +299,7 @@ public class RetirementSimulationController {
     model.addAttribute(
         "plannedRetirementYear", ForwardSimulationContextFactory.retirementYear(assumptions));
     model.addAttribute("planName", planName);
-    model.addAttribute("selectedPlanId", planId);
+    model.addAttribute("selectedPlanId", selectedPlanId);
     model.addAttribute("selectedScenario", selectedScenario);
     model.addAttribute("planningDisplayCurrency", planningDisplayCurrency);
     model.addAttribute("developMode", Boolean.valueOf(developMode));
@@ -311,10 +314,13 @@ public class RetirementSimulationController {
     }
     model.addAttribute("plans", plans.list(portfolioId));
     model.addAttribute(
-        "currentRevision", planId == null ? null : plans.currentRevision(portfolioId, planId));
+        "currentRevision",
+        selectedPlanId == null ? null : plans.currentRevision(portfolioId, selectedPlanId));
     model.addAttribute(
         "revisionHistory",
-        planId == null ? java.util.List.of() : plans.revisionHistory(portfolioId, planId));
+        selectedPlanId == null
+            ? java.util.List.of()
+            : plans.revisionHistory(portfolioId, selectedPlanId));
     model.addAttribute(
         "displayAnnualExpenses",
         planningPresentation.toDisplay(
@@ -373,10 +379,11 @@ public class RetirementSimulationController {
       return org.springframework.http.ResponseEntity.notFound().build();
     try {
       var profile = profiles.loadProfile(portfolioId);
+      Long selectedPlanId = plans.resolvePlanId(portfolioId, planId).orElse(null);
       var base =
-          planId == null
+          selectedPlanId == null
               ? SimulationAssumptions.defaults(profile, 40, 95, Year.now(clock).getValue())
-              : plans.assumptions(portfolioId, planId);
+              : plans.assumptions(portfolioId, selectedPlanId);
       return org.springframework.http.ResponseEntity.ok(
           planEditorPreview.preview(
               profile,
@@ -1102,7 +1109,10 @@ public class RetirementSimulationController {
       @RequestParam(defaultValue = "false") boolean returnToEdit,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
     plans.delete(portfolioId, id);
-    Long remainingPlanId = java.util.Objects.equals(id, currentPlanId) ? null : currentPlanId;
+    Long remainingPlanId =
+        java.util.Objects.equals(id, currentPlanId)
+            ? plans.resolvePlanId(portfolioId, null).orElse(null)
+            : currentPlanId;
     return returnToEdit
         ? editPlanRedirect(portfolioId, remainingPlanId, planningDisplayCurrency, selectedScenario)
         : simulationRedirect(
