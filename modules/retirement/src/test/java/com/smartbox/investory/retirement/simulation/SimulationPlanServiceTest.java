@@ -5,7 +5,11 @@ import static org.mockito.Mockito.*;
 
 import com.smartbox.investory.retirement.infrastructure.simulation.*;
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,6 +49,49 @@ class SimulationPlanServiceTest {
   @BeforeEach
   void setUp() {
     when(eventRepository.findAllBySimulationPlanIdOrderByYearAscIdAsc(any())).thenReturn(List.of());
+  }
+
+  @Test
+  void crudLifecycleCreatesReadsUpdatesAndDeletesOwnedPlan() {
+    Map<Long, SimulationPlanEntity> stored = new HashMap<>();
+    when(repository.findAllByPortfolioIdOrderByName(anyLong()))
+        .thenAnswer(
+            invocation ->
+                stored.values().stream()
+                    .filter(plan -> plan.getPortfolioId().equals(invocation.getArgument(0)))
+                    .collect(java.util.stream.Collectors.toCollection(ArrayList::new)));
+    when(repository.findByIdAndPortfolioId(anyLong(), anyLong()))
+        .thenAnswer(
+            invocation -> {
+              Long id = invocation.getArgument(0);
+              Long portfolioId = invocation.getArgument(1);
+              return Optional.ofNullable(stored.get(id))
+                  .filter(plan -> plan.getPortfolioId().equals(portfolioId));
+            });
+    when(repository.save(any()))
+        .thenAnswer(
+            invocation -> {
+              SimulationPlanEntity plan = invocation.getArgument(0);
+              if (plan.getId() == null) plan.setId(7L);
+              stored.put(plan.getId(), plan);
+              return plan;
+            });
+    doAnswer(invocation -> stored.remove(invocation.<SimulationPlanEntity>getArgument(0).getId()))
+        .when(repository)
+        .delete(any());
+
+    SimulationPlanEntity created = service.create(1L, "Current plan", assumptions);
+    assertEquals("Current plan", service.name(1L, created.getId()));
+    assertEquals(assumptions, service.assumptions(1L, created.getId()));
+
+    SimulationPlanEntity updated =
+        service.update(1L, created.getId(), "Updated plan", assumptions.withRetirementAge(45));
+    assertEquals("Updated plan", updated.getName());
+    assertEquals(45, service.assumptions(1L, created.getId()).retirementAge());
+
+    service.delete(1L, created.getId());
+    verify(repository).delete(created);
+    assertThrows(NoSuchElementException.class, () -> service.get(1L, created.getId()));
   }
 
   @Test

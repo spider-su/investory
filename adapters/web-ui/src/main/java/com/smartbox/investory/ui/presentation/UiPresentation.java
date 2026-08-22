@@ -42,6 +42,14 @@ public final class UiPresentation {
     return number(amount.divide(BigDecimal.valueOf(1000)), 1, 1);
   }
 
+  /** Formats an already grouped UI amount, for example {@code "213,684"}. */
+  public static String thousands(String value) {
+    return thousands(
+        value == null || value.isBlank()
+            ? BigDecimal.ZERO
+            : new BigDecimal(value.replace(",", "")));
+  }
+
   /** Natural, unitless decimal display for values such as reserve coverage years. */
   public static String decimal(BigDecimal value) {
     return money(value);
