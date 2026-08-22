@@ -119,11 +119,16 @@ class RetirementSimulationTemplateContractTest {
     assertTrue(editor.contains("<details class=\"iv-expandable-card\""));
     assertTrue(editor.contains("Development preview · temporal assumptions"));
     assertTrue(editor.contains("Development preview · income"));
-    assertTrue(editor.contains("Investment · first projected year"));
+    assertFalse(editor.contains("Investment · first projected year"));
     assertFalse(editor.contains("Portfolio assumptions"));
+    assertTrue(editor.contains("Investment · current value"));
     assertTrue(editor.contains("Investment · equity return"));
+    assertTrue(editor.contains("Investment · projected first-year return"));
+    assertTrue(editor.contains("Current Investment fact · read-only"));
     assertTrue(editor.indexOf("for=\"inflation\"") < editor.indexOf("iv-card-section-header__title\">Spending"));
-    assertTrue(editor.indexOf("Investment · first projected year") < editor.indexOf("Funding &amp; reserve strategy"));
+    assertTrue(editor.indexOf("Investment · current value") < editor.indexOf("Funding &amp; reserve strategy"));
+    assertFalse(editor.contains("preview-income-investment-withdrawal"));
+    assertFalse(editor.contains("preview-income-investment-end"));
     assertFalse(editor.contains("iv-simulation-editor__advanced"));
     assertTrue(editor.contains("name=\"startYear\""));
     assertTrue(editor.contains("name=\"annualEmploymentIncome\""));
