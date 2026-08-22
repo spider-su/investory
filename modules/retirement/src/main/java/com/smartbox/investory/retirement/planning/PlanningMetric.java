@@ -47,7 +47,7 @@ public enum PlanningMetric {
     if (this == REAL_ESTATE) return "Real estate · year-end";
     if (this == RENTAL_INCOME) return "Rental income";
     if (this == BOND_VALUE) return "Bonds · year-end";
-    if (this == BOND_INCOME) return "Bond income";
+    if (this == BOND_INCOME) return "Bond cash income";
     if (this == CASH_RESERVE_VALUE) return "Cash · year-end";
     String text = name().toLowerCase(Locale.ROOT).replace('_', ' ');
     return Character.toUpperCase(text.charAt(0)) + text.substring(1);

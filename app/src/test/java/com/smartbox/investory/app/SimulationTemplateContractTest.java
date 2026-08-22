@@ -29,6 +29,7 @@ class SimulationTemplateContractTest {
         () -> assertTrue(html.contains("<th>Annual costs</th>")),
         () -> assertTrue(html.contains("<th>Total income</th>")),
         () -> assertTrue(html.contains("<th>Funding gap</th>")),
+        () -> assertTrue(html.contains("<th>Bond cash income</th>")),
         () -> assertTrue(html.contains("<th>Reserve withdrawal</th>")),
         () -> assertTrue(html.contains("<th>Long-Term funding</th>")),
         () -> assertTrue(html.contains("<th>Investment withdrawal</th>")),
@@ -64,7 +65,7 @@ class SimulationTemplateContractTest {
         () -> assertTrue(html.contains("Yearly projection")),
         () -> assertTrue(header.contains("Edit plan")),
         () -> assertTrue(html.contains("aria-selected")),
-        () -> assertTrue(editor.contains("Current asset facts")),
+        () -> assertTrue(editor.contains("3. Income &amp; assets")),
         () -> assertTrue(editor.contains("4. Events")));
   }
 
@@ -86,8 +87,8 @@ class SimulationTemplateContractTest {
         Files.readString(
             Path.of("../adapters/web-ui/src/main/resources/templates/simulation-plan-edit.html"));
     assertAll(
-        () -> assertTrue(editor.contains("currentRentalIncome")),
-        () -> assertTrue(editor.contains("currentBondIncome")),
+        () -> assertTrue(editor.contains("plannedRentalIncome")),
+        () -> assertTrue(editor.contains("plannedBondIncome")),
         () -> assertFalse(editor.contains("name=\"rentalIncome\"")),
         () -> assertFalse(editor.contains("name=\"bondIncome\"")));
   }

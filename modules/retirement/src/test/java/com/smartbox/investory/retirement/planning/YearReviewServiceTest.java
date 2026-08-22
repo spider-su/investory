@@ -2,7 +2,6 @@ package com.smartbox.investory.retirement.planning;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
 import java.util.EnumMap;
@@ -13,14 +12,14 @@ class YearReviewServiceTest {
   private final YearReviewService service = new YearReviewService(new PlanningProgressService());
 
   @Test
-  void lowerCoreAndDiscretionarySpendingProducePositiveImpactsAndResidualReconciles() {
+  void planVsActualVariancesUseActualMinusPlanAndResidualReconciles() {
     YearReview review = review("90", "25", "185", "100", "30", "100");
 
     assertEquals(2025, review.year());
     assertEquals(PlanProgressState.AHEAD, review.headline());
-    assertEquals(new BigDecimal("10"), impact(review, "Annual living costs"));
-    assertEquals(new BigDecimal("5"), impact(review, "Annual extras"));
-    assertEquals(new BigDecimal("70"), review.otherChanges());
+    assertEquals(new BigDecimal("-10"), impact(review, "Annual living costs"));
+    assertEquals(new BigDecimal("-5"), impact(review, "Annual extras"));
+    assertEquals(new BigDecimal("100"), review.otherChanges());
     assertEquals(
         review.progress().difference(),
         review.drivers().stream()
@@ -29,21 +28,21 @@ class YearReviewServiceTest {
   }
 
   @Test
-  void higherCoreSpendingProducesNegativeImpact() {
+  void higherCoreSpendingProducesPositiveVariance() {
     YearReview review = review("110", "30", "100", "100", "30", "100");
 
-    assertEquals(new BigDecimal("-10"), impact(review, "Annual living costs"));
+    assertEquals(new BigDecimal("10"), impact(review, "Annual living costs"));
   }
 
   @Test
-  void higherDiscretionarySpendingUsesTheSameNegativeSignConvention() {
+  void higherDiscretionarySpendingUsesActualMinusPlanSignConvention() {
     YearReview review = review("100", "35", "100", "100", "30", "100");
 
-    assertEquals(new BigDecimal("-5"), impact(review, "Annual extras"));
+    assertEquals(new BigDecimal("5"), impact(review, "Annual extras"));
   }
 
   @Test
-  void doesNotDisplayLegacyPassiveIncomeAsAHistoricalDriver() {
+  void exposesComparablePassiveIncomeVarianceAsADriver() {
     EnumMap<PlanningMetric, PlanningMetricValue> actual = values("100", "30", "150");
     EnumMap<PlanningMetric, PlanningMetricValue> planned = values("100", "30", "100");
     actual.put(PlanningMetric.PASSIVE_INCOME, value(PlanningMetric.PASSIVE_INCOME, "900"));
@@ -51,9 +50,9 @@ class YearReviewServiceTest {
 
     YearReview review = service.review(closed(actual, planned));
 
-    assertEquals(2, review.drivers().size());
-    assertEquals(new BigDecimal("50"), review.otherChanges());
-    assertTrue(review.drivers().stream().noneMatch(driver -> driver.label().contains("income")));
+    assertEquals(3, review.drivers().size());
+    assertEquals(new BigDecimal("-850"), review.otherChanges());
+    assertEquals(new BigDecimal("900"), impact(review, "Passive income"));
   }
 
   @Test
@@ -62,8 +61,17 @@ class YearReviewServiceTest {
 
     assertNull(review.otherChanges());
     assertEquals(PlanProgressState.UNAVAILABLE, review.headline());
-    assertEquals(new BigDecimal("10"), impact(review, "Annual living costs"));
-    assertEquals(new BigDecimal("5"), impact(review, "Annual extras"));
+    assertEquals(new BigDecimal("-10"), impact(review, "Annual living costs"));
+    assertEquals(new BigDecimal("-5"), impact(review, "Annual extras"));
+  }
+
+  @Test
+  void exactPlanAndActualVarianceIsOnPlan() {
+    YearReview review = review("180", "0", "100", "180", "0", "100");
+
+    assertEquals(PlanProgressState.ON_PLAN, review.headline());
+    assertEquals(BigDecimal.ZERO, review.progress().difference());
+    assertEquals(BigDecimal.ZERO, impact(review, "Annual living costs"));
   }
 
   private YearReview review(

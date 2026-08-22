@@ -40,7 +40,7 @@ class PlanningYearHeaderRenderTest {
                   context(status == PlanningYearStatus.CLOSED ? "Closed" : "Needs review", status));
       assertThat(rendered)
           .contains(
-              "Planning year", status == PlanningYearStatus.CLOSED ? "Closed" : "Needs review");
+              "Year review", status == PlanningYearStatus.CLOSED ? "Finalized" : "Needs review");
     }
   }
 

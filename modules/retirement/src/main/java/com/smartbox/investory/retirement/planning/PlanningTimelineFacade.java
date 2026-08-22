@@ -151,6 +151,13 @@ public class PlanningTimelineFacade {
             .getFirst();
 
     Map<PlanningMetric, BigDecimal> planned = new EnumMap<>(expectedValues(expected));
+    SimulationAssumptions historicalAssumptions = assumptionsForYear(assumptions, year);
+    // Simulation rows report spending only after retirement. A retrospective Plan must still
+    // show the selected plan's spending assumptions for working years.
+    planned.put(PlanningMetric.CORE_SPENDING, historicalAssumptions.annualLivingExpenses());
+    planned.put(
+        PlanningMetric.DISCRETIONARY_SPENDING,
+        historicalAssumptions.annualDiscretionaryExpenses());
     // A retrospective plan has no contemporaneous market snapshot. Use the selected current
     // plan/profile value as the explicit Planned reference for this historical comparison.
     planned.putIfAbsent(PlanningMetric.MARKET_ASSETS, profile.marketPortfolioValue());

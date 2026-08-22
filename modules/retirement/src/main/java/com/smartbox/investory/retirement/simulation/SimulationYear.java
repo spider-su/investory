@@ -57,6 +57,34 @@ public record SimulationYear(
     BigDecimal bondIncome,
     SimulationFunding funding) {
 
+  /** Canonical aggregate-bucket timeline row used by the current simulator. */
+  public static SimulationYear bucket(int age, int year, boolean retired, BigDecimal expenses,
+      BigDecimal eventExpenses, BigDecimal employment, BigDecimal pension, BigDecimal eventIncome,
+      BigDecimal rental, BigDecimal cashIncome, RetirementBucketEngine.BucketResult cash,
+      RetirementBucketEngine.BucketResult bonds, RetirementBucketEngine.BucketResult equities,
+      RetirementBucketEngine.BucketResult realEstate, BigDecimal unfunded, BigDecimal contribution) {
+    BigDecimal totalExpenses = expenses.add(eventExpenses);
+    BigDecimal withdrawals = cash.withdrawal().add(bonds.withdrawal()).add(equities.withdrawal()).add(realEstate.withdrawal());
+    BigDecimal endLiquid = cash.expectedEndValue().add(bonds.expectedEndValue()).add(equities.expectedEndValue());
+    BigDecimal endNetWorth = endLiquid.add(realEstate.expectedEndValue());
+    BigDecimal gap = totalExpenses.subtract(cashIncome).max(BigDecimal.ZERO);
+    return new SimulationYear(age, year, endNetWorth.subtract(cash.expectedEndValue()).subtract(bonds.expectedEndValue()).subtract(equities.expectedEndValue()).subtract(realEstate.expectedEndValue()).add(cash.startValue()).add(bonds.startValue()).add(equities.startValue()).add(realEstate.startValue()),
+        retired ? expenses : BigDecimal.ZERO, BigDecimal.ZERO, eventExpenses, totalExpenses,
+        rental, pension, eventIncome, cashIncome, gap, withdrawals,
+        cash.withdrawal(), gap, cash.startValue(), BigDecimal.ZERO, cash.expectedEndValue(), BigDecimal.ZERO,
+        equities.startValue().signum() == 0 ? BigDecimal.ZERO : equities.returnAmount().divide(equities.startValue(), 12, java.math.RoundingMode.HALF_UP),
+        equities.returnAmount(), equities.refill().negate().max(BigDecimal.ZERO), equities.withdrawal(),
+        cash.startValue(), cash.expectedEndValue(), bonds.startValue(), bonds.expectedEndValue(),
+        equities.startValue(), equities.expectedEndValue(), realEstate.startValue(), realEstate.expectedEndValue(),
+        BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+        endLiquid, endLiquid, endLiquid, realEstate.expectedEndValue(), endNetWorth, unfunded.signum() > 0,
+        unfunded, retired ? SimulationLifecyclePhase.RETIRED : SimulationLifecyclePhase.WORKING,
+        employment, contribution, false, rental, gap, bonds.expectedEndValue(), BigDecimal.ZERO,
+        new SimulationFunding(gap, cash.startValue(), BigDecimal.ZERO, cash.withdrawal(), cash.expectedEndValue(),
+            bonds.withdrawal(), bonds.expectedEndValue(), equities.startValue(), equities.returnAmount(),
+            equities.withdrawal(), equities.expectedEndValue(), equities.refill().negate().max(BigDecimal.ZERO), unfunded, bonds.returnAmount()));
+  }
+
   /** Spendable fixed-income cash paid by Long-Term; capitalized return is separate. */
   public BigDecimal bondCashIncome() {
     return bondIncome;

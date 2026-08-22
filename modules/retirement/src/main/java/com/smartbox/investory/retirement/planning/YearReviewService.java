@@ -16,25 +16,23 @@ public class YearReviewService {
     PlanProgressPoint point = progress.compare(year);
     List<YearReview.YearReviewDriver> drivers = new ArrayList<>();
     BigDecimal explained = BigDecimal.ZERO;
-    BigDecimal spending = spendingImpact(year, PlanningMetric.CORE_SPENDING);
-    if (spending != null) {
-      drivers.add(new YearReview.YearReviewDriver("Annual living costs", spending));
-      explained = explained.add(spending);
-    }
-    BigDecimal extras = spendingImpact(year, PlanningMetric.DISCRETIONARY_SPENDING);
-    if (extras != null) {
-      drivers.add(new YearReview.YearReviewDriver("Annual extras", extras));
-      explained = explained.add(extras);
+    for (PlanningMetric metric : PlanningMetric.values()) {
+      if (metric == PlanningMetric.NET_WORTH) continue;
+      BigDecimal variance = variance(year, metric);
+      if (variance != null) {
+        drivers.add(new YearReview.YearReviewDriver(metric.label(), variance));
+        explained = explained.add(variance);
+      }
     }
     BigDecimal other = point.difference() == null ? null : point.difference().subtract(explained);
     return new YearReview(point, List.copyOf(drivers), other);
   }
 
-  private static BigDecimal spendingImpact(PastPlanningYear year, PlanningMetric metric) {
+  private static BigDecimal variance(PastPlanningYear year, PlanningMetric metric) {
     BigDecimal planned = value(year.expectedValues(), metric);
     BigDecimal actual = value(year.values(), metric);
     if (planned == null || actual == null) return null;
-    return planned.subtract(actual);
+    return actual.subtract(planned);
   }
 
   private static BigDecimal value(

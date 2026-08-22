@@ -21,6 +21,7 @@ public class PlanningProgressService {
           year.baselinePlanId(),
           year.baselineRevisionId());
     BigDecimal difference = actual.subtract(planned);
+    if (difference.compareTo(BigDecimal.ZERO) == 0) difference = BigDecimal.ZERO;
     PlanProgressState state =
         difference.signum() > 0
             ? PlanProgressState.AHEAD

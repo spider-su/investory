@@ -1,10 +1,31 @@
 # Deterministic retirement planning and simulation
 
-Retirement planning consumes normalized economic contracts: planned cash flows, liquid reserve,
-capital projections/availability, liabilities where applicable, and planning assumptions owned by
-the supplying domain. It does not consume concrete asset implementations and does not calculate
-rental yield, bond interest, tax, investment return, maturity, or asset valuation owned by another
-domain.
+## Aggregate planning buckets (current model)
+
+Retirement simulates four immutable aggregate planning buckets: **Cash, Bonds, Equities, and
+Real Estate**. Investment and Long-Term provide the reviewed/frozen starting state; Retirement
+does not simulate individual holdings, bond ladders, rental contracts, maturities, or tax lots.
+
+Each projected year executes cash income, aggregate returns, costs, Cash withdrawal, Bonds
+withdrawal, Equities withdrawal when enabled, Real Estate withdrawal only after all liquid buckets
+reach zero, then positive equity-gain harvest to refill Bonds up to the frozen initial Bond target.
+Cash has zero yield and is never auto-refilled. Bond return stays in Bonds; equity return stays in
+Equities unless the harvest policy moves an eligible share to Bonds. Remaining balances carry into
+the next year. `UNFUNDED` is recalculated per year and is not sticky.
+
+Current and historical review keeps Plan and Actual separate. Actual bucket values may include
+manual activity or external cash and may become the next reviewed baseline; they are not forced to
+reconcile to projected mechanics.
+
+Retirement planning consumes normalized economic contracts and freezes them into four aggregate
+planning buckets: **Cash, Bonds, Equities, and Real Estate**. Source domains own the current factual
+composition of those buckets; Retirement owns how the frozen aggregate balances are projected,
+reinvested, refilled, and consumed by the plan.
+
+Retirement does not consume concrete holdings. Investment and Long-Term remain responsible for
+current valuation, source-domain tax/return facts, rental contracts, individual bonds, maturities,
+and instrument identity. At the Retirement boundary those details are normalized into the economic
+starting values and planning assumptions required by the deterministic bucket engine.
 
 The core temporal rule is:
 
@@ -21,20 +42,19 @@ Retirement/Simulation -> Long-Term public API
 Retirement/Simulation -> Investment public API
 ```
 
-Retirement owns the requested period, lifecycle assumptions, generic flow aggregation, funding gap,
-reserve withdrawal, capital-funding orchestration, timeline, and reporting. Long-Term Assets owns
-rental and bond/deposit projections, maturity, redemption, reinvestment, availability, and asset
-capital values. Investment owns portfolio valuation, return, withdrawal, and end value. Neither
-asset module depends on Retirement.
+Retirement owns lifecycle assumptions, generic flow aggregation, funding gap, bucket transitions,
+funding priority, bond refill from eligible equity gains, timeline, and reporting. Long-Term Assets
+owns the factual/current composition and economics of bonds, cash reserves, real estate, and rental
+contracts. Investment owns the factual/current brokerage/investment state. Neither asset module
+depends on Retirement.
 
-Taxes and costs are already reflected in supplied net flow values.
+Taxes and source-domain costs are reflected when source facts are normalized into the reviewed
+baseline. Future Retirement projection does not replay individual bond maturities, rental contracts,
+or holdings. It carries forward aggregate bucket balances using the frozen planning assumptions.
 
-Long-Term bond returns remain distinct from cash income. `PAY_OUT` interest is emitted as bond cash
-income and participates in the funding gap; `CAPITALIZE` interest is exposed as capitalized bond
-return and increases Long-Term capital without entering cash income. Investment return is likewise
-portfolio value change, not cash income. Retirement may explicitly select SOURCE (the frozen
-Long-Term baseline) or MANUAL rental/bond cash-income planning assumptions; these choices are stored
-on the immutable revision and never read live source state during Future projection.
+Economic return remains distinct from cash income. Rental cash income, employment, pension, events,
+and any explicit bond cash payout are spendable flows. Bond bucket return and Equity return normally
+change capital value and do not reduce the funding gap directly.
 
 The public contracts form an anti-corruption boundary. Retirement must not inspect whether capital
 came from an ETF, brokerage cash position, individual bond, deposit, property, rental contract, or
@@ -115,24 +135,95 @@ projected flows with the same stable identity and covered date; they are never a
 Future simulation uses projected flows only. Review uses actual flows through the review date and
 projected flows for the remaining period.
 
-## Reserve
+## Planning buckets
 
-Reserve is a generic planning balance. Simulation may withdraw it and, when the active
-RetirementFundingPolicy permits, refill it from explicitly reported capital transfers. Future
-simulation uses:
+Future Retirement projection uses four aggregate buckets:
+
+| Bucket | Role | Planned yield | Spending priority | Automatic refill |
+| --- | --- | ---: | ---: | --- |
+| Cash | immediate spending liquidity | `0%` | 1 | none |
+| Bonds | defensive capital | frozen bond planning yield | 2 | eligible Equity gains |
+| Equities | growth capital | plan Equity return assumption | 3 | retained own return |
+| Real Estate | last-resort capital | optional value-growth assumption | 4 | none |
+
+Rental income is a cash flow produced by the Real Estate economic state; property value is capital.
+The two must not be conflated.
+
+Every yearly bucket result exposes, conceptually:
 
 ```text
-reserveWithdrawal = min(reserveStart + explicitReserveTransfers, fundingGap)
-reserveEnd = reserveStart + explicitReserveTransfers - reserveWithdrawal
+startValue
+returnOrGrowth
+refill
+withdrawal
+endValue
 ```
 
-Review may apply an explicit, separately reported reserve adjustment. External contributions do not
-exist inside future simulation. Unused Long-Term and Investment capital remains with its owning module.
-The active RetirementFundingPolicy uses `reserveTargetYears * recurringFundingGap` as a refill
-target. Funding order is configurable at the economic level (`RESERVE -> LONG_TERM -> INVESTMENT`;
-legacy `CASH,BONDS,STOCKS` values are mapped at the boundary). When permitted, positive Investment
-gain at or above the policy threshold may transfer a capped share to Reserve. This transfer is capital,
-not income, and is tracked separately from spending withdrawal.
+Derived end values are simulation output and are not persisted as plan inputs.
+
+### Cash
+
+Cash is deliberately simple:
+
+```text
+cashReturn = 0
+cashEnd = max(0, cashStart - cashWithdrawal)
+```
+
+Cash is consumed first and is **not automatically refilled** by Bonds or Equities. Any remaining Cash
+carries into the next year unchanged. During a year review the user may record an Actual cash balance
+different from Plan. That variance is accepted as reality rather than reverse-engineered by the
+simulator, and an explicitly reviewed/rebaselined value may become the next frozen starting state.
+
+### Bonds
+
+Bonds are an aggregate defensive bucket. Retirement does not distinguish coupon, interest, and
+principal when funding a deficit: available Bond capital is spendable after Cash.
+
+```text
+bondsBeforeSpending = bondsStart + bondReturn
+bondsAfterSpending = max(0, bondsBeforeSpending - bondWithdrawal)
+bondsEnd = bondsAfterSpending + equityRefill
+```
+
+Unused Bond capital is considered reinvested automatically and becomes the next year's Bond start.
+Future Retirement does not maintain an individual bond ladder. Long-Term detail is used only to
+derive the reviewed starting capital and planning yield.
+
+### Equities
+
+Equities are the growth bucket:
+
+```text
+equityReturn = equitiesStart * equityReturnRate
+equitiesBeforeRefill = equitiesStart + equityReturn
+```
+
+Positive eligible Equity gain may refill Bonds toward the configured Bond target. The refill is a
+capital transfer, not cash income:
+
+```text
+eligibleGain = max(0, equityReturn)
+harvest = eligibleGain * equityGainHarvestRate
+bondRefill = min(harvest, max(0, bondTarget - bondsAfterSpending))
+```
+
+The existing minimum-return threshold gates whether harvesting is permitted. Any unharvested gain
+remains invested in Equities. Equity principal is consumed for spending only after Cash and Bonds,
+subject to the configured emergency/withdrawal policy.
+
+### Real Estate
+
+Real Estate is the final capital source. Rental income participates in ordinary cash income, while
+property capital is preserved until the liquid buckets are exhausted. The initial critical threshold
+is zero:
+
+```text
+sell Real Estate only when Cash == 0 and Bonds == 0 and Equities == 0
+```
+
+Retirement reduces aggregate Real Estate capital only; it does not choose or sell individual
+properties.
 
 ## Capital projections
 
@@ -192,21 +283,39 @@ reimplement Investment or Long-Term calculations.
 
 ## Annual orchestration
 
-Each year:
+Each projected year is evaluated from scratch from the previous year's end state:
 
-1. request planned flows and capital projections;
-2. combine module flows with Retirement-owned flows;
-3. aggregate income and expenses;
-4. calculate signed net flow, gap, and surplus;
-5. apply Long-Term reserve transfers;
-6. withdraw free reserve;
-7. request Long-Term capital explicitly available by strategy;
-8. request the remaining amount from Investment;
-9. record any unfunded amount;
-10. carry returned end values to the next year.
+1. start with Cash, Bonds, Equities, and Real Estate balances;
+2. aggregate ordinary cash income and annual costs;
+3. apply Bond return and Equity return to their own buckets;
+4. calculate the remaining funding gap;
+5. withdraw Cash;
+6. withdraw Bonds;
+7. withdraw Equities when policy allows and a gap remains;
+8. withdraw Real Estate only after Cash, Bonds, and Equities are exhausted;
+9. if eligible positive Equity gain remains, refill Bonds toward the Bond target;
+10. calculate end values for all four buckets;
+11. record any amount still unfunded;
+12. carry the end values into the next year.
 
-Funding order is fixed: cash-flow income, free reserve, Long-Term capital, Investment, unfunded gap.
-Annual surplus never refills reserve or capital automatically.
+The canonical spending priority is therefore:
+
+```text
+cash income -> Cash -> Bonds -> Equities -> Real Estate -> unfunded
+```
+
+Bond refill is the reverse capital-maintenance path:
+
+```text
+eligible Equity gain -> Bonds (up to target)
+```
+
+Cash is not automatically refilled. Remaining Bonds and Equities are automatically reinvested under
+the same frozen assumptions.
+
+`UNFUNDED` is a **per-year result**, not a sticky failure state. Every subsequent year reevaluates
+income, returns, events, and all available bucket balances. A later year may recover if new resources
+become available.
 
 Example: monthly income 2,000, monthly expense 2,500, annual expense 1,000, annual income 600,
 and a 200 one-off expense gives:
@@ -215,6 +324,8 @@ and a 200 one-off expense gives:
 netCashFlow = 12*2000 - 12*2500 + 600 - 1000 - 200 = -6600
 fundingGap = 6600
 ```
+
+That `6600` gap is then funded in bucket priority order.
 
 ## Lifecycle and reviews
 
@@ -252,29 +363,50 @@ bridge is explicit: actual state plus projected remaining current-year flows and
 the expected year-end state exactly once; that state starts the first future row. The timeline
 begins at the configured plan start year and includes missing historical rows explicitly.
 
-Sandbox is not implemented. It will be another prepared input source for the same deterministic
-engine. Analysis is scenario/risk evaluation that prepares inputs; Simulation is plan execution.
+Sandbox uses the same deterministic engine with an alternate prepared input. It may override
+planning-bucket starts and yields without mutating Investment or Long-Term source data. At minimum,
+Sandbox may override Cash start, Bond start/yield/target, Equity start/yield, Real Estate start, and
+rental cash income. When Sandbox is disabled, the immutable reviewed baseline is authoritative.
+
+Analysis is scenario/risk evaluation that prepares inputs; Simulation is plan execution. Analysis
+must not implement a separate funding engine.
 
 An open-year result exposes actual income/expenses, projected remaining income/expenses, expected
 full-year net result, variance from the original plan, and any explicit reserve adjustment.
 
 ## Exclusions
 
-The model excludes economic buckets, market-cash/equity/fixed-income simulation, bond maturity or
-rental-contract mechanics, property valuation/growth inside Retirement, and duplicated asset formulas.
-Retirement owns only configurable economic withdrawal order, reserve targeting, Investment harvest,
-and optional Investment withdrawal. Actual and projected source labels remain separate; a projected
-return assumption is never labelled actual.
+Retirement deliberately excludes:
 
-Retirement also excludes direct dependencies on source-domain entities and concrete asset types.
+- individual bond ladder and maturity simulation;
+- individual Equity holdings and tax lots;
+- rental-contract mechanics;
+- choosing which physical property to sell;
+- duplicated source-domain valuation formulas;
+- direct dependencies on source-domain persistence entities.
+
+The source domains may use those details to derive the reviewed starting state. Once frozen, Future
+Retirement operates only on the aggregate planning economics required by the four buckets and cash
+flows.
+
 Adding a new Investment instrument or Long-Term asset type should require a Retirement change only
-when it introduces genuinely new economic semantics that cannot be represented by the existing
-public planning contracts.
+when it introduces genuinely new economic semantics that cannot be normalized into the existing
+bucket/flow contracts.
+
 ## Economic starting buckets
 
-Retirement distinguishes liquidity from funding ownership. `Liquidity.LIQUID` describes how easily
-an asset can be converted; it is not the Retirement reserve bucket. Brokerage cash and explicitly
-designated cash reserves form `retirementReserve`, while brokerage ETFs, stocks, funds and other
-Investment-owned market value form `investmentCapital`. Long-Term rental and contractual assets remain
-Long-Term capital. Future fixed-income cash flow is projected by Long-Term from its planning state;
-the current-year bond-income fact is not copied into the future as a scalar.
+Retirement distinguishes source composition from planning ownership:
+
+```text
+brokerage/free cash + designated cash reserve -> Cash
+bond/fixed-income capital                    -> Bonds
+ETF/stock/fund investment capital            -> Equities
+property capital                             -> Real Estate
+```
+
+The reviewed baseline also carries the planning assumptions needed to project those balances, such as
+Bond yield, Equity return, rental income/growth, Bond refill target, harvest threshold/share, and
+whether Equity principal may be used for spending.
+
+Current/live source changes affect CURRENT immediately. Future changes only after an explicit
+review/rebaseline creates a new immutable revision.
