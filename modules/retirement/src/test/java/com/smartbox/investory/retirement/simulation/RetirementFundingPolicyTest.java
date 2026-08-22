@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
+import com.smartbox.investory.investment.api.InvestmentAnnualProjectionApi;
 
 class RetirementFundingPolicyTest {
   @Test
@@ -33,5 +34,18 @@ class RetirementFundingPolicyTest {
     assertThatThrownBy(() -> new RetirementFundingPolicy(BigDecimal.ONE, BigDecimal.ZERO,
         new BigDecimal("1.01"), true, RetirementFundingPolicy.DEFAULT_ORDER))
         .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
+  void positiveGainRefillsReserveOnlyUpToTarget() {
+    var projection = new InvestmentAnnualProjectionApi.AnnualProjection(
+        2030, new BigDecimal("1000"), BigDecimal.ZERO, new BigDecimal("100"),
+        BigDecimal.ZERO, new BigDecimal("1100"), InvestmentAnnualProjectionApi.Source.PROJECTED);
+    var result = new RetirementReserveRebalancer().rebalance(new BigDecimal("80"),
+        new BigDecimal("100"), projection, new BigDecimal("0.10"),
+        RetirementFundingPolicy.defaults());
+
+    assertThat(result.harvestToReserve()).isEqualByComparingTo("20");
+    assertThat(result.investment().endValue()).isEqualByComparingTo("1080");
   }
 }

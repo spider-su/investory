@@ -991,7 +991,7 @@ public class RetirementSimulationController {
                     annualEmploymentIncome, planningDisplayCurrency, BigDecimal.ZERO),
                 planningPresentation.fromDisplay(
                     annualPreRetirementContribution, planningDisplayCurrency, BigDecimal.ZERO))
-            .withFundingOrder(SimulationAssumptions.DEFAULT_FUNDING_ORDER)
+            .withFundingOrder(parseFundingOrder(fundingOrder))
             .withExpenseProfile(ExpenseProfile.EMPTY);
     SimulationAssumptions a =
         monthlyLivingCosts == null && annualExpenses != null
@@ -1010,6 +1010,10 @@ public class RetirementSimulationController {
                         Map.entry("rentalIncomeGrowthSpread", String.valueOf(rentalIncomeGrowthSpread)),
                         Map.entry("spendingGrowthSpread", String.valueOf(spendingGrowthSpread)),
                         Map.entry("equityReturn", String.valueOf(equityReturn)),
+                        Map.entry("safeReserveYears", String.valueOf(safeReserveYears)),
+                        Map.entry("equityHarvestThreshold", String.valueOf(equityHarvestMinimumReturn)),
+                        Map.entry("equityHarvestShare", String.valueOf(equityGainHarvest)),
+                        Map.entry("allowEmergencyEquityWithdrawal", String.valueOf(allowEmergencyEquityWithdrawal)),
                         Map.entry("annualEmploymentIncome", String.valueOf(annualEmploymentIncome)),
                         Map.entry("annualPreRetirementContribution", String.valueOf(annualPreRetirementContribution)),
                         Map.entry("annualPension", String.valueOf(annualPension)),

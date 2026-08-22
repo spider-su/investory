@@ -13,6 +13,7 @@ public final class RetirementSimulationOrchestrator {
   private final LongTermAnnualProjectionApi longTerm;
   private final InvestmentAnnualProjectionApi investments;
   private final RetirementFundingAllocator fundingAllocator = new RetirementFundingAllocator();
+  private final RetirementReserveRebalancer reserveRebalancer = new RetirementReserveRebalancer();
 
   public RetirementSimulationOrchestrator(LongTermAnnualProjectionApi longTerm,
       InvestmentAnnualProjectionApi investments) {
@@ -80,19 +81,11 @@ public final class RetirementSimulationOrchestrator {
           .add(employment).add(pension);
       BigDecimal reserveTarget = input.fundingPolicy().reserveTargetYears()
           .multiply(expenses.subtract(recurringIncome).max(ZERO));
-      BigDecimal harvest = ZERO;
-      if (investment.annualReturnAmount().signum() > 0
-          && input.investmentReturnRate().compareTo(input.fundingPolicy().equityHarvestThresholdRate()) >= 0) {
-        BigDecimal shortfall = reserveTarget.subtract(reserveAfterTransfer.subtract(reserveWithdrawal)).max(ZERO);
-        harvest = investment.annualReturnAmount().multiply(input.fundingPolicy().equityHarvestShare())
-            .min(shortfall).min(investment.endValue().max(ZERO));
-        if (harvest.signum() > 0) {
-          investment = new InvestmentAnnualProjectionApi.AnnualProjection(
-              investment.year(), investment.startValue(), investment.externalContribution(),
-              investment.annualReturnAmount(), investment.withdrawal(),
-              investment.endValue().subtract(harvest).max(ZERO), investment.source());
-        }
-      }
+      var rebalance = reserveRebalancer.rebalance(
+          reserveAfterTransfer.subtract(reserveWithdrawal), reserveTarget, investment,
+          input.investmentReturnRate(), input.fundingPolicy());
+      investment = rebalance.investment();
+      BigDecimal harvest = rebalance.harvestToReserve();
       // 9-10. Returned end states are the only next-year state.
       BigDecimal unfunded = remaining;
       BigDecimal rentalIncome = amount(longTermIncome.plannedCashFlows(),

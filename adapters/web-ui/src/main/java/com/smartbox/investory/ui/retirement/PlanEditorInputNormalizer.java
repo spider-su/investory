@@ -38,6 +38,14 @@ public final class PlanEditorInputNormalizer {
     BigDecimal investmentReturn = rate(input, "equityReturn", base.equityReturnRate());
     BigDecimal effectiveRental = inflation.add(rentalSpread);
     BigDecimal effectiveSpending = inflation.add(spendingSpread);
+    BigDecimal reserveYears = decimal(input, "safeReserveYears");
+    BigDecimal harvestThreshold = rate(input, "equityHarvestThreshold", base.equityHarvestMinimumReturnRate());
+    BigDecimal harvestShare = rate(input, "equityHarvestShare", base.equityGainHarvestRate());
+    if (reserveYears == null) reserveYears = base.safeReserveYears();
+    if (harvestShare == null) harvestShare = base.equityGainHarvestRate();
+    if (reserveYears.signum() < 0) throw new IllegalArgumentException("Reserve target years cannot be negative");
+    if (harvestShare.signum() < 0 || harvestShare.compareTo(BigDecimal.ONE) > 0)
+      throw new IllegalArgumentException("Harvest share must be between 0 and 100%");
     validRate(inflation, "inflation");
     validRate(investmentReturn, "equityReturn");
     validRate(effectiveRental, "rentalIncomeGrowthSpread");
@@ -62,9 +70,10 @@ public final class PlanEditorInputNormalizer {
                 base.fixedIncomeReturnRate(), investmentReturn, base.realEstateReturnRate(),
                 base.otherReturnRate(), integer(input, "pensionStartAge", base.pensionStartAge()),
                 pension, base.capitalGainTaxRate(), startYear, extras, base.futureEvents(),
-                rentalSpread, spendingSpread, base.fundingStrategy(), base.safeReserveYears(),
-                base.equityHarvestMinimumReturnRate(), base.equityGainHarvestRate(),
-                base.allowEmergencyEquityWithdrawal(), retirementAge, employment, contribution)
+                rentalSpread, spendingSpread, base.fundingStrategy(), reserveYears,
+                harvestThreshold, harvestShare,
+                booleanValue(input, "allowEmergencyEquityWithdrawal", base.allowEmergencyEquityWithdrawal()), retirementAge,
+                employment, contribution)
             .withFundingOrder(base.fundingOrder())
             .withExpenseProfile(
                 expenseProfile(input.value("expenseProfile"), base.expenseProfile(), ageAtStart, endAge));
@@ -174,6 +183,11 @@ public final class PlanEditorInputNormalizer {
   private static int integer(PlanEditorInput input, String field, int fallback) {
     BigDecimal value = decimal(input, field);
     return value == null ? fallback : value.intValueExact();
+  }
+
+  private static boolean booleanValue(PlanEditorInput input, String field, boolean fallback) {
+    String raw = input.value(field);
+    return raw == null || raw.isBlank() ? fallback : Boolean.parseBoolean(raw);
   }
 
   private static BigDecimal decimal(PlanEditorInput input, String field) {

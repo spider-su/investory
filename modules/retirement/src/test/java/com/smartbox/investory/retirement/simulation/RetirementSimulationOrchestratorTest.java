@@ -61,8 +61,8 @@ class RetirementSimulationOrchestratorTest {
     assertThat(year.maturedBondFunding()).isEqualByComparingTo("30");
     assertThat(year.investmentWithdrawal()).isEqualByComparingTo("40");
     assertThat(year.unfundedShortfall()).isEqualByComparingTo("10");
-    assertThat(year.reserveEnd()).isZero();
-    assertThat(year.investment().endValue()).isEqualByComparingTo("67");
+    assertThat(year.reserveEnd()).isEqualByComparingTo("5.25");
+    assertThat(year.investment().endValue()).isEqualByComparingTo("61.75");
     assertThat(year.requiredFunding())
         .isEqualByComparingTo(
             year.reserveWithdrawal()
@@ -71,7 +71,8 @@ class RetirementSimulationOrchestratorTest {
                 .add(year.unfundedShortfall()));
     assertThat(year.reserveEnd())
         .isEqualByComparingTo(
-            bd("20").add(year.reserveTransfer()).subtract(year.reserveWithdrawal()));
+            bd("20").add(year.reserveTransfer()).add(year.equityHarvestToReserve())
+                .subtract(year.reserveWithdrawal()));
   }
 
   @Test
