@@ -1,8 +1,18 @@
-# Deterministic planning timeline and simulation
+# Deterministic retirement planning and simulation
 
-Retirement planning consumes only three things: planned cash flows, one liquid reserve, and capital
-projections. It does not calculate rental yield, bond interest, tax, inflation, investment return,
-maturity, or asset valuation.
+Retirement planning consumes normalized economic contracts: planned cash flows, liquid reserve,
+capital projections/availability, liabilities where applicable, and planning assumptions owned by
+the supplying domain. It does not consume concrete asset implementations and does not calculate
+rental yield, bond interest, tax, investment return, maturity, or asset valuation owned by another
+domain.
+
+The core temporal rule is:
+
+```text
+Past     -> immutable reviewed facts
+Current  -> live derived state
+Future   -> deterministic projection from an immutable reviewed plan revision
+```
 
 ## Ownership and dependency direction
 
@@ -18,6 +28,25 @@ capital values. Investment owns portfolio valuation, return, withdrawal, and end
 asset module depends on Retirement.
 
 Taxes and costs are already reflected in supplied net flow values.
+
+The public contracts form an anti-corruption boundary. Retirement must not inspect whether capital
+came from an ETF, brokerage cash position, individual bond, deposit, property, rental contract, or
+another implementation-specific source. The owning module converts those details to economic meaning
+before the Retirement boundary.
+
+Conceptually the boundary exposes normalized planning information such as:
+
+```text
+balances
+cash flows
+reserve
+capital available for withdrawal
+requested / actual withdrawal
+ending capital
+```
+
+Exact Java records may be narrower and split by responsibility. This is a semantic contract, not a
+requirement for one universal DTO.
 
 ## Inflation and growth spreads
 
@@ -114,6 +143,38 @@ and its next state. Retirement does not construct bond/deposit inputs or inspect
 Investment is a black box. Simulation sees no equity, fixed-income, market-cash, allocation, or
 portfolio internals.
 
+The same rule applies to Long-Term. Simulation sees no rental-contract implementation, bond terms,
+deposit implementation, property subtype, or persistence model. Those details remain inside
+Long-Term.
+
+## Plan input snapshot
+
+Current state and reviewed future plans deliberately use different lifecycles.
+
+The current page reads live normalized contracts from Investment and Long-Term. When the user
+reviews/rebaselines a plan, Retirement freezes the normalized economic values required by the
+simulation into a new immutable plan revision. Future simulation consumes that revision snapshot
+rather than re-reading today's source state.
+
+```text
+Investment public API ----\\
+                            -> normalized economic state
+Long-Term public API -----/              |
+                                         v
+                               reviewed plan revision
+                                         |
+                                         v
+                                  annual simulator
+```
+
+Changing a market position, valuation, rental contract, bond, or other source record therefore
+changes CURRENT immediately but does not change an already reviewed FUTURE projection. Incorporating
+the new source state is an explicit review/rebaseline operation that creates a new revision.
+
+The snapshot is planning provenance, not duplicated domain ownership. It stores only the economic
+inputs required by Retirement, never source-domain entities or enough internal structure to
+reimplement Investment or Long-Term calculations.
+
 ## Annual orchestration
 
 Each year:
@@ -164,7 +225,10 @@ interest is not a cash-flow income source.
 `PlanningTimeline` is the application-facing plan representation:
 
 ```text
-historical actual diary facts -> current actual YTD + projected remainder -> future deterministic projection
+immutable historical facts
+    -> current live state
+    -> reviewed plan revision
+    -> future deterministic projection
 ```
 
 Closed historical rows are immutable facts and are never re-simulated. Draft historical rows may
@@ -186,3 +250,9 @@ withdrawal order, equity harvesting, emergency equity withdrawals, synthetic bon
 rules, property valuation/growth inside Retirement, and duplicated asset formulas. A target reserve
 may be reported as a policy metric, but is never a funding action. Actual and projected source
 labels remain separate; a projected return assumption is never labelled actual.
+
+Retirement also excludes direct dependencies on source-domain entities and concrete asset types.
+Adding a new Investment instrument or Long-Term asset type should require a Retirement change only
+when it introduces genuinely new economic semantics that cannot be represented by the existing
+public planning contracts.
+

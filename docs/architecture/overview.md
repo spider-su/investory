@@ -17,12 +17,24 @@ broker files
   -> daily account projection
   -> database reporting layers
   -> portfolio services
-  -> InvestmentProfile
+  -> Investment public economic contracts
      -> dashboard / APIs / exports / notifications
-     -> planning -> deterministic retirement simulation -> Actual / Live / Projected timeline
+     -> Retirement current state
+     -> reviewed plan revision
+     -> deterministic retirement simulation
 
 manual long-term assets
-  -> InvestmentProfile
+  -> Long-Term public economic contracts
+     -> Retirement current state
+     -> reviewed plan revision
+
+Planning has three deliberately different sources of truth:
+
+```text
+Past     -> immutable reviewed facts
+Current  -> live state derived from current domain data
+Future   -> deterministic projection from an immutable reviewed plan revision
+```
 ```
 
 The application uses Java, Maven, Spring Data JPA, Flyway, Thymeleaf, and Chart.js. PostgreSQL schema
@@ -123,6 +135,16 @@ Investment and Long-Term Assets do not depend on each other or on Retirement. Re
 Investment and Long-Term only through their `api` packages. A public boundary exposes focused,
 immutable business read models, never JPA entities, repositories, SQL projections, or internal
 accounting services. Shared contracts stay small and domain-neutral.
+
+For planning, the public APIs expose economic meaning rather than asset implementation details.
+Retirement consumes normalized balances, cash-flow streams, capital availability, and other
+planning-relevant aggregates. It must not branch on brokerage position types, bond implementation,
+rental-contract implementation, property subtype, or persistence entities.
+
+Current source state is used to prepare a reviewed plan revision. Once reviewed, the revision freezes
+the normalized economic inputs needed to reproduce its Future projection. Later Investment or
+Long-Term changes update Current but do not mutate that revision. Accepting those changes into Future
+is an explicit review/rebaseline operation that creates a new revision.
 
 `investment.api.BrokeragePortfolioReader` publishes immutable shared brokerage snapshots for
 profile composition; its Spring implementation is

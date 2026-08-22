@@ -24,3 +24,12 @@ planning valuation. Updating a bond's current value does not overwrite its acqui
 The management API exposes rental-contract commands and persistence-free read views. Legacy rental
 period and cash-flow mutation endpoints are not part of the public API. JPA entities and repositories
 remain inside Long-Term Assets.
+
+For Retirement planning, Long-Term exposes normalized economic contracts rather than concrete asset
+implementations. Long-Term owns the translation from properties, rental contracts, bonds, deposits,
+cash reserves, maturities, tax treatment, and other internal rules into planning-level balances,
+cash flows, capital availability, and projections.
+
+Retirement must not inspect Long-Term entities or reproduce those calculations. A reviewed Retirement
+plan may freeze the normalized values returned by this boundary for reproducibility; that snapshot is
+Retirement planning provenance and does not replace Long-Term as the source of current asset state.
