@@ -105,7 +105,7 @@ bridging, not monthly cash-flow simulation.
 
 ## Forward simulation boundary
 
-The saved plan retains its original `startYear`, `currentAge`, retirement assumptions, and event
+The saved plan retains its original `startYear`, `ageAtPlanStart`, retirement assumptions, and event
 definitions. Before a future plan becomes reviewed, Retirement prepares its economic starting state
 from the current Investment and Long-Term public contracts. Reviewing/rebaselining the plan freezes
 that normalized starting state together with Retirement-owned assumptions and event definitions.
@@ -118,7 +118,7 @@ reviewed revision.
 The effective age is:
 
 ```text
-saved current age + (as-of calendar year - saved start year)
+ageAtPlanStart + (as-of calendar year - planStartYear)
 ```
 
 The context distinguishes the current partial year from the first complete projected year. Past events
@@ -128,9 +128,9 @@ pension, contribution, return, spending, reserve, and funding settings. A plan b
 age is rejected; an as-of year at the horizon has no complete projected-year assumptions.
 
 This context is the foundation for later rebasing of scenarios and decision analyses. It does not perform
-annual rollover. The bridge keeps the live profile immutable and returns a separate projected year-end
-profile for the first complete projected year, preventing current-year contributions and events from
-being applied twice.
+annual rollover. The bridge keeps its input economic snapshot immutable and returns a separate projected
+year-end state for the first complete projected year, preventing current-year contributions and events
+from being applied twice.
 
 ## Forward-consumer architecture
 

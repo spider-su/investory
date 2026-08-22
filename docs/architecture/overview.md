@@ -27,14 +27,14 @@ manual long-term assets
   -> Long-Term public economic contracts
      -> Retirement current state
      -> reviewed plan revision
+```
 
-Planning has three deliberately different sources of truth:
+The planning timeline has three deliberately different sources of truth:
 
 ```text
 Past     -> immutable reviewed facts
 Current  -> live state derived from current domain data
 Future   -> deterministic projection from an immutable reviewed plan revision
-```
 ```
 
 The application uses Java, Maven, Spring Data JPA, Flyway, Thymeleaf, and Chart.js. PostgreSQL schema
@@ -81,6 +81,11 @@ Planning persistence is separate from accounting persistence. Planning-year valu
 downstream snapshots/overrides; they do not alter positions, cash operations, `account_daily`, market
 prices, FX, or API response data. Manual long-term assets feed `InvestmentProfile` but do
 not become brokerage accounting rows. Simulation transfers are allocation state only, never real trades.
+
+Reviewed retirement-plan revisions are immutable decision snapshots. In addition to Retirement-owned
+assumptions and life events, they retain the normalized economic inputs required to reproduce the
+projection. They do not copy Investment or Long-Term persistence models and do not become a new source
+of accounting truth.
 
 See `docs/architecture/reporting-pipeline.md` for the reporting lineage.
 
@@ -168,6 +173,28 @@ models include the stable Long-Term asset and cash-flow enums. Retirement caller
 Long-Term persistence and application services remain internal.
 
 Planning must not become an accounting source of truth or depend on a projected result as an actual fact.
+
+For planning, the public APIs expose economic meaning rather than asset implementation details.
+Retirement may consume normalized balances, cash-flow streams, capital availability, liabilities,
+return/growth assumptions where owned by the source domain, and other planning-relevant aggregates.
+It must not branch on brokerage position type, bond implementation, rental-contract implementation,
+property subtype, or persistence entity.
+
+The cross-domain planning flow is:
+
+```text
+Investment state ----\
+                      -> normalized economic inputs
+Long-Term state -----/          |
+                                v
+                       reviewed plan revision
+                                |
+                                v
+                    deterministic projection
+```
+
+The normalized inputs form an anti-corruption boundary. Simulation operates on their economic
+semantics and does not reproduce formulas owned by Investment or Long-Term.
 
 `shared.currency.CurrencyType` and `shared.currency.CurrencyConversion` now provide the shared FX
 boundary. `CurrencyRateService` implements the BigDecimal conversion contract; its rate resolution,

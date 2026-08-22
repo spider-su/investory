@@ -620,6 +620,17 @@ public record SimulationAssumptions(
     return transitionCopy(value, annualEmploymentIncome, annualPreRetirementContribution);
   }
 
+  public SimulationAssumptions withPensionStartAge(int value) {
+    return new SimulationAssumptions(currentAge, endAge, annualLivingExpenses, inflationRate,
+        cashReturnRate, fixedIncomeReturnRate, equityReturnRate, realEstateReturnRate,
+        otherReturnRate, value, annualPension, capitalGainTaxRate, startYear,
+        annualDiscretionaryExpenses, futureEvents, rentalIncomeGrowthSpread,
+        spendingGrowthSpread, fundingStrategy, safeReserveYears,
+        equityHarvestMinimumReturnRate, equityGainHarvestRate, allowEmergencyEquityWithdrawal,
+        retirementAge, annualEmploymentIncome, annualPreRetirementContribution, fundingOrder,
+        expenseProfile);
+  }
+
   /** Rebase the temporal boundary without changing economic assumptions. */
   public SimulationAssumptions rebasedTo(
       int rebasedCurrentAge, int rebasedStartYear, List<SimulationEvent> remainingEvents) {
