@@ -9,8 +9,8 @@ public record SimulationScenarioSettings(
     BigDecimal equityReturnRate,
     BigDecimal realEstateReturnRate,
     BigDecimal otherReturnRate,
-    BigDecimal rentalIncomeGrowthRate,
-    BigDecimal spendingGrowthRate) {
+    BigDecimal rentalIncomeGrowthSpread,
+    BigDecimal spendingGrowthSpread) {
   public static SimulationScenarioSettings forScenario(
       SimulationScenario scenario, SimulationAssumptions a) {
     java.util.Objects.requireNonNull(scenario, "scenario");
@@ -24,8 +24,8 @@ public record SimulationScenarioSettings(
               a.equityReturnRate().subtract(new BigDecimal("0.020")),
               a.realEstateReturnRate().subtract(new BigDecimal("0.005")),
               a.otherReturnRate().subtract(new BigDecimal("0.010")),
-              adjustedRentalGrowth(a.rentalIncomeGrowthRate(), new BigDecimal("-0.005")),
-              a.spendingGrowthRate().add(new BigDecimal("0.005")));
+              a.rentalIncomeGrowthSpread().subtract(new BigDecimal("0.005")),
+              a.spendingGrowthSpread().add(new BigDecimal("0.005")));
     } else if (scenario == SimulationScenario.BASE) {
       settings =
           new SimulationScenarioSettings(
@@ -35,8 +35,8 @@ public record SimulationScenarioSettings(
               a.equityReturnRate(),
               a.realEstateReturnRate(),
               a.otherReturnRate(),
-              a.rentalIncomeGrowthRate(),
-              a.spendingGrowthRate());
+              a.rentalIncomeGrowthSpread(),
+              a.spendingGrowthSpread());
     } else {
       settings =
           new SimulationScenarioSettings(
@@ -46,8 +46,8 @@ public record SimulationScenarioSettings(
               a.equityReturnRate().add(new BigDecimal("0.020")),
               a.realEstateReturnRate().add(new BigDecimal("0.005")),
               a.otherReturnRate().add(new BigDecimal("0.010")),
-              adjustedRentalGrowth(a.rentalIncomeGrowthRate(), new BigDecimal("0.005")),
-              a.spendingGrowthRate().subtract(new BigDecimal("0.005")));
+              a.rentalIncomeGrowthSpread().add(new BigDecimal("0.005")),
+              a.spendingGrowthSpread().subtract(new BigDecimal("0.005")));
     }
     settings.validateMultiplicativeRates();
     return settings;
@@ -62,17 +62,23 @@ public record SimulationScenarioSettings(
             equityReturnRate,
             realEstateReturnRate,
             otherReturnRate,
-            rentalIncomeGrowthRate,
-            spendingGrowthRate)) {
+            effectiveRentalIncomeGrowthRate(),
+            effectiveSpendingGrowthRate())) {
       if (rate.compareTo(BigDecimal.ONE.negate()) < 0)
         throw new IllegalArgumentException("Effective scenario rate cannot be below -1");
     }
   }
 
-  private static BigDecimal adjustedRentalGrowth(BigDecimal rate, BigDecimal adjustment) {
-    BigDecimal adjusted = rate.add(adjustment);
-    if (adjusted.compareTo(BigDecimal.ONE.negate()) < 0)
-      throw new IllegalArgumentException("Scenario rental growth cannot be below -1");
-    return adjusted;
+  /** Nominal growth is always scenario inflation plus the asset or spending spread. */
+  public BigDecimal effectiveRentalIncomeGrowthRate() {
+    return effectiveGrowthRate(inflationRate, rentalIncomeGrowthSpread);
+  }
+
+  public BigDecimal effectiveSpendingGrowthRate() {
+    return effectiveGrowthRate(inflationRate, spendingGrowthSpread);
+  }
+
+  static BigDecimal effectiveGrowthRate(BigDecimal inflationRate, BigDecimal growthSpread) {
+    return inflationRate.add(growthSpread);
   }
 }

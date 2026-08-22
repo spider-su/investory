@@ -19,6 +19,24 @@ asset module depends on Retirement.
 
 Taxes and costs are already reflected in supplied net flow values.
 
+## Inflation and growth spreads
+
+Inflation is the economy-wide nominal baseline. A saved plan stores rental and spending growth as
+spreads relative to that baseline, not as independent nominal rates:
+
+```text
+effective rental growth  = inflation + rental growth spread
+effective spending growth = inflation + spending growth spread
+```
+
+For example, inflation `+2.5%`, rental spread `+0.5%`, and spending spread `+1.5%` produce
+nominal rental growth of `+3.0%` and nominal spending growth of `+4.0%`. Negative spreads are
+valid when the effective multiplicative rate remains at least `-100%`.
+
+Scenarios adjust inflation and each spread before deriving the effective nominal rates. Stored
+spread values stay unchanged when inflation changes. Physical plan columns retain their legacy
+`*_growth_rate` names for compatibility, but their values are spreads.
+
 All values cross the plan boundary in the plan currency. Source-currency asset values are converted
 once, using the shared target-currency-first conversion service, before they become a flow, capital
 projection, or page view value. A display-currency change only formats the already-normalized value.

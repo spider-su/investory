@@ -43,10 +43,10 @@ public class SimulationSensitivityAnalysisService {
             baseline,
             SensitivityDriver.SPENDING_GROWTH,
             "+0.5 pp",
-            assumptions.withSpendingGrowthRate(
-                assumptions.spendingGrowthRate().add(HALF_PERCENTAGE_POINT)),
-            assumptions.withSpendingGrowthRate(
-                assumptions.spendingGrowthRate().subtract(HALF_PERCENTAGE_POINT))));
+            assumptions.withSpendingGrowthSpread(
+                assumptions.spendingGrowthSpread().add(HALF_PERCENTAGE_POINT)),
+            assumptions.withSpendingGrowthSpread(
+                assumptions.spendingGrowthSpread().subtract(HALF_PERCENTAGE_POINT))));
     if (assumptions.annualPension().signum() > 0
         && assumptions.pensionStartAge() <= assumptions.endAge())
       results.add(

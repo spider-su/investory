@@ -63,6 +63,11 @@
           <tr><td>Planned retirement year</td><td class="text-end" id="preview-retirement-year" th:text="${planPreview.retirementYear}">2027</td></tr>
           <tr><td>Years until retirement</td><td class="text-end" id="preview-years-retirement" th:text="${planPreview.yearsUntilRetirement}">1</td></tr>
           <tr><td>Full plan horizon</td><td class="text-end" id="preview-horizon" th:text="${planPreview.planHorizonYears}">39</td></tr>
+          <tr><td>Inflation</td><td class="text-end" id="preview-inflation" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).percentage(planPreview.inflationRate)}">2.5%</td></tr>
+          <tr><td>Rental growth vs inflation</td><td class="text-end" id="preview-rental-spread" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).signedPercentage(planPreview.rentalIncomeGrowthSpread)}">+0.5%</td></tr>
+          <tr><td>Effective rental growth</td><td class="text-end" id="preview-effective-rental-growth" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).percentage(planPreview.effectiveRentalIncomeGrowthRate)}">3.0%</td></tr>
+          <tr><td>Cost growth vs inflation</td><td class="text-end" id="preview-spending-spread" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).signedPercentage(planPreview.spendingGrowthSpread)}">+1.5%</td></tr>
+          <tr><td>Effective cost growth</td><td class="text-end" id="preview-effective-spending-growth" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).percentage(planPreview.effectiveSpendingGrowthRate)}">4.0%</td></tr>
         </tbody></table>
         </div>
       </details>
@@ -73,7 +78,7 @@
       <div class="card-body iv-simulation-editor__grid">
         <div><label class="form-label" for="monthly-living-costs">Monthly living costs</label><input id="monthly-living-costs" class="form-control" name="monthlyLivingCosts" type="number" min="0" step="0.01" th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).moneyInput(displayMonthlyLivingCosts)}" required></div>
         <div><label class="form-label" for="discretionary-expenses">Annual extras</label><input id="discretionary-expenses" class="form-control" name="discretionaryExpenses" type="number" min="0" step="0.01" th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).moneyInput(displayDiscretionaryExpenses)}" required></div>
-        <div><label class="form-label" for="spending-growth">Cost growth</label><div class="input-group"><input id="spending-growth" class="form-control" name="spendingGrowth" type="number" step="0.1" min="1" max="99" th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).percentageInput(assumptions.spendingGrowthRate)}" required><span class="input-group-text">%</span></div></div>
+        <div><label class="form-label" for="spending-growth">Cost growth vs inflation</label><div class="input-group"><input id="spending-growth" class="form-control" name="spendingGrowthSpread" type="number" step="0.1" min="-99" max="999" th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).percentageInput(assumptions.spendingGrowthSpread)}" required><span class="input-group-text">%</span></div><div class="form-hint">Effective: <span th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).percentage(assumptions.effectiveSpendingGrowthRate)}">4.0%</span> / year</div></div>
         <div><span class="form-label d-block">Total annual costs</span><span class="form-control-plaintext" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(displayTotalAnnualCosts)}">240,000</span></div>
       </div>
       <details class="iv-expandable-card" th:if="${developMode != null and developMode and planPreview != null}">
@@ -96,7 +101,7 @@
         <div><label class="form-label" for="pre-retirement-contribution">Portfolio contribution before retirement / year</label><input id="pre-retirement-contribution" class="form-control" name="annualPreRetirementContribution" type="number" min="0" step="0.01" required th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).moneyInput(displayAnnualPreRetirementContribution)}"><div class="form-hint">Explicit amount added to liquid cash while working.</div></div>
         <div><label class="form-label" for="pension-start-age">Pension start age</label><input id="pension-start-age" class="form-control" name="pensionStartAge" type="number" min="0" required th:value="${assumptions.pensionStartAge == 2147483647 ? '' : assumptions.pensionStartAge}"></div>
         <div><label class="form-label" for="annual-pension">Annual pension</label><input id="annual-pension" class="form-control" name="annualPension" type="number" min="0" step="0.01" required th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).moneyInput(displayAnnualPension)}"></div>
-        <div><label class="form-label" for="rental-growth">Rental income growth</label><div class="input-group"><input id="rental-growth" class="form-control" name="rentalIncomeGrowth" type="number" step="0.1" min="1" max="99" th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).percentageInput(assumptions.rentalIncomeGrowthRate)}" required><span class="input-group-text">%</span></div><div class="form-hint">Portfolio and long-term income remain current portfolio facts.</div></div>
+        <div><label class="form-label" for="rental-growth">Rental growth vs inflation</label><div class="input-group"><input id="rental-growth" class="form-control" name="rentalIncomeGrowthSpread" type="number" step="0.1" min="-99" max="999" th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).percentageInput(assumptions.rentalIncomeGrowthSpread)}" required><span class="input-group-text">%</span></div><div class="form-hint">Effective: <span th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).percentage(assumptions.effectiveRentalIncomeGrowthRate)}">3.0%</span> / year. Portfolio and long-term income remain current portfolio facts.</div></div>
         <div><span class="form-label d-block">Rental income / year · current Long-term Assets</span><span class="form-control-plaintext" th:text="${currentRentalIncome == null ? '—' : T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(currentRentalIncome)}">—</span><div class="form-hint">Current Long-term Assets fact · read-only</div></div>
         <div><span class="form-label d-block">Bond interest / year · current Long-term Assets</span><span class="form-control-plaintext" th:text="${currentBondIncome == null ? '—' : T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(currentBondIncome)}">—</span><div class="form-hint">Current Long-term Assets fact · read-only</div></div>
       </div>
@@ -132,7 +137,22 @@
       <details class="iv-expandable-card" th:if="${developMode != null and developMode and planPreview != null}">
         <summary class="card-body border-top d-flex justify-content-between align-items-center iv-expandable-card__summary"><span>Development preview · funding and reserve</span><span class="iv-expandable-card__chevron" aria-hidden="true">⌄</span></summary>
         <div class="card-body">
-        <table class="table table-sm mb-0"><tbody><tr th:if="${planPreview.firstProjectedYear != null}"><td>Funding gap</td><td class="text-end" id="preview-funding-gap" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.fundingGap)}">0</td></tr><tr th:if="${planPreview.firstProjectedYear != null}"><td>Reserve before</td><td class="text-end" id="preview-reserve-before" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.reserveStart)}">0</td></tr><tr th:if="${planPreview.firstProjectedYear != null}"><td>Reserve withdrawal</td><td class="text-end" id="preview-reserve-withdrawal" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.reserveWithdrawal)}">0</td></tr><tr th:if="${planPreview.firstProjectedYear != null}"><td>Reserve after</td><td class="text-end" id="preview-reserve-after" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.reserveEnd)}">0</td></tr><tr th:if="${planPreview.firstProjectedYear != null}"><td>Long-Term withdrawal</td><td class="text-end" id="preview-long-term-withdrawal" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.longTermWithdrawal)}">0</td></tr><tr th:if="${planPreview.firstProjectedYear != null}"><td>Investment withdrawal</td><td class="text-end" id="preview-investment-withdrawal" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.investmentWithdrawal)}">0</td></tr><tr th:if="${planPreview.firstProjectedYear != null}"><td>Unfunded gap</td><td class="text-end" id="preview-unfunded" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.unfunded)}">0</td></tr></tbody></table>
+        <table class="table table-sm mb-0"><tbody th:if="${planPreview.firstProjectedYear != null}">
+          <tr><td>Recurring costs</td><td class="text-end" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.annualCosts)}">0</td></tr>
+          <tr><td>Event expenses</td><td class="text-end" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.eventExpenses)}">0</td></tr>
+          <tr><td>Employment income</td><td class="text-end" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.employmentIncome)}">0</td></tr>
+          <tr><td>Rental income</td><td class="text-end" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.rentalIncome)}">0</td></tr>
+          <tr><td>Bond income</td><td class="text-end" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.bondIncome)}">0</td></tr>
+          <tr><td>Pension</td><td class="text-end" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.pension)}">0</td></tr>
+          <tr><td>Event income</td><td class="text-end" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.eventIncome)}">0</td></tr>
+          <tr><td>Funding gap</td><td class="text-end" id="preview-funding-gap" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.fundingGap)}">0</td></tr>
+          <tr><td>Reserve before</td><td class="text-end" id="preview-reserve-before" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.reserveStart)}">0</td></tr>
+          <tr><td>Reserve withdrawal</td><td class="text-end" id="preview-reserve-withdrawal" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.reserveWithdrawal)}">0</td></tr>
+          <tr><td>Reserve after</td><td class="text-end" id="preview-reserve-after" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.reserveEnd)}">0</td></tr>
+          <tr><td>Long-Term withdrawal</td><td class="text-end" id="preview-long-term-withdrawal" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.longTermWithdrawal)}">0</td></tr>
+          <tr><td>Investment withdrawal</td><td class="text-end" id="preview-investment-withdrawal" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.investmentWithdrawal)}">0</td></tr>
+          <tr><td>Unfunded gap</td><td class="text-end" id="preview-unfunded" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.unfunded)}">0</td></tr>
+        </tbody></table>
         <div class="form-hint mt-2">Defensive reserve includes cash reserves and contractual bonds. Bond principal becomes spendable only at maturity.</div>
         </div>
       </details>
@@ -140,7 +160,7 @@
 
     <section class="card iv-simulation-editor__section">
       <div class="iv-card-section-header"><span class="iv-card-section-header__title">Portfolio assumptions</span></div><div class="card-body iv-simulation-editor__grid">
-      <div><label class="form-label" for="inflation">Inflation</label><div class="input-group"><input id="inflation" class="form-control" name="inflation" type="number" step="0.1" min="1" max="99" th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).percentageInput(assumptions.inflationRate)}" required><span class="input-group-text">%</span></div></div>
+      <div><label class="form-label" for="inflation">Inflation</label><div class="input-group"><input id="inflation" class="form-control" name="inflation" type="number" step="0.1" min="-99" max="999" th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).percentageInput(assumptions.inflationRate)}" required><span class="input-group-text">%</span></div></div>
       <div><label class="form-label" for="equity-return">Equity return</label><div class="input-group"><input id="equity-return" class="form-control" name="equityReturn" type="number" step="0.1" min="1" max="99" th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).percentageInput(assumptions.equityReturnRate)}" required><span class="input-group-text">%</span></div></div>
     </div><details class="iv-expandable-card" th:if="${developMode != null and developMode and planPreview != null}"><summary class="card-body border-top d-flex justify-content-between align-items-center iv-expandable-card__summary"><span>Development preview · first projected year</span><span class="iv-expandable-card__chevron" aria-hidden="true">⌄</span></summary><div class="card-body"><table class="table table-sm mb-0"><thead><tr><th>Source</th><th class="text-end">Start</th><th class="text-end">Withdrawal</th><th class="text-end">End</th><th class="text-end">Return</th></tr></thead><tbody><tr th:if="${planPreview.firstProjectedYear != null}"><td>Investment</td><td class="text-end" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.investmentStart)}">0</td><td class="text-end" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.investmentWithdrawal)}">0</td><td class="text-end" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.investmentEnd)}">0</td><td class="text-end" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(planPreview.firstProjectedYear.investmentReturn)}">0</td></tr></tbody></table><div class="form-hint mt-2">Investment valuation and return are supplied by the Investment API. Contractual Long-Term capital is shown separately in the funding preview.</div></div></details>
     </section>
@@ -221,6 +241,8 @@
   let sequence = 0;
   let controller;
   const money = value => value == null ? '—' : new Intl.NumberFormat(undefined, {maximumFractionDigits: 0}).format(value);
+  const percentage = value => value == null ? '—' : `${(value * 100).toFixed(1).replace(/\.0$/, '')}%`;
+  const signedPercentage = value => value != null && value > 0 ? `+${percentage(value)}` : percentage(value);
   const refresh = () => {
     clearTimeout(timer);
     timer = setTimeout(async () => {
@@ -240,6 +262,11 @@
         document.getElementById('preview-annual-extras').textContent = money(value.annualExtras);
         document.getElementById('preview-total-costs').textContent = money(value.totalAnnualCosts);
         document.getElementById('preview-next-costs').textContent = money(value.nextYearCosts);
+        document.getElementById('preview-inflation').textContent = percentage(value.inflationRate);
+        document.getElementById('preview-rental-spread').textContent = signedPercentage(value.rentalIncomeGrowthSpread);
+        document.getElementById('preview-effective-rental-growth').textContent = percentage(value.effectiveRentalIncomeGrowthRate);
+        document.getElementById('preview-spending-spread').textContent = signedPercentage(value.spendingGrowthSpread);
+        document.getElementById('preview-effective-spending-growth').textContent = percentage(value.effectiveSpendingGrowthRate);
         const first = value.firstProjectedYear;
         if (first) {
           document.getElementById('preview-funding-gap').textContent = money(first.fundingGap);
@@ -265,8 +292,7 @@
 <script>
 (() => {
   const percentageFields = [
-    'spendingGrowth', 'rentalIncomeGrowth', 'equityHarvestMinimumReturn',
-    'equityGainHarvest', 'inflation', 'cashReturn', 'fixedIncomeReturn',
+    'equityHarvestMinimumReturn', 'equityGainHarvest', 'cashReturn', 'fixedIncomeReturn',
     'equityReturn'
   ];
   percentageFields.forEach(name => {

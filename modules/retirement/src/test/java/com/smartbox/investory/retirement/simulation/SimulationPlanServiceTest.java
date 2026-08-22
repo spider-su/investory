@@ -61,8 +61,8 @@ class SimulationPlanServiceTest {
     when(repository.findByIdAndPortfolioId(7L, 1L)).thenReturn(Optional.of(saved));
     assertEquals(7L, saved.getId());
     assertEquals(assumptions, service.assumptions(service.get(1L, 7L)));
-    assertEquals(new BigDecimal("0.020"), saved.getRentalIncomeGrowthRate());
-    assertEquals(new BigDecimal("0.015"), saved.getSpendingGrowthRate());
+    assertEquals(new BigDecimal("0.020"), saved.getRentalIncomeGrowthSpread());
+    assertEquals(new BigDecimal("0.015"), saved.getSpendingGrowthSpread());
     assertEquals(SimulationFundingStrategy.RESERVE_AND_HARVEST, saved.getFundingStrategy());
     assertEquals(new BigDecimal("5"), saved.getSafeReserveYears());
   }
@@ -178,9 +178,11 @@ class SimulationPlanServiceTest {
   void oldPlanWithoutGrowthFieldsUsesDeterministicCompatibilityValues() {
     SimulationPlanEntity plan = basicPlan();
     assertEquals(
-        SimulationAssumptions.DEFAULT_RENTAL_INCOME_GROWTH_RATE,
-        service.assumptions(plan).rentalIncomeGrowthRate());
-    assertEquals(plan.getInflationRate(), service.assumptions(plan).spendingGrowthRate());
+        SimulationAssumptions.DEFAULT_RENTAL_INCOME_GROWTH_SPREAD,
+        service.assumptions(plan).rentalIncomeGrowthSpread());
+    assertEquals(
+        SimulationAssumptions.DEFAULT_SPENDING_GROWTH_SPREAD,
+        service.assumptions(plan).spendingGrowthSpread());
     assertEquals(
         SimulationFundingStrategy.SIMPLE_WATERFALL, service.assumptions(plan).fundingStrategy());
   }

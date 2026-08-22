@@ -124,8 +124,8 @@ class SimulationPlanRevisionTest {
     revision.setAnnualLivingExpenses(a.annualLivingExpenses());
     revision.setAnnualDiscretionaryExpenses(a.annualDiscretionaryExpenses());
     revision.setInflationRate(a.inflationRate());
-    revision.setRentalIncomeGrowthRate(a.rentalIncomeGrowthRate());
-    revision.setSpendingGrowthRate(a.spendingGrowthRate());
+    revision.setRentalIncomeGrowthSpread(a.rentalIncomeGrowthSpread());
+    revision.setSpendingGrowthSpread(a.spendingGrowthSpread());
     revision.setFundingStrategy(a.fundingStrategy());
     revision.setSafeReserveYears(a.safeReserveYears());
     revision.setEquityHarvestMinimumReturnRate(a.equityHarvestMinimumReturnRate());

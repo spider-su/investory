@@ -489,7 +489,8 @@ public class PlanningTimelineFacade {
     return new SimulationAssumptions(
         assumptions.currentAge() + offset,
         assumptions.endAge(),
-        growForYears(assumptions.annualLivingExpenses(), assumptions.spendingGrowthRate(), offset),
+        growForYears(
+            assumptions.annualLivingExpenses(), assumptions.effectiveSpendingGrowthRate(), offset),
         assumptions.inflationRate(),
         assumptions.cashReturnRate(),
         assumptions.fixedIncomeReturnRate(),
@@ -501,10 +502,12 @@ public class PlanningTimelineFacade {
         assumptions.capitalGainTaxRate(),
         year,
         growForYears(
-            assumptions.annualDiscretionaryExpenses(), assumptions.spendingGrowthRate(), offset),
+            assumptions.annualDiscretionaryExpenses(),
+            assumptions.effectiveSpendingGrowthRate(),
+            offset),
         assumptions.futureEvents(),
-        assumptions.rentalIncomeGrowthRate(),
-        assumptions.spendingGrowthRate(),
+        assumptions.rentalIncomeGrowthSpread(),
+        assumptions.spendingGrowthSpread(),
         assumptions.fundingStrategy(),
         assumptions.safeReserveYears(),
         assumptions.equityHarvestMinimumReturnRate(),

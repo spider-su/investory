@@ -46,7 +46,7 @@ class RetirementSimulationAnnualRentalIncomeTest {
     assertThatCode(() -> service.simulate(profile, assumptions, SimulationScenario.BASE))
         .doesNotThrowAnyException();
     assertThat(result.years().get(0).rentalIncome()).isEqualByComparingTo("1");
-    assertThat(result.years().get(1).rentalIncome()).isEqualByComparingTo("1.02");
+    assertThat(result.years().get(1).rentalIncome()).isEqualByComparingTo("1.045");
   }
 
   @Test
@@ -80,15 +80,16 @@ class RetirementSimulationAnnualRentalIncomeTest {
     var profile = profile(BigDecimal.ZERO, List.of(bond), new BigDecimal("174804"));
     var assumptions =
         SimulationAssumptions.defaults(profile, 65, 67, 2026)
-            .withRentalIncomeGrowthRate(new BigDecimal("0.005"));
+            .withRentalIncomeGrowthSpread(new BigDecimal("0.005"));
 
     var years = service.simulate(profile, assumptions, SimulationScenario.BASE).years();
 
     assertThat(years.get(0).rentalIncome()).isEqualByComparingTo("174804");
     assertThat(years.get(0).bondIncome()).isEqualByComparingTo("38880");
-    assertThat(years.get(1).rentalIncome()).isEqualByComparingTo("175678.02");
+    assertThat(years.get(1).rentalIncome()).isEqualByComparingTo("180048.12");
     assertThat(years.get(1).rentalIncome()).isNotEqualByComparingTo("213684");
     assertThat(years.get(1).bondIncome()).isEqualByComparingTo("38880");
+    assertThat(years.get(2).rentalIncome()).isEqualByComparingTo("185449.5636");
   }
 
   @Test
@@ -99,13 +100,34 @@ class RetirementSimulationAnnualRentalIncomeTest {
     var profile = profile(BigDecimal.ZERO, List.of(), new BigDecimal("100"));
     var assumptions =
         SimulationAssumptions.defaults(profile, 65, 67, 2026)
-            .withRentalIncomeGrowthRate(new BigDecimal("0.005"));
+            .withRentalIncomeGrowthSpread(new BigDecimal("0.005"));
 
     var years = service.simulate(profile, assumptions, SimulationScenario.BASE).years();
 
     assertThat(years.get(0).rentalIncome()).isEqualByComparingTo("100");
-    assertThat(years.get(1).rentalIncome()).isEqualByComparingTo("100.5");
-    assertThat(years.get(2).rentalIncome()).isEqualByComparingTo("101.0025");
+    assertThat(years.get(1).rentalIncome()).isEqualByComparingTo("103");
+    assertThat(years.get(2).rentalIncome()).isEqualByComparingTo("106.09");
+  }
+
+  @Test
+  void compoundsSpendingAtTheEffectiveRateAndAppliesExpenseProfileLevelsOnce() {
+    var service =
+        new RetirementSimulationService(
+            new LongTermAnnualProjectionService(), new InvestmentAnnualProjectionService());
+    var assumptions =
+        SimulationAssumptions.defaults(profile(BigDecimal.ZERO, List.of()), 65, 67, 2026)
+            .withRecurringSpending(new BigDecimal("240000"))
+            .withInflationRate(new BigDecimal("0.025"))
+            .withSpendingGrowthSpread(new BigDecimal("0.015"))
+            .withExpenseProfile(
+                new ExpenseProfile(List.of(new ExpenseProfileStep(1, new BigDecimal("0.85")))));
+
+    var years =
+        service.simulate(profile(BigDecimal.ZERO, List.of()), assumptions, SimulationScenario.BASE).years();
+
+    assertThat(years.get(0).totalExpenses()).isEqualByComparingTo("240000");
+    assertThat(years.get(1).totalExpenses()).isEqualByComparingTo("212160");
+    assertThat(years.get(2).totalExpenses()).isEqualByComparingTo("220646.4");
   }
 
   @Test

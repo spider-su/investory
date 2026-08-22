@@ -123,8 +123,8 @@ public class RetirementSimulationController {
       @RequestParam(required = false) BigDecimal discretionaryExpensesCanonical,
       @RequestParam(defaultValue = "false") boolean discretionaryExpensesEdited,
       @RequestParam(required = false) BigDecimal inflation,
-      @RequestParam(required = false) BigDecimal rentalIncomeGrowth,
-      @RequestParam(required = false) BigDecimal spendingGrowth,
+      @RequestParam(required = false) BigDecimal rentalIncomeGrowthSpread,
+      @RequestParam(required = false) BigDecimal spendingGrowthSpread,
       @RequestParam(required = false) SimulationFundingStrategy fundingStrategy,
       @RequestParam(required = false) BigDecimal safeReserveYears,
       @RequestParam(required = false) BigDecimal equityHarvestMinimumReturn,
@@ -192,8 +192,8 @@ public class RetirementSimulationController {
                 submittedCurrency,
                 base.annualDiscretionaryExpenses()),
             base.futureEvents(),
-            percentInputToRate(rentalIncomeGrowth, base.rentalIncomeGrowthRate()),
-            percentInputToRate(spendingGrowth, base.spendingGrowthRate()),
+            percentInputToRate(rentalIncomeGrowthSpread, base.rentalIncomeGrowthSpread()),
+            percentInputToRate(spendingGrowthSpread, base.spendingGrowthSpread()),
             SimulationFundingStrategy.SIMPLE_WATERFALL,
             base.safeReserveYears(),
             base.equityHarvestMinimumReturnRate(),
@@ -234,8 +234,8 @@ public class RetirementSimulationController {
             + projectedAssumptions.endAge()
             + " · Retire at "
             + projectedAssumptions.retirementAge()
-            + " · Cost growth "
-            + PlanningPresentation.percentage(projectedAssumptions.spendingGrowthRate())
+            + " · Effective cost growth "
+            + PlanningPresentation.percentage(projectedAssumptions.effectiveSpendingGrowthRate())
             + " · "
             + PlanningPresentation.years(projectedAssumptions.safeReserveYears())
             + "-year reserve · "
@@ -424,8 +424,8 @@ public class RetirementSimulationController {
         integer(fields, "startYear", base.planStartYear()),
         money(fields, "discretionaryExpenses", displayCurrency, base.annualDiscretionaryExpenses()),
         base.futureEvents(),
-        percent(fields, "rentalIncomeGrowth", base.rentalIncomeGrowthRate()),
-        percent(fields, "spendingGrowth", base.spendingGrowthRate()),
+        percent(fields, "rentalIncomeGrowthSpread", base.rentalIncomeGrowthSpread()),
+        percent(fields, "spendingGrowthSpread", base.spendingGrowthSpread()),
         enumValue(
             fields, "fundingStrategy", SimulationFundingStrategy.class, base.fundingStrategy()),
         decimalOr(fields, "safeReserveYears", base.safeReserveYears()),
@@ -770,8 +770,8 @@ public class RetirementSimulationController {
       BigDecimal monthlyLivingCosts,
       BigDecimal discretionaryExpenses,
       BigDecimal inflation,
-      BigDecimal rentalIncomeGrowth,
-      BigDecimal spendingGrowth,
+      BigDecimal rentalIncomeGrowthSpread,
+      BigDecimal spendingGrowthSpread,
       SimulationFundingStrategy fundingStrategy,
       BigDecimal safeReserveYears,
       BigDecimal equityHarvestMinimumReturn,
@@ -804,8 +804,8 @@ public class RetirementSimulationController {
         monthlyLivingCosts,
         discretionaryExpenses,
         inflation,
-        rentalIncomeGrowth,
-        spendingGrowth,
+        rentalIncomeGrowthSpread,
+        spendingGrowthSpread,
         fundingStrategy,
         "CASH,BONDS,STOCKS",
         "",
@@ -836,8 +836,8 @@ public class RetirementSimulationController {
       BigDecimal annualExpenses,
       BigDecimal discretionaryExpenses,
       BigDecimal inflation,
-      BigDecimal rentalIncomeGrowth,
-      BigDecimal spendingGrowth,
+      BigDecimal rentalIncomeGrowthSpread,
+      BigDecimal spendingGrowthSpread,
       SimulationFundingStrategy fundingStrategy,
       BigDecimal safeReserveYears,
       BigDecimal equityHarvestMinimumReturn,
@@ -867,8 +867,8 @@ public class RetirementSimulationController {
         null,
         discretionaryExpenses,
         inflation,
-        rentalIncomeGrowth,
-        spendingGrowth,
+        rentalIncomeGrowthSpread,
+        spendingGrowthSpread,
         fundingStrategy,
         "CASH,BONDS,STOCKS",
         "",
@@ -906,8 +906,8 @@ public class RetirementSimulationController {
       @RequestParam(required = false) BigDecimal monthlyLivingCosts,
       @RequestParam(defaultValue = "0") BigDecimal discretionaryExpenses,
       @RequestParam BigDecimal inflation,
-      @RequestParam(defaultValue = "2") BigDecimal rentalIncomeGrowth,
-      @RequestParam(defaultValue = "2.5") BigDecimal spendingGrowth,
+      @RequestParam(defaultValue = "2") BigDecimal rentalIncomeGrowthSpread,
+      @RequestParam(defaultValue = "2.5") BigDecimal spendingGrowthSpread,
       @RequestParam(defaultValue = "SIMPLE_WATERFALL") SimulationFundingStrategy fundingStrategy,
       @RequestParam(defaultValue = "CASH,BONDS,STOCKS") String fundingOrder,
       @RequestParam(defaultValue = "") String expenseProfile,
@@ -972,9 +972,9 @@ public class RetirementSimulationController {
                     discretionaryExpenses, planningDisplayCurrency, BigDecimal.ZERO),
                 existingEvents,
                 percentInputToRate(
-                    rentalIncomeGrowth, SimulationAssumptions.DEFAULT_RENTAL_INCOME_GROWTH_RATE),
+                    rentalIncomeGrowthSpread, SimulationAssumptions.DEFAULT_RENTAL_INCOME_GROWTH_SPREAD),
                 percentInputToRate(
-                    spendingGrowth, SimulationAssumptions.DEFAULT_SPENDING_GROWTH_RATE),
+                    spendingGrowthSpread, SimulationAssumptions.DEFAULT_SPENDING_GROWTH_SPREAD),
                 SimulationFundingStrategy.SIMPLE_WATERFALL,
                 storedAssumptions == null
                     ? SimulationAssumptions.DEFAULT_SAFE_RESERVE_YEARS

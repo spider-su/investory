@@ -28,6 +28,13 @@ class RetirementSimulationOrchestratorTest {
     assertThat(year.annualSurplus()).isEqualByComparingTo("1340");
     assertThat(year.employmentIncome()).isEqualByComparingTo("500");
     assertThat(year.pensionIncome()).isEqualByComparingTo("200");
+    assertThat(year.incomeGap()).isEqualByComparingTo(
+        year.expenses().add(year.eventExpenses())
+            .subtract(year.employmentIncome())
+            .subtract(year.monthlyNetRentalIncome().multiply(bd("12")))
+            .subtract(year.netBondIncome())
+            .subtract(year.pensionIncome())
+            .subtract(year.eventIncome()));
   }
 
   @Test
@@ -49,6 +56,9 @@ class RetirementSimulationOrchestratorTest {
     assertThat(year.reserveWithdrawal()).isEqualByComparingTo("60");
     assertThat(year.investmentWithdrawal()).isZero();
     assertThat(year.unfundedShortfall()).isEqualByComparingTo("40");
+    assertThat(year.reserveEnd()).isEqualByComparingTo("0");
+    assertThat(year.reserveEnd()).isEqualByComparingTo(
+        bd("60").subtract(year.reserveWithdrawal()));
   }
 
   @Test
@@ -80,6 +90,11 @@ class RetirementSimulationOrchestratorTest {
     assertThat(result.incomeGap()).isEqualByComparingTo("100");
     assertThat(investment.annualReturnAmount()).isEqualByComparingTo("100");
     assertThat(investment.endValue()).isEqualByComparingTo("1000");
+    assertThat(investment.endValue()).isEqualByComparingTo(
+        investment.startValue()
+            .add(investment.externalContribution())
+            .add(investment.annualReturnAmount())
+            .subtract(investment.withdrawal()));
     assertThat(investment.source()).isEqualTo(InvestmentAnnualProjectionApi.Source.ACTUAL);
   }
 

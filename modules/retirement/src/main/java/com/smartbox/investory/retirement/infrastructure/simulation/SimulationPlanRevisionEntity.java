@@ -58,10 +58,10 @@ public class SimulationPlanRevisionEntity {
   private BigDecimal inflationRate;
 
   @Column(name = "rental_income_growth_rate", nullable = false, precision = 20, scale = 12)
-  private BigDecimal rentalIncomeGrowthRate;
+  private BigDecimal rentalIncomeGrowthSpread;
 
   @Column(name = "spending_growth_rate", nullable = false, precision = 20, scale = 12)
-  private BigDecimal spendingGrowthRate;
+  private BigDecimal spendingGrowthSpread;
 
   @Enumerated(EnumType.STRING)
   @Column(name = "funding_strategy", length = 32)

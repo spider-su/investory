@@ -22,7 +22,8 @@ public record RetirementSimulationInput(
     BigDecimal investmentReturnRate,
     List<LongTermYearInput> longTermYears,
     List<SimulationEvent> events,
-    InvestmentAnnualProjectionApi.Source investmentSource) {
+    InvestmentAnnualProjectionApi.Source investmentSource,
+    ExpenseProfile expenseProfile) {
   public RetirementSimulationInput(
       int currentAge, int endAge, int startYear, int retirementAge, BigDecimal annualExpenses,
       BigDecimal spendingGrowthRate, BigDecimal annualPension, int pensionStartAge,
@@ -31,7 +32,8 @@ public record RetirementSimulationInput(
       List<SimulationEvent> events, InvestmentAnnualProjectionApi.Source investmentSource) {
     this(currentAge, endAge, startYear, retirementAge, annualExpenses, spendingGrowthRate,
         annualPension, pensionStartAge, annualEmploymentIncome, BigDecimal.ZERO, initialReserve,
-        initialInvestmentValue, investmentReturnRate, longTermYears, events, investmentSource);
+        initialInvestmentValue, investmentReturnRate, longTermYears, events, investmentSource,
+        ExpenseProfile.EMPTY);
   }
 
   public RetirementSimulationInput {
@@ -48,6 +50,7 @@ public record RetirementSimulationInput(
     longTermYears = longTermYears == null ? List.of() : List.copyOf(longTermYears);
     events = events == null ? List.of() : List.copyOf(events);
     investmentSource = investmentSource == null ? InvestmentAnnualProjectionApi.Source.PROJECTED : investmentSource;
+    expenseProfile = expenseProfile == null ? ExpenseProfile.EMPTY : expenseProfile;
   }
 
   public record LongTermYearInput(

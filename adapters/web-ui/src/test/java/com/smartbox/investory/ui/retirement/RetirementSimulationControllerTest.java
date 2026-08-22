@@ -325,8 +325,8 @@ class RetirementSimulationControllerTest {
         CurrencyType.USD);
     verify(plans).createId(eq(1L), eq("Plan"), captured.capture());
     assertEquals(new BigDecimal("0.01"), captured.getValue().realEstateReturnRate());
-    assertEquals(new BigDecimal("0.02"), captured.getValue().rentalIncomeGrowthRate());
-    assertEquals(new BigDecimal("0.025"), captured.getValue().spendingGrowthRate());
+    assertEquals(new BigDecimal("0.02"), captured.getValue().rentalIncomeGrowthSpread());
+    assertEquals(new BigDecimal("0.025"), captured.getValue().spendingGrowthSpread());
     assertEquals(
         SimulationFundingStrategy.SIMPLE_WATERFALL, captured.getValue().fundingStrategy());
     assertEquals(new BigDecimal("0.07"), captured.getValue().equityHarvestMinimumReturnRate());
@@ -398,8 +398,8 @@ class RetirementSimulationControllerTest {
         CurrencyType.USD);
     verify(plans).updateId(eq(1L), eq(9L), eq("Plan"), captured.capture());
     assertEquals(new BigDecimal("0.01"), captured.getValue().realEstateReturnRate());
-    assertEquals(new BigDecimal("0.02"), captured.getValue().rentalIncomeGrowthRate());
-    assertEquals(new BigDecimal("0.025"), captured.getValue().spendingGrowthRate());
+    assertEquals(new BigDecimal("0.02"), captured.getValue().rentalIncomeGrowthSpread());
+    assertEquals(new BigDecimal("0.025"), captured.getValue().spendingGrowthSpread());
     assertEquals(new BigDecimal("0.19"), captured.getValue().capitalGainTaxRate());
   }
 

@@ -86,6 +86,11 @@ public final class UiPresentation {
         + "%";
   }
 
+  public static String signedPercentage(BigDecimal ratio) {
+    BigDecimal value = ratio == null ? BigDecimal.ZERO : ratio;
+    return (value.signum() > 0 ? "+" : "") + percentage(value);
+  }
+
   public static String rate(BigDecimal ratio) {
     return percentage(ratio);
   }

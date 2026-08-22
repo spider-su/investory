@@ -29,8 +29,8 @@ public record SimulationAssumptions(
     int startYear,
     BigDecimal annualDiscretionaryExpenses,
     List<SimulationEvent> futureEvents,
-    BigDecimal rentalIncomeGrowthRate,
-    BigDecimal spendingGrowthRate,
+    BigDecimal rentalIncomeGrowthSpread,
+    BigDecimal spendingGrowthSpread,
     @Deprecated SimulationFundingStrategy fundingStrategy,
     BigDecimal safeReserveYears,
     @Deprecated BigDecimal equityHarvestMinimumReturnRate,
@@ -41,8 +41,8 @@ public record SimulationAssumptions(
     BigDecimal annualPreRetirementContribution,
     @Deprecated List<FundingSource> fundingOrder,
     ExpenseProfile expenseProfile) {
-  public static final BigDecimal DEFAULT_RENTAL_INCOME_GROWTH_RATE = new BigDecimal("0.020");
-  public static final BigDecimal DEFAULT_SPENDING_GROWTH_RATE = new BigDecimal("0.025");
+  public static final BigDecimal DEFAULT_RENTAL_INCOME_GROWTH_SPREAD = new BigDecimal("0.020");
+  public static final BigDecimal DEFAULT_SPENDING_GROWTH_SPREAD = new BigDecimal("0.025");
   public static final BigDecimal DEFAULT_SAFE_RESERVE_YEARS = new BigDecimal("5");
   public static final BigDecimal DEFAULT_EQUITY_HARVEST_MINIMUM_RETURN_RATE =
       new BigDecimal("0.07");
@@ -67,8 +67,8 @@ public record SimulationAssumptions(
       int startYear,
       BigDecimal annualDiscretionaryExpenses,
       List<SimulationEvent> futureEvents,
-      BigDecimal rentalIncomeGrowthRate,
-      BigDecimal spendingGrowthRate,
+      BigDecimal rentalIncomeGrowthSpread,
+      BigDecimal spendingGrowthSpread,
       SimulationFundingStrategy fundingStrategy,
       BigDecimal safeReserveYears,
       BigDecimal equityHarvestMinimumReturnRate,
@@ -93,8 +93,8 @@ public record SimulationAssumptions(
         startYear,
         annualDiscretionaryExpenses,
         futureEvents,
-        rentalIncomeGrowthRate,
-        spendingGrowthRate,
+        rentalIncomeGrowthSpread,
+        spendingGrowthSpread,
         fundingStrategy,
         safeReserveYears,
         equityHarvestMinimumReturnRate,
@@ -124,8 +124,8 @@ public record SimulationAssumptions(
       int startYear,
       BigDecimal annualDiscretionaryExpenses,
       List<SimulationEvent> futureEvents,
-      BigDecimal rentalIncomeGrowthRate,
-      BigDecimal spendingGrowthRate,
+      BigDecimal rentalIncomeGrowthSpread,
+      BigDecimal spendingGrowthSpread,
       SimulationFundingStrategy fundingStrategy,
       BigDecimal safeReserveYears,
       BigDecimal equityHarvestMinimumReturnRate,
@@ -147,8 +147,8 @@ public record SimulationAssumptions(
         startYear,
         annualDiscretionaryExpenses,
         futureEvents,
-        rentalIncomeGrowthRate,
-        spendingGrowthRate,
+        rentalIncomeGrowthSpread,
+        spendingGrowthSpread,
         fundingStrategy,
         safeReserveYears,
         equityHarvestMinimumReturnRate,
@@ -252,14 +252,11 @@ public record SimulationAssumptions(
         startYear,
         annualDiscretionaryExpenses,
         futureEvents,
-        DEFAULT_RENTAL_INCOME_GROWTH_RATE,
-        inflationRate);
+        DEFAULT_RENTAL_INCOME_GROWTH_SPREAD,
+        DEFAULT_SPENDING_GROWTH_SPREAD);
   }
 
-  /**
-   * Compatibility constructor. The supplied inflation is copied once as the spending-growth
-   * default.
-   */
+  /** Compatibility constructor using the configured spread defaults. */
   public SimulationAssumptions(
       int currentAge,
       int endAge,
@@ -276,7 +273,7 @@ public record SimulationAssumptions(
       int startYear,
       BigDecimal annualDiscretionaryExpenses,
       List<SimulationEvent> futureEvents,
-      BigDecimal rentalIncomeGrowthRate) {
+      BigDecimal rentalIncomeGrowthSpread) {
     this(
         currentAge,
         endAge,
@@ -293,8 +290,8 @@ public record SimulationAssumptions(
         startYear,
         annualDiscretionaryExpenses,
         futureEvents,
-        rentalIncomeGrowthRate,
-        inflationRate);
+        rentalIncomeGrowthSpread,
+        DEFAULT_SPENDING_GROWTH_SPREAD);
   }
 
   /** Compatibility constructor. Existing callers keep the historic simple waterfall policy. */
@@ -314,8 +311,8 @@ public record SimulationAssumptions(
       int startYear,
       BigDecimal annualDiscretionaryExpenses,
       List<SimulationEvent> futureEvents,
-      BigDecimal rentalIncomeGrowthRate,
-      BigDecimal spendingGrowthRate) {
+      BigDecimal rentalIncomeGrowthSpread,
+      BigDecimal spendingGrowthSpread) {
     this(
         currentAge,
         endAge,
@@ -332,8 +329,8 @@ public record SimulationAssumptions(
         startYear,
         annualDiscretionaryExpenses,
         futureEvents,
-        rentalIncomeGrowthRate,
-        spendingGrowthRate,
+        rentalIncomeGrowthSpread,
+        spendingGrowthSpread,
         SimulationFundingStrategy.SIMPLE_WATERFALL,
         BigDecimal.ZERO,
         BigDecimal.ZERO,
@@ -350,8 +347,6 @@ public record SimulationAssumptions(
     for (BigDecimal rate :
         new BigDecimal[] {
           inflationRate,
-          rentalIncomeGrowthRate,
-          spendingGrowthRate,
           cashReturnRate,
           fixedIncomeReturnRate,
           equityReturnRate,
@@ -362,6 +357,15 @@ public record SimulationAssumptions(
         })
       if (rate == null || rate.compareTo(BigDecimal.ONE.negate()) < 0)
         throw new IllegalArgumentException("Invalid simulation rate");
+    if (rentalIncomeGrowthSpread == null
+        || spendingGrowthSpread == null
+        || SimulationScenarioSettings.effectiveGrowthRate(inflationRate, rentalIncomeGrowthSpread)
+                .compareTo(BigDecimal.ONE.negate())
+            < 0
+        || SimulationScenarioSettings.effectiveGrowthRate(inflationRate, spendingGrowthSpread)
+                .compareTo(BigDecimal.ONE.negate())
+            < 0)
+      throw new IllegalArgumentException("Invalid effective growth rate");
     if (fundingStrategy == null
         || safeReserveYears == null
         || safeReserveYears.signum() < 0
@@ -399,6 +403,17 @@ public record SimulationAssumptions(
     return startYear;
   }
 
+  /** Nominal rental growth: economy-wide inflation plus the persisted rental spread. */
+  public BigDecimal effectiveRentalIncomeGrowthRate() {
+    return SimulationScenarioSettings.effectiveGrowthRate(
+        inflationRate, rentalIncomeGrowthSpread);
+  }
+
+  /** Nominal spending growth: economy-wide inflation plus the persisted spending spread. */
+  public BigDecimal effectiveSpendingGrowthRate() {
+    return SimulationScenarioSettings.effectiveGrowthRate(inflationRate, spendingGrowthSpread);
+  }
+
   public static SimulationAssumptions defaults(
       InvestmentProfile profile, int currentAge, int endAge) {
     return defaults(profile, currentAge, endAge, Year.now(Clock.systemDefaultZone()).getValue());
@@ -422,8 +437,8 @@ public record SimulationAssumptions(
         startYear,
         BigDecimal.ZERO,
         List.of(),
-        DEFAULT_RENTAL_INCOME_GROWTH_RATE,
-        DEFAULT_SPENDING_GROWTH_RATE,
+        DEFAULT_RENTAL_INCOME_GROWTH_SPREAD,
+        DEFAULT_SPENDING_GROWTH_SPREAD,
         SimulationFundingStrategy.RESERVE_AND_HARVEST,
         DEFAULT_SAFE_RESERVE_YEARS,
         DEFAULT_EQUITY_HARVEST_MINIMUM_RETURN_RATE,
@@ -466,8 +481,8 @@ public record SimulationAssumptions(
         startYear,
         recurringSpending.subtract(living),
         futureEvents,
-        rentalIncomeGrowthRate,
-        spendingGrowthRate,
+        rentalIncomeGrowthSpread,
+        spendingGrowthSpread,
         fundingStrategy,
         safeReserveYears,
         equityHarvestMinimumReturnRate,
@@ -480,10 +495,10 @@ public record SimulationAssumptions(
         expenseProfile);
   }
 
-  public SimulationAssumptions withSpendingGrowthRate(BigDecimal value) {
+  public SimulationAssumptions withSpendingGrowthSpread(BigDecimal value) {
     return copy(
         value,
-        rentalIncomeGrowthRate,
+        rentalIncomeGrowthSpread,
         equityReturnRate,
         fixedIncomeReturnRate,
         realEstateReturnRate,
@@ -491,9 +506,40 @@ public record SimulationAssumptions(
         annualPension);
   }
 
-  public SimulationAssumptions withRentalIncomeGrowthRate(BigDecimal value) {
+  public SimulationAssumptions withInflationRate(BigDecimal value) {
+    return new SimulationAssumptions(
+        currentAge,
+        endAge,
+        annualLivingExpenses,
+        value,
+        cashReturnRate,
+        fixedIncomeReturnRate,
+        equityReturnRate,
+        realEstateReturnRate,
+        otherReturnRate,
+        pensionStartAge,
+        annualPension,
+        capitalGainTaxRate,
+        startYear,
+        annualDiscretionaryExpenses,
+        futureEvents,
+        rentalIncomeGrowthSpread,
+        spendingGrowthSpread,
+        fundingStrategy,
+        safeReserveYears,
+        equityHarvestMinimumReturnRate,
+        equityGainHarvestRate,
+        allowEmergencyEquityWithdrawal,
+        retirementAge,
+        annualEmploymentIncome,
+        annualPreRetirementContribution,
+        fundingOrder,
+        expenseProfile);
+  }
+
+  public SimulationAssumptions withRentalIncomeGrowthSpread(BigDecimal value) {
     return copy(
-        spendingGrowthRate,
+        spendingGrowthSpread,
         value,
         equityReturnRate,
         fixedIncomeReturnRate,
@@ -504,8 +550,8 @@ public record SimulationAssumptions(
 
   public SimulationAssumptions withEquityReturnRate(BigDecimal value) {
     return copy(
-        spendingGrowthRate,
-        rentalIncomeGrowthRate,
+        spendingGrowthSpread,
+        rentalIncomeGrowthSpread,
         value,
         fixedIncomeReturnRate,
         realEstateReturnRate,
@@ -515,8 +561,8 @@ public record SimulationAssumptions(
 
   public SimulationAssumptions withFixedIncomeReturnRate(BigDecimal value) {
     return copy(
-        spendingGrowthRate,
-        rentalIncomeGrowthRate,
+        spendingGrowthSpread,
+        rentalIncomeGrowthSpread,
         equityReturnRate,
         value,
         realEstateReturnRate,
@@ -526,8 +572,8 @@ public record SimulationAssumptions(
 
   public SimulationAssumptions withRealEstateReturnRate(BigDecimal value) {
     return copy(
-        spendingGrowthRate,
-        rentalIncomeGrowthRate,
+        spendingGrowthSpread,
+        rentalIncomeGrowthSpread,
         equityReturnRate,
         fixedIncomeReturnRate,
         value,
@@ -537,8 +583,8 @@ public record SimulationAssumptions(
 
   public SimulationAssumptions withSafeReserveYears(BigDecimal value) {
     return copy(
-        spendingGrowthRate,
-        rentalIncomeGrowthRate,
+        spendingGrowthSpread,
+        rentalIncomeGrowthSpread,
         equityReturnRate,
         fixedIncomeReturnRate,
         realEstateReturnRate,
@@ -548,8 +594,8 @@ public record SimulationAssumptions(
 
   public SimulationAssumptions withAnnualPension(BigDecimal value) {
     return copy(
-        spendingGrowthRate,
-        rentalIncomeGrowthRate,
+        spendingGrowthSpread,
+        rentalIncomeGrowthSpread,
         equityReturnRate,
         fixedIncomeReturnRate,
         realEstateReturnRate,
@@ -588,8 +634,8 @@ public record SimulationAssumptions(
         rebasedStartYear,
         annualDiscretionaryExpenses,
         remainingEvents,
-        rentalIncomeGrowthRate,
-        spendingGrowthRate,
+        rentalIncomeGrowthSpread,
+        spendingGrowthSpread,
         fundingStrategy,
         safeReserveYears,
         equityHarvestMinimumReturnRate,
@@ -619,8 +665,8 @@ public record SimulationAssumptions(
         startYear,
         annualDiscretionaryExpenses,
         futureEvents,
-        rentalIncomeGrowthRate,
-        spendingGrowthRate,
+        rentalIncomeGrowthSpread,
+        spendingGrowthSpread,
         value,
         safeReserveYears,
         equityHarvestMinimumReturnRate,
@@ -650,8 +696,8 @@ public record SimulationAssumptions(
         startYear,
         annualDiscretionaryExpenses,
         futureEvents,
-        rentalIncomeGrowthRate,
-        spendingGrowthRate,
+        rentalIncomeGrowthSpread,
+        spendingGrowthSpread,
         fundingStrategy,
         safeReserveYears,
         equityHarvestMinimumReturnRate,
@@ -681,8 +727,8 @@ public record SimulationAssumptions(
         startYear,
         annualDiscretionaryExpenses,
         futureEvents,
-        rentalIncomeGrowthRate,
-        spendingGrowthRate,
+        rentalIncomeGrowthSpread,
+        spendingGrowthSpread,
         fundingStrategy,
         safeReserveYears,
         equityHarvestMinimumReturnRate,
@@ -751,8 +797,8 @@ public record SimulationAssumptions(
         startYear,
         annualDiscretionaryExpenses,
         futureEvents,
-        rentalIncomeGrowthRate,
-        spendingGrowthRate,
+        rentalIncomeGrowthSpread,
+        spendingGrowthSpread,
         fundingStrategy,
         safeReserveYears,
         equityHarvestMinimumReturnRate,

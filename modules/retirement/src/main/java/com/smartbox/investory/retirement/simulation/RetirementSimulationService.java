@@ -47,18 +47,19 @@ public class RetirementSimulationService implements RetirementSimulation {
         assumptions.currentAge(), assumptions.endAge(), assumptions.startYear(),
         assumptions.retirementAge(),
         assumptions.annualLivingExpenses().add(assumptions.annualDiscretionaryExpenses()),
-        settings.spendingGrowthRate(), assumptions.annualPension(), assumptions.pensionStartAge(),
+        settings.effectiveSpendingGrowthRate(), assumptions.annualPension(), assumptions.pensionStartAge(),
         assumptions.annualEmploymentIncome(), assumptions.annualPreRetirementContribution(),
         reserve, investmentStart, settings.equityReturnRate(),
         longTermInputs(
             annualRentalIncome,
             projectedBonds,
-            settings.rentalIncomeGrowthRate(),
+            settings.effectiveRentalIncomeGrowthRate(),
             assumptions.startYear(),
             assumptions.ageAtPlanStart(),
             assumptions.endAge(),
             actualRentalYear),
-        assumptions.futureEvents(), InvestmentAnnualProjectionApi.Source.PROJECTED);
+        assumptions.futureEvents(), InvestmentAnnualProjectionApi.Source.PROJECTED,
+        assumptions.expenseProfile());
     var result = new RetirementSimulationOrchestrator(longTerm, investments).run(input);
     return map(result, scenario, assumptions, reserve, investmentStart);
   }
@@ -117,7 +118,7 @@ public class RetirementSimulationService implements RetirementSimulation {
   private static List<RetirementSimulationInput.LongTermYearInput> longTermInputs(
       BigDecimal annualRentalIncome,
       List<LongTermAnnualProjectionApi.Bond> bonds,
-      BigDecimal rentalIncomeGrowthRate,
+      BigDecimal effectiveRentalIncomeGrowthRate,
       int startYear,
       int ageAtPlanStart,
       int endAge,
@@ -136,7 +137,7 @@ public class RetirementSimulationService implements RetirementSimulation {
                           annualRentalIncome.divide(BigDecimal.valueOf(12), 12, RoundingMode.HALF_UP),
                           source,
                           startYear,
-                          rentalIncomeGrowthRate));
+                          effectiveRentalIncomeGrowthRate));
               return new RetirementSimulationInput.LongTermYearInput(year, bonds, rental);
             })
         .toList();

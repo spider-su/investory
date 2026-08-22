@@ -355,12 +355,12 @@ public class SimulationPlanService {
             plan.getStartYear(),
             plan.getAnnualDiscretionaryExpenses(),
             eventList,
-            plan.getRentalIncomeGrowthRate() == null
-                ? SimulationAssumptions.DEFAULT_RENTAL_INCOME_GROWTH_RATE
-                : plan.getRentalIncomeGrowthRate(),
-            plan.getSpendingGrowthRate() == null
-                ? plan.getInflationRate()
-                : plan.getSpendingGrowthRate(),
+            plan.getRentalIncomeGrowthSpread() == null
+                ? SimulationAssumptions.DEFAULT_RENTAL_INCOME_GROWTH_SPREAD
+                : plan.getRentalIncomeGrowthSpread(),
+            plan.getSpendingGrowthSpread() == null
+                ? SimulationAssumptions.DEFAULT_SPENDING_GROWTH_SPREAD
+                : plan.getSpendingGrowthSpread(),
             plan.getFundingStrategy() == null
                 ? SimulationFundingStrategy.SIMPLE_WATERFALL
                 : plan.getFundingStrategy(),
@@ -404,8 +404,8 @@ public class SimulationPlanService {
             revision.getStartYear(),
             revision.getAnnualDiscretionaryExpenses(),
             eventList,
-            revision.getRentalIncomeGrowthRate(),
-            revision.getSpendingGrowthRate(),
+            revision.getRentalIncomeGrowthSpread(),
+            revision.getSpendingGrowthSpread(),
             revision.getFundingStrategy(),
             revision.getSafeReserveYears(),
             revision.getEquityHarvestMinimumReturnRate(),
@@ -429,8 +429,8 @@ public class SimulationPlanService {
     target.setAnnualLivingExpenses(a.annualLivingExpenses());
     target.setAnnualDiscretionaryExpenses(a.annualDiscretionaryExpenses());
     target.setInflationRate(a.inflationRate());
-    target.setRentalIncomeGrowthRate(a.rentalIncomeGrowthRate());
-    target.setSpendingGrowthRate(a.spendingGrowthRate());
+    target.setRentalIncomeGrowthSpread(a.rentalIncomeGrowthSpread());
+    target.setSpendingGrowthSpread(a.spendingGrowthSpread());
     target.setFundingStrategy(a.fundingStrategy());
     target.setFundingOrder(serializeFundingOrder(a.fundingOrder()));
     target.setExpenseProfile(serializeExpenseProfile(a.expenseProfile()));
@@ -461,8 +461,8 @@ public class SimulationPlanService {
     p.setAnnualLivingExpenses(a.annualLivingExpenses());
     p.setAnnualDiscretionaryExpenses(a.annualDiscretionaryExpenses());
     p.setInflationRate(a.inflationRate());
-    p.setRentalIncomeGrowthRate(a.rentalIncomeGrowthRate());
-    p.setSpendingGrowthRate(a.spendingGrowthRate());
+    p.setRentalIncomeGrowthSpread(a.rentalIncomeGrowthSpread());
+    p.setSpendingGrowthSpread(a.spendingGrowthSpread());
     p.setFundingStrategy(a.fundingStrategy());
     p.setFundingOrder(serializeFundingOrder(a.fundingOrder()));
     p.setExpenseProfile(serializeExpenseProfile(a.expenseProfile()));

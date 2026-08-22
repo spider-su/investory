@@ -755,7 +755,8 @@ public class PlanningCurrencyPresentationService {
   private static BigDecimal annualCostsFor(
       SimulationAssumptions assumptions, int year, BigDecimal eventExpenses) {
     int elapsedYears = Math.max(0, year - assumptions.startYear());
-    BigDecimal growth = BigDecimal.ONE.add(assumptions.spendingGrowthRate()).pow(elapsedYears);
+    BigDecimal growth =
+        BigDecimal.ONE.add(assumptions.effectiveSpendingGrowthRate()).pow(elapsedYears);
     return assumptions
         .annualLivingExpenses()
         .add(assumptions.annualDiscretionaryExpenses())

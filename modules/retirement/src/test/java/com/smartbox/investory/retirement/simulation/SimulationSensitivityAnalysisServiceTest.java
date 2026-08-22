@@ -271,8 +271,8 @@ class SimulationSensitivityAnalysisServiceTest {
                       > 0;
               boolean growthAdverse =
                   assumptions
-                          .spendingGrowthRate()
-                          .compareTo(baselineAssumptions.spendingGrowthRate())
+                          .spendingGrowthSpread()
+                          .compareTo(baselineAssumptions.spendingGrowthSpread())
                       > 0;
               boolean equityAdverse =
                   assumptions.equityReturnRate().compareTo(baselineAssumptions.equityReturnRate())
