@@ -18,8 +18,6 @@
   const options = {responsive: true, interaction: {mode: "index", intersect: false}, plugins: {legend: {position: "top"}, tooltip: {callbacks: {label: c => `${c.dataset.label}: ${money(c.parsed.y)}`}}}, scales: {x: {ticks: {maxTicksLimit: 8}}, y: {beginAtZero: true, ticks: {callback: value => money(value)}}}};
   const portfolio = document.getElementById("analysis-portfolio");
   if (portfolio) new Chart(portfolio, {type: "line", data: {labels, datasets: lineDatasets("liquidAssets")}, options});
-  const portfolioDetail = document.getElementById("analysis-portfolio-detail");
-  if (portfolioDetail) new Chart(portfolioDetail, {type: "line", data: {labels, datasets: lineDatasets("liquidAssets")}, options});
   const funding = (charts.funding || {})[selected] || [];
   const cashFlow = document.getElementById("analysis-cash-flow");
   if (cashFlow) new Chart(cashFlow, {type: "line", data: {labels: funding.map(point => point.year), datasets: [
@@ -35,7 +33,11 @@
     {label: "Target reserve coverage", data: reserves.map(point => point.safeReserveTargetCoverageYears), borderColor: "#ffd43b", borderDash: [5, 4], pointRadius: 0}
   ]}, options: {...options, scales: {...options.scales, y: {...options.scales.y, ticks: {callback: value => `${value} years`}}}}});
   document.querySelectorAll("[data-analysis-tab]").forEach(tab => tab.addEventListener("click", () => {
-    document.querySelectorAll("[data-analysis-tab]").forEach(item => item.classList.toggle("active", item === tab));
+    document.querySelectorAll("[data-analysis-tab]").forEach(item => {
+      const active = item === tab;
+      item.classList.toggle("active", active);
+      item.setAttribute("aria-selected", active ? "true" : "false");
+    });
     document.querySelectorAll("[data-analysis-panel]").forEach(panel => panel.hidden = panel.dataset.analysisPanel !== tab.dataset.analysisTab);
   }));
 })();

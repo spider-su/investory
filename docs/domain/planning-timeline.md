@@ -224,6 +224,16 @@ Accounting facts -> InvestmentProfile -> Planning / Simulation
 Planning is downstream. It reads accounting and long-term assets but does not create transactions,
 rebalance portfolios, or persist simulated transfers as real activity.
 
+## Retirement boards and projection boundary
+
+Simulation owns plan configuration, starting position, the selected scenario outcome, and the raw
+yearly planning timeline. Analysis owns interpretation: cross-scenario comparison, charts,
+sensitivity, spending flexibility, and retirement-age flexibility.
+
+Both boards consume one `RetirementProjectionContext` prepared by `RetirementProjectionFacade`.
+That boundary preserves the forward-input and current-year bridge semantics. Analysis derives its
+baseline data from this completed context; it must not create a separate base projection pipeline.
+
 ## Plan provenance and revisions
 
 A saved retirement plan has a stable logical identity and an immutable linear revision history. A

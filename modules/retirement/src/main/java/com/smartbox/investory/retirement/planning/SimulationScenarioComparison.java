@@ -15,7 +15,9 @@ public record SimulationScenarioComparison(
       Map<SimulationScenario, SimulationDecisionSummary> summaries,
       Map<SimulationScenario, SimulationDecisionSummaryMoney> displaySummaries,
       SimulationScenario selectedScenario) {
-    Map<SimulationScenario, SimulationDecisionSummary> available = new EnumMap<>(summaries);
+    Map<SimulationScenario, SimulationDecisionSummary> available =
+        new EnumMap<>(SimulationScenario.class);
+    available.putAll(summaries);
     if (available.isEmpty()) {
       return new SimulationScenarioComparison(List.of(), "No scenario results available.", null);
     }

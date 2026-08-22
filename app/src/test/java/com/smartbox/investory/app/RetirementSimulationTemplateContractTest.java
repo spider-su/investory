@@ -9,17 +9,20 @@ import org.junit.jupiter.api.Test;
 
 class RetirementSimulationTemplateContractTest {
   @Test
-  void planProgressIsCompactAndPlacedBeforeFlexibilityAndRisks() throws Exception {
+  void simulationOwnsRawProjectionAndNotAnalysisSections() throws Exception {
     String html =
         Files.readString(
             Path.of("../adapters/web-ui/src/main/resources/templates/simulation.html"));
 
-    assertTrue(html.contains("planProgressView"));
-    assertTrue(html.contains("Not available yet"));
-    assertTrue(html.contains("Latest boundary"));
-    assertTrue(html.indexOf("Scenario comparison") < html.indexOf("Plan progress"));
-    assertTrue(html.indexOf("Plan progress") < html.indexOf("Planning flexibility"));
-    assertTrue(html.indexOf("Planning flexibility") < html.indexOf("Plan risks"));
+    assertTrue(html.contains("Scenario"));
+    assertTrue(html.contains("Retirement outcome"));
+    assertTrue(html.contains("Plan inputs"));
+    assertTrue(html.contains("Planning horizon"));
+    assertTrue(html.contains("Yearly projection"));
+    assertTrue(html.contains("simulationPage"));
+    assertFalse(html.contains("Scenario comparison"));
+    assertFalse(html.contains("Planning flexibility"));
+    assertFalse(html.contains("Plan risks"));
   }
 
   @Test
@@ -62,14 +65,6 @@ class RetirementSimulationTemplateContractTest {
     assertTrue(editor.contains("name=\"spendingGrowth\""));
     assertTrue(editor.contains("Funding order"));
     assertFalse(editor.contains("name=\"fundingStrategy\""));
-    assertTrue(editor.contains("Safe-reserve target"));
-    assertTrue(editor.contains("recurring portfolio funding need"));
-    assertTrue(editor.contains("Target reserve amount"));
-    assertTrue(editor.contains("Recurring portfolio need"));
-    assertTrue(editor.contains("Market fixed income"));
-    assertTrue(editor.contains("firstProjectedYear.fixedIncomeStart"));
-    assertTrue(editor.contains("firstProjectedYear.fixedIncomeEnd"));
-    assertFalse(editor.contains("Bonds / fixed income"));
     assertTrue(editor.contains("developMode"));
     assertTrue(editor.contains("Development preview"));
     assertTrue(editor.contains("/simulation/plans/preview"));
@@ -79,7 +74,6 @@ class RetirementSimulationTemplateContractTest {
     assertFalse(editor.contains("temporary rental"));
     assertTrue(editor.contains("setTimeout"));
     assertTrue(editor.contains("AbortController"));
-    assertTrue(editor.contains("name=\"equityGainHarvest\""));
     assertTrue(
         editor.contains(
             "name=\"spendingGrowth\" type=\"number\" step=\"0.1\" min=\"1\" max=\"99\""));
@@ -94,20 +88,11 @@ class RetirementSimulationTemplateContractTest {
     assertTrue(editor.contains("money(displayEventAmounts[event.id])"));
     assertTrue(editor.contains("displayEventAmounts"));
     assertFalse(editor.contains("/simulation/plans/save-as"));
-    assertTrue(html.contains("Plan vs reality"));
-    assertTrue(html.contains("Scenario comparison"));
-    assertTrue(html.contains("Extra capacity"));
-    assertTrue(html.contains("Over limit"));
-    assertFalse(html.contains(">Headroom<"));
     assertTrue(html.contains("Portfolio withdrawal"));
-    assertTrue(html.contains("scenarioComparison.interpretation"));
     assertTrue(html.contains("Minimum reserve coverage"));
-    assertTrue(html.contains("Create 2025 snapshot"));
-    assertTrue(html.contains("Update current-year values"));
-    assertTrue(html.contains("Set baseline"));
-    assertTrue(html.contains("displayProfile.marketPortfolioValueWholeDisplay"));
-    assertTrue(html.contains("displayProfile.expectedLongTermAssetIncomeWholeDisplay"));
-    assertTrue(html.contains("scenarioComparison"));
+    assertTrue(html.contains("simulationPage.startingPosition.marketPortfolioValueWholeDisplay"));
+    assertTrue(html.contains("simulationPage.startingPosition.expectedLongTermAssetIncomeWholeDisplay"));
+    assertFalse(html.contains("scenarioComparison"));
     assertFalse(html.contains("displaySummaries"));
     assertFalse(html.contains("displayYears"));
     assertFalse(html.contains("profile.currency"));

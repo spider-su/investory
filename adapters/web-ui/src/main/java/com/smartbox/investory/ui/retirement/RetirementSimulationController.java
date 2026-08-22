@@ -25,14 +25,10 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 @Controller
 public class RetirementSimulationController {
   private final InvestmentProfileFacade profiles;
-  private final RetirementSimulation simulations;
   private final SimulationPlanService plans;
-  private final SustainableSpendingAnalysisService sustainableSpending;
-  private final SimulationSensitivityAnalysisService sensitivity;
-  private final RetirementAgeAnalysisService retirementAgeAnalysis;
   private final PlanningTimelineFacade planningTimeline;
   private final PlanningCurrencyPresentationService planningPresentation;
-  private final ForwardSimulationInputService forwardInputs;
+  private final RetirementProjectionFacade projections;
   private final AnnualPlanningRolloverService rollover;
   private final PlanningReconciliationService reconciliation;
   private final Clock clock;
@@ -46,26 +42,18 @@ public class RetirementSimulationController {
   @Autowired
   public RetirementSimulationController(
       InvestmentProfileFacade profiles,
-      RetirementSimulation simulations,
       SimulationPlanService plans,
-      SustainableSpendingAnalysisService sustainableSpending,
-      SimulationSensitivityAnalysisService sensitivity,
-      RetirementAgeAnalysisService retirementAgeAnalysis,
       PlanningTimelineFacade planningTimeline,
       PlanningCurrencyPresentationService planningPresentation,
-      ForwardSimulationInputService forwardInputs,
+      RetirementProjectionFacade projections,
       AnnualPlanningRolloverService rollover,
       PlanningReconciliationService reconciliation,
       Clock clock) {
     this.profiles = profiles;
-    this.simulations = simulations;
     this.plans = plans;
-    this.sustainableSpending = sustainableSpending;
-    this.sensitivity = sensitivity;
-    this.retirementAgeAnalysis = retirementAgeAnalysis;
     this.planningTimeline = planningTimeline;
     this.planningPresentation = planningPresentation;
-    this.forwardInputs = forwardInputs;
+    this.projections = projections;
     this.rollover = rollover;
     this.reconciliation = reconciliation;
     this.clock = clock;
@@ -83,16 +71,17 @@ public class RetirementSimulationController {
       Clock clock) {
     this(
         profiles,
-        simulations,
         plans,
-        sustainableSpending,
-        sensitivity,
-        retirementAgeAnalysis,
         planningTimeline,
         planningPresentation,
-        new ForwardSimulationInputService(
-            new ForwardSimulationContextFactory(clock),
-            new CurrentYearProjectionBridge(clock, simulations)),
+        new RetirementProjectionFacade(
+            profiles,
+            plans,
+            new ForwardSimulationInputService(
+                new ForwardSimulationContextFactory(clock),
+                new CurrentYearProjectionBridge(clock, simulations)),
+            simulations,
+            clock),
         new AnnualPlanningRolloverService(planningTimeline, clock),
         null,
         clock);
@@ -112,14 +101,10 @@ public class RetirementSimulationController {
       Clock clock) {
     this(
         profiles,
-        simulations,
         plans,
-        sustainableSpending,
-        sensitivity,
-        retirementAgeAnalysis,
         planningTimeline,
         planningPresentation,
-        forwardInputs,
+        new RetirementProjectionFacade(profiles, plans, forwardInputs, simulations, clock),
         new AnnualPlanningRolloverService(planningTimeline, clock),
         null,
         clock);
@@ -159,16 +144,17 @@ public class RetirementSimulationController {
       @RequestParam(required = false) CurrencyType submittedPlanningDisplayCurrency,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario,
       Model model) {
-    AnnualPlanningRolloverResult rolloverResult = rollover.rollover(portfolioId);
+    rollover.rollover(portfolioId);
     // Optional assumption parameters are retained as transient/query overrides for legacy deep
     // links. Saved plans remain the canonical source when an override is not supplied.
     int requestedCurrentAge = currentAge == null ? 40 : currentAge;
     int requestedEndAge = endAge == null ? 95 : endAge;
     var profile = profiles.loadProfile(portfolioId);
-    var defaults =
-        SimulationAssumptions.defaults(
-            profile, requestedCurrentAge, requestedEndAge, Year.now(clock).getValue());
-    var base = planId == null ? defaults : plans.assumptions(portfolioId, planId);
+    var base =
+        planId == null
+            ? SimulationAssumptions.defaults(
+                profile, requestedCurrentAge, requestedEndAge, Year.now(clock).getValue())
+            : plans.assumptions(portfolioId, planId);
     CurrencyType submittedCurrency =
         submittedPlanningDisplayCurrency == null
             ? planningDisplayCurrency
@@ -217,78 +203,30 @@ public class RetirementSimulationController {
             base.annualPreRetirementContribution(),
             SimulationAssumptions.DEFAULT_FUNDING_ORDER,
             base.expenseProfile());
-    var projection = project(profile, assumptions);
-    var projectedAssumptions = projection.assumptions();
-    var projectedProfile = projection.profile();
-    var results = projection.results();
+    var projection = projections.project(profile, assumptions);
+    var projectedAssumptions = projection.projectedAssumptions();
     var summaries = projection.summaries();
-    Map<Long, BigDecimal> displayEventAmounts = new LinkedHashMap<>();
-    projectedAssumptions
-        .futureEvents()
-        .forEach(
-            event ->
-                displayEventAmounts.put(
-                    event.id(),
-                    planningPresentation.toDisplay(event.amount(), planningDisplayCurrency)));
     PlanningTimeline timeline =
         planningTimeline.loadForwardTimeline(portfolioId, profile, projection.forward(), selectedScenario);
-    SimulationChartData canonicalCharts = SimulationChartData.from(results, projectedAssumptions);
     boolean currentYearCloseAllowed =
         timeline.years().stream()
             .filter(row -> row.state() == PlanningTimelineState.LIVE)
             .anyMatch(row -> row.year() < Year.now(clock).getValue());
-    model.addAttribute("profile", profile);
-    model.addAttribute(
-        "displayProfile", planningPresentation.displayProfile(profile, planningDisplayCurrency));
-    model.addAttribute("assumptions", assumptions);
-    model.addAttribute("forwardAssumptions", projectedAssumptions);
-    model.addAttribute("planningDisplayCurrency", planningDisplayCurrency);
-    model.addAttribute("planningPresentation", planningPresentation);
-    model.addAttribute(
-        "expenseProfileValue", serializeExpenseProfile(assumptions.expenseProfile()));
-    model.addAttribute(
-        "displayAnnualExpenses",
-        planningPresentation.toDisplay(
-            assumptions.annualLivingExpenses(), planningDisplayCurrency));
-    model.addAttribute(
-        "displayMonthlyLivingCosts",
-        planningPresentation.toDisplay(
-            assumptions
-                .annualLivingExpenses()
-                .divide(BigDecimal.valueOf(12), 12, java.math.RoundingMode.HALF_UP),
-            planningDisplayCurrency));
-    model.addAttribute(
-        "displayTotalAnnualCosts",
-        planningPresentation.toDisplay(
-            assumptions.annualLivingExpenses().add(assumptions.annualDiscretionaryExpenses()),
-            planningDisplayCurrency));
-    model.addAttribute(
-        "displayDiscretionaryExpenses",
-        planningPresentation.toDisplay(
-            assumptions.annualDiscretionaryExpenses(), planningDisplayCurrency));
-    model.addAttribute(
-        "displayAnnualPension",
-        planningPresentation.toDisplay(assumptions.annualPension(), planningDisplayCurrency));
-    model.addAttribute("displayEventAmounts", displayEventAmounts);
-    model.addAttribute("plans", plans.list(portfolioId));
-    model.addAttribute(
-        "currentRevision", planId == null ? null : plans.currentRevision(portfolioId, planId));
-    model.addAttribute(
-        "revisionHistory",
-        planId == null ? java.util.List.of() : plans.revisionHistory(portfolioId, planId));
-    model.addAttribute("developMode", developMode);
-    if (developMode && planEditorPreview != null) {
-      var preview = planEditorPreview.preview(profile, assumptions, planningDisplayCurrency);
-      model.addAttribute("planPreview", preview);
-      model.addAttribute("currentRentalIncome", preview.rentalIncome());
-      model.addAttribute("currentBondIncome", preview.bondIncome());
-    }
-    model.addAttribute("selectedPlanId", planId);
-    model.addAttribute("selectedScenario", selectedScenario);
-    model.addAttribute(
-        "activePlanName", planId == null ? "Current assumptions" : plans.name(portfolioId, planId));
-    model.addAttribute(
-        "activePlanSummary",
+    var startingPosition = planningPresentation.displayProfile(profile, planningDisplayCurrency);
+    String displayAnnualExpenses =
+        planningPresentation
+            .toDisplay(assumptions.annualLivingExpenses(), planningDisplayCurrency)
+            .toPlainString();
+    String displayDiscretionaryExpenses =
+        planningPresentation
+            .toDisplay(assumptions.annualDiscretionaryExpenses(), planningDisplayCurrency)
+            .toPlainString();
+    String displayAnnualPension =
+        planningPresentation
+            .toDisplay(assumptions.annualPension(), planningDisplayCurrency)
+            .toPlainString();
+    String activePlanName = planId == null ? "Current assumptions" : plans.name(portfolioId, planId);
+    String activePlanSummary =
         projectedAssumptions.currentAge()
             + " → "
             + projectedAssumptions.endAge()
@@ -299,131 +237,33 @@ public class RetirementSimulationController {
             + " · "
             + PlanningPresentation.years(projectedAssumptions.safeReserveYears())
             + "-year reserve · "
-            + PlanningPresentation.fundingStrategy(projectedAssumptions.fundingStrategy()));
+            + PlanningPresentation.fundingStrategy(projectedAssumptions.fundingStrategy());
     var displaySummaries =
         new LinkedHashMap<>(
             planningPresentation.displaySummaries(summaries, planningDisplayCurrency));
+    var timelineMoney =
+        planningPresentation.displayTimelineMoney(timeline, planningDisplayCurrency, projectedAssumptions);
     model.addAttribute(
-        "scenarioComparison",
-        SimulationScenarioComparison.from(summaries, displaySummaries, selectedScenario));
-    model.addAttribute("selectedSummary", displaySummaries.get(selectedScenario));
-    var spendingAnalysis = sustainableSpending.analyze(projectedProfile, projectedAssumptions);
-    var retirementAnalysis = retirementAgeAnalysis.analyze(projectedProfile, projectedAssumptions);
-    model.addAttribute(
-        "planRisks",
-        planningPresentation.displayPlanRisks(
-            sensitivity.analyze(projectedProfile, projectedAssumptions), planningDisplayCurrency));
-    model.addAttribute(
-        "planningFlexibility",
-        planningPresentation.displayPlanningFlexibility(
-            spendingAnalysis, retirementAnalysis, planningDisplayCurrency));
-    model.addAttribute(
-        "charts", planningPresentation.displayCharts(canonicalCharts, planningDisplayCurrency));
-    model.addAttribute("timeline", timeline);
-    var globalPlanProgress = planningTimeline.progress(timeline);
-    model.addAttribute("planProgress", globalPlanProgress);
-    model.addAttribute(
-        "planProgressView",
-        planningPresentation.displayPlanProgress(globalPlanProgress, planningDisplayCurrency));
-    model.addAttribute("rolloverResult", rolloverResult);
-    timeline.years().stream()
-        .filter(row -> row.state() == PlanningTimelineState.LIVE)
-        .findFirst()
-        .ifPresent(
-            row ->
-                model.addAttribute(
-                    "currentYearReview",
-                    planningPresentation.displayCurrentYear(
-                        row.current(), planningDisplayCurrency)));
-    model.addAttribute(
-        "timelineMoney",
-        planningPresentation.displayTimelineMoney(
-            timeline, planningDisplayCurrency, projectedAssumptions));
-    model.addAttribute("currentYearCloseAllowed", currentYearCloseAllowed);
-    return "simulation";
-  }
-
-  /** Read-only interpretation board over the same projected scenario results as Simulation. */
-  @GetMapping("/analysis")
-  public String analysis(
-      @RequestParam(defaultValue = "1") Long portfolioId,
-      @RequestParam(required = false) Long planId,
-      @RequestParam(defaultValue = "PLN") CurrencyType planningDisplayCurrency,
-      @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario,
-      Model model) {
-    var profile = profiles.loadProfile(portfolioId);
-    var assumptions =
-        planId == null
-            ? SimulationAssumptions.defaults(profile, 40, 95, Year.now(clock).getValue())
-            : plans.assumptions(portfolioId, planId);
-    var projection = project(profile, assumptions);
-    var forward = projection.forward();
-    var projectedAssumptions = projection.assumptions();
-    var projectedProfile = projection.profile();
-    var results = projection.results();
-    var summaries = projection.summaries();
-    var displaySummaries =
-        new LinkedHashMap<>(
-            planningPresentation.displaySummaries(summaries, planningDisplayCurrency));
-    var chartData =
-        planningPresentation.displayCharts(
-            SimulationChartData.from(results, projectedAssumptions), planningDisplayCurrency);
-    var spendingAnalysis = sustainableSpending.analyze(projectedProfile, projectedAssumptions);
-    var retirementAnalysis = retirementAgeAnalysis.analyze(projectedProfile, projectedAssumptions);
-    var scenarioView =
-        SimulationScenarioComparison.from(summaries, displaySummaries, selectedScenario);
-    var riskView =
-        planningPresentation.displayPlanRisks(
-            sensitivity.analyze(projectedProfile, projectedAssumptions), planningDisplayCurrency);
-    var flexibilityView =
-        planningPresentation.displayPlanningFlexibility(
-            spendingAnalysis, retirementAnalysis, planningDisplayCurrency);
-    model.addAttribute(
-        "analysisPage",
-        new RetirementAnalysisPageView(
+        "simulationPage",
+        new RetirementSimulationPageView(
+            profile,
+            startingPosition,
+            assumptions,
+            projectedAssumptions,
             planningDisplayCurrency,
+            planId,
+            activePlanName,
+            activePlanSummary,
             selectedScenario,
             displaySummaries.get(selectedScenario),
-            scenarioView,
-            riskView,
-            flexibilityView,
-            chartData,
-            projectedAssumptions.currentAge() + " → " + projectedAssumptions.endAge()));
-    model.addAttribute("profile", profile);
-    model.addAttribute(
-        "displayProfile", planningPresentation.displayProfile(profile, planningDisplayCurrency));
-    model.addAttribute("planningDisplayCurrency", planningDisplayCurrency);
-    model.addAttribute("selectedScenario", selectedScenario);
-    model.addAttribute(
-        "activePlanName", planId == null ? "Current assumptions" : plans.name(portfolioId, planId));
-    model.addAttribute("selectedPlanId", planId);
-    model.addAttribute("analysisHorizon", projectedAssumptions.currentAge() + " → " + projectedAssumptions.endAge());
-    return "retirement-analysis";
+            displayAnnualExpenses,
+            displayDiscretionaryExpenses,
+            displayAnnualPension,
+            timeline,
+            timelineMoney,
+            currentYearCloseAllowed));
+    return "simulation";
   }
-
-  /** Single boundary from projection mathematics to both retirement boards. */
-  private SimulationProjection project(InvestmentProfile profile, SimulationAssumptions assumptions) {
-    var forward = forwardInputs.prepare(profile, assumptions);
-    var projectedAssumptions = forward.forwardAssumptions().orElse(assumptions);
-    var projectedProfile = forward.bridgedProfile();
-    var results =
-        forward.forwardAssumptions().isPresent()
-            ? simulations.compareScenarios(projectedProfile, projectedAssumptions)
-            : new java.util.EnumMap<SimulationScenario, SimulationResult>(SimulationScenario.class);
-    var summaries =
-        new java.util.EnumMap<SimulationScenario, SimulationDecisionSummary>(SimulationScenario.class);
-    results.forEach(
-        (scenario, result) ->
-            summaries.put(scenario, SimulationDecisionSummary.from(result, projectedAssumptions)));
-    return new SimulationProjection(forward, projectedProfile, projectedAssumptions, results, summaries);
-  }
-
-  private record SimulationProjection(
-      ForwardSimulationInput forward,
-      InvestmentProfile profile,
-      SimulationAssumptions assumptions,
-      Map<SimulationScenario, SimulationResult> results,
-      java.util.EnumMap<SimulationScenario, SimulationDecisionSummary> summaries) {}
 
   @GetMapping("/simulation/plan/edit")
   public String editPlan(

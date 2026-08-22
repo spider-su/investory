@@ -10,6 +10,9 @@ import com.smartbox.investory.shared.currency.CurrencyType;
 
 /** Focused Analysis-board model. Values come from one completed simulation projection. */
 public record RetirementAnalysisPageView(
+    Long portfolioId,
+    Long planId,
+    String activePlanName,
     CurrencyType displayCurrency,
     SimulationScenario selectedScenario,
     SimulationDecisionSummaryMoney selectedSummary,

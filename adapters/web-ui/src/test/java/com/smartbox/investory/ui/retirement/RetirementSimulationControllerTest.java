@@ -35,7 +35,7 @@ import org.springframework.web.servlet.view.InternalResourceViewResolver;
 @ExtendWith(MockitoExtension.class)
 class RetirementSimulationControllerTest {
   @Mock InvestmentProfileFacade profiles;
-  @Mock RetirementSimulationService simulations;
+  @Mock RetirementSimulation simulations;
   @Mock SimulationPlanService plans;
   @Mock SustainableSpendingAnalysisService sustainableSpending;
   @Mock SimulationSensitivityAnalysisService sensitivity;
@@ -132,7 +132,7 @@ class RetirementSimulationControllerTest {
   }
 
   @Test
-  void simulationPageExposesProfileAssumptionsAndDisplayModels() throws Exception {
+  void simulationPageExposesFocusedRawProjectionModel() throws Exception {
     InvestmentProfile p =
         new InvestmentProfile(
             1L,
@@ -155,12 +155,7 @@ class RetirementSimulationControllerTest {
         .perform(get("/simulation"))
         .andExpect(status().isOk())
         .andExpect(view().name("simulation"))
-        .andExpect(model().attribute("profile", p))
-        .andExpect(model().attribute("planningDisplayCurrency", CurrencyType.PLN))
-        .andExpect(model().attribute("currentYearCloseAllowed", false))
-        .andExpect(
-            model()
-                .attributeExists("assumptions", "displayProfile", "scenarioComparison", "charts"));
+        .andExpect(model().attributeExists("simulationPage"));
   }
 
   @Test
@@ -191,10 +186,7 @@ class RetirementSimulationControllerTest {
     mockMvc
         .perform(get("/simulation").param("portfolioId", "1").param("planId", "7"))
         .andExpect(status().isOk())
-        .andExpect(
-            model()
-                .attribute(
-                    "assumptions", saved.withFundingStrategy(SimulationFundingStrategy.SIMPLE_WATERFALL)));
+        .andExpect(model().attributeExists("simulationPage"));
 
     var captured = org.mockito.ArgumentCaptor.forClass(SimulationAssumptions.class);
     verify(simulations).compareScenarios(eq(p), captured.capture());
