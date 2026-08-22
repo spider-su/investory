@@ -289,13 +289,8 @@ public class RetirementSimulationController {
     model.addAttribute(
         "displayProfile", planningPresentation.displayProfile(profile, planningDisplayCurrency));
     model.addAttribute("assumptions", assumptions);
-    model.addAttribute("existingPlan", selectedPlanId != null);
     model.addAttribute("planStartYear", assumptions.planStartYear());
     model.addAttribute("ageAtPlanStart", assumptions.ageAtPlanStart());
-    model.addAttribute("currentPlanningYear", currentYear);
-    model.addAttribute(
-        "currentPlanningAge",
-        ForwardSimulationContextFactory.currentPlanningAge(assumptions, currentYear));
     model.addAttribute(
         "plannedRetirementYear", ForwardSimulationContextFactory.retirementYear(assumptions));
     model.addAttribute("planName", planName);
@@ -321,10 +316,6 @@ public class RetirementSimulationController {
         selectedPlanId == null
             ? java.util.List.of()
             : plans.revisionHistory(portfolioId, selectedPlanId));
-    model.addAttribute(
-        "displayAnnualExpenses",
-        planningPresentation.toDisplay(
-            assumptions.annualLivingExpenses(), planningDisplayCurrency));
     model.addAttribute(
         "displayMonthlyLivingCosts",
         planningPresentation.toDisplay(

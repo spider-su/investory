@@ -2402,10 +2402,29 @@ body.iv-modal-open { overflow: hidden; }
 .iv-simulation-sensitivity-details { margin-top: 16px; color: var(--iv-text-muted); }
 .iv-simulation-sensitivity-details summary { cursor: pointer; font-size: .78rem; font-weight: 700; }
 .iv-simulation-sensitivity-details h3 { margin: 16px 0 8px; color: var(--iv-text); font-size: .82rem; }
-.iv-simulation-editor { display: grid; gap: 16px; }
+.iv-simulation-editor { display: grid; gap: 16px; max-width: 1180px; }
 .iv-simulation-editor__form { display: grid; gap: 16px; }
 .iv-simulation-editor__section { margin: 0 !important; }
 .iv-simulation-editor__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 16px; }
+.iv-simulation-editor__management-body { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+.iv-simulation-editor__eyebrow,
+.iv-simulation-editor__group-title { display: block; color: var(--iv-text-muted); font-size: .68rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.iv-simulation-editor__selector { margin: 4px 0; min-width: 220px; }
+.iv-simulation-editor__plan-management { position: relative; }
+.iv-simulation-editor__plan-management > summary { list-style: none; }
+.iv-simulation-editor__plan-management > summary::-webkit-details-marker { display: none; }
+.iv-simulation-editor__plan-menu { position: absolute; z-index: 2; top: calc(100% + 6px); right: 0; display: grid; gap: 10px; min-width: 250px; padding: 12px; border: 1px solid var(--iv-border); border-radius: 8px; background: var(--iv-surface); box-shadow: var(--tblr-box-shadow, 0 4px 12px rgba(0,0,0,.12)); }
+.iv-simulation-editor__plan-menu ul { margin: 8px 0 0; padding-left: 18px; }
+.iv-simulation-editor__groups { display: grid; gap: 20px; }
+.iv-simulation-editor__group-title { margin-bottom: 8px; }
+.iv-simulation-editor__facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 16px; }
+.iv-simulation-editor__facts > div { display: grid; gap: 3px; }
+.iv-simulation-editor__facts span,
+.iv-simulation-editor__facts em { color: var(--iv-text-muted); font-size: .72rem; font-style: normal; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.iv-simulation-editor__facts strong,
+.iv-simulation-editor__primary-value strong { color: var(--iv-text); font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+.iv-simulation-editor__primary-value { align-self: end; padding: 8px 12px; border-left: 3px solid var(--iv-primary); background: var(--iv-primary-soft); }
+.iv-simulation-editor__development { display: grid; gap: 10px; }
 .iv-expense-profile { grid-column: 1 / -1; }
 .iv-expense-profile__head,
 .iv-expense-profile__row { display: grid; grid-template-columns: minmax(120px, .7fr) minmax(160px, 1fr) auto; gap: 8px; align-items: center; }
@@ -2419,8 +2438,8 @@ body.iv-modal-open { overflow: hidden; }
 .iv-simulation-editor__plan-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border: 1px solid var(--iv-border); border-radius: 8px; }
 .iv-simulation-editor__plan-row.is-active { border-color: var(--iv-primary); background: var(--iv-primary-soft); }
 .iv-simulation-editor__plan-row form { margin: 0; }
-.iv-simulation-editor__events-form { display: grid; grid-template-columns: .7fr 1.4fr 1fr 1fr 1.4fr auto; gap: 8px; align-items: end; }
-.iv-simulation-editor__event-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--iv-border); }
+.iv-simulation-editor__event-form { display: grid; grid-template-columns: .7fr 1.4fr 1fr 1fr auto; gap: 8px; align-items: end; }
+.iv-simulation-editor__event-row { display: grid; grid-template-columns: 70px minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--iv-border); }
 .iv-simulation-plan-reality > .card-body { display: grid; gap: 20px; }
 .iv-simulation-current-year,
 .iv-simulation-timeline-summary { display: grid; gap: 12px; }
@@ -2480,7 +2499,8 @@ body.iv-modal-open { overflow: hidden; }
 
 @media (max-width: 900px) {
     .iv-simulation-editor__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .iv-simulation-editor__events-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .iv-simulation-editor__event-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .iv-simulation-editor__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .iv-simulation-milestones { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .iv-simulation-manual-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .iv-planning-summary--six { grid-template-columns: repeat(3, minmax(0, 1fr)); height: auto; }
@@ -2497,7 +2517,10 @@ body.iv-modal-open { overflow: hidden; }
 }
 @media (max-width: 600px) {
     .iv-simulation-editor__grid,
-    .iv-simulation-editor__events-form { grid-template-columns: 1fr; }
+    .iv-simulation-editor__event-form { grid-template-columns: 1fr; }
+    .iv-simulation-editor__management-body { align-items: stretch; flex-direction: column; }
+    .iv-simulation-editor__facts { grid-template-columns: 1fr; }
+    .iv-simulation-editor__event-row { grid-template-columns: 1fr; gap: 4px; }
     .iv-expense-profile__head { display: none; }
     .iv-expense-profile__row { grid-template-columns: 1fr; padding-top: 8px; border-top: 1px solid var(--iv-border); }
     .iv-simulation-editor__actions { justify-content: stretch; }
