@@ -6,6 +6,7 @@ import com.smartbox.investory.retirement.planning.PlanningPresentation;
 import com.smartbox.investory.retirement.profile.InvestmentProfile;
 import com.smartbox.investory.retirement.simulation.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.ui.presentation.UiPresentation;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Year;
@@ -217,17 +218,15 @@ public class RetirementSimulationController {
             .anyMatch(row -> row.year() < Year.now(clock).getValue());
     var startingPosition = planningPresentation.displayProfile(profile, planningDisplayCurrency);
     String displayAnnualExpenses =
-        planningPresentation
-            .toDisplay(assumptions.annualLivingExpenses(), planningDisplayCurrency)
-            .toPlainString();
+        UiPresentation.money(
+            planningPresentation.toDisplay(assumptions.annualLivingExpenses(), planningDisplayCurrency));
     String displayDiscretionaryExpenses =
-        planningPresentation
-            .toDisplay(assumptions.annualDiscretionaryExpenses(), planningDisplayCurrency)
-            .toPlainString();
+        UiPresentation.money(
+            planningPresentation.toDisplay(
+                assumptions.annualDiscretionaryExpenses(), planningDisplayCurrency));
     String displayAnnualPension =
-        planningPresentation
-            .toDisplay(assumptions.annualPension(), planningDisplayCurrency)
-            .toPlainString();
+        UiPresentation.money(
+            planningPresentation.toDisplay(assumptions.annualPension(), planningDisplayCurrency));
     String activePlanName =
         selectedPlanId == null ? "Current assumptions" : plans.name(portfolioId, selectedPlanId);
     String activePlanSummary =
@@ -383,11 +382,17 @@ public class RetirementSimulationController {
           java.util.Map.of(
               "available", true,
               "warnings", normalized.warnings(),
+              "derived",
+              java.util.Map.of(
+                  "effectiveRentalGrowth",
+                  UiPresentation.percentage(normalized.assumptions().effectiveRentalIncomeGrowthRate()),
+                  "effectiveSpendingGrowth",
+                  UiPresentation.percentage(normalized.assumptions().effectiveSpendingGrowthRate())),
               "preview",
               planEditorPreview.preview(profile, normalized.assumptions(), planningDisplayCurrency)));
     } catch (IllegalArgumentException | ArithmeticException ex) {
       return org.springframework.http.ResponseEntity.unprocessableEntity()
-          .body(java.util.Map.of("available", false));
+          .body(java.util.Map.of("available", false, "error", ex.getMessage()));
     }
   }
 

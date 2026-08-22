@@ -196,7 +196,7 @@ public record SimulationDecisionSummary(
   }
 
   private static int year(SimulationAssumptions assumptions, SimulationYear year) {
-    return assumptions.startYear() + year.year();
+    return year.year();
   }
 
   private static BigDecimal coverage(SimulationYear year) {

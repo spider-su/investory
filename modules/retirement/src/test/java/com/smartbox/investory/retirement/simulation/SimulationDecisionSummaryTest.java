@@ -30,9 +30,9 @@ class SimulationDecisionSummaryTest {
             2026);
     List<SimulationYear> years =
         List.of(
-            year(40, 0, "1000", "100", "20", "150", "70", "1000", false, "0"),
-            year(41, 1, "1200", "100", "25", "100", "65", "900", true, "30"),
-            year(42, 2, "1100", "110", "30", "100", "50", "950", false, "0"));
+            year(40, 2026, "1000", "100", "20", "150", "70", "1000", false, "0"),
+            year(41, 2027, "1200", "100", "25", "100", "65", "900", true, "30"),
+            year(42, 2028, "1100", "110", "30", "100", "50", "950", false, "0"));
     SimulationDecisionSummary summary =
         SimulationDecisionSummary.from(
             new SimulationResult(SimulationScenario.BASE, true, 41, new BigDecimal("30"), years),
