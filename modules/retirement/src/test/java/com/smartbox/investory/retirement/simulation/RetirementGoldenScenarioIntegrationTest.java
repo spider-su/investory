@@ -17,6 +17,9 @@ import org.junit.jupiter.api.Test;
 
 /** Approved cross-module financial contract. Do not refresh constants from production output. */
 class RetirementGoldenScenarioIntegrationTest {
+  // This contract intentionally starts at RetirementSimulationService with a prepared planning
+  // state, so it protects simulation arithmetic. Source-to-state mapping is covered separately
+  // by InvestmentProfileFacadeTest and the Long-Term six-bond projection regression.
   @Test
   void sustainableShortHorizonMatchesApprovedContract() {
     var service = new RetirementSimulationService(new LongTermAnnualProjectionService(),

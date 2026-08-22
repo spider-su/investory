@@ -118,6 +118,36 @@ class LongTermAnnualProjectionServiceTest {
   }
 
   @Test
+  void projectsInterestForSixActivePayoutBondsFromFrozenState() {
+    var bonds = java.util.stream.IntStream.range(0, 6)
+        .mapToObj(i -> new LongTermAssetProjectionModel(
+            (long) i, "Bond " + i, LongTermAssetTypeModel.BOND, CurrencyType.USD,
+            new BigDecimal("150000"),
+            List.of(new LongTermAssetProjectionModel.Period(
+                LocalDate.of(2026, 1, 1), null, new BigDecimal("8000"), BigDecimal.ZERO,
+                BigDecimal.ZERO)),
+            LocalDate.of(2028, 12, 31), new BigDecimal("150000"),
+            InterestTreatmentModel.PAY_OUT, BigDecimal.ZERO))
+        .toList();
+    var state = new LongTermAnnualProjectionApi.PlanningState(
+        bonds, BigDecimal.ZERO, 2026, LongTermAnnualProjectionApi.Source.PROJECTED);
+
+    var quote = new LongTermAnnualProjectionService().quote(
+        new LongTermAnnualProjectionApi.PlanningRequest(2027, BigDecimal.ZERO, state));
+
+    assertThat(quote.plannedCashFlows())
+        .filteredOn(flow -> flow.kind() == LongTermAnnualProjectionApi.CashFlowKind.FIXED_INCOME)
+        .extracting(LongTermAnnualProjectionApi.PlannedCashFlow::annualAmount)
+        .containsExactlyInAnyOrder(
+            new BigDecimal("8000"), new BigDecimal("8000"), new BigDecimal("8000"),
+            new BigDecimal("8000"), new BigDecimal("8000"), new BigDecimal("8000"));
+    assertThat(quote.plannedCashFlows().stream()
+        .filter(flow -> flow.kind() == LongTermAnnualProjectionApi.CashFlowKind.FIXED_INCOME)
+        .map(LongTermAnnualProjectionApi.PlannedCashFlow::annualAmount)
+        .reduce(BigDecimal.ZERO, BigDecimal::add)).isEqualByComparingTo("48000");
+  }
+
+  @Test
   void compoundsCapitalizedBondInterestIntoTheCarriedLongTermCapital() {
     var bond =
         new LongTermAssetProjectionModel(
