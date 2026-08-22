@@ -20,11 +20,16 @@ import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
 import com.smartbox.investory.longterm.api.model.RentalContractModel;
 import com.smartbox.investory.retirement.api.InvestmentProfileFacade;
+import com.smartbox.investory.retirement.planning.PlanningBaseline;
+import com.smartbox.investory.investment.application.InvestmentAnnualProjectionService;
+import com.smartbox.investory.investment.api.InvestmentAnnualProjectionApi;
+import com.smartbox.investory.longterm.application.service.LongTermAnnualProjectionService;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
@@ -233,6 +238,54 @@ class InvestmentProfileFacadeTest {
     ProjectedLongTermAsset projected = facade.loadProfile(PORTFOLIO).longTermAssets().getFirst();
 
     assertEquals(List.of(contract), projected.rentalContracts());
+  }
+
+  @Test
+  void separatesBrokerageCashReserveFromInvestmentPositions() {
+    SharedBrokeragePortfolioSnapshot market =
+        snapshot(CurrencyType.USD, 600000, 100000, 0, 0, List.of(position("ETF", 500000)));
+    when(brokeragePortfolioReadService.currentSharedSnapshot()).thenReturn(market);
+    when(brokerageAssetClassificationReader.findBySymbol("ETF"))
+        .thenReturn(Optional.of(new com.smartbox.investory.investment.api.BrokerageAssetClassification("ETF", "ETF")));
+    when(longTermAssets.aggregate(PORTFOLIO, DATE))
+        .thenReturn(new LongTermAssetProfileSummaryModel(CurrencyType.USD, new BigDecimal("3986000"),
+            new BigDecimal("38880")));
+    when(longTermAssets.list(PORTFOLIO, DATE))
+        .thenReturn(List.of(summary(LongTermAssetTypeModel.REAL_ESTATE, "3500000", "0"),
+            summary(LongTermAssetTypeModel.BOND, "486000", "38880")));
+    when(longTermAnnualFacts.currentAnnualSnapshot(PORTFOLIO, DATE))
+        .thenReturn(new LongTermAssetAnnualSnapshotModel(null, BigDecimal.ZERO,
+            new BigDecimal("486000"), new BigDecimal("38880"), null, null));
+    when(longTermAssets.projectionInputs(PORTFOLIO, DATE))
+        .thenReturn(List.of(new LongTermAssetProjectionModel(9L, "Bond", LongTermAssetTypeModel.BOND,
+            CurrencyType.USD, new BigDecimal("486000"),
+            List.of(new LongTermAssetProjectionModel.Period(DATE, null, new BigDecimal("38880"),
+                BigDecimal.ZERO, BigDecimal.ZERO)), LocalDate.of(2028, 12, 31),
+            new BigDecimal("486000"), com.smartbox.investory.longterm.api.model.InterestTreatmentModel.PAY_OUT,
+            BigDecimal.ZERO)));
+
+    InvestmentProfile profile = facade.loadProfile(PORTFOLIO);
+    PlanningBaseline baseline = PlanningBaseline.fromProfile(profile, 2026);
+
+    assertEquals(new BigDecimal("100000.0"), profile.retirementReserve());
+    assertEquals(new BigDecimal("500000.0"), profile.investmentCapital());
+    assertEquals(new BigDecimal("100000.0"), baseline.reserve());
+    assertEquals(new BigDecimal("500000.0"), baseline.investmentCapital());
+    assertEquals(new BigDecimal("38880"), profile.currentBondIncome());
+    assertEquals(new BigDecimal("486000"), baseline.longTermPlanningState().assets().getFirst().currentValue());
+
+    var investment = new InvestmentAnnualProjectionService().project(
+        new InvestmentAnnualProjectionApi.ProjectionRequest(
+            2027, profile.investmentCapital(), BigDecimal.ZERO, new BigDecimal("0.085"),
+            BigDecimal.ZERO, InvestmentAnnualProjectionApi.Source.PROJECTED));
+    org.assertj.core.api.Assertions.assertThat(investment.annualReturnAmount()).isEqualByComparingTo("42500");
+    var longTerm = new LongTermAnnualProjectionService().plan(
+        new com.smartbox.investory.longterm.api.LongTermAnnualProjectionApi.PlanningRequest(
+            2027, BigDecimal.ZERO, profile.longTermPlanningState()));
+    assertEquals(new BigDecimal("38880"), longTerm.plannedCashFlows().stream()
+        .filter(flow -> flow.kind() == com.smartbox.investory.longterm.api.LongTermAnnualProjectionApi.CashFlowKind.FIXED_INCOME)
+        .map(com.smartbox.investory.longterm.api.LongTermAnnualProjectionApi.PlannedCashFlow::annualAmount)
+        .reduce(BigDecimal.ZERO, BigDecimal::add));
   }
 
   private static OpenPositionValue position(String symbol, double value) {

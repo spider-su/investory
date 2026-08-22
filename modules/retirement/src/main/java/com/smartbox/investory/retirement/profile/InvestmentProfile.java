@@ -22,7 +22,9 @@ public record InvestmentProfile(
     List<ProjectedLongTermAsset> longTermAssets,
     BigDecimal currentRentalIncome,
     BigDecimal currentBondIncome,
-    LongTermAnnualProjectionApi.PlanningState longTermPlanningState) {
+    LongTermAnnualProjectionApi.PlanningState longTermPlanningState,
+    BigDecimal retirementReserve,
+    BigDecimal investmentCapital) {
   /** Compatibility constructor for profile read models not yet carrying Long-Term planning state. */
   public InvestmentProfile(
       Long portfolioId, CurrencyType currency, BigDecimal marketPortfolioValue,
@@ -34,7 +36,9 @@ public record InvestmentProfile(
     this(portfolioId, currency, marketPortfolioValue, longTermAssetValue, totalNetWorth,
         historicalMarketInvestmentIncome, expectedLongTermAssetIncome, totalInvestmentIncome,
         liquidAssets, illiquidAssets, allocations, longTermAssets, currentRentalIncome,
-        currentBondIncome, legacyPlanningState(longTermAssets, currentRentalIncome));
+        currentBondIncome, legacyPlanningState(longTermAssets, currentRentalIncome),
+        liquidAssets == null ? BigDecimal.ZERO : liquidAssets,
+        marketPortfolioValue.subtract(liquidAssets == null ? BigDecimal.ZERO : liquidAssets).max(BigDecimal.ZERO));
   }
   /** Compatibility constructor for callers that do not yet provide annual Long-Term facts. */
   public InvestmentProfile(
@@ -65,7 +69,9 @@ public record InvestmentProfile(
         longTermAssets,
         null,
         null,
-        LongTermAnnualProjectionApi.PlanningState.EMPTY);
+        LongTermAnnualProjectionApi.PlanningState.EMPTY,
+        liquidAssets == null ? BigDecimal.ZERO : liquidAssets,
+        marketPortfolioValue.subtract(liquidAssets == null ? BigDecimal.ZERO : liquidAssets).max(BigDecimal.ZERO));
   }
 
   public InvestmentProfile {
@@ -73,6 +79,8 @@ public record InvestmentProfile(
     longTermAssets = longTermAssets == null ? List.of() : List.copyOf(longTermAssets);
     longTermPlanningState = longTermPlanningState == null
         ? LongTermAnnualProjectionApi.PlanningState.EMPTY : longTermPlanningState;
+    retirementReserve = retirementReserve == null ? BigDecimal.ZERO : retirementReserve;
+    investmentCapital = investmentCapital == null ? BigDecimal.ZERO : investmentCapital;
   }
 
   /** Returns an immutable economic view with the reviewed planning baseline applied. */
@@ -96,7 +104,7 @@ public record InvestmentProfile(
         frozenLongTerm, frozenReserve.add(frozenInvestment).add(frozenLongTerm),
         historicalMarketInvestmentIncome, expectedLongTermAssetIncome, totalInvestmentIncome,
         frozenReserve, illiquidAssets, allocations, longTermAssets,
-        rentalAnnualIncome, bondAnnualIncome, planningState);
+        rentalAnnualIncome, bondAnnualIncome, planningState, frozenReserve, frozenInvestment);
   }
 
   public BigDecimal marketPortfolioPercentage() {

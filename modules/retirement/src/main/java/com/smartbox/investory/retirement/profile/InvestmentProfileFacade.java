@@ -58,6 +58,13 @@ public class InvestmentProfileFacade {
         toUsd(market.dividends(), market.baseCurrency(), date)
             .add(toUsd(market.interest(), market.baseCurrency(), date));
     BigDecimal longTermIncome = longTerm.netAnnualIncomeAfterTax();
+    BigDecimal explicitReserve = marketCash;
+    for (LongTermAssetProfileAssetModel asset : longTermAssets.list(portfolioId, date)) {
+      if (asset.type() == com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel.CASH_RESERVE) {
+        explicitReserve = explicitReserve.add(asset.currentValue());
+      }
+    }
+    BigDecimal brokerageInvestmentCapital = marketValue.subtract(marketCash).max(BigDecimal.ZERO);
     LongTermAssetAnnualSnapshotModel annualFacts =
         longTermAnnualFacts.currentAnnualSnapshot(portfolioId, date);
     List<LongTermAssetProjectionModel> projectionInputs =
@@ -131,7 +138,9 @@ public class InvestmentProfileFacade {
         annualFacts == null ? null : annualFacts.rentalIncome(),
         annualFacts == null ? null : annualFacts.bondIncome(),
         new LongTermAnnualProjectionApi.PlanningState(
-            projectionInputs, BigDecimal.ZERO, date.getYear(), LongTermAnnualProjectionApi.Source.PROJECTED));
+            projectionInputs, BigDecimal.ZERO, date.getYear(), LongTermAnnualProjectionApi.Source.PROJECTED),
+        explicitReserve,
+        brokerageInvestmentCapital);
   }
 
   public List<LongTermAssetProfileAssetModel> loadLongTermAssets(Long portfolioId) {

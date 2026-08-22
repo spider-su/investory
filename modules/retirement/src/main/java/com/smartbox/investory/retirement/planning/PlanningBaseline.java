@@ -29,10 +29,12 @@ public record PlanningBaseline(
   }
 
   public static PlanningBaseline fromProfile(InvestmentProfile profile, int asOfYear) {
-    BigDecimal reserve = nz(profile.liquidAssets());
+    // Generic liquidity is not a Retirement funding bucket: ETFs and other liquid securities
+    // remain Investment capital. InvestmentProfile supplies the explicit economic decomposition.
+    BigDecimal reserve = nz(profile.retirementReserve());
     return new PlanningBaseline(asOfYear,
         reserve,
-        nz(profile.marketPortfolioValue()).subtract(reserve).max(BigDecimal.ZERO),
+        nz(profile.investmentCapital()),
         profile.longTermAssetValue(), profile.currentRentalIncome(), profile.currentBondIncome(),
         profile.longTermPlanningState());
   }

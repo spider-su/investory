@@ -68,8 +68,8 @@ public class CurrentYearProjectionBridge {
   /** Carry the returned reserve/Investment end state into the next projected year. */
   private static InvestmentProfile rebaseSpendableState(
       InvestmentProfile profile, SimulationYear projected, BigDecimal fraction) {
-    BigDecimal reserveStart = zero(profile.liquidAssets());
-    BigDecimal investmentStart = zero(profile.marketPortfolioValue()).subtract(reserveStart).max(ZERO);
+    BigDecimal reserveStart = zero(profile.retirementReserve());
+    BigDecimal investmentStart = zero(profile.investmentCapital());
     BigDecimal reserveEnd = interpolate(reserveStart, projected.manualLiquidReserveEnd(), fraction);
     BigDecimal investmentEnd = interpolate(investmentStart, projected.equityEnd(), fraction);
     BigDecimal marketEnd = reserveEnd.add(investmentEnd);
@@ -79,7 +79,8 @@ public class CurrentYearProjectionBridge {
         zero(profile.totalNetWorth()).add(marketDelta), profile.historicalMarketInvestmentIncome(),
         profile.expectedLongTermAssetIncome(), profile.totalInvestmentIncome(), reserveEnd,
         profile.illiquidAssets(), profile.allocations(), profile.longTermAssets(),
-        profile.currentRentalIncome(), profile.currentBondIncome(), profile.longTermPlanningState());
+        profile.currentRentalIncome(), profile.currentBondIncome(), profile.longTermPlanningState(),
+        reserveEnd, investmentEnd);
   }
 
   private static BigDecimal interpolate(BigDecimal start, BigDecimal end, BigDecimal fraction) {

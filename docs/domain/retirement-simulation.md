@@ -263,3 +263,11 @@ Retirement also excludes direct dependencies on source-domain entities and concr
 Adding a new Investment instrument or Long-Term asset type should require a Retirement change only
 when it introduces genuinely new economic semantics that cannot be represented by the existing
 public planning contracts.
+## Economic starting buckets
+
+Retirement distinguishes liquidity from funding ownership. `Liquidity.LIQUID` describes how easily
+an asset can be converted; it is not the Retirement reserve bucket. Brokerage cash and explicitly
+designated cash reserves form `retirementReserve`, while brokerage ETFs, stocks, funds and other
+Investment-owned market value form `investmentCapital`. Long-Term rental and contractual assets remain
+Long-Term capital. Future fixed-income cash flow is projected by Long-Term from its planning state;
+the current-year bond-income fact is not copied into the future as a scalar.

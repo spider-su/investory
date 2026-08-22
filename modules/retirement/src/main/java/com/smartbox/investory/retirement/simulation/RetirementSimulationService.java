@@ -31,8 +31,8 @@ public class RetirementSimulationService implements RetirementSimulation {
   public SimulationResult simulate(InvestmentProfile profile, SimulationAssumptions assumptions,
       SimulationScenario scenario, boolean actualRentalYear) {
     SimulationScenarioSettings settings = SimulationScenarioSettings.forScenario(scenario, assumptions);
-    BigDecimal reserve = nz(profile.liquidAssets());
-    BigDecimal investmentStart = nz(profile.marketPortfolioValue()).subtract(reserve).max(ZERO);
+    BigDecimal reserve = nz(profile.retirementReserve());
+    BigDecimal investmentStart = nz(profile.investmentCapital());
     // This service passes Long-Term public planning facts through unchanged.  It does not inspect
     // asset type, periods, interest treatment, tax, rental, or maturity semantics.
     var longTermState = new LongTermAnnualProjectionApi.PlanningState(
