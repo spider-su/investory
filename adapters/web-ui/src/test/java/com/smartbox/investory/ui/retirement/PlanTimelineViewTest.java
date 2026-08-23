@@ -32,6 +32,22 @@ class PlanTimelineViewTest {
     assertEquals("Plan end", view.years().get(2).lifecycleLabel());
   }
 
+  @Test
+  void choosesNearestYearWhenNoLiveRowExistsAndKeepsHeadingAccessible() {
+    var timeline = new PlanningTimeline(List.of(
+        row(2025, 40, PlanningTimelineState.ACTUAL),
+        row(2026, 41, PlanningTimelineState.PROJECTED),
+        row(2027, 42, PlanningTimelineState.PROJECTED)));
+    var money = new PlanningTimelineMoney(BigDecimal.valueOf(100), BigDecimal.valueOf(80), null, null,
+        null, null, null, null, null, null, null, null);
+    var summaries = RetirementYearSummaryView.from(timeline, Map.of(2025, money, 2026, money, 2027, money));
+
+    var view = PlanTimelineView.from(timeline, summaries, null, 2027, 2026);
+
+    assertEquals(2026, view.selectedYear());
+    assertEquals("2027 · AGE 42 · PENSION START", view.years().get(2).heading());
+  }
+
   private static PlanningTimelineYear row(int year, int age, PlanningTimelineState state) {
     return new PlanningTimelineYear(year, age, state, null, null, null);
   }

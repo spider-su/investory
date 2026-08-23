@@ -2470,6 +2470,9 @@ body.iv-modal-open { overflow: hidden; }
 .iv-plan-snapshot__negative dd, .iv-plan-snapshot__negative small { color: var(--iv-negative, #c2415a); }
 .iv-plan-timeline__markers { display: flex; justify-content: space-between; gap: 8px; margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--iv-border); }
 .iv-plan-timeline__marker { position: relative; padding: 3px 6px; border: 0; color: var(--iv-text-muted); background: transparent; font-size: .68rem; font-weight: 750; }
+.iv-plan-timeline__marker span, .iv-plan-timeline__marker small { display: block; }
+.iv-plan-timeline__marker span { font-variant-numeric: tabular-nums; }
+.iv-plan-timeline__marker small { font-size: .62rem; font-weight: 650; }
 .iv-plan-timeline__marker::before { content: ""; position: absolute; top: -16px; left: 50%; width: 8px; height: 8px; border: 2px solid var(--iv-primary); border-radius: 50%; background: var(--iv-surface); transform: translateX(-50%); }
 .iv-plan-timeline__marker:hover, .iv-plan-timeline__marker:focus-visible, .iv-plan-timeline__marker.is-active { color: var(--iv-primary); }
 .iv-plan-timeline__marker.is-active { font-weight: 850; }

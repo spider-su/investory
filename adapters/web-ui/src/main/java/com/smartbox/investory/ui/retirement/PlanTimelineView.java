@@ -37,6 +37,7 @@ public record PlanTimelineView(
   }
 
   private static String lifecycle(int year, PlanningTimeline timeline, Integer retirementYear, Integer pensionStartYear) {
+    if (timeline.years().isEmpty()) return null;
     if (year == timeline.years().get(0).year()) return "Plan start";
     if (retirementYear != null && year == retirementYear) return "Retirement";
     if (pensionStartYear != null && year == pensionStartYear) return "Pension start";
@@ -45,6 +46,6 @@ public record PlanTimelineView(
   }
 
   public record YearSnapshotView(int year, int age, RetirementYearSummaryView summary, String lifecycleLabel) {
-    public String heading() { return year + " · Age " + age + (lifecycleLabel == null ? "" : " · " + lifecycleLabel); }
+    public String heading() { return year + " · AGE " + age + (lifecycleLabel == null ? "" : " · " + lifecycleLabel.toUpperCase()); }
   }
 }

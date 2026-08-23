@@ -79,7 +79,7 @@
             <nav class="iv-planning-local-nav" aria-label="Retirement view">
                 <a th:if="${actionMode == 'simulation'}" class="is-active" aria-current="page">Projection</a>
                 <a th:if="${actionMode == 'analysis'}" th:href="@{/simulation(portfolioId=${analysisPage.portfolioId},planId=${analysisPage.planId},planningDisplayCurrency=${analysisPage.displayCurrency},selectedScenario=${analysisPage.selectedScenario})}">Projection</a>
-                <a th:if="${actionMode == 'simulation'}" th:href="@{/analysis(portfolioId=${simulationPage.profile.portfolioId},planId=${simulationPage.selectedPlanId},planningDisplayCurrency=${simulationPage.displayCurrency},selectedScenario=${simulationPage.selectedScenario})}">Analysis</a>
+                <a th:if="${actionMode == 'simulation'}" th:href="@{/analysis(portfolioId=${portfolioId},planId=${selectedPlanId},planningDisplayCurrency=${currency},selectedScenario=${selectedScenario})}">Analysis</a>
                 <a th:if="${actionMode == 'analysis'}" class="is-active" aria-current="page">Analysis</a>
             </nav>
         </div>

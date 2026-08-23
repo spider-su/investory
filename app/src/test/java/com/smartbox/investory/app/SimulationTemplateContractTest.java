@@ -83,6 +83,8 @@ class SimulationTemplateContractTest {
         () -> assertTrue(html.contains("Edit assumptions")),
         () -> assertTrue(html.contains("Yearly projection")),
         () -> assertTrue(header.contains("Edit plan")),
+        () -> assertTrue(header.contains("portfolioId=${portfolioId},planId=${selectedPlanId}")),
+        () -> assertFalse(header.contains("simulationPage.profile.portfolioId")),
         () -> assertTrue(html.contains("aria-selected")),
         () -> assertTrue(editor.contains("3. Income &amp; assets")),
         () -> assertTrue(editor.contains("4. Events")));
