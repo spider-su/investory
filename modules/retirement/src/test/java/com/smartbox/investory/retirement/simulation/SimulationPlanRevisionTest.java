@@ -108,6 +108,14 @@ class SimulationPlanRevisionTest {
     SimulationPlanRevisionEntity revision = revision(11L, 1);
     revision.setAllowEmergencyEquityWithdrawal(null);
     revision.setRetirementAge(null);
+    revision.setRentalIncomeGrowthSpread(null);
+    revision.setSpendingGrowthSpread(null);
+    revision.setFundingStrategy(null);
+    revision.setSafeReserveYears(null);
+    revision.setEquityHarvestMinimumReturnRate(null);
+    revision.setEquityGainHarvestRate(null);
+    revision.setAnnualEmploymentIncome(null);
+    revision.setAnnualPreRetirementContribution(null);
     when(revisions.findByIdAndSimulationPlanId(11L, 7L)).thenReturn(Optional.of(revision));
     when(revisionEvents.findAllByRevisionIdOrderByYearAscIdAsc(11L)).thenReturn(List.of());
 

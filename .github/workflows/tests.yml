@@ -31,9 +31,6 @@ jobs:
           java-version: '25'
           cache: maven
 
-      - name: Remove potentially corrupt Mockito cache entry
-        run: rm -rf "$HOME/.m2/repository/org/mockito/mockito-core/5.23.0"
-
       - name: Run tests
         run: sh ./mvnw --batch-mode --no-transfer-progress "-Duser.home=$RUNNER_TEMP" "-Dmaven.repo.local=$RUNNER_TEMP/m2" test
 
@@ -52,9 +49,6 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: maven
-
-      - name: Remove potentially corrupt Mockito cache entry
-        run: rm -rf "$HOME/.m2/repository/org/mockito/mockito-core/5.23.0"
 
       - name: Run integration tests
         run: |
@@ -77,9 +71,6 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: maven
-
-      - name: Remove potentially corrupt Mockito cache entry
-        run: rm -rf "$HOME/.m2/repository/org/mockito/mockito-core/5.23.0"
 
       - name: Run offline golden gate
         run: |

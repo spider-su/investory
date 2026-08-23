@@ -440,19 +440,33 @@ public class SimulationPlanService {
             revision.getStartYear(),
             revision.getAnnualDiscretionaryExpenses(),
             eventList,
-            revision.getRentalIncomeGrowthSpread(),
-            revision.getSpendingGrowthSpread(),
-            revision.getFundingStrategy(),
-            revision.getSafeReserveYears(),
-            revision.getEquityHarvestMinimumReturnRate(),
-            revision.getEquityGainHarvestRate(),
+            revision.getRentalIncomeGrowthSpread() == null
+                ? SimulationAssumptions.DEFAULT_RENTAL_INCOME_GROWTH_SPREAD
+                : revision.getRentalIncomeGrowthSpread(),
+            revision.getSpendingGrowthSpread() == null
+                ? SimulationAssumptions.DEFAULT_SPENDING_GROWTH_SPREAD
+                : revision.getSpendingGrowthSpread(),
+            revision.getFundingStrategy() == null
+                ? SimulationFundingStrategy.SIMPLE_WATERFALL
+                : revision.getFundingStrategy(),
+            revision.getSafeReserveYears() == null ? BigDecimal.ZERO : revision.getSafeReserveYears(),
+            revision.getEquityHarvestMinimumReturnRate() == null
+                ? BigDecimal.ZERO
+                : revision.getEquityHarvestMinimumReturnRate(),
+            revision.getEquityGainHarvestRate() == null
+                ? BigDecimal.ZERO
+                : revision.getEquityGainHarvestRate(),
             revision.getAllowEmergencyEquityWithdrawal() == null
                 || revision.getAllowEmergencyEquityWithdrawal(),
             revision.getRetirementAge() == null
                 ? revision.getCurrentAge()
                 : revision.getRetirementAge(),
-            revision.getAnnualEmploymentIncome(),
-            revision.getAnnualPreRetirementContribution());
+            revision.getAnnualEmploymentIncome() == null
+                ? BigDecimal.ZERO
+                : revision.getAnnualEmploymentIncome(),
+            revision.getAnnualPreRetirementContribution() == null
+                ? BigDecimal.ZERO
+                : revision.getAnnualPreRetirementContribution());
     return result
         .withFundingOrder(parseFundingOrder(revision.getFundingOrder()))
         .withExpenseProfile(parseExpenseProfile(revision.getExpenseProfile()))
