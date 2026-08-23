@@ -4,9 +4,9 @@ import com.smartbox.investory.retirement.planning.PlanningCurrencyPresentationSe
 import com.smartbox.investory.retirement.planning.RetirementAnalysisService;
 import com.smartbox.investory.retirement.planning.RetirementProjectionFacade;
 import com.smartbox.investory.retirement.planning.SimulationScenarioComparison;
+import com.smartbox.investory.retirement.simulation.SimulationCustomDeltas;
 import com.smartbox.investory.retirement.simulation.SimulationPlanService;
 import com.smartbox.investory.retirement.simulation.SimulationScenario;
-import com.smartbox.investory.retirement.simulation.SimulationCustomDeltas;
 import com.smartbox.investory.retirement.simulation.SimulationScenarioSettings;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.LinkedHashMap;
@@ -65,7 +65,8 @@ public class RetirementAnalysisController {
             projections.loadInput(portfolioId, selectedPlanId, 40, 95).assumptions(),
             customDeltas);
       } catch (IllegalArgumentException ex) {
-        customInput = customInput.withError("effective", "Effective assumption is outside the valid range.");
+        customInput =
+            customInput.withError("effective", "Effective assumption is outside the valid range.");
         customDeltas = SimulationCustomDeltas.zero();
       }
     }
@@ -78,7 +79,9 @@ public class RetirementAnalysisController {
         new RetirementAnalysisPageView(
             portfolioId,
             selectedPlanId,
-            selectedPlanId == null ? "Current assumptions" : plans.name(portfolioId, selectedPlanId),
+            selectedPlanId == null
+                ? "Current assumptions"
+                : plans.name(portfolioId, selectedPlanId),
             planningDisplayCurrency,
             selectedScenario,
             CustomScenarioView.from(customInput),

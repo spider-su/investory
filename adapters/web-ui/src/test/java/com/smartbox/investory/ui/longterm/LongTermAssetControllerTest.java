@@ -6,9 +6,9 @@ import static org.mockito.Mockito.*;
 
 import com.smartbox.investory.longterm.api.*;
 import com.smartbox.investory.longterm.api.LongTermAssetsApi;
+import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
 import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
-import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;

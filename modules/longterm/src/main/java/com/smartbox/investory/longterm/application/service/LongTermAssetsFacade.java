@@ -48,15 +48,15 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
 
   @Override
   @Transactional(readOnly = true)
-  public com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel historicalAnnualSnapshot(
-      Long portfolioId, int year) {
+  public com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel
+      historicalAnnualSnapshot(Long portfolioId, int year) {
     return service.historicalAnnualSnapshot(portfolioId, year);
   }
 
   @Override
   @Transactional(readOnly = true)
-  public com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel currentAnnualSnapshot(
-      Long portfolioId, LocalDate date) {
+  public com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel
+      currentAnnualSnapshot(Long portfolioId, LocalDate date) {
     return service.currentAnnualSnapshot(portfolioId, date);
   }
 
@@ -68,9 +68,10 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
   @Transactional(readOnly = true)
   public DetailView details(Long portfolioId, Long id, LocalDate date) {
     AssetView asset = asset(portfolioId, id);
-    List<ContractView> contracts = asset.type() == LongTermAssetType.REAL_ESTATE
-        ? rentalContracts.list(portfolioId, id).stream().map(ContractView::from).toList()
-        : List.of();
+    List<ContractView> contracts =
+        asset.type() == LongTermAssetType.REAL_ESTATE
+            ? rentalContracts.list(portfolioId, id).stream().map(ContractView::from).toList()
+            : List.of();
     return new DetailView(
         asset,
         service.summary(toEntity(asset), date),

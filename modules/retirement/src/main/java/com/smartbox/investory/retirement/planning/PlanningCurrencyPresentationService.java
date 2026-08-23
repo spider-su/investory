@@ -676,13 +676,21 @@ public class PlanningCurrencyPresentationService {
           reserveEnd = null,
           longTermCapitalEnd = null,
           investmentEnd = null,
-          cashStart = null, cashEnd = null,
-          bondsStart = null, bondsEnd = null,
-          equitiesStart = null, equitiesEnd = null,
-          realEstateStart = null, realEstateEnd = null,
-          cashWithdrawal = null, bondWithdrawal = null,
-          equityWithdrawal = null, realEstateWithdrawal = null,
-          bondReturn = null, equityReturn = null, equityRefill = null;
+          cashStart = null,
+          cashEnd = null,
+          bondsStart = null,
+          bondsEnd = null,
+          equitiesStart = null,
+          equitiesEnd = null,
+          realEstateStart = null,
+          realEstateEnd = null,
+          cashWithdrawal = null,
+          bondWithdrawal = null,
+          equityWithdrawal = null,
+          realEstateWithdrawal = null,
+          bondReturn = null,
+          equityReturn = null,
+          equityRefill = null;
       if ((row.state() == PlanningTimelineState.ACTUAL
               || row.state() == PlanningTimelineState.NEEDS_REVIEW)
           && row.past() != null) {
@@ -692,10 +700,17 @@ public class PlanningCurrencyPresentationService {
                 row.past().values(), PlanningMetric.RENTAL_INCOME, PlanningMetric.PASSIVE_INCOME);
         bondIncome = planningValue(row.past().values(), PlanningMetric.BOND_INCOME);
         totalIncome = sumKnown(rentalIncome, bondIncome);
-        cashEnd = firstValue(row.past().values(), PlanningMetric.CASH_RESERVE_VALUE, PlanningMetric.SAFE_RESERVE, PlanningMetric.MANUAL_LIQUID_RESERVE);
+        cashEnd =
+            firstValue(
+                row.past().values(),
+                PlanningMetric.CASH_RESERVE_VALUE,
+                PlanningMetric.SAFE_RESERVE,
+                PlanningMetric.MANUAL_LIQUID_RESERVE);
         reserveEnd = cashEnd;
-        bondsEnd = firstValue(row.past().values(), PlanningMetric.BOND_VALUE, PlanningMetric.FIXED_INCOME);
-        equitiesEnd = firstValue(row.past().values(), PlanningMetric.EQUITY, PlanningMetric.MARKET_ASSETS);
+        bondsEnd =
+            firstValue(row.past().values(), PlanningMetric.BOND_VALUE, PlanningMetric.FIXED_INCOME);
+        equitiesEnd =
+            firstValue(row.past().values(), PlanningMetric.EQUITY, PlanningMetric.MARKET_ASSETS);
         realEstateEnd = planningValue(row.past().values(), PlanningMetric.REAL_ESTATE);
       } else if (row.state() == PlanningTimelineState.LIVE) {
         Map<PlanningMetric, PlanningMetricValue> currentValues = row.current().actualValues();
@@ -718,25 +733,41 @@ public class PlanningCurrencyPresentationService {
                         >= assumptions.pensionStartAge()
                 ? assumptions.annualPension()
                 : BigDecimal.ZERO;
-        BigDecimal eventIncome = eventAmount(assumptions, row.year(), SimulationEventType.ONE_OFF_INCOME);
+        BigDecimal eventIncome =
+            eventAmount(assumptions, row.year(), SimulationEventType.ONE_OFF_INCOME);
         BigDecimal eventExpenses =
             eventAmount(assumptions, row.year(), SimulationEventType.ONE_OFF_EXPENSE);
         annualCosts = annualCosts == null ? null : annualCosts.add(eventExpenses);
-        totalIncome = employment.add(zero(rentalIncome)).add(zero(bondIncome)).add(pension).add(eventIncome);
+        totalIncome =
+            employment.add(zero(rentalIncome)).add(zero(bondIncome)).add(pension).add(eventIncome);
         fundingGap = gap(annualCosts, totalIncome);
-        cashStart = firstValue(currentValues, PlanningMetric.CASH_RESERVE_VALUE,
-            PlanningMetric.MANUAL_LIQUID_RESERVE, PlanningMetric.SAFE_RESERVE);
-        cashEnd = firstValue(expectedValues, PlanningMetric.CASH_RESERVE_VALUE,
-            PlanningMetric.MANUAL_LIQUID_RESERVE, PlanningMetric.SAFE_RESERVE);
+        cashStart =
+            firstValue(
+                currentValues,
+                PlanningMetric.CASH_RESERVE_VALUE,
+                PlanningMetric.MANUAL_LIQUID_RESERVE,
+                PlanningMetric.SAFE_RESERVE);
+        cashEnd =
+            firstValue(
+                expectedValues,
+                PlanningMetric.CASH_RESERVE_VALUE,
+                PlanningMetric.MANUAL_LIQUID_RESERVE,
+                PlanningMetric.SAFE_RESERVE);
         if (cashEnd == null) cashEnd = cashStart;
-        cashWithdrawal = cashStart == null || cashEnd == null
-            ? null : cashStart.subtract(cashEnd).max(BigDecimal.ZERO);
+        cashWithdrawal =
+            cashStart == null || cashEnd == null
+                ? null
+                : cashStart.subtract(cashEnd).max(BigDecimal.ZERO);
         reserveEnd = cashEnd;
-        bondsStart = firstValue(currentValues, PlanningMetric.BOND_VALUE, PlanningMetric.FIXED_INCOME);
-        bondsEnd = firstValue(expectedValues, PlanningMetric.BOND_VALUE, PlanningMetric.FIXED_INCOME);
+        bondsStart =
+            firstValue(currentValues, PlanningMetric.BOND_VALUE, PlanningMetric.FIXED_INCOME);
+        bondsEnd =
+            firstValue(expectedValues, PlanningMetric.BOND_VALUE, PlanningMetric.FIXED_INCOME);
         if (bondsEnd == null) bondsEnd = bondsStart;
-        equitiesStart = firstValue(currentValues, PlanningMetric.EQUITY, PlanningMetric.MARKET_ASSETS);
-        equitiesEnd = firstValue(expectedValues, PlanningMetric.EQUITY, PlanningMetric.MARKET_ASSETS);
+        equitiesStart =
+            firstValue(currentValues, PlanningMetric.EQUITY, PlanningMetric.MARKET_ASSETS);
+        equitiesEnd =
+            firstValue(expectedValues, PlanningMetric.EQUITY, PlanningMetric.MARKET_ASSETS);
         if (equitiesEnd == null) equitiesEnd = equitiesStart;
         realEstateStart = planningValue(currentValues, PlanningMetric.REAL_ESTATE);
         realEstateEnd = planningValue(expectedValues, PlanningMetric.REAL_ESTATE);
@@ -766,8 +797,10 @@ public class PlanningCurrencyPresentationService {
         cashWithdrawal = row.projection().manualLiquidReserveWithdrawal();
         bondWithdrawal = funding.longTermFunding();
         equityWithdrawal = row.projection().emergencyEquityWithdrawal();
-        realEstateWithdrawal = zero(row.projection().realEstateStart())
-            .subtract(zero(row.projection().realEstateEnd())).max(BigDecimal.ZERO);
+        realEstateWithdrawal =
+            zero(row.projection().realEstateStart())
+                .subtract(zero(row.projection().realEstateEnd()))
+                .max(BigDecimal.ZERO);
         bondReturn = row.projection().capitalizedBondReturn();
         equityReturn = row.projection().equityGain();
         equityRefill = row.projection().equityToFixedIncomeTransfer();
@@ -787,13 +820,20 @@ public class PlanningCurrencyPresentationService {
               toDisplay(reserveEnd, currency),
               toDisplay(longTermCapitalEnd, currency),
               toDisplay(investmentEnd, currency),
-              toDisplay(cashStart, currency), toDisplay(cashEnd, currency),
-              toDisplay(bondsStart, currency), toDisplay(bondsEnd, currency),
-              toDisplay(equitiesStart, currency), toDisplay(equitiesEnd, currency),
-              toDisplay(realEstateStart, currency), toDisplay(realEstateEnd, currency),
-              toDisplay(cashWithdrawal, currency), toDisplay(bondWithdrawal, currency),
-              toDisplay(equityWithdrawal, currency), toDisplay(realEstateWithdrawal, currency),
-              toDisplay(bondReturn, currency), toDisplay(equityReturn, currency),
+              toDisplay(cashStart, currency),
+              toDisplay(cashEnd, currency),
+              toDisplay(bondsStart, currency),
+              toDisplay(bondsEnd, currency),
+              toDisplay(equitiesStart, currency),
+              toDisplay(equitiesEnd, currency),
+              toDisplay(realEstateStart, currency),
+              toDisplay(realEstateEnd, currency),
+              toDisplay(cashWithdrawal, currency),
+              toDisplay(bondWithdrawal, currency),
+              toDisplay(equityWithdrawal, currency),
+              toDisplay(realEstateWithdrawal, currency),
+              toDisplay(bondReturn, currency),
+              toDisplay(equityReturn, currency),
               toDisplay(equityRefill, currency)));
     }
     return result;
@@ -838,7 +878,9 @@ public class PlanningCurrencyPresentationService {
   }
 
   private static BigDecimal gap(BigDecimal expenses, BigDecimal income) {
-    return expenses == null || income == null ? null : expenses.subtract(income).max(BigDecimal.ZERO);
+    return expenses == null || income == null
+        ? null
+        : expenses.subtract(income).max(BigDecimal.ZERO);
   }
 
   private static BigDecimal zero(BigDecimal value) {
@@ -860,8 +902,7 @@ public class PlanningCurrencyPresentationService {
   }
 
   private static BigDecimal firstValue(
-      Map<PlanningMetric, PlanningMetricValue> values,
-      PlanningMetric... metrics) {
+      Map<PlanningMetric, PlanningMetricValue> values, PlanningMetric... metrics) {
     for (PlanningMetric metric : metrics) {
       BigDecimal value = planningValue(values, metric);
       if (value != null) return value;

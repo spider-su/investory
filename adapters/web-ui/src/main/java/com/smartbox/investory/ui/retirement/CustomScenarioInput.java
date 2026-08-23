@@ -17,7 +17,10 @@ record CustomScenarioInput(
   private static final BigDecimal MAX_PERCENTAGE_POINTS = new BigDecimal("20");
 
   static CustomScenarioInput parse(
-      String inflation, String rentalGrowth, String bondReturn, String equityReturn,
+      String inflation,
+      String rentalGrowth,
+      String bondReturn,
+      String equityReturn,
       String spendingGrowth) {
     Map<String, String> errors = new LinkedHashMap<>();
     BigDecimal inflationRate = parse("inflation", inflation, errors);
@@ -37,14 +40,19 @@ record CustomScenarioInput(
         display(bondReturn),
         display(equityReturn),
         display(spendingGrowth),
-    Map.copyOf(errors));
+        Map.copyOf(errors));
   }
 
   CustomScenarioInput withError(String field, String message) {
     Map<String, String> updated = new LinkedHashMap<>(errors);
     updated.put(field, message);
     return new CustomScenarioInput(
-        deltas, inflation, rentalGrowth, bondReturn, equityReturn, spendingGrowth,
+        deltas,
+        inflation,
+        rentalGrowth,
+        bondReturn,
+        equityReturn,
+        spendingGrowth,
         Map.copyOf(updated));
   }
 

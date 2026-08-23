@@ -247,8 +247,10 @@ class PlanningCurrencyPresentationServiceTest {
   @Test
   void leavesNeedsReviewTimelineRowsEmptyUntilHistoricalFactsOrProjectionExists() {
     PlanningTimeline timeline =
-        new PlanningTimeline(List.of(
-            new PlanningTimelineYear(2025, 40, PlanningTimelineState.NEEDS_REVIEW, null, null, null)));
+        new PlanningTimeline(
+            List.of(
+                new PlanningTimelineYear(
+                    2025, 40, PlanningTimelineState.NEEDS_REVIEW, null, null, null)));
 
     PlanningTimelineMoney displayed =
         new PlanningCurrencyPresentationService(

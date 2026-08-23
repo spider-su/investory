@@ -2,13 +2,13 @@ package com.smartbox.investory.longterm.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
 import com.smartbox.investory.longterm.api.model.CashFlowTypeModel;
 import com.smartbox.investory.longterm.api.model.FrequencyModel;
+import com.smartbox.investory.longterm.api.model.InterestTreatmentModel;
+import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
+import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
 import com.smartbox.investory.longterm.api.model.RentalContractModel;
 import com.smartbox.investory.longterm.api.model.RentalIncomeProjectionModel;
-import com.smartbox.investory.longterm.api.model.InterestTreatmentModel;
-import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -39,7 +39,8 @@ class RentalContractProjectionTaxTest {
     var asset =
         asset(
             List.of(
-                contract(LocalDate.of(2026, 1, 1), null, term(CashFlowTypeModel.RENT, "3000", false))),
+                contract(
+                    LocalDate.of(2026, 1, 1), null, term(CashFlowTypeModel.RENT, "3000", false))),
             true);
     assertEquals(
         BigDecimal.ZERO,
@@ -51,8 +52,10 @@ class RentalContractProjectionTaxTest {
     return new RentalContractModel(null, start, null, null, tax, List.of(terms));
   }
 
-  private static RentalContractModel.Term term(CashFlowTypeModel type, String amount, boolean tenant) {
-    return new RentalContractModel.Term(type, new BigDecimal(amount), FrequencyModel.MONTHLY, tenant);
+  private static RentalContractModel.Term term(
+      CashFlowTypeModel type, String amount, boolean tenant) {
+    return new RentalContractModel.Term(
+        type, new BigDecimal(amount), FrequencyModel.MONTHLY, tenant);
   }
 
   private static LongTermAssetProjectionModel asset(

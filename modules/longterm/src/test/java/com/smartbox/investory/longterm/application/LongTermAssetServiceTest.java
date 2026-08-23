@@ -66,13 +66,17 @@ class LongTermAssetServiceTest {
         .when(rentalContracts.findAllByAssetIdOrderByStartDate(anyLong()))
         .thenAnswer(
             invocation ->
-                cashFlows.findAllByAssetIdOrderByValidFrom(invocation.getArgument(0, Long.class)).stream()
+                cashFlows
+                    .findAllByAssetIdOrderByValidFrom(invocation.getArgument(0, Long.class))
+                    .stream()
                     .filter(f -> f.getType() != CashFlowType.RENT || f.getAmount() != null)
-                    .collect(java.util.stream.Collectors.groupingBy(
-                        f -> java.util.Arrays.asList(f.getValidFrom(), f.getValidTo()),
-                        java.util.LinkedHashMap::new,
-                        java.util.stream.Collectors.toList()))
-                    .values().stream()
+                    .collect(
+                        java.util.stream.Collectors.groupingBy(
+                            f -> java.util.Arrays.asList(f.getValidFrom(), f.getValidTo()),
+                            java.util.LinkedHashMap::new,
+                            java.util.stream.Collectors.toList()))
+                    .values()
+                    .stream()
                     .map(LongTermAssetServiceTest::contractFrom)
                     .toList());
     service =
@@ -93,21 +97,27 @@ class LongTermAssetServiceTest {
                 DATE.atStartOfDay(java.time.ZoneOffset.UTC).toInstant(), java.time.ZoneOffset.UTC));
   }
 
-  private static LongTermAssetRentalContractEntity contractFrom(List<LongTermAssetCashFlowEntity> flows) {
+  private static LongTermAssetRentalContractEntity contractFrom(
+      List<LongTermAssetCashFlowEntity> flows) {
     LongTermAssetCashFlowEntity flow = flows.get(0);
     LongTermAssetRentalContractEntity contract = new LongTermAssetRentalContractEntity();
     contract.setAssetId(flow.getAssetId());
     contract.setStartDate(flow.getValidFrom());
     contract.setEndDate(flow.getValidTo());
-    contract.setTerms(flows.stream().map(f -> {
-      LongTermAssetRentalContractTermEntity term = new LongTermAssetRentalContractTermEntity();
-      term.setContract(contract);
-      term.setType(f.getType());
-      term.setAmount(f.getAmount());
-      term.setFrequency(f.getFrequency());
-      term.setPaidByTenant(f.isPaidByTenant());
-      return term;
-    }).toList());
+    contract.setTerms(
+        flows.stream()
+            .map(
+                f -> {
+                  LongTermAssetRentalContractTermEntity term =
+                      new LongTermAssetRentalContractTermEntity();
+                  term.setContract(contract);
+                  term.setType(f.getType());
+                  term.setAmount(f.getAmount());
+                  term.setFrequency(f.getFrequency());
+                  term.setPaidByTenant(f.isPaidByTenant());
+                  return term;
+                })
+            .toList());
     return contract;
   }
 
@@ -273,7 +283,8 @@ class LongTermAssetServiceTest {
     assertEquals(LongTermAssetType.BOND, input.type());
     assertEquals(new BigDecimal("900000"), input.currentValue());
     assertEquals(1, input.periods().size());
-    assertEquals(new BigDecimal("0.053333333333333333"), input.periods().getFirst().annualReturnRate());
+    assertEquals(
+        new BigDecimal("0.053333333333333333"), input.periods().getFirst().annualReturnRate());
     assertEquals(LocalDate.of(2028, 12, 31), input.periods().getFirst().validTo());
     assertEquals(InterestTreatment.PAY_OUT, input.interestTreatment());
   }
@@ -1080,7 +1091,10 @@ class LongTermAssetServiceTest {
     when(bonds.findById(1L)).thenReturn(Optional.of(details));
     when(bondRates.findAllByAssetIdOrderByValidFrom(1L)).thenReturn(List.of(rate));
     when(currencyRates.convertToBaseCurrency(
-            any(BigDecimal.class), eq(CurrencyType.USD), eq(CurrencyType.PLN), any(LocalDate.class)))
+            any(BigDecimal.class),
+            eq(CurrencyType.USD),
+            eq(CurrencyType.PLN),
+            any(LocalDate.class)))
         .thenAnswer(invocation -> invocation.getArgument(0, BigDecimal.class));
 
     BigDecimal income = service.historicalAnnualSnapshot(1L, 2025).bondIncome();
@@ -1125,7 +1139,10 @@ class LongTermAssetServiceTest {
     when(bonds.findById(1L)).thenReturn(Optional.of(details));
     when(bondRates.findAllByAssetIdOrderByValidFrom(1L)).thenReturn(List.of(rate));
     when(currencyRates.convertToBaseCurrency(
-            any(BigDecimal.class), eq(CurrencyType.USD), eq(CurrencyType.PLN), any(LocalDate.class)))
+            any(BigDecimal.class),
+            eq(CurrencyType.USD),
+            eq(CurrencyType.PLN),
+            any(LocalDate.class)))
         .thenAnswer(invocation -> invocation.getArgument(0, BigDecimal.class));
 
     assertEquals(BigDecimal.ZERO, service.currentAnnualSnapshot(1L, DATE).bondIncome());

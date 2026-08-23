@@ -5,8 +5,8 @@ import com.smartbox.investory.retirement.simulation.PlanSustainabilityAssessment
 import com.smartbox.investory.retirement.simulation.RetirementAgeAnalysisService;
 import com.smartbox.investory.retirement.simulation.SimulationChartData;
 import com.smartbox.investory.retirement.simulation.SimulationEvaluation;
-import com.smartbox.investory.retirement.simulation.SimulationSensitivityAnalysisService;
 import com.smartbox.investory.retirement.simulation.SimulationScenario;
+import com.smartbox.investory.retirement.simulation.SimulationSensitivityAnalysisService;
 import com.smartbox.investory.retirement.simulation.SustainableSpendingAnalysisService;
 import org.springframework.stereotype.Service;
 

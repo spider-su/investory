@@ -3,12 +3,12 @@ package com.smartbox.investory.longterm.application;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
 import com.smartbox.investory.longterm.api.model.CashFlowTypeModel;
-import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
-import com.smartbox.investory.longterm.api.model.RentalIncomeProjectionModel;
-import com.smartbox.investory.longterm.api.model.RentalContractModel;
 import com.smartbox.investory.longterm.api.model.FrequencyModel;
+import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
+import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
+import com.smartbox.investory.longterm.api.model.RentalContractModel;
+import com.smartbox.investory.longterm.api.model.RentalIncomeProjectionModel;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -74,10 +74,16 @@ class RentalIncomeProjectionTest {
 
   @Test
   void terminatedHistoricalContractRemainsForwardBaselineWithoutSuccessor() {
-    var contract = new RentalContractModel(1L, LocalDate.of(2027, 1, 1), null,
-        LocalDate.of(2028, 6, 30), null,
-        List.of(new RentalContractModel.Term(CashFlowTypeModel.RENT, bd("180000"),
-            FrequencyModel.ANNUAL, false)));
+    var contract =
+        new RentalContractModel(
+            1L,
+            LocalDate.of(2027, 1, 1),
+            null,
+            LocalDate.of(2028, 6, 30),
+            null,
+            List.of(
+                new RentalContractModel.Term(
+                    CashFlowTypeModel.RENT, bd("180000"), FrequencyModel.ANNUAL, false)));
     var asset = assetWithContracts(contract);
     var prior = RentalIncomeProjectionModel.project(asset, Map.of(), 2028, BigDecimal.ZERO);
     var future = RentalIncomeProjectionModel.project(asset, prior.incomeByType(), 2029, bd("0.01"));
@@ -87,26 +93,59 @@ class RentalIncomeProjectionTest {
 
   @Test
   void contractTaxOwnershipOverridesAssetDefaultAndHistoricalDatesAreRespected() {
-    var contract = new RentalContractModel(1L, LocalDate.of(2024, 7, 1), LocalDate.of(2025, 6, 30),
-        null, true, List.of(new RentalContractModel.Term(CashFlowTypeModel.RENT,
-            bd("120000"), FrequencyModel.ANNUAL, false)));
-    var asset = new LongTermAssetProjectionModel(1L, "Rental", LongTermAssetTypeModel.REAL_ESTATE,
-        CurrencyType.USD, BigDecimal.ZERO, List.of(), List.of(contract), null, null, null,
-        bd("0.20"), bd("100000"), false);
+    var contract =
+        new RentalContractModel(
+            1L,
+            LocalDate.of(2024, 7, 1),
+            LocalDate.of(2025, 6, 30),
+            null,
+            true,
+            List.of(
+                new RentalContractModel.Term(
+                    CashFlowTypeModel.RENT, bd("120000"), FrequencyModel.ANNUAL, false)));
+    var asset =
+        new LongTermAssetProjectionModel(
+            1L,
+            "Rental",
+            LongTermAssetTypeModel.REAL_ESTATE,
+            CurrencyType.USD,
+            BigDecimal.ZERO,
+            List.of(),
+            List.of(contract),
+            null,
+            null,
+            null,
+            bd("0.20"),
+            bd("100000"),
+            false);
     var actual = RentalIncomeProjectionModel.actualYear(asset, 2024);
-    assertTrue(actual.grossIncome().subtract(bd("60327.868852459016400"))
-        .abs().compareTo(bd("0.000000000000001")) < 0);
+    assertTrue(
+        actual
+                .grossIncome()
+                .subtract(bd("60327.868852459016400"))
+                .abs()
+                .compareTo(bd("0.000000000000001"))
+            < 0);
     assertBd("0", actual.tax());
     assertBd("0", RentalIncomeProjectionModel.actualYear(asset, 2026).grossIncome());
   }
 
   @Test
   void landlordExpensesStayFlatAndTenantPaidExpensesStayExcluded() {
-    var contract = new RentalContractModel(1L, LocalDate.of(2027, 1, 1), null, null, null,
-        List.of(
-            new RentalContractModel.Term(CashFlowTypeModel.RENT, bd("120000"), FrequencyModel.ANNUAL, false),
-            new RentalContractModel.Term(CashFlowTypeModel.ADMIN_FEE, bd("12000"), FrequencyModel.ANNUAL, false),
-            new RentalContractModel.Term(CashFlowTypeModel.UTILITIES, bd("6000"), FrequencyModel.ANNUAL, true)));
+    var contract =
+        new RentalContractModel(
+            1L,
+            LocalDate.of(2027, 1, 1),
+            null,
+            null,
+            null,
+            List.of(
+                new RentalContractModel.Term(
+                    CashFlowTypeModel.RENT, bd("120000"), FrequencyModel.ANNUAL, false),
+                new RentalContractModel.Term(
+                    CashFlowTypeModel.ADMIN_FEE, bd("12000"), FrequencyModel.ANNUAL, false),
+                new RentalContractModel.Term(
+                    CashFlowTypeModel.UTILITIES, bd("6000"), FrequencyModel.ANNUAL, true)));
     var asset = assetWithContracts(contract);
     var first = RentalIncomeProjectionModel.project(asset, Map.of(), 2027, bd("0.10"));
     var second = RentalIncomeProjectionModel.project(asset, first.incomeByType(), 2028, bd("0.10"));
@@ -120,7 +159,10 @@ class RentalIncomeProjectionTest {
     var asset =
         asset(
             periodBetween(
-                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 6, 30), "24000", CashFlowTypeModel.RENT),
+                LocalDate.of(2026, 1, 1),
+                LocalDate.of(2026, 6, 30),
+                "24000",
+                CashFlowTypeModel.RENT),
             periodBetween(LocalDate.of(2026, 7, 1), null, "27600", CashFlowTypeModel.RENT));
 
     var result = RentalIncomeProjectionModel.actualYear(asset, 2026);
@@ -220,9 +262,20 @@ class RentalIncomeProjectionTest {
   }
 
   private static LongTermAssetProjectionModel assetWithContracts(RentalContractModel... contracts) {
-    return new LongTermAssetProjectionModel(1L, "Rental", LongTermAssetTypeModel.REAL_ESTATE,
-        CurrencyType.USD, BigDecimal.ZERO, List.of(), List.of(contracts), null, null, null,
-        BigDecimal.ZERO, BigDecimal.ZERO, false);
+    return new LongTermAssetProjectionModel(
+        1L,
+        "Rental",
+        LongTermAssetTypeModel.REAL_ESTATE,
+        CurrencyType.USD,
+        BigDecimal.ZERO,
+        List.of(),
+        List.of(contracts),
+        null,
+        null,
+        null,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        false);
   }
 
   private static LongTermAssetProjectionModel.Period period(

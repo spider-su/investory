@@ -290,36 +290,39 @@ public class LongTermAssetService {
       List<LongTermAssetProjectionInput.Period> periods = new ArrayList<>();
       List<RentalContractModel> contracts =
           rentalContracts.findAllByAssetIdOrderByStartDate(asset.getId()).stream()
-                  .map(
-                      c ->
-                          new RentalContractModel(
-                              c.getId(),
-                              c.getStartDate(),
-                              c.getEndDate(),
-                              c.getTerminatedDate(),
-                              c.getRentalTaxPaidByTenant(),
-                              c.getTerms().stream()
-                                  .map(
-                                      t ->
-                                          new RentalContractModel.Term(
-                                              com.smartbox.investory.longterm.api.model.CashFlowTypeModel.valueOf(t.getType().name()),
-                                              t.getAmount(),
-                                              com.smartbox.investory.longterm.api.model.FrequencyModel.valueOf(t.getFrequency().name()),
-                                              t.isPaidByTenant()))
-                                  .toList()))
-                  .toList();
+              .map(
+                  c ->
+                      new RentalContractModel(
+                          c.getId(),
+                          c.getStartDate(),
+                          c.getEndDate(),
+                          c.getTerminatedDate(),
+                          c.getRentalTaxPaidByTenant(),
+                          c.getTerms().stream()
+                              .map(
+                                  t ->
+                                      new RentalContractModel.Term(
+                                          com.smartbox.investory.longterm.api.model
+                                              .CashFlowTypeModel.valueOf(t.getType().name()),
+                                          t.getAmount(),
+                                          com.smartbox.investory.longterm.api.model.FrequencyModel
+                                              .valueOf(t.getFrequency().name()),
+                                          t.isPaidByTenant()))
+                              .toList()))
+              .toList();
       if (asset.getType() != LongTermAssetType.REAL_ESTATE) {
-        for (LongTermAssetCashFlowEntity flow : cashFlows.findAllByAssetIdOrderByValidFrom(asset.getId())) {
-        BigDecimal annual = LongTermAssetCalculator.annualAmount(flow);
+        for (LongTermAssetCashFlowEntity flow :
+            cashFlows.findAllByAssetIdOrderByValidFrom(asset.getId())) {
+          BigDecimal annual = LongTermAssetCalculator.annualAmount(flow);
           periods.add(
-            new LongTermAssetProjectionInput.Period(
-                flow.getValidFrom(),
-                flow.getValidTo(),
-                isIncome(flow.getType()) ? annual : BigDecimal.ZERO,
-                isIncome(flow.getType()) ? BigDecimal.ZERO : annual,
-                BigDecimal.ZERO,
-                flow.getType(),
-                flow.isPaidByTenant()));
+              new LongTermAssetProjectionInput.Period(
+                  flow.getValidFrom(),
+                  flow.getValidTo(),
+                  isIncome(flow.getType()) ? annual : BigDecimal.ZERO,
+                  isIncome(flow.getType()) ? BigDecimal.ZERO : annual,
+                  BigDecimal.ZERO,
+                  flow.getType(),
+                  flow.isPaidByTenant()));
         }
       }
       for (LongTermAssetValuationPeriodEntity period :
@@ -729,24 +732,26 @@ public class LongTermAssetService {
     if (a.getType() == LongTermAssetType.REAL_ESTATE) {
       var contractModels =
           rentalContracts.findAllByAssetIdOrderByStartDate(a.getId()).stream()
-                  .map(
-                      c ->
-                          new RentalContractModel(
-                              c.getId(),
-                              c.getStartDate(),
-                              c.getEndDate(),
-                              c.getTerminatedDate(),
-                              c.getRentalTaxPaidByTenant(),
-                              c.getTerms().stream()
-                                  .map(
-                                      t ->
-                                          new RentalContractModel.Term(
-                                              com.smartbox.investory.longterm.api.model.CashFlowTypeModel.valueOf(t.getType().name()),
-                                              t.getAmount(),
-                                              com.smartbox.investory.longterm.api.model.FrequencyModel.valueOf(t.getFrequency().name()),
-                                              t.isPaidByTenant()))
-                                  .toList()))
-                  .toList();
+              .map(
+                  c ->
+                      new RentalContractModel(
+                          c.getId(),
+                          c.getStartDate(),
+                          c.getEndDate(),
+                          c.getTerminatedDate(),
+                          c.getRentalTaxPaidByTenant(),
+                          c.getTerms().stream()
+                              .map(
+                                  t ->
+                                      new RentalContractModel.Term(
+                                          com.smartbox.investory.longterm.api.model
+                                              .CashFlowTypeModel.valueOf(t.getType().name()),
+                                          t.getAmount(),
+                                          com.smartbox.investory.longterm.api.model.FrequencyModel
+                                              .valueOf(t.getFrequency().name()),
+                                          t.isPaidByTenant()))
+                              .toList()))
+              .toList();
       {
         rentEnd =
             contractModels.stream()
@@ -757,7 +762,8 @@ public class LongTermAssetService {
                             .anyMatch(
                                 t ->
                                     t.type()
-                                        == com.smartbox.investory.longterm.api.model.CashFlowTypeModel.RENT))
+                                        == com.smartbox.investory.longterm.api.model
+                                            .CashFlowTypeModel.RENT))
                 .max(Comparator.comparing(RentalContractModel::startDate))
                 .map(RentalContractModel::endDate)
                 .orElse(null);
@@ -895,10 +901,9 @@ public class LongTermAssetService {
                       ? amount
                       : currencyRates.convertToBaseCurrency(
                           amount, CurrencyType.USD, row.currency(), date);
-            })
+                })
             .reduce(BigDecimal.ZERO, BigDecimal::add);
-    BigDecimal bondIncome =
-        sumSpendableBondIncome(rows, date);
+    BigDecimal bondIncome = sumSpendableBondIncome(rows, date);
     boolean hasRealEstate =
         rows.stream().anyMatch(row -> row.type() == LongTermAssetType.REAL_ESTATE);
     boolean rentalDataComplete =
@@ -931,8 +936,7 @@ public class LongTermAssetService {
             date);
     BigDecimal bondValue =
         sumCanonical(rows, LongTermAssetType.BOND, LongTermAssetSummary::currentValue, date);
-    BigDecimal bondIncome =
-        sumSpendableBondIncome(rows, date);
+    BigDecimal bondIncome = sumSpendableBondIncome(rows, date);
     BigDecimal cashReserveValue =
         sumCanonical(
             rows, LongTermAssetType.CASH_RESERVE, LongTermAssetSummary::currentValue, date);
@@ -965,20 +969,22 @@ public class LongTermAssetService {
         .reduce(BigDecimal.ZERO, BigDecimal::add);
   }
 
-  private BigDecimal sumSpendableBondIncome(
-      List<LongTermAssetSummary> rows, LocalDate date) {
+  private BigDecimal sumSpendableBondIncome(List<LongTermAssetSummary> rows, LocalDate date) {
     return rows.stream()
         .filter(row -> row.type() == LongTermAssetType.BOND)
-        .filter(row -> row.bondPlanning() == null
-            || row.bondPlanning().interestTreatment() != InterestTreatment.CAPITALIZE)
-        .map(row -> {
-          BigDecimal amount = row.netAnnualIncomeAfterTax();
-          if (amount == null) return BigDecimal.ZERO;
-          return row.currency() == CurrencyType.USD
-              ? amount
-              : currencyRates.convertToBaseCurrency(
-                  amount, CurrencyType.USD, row.currency(), date);
-        })
+        .filter(
+            row ->
+                row.bondPlanning() == null
+                    || row.bondPlanning().interestTreatment() != InterestTreatment.CAPITALIZE)
+        .map(
+            row -> {
+              BigDecimal amount = row.netAnnualIncomeAfterTax();
+              if (amount == null) return BigDecimal.ZERO;
+              return row.currency() == CurrencyType.USD
+                  ? amount
+                  : currencyRates.convertToBaseCurrency(
+                      amount, CurrencyType.USD, row.currency(), date);
+            })
         .reduce(BigDecimal.ZERO, BigDecimal::add);
   }
 

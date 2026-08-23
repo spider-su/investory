@@ -1,6 +1,6 @@
 package com.smartbox.investory.retirement.simulation;
-import static com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull;
 
+import static com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull;
 
 import java.math.BigDecimal;
 
@@ -20,6 +20,4 @@ public record ReviewResult(
     expectedFullYearNetResult = zeroIfNull(expectedFullYearNetResult);
     varianceFromOriginalPlan = zeroIfNull(varianceFromOriginalPlan);
   }
-
-  
 }

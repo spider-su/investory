@@ -17,47 +17,77 @@ import org.junit.jupiter.api.Test;
 class RetirementScenarioPropagationTest {
   @Test
   void planBondReturnIsTheScenarioBaselineForEveryScenario() {
-    SimulationAssumptions assumptions = assumptions(emptyProfile())
-        .withFixedIncomeReturnRate(bd("0.043"));
+    SimulationAssumptions assumptions =
+        assumptions(emptyProfile()).withFixedIncomeReturnRate(bd("0.043"));
 
-    assertThat(ScenarioEffectiveAssumptions.forScenario(
-        emptyProfile(), assumptions, SimulationScenario.BASE, assumptions.startYear())
-        .planBondReturnRate()).isEqualByComparingTo("0.043");
-    assertThat(ScenarioEffectiveAssumptions.forScenario(
-        emptyProfile(), assumptions, SimulationScenario.BASE, assumptions.startYear())
-        .bondReturnRate()).isEqualByComparingTo("0.043");
-    assertThat(ScenarioEffectiveAssumptions.forScenario(
-        emptyProfile(), assumptions, SimulationScenario.CONSERVATIVE, assumptions.startYear())
-        .bondReturnRate()).isEqualByComparingTo("0.033");
-    assertThat(ScenarioEffectiveAssumptions.forScenario(
-        emptyProfile(), assumptions, SimulationScenario.OPTIMISTIC, assumptions.startYear())
-        .bondReturnRate()).isEqualByComparingTo("0.043");
-    assertThat(ScenarioEffectiveAssumptions.forScenario(
-        emptyProfile(), assumptions, SimulationScenario.CUSTOM, assumptions.startYear(),
-        new SimulationCustomDeltas(BigDecimal.ZERO, BigDecimal.ZERO, bd("-0.005"), BigDecimal.ZERO,
-            BigDecimal.ZERO))
-        .bondReturnRate()).isEqualByComparingTo("0.038");
+    assertThat(
+            ScenarioEffectiveAssumptions.forScenario(
+                    emptyProfile(), assumptions, SimulationScenario.BASE, assumptions.startYear())
+                .planBondReturnRate())
+        .isEqualByComparingTo("0.043");
+    assertThat(
+            ScenarioEffectiveAssumptions.forScenario(
+                    emptyProfile(), assumptions, SimulationScenario.BASE, assumptions.startYear())
+                .bondReturnRate())
+        .isEqualByComparingTo("0.043");
+    assertThat(
+            ScenarioEffectiveAssumptions.forScenario(
+                    emptyProfile(),
+                    assumptions,
+                    SimulationScenario.CONSERVATIVE,
+                    assumptions.startYear())
+                .bondReturnRate())
+        .isEqualByComparingTo("0.033");
+    assertThat(
+            ScenarioEffectiveAssumptions.forScenario(
+                    emptyProfile(),
+                    assumptions,
+                    SimulationScenario.OPTIMISTIC,
+                    assumptions.startYear())
+                .bondReturnRate())
+        .isEqualByComparingTo("0.043");
+    assertThat(
+            ScenarioEffectiveAssumptions.forScenario(
+                    emptyProfile(),
+                    assumptions,
+                    SimulationScenario.CUSTOM,
+                    assumptions.startYear(),
+                    new SimulationCustomDeltas(
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        bd("-0.005"),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO))
+                .bondReturnRate())
+        .isEqualByComparingTo("0.038");
   }
 
   @Test
   void derivesBaseBondYieldFromFrozenCapitalizedReturnAndAppliesScenarioDelta() {
     InvestmentProfile profile = profileWithCapitalizedBond("900000", "36000");
     SimulationAssumptions assumptions = assumptions(profile).withFixedIncomeReturnRate(bd("0.040"));
-    BigDecimal baseYield = PlanningBuckets.baseBondYield(
-        profile, assumptions.fixedIncomeReturnRate(), assumptions.startYear());
+    BigDecimal baseYield =
+        PlanningBuckets.baseBondYield(
+            profile, assumptions.fixedIncomeReturnRate(), assumptions.startYear());
 
     assertThat(baseYield).isEqualByComparingTo("0.040");
-    assertThat(PlanningBuckets.fromProfile(profile, bd("0.08"), baseYield, assumptions.startYear())
-        .bonds().plannedYieldRate())
+    assertThat(
+            PlanningBuckets.fromProfile(profile, bd("0.08"), baseYield, assumptions.startYear())
+                .bonds()
+                .plannedYieldRate())
         .isEqualByComparingTo("0.040");
 
     SimulationScenarioSettings conservative =
         SimulationScenarioSettings.forScenario(SimulationScenario.CONSERVATIVE, assumptions);
     SimulationScenarioSettings optimistic =
         SimulationScenarioSettings.forScenario(SimulationScenario.OPTIMISTIC, assumptions);
-    assertThat(baseYield.add(conservative.fixedIncomeReturnRate().subtract(assumptions.fixedIncomeReturnRate())))
+    assertThat(
+            baseYield.add(
+                conservative.fixedIncomeReturnRate().subtract(assumptions.fixedIncomeReturnRate())))
         .isEqualByComparingTo("0.030");
-    assertThat(baseYield.add(optimistic.fixedIncomeReturnRate().subtract(assumptions.fixedIncomeReturnRate())))
+    assertThat(
+            baseYield.add(
+                optimistic.fixedIncomeReturnRate().subtract(assumptions.fixedIncomeReturnRate())))
         .isEqualByComparingTo("0.040");
   }
 
@@ -69,26 +99,40 @@ class RetirementScenarioPropagationTest {
         SimulationScenarioSettings.forScenario(SimulationScenario.CONSERVATIVE, assumptions);
 
     assertThat(PlanningBuckets.hasSourceBondYield(profile, assumptions.startYear())).isFalse();
-    assertThat(PlanningBuckets.fromProfile(profile, bd("0.08"), conservative.fixedIncomeReturnRate(),
-        assumptions.startYear())
-        .bonds().plannedYieldRate()).isEqualByComparingTo("0.030");
+    assertThat(
+            PlanningBuckets.fromProfile(
+                    profile,
+                    bd("0.08"),
+                    conservative.fixedIncomeReturnRate(),
+                    assumptions.startYear())
+                .bonds()
+                .plannedYieldRate())
+        .isEqualByComparingTo("0.030");
   }
 
   @Test
   void scenarioRatesReachProjectedBondAndEquityReturns() {
-    InvestmentProfile profile = profileWithCapitalizedBond("900000", "36000").withPlanningBaseline(
-        bd("0"), bd("100000"), bd("900000"), bd("0"), bd("0"));
-    SimulationAssumptions assumptions = assumptions(profile)
-        .withFixedIncomeReturnRate(bd("0.040"))
-        .withEquityReturnRate(bd("0.080"));
+    InvestmentProfile profile =
+        profileWithCapitalizedBond("900000", "36000")
+            .withPlanningBaseline(bd("0"), bd("100000"), bd("900000"), bd("0"), bd("0"));
+    SimulationAssumptions assumptions =
+        assumptions(profile)
+            .withFixedIncomeReturnRate(bd("0.040"))
+            .withEquityReturnRate(bd("0.080"));
     RetirementSimulationService service = new RetirementSimulationService();
 
-    BigDecimal conservativeBond = bondReturn(service.simulate(profile, assumptions, SimulationScenario.CONSERVATIVE));
-    BigDecimal baseBond = bondReturn(service.simulate(profile, assumptions, SimulationScenario.BASE));
-    BigDecimal optimisticBond = bondReturn(service.simulate(profile, assumptions, SimulationScenario.OPTIMISTIC));
-    BigDecimal conservativeEquity = equityReturn(service.simulate(profile, assumptions, SimulationScenario.CONSERVATIVE));
-    BigDecimal baseEquity = equityReturn(service.simulate(profile, assumptions, SimulationScenario.BASE));
-    BigDecimal optimisticEquity = equityReturn(service.simulate(profile, assumptions, SimulationScenario.OPTIMISTIC));
+    BigDecimal conservativeBond =
+        bondReturn(service.simulate(profile, assumptions, SimulationScenario.CONSERVATIVE));
+    BigDecimal baseBond =
+        bondReturn(service.simulate(profile, assumptions, SimulationScenario.BASE));
+    BigDecimal optimisticBond =
+        bondReturn(service.simulate(profile, assumptions, SimulationScenario.OPTIMISTIC));
+    BigDecimal conservativeEquity =
+        equityReturn(service.simulate(profile, assumptions, SimulationScenario.CONSERVATIVE));
+    BigDecimal baseEquity =
+        equityReturn(service.simulate(profile, assumptions, SimulationScenario.BASE));
+    BigDecimal optimisticEquity =
+        equityReturn(service.simulate(profile, assumptions, SimulationScenario.OPTIMISTIC));
 
     assertThat(conservativeBond).isEqualByComparingTo("27000");
     assertThat(baseBond).isEqualByComparingTo("36000");
@@ -104,34 +148,40 @@ class RetirementScenarioPropagationTest {
     SimulationAssumptions assumptions = assumptions(profile).withFixedIncomeReturnRate(bd("0.040"));
     RetirementSimulationService service = new RetirementSimulationService();
 
-    assertThat(bondReturn(service.simulate(profile, assumptions, SimulationScenario.CONSERVATIVE, 2027)))
+    assertThat(
+            bondReturn(
+                service.simulate(profile, assumptions, SimulationScenario.CONSERVATIVE, 2027)))
         .isEqualByComparingTo("27000");
     assertThat(bondReturn(service.simulate(profile, assumptions, SimulationScenario.BASE, 2027)))
         .isEqualByComparingTo("36000");
     SimulationResult base = service.simulate(profile, assumptions, SimulationScenario.BASE, 2027);
     assertThat(base.years().getFirst().fixedIncomeEnd()).isEqualByComparingTo("936000");
-    assertThat(bondReturn(service.simulate(profile, assumptions, SimulationScenario.OPTIMISTIC, 2027)))
+    assertThat(
+            bondReturn(service.simulate(profile, assumptions, SimulationScenario.OPTIMISTIC, 2027)))
         .isEqualByComparingTo("36000");
   }
 
   @Test
   void scenarioOverlayChangesProjectedRentalAndSpendingValues() {
-    InvestmentProfile profile = profileWithPayOutBond("900000", "38880").withPlanningBaseline(
-        bd("0"), bd("100000"), bd("900000"), bd("100"), bd("38880"));
-    SimulationAssumptions assumptions = SimulationAssumptions.defaults(profile, 65, 67, 2027)
-        .withRecurringSpending(bd("240000"))
-        .withInflationRate(bd("0.030"))
-        .withRentalIncomeGrowthSpread(bd("-0.020"))
-        .withSpendingGrowthSpread(bd("-0.015"))
-        .withRetirementAge(65);
+    InvestmentProfile profile =
+        profileWithPayOutBond("900000", "38880")
+            .withPlanningBaseline(bd("0"), bd("100000"), bd("900000"), bd("100"), bd("38880"));
+    SimulationAssumptions assumptions =
+        SimulationAssumptions.defaults(profile, 65, 67, 2027)
+            .withRecurringSpending(bd("240000"))
+            .withInflationRate(bd("0.030"))
+            .withRentalIncomeGrowthSpread(bd("-0.020"))
+            .withSpendingGrowthSpread(bd("-0.015"))
+            .withRetirementAge(65);
     RetirementSimulationService service = new RetirementSimulationService();
 
-    SimulationResult conservative = service.simulate(profile, assumptions, SimulationScenario.CONSERVATIVE, 2026);
+    SimulationResult conservative =
+        service.simulate(profile, assumptions, SimulationScenario.CONSERVATIVE, 2026);
     SimulationResult base = service.simulate(profile, assumptions, SimulationScenario.BASE, 2026);
-    SimulationResult optimistic = service.simulate(profile, assumptions, SimulationScenario.OPTIMISTIC, 2026);
+    SimulationResult optimistic =
+        service.simulate(profile, assumptions, SimulationScenario.OPTIMISTIC, 2026);
 
-    assertThat(conservative.years().get(1).rentalIncome())
-        .isEqualByComparingTo("101.0025");
+    assertThat(conservative.years().get(1).rentalIncome()).isEqualByComparingTo("101.0025");
     assertThat(base.years().get(1).rentalIncome()).isEqualByComparingTo("102.01");
     assertThat(optimistic.years().get(1).rentalIncome()).isEqualByComparingTo("103.0225");
     assertThat(conservative.years().get(1).totalExpenses()).isEqualByComparingTo("243600");
@@ -173,8 +223,8 @@ class RetirementScenarioPropagationTest {
     InvestmentProfile profile = profileWithCapitalizedBond("900000", "36000");
     SimulationAssumptions assumptions = assumptions(profile).withEquityReturnRate(bd("0.080"));
     SimulationCustomDeltas custom =
-        new SimulationCustomDeltas(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-            bd("0.020"), BigDecimal.ZERO);
+        new SimulationCustomDeltas(
+            BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, bd("0.020"), BigDecimal.ZERO);
     RetirementSimulationService service = new RetirementSimulationService();
 
     var base = service.compareScenarios(profile, assumptions);
@@ -206,18 +256,50 @@ class RetirementScenarioPropagationTest {
   }
 
   private static InvestmentProfile profileWithCapitalizedBondPeriods() {
-    ProjectedLongTermAsset bond = new ProjectedLongTermAsset(
-        1L, "Bond", LongTermAssetTypeModel.BOND, EconomicBucket.FIXED_INCOME, CurrencyType.PLN,
-        bd("900000"), Liquidity.LIQUID,
-        List.of(
-            new ProjectedLongTermAsset.Period(LocalDate.of(2024, 1, 1), LocalDate.of(2026, 12, 31),
-                null, BigDecimal.ZERO, bd("0.03")),
-            new ProjectedLongTermAsset.Period(LocalDate.of(2027, 1, 1), LocalDate.of(2030, 12, 31),
-                null, BigDecimal.ZERO, bd("0.05"))),
-        List.of(), null, null, InterestTreatmentModel.CAPITALIZE, BigDecimal.ZERO, null, false);
-    return new InvestmentProfile(1L, CurrencyType.PLN, bd("100000"), bd("900000"),
-        bd("1000000"), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-        bd("900000"), List.of(), List.of(bond), BigDecimal.ZERO, BigDecimal.ZERO);
+    ProjectedLongTermAsset bond =
+        new ProjectedLongTermAsset(
+            1L,
+            "Bond",
+            LongTermAssetTypeModel.BOND,
+            EconomicBucket.FIXED_INCOME,
+            CurrencyType.PLN,
+            bd("900000"),
+            Liquidity.LIQUID,
+            List.of(
+                new ProjectedLongTermAsset.Period(
+                    LocalDate.of(2024, 1, 1),
+                    LocalDate.of(2026, 12, 31),
+                    null,
+                    BigDecimal.ZERO,
+                    bd("0.03")),
+                new ProjectedLongTermAsset.Period(
+                    LocalDate.of(2027, 1, 1),
+                    LocalDate.of(2030, 12, 31),
+                    null,
+                    BigDecimal.ZERO,
+                    bd("0.05"))),
+            List.of(),
+            null,
+            null,
+            InterestTreatmentModel.CAPITALIZE,
+            BigDecimal.ZERO,
+            null,
+            false);
+    return new InvestmentProfile(
+        1L,
+        CurrencyType.PLN,
+        bd("100000"),
+        bd("900000"),
+        bd("1000000"),
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        bd("900000"),
+        List.of(),
+        List.of(bond),
+        BigDecimal.ZERO,
+        BigDecimal.ZERO);
   }
 
   private static InvestmentProfile profileWithPayOutBond(String capital, String income) {
@@ -226,22 +308,60 @@ class RetirementScenarioPropagationTest {
 
   private static InvestmentProfile profileWithBond(
       String capital, String annualIncome, InterestTreatmentModel treatment) {
-    ProjectedLongTermAsset bond = new ProjectedLongTermAsset(
-        1L, "Bond", LongTermAssetTypeModel.BOND, EconomicBucket.FIXED_INCOME, CurrencyType.PLN,
-        bd(capital), Liquidity.LIQUID,
-        List.of(new ProjectedLongTermAsset.Period(LocalDate.of(2020, 1, 1), null,
-            bd(annualIncome), BigDecimal.ZERO, bd("0.04"))), List.of(), null, null,
-        treatment, BigDecimal.ZERO, null, false);
-    BigDecimal cashIncome = treatment == InterestTreatmentModel.PAY_OUT ? bd(annualIncome) : BigDecimal.ZERO;
-    return new InvestmentProfile(1L, CurrencyType.PLN, bd("100000"), bd(capital),
-        bd(capital).add(bd("100000")), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-        BigDecimal.ZERO, bd(capital), List.of(), List.of(bond), BigDecimal.ZERO, cashIncome);
+    ProjectedLongTermAsset bond =
+        new ProjectedLongTermAsset(
+            1L,
+            "Bond",
+            LongTermAssetTypeModel.BOND,
+            EconomicBucket.FIXED_INCOME,
+            CurrencyType.PLN,
+            bd(capital),
+            Liquidity.LIQUID,
+            List.of(
+                new ProjectedLongTermAsset.Period(
+                    LocalDate.of(2020, 1, 1), null, bd(annualIncome), BigDecimal.ZERO, bd("0.04"))),
+            List.of(),
+            null,
+            null,
+            treatment,
+            BigDecimal.ZERO,
+            null,
+            false);
+    BigDecimal cashIncome =
+        treatment == InterestTreatmentModel.PAY_OUT ? bd(annualIncome) : BigDecimal.ZERO;
+    return new InvestmentProfile(
+        1L,
+        CurrencyType.PLN,
+        bd("100000"),
+        bd(capital),
+        bd(capital).add(bd("100000")),
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        bd(capital),
+        List.of(),
+        List.of(bond),
+        BigDecimal.ZERO,
+        cashIncome);
   }
 
   private static InvestmentProfile emptyProfile() {
-    return new InvestmentProfile(1L, CurrencyType.PLN, BigDecimal.ZERO, BigDecimal.ZERO,
-        BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-        BigDecimal.ZERO, List.of(), List.of(), BigDecimal.ZERO, BigDecimal.ZERO);
+    return new InvestmentProfile(
+        1L,
+        CurrencyType.PLN,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        List.of(),
+        List.of(),
+        BigDecimal.ZERO,
+        BigDecimal.ZERO);
   }
 
   private static BigDecimal bd(String value) {

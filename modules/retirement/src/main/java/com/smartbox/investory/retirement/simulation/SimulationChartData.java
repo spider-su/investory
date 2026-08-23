@@ -62,7 +62,9 @@ public record SimulationChartData(
     public ChartMetadata {
       failures = failures == null ? Map.of() : Map.copyOf(failures);
       expenseProfileTransitionYears =
-          expenseProfileTransitionYears == null ? List.of() : List.copyOf(expenseProfileTransitionYears);
+          expenseProfileTransitionYears == null
+              ? List.of()
+              : List.copyOf(expenseProfileTransitionYears);
     }
 
     static ChartMetadata empty() {
@@ -87,24 +89,31 @@ public record SimulationChartData(
         new java.util.EnumMap<>(SimulationScenario.class);
     Map<SimulationScenario, List<ReservePoint>> reserves =
         new java.util.EnumMap<>(SimulationScenario.class);
-    Map<SimulationScenario, FailureMarker> failures = new java.util.EnumMap<>(SimulationScenario.class);
-    results.forEach((scenario, result) -> {
-      boolean failed = false;
-      java.util.ArrayList<BalancePoint> points = new java.util.ArrayList<>();
-      for (SimulationYear y : result.years()) {
-        int calendarYear = y.year();
-        if (y.failed() && !failed) {
-          failures.put(scenario, new FailureMarker(calendarYear, y.age()));
-          failed = true;
-        }
-        points.add(new BalancePoint(
-            calendarYear,
-            y.age(),
-            failed ? (y.failed() ? y.endNetWorth().max(BigDecimal.ZERO) : null) : y.endNetWorth(),
-            failed ? (y.failed() ? y.spendableAssetsEnd().max(BigDecimal.ZERO) : null) : y.spendableAssetsEnd()));
-      }
-      balances.put(scenario, List.copyOf(points));
-    });
+    Map<SimulationScenario, FailureMarker> failures =
+        new java.util.EnumMap<>(SimulationScenario.class);
+    results.forEach(
+        (scenario, result) -> {
+          boolean failed = false;
+          java.util.ArrayList<BalancePoint> points = new java.util.ArrayList<>();
+          for (SimulationYear y : result.years()) {
+            int calendarYear = y.year();
+            if (y.failed() && !failed) {
+              failures.put(scenario, new FailureMarker(calendarYear, y.age()));
+              failed = true;
+            }
+            points.add(
+                new BalancePoint(
+                    calendarYear,
+                    y.age(),
+                    failed
+                        ? (y.failed() ? y.endNetWorth().max(BigDecimal.ZERO) : null)
+                        : y.endNetWorth(),
+                    failed
+                        ? (y.failed() ? y.spendableAssetsEnd().max(BigDecimal.ZERO) : null)
+                        : y.spendableAssetsEnd()));
+          }
+          balances.put(scenario, List.copyOf(points));
+        });
     results.forEach(
         (scenario, result) -> {
           funding.put(

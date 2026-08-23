@@ -14,13 +14,28 @@ import org.junit.jupiter.api.Test;
 class PlanTimelineViewTest {
   @Test
   void preparesEveryYearWithLiveDefaultAndLifecycleLabels() {
-    var timeline = new PlanningTimeline(List.of(
-        row(2025, 40, PlanningTimelineState.ACTUAL),
-        row(2026, 41, PlanningTimelineState.LIVE),
-        row(2027, 42, PlanningTimelineState.PROJECTED)));
-    var money = new PlanningTimelineMoney(BigDecimal.valueOf(100), BigDecimal.valueOf(80), null, null,
-        null, null, null, null, null, null, null, null);
-    var summaries = RetirementYearSummaryView.from(timeline, Map.of(2025, money, 2026, money, 2027, money));
+    var timeline =
+        new PlanningTimeline(
+            List.of(
+                row(2025, 40, PlanningTimelineState.ACTUAL),
+                row(2026, 41, PlanningTimelineState.LIVE),
+                row(2027, 42, PlanningTimelineState.PROJECTED)));
+    var money =
+        new PlanningTimelineMoney(
+            BigDecimal.valueOf(100),
+            BigDecimal.valueOf(80),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
+    var summaries =
+        RetirementYearSummaryView.from(timeline, Map.of(2025, money, 2026, money, 2027, money));
 
     var view = PlanTimelineView.from(timeline, summaries, 2026, null);
 
@@ -34,13 +49,28 @@ class PlanTimelineViewTest {
 
   @Test
   void choosesNearestYearWhenNoLiveRowExistsAndKeepsHeadingAccessible() {
-    var timeline = new PlanningTimeline(List.of(
-        row(2025, 40, PlanningTimelineState.ACTUAL),
-        row(2026, 41, PlanningTimelineState.PROJECTED),
-        row(2027, 42, PlanningTimelineState.PROJECTED)));
-    var money = new PlanningTimelineMoney(BigDecimal.valueOf(100), BigDecimal.valueOf(80), null, null,
-        null, null, null, null, null, null, null, null);
-    var summaries = RetirementYearSummaryView.from(timeline, Map.of(2025, money, 2026, money, 2027, money));
+    var timeline =
+        new PlanningTimeline(
+            List.of(
+                row(2025, 40, PlanningTimelineState.ACTUAL),
+                row(2026, 41, PlanningTimelineState.PROJECTED),
+                row(2027, 42, PlanningTimelineState.PROJECTED)));
+    var money =
+        new PlanningTimelineMoney(
+            BigDecimal.valueOf(100),
+            BigDecimal.valueOf(80),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
+    var summaries =
+        RetirementYearSummaryView.from(timeline, Map.of(2025, money, 2026, money, 2027, money));
 
     var view = PlanTimelineView.from(timeline, summaries, null, 2027, 2026);
 
@@ -50,14 +80,20 @@ class PlanTimelineViewTest {
 
   @Test
   void preparesLiquidCapitalCompositionPercentages() {
-    var timeline = new PlanningTimeline(List.of(
-        row(2026, 41, PlanningTimelineState.LIVE)));
-    var summary = new RetirementYearSummaryView(
-        2026, 41, "Live", bd("100"), bd("100"), bd("0"),
-        new RetirementYearSummaryView.BucketSummary(bd("10"), null, bd("100")),
-        new RetirementYearSummaryView.BucketSummary(bd("20"), null, bd("300")),
-        new RetirementYearSummaryView.BucketSummary(bd("30"), null, bd("600")),
-        new RetirementYearSummaryView.BucketSummary(null, null, bd("2000")), "Live");
+    var timeline = new PlanningTimeline(List.of(row(2026, 41, PlanningTimelineState.LIVE)));
+    var summary =
+        new RetirementYearSummaryView(
+            2026,
+            41,
+            "Live",
+            bd("100"),
+            bd("100"),
+            bd("0"),
+            new RetirementYearSummaryView.BucketSummary(bd("10"), null, bd("100")),
+            new RetirementYearSummaryView.BucketSummary(bd("20"), null, bd("300")),
+            new RetirementYearSummaryView.BucketSummary(bd("30"), null, bd("600")),
+            new RetirementYearSummaryView.BucketSummary(null, null, bd("2000")),
+            "Live");
 
     var view = PlanTimelineView.from(timeline, Map.of(2026, summary), 2026, null);
     var year = view.years().getFirst();
@@ -75,14 +111,22 @@ class PlanTimelineViewTest {
   @Test
   void projectedCapitalUsesStartLabelAndKeepsRealEstateOutOfLiquidAggregate() {
     var timeline = new PlanningTimeline(List.of(row(2027, 42, PlanningTimelineState.PROJECTED)));
-    var summary = new RetirementYearSummaryView(
-        2027, 42, "Projected", bd("100"), bd("0"), bd("0"),
-        new RetirementYearSummaryView.BucketSummary(bd("10"), null, bd("20")),
-        new RetirementYearSummaryView.BucketSummary(bd("20"), null, bd("30")),
-        new RetirementYearSummaryView.BucketSummary(bd("30"), null, bd("50")),
-        new RetirementYearSummaryView.BucketSummary(bd("100"), bd("120"), bd("2000")), "Projected");
+    var summary =
+        new RetirementYearSummaryView(
+            2027,
+            42,
+            "Projected",
+            bd("100"),
+            bd("0"),
+            bd("0"),
+            new RetirementYearSummaryView.BucketSummary(bd("10"), null, bd("20")),
+            new RetirementYearSummaryView.BucketSummary(bd("20"), null, bd("30")),
+            new RetirementYearSummaryView.BucketSummary(bd("30"), null, bd("50")),
+            new RetirementYearSummaryView.BucketSummary(bd("100"), bd("120"), bd("2000")),
+            "Projected");
 
-    var year = PlanTimelineView.from(timeline, Map.of(2027, summary), 2027, null).years().getFirst();
+    var year =
+        PlanTimelineView.from(timeline, Map.of(2027, summary), 2027, null).years().getFirst();
 
     assertEquals(bd("100"), year.liquidCapitalTotal());
     assertEquals("Start", year.capitalComparisonLabel());
@@ -94,14 +138,22 @@ class PlanTimelineViewTest {
   @Test
   void keepsEmptyLiquidCapitalPercentagesFinite() {
     var timeline = new PlanningTimeline(List.of(row(2026, 41, PlanningTimelineState.LIVE)));
-    var summary = new RetirementYearSummaryView(
-        2026, 41, "Live", bd("0"), bd("0"), bd("0"),
-        new RetirementYearSummaryView.BucketSummary(null, null, null),
-        new RetirementYearSummaryView.BucketSummary(null, null, null),
-        new RetirementYearSummaryView.BucketSummary(null, null, null),
-        new RetirementYearSummaryView.BucketSummary(null, null, null), "Live");
+    var summary =
+        new RetirementYearSummaryView(
+            2026,
+            41,
+            "Live",
+            bd("0"),
+            bd("0"),
+            bd("0"),
+            new RetirementYearSummaryView.BucketSummary(null, null, null),
+            new RetirementYearSummaryView.BucketSummary(null, null, null),
+            new RetirementYearSummaryView.BucketSummary(null, null, null),
+            new RetirementYearSummaryView.BucketSummary(null, null, null),
+            "Live");
 
-    var year = PlanTimelineView.from(timeline, Map.of(2026, summary), 2026, null).years().getFirst();
+    var year =
+        PlanTimelineView.from(timeline, Map.of(2026, summary), 2026, null).years().getFirst();
 
     assertEquals(BigDecimal.ZERO, year.liquidCapitalTotal());
     assertEquals(BigDecimal.ZERO, year.cashPercent());
@@ -113,5 +165,7 @@ class PlanTimelineViewTest {
     return new PlanningTimelineYear(year, age, state, null, null, null);
   }
 
-  private static BigDecimal bd(String value) { return new BigDecimal(value); }
+  private static BigDecimal bd(String value) {
+    return new BigDecimal(value);
+  }
 }

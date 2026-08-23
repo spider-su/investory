@@ -150,15 +150,19 @@ class SimulationPlanServiceTest {
     when(repository.findByIdAndPortfolioId(7L, 1L)).thenReturn(Optional.of(plan));
     when(repository.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of(plan));
     when(revisions.findByIdAndSimulationPlanId(11L, 7L)).thenReturn(Optional.of(revision));
-    when(revisions.findAllBySimulationPlanIdOrderByRevisionNumberDesc(7L)).thenReturn(List.of(revision));
+    when(revisions.findAllBySimulationPlanIdOrderByRevisionNumberDesc(7L))
+        .thenReturn(List.of(revision));
     when(revisionEvents.findAllByRevisionIdOrderByYearAscIdAsc(11L)).thenReturn(List.of());
-    when(revisions.save(any())).thenAnswer(invocation -> {
-      var saved = invocation.getArgument(0, SimulationPlanRevisionEntity.class);
-      saved.setId(12L);
-      return saved;
-    });
+    when(revisions.save(any()))
+        .thenAnswer(
+            invocation -> {
+              var saved = invocation.getArgument(0, SimulationPlanRevisionEntity.class);
+              saved.setId(12L);
+              return saved;
+            });
     when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-    var service = spy(new SimulationPlanService(repository, eventRepository, revisions, revisionEvents));
+    var service =
+        spy(new SimulationPlanService(repository, eventRepository, revisions, revisionEvents));
     doReturn(assumptions).when(service).assumptions(plan);
 
     service.update(1L, 7L, "Updated", assumptions.withRetirementAge(43));
@@ -189,18 +193,26 @@ class SimulationPlanServiceTest {
     when(revisions.findAllBySimulationPlanIdOrderByRevisionNumberDesc(7L)).thenReturn(List.of(old));
     when(revisions.findByIdAndSimulationPlanId(11L, 7L)).thenReturn(Optional.of(old));
     when(revisionEvents.findAllByRevisionIdOrderByYearAscIdAsc(11L)).thenReturn(List.of());
-    when(revisions.save(any())).thenAnswer(invocation -> {
-      var saved = invocation.getArgument(0, SimulationPlanRevisionEntity.class);
-      saved.setId(12L);
-      return saved;
-    });
+    when(revisions.save(any()))
+        .thenAnswer(
+            invocation -> {
+              var saved = invocation.getArgument(0, SimulationPlanRevisionEntity.class);
+              saved.setId(12L);
+              return saved;
+            });
     when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-    var service = spy(new SimulationPlanService(repository, eventRepository, revisions, revisionEvents));
+    var service =
+        spy(new SimulationPlanService(repository, eventRepository, revisions, revisionEvents));
     doReturn(assumptions).when(service).assumptions(plan);
 
-    var replacement = new com.smartbox.investory.retirement.planning.PlanningBaseline(
-        2026, new BigDecimal("900000"), new BigDecimal("900000"), BigDecimal.ZERO,
-        BigDecimal.ZERO, BigDecimal.ZERO);
+    var replacement =
+        new com.smartbox.investory.retirement.planning.PlanningBaseline(
+            2026,
+            new BigDecimal("900000"),
+            new BigDecimal("900000"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO);
     var created = service.rebaseline(1L, 7L, replacement);
 
     assertEquals(12L, created.getId());
@@ -239,7 +251,8 @@ class SimulationPlanServiceTest {
     when(repository.findByIdAndPortfolioId(7L, 1L)).thenReturn(Optional.of(explicit));
 
     assertEquals(Optional.of(7L), service.resolvePlanId(1L, 7L));
-    verify(repository, never()).findFirstByPortfolioIdAndArchivedFalseOrderByUpdatedAtDescIdDesc(any());
+    verify(repository, never())
+        .findFirstByPortfolioIdAndArchivedFalseOrderByUpdatedAtDescIdDesc(any());
   }
 
   @Test

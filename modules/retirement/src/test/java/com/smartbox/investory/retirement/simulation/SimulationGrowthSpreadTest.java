@@ -4,10 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.api.Test;
 
 class SimulationGrowthSpreadTest {
   @Test
@@ -39,10 +39,11 @@ class SimulationGrowthSpreadTest {
   @ParameterizedTest
   @MethodSource("spreadCases")
   void effectiveRatesAreInflationPlusSpread(String inflation, String spread, String expected) {
-    SimulationAssumptions assumptions = assumptions()
-        .withInflationRate(new BigDecimal(inflation))
-        .withRentalIncomeGrowthSpread(new BigDecimal(spread))
-        .withSpendingGrowthSpread(new BigDecimal(spread));
+    SimulationAssumptions assumptions =
+        assumptions()
+            .withInflationRate(new BigDecimal(inflation))
+            .withRentalIncomeGrowthSpread(new BigDecimal(spread))
+            .withSpendingGrowthSpread(new BigDecimal(spread));
     assertThat(assumptions.effectiveRentalIncomeGrowthRate()).isEqualByComparingTo(expected);
     assertThat(assumptions.effectiveSpendingGrowthRate()).isEqualByComparingTo(expected);
   }

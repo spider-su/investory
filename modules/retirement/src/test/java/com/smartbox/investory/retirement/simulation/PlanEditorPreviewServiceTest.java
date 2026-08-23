@@ -177,8 +177,10 @@ class PlanEditorPreviewServiceTest {
   void previewIncludesHistoricalCurrentAndProjectedYearsFromTheTemporalAnchor() {
     ForwardSimulationInputService inputs = mock(ForwardSimulationInputService.class);
     RetirementSimulation simulations = mock(RetirementSimulation.class);
-    LongTermAssetAnnualSnapshotReader longTermAssets = mock(LongTermAssetAnnualSnapshotReader.class);
-    PlanningCurrencyPresentationService presentation = mock(PlanningCurrencyPresentationService.class);
+    LongTermAssetAnnualSnapshotReader longTermAssets =
+        mock(LongTermAssetAnnualSnapshotReader.class);
+    PlanningCurrencyPresentationService presentation =
+        mock(PlanningCurrencyPresentationService.class);
     Clock clock = Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC);
     PlanEditorPreviewService service =
         new PlanEditorPreviewService(inputs, simulations, longTermAssets, presentation, clock);
@@ -230,22 +232,27 @@ class PlanEditorPreviewServiceTest {
 
     assertEquals(List.of(2025, 2026, 2027), years.stream().map(year -> year.year()).toList());
     assertEquals(List.of(40, 41, 42), years.stream().map(year -> year.age()).toList());
-    assertEquals(List.of("HISTORICAL", "CURRENT", "PROJECTED"), years.stream().map(year -> year.state()).toList());
+    assertEquals(
+        List.of("HISTORICAL", "CURRENT", "PROJECTED"),
+        years.stream().map(year -> year.state()).toList());
     assertEquals(new BigDecimal("170000"), years.get(0).rentalIncome());
     assertEquals(new BigDecimal("30000"), years.get(0).bondIncome());
     assertEquals(new BigDecimal("174804"), years.get(1).rentalIncome());
     assertEquals(new BigDecimal("38880"), years.get(1).bondIncome());
     assertEquals(new BigDecimal("213684"), years.get(1).totalIncome());
     verify(longTermAssets).historicalAnnualSnapshot(7L, 2025);
-    verify(longTermAssets).currentAnnualSnapshot(7L, Instant.now(clock).atZone(ZoneOffset.UTC).toLocalDate());
+    verify(longTermAssets)
+        .currentAnnualSnapshot(7L, Instant.now(clock).atZone(ZoneOffset.UTC).toLocalDate());
   }
 
   @Test
   void projectedPreviewUsesSimulationYearDirectly() {
     ForwardSimulationInputService inputs = mock(ForwardSimulationInputService.class);
     RetirementSimulation simulations = mock(RetirementSimulation.class);
-    LongTermAssetAnnualSnapshotReader longTermAssets = mock(LongTermAssetAnnualSnapshotReader.class);
-    PlanningCurrencyPresentationService presentation = mock(PlanningCurrencyPresentationService.class);
+    LongTermAssetAnnualSnapshotReader longTermAssets =
+        mock(LongTermAssetAnnualSnapshotReader.class);
+    PlanningCurrencyPresentationService presentation =
+        mock(PlanningCurrencyPresentationService.class);
     Clock clock = Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC);
     PlanEditorPreviewService service =
         new PlanEditorPreviewService(inputs, simulations, longTermAssets, presentation, clock);
@@ -280,7 +287,9 @@ class PlanEditorPreviewServiceTest {
             new com.smartbox.investory.retirement.planning.ForwardSimulationInput(
                 context, profile, Optional.of(projected)));
     when(simulations.simulate(eq(profile), eq(projected), eq(SimulationScenario.BASE), anyInt()))
-        .thenReturn(new SimulationResult(SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of(row)));
+        .thenReturn(
+            new SimulationResult(
+                SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of(row)));
     when(longTermAssets.currentAnnualSnapshot(any(), any()))
         .thenReturn(new LongTermAssetAnnualSnapshotModel(null, null, null, null, null, null));
     when(presentation.toDisplay(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -295,7 +304,8 @@ class PlanEditorPreviewServiceTest {
     assertEquals(BigDecimal.ZERO, preview.plannedAnnualIncome());
     assertEquals(
         previewYear.fundingGap(),
-        previewYear.reserveWithdrawal()
+        previewYear
+            .reserveWithdrawal()
             .add(previewYear.longTermFunding())
             .add(previewYear.investmentWithdrawal())
             .add(previewYear.unfunded()));

@@ -15,23 +15,28 @@ class RetirementLifecycleCashFlowIntegrationTest {
   void contributionsStopAtRetirementAndEventsApplyAtLifecycleBoundaries() {
     var service = new RetirementSimulationService();
     var profile = profile();
-    var base = SimulationAssumptions.defaults(profile, 60, 67, 2026)
-        .withRecurringSpending(bd("500"))
-        .withInflationRate(BigDecimal.ZERO)
-        .withSpendingGrowthSpread(BigDecimal.ZERO)
-        .withRentalIncomeGrowthSpread(BigDecimal.ZERO)
-        .withFixedIncomeReturnRate(BigDecimal.ZERO)
-        .withEquityReturnRate(BigDecimal.ZERO)
-        .withRetirementAge(62)
-        .withAnnualEmploymentIncome(bd("1000"))
-        .withAnnualPreRetirementContribution(bd("100"))
-        .withAnnualPension(bd("300"))
-        .withPensionStartAge(65);
-    var assumptions = base.rebasedTo(60, 2026, List.of(
-        event(2028, "Retirement expense", "200", SimulationEventType.ONE_OFF_EXPENSE),
-        event(2028, "Retirement gift", "50", SimulationEventType.ONE_OFF_INCOME),
-        event(2031, "Pension-year income", "70", SimulationEventType.ONE_OFF_INCOME),
-        event(2033, "Final-year expense", "100", SimulationEventType.ONE_OFF_EXPENSE)));
+    var base =
+        SimulationAssumptions.defaults(profile, 60, 67, 2026)
+            .withRecurringSpending(bd("500"))
+            .withInflationRate(BigDecimal.ZERO)
+            .withSpendingGrowthSpread(BigDecimal.ZERO)
+            .withRentalIncomeGrowthSpread(BigDecimal.ZERO)
+            .withFixedIncomeReturnRate(BigDecimal.ZERO)
+            .withEquityReturnRate(BigDecimal.ZERO)
+            .withRetirementAge(62)
+            .withAnnualEmploymentIncome(bd("1000"))
+            .withAnnualPreRetirementContribution(bd("100"))
+            .withAnnualPension(bd("300"))
+            .withPensionStartAge(65);
+    var assumptions =
+        base.rebasedTo(
+            60,
+            2026,
+            List.of(
+                event(2028, "Retirement expense", "200", SimulationEventType.ONE_OFF_EXPENSE),
+                event(2028, "Retirement gift", "50", SimulationEventType.ONE_OFF_INCOME),
+                event(2031, "Pension-year income", "70", SimulationEventType.ONE_OFF_INCOME),
+                event(2033, "Final-year expense", "100", SimulationEventType.ONE_OFF_EXPENSE)));
 
     var result = service.simulate(profile, assumptions, SimulationScenario.BASE);
 

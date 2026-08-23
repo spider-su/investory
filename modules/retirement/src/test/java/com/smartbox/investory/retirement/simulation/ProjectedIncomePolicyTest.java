@@ -16,9 +16,12 @@ class ProjectedIncomePolicyTest {
 
   @Test
   void manualValuesAreExplicitAndNonNegative() {
-    var policy = new ProjectedIncomePolicy(ProjectedIncomePolicy.IncomeMode.MANUAL,
-        new BigDecimal("200000"), ProjectedIncomePolicy.IncomeMode.MANUAL,
-        new BigDecimal("30000"));
+    var policy =
+        new ProjectedIncomePolicy(
+            ProjectedIncomePolicy.IncomeMode.MANUAL,
+            new BigDecimal("200000"),
+            ProjectedIncomePolicy.IncomeMode.MANUAL,
+            new BigDecimal("30000"));
     assertThat(policy.manualRentalIncome()).isEqualByComparingTo("200000");
     assertThat(policy.manualBondCashIncome()).isEqualByComparingTo("30000");
   }

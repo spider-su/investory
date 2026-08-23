@@ -1,6 +1,6 @@
 package com.smartbox.investory.retirement.simulation;
-import static com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull;
 
+import static com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull;
 
 import com.smartbox.investory.investment.api.InvestmentAnnualProjectionApi;
 import com.smartbox.investory.longterm.api.LongTermAnnualProjectionApi;
@@ -40,25 +40,56 @@ public record RetirementSimulationInput(
     initialInvestmentValue = zeroIfNull(initialInvestmentValue);
     investmentReturnRate = zeroIfNull(investmentReturnRate);
     events = CollectionUtils.immutableListOrEmpty(events);
-    investmentSource = investmentSource == null ? InvestmentAnnualProjectionApi.Source.PROJECTED : investmentSource;
+    investmentSource =
+        investmentSource == null
+            ? InvestmentAnnualProjectionApi.Source.PROJECTED
+            : investmentSource;
     expenseProfile = expenseProfile == null ? ExpenseProfile.EMPTY : expenseProfile;
-    longTermPlanningState = longTermPlanningState == null
-        ? LongTermAnnualProjectionApi.PlanningState.EMPTY : longTermPlanningState;
+    longTermPlanningState =
+        longTermPlanningState == null
+            ? LongTermAnnualProjectionApi.PlanningState.EMPTY
+            : longTermPlanningState;
     fundingPolicy = fundingPolicy == null ? RetirementFundingPolicy.defaults() : fundingPolicy;
   }
 
   /** Compatibility constructor for callers that predate explicit funding policy. */
   public RetirementSimulationInput(
-      int currentAge, int endAge, int startYear, int retirementAge, BigDecimal annualExpenses,
-      BigDecimal spendingGrowthRate, BigDecimal annualPension, int pensionStartAge,
-      BigDecimal annualEmploymentIncome, BigDecimal annualPreRetirementContribution,
-      BigDecimal initialReserve, BigDecimal initialInvestmentValue, BigDecimal investmentReturnRate,
-      List<SimulationEvent> events, InvestmentAnnualProjectionApi.Source investmentSource,
-      ExpenseProfile expenseProfile, LongTermAnnualProjectionApi.PlanningState longTermPlanningState) {
-    this(currentAge, endAge, startYear, retirementAge, annualExpenses, spendingGrowthRate,
-        annualPension, pensionStartAge, annualEmploymentIncome, annualPreRetirementContribution,
-        initialReserve, initialInvestmentValue, investmentReturnRate, events, investmentSource,
-        expenseProfile, longTermPlanningState, RetirementFundingPolicy.defaults());
+      int currentAge,
+      int endAge,
+      int startYear,
+      int retirementAge,
+      BigDecimal annualExpenses,
+      BigDecimal spendingGrowthRate,
+      BigDecimal annualPension,
+      int pensionStartAge,
+      BigDecimal annualEmploymentIncome,
+      BigDecimal annualPreRetirementContribution,
+      BigDecimal initialReserve,
+      BigDecimal initialInvestmentValue,
+      BigDecimal investmentReturnRate,
+      List<SimulationEvent> events,
+      InvestmentAnnualProjectionApi.Source investmentSource,
+      ExpenseProfile expenseProfile,
+      LongTermAnnualProjectionApi.PlanningState longTermPlanningState) {
+    this(
+        currentAge,
+        endAge,
+        startYear,
+        retirementAge,
+        annualExpenses,
+        spendingGrowthRate,
+        annualPension,
+        pensionStartAge,
+        annualEmploymentIncome,
+        annualPreRetirementContribution,
+        initialReserve,
+        initialInvestmentValue,
+        investmentReturnRate,
+        events,
+        investmentSource,
+        expenseProfile,
+        longTermPlanningState,
+        RetirementFundingPolicy.defaults());
   }
 
   /** Resolve a persisted expense stage against the original plan-year anchor. */
@@ -67,9 +98,24 @@ public record RetirementSimulationInput(
   }
 
   public RetirementSimulationInput withFundingPolicy(RetirementFundingPolicy policy) {
-    return new RetirementSimulationInput(currentAge, endAge, startYear, retirementAge, annualExpenses,
-        spendingGrowthRate, annualPension, pensionStartAge, annualEmploymentIncome,
-        annualPreRetirementContribution, initialReserve, initialInvestmentValue,
-        investmentReturnRate, events, investmentSource, expenseProfile, longTermPlanningState, policy);
+    return new RetirementSimulationInput(
+        currentAge,
+        endAge,
+        startYear,
+        retirementAge,
+        annualExpenses,
+        spendingGrowthRate,
+        annualPension,
+        pensionStartAge,
+        annualEmploymentIncome,
+        annualPreRetirementContribution,
+        initialReserve,
+        initialInvestmentValue,
+        investmentReturnRate,
+        events,
+        investmentSource,
+        expenseProfile,
+        longTermPlanningState,
+        policy);
   }
 }

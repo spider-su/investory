@@ -5,9 +5,9 @@ import com.smartbox.investory.investment.api.BrokerageAssetClassificationReader;
 import com.smartbox.investory.investment.api.BrokeragePortfolioReader;
 import com.smartbox.investory.investment.api.BrokeragePositionSnapshot;
 import com.smartbox.investory.investment.api.SharedBrokeragePortfolioSnapshot;
-import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
-import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
 import com.smartbox.investory.longterm.api.LongTermAnnualProjectionApi;
+import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
+import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
 import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileAssetModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSummaryModel;
@@ -60,7 +60,8 @@ public class InvestmentProfileFacade {
     BigDecimal longTermIncome = longTerm.netAnnualIncomeAfterTax();
     BigDecimal explicitReserve = marketCash;
     for (LongTermAssetProfileAssetModel asset : longTermAssets.list(portfolioId, date)) {
-      if (asset.type() == com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel.CASH_RESERVE) {
+      if (asset.type()
+          == com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel.CASH_RESERVE) {
         explicitReserve = explicitReserve.add(asset.currentValue());
       }
     }
@@ -70,8 +71,7 @@ public class InvestmentProfileFacade {
     List<LongTermAssetProjectionModel> projectionInputs =
         Optional.ofNullable(longTermAssets.projectionInputs(portfolioId, date)).orElse(List.of());
     List<ProjectedLongTermAsset> manualAssets =
-        projectionInputs
-            .stream()
+        projectionInputs.stream()
             .map(
                 (LongTermAssetProjectionModel input) ->
                     new ProjectedLongTermAsset(
@@ -97,9 +97,7 @@ public class InvestmentProfileFacade {
                         input.rentalContracts(),
                         input.maturityDate(),
                         input.redemptionValue() == null ? null : input.redemptionValue(),
-                        input.interestTreatment() == null
-                            ? null
-                            : input.interestTreatment(),
+                        input.interestTreatment() == null ? null : input.interestTreatment(),
                         input.taxRate(),
                         input.taxBase() == null ? null : input.taxBase(),
                         input.rentalTaxPaidByTenant()))
@@ -138,7 +136,10 @@ public class InvestmentProfileFacade {
         annualFacts == null ? null : annualFacts.rentalIncome(),
         annualFacts == null ? null : annualFacts.bondIncome(),
         new LongTermAnnualProjectionApi.PlanningState(
-            projectionInputs, BigDecimal.ZERO, date.getYear(), LongTermAnnualProjectionApi.Source.PROJECTED),
+            projectionInputs,
+            BigDecimal.ZERO,
+            date.getYear(),
+            LongTermAnnualProjectionApi.Source.PROJECTED),
         explicitReserve,
         brokerageInvestmentCapital);
   }
@@ -170,7 +171,8 @@ public class InvestmentProfileFacade {
     };
   }
 
-  private EconomicBucket classify(com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel type) {
+  private EconomicBucket classify(
+      com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel type) {
     return switch (type) {
       case REAL_ESTATE -> EconomicBucket.REAL_ESTATE;
       case BOND -> EconomicBucket.FIXED_INCOME;

@@ -3,9 +3,9 @@ package com.smartbox.investory.retirement.simulation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.smartbox.investory.investment.api.InvestmentAnnualProjectionApi;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
-import com.smartbox.investory.investment.api.InvestmentAnnualProjectionApi;
 
 class RetirementFundingPolicyTest {
   @Test
@@ -16,14 +16,16 @@ class RetirementFundingPolicyTest {
     assertThat(policy.equityHarvestThresholdRate()).isEqualByComparingTo("0.07");
     assertThat(policy.equityHarvestShare()).isEqualByComparingTo("0.75");
     assertThat(policy.allowEmergencyEquityWithdrawal()).isTrue();
-    assertThat(policy.fundingOrder()).containsExactly(FundingSource.CASH, FundingSource.BONDS,
-        FundingSource.STOCKS);
+    assertThat(policy.fundingOrder())
+        .containsExactly(FundingSource.CASH, FundingSource.BONDS, FundingSource.STOCKS);
   }
 
   @Test
   void reserveAllocatorUsesAvailableReserveBeforeTheNextSource() {
-    var allocation = new RetirementFundingAllocator().allocateReserve(
-        new BigDecimal("50"), new BigDecimal("20"), RetirementFundingPolicy.defaults());
+    var allocation =
+        new RetirementFundingAllocator()
+            .allocateReserve(
+                new BigDecimal("50"), new BigDecimal("20"), RetirementFundingPolicy.defaults());
 
     assertThat(allocation.reserveWithdrawal()).isEqualByComparingTo("20");
     assertThat(allocation.remainingGap()).isEqualByComparingTo("30");
@@ -31,19 +33,36 @@ class RetirementFundingPolicyTest {
 
   @Test
   void harvestShareMustBeWithinBounds() {
-    assertThatThrownBy(() -> new RetirementFundingPolicy(BigDecimal.ONE, BigDecimal.ZERO,
-        new BigDecimal("1.01"), true, RetirementFundingPolicy.DEFAULT_ORDER))
+    assertThatThrownBy(
+            () ->
+                new RetirementFundingPolicy(
+                    BigDecimal.ONE,
+                    BigDecimal.ZERO,
+                    new BigDecimal("1.01"),
+                    true,
+                    RetirementFundingPolicy.DEFAULT_ORDER))
         .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
   void positiveGainRefillsReserveOnlyUpToTarget() {
-    var projection = new InvestmentAnnualProjectionApi.AnnualProjection(
-        2030, new BigDecimal("1000"), BigDecimal.ZERO, new BigDecimal("100"),
-        BigDecimal.ZERO, new BigDecimal("1100"), InvestmentAnnualProjectionApi.Source.PROJECTED);
-    var result = new RetirementReserveRebalancer().rebalance(new BigDecimal("80"),
-        new BigDecimal("100"), projection, new BigDecimal("0.10"),
-        RetirementFundingPolicy.defaults());
+    var projection =
+        new InvestmentAnnualProjectionApi.AnnualProjection(
+            2030,
+            new BigDecimal("1000"),
+            BigDecimal.ZERO,
+            new BigDecimal("100"),
+            BigDecimal.ZERO,
+            new BigDecimal("1100"),
+            InvestmentAnnualProjectionApi.Source.PROJECTED);
+    var result =
+        new RetirementReserveRebalancer()
+            .rebalance(
+                new BigDecimal("80"),
+                new BigDecimal("100"),
+                projection,
+                new BigDecimal("0.10"),
+                RetirementFundingPolicy.defaults());
 
     assertThat(result.harvestToReserve()).isEqualByComparingTo("20");
     assertThat(result.investment().endValue()).isEqualByComparingTo("1080");

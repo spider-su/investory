@@ -37,8 +37,7 @@ class RetirementAnalysisServiceTest {
     InvestmentProfile profile = profile();
     SimulationAssumptions assumptions = SimulationAssumptions.defaults(profile, 40, 95, 2027);
     SimulationResult base =
-        new SimulationResult(
-            SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of());
+        new SimulationResult(SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of());
     SimulationDecisionSummary summary = SimulationDecisionSummary.from(base, assumptions);
     RetirementProjectionContext projection =
         projection(profile, assumptions, Optional.of(assumptions), base, summary);

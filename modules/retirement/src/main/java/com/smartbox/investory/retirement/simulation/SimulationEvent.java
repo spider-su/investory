@@ -1,6 +1,6 @@
 package com.smartbox.investory.retirement.simulation;
-import static com.smartbox.investory.shared.util.StringUtils.isBlank;
 
+import static com.smartbox.investory.shared.util.StringUtils.isBlank;
 
 import java.math.BigDecimal;
 

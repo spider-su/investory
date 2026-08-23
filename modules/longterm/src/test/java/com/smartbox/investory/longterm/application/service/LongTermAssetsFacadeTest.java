@@ -50,9 +50,16 @@ class LongTermAssetsFacadeTest {
 
     facade.updateBond(
         new LongTermAssetsFacade.BondCommand(
-            1L, 7L, "Bond", CurrencyType.PLN, new BigDecimal("150"),
-            LocalDate.of(2024, 1, 1), LocalDate.of(2030, 1, 1),
-            InterestTreatment.PAY_OUT, new BigDecimal("5"), "notes"));
+            1L,
+            7L,
+            "Bond",
+            CurrencyType.PLN,
+            new BigDecimal("150"),
+            LocalDate.of(2024, 1, 1),
+            LocalDate.of(2030, 1, 1),
+            InterestTreatment.PAY_OUT,
+            new BigDecimal("5"),
+            "notes"));
 
     assertThat(bond.getAcquisitionValue()).isEqualByComparingTo("100");
     assertThat(bond.getCurrentValue()).isEqualByComparingTo("150");

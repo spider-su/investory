@@ -16,8 +16,7 @@ class SimulationEvaluationServiceTest {
     InvestmentProfile profile = mock(InvestmentProfile.class);
     SimulationAssumptions assumptions = mock(SimulationAssumptions.class);
     SimulationResult base =
-        new SimulationResult(
-            SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of());
+        new SimulationResult(SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of());
     RetirementSimulation simulations = mock(RetirementSimulation.class);
     when(simulations.simulate(profile, assumptions, SimulationScenario.BASE, 2026))
         .thenReturn(base);

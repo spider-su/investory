@@ -1,9 +1,9 @@
 package com.smartbox.investory.retirement.planning;
 
 import com.smartbox.investory.retirement.profile.InvestmentProfile;
+import com.smartbox.investory.retirement.simulation.BucketType;
 import com.smartbox.investory.retirement.simulation.SimulationEvent;
 import com.smartbox.investory.retirement.simulation.SimulationLifecyclePhase;
-import com.smartbox.investory.retirement.simulation.BucketType;
 import java.math.BigDecimal;
 import java.util.EnumMap;
 import java.util.List;

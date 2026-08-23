@@ -13,7 +13,9 @@ public record ScenarioEffectiveAssumptions(
     BigDecimal capitalBondReturnRate,
     BigDecimal equityReturnRate) {
   public static ScenarioEffectiveAssumptions forScenario(
-      InvestmentProfile profile, SimulationAssumptions assumptions, SimulationScenario scenario,
+      InvestmentProfile profile,
+      SimulationAssumptions assumptions,
+      SimulationScenario scenario,
       int baselineYear) {
     return forScenario(profile, assumptions, scenario, baselineYear, SimulationCustomDeltas.zero());
   }

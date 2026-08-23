@@ -4,10 +4,11 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 
-@Disabled("Obsolete property-valuation template contract; current UI uses long-term asset summaries")
+@Disabled(
+    "Obsolete property-valuation template contract; current UI uses long-term asset summaries")
 class RealEstateTemplateContractTest {
   private static final String TEMPLATE =
       "../adapters/web-ui/src/main/resources/templates/real-estate-detail.html";

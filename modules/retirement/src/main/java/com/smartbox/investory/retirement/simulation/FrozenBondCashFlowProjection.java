@@ -1,6 +1,6 @@
 package com.smartbox.investory.retirement.simulation;
-import static com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull;
 
+import static com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull;
 
 import com.smartbox.investory.longterm.api.model.InterestTreatmentModel;
 import com.smartbox.investory.retirement.profile.EconomicBucket;
@@ -33,21 +33,24 @@ public class FrozenBondCashFlowProjection {
   /** Returns the reviewed capitalized-return yield, or the explicit planning fallback. */
   public BigDecimal baseCapitalizedBondYield(
       InvestmentProfile profile, BigDecimal fallbackBondYield, int baselineYear) {
-    BigDecimal bondCapital = profile.allocations().stream()
-        .filter(allocation -> allocation.bucket() == EconomicBucket.FIXED_INCOME)
-        .map(allocation -> zeroIfNull(allocation.value()))
-        .reduce(ZERO, BigDecimal::add);
+    BigDecimal bondCapital =
+        profile.allocations().stream()
+            .filter(allocation -> allocation.bucket() == EconomicBucket.FIXED_INCOME)
+            .map(allocation -> zeroIfNull(allocation.value()))
+            .reduce(ZERO, BigDecimal::add);
     if (bondCapital.signum() == 0) {
-      bondCapital = profile.longTermAssets().stream()
-          .filter(asset -> asset.bucket() == EconomicBucket.FIXED_INCOME)
-          .map(asset -> zeroIfNull(asset.currentValue()))
-          .reduce(ZERO, BigDecimal::add);
+      bondCapital =
+          profile.longTermAssets().stream()
+              .filter(asset -> asset.bucket() == EconomicBucket.FIXED_INCOME)
+              .map(asset -> zeroIfNull(asset.currentValue()))
+              .reduce(ZERO, BigDecimal::add);
     }
-    BigDecimal capitalizedReturn = profile.longTermAssets().stream()
-        .filter(asset -> asset.bucket() == EconomicBucket.FIXED_INCOME)
-        .filter(asset -> asset.interestTreatment() == InterestTreatmentModel.CAPITALIZE)
-        .map(asset -> activePeriodCapitalizedReturn(asset, baselineYear))
-        .reduce(ZERO, BigDecimal::add);
+    BigDecimal capitalizedReturn =
+        profile.longTermAssets().stream()
+            .filter(asset -> asset.bucket() == EconomicBucket.FIXED_INCOME)
+            .filter(asset -> asset.interestTreatment() == InterestTreatmentModel.CAPITALIZE)
+            .map(asset -> activePeriodCapitalizedReturn(asset, baselineYear))
+            .reduce(ZERO, BigDecimal::add);
     if (bondCapital.signum() == 0) return zeroIfNull(fallbackBondYield);
     if (hasFrozenBondAssets(profile) && capitalizedReturn.signum() == 0) return ZERO;
     return capitalizedReturn.signum() == 0
@@ -98,5 +101,4 @@ public class FrozenBondCashFlowProjection {
         .multiply(zeroIfNull(period.annualReturnRate()))
         .multiply(BigDecimal.ONE.subtract(zeroIfNull(asset.taxRate())));
   }
-
 }

@@ -11,21 +11,24 @@ import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-/** Approved failing contract: all funding buckets exhaust in order and the shortfall is preserved. */
+/**
+ * Approved failing contract: all funding buckets exhaust in order and the shortfall is preserved.
+ */
 class RetirementFailureGoldenScenarioIntegrationTest {
 
   @Test
   void failingPlanExhaustsAllBucketsAndReportsFirstAndTotalShortfall() {
     var service = new RetirementSimulationService();
     var profile = profile();
-    var assumptions = SimulationAssumptions.defaults(profile, 65, 66, 2026)
-        .withRecurringSpending(bd("500"))
-        .withInflationRate(BigDecimal.ZERO)
-        .withSpendingGrowthSpread(BigDecimal.ZERO)
-        .withRentalIncomeGrowthSpread(BigDecimal.ZERO)
-        .withFixedIncomeReturnRate(BigDecimal.ZERO)
-        .withEquityReturnRate(BigDecimal.ZERO)
-        .withRetirementAge(65);
+    var assumptions =
+        SimulationAssumptions.defaults(profile, 65, 66, 2026)
+            .withRecurringSpending(bd("500"))
+            .withInflationRate(BigDecimal.ZERO)
+            .withSpendingGrowthSpread(BigDecimal.ZERO)
+            .withRentalIncomeGrowthSpread(BigDecimal.ZERO)
+            .withFixedIncomeReturnRate(BigDecimal.ZERO)
+            .withEquityReturnRate(BigDecimal.ZERO)
+            .withRetirementAge(65);
 
     var result = service.simulate(profile, assumptions, SimulationScenario.BASE);
 
@@ -67,10 +70,14 @@ class RetirementFailureGoldenScenarioIntegrationTest {
         bd("100"),
         bd("100"),
         List.of(
-            new ProfileAllocation(EconomicBucket.LIQUID_CASH, bd("100"), BigDecimal.ZERO, Liquidity.LIQUID),
-            new ProfileAllocation(EconomicBucket.FIXED_INCOME, bd("100"), BigDecimal.ZERO, Liquidity.LIQUID),
-            new ProfileAllocation(EconomicBucket.EQUITY, bd("100"), BigDecimal.ZERO, Liquidity.LIQUID),
-            new ProfileAllocation(EconomicBucket.REAL_ESTATE, bd("100"), BigDecimal.ZERO, Liquidity.ILLIQUID)),
+            new ProfileAllocation(
+                EconomicBucket.LIQUID_CASH, bd("100"), BigDecimal.ZERO, Liquidity.LIQUID),
+            new ProfileAllocation(
+                EconomicBucket.FIXED_INCOME, bd("100"), BigDecimal.ZERO, Liquidity.LIQUID),
+            new ProfileAllocation(
+                EconomicBucket.EQUITY, bd("100"), BigDecimal.ZERO, Liquidity.LIQUID),
+            new ProfileAllocation(
+                EconomicBucket.REAL_ESTATE, bd("100"), BigDecimal.ZERO, Liquidity.ILLIQUID)),
         List.of(),
         BigDecimal.ZERO,
         BigDecimal.ZERO);

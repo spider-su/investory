@@ -1,9 +1,9 @@
 package com.smartbox.investory.retirement.simulation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -131,8 +131,7 @@ class SimulationDecisionSummaryTest {
             BigDecimal.ZERO,
             BigDecimal.ZERO,
             2026);
-    SimulationYear projection =
-        year(40, 2026, "1000", "100", "20", "150", "70", "900", false, "0");
+    SimulationYear projection = year(40, 2026, "1000", "100", "20", "150", "70", "900", false, "0");
     SimulationChartData charts =
         SimulationChartData.from(
             java.util.Map.of(
@@ -143,9 +142,7 @@ class SimulationDecisionSummaryTest {
     assertEquals(2026, charts.balances().get(SimulationScenario.BASE).get(0).year());
     assertEquals(
         projection.endNetWorth(), charts.balances().get(SimulationScenario.BASE).get(0).netWorth());
-    assertEquals(
-        projection.totalIncome(),
-        charts.incomeSpending().get(0).recurringIncome());
+    assertEquals(projection.totalIncome(), charts.incomeSpending().get(0).recurringIncome());
     assertEquals(
         projection.coreExpenses().add(projection.discretionaryExpenses()),
         charts.incomeSpending().get(0).plannedSpending());

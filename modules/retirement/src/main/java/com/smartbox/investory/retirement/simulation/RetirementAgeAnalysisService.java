@@ -25,8 +25,7 @@ public class RetirementAgeAnalysisService {
 
   public RetirementAgeAnalysis analyze(DeterministicAnalysisContext context) {
     return new RetirementAgeAnalysis(
-        find(context, SimulationScenario.BASE),
-        find(context, SimulationScenario.CONSERVATIVE));
+        find(context, SimulationScenario.BASE), find(context, SimulationScenario.CONSERVATIVE));
   }
 
   private RetirementAgeAnalysis.ScenarioResult find(

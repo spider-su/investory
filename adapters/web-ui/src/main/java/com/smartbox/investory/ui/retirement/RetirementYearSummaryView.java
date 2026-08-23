@@ -52,10 +52,22 @@ public record RetirementYearSummaryView(
               spending,
               income,
               netCash,
-              new BucketSummary(money == null ? null : money.cashStart(), null, money == null ? null : money.cashEnd()),
-              new BucketSummary(money == null ? null : money.bondsStart(), money == null ? null : money.bondReturn(), money == null ? null : money.bondsEnd()),
-              new BucketSummary(money == null ? null : money.equitiesStart(), money == null ? null : money.equityReturn(), money == null ? null : money.equitiesEnd()),
-              new BucketSummary(money == null ? null : money.realEstateStart(), money == null ? null : money.rentalIncome(), money == null ? null : money.realEstateEnd()),
+              new BucketSummary(
+                  money == null ? null : money.cashStart(),
+                  null,
+                  money == null ? null : money.cashEnd()),
+              new BucketSummary(
+                  money == null ? null : money.bondsStart(),
+                  money == null ? null : money.bondReturn(),
+                  money == null ? null : money.bondsEnd()),
+              new BucketSummary(
+                  money == null ? null : money.equitiesStart(),
+                  money == null ? null : money.equityReturn(),
+                  money == null ? null : money.equitiesEnd()),
+              new BucketSummary(
+                  money == null ? null : money.realEstateStart(),
+                  money == null ? null : money.rentalIncome(),
+                  money == null ? null : money.realEstateEnd()),
               status));
     }
     return Collections.unmodifiableMap(result);
@@ -73,7 +85,8 @@ public record RetirementYearSummaryView(
     return switch (row.state()) {
       case ACTUAL, NEEDS_REVIEW -> "Actual";
       case LIVE -> "Live";
-      case PROJECTED -> row.projection() != null && row.projection().failed() ? "Unfunded" : "Funded";
+      case PROJECTED ->
+          row.projection() != null && row.projection().failed() ? "Unfunded" : "Funded";
     };
   }
 }

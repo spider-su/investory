@@ -15,9 +15,9 @@ import com.smartbox.investory.retirement.simulation.ForwardSimulationContextFact
 import com.smartbox.investory.retirement.simulation.RetirementBucketEngine;
 import com.smartbox.investory.retirement.simulation.RetirementSimulation;
 import com.smartbox.investory.retirement.simulation.SimulationAssumptions;
+import com.smartbox.investory.retirement.simulation.SimulationCustomDeltas;
 import com.smartbox.investory.retirement.simulation.SimulationResult;
 import com.smartbox.investory.retirement.simulation.SimulationScenario;
-import com.smartbox.investory.retirement.simulation.SimulationCustomDeltas;
 import com.smartbox.investory.retirement.simulation.SimulationYear;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -37,20 +37,22 @@ class PlanningTimelineScenarioIsolationTest {
     PlanningYearRepository years = mock(PlanningYearRepository.class);
     PlanningYearValueRepository values = mock(PlanningYearValueRepository.class);
     HistoricalPortfolioActualsReader historical = mock(HistoricalPortfolioActualsReader.class);
-    HistoricalLongTermAssetYearSource historicalLongTerm = mock(HistoricalLongTermAssetYearSource.class);
+    HistoricalLongTermAssetYearSource historicalLongTerm =
+        mock(HistoricalLongTermAssetYearSource.class);
     RetirementSimulation simulations = mock(RetirementSimulation.class);
     CurrentYearProjectionBridge bridge = mock(CurrentYearProjectionBridge.class);
     ForwardSimulationContextFactory contexts = new ForwardSimulationContextFactory(clock);
-    PlanningTimelineFacade facade = new PlanningTimelineFacade(
-        years, values, historical, historicalLongTerm, simulations, bridge, clock, contexts);
+    PlanningTimelineFacade facade =
+        new PlanningTimelineFacade(
+            years, values, historical, historicalLongTerm, simulations, bridge, clock, contexts);
 
     InvestmentProfile profile = profile();
-    SimulationAssumptions assumptions = SimulationAssumptions.defaults(profile, 40, 42, 2025)
-        .withRetirementAge(41)
-        .withRecurringSpending(new BigDecimal("100"));
+    SimulationAssumptions assumptions =
+        SimulationAssumptions.defaults(profile, 40, 42, 2025)
+            .withRetirementAge(41)
+            .withRecurringSpending(new BigDecimal("100"));
     var context = contexts.create(profile, assumptions);
-    var forward = new ForwardSimulationInput(
-        context, profile, context.forwardAssumptions(), null);
+    var forward = new ForwardSimulationInput(context, profile, context.forwardAssumptions(), null);
 
     when(years.findByPortfolioIdAndYear(1L, 2025)).thenReturn(Optional.empty());
     when(years.findByPortfolioIdAndYear(1L, 2026)).thenReturn(Optional.empty());
@@ -60,13 +62,18 @@ class PlanningTimelineScenarioIsolationTest {
         .thenReturn(result(SimulationScenario.CONSERVATIVE, "70"));
     when(simulations.simulate(any(), any(), eq(SimulationScenario.OPTIMISTIC), eq(2026)))
         .thenReturn(result(SimulationScenario.OPTIMISTIC, "110"));
-    var custom = new SimulationCustomDeltas(
-        new BigDecimal("0.04"), new BigDecimal("0.02"), new BigDecimal("0.03"),
-        new BigDecimal("0.05"), new BigDecimal("0.02"));
+    var custom =
+        new SimulationCustomDeltas(
+            new BigDecimal("0.04"),
+            new BigDecimal("0.02"),
+            new BigDecimal("0.03"),
+            new BigDecimal("0.05"),
+            new BigDecimal("0.02"));
     when(simulations.simulate(any(), any(), eq(SimulationScenario.CUSTOM), eq(2026), eq(custom)))
         .thenReturn(result(SimulationScenario.CUSTOM, "140"));
 
-    PlanningTimeline base = facade.loadForwardTimeline(1L, profile, forward, SimulationScenario.BASE);
+    PlanningTimeline base =
+        facade.loadForwardTimeline(1L, profile, forward, SimulationScenario.BASE);
     PlanningTimeline conservative =
         facade.loadForwardTimeline(1L, profile, forward, SimulationScenario.CONSERVATIVE);
     PlanningTimeline optimistic =
@@ -105,7 +112,10 @@ class PlanningTimelineScenarioIsolationTest {
   }
 
   private static PlanningTimelineYear row(PlanningTimeline timeline, int year) {
-    return timeline.years().stream().filter(value -> value.year() == year).findFirst().orElseThrow();
+    return timeline.years().stream()
+        .filter(value -> value.year() == year)
+        .findFirst()
+        .orElseThrow();
   }
 
   private static SimulationResult result(SimulationScenario scenario, String cashEnd) {
@@ -113,10 +123,25 @@ class PlanningTimelineScenarioIsolationTest {
     var zeroBonds = bucket(BucketType.BONDS, "0", "0");
     var zeroEquity = bucket(BucketType.EQUITIES, "0", "0");
     var zeroRealEstate = bucket(BucketType.REAL_ESTATE, "0", "0");
-    SimulationYear year = SimulationYear.bucket(
-        42, 2027, true, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-        BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, cash, zeroBonds,
-        zeroEquity, zeroRealEstate, BigDecimal.ZERO, BigDecimal.ZERO);
+    SimulationYear year =
+        SimulationYear.bucket(
+            42,
+            2027,
+            true,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            cash,
+            zeroBonds,
+            zeroEquity,
+            zeroRealEstate,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO);
     return new SimulationResult(
         scenario, false, null, BigDecimal.ZERO, BigDecimal.ZERO, List.of(year));
   }
@@ -126,14 +151,27 @@ class PlanningTimelineScenarioIsolationTest {
     BigDecimal startValue = new BigDecimal(start);
     BigDecimal endValue = new BigDecimal(end);
     return new RetirementBucketEngine.BucketResult(
-        type, startValue, BigDecimal.ZERO, BigDecimal.ZERO,
-        startValue.subtract(endValue).max(BigDecimal.ZERO), endValue);
+        type,
+        startValue,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        startValue.subtract(endValue).max(BigDecimal.ZERO),
+        endValue);
   }
 
   private static InvestmentProfile profile() {
     return new InvestmentProfile(
-        1L, CurrencyType.PLN, new BigDecimal("100"), BigDecimal.ZERO,
-        new BigDecimal("100"), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-        new BigDecimal("100"), BigDecimal.ZERO, List.of(), List.of());
+        1L,
+        CurrencyType.PLN,
+        new BigDecimal("100"),
+        BigDecimal.ZERO,
+        new BigDecimal("100"),
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        new BigDecimal("100"),
+        BigDecimal.ZERO,
+        List.of(),
+        List.of());
   }
 }

@@ -14,26 +14,51 @@ class RetirementSimulationOrchestratorTest {
   void honorsConfiguredLongTermBeforeReserveOrder() {
     List<BigDecimal> longTermRequests = new ArrayList<>();
     List<BigDecimal> investmentRequests = new ArrayList<>();
-    LongTermAnnualProjectionApi longTerm = longTerm(request -> {
-      longTermRequests.add(request.requestedCapital());
-      return new LongTermAnnualProjectionApi.PlanningProjection(request.year(), List.of(), BigDecimal.ZERO,
-          request.requestedCapital(), request.requestedCapital().min(bd("30")), BigDecimal.ZERO,
-          request.state(), LongTermAnnualProjectionApi.Source.PROJECTED);
-    });
-    InvestmentAnnualProjectionApi investment = request -> {
-      investmentRequests.add(request.withdrawal());
-      return new InvestmentAnnualProjectionApi.AnnualProjection(request.year(), request.startValue(),
-          request.externalContribution(), BigDecimal.ZERO, request.withdrawal().min(bd("40")),
-          request.startValue().subtract(request.withdrawal().min(bd("40"))), request.source());
-    };
-    var year = new RetirementSimulationOrchestrator(longTerm, investment)
-        .run(input(65, 65, bd("100"), bd("20"))
-            .withFundingPolicy(new RetirementFundingPolicy(BigDecimal.ZERO, BigDecimal.ONE,
-                BigDecimal.ZERO, true, List.of(FundingSource.BONDS, FundingSource.CASH, FundingSource.STOCKS))))
-        .years().getFirst();
-    assertThat(longTermRequests).usingComparatorForType(BigDecimal::compareTo, BigDecimal.class)
+    LongTermAnnualProjectionApi longTerm =
+        longTerm(
+            request -> {
+              longTermRequests.add(request.requestedCapital());
+              return new LongTermAnnualProjectionApi.PlanningProjection(
+                  request.year(),
+                  List.of(),
+                  BigDecimal.ZERO,
+                  request.requestedCapital(),
+                  request.requestedCapital().min(bd("30")),
+                  BigDecimal.ZERO,
+                  request.state(),
+                  LongTermAnnualProjectionApi.Source.PROJECTED);
+            });
+    InvestmentAnnualProjectionApi investment =
+        request -> {
+          investmentRequests.add(request.withdrawal());
+          return new InvestmentAnnualProjectionApi.AnnualProjection(
+              request.year(),
+              request.startValue(),
+              request.externalContribution(),
+              BigDecimal.ZERO,
+              request.withdrawal().min(bd("40")),
+              request.startValue().subtract(request.withdrawal().min(bd("40"))),
+              request.source());
+        };
+    var year =
+        new RetirementSimulationOrchestrator(longTerm, investment)
+            .run(
+                input(65, 65, bd("100"), bd("20"))
+                    .withFundingPolicy(
+                        new RetirementFundingPolicy(
+                            BigDecimal.ZERO,
+                            BigDecimal.ONE,
+                            BigDecimal.ZERO,
+                            true,
+                            List.of(
+                                FundingSource.BONDS, FundingSource.CASH, FundingSource.STOCKS))))
+            .years()
+            .getFirst();
+    assertThat(longTermRequests)
+        .usingComparatorForType(BigDecimal::compareTo, BigDecimal.class)
         .containsExactly(bd("0"), bd("100"));
-    assertThat(investmentRequests).usingComparatorForType(BigDecimal::compareTo, BigDecimal.class)
+    assertThat(investmentRequests)
+        .usingComparatorForType(BigDecimal::compareTo, BigDecimal.class)
         .containsExactly(bd("50"));
     assertThat(year.reserveWithdrawal()).isEqualByComparingTo("20");
     assertThat(year.maturedBondFunding()).isEqualByComparingTo("30");
@@ -101,7 +126,9 @@ class RetirementSimulationOrchestratorTest {
                 .add(year.unfundedShortfall()));
     assertThat(year.reserveEnd())
         .isEqualByComparingTo(
-            bd("20").add(year.reserveTransfer()).add(year.equityHarvestToReserve())
+            bd("20")
+                .add(year.reserveTransfer())
+                .add(year.equityHarvestToReserve())
                 .subtract(year.reserveWithdrawal()));
   }
 
@@ -280,26 +307,60 @@ class RetirementSimulationOrchestratorTest {
 
   @Test
   void manualProjectedIncomeReplacesSourceCashFlowsWithoutChangingCapitalizedReturn() {
-    LongTermAnnualProjectionApi longTerm = longTerm(request ->
-        new LongTermAnnualProjectionApi.PlanningProjection(request.year(), List.of(
-            new LongTermAnnualProjectionApi.PlannedCashFlow("rent", "Rent",
-                LongTermAnnualProjectionApi.CashFlowKind.RENTAL_INCOME, bd("100"),
-                LongTermAnnualProjectionApi.Source.PROJECTED),
-            new LongTermAnnualProjectionApi.PlannedCashFlow("bond", "Bond",
-                LongTermAnnualProjectionApi.CashFlowKind.FIXED_INCOME, bd("40"),
-                LongTermAnnualProjectionApi.Source.PROJECTED)), BigDecimal.ZERO,
-            request.requestedCapital(), BigDecimal.ZERO, BigDecimal.ZERO, request.state(),
-            LongTermAnnualProjectionApi.Source.PROJECTED, bd("25")));
-    InvestmentAnnualProjectionApi investment = request -> new InvestmentAnnualProjectionApi.AnnualProjection(
-        request.year(), request.startValue(), request.externalContribution(), BigDecimal.ZERO,
-        BigDecimal.ZERO, request.startValue(), request.source());
-    var policy = new ProjectedIncomePolicy(ProjectedIncomePolicy.IncomeMode.MANUAL, bd("200"),
-        ProjectedIncomePolicy.IncomeMode.MANUAL, bd("30"));
-    var input = input(65, 65, bd("500"), bd("100"))
-        .withFundingPolicy(new RetirementFundingPolicy(BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO,
-            false, List.of(FundingSource.CASH), policy));
+    LongTermAnnualProjectionApi longTerm =
+        longTerm(
+            request ->
+                new LongTermAnnualProjectionApi.PlanningProjection(
+                    request.year(),
+                    List.of(
+                        new LongTermAnnualProjectionApi.PlannedCashFlow(
+                            "rent",
+                            "Rent",
+                            LongTermAnnualProjectionApi.CashFlowKind.RENTAL_INCOME,
+                            bd("100"),
+                            LongTermAnnualProjectionApi.Source.PROJECTED),
+                        new LongTermAnnualProjectionApi.PlannedCashFlow(
+                            "bond",
+                            "Bond",
+                            LongTermAnnualProjectionApi.CashFlowKind.FIXED_INCOME,
+                            bd("40"),
+                            LongTermAnnualProjectionApi.Source.PROJECTED)),
+                    BigDecimal.ZERO,
+                    request.requestedCapital(),
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    request.state(),
+                    LongTermAnnualProjectionApi.Source.PROJECTED,
+                    bd("25")));
+    InvestmentAnnualProjectionApi investment =
+        request ->
+            new InvestmentAnnualProjectionApi.AnnualProjection(
+                request.year(),
+                request.startValue(),
+                request.externalContribution(),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                request.startValue(),
+                request.source());
+    var policy =
+        new ProjectedIncomePolicy(
+            ProjectedIncomePolicy.IncomeMode.MANUAL,
+            bd("200"),
+            ProjectedIncomePolicy.IncomeMode.MANUAL,
+            bd("30"));
+    var input =
+        input(65, 65, bd("500"), bd("100"))
+            .withFundingPolicy(
+                new RetirementFundingPolicy(
+                    BigDecimal.ZERO,
+                    BigDecimal.ONE,
+                    BigDecimal.ZERO,
+                    false,
+                    List.of(FundingSource.CASH),
+                    policy));
 
-    var year = new RetirementSimulationOrchestrator(longTerm, investment).run(input).years().getFirst();
+    var year =
+        new RetirementSimulationOrchestrator(longTerm, investment).run(input).years().getFirst();
 
     assertThat(year.annualRentalIncome()).isEqualByComparingTo("200");
     assertThat(year.netBondIncome()).isEqualByComparingTo("30");
@@ -356,8 +417,14 @@ class RetirementSimulationOrchestratorTest {
 
       @Override
       public PlanningQuote quote(PlanningRequest request) {
-        PlanningProjection p = projection.apply(new PlanningRequest(request.year(), BigDecimal.ZERO, request.state()));
-        return new PlanningQuote(p.year(), p.plannedCashFlows(), p.reserveTransfer(), p.endCapital(), p.source(),
+        PlanningProjection p =
+            projection.apply(new PlanningRequest(request.year(), BigDecimal.ZERO, request.state()));
+        return new PlanningQuote(
+            p.year(),
+            p.plannedCashFlows(),
+            p.reserveTransfer(),
+            p.endCapital(),
+            p.source(),
             p.capitalizedBondReturn());
       }
     };

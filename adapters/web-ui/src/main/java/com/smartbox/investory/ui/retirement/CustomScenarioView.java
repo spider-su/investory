@@ -20,7 +20,11 @@ public record CustomScenarioView(
 
   static CustomScenarioView from(CustomScenarioInput input) {
     return new CustomScenarioView(
-        input.inflation(), input.rentalGrowth(), input.bondReturn(), input.equityReturn(),
-        input.spendingGrowth(), input.errors());
+        input.inflation(),
+        input.rentalGrowth(),
+        input.bondReturn(),
+        input.equityReturn(),
+        input.spendingGrowth(),
+        input.errors());
   }
 }

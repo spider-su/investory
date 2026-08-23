@@ -10,8 +10,8 @@ import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
 import com.smartbox.investory.longterm.application.model.LongTermAssetProjectionInput;
 import com.smartbox.investory.longterm.application.service.LongTermAssetReadService;
 import com.smartbox.investory.longterm.application.service.LongTermAssetService;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
+import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -34,8 +34,10 @@ class LongTermAssetReadServiceTest {
   @BeforeEach
   void setUp() {
     readService = new LongTermAssetReadService(longTermAssets, currencyRates);
-    org.mockito.Mockito.lenient().when(currencyRates.convertToBaseCurrency(
-            any(BigDecimal.class), eq(CurrencyType.USD), eq(CurrencyType.PLN), eq(DATE)))
+    org.mockito.Mockito.lenient()
+        .when(
+            currencyRates.convertToBaseCurrency(
+                any(BigDecimal.class), eq(CurrencyType.USD), eq(CurrencyType.PLN), eq(DATE)))
         .thenAnswer(
             invocation -> invocation.getArgument(0, BigDecimal.class).divide(new BigDecimal("4")));
   }
@@ -76,23 +78,36 @@ class LongTermAssetReadServiceTest {
 
   @Test
   void projectionInputsPreserveBondInterestPeriodsAndContractMetadata() {
-    LongTermAssetProjectionInput input = new LongTermAssetProjectionInput(
-        7L, "Bond", LongTermAssetType.BOND, CurrencyType.USD, new BigDecimal("900000"),
-        List.of(new LongTermAssetProjectionInput.Period(
-            LocalDate.of(2025, 1, 1), LocalDate.of(2028, 12, 31),
-            BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("0.053333333333333333"))),
-        LocalDate.of(2028, 12, 31), new BigDecimal("900000"), InterestTreatment.PAY_OUT,
-        new BigDecimal("0.19"));
+    LongTermAssetProjectionInput input =
+        new LongTermAssetProjectionInput(
+            7L,
+            "Bond",
+            LongTermAssetType.BOND,
+            CurrencyType.USD,
+            new BigDecimal("900000"),
+            List.of(
+                new LongTermAssetProjectionInput.Period(
+                    LocalDate.of(2025, 1, 1),
+                    LocalDate.of(2028, 12, 31),
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    new BigDecimal("0.053333333333333333"))),
+            LocalDate.of(2028, 12, 31),
+            new BigDecimal("900000"),
+            InterestTreatment.PAY_OUT,
+            new BigDecimal("0.19"));
     when(longTermAssets.projectionInputs(1L, DATE)).thenReturn(List.of(input));
 
     var result = readService.projectionInputs(1L, DATE).getFirst();
 
     assertEquals(LongTermAssetTypeModel.BOND, result.type());
     assertEquals(new BigDecimal("900000"), result.currentValue());
-    assertEquals(new BigDecimal("0.053333333333333333"), result.periods().getFirst().annualReturnRate());
+    assertEquals(
+        new BigDecimal("0.053333333333333333"), result.periods().getFirst().annualReturnRate());
     assertEquals(LocalDate.of(2028, 12, 31), result.periods().getFirst().validTo());
     assertEquals(new BigDecimal("900000"), result.redemptionValue());
-    assertEquals(com.smartbox.investory.longterm.api.model.InterestTreatmentModel.PAY_OUT,
+    assertEquals(
+        com.smartbox.investory.longterm.api.model.InterestTreatmentModel.PAY_OUT,
         result.interestTreatment());
   }
 }

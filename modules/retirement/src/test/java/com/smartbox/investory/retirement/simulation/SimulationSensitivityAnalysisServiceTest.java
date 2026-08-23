@@ -17,8 +17,7 @@ class SimulationSensitivityAnalysisServiceTest {
     InvestmentProfile profile = profileWithMarketBuckets();
     SimulationAssumptions assumptions = SimulationAssumptions.defaults(profile, 40, 80, 2027);
     SimulationResult baseResult =
-        new SimulationResult(
-            SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of());
+        new SimulationResult(SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of());
     SimulationDecisionSummary baseSummary = SimulationDecisionSummary.from(baseResult, assumptions);
     SimulationEvaluation canonicalBase =
         new SimulationEvaluation(
@@ -29,9 +28,7 @@ class SimulationSensitivityAnalysisServiceTest {
 
     SimulationSensitivityAnalysis result =
         new SimulationSensitivityAnalysisService(evaluations)
-            .analyze(
-                new DeterministicAnalysisContext(
-                    profile, assumptions, 2026, canonicalBase));
+            .analyze(new DeterministicAnalysisContext(profile, assumptions, 2026, canonicalBase));
 
     assertSame(canonicalBase, result.baseline());
     verify(evaluations, never()).evaluate(profile, assumptions, SimulationScenario.BASE);
@@ -80,9 +77,7 @@ class SimulationSensitivityAnalysisServiceTest {
             .analyze(profile, assumptions);
 
     assertEquals(
-        List.of(
-            SensitivityDriver.RECURRING_SPENDING,
-            SensitivityDriver.SPENDING_GROWTH),
+        List.of(SensitivityDriver.RECURRING_SPENDING, SensitivityDriver.SPENDING_GROWTH),
         result.drivers().stream().map(SimulationSensitivityResult::driver).toList());
   }
 

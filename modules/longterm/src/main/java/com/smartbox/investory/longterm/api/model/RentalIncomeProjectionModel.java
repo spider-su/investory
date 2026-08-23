@@ -193,7 +193,10 @@ public final class RentalIncomeProjectionModel {
   }
 
   private static Result result(
-      Map<CashFlowTypeModel, BigDecimal> income, BigDecimal gross, BigDecimal expenses, BigDecimal tax) {
+      Map<CashFlowTypeModel, BigDecimal> income,
+      BigDecimal gross,
+      BigDecimal expenses,
+      BigDecimal tax) {
     var e = RentalEconomicsModel.of(gross, expenses, tax);
     return new Result(income, e.grossIncome(), e.expenses(), e.tax(), e.netIncome());
   }

@@ -1,11 +1,11 @@
 package com.smartbox.investory.longterm.application.service;
 
 import com.smartbox.investory.longterm.api.*;
-import com.smartbox.investory.longterm.api.model.RealEstateEntryModel;
 import com.smartbox.investory.longterm.api.model.CashFlowTypeModel;
 import com.smartbox.investory.longterm.api.model.FrequencyModel;
 import com.smartbox.investory.longterm.api.model.InterestTreatmentModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
+import com.smartbox.investory.longterm.api.model.RealEstateEntryModel;
 import com.smartbox.investory.longterm.application.model.AnnualEconomics;
 import com.smartbox.investory.longterm.application.model.BondPlanningSummary;
 import com.smartbox.investory.longterm.application.model.LongTermAssetSummary;
@@ -265,7 +265,10 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
                             .map(
                                 t ->
                                     new LongTermAssetsApi.RentalTermView(
-                                        cashFlowType(t.type()), t.amount(), frequency(t.frequency()), t.paidByTenant()))
+                                        cashFlowType(t.type()),
+                                        t.amount(),
+                                        frequency(t.frequency()),
+                                        t.paidByTenant()))
                             .toList()))
             .toList());
   }
@@ -281,7 +284,10 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
             .map(
                 t ->
                     new LongTermAssetsApi.RentalTermView(
-                        cashFlowType(t.getType()), t.getAmount(), frequency(t.getFrequency()), t.isPaidByTenant()))
+                        cashFlowType(t.getType()),
+                        t.getAmount(),
+                        frequency(t.getFrequency()),
+                        t.isPaidByTenant()))
             .toList());
   }
 
@@ -376,12 +382,44 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
     return new LongTermAssetsApi.BondRateView(p.validFrom(), p.validTo(), p.annualInterestRate());
   }
 
-  private static com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType assetType(LongTermAssetTypeModel value) { return com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType.valueOf(value.name()); }
-  private static LongTermAssetTypeModel assetType(com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType value) { return LongTermAssetTypeModel.valueOf(value.name()); }
-  private static com.smartbox.investory.longterm.infrastructure.rental.CashFlowType cashFlowType(CashFlowTypeModel value) { return com.smartbox.investory.longterm.infrastructure.rental.CashFlowType.valueOf(value.name()); }
-  private static CashFlowTypeModel cashFlowType(com.smartbox.investory.longterm.infrastructure.rental.CashFlowType value) { return CashFlowTypeModel.valueOf(value.name()); }
-  private static com.smartbox.investory.longterm.infrastructure.rental.Frequency frequency(FrequencyModel value) { return com.smartbox.investory.longterm.infrastructure.rental.Frequency.valueOf(value.name()); }
-  private static FrequencyModel frequency(com.smartbox.investory.longterm.infrastructure.rental.Frequency value) { return FrequencyModel.valueOf(value.name()); }
-  private static com.smartbox.investory.longterm.infrastructure.InterestTreatment interest(InterestTreatmentModel value) { return com.smartbox.investory.longterm.infrastructure.InterestTreatment.valueOf(value.name()); }
-  private static InterestTreatmentModel interest(com.smartbox.investory.longterm.infrastructure.InterestTreatment value) { return InterestTreatmentModel.valueOf(value.name()); }
+  private static com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType assetType(
+      LongTermAssetTypeModel value) {
+    return com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType.valueOf(
+        value.name());
+  }
+
+  private static LongTermAssetTypeModel assetType(
+      com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType value) {
+    return LongTermAssetTypeModel.valueOf(value.name());
+  }
+
+  private static com.smartbox.investory.longterm.infrastructure.rental.CashFlowType cashFlowType(
+      CashFlowTypeModel value) {
+    return com.smartbox.investory.longterm.infrastructure.rental.CashFlowType.valueOf(value.name());
+  }
+
+  private static CashFlowTypeModel cashFlowType(
+      com.smartbox.investory.longterm.infrastructure.rental.CashFlowType value) {
+    return CashFlowTypeModel.valueOf(value.name());
+  }
+
+  private static com.smartbox.investory.longterm.infrastructure.rental.Frequency frequency(
+      FrequencyModel value) {
+    return com.smartbox.investory.longterm.infrastructure.rental.Frequency.valueOf(value.name());
+  }
+
+  private static FrequencyModel frequency(
+      com.smartbox.investory.longterm.infrastructure.rental.Frequency value) {
+    return FrequencyModel.valueOf(value.name());
+  }
+
+  private static com.smartbox.investory.longterm.infrastructure.InterestTreatment interest(
+      InterestTreatmentModel value) {
+    return com.smartbox.investory.longterm.infrastructure.InterestTreatment.valueOf(value.name());
+  }
+
+  private static InterestTreatmentModel interest(
+      com.smartbox.investory.longterm.infrastructure.InterestTreatment value) {
+    return InterestTreatmentModel.valueOf(value.name());
+  }
 }

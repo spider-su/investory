@@ -72,8 +72,6 @@ public class ForwardSimulationContextFactory {
   }
 
   public static int retirementYear(SimulationAssumptions assumptions) {
-    return assumptions.planStartYear()
-        + assumptions.retirementAge()
-        - assumptions.ageAtPlanStart();
+    return assumptions.planStartYear() + assumptions.retirementAge() - assumptions.ageAtPlanStart();
   }
 }

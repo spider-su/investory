@@ -28,10 +28,7 @@ public class SimulationSensitivityAnalysisService {
 
   public SimulationSensitivityAnalysis analyze(DeterministicAnalysisContext context) {
     return analyze(
-        context.profile(),
-        context.assumptions(),
-        context.baselineYear(),
-        context.canonicalBase());
+        context.profile(), context.assumptions(), context.baselineYear(), context.canonicalBase());
   }
 
   private SimulationSensitivityAnalysis analyze(
@@ -216,5 +213,4 @@ public class SimulationSensitivityAnalysisService {
   private static BigDecimal recurringSpending(SimulationAssumptions assumptions) {
     return assumptions.annualLivingExpenses().add(assumptions.annualDiscretionaryExpenses());
   }
-
 }

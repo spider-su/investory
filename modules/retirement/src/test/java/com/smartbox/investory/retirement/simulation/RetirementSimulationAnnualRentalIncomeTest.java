@@ -22,11 +22,13 @@ class RetirementSimulationAnnualRentalIncomeTest {
     var service = new RetirementSimulationService();
     var profile = profile(BigDecimal.ZERO, List.of(), new BigDecimal("174803.62"));
     int firstProjectedYear = 2027;
-    var assumptions = SimulationAssumptions.defaults(profile, 65, 65, firstProjectedYear)
-        .withInflationRate(new BigDecimal("0.030"))
-        .withRentalIncomeGrowthSpread(new BigDecimal("-0.020"));
+    var assumptions =
+        SimulationAssumptions.defaults(profile, 65, 65, firstProjectedYear)
+            .withInflationRate(new BigDecimal("0.030"))
+            .withRentalIncomeGrowthSpread(new BigDecimal("-0.020"));
 
-    var year = service.simulate(profile, assumptions, SimulationScenario.BASE, 2026).years().getFirst();
+    var year =
+        service.simulate(profile, assumptions, SimulationScenario.BASE, 2026).years().getFirst();
 
     assertThat(year.year()).isEqualTo(firstProjectedYear);
     assertThat(year.rentalIncome()).isEqualByComparingTo("176551.6562");
@@ -36,9 +38,10 @@ class RetirementSimulationAnnualRentalIncomeTest {
   void explicitBaselineYearMakesSimulationIndependentOfWallClock() {
     var service = new RetirementSimulationService();
     var profile = profile(BigDecimal.ZERO, List.of(), new BigDecimal("100"));
-    var assumptions = SimulationAssumptions.defaults(profile, 65, 65, 2027)
-        .withInflationRate(new BigDecimal("0.030"))
-        .withRentalIncomeGrowthSpread(new BigDecimal("-0.020"));
+    var assumptions =
+        SimulationAssumptions.defaults(profile, 65, 65, 2027)
+            .withInflationRate(new BigDecimal("0.030"))
+            .withRentalIncomeGrowthSpread(new BigDecimal("-0.020"));
 
     var first = service.simulate(profile, assumptions, SimulationScenario.BASE, 2026);
     var repeated = service.simulate(profile, assumptions, SimulationScenario.BASE, 2026);
@@ -48,10 +51,10 @@ class RetirementSimulationAnnualRentalIncomeTest {
     assertThat(first.years().getFirst().rentalIncome()).isEqualByComparingTo("101");
     assertThat(olderBaseline.years().getFirst().rentalIncome()).isEqualByComparingTo("102.01");
   }
+
   @Test
   void supportsAnnualRentalIncomeThatDoesNotDivideEvenlyIntoMonths() {
-    var service =
-        new RetirementSimulationService();
+    var service = new RetirementSimulationService();
     var profile =
         new InvestmentProfile(
             1L,
@@ -80,8 +83,7 @@ class RetirementSimulationAnnualRentalIncomeTest {
 
   @Test
   void keepsCanonicalRentalAndBondIncomeSeparate() {
-    var service =
-        new RetirementSimulationService();
+    var service = new RetirementSimulationService();
     var bond =
         new ProjectedLongTermAsset(
             10L,
@@ -122,8 +124,7 @@ class RetirementSimulationAnnualRentalIncomeTest {
 
   @Test
   void compoundsRentalIncomeThroughLongTermProjectionBoundary() {
-    var service =
-        new RetirementSimulationService();
+    var service = new RetirementSimulationService();
     var profile = profile(BigDecimal.ZERO, List.of(), new BigDecimal("100"));
     var assumptions =
         SimulationAssumptions.defaults(profile, 65, 67, 2026)
@@ -138,8 +139,7 @@ class RetirementSimulationAnnualRentalIncomeTest {
 
   @Test
   void compoundsSpendingAtTheEffectiveRateAndAppliesExpenseProfileLevelsOnce() {
-    var service =
-        new RetirementSimulationService();
+    var service = new RetirementSimulationService();
     var assumptions =
         SimulationAssumptions.defaults(profile(BigDecimal.ZERO, List.of()), 65, 67, 2026)
             .withRecurringSpending(new BigDecimal("240000"))
@@ -149,7 +149,9 @@ class RetirementSimulationAnnualRentalIncomeTest {
                 new ExpenseProfile(List.of(new ExpenseProfileStep(1, new BigDecimal("0.85")))));
 
     var years =
-        service.simulate(profile(BigDecimal.ZERO, List.of()), assumptions, SimulationScenario.BASE).years();
+        service
+            .simulate(profile(BigDecimal.ZERO, List.of()), assumptions, SimulationScenario.BASE)
+            .years();
 
     assertThat(years.get(0).totalExpenses()).isEqualByComparingTo("240000");
     assertThat(years.get(1).totalExpenses()).isEqualByComparingTo("212160");
@@ -170,7 +172,11 @@ class RetirementSimulationAnnualRentalIncomeTest {
             Liquidity.LIQUID,
             List.of(
                 new ProjectedLongTermAsset.Period(
-                    LocalDate.of(2020, 1, 1), null, BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("0.10"))),
+                    LocalDate.of(2020, 1, 1),
+                    null,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    new BigDecimal("0.10"))),
             List.of(),
             LocalDate.of(2028, 12, 31),
             new BigDecimal("1000"),
@@ -180,7 +186,8 @@ class RetirementSimulationAnnualRentalIncomeTest {
             false);
     var profile = profile(BigDecimal.ZERO, List.of(bond));
     var assumptions =
-        SimulationAssumptions.defaults(profile, 65, 65, 2026).withRecurringSpending(new BigDecimal("80"));
+        SimulationAssumptions.defaults(profile, 65, 65, 2026)
+            .withRecurringSpending(new BigDecimal("80"));
 
     var year = service.simulate(profile, assumptions, SimulationScenario.BASE).years().getFirst();
 
@@ -192,18 +199,35 @@ class RetirementSimulationAnnualRentalIncomeTest {
   @Test
   void capitalizedBondIncomeDoesNotEnterCashIncome() {
     var service = new RetirementSimulationService();
-    var bond = new ProjectedLongTermAsset(
-        11L, "Capitalized bond", LongTermAssetTypeModel.BOND,
-        EconomicBucket.FIXED_INCOME, CurrencyType.USD, new BigDecimal("1000"), Liquidity.LIQUID,
-        List.of(new ProjectedLongTermAsset.Period(
-            LocalDate.of(2020, 1, 1), null, null, BigDecimal.ZERO, new BigDecimal("0.10"))),
-        List.of(), null, new BigDecimal("1000"), InterestTreatmentModel.CAPITALIZE,
-        new BigDecimal("0.20"), null, false);
+    var bond =
+        new ProjectedLongTermAsset(
+            11L,
+            "Capitalized bond",
+            LongTermAssetTypeModel.BOND,
+            EconomicBucket.FIXED_INCOME,
+            CurrencyType.USD,
+            new BigDecimal("1000"),
+            Liquidity.LIQUID,
+            List.of(
+                new ProjectedLongTermAsset.Period(
+                    LocalDate.of(2020, 1, 1), null, null, BigDecimal.ZERO, new BigDecimal("0.10"))),
+            List.of(),
+            null,
+            new BigDecimal("1000"),
+            InterestTreatmentModel.CAPITALIZE,
+            new BigDecimal("0.20"),
+            null,
+            false);
     var profile = profile(BigDecimal.ZERO, List.of(bond));
-    var year = service.simulate(profile,
-        SimulationAssumptions.defaults(profile, 65, 65, 2026)
-            .withRecurringSpending(new BigDecimal("80")),
-        SimulationScenario.BASE).years().getFirst();
+    var year =
+        service
+            .simulate(
+                profile,
+                SimulationAssumptions.defaults(profile, 65, 65, 2026)
+                    .withRecurringSpending(new BigDecimal("80")),
+                SimulationScenario.BASE)
+            .years()
+            .getFirst();
 
     assertThat(year.bondIncome()).isZero();
     // Capitalized source yield remains observed data; projected capital uses the plan Bond return
@@ -221,7 +245,8 @@ class RetirementSimulationAnnualRentalIncomeTest {
             .withRetirementAge(61)
             .withAnnualPreRetirementContribution(new BigDecimal("100"));
 
-    var workingYear = service.simulate(profile, assumptions, SimulationScenario.BASE).years().getFirst();
+    var workingYear =
+        service.simulate(profile, assumptions, SimulationScenario.BASE).years().getFirst();
 
     assertThat(workingYear.livingExpenses()).isZero();
     assertThat(workingYear.preRetirementContribution()).isEqualByComparingTo("100");

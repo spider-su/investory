@@ -1,7 +1,7 @@
 package com.smartbox.investory.retirement.infrastructure.simulation;
 
-import com.smartbox.investory.retirement.simulation.SimulationFundingStrategy;
 import com.smartbox.investory.retirement.simulation.ProjectedIncomePolicy.IncomeMode;
+import com.smartbox.investory.retirement.simulation.SimulationFundingStrategy;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;

@@ -1,7 +1,7 @@
 package com.smartbox.investory.app;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
@@ -11,7 +11,9 @@ import org.junit.jupiter.api.Test;
 class RetirementSimulationTemplateContractTest {
   @Test
   void simulationOwnsRawProjectionAndNotAnalysisSections() throws Exception {
-    String html = Files.readString(Path.of("../adapters/web-ui/src/main/resources/templates/simulation.html"));
+    String html =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/simulation.html"));
     assertTrue(html.contains("Plan and actual scenario assumptions"));
     assertTrue(html.contains("iv-plan-timeline__matrix-label\">PLAN</strong>"));
     assertTrue(html.contains("iv-plan-timeline__matrix-label\">ACTUAL</strong>"));
@@ -54,7 +56,9 @@ class RetirementSimulationTemplateContractTest {
 
   @Test
   void planEditorSeparatesDecisionsFactsAndDevelopment() throws Exception {
-    String editor = Files.readString(Path.of("../adapters/web-ui/src/main/resources/templates/simulation-plan-edit.html"));
+    String editor =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/simulation-plan-edit.html"));
 
     assertTrue(editor.contains("1. Timeline"));
     assertTrue(editor.contains("2. Spending &amp; Growth"));
@@ -86,7 +90,9 @@ class RetirementSimulationTemplateContractTest {
 
   @Test
   void planEditorKeepsRentalGrowthOutOfIncomeAssumptions() throws Exception {
-    String editor = Files.readString(Path.of("../adapters/web-ui/src/main/resources/templates/simulation-plan-edit.html"));
+    String editor =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/simulation-plan-edit.html"));
 
     int incomeStart = editor.indexOf("3. Income");
     int rental = editor.indexOf("Rental growth vs inflation");
@@ -95,7 +101,9 @@ class RetirementSimulationTemplateContractTest {
 
   @Test
   void planEditorPreservesPostBindingsAndPlanEventOperations() throws Exception {
-    String editor = Files.readString(Path.of("../adapters/web-ui/src/main/resources/templates/simulation-plan-edit.html"));
+    String editor =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/simulation-plan-edit.html"));
 
     for (String name :
         new String[] {
@@ -129,11 +137,15 @@ class RetirementSimulationTemplateContractTest {
     assertFalse(editor.contains("investment value × return"));
     assertFalse(editor.contains("investmentValue *"));
     assertFalse(editor.contains("rentalIncome *"));
-    assertFalse(editor.contains("equity-return\" class=\"form-control\" form=\"plan-editor-form\" name=\"equityReturn\" type=\"number\" step=\"0.1\" min=\"1\""));
+    assertFalse(
+        editor.contains(
+            "equity-return\" class=\"form-control\" form=\"plan-editor-form\" name=\"equityReturn\" type=\"number\" step=\"0.1\" min=\"1\""));
     int bond = editor.indexOf("for=\"fixed-income-return\"");
     int equity = editor.indexOf("for=\"equity-return\"");
     assertTrue(bond >= 0 && bond < equity);
-    assertTrue(editor.substring(editor.indexOf("Asset return assumptions"), equity)
-        .contains("iv-simulation-editor__grid"));
+    assertTrue(
+        editor
+            .substring(editor.indexOf("Asset return assumptions"), equity)
+            .contains("iv-simulation-editor__grid"));
   }
 }

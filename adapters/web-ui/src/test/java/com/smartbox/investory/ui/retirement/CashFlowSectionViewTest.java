@@ -22,11 +22,37 @@ class CashFlowSectionViewTest {
   void includesCashAndCapitalSourcesButKeepsFundingIncomeCashOnly() {
     var money =
         new PlanningTimelineMoney(
-            bd("240000"), bd("213683.62"), bd("174803.62"), bd("38880"), null, null, null, null, null, null, null, null,
-            null, null, null, null, null, null, null, null, null, null, null, null, bd("45979.88"), bd("45979.88"), null);
+            bd("240000"),
+            bd("213683.62"),
+            bd("174803.62"),
+            bd("38880"),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            bd("45979.88"),
+            bd("45979.88"),
+            null);
     var timeline =
         new PlanningTimeline(
-            List.of(new PlanningTimelineYear(2026, 41, PlanningTimelineState.LIVE, null, null, null)));
+            List.of(
+                new PlanningTimelineYear(2026, 41, PlanningTimelineState.LIVE, null, null, null)));
 
     var flow = CashFlowSectionView.from(timeline, Map.of(2026, money), null);
 
@@ -34,18 +60,31 @@ class CashFlowSectionViewTest {
     assertEquals("Rents", flow.income().get(0).source());
     assertEquals("Bond cash income", flow.income().get(1).source());
     assertEquals(bd("213683.62"), money.totalIncome());
-    assertTrue(flow.income().stream().anyMatch(item -> item.source().equals("Bonds")
-        && item.target().equals("Capital") && item.amount().equals(bd("45979.88"))));
-    assertTrue(flow.income().stream().anyMatch(item -> item.source().equals("Equities")
-        && item.target().equals("Capital") && item.amount().equals(bd("45979.88"))));
+    assertTrue(
+        flow.income().stream()
+            .anyMatch(
+                item ->
+                    item.source().equals("Bonds")
+                        && item.target().equals("Capital")
+                        && item.amount().equals(bd("45979.88"))));
+    assertTrue(
+        flow.income().stream()
+            .anyMatch(
+                item ->
+                    item.source().equals("Equities")
+                        && item.target().equals("Capital")
+                        && item.amount().equals(bd("45979.88"))));
     assertEquals("Spending", flow.destinations().get(0).target());
     assertFalse(flow.destinations().stream().anyMatch(item -> "Surplus".equals(item.target())));
     assertEquals(0, flow.funding().size());
     assertEquals(bd("213683.62"), flow.incomeUsed());
     assertEquals(bd("213683.62"), flow.totalFunded());
     assertEquals(bd("26316.38"), flow.fundingRequired());
-    assertEquals(bd("99.9"), flow.income().stream()
-        .map(CashFlowFlowView::sharePercent).reduce(BigDecimal.ZERO, BigDecimal::add));
+    assertEquals(
+        bd("99.9"),
+        flow.income().stream()
+            .map(CashFlowFlowView::sharePercent)
+            .reduce(BigDecimal.ZERO, BigDecimal::add));
     assertEquals(bd("57.2"), flow.income().get(0).sharePercent());
     assertEquals(bd("12.7"), flow.income().get(1).sharePercent());
   }
@@ -54,44 +93,70 @@ class CashFlowSectionViewTest {
   void convertsAssumptionIncomeSourcesIntoTheSelectedDisplayCurrency() {
     var money =
         new PlanningTimelineMoney(
-            bd("400"), bd("380"), bd("200"), bd("40"), null, null, null, null, null, null, null, null,
-            null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
-    var timelineYear = new PlanningTimelineYear(2026, 40, PlanningTimelineState.LIVE, null, null, null);
-    var assumptions = SimulationAssumptions.defaults(null, 40, 90, 2026)
-        .withRetirementAge(60)
-        .withAnnualEmploymentIncome(bd("30"))
-        .rebasedTo(40, 2026, List.of(
-            new SimulationEvent(1L, 2026, "Bonus", bd("40"), SimulationEventType.ONE_OFF_INCOME, null)));
+            bd("400"), bd("380"), bd("200"), bd("40"), null, null, null, null, null, null, null,
+            null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+            null, null);
+    var timelineYear =
+        new PlanningTimelineYear(2026, 40, PlanningTimelineState.LIVE, null, null, null);
+    var assumptions =
+        SimulationAssumptions.defaults(null, 40, 90, 2026)
+            .withRetirementAge(60)
+            .withAnnualEmploymentIncome(bd("30"))
+            .rebasedTo(
+                40,
+                2026,
+                List.of(
+                    new SimulationEvent(
+                        1L, 2026, "Bonus", bd("40"), SimulationEventType.ONE_OFF_INCOME, null)));
     var toDisplayCurrency = (Function<BigDecimal, BigDecimal>) amount -> amount.multiply(bd("2"));
 
     var flow = CashFlowSectionView.forYear(timelineYear, money, assumptions, toDisplayCurrency);
 
     assertEquals(bd("380"), flow.cashIncome());
-    assertEquals(List.of("Rents", "Bond cash income", "Salary", "Events"),
+    assertEquals(
+        List.of("Rents", "Bond cash income", "Salary", "Events"),
         flow.income().stream().map(CashFlowFlowView::source).toList());
-    assertTrue(flow.income().stream().anyMatch(item -> item.source().equals("Salary") && item.amount().equals(bd("60"))));
-    assertTrue(flow.income().stream().anyMatch(item -> item.source().equals("Events") && item.amount().equals(bd("80"))));
-    assertEquals(bd("380"), flow.income().stream().map(CashFlowFlowView::amount).reduce(BigDecimal.ZERO, BigDecimal::add));
+    assertTrue(
+        flow.income().stream()
+            .anyMatch(item -> item.source().equals("Salary") && item.amount().equals(bd("60"))));
+    assertTrue(
+        flow.income().stream()
+            .anyMatch(item -> item.source().equals("Events") && item.amount().equals(bd("80"))));
+    assertEquals(
+        bd("380"),
+        flow.income().stream()
+            .map(CashFlowFlowView::amount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add));
   }
 
   @Test
   void convertsPensionAndKeepsCapitalReturnsOutOfSpendableIncome() {
     var money =
         new PlanningTimelineMoney(
-            bd("300"), bd("280"), bd("200"), bd("40"), null, null, null, null, null, null, null, null,
-            null, null, null, null, null, null, null, null, null, null, null, null, bd("100"), bd("100"), null);
-    var year = new PlanningTimelineYear(2030, 67, PlanningTimelineState.PROJECTED, null, null, null);
-    var assumptions = SimulationAssumptions.defaults(null, 40, 90, 2026)
-        .withRetirementAge(60)
-        .withPensionStartAge(67)
-        .withAnnualPension(bd("35"));
-    var flow = CashFlowSectionView.forYear(year, money, assumptions,
-        amount -> amount.multiply(bd("2")));
+            bd("300"), bd("280"), bd("200"), bd("40"), null, null, null, null, null, null, null,
+            null, null, null, null, null, null, null, null, null, null, null, null, null, bd("100"),
+            bd("100"), null);
+    var year =
+        new PlanningTimelineYear(2030, 67, PlanningTimelineState.PROJECTED, null, null, null);
+    var assumptions =
+        SimulationAssumptions.defaults(null, 40, 90, 2026)
+            .withRetirementAge(60)
+            .withPensionStartAge(67)
+            .withAnnualPension(bd("35"));
+    var flow =
+        CashFlowSectionView.forYear(year, money, assumptions, amount -> amount.multiply(bd("2")));
 
-    assertTrue(flow.income().stream().anyMatch(item -> item.source().equals("Pension") && item.amount().equals(bd("70"))));
-    assertEquals(List.of("Rents", "Bond cash income", "Bonds", "Equities", "Pension"),
+    assertTrue(
+        flow.income().stream()
+            .anyMatch(item -> item.source().equals("Pension") && item.amount().equals(bd("70"))));
+    assertEquals(
+        List.of("Rents", "Bond cash income", "Bonds", "Equities", "Pension"),
         flow.income().stream().map(CashFlowFlowView::source).toList());
-    assertEquals(bd("510"), flow.income().stream().map(CashFlowFlowView::amount).reduce(BigDecimal.ZERO, BigDecimal::add));
+    assertEquals(
+        bd("510"),
+        flow.income().stream()
+            .map(CashFlowFlowView::amount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add));
     assertEquals(bd("280"), flow.cashIncome());
   }
 
@@ -119,9 +184,17 @@ class CashFlowSectionViewTest {
 
   @Test
   void derivesRemainingUnfundedWhenProjectionDoesNotProvideIt() {
-    var flow = new CashFlowSectionView(
-        2026, List.of(), List.of(new CashFlowFlowView("Cash", "Spending", bd("20"), "FUNDING", null)),
-        List.of(), bd("60"), bd("100"), bd("40"), BigDecimal.ZERO, null);
+    var flow =
+        new CashFlowSectionView(
+            2026,
+            List.of(),
+            List.of(new CashFlowFlowView("Cash", "Spending", bd("20"), "FUNDING", null)),
+            List.of(),
+            bd("60"),
+            bd("100"),
+            bd("40"),
+            BigDecimal.ZERO,
+            null);
 
     assertEquals(bd("20"), flow.remainingUnfunded());
     assertEquals(bd("80.0"), flow.fundingCoveragePercent());
@@ -135,29 +208,51 @@ class CashFlowSectionViewTest {
     assertEquals(bd("0.0"), flow.incomeFundingPercent());
     assertEquals(bd("0.0"), flow.capitalFundingPercent());
     assertEquals(bd("100.0"), flow.unfundedPercent());
-    assertEquals(bd("0"), flow.income().stream()
-        .map(CashFlowFlowView::sharePercent).reduce(BigDecimal.ZERO, BigDecimal::add));
+    assertEquals(
+        bd("0"),
+        flow.income().stream()
+            .map(CashFlowFlowView::sharePercent)
+            .reduce(BigDecimal.ZERO, BigDecimal::add));
   }
 
   @Test
   void incomeSourceSharesUseTotalEconomicSources() {
-    var flow = new CashFlowSectionView(
-        2026,
-        List.of(
-            new CashFlowFlowView("Rents", "Cash", bd("80"), "INCOME", bd("80.0")),
-            new CashFlowFlowView("Bond cash income", "Cash", bd("20"), "INCOME", bd("20.0"))),
-        List.of(), List.of(), bd("100"), bd("100"), bd("0"), bd("0"), bd("0"));
+    var flow =
+        new CashFlowSectionView(
+            2026,
+            List.of(
+                new CashFlowFlowView("Rents", "Cash", bd("80"), "INCOME", bd("80.0")),
+                new CashFlowFlowView("Bond cash income", "Cash", bd("20"), "INCOME", bd("20.0"))),
+            List.of(),
+            List.of(),
+            bd("100"),
+            bd("100"),
+            bd("0"),
+            bd("0"),
+            bd("0"));
 
-    assertEquals(bd("100.0"), flow.income().stream()
-        .map(CashFlowFlowView::sharePercent).reduce(BigDecimal.ZERO, BigDecimal::add));
+    assertEquals(
+        bd("100.0"),
+        flow.income().stream()
+            .map(CashFlowFlowView::sharePercent)
+            .reduce(BigDecimal.ZERO, BigDecimal::add));
   }
 
-  private static CashFlowSectionView view(String spending, String income, String capital, String unfunded) {
-    var funding = capital.equals("0")
-        ? List.<CashFlowFlowView>of()
-        : List.of(new CashFlowFlowView("Cash", "Spending", bd(capital), "FUNDING", null));
+  private static CashFlowSectionView view(
+      String spending, String income, String capital, String unfunded) {
+    var funding =
+        capital.equals("0")
+            ? List.<CashFlowFlowView>of()
+            : List.of(new CashFlowFlowView("Cash", "Spending", bd(capital), "FUNDING", null));
     return new CashFlowSectionView(
-        2026, List.of(), funding, List.of(), bd(income), bd(spending), bd(unfunded), BigDecimal.ZERO,
+        2026,
+        List.of(),
+        funding,
+        List.of(),
+        bd(income),
+        bd(spending),
+        bd(unfunded),
+        BigDecimal.ZERO,
         bd(unfunded));
   }
 

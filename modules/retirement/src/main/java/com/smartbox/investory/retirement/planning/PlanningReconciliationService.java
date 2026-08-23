@@ -1,6 +1,4 @@
 package com.smartbox.investory.retirement.planning;
-import static com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull;
-
 
 import com.smartbox.investory.investment.api.HistoricalPortfolioActualsReader;
 import com.smartbox.investory.investment.api.HistoricalPortfolioYear;
