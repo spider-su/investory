@@ -13,6 +13,33 @@ import org.junit.jupiter.api.Test;
 
 class SimulationSensitivityAnalysisServiceTest {
   @Test
+  void contextKeepsProjectionBaseAsSensitivityBaseline() {
+    InvestmentProfile profile = profileWithMarketBuckets();
+    SimulationAssumptions assumptions = SimulationAssumptions.defaults(profile, 40, 80, 2027);
+    SimulationResult baseResult =
+        new SimulationResult(
+            SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of());
+    SimulationDecisionSummary baseSummary = SimulationDecisionSummary.from(baseResult, assumptions);
+    SimulationEvaluation canonicalBase =
+        new SimulationEvaluation(
+            baseResult, baseSummary, PlanSustainabilityAssessment.from(baseSummary));
+    SimulationEvaluationService evaluations = mock(SimulationEvaluationService.class);
+    when(evaluations.evaluate(any(), any(), eq(SimulationScenario.BASE), eq(2026)))
+        .thenReturn(canonicalBase);
+
+    SimulationSensitivityAnalysis result =
+        new SimulationSensitivityAnalysisService(evaluations)
+            .analyze(
+                new DeterministicAnalysisContext(
+                    profile, assumptions, 2026, canonicalBase));
+
+    assertSame(canonicalBase, result.baseline());
+    verify(evaluations, never()).evaluate(profile, assumptions, SimulationScenario.BASE);
+    verify(evaluations, atLeastOnce())
+        .evaluate(eq(profile), any(), eq(SimulationScenario.BASE), eq(2026));
+  }
+
+  @Test
   void failureRiskRanksAheadOfWealthOnlyImpact() {
     SimulationAssumptions assumptions =
         SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80);

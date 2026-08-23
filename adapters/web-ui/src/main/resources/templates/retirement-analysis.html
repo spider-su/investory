@@ -10,7 +10,11 @@
 <main class="container-xl py-4 iv-simulation-page">
   <div th:replace="~{fragments/app-header :: planningHeader('analysis', ${analysisPage.portfolioId}, 'Retirement analysis', 'Plan status', ${analysisPage.selectedSummary == null ? '—' : (analysisPage.selectedSummary.failed ? 'Plan fails' : 'Sustainable')}, ${analysisPage.selectedScenarioLabel}, 'Planning horizon', ${analysisPage.horizon}, 'age range', 'Minimum liquid assets', ${analysisPage.selectedSummary == null ? '—' : analysisPage.selectedSummary.minimumLiquidAssetsDisplay}, 'display currency', ${analysisPage.displayCurrency}, 'analysis', null, null)}"></div>
 
-  <section class="card mb-4" aria-labelledby="analysis-status-title">
+  <section class="card mb-4" th:unless="${analysisPage.analysisAvailable}" aria-labelledby="analysis-unavailable-title">
+    <div class="card-body"><h2 id="analysis-unavailable-title" class="h3">Analysis unavailable</h2><p class="text-secondary mb-0" th:text="${analysisPage.analysisMessage}">No future planning years remain.</p></div>
+  </section>
+
+  <section class="card mb-4" th:if="${analysisPage.analysisAvailable}" aria-labelledby="analysis-status-title">
     <div class="card-body">
       <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
         <div><div class="text-secondary">Plan status</div><h2 id="analysis-status-title" th:text="${analysisPage.selectedSummary == null ? '—' : (analysisPage.selectedSummary.failed ? 'Fails' : 'Sustainable')}">Sustainable</h2><p class="text-secondary mb-0">Selected scenario outcome</p></div>
@@ -24,7 +28,7 @@
     </div>
   </section>
 
-  <div class="card mb-4">
+  <div class="card mb-4" th:if="${analysisPage.analysisAvailable}">
     <div class="card-header"><ul class="nav nav-tabs card-header-tabs" role="tablist"><li class="nav-item"><button class="nav-link active" id="analysis-tab-overview" aria-controls="analysis-panel-overview" aria-selected="true" data-analysis-tab="overview" type="button" role="tab">Overview</button></li><li class="nav-item"><button class="nav-link" id="analysis-tab-cash-flow" aria-controls="analysis-panel-cash-flow" aria-selected="false" data-analysis-tab="cash-flow" type="button" role="tab">Cash Flow</button></li><li class="nav-item"><button class="nav-link" id="analysis-tab-risk" aria-controls="analysis-panel-risk" aria-selected="false" data-analysis-tab="risk" type="button" role="tab">Risk</button></li><li class="nav-item"><button class="nav-link" id="analysis-tab-scenarios" aria-controls="analysis-panel-scenarios" aria-selected="false" data-analysis-tab="scenarios" type="button" role="tab">Scenarios</button></li></ul></div>
     <div class="card-body">
       <section id="analysis-panel-overview" data-analysis-panel="overview" role="tabpanel" aria-labelledby="analysis-tab-overview"><h2 class="h3">Overview</h2><p class="text-secondary">Selected scenario outcome. Top findings below are Base-plan sensitivity.</p><div class="row g-3"><div class="col-lg-4"><h3 class="h4">Top findings</h3><ul><li th:each="risk : ${analysisPage.risks.primaryRisks}" th:text="${risk.label}">Risk</li><li th:if="${analysisPage.risks.primaryRisks.isEmpty()}" class="text-secondary">No material finding available.</li></ul></div><div class="col-lg-8"><canvas id="analysis-portfolio" height="120" role="img" aria-label="Preset scenario liquid assets"></canvas></div></div></section>

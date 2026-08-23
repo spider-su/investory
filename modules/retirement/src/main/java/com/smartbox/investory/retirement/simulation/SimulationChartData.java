@@ -92,7 +92,7 @@ public record SimulationChartData(
       boolean failed = false;
       java.util.ArrayList<BalancePoint> points = new java.util.ArrayList<>();
       for (SimulationYear y : result.years()) {
-        int calendarYear = assumptions.startYear() + y.year();
+        int calendarYear = y.year();
         if (y.failed() && !failed) {
           failures.put(scenario, new FailureMarker(calendarYear, y.age()));
           failed = true;
@@ -113,7 +113,7 @@ public record SimulationChartData(
                   .map(
                       y ->
                           new FundingPoint(
-                              assumptions.startYear() + y.year(),
+                              y.year(),
                               y.age(),
                               y.totalIncome(),
                               y.pensionIncome(),
@@ -128,7 +128,7 @@ public record SimulationChartData(
                   .map(
                       y ->
                           new ReservePoint(
-                              assumptions.startYear() + y.year(),
+                              y.year(),
                               y.age(),
                               y.safeReserveEnd(),
                               y.safeReserveTarget(),
@@ -150,7 +150,7 @@ public record SimulationChartData(
             .map(
                 y ->
                     new IncomeSpendingPoint(
-                        assumptions.startYear() + y.year(),
+                        y.year(),
                         y.passiveIncome().add(y.pensionIncome()),
                         y.coreExpenses().add(y.discretionaryExpenses())))
             .toList(),
@@ -158,7 +158,7 @@ public record SimulationChartData(
             .map(
                 y ->
                     new CompositionPoint(
-                        assumptions.startYear() + y.year(),
+                        y.year(),
                         y.cashEnd().add(y.manualLiquidReserveEnd()),
                         BigDecimal.ZERO,
                         y.fixedIncomeEnd().add(y.contractualAssetsEnd()),

@@ -14,7 +14,15 @@ public class SimulationEvaluationService {
 
   public SimulationEvaluation evaluate(
       InvestmentProfile profile, SimulationAssumptions assumptions, SimulationScenario scenario) {
-    SimulationResult result = simulations.simulate(profile, assumptions, scenario);
+    return evaluate(profile, assumptions, scenario, assumptions.startYear());
+  }
+
+  public SimulationEvaluation evaluate(
+      InvestmentProfile profile,
+      SimulationAssumptions assumptions,
+      SimulationScenario scenario,
+      int baselineYear) {
+    SimulationResult result = simulations.simulate(profile, assumptions, scenario, baselineYear);
     SimulationDecisionSummary summary = SimulationDecisionSummary.from(result, assumptions);
     return new SimulationEvaluation(result, summary, PlanSustainabilityAssessment.from(summary));
   }

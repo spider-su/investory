@@ -23,6 +23,22 @@ public class SimulationSensitivityAnalysisService {
       InvestmentProfile profile, SimulationAssumptions assumptions) {
     SimulationEvaluation baseline =
         evaluations.evaluate(profile, assumptions, SimulationScenario.BASE);
+    return analyze(profile, assumptions, null, baseline);
+  }
+
+  public SimulationSensitivityAnalysis analyze(DeterministicAnalysisContext context) {
+    return analyze(
+        context.profile(),
+        context.assumptions(),
+        context.baselineYear(),
+        context.canonicalBase());
+  }
+
+  private SimulationSensitivityAnalysis analyze(
+      InvestmentProfile profile,
+      SimulationAssumptions assumptions,
+      Integer baselineYear,
+      SimulationEvaluation baseline) {
     List<SimulationSensitivityResult> results = new ArrayList<>();
     if (recurringSpending(assumptions).signum() > 0)
       results.add(
@@ -35,7 +51,8 @@ public class SimulationSensitivityAnalysisService {
               assumptions.withRecurringSpending(
                   recurringSpending(assumptions).multiply(BigDecimal.ONE.add(TEN_PERCENT))),
               assumptions.withRecurringSpending(
-                  recurringSpending(assumptions).multiply(BigDecimal.ONE.subtract(TEN_PERCENT)))));
+                  recurringSpending(assumptions).multiply(BigDecimal.ONE.subtract(TEN_PERCENT))),
+              baselineYear));
     results.add(
         result(
             profile,
@@ -46,7 +63,8 @@ public class SimulationSensitivityAnalysisService {
             assumptions.withSpendingGrowthSpread(
                 assumptions.spendingGrowthSpread().add(HALF_PERCENTAGE_POINT)),
             assumptions.withSpendingGrowthSpread(
-                assumptions.spendingGrowthSpread().subtract(HALF_PERCENTAGE_POINT))));
+                assumptions.spendingGrowthSpread().subtract(HALF_PERCENTAGE_POINT)),
+            baselineYear));
     if (assumptions.annualPension().signum() > 0
         && assumptions.pensionStartAge() <= assumptions.endAge())
       results.add(
@@ -59,7 +77,8 @@ public class SimulationSensitivityAnalysisService {
               assumptions.withAnnualPension(
                   assumptions.annualPension().multiply(new BigDecimal("0.90"))),
               assumptions.withAnnualPension(
-                  assumptions.annualPension().multiply(new BigDecimal("1.10")))));
+                  assumptions.annualPension().multiply(new BigDecimal("1.10"))),
+              baselineYear));
     results.sort(worstFirst());
     return new SimulationSensitivityAnalysis(baseline, results, interpretation(results));
   }
@@ -71,13 +90,21 @@ public class SimulationSensitivityAnalysisService {
       SensitivityDriver driver,
       String perturbation,
       SimulationAssumptions adverseAssumptions,
-      SimulationAssumptions favorableAssumptions) {
+      SimulationAssumptions favorableAssumptions,
+      Integer baselineYear) {
     return measured(
         driver,
         perturbation,
         baseline,
-        evaluations.evaluate(profile, adverseAssumptions, SimulationScenario.BASE),
-        evaluations.evaluate(profile, favorableAssumptions, SimulationScenario.BASE));
+        evaluate(profile, adverseAssumptions, baselineYear),
+        evaluate(profile, favorableAssumptions, baselineYear));
+  }
+
+  private SimulationEvaluation evaluate(
+      InvestmentProfile profile, SimulationAssumptions assumptions, Integer baselineYear) {
+    return baselineYear == null
+        ? evaluations.evaluate(profile, assumptions, SimulationScenario.BASE)
+        : evaluations.evaluate(profile, assumptions, SimulationScenario.BASE, baselineYear);
   }
 
   private static SimulationSensitivityResult measured(

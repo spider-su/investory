@@ -82,16 +82,26 @@ public class RetirementAnalysisController {
             planningDisplayCurrency,
             selectedScenario,
             CustomScenarioView.from(customInput),
+            result.available(),
+            result.available()
+                ? null
+                : "No future planning years remain after the current-year bridge.",
             displaySummaries.get(selectedScenario),
             SimulationScenarioComparison.from(
                 projection.summaries(), displaySummaries, selectedScenario),
-            presentation.displayPlanRisks(result.sensitivity(), planningDisplayCurrency),
-            presentation.displayPlanningFlexibility(
-                result.sustainableSpending(), result.retirementAge(), planningDisplayCurrency),
+            result.available()
+                ? presentation.displayPlanRisks(result.sensitivity(), planningDisplayCurrency)
+                : null,
+            result.available()
+                ? presentation.displayPlanningFlexibility(
+                    result.sustainableSpending(), result.retirementAge(), planningDisplayCurrency)
+                : null,
             presentation.displayCharts(result.charts(), planningDisplayCurrency),
-            projection.projectedAssumptions().currentAge()
-                + " → "
-                + projection.projectedAssumptions().endAge());
+            result.available()
+                ? projection.projectedAssumptions().currentAge()
+                    + " → "
+                    + projection.projectedAssumptions().endAge()
+                : "No future years");
     model.addAttribute("analysisPage", page);
     return "retirement-analysis";
   }

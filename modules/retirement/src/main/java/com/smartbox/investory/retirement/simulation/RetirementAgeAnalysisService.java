@@ -23,12 +23,31 @@ public class RetirementAgeAnalysisService {
         find(profile, assumptions, SimulationScenario.CONSERVATIVE));
   }
 
+  public RetirementAgeAnalysis analyze(DeterministicAnalysisContext context) {
+    return new RetirementAgeAnalysis(
+        find(context, SimulationScenario.BASE),
+        find(context, SimulationScenario.CONSERVATIVE));
+  }
+
   private RetirementAgeAnalysis.ScenarioResult find(
       InvestmentProfile profile, SimulationAssumptions assumptions, SimulationScenario scenario) {
+    return find(profile, assumptions, scenario, null);
+  }
+
+  private RetirementAgeAnalysis.ScenarioResult find(
+      DeterministicAnalysisContext context, SimulationScenario scenario) {
+    return find(context.profile(), context.assumptions(), scenario, context);
+  }
+
+  private RetirementAgeAnalysis.ScenarioResult find(
+      InvestmentProfile profile,
+      SimulationAssumptions assumptions,
+      SimulationScenario scenario,
+      DeterministicAnalysisContext context) {
     int planned = assumptions.retirementAge();
     Map<Integer, Boolean> outcomes = new LinkedHashMap<>();
     for (int age = assumptions.currentAge(); age <= assumptions.endAge(); age++)
-      outcomes.put(age, evaluate(profile, assumptions, scenario, age));
+      outcomes.put(age, evaluate(profile, assumptions, scenario, age, context));
     List<Integer> ages = new ArrayList<>(outcomes.keySet());
     boolean plannedSustainable =
         planned <= assumptions.currentAge()
@@ -83,9 +102,16 @@ public class RetirementAgeAnalysisService {
       InvestmentProfile profile,
       SimulationAssumptions assumptions,
       SimulationScenario scenario,
-      int retirementAge) {
-    return evaluations
-        .evaluate(profile, assumptions.withRetirementAge(retirementAge), scenario)
+      int retirementAge,
+      DeterministicAnalysisContext context) {
+    if (context != null
+        && scenario == SimulationScenario.BASE
+        && retirementAge == assumptions.retirementAge())
+      return context.canonicalBase().sustainable();
+    SimulationAssumptions candidate = assumptions.withRetirementAge(retirementAge);
+    return (context == null
+            ? evaluations.evaluate(profile, candidate, scenario)
+            : evaluations.evaluate(profile, candidate, scenario, context.baselineYear()))
         .sustainable();
   }
 
