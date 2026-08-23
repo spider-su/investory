@@ -35,7 +35,7 @@ jobs:
         run: rm -rf "$HOME/.m2/repository/org/mockito/mockito-core/5.23.0"
 
       - name: Run tests
-        run: sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$RUNNER_TEMP/m2" test
+        run: sh ./mvnw --batch-mode --no-transfer-progress "-Duser.home=$RUNNER_TEMP" "-Dmaven.repo.local=$RUNNER_TEMP/m2" test
 
   it:
     name: IT
@@ -58,8 +58,8 @@ jobs:
 
       - name: Run integration tests
         run: |
-          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$RUNNER_TEMP/m2" -pl app -am -DskipTests install
-          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$RUNNER_TEMP/m2" -pl app test-compile failsafe:integration-test failsafe:verify \
+          sh ./mvnw --batch-mode --no-transfer-progress "-Duser.home=$RUNNER_TEMP" "-Dmaven.repo.local=$RUNNER_TEMP/m2" -pl app -am -DskipTests install
+          sh ./mvnw --batch-mode --no-transfer-progress "-Duser.home=$RUNNER_TEMP" "-Dmaven.repo.local=$RUNNER_TEMP/m2" -pl app test-compile failsafe:integration-test failsafe:verify \
             "-Dit.test=ValuationInputContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,CurrencyRateUpdaterPostgresIT,SchemaMigrationCheckpoint2IT,IbkrTreasuryImportIT,XtbImportIT"
 
   goldenPath:
@@ -83,10 +83,10 @@ jobs:
 
       - name: Run offline golden gate
         run: |
-          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$RUNNER_TEMP/m2" -pl app -am -DskipTests install
-          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$RUNNER_TEMP/m2" -pl app \
+          sh ./mvnw --batch-mode --no-transfer-progress "-Duser.home=$RUNNER_TEMP" "-Dmaven.repo.local=$RUNNER_TEMP/m2" -pl app -am -DskipTests install
+          sh ./mvnw --batch-mode --no-transfer-progress "-Duser.home=$RUNNER_TEMP" "-Dmaven.repo.local=$RUNNER_TEMP/m2" -pl app \
             "-Dmaven.compiler.useIncrementalCompilation=false" \
             "-Dtest=GoldenRebuildIT" test
 
       - name: Check formatting
-        run: sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$RUNNER_TEMP/m2" spotless:check
+        run: sh ./mvnw --batch-mode --no-transfer-progress "-Duser.home=$RUNNER_TEMP" "-Dmaven.repo.local=$RUNNER_TEMP/m2" spotless:check
