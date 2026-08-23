@@ -19,6 +19,8 @@ jobs:
     name: Unit
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      MAVEN_REPO_LOCAL: ${{ runner.temp }}/m2
 
     steps:
       - name: Check out repository
@@ -35,12 +37,14 @@ jobs:
         run: rm -rf "$HOME/.m2/repository/org/mockito/mockito-core/5.23.0"
 
       - name: Run tests
-        run: sh ./mvnw --batch-mode --no-transfer-progress test
+        run: sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$MAVEN_REPO_LOCAL" test
 
   it:
     name: IT
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      MAVEN_REPO_LOCAL: ${{ runner.temp }}/m2
 
     steps:
       - name: Check out repository
@@ -58,14 +62,16 @@ jobs:
 
       - name: Run integration tests
         run: |
-          sh ./mvnw --batch-mode --no-transfer-progress -pl app -am -DskipTests install
-          sh ./mvnw --batch-mode --no-transfer-progress -pl app test-compile failsafe:integration-test failsafe:verify \
+          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$MAVEN_REPO_LOCAL" -pl app -am -DskipTests install
+          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$MAVEN_REPO_LOCAL" -pl app test-compile failsafe:integration-test failsafe:verify \
             "-Dit.test=ValuationInputContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,CurrencyRateUpdaterPostgresIT,SchemaMigrationCheckpoint2IT,IbkrTreasuryImportIT,XtbImportIT"
 
   goldenPath:
     name: Golden path
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      MAVEN_REPO_LOCAL: ${{ runner.temp }}/m2
 
     steps:
       - name: Check out repository
@@ -83,10 +89,10 @@ jobs:
 
       - name: Run offline golden gate
         run: |
-          sh ./mvnw --batch-mode --no-transfer-progress -pl app -am -DskipTests install
-          sh ./mvnw --batch-mode --no-transfer-progress -pl app \
+          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$MAVEN_REPO_LOCAL" -pl app -am -DskipTests install
+          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$MAVEN_REPO_LOCAL" -pl app \
             "-Dmaven.compiler.useIncrementalCompilation=false" \
             "-Dtest=GoldenRebuildIT" test
 
       - name: Check formatting
-        run: sh ./mvnw --batch-mode --no-transfer-progress spotless:check
+        run: sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$MAVEN_REPO_LOCAL" spotless:check
