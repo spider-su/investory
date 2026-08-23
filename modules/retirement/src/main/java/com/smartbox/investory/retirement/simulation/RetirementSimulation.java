@@ -12,7 +12,7 @@ public interface RetirementSimulation {
       InvestmentProfile profile,
       SimulationAssumptions assumptions,
       SimulationScenario scenario,
-      boolean actualRentalYear);
+      int baselineYear);
 
   Map<SimulationScenario, SimulationResult> compareScenarios(
       InvestmentProfile profile, SimulationAssumptions assumptions);

@@ -46,7 +46,8 @@ public class PlanEditorPreviewService {
     ForwardSimulationInput forward = forwardInputs.prepare(profile, assumptions);
     SimulationAssumptions projected = forward.forwardAssumptions().orElse(assumptions);
     SimulationResult result = forward.forwardAssumptions().isPresent()
-        ? simulations.simulate(forward.bridgedProfile(), projected, SimulationScenario.BASE)
+        ? simulations.simulate(forward.bridgedProfile(), projected, SimulationScenario.BASE,
+            forward.context().asOfYear())
         : new SimulationResult(SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of());
     LongTermAssetAnnualSnapshotModel facts = facts(currentFacts(profile));
     int currentYear = Year.now(clock).getValue();

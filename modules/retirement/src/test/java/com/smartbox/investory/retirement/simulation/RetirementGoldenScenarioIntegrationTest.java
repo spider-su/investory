@@ -22,8 +22,7 @@ class RetirementGoldenScenarioIntegrationTest {
   // by InvestmentProfileFacadeTest and the Long-Term six-bond projection regression.
   @Test
   void sustainableShortHorizonMatchesApprovedContract() {
-    var service = new RetirementSimulationService(new LongTermAnnualProjectionService(),
-        new InvestmentAnnualProjectionService());
+    var service = new RetirementSimulationService();
     var result = service.simulate(fixture(), assumptions(60), SimulationScenario.BASE);
     assertThat(result.simulationFailed()).isFalse();
     assertThat(result.failureAge()).isNull();
@@ -33,8 +32,7 @@ class RetirementGoldenScenarioIntegrationTest {
 
   @Test
   void longHorizonRemainsSustainableUnderTheBucketModel() {
-    var service = new RetirementSimulationService(new LongTermAnnualProjectionService(),
-        new InvestmentAnnualProjectionService());
+    var service = new RetirementSimulationService();
     var result = service.simulate(fixture(), assumptions(80), SimulationScenario.BASE);
     assertThat(result.simulationFailed()).isFalse();
     assertThat(result.failureAge()).isNull();

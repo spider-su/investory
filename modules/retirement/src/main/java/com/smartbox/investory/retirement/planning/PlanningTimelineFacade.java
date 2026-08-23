@@ -539,7 +539,8 @@ public class PlanningTimelineFacade {
         .simulate(
             projectionBridge.projectCurrentYearEnd(profile, assumptions),
             context.forwardAssumptions().orElseThrow(),
-            SimulationScenario.BASE)
+            SimulationScenario.BASE,
+            context.asOfYear())
         .years();
   }
 
@@ -547,7 +548,8 @@ public class PlanningTimelineFacade {
       ForwardSimulationInput forward, int current, SimulationScenario scenario) {
     if (forward.forwardAssumptions().isEmpty()) return List.of();
     return simulations
-        .simulate(forward.bridgedProfile(), forward.forwardAssumptions().orElseThrow(), scenario)
+        .simulate(forward.bridgedProfile(), forward.forwardAssumptions().orElseThrow(), scenario,
+            forward.context().asOfYear())
         .years();
   }
 

@@ -57,7 +57,7 @@ public class CurrentYearProjectionBridge {
     }
     int year = context.asOfYear();
     BigDecimal fraction = remainingYearFraction(year);
-    SimulationYear projected = simulations.simulate(profile, assumptions, SimulationScenario.BASE, true)
+    SimulationYear projected = simulations.simulate(profile, assumptions, SimulationScenario.BASE, context.asOfYear())
         .years().stream().findFirst().orElse(null);
     if (projected == null)
       return result(context, profile, fraction, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, null,

@@ -60,36 +60,12 @@ public record PlanningBuckets(PlanningBucket cash, PlanningBucket bonds, Plannin
 
   /** Derives the normalized BASE bond yield from the frozen reviewed source state. */
   public static BigDecimal baseBondYield(InvestmentProfile profile, BigDecimal fallbackBondYield) {
-    BigDecimal bonds = allocation(profile, EconomicBucket.FIXED_INCOME);
-    if (!hasAllocation(profile, EconomicBucket.FIXED_INCOME)) bonds = profile.longTermAssets().stream()
-        .filter(a -> a.bucket() == EconomicBucket.FIXED_INCOME)
-        .map(a -> nz(a.currentValue())).reduce(BigDecimal.ZERO, BigDecimal::add);
-    BigDecimal bondIncome = nz(profile.currentBondIncome());
-    if (bondIncome.signum() == 0) bondIncome = profile.longTermAssets().stream()
-        .filter(a -> a.bucket() == EconomicBucket.FIXED_INCOME)
-        .map(a -> nz(a.currentValue()).multiply(a.periods().isEmpty() ? BigDecimal.ZERO
-            : nz(a.periods().getFirst().annualReturnRate()))
-            .multiply(BigDecimal.ONE.subtract(nz(a.taxRate()))))
-        .reduce(BigDecimal.ZERO, BigDecimal::add);
-    return bonds.signum() == 0 || bondIncome.signum() == 0
-        ? nz(fallbackBondYield)
-        : bondIncome.divide(bonds, 12, java.math.RoundingMode.HALF_UP);
+    return new FrozenBondCashFlowProjection().baseCapitalizedBondYield(profile, fallbackBondYield);
   }
 
   /** True when the frozen source state contains enough data to derive a bond yield. */
   public static boolean hasSourceBondYield(InvestmentProfile profile) {
-    BigDecimal bonds = allocation(profile, EconomicBucket.FIXED_INCOME);
-    if (!hasAllocation(profile, EconomicBucket.FIXED_INCOME)) bonds = profile.longTermAssets().stream()
-        .filter(a -> a.bucket() == EconomicBucket.FIXED_INCOME)
-        .map(a -> nz(a.currentValue())).reduce(BigDecimal.ZERO, BigDecimal::add);
-    BigDecimal bondIncome = nz(profile.currentBondIncome());
-    if (bondIncome.signum() == 0) bondIncome = profile.longTermAssets().stream()
-        .filter(a -> a.bucket() == EconomicBucket.FIXED_INCOME)
-        .map(a -> nz(a.currentValue()).multiply(a.periods().isEmpty() ? BigDecimal.ZERO
-            : nz(a.periods().getFirst().annualReturnRate()))
-            .multiply(BigDecimal.ONE.subtract(nz(a.taxRate()))))
-        .reduce(BigDecimal.ZERO, BigDecimal::add);
-    return bonds.signum() != 0 && bondIncome.signum() != 0;
+    return new FrozenBondCashFlowProjection().hasCapitalizedBondYield(profile);
   }
 
   private static BigDecimal allocation(InvestmentProfile profile, EconomicBucket bucket) {

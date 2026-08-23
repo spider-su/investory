@@ -41,8 +41,7 @@ class RetirementFrozenPlanLifecycleIntegrationTest {
 
     var profiles = mock(InvestmentProfileFacade.class);
     when(profiles.loadProfile(1L)).thenReturn(liveA, liveB, liveB);
-    var simulations = new RetirementSimulationService(
-        new LongTermAnnualProjectionService(), new InvestmentAnnualProjectionService());
+    var simulations = new RetirementSimulationService();
     var contexts = new ForwardSimulationContextFactory(CLOCK);
     var bridge = new CurrentYearProjectionBridge(CLOCK, simulations, contexts);
     var inputs = new ForwardSimulationInputService(contexts, bridge);

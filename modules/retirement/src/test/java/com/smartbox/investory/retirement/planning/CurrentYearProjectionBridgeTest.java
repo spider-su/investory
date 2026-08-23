@@ -73,7 +73,7 @@ class CurrentYearProjectionBridgeTest {
         result(BucketType.CASH, "100", "80"), result(BucketType.BONDS, "200", "210"),
         result(BucketType.EQUITIES, "300", "320"), result(BucketType.REAL_ESTATE, "400", "390"),
         BigDecimal.ZERO, BigDecimal.ZERO);
-    when(simulations.simulate(eq(profile), eq(assumptions), eq(SimulationScenario.BASE), eq(true)))
+    when(simulations.simulate(eq(profile), eq(assumptions), eq(SimulationScenario.BASE), eq(2026)))
         .thenReturn(new SimulationResult(SimulationScenario.BASE, false, null, BigDecimal.ZERO,
             BigDecimal.ZERO, List.of(currentYear)));
 

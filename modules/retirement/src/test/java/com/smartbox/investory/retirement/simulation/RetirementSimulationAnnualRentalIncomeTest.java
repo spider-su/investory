@@ -3,8 +3,6 @@ package com.smartbox.investory.retirement.simulation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
-import com.smartbox.investory.investment.application.InvestmentAnnualProjectionService;
-import com.smartbox.investory.longterm.application.service.LongTermAnnualProjectionService;
 import com.smartbox.investory.longterm.api.model.InterestTreatmentModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
 import com.smartbox.investory.retirement.profile.EconomicBucket;
@@ -14,7 +12,6 @@ import com.smartbox.investory.retirement.profile.ProjectedLongTermAsset;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.Year;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -22,10 +19,9 @@ class RetirementSimulationAnnualRentalIncomeTest {
 
   @Test
   void firstProjectedYearAdvancesCurrentRentalBaseline() {
-    var service = new RetirementSimulationService(
-        new LongTermAnnualProjectionService(), new InvestmentAnnualProjectionService());
+    var service = new RetirementSimulationService();
     var profile = profile(BigDecimal.ZERO, List.of(), new BigDecimal("174803.62"));
-    int firstProjectedYear = Year.now().getValue() + 1;
+    int firstProjectedYear = 2027;
     var assumptions = SimulationAssumptions.defaults(profile, 65, 65, firstProjectedYear)
         .withInflationRate(new BigDecimal("0.030"))
         .withRentalIncomeGrowthSpread(new BigDecimal("-0.020"));
@@ -38,8 +34,7 @@ class RetirementSimulationAnnualRentalIncomeTest {
   @Test
   void supportsAnnualRentalIncomeThatDoesNotDivideEvenlyIntoMonths() {
     var service =
-        new RetirementSimulationService(
-            new LongTermAnnualProjectionService(), new InvestmentAnnualProjectionService());
+        new RetirementSimulationService();
     var profile =
         new InvestmentProfile(
             1L,
@@ -69,8 +64,7 @@ class RetirementSimulationAnnualRentalIncomeTest {
   @Test
   void keepsCanonicalRentalAndBondIncomeSeparate() {
     var service =
-        new RetirementSimulationService(
-            new LongTermAnnualProjectionService(), new InvestmentAnnualProjectionService());
+        new RetirementSimulationService();
     var bond =
         new ProjectedLongTermAsset(
             10L,
@@ -112,8 +106,7 @@ class RetirementSimulationAnnualRentalIncomeTest {
   @Test
   void compoundsRentalIncomeThroughLongTermProjectionBoundary() {
     var service =
-        new RetirementSimulationService(
-            new LongTermAnnualProjectionService(), new InvestmentAnnualProjectionService());
+        new RetirementSimulationService();
     var profile = profile(BigDecimal.ZERO, List.of(), new BigDecimal("100"));
     var assumptions =
         SimulationAssumptions.defaults(profile, 65, 67, 2026)
@@ -129,8 +122,7 @@ class RetirementSimulationAnnualRentalIncomeTest {
   @Test
   void compoundsSpendingAtTheEffectiveRateAndAppliesExpenseProfileLevelsOnce() {
     var service =
-        new RetirementSimulationService(
-            new LongTermAnnualProjectionService(), new InvestmentAnnualProjectionService());
+        new RetirementSimulationService();
     var assumptions =
         SimulationAssumptions.defaults(profile(BigDecimal.ZERO, List.of()), 65, 67, 2026)
             .withRecurringSpending(new BigDecimal("240000"))
@@ -149,7 +141,7 @@ class RetirementSimulationAnnualRentalIncomeTest {
 
   @Test
   void preservesBondPayoutIncomeAndNetRenewalRate() {
-    var service = new RetirementSimulationService(new LongTermAnnualProjectionService(), new InvestmentAnnualProjectionService());
+    var service = new RetirementSimulationService();
     var bond =
         new ProjectedLongTermAsset(
             10L,
@@ -182,7 +174,7 @@ class RetirementSimulationAnnualRentalIncomeTest {
 
   @Test
   void recordsPreRetirementContributionAndAppliesItBeforeInvestmentWithdrawal() {
-    var service = new RetirementSimulationService(new LongTermAnnualProjectionService(), new InvestmentAnnualProjectionService());
+    var service = new RetirementSimulationService();
     var profile = profile(new BigDecimal("100"), List.of());
     var assumptions =
         SimulationAssumptions.defaults(profile, 60, 61, 2026)

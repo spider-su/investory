@@ -1,0 +1,91 @@
+package com.smartbox.investory.retirement.simulation;
+
+import com.smartbox.investory.longterm.api.model.InterestTreatmentModel;
+import com.smartbox.investory.retirement.profile.EconomicBucket;
+import com.smartbox.investory.retirement.profile.InvestmentProfile;
+import com.smartbox.investory.retirement.profile.ProjectedLongTermAsset;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
+import org.springframework.stereotype.Service;
+
+/** Evaluates bond cash-flow details from the immutable profile planning snapshot. */
+@Service
+public class FrozenBondCashFlowProjection {
+  private static final BigDecimal ZERO = BigDecimal.ZERO;
+
+  public BigDecimal cashIncome(
+      InvestmentProfile profile, SimulationAssumptions assumptions, int year) {
+    var policy = assumptions.projectedIncomePolicy();
+    if (policy.bondCashIncomeMode() == ProjectedIncomePolicy.IncomeMode.MANUAL)
+      return zero(policy.manualBondCashIncome());
+
+    return profile.longTermAssets().stream()
+        .filter(asset -> asset.bucket() == EconomicBucket.FIXED_INCOME)
+        .filter(asset -> asset.maturityDate() == null || year <= asset.maturityDate().getYear())
+        .filter(asset -> asset.interestTreatment() != InterestTreatmentModel.CAPITALIZE)
+        .map(asset -> periodCashIncome(asset, year))
+        .reduce(ZERO, BigDecimal::add);
+  }
+
+  /** Returns the reviewed capitalized-return yield, or the explicit planning fallback. */
+  public BigDecimal baseCapitalizedBondYield(
+      InvestmentProfile profile, BigDecimal fallbackBondYield) {
+    BigDecimal bondCapital = profile.allocations().stream()
+        .filter(allocation -> allocation.bucket() == EconomicBucket.FIXED_INCOME)
+        .map(allocation -> zero(allocation.value()))
+        .reduce(ZERO, BigDecimal::add);
+    if (bondCapital.signum() == 0) {
+      bondCapital = profile.longTermAssets().stream()
+          .filter(asset -> asset.bucket() == EconomicBucket.FIXED_INCOME)
+          .map(asset -> zero(asset.currentValue()))
+          .reduce(ZERO, BigDecimal::add);
+    }
+    BigDecimal capitalizedReturn = profile.longTermAssets().stream()
+        .filter(asset -> asset.bucket() == EconomicBucket.FIXED_INCOME)
+        .filter(asset -> asset.interestTreatment() == InterestTreatmentModel.CAPITALIZE)
+        .map(this::firstPeriodCapitalizedReturn)
+        .reduce(ZERO, BigDecimal::add);
+    return bondCapital.signum() == 0 || capitalizedReturn.signum() == 0
+        ? zero(fallbackBondYield)
+        : capitalizedReturn.divide(bondCapital, 12, RoundingMode.HALF_UP);
+  }
+
+  public boolean hasCapitalizedBondYield(InvestmentProfile profile) {
+    return profile.longTermAssets().stream()
+        .filter(asset -> asset.bucket() == EconomicBucket.FIXED_INCOME)
+        .filter(asset -> asset.interestTreatment() == InterestTreatmentModel.CAPITALIZE)
+        .map(this::firstPeriodCapitalizedReturn)
+        .anyMatch(value -> value.signum() != 0);
+  }
+
+  private BigDecimal firstPeriodCapitalizedReturn(ProjectedLongTermAsset asset) {
+    var period = asset.periods().stream().findFirst().orElse(null);
+    if (period == null) return ZERO;
+    BigDecimal declared = zero(period.annualIncome());
+    if (declared.signum() != 0) return declared;
+    return zero(asset.currentValue())
+        .multiply(zero(period.annualReturnRate()))
+        .multiply(BigDecimal.ONE.subtract(zero(asset.taxRate())));
+  }
+
+  private static BigDecimal periodCashIncome(ProjectedLongTermAsset asset, int year) {
+    LocalDate date = LocalDate.of(year, 12, 31);
+    return asset.periods().stream()
+        .filter(period -> period.validFrom() == null || !date.isBefore(period.validFrom()))
+        .filter(period -> period.validTo() == null || !date.isAfter(period.validTo()))
+        .map(period -> {
+          BigDecimal declared = zero(period.annualIncome());
+          if (declared.signum() != 0) return declared;
+          return zero(asset.currentValue())
+              .multiply(zero(period.annualReturnRate()))
+              .multiply(BigDecimal.ONE.subtract(zero(asset.taxRate())));
+        })
+        .findFirst()
+        .orElse(ZERO);
+  }
+
+  private static BigDecimal zero(BigDecimal value) {
+    return value == null ? ZERO : value;
+  }
+}
