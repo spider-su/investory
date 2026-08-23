@@ -253,6 +253,12 @@ public class RetirementSimulationController {
     var chartData = RetirementSimulationChartView.from(timeline, timelineMoney, projectedAssumptions);
     var scenarioAssumptions = ScenarioEffectiveAssumptions.forScenario(
         projection.projectedProfile(), projectedAssumptions, selectedScenario);
+    var scenarioAssumptionRows = List.of(
+        ScenarioAssumptionView.of("Inflation", projectedAssumptions.inflationRate(), scenarioAssumptions.inflationRate(), false),
+        ScenarioAssumptionView.of("Rental growth", projectedAssumptions.effectiveRentalIncomeGrowthRate(), scenarioAssumptions.rentalIncomeGrowthRate(), true),
+        ScenarioAssumptionView.of("Bond return", scenarioAssumptions.planBondReturnRate(), scenarioAssumptions.bondReturnRate(), true),
+        ScenarioAssumptionView.of("Equity return", projectedAssumptions.equityReturnRate(), scenarioAssumptions.equityReturnRate(), true),
+        ScenarioAssumptionView.of("Spending growth", projectedAssumptions.effectiveSpendingGrowthRate(), scenarioAssumptions.spendingGrowthRate(), false));
     model.addAttribute(
         "simulationPage",
         new RetirementSimulationPageView(
@@ -267,6 +273,7 @@ public class RetirementSimulationController {
             selectedScenario,
             List.of(SimulationScenario.values()),
             scenarioAssumptions,
+            scenarioAssumptionRows,
             displaySummaries.get(selectedScenario),
             displayAnnualCosts,
             displayAnnualExpenses,
@@ -328,6 +335,9 @@ public class RetirementSimulationController {
       model.addAttribute("plannedIncomeReferenceYear", preview.plannedIncomeReferenceYear());
       model.addAttribute("plannedRentalIncome", preview.plannedRentalIncome());
       model.addAttribute("plannedBondIncome", preview.plannedBondIncome());
+      model.addAttribute(
+          "plannedEmploymentIncome",
+          preview.firstProjectedYear() == null ? null : preview.firstProjectedYear().employmentIncome());
       model.addAttribute("plannedInvestmentProfit", preview.plannedInvestmentProfit());
       model.addAttribute("plannedCapitalizedBondReturn", preview.plannedCapitalizedBondReturn());
       model.addAttribute("plannedPension", preview.plannedPension());

@@ -28,6 +28,7 @@ public record RetirementSimulationPageView(
     SimulationScenario selectedScenario,
     List<SimulationScenario> availableScenarios,
     ScenarioEffectiveAssumptions scenarioAssumptions,
+    List<ScenarioAssumptionView> scenarioAssumptionRows,
     SimulationDecisionSummaryMoney outlook,
     BigDecimal annualCosts,
     BigDecimal annualLivingExpenses,
@@ -42,5 +43,6 @@ public record RetirementSimulationPageView(
   public RetirementSimulationPageView {
     timelineMoney = Map.copyOf(timelineMoney);
     yearlySummaries = Collections.unmodifiableMap(new LinkedHashMap<>(yearlySummaries));
+    scenarioAssumptionRows = List.copyOf(scenarioAssumptionRows);
   }
 }

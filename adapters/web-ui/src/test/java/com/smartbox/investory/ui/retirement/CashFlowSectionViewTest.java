@@ -33,6 +33,9 @@ class CashFlowSectionViewTest {
     assertEquals("Spending", flow.destinations().get(0).target());
     assertFalse(flow.destinations().stream().anyMatch(item -> "Surplus".equals(item.target())));
     assertEquals(0, flow.funding().size());
+    assertEquals(bd("213683.62"), flow.incomeUsed());
+    assertEquals(bd("213683.62"), flow.totalFunded());
+    assertEquals(bd("26316.38"), flow.fundingRequired());
   }
 
   private static BigDecimal bd(String value) {

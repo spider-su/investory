@@ -25,6 +25,23 @@ public record CashFlowSectionView(
     BigDecimal fundingSurplus,
     BigDecimal unfunded) {
 
+  public BigDecimal fundingRequired() {
+    return positiveDifference(spending, cashIncome);
+  }
+
+  public BigDecimal incomeUsed() {
+    if (spending == null || cashIncome == null) return BigDecimal.ZERO;
+    return cashIncome.min(spending).max(BigDecimal.ZERO);
+  }
+
+  public BigDecimal capitalFunding() {
+    return funding.stream().map(CashFlowFlowView::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+
+  public BigDecimal totalFunded() {
+    return incomeUsed().add(capitalFunding());
+  }
+
   public CashFlowSectionView {
     income = List.copyOf(income);
     funding = List.copyOf(funding);
