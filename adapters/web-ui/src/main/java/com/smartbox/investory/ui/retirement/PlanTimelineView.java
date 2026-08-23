@@ -14,13 +14,22 @@ public record PlanTimelineView(
   public static PlanTimelineView from(
       PlanningTimeline timeline, java.util.Map<Integer, RetirementYearSummaryView> summaries,
       Integer retirementYear, Integer pensionStartYear) {
+    return from(timeline, summaries, retirementYear, pensionStartYear, Integer.MIN_VALUE);
+  }
+
+  public static PlanTimelineView from(
+      PlanningTimeline timeline, java.util.Map<Integer, RetirementYearSummaryView> summaries,
+      Integer retirementYear, Integer pensionStartYear, int currentYear) {
     List<YearSnapshotView> snapshots = timeline.years().stream()
         .map(row -> new YearSnapshotView(
             row.year(), row.age(), summaries.get(row.year()), lifecycle(row.year(), timeline, retirementYear, pensionStartYear)))
         .toList();
     int selected = timeline.years().stream().filter(row -> row.state() == PlanningTimelineState.LIVE)
         .mapToInt(row -> row.year()).findFirst()
-        .orElseGet(() -> snapshots.isEmpty() ? 0 : snapshots.get(0).year());
+        .orElseGet(() -> snapshots.isEmpty() ? 0 : snapshots.stream()
+            .min(java.util.Comparator.comparingInt(row -> currentYear == Integer.MIN_VALUE
+                ? row.year() : Math.abs(row.year() - currentYear)))
+            .orElse(snapshots.get(0)).year());
     return new PlanTimelineView(
         snapshots.isEmpty() ? 0 : snapshots.get(0).year(),
         snapshots.isEmpty() ? 0 : snapshots.get(snapshots.size() - 1).year(),

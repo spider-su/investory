@@ -252,7 +252,8 @@ public class RetirementSimulationController {
     var cashFlow = CashFlowSectionView.from(timeline, timelineMoney, projectedAssumptions);
     var chartData = RetirementSimulationChartView.from(timeline, timelineMoney, projectedAssumptions);
     var planTimeline = PlanTimelineView.from(
-        timeline, yearlySummaries, chartData.retirementYear(), chartData.pensionStartYear());
+        timeline, yearlySummaries, chartData.retirementYear(), chartData.pensionStartYear(),
+        Year.now(clock).getValue());
     var scenarioAssumptions = ScenarioEffectiveAssumptions.forScenario(
         projection.projectedProfile(), projectedAssumptions, selectedScenario);
     var scenarioAssumptionRows = List.of(
