@@ -37,6 +37,7 @@ public record RetirementSimulationPageView(
     PlanningTimeline timeline,
     Map<Integer, PlanningTimelineMoney> timelineMoney,
     Map<Integer, RetirementYearSummaryView> yearlySummaries,
+    PlanTimelineView planTimeline,
     CashFlowSectionView cashFlow,
     boolean currentYearCloseAllowed,
     RetirementSimulationChartView chartData) {

@@ -1983,6 +1983,11 @@ body.iv-modal-open { overflow: hidden; }
 }
 
 @media (max-width: 600px) {
+    .iv-plan-timeline__selector { grid-template-columns: auto minmax(0, 1fr) auto; }
+    .iv-plan-snapshot__columns { grid-template-columns: 1fr; gap: 12px; }
+    .iv-plan-snapshot__columns section + section { border-top: 1px solid var(--iv-metric-divider); border-left: 0; padding-top: 12px; padding-left: 0; }
+    .iv-plan-timeline__markers { gap: 2px; }
+    .iv-plan-timeline__marker { padding-right: 2px; padding-left: 2px; font-size: .62rem; }
     .iv-cash-flow-columns { grid-template-columns: 1fr; gap: 16px; }
     .iv-simulation-scenario-actions { gap: 4px; }
     .iv-simulation-scenario-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -2447,6 +2452,28 @@ body.iv-modal-open { overflow: hidden; }
 .iv-simulation-portfolio-grid strong { display: block; margin-top: 4px; color: var(--iv-text); font-size: 1.05rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .iv-simulation-portfolio-grid > div { min-width: 0; padding: 0 12px; }
 .iv-simulation-portfolio-grid > div:first-child { padding-left: 0; }
+.iv-plan-timeline__selector { display: grid; grid-template-columns: auto minmax(180px, 320px) auto; justify-content: center; align-items: center; gap: 8px; margin-bottom: 12px; }
+.iv-plan-timeline__snapshots { min-height: 132px; }
+.iv-plan-snapshot__heading { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.iv-plan-snapshot__heading strong { font-size: .9rem; font-variant-numeric: tabular-nums; }
+.iv-state-badge { padding: 2px 6px; border-radius: 999px; color: var(--iv-text-muted); background: var(--iv-surface-muted, rgba(127,127,127,.12)); font-size: .65rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.iv-plan-snapshot__columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; }
+.iv-plan-snapshot__columns section + section { border-left: 1px solid var(--iv-metric-divider); padding-left: 24px; }
+.iv-plan-snapshot__columns h3 { margin: 0 0 5px; color: var(--iv-text-muted); font-size: .68rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.iv-plan-snapshot__columns h3 small { font-weight: 600; letter-spacing: 0; text-transform: none; }
+.iv-plan-snapshot__columns dl { display: grid; gap: 3px; margin: 0; }
+.iv-plan-snapshot__columns dl > div { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: baseline; }
+.iv-plan-snapshot__columns dt { color: var(--iv-text-muted); font-size: .78rem; }
+.iv-plan-snapshot__columns dd { margin: 0; font-size: .86rem; font-variant-numeric: tabular-nums; }
+.iv-plan-snapshot__columns small { grid-column: 1 / -1; margin-top: -2px; color: var(--iv-text-muted); font-size: .66rem; text-align: right; }
+.iv-plan-snapshot__positive dd, .iv-plan-snapshot__positive small { color: var(--iv-positive, #15803d); }
+.iv-plan-snapshot__negative dd, .iv-plan-snapshot__negative small { color: var(--iv-negative, #c2415a); }
+.iv-plan-timeline__markers { display: flex; justify-content: space-between; gap: 8px; margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--iv-border); }
+.iv-plan-timeline__marker { position: relative; padding: 3px 6px; border: 0; color: var(--iv-text-muted); background: transparent; font-size: .68rem; font-weight: 750; }
+.iv-plan-timeline__marker::before { content: ""; position: absolute; top: -16px; left: 50%; width: 8px; height: 8px; border: 2px solid var(--iv-primary); border-radius: 50%; background: var(--iv-surface); transform: translateX(-50%); }
+.iv-plan-timeline__marker:hover, .iv-plan-timeline__marker:focus-visible, .iv-plan-timeline__marker.is-active { color: var(--iv-primary); }
+.iv-plan-timeline__marker.is-active { font-weight: 850; }
+.iv-plan-timeline__hint { margin-top: 3px; color: var(--iv-text-muted); font-size: .68rem; text-align: center; font-variant-numeric: tabular-nums; }
 .iv-simulation-scenario-tools { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
 .iv-simulation-scenario-tools .form-select { width: auto; min-width: 72px; }
 .iv-simulation-plan-summary { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 12px; margin-top: 8px; padding: 8px 0 0; border-top: 1px solid var(--iv-border); }

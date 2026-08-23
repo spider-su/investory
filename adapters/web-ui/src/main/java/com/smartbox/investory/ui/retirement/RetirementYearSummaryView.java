@@ -12,6 +12,7 @@ import java.util.Map;
 /** Compact, user-facing summary of one authoritative yearly projection row. */
 public record RetirementYearSummaryView(
     int year,
+    int age,
     String state,
     BigDecimal spending,
     BigDecimal income,
@@ -38,6 +39,7 @@ public record RetirementYearSummaryView(
           row.year(),
           new RetirementYearSummaryView(
               row.year(),
+              row.age(),
               state,
               spending,
               income,
