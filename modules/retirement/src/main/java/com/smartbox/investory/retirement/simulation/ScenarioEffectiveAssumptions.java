@@ -16,11 +16,21 @@ public record ScenarioEffectiveAssumptions(
     SimulationScenarioSettings selected = SimulationScenarioSettings.forScenario(scenario, assumptions);
     SimulationScenarioSettings base = SimulationScenarioSettings.forScenario(
         SimulationScenario.BASE, assumptions);
-    BigDecimal baseBondYield = PlanningBuckets.baseBondYield(
+    FrozenBondCashFlowProjection bondProjection = new FrozenBondCashFlowProjection();
+    BigDecimal baseBondYield = bondProjection.baseCapitalizedBondYield(
         profile, assumptions.fixedIncomeReturnRate());
-    BigDecimal bondYield = PlanningBuckets.hasSourceBondYield(profile)
-        ? baseBondYield.add(selected.fixedIncomeReturnRate().subtract(base.fixedIncomeReturnRate()))
-        : selected.fixedIncomeReturnRate();
+    BigDecimal bondYield;
+    if (bondProjection.hasCapitalizedBondYield(profile)) {
+      bondYield = baseBondYield.add(
+          selected.fixedIncomeReturnRate().subtract(base.fixedIncomeReturnRate()));
+    } else if (bondProjection.hasFrozenBondAssets(profile)) {
+      // PAY_OUT-only source Bonds generate spendable cash; their principal must not also receive
+      // a scenario capital return. This prevents double-counting the same interest.
+      bondYield = BigDecimal.ZERO;
+    } else {
+      // Allocation-only / synthetic planning state has no source mechanics, so use the plan rate.
+      bondYield = selected.fixedIncomeReturnRate();
+    }
     return new ScenarioEffectiveAssumptions(
         selected.inflationRate(),
         baseBondYield,
