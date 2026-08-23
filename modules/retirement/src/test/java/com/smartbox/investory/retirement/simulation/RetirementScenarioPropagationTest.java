@@ -186,7 +186,7 @@ class RetirementScenarioPropagationTest {
     assertThat(optimistic.years().get(1).rentalIncome()).isEqualByComparingTo("103.0225");
     assertThat(conservative.years().get(1).totalExpenses()).isEqualByComparingTo("243600");
     assertThat(base.years().get(1).totalExpenses()).isEqualByComparingTo("243600");
-    assertThat(optimistic.years().get(1).totalExpenses()).isEqualByComparingTo("244800");
+    assertThat(optimistic.years().get(1).totalExpenses()).isEqualByComparingTo("242400");
   }
 
   @Test

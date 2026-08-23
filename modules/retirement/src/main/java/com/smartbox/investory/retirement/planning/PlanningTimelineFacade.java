@@ -61,6 +61,16 @@ public class PlanningTimelineFacade {
     return planningProgress.progressForTimeline(timeline);
   }
 
+  /** Resolves reviewability from the canonical planning-year boundary. */
+  @Transactional(readOnly = true)
+  public YearReviewMode reviewMode(Long portfolioId, int year) {
+    int current = activeCurrentYear(portfolioId);
+    if (year == current) return YearReviewMode.LIVE;
+    if (year < current && years.findByPortfolioIdAndYear(portfolioId, year).isPresent())
+      return YearReviewMode.CLOSED;
+    return YearReviewMode.NONE;
+  }
+
   public YearReview yearReview(PastPlanningYear year) {
     return yearReviews.review(year);
   }

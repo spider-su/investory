@@ -729,6 +729,38 @@ public class RetirementSimulationController {
     model.addAttribute("planningPresentation", planningPresentation);
     model.addAttribute("selectedPlanId", planId);
     model.addAttribute("selectedScenario", selectedScenario);
+    YearReviewMode reviewMode = planningTimeline.reviewMode(portfolioId, year);
+    if (reviewMode == YearReviewMode.LIVE) {
+      var projection = projections.load(portfolioId, planId);
+      PlanningTimeline timeline =
+          planningTimeline.loadForwardTimeline(
+              portfolioId,
+              profile,
+              projection.forward(),
+              selectedScenario,
+              SimulationCustomDeltas.zero());
+      PlanningTimelineYear liveRow =
+          timeline.years().stream()
+              .filter(row -> row.state() == PlanningTimelineState.LIVE && row.year() == year)
+              .findFirst()
+              .orElseThrow(() -> new IllegalArgumentException("Live planning year is unavailable"));
+      var money =
+          planningPresentation.displayTimelineMoney(
+              timeline, planningDisplayCurrency, projection.projectedAssumptions()).get(year);
+      model.addAttribute(
+          "liveReview",
+          new LiveYearReviewView(
+              year,
+              liveRow.age(),
+              planningDisplayCurrency,
+              liveRow.current(),
+              money,
+              projection.projectedAssumptions()));
+      return "live-year-review";
+    }
+    if (reviewMode == YearReviewMode.NONE)
+      throw new org.springframework.web.server.ResponseStatusException(
+          org.springframework.http.HttpStatus.NOT_FOUND, "Projected year has no review");
     var stored = planningTimeline.pastYear(portfolioId, year);
     model.addAttribute(
         "planningYear", planningPresentation.display(stored, planningDisplayCurrency));
