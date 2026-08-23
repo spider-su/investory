@@ -4,15 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-import com.smartbox.investory.investment.application.InvestmentAnnualProjectionService;
 import com.smartbox.investory.investment.api.InvestmentAnnualProjectionApi;
-import com.smartbox.investory.longterm.application.service.LongTermAnnualProjectionService;
 import com.smartbox.investory.retirement.api.InvestmentProfileFacade;
 import com.smartbox.investory.retirement.infrastructure.simulation.*;
 import com.smartbox.investory.retirement.profile.InvestmentProfile;
 import com.smartbox.investory.retirement.simulation.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.longterm.api.LongTermAnnualProjectionApi;
+import com.smartbox.investory.longterm.application.service.LongTermAnnualProjectionService;
 import com.smartbox.investory.longterm.api.model.InterestTreatmentModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;

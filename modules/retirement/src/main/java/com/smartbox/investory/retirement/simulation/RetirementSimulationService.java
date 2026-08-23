@@ -25,7 +25,7 @@ public class RetirementSimulationService implements RetirementSimulation {
   @Override
   public SimulationResult simulate(InvestmentProfile profile, SimulationAssumptions assumptions,
       SimulationScenario scenario) {
-    return simulate(profile, assumptions, scenario, assumptions.startYear() - 1);
+    return simulate(profile, assumptions, scenario, assumptions.startYear());
   }
 
   @Override

@@ -261,6 +261,7 @@ public class RetirementSimulationController {
             activePlanName,
             activePlanSummary,
             selectedScenario,
+            List.of(SimulationScenario.values()),
             scenarioAssumptions,
             displaySummaries.get(selectedScenario),
             displayAnnualExpenses,

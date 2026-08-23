@@ -17,11 +17,17 @@ class RetirementAnalysisTemplateContractTest {
     assertTrue(html.contains("Analysis"));
     assertTrue(html.contains("data-analysis-tab=\"overview\""));
     assertTrue(html.contains("data-analysis-tab=\"cash-flow\""));
-    assertTrue(html.contains("data-analysis-tab=\"portfolio\""));
     assertTrue(html.contains("data-analysis-tab=\"risk\""));
     assertTrue(html.contains("data-analysis-tab=\"scenarios\""));
     assertTrue(html.contains("analysisPage.selectedSummary"));
     assertTrue(html.contains("analysisPage.scenarios"));
+    assertTrue(html.contains("Minimum liquid assets"));
+    assertTrue(html.contains("First failure"));
+    assertTrue(html.contains("Base-plan sensitivity"));
+    assertTrue(html.contains("Base / Conservative comparison"));
+    assertFalse(html.contains("data-analysis-tab=\"portfolio\""));
+    assertFalse(html.contains("analysis-reserve"));
+    assertFalse(html.contains("Reserve coverage"));
     assertTrue(html.contains("/js/retirement-analysis.js"));
     assertFalse(html.contains("simulation engine"));
   }

@@ -12,6 +12,7 @@ import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /** Focused raw-projection model for the Simulation board. */
@@ -25,6 +26,7 @@ public record RetirementSimulationPageView(
     String activePlanName,
     String activePlanSummary,
     SimulationScenario selectedScenario,
+    List<SimulationScenario> availableScenarios,
     ScenarioEffectiveAssumptions scenarioAssumptions,
     SimulationDecisionSummaryMoney outlook,
     BigDecimal annualLivingExpenses,

@@ -146,7 +146,8 @@ public class PlanningTimelineFacade {
             .simulate(
                 profile,
                 assumptionsForYear(assumptions, year),
-                SimulationScenario.BASE)
+                SimulationScenario.BASE,
+                year)
             .years()
             .getFirst();
 
@@ -269,7 +270,7 @@ public class PlanningTimelineFacade {
       throw new IllegalStateException("Closed planning year cannot refresh baseline");
     SimulationYear expected =
         simulations
-            .simulate(profile, assumptionsForYear(assumptions, year), SimulationScenario.BASE)
+            .simulate(profile, assumptionsForYear(assumptions, year), SimulationScenario.BASE, year)
             .years()
             .getFirst();
     Map<PlanningMetric, BigDecimal> expectedValues = expectedValues(expected);

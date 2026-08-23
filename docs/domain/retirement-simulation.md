@@ -30,10 +30,16 @@ starting values and planning assumptions required by the deterministic bucket en
 The core temporal rule is:
 
 ```text
-Past     -> immutable reviewed facts
-Current  -> live derived state
-Future   -> deterministic projection from an immutable reviewed plan revision
+HISTORICAL -> reviewed facts only
+CURRENT    -> live/current facts + projected remainder -> expected year-end state
+PROJECTED  -> current expected year end + frozen plan assumptions + selected scenario
 ```
+
+`ForwardSimulationContextFactory` is the sole owner of the temporal boundary. It resolves the
+as-of year, current planning age, first projected year, current-year events, and rebased future
+assumptions. The deterministic simulator receives that resolved baseline year explicitly; it never
+reads the system clock. Therefore the same profile, assumptions, baseline year, and scenario always
+produce the same result.
 
 ## Ownership and dependency direction
 
@@ -194,6 +200,13 @@ simulator, and an explicitly reviewed/rebaselined value may become the next froz
 Bonds are an aggregate defensive bucket. Retirement does not distinguish coupon, interest, and
 principal when funding a deficit: available Bond capital is spendable after Cash.
 
+Bond cash payout and Bond capital return are separate normalized facts. The frozen profile planning
+snapshot may contain source-derived bond periods, maturity dates, tax rates, and interest treatment.
+`FrozenBondCashFlowProjection` evaluates those immutable details for projected cash income. A
+`PAY_OUT` period contributes spendable cash and does not add that payout to Bond principal. A
+`CAPITALIZE` period contributes no cash income and its net return is represented by Bond capital
+return. Mutable Long-Term services are never consulted during forward simulation.
+
 ```text
 bondsBeforeSpending = bondsStart + bondReturn
 bondsAfterSpending = max(0, bondsBeforeSpending - bondWithdrawal)
@@ -352,6 +365,13 @@ applies the scenario return assumptions, signed internal transfers, and external
 its expected end is the next year's start. Current factual balances are never presented as if they
 were final current-year balances.
 
+The continuity identities are:
+
+```text
+CurrentExpectedEnd(bucket) = FirstProjectedStart(bucket)
+ProjectedEnd(year N, bucket) = ProjectedStart(year N+1, bucket)
+```
+
 Cash is not automatically refilled. Remaining Bonds and Equities are automatically reinvested under
 the same frozen assumptions.
 
@@ -409,6 +429,10 @@ Sandbox uses the same deterministic engine with an alternate prepared input. It 
 planning-bucket starts and yields without mutating Investment or Long-Term source data. At minimum,
 Sandbox may override Cash start, Bond start/yield/target, Equity start/yield, Real Estate start, and
 rental cash income. When Sandbox is disabled, the immutable reviewed baseline is authoritative.
+
+Sandbox and Custom have different intended ownership. Sandbox changes the what-if starting state or
+baseline. A future Custom scenario, if introduced, should change projected effective rates only; it
+must not rewrite CURRENT or HISTORICAL facts. Custom persistence is not part of the current model.
 
 Analysis is scenario/risk evaluation that prepares inputs; Simulation is plan execution. Analysis
 must not implement a separate funding engine.

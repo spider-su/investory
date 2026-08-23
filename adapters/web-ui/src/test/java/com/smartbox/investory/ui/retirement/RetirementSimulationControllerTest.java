@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
@@ -14,7 +15,10 @@ import com.smartbox.investory.retirement.planning.*;
 import com.smartbox.investory.retirement.profile.InvestmentProfile;
 import com.smartbox.investory.retirement.simulation.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.ui.common.BuildMetadata;
+import com.smartbox.investory.ui.presentation.UiPresentation;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -29,8 +33,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.ui.ExtendedModelMap;
+import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 import org.springframework.web.servlet.view.InternalResourceViewResolver;
+import org.thymeleaf.spring6.SpringTemplateEngine;
+import org.thymeleaf.spring6.view.ThymeleafViewResolver;
+import org.thymeleaf.templatemode.TemplateMode;
+import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 
 @ExtendWith(MockitoExtension.class)
 class RetirementSimulationControllerTest {
@@ -44,13 +54,18 @@ class RetirementSimulationControllerTest {
   @Mock PlanningCurrencyPresentationService planningPresentation;
   @Mock ForwardSimulationInputService forwardInputs;
   MockMvc mockMvc;
+  MockMvc renderingMockMvc;
   RetirementSimulationController controller;
 
   @BeforeEach
   void setUp() {
-    InternalResourceViewResolver resolver = new InternalResourceViewResolver();
-    resolver.setPrefix("/WEB-INF/views/");
-    resolver.setSuffix(".jsp");
+    var summary = mock(SimulationDecisionSummaryMoney.class);
+    lenient().when(summary.failed()).thenReturn(false);
+    lenient().when(summary.minimumLiquidAssetsDisplay()).thenReturn("0");
+    lenient()
+        .when(planningPresentation.displaySummaries(any(), any()))
+        .thenReturn(Map.of(SimulationScenario.BASE, summary));
+    lenient().when(planningPresentation.displayTimelineMoney(any(), any(), any())).thenReturn(Map.of());
     controller =
         new RetirementSimulationController(
             profiles,
@@ -105,7 +120,6 @@ class RetirementSimulationControllerTest {
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
                 BigDecimal.ZERO));
-    lenient().when(planningPresentation.displaySummaries(any(), any())).thenReturn(Map.of());
     lenient()
         .when(sustainableSpending.analyze(any(), any()))
         .thenReturn(mock(SustainableSpendingAnalysis.class));
@@ -131,7 +145,57 @@ class RetirementSimulationControllerTest {
     lenient()
         .when(plans.resolvePlanId(anyLong(), nullable(Long.class)))
         .thenAnswer(invocation -> Optional.ofNullable(invocation.getArgument(1)));
+    InternalResourceViewResolver resolver = new InternalResourceViewResolver();
+    resolver.setPrefix("/WEB-INF/views/");
+    resolver.setSuffix(".jsp");
     mockMvc = MockMvcBuilders.standaloneSetup(controller).setViewResolvers(resolver).build();
+    ThymeleafViewResolver thymeleafResolver = new ThymeleafViewResolver();
+    thymeleafResolver.setTemplateEngine(templateEngine());
+    thymeleafResolver.setViewNames(new String[] {"*"});
+    renderingMockMvc =
+        MockMvcBuilders.standaloneSetup(controller)
+            .setControllerAdvice(new TemplateModelAdvice())
+            .setViewResolvers(thymeleafResolver)
+            .build();
+  }
+
+  @Test
+  void simulationRouteRendersTheThymeleafPage() throws Exception {
+    when(profiles.loadProfile(1L)).thenReturn(profile());
+    when(simulations.compareScenarios(any(), any())).thenReturn(Map.of());
+
+    renderingMockMvc
+        .perform(get("/simulation").param("portfolioId", "1"))
+        .andExpect(status().isOk())
+        .andExpect(view().name("simulation"))
+        .andExpect(content().string(org.hamcrest.Matchers.containsString("Scenario assumptions")))
+        .andExpect(content().string(org.hamcrest.Matchers.containsString("Yearly projection")))
+        .andExpect(content().string(org.hamcrest.Matchers.containsString("Planning bucket projection")));
+  }
+
+  private static SpringTemplateEngine templateEngine() {
+    ClassLoaderTemplateResolver resolver = new ClassLoaderTemplateResolver();
+    resolver.setPrefix("templates/");
+    resolver.setSuffix(".html");
+    resolver.setTemplateMode(TemplateMode.HTML);
+    resolver.setCharacterEncoding(StandardCharsets.UTF_8.name());
+    resolver.setCheckExistence(true);
+    SpringTemplateEngine engine = new SpringTemplateEngine();
+    engine.setTemplateResolver(resolver);
+    return engine;
+  }
+
+  @ControllerAdvice
+  static class TemplateModelAdvice {
+    @ModelAttribute("format")
+    UiPresentation format() {
+      return new UiPresentation();
+    }
+
+    @ModelAttribute("buildMetadata")
+    BuildMetadata buildMetadata() {
+      return BuildMetadata.development();
+    }
   }
 
   @Test

@@ -26,10 +26,27 @@ class RetirementSimulationAnnualRentalIncomeTest {
         .withInflationRate(new BigDecimal("0.030"))
         .withRentalIncomeGrowthSpread(new BigDecimal("-0.020"));
 
-    var year = service.simulate(profile, assumptions, SimulationScenario.BASE).years().getFirst();
+    var year = service.simulate(profile, assumptions, SimulationScenario.BASE, 2026).years().getFirst();
 
     assertThat(year.year()).isEqualTo(firstProjectedYear);
     assertThat(year.rentalIncome()).isEqualByComparingTo("176551.6562");
+  }
+
+  @Test
+  void explicitBaselineYearMakesSimulationIndependentOfWallClock() {
+    var service = new RetirementSimulationService();
+    var profile = profile(BigDecimal.ZERO, List.of(), new BigDecimal("100"));
+    var assumptions = SimulationAssumptions.defaults(profile, 65, 65, 2027)
+        .withInflationRate(new BigDecimal("0.030"))
+        .withRentalIncomeGrowthSpread(new BigDecimal("-0.020"));
+
+    var first = service.simulate(profile, assumptions, SimulationScenario.BASE, 2026);
+    var repeated = service.simulate(profile, assumptions, SimulationScenario.BASE, 2026);
+    var olderBaseline = service.simulate(profile, assumptions, SimulationScenario.BASE, 2025);
+
+    assertThat(repeated).isEqualTo(first);
+    assertThat(first.years().getFirst().rentalIncome()).isEqualByComparingTo("101");
+    assertThat(olderBaseline.years().getFirst().rentalIncome()).isEqualByComparingTo("102.01");
   }
   @Test
   void supportsAnnualRentalIncomeThatDoesNotDivideEvenlyIntoMonths() {
@@ -170,6 +187,27 @@ class RetirementSimulationAnnualRentalIncomeTest {
     assertThat(year.bondIncome()).isEqualByComparingTo("80");
     assertThat(year.requiredPortfolioFunding()).isZero();
     assertThat(year.unfundedAmount()).isZero();
+  }
+
+  @Test
+  void capitalizedBondIncomeDoesNotEnterCashIncome() {
+    var service = new RetirementSimulationService();
+    var bond = new ProjectedLongTermAsset(
+        11L, "Capitalized bond", LongTermAssetTypeModel.BOND,
+        EconomicBucket.FIXED_INCOME, CurrencyType.USD, new BigDecimal("1000"), Liquidity.LIQUID,
+        List.of(new ProjectedLongTermAsset.Period(
+            LocalDate.of(2020, 1, 1), null, null, BigDecimal.ZERO, new BigDecimal("0.10"))),
+        List.of(), null, new BigDecimal("1000"), InterestTreatmentModel.CAPITALIZE,
+        new BigDecimal("0.20"), null, false);
+    var profile = profile(BigDecimal.ZERO, List.of(bond));
+    var year = service.simulate(profile,
+        SimulationAssumptions.defaults(profile, 65, 65, 2026)
+            .withRecurringSpending(new BigDecimal("80")),
+        SimulationScenario.BASE).years().getFirst();
+
+    assertThat(year.bondIncome()).isZero();
+    assertThat(year.capitalizedBondReturn()).isEqualByComparingTo("80");
+    assertThat(year.requiredPortfolioFunding()).isEqualByComparingTo("80");
   }
 
   @Test

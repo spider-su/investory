@@ -7,6 +7,7 @@ import com.smartbox.investory.retirement.planning.SimulationScenarioComparison;
 import com.smartbox.investory.retirement.simulation.SimulationChartData;
 import com.smartbox.investory.retirement.simulation.SimulationScenario;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import java.util.Locale;
 
 /** Focused Analysis-board model. Values come from one completed simulation projection. */
 public record RetirementAnalysisPageView(
@@ -20,4 +21,9 @@ public record RetirementAnalysisPageView(
     PlanRiskView risks,
     PlanningFlexibilityMoney flexibility,
     SimulationChartData charts,
-    String horizon) {}
+    String horizon) {
+  public String selectedScenarioLabel() {
+    String value = selectedScenario == null ? "" : selectedScenario.name().toLowerCase(Locale.ROOT);
+    return value.isEmpty() ? "—" : Character.toUpperCase(value.charAt(0)) + value.substring(1);
+  }
+}

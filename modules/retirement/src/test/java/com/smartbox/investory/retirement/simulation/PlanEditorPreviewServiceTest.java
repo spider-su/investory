@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -109,7 +111,8 @@ class PlanEditorPreviewServiceTest {
         .thenReturn(
             new com.smartbox.investory.retirement.planning.ForwardSimulationInput(
                 mock(ForwardSimulationContext.class), profile, Optional.of(assumptions)));
-    when(simulations.simulate(profile, assumptions, SimulationScenario.BASE)).thenReturn(empty);
+    when(simulations.simulate(eq(profile), eq(assumptions), eq(SimulationScenario.BASE), anyInt()))
+        .thenReturn(empty);
     when(longTermAssets.currentAnnualSnapshot(any(), any()))
         .thenReturn(new LongTermAssetAnnualSnapshotModel(null, null, null, null, null, null));
 
@@ -214,7 +217,7 @@ class PlanEditorPreviewServiceTest {
         .thenReturn(
             new com.smartbox.investory.retirement.planning.ForwardSimulationInput(
                 mock(ForwardSimulationContext.class), profile, Optional.of(assumptions)));
-    when(simulations.simulate(profile, assumptions, SimulationScenario.BASE))
+    when(simulations.simulate(eq(profile), eq(assumptions), eq(SimulationScenario.BASE), anyInt()))
         .thenReturn(
             new SimulationResult(
                 SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of(projected)));
@@ -276,7 +279,7 @@ class PlanEditorPreviewServiceTest {
         .thenReturn(
             new com.smartbox.investory.retirement.planning.ForwardSimulationInput(
                 context, profile, Optional.of(projected)));
-    when(simulations.simulate(profile, projected, SimulationScenario.BASE))
+    when(simulations.simulate(eq(profile), eq(projected), eq(SimulationScenario.BASE), anyInt()))
         .thenReturn(new SimulationResult(SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of(row)));
     when(longTermAssets.currentAnnualSnapshot(any(), any()))
         .thenReturn(new LongTermAssetAnnualSnapshotModel(null, null, null, null, null, null));

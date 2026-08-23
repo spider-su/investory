@@ -21,18 +21,18 @@ class RetirementScenarioPropagationTest {
     SimulationAssumptions assumptions = assumptions(profile).withFixedIncomeReturnRate(bd("0.040"));
     BigDecimal baseYield = PlanningBuckets.baseBondYield(profile, assumptions.fixedIncomeReturnRate());
 
-    assertThat(baseYield).isEqualByComparingTo("0.0432");
+    assertThat(baseYield).isEqualByComparingTo("0.040");
     assertThat(PlanningBuckets.fromProfile(profile, bd("0.08"), baseYield).bonds().plannedYieldRate())
-        .isEqualByComparingTo("0.0432");
+        .isEqualByComparingTo("0.040");
 
     SimulationScenarioSettings conservative =
         SimulationScenarioSettings.forScenario(SimulationScenario.CONSERVATIVE, assumptions);
     SimulationScenarioSettings optimistic =
         SimulationScenarioSettings.forScenario(SimulationScenario.OPTIMISTIC, assumptions);
     assertThat(baseYield.add(conservative.fixedIncomeReturnRate().subtract(assumptions.fixedIncomeReturnRate())))
-        .isEqualByComparingTo("0.0332");
+        .isEqualByComparingTo("0.030");
     assertThat(baseYield.add(optimistic.fixedIncomeReturnRate().subtract(assumptions.fixedIncomeReturnRate())))
-        .isEqualByComparingTo("0.0532");
+        .isEqualByComparingTo("0.050");
   }
 
   @Test
@@ -63,9 +63,9 @@ class RetirementScenarioPropagationTest {
     BigDecimal baseEquity = equityReturn(service.simulate(profile, assumptions, SimulationScenario.BASE));
     BigDecimal optimisticEquity = equityReturn(service.simulate(profile, assumptions, SimulationScenario.OPTIMISTIC));
 
-    assertThat(conservativeBond).isEqualByComparingTo("29880");
-    assertThat(baseBond).isEqualByComparingTo("38880");
-    assertThat(optimisticBond).isEqualByComparingTo("47880");
+    assertThat(conservativeBond).isEqualByComparingTo("27000");
+    assertThat(baseBond).isEqualByComparingTo("36000");
+    assertThat(optimisticBond).isEqualByComparingTo("45000");
     assertThat(conservativeEquity).isEqualByComparingTo("6000");
     assertThat(baseEquity).isEqualByComparingTo("8000");
     assertThat(optimisticEquity).isEqualByComparingTo("10000");
@@ -83,9 +83,9 @@ class RetirementScenarioPropagationTest {
         .withRetirementAge(65);
     RetirementSimulationService service = new RetirementSimulationService();
 
-    SimulationResult conservative = service.simulate(profile, assumptions, SimulationScenario.CONSERVATIVE);
-    SimulationResult base = service.simulate(profile, assumptions, SimulationScenario.BASE);
-    SimulationResult optimistic = service.simulate(profile, assumptions, SimulationScenario.OPTIMISTIC);
+    SimulationResult conservative = service.simulate(profile, assumptions, SimulationScenario.CONSERVATIVE, 2026);
+    SimulationResult base = service.simulate(profile, assumptions, SimulationScenario.BASE, 2026);
+    SimulationResult optimistic = service.simulate(profile, assumptions, SimulationScenario.OPTIMISTIC, 2026);
 
     assertThat(conservative.years().get(1).rentalIncome())
         .isEqualByComparingTo("103.0225");

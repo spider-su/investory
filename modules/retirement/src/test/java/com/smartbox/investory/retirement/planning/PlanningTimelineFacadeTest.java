@@ -317,7 +317,7 @@ class PlanningTimelineFacadeTest {
   @Test
   void baselineStoresOnlySimulationExpectationAndIsIndependentOfLiveFacts() {
     SimulationYear projected = projected();
-    when(simulations.simulate(eq(profile()), any(), eq(SimulationScenario.BASE)))
+    when(simulations.simulate(eq(profile()), any(), eq(SimulationScenario.BASE), anyInt()))
         .thenReturn(
             new SimulationResult(
                 SimulationScenario.BASE,
@@ -347,7 +347,7 @@ class PlanningTimelineFacadeTest {
     past.setStatus(PlanningYearStatus.CLOSED);
     when(years.findAllByPortfolioIdOrderByYearAsc(1L)).thenReturn(List.of(past));
     when(values.findAllByPlanningYearIdAndValueKind(eq(8L), any())).thenReturn(List.of());
-    when(simulations.simulate(eq(profile()), any(), eq(SimulationScenario.BASE)))
+    when(simulations.simulate(eq(profile()), any(), eq(SimulationScenario.BASE), anyInt()))
         .thenReturn(
             new SimulationResult(
                 SimulationScenario.BASE,
@@ -377,7 +377,7 @@ class PlanningTimelineFacadeTest {
         new ForwardSimulationContextFactory(
                 Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC))
             .create(profile(), anchored);
-    when(simulations.simulate(eq(profile()), any(), eq(SimulationScenario.BASE)))
+    when(simulations.simulate(eq(profile()), any(), eq(SimulationScenario.BASE), anyInt()))
         .thenReturn(
             new SimulationResult(
                 SimulationScenario.BASE,
@@ -551,7 +551,7 @@ class PlanningTimelineFacadeTest {
             List.of());
     when(years.findAllByPortfolioIdOrderByYearAsc(1L)).thenReturn(List.of());
     when(projectionBridge.projectCurrentYearEnd(profile(), assumptions())).thenReturn(bridged);
-    when(simulations.simulate(eq(bridged), any(), eq(SimulationScenario.BASE)))
+    when(simulations.simulate(eq(bridged), any(), eq(SimulationScenario.BASE), anyInt()))
         .thenReturn(
             new SimulationResult(
                 SimulationScenario.BASE,
@@ -562,7 +562,7 @@ class PlanningTimelineFacadeTest {
                 List.of(projected())));
     PlanningTimeline timeline = facade.loadTimeline(1L, profile(), assumptions());
     assertEquals(2027, timeline.years().getLast().year());
-    verify(simulations).simulate(eq(bridged), any(), eq(SimulationScenario.BASE));
+    verify(simulations).simulate(eq(bridged), any(), eq(SimulationScenario.BASE), anyInt());
   }
 
   private static InvestmentProfile profile() {

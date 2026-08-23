@@ -1,9 +1,7 @@
 package com.smartbox.investory.retirement.simulation;
 
-import com.smartbox.investory.investment.application.InvestmentAnnualProjectionService;
 import com.smartbox.investory.longterm.api.model.InterestTreatmentModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
-import com.smartbox.investory.longterm.application.service.LongTermAnnualProjectionService;
 import com.smartbox.investory.retirement.profile.EconomicBucket;
 import com.smartbox.investory.retirement.profile.InvestmentProfile;
 import com.smartbox.investory.retirement.profile.Liquidity;
