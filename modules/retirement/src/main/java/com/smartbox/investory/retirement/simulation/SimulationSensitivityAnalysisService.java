@@ -37,6 +37,17 @@ public class SimulationSensitivityAnalysisService {
       Integer baselineYear,
       SimulationEvaluation baseline) {
     List<SimulationSensitivityResult> results = new ArrayList<>();
+    results.add(
+        result(
+            profile,
+            assumptions,
+            baseline,
+            SensitivityDriver.INFLATION,
+            "+1 pp",
+            assumptions.withInflationRate(assumptions.inflationRate().add(new BigDecimal("0.01"))),
+            assumptions.withInflationRate(
+                assumptions.inflationRate().subtract(new BigDecimal("0.01"))),
+            baselineYear));
     if (recurringSpending(assumptions).signum() > 0)
       results.add(
           result(
@@ -62,6 +73,45 @@ public class SimulationSensitivityAnalysisService {
             assumptions.withSpendingGrowthSpread(
                 assumptions.spendingGrowthSpread().subtract(HALF_PERCENTAGE_POINT)),
             baselineYear));
+    if (hasRentalIncome(profile))
+      results.add(
+          result(
+              profile,
+              assumptions,
+              baseline,
+              SensitivityDriver.RENTAL_INCOME_GROWTH,
+              "−0.5 pp",
+              assumptions.withRentalIncomeGrowthSpread(
+                  assumptions.rentalIncomeGrowthSpread().subtract(HALF_PERCENTAGE_POINT)),
+              assumptions.withRentalIncomeGrowthSpread(
+                  assumptions.rentalIncomeGrowthSpread().add(HALF_PERCENTAGE_POINT)),
+              baselineYear));
+    if (hasBondExposure(profile))
+      results.add(
+          result(
+              profile,
+              assumptions,
+              baseline,
+              SensitivityDriver.FIXED_INCOME_RETURN,
+              "−1 pp",
+              assumptions.withFixedIncomeReturnRate(
+                  assumptions.fixedIncomeReturnRate().subtract(new BigDecimal("0.01"))),
+              assumptions.withFixedIncomeReturnRate(
+                  assumptions.fixedIncomeReturnRate().add(new BigDecimal("0.01"))),
+              baselineYear));
+    if (hasEquityExposure(profile))
+      results.add(
+          result(
+              profile,
+              assumptions,
+              baseline,
+              SensitivityDriver.EQUITY_RETURN,
+              "−2 pp",
+              assumptions.withEquityReturnRate(
+                  assumptions.equityReturnRate().subtract(new BigDecimal("0.02"))),
+              assumptions.withEquityReturnRate(
+                  assumptions.equityReturnRate().add(new BigDecimal("0.02"))),
+              baselineYear));
     if (assumptions.annualPension().signum() > 0
         && assumptions.pensionStartAge() <= assumptions.endAge())
       results.add(
@@ -212,5 +262,44 @@ public class SimulationSensitivityAnalysisService {
 
   private static BigDecimal recurringSpending(SimulationAssumptions assumptions) {
     return assumptions.annualLivingExpenses().add(assumptions.annualDiscretionaryExpenses());
+  }
+
+  private static boolean hasRentalIncome(InvestmentProfile profile) {
+    return profile != null
+        && profile.currentRentalIncome() != null
+        && profile.currentRentalIncome().signum() > 0;
+  }
+
+  private static boolean hasEquityExposure(InvestmentProfile profile) {
+    return profile != null
+        && profile.allocations() != null
+        && profile.allocations().stream()
+            .anyMatch(
+                a ->
+                    a != null
+                        && a.bucket()
+                            == com.smartbox.investory.retirement.profile.EconomicBucket.EQUITY
+                        && a.isNonZero());
+  }
+
+  private static boolean hasBondExposure(InvestmentProfile profile) {
+    return profile != null
+        && ((profile.allocations() != null
+                && profile.allocations().stream()
+                    .anyMatch(
+                        a ->
+                            a != null
+                                && a.bucket()
+                                    == com.smartbox.investory.retirement.profile.EconomicBucket
+                                        .FIXED_INCOME
+                                && a.isNonZero()))
+            || (profile.longTermAssets() != null
+                && profile.longTermAssets().stream()
+                    .anyMatch(
+                        a ->
+                            a != null
+                                && a.bucket()
+                                    == com.smartbox.investory.retirement.profile.EconomicBucket
+                                        .FIXED_INCOME)));
   }
 }

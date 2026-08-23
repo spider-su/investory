@@ -15,6 +15,18 @@ public record SimulationScenarioComparison(
       Map<SimulationScenario, SimulationDecisionSummary> summaries,
       Map<SimulationScenario, SimulationDecisionSummaryMoney> displaySummaries,
       SimulationScenario selectedScenario) {
+    return from(
+        summaries,
+        displaySummaries,
+        selectedScenario,
+        selectedScenario == SimulationScenario.CUSTOM);
+  }
+
+  public static SimulationScenarioComparison from(
+      Map<SimulationScenario, SimulationDecisionSummary> summaries,
+      Map<SimulationScenario, SimulationDecisionSummaryMoney> displaySummaries,
+      SimulationScenario selectedScenario,
+      boolean customVisible) {
     Map<SimulationScenario, SimulationDecisionSummary> available =
         new EnumMap<>(SimulationScenario.class);
     available.putAll(summaries);
@@ -31,6 +43,7 @@ public record SimulationScenarioComparison(
                 SimulationScenario.CUSTOM)
             .stream()
             .filter(available::containsKey)
+            .filter(scenario -> scenario != SimulationScenario.CUSTOM || customVisible)
             .map(
                 scenario -> {
                   SimulationDecisionSummary summary = available.get(scenario);

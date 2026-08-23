@@ -1,6 +1,7 @@
 package com.smartbox.investory.retirement.simulation;
 
 public enum SensitivityDriver {
+  INFLATION("Inflation"),
   RECURRING_SPENDING("Spending"),
   SPENDING_GROWTH("Cost growth"),
   EQUITY_RETURN("Equity return"),

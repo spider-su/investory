@@ -36,7 +36,7 @@ public record SimulationScenarioSettings(
     } else if (scenario == SimulationScenario.BASE || scenario == SimulationScenario.CUSTOM) {
       settings = overlay(a, "0.0", "0.0", "0.0", "0.0", "0.0");
     } else {
-      settings = overlay(a, "-0.005", "0.005", "0.0", "0.010", "0.005");
+      settings = overlay(a, "-0.005", "0.005", "0.0", "0.010", "-0.005");
     }
     settings.validateMultiplicativeRates();
     return settings;

@@ -91,7 +91,10 @@ public class RetirementAnalysisController {
                 : "No future planning years remain after the current-year bridge.",
             displaySummaries.get(selectedScenario),
             SimulationScenarioComparison.from(
-                projection.summaries(), displaySummaries, selectedScenario),
+                projection.summaries(),
+                displaySummaries,
+                selectedScenario,
+                selectedScenario == SimulationScenario.CUSTOM && !customDeltas.isZero()),
             result.available()
                 ? presentation.displayPlanRisks(result.sensitivity(), planningDisplayCurrency)
                 : null,

@@ -77,7 +77,7 @@ class SimulationGrowthSpreadTest {
     assertThat(conservative.effectiveSpendingGrowthRate()).isEqualByComparingTo("0.040");
     assertThat(optimistic.inflationRate()).isEqualByComparingTo("0.020");
     assertThat(optimistic.effectiveRentalIncomeGrowthRate()).isEqualByComparingTo("0.035");
-    assertThat(optimistic.effectiveSpendingGrowthRate()).isEqualByComparingTo("0.045");
+    assertThat(optimistic.effectiveSpendingGrowthRate()).isEqualByComparingTo("0.035");
     assertThat(custom).isEqualTo(base);
   }
 

@@ -77,7 +77,10 @@ class SimulationSensitivityAnalysisServiceTest {
             .analyze(profile, assumptions);
 
     assertEquals(
-        List.of(SensitivityDriver.RECURRING_SPENDING, SensitivityDriver.SPENDING_GROWTH),
+        List.of(
+            SensitivityDriver.RECURRING_SPENDING,
+            SensitivityDriver.SPENDING_GROWTH,
+            SensitivityDriver.INFLATION),
         result.drivers().stream().map(SimulationSensitivityResult::driver).toList());
   }
 
