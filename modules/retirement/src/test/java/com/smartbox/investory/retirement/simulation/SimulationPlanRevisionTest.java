@@ -101,6 +101,18 @@ class SimulationPlanRevisionTest {
     assertSame(old, service.revision(1L, 7L, 11L));
   }
 
+  @Test
+  void nullEmergencyEquityWithdrawalInLegacyRevisionUsesDefault() {
+    SimulationPlanEntity plan = logicalPlan(7L);
+    plan.setCurrentRevisionId(11L);
+    SimulationPlanRevisionEntity revision = revision(11L, 1);
+    revision.setAllowEmergencyEquityWithdrawal(null);
+    when(revisions.findByIdAndSimulationPlanId(11L, 7L)).thenReturn(Optional.of(revision));
+    when(revisionEvents.findAllByRevisionIdOrderByYearAscIdAsc(11L)).thenReturn(List.of());
+
+    assertTrue(service.assumptions(plan).allowEmergencyEquityWithdrawal());
+  }
+
   private static SimulationPlanEntity logicalPlan(Long id) {
     SimulationPlanEntity plan = new SimulationPlanEntity();
     plan.setId(id);

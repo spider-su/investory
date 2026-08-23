@@ -446,7 +446,8 @@ public class SimulationPlanService {
             revision.getSafeReserveYears(),
             revision.getEquityHarvestMinimumReturnRate(),
             revision.getEquityGainHarvestRate(),
-            revision.getAllowEmergencyEquityWithdrawal(),
+            revision.getAllowEmergencyEquityWithdrawal() == null
+                || revision.getAllowEmergencyEquityWithdrawal(),
             revision.getRetirementAge(),
             revision.getAnnualEmploymentIncome(),
             revision.getAnnualPreRetirementContribution());
