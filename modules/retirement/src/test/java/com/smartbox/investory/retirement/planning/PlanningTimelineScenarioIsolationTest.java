@@ -89,8 +89,8 @@ class PlanningTimelineScenarioIsolationTest {
     assertThat(actualLive.age()).isEqualTo(expectedLive.age());
     assertThat(actualLive.current().actualValues())
         .isEqualTo(expectedLive.current().actualValues());
-    assertThat(actualLive.current().baselineValues())
-        .isEqualTo(expectedLive.current().baselineValues());
+    assertThat(actualLive.current().expectedValues())
+        .isEqualTo(expectedLive.current().expectedValues());
     assertThat(actualLive.projection()).isNull();
   }
 
