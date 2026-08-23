@@ -46,7 +46,9 @@ public class FrozenBondCashFlowProjection {
         .filter(asset -> asset.interestTreatment() == InterestTreatmentModel.CAPITALIZE)
         .map(this::firstPeriodCapitalizedReturn)
         .reduce(ZERO, BigDecimal::add);
-    return bondCapital.signum() == 0 || capitalizedReturn.signum() == 0
+    if (bondCapital.signum() == 0) return zero(fallbackBondYield);
+    if (hasFrozenBondAssets(profile) && capitalizedReturn.signum() == 0) return ZERO;
+    return capitalizedReturn.signum() == 0
         ? zero(fallbackBondYield)
         : capitalizedReturn.divide(bondCapital, 12, RoundingMode.HALF_UP);
   }
@@ -57,6 +59,12 @@ public class FrozenBondCashFlowProjection {
         .filter(asset -> asset.interestTreatment() == InterestTreatmentModel.CAPITALIZE)
         .map(this::firstPeriodCapitalizedReturn)
         .anyMatch(value -> value.signum() != 0);
+  }
+
+  /** True when the frozen source snapshot contains explicit Bond assets. */
+  public boolean hasFrozenBondAssets(InvestmentProfile profile) {
+    return profile.longTermAssets().stream()
+        .anyMatch(asset -> asset.bucket() == EconomicBucket.FIXED_INCOME);
   }
 
   private BigDecimal firstPeriodCapitalizedReturn(ProjectedLongTermAsset asset) {
