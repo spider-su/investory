@@ -107,10 +107,13 @@ class SimulationPlanRevisionTest {
     plan.setCurrentRevisionId(11L);
     SimulationPlanRevisionEntity revision = revision(11L, 1);
     revision.setAllowEmergencyEquityWithdrawal(null);
+    revision.setRetirementAge(null);
     when(revisions.findByIdAndSimulationPlanId(11L, 7L)).thenReturn(Optional.of(revision));
     when(revisionEvents.findAllByRevisionIdOrderByYearAscIdAsc(11L)).thenReturn(List.of());
 
-    assertTrue(service.assumptions(plan).allowEmergencyEquityWithdrawal());
+    SimulationAssumptions assumptions = service.assumptions(plan);
+    assertTrue(assumptions.allowEmergencyEquityWithdrawal());
+    assertEquals(revision.getCurrentAge(), assumptions.retirementAge());
   }
 
   private static SimulationPlanEntity logicalPlan(Long id) {
