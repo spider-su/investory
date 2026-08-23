@@ -1181,6 +1181,9 @@ public class XtbImportV2Service {
           continue;
         }
         columns.put(label, cell.getColumnIndex());
+        if ("Position ID".equalsIgnoreCase(label)) {
+          columns.putIfAbsent("PositionEntity ID", cell.getColumnIndex());
+        }
       }
       if (columns.keySet().containsAll(required)) {
         columns.put("__row", row.getRowNum());

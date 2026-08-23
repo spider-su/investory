@@ -32,7 +32,7 @@ jobs:
           cache: maven
 
       - name: Remove potentially corrupt Mockito cache entry
-        run: rm -f "$HOME/.m2/repository/org/mockito/mockito-core/5.23.0/mockito-core-5.23.0.jar"
+        run: rm -rf "$HOME/.m2/repository/org/mockito/mockito-core/5.23.0"
 
       - name: Run tests
         run: sh ./mvnw --batch-mode --no-transfer-progress test
@@ -54,7 +54,7 @@ jobs:
           cache: maven
 
       - name: Remove potentially corrupt Mockito cache entry
-        run: rm -f "$HOME/.m2/repository/org/mockito/mockito-core/5.23.0/mockito-core-5.23.0.jar"
+        run: rm -rf "$HOME/.m2/repository/org/mockito/mockito-core/5.23.0"
 
       - name: Run integration tests
         run: |
@@ -79,7 +79,7 @@ jobs:
           cache: maven
 
       - name: Remove potentially corrupt Mockito cache entry
-        run: rm -f "$HOME/.m2/repository/org/mockito/mockito-core/5.23.0/mockito-core-5.23.0.jar"
+        run: rm -rf "$HOME/.m2/repository/org/mockito/mockito-core/5.23.0"
 
       - name: Run offline golden gate
         run: |
