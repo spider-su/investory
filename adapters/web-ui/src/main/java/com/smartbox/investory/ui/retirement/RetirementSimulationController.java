@@ -246,6 +246,7 @@ public class RetirementSimulationController {
         planningPresentation.displayTimelineMoney(timeline, planningDisplayCurrency, projectedAssumptions);
     var yearlySummaries = RetirementYearSummaryView.from(timeline, timelineMoney);
     var cashFlow = CashFlowSectionView.from(timeline, timelineMoney, projectedAssumptions);
+    var chartData = RetirementSimulationChartView.from(timeline, timelineMoney);
     var scenarioAssumptions = ScenarioEffectiveAssumptions.forScenario(
         projection.projectedProfile(), projectedAssumptions, selectedScenario);
     model.addAttribute(
@@ -269,7 +270,8 @@ public class RetirementSimulationController {
             timelineMoney,
             yearlySummaries,
             cashFlow,
-            currentYearCloseAllowed));
+            currentYearCloseAllowed,
+            chartData));
     return "simulation";
   }
 

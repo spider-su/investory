@@ -85,12 +85,17 @@ public class RetirementSimulationService implements RetirementSimulation {
     if (policy.bondCashIncomeMode() == ProjectedIncomePolicy.IncomeMode.MANUAL) {
       return policy.manualBondCashIncome() == null ? ZERO : policy.manualBondCashIncome();
     }
-    BigDecimal projected = profile.longTermAssets().stream()
+    var fixedIncomeAssets = profile.longTermAssets().stream()
         .filter(asset -> asset.bucket() == com.smartbox.investory.retirement.profile.EconomicBucket.FIXED_INCOME)
+        .toList();
+    if (fixedIncomeAssets.isEmpty()) return zero(profile.currentBondIncome());
+    var eligibleAssets = fixedIncomeAssets.stream()
         .filter(asset -> asset.maturityDate() == null || year <= asset.maturityDate().getYear())
+        .toList();
+    if (eligibleAssets.isEmpty()) return ZERO;
+    return eligibleAssets.stream()
         .map(asset -> periodBondIncome(asset, year))
         .reduce(ZERO, BigDecimal::add);
-    return projected.signum() == 0 ? zero(profile.currentBondIncome()) : projected;
   }
 
   private static BigDecimal periodBondIncome(ProjectedLongTermAsset asset, int year) {

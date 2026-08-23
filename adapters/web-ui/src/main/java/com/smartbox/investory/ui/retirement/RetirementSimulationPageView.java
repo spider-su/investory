@@ -34,7 +34,8 @@ public record RetirementSimulationPageView(
     Map<Integer, PlanningTimelineMoney> timelineMoney,
     Map<Integer, RetirementYearSummaryView> yearlySummaries,
     CashFlowSectionView cashFlow,
-    boolean currentYearCloseAllowed) {
+    boolean currentYearCloseAllowed,
+    RetirementSimulationChartView chartData) {
   public RetirementSimulationPageView {
     timelineMoney = Map.copyOf(timelineMoney);
     yearlySummaries = Collections.unmodifiableMap(new LinkedHashMap<>(yearlySummaries));

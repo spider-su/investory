@@ -71,8 +71,11 @@ class RetirementGoldenScenarioIntegrationTest {
       assertThat(year.failed()).isEqualTo(year.unfundedAmount().signum() > 0);
       var f = year.funding();
       assertThat(f.reserveEnd()).isEqualByComparingTo(f.reserveStart()
-          .add(f.reserveTransfer()).add(f.equityHarvestToReserve()).subtract(f.reserveWithdrawal()));
-      assertThat(f.investmentEnd()).isEqualByComparingTo(f.investmentStart()
+          .subtract(f.reserveWithdrawal()));
+      assertThat(year.fixedIncomeEnd()).isEqualByComparingTo(year.fixedIncomeStart()
+          .add(f.capitalizedBondReturn()).add(f.equityHarvestToReserve())
+          .subtract(f.longTermFunding()));
+      assertThat(year.equityEnd()).isEqualByComparingTo(year.equityStart()
           .add(year.preRetirementContribution()).add(f.investmentReturn())
           .subtract(f.investmentWithdrawal()).subtract(f.equityHarvestToReserve()));
       assertThat(f.reserveEnd()).isGreaterThanOrEqualTo(BigDecimal.ZERO);
