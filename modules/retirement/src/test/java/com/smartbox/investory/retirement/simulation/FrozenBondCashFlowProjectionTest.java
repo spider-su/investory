@@ -40,6 +40,17 @@ class FrozenBondCashFlowProjectionTest {
   }
 
   @Test
+  void payOutOnlySourceDoesNotFallBackToCapitalizedPlanningYield() {
+    var asset = asset(InterestTreatmentModel.PAY_OUT, null, new BigDecimal("0.10"),
+        new BigDecimal("0.20"), null);
+    var profile = profile(asset);
+
+    assertThat(projection.hasFrozenBondAssets(profile)).isTrue();
+    assertThat(projection.hasCapitalizedBondYield(profile)).isFalse();
+    assertThat(projection.baseCapitalizedBondYield(profile, new BigDecimal("0.04"))).isZero();
+  }
+
+  @Test
   void explicitAnnualIncomeIsAlreadyNetAndIsNotTaxedAgain() {
     var asset = asset(InterestTreatmentModel.PAY_OUT, new BigDecimal("80"),
         new BigDecimal("0.10"), new BigDecimal("0.20"), null);
