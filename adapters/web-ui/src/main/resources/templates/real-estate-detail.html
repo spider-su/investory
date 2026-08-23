@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <th:block th:replace="~{fragments/theme-head :: theme}"></th:block>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title th:text="${asset.name + ' · Investory'}">Real estate · Investory</title>
+  <link href="/css/tabler.min.css" rel="stylesheet">
+  <link href="/css/main.css" rel="stylesheet">
+  <link href="/css/asset-detail.css" rel="stylesheet">
+</head>
+<body>
+<main class="container-xl py-4 iv-property-page">
+  <header class="iv-property-page__header">
+    <div>
+      <div class="iv-property-page__eyebrow">Rental property</div>
+      <h1 class="h2 mb-0" th:text="${asset.name}">Real estate</h1>
+    </div>
+    <a class="btn btn-outline-secondary" th:href="@{/long-term-assets(portfolioId=${portfolioId})}">Back</a>
+  </header>
+
+  <div class="alert alert-danger" th:if="${param.error}" th:text="${param.error}">Validation error.</div>
+
+  <form class="card mb-4" method="post" th:action="@{/long-term-assets/{id}(id=${asset.id})}">
+    <div class="card-header"><h2 class="card-title">Property details</h2></div>
+    <div class="card-body">
+      <input type="hidden" name="portfolioId" th:value="${portfolioId}">
+      <input type="hidden" name="type" value="REAL_ESTATE">
+      <input type="hidden" name="active" th:value="${asset.active}">
+      <div class="row g-3">
+        <div class="col-lg-6"><label class="form-label" for="property-name">Name</label><input id="property-name" class="form-control" name="name" th:value="${asset.name}" required></div>
+        <div class="col-sm-6 col-lg-3"><label class="form-label" for="property-currency">Currency</label><select id="property-currency" class="form-select" name="currency"><option th:each="currency : ${T(com.smartbox.investory.shared.currency.CurrencyType).values()}" th:value="${currency}" th:text="${currency}" th:selected="${currency == asset.currency}"></option></select></div>
+        <div class="col-sm-6 col-lg-3"><label class="form-label" for="property-value">Current value</label><input id="property-value" class="form-control" name="currentValue" type="number" step="0.01" min="0" th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).moneyInput(asset.currentValue)}" required></div>
+        <div class="col-sm-6 col-lg-3"><label class="form-label" for="purchase-date">Purchase date</label><input id="purchase-date" class="form-control" name="acquisitionDate" type="date" th:value="${asset.acquisitionDate}"></div>
+        <div class="col-sm-6 col-lg-3"><label class="form-label" for="annual-tax-base">Annual tax base</label><input id="annual-tax-base" class="form-control" name="taxBase" type="number" min="0" step="1" th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumberInput(asset.taxBase)}"></div>
+        <div class="col-12"><label class="form-label" for="property-notes">Notes</label><textarea id="property-notes" class="form-control" name="notes" rows="4" th:text="${asset.notes}"></textarea></div>
+      </div>
+    </div>
+    <div class="card-footer"><button class="btn btn-primary">Save property</button></div>
+  </form>
+
+  <section class="card mb-4">
+    <div class="card-header"><h2 class="card-title">Rental contracts</h2></div>
+    <div class="card-body text-secondary" th:if="${#lists.isEmpty(contracts)}">No rental contracts configured.</div>
+    <div class="iv-contract-list" th:unless="${#lists.isEmpty(contracts)}">
+      <article class="iv-contract" th:each="contract : ${contracts}">
+        <div class="iv-contract__content">
+          <dl class="iv-contract__dates">
+            <div><dt>From</dt><dd th:text="${contract.startDate}">2026-04-01</dd></div>
+            <div><dt>Expected to</dt><dd th:text="${contract.endDate ?: 'Open'}">Open</dd></div>
+            <div><dt>Terminated</dt><dd th:text="${contract.terminatedDate ?: '—'}">—</dd></div>
+          </dl>
+          <div class="iv-contract__terms" aria-label="Contract terms">
+            <span class="iv-contract-term" th:each="term : ${contract.terms}">
+              <span class="iv-contract-term__name" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).cashFlowType(term.type)}">Rent</span>
+              <strong th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(term.amount, asset.currency)}">3,700 PLN</strong>
+              <span class="iv-contract-term__frequency" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).frequency(term.frequency)}">Monthly</span>
+              <span class="badge bg-azure-lt" th:if="${term.paidByTenant}">Tenant paid</span>
+            </span>
+          </div>
+        </div>
+        <form class="iv-contract__end-form" method="post" th:action="@{/long-term-assets/{id}/rental-contracts/{contractId}/end(id=${asset.id},contractId=${contract.id})}">
+          <input type="hidden" name="portfolioId" th:value="${portfolioId}">
+          <label class="form-label" th:for="${'contract-end-' + contract.id}">End contract</label>
+          <div class="input-group input-group-sm">
+            <input class="form-control" th:id="${'contract-end-' + contract.id}" name="endDate" type="date" required>
+            <button class="btn btn-outline-primary">End</button>
+          </div>
+        </form>
+      </article>
+    </div>
+
+    <form class="card-body border-top" method="post" th:action="@{/long-term-assets/{id}/rental-contracts(id=${asset.id})}">
+      <h3 class="h4 mb-3">Add next contract</h3>
+      <input type="hidden" name="portfolioId" th:value="${portfolioId}">
+      <div class="iv-contract-form">
+        <div><label class="form-label" for="contract-start">Start</label><input id="contract-start" class="form-control" name="startDate" type="date" required></div>
+        <div><label class="form-label" for="contract-expected-end">Expected end</label><input id="contract-expected-end" class="form-control" name="endDate" type="date"></div>
+        <div><label class="form-label" for="contract-rent">Rent / month</label><input id="contract-rent" class="form-control" name="rent" type="number" min="0" step="0.01"></div>
+        <div><label class="form-label" for="contract-parking">Parking / month</label><input id="contract-parking" class="form-control" name="parkingRent" type="number" min="0" step="0.01"></div>
+        <div><label class="form-label" for="contract-admin">Admin / month</label><input id="contract-admin" class="form-control" name="administrationFee" type="number" min="0" step="0.01"></div>
+        <div><label class="form-label" for="contract-utilities">Utilities / month</label><input id="contract-utilities" class="form-control" name="utilities" type="number" min="0" step="0.01"></div>
+        <div><label class="form-label" for="contract-other-income">Other income</label><input id="contract-other-income" class="form-control" name="otherIncome" type="number" min="0" step="0.01"></div>
+        <div><label class="form-label" for="contract-other-cost">Other cost</label><input id="contract-other-cost" class="form-control" name="otherExpense" type="number" min="0" step="0.01"></div>
+        <label class="form-check iv-contract-form__check"><input class="form-check-input" name="rentalTaxPaidByTenant" value="true" type="checkbox"><span class="form-check-label">Tax paid by tenant</span></label>
+        <button class="btn btn-primary iv-contract-form__submit">Add contract</button>
+      </div>
+    </form>
+  </section>
+
+  <div class="iv-property-support-grid mb-4">
+    <form class="card" method="post" th:action="@{/long-term-assets/{id}/rental-tax-ownership(id=${asset.id})}">
+      <div class="card-body">
+        <input type="hidden" name="portfolioId" th:value="${portfolioId}">
+        <label class="form-check"><input class="form-check-input" type="checkbox" name="paidByTenant" value="true" th:checked="${asset.rentalTaxPaidByTenant}"><span class="form-check-label">Default rental tax paid by tenant</span></label>
+      </div>
+      <div class="card-footer"><button class="btn btn-outline-primary">Save tax ownership</button></div>
+    </form>
+    <div class="iv-property-metrics">
+      <div class="card"><div class="card-body"><div class="text-secondary">Monthly income</div><strong class="iv-property-metric" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(summary.realEstatePlanning.netMonthlyIncome, asset.currency)}">0.00 PLN</strong></div></div>
+      <div class="card"><div class="card-body"><div class="text-secondary">Income yield</div><strong class="iv-property-metric" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).percentage(summary.realEstatePlanning.incomeYield)}">0.0%</strong></div></div>
+    </div>
+  </div>
+
+  <details class="card mb-4">
+    <summary class="card-header iv-property-advanced-summary"><span class="card-title mb-0">Advanced planning</span></summary>
+    <div class="card-body">
+      <form class="row g-2 align-items-end" method="post" th:action="@{/long-term-assets/{id}/property-growth(id=${asset.id})}">
+        <input type="hidden" name="portfolioId" th:value="${portfolioId}">
+        <div class="col-md-4"><label class="form-label" for="growth-rate">Expected annual growth</label><div class="input-group"><input id="growth-rate" class="form-control" name="growthRatePercent" type="number" step="0.01" min="-100" max="100" th:value="${expectedPropertyGrowth == null ? '' : T(com.smartbox.investory.ui.presentation.UiPresentation).percentageInput(expectedPropertyGrowth)}"><span class="input-group-text">%</span></div></div>
+        <div class="col-md-3"><label class="form-label" for="growth-from">Effective from</label><input id="growth-from" class="form-control" name="effectiveFrom" type="date" th:value="${T(java.time.LocalDate).now()}" required></div>
+        <div class="col-md-3"><button class="btn btn-outline-primary">Save growth assumption</button></div>
+      </form>
+    </div>
+  </details>
+</main>
+</body>
+</html>

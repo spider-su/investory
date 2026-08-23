@@ -173,7 +173,7 @@ public class ReconRunner {
         try (Workbook wb = WorkbookFactory.create(new java.io.ByteArrayInputStream(bytes))) {
           Sheet sheet = wb.getSheet("Cash Operations");
           if (sheet == null) continue;
-          Long account = parseLong(readHeaderValue(sheet, "Account number"));
+          Long account = parseLong(readHeaderValue(sheet, "AccountEntity number"));
           if (account == null) continue;
           Agg agg = expected.computeIfAbsent(account, k -> Agg.empty());
           accumulate(sheet, agg);
@@ -183,7 +183,7 @@ public class ReconRunner {
   }
 
   static void parseIbkrCsv(Path csv, Map<Long, Agg> ibkr) throws Exception {
-    // Account id from the U<digits> filename; the CSV "Account" column is a name.
+    // AccountEntity id from the U<digits> filename; the CSV "AccountEntity" column is a name.
     Long account = parseLong(csv.getFileName().toString().replaceFirst("(?i)^u", "").split("\\.")[0]);
     if (account == null) return;
     Agg agg = ibkr.computeIfAbsent(account, k -> Agg.empty());
