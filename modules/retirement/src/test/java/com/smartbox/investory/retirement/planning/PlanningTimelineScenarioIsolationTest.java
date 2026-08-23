@@ -57,27 +57,41 @@ class PlanningTimelineScenarioIsolationTest {
         .thenReturn(result(SimulationScenario.BASE, "90"));
     when(simulations.simulate(any(), any(), eq(SimulationScenario.CONSERVATIVE), eq(2026)))
         .thenReturn(result(SimulationScenario.CONSERVATIVE, "70"));
+    when(simulations.simulate(any(), any(), eq(SimulationScenario.OPTIMISTIC), eq(2026)))
+        .thenReturn(result(SimulationScenario.OPTIMISTIC, "110"));
 
     PlanningTimeline base = facade.loadForwardTimeline(1L, profile, forward, SimulationScenario.BASE);
     PlanningTimeline conservative =
         facade.loadForwardTimeline(1L, profile, forward, SimulationScenario.CONSERVATIVE);
+    PlanningTimeline optimistic =
+        facade.loadForwardTimeline(1L, profile, forward, SimulationScenario.OPTIMISTIC);
 
-    PlanningTimelineYear baseHistorical = row(base, 2025);
-    PlanningTimelineYear conservativeHistorical = row(conservative, 2025);
-    assertThat(conservativeHistorical.state()).isEqualTo(baseHistorical.state());
-    assertThat(conservativeHistorical.age()).isEqualTo(baseHistorical.age());
-    assertThat(conservativeHistorical.projection()).isNull();
-
-    PlanningTimelineYear baseLive = row(base, 2026);
-    PlanningTimelineYear conservativeLive = row(conservative, 2026);
-    assertThat(conservativeLive.state()).isEqualTo(PlanningTimelineState.LIVE);
-    assertThat(conservativeLive.age()).isEqualTo(baseLive.age());
-    assertThat(conservativeLive.current().actualValues())
-        .isEqualTo(baseLive.current().actualValues());
-    assertThat(conservativeLive.projection()).isNull();
+    assertSamePastAndLiveRows(base, conservative);
+    assertSamePastAndLiveRows(base, optimistic);
 
     assertThat(row(base, 2027).projection().cashEnd()).isEqualByComparingTo("90");
     assertThat(row(conservative, 2027).projection().cashEnd()).isEqualByComparingTo("70");
+    assertThat(row(optimistic, 2027).projection().cashEnd()).isEqualByComparingTo("110");
+  }
+
+  private static void assertSamePastAndLiveRows(
+      PlanningTimeline expected, PlanningTimeline actual) {
+    PlanningTimelineYear expectedHistorical = row(expected, 2025);
+    PlanningTimelineYear actualHistorical = row(actual, 2025);
+    assertThat(actualHistorical.state()).isEqualTo(expectedHistorical.state());
+    assertThat(actualHistorical.age()).isEqualTo(expectedHistorical.age());
+    assertThat(actualHistorical.past()).isEqualTo(expectedHistorical.past());
+    assertThat(actualHistorical.projection()).isNull();
+
+    PlanningTimelineYear expectedLive = row(expected, 2026);
+    PlanningTimelineYear actualLive = row(actual, 2026);
+    assertThat(actualLive.state()).isEqualTo(PlanningTimelineState.LIVE);
+    assertThat(actualLive.age()).isEqualTo(expectedLive.age());
+    assertThat(actualLive.current().actualValues())
+        .isEqualTo(expectedLive.current().actualValues());
+    assertThat(actualLive.current().baselineValues())
+        .isEqualTo(expectedLive.current().baselineValues());
+    assertThat(actualLive.projection()).isNull();
   }
 
   private static PlanningTimelineYear row(PlanningTimeline timeline, int year) {
