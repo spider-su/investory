@@ -31,7 +31,7 @@ class RetirementFailureGoldenScenarioIntegrationTest {
 
     assertThat(result.simulationFailed()).isTrue();
     assertThat(result.failureAge()).isEqualTo(65);
-    assertThat(result.firstShortfall()).isEqualByComparingTo("100");
+    assertThat(result.firstFailureShortfall()).isEqualByComparingTo("100");
     assertThat(result.totalUnfundedAmount()).isEqualByComparingTo("600");
 
     var first = result.years().getFirst();
@@ -43,7 +43,7 @@ class RetirementFailureGoldenScenarioIntegrationTest {
     assertThat(first.funding().reserveWithdrawal()).isEqualByComparingTo("100");
     assertThat(first.funding().longTermFunding()).isEqualByComparingTo("100");
     assertThat(first.funding().investmentWithdrawal()).isEqualByComparingTo("100");
-    assertThat(first.realEstateWithdrawal()).isEqualByComparingTo("100");
+    assertThat(first.actualPortfolioWithdrawal()).isEqualByComparingTo("400");
 
     var second = result.years().get(1);
     assertThat(second.year()).isEqualTo(2027);
