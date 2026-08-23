@@ -29,6 +29,7 @@ public record RetirementSimulationPageView(
     List<SimulationScenario> availableScenarios,
     ScenarioEffectiveAssumptions scenarioAssumptions,
     SimulationDecisionSummaryMoney outlook,
+    BigDecimal annualCosts,
     BigDecimal annualLivingExpenses,
     BigDecimal annualDiscretionaryExpenses,
     BigDecimal annualPension,

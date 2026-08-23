@@ -7,6 +7,7 @@ import com.smartbox.investory.retirement.planning.PlanningTimeline;
 import com.smartbox.investory.retirement.planning.PlanningTimelineMoney;
 import com.smartbox.investory.retirement.planning.PlanningTimelineState;
 import com.smartbox.investory.retirement.planning.PlanningTimelineYear;
+import com.smartbox.investory.retirement.simulation.SimulationAssumptions;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +50,21 @@ class RetirementSimulationChartViewTest {
     assertNull(points.getFirst().income());
     assertNull(points.getFirst().gapOrSurplus());
     assertEquals(bd("100"), points.get(1).spending());
+  }
+
+  @Test
+  void exposesAuthoritativeLifecycleMarkerYears() {
+    var assumptions =
+        SimulationAssumptions.defaults(null, 41, 95, 2026)
+            .withRetirementAge(60)
+            .withPensionStartAge(67);
+
+    var chart =
+        RetirementSimulationChartView.from(
+            new PlanningTimeline(List.of()), Map.of(), assumptions);
+
+    assertEquals(2045, chart.retirementYear());
+    assertEquals(2052, chart.pensionStartYear());
   }
 
   private static PlanningTimelineMoney money(

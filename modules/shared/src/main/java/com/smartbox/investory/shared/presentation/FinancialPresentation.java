@@ -25,6 +25,23 @@ public final class FinancialPresentation {
     return number(value, 0, 0);
   }
 
+  /** Compact summary money, with stable K/M suffixes. */
+  public static String compactMoney(BigDecimal value) {
+    BigDecimal amount = value == null ? BigDecimal.ZERO : value;
+    BigDecimal absolute = amount.abs();
+    if (absolute.compareTo(BigDecimal.valueOf(1_000_000)) >= 0) {
+      return number(amount.divide(BigDecimal.valueOf(1_000_000)), 0, 2) + "M";
+    }
+    if (absolute.compareTo(BigDecimal.valueOf(1_000)) >= 0) {
+      BigDecimal thousands = amount.divide(BigDecimal.valueOf(1_000)).setScale(1, RoundingMode.HALF_UP);
+      if (thousands.abs().compareTo(BigDecimal.valueOf(1_000)) >= 0) {
+        return number(amount.divide(BigDecimal.valueOf(1_000_000)), 0, 2) + "M";
+      }
+      return number(thousands, 1, 1) + "K";
+    }
+    return number(amount, 0, 0);
+  }
+
   public static String decimal(BigDecimal value) {
     return money(value);
   }

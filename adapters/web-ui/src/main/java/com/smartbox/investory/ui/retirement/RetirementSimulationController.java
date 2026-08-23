@@ -225,6 +225,10 @@ public class RetirementSimulationController {
     var startingPosition = planningPresentation.displayProfile(profile, planningDisplayCurrency);
     BigDecimal displayAnnualExpenses =
         displayMoney(assumptions.annualLivingExpenses(), planningDisplayCurrency);
+    BigDecimal displayAnnualCosts =
+        displayMoney(
+            assumptions.annualLivingExpenses().add(assumptions.annualDiscretionaryExpenses()),
+            planningDisplayCurrency);
     BigDecimal displayDiscretionaryExpenses =
         displayMoney(assumptions.annualDiscretionaryExpenses(), planningDisplayCurrency);
     BigDecimal displayAnnualPension =
@@ -246,7 +250,7 @@ public class RetirementSimulationController {
         planningPresentation.displayTimelineMoney(timeline, planningDisplayCurrency, projectedAssumptions);
     var yearlySummaries = RetirementYearSummaryView.from(timeline, timelineMoney);
     var cashFlow = CashFlowSectionView.from(timeline, timelineMoney, projectedAssumptions);
-    var chartData = RetirementSimulationChartView.from(timeline, timelineMoney);
+    var chartData = RetirementSimulationChartView.from(timeline, timelineMoney, projectedAssumptions);
     var scenarioAssumptions = ScenarioEffectiveAssumptions.forScenario(
         projection.projectedProfile(), projectedAssumptions, selectedScenario);
     model.addAttribute(
@@ -264,6 +268,7 @@ public class RetirementSimulationController {
             List.of(SimulationScenario.values()),
             scenarioAssumptions,
             displaySummaries.get(selectedScenario),
+            displayAnnualCosts,
             displayAnnualExpenses,
             displayDiscretionaryExpenses,
             displayAnnualPension,

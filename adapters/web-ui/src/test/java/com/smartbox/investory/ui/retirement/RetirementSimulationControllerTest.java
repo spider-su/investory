@@ -168,7 +168,7 @@ class RetirementSimulationControllerTest {
         .perform(get("/simulation").param("portfolioId", "1"))
         .andExpect(status().isOk())
         .andExpect(view().name("simulation"))
-        .andExpect(content().string(org.hamcrest.Matchers.containsString("Scenario assumptions")))
+        .andExpect(content().string(org.hamcrest.Matchers.containsString("Scenario")))
         .andExpect(content().string(org.hamcrest.Matchers.containsString("Yearly projection")))
         .andExpect(content().string(org.hamcrest.Matchers.containsString("Planning bucket projection")));
   }

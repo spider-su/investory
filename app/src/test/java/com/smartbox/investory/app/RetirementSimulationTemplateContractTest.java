@@ -1,6 +1,7 @@
 package com.smartbox.investory.app;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
@@ -12,12 +13,31 @@ class RetirementSimulationTemplateContractTest {
   void simulationOwnsRawProjectionAndNotAnalysisSections() throws Exception {
     String html = Files.readString(Path.of("../adapters/web-ui/src/main/resources/templates/simulation.html"));
     assertTrue(html.contains("Scenario"));
-    assertTrue(html.contains("Retirement outcome"));
+    assertTrue(html.contains("Yearly projection"));
     assertTrue(html.contains("Historical year review"));
     assertTrue(html.contains("Needs review"));
     assertTrue(html.contains("View review"));
     assertTrue(html.contains("/simulation/timeline/past/{year}"));
     assertFalse(html.contains("Scenario comparison"));
+    assertFalse(html.contains("Scenario assumptions"));
+    assertFalse(html.contains("Core assumptions"));
+    assertFalse(html.contains("Plan inputs"));
+    assertFalse(html.contains("Planning buckets"));
+    assertTrue(html.contains("Annual costs"));
+    assertTrue(html.contains("simulationPage.annualCosts"));
+    assertTrue(html.contains("simulationPage.chartData.pensionStartYear"));
+    assertTrue(html.contains("Cash</span><b>→</b><span>Bonds</span><b>→</b><span>Equities</span><b>→</b><span>Real Estate"));
+    assertEquals(1, occurrences(html, "aria-labelledby=\"scenario-title\""));
+  }
+
+  private static int occurrences(String value, String needle) {
+    int count = 0;
+    int offset = 0;
+    while ((offset = value.indexOf(needle, offset)) >= 0) {
+      count++;
+      offset += needle.length();
+    }
+    return count;
   }
 
   @Test

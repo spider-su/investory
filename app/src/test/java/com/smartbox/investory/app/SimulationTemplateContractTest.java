@@ -17,8 +17,15 @@ class SimulationTemplateContractTest {
         () -> assertTrue(html.contains("Cash flow ·")),
         () -> assertTrue(html.contains("Incoming cash")),
         () -> assertTrue(html.contains("Funding used")),
-        () -> assertTrue(html.contains("Spending vs income")),
-        () -> assertTrue(html.contains("Bonds and equities")),
+        () -> assertTrue(html.contains("Spending &amp; income")),
+        () -> assertTrue(html.contains("Liquid capital")),
+        () -> assertTrue(html.contains("data-simulation-chart-mode=\"CASH_FLOW\"")),
+        () -> assertTrue(html.contains("data-simulation-chart-mode=\"LIQUID_CAPITAL\"")),
+        () -> assertTrue(html.contains("id=\"simulation-chart\"")),
+        () -> assertFalse(html.contains("simulation-spending-income-chart")),
+        () -> assertFalse(html.contains("simulation-liquid-capital-chart")),
+        () -> assertTrue(html.contains("retirementYear")),
+        () -> assertTrue(html.contains("pensionStartYear")),
         () -> assertTrue(html.contains("simulationPage.chartData")),
         () -> assertTrue(html.contains("chart.js@4.4.1")),
         () -> assertTrue(html.contains("compactMoney(flow.amount)")),
@@ -79,6 +86,23 @@ class SimulationTemplateContractTest {
         () -> assertTrue(html.contains("aria-selected")),
         () -> assertTrue(editor.contains("3. Income &amp; assets")),
         () -> assertTrue(editor.contains("4. Events")));
+  }
+
+  @Test
+  void simulationChartPresentationKeepsSignedGapSemanticsAndModeState() throws Exception {
+    String javascript =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/static/js/retirement-simulation.js"));
+    assertAll(
+        () -> assertTrue(javascript.contains("Math.abs(Number(value))")),
+        () -> assertTrue(javascript.contains("Funding gap")),
+        () -> assertTrue(javascript.contains("Surplus")),
+        () -> assertTrue(javascript.contains("semanticValues")),
+        () -> assertTrue(javascript.contains("investory.simulation.chartMode")),
+        () -> assertTrue(javascript.contains("retirementYear")),
+        () -> assertTrue(javascript.contains("pensionStartYear")),
+        () -> assertFalse(javascript.contains("Real Estate")),
+        () -> assertFalse(javascript.contains("Cash")));
   }
 
   @Test

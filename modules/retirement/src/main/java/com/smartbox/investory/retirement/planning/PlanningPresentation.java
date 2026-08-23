@@ -12,6 +12,10 @@ public final class PlanningPresentation {
     return FinancialPresentation.wholeNumber(value);
   }
 
+  public static String compactMoney(BigDecimal value) {
+    return FinancialPresentation.compactMoney(value);
+  }
+
   public static String percentage(BigDecimal value) {
     return FinancialPresentation.percentage(value);
   }

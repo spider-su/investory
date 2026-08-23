@@ -130,7 +130,7 @@ public record SimulationDecisionSummaryMoney(
   }
 
   public String minimumLiquidAssetsDisplay() {
-    return PlanningPresentation.wholeNumber(minimumSpendableAssets);
+    return PlanningPresentation.compactMoney(minimumSpendableAssets);
   }
 
   public String finalSpendableAssetsDisplay() {

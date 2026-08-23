@@ -8,13 +8,7 @@
 </head>
 <body>
 <main class="container-xl py-4 iv-simulation-page">
-  <header class="d-flex justify-content-between align-items-start mb-4">
-    <div><div class="text-secondary">Retirement · <span th:text="${analysisPage.activePlanName}">Current assumptions</span></div><h1>Analysis</h1><p class="text-secondary mb-0">What the completed simulation means for this plan.</p></div>
-    <nav class="btn-list" aria-label="Retirement boards">
-      <a class="btn btn-outline-primary" th:href="@{/simulation(portfolioId=${analysisPage.portfolioId},planId=${analysisPage.planId},planningDisplayCurrency=${analysisPage.displayCurrency},selectedScenario=${analysisPage.selectedScenario})}">Simulation</a>
-      <a class="btn btn-primary" aria-current="page" th:href="@{/analysis(portfolioId=${analysisPage.portfolioId},planId=${analysisPage.planId},planningDisplayCurrency=${analysisPage.displayCurrency},selectedScenario=${analysisPage.selectedScenario})}">Analysis</a>
-    </nav>
-  </header>
+  <div th:replace="~{fragments/app-header :: planningHeader('analysis', ${analysisPage.portfolioId}, 'Retirement analysis', 'Plan status', ${analysisPage.selectedSummary == null ? '—' : (analysisPage.selectedSummary.failed ? 'Plan fails' : 'Sustainable')}, ${analysisPage.selectedScenarioLabel}, 'Planning horizon', ${analysisPage.horizon}, 'age range', 'Minimum liquid assets', ${analysisPage.selectedSummary == null ? '—' : analysisPage.selectedSummary.minimumLiquidAssetsDisplay}, 'display currency', ${analysisPage.displayCurrency}, 'analysis')}"></div>
 
   <section class="card mb-4" aria-labelledby="analysis-status-title">
     <div class="card-body">

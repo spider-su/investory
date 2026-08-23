@@ -18,7 +18,12 @@ public record CashFlowSectionView(
     int year,
     List<CashFlowFlowView> income,
     List<CashFlowFlowView> funding,
-    List<CashFlowFlowView> destinations) {
+    List<CashFlowFlowView> destinations,
+    BigDecimal cashIncome,
+    BigDecimal spending,
+    BigDecimal fundingGap,
+    BigDecimal fundingSurplus,
+    BigDecimal unfunded) {
 
   public CashFlowSectionView {
     income = List.copyOf(income);
@@ -78,11 +83,25 @@ public record CashFlowSectionView(
       add(destinations, "Cash", "Surplus", incomeTotal.subtract(spending), "DESTINATION");
 
     BigDecimal scale = scale(income, funding, destinations);
+    BigDecimal fundingGap = money.fundingGap() == null
+        ? positiveDifference(spending, incomeTotal)
+        : money.fundingGap();
     return new CashFlowSectionView(
         row.year(),
         withShares(income, scale),
         withShares(funding, scale),
-        withShares(destinations, scale));
+        withShares(destinations, scale),
+        incomeTotal,
+        spending,
+        fundingGap,
+        positiveDifference(incomeTotal, spending),
+        money.unfunded());
+  }
+
+  private static BigDecimal positiveDifference(BigDecimal left, BigDecimal right) {
+    if (left == null || right == null) return null;
+    BigDecimal difference = left.subtract(right);
+    return difference.signum() > 0 ? difference : BigDecimal.ZERO;
   }
 
   private static BigDecimal eventIncome(SimulationAssumptions assumptions, int year) {
