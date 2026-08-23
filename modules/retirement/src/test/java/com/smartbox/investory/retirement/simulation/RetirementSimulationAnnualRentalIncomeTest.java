@@ -206,7 +206,9 @@ class RetirementSimulationAnnualRentalIncomeTest {
         SimulationScenario.BASE).years().getFirst();
 
     assertThat(year.bondIncome()).isZero();
-    assertThat(year.capitalizedBondReturn()).isEqualByComparingTo("80");
+    // Capitalized source yield remains observed data; projected capital uses the plan Bond return
+    // assumption (the default here is 4%), while the full 80 spending gap remains unfunded by cash.
+    assertThat(year.capitalizedBondReturn()).isEqualByComparingTo("40");
     assertThat(year.requiredPortfolioFunding()).isEqualByComparingTo("80");
   }
 

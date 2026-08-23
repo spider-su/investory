@@ -289,8 +289,7 @@ class CurrencyRateServiceTest {
     LocalDate date = LocalDate.of(2026, 8, 10);
     when(currencyRateRepository.resolveFxRatesForDate(date))
         .thenReturn(
-            List.of(
-                resolution("PLN", "USD", "0.25", "MARKET_DAILY", "NBP", "2026-08-10", "OK")));
+            List.of(resolution("PLN", "USD", "0.25", "MARKET_DAILY", "NBP", "2026-08-10", "OK")));
 
     for (int index = 0; index < 100; index++) {
       assertEquals(
@@ -329,12 +328,10 @@ class CurrencyRateServiceTest {
     LocalDate second = first.plusDays(1);
     when(currencyRateRepository.resolveFxRatesForDate(first))
         .thenReturn(
-            List.of(
-                resolution("PLN", "USD", "0.25", "MARKET_DAILY", "NBP", "2026-08-10", "OK")));
+            List.of(resolution("PLN", "USD", "0.25", "MARKET_DAILY", "NBP", "2026-08-10", "OK")));
     when(currencyRateRepository.resolveFxRatesForDate(second))
         .thenReturn(
-            List.of(
-                resolution("PLN", "USD", "0.24", "MARKET_DAILY", "NBP", "2026-08-11", "OK")));
+            List.of(resolution("PLN", "USD", "0.24", "MARKET_DAILY", "NBP", "2026-08-11", "OK")));
 
     service.resolveRate(CurrencyType.PLN, CurrencyType.USD, first);
     service.resolveRate(CurrencyType.PLN, CurrencyType.USD, second);
