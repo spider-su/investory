@@ -25,12 +25,18 @@ public class LongTermAssetController {
   private final Clock clock;
 
   @GetMapping("/long-term-assets")
-  public String list(@RequestParam(defaultValue = "1") Long portfolioId, Model model) {
+  public String list(
+      @RequestParam(defaultValue = "1") Long portfolioId,
+      @RequestParam(defaultValue = "false") boolean showArchived,
+      Model model) {
     LocalDate date = LocalDate.now(clock);
-    var groups = assets.grouped(portfolioId, date);
-    var total = assets.aggregate(portfolioId, date);
+    var page = assets.page(portfolioId, date);
+    var groups = page.groups();
+    var total = page.aggregate();
     model.addAttribute("portfolioId", portfolioId);
-    model.addAttribute("assets", assets.list(portfolioId, date));
+    model.addAttribute("assets", page.assets());
+    model.addAttribute(
+        "archivedAssets", showArchived ? assets.archived(portfolioId, date) : java.util.List.of());
     model.addAttribute("groups", groups);
     model.addAttribute("total", total);
     model.addAttribute(
@@ -108,6 +114,12 @@ public class LongTermAssetController {
     return "cash-reserve-form";
   }
 
+  @GetMapping("/long-term-assets/new/deposit")
+  public String depositForm(@RequestParam(defaultValue = "1") Long portfolioId, Model model) {
+    model.addAttribute("portfolioId", portfolioId);
+    return "deposit-form";
+  }
+
   @PostMapping("/long-term-assets/cash-reserve")
   public String saveCashReserve(
       @RequestParam Long portfolioId,
@@ -154,6 +166,34 @@ public class LongTermAssetController {
                 maturityDate,
                 InterestTreatmentModel.valueOf(interestTreatment.name()),
                 annualRatePercent,
+                notes));
+    return redirect(saved.id(), portfolioId);
+  }
+
+  @PostMapping("/long-term-assets/deposit")
+  public String createDeposit(
+      @RequestParam Long portfolioId,
+      @RequestParam String name,
+      @RequestParam CurrencyType currency,
+      @RequestParam BigDecimal value,
+      @RequestParam LocalDate acquisitionDate,
+      @RequestParam LocalDate maturityDate,
+      @RequestParam InterestTreatment interestTreatment,
+      @RequestParam BigDecimal annualInterestRate,
+      @RequestParam BigDecimal taxRate,
+      @RequestParam(required = false) String notes) {
+    var saved =
+        assets.createDeposit(
+            new LongTermAssetsApi.DepositCommand(
+                portfolioId,
+                name,
+                currency,
+                value,
+                acquisitionDate,
+                maturityDate,
+                InterestTreatmentModel.valueOf(interestTreatment.name()),
+                annualInterestRate,
+                taxRate,
                 notes));
     return redirect(saved.id(), portfolioId);
   }
@@ -208,7 +248,9 @@ public class LongTermAssetController {
       @RequestParam(required = false) BigDecimal administrationFee,
       @RequestParam(required = false) BigDecimal utilities,
       @RequestParam(required = false) BigDecimal otherIncome,
-      @RequestParam(required = false) BigDecimal otherExpense) {
+      @RequestParam(required = false) BigDecimal otherExpense,
+      @RequestParam(required = false) BigDecimal annualPropertyTax,
+      @RequestParam(required = false) BigDecimal annualInsurance) {
     assets.createRentalContract(
         new LongTermAssetsApi.RentalContractCommand(
             portfolioId,
@@ -240,6 +282,16 @@ public class LongTermAssetController {
                     CashFlowTypeModel.OTHER_EXPENSE,
                     zero(otherExpense),
                     FrequencyModel.MONTHLY,
+                    false),
+                new LongTermAssetsApi.RentalTermCommand(
+                    CashFlowTypeModel.PROPERTY_TAX,
+                    zero(annualPropertyTax),
+                    FrequencyModel.ANNUAL,
+                    false),
+                new LongTermAssetsApi.RentalTermCommand(
+                    CashFlowTypeModel.INSURANCE,
+                    zero(annualInsurance),
+                    FrequencyModel.ANNUAL,
                     false))));
     return redirect(id, portfolioId);
   }

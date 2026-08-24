@@ -34,7 +34,7 @@
       <div class="iv-kpi__actions"><a class="iv-balance-popover__trigger" th:href="${group.key == 'REAL_ESTATE' ? '#real-estate' : group.key == 'BOND' ? '#bonds' : '#cash-reserves'}">Details</a></div>
     </div>
   </section>
-  <div class="iv-long-term-assets-sections">
+  <p><a class="btn btn-sm btn-outline-secondary" th:href="@{/long-term-assets(portfolioId=${portfolioId},showArchived=true)}">Show archived assets</a></p><div class="iv-long-term-assets-sections">
   <div th:each="group : ${groups}" class="iv-planning-section iv-card card" th:id="${group.key == 'REAL_ESTATE' ? 'real-estate' : group.key == 'BOND' ? 'bonds' : group.key == 'CASH_RESERVE' ? 'cash-reserves' : 'other-assets'}">
     <div class="iv-planning-section__details-row">
     <details class="iv-planning-section__details">
@@ -69,7 +69,10 @@
       </div>
     </details>
     <div class="iv-planning-section__header-action" th:if="${group.key == 'OTHER'}">
-      <a class="btn btn-sm btn-outline-primary" th:href="@{/long-term-assets/new(portfolioId=${portfolioId})}">+ Asset</a>
+      <a class="btn btn-sm btn-outline-primary" th:href="@{/long-term-assets/new(portfolioId=${portfolioId})}">+ Other asset</a>
+      <a class="btn btn-sm btn-outline-primary" th:href="@{/long-term-assets/new/deposit(portfolioId=${portfolioId})}">+ Deposit</a>
+      <a class="btn btn-sm btn-outline-primary" th:href="@{/long-term-assets/new/bond(portfolioId=${portfolioId})}">+ Bond</a>
+      <a class="btn btn-sm btn-outline-primary" th:href="@{/long-term-assets/new/real-estate(portfolioId=${portfolioId})}">+ Real estate</a>
     </div>
     </div>
     <div class="table-responsive iv-planning-section__total" th:if="${!#lists.isEmpty(group.assets)}">
@@ -139,6 +142,7 @@
       <div class="iv-structure-popover"><strong>Asset currency</strong><div><span th:text="${total.currency}">PLN</span><span th:text="${format.wholeNumber(total.totalCurrentValue)}">0</span></div></div>
     </details>
   </section>
+<section class="iv-card card mt-4" th:if="${!#lists.isEmpty(archivedAssets)}"><div class="card-header d-flex justify-content-between"><h2 class="card-title">Archived assets</h2><a class="btn btn-sm btn-outline-secondary" th:href="@{/long-term-assets(portfolioId=${portfolioId})}">Hide</a></div><div class="table-responsive"><table class="table card-table"><tbody><tr th:each="asset : ${archivedAssets}"><td><a th:href="@{/long-term-assets/{id}(id=${asset.id},portfolioId=${portfolioId})}" th:text="${asset.name}">Archived asset</a></td><td th:text="${asset.type}">OTHER</td><td class="text-end" th:text="${format.wholeNumber(asset.currentValue)}">0</td></tr></tbody></table></div></section>
 </main>
 <div th:replace="~{fragments/app-footer :: buildFooter}"></div>
 <script>

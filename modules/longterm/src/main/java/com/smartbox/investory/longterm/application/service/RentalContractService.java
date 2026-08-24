@@ -58,7 +58,9 @@ public class RentalContractService {
       LocalDate end,
       Boolean taxPaidByTenant,
       List<RentalContractModel.Term> terms) {
-    owned(portfolioId, assetId);
+    var asset = owned(portfolioId, assetId);
+    if (asset.getType() != LongTermAssetType.REAL_ESTATE)
+      throw new IllegalArgumentException("Rental contracts apply only to real-estate assets");
     if (start == null || (end != null && end.isBefore(start)))
       throw new IllegalArgumentException("Invalid contract period");
     var all = contracts.findAllByAssetIdOrderByStartDate(assetId);

@@ -17,6 +17,8 @@ The verification gate is intentionally first: accounting/import changes should n
 
 The implemented long-term assets, deterministic retirement simulation, Reserve + Harvest policy, manual
 cash reserve, planning display currency, and Actual/Live/Projected timeline are no longer roadmap work.
+Reviewed Long-Term baselines are immutable snapshots; deposits, rental-contract rollover, archived
+asset reactivation, and subtype-specific creation are supported.
 
 | Item | Effort | Why |
 |---|---|---|

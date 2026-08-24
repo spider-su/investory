@@ -323,6 +323,26 @@ class LongTermAssetServiceTest {
   }
 
   @Test
+  void simpleBondUpdatePreservesExplicitRedemption() {
+    LongTermAssetEntity bond = asset(LongTermAssetType.BOND, "100");
+    bond.setAcquisitionDate(DATE);
+    LongTermAssetBondDetailsEntity details = new LongTermAssetBondDetailsEntity();
+    details.setAssetId(1L);
+    details.setMaturityDate(DATE.plusYears(2));
+    details.setInterestTreatment(InterestTreatment.PAY_OUT);
+    details.setTaxRate(new BigDecimal("0.19"));
+    details.setRedemptionValue(new BigDecimal("125"));
+    when(assets.findByIdAndPortfolioId(1L, 1L)).thenReturn(Optional.of(bond));
+    when(bonds.findById(1L)).thenReturn(Optional.of(details));
+    when(bondRates.findAllByAssetIdOrderByValidFrom(1L)).thenReturn(List.of());
+
+    service.saveSimpleBond(
+        1L, 1L, new BigDecimal("0.05"), DATE.plusYears(2), InterestTreatment.PAY_OUT);
+
+    assertEquals(new BigDecimal("125"), details.getRedemptionValue());
+  }
+
+  @Test
   void aggregateConvertsForeignCurrencyToPortfolioBase() {
     LongTermAssetEntity pln = asset(LongTermAssetType.OTHER, "100");
     LongTermAssetEntity usd = asset(LongTermAssetType.OTHER, "50");
@@ -639,7 +659,7 @@ class LongTermAssetServiceTest {
   }
 
   @Test
-  void compactRealEstateEntryCreatesAuthoritativePeriods() {
+  void compactRealEstateEntryDoesNotWriteLegacyCashFlows() {
     when(assets.save(any()))
         .thenAnswer(
             invocation -> {
@@ -647,7 +667,6 @@ class LongTermAssetServiceTest {
               saved.setId(9L);
               return saved;
             });
-    when(cashFlows.findAllByAssetIdOrderByValidFrom(9L)).thenReturn(List.of());
     when(valuations.findAllByAssetIdOrderByValidFrom(9L)).thenReturn(List.of());
     LongTermAssetEntity saved =
         service.saveRealEstateEntry(
@@ -669,7 +688,7 @@ class LongTermAssetServiceTest {
                 new BigDecimal("0.02"),
                 "note"));
     assertEquals(9L, saved.getId());
-    verify(cashFlows, times(6)).save(any(LongTermAssetCashFlowEntity.class));
+    verify(cashFlows, never()).save(any(LongTermAssetCashFlowEntity.class));
     verify(valuations).save(any(LongTermAssetValuationPeriodEntity.class));
   }
 

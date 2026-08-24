@@ -69,7 +69,7 @@ class RetirementBondTreatmentIntegrationTest {
                 new ProjectedLongTermAsset.Period(
                     LocalDate.of(2020, 1, 1),
                     null,
-                    BigDecimal.ZERO,
+                    new BigDecimal("80"),
                     BigDecimal.ZERO,
                     new BigDecimal("0.10"))),
             List.of(),

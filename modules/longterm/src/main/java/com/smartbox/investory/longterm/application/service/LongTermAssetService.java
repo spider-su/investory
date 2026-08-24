@@ -101,11 +101,35 @@ public class LongTermAssetService {
   }
 
   @Transactional(readOnly = true)
+  public List<LongTermAssetSummary> archived(Long portfolioId, LocalDate date) {
+    LocalDate effectiveDate = effectiveDate(date);
+    return assets.findAllByPortfolioIdOrderByName(portfolioId).stream()
+        .filter(a -> !a.isActive())
+        .map(a -> summary(a, effectiveDate))
+        .toList();
+  }
+
+  @Transactional(readOnly = true)
   public List<AssetGroupSummary> grouped(Long portfolioId, LocalDate date) {
     LocalDate effectiveDate = effectiveDate(date);
     List<LongTermAssetSummary> rows = list(portfolioId, effectiveDate);
     return groupSummaries(rows, planningCurrency, effectiveDate);
   }
+
+  @Transactional(readOnly = true)
+  public PageData page(Long portfolioId, LocalDate date) {
+    LocalDate effectiveDate = effectiveDate(date);
+    List<LongTermAssetSummary> rows = list(portfolioId, effectiveDate);
+    return new PageData(
+        rows,
+        groupSummaries(rows, planningCurrency, effectiveDate),
+        AggregateSummary.of(rows, planningCurrency, currencyRates, effectiveDate));
+  }
+
+  public record PageData(
+      List<LongTermAssetSummary> assets,
+      List<AssetGroupSummary> groups,
+      AggregateSummary aggregate) {}
 
   public List<AssetGroupSummary> groupSummaries(
       List<LongTermAssetSummary> rows, CurrencyType base, LocalDate date) {
@@ -403,7 +427,8 @@ public class LongTermAssetService {
         || policy.getRate().signum() < 0
         || policy.getRate().compareTo(BigDecimal.ONE) > 0)
       throw new IllegalArgumentException("Tax rate must be between 0 and 1");
-    for (RentalTaxPolicyEntity existing : taxPolicies.findAll())
+    for (RentalTaxPolicyEntity existing :
+        taxPolicies.findAllByPortfolioIdOrderByValidFrom(portfolioId))
       if (Objects.equals(existing.getPortfolioId(), portfolioId)
           && !Objects.equals(existing.getId(), policy.getId())
           && rangesOverlap(
@@ -509,33 +534,6 @@ public class LongTermAssetService {
     asset.setActive(true);
     save(asset);
     LocalDate from = entry.effectiveFrom();
-    upsertCashFlow(asset.getId(), CashFlowType.RENT, entry.monthlyRent(), Frequency.MONTHLY, from);
-    upsertCashFlow(
-        asset.getId(),
-        CashFlowType.PARKING_RENT,
-        entry.monthlyParkingIncome(),
-        Frequency.MONTHLY,
-        from);
-    upsertCashFlow(
-        asset.getId(),
-        CashFlowType.ADMIN_FEE,
-        entry.monthlyAdministrationCost(),
-        Frequency.MONTHLY,
-        from);
-    upsertCashFlow(
-        asset.getId(),
-        CashFlowType.OTHER_EXPENSE,
-        entry.monthlyOtherCost(),
-        Frequency.MONTHLY,
-        from);
-    upsertCashFlow(
-        asset.getId(),
-        CashFlowType.PROPERTY_TAX,
-        entry.annualPropertyTax(),
-        Frequency.ANNUAL,
-        from);
-    upsertCashFlow(
-        asset.getId(), CashFlowType.INSURANCE, entry.annualInsurance(), Frequency.ANNUAL, from);
     if (entry.expectedAnnualGrowthRate() != null) {
       validateGrowthRate(entry.expectedAnnualGrowthRate());
       saveOpenValuationPeriod(asset.getId(), from, entry.expectedAnnualGrowthRate());
@@ -564,6 +562,8 @@ public class LongTermAssetService {
       BigDecimal rate,
       LocalDate maturityDate,
       InterestTreatment treatment) {
+    if (rate == null || treatment == null)
+      throw new IllegalArgumentException("Bond terms are required");
     LongTermAssetEntity asset = owned(portfolioId, assetId);
     if (asset.getType() != LongTermAssetType.BOND)
       throw new IllegalArgumentException("AssetEntity is not a bond");
@@ -572,9 +572,23 @@ public class LongTermAssetService {
     details.setMaturityDate(maturityDate);
     details.setInterestTreatment(treatment);
     if (details.getTaxRate() == null) details.setTaxRate(BOND_TAX_RATE);
-    details.setRedemptionValue(asset.getAcquisitionValue());
+    if (details.getRedemptionValue() == null) {
+      details.setRedemptionValue(asset.getAcquisitionValue());
+    }
     saveBondDetails(portfolioId, assetId, details);
     LocalDate from = asset.getAcquisitionDate() == null ? today() : asset.getAcquisitionDate();
+    for (LongTermAssetBondRatePeriodEntity existing :
+        bondRates.findAllByAssetIdOrderByValidFrom(assetId).stream()
+            .filter(p -> p.getId() == null || !p.getValidFrom().equals(from))
+            .filter(p -> p.getValidTo() == null || !p.getValidTo().isBefore(from))
+            .toList()) {
+      if (existing.getValidFrom().isBefore(from)) {
+        existing.setValidTo(from.minusDays(1));
+        bondRates.save(existing);
+      } else {
+        bondRates.delete(existing);
+      }
+    }
     LongTermAssetBondRatePeriodEntity period =
         bondRates.findAllByAssetIdOrderByValidFrom(assetId).stream()
             .filter(p -> p.getValidFrom().equals(from))
@@ -594,6 +608,8 @@ public class LongTermAssetService {
     LongTermAssetEntity asset = owned(portfolioId, assetId);
     if (asset.getType() != LongTermAssetType.DEPOSIT)
       throw new IllegalArgumentException("AssetEntity is not a deposit");
+    if (details.getMaturityDate() == null)
+      throw new IllegalArgumentException("Deposit maturity is required");
     if (details.getMaturityDate() != null
         && asset.getAcquisitionDate() != null
         && details.getMaturityDate().isBefore(asset.getAcquisitionDate()))

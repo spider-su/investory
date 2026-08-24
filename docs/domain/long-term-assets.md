@@ -45,3 +45,19 @@ in Long-Term capital and is reported separately from cash income; it is never co
 Generic cash-flow rows remain supported for non-real-estate assets and legacy/bootstrap imports.
 Real-estate rental economics use rental contracts; the legacy rental-period projection fallback is
 compatibility-only and is not the normal persisted runtime path.
+
+Expected real-estate value growth is informational. Deterministic Retirement ignores appreciation
+and does not automatically sell property.
+
+## Creation and review invariants
+
+Generic asset creation accepts only `OTHER`. Bonds, deposits, cash reserves, and real estate use
+atomic subtype workflows; deposits require a maturity date. Rental contracts are valid only for
+`REAL_ESTATE` assets and replacement contracts retain all income and landlord-cost terms, including
+property tax and insurance. Explicit bond redemption is preserved by ordinary edits; a new bond
+uses acquisition value only when redemption was not supplied.
+
+The Long-Term profile reader returns a persistence-free normalized planning snapshot. Retirement
+uses that snapshot for the current view and stores it in a reviewed revision. Forward simulation
+never re-reads live Long-Term records, rates, taxes, contracts, or allocations. A later source edit
+therefore changes CURRENT only until the user explicitly rebaselines and reviews a new revision.

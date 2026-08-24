@@ -97,7 +97,7 @@ class RetirementSimulationAnnualRentalIncomeTest {
                 new ProjectedLongTermAsset.Period(
                     LocalDate.of(2020, 1, 1),
                     null,
-                    BigDecimal.ZERO,
+                    new BigDecimal("38880"),
                     BigDecimal.ZERO,
                     new BigDecimal("0.10"))),
             List.of(),
@@ -174,7 +174,7 @@ class RetirementSimulationAnnualRentalIncomeTest {
                 new ProjectedLongTermAsset.Period(
                     LocalDate.of(2020, 1, 1),
                     null,
-                    BigDecimal.ZERO,
+                    new BigDecimal("80"),
                     BigDecimal.ZERO,
                     new BigDecimal("0.10"))),
             List.of(),
@@ -210,7 +210,11 @@ class RetirementSimulationAnnualRentalIncomeTest {
             Liquidity.LIQUID,
             List.of(
                 new ProjectedLongTermAsset.Period(
-                    LocalDate.of(2020, 1, 1), null, null, BigDecimal.ZERO, new BigDecimal("0.10"))),
+                    LocalDate.of(2020, 1, 1),
+                    null,
+                    new BigDecimal("40"),
+                    BigDecimal.ZERO,
+                    new BigDecimal("0.10"))),
             List.of(),
             null,
             new BigDecimal("1000"),

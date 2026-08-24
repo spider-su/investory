@@ -114,23 +114,18 @@ public record PlanningBuckets(
   /** Maps the reviewed source snapshot once, with an explicit normalized future Bond yield. */
   public static PlanningBuckets fromProfileWithBondYield(
       InvestmentProfile profile, BigDecimal equityYield, BigDecimal bondYield) {
-    BigDecimal bonds = allocation(profile, EconomicBucket.FIXED_INCOME);
-    if (!hasAllocation(profile, EconomicBucket.FIXED_INCOME))
-      bonds =
-          profile.longTermAssets().stream()
-              .filter(a -> a.bucket() == EconomicBucket.FIXED_INCOME)
-              .map(a -> zeroIfNull(a.currentValue()))
-              .reduce(BigDecimal.ZERO, BigDecimal::add);
-    BigDecimal equities = allocation(profile, EconomicBucket.EQUITY);
-    if (!hasAllocation(profile, EconomicBucket.EQUITY))
-      equities = zeroIfNull(profile.investmentCapital());
-    BigDecimal realEstate = allocation(profile, EconomicBucket.REAL_ESTATE);
-    if (!hasAllocation(profile, EconomicBucket.REAL_ESTATE))
-      realEstate =
-          profile.longTermAssets().stream()
-              .filter(a -> a.bucket() == EconomicBucket.REAL_ESTATE)
-              .map(a -> zeroIfNull(a.currentValue()))
-              .reduce(BigDecimal.ZERO, BigDecimal::add);
+    // The normalized Long-Term snapshot is the source of reviewed allocation exposure. Live
+    // profile allocations are deliberately ignored here so a reviewed revision is reproducible.
+    boolean hasFrozenAssets = !profile.longTermPlanningState().assets().isEmpty();
+    BigDecimal bonds =
+        hasFrozenAssets
+            ? frozenAssetValue(profile, EconomicBucket.FIXED_INCOME)
+            : allocation(profile, EconomicBucket.FIXED_INCOME);
+    BigDecimal equities = zeroIfNull(profile.investmentCapital());
+    BigDecimal realEstate =
+        hasFrozenAssets
+            ? frozenAssetValue(profile, EconomicBucket.REAL_ESTATE)
+            : allocation(profile, EconomicBucket.REAL_ESTATE);
     return of(
         zeroIfNull(profile.retirementReserve()),
         bonds,
@@ -158,6 +153,25 @@ public record PlanningBuckets(
     return profile.allocations().stream()
         .filter(a -> a.bucket() == bucket)
         .map(a -> zeroIfNull(a.value()))
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+
+  private static BigDecimal frozenAssetValue(InvestmentProfile profile, EconomicBucket bucket) {
+    return profile.longTermPlanningState().assets().stream()
+        .filter(
+            a ->
+                (bucket == EconomicBucket.FIXED_INCOME
+                        && (a.type()
+                                == com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel
+                                    .BOND
+                            || a.type()
+                                == com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel
+                                    .DEPOSIT))
+                    || (bucket == EconomicBucket.REAL_ESTATE
+                        && a.type()
+                            == com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel
+                                .REAL_ESTATE))
+        .map(a -> zeroIfNull(a.currentValue()))
         .reduce(BigDecimal.ZERO, BigDecimal::add);
   }
 

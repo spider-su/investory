@@ -91,6 +91,39 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
   }
 
   @Override
+  public LongTermAssetsApi.PageSnapshot page(Long portfolioId, LocalDate date) {
+    var page = delegate.page(portfolioId, date);
+    return new LongTermAssetsApi.PageSnapshot(
+        page.assets().stream().map(LongTermAssetsApplicationService::summary).toList(),
+        page.groups().stream().map(LongTermAssetsApplicationService::group).toList(),
+        aggregate(page.aggregate()));
+  }
+
+  @Override
+  public List<AssetSummaryView> archived(Long portfolioId, LocalDate date) {
+    return delegate.archived(portfolioId, date).stream()
+        .map(LongTermAssetsApplicationService::summary)
+        .toList();
+  }
+
+  @Override
+  public LongTermAssetsApi.AssetView createDeposit(LongTermAssetsApi.DepositCommand command) {
+    return asset(
+        delegate.createDeposit(
+            new LongTermAssetsFacade.DepositCommand(
+                command.portfolioId(),
+                command.name(),
+                command.currency(),
+                command.value(),
+                command.acquisitionDate(),
+                command.maturityDate(),
+                interest(command.interestTreatment()),
+                command.annualInterestRate(),
+                command.taxRate(),
+                command.notes())));
+  }
+
+  @Override
   public void update(LongTermAssetsApi.AssetCommand command) {
     delegate.update(toInternal(command));
   }

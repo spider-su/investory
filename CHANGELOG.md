@@ -98,3 +98,10 @@ Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains fut
 
 - The initial documentation model used `AGENTS.md` as the canonical engineering source.
 - `CLAUDE.md` and `.github/copilot-instructions.md` were kept as thin tool-specific overlays.
+# Unreleased
+
+- Freeze normalized Long-Term economics in reviewed Retirement revisions; live asset edits now affect
+  current views only until explicit rebaseline.
+- Preserve bond redemption, reconcile rental-tax inheritance in detail views, require complete deposit
+  creation, and retain property-tax and insurance terms across rental-contract rollover.
+- Add Long-Term integrity migration `V01.022__long_term_asset_integrity.sql`.

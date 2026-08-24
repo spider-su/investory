@@ -37,6 +37,11 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
   }
 
   @Transactional(readOnly = true)
+  public List<LongTermAssetSummary> archived(Long portfolioId, LocalDate date) {
+    return service.archived(portfolioId, date);
+  }
+
+  @Transactional(readOnly = true)
   public List<LongTermAssetService.AssetGroupSummary> grouped(Long portfolioId, LocalDate date) {
     return service.grouped(portfolioId, date);
   }
@@ -84,6 +89,8 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
   }
 
   public AssetView create(AssetCommand command) {
+    if (command.type() != LongTermAssetType.OTHER)
+      throw new IllegalArgumentException("Specialized asset types require a subtype workflow");
     LongTermAssetEntity asset = toEntity(command);
     if (asset.getType() == LongTermAssetType.BOND && asset.getCurrentValue() == null)
       asset.setCurrentValue(asset.getAcquisitionValue());
@@ -125,7 +132,8 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
             null,
             true,
             command.notes());
-    AssetView saved = create(asset);
+    LongTermAssetEntity entity = toEntity(asset);
+    AssetView saved = AssetView.from(service.save(entity));
     service.saveSimpleBond(
         command.portfolioId(),
         saved.id(),
@@ -133,6 +141,36 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
         command.maturityDate(),
         command.interestTreatment());
     return saved;
+  }
+
+  @Transactional(readOnly = true)
+  public LongTermAssetService.PageData page(Long portfolioId, LocalDate date) {
+    return service.page(portfolioId, date);
+  }
+
+  public AssetView createDeposit(DepositCommand command) {
+    if (command.maturityDate() == null)
+      throw new IllegalArgumentException("Deposit maturity is required");
+    LongTermAssetEntity entity = new LongTermAssetEntity();
+    entity.setPortfolioId(command.portfolioId());
+    entity.setName(command.name());
+    entity.setType(LongTermAssetType.DEPOSIT);
+    entity.setCurrency(command.currency());
+    entity.setAcquisitionDate(command.acquisitionDate());
+    entity.setAcquisitionValue(command.value());
+    entity.setCurrentValue(command.value());
+    entity.setActive(true);
+    entity.setNotes(command.notes());
+    AssetView saved = AssetView.from(service.save(entity));
+    saveDepositDetails(
+        command.portfolioId(),
+        saved.id(),
+        new DepositDetailsCommand(
+            command.maturityDate(),
+            command.annualInterestRate(),
+            command.taxRate(),
+            command.interestTreatment()));
+    return AssetView.from(entity);
   }
 
   public AssetView update(AssetCommand command) {
@@ -343,7 +381,8 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
                 v.currentValue(),
                 v.taxBase(),
                 v.active(),
-                v.notes()));
+                v.notes(),
+                v.rentalTaxPaidByTenant()));
     a.setId(v.id());
     return a;
   }
@@ -399,6 +438,18 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
       LocalDate maturityDate,
       InterestTreatment interestTreatment,
       BigDecimal annualRatePercent,
+      String notes) {}
+
+  public record DepositCommand(
+      Long portfolioId,
+      String name,
+      CurrencyType currency,
+      BigDecimal value,
+      LocalDate acquisitionDate,
+      LocalDate maturityDate,
+      InterestTreatment interestTreatment,
+      BigDecimal annualInterestRate,
+      BigDecimal taxRate,
       String notes) {}
 
   public record CashReserveCommand(

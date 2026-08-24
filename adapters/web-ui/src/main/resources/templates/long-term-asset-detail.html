@@ -64,7 +64,7 @@
     <div class="card-header"><h2 class="card-title">Planning periods</h2></div>
     <div class="card-body text-secondary" th:if="${#lists.isEmpty(valuationPeriods)}">No planning periods configured.</div>
     <div class="table-responsive" th:unless="${#lists.isEmpty(valuationPeriods)}"><table class="table card-table iv-asset-table"><thead><tr><th>From</th><th>To</th><th>Growth rate</th></tr></thead><tbody><tr th:each="p : ${valuationPeriods}"><td th:text="${p.validFrom}">2026-01-01</td><td th:text="${p.validTo ?: 'Open'}">Open</td><td th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).percentage(p.expectedAnnualGrowthRate)}">0.0%</td></tr></tbody></table></div>
-    <form class="card-body border-top" method="post" th:action="@{/long-term-assets/{id}/valuation-periods(id=${asset.id})}">
+    <form class="card-body border-top" th:if="${asset.type.name() == 'REAL_ESTATE'}" method="post" th:action="@{/long-term-assets/{id}/valuation-periods(id=${asset.id})}">
       <input type="hidden" name="portfolioId" th:value="${portfolioId}">
       <div class="iv-asset-section-form">
         <div><label class="form-label" for="planning-from">From</label><input id="planning-from" class="form-control" name="validFrom" type="date" required></div>

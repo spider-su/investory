@@ -14,6 +14,10 @@ import java.util.List;
 public interface LongTermAssetsApi {
   List<AssetSummaryView> list(Long portfolioId, LocalDate date);
 
+  List<AssetSummaryView> archived(Long portfolioId, LocalDate date);
+
+  PageSnapshot page(Long portfolioId, LocalDate date);
+
   List<AssetGroupView> grouped(Long portfolioId, LocalDate date);
 
   AggregateView aggregate(Long portfolioId, LocalDate date);
@@ -27,6 +31,8 @@ public interface LongTermAssetsApi {
   AssetView saveCashReserve(CashReserveCommand command, LocalDate effectiveFrom);
 
   AssetView createBond(BondCommand command);
+
+  AssetView createDeposit(DepositCommand command);
 
   void update(AssetCommand command);
 
@@ -113,6 +119,18 @@ public interface LongTermAssetsApi {
       LocalDate maturityDate,
       InterestTreatmentModel interestTreatment,
       BigDecimal annualRatePercent,
+      String notes) {}
+
+  record DepositCommand(
+      Long portfolioId,
+      String name,
+      CurrencyType currency,
+      BigDecimal value,
+      LocalDate acquisitionDate,
+      LocalDate maturityDate,
+      InterestTreatmentModel interestTreatment,
+      BigDecimal annualInterestRate,
+      BigDecimal taxRate,
       String notes) {}
 
   record CashReserveCommand(
@@ -244,6 +262,9 @@ public interface LongTermAssetsApi {
       BigDecimal totalValue,
       AnnualEconomicsView annualEconomics,
       RealEstateGroupPlanningView realEstatePlanning) {}
+
+  record PageSnapshot(
+      List<AssetSummaryView> assets, List<AssetGroupView> groups, AggregateView aggregate) {}
 
   record DetailView(
       AssetView asset,

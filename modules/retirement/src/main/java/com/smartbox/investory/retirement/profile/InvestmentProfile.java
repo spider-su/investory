@@ -94,7 +94,7 @@ public record InvestmentProfile(
         longTermAssets,
         null,
         null,
-        LongTermAnnualProjectionApi.PlanningState.EMPTY,
+        legacyPlanningState(longTermAssets, null),
         liquidAssets == null ? BigDecimal.ZERO : liquidAssets,
         marketPortfolioValue
             .subtract(liquidAssets == null ? BigDecimal.ZERO : liquidAssets)
@@ -351,7 +351,7 @@ public record InvestmentProfile(
                                         new LongTermAssetProjectionModel.Period(
                                             period.validFrom(),
                                             period.validTo(),
-                                            period.annualIncome(),
+                                            legacyAnnualIncome(asset, period),
                                             period.annualExpense(),
                                             period.annualReturnRate(),
                                             period.cashFlowType(),
@@ -384,5 +384,18 @@ public record InvestmentProfile(
               BigDecimal.ZERO));
     return new LongTermAnnualProjectionApi.PlanningState(
         models, BigDecimal.ZERO, 0, LongTermAnnualProjectionApi.Source.PROJECTED);
+  }
+
+  private static BigDecimal legacyAnnualIncome(
+      ProjectedLongTermAsset asset, ProjectedLongTermAsset.Period period) {
+    if (period.annualIncome() != null
+        || (asset.type() != LongTermAssetTypeModel.BOND
+            && asset.type() != LongTermAssetTypeModel.DEPOSIT)
+        || period.annualReturnRate() == null) return period.annualIncome();
+    return asset
+        .currentValue()
+        .multiply(period.annualReturnRate())
+        .multiply(
+            BigDecimal.ONE.subtract(asset.taxRate() == null ? BigDecimal.ZERO : asset.taxRate()));
   }
 }

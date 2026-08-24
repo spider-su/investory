@@ -67,6 +67,11 @@
             <button class="btn btn-outline-primary">End</button>
           </div>
         </form>
+        <form class="iv-contract__end-form" method="post" th:action="@{/long-term-assets/{id}/rental-contracts/{contractId}/terminate(id=${asset.id},contractId=${contract.id})}">
+          <input type="hidden" name="portfolioId" th:value="${portfolioId}">
+          <label class="form-label" th:for="${'contract-terminate-' + contract.id}">Terminate now</label>
+          <div class="input-group input-group-sm"><input class="form-control" th:id="${'contract-terminate-' + contract.id}" name="terminationDate" type="date" required><button class="btn btn-outline-danger">Terminate</button></div>
+        </form>
       </article>
     </div>
 
@@ -82,6 +87,8 @@
         <div><label class="form-label" for="contract-utilities">Utilities / month</label><input id="contract-utilities" class="form-control" name="utilities" type="number" min="0" step="0.01"></div>
         <div><label class="form-label" for="contract-other-income">Other income</label><input id="contract-other-income" class="form-control" name="otherIncome" type="number" min="0" step="0.01"></div>
         <div><label class="form-label" for="contract-other-cost">Other cost</label><input id="contract-other-cost" class="form-control" name="otherExpense" type="number" min="0" step="0.01"></div>
+        <div><label class="form-label" for="contract-property-tax">Property tax / year</label><input id="contract-property-tax" class="form-control" name="annualPropertyTax" type="number" min="0" step="0.01"></div>
+        <div><label class="form-label" for="contract-insurance">Insurance / year</label><input id="contract-insurance" class="form-control" name="annualInsurance" type="number" min="0" step="0.01"></div>
         <label class="form-check iv-contract-form__check"><input class="form-check-input" name="rentalTaxPaidByTenant" value="true" type="checkbox"><span class="form-check-label">Tax paid by tenant</span></label>
         <button class="btn btn-primary iv-contract-form__submit">Add contract</button>
       </div>

@@ -18,11 +18,11 @@ class FrozenBondCashFlowProjectionTest {
   private final FrozenBondCashFlowProjection projection = new FrozenBondCashFlowProjection();
 
   @Test
-  void payOutIncomeIsTaxedAndStopsAfterMaturity() {
+  void payOutUsesNormalizedNetIncomeAndStopsAfterMaturity() {
     var asset =
         asset(
             InterestTreatmentModel.PAY_OUT,
-            null,
+            new BigDecimal("80"),
             new BigDecimal("0.10"),
             new BigDecimal("0.20"),
             LocalDate.of(2028, 12, 31));
@@ -37,7 +37,7 @@ class FrozenBondCashFlowProjectionTest {
     var asset =
         asset(
             InterestTreatmentModel.CAPITALIZE,
-            null,
+            new BigDecimal("80"),
             new BigDecimal("0.10"),
             new BigDecimal("0.20"),
             null);
@@ -71,8 +71,8 @@ class FrozenBondCashFlowProjectionTest {
         profile(
             assetWithPeriods(
                 InterestTreatmentModel.CAPITALIZE,
-                period("2024-01-01", "2026-12-31", null, "0.03"),
-                period("2027-01-01", "2030-12-31", null, "0.05")));
+                period("2024-01-01", "2026-12-31", "30", "0.03"),
+                period("2027-01-01", "2030-12-31", "50", "0.05")));
 
     assertThat(projection.baseCapitalizedBondYield(profile, new BigDecimal("0.04"), 2027))
         .isEqualByComparingTo("0.05");
@@ -86,8 +86,8 @@ class FrozenBondCashFlowProjectionTest {
         profile(
             assetWithPeriods(
                 InterestTreatmentModel.CAPITALIZE,
-                period("2027-01-01", "2030-12-31", null, "0.05"),
-                period("2024-01-01", "2026-12-31", null, "0.03")));
+                period("2027-01-01", "2030-12-31", "50", "0.05"),
+                period("2024-01-01", "2026-12-31", "30", "0.03")));
 
     assertThat(projection.baseCapitalizedBondYield(profile, new BigDecimal("0.04"), 2027))
         .isEqualByComparingTo("0.05");
@@ -116,6 +116,47 @@ class FrozenBondCashFlowProjectionTest {
             null);
 
     assertThat(projection.cashIncome(profile(asset), assumptions(), 2026))
+        .isEqualByComparingTo("80");
+  }
+
+  @Test
+  void reviewedSnapshotIgnoresLaterLiveBondEdits() {
+    var reviewed =
+        asset(
+            InterestTreatmentModel.PAY_OUT,
+            new BigDecimal("80"),
+            new BigDecimal("0.10"),
+            new BigDecimal("0.20"),
+            null);
+    var edited =
+        new ProjectedLongTermAsset(
+            reviewed.id(),
+            reviewed.name(),
+            reviewed.type(),
+            reviewed.bucket(),
+            reviewed.currency(),
+            new BigDecimal("9000"),
+            reviewed.liquidity(),
+            reviewed.periods(),
+            reviewed.rentalContracts(),
+            reviewed.maturityDate(),
+            reviewed.redemptionValue(),
+            reviewed.interestTreatment(),
+            reviewed.taxRate(),
+            reviewed.taxBase(),
+            reviewed.rentalTaxPaidByTenant());
+    var reviewedProfile = profile(reviewed);
+    var editedProfile =
+        profile(edited)
+            .withPlanningBaseline(
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                reviewed.currentValue(),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                reviewedProfile.longTermPlanningState());
+
+    assertThat(projection.cashIncome(editedProfile, assumptions(), 2026))
         .isEqualByComparingTo("80");
   }
 
