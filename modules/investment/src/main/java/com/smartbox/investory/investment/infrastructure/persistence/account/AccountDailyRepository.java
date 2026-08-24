@@ -1,5 +1,6 @@
 package com.smartbox.investory.investment.infrastructure.persistence.account;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -16,6 +17,25 @@ public interface AccountDailyRepository extends JpaRepository<AccountDailyEntity
   List<AccountDailyEntity> findAllByOrderByDateAscAccountIdAsc();
 
   List<AccountDailyEntity> findAllByAccountIdOrderByDateAsc(Long accountId);
+
+  @Query(
+      value =
+          """
+          SELECT
+              snapshot_date AS "date",
+              equity AS "endValue",
+              deposits AS contributions,
+              withdrawals AS withdrawals
+          FROM investory.v_portfolio_performance_daily
+          WHERE portfolio_id = :portfolioId
+            AND snapshot_date BETWEEN :from AND :to
+          ORDER BY snapshot_date
+          """,
+      nativeQuery = true)
+  List<PortfolioPerformanceDailyRow> findPortfolioPerformanceDaily(
+      @Param("portfolioId") Long portfolioId,
+      @Param("from") LocalDate from,
+      @Param("to") LocalDate to);
 
   @Modifying
   @Query("DELETE FROM AccountDailyEntity")
@@ -57,4 +77,15 @@ public interface AccountDailyRepository extends JpaRepository<AccountDailyEntity
   @Query(value = "SELECT investory.refresh_reconciliation_reporting_views()", nativeQuery = true)
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   Object refreshReconciliationReportingViews();
+
+  /** Base-currency, non-cash-only daily boundary from the canonical performance projection. */
+  interface PortfolioPerformanceDailyRow {
+    LocalDate getDate();
+
+    BigDecimal getEndValue();
+
+    BigDecimal getContributions();
+
+    BigDecimal getWithdrawals();
+  }
 }

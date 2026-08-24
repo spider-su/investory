@@ -56,6 +56,9 @@ Package-local `README.md` files are authoritative for the code immediately aroun
 ## Build defaults
 
 - Java 25+ and Maven.
+- In managed/cloud workspaces, always keep both Maven wrapper and dependency caches inside the
+  checkout: set `MAVEN_USER_HOME=$PWD/.m2` and add
+  `-Dmaven.repo.local=$PWD/.m2/repository` to every Maven command.
 - Common checks: `./mvnw test`, `./mvnw clean verify`, `./mvnw spotless:check`.
 - In PowerShell, use `./mvnw.cmd` and always quote Maven `-D...` properties, for example `./mvnw.cmd "-Dit.test=SystemAuditContractIT,BaselineReadinessContractIT" verify`, so shell expansion cannot drop the property.
 - Use a default 360-second command timeout for Maven builds and tests; increase it for known long integration suites.

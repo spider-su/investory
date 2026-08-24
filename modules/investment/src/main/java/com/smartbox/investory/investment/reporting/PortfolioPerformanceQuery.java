@@ -1,6 +1,5 @@
 package com.smartbox.investory.investment.reporting;
 
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceRepository;
@@ -8,8 +7,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,8 +29,14 @@ public class PortfolioPerformanceQuery {
 
   /** Returns the exact aggregate for the inclusive monthly range. */
   public PerformanceResult forMonths(YearMonth from, YearMonth to) {
+    return forPortfolioMonths(null, from, to);
+  }
+
+  /** Returns the exact aggregate for one portfolio and inclusive monthly range. */
+  public PerformanceResult forPortfolioMonths(Long portfolioId, YearMonth from, YearMonth to) {
     List<PortfolioMonthlyPerformanceEntity> rows =
         repository.findAllByOrderByMonthAscPortfolioIdAsc().stream()
+            .filter(row -> portfolioId == null || portfolioId.equals(row.getPortfolioId()))
             .filter(row -> from == null || !YearMonth.from(row.getMonth()).isBefore(from))
             .filter(row -> to == null || !YearMonth.from(row.getMonth()).isAfter(to))
             .toList();
@@ -92,7 +95,8 @@ public class PortfolioPerformanceQuery {
           result.moneyWeightedReturn(),
           PerformanceAttributionCalculator.from(result));
     }
-    List<DailyPortfolioValue> dailyValues = dailyValues(first.getFirstDate(), last.getEndDate());
+    List<DailyPortfolioValue> dailyValues =
+        dailyValues(first.getPortfolioId(), first.getFirstDate(), last.getEndDate());
     return new PerformanceResult(
         result.period(),
         result.baseCurrency(),
@@ -144,30 +148,16 @@ public class PortfolioPerformanceQuery {
             ZERO, null, ZERO, ZERO, null, ZERO, ZERO, ZERO, ZERO, true, false));
   }
 
-  private List<DailyPortfolioValue> dailyValues(LocalDate from, LocalDate to) {
-    Map<LocalDate, DailyTotals> totals = new TreeMap<>();
-    for (AccountDailyEntity row : dailyRepository.findAllByOrderByDateAscAccountIdAsc()) {
-      if (row.getDate().isBefore(from) || row.getDate().isAfter(to)) continue;
-      DailyTotals total = totals.computeIfAbsent(row.getDate(), ignored -> new DailyTotals());
-      total.endValue = total.endValue.add(nz(row.getEquityValue()));
-      total.contributions = total.contributions.add(nz(row.getDepositsValue()));
-      total.withdrawals = total.withdrawals.add(nz(row.getWithdrawalsValue()));
-    }
-    return totals.entrySet().stream()
+  private List<DailyPortfolioValue> dailyValues(Long portfolioId, LocalDate from, LocalDate to) {
+    return dailyRepository.findPortfolioPerformanceDaily(portfolioId, from, to).stream()
         .map(
-            entry ->
+            row ->
                 new DailyPortfolioValue(
-                    entry.getKey(),
-                    entry.getValue().endValue,
-                    entry.getValue().contributions,
-                    entry.getValue().withdrawals))
+                    row.getDate(),
+                    row.getEndValue(),
+                    row.getContributions(),
+                    row.getWithdrawals()))
         .toList();
-  }
-
-  private static final class DailyTotals {
-    private BigDecimal endValue = ZERO;
-    private BigDecimal contributions = ZERO;
-    private BigDecimal withdrawals = ZERO;
   }
 
   private BigDecimal sum(

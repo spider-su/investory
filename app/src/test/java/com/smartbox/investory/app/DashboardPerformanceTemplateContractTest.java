@@ -95,6 +95,10 @@ class DashboardPerformanceTemplateContractTest {
     assertTrue(html.contains("modal-reconciliation-link"));
     assertTrue(html.contains("Net external contributions: deposits less withdrawals."));
     assertTrue(html.contains("Investment result"));
+    assertTrue(html.contains("selectedPeriod.label() + ' investment result'"));
+    assertTrue(
+        html.contains(
+            "Cash-flow-neutral profit and return for the selected period, after portfolio adjustments."));
     assertTrue(html.contains("Return since KPI start"));
     assertTrue(html.contains("Annualized return"));
     assertTrue(html.contains("kpiStartDate"));
