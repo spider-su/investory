@@ -58,8 +58,7 @@ public final class RetirementBucketEngine {
     gap = gap.subtract(realEstateWithdrawal);
     BigDecimal harvest = ZERO;
     if (equityReturn.signum() > 0
-        && nz(equityReturnRate).compareTo(policy.equityHarvestThresholdRate())
-            >= 0) {
+        && nz(equityReturnRate).compareTo(policy.equityHarvestThresholdRate()) >= 0) {
       BigDecimal eligible = equityReturn.multiply(policy.equityHarvestShare());
       BigDecimal targetGap = start.bonds().targetValue().subtract(bonds).max(ZERO);
       harvest = eligible.min(targetGap).min(equities).max(ZERO);

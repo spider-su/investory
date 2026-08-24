@@ -428,7 +428,7 @@ public class PlanningCurrencyPresentationService {
                 result ->
                     result.driver().category()
                         == com.smartbox.investory.retirement.simulation.SensitivityDriverCategory
-                            .RISK)
+                            .ECONOMIC_DRIVER)
             .toList();
     var leverResults =
         analysis.drivers().stream()
@@ -436,7 +436,7 @@ public class PlanningCurrencyPresentationService {
                 result ->
                     result.driver().category()
                         == com.smartbox.investory.retirement.simulation.SensitivityDriverCategory
-                            .POLICY_LEVER)
+                            .PLANNING_LEVER)
             .toList();
     var risks =
         riskResults.stream().map(result -> displaySensitivityResult(result, display)).toList();
@@ -540,9 +540,16 @@ public class PlanningCurrencyPresentationService {
     var adverse = result.adverse().sustainability();
     String status;
     if (!result.baseline().sustainable()) {
-      int compared = result.adverse().sustainability().totalUnfundedAmount()
-          .compareTo(result.baseline().sustainability().totalUnfundedAmount());
-      status = compared > 0 ? "Worsens existing plan shortfall" : compared == 0 ? "Unchanged from Base" : "Improves Base shortfall";
+      int compared =
+          result
+              .adverse()
+              .sustainability()
+              .totalUnfundedAmount()
+              .compareTo(result.baseline().sustainability().totalUnfundedAmount());
+      status =
+          compared > 0
+              ? "Worsens existing plan shortfall"
+              : compared == 0 ? "Unchanged from Base" : "Improves Base shortfall";
     } else if (result.adverseCausesFailure()) {
       status =
           "Plan fails"
@@ -561,28 +568,50 @@ public class PlanningCurrencyPresentationService {
         reserve,
         wealth,
         status,
-        testedCell(result, result.lowerTestedValue(), result.lowerEvaluation(), display),
-        testedCell(result, result.baseTestedValue(), result.baseline(), display),
-        testedCell(result, result.higherTestedValue(), result.higherEvaluation(), display),
-        result.moreHarmfulDirection() + " is more harmful; " + result.impact().name().replace('_', ' ').toLowerCase());
+        cell(result, result.lowerTestedValue(), result.lowerEvaluation(), display),
+        cell(result, result.baseTestedValue(), result.baseline(), display),
+        cell(result, result.higherTestedValue(), result.higherEvaluation(), display),
+        result.moreHarmfulDirection().equals("Equivalent")
+            ? "Equivalent outcomes."
+            : result.moreHarmfulDirection()
+                + " is more harmful; "
+                + result.impact().name().replace('_', ' ').toLowerCase(),
+        result.moreHarmfulDirection());
   }
 
-  private String testedCell(
+  private SimulationSensitivityAnalysisMoney.Cell cell(
       com.smartbox.investory.retirement.simulation.SimulationSensitivityResult result,
       BigDecimal value,
       com.smartbox.investory.retirement.simulation.SimulationEvaluation evaluation,
       CurrencyType display) {
-    if (value == null || evaluation == null) return "—";
-    String tested = switch (result.driver()) {
-      case INFLATION, RENTAL_INCOME_GROWTH, FIXED_INCOME_RETURN, EQUITY_RETURN, SPENDING_GROWTH -> PlanningPresentation.percentage(value);
-      case RECURRING_SPENDING, PENSION -> toDisplay(value, display).stripTrailingZeros().toPlainString() + " " + display;
-      default -> value.stripTrailingZeros().toPlainString();
-    };
+    if (value == null || evaluation == null)
+      return SimulationSensitivityAnalysisMoney.Cell.unavailable("Unavailable");
+    String tested =
+        switch (result.driver()) {
+          case INFLATION,
+              RENTAL_INCOME_GROWTH,
+              FIXED_INCOME_RETURN,
+              EQUITY_RETURN,
+              SPENDING_GROWTH ->
+              PlanningPresentation.percentage(value);
+          case RECURRING_SPENDING, PENSION ->
+              toDisplay(value, display).stripTrailingZeros().toPlainString() + " " + display;
+          default -> value.stripTrailingZeros().toPlainString();
+        };
     var assessment = evaluation.sustainability();
-    String state = assessment.sustainable()
-        ? "Sustainable"
-        : "Fails in " + (assessment.firstFailureYear() == null ? "—" : assessment.firstFailureYear());
-    return tested + " · " + state + " · min liquid " + toDisplay(assessment.minimumSpendableAssets(), display).stripTrailingZeros().toPlainString();
+    String state =
+        assessment.sustainable()
+            ? "Sustainable"
+            : "Fails in "
+                + (assessment.firstFailureYear() == null ? "—" : assessment.firstFailureYear());
+    return new SimulationSensitivityAnalysisMoney.Cell(
+        tested,
+        true,
+        state,
+        assessment.firstFailureYear() == null ? "—" : assessment.firstFailureYear().toString(),
+        toDisplay(assessment.minimumSpendableAssets(), display).stripTrailingZeros().toPlainString()
+            + " "
+            + display);
   }
 
   private static String signedMoney(BigDecimal amount) {

@@ -14,13 +14,41 @@ public record SimulationSensitivityAnalysisMoney(String interpretation, List<Dri
       String reserveCoverage,
       String wealthChange,
       String status,
-      String lower,
-      String base,
-      String higher,
-      String mainEffect) {
-    public Driver(String label, String perturbation, String impact, String reserveCoverage,
-        String wealthChange, String status) {
-      this(label, perturbation, impact, reserveCoverage, wealthChange, status, "—", "—", "—", "—");
+      Cell lower,
+      Cell base,
+      Cell higher,
+      String mainEffect,
+      String moreHarmfulDirection) {
+    public Driver(
+        String label,
+        String perturbation,
+        String impact,
+        String reserveCoverage,
+        String wealthChange,
+        String status) {
+      this(
+          label,
+          perturbation,
+          impact,
+          reserveCoverage,
+          wealthChange,
+          status,
+          Cell.unavailable("Not available"),
+          Cell.unavailable("Not available"),
+          Cell.unavailable("Not available"),
+          "—",
+          "Equivalent");
+    }
+  }
+
+  public record Cell(
+      String testedValue,
+      boolean available,
+      String status,
+      String firstFailureYear,
+      String minimumLiquidAssets) {
+    public static Cell unavailable(String reason) {
+      return new Cell("—", false, reason, "—", "—");
     }
   }
 }

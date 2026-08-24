@@ -66,6 +66,19 @@ public class FrozenBondCashFlowProjection {
         .anyMatch(value -> value.signum() != 0);
   }
 
+  public boolean hasCapitalizedBondYield(InvestmentProfile profile, int firstYear, int lastYear) {
+    return profile.longTermAssets().stream()
+        .filter(asset -> asset.bucket() == EconomicBucket.FIXED_INCOME)
+        .filter(asset -> asset.interestTreatment() == InterestTreatmentModel.CAPITALIZE)
+        .anyMatch(
+            asset -> {
+              for (int year = firstYear; year <= lastYear; year++) {
+                if (activePeriodCapitalizedReturn(asset, year).signum() != 0) return true;
+              }
+              return false;
+            });
+  }
+
   /** True when the frozen source snapshot contains explicit Bond assets. */
   public boolean hasFrozenBondAssets(InvestmentProfile profile) {
     return profile.longTermAssets().stream()

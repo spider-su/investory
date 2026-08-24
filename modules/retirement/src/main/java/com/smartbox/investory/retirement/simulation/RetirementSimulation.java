@@ -19,15 +19,6 @@ public interface RetirementSimulation {
       SimulationAssumptions assumptions,
       SimulationScenario scenario,
       int baselineYear,
-      SimulationAnnualPaths annualPaths) {
-    return simulate(profile, assumptions, scenario, baselineYear);
-  }
-
-  default SimulationResult simulate(
-      InvestmentProfile profile,
-      SimulationAssumptions assumptions,
-      SimulationScenario scenario,
-      int baselineYear,
       SimulationCustomDeltas custom) {
     return simulate(profile, assumptions, scenario, baselineYear);
   }

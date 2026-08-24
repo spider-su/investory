@@ -47,35 +47,13 @@ public class RetirementSimulationService implements RetirementSimulation {
     return simulateWithCustom(profile, assumptions, scenario, baselineYear, custom);
   }
 
-  @Override
-  public SimulationResult simulate(
-      InvestmentProfile profile,
-      SimulationAssumptions assumptions,
-      SimulationScenario scenario,
-      int baselineYear,
-      SimulationAnnualPaths annualPaths) {
-    return simulateWithCustom(
-        profile, assumptions, scenario, baselineYear, SimulationCustomDeltas.zero(), annualPaths);
-  }
-
   private SimulationResult simulateWithCustom(
       InvestmentProfile profile,
       SimulationAssumptions assumptions,
       SimulationScenario scenario,
       int baselineYear,
       SimulationCustomDeltas custom) {
-    return simulateWithCustom(profile, assumptions, scenario, baselineYear, custom,
-        SimulationAnnualPaths.constantRates());
-  }
 
-  private SimulationResult simulateWithCustom(
-      InvestmentProfile profile,
-      SimulationAssumptions assumptions,
-      SimulationScenario scenario,
-      int baselineYear,
-      SimulationCustomDeltas custom,
-      SimulationAnnualPaths annualPaths) {
-    annualPaths = annualPaths == null ? SimulationAnnualPaths.constantRates() : annualPaths;
     ScenarioEffectiveAssumptions effective =
         ScenarioEffectiveAssumptions.forScenario(
             profile, assumptions, scenario, baselineYear, custom);
@@ -117,20 +95,28 @@ public class RetirementSimulationService implements RetirementSimulation {
               .reduce(ZERO, BigDecimal::add);
       BigDecimal bondIncome = bondCashFlows.cashIncome(profile, assumptions, year);
       BigDecimal cashIncome = employment.add(pension).add(eventIncome).add(rental).add(bondIncome);
-      BigDecimal annualInflation =
-          annualPaths.inflationFor(year).orElse(effective.inflationRate());
-      BigDecimal annualBondReturn =
-          annualPaths.bondReturnFor(year).orElse(effective.capitalBondReturnRate());
-      BigDecimal annualEquityReturn =
-          annualPaths.equityReturnFor(year).orElse(effective.equityReturnRate());
+      BigDecimal annualBondReturn = effective.capitalBondReturnRate();
+      BigDecimal annualEquityReturn = effective.equityReturnRate();
       PlanningBuckets annualBuckets =
           new PlanningBuckets(
               current.cash(),
-              new PlanningBucket(BucketType.BONDS, current.bonds().startValue(), annualBondReturn,
-                  current.bonds().spendingPriority(), current.bonds().targetValue(), RefillPolicy.NONE),
-              new PlanningBucket(BucketType.EQUITIES, current.equities().startValue(), annualEquityReturn,
-                  current.equities().spendingPriority(), current.equities().targetValue(), RefillPolicy.EQUITY_HARVEST),
-              current.realEstate(), current.rentalCashIncome(), current.realEstateGrowthRate());
+              new PlanningBucket(
+                  BucketType.BONDS,
+                  current.bonds().startValue(),
+                  annualBondReturn,
+                  current.bonds().spendingPriority(),
+                  current.bonds().targetValue(),
+                  RefillPolicy.NONE),
+              new PlanningBucket(
+                  BucketType.EQUITIES,
+                  current.equities().startValue(),
+                  annualEquityReturn,
+                  current.equities().spendingPriority(),
+                  current.equities().targetValue(),
+                  RefillPolicy.EQUITY_HARVEST),
+              current.realEstate(),
+              current.rentalCashIncome(),
+              current.realEstateGrowthRate());
       var result =
           engine.simulate(
               annualBuckets,
@@ -203,9 +189,8 @@ public class RetirementSimulationService implements RetirementSimulation {
                   BucketType.REAL_ESTATE, re.expectedEndValue(), ZERO, 4, ZERO, RefillPolicy.NONE),
               rental,
               current.realEstateGrowthRate());
-      rental = rental.multiply(BigDecimal.ONE.add(annualInflation.add(assumptions.rentalIncomeGrowthSpread())));
-      if (retired)
-        spending = spending.multiply(BigDecimal.ONE.add(annualInflation.add(assumptions.spendingGrowthSpread())));
+      rental = rental.multiply(BigDecimal.ONE.add(effective.rentalIncomeGrowthRate()));
+      if (retired) spending = spending.multiply(BigDecimal.ONE.add(effective.spendingGrowthRate()));
     }
     return new SimulationResult(
         scenario, failureAge != null, failureAge, firstShortfall, totalUnfunded, years);

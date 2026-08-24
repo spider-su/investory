@@ -1,7 +1,7 @@
 package com.smartbox.investory.retirement.planning;
 
-import com.smartbox.investory.retirement.simulation.DeterministicAnalysisContext;
 import com.smartbox.investory.retirement.simulation.AnalysisAvailability;
+import com.smartbox.investory.retirement.simulation.DeterministicAnalysisContext;
 import com.smartbox.investory.retirement.simulation.PlanSustainabilityAssessment;
 import com.smartbox.investory.retirement.simulation.RetirementAgeAnalysisService;
 import com.smartbox.investory.retirement.simulation.SimulationChartData;
@@ -9,9 +9,9 @@ import com.smartbox.investory.retirement.simulation.SimulationEvaluation;
 import com.smartbox.investory.retirement.simulation.SimulationScenario;
 import com.smartbox.investory.retirement.simulation.SimulationSensitivityAnalysisService;
 import com.smartbox.investory.retirement.simulation.SustainableSpendingAnalysisService;
-import org.springframework.stereotype.Service;
 import java.util.EnumMap;
 import java.util.Map;
+import org.springframework.stereotype.Service;
 
 /** Orchestrates derived retirement analysis without rebuilding the base projection pipeline. */
 @Service
@@ -55,7 +55,8 @@ public class RetirementAnalysisService {
   }
 
   /** Analysis hides the engine's zero-delta Custom compatibility result. */
-  private static Map<SimulationScenario, com.smartbox.investory.retirement.simulation.SimulationResult>
+  private static Map<
+          SimulationScenario, com.smartbox.investory.retirement.simulation.SimulationResult>
       analysisScenarios(RetirementProjectionContext projection) {
     Map<SimulationScenario, com.smartbox.investory.retirement.simulation.SimulationResult> result =
         new EnumMap<>(SimulationScenario.class);
@@ -66,19 +67,5 @@ public class RetirementAnalysisService {
       result.remove(SimulationScenario.CUSTOM);
     }
     return result;
-  }
-
-  /** Runs and measures deterministic Analysis without changing its calculation path. */
-  public AnalysisExecutionCost analyzeMeasured(RetirementProjectionContext projection) {
-    long started = System.nanoTime();
-    RetirementAnalysisResult result = analyze(projection);
-    return new AnalysisExecutionCost(
-        result,
-        System.nanoTime() - started,
-        projection.forward().forwardAssumptions().isEmpty()
-            ? 0
-            : projection.forward().forwardAssumptions().orElseThrow().endAge()
-                - projection.forward().context().asOfAge()
-                + 1);
   }
 }

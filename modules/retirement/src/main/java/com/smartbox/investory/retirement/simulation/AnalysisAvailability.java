@@ -17,20 +17,36 @@ public sealed interface AnalysisAvailability<T>
       Objects.requireNonNull(content, "Available analysis value is required");
     }
 
-    @Override public boolean available() { return true; }
+    @Override
+    public boolean available() {
+      return true;
+    }
 
-    @Override public Optional<T> value() { return Optional.of(content); }
+    @Override
+    public Optional<T> value() {
+      return Optional.of(content);
+    }
 
-    @Override public String reason() { return ""; }
+    @Override
+    public String reason() {
+      return "";
+    }
   }
 
   record Unavailable<T>(String reason) implements AnalysisAvailability<T> {
     public Unavailable {
-      if (reason == null || reason.isBlank()) throw new IllegalArgumentException("Reason is required");
+      if (reason == null || reason.isBlank())
+        throw new IllegalArgumentException("Reason is required");
     }
 
-    @Override public boolean available() { return false; }
+    @Override
+    public boolean available() {
+      return false;
+    }
 
-    @Override public Optional<T> value() { return Optional.empty(); }
+    @Override
+    public Optional<T> value() {
+      return Optional.empty();
+    }
   }
 }

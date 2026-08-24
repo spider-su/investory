@@ -57,7 +57,6 @@ class LiveYearReviewViewTest {
     assertEquals(
         assumptions.annualLivingExpenses().add(assumptions.annualDiscretionaryExpenses()),
         view.planSpending());
-    assertEquals(
-        new BigDecimal("120").subtract(view.planSpending()), view.forecastVariance());
+    assertEquals(new BigDecimal("120").subtract(view.planSpending()), view.forecastVariance());
   }
 }

@@ -23,14 +23,16 @@ class RetirementAnalysisTemplateContractTest {
     assertTrue(html.contains("analysisPage.scenarios"));
     assertTrue(html.contains("Minimum liquid assets"));
     assertTrue(html.contains("First failure"));
-    assertTrue(html.contains("Base-plan sensitivity"));
-    assertTrue(html.contains("Base / Conservative comparison"));
+    assertTrue(html.contains("Economic risks"));
+    assertTrue(html.contains("Planning levers"));
+    assertTrue(html.contains("moreHarmfulDirection"));
+    assertTrue(html.contains("analysisPage.flexibility"));
     assertTrue(html.contains("analysisPage.analysisAvailable"));
     assertTrue(html.contains("Analysis unavailable"));
     assertTrue(html.contains("No future planning years remain"));
     assertFalse(html.contains("data-analysis-tab=\"portfolio\""));
     assertFalse(html.contains("analysis-reserve"));
-    assertFalse(html.contains("Reserve coverage"));
+    assertTrue(html.contains("Final net worth"));
     assertTrue(html.contains("/js/retirement-analysis.js"));
     assertFalse(html.contains("simulation engine"));
   }

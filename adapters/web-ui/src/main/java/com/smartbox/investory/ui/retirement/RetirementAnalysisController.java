@@ -73,7 +73,8 @@ public class RetirementAnalysisController {
     var projection = projections.load(portfolioId, selectedPlanId, 40, 95, customDeltas);
     var result = analyses.analyze(projection);
     boolean customVisible = selectedScenario == SimulationScenario.CUSTOM && !customDeltas.isZero();
-    SimulationScenario displayedScenario = customVisible ? selectedScenario : SimulationScenario.BASE;
+    SimulationScenario displayedScenario =
+        customVisible ? selectedScenario : SimulationScenario.BASE;
     var displaySummaries =
         new LinkedHashMap<>(
             presentation.displaySummaries(projection.summaries(), planningDisplayCurrency));
@@ -93,16 +94,16 @@ public class RetirementAnalysisController {
                 : "No future planning years remain after the current-year bridge.",
             displaySummaries.get(displayedScenario),
             SimulationScenarioComparison.from(
-                projection.summaries(),
-                displaySummaries,
-                displayedScenario,
-                customVisible),
+                projection.summaries(), displaySummaries, displayedScenario, customVisible),
             result.available()
-                ? presentation.displayPlanRisks(result.sensitivity().value().orElseThrow(), planningDisplayCurrency)
+                ? presentation.displayPlanRisks(
+                    result.sensitivity().value().orElseThrow(), planningDisplayCurrency)
                 : null,
             result.available()
                 ? presentation.displayPlanningFlexibility(
-                    result.sustainableSpending().value().orElseThrow(), result.retirementAge().value().orElseThrow(), planningDisplayCurrency)
+                    result.sustainableSpending().value().orElseThrow(),
+                    result.retirementAge().value().orElseThrow(),
+                    planningDisplayCurrency)
                 : null,
             presentation.displayCharts(result.charts(), planningDisplayCurrency),
             result.available()

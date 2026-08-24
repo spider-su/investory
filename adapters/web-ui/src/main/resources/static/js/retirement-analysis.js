@@ -33,12 +33,27 @@
     {label: "Funding need", data: funding.map(point => point.requiredPortfolioFunding == null ? null : point.requiredPortfolioFunding), borderColor: "#206bc4", borderWidth: 3, pointRadius: 0},
     {label: "Unfunded", data: funding.map(point => point.unfundedAmount == null ? null : point.unfundedAmount), borderColor: "#ff922b", borderWidth: 3, pointRadius: 0}
   ]}, options});
-  document.querySelectorAll("[data-analysis-tab]").forEach(tab => tab.addEventListener("click", () => {
+  const selectTab = tab => {
     document.querySelectorAll("[data-analysis-tab]").forEach(item => {
       const active = item === tab;
       item.classList.toggle("active", active);
       item.setAttribute("aria-selected", active ? "true" : "false");
     });
-    document.querySelectorAll("[data-analysis-panel]").forEach(panel => panel.hidden = panel.dataset.analysisPanel !== tab.dataset.analysisTab);
-  }));
+    document.querySelectorAll("[data-analysis-panel]").forEach(panel => {
+      const active = panel.dataset.analysisPanel === tab.dataset.analysisTab;
+      panel.hidden = !active;
+      panel.setAttribute("aria-hidden", active ? "false" : "true");
+    });
+  };
+  document.querySelectorAll("[data-analysis-tab]").forEach(tab => {
+    tab.addEventListener("click", () => selectTab(tab));
+    tab.addEventListener("keydown", event => {
+      if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+        const tabs = [...document.querySelectorAll("[data-analysis-tab]")];
+        const step = event.key === "ArrowRight" ? 1 : -1;
+        tabs[(tabs.indexOf(tab) + step + tabs.length) % tabs.length].focus();
+      }
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectTab(tab); }
+    });
+  });
 })();

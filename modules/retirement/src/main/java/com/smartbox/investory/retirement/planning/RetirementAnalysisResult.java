@@ -1,8 +1,8 @@
 package com.smartbox.investory.retirement.planning;
 
+import com.smartbox.investory.retirement.simulation.AnalysisAvailability;
 import com.smartbox.investory.retirement.simulation.RetirementAgeAnalysis;
 import com.smartbox.investory.retirement.simulation.SimulationChartData;
-import com.smartbox.investory.retirement.simulation.AnalysisAvailability;
 import com.smartbox.investory.retirement.simulation.SimulationSensitivityAnalysis;
 import com.smartbox.investory.retirement.simulation.SustainableSpendingAnalysis;
 import java.util.Objects;
@@ -18,7 +18,9 @@ public record RetirementAnalysisResult(
     Objects.requireNonNull(state, "Analysis state is required");
     Objects.requireNonNull(charts, "Analysis charts are required");
     if (state == RetirementAnalysisState.AVAILABLE) {
-      if (!sustainableSpending.available() || !retirementAge.available() || !sensitivity.available())
+      if (!sustainableSpending.available()
+          || !retirementAge.available()
+          || !sensitivity.available())
         throw new IllegalArgumentException("Available Analysis requires all derived values");
     }
   }

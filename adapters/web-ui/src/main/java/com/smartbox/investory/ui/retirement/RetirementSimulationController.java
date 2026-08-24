@@ -743,8 +743,10 @@ public class RetirementSimulationController {
               .findFirst()
               .orElseThrow(() -> new IllegalArgumentException("Live planning year is unavailable"));
       var money =
-          planningPresentation.displayTimelineMoney(
-              timeline, planningDisplayCurrency, projection.projectedAssumptions()).get(year);
+          planningPresentation
+              .displayTimelineMoney(
+                  timeline, planningDisplayCurrency, projection.projectedAssumptions())
+              .get(year);
       model.addAttribute(
           "liveReview",
           new LiveYearReviewView(

@@ -7,9 +7,7 @@ public enum SensitivityDriver {
   EQUITY_RETURN("Equity return"),
   FIXED_INCOME_RETURN("Fixed-income return"),
   RENTAL_INCOME_GROWTH("Rental-income growth"),
-  SAFE_RESERVE_YEARS("Safe-reserve target"),
-  PENSION("Pension"),
-  REAL_ESTATE_RETURN("Real-estate return");
+  PENSION("Pension");
 
   private final String label;
 
@@ -23,8 +21,8 @@ public enum SensitivityDriver {
 
   public SensitivityDriverCategory category() {
     return switch (this) {
-      case RECURRING_SPENDING, SAFE_RESERVE_YEARS, PENSION -> SensitivityDriverCategory.POLICY_LEVER;
-      default -> SensitivityDriverCategory.RISK;
+      case RECURRING_SPENDING, PENSION -> SensitivityDriverCategory.PLANNING_LEVER;
+      default -> SensitivityDriverCategory.ECONOMIC_DRIVER;
     };
   }
 }

@@ -15,11 +15,7 @@ public record SimulationScenarioComparison(
       Map<SimulationScenario, SimulationDecisionSummary> summaries,
       Map<SimulationScenario, SimulationDecisionSummaryMoney> displaySummaries,
       SimulationScenario selectedScenario) {
-    return from(
-        summaries,
-        displaySummaries,
-        selectedScenario,
-        false);
+    return from(summaries, displaySummaries, selectedScenario, false);
   }
 
   public static SimulationScenarioComparison from(

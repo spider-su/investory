@@ -1,31 +1,64 @@
 # Retirement Analysis
 
-Analysis is a deterministic interpretation of one prepared forward projection. It reuses the
-frozen profile, assumptions, baseline year, and canonical Base evaluation. Calendar years come
-from `SimulationYear.year()`. With no forward horizon, derived Analysis is not calculated and the
-state is `NO_FORWARD_HORIZON`.
+Retirement Analysis is a deterministic interpretation of one prepared forward projection. The
+projection freezes the reviewed profile, projected assumptions, baseline/as-of year, and one
+canonical Base `SimulationEvaluation`. Analysis services reuse that exact Base evaluation at the
+canonical point; perturbed sensitivity points and alternative spending or retirement-age
+candidates call the canonical deterministic simulator through `SimulationEvaluationService`.
 
-Scenarios change a coherent set of assumptions. Sensitivity changes one assumption at a time while
-all other stored assumptions remain fixed. Economic results use **Lower / Base / Higher** and the
-measured result identifies the more harmful direction. Shocks are Inflation ±1 pp, Rental growth
-±0.5 pp, Bond return ±1 pp, Equity return ±2 pp, and Spending growth ±0.5 pp. Inflation changes
-`inflationRate` only; stored rental and spending spreads stay fixed.
+The simulator maps each projected age to `startYear + age - currentAge`. The same calendar years
+appear in scenario summaries, sensitivity cells, and retirement-age results. If the current-year
+bridge leaves no forward years, Analysis returns `NO_FORWARD_HORIZON`; no sensitivity,
+sustainable-spending, or retirement-age calculation runs.
 
-Drivers are omitted when ineffective: rental needs projected rental income; Equity needs projected
-Equity capital; Bond needs allocation-based fixed-income or capitalized Bond capital. Payout-only
-Bonds are excluded. Spending growth needs projected spending and Inflation needs a non-empty
-horizon. Property appreciation and `SAFE_RESERVE_YEARS` are not supported economic drivers.
+## Deterministic results
 
-Values are nominal and converted only at presentation time. Materiality thresholds are centralized
-in `SimulationSensitivityAnalysisService`: spendable-assets change ≥ 1,000, reserve-coverage
-change ≥ 0.5 years, and final-net-worth change ≥ 1% of Base final net worth.
+Scenarios change coherent assumption sets: Base, Conservative, Optimistic, and an optional Custom
+scenario. Custom is shown only when at least one custom delta is non-zero. Sensitivity is separate
+and changes exactly one driver at a time. Historical stress testing replays annual market paths,
+and Monte Carlo samples distributions; neither is part of deterministic Analysis. They are future
+Analysis wrappers and must not change the frozen Simulation contract.
 
-* `CRITICAL`: sustainable Base becomes unsustainable.
-* `HIGH`: unfunded amount increases or a recurring funding gap is introduced.
-* `MODERATE`: material reserve/liquidity deterioration while sustainable.
-* `WEALTH_ONLY`: material final-wealth deterioration without reduced sustainability or liquidity.
-* `NEGLIGIBLE`: below thresholds.
+Economic-driver shocks are:
 
-Planning levers (recurring spending, pension, retirement-age flexibility, and sustainable-spending
-result) remain separate from economic drivers. Historical stress, annual market-path replay,
-Monte Carlo, and saved-plan revision changes are outside this slice.
+| Driver | Shock |
+| --- | --- |
+| Inflation | ±1 percentage point |
+| Rental-income growth | ±0.5 percentage points |
+| Fixed-income/Bond return | ±1 percentage point |
+| Equity return | ±2 percentage points |
+| Spending growth | ±0.5 percentage points |
+
+Planning levers are separate: recurring spending ±10%, pension ±10%, sustainable spending, and
+retirement-age flexibility. They are not market risks.
+
+Rental-income and spending growth assumptions use `effective growth = inflation + stored spread`.
+Sensitivity changes only the stored spread, so inflation stays fixed; Analysis displays the
+effective rate. A stored spread must be labelled as a spread wherever it is shown.
+
+Bond-return sensitivity applies to allocation-only planning fixed income and to CAPITALIZE source
+Bonds only while an effective capital-return period affects the forward horizon. PAY_OUT-only
+source Bonds are excluded even when their principal appears in fixed-income start/end balances.
+Mixed PAY_OUT/CAPITALIZE portfolios apply only when at least one active CAPITALIZE period has
+effective capital return. Expired or inactive periods do not create applicability.
+
+Each Lower/Higher perturbation is validated independently. An invalid point is unavailable, not
+clamped; Base and the valid direction remain visible. If both directions are invalid, the driver
+is omitted or marked unavailable.
+
+The more harmful direction is selected lexicographically from actual outcomes: Base failure,
+larger total unfunded amount, earlier first failure, recurring funding-gap introduction, lower
+minimum spendable assets, lower safe-reserve coverage when applicable, and lower final net worth.
+Equal outcomes are reported as Equivalent.
+
+Impact thresholds are centralized in the Analysis service and use canonical currency, independent
+of display currency: spendable-assets deterioration ≥ 1,000 monetary units; safe-reserve coverage
+deterioration ≥ 0.5 years; final-net-worth deterioration ≥ 1% of Base final net worth. CRITICAL is
+new unsustainability; HIGH is more unfunded amount or a new recurring gap; MODERATE is material
+reserve or spendable-assets deterioration while sustainable; WEALTH_ONLY is material wealth loss
+without sustainability or liquidity deterioration; NEGLIGIBLE is below thresholds. Improvements
+are not classified as deterioration.
+
+The UI presents compact Overview, Cash Flow, Risk, and Scenarios tabs. Presentation converts
+canonical monetary values and creates structured sensitivity cells; it does not recalculate
+financial outcomes. Historical paths and Monte Carlo remain future Analysis wrappers.

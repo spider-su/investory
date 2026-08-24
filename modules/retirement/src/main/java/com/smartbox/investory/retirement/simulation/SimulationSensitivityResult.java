@@ -32,9 +32,23 @@ public record SimulationSensitivityResult(
       BigDecimal spendableAssetsDelta,
       BigDecimal finalNetWorthDelta,
       SensitivityImpact impact) {
-    this(driver, perturbationLabel, baseline, adverse, favorable, reserveCoverageDelta,
-        adverseIntroducesRecurringFundingGap, spendableAssetsDelta, finalNetWorthDelta, impact,
-        null, null, null, adverse, favorable, "Adverse");
+    this(
+        driver,
+        perturbationLabel,
+        baseline,
+        adverse,
+        favorable,
+        reserveCoverageDelta,
+        adverseIntroducesRecurringFundingGap,
+        spendableAssetsDelta,
+        finalNetWorthDelta,
+        impact,
+        null,
+        null,
+        null,
+        adverse,
+        favorable,
+        "Adverse");
   }
 
   public boolean adverseCausesFailure() {
