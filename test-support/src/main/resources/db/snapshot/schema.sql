@@ -139,6 +139,13 @@ $$;
 
 
 --
+-- Name: FUNCTION audit_finalized_import(); Type: COMMENT; Schema: investory; Owner: -
+--
+
+COMMENT ON FUNCTION investory.audit_finalized_import() IS 'Legacy trigger function retained for compatibility. No trigger invokes it; audits run after import commit through application orchestration.';
+
+
+--
 -- Name: bind_asset_price_history_source_mapping(); Type: FUNCTION; Schema: investory; Owner: -
 --
 
@@ -376,6 +383,10 @@ BEGIN
     ANALYZE investory.reporting_account_daily_cashflow_reconciliation;
     RAISE LOG 'investory refresh stage=reporting_account_daily_cashflow_reconciliation elapsed_ms=%', EXTRACT(milliseconds FROM clock_timestamp() - step_started);
     step_started := clock_timestamp();
+    REFRESH MATERIALIZED VIEW investory.reporting_account_daily_cashflow_scope;
+    ANALYZE investory.reporting_account_daily_cashflow_scope;
+    RAISE LOG 'investory refresh stage=reporting_account_daily_cashflow_scope elapsed_ms=%', EXTRACT(milliseconds FROM clock_timestamp() - step_started);
+    step_started := clock_timestamp();
     REFRESH MATERIALIZED VIEW investory.reporting_trade_settlement_reconciliation;
     ANALYZE investory.reporting_trade_settlement_reconciliation;
     RAISE LOG 'investory refresh stage=reporting_trade_settlement_reconciliation elapsed_ms=%', EXTRACT(milliseconds FROM clock_timestamp() - step_started);
@@ -396,14 +407,7 @@ BEGIN
     PERFORM investory.refresh_reconstructed_account_market_daily();
     PERFORM investory.refresh_reconstructed_cash_daily();
     PERFORM investory.refresh_account_daily_reconciliation();
-    REFRESH MATERIALIZED VIEW investory.reporting_account_monthly_profit_reconciliation;
-    ANALYZE investory.reporting_account_monthly_profit_reconciliation;
-    REFRESH MATERIALIZED VIEW investory.reporting_account_statistics_vs_daily_reconciliation;
-    ANALYZE investory.reporting_account_statistics_vs_daily_reconciliation;
-    REFRESH MATERIALIZED VIEW investory.reporting_account_daily_cashflow_reconciliation;
-    ANALYZE investory.reporting_account_daily_cashflow_reconciliation;
-    REFRESH MATERIALIZED VIEW investory.reporting_trade_settlement_reconciliation;
-    ANALYZE investory.reporting_trade_settlement_reconciliation;
+    PERFORM investory.refresh_reconciliation_reporting_views();
 END;
 $$;
 
@@ -9925,7 +9929,7 @@ CREATE TABLE investory.system_audit_runs (
 -- Name: TABLE system_audit_runs; Type: COMMENT; Schema: investory; Owner: -
 --
 
-COMMENT ON TABLE investory.system_audit_runs IS 'Persisted system-level validation result created automatically whenever an import reaches a terminal status.';
+COMMENT ON TABLE investory.system_audit_runs IS 'Persisted system-level validation result created by post-import application orchestration or explicit manual execution.';
 
 
 --
@@ -13498,10 +13502,6 @@ CREATE TRIGGER trg_asset_price_history_bind_source_mapping BEFORE INSERT OR UPDA
 -- Name: import_history trg_import_history_system_audit; Type: TRIGGER; Schema: investory; Owner: -
 --
 
-CREATE TRIGGER trg_import_history_system_audit AFTER INSERT OR UPDATE OF status ON investory.import_history FOR EACH ROW EXECUTE FUNCTION investory.audit_finalized_import();
-
-
---
 -- Name: import_source_files trg_import_source_files_immutable; Type: TRIGGER; Schema: investory; Owner: -
 --
 
