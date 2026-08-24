@@ -46,12 +46,32 @@ class LongTermAssetControllerTest {
     var command = ArgumentCaptor.forClass(LongTermAssetsApi.BondCommand.class);
     verify(assets).createBond(command.capture());
     assertEquals(new BigDecimal("150000"), command.getValue().value());
+    assertEquals(new BigDecimal("6"), command.getValue().annualRatePercent());
   }
 
   @Test
   void propertyGrowthFormIsSentAsPercentInput() {
     controller.savePropertyGrowth(7L, 1L, BigDecimal.ONE, LocalDate.of(2026, 1, 1));
     verify(assets).savePropertyGrowth(1L, 7L, BigDecimal.ONE, LocalDate.of(2026, 1, 1));
+  }
+
+  @Test
+  void bondUpdateSendsYieldToTheBondCommand() {
+    controller.updateBond(
+        7L,
+        1L,
+        "Bond",
+        CurrencyType.PLN,
+        new BigDecimal("151000"),
+        LocalDate.of(2025, 3, 1),
+        LocalDate.of(2028, 2, 28),
+        InterestTreatmentModel.PAY_OUT,
+        new BigDecimal("5.75"),
+        "updated");
+
+    var command = ArgumentCaptor.forClass(LongTermAssetsApi.BondCommand.class);
+    verify(assets).updateBond(command.capture());
+    assertEquals(new BigDecimal("5.75"), command.getValue().annualRatePercent());
   }
 
   @Test

@@ -18,6 +18,42 @@ import java.util.concurrent.atomic.AtomicReference;
 class LongTermAssetsFacadeCrudTest {
 
   @org.junit.jupiter.api.Test
+  void bondCrudPersistsYieldAsDecimalRatePeriod() {
+    var service = mock(LongTermAssetService.class);
+    var contracts = mock(RentalContractService.class);
+    var stored = new LongTermAssetEntity();
+    stored.setId(8L);
+    stored.setPortfolioId(1L);
+    stored.setType(LongTermAssetType.BOND);
+    stored.setName("Bond");
+    stored.setCurrency(CurrencyType.PLN);
+    stored.setCurrentValue(new BigDecimal("150000"));
+    when(service.save(any(LongTermAssetEntity.class))).thenReturn(stored);
+
+    var facade = new LongTermAssetsFacade(service, contracts);
+    facade.createBond(
+        new LongTermAssetsFacade.BondCommand(
+            1L,
+            null,
+            "Bond",
+            CurrencyType.PLN,
+            new BigDecimal("150000"),
+            LocalDate.of(2025, 1, 1),
+            LocalDate.of(2028, 1, 1),
+            com.smartbox.investory.longterm.infrastructure.InterestTreatment.CAPITALIZE,
+            new BigDecimal("6.25"),
+            null));
+
+    verify(service)
+        .saveSimpleBond(
+            1L,
+            8L,
+            new BigDecimal("0.0625"),
+            LocalDate.of(2028, 1, 1),
+            com.smartbox.investory.longterm.infrastructure.InterestTreatment.CAPITALIZE);
+  }
+
+  @org.junit.jupiter.api.Test
   void genericWorkflowSupportsOnlyOtherAssets() {
     LongTermAssetType type = LongTermAssetType.OTHER;
     var service = mock(LongTermAssetService.class);
