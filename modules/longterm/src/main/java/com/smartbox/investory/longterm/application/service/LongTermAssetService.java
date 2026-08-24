@@ -740,8 +740,6 @@ public class LongTermAssetService {
         tax = BigDecimal.ZERO,
         rate = BigDecimal.ZERO;
     LocalDate maturity = null;
-    List<LongTermAssetCashFlowEntity> flows =
-        a.getType() == LongTermAssetType.REAL_ESTATE ? List.of() : rentalAwareFlows(a.getId());
     RealEstatePlanningSummary realEstatePlanning = null;
     BondPlanningSummary bondPlanning = null;
     LocalDate rentEnd = null;
@@ -851,17 +849,6 @@ public class LongTermAssetService {
         realEstatePlanning,
         bondPlanning,
         rentEnd);
-  }
-
-  private static LocalDate currentRentEnd(List<LongTermAssetCashFlowEntity> flows, LocalDate date) {
-    return flows.stream()
-        .filter(flow -> flow.getType() == CashFlowType.RENT)
-        .filter(flow -> LongTermAssetCalculator.applies(flow, date))
-        .max(
-            Comparator.comparing(LongTermAssetCashFlowEntity::getValidFrom)
-                .thenComparing(flow -> Optional.ofNullable(flow.getId()).orElse(Long.MAX_VALUE)))
-        .map(LongTermAssetCashFlowEntity::getValidTo)
-        .orElse(null);
   }
 
   @Transactional(readOnly = true)
