@@ -72,6 +72,25 @@ class RealEstateRentalContractTemplateContractTest {
             ".iv-property-page { overflow-x: hidden; }");
   }
 
+  @Test
+  void contractFormFieldsAreSafeWhenFormModelIsMissing() throws Exception {
+    String html = Files.readString(TEMPLATE);
+
+    assertThat(html)
+        .contains(
+            "th:value=\"${form?.tenantName}\"",
+            "th:value=\"${form?.tenantEmail}\"",
+            "th:value=\"${form?.tenantPhone}\"",
+            "form?.rentFrequency?.name()",
+            "form?.rentalTaxOwnership == null")
+        .doesNotContain(
+            "${form.tenantName}",
+            "${form.tenantEmail}",
+            "${form.tenantPhone}",
+            "${form.rentFrequency.name()}",
+            "${form.rentalTaxOwnership");
+  }
+
   private static int occurrences(String value, String token) {
     int count = 0;
     for (int index = 0; (index = value.indexOf(token, index)) >= 0; index += token.length())
