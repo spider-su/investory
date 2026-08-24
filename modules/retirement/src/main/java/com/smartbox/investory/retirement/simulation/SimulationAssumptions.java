@@ -753,10 +753,13 @@ public record SimulationAssumptions(
   /** Rebase the temporal boundary without changing economic assumptions. */
   public SimulationAssumptions rebasedTo(
       int rebasedCurrentAge, int rebasedStartYear, List<SimulationEvent> remainingEvents) {
+    int elapsedRetiredYears = Math.max(0, rebasedCurrentAge - Math.max(currentAge, retirementAge));
+    BigDecimal accumulatedSpendingFactor =
+        BigDecimal.ONE.add(effectiveSpendingGrowthRate()).pow(elapsedRetiredYears);
     return new SimulationAssumptions(
         rebasedCurrentAge,
         endAge,
-        annualLivingExpenses,
+        annualLivingExpenses.multiply(accumulatedSpendingFactor),
         inflationRate,
         cashReturnRate,
         fixedIncomeReturnRate,
@@ -767,7 +770,7 @@ public record SimulationAssumptions(
         annualPension,
         capitalGainTaxRate,
         rebasedStartYear,
-        annualDiscretionaryExpenses,
+        annualDiscretionaryExpenses.multiply(accumulatedSpendingFactor),
         remainingEvents,
         rentalIncomeGrowthSpread,
         spendingGrowthSpread,

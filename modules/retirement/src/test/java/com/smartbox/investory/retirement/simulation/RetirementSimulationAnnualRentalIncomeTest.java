@@ -18,6 +18,25 @@ import org.junit.jupiter.api.Test;
 class RetirementSimulationAnnualRentalIncomeTest {
 
   @Test
+  void manualRentalIncomeReplacesTheFrozenSourceValue() {
+    var service = new RetirementSimulationService();
+    var profile = profile(BigDecimal.ZERO, List.of(), new BigDecimal("100"));
+    var assumptions =
+        SimulationAssumptions.defaults(profile, 65, 65, 2026)
+            .withProjectedIncomePolicy(
+                new ProjectedIncomePolicy(
+                    ProjectedIncomePolicy.IncomeMode.MANUAL,
+                    new BigDecimal("250"),
+                    ProjectedIncomePolicy.IncomeMode.SOURCE,
+                    null));
+
+    var year = service.simulate(profile, assumptions, SimulationScenario.BASE).years().getFirst();
+
+    assertThat(year.rentalIncome()).isEqualByComparingTo("250");
+    assertThat(year.totalIncome()).isEqualByComparingTo("250");
+  }
+
+  @Test
   void firstProjectedYearAdvancesCurrentRentalBaseline() {
     var service = new RetirementSimulationService();
     var profile = profile(BigDecimal.ZERO, List.of(), new BigDecimal("174803.62"));

@@ -144,4 +144,37 @@ class PlanEditorInputNormalizerTest {
     assertEquals(
         BigDecimal.ZERO, normalized.assumptions().expenseProfile().steps().getFirst().factor());
   }
+
+  @Test
+  void requiresAndPreservesManualProjectedIncomeValues() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            normalizer.normalize(
+                PlanEditorInput.from(Map.of("rentalIncomeMode", "MANUAL")),
+                base,
+                CurrencyType.USD));
+
+    var normalized =
+        normalizer.normalize(
+            PlanEditorInput.from(
+                Map.of(
+                    "rentalIncomeMode",
+                    "MANUAL",
+                    "manualRentalIncome",
+                    "120000",
+                    "bondCashIncomeMode",
+                    "MANUAL",
+                    "manualBondCashIncome",
+                    "24000")),
+            base,
+            CurrencyType.USD);
+
+    assertEquals(
+        new BigDecimal("120000"),
+        normalized.assumptions().projectedIncomePolicy().manualRentalIncome());
+    assertEquals(
+        new BigDecimal("24000"),
+        normalized.assumptions().projectedIncomePolicy().manualBondCashIncome());
+  }
 }

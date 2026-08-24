@@ -125,6 +125,7 @@ public final class PlanEditorInputNormalizer {
                 "manualBondCashIncome",
                 displayCurrency,
                 base.projectedIncomePolicy().manualBondCashIncome()));
+    validateManualIncome(incomePolicy);
     return new Normalized(
         assumptions.withProjectedIncomePolicy(incomePolicy),
         warnings(
@@ -143,6 +144,17 @@ public final class PlanEditorInputNormalizer {
     if (value == null || value.isBlank()) return fallback;
     return ProjectedIncomePolicy.IncomeMode.valueOf(
         value.trim().toUpperCase(java.util.Locale.ROOT));
+  }
+
+  private static void validateManualIncome(ProjectedIncomePolicy policy) {
+    if (policy.rentalIncomeMode() == ProjectedIncomePolicy.IncomeMode.MANUAL
+        && policy.manualRentalIncome() == null) {
+      throw new IllegalArgumentException("Manual rental cash income is required");
+    }
+    if (policy.bondCashIncomeMode() == ProjectedIncomePolicy.IncomeMode.MANUAL
+        && policy.manualBondCashIncome() == null) {
+      throw new IllegalArgumentException("Manual bond cash income is required");
+    }
   }
 
   private List<PlanInputWarning> warnings(

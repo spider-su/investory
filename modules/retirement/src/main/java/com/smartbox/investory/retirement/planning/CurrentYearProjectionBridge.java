@@ -68,41 +68,18 @@ public class CurrentYearProjectionBridge {
     }
     int year = context.asOfYear();
     BigDecimal fraction = remainingYearFraction(year);
+    SimulationAssumptions currentYearAssumptions =
+        assumptions.rebasedTo(context.asOfAge(), year, context.currentYearEvents());
     SimulationYear projected =
-        simulations
-            .simulate(profile, assumptions, SimulationScenario.BASE, context.asOfYear())
-            .years()
-            .stream()
-            .filter(candidate -> candidate.year() == year)
-            .findFirst()
-            .orElse(null);
-    if (projected == null)
-      return result(
-          context,
-          profile,
-          fraction,
-          ZERO,
-          ZERO,
-          ZERO,
-          ZERO,
-          ZERO,
-          ZERO,
-          ZERO,
-          null,
-          currentBoundaries(profile));
-    BigDecimal spending = projected.totalExpenses().multiply(fraction);
-    BigDecimal passive = projected.passiveIncome().multiply(fraction);
-    BigDecimal pension = projected.pensionIncome().multiply(fraction);
-    BigDecimal income = passive.add(pension).add(projected.employmentIncome().multiply(fraction));
-    BigDecimal funding =
-        spending
-            .subtract(income)
-            .add(projected.eventExpenses())
-            .subtract(projected.eventIncome())
-            .max(ZERO);
-    BigDecimal contribution = projected.preRetirementContribution().multiply(fraction);
+        simulations.simulateRemainingYear(
+            profile, currentYearAssumptions, SimulationScenario.BASE, context.asOfYear(), fraction);
+    BigDecimal spending = projected.totalExpenses().subtract(projected.eventExpenses());
+    BigDecimal passive = projected.passiveIncome();
+    BigDecimal pension = projected.pensionIncome();
+    BigDecimal funding = projected.requiredPortfolioFunding();
+    BigDecimal contribution = projected.preRetirementContribution();
     Map<BucketType, CurrentYearBridgeResult.BucketBoundary> boundaries =
-        projectedBoundaries(projected, fraction);
+        projectedBoundaries(projected);
     InvestmentProfile bridgedProfile = rebaseSpendableState(profile, boundaries);
     return result(
         context,
@@ -113,7 +90,7 @@ public class CurrentYearProjectionBridge {
         funding,
         passive,
         pension,
-        projected.rentalIncome().add(projected.bondIncome()).multiply(fraction),
+        projected.rentalIncome().add(projected.bondIncome()),
         ZERO,
         projected.equityGain(),
         boundaries);
@@ -206,30 +183,21 @@ public class CurrentYearProjectionBridge {
   }
 
   private static Map<BucketType, CurrentYearBridgeResult.BucketBoundary> projectedBoundaries(
-      SimulationYear projected, BigDecimal fraction) {
+      SimulationYear projected) {
     EnumMap<BucketType, CurrentYearBridgeResult.BucketBoundary> result =
         new EnumMap<>(BucketType.class);
-    result.put(BucketType.CASH, boundary(projected.cashStart(), projected.cashEnd(), fraction));
+    result.put(BucketType.CASH, boundary(projected.cashStart(), projected.cashEnd()));
     result.put(
-        BucketType.BONDS,
-        boundary(projected.fixedIncomeStart(), projected.fixedIncomeEnd(), fraction));
+        BucketType.BONDS, boundary(projected.fixedIncomeStart(), projected.fixedIncomeEnd()));
+    result.put(BucketType.EQUITIES, boundary(projected.equityStart(), projected.equityEnd()));
     result.put(
-        BucketType.EQUITIES, boundary(projected.equityStart(), projected.equityEnd(), fraction));
-    result.put(
-        BucketType.REAL_ESTATE,
-        boundary(projected.realEstateStart(), projected.realEstateEnd(), fraction));
+        BucketType.REAL_ESTATE, boundary(projected.realEstateStart(), projected.realEstateEnd()));
     return result;
   }
 
-  private static CurrentYearBridgeResult.BucketBoundary boundary(
-      BigDecimal start, BigDecimal end, BigDecimal fraction) {
+  private static CurrentYearBridgeResult.BucketBoundary boundary(BigDecimal start, BigDecimal end) {
     BigDecimal actualStart = zero(start);
-    return new CurrentYearBridgeResult.BucketBoundary(
-        actualStart, interpolate(actualStart, end, fraction));
-  }
-
-  private static BigDecimal interpolate(BigDecimal start, BigDecimal end, BigDecimal fraction) {
-    return start.add(zero(end).subtract(start).multiply(fraction));
+    return new CurrentYearBridgeResult.BucketBoundary(actualStart, zero(end));
   }
 
   private static BigDecimal zero(BigDecimal value) {

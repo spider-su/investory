@@ -99,9 +99,16 @@ class RetirementSimulationLifecycleE2ETest {
             "3. Income",
             "4. Events",
             "5. Reserve &amp; funding",
+            "manual-rental-income",
+            "manual-bond-cash-income",
             "Total annual spending",
             "Save");
-    assertThat(editor).doesNotContain("new Date()", "T(java.math.BigDecimal)");
+    assertThat(editor)
+        .doesNotContain(
+            "new Date()",
+            "T(java.math.BigDecimal)",
+            "name=\"manualRentalIncome\" type=\"hidden\"",
+            "name=\"manualBondCashIncome\" type=\"hidden\"");
   }
 
   private static String readTemplate(String name) throws Exception {

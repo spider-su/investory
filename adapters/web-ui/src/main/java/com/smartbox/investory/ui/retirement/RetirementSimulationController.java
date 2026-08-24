@@ -220,7 +220,8 @@ public class RetirementSimulationController {
             base.annualEmploymentIncome(),
             base.annualPreRetirementContribution(),
             fundingOrder == null ? base.fundingOrder() : parseFundingOrder(fundingOrder),
-            base.expenseProfile());
+            base.expenseProfile(),
+            base.projectedIncomePolicy());
     CustomScenarioInput customInput =
         CustomScenarioInput.parse(
             customInflationDelta,
@@ -603,7 +604,8 @@ public class RetirementSimulationController {
             displayCurrency,
             base.annualPreRetirementContribution()),
         base.fundingOrder(),
-        base.expenseProfile());
+        base.expenseProfile(),
+        base.projectedIncomePolicy());
   }
 
   private BigDecimal money(
@@ -1238,7 +1240,17 @@ public class RetirementSimulationController {
                 planningPresentation.fromDisplay(
                     annualPreRetirementContribution, planningDisplayCurrency, BigDecimal.ZERO))
             .withFundingOrder(parseFundingOrder(fundingOrder))
-            .withExpenseProfile(ExpenseProfile.EMPTY);
+            .withExpenseProfile(ExpenseProfile.EMPTY)
+            .withProjectedIncomePolicy(
+                new ProjectedIncomePolicy(
+                    ProjectedIncomePolicy.IncomeMode.valueOf(
+                        rentalIncomeMode.trim().toUpperCase(java.util.Locale.ROOT)),
+                    planningPresentation.fromDisplay(
+                        manualRentalIncome, planningDisplayCurrency, null),
+                    ProjectedIncomePolicy.IncomeMode.valueOf(
+                        bondCashIncomeMode.trim().toUpperCase(java.util.Locale.ROOT)),
+                    planningPresentation.fromDisplay(
+                        manualBondCashIncome, planningDisplayCurrency, null)));
     SimulationAssumptions a =
         monthlyLivingCosts == null && annualExpenses != null
             ? legacyAssumptions.withExpenseProfile(parseExpenseProfile(expenseProfile))

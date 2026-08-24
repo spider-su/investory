@@ -14,6 +14,7 @@ import com.smartbox.investory.retirement.simulation.ForwardSimulationContextFact
 import com.smartbox.investory.retirement.simulation.PlanningBuckets;
 import com.smartbox.investory.retirement.simulation.RetirementBucketEngine;
 import com.smartbox.investory.retirement.simulation.RetirementSimulation;
+import com.smartbox.investory.retirement.simulation.RetirementSimulationService;
 import com.smartbox.investory.retirement.simulation.SimulationAssumptions;
 import com.smartbox.investory.retirement.simulation.SimulationResult;
 import com.smartbox.investory.retirement.simulation.SimulationScenario;
@@ -88,33 +89,13 @@ class CurrentYearProjectionBridgeTest {
             result(BucketType.REAL_ESTATE, "400", "390"),
             BigDecimal.ZERO,
             BigDecimal.ZERO);
-    SimulationYear priorYear =
-        SimulationYear.bucket(
-            39,
-            2025,
-            false,
-            bd("0"),
-            bd("0"),
-            bd("0"),
-            bd("0"),
-            bd("0"),
-            bd("0"),
-            bd("0"),
-            result(BucketType.CASH, "900", "900"),
-            result(BucketType.BONDS, "800", "800"),
-            result(BucketType.EQUITIES, "700", "700"),
-            result(BucketType.REAL_ESTATE, "600", "600"),
-            BigDecimal.ZERO,
-            BigDecimal.ZERO);
-    when(simulations.simulate(eq(profile), eq(assumptions), eq(SimulationScenario.BASE), eq(2026)))
-        .thenReturn(
-            new SimulationResult(
-                SimulationScenario.BASE,
-                false,
-                null,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                List.of(priorYear, currentYear)));
+    when(simulations.simulateRemainingYear(
+            eq(profile),
+            eq(assumptions),
+            eq(SimulationScenario.BASE),
+            eq(2026),
+            org.mockito.ArgumentMatchers.any()))
+        .thenReturn(currentYear);
 
     CurrentYearProjectionBridge bridge =
         new CurrentYearProjectionBridge(
@@ -130,6 +111,27 @@ class CurrentYearProjectionBridgeTest {
           .isEqualByComparingTo(firstProjected.asMap().get(bucket).startValue());
     }
     assertThat(result.expectedEnd(BucketType.CASH)).isLessThan(result.start(BucketType.CASH));
+  }
+
+  @Test
+  void remainingYearRunsTheCashFirstWaterfallInsteadOfInterpolatingEveryBucket() {
+    Clock clock = Clock.fixed(Instant.parse("2024-07-01T00:00:00Z"), ZoneOffset.UTC);
+    InvestmentProfile profile = waterfallProfile();
+    SimulationAssumptions assumptions =
+        SimulationAssumptions.defaults(profile, 65, 66, 2024)
+            .withRecurringSpending(bd("150"))
+            .withFixedIncomeReturnRate(BigDecimal.ZERO)
+            .withEquityReturnRate(BigDecimal.ZERO);
+    CurrentYearProjectionBridge bridge =
+        new CurrentYearProjectionBridge(clock, new RetirementSimulationService());
+
+    var result =
+        bridge.projectCurrentYearEnd(
+            new ForwardSimulationContextFactory(clock).create(profile, assumptions));
+
+    assertThat(result.fractionApplied()).isEqualByComparingTo("0.5");
+    assertThat(result.expectedEnd(BucketType.CASH)).isEqualByComparingTo("25");
+    assertThat(result.expectedEnd(BucketType.BONDS)).isEqualByComparingTo("100");
   }
 
   private static CurrentYearProjectionBridge bridge(String instant) {
@@ -164,6 +166,26 @@ class CurrentYearProjectionBridgeTest {
                 EconomicBucket.EQUITY, bd("300"), BigDecimal.ZERO, Liquidity.LIQUID),
             new ProfileAllocation(
                 EconomicBucket.REAL_ESTATE, bd("400"), BigDecimal.ZERO, Liquidity.ILLIQUID)),
+        List.of());
+  }
+
+  private static InvestmentProfile waterfallProfile() {
+    return new InvestmentProfile(
+        1L,
+        CurrencyType.USD,
+        bd("100"),
+        bd("100"),
+        bd("200"),
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        bd("100"),
+        BigDecimal.ZERO,
+        List.of(
+            new ProfileAllocation(
+                EconomicBucket.LIQUID_CASH, bd("100"), BigDecimal.ZERO, Liquidity.LIQUID),
+            new ProfileAllocation(
+                EconomicBucket.FIXED_INCOME, bd("100"), BigDecimal.ZERO, Liquidity.LIQUID)),
         List.of());
   }
 

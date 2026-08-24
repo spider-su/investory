@@ -619,7 +619,8 @@ public class PlanningTimelineFacade {
         assumptions.annualEmploymentIncome(),
         assumptions.annualPreRetirementContribution(),
         assumptions.fundingOrder(),
-        assumptions.expenseProfile().rebasedAt(offset));
+        assumptions.expenseProfile().rebasedAt(offset),
+        assumptions.projectedIncomePolicy());
   }
 
   private Map<PlanningMetric, PlanningMetricValue> deriveHistoricalMarket(

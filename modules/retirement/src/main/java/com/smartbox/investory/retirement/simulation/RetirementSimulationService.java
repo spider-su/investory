@@ -44,7 +44,32 @@ public class RetirementSimulationService implements RetirementSimulation {
       SimulationScenario scenario,
       int baselineYear,
       SimulationCustomDeltas custom) {
-    return simulateWithCustom(profile, assumptions, scenario, baselineYear, custom);
+    return simulateWithCustom(
+        profile, assumptions, scenario, baselineYear, custom, BigDecimal.ONE, false);
+  }
+
+  @Override
+  public SimulationYear simulateRemainingYear(
+      InvestmentProfile profile,
+      SimulationAssumptions assumptions,
+      SimulationScenario scenario,
+      int baselineYear,
+      BigDecimal recurringFraction) {
+    if (recurringFraction == null
+        || recurringFraction.signum() < 0
+        || recurringFraction.compareTo(BigDecimal.ONE) > 0) {
+      throw new IllegalArgumentException("Recurring fraction must be between 0 and 1");
+    }
+    return simulateWithCustom(
+            profile,
+            assumptions,
+            scenario,
+            baselineYear,
+            SimulationCustomDeltas.zero(),
+            recurringFraction,
+            true)
+        .years()
+        .getFirst();
   }
 
   private SimulationResult simulateWithCustom(
@@ -52,7 +77,9 @@ public class RetirementSimulationService implements RetirementSimulation {
       SimulationAssumptions assumptions,
       SimulationScenario scenario,
       int baselineYear,
-      SimulationCustomDeltas custom) {
+      SimulationCustomDeltas custom,
+      BigDecimal firstYearRecurringFraction,
+      boolean firstYearOnly) {
 
     ScenarioEffectiveAssumptions effective =
         ScenarioEffectiveAssumptions.forScenario(
@@ -69,20 +96,32 @@ public class RetirementSimulationService implements RetirementSimulation {
     // Profile rental income is the frozen baseline for the explicit baseline year supplied by
     // the forward context. The simulator itself does not resolve calendar time.
     int yearsFromBaseline = Math.max(0, assumptions.startYear() - baselineYear);
+    ProjectedIncomePolicy incomePolicy = assumptions.projectedIncomePolicy();
+    BigDecimal rentalBaseline =
+        incomePolicy.rentalIncomeMode() == ProjectedIncomePolicy.IncomeMode.MANUAL
+            ? nz(incomePolicy.manualRentalIncome())
+            : buckets.rentalCashIncome();
     BigDecimal rental =
-        buckets
-            .rentalCashIncome()
-            .multiply(
-                BigDecimal.ONE.add(effective.rentalIncomeGrowthRate()).pow(yearsFromBaseline));
+        rentalBaseline.multiply(
+            BigDecimal.ONE.add(effective.rentalIncomeGrowthRate()).pow(yearsFromBaseline));
     PlanningBuckets current = buckets;
     for (int age = assumptions.currentAge(); age <= assumptions.endAge(); age++) {
       int year = assumptions.startYear() + age - assumptions.currentAge();
+      BigDecimal recurringFraction =
+          age == assumptions.currentAge() ? firstYearRecurringFraction : BigDecimal.ONE;
       boolean retired = age >= assumptions.retirementAge();
       BigDecimal costs =
-          retired ? spending.multiply(assumptions.expenseProfileFactorForCalendarYear(year)) : ZERO;
-      BigDecimal employment = retired ? ZERO : assumptions.annualEmploymentIncome();
+          retired
+              ? spending
+                  .multiply(assumptions.expenseProfileFactorForCalendarYear(year))
+                  .multiply(recurringFraction)
+              : ZERO;
+      BigDecimal employment =
+          retired ? ZERO : assumptions.annualEmploymentIncome().multiply(recurringFraction);
       BigDecimal pension =
-          age >= assumptions.pensionStartAge() ? assumptions.annualPension() : ZERO;
+          age >= assumptions.pensionStartAge()
+              ? assumptions.annualPension().multiply(recurringFraction)
+              : ZERO;
       BigDecimal eventIncome =
           assumptions.futureEvents().stream()
               .filter(e -> e.year() == year && e.type() == SimulationEventType.ONE_OFF_INCOME)
@@ -93,10 +132,13 @@ public class RetirementSimulationService implements RetirementSimulation {
               .filter(e -> e.year() == year && e.type() == SimulationEventType.ONE_OFF_EXPENSE)
               .map(SimulationEvent::amount)
               .reduce(ZERO, BigDecimal::add);
-      BigDecimal bondIncome = bondCashFlows.cashIncome(profile, assumptions, year);
-      BigDecimal cashIncome = employment.add(pension).add(eventIncome).add(rental).add(bondIncome);
-      BigDecimal annualBondReturn = effective.capitalBondReturnRate();
-      BigDecimal annualEquityReturn = effective.equityReturnRate();
+      BigDecimal periodRental = rental.multiply(recurringFraction);
+      BigDecimal bondIncome =
+          bondCashFlows.cashIncome(profile, assumptions, year).multiply(recurringFraction);
+      BigDecimal cashIncome =
+          employment.add(pension).add(eventIncome).add(periodRental).add(bondIncome);
+      BigDecimal annualBondReturn = effective.capitalBondReturnRate().multiply(recurringFraction);
+      BigDecimal annualEquityReturn = effective.equityReturnRate().multiply(recurringFraction);
       PlanningBuckets annualBuckets =
           new PlanningBuckets(
               current.cash(),
@@ -129,8 +171,12 @@ public class RetirementSimulationService implements RetirementSimulation {
       var b = result.buckets().get(BucketType.BONDS);
       var rawEquities = result.buckets().get(BucketType.EQUITIES);
       // Contributions are an input cash flow before the next year, not a source-domain holding.
+      BigDecimal contribution =
+          retired
+              ? ZERO
+              : assumptions.annualPreRetirementContribution().multiply(recurringFraction);
       var e =
-          retired || assumptions.annualPreRetirementContribution().signum() == 0
+          retired || contribution.signum() == 0
               ? rawEquities
               : new RetirementBucketEngine.BucketResult(
                   BucketType.EQUITIES,
@@ -138,9 +184,7 @@ public class RetirementSimulationService implements RetirementSimulation {
                   rawEquities.returnAmount(),
                   rawEquities.refill(),
                   rawEquities.withdrawal(),
-                  rawEquities
-                      .expectedEndValue()
-                      .add(assumptions.annualPreRetirementContribution()));
+                  rawEquities.expectedEndValue().add(contribution));
       var re = result.buckets().get(BucketType.REAL_ESTATE);
       if (result.unfunded().signum() > 0 && failureAge == null) {
         failureAge = age;
@@ -157,7 +201,7 @@ public class RetirementSimulationService implements RetirementSimulation {
               employment,
               pension,
               eventIncome,
-              rental,
+              periodRental,
               cashIncome,
               bondIncome,
               c,
@@ -165,7 +209,7 @@ public class RetirementSimulationService implements RetirementSimulation {
               e,
               re,
               result.unfunded(),
-              retired ? ZERO : assumptions.annualPreRetirementContribution()));
+              contribution));
       BigDecimal nextEquities = e.expectedEndValue();
       current =
           new PlanningBuckets(
@@ -191,6 +235,7 @@ public class RetirementSimulationService implements RetirementSimulation {
               current.realEstateGrowthRate());
       rental = rental.multiply(BigDecimal.ONE.add(effective.rentalIncomeGrowthRate()));
       if (retired) spending = spending.multiply(BigDecimal.ONE.add(effective.spendingGrowthRate()));
+      if (firstYearOnly) break;
     }
     return new SimulationResult(
         scenario, failureAge != null, failureAge, firstShortfall, totalUnfunded, years);
@@ -217,7 +262,13 @@ public class RetirementSimulationService implements RetirementSimulation {
     EnumMap<SimulationScenario, SimulationResult> results = new EnumMap<>(SimulationScenario.class);
     for (SimulationScenario scenario : SimulationScenario.values())
       results.put(
-          scenario, simulateWithCustom(profile, assumptions, scenario, baselineYear, custom));
+          scenario,
+          simulateWithCustom(
+              profile, assumptions, scenario, baselineYear, custom, BigDecimal.ONE, false));
     return results;
+  }
+
+  private static BigDecimal nz(BigDecimal value) {
+    return value == null ? ZERO : value;
   }
 }
