@@ -27,7 +27,8 @@ public class LongTermAssetReadService implements LongTermAssetProfileReader {
 
   @Override
   public LongTermAssetProfileSummaryModel aggregate(Long portfolioId, LocalDate date) {
-    LongTermAssetService.AggregateSummary summary = longTermAssets.aggregate(portfolioId, date);
+    LongTermAssetQueryService.AggregateSummary summary =
+        longTermAssets.aggregate(portfolioId, date);
     return new LongTermAssetProfileSummaryModel(
         CurrencyType.USD,
         toUsd(summary.totalCurrentValue(), summary.currency(), date),

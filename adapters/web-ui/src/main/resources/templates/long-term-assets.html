@@ -34,7 +34,7 @@
       <div class="iv-kpi__actions"><a class="iv-balance-popover__trigger" th:href="${group.key == 'REAL_ESTATE' ? '#real-estate' : group.key == 'BOND' ? '#bonds' : '#cash-reserves'}">Details</a></div>
     </div>
   </section>
-  <p><a class="btn btn-sm btn-outline-secondary" th:href="@{/long-term-assets(portfolioId=${portfolioId},showArchived=true)}">Show archived assets</a></p><div class="iv-long-term-assets-sections">
+  <div class="iv-long-term-assets-sections">
   <div th:each="group : ${groups}" class="iv-planning-section iv-card card" th:id="${group.key == 'REAL_ESTATE' ? 'real-estate' : group.key == 'BOND' ? 'bonds' : group.key == 'CASH_RESERVE' ? 'cash-reserves' : 'other-assets'}">
     <div class="iv-planning-section__details-row">
     <details class="iv-planning-section__details">
@@ -68,12 +68,6 @@
         </table>
       </div>
     </details>
-    <div class="iv-planning-section__header-action" th:if="${group.key == 'OTHER'}">
-      <a class="btn btn-sm btn-outline-primary" th:href="@{/long-term-assets/new(portfolioId=${portfolioId})}">+ Other asset</a>
-      <a class="btn btn-sm btn-outline-primary" th:href="@{/long-term-assets/new/deposit(portfolioId=${portfolioId})}">+ Deposit</a>
-      <a class="btn btn-sm btn-outline-primary" th:href="@{/long-term-assets/new/bond(portfolioId=${portfolioId})}">+ Bond</a>
-      <a class="btn btn-sm btn-outline-primary" th:href="@{/long-term-assets/new/real-estate(portfolioId=${portfolioId})}">+ Real estate</a>
-    </div>
     </div>
     <div class="table-responsive iv-planning-section__total" th:if="${!#lists.isEmpty(group.assets)}">
       <table class="table card-table table-vcenter long-term-assets-table long-term-assets-table__total" th:classappend="| long-term-assets-table--${group.key.toLowerCase().replace('_', '-')}|">
@@ -96,7 +90,7 @@
         </tbody>
       </table>
     </div>
-    <div class="iv-collapsed-summary" aria-label="Collapsed category summary">
+    <div class="iv-collapsed-summary" th:if="${!#lists.isEmpty(group.assets)}" aria-label="Collapsed category summary">
       <div class="iv-collapsed-summary__metric">
         <span class="iv-collapsed-summary__label">Total value</span>
         <strong class="iv-collapsed-summary__value" th:text="${group.currency == total.currency ? format.wholeNumber(group.totalValue) : format.moneyWhole(group.totalValue, group.currency)}">0</strong>
@@ -117,32 +111,33 @@
     </div>
   </div>
   </div>
-  <section class="iv-risk-summary iv-portfolio-structure" aria-labelledby="long-term-structure-title">
+  <section class="iv-risk-summary iv-portfolio-structure iv-portfolio-structure--long-term" aria-labelledby="long-term-structure-title">
     <div class="iv-card-section-header"><span id="long-term-structure-title" class="iv-card-section-header__title">Portfolio structure</span></div>
-    <div class="iv-portfolio-structure__grid">
+    <div class="iv-portfolio-structure__grid iv-portfolio-structure__grid--long-term">
       <details class="iv-structure-card">
         <summary><span>Largest asset class</span><strong th:text="${longTermLargestClass ?: 'Unavailable'}">Unavailable</strong><small th:text="${(longTermLargestClassShare ?: '0.0%') + ' · ' + (longTermLargestClassValue ?: '0')}">0.0% · 0</small></summary>
         <div class="iv-structure-popover"><strong>Asset classes</strong><div th:each="group : ${groups}"><span th:text="${group.title}">Category</span><span th:text="${groupShares[group.key] + ' · ' + format.wholeNumber(group.totalValue)}">0.0% · 0</span></div></div>
       </details>
       <details class="iv-structure-card iv-structure-card--allocation">
-        <summary><span>Asset allocation</span><div class="iv-structure-bar" aria-label="Long-term asset allocation"><span th:each="group : ${groups}" class="iv-structure-bar__segment" th:classappend="${' iv-structure-segment--' + (group.key == 'BOND' ? 'fixed-income' : group.key == 'CASH_RESERVE' ? 'cash' : group.key == 'REAL_ESTATE' ? 'real-estate' : 'other')}" th:style="|width:${#strings.replace(groupShares[group.key], '%', '')}%|" th:title="${group.title + ' · ' + groupShares[group.key]}"></span></div><small th:text="${#strings.listJoin(groups.![title], ' · ')}">Real estate · Bonds · Cash · Other</small></summary>
+        <summary>
+          <span>Asset allocation</span>
+          <div class="iv-structure-bar" aria-label="Long-term asset allocation">
+            <span th:each="group : ${groups}" th:if="${group.totalValue != null and group.totalValue > 0}" class="iv-structure-bar__segment" th:classappend="${' iv-structure-segment--' + (group.key == 'BOND' ? 'fixed-income' : group.key == 'CASH_RESERVE' ? 'cash' : group.key == 'REAL_ESTATE' ? 'real-estate' : 'other')}" th:style="|width:${#strings.replace(groupShares[group.key], '%', '')}%|" th:title="${group.title + ' · ' + groupShares[group.key]}"></span>
+          </div>
+          <div class="iv-long-term-allocation__legend" aria-label="Asset class percentages">
+            <div th:each="group : ${groups}" class="iv-long-term-allocation__item">
+              <span class="iv-long-term-allocation__label"><i class="iv-long-term-allocation__swatch" th:classappend="${' iv-structure-segment--' + (group.key == 'BOND' ? 'fixed-income' : group.key == 'CASH_RESERVE' ? 'cash' : group.key == 'REAL_ESTATE' ? 'real-estate' : 'other')}"></i><span th:text="${group.title}">Asset class</span></span>
+              <strong th:text="${groupShares[group.key]}">0.0%</strong>
+            </div>
+          </div>
+        </summary>
         <div class="iv-structure-popover"><strong>Asset allocation</strong><div th:each="group : ${groups}"><span th:text="${group.title}">Category</span><span th:text="${groupShares[group.key] + ' · ' + format.wholeNumber(group.totalValue)}">0.0% · 0</span></div></div>
       </details>
-      <details class="iv-structure-card">
-        <summary><span>Income yield</span><strong th:text="${format.percentage(total.annualEconomics.netYieldAfterTax)}">0.0%</strong><small>Net annual income / total long-term asset value</small></summary>
-        <div class="iv-structure-popover"><strong>Income yield</strong><div><span>Net annual income</span><span th:text="${format.wholeNumber(total.annualEconomics.netAnnualIncomeAfterTax) + ' / year'}">0 / year</span></div><div><span>Total value</span><span th:text="${format.wholeNumber(total.totalCurrentValue)}">0</span></div></div>
-      </details>
-      <details class="iv-structure-card">
-        <summary><span>Annual net income</span><strong th:text="${format.wholeNumber(total.annualEconomics.netAnnualIncomeAfterTax) + ' / year'}">0 / year</strong><small>After expenses and tax</small></summary>
-        <div class="iv-structure-popover"><strong>Annual net income</strong><div><span>Net annual income</span><span th:text="${format.wholeNumber(total.annualEconomics.netAnnualIncomeAfterTax) + ' / year'}">0 / year</span></div></div>
-      </details>
     </div>
-    <details class="iv-structure-currency">
-      <summary><span>Asset currency</span><div class="iv-structure-bar" aria-label="Long-term asset currency"><span class="iv-structure-bar__segment iv-structure-currency-segment--pln" style="width:100%"></span></div><small th:text="${total.currency}">PLN</small></summary>
-      <div class="iv-structure-popover"><strong>Asset currency</strong><div><span th:text="${total.currency}">PLN</span><span th:text="${format.wholeNumber(total.totalCurrentValue)}">0</span></div></div>
-    </details>
+    <div class="iv-structure-currency iv-structure-currency--reporting" aria-label="Reporting currency">
+      <span>Reporting currency</span><strong th:text="${total.currency}">PLN</strong>
+    </div>
   </section>
-<section class="iv-card card mt-4" th:if="${!#lists.isEmpty(archivedAssets)}"><div class="card-header d-flex justify-content-between"><h2 class="card-title">Archived assets</h2><a class="btn btn-sm btn-outline-secondary" th:href="@{/long-term-assets(portfolioId=${portfolioId})}">Hide</a></div><div class="table-responsive"><table class="table card-table"><tbody><tr th:each="asset : ${archivedAssets}"><td><a th:href="@{/long-term-assets/{id}(id=${asset.id},portfolioId=${portfolioId})}" th:text="${asset.name}">Archived asset</a></td><td th:text="${asset.type}">OTHER</td><td class="text-end" th:text="${format.wholeNumber(asset.currentValue)}">0</td></tr></tbody></table></div></section>
 </main>
 <div th:replace="~{fragments/app-footer :: buildFooter}"></div>
 <script>

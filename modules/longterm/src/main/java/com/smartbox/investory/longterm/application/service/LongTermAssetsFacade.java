@@ -42,12 +42,13 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
   }
 
   @Transactional(readOnly = true)
-  public List<LongTermAssetService.AssetGroupSummary> grouped(Long portfolioId, LocalDate date) {
+  public List<LongTermAssetQueryService.AssetGroupSummary> grouped(
+      Long portfolioId, LocalDate date) {
     return service.grouped(portfolioId, date);
   }
 
   @Transactional(readOnly = true)
-  public LongTermAssetService.AggregateSummary aggregate(Long portfolioId, LocalDate date) {
+  public LongTermAssetQueryService.AggregateSummary aggregate(Long portfolioId, LocalDate date) {
     return service.aggregateForLongTermAssets(portfolioId, date);
   }
 
@@ -144,7 +145,7 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
   }
 
   @Transactional(readOnly = true)
-  public LongTermAssetService.PageData page(Long portfolioId, LocalDate date) {
+  public LongTermAssetQueryService.PageData page(Long portfolioId, LocalDate date) {
     return service.page(portfolioId, date);
   }
 

@@ -339,7 +339,7 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
         s.rentEnd());
   }
 
-  private static AssetGroupView group(LongTermAssetService.AssetGroupSummary g) {
+  private static AssetGroupView group(LongTermAssetQueryService.AssetGroupSummary g) {
     return new AssetGroupView(
         g.key(),
         g.title(),
@@ -356,7 +356,7 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
                 g.realEstatePlanning().incomeYield()));
   }
 
-  private static AggregateView aggregate(LongTermAssetService.AggregateSummary a) {
+  private static AggregateView aggregate(LongTermAssetQueryService.AggregateSummary a) {
     return new AggregateView(a.currency(), a.totalCurrentValue(), economics(a.annualEconomics()));
   }
 

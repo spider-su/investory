@@ -11,9 +11,14 @@ import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotMode
 import com.smartbox.investory.longterm.api.model.RealEstateEntryModel;
 import com.smartbox.investory.longterm.application.model.LongTermAssetSummary;
 import com.smartbox.investory.longterm.application.model.RealEstatePlanningSummary;
+import com.smartbox.investory.longterm.application.service.LongTermAssetAnnualSnapshotService;
 import com.smartbox.investory.longterm.application.service.LongTermAssetCalculator;
 import com.smartbox.investory.longterm.application.service.LongTermAssetCashFlowService;
+import com.smartbox.investory.longterm.application.service.LongTermAssetCommandService;
 import com.smartbox.investory.longterm.application.service.LongTermAssetLifecycleService;
+import com.smartbox.investory.longterm.application.service.LongTermAssetPeriodService;
+import com.smartbox.investory.longterm.application.service.LongTermAssetProjectionQueryService;
+import com.smartbox.investory.longterm.application.service.LongTermAssetQueryService;
 import com.smartbox.investory.longterm.application.service.LongTermAssetService;
 import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 import com.smartbox.investory.longterm.infrastructure.asset.*;
@@ -79,8 +84,8 @@ class LongTermAssetServiceTest {
                     .stream()
                     .map(LongTermAssetServiceTest::contractFrom)
                     .toList());
-    service =
-        new LongTermAssetService(
+    var query =
+        new LongTermAssetQueryService(
             assets,
             cashFlows,
             valuations,
@@ -90,11 +95,37 @@ class LongTermAssetServiceTest {
             taxPolicies,
             portfolioContextReader,
             currencyRates,
+            rentalContracts);
+    var projection =
+        new LongTermAssetProjectionQueryService(
+            assets,
+            cashFlows,
+            valuations,
+            bondRates,
+            bonds,
+            deposits,
+            taxPolicies,
+            rentalContracts,
+            lifecycle);
+    var snapshot =
+        new LongTermAssetAnnualSnapshotService(
+            assets, cashFlows, rentalContracts, currencyRates, lifecycle, query);
+    var periods = new LongTermAssetPeriodService(assets, valuations, bondRates, taxPolicies);
+    var command =
+        new LongTermAssetCommandService(
+            assets,
+            cashFlows,
+            valuations,
+            bondRates,
+            bonds,
+            deposits,
             lifecycle,
             new LongTermAssetCashFlowService(assets, cashFlows),
-            rentalContracts,
+            query,
+            periods,
             java.time.Clock.fixed(
                 DATE.atStartOfDay(java.time.ZoneOffset.UTC).toInstant(), java.time.ZoneOffset.UTC));
+    service = new LongTermAssetService(query, projection, snapshot, command);
   }
 
   private static LongTermAssetRentalContractEntity contractFrom(
@@ -389,7 +420,7 @@ class LongTermAssetServiceTest {
     var groups = service.groupSummaries(rows, CurrencyType.PLN, DATE);
     assertEquals(
         List.of("REAL_ESTATE", "BOND", "CASH_RESERVE", "OTHER"),
-        groups.stream().map(LongTermAssetService.AssetGroupSummary::key).toList());
+        groups.stream().map(LongTermAssetQueryService.AssetGroupSummary::key).toList());
     assertEquals(
         List.of("Bond early", "Bond late"),
         groups.get(1).assets().stream().map(LongTermAssetSummary::name).toList());
