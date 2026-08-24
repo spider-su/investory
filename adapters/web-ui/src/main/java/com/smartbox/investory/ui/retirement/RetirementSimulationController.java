@@ -171,57 +171,56 @@ public class RetirementSimulationController {
             ? planningDisplayCurrency
             : submittedPlanningDisplayCurrency;
     var assumptions =
-        new SimulationAssumptions(
-            currentAge == null ? base.currentAge() : currentAge,
-            endAge == null ? base.endAge() : endAge,
-            resolveDisplayedMoney(
-                annualExpenses,
-                annualExpensesCanonical,
-                annualExpensesEdited,
-                submittedCurrency,
-                base.annualLivingExpenses()),
-            percentInputToRate(inflation, base.inflationRate()),
-            base.cashReturnRate(),
-            base.fixedIncomeReturnRate(),
-            percentInputToRate(equityReturn, base.equityReturnRate()),
-            base.realEstateReturnRate(),
-            base.otherReturnRate(),
-            pensionStartAge == null ? base.pensionStartAge() : pensionStartAge,
-            resolveDisplayedMoney(
-                annualPension,
-                annualPensionCanonical,
-                annualPensionEdited,
-                submittedCurrency,
-                base.annualPension()),
-            percentInputToRate(capitalGainTaxRate, base.capitalGainTaxRate()),
-            base.startYear(),
-            resolveDisplayedMoney(
-                discretionaryExpenses,
-                discretionaryExpensesCanonical,
-                discretionaryExpensesEdited,
-                submittedCurrency,
-                base.annualDiscretionaryExpenses()),
-            base.futureEvents(),
-            percentInputToRate(rentalIncomeGrowthSpread, base.rentalIncomeGrowthSpread()),
-            percentInputToRate(spendingGrowthSpread, base.spendingGrowthSpread()),
-            fundingStrategy == null ? base.fundingStrategy() : fundingStrategy,
-            safeReserveYears == null ? base.safeReserveYears() : safeReserveYears,
-            equityHarvestMinimumReturn == null
-                ? base.equityHarvestMinimumReturnRate()
-                : percentInputToRate(
-                    equityHarvestMinimumReturn, base.equityHarvestMinimumReturnRate()),
-            equityGainHarvest == null
-                ? base.equityGainHarvestRate()
-                : percentInputToRate(equityGainHarvest, base.equityGainHarvestRate()),
-            allowEmergencyEquityWithdrawal == null
-                ? base.allowEmergencyEquityWithdrawal()
-                : allowEmergencyEquityWithdrawal,
-            base.retirementAge(),
-            base.annualEmploymentIncome(),
-            base.annualPreRetirementContribution(),
-            fundingOrder == null ? base.fundingOrder() : parseFundingOrder(fundingOrder),
-            base.expenseProfile(),
-            base.projectedIncomePolicy());
+        base.toBuilder()
+            .currentAge(currentAge == null ? base.currentAge() : currentAge)
+            .endAge(endAge == null ? base.endAge() : endAge)
+            .annualLivingExpenses(
+                resolveDisplayedMoney(
+                    annualExpenses,
+                    annualExpensesCanonical,
+                    annualExpensesEdited,
+                    submittedCurrency,
+                    base.annualLivingExpenses()))
+            .inflationRate(percentInputToRate(inflation, base.inflationRate()))
+            .equityReturnRate(percentInputToRate(equityReturn, base.equityReturnRate()))
+            .pensionStartAge(pensionStartAge == null ? base.pensionStartAge() : pensionStartAge)
+            .annualPension(
+                resolveDisplayedMoney(
+                    annualPension,
+                    annualPensionCanonical,
+                    annualPensionEdited,
+                    submittedCurrency,
+                    base.annualPension()))
+            .capitalGainTaxRate(percentInputToRate(capitalGainTaxRate, base.capitalGainTaxRate()))
+            .annualDiscretionaryExpenses(
+                resolveDisplayedMoney(
+                    discretionaryExpenses,
+                    discretionaryExpensesCanonical,
+                    discretionaryExpensesEdited,
+                    submittedCurrency,
+                    base.annualDiscretionaryExpenses()))
+            .rentalIncomeGrowthSpread(
+                percentInputToRate(rentalIncomeGrowthSpread, base.rentalIncomeGrowthSpread()))
+            .spendingGrowthSpread(
+                percentInputToRate(spendingGrowthSpread, base.spendingGrowthSpread()))
+            .fundingStrategy(fundingStrategy == null ? base.fundingStrategy() : fundingStrategy)
+            .safeReserveYears(safeReserveYears == null ? base.safeReserveYears() : safeReserveYears)
+            .equityHarvestMinimumReturnRate(
+                equityHarvestMinimumReturn == null
+                    ? base.equityHarvestMinimumReturnRate()
+                    : percentInputToRate(
+                        equityHarvestMinimumReturn, base.equityHarvestMinimumReturnRate()))
+            .equityGainHarvestRate(
+                equityGainHarvest == null
+                    ? base.equityGainHarvestRate()
+                    : percentInputToRate(equityGainHarvest, base.equityGainHarvestRate()))
+            .allowEmergencyEquityWithdrawal(
+                allowEmergencyEquityWithdrawal == null
+                    ? base.allowEmergencyEquityWithdrawal()
+                    : allowEmergencyEquityWithdrawal)
+            .fundingOrder(
+                fundingOrder == null ? base.fundingOrder() : parseFundingOrder(fundingOrder))
+            .build();
     CustomScenarioInput customInput =
         CustomScenarioInput.parse(
             customInflationDelta,
@@ -571,41 +570,49 @@ public class RetirementSimulationController {
                 monthly.multiply(BigDecimal.valueOf(12)),
                 displayCurrency,
                 base.annualLivingExpenses());
-    return new SimulationAssumptions(
-        integer(fields, "ageAtPlanStart", integer(fields, "currentAge", base.ageAtPlanStart())),
-        integer(fields, "endAge", base.endAge()),
-        annualLiving,
-        percent(fields, "inflation", base.inflationRate()),
-        percent(fields, "cashReturn", base.cashReturnRate()),
-        percent(fields, "fixedIncomeReturn", base.fixedIncomeReturnRate()),
-        percent(fields, "equityReturn", base.equityReturnRate()),
-        base.realEstateReturnRate(),
-        percent(fields, "otherReturn", base.otherReturnRate()),
-        integer(fields, "pensionStartAge", base.pensionStartAge()),
-        money(fields, "annualPension", displayCurrency, base.annualPension()),
-        percent(fields, "capitalGainTaxRate", base.capitalGainTaxRate()),
-        integer(fields, "startYear", base.planStartYear()),
-        money(fields, "discretionaryExpenses", displayCurrency, base.annualDiscretionaryExpenses()),
-        base.futureEvents(),
-        percent(fields, "rentalIncomeGrowthSpread", base.rentalIncomeGrowthSpread()),
-        percent(fields, "spendingGrowthSpread", base.spendingGrowthSpread()),
-        enumValue(
-            fields, "fundingStrategy", SimulationFundingStrategy.class, base.fundingStrategy()),
-        decimalOr(fields, "safeReserveYears", base.safeReserveYears()),
-        percent(fields, "equityHarvestMinimumReturn", base.equityHarvestMinimumReturnRate()),
-        percent(fields, "equityGainHarvest", base.equityGainHarvestRate()),
-        booleanValue(
-            fields, "allowEmergencyEquityWithdrawal", base.allowEmergencyEquityWithdrawal()),
-        integer(fields, "retirementAge", base.retirementAge()),
-        money(fields, "annualEmploymentIncome", displayCurrency, base.annualEmploymentIncome()),
-        money(
-            fields,
-            "annualPreRetirementContribution",
-            displayCurrency,
-            base.annualPreRetirementContribution()),
-        base.fundingOrder(),
-        base.expenseProfile(),
-        base.projectedIncomePolicy());
+    return base.toBuilder()
+        .currentAge(
+            integer(fields, "ageAtPlanStart", integer(fields, "currentAge", base.ageAtPlanStart())))
+        .endAge(integer(fields, "endAge", base.endAge()))
+        .annualLivingExpenses(annualLiving)
+        .inflationRate(percent(fields, "inflation", base.inflationRate()))
+        .cashReturnRate(percent(fields, "cashReturn", base.cashReturnRate()))
+        .fixedIncomeReturnRate(percent(fields, "fixedIncomeReturn", base.fixedIncomeReturnRate()))
+        .equityReturnRate(percent(fields, "equityReturn", base.equityReturnRate()))
+        .otherReturnRate(percent(fields, "otherReturn", base.otherReturnRate()))
+        .pensionStartAge(integer(fields, "pensionStartAge", base.pensionStartAge()))
+        .annualPension(money(fields, "annualPension", displayCurrency, base.annualPension()))
+        .capitalGainTaxRate(percent(fields, "capitalGainTaxRate", base.capitalGainTaxRate()))
+        .startYear(integer(fields, "startYear", base.planStartYear()))
+        .annualDiscretionaryExpenses(
+            money(
+                fields,
+                "discretionaryExpenses",
+                displayCurrency,
+                base.annualDiscretionaryExpenses()))
+        .rentalIncomeGrowthSpread(
+            percent(fields, "rentalIncomeGrowthSpread", base.rentalIncomeGrowthSpread()))
+        .spendingGrowthSpread(percent(fields, "spendingGrowthSpread", base.spendingGrowthSpread()))
+        .fundingStrategy(
+            enumValue(
+                fields, "fundingStrategy", SimulationFundingStrategy.class, base.fundingStrategy()))
+        .safeReserveYears(decimalOr(fields, "safeReserveYears", base.safeReserveYears()))
+        .equityHarvestMinimumReturnRate(
+            percent(fields, "equityHarvestMinimumReturn", base.equityHarvestMinimumReturnRate()))
+        .equityGainHarvestRate(percent(fields, "equityGainHarvest", base.equityGainHarvestRate()))
+        .allowEmergencyEquityWithdrawal(
+            booleanValue(
+                fields, "allowEmergencyEquityWithdrawal", base.allowEmergencyEquityWithdrawal()))
+        .retirementAge(integer(fields, "retirementAge", base.retirementAge()))
+        .annualEmploymentIncome(
+            money(fields, "annualEmploymentIncome", displayCurrency, base.annualEmploymentIncome()))
+        .annualPreRetirementContribution(
+            money(
+                fields,
+                "annualPreRetirementContribution",
+                displayCurrency,
+                base.annualPreRetirementContribution()))
+        .build();
   }
 
   private BigDecimal money(
@@ -1195,53 +1202,68 @@ public class RetirementSimulationController {
             ? annualExpenses
             : monthlyLivingCosts.multiply(BigDecimal.valueOf(12));
     if (annualLivingCostsInput == null) annualLivingCostsInput = BigDecimal.ZERO;
+    SimulationAssumptions saveBase =
+        storedAssumptions == null
+            ? SimulationAssumptions.defaults(effectiveAgeAtPlanStart, endAge, effectiveStartYear)
+            : storedAssumptions;
     SimulationAssumptions legacyAssumptions =
-        new SimulationAssumptions(
-                effectiveAgeAtPlanStart,
-                endAge,
+        saveBase.toBuilder()
+            .currentAge(effectiveAgeAtPlanStart)
+            .endAge(endAge)
+            .annualLivingExpenses(
                 planningPresentation.fromDisplay(
-                    annualLivingCostsInput, planningDisplayCurrency, BigDecimal.ZERO),
-                percentInputToRate(inflation, BigDecimal.ZERO),
-                percentInputToRate(cashReturn, BigDecimal.ZERO),
-                percentInputToRate(fixedIncomeReturn, BigDecimal.ZERO),
-                percentInputToRate(equityReturn, BigDecimal.ZERO),
+                    annualLivingCostsInput, planningDisplayCurrency, BigDecimal.ZERO))
+            .inflationRate(percentInputToRate(inflation, BigDecimal.ZERO))
+            .cashReturnRate(percentInputToRate(cashReturn, BigDecimal.ZERO))
+            .fixedIncomeReturnRate(percentInputToRate(fixedIncomeReturn, BigDecimal.ZERO))
+            .equityReturnRate(percentInputToRate(equityReturn, BigDecimal.ZERO))
+            .realEstateReturnRate(
                 percentInputToRate(
                     realEstateReturn,
                     storedAssumptions == null
                         ? BigDecimal.ZERO
-                        : storedAssumptions.realEstateReturnRate()),
-                percentInputToRate(otherReturn, BigDecimal.ZERO),
-                normalizePensionStartAge(pensionStartAge),
+                        : storedAssumptions.realEstateReturnRate()))
+            .otherReturnRate(percentInputToRate(otherReturn, BigDecimal.ZERO))
+            .pensionStartAge(normalizePensionStartAge(pensionStartAge))
+            .annualPension(
                 planningPresentation.fromDisplay(
-                    annualPension, planningDisplayCurrency, BigDecimal.ZERO),
-                percentInputToRate(capitalGainTaxRate, BigDecimal.ZERO),
-                effectiveStartYear,
+                    annualPension, planningDisplayCurrency, BigDecimal.ZERO))
+            .capitalGainTaxRate(percentInputToRate(capitalGainTaxRate, BigDecimal.ZERO))
+            .startYear(effectiveStartYear)
+            .annualDiscretionaryExpenses(
                 planningPresentation.fromDisplay(
-                    discretionaryExpenses, planningDisplayCurrency, BigDecimal.ZERO),
-                existingEvents,
+                    discretionaryExpenses, planningDisplayCurrency, BigDecimal.ZERO))
+            .futureEvents(existingEvents)
+            .rentalIncomeGrowthSpread(
                 percentInputToRate(
                     rentalIncomeGrowthSpread,
-                    SimulationAssumptions.DEFAULT_RENTAL_INCOME_GROWTH_SPREAD),
+                    SimulationAssumptions.DEFAULT_RENTAL_INCOME_GROWTH_SPREAD))
+            .spendingGrowthSpread(
                 percentInputToRate(
-                    spendingGrowthSpread, SimulationAssumptions.DEFAULT_SPENDING_GROWTH_SPREAD),
-                SimulationFundingStrategy.SIMPLE_WATERFALL,
+                    spendingGrowthSpread, SimulationAssumptions.DEFAULT_SPENDING_GROWTH_SPREAD))
+            .fundingStrategy(SimulationFundingStrategy.SIMPLE_WATERFALL)
+            .safeReserveYears(
                 storedAssumptions == null
                     ? SimulationAssumptions.DEFAULT_SAFE_RESERVE_YEARS
-                    : storedAssumptions.safeReserveYears(),
+                    : storedAssumptions.safeReserveYears())
+            .equityHarvestMinimumReturnRate(
                 percentInputToRate(
                     equityHarvestMinimumReturn,
-                    SimulationAssumptions.DEFAULT_EQUITY_HARVEST_MINIMUM_RETURN_RATE),
+                    SimulationAssumptions.DEFAULT_EQUITY_HARVEST_MINIMUM_RETURN_RATE))
+            .equityGainHarvestRate(
                 percentInputToRate(
-                    equityGainHarvest, SimulationAssumptions.DEFAULT_EQUITY_GAIN_HARVEST_RATE),
-                allowEmergencyEquityWithdrawal,
-                retirementAge == null ? effectiveAgeAtPlanStart : retirementAge,
+                    equityGainHarvest, SimulationAssumptions.DEFAULT_EQUITY_GAIN_HARVEST_RATE))
+            .allowEmergencyEquityWithdrawal(allowEmergencyEquityWithdrawal)
+            .retirementAge(retirementAge == null ? effectiveAgeAtPlanStart : retirementAge)
+            .annualEmploymentIncome(
                 planningPresentation.fromDisplay(
-                    annualEmploymentIncome, planningDisplayCurrency, BigDecimal.ZERO),
+                    annualEmploymentIncome, planningDisplayCurrency, BigDecimal.ZERO))
+            .annualPreRetirementContribution(
                 planningPresentation.fromDisplay(
                     annualPreRetirementContribution, planningDisplayCurrency, BigDecimal.ZERO))
-            .withFundingOrder(parseFundingOrder(fundingOrder))
-            .withExpenseProfile(ExpenseProfile.EMPTY)
-            .withProjectedIncomePolicy(
+            .fundingOrder(parseFundingOrder(fundingOrder))
+            .expenseProfile(ExpenseProfile.EMPTY)
+            .projectedIncomePolicy(
                 new ProjectedIncomePolicy(
                     ProjectedIncomePolicy.IncomeMode.valueOf(
                         rentalIncomeMode.trim().toUpperCase(java.util.Locale.ROOT)),
@@ -1250,7 +1272,8 @@ public class RetirementSimulationController {
                     ProjectedIncomePolicy.IncomeMode.valueOf(
                         bondCashIncomeMode.trim().toUpperCase(java.util.Locale.ROOT)),
                     planningPresentation.fromDisplay(
-                        manualBondCashIncome, planningDisplayCurrency, null)));
+                        manualBondCashIncome, planningDisplayCurrency, null)))
+            .build();
     SimulationAssumptions a =
         monthlyLivingCosts == null && annualExpenses != null
             ? legacyAssumptions.withExpenseProfile(parseExpenseProfile(expenseProfile))

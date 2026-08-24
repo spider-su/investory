@@ -14,6 +14,31 @@ runtime model.
 `long_term_asset_cash_flows` remains available for supported non-real-estate recurring asset flows
 and historical/import data. It is not a real-estate rental write path.
 
+## Rental contract lifecycle
+
+Rental contracts support create, read, in-place update, early termination, and explicit deletion.
+Contract identity remains stable during an update. Updating a contract atomically replaces its
+tenant metadata, planned period, contract-level rental-tax ownership, and complete term collection;
+removed terms are deleted. A contract contains at most one term for each cash-flow type.
+
+`endDate` is the expected, planned end of a contract. `terminatedDate` records an actual early
+termination. The effective end is the earlier of those dates. Ordinary editing changes the expected
+end; early termination is a separate lifecycle action and cannot precede the start or follow the
+expected end.
+
+Contracts for one asset cannot overlap. Creating a contract never silently terminates another
+contract. An explicit rollover option may set the immediately preceding contract's expected end to
+the day before the new start, in the same transaction. It does not set `terminatedDate`.
+
+Deletion is correction of incorrectly entered data, not a normal lifecycle transition. It removes
+the selected contract and its terms after portfolio, asset, and real-estate ownership checks. It does
+not reopen or extend adjacent contracts. Because historical projections read contract history,
+deletion may change historical calculations.
+
+Tenant name, email, and phone belong to the rental contract, not the property. They are optional and
+may differ across successive contracts. Contract-level rental-tax ownership remains tri-state:
+`null` inherits the property default, `false` means landlord-paid, and `true` means tenant-paid.
+
 ## Bond values
 
 `acquisitionValue` is the historical acquisition/principal value. `currentValue` is the present
@@ -53,9 +78,10 @@ and does not automatically sell property.
 
 Generic asset creation accepts only `OTHER`. Bonds, deposits, cash reserves, and real estate use
 atomic subtype workflows; deposits require a maturity date. Rental contracts are valid only for
-`REAL_ESTATE` assets and replacement contracts retain all income and landlord-cost terms, including
-property tax and insurance. Explicit bond redemption is preserved by ordinary edits; a new bond
-uses acquisition value only when redemption was not supplied.
+`REAL_ESTATE` assets. New contracts persist only explicitly supplied terms; copying a previous
+contract is a UI prefilling action and never mutates data before submission. Explicit bond redemption
+is preserved by ordinary edits; a new bond uses acquisition value only when redemption was not
+supplied.
 
 The Long-Term profile reader returns a persistence-free normalized planning snapshot. Retirement
 uses that snapshot for the current view and stores it in a reviewed revision. Forward simulation

@@ -16,7 +16,6 @@ import com.smartbox.investory.retirement.simulation.RetirementBucketEngine;
 import com.smartbox.investory.retirement.simulation.RetirementSimulation;
 import com.smartbox.investory.retirement.simulation.RetirementSimulationService;
 import com.smartbox.investory.retirement.simulation.SimulationAssumptions;
-import com.smartbox.investory.retirement.simulation.SimulationResult;
 import com.smartbox.investory.retirement.simulation.SimulationScenario;
 import com.smartbox.investory.retirement.simulation.SimulationYear;
 import com.smartbox.investory.shared.currency.CurrencyType;

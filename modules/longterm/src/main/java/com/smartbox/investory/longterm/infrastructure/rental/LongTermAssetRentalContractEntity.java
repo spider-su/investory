@@ -31,6 +31,15 @@ public class LongTermAssetRentalContractEntity {
   @Column(name = "rental_tax_paid_by_tenant")
   private Boolean rentalTaxPaidByTenant;
 
+  @Column(name = "tenant_name", length = 200)
+  private String tenantName;
+
+  @Column(name = "tenant_email", length = 320)
+  private String tenantEmail;
+
+  @Column(name = "tenant_phone", length = 50)
+  private String tenantPhone;
+
   private String notes;
 
   @OneToMany(mappedBy = "contract", cascade = CascadeType.ALL, orphanRemoval = true)

@@ -18,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
 @ExtendWith(MockitoExtension.class)
 class LongTermAssetControllerTest {
@@ -65,24 +66,27 @@ class LongTermAssetControllerTest {
   }
 
   @Test
-  void rentalRolloverSendsOnlyExplicitlyEnteredTerms() {
-    controller.addRentalContract(
-        7L,
-        1L,
-        LocalDate.of(2027, 1, 1),
-        null,
-        null,
-        new BigDecimal("3300"),
-        null,
-        null,
-        null,
-        null,
-        null,
-        new BigDecimal("700"),
-        null);
+  void rentalCreateMapsTenantRolloverTaxPayersAndOnlyEnteredTerms() {
+    var form = new LongTermAssetController.RentalContractForm();
+    form.setTenantName("Tenant");
+    form.setTenantEmail("tenant@example.com");
+    form.setTenantPhone("+48 123");
+    form.setStartDate(LocalDate.of(2027, 1, 1));
+    form.setRentalTaxOwnership("TENANT");
+    form.setEndCurrentContractBeforeStart(true);
+    form.setRent(new BigDecimal("3300"));
+    form.setAnnualPropertyTax(new BigDecimal("700"));
+    form.setPropertyTaxPaidByTenant(true);
+
+    controller.addRentalContract(7L, 1L, form, new RedirectAttributesModelMap());
 
     var command = ArgumentCaptor.forClass(LongTermAssetsApi.RentalContractCommand.class);
     verify(assets).createRentalContract(command.capture());
+    assertEquals("Tenant", command.getValue().tenantName());
+    assertEquals("tenant@example.com", command.getValue().tenantEmail());
+    assertEquals("+48 123", command.getValue().tenantPhone());
+    assertEquals(Boolean.TRUE, command.getValue().rentalTaxPaidByTenant());
+    assertEquals(true, command.getValue().endCurrentContractBeforeStart());
     assertEquals(
         java.util.List.of(
             com.smartbox.investory.longterm.api.model.CashFlowTypeModel.RENT,
@@ -90,6 +94,23 @@ class LongTermAssetControllerTest {
         command.getValue().terms().stream()
             .map(LongTermAssetsApi.RentalTermCommand::type)
             .toList());
+    assertEquals(true, command.getValue().terms().get(1).paidByTenant());
+  }
+
+  @Test
+  void rentalUpdatePreservesContractIdentityAndDeleteUsesOwnedPath() {
+    var form = new LongTermAssetController.RentalContractForm();
+    form.setStartDate(LocalDate.of(2027, 1, 1));
+    form.setRentalTaxOwnership("INHERIT");
+
+    controller.updateRentalContract(7L, 44L, 1L, form, new RedirectAttributesModelMap());
+    controller.deleteRentalContract(7L, 44L, 1L, new RedirectAttributesModelMap());
+
+    var command = ArgumentCaptor.forClass(LongTermAssetsApi.UpdateRentalContractCommand.class);
+    verify(assets).updateRentalContract(command.capture());
+    assertEquals(44L, command.getValue().contractId());
+    assertEquals(null, command.getValue().rentalTaxPaidByTenant());
+    verify(assets).deleteRentalContract(1L, 7L, 44L);
   }
 
   private static LongTermAssetsApi.AssetView assetView(Long id) {

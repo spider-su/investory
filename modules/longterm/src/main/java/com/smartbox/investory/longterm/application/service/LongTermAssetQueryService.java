@@ -302,6 +302,9 @@ public class LongTermAssetQueryService {
                           c.getEndDate(),
                           c.getTerminatedDate(),
                           c.getRentalTaxPaidByTenant(),
+                          c.getTenantName(),
+                          c.getTenantEmail(),
+                          c.getTenantPhone(),
                           c.getTerms().stream()
                               .map(
                                   t ->

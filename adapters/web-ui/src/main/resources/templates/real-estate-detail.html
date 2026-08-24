@@ -11,115 +11,260 @@
 </head>
 <body>
 <main class="container-xl py-4 iv-property-page">
-  <header class="iv-property-page__header">
-    <div>
+  <header class="iv-property-hero mb-4">
+    <div class="iv-property-hero__title">
+      <a class="iv-property-hero__back" th:href="@{/long-term-assets(portfolioId=${portfolioId})}">← Long-Term Assets</a>
       <div class="iv-property-page__eyebrow">Rental property</div>
       <h1 class="h2 mb-0" th:text="${asset.name}">Real estate</h1>
     </div>
-    <a class="btn btn-outline-secondary" th:href="@{/long-term-assets(portfolioId=${portfolioId})}">Back</a>
+    <dl class="iv-property-hero__metrics">
+      <div><dt>Current value</dt><dd th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(asset.currentValue, asset.currency)}">0 PLN</dd></div>
+      <div><dt>Monthly net income</dt><dd th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(summary.realEstatePlanning.netMonthlyIncome, asset.currency)}">0 PLN</dd></div>
+      <div><dt>Income yield</dt><dd th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).percentage(summary.realEstatePlanning.incomeYield)}">0.0%</dd></div>
+    </dl>
+    <a class="btn btn-outline-secondary" href="#property-settings">Property settings</a>
   </header>
 
-  <div class="alert alert-danger" th:if="${param.error}" th:text="${param.error}">Validation error.</div>
+  <div class="alert alert-success" role="status" th:if="${success}" th:text="${success}">Saved.</div>
+  <div class="alert alert-danger" role="alert" th:if="${error}" th:text="${error}">Validation error.</div>
 
-  <form class="card mb-4" method="post" th:action="@{/long-term-assets/{id}(id=${asset.id})}">
-    <div class="card-header"><h2 class="card-title">Property details</h2></div>
-    <div class="card-body">
-      <input type="hidden" name="portfolioId" th:value="${portfolioId}">
-      <input type="hidden" name="type" value="REAL_ESTATE">
-      <input type="hidden" name="active" th:value="${asset.active}">
-      <div class="row g-3">
-        <div class="col-lg-6"><label class="form-label" for="property-name">Name</label><input id="property-name" class="form-control" name="name" th:value="${asset.name}" required></div>
-        <div class="col-sm-6 col-lg-3"><label class="form-label" for="property-currency">Currency</label><select id="property-currency" class="form-select" name="currency"><option th:each="currency : ${T(com.smartbox.investory.shared.currency.CurrencyType).values()}" th:value="${currency}" th:text="${currency}" th:selected="${currency == asset.currency}"></option></select></div>
-        <div class="col-sm-6 col-lg-3"><label class="form-label" for="property-value">Current value</label><input id="property-value" class="form-control" name="currentValue" type="number" step="0.01" min="0" th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).moneyInput(asset.currentValue)}" required></div>
-        <div class="col-sm-6 col-lg-3"><label class="form-label" for="purchase-date">Purchase date</label><input id="purchase-date" class="form-control" name="acquisitionDate" type="date" th:value="${asset.acquisitionDate}"></div>
-        <div class="col-sm-6 col-lg-3"><label class="form-label" for="annual-tax-base">Annual tax base</label><input id="annual-tax-base" class="form-control" name="taxBase" type="number" min="0" step="1" th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumberInput(asset.taxBase)}"></div>
-        <div class="col-12"><label class="form-label" for="property-notes">Notes</label><textarea id="property-notes" class="form-control" name="notes" rows="4" th:text="${asset.notes}"></textarea></div>
+  <section class="card mb-4 iv-rental-management" id="rental-contracts">
+    <div class="card-header iv-rental-management__header">
+      <div>
+        <h2 class="card-title mb-1">Rental contracts</h2>
+        <p class="text-secondary mb-0">Tenant, period, income, expenses, and tax ownership.</p>
       </div>
+      <button class="btn btn-primary" type="button" data-show-add-contract>+ Add contract</button>
     </div>
-    <div class="card-footer"><button class="btn btn-primary">Save property</button></div>
-  </form>
 
-  <section class="card mb-4">
-    <div class="card-header"><h2 class="card-title">Rental contracts</h2></div>
     <div class="card-body text-secondary" th:if="${#lists.isEmpty(contracts)}">No rental contracts configured.</div>
-    <div class="iv-contract-list" th:unless="${#lists.isEmpty(contracts)}">
-      <article class="iv-contract" th:each="contract : ${contracts}">
-        <div class="iv-contract__content">
-          <dl class="iv-contract__dates">
-            <div><dt>From</dt><dd th:text="${contract.startDate}">2026-04-01</dd></div>
-            <div><dt>Expected to</dt><dd th:text="${contract.endDate ?: 'Open'}">Open</dd></div>
-            <div><dt>Terminated</dt><dd th:text="${contract.terminatedDate ?: '—'}">—</dd></div>
-          </dl>
-          <div class="iv-contract__terms" aria-label="Contract terms">
-            <span class="iv-contract-term" th:each="term : ${contract.terms}">
-              <span class="iv-contract-term__name" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).cashFlowType(term.type)}">Rent</span>
-              <strong th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(term.amount, asset.currency)}">3,700 PLN</strong>
-              <span class="iv-contract-term__frequency" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).frequency(term.frequency)}">Monthly</span>
-              <span class="badge bg-azure-lt" th:if="${term.paidByTenant}">Tenant paid</span>
-            </span>
+    <div class="iv-rental-contracts" th:unless="${#lists.isEmpty(contracts)}">
+      <details class="iv-rental-contract" th:each="contract, contractStat : ${contracts}" th:open="${contractStat.first}" th:attr="data-contract-id=${contract.id}">
+        <summary class="iv-rental-contract__summary">
+          <span class="iv-rental-contract__date"><small>Start</small><strong th:text="${contract.startDate}">2026-04-01</strong></span>
+          <span class="iv-rental-contract__date"><small>Effective end</small><strong th:text="${contract.effectiveEndDate ?: 'Open'}">Open</strong></span>
+          <span class="iv-rental-contract__tenant" th:text="${contract.tenantName ?: 'Tenant not specified'}">Tenant not specified</span>
+          <span class="badge iv-rental-contract__status" th:text="${#strings.capitalize(#strings.toLowerCase(contract.status.name()))}">Current</span>
+          <span class="iv-rental-contract__rent" th:with="rent=${contract.terms.?[type.name() == 'RENT']}" th:text="${#lists.isEmpty(rent) ? 'No rent' : T(com.smartbox.investory.ui.presentation.UiPresentation).money(rent[0].amount, asset.currency) + ' / ' + #strings.toLowerCase(rent[0].frequency.name())}">3,700 PLN / monthly</span>
+          <span class="iv-rental-contract__indicator" aria-hidden="true">›</span>
+        </summary>
+
+        <div class="iv-rental-contract__body" th:with="editForm=${contractForms[contract.id]}">
+          <div class="iv-rental-contract__read" data-contract-read>
+            <div class="iv-contract-groups">
+              <section class="iv-contract-group">
+                <h3>Tenant</h3>
+                <dl class="iv-contract-values">
+                  <div><dt>Name</dt><dd th:text="${contract.tenantName ?: 'Tenant not specified'}">Tenant not specified</dd></div>
+                  <div><dt>Email</dt><dd><a th:if="${contract.tenantEmail}" th:href="${'mailto:' + contract.tenantEmail}" th:text="${contract.tenantEmail}">tenant@example.com</a><span th:unless="${contract.tenantEmail}">—</span></dd></div>
+                  <div><dt>Phone</dt><dd><a th:if="${contract.tenantPhone}" th:href="${'tel:' + contract.tenantPhone}" th:text="${contract.tenantPhone}">+48 123 456 789</a><span th:unless="${contract.tenantPhone}">—</span></dd></div>
+                </dl>
+              </section>
+              <section class="iv-contract-group">
+                <h3>Period</h3>
+                <dl class="iv-contract-values">
+                  <div><dt>Start date</dt><dd th:text="${contract.startDate}">2026-04-01</dd></div>
+                  <div><dt>Expected end</dt><dd th:text="${contract.endDate ?: 'Open'}">Open</dd></div>
+                  <div th:if="${contract.terminatedDate}"><dt>Actual termination</dt><dd th:text="${contract.terminatedDate}">2026-12-01</dd></div>
+                  <div><dt>Status</dt><dd th:text="${#strings.capitalize(#strings.toLowerCase(contract.status.name()))}">Current</dd></div>
+                </dl>
+              </section>
+              <section class="iv-contract-group">
+                <h3>Monthly income</h3>
+                <dl class="iv-contract-values">
+                  <div th:each="term : ${contract.terms}" th:if="${(term.type.name() == 'RENT' or term.type.name() == 'PARKING_RENT' or term.type.name() == 'OTHER_INCOME') and term.amount.signum() != 0}">
+                    <dt th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).cashFlowType(term.type)}">Rent</dt>
+                    <dd><strong th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(term.amount, asset.currency)}">0 PLN</strong> <span th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).frequency(term.frequency)}">Monthly</span></dd>
+                  </div>
+                </dl>
+              </section>
+              <section class="iv-contract-group">
+                <h3>Monthly expenses</h3>
+                <dl class="iv-contract-values">
+                  <div th:each="term : ${contract.terms}" th:if="${(term.type.name() == 'ADMIN_FEE' or term.type.name() == 'UTILITIES' or term.type.name() == 'OTHER_EXPENSE') and term.amount.signum() != 0}">
+                    <dt th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).cashFlowType(term.type)}">Administration</dt>
+                    <dd><strong th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(term.amount, asset.currency)}">0 PLN</strong> <span th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).frequency(term.frequency)}">Monthly</span> · <span th:text="${term.paidByTenant ? 'Paid by tenant' : 'Paid by landlord'}">Paid by landlord</span></dd>
+                  </div>
+                </dl>
+              </section>
+              <section class="iv-contract-group">
+                <h3>Annual expenses</h3>
+                <dl class="iv-contract-values">
+                  <div th:each="term : ${contract.terms}" th:if="${(term.type.name() == 'PROPERTY_TAX' or term.type.name() == 'INSURANCE') and term.amount.signum() != 0}">
+                    <dt th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).cashFlowType(term.type)}">Property tax</dt>
+                    <dd><strong th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(term.amount, asset.currency)}">0 PLN</strong> <span th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).frequency(term.frequency)}">Annual</span> · <span th:text="${term.paidByTenant ? 'Paid by tenant' : 'Paid by landlord'}">Paid by landlord</span></dd>
+                  </div>
+                </dl>
+              </section>
+              <section class="iv-contract-group">
+                <h3>Tax</h3>
+                <p class="mb-0" th:text="${contract.rentalTaxPaidByTenant == null ? 'Use property default' : (contract.rentalTaxPaidByTenant ? 'Paid by tenant' : 'Paid by landlord')}">Use property default</p>
+              </section>
+            </div>
+
+            <div class="iv-rental-contract__actions">
+              <button class="btn btn-outline-primary" type="button" data-edit-contract>Edit</button>
+              <button class="btn btn-outline-warning" type="button" data-terminate-contract th:if="${contract.status.name() == 'CURRENT'}">Terminate early</button>
+              <form method="post" th:action="@{/long-term-assets/{id}/rental-contracts/{contractId}/delete(id=${asset.id},contractId=${contract.id})}" data-delete-contract>
+                <input type="hidden" name="portfolioId" th:value="${portfolioId}">
+                <button class="btn btn-outline-danger" type="submit">Delete</button>
+              </form>
+            </div>
+
+            <form class="iv-contract-confirm" method="post" th:action="@{/long-term-assets/{id}/rental-contracts/{contractId}/terminate(id=${asset.id},contractId=${contract.id})}" data-terminate-panel hidden>
+              <input type="hidden" name="portfolioId" th:value="${portfolioId}">
+              <div><label class="form-label" th:for="${'termination-date-' + contract.id}">Termination date</label><input class="form-control" th:id="${'termination-date-' + contract.id}" name="terminationDate" type="date" th:min="${contract.startDate}" th:max="${contract.endDate}" required></div>
+              <p class="text-secondary mb-0">This records an actual early termination, not a planned contract end.</p>
+              <div class="iv-contract-confirm__actions"><button class="btn btn-warning" type="submit">Confirm early termination</button><button class="btn btn-link" type="button" data-cancel-terminate>Cancel</button></div>
+            </form>
           </div>
+
+          <form class="iv-rental-contract__edit" method="post" th:action="@{/long-term-assets/{id}/rental-contracts/{contractId}(id=${asset.id},contractId=${contract.id})}" data-contract-edit th:attr="data-edit-initial=${editContractId == contract.id}" hidden>
+            <input type="hidden" name="portfolioId" th:value="${portfolioId}">
+            <div th:replace="~{real-estate-detail :: contract-form-fields(prefix=${'edit-' + contract.id}, form=${editForm}, includeRollover=${false})}"></div>
+            <div class="iv-contract-form-actions"><button class="btn btn-primary" type="submit">Save changes</button><button class="btn btn-link" type="button" data-cancel-edit>Cancel</button></div>
+          </form>
         </div>
-        <form class="iv-contract__end-form" method="post" th:action="@{/long-term-assets/{id}/rental-contracts/{contractId}/end(id=${asset.id},contractId=${contract.id})}">
-          <input type="hidden" name="portfolioId" th:value="${portfolioId}">
-          <label class="form-label" th:for="${'contract-end-' + contract.id}">End contract</label>
-          <div class="input-group input-group-sm">
-            <input class="form-control" th:id="${'contract-end-' + contract.id}" name="endDate" type="date" required>
-            <button class="btn btn-outline-primary">End</button>
-          </div>
-        </form>
-        <form class="iv-contract__end-form" method="post" th:action="@{/long-term-assets/{id}/rental-contracts/{contractId}/terminate(id=${asset.id},contractId=${contract.id})}">
-          <input type="hidden" name="portfolioId" th:value="${portfolioId}">
-          <label class="form-label" th:for="${'contract-terminate-' + contract.id}">Terminate now</label>
-          <div class="input-group input-group-sm"><input class="form-control" th:id="${'contract-terminate-' + contract.id}" name="terminationDate" type="date" required><button class="btn btn-outline-danger">Terminate</button></div>
-        </form>
-      </article>
+      </details>
     </div>
 
-    <form class="card-body border-top" method="post" th:action="@{/long-term-assets/{id}/rental-contracts(id=${asset.id})}">
-      <h3 class="h4 mb-3">Add next contract</h3>
+    <form class="iv-add-contract" method="post" th:action="@{/long-term-assets/{id}/rental-contracts(id=${asset.id})}" data-add-contract th:attr="data-suggested-start=${suggestedNextContractStart}" th:hidden="${showAddContract == null}">
+      <div class="iv-add-contract__heading"><div><h3 class="h3 mb-1">Add contract</h3><p class="text-secondary mb-0">Nothing is saved until you create the contract.</p></div><button class="btn btn-outline-secondary" type="button" data-copy-latest th:if="${!#lists.isEmpty(contracts)}">Copy latest contract</button></div>
       <input type="hidden" name="portfolioId" th:value="${portfolioId}">
-      <div class="iv-contract-form">
-        <div><label class="form-label" for="contract-start">Start</label><input id="contract-start" class="form-control" name="startDate" type="date" required></div>
-        <div><label class="form-label" for="contract-expected-end">Expected end</label><input id="contract-expected-end" class="form-control" name="endDate" type="date"></div>
-        <div><label class="form-label" for="contract-rent">Rent / month</label><input id="contract-rent" class="form-control" name="rent" type="number" min="0" step="0.01"></div>
-        <div><label class="form-label" for="contract-parking">Parking / month</label><input id="contract-parking" class="form-control" name="parkingRent" type="number" min="0" step="0.01"></div>
-        <div><label class="form-label" for="contract-admin">Admin / month</label><input id="contract-admin" class="form-control" name="administrationFee" type="number" min="0" step="0.01"></div>
-        <div><label class="form-label" for="contract-utilities">Utilities / month</label><input id="contract-utilities" class="form-control" name="utilities" type="number" min="0" step="0.01"></div>
-        <div><label class="form-label" for="contract-other-income">Other income</label><input id="contract-other-income" class="form-control" name="otherIncome" type="number" min="0" step="0.01"></div>
-        <div><label class="form-label" for="contract-other-cost">Other cost</label><input id="contract-other-cost" class="form-control" name="otherExpense" type="number" min="0" step="0.01"></div>
-        <div><label class="form-label" for="contract-property-tax">Property tax / year</label><input id="contract-property-tax" class="form-control" name="annualPropertyTax" type="number" min="0" step="0.01"></div>
-        <div><label class="form-label" for="contract-insurance">Insurance / year</label><input id="contract-insurance" class="form-control" name="annualInsurance" type="number" min="0" step="0.01"></div>
-        <label class="form-check iv-contract-form__check"><input class="form-check-input" name="rentalTaxPaidByTenant" value="true" type="checkbox"><span class="form-check-label">Tax paid by tenant</span></label>
-        <button class="btn btn-primary iv-contract-form__submit">Add contract</button>
-      </div>
+      <div th:replace="~{real-estate-detail :: contract-form-fields(prefix='add', form=${rentalContract}, includeRollover=${true})}"></div>
+      <div class="iv-contract-form-actions"><button class="btn btn-primary" type="submit">Create contract</button><button class="btn btn-link" type="button" data-cancel-add-contract>Cancel</button></div>
     </form>
   </section>
 
-  <div class="iv-property-support-grid mb-4">
-    <form class="card" method="post" th:action="@{/long-term-assets/{id}/rental-tax-ownership(id=${asset.id})}">
-      <div class="card-body">
+  <details class="card mb-4 iv-property-settings" id="property-settings">
+    <summary class="card-header iv-property-disclosure"><span class="card-title mb-0">Property settings</span></summary>
+    <div class="card-body">
+      <form method="post" th:action="@{/long-term-assets/{id}(id=${asset.id})}">
         <input type="hidden" name="portfolioId" th:value="${portfolioId}">
-        <label class="form-check"><input class="form-check-input" type="checkbox" name="paidByTenant" value="true" th:checked="${asset.rentalTaxPaidByTenant}"><span class="form-check-label">Default rental tax paid by tenant</span></label>
-      </div>
-      <div class="card-footer"><button class="btn btn-outline-primary">Save tax ownership</button></div>
-    </form>
-    <div class="iv-property-metrics">
-      <div class="card"><div class="card-body"><div class="text-secondary">Monthly income</div><strong class="iv-property-metric" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(summary.realEstatePlanning.netMonthlyIncome, asset.currency)}">0.00 PLN</strong></div></div>
-      <div class="card"><div class="card-body"><div class="text-secondary">Income yield</div><strong class="iv-property-metric" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).percentage(summary.realEstatePlanning.incomeYield)}">0.0%</strong></div></div>
+        <input type="hidden" name="type" value="REAL_ESTATE">
+        <input type="hidden" name="active" th:value="${asset.active}">
+        <div class="row g-3">
+          <div class="col-lg-6"><label class="form-label" for="property-name">Name</label><input id="property-name" class="form-control" name="name" th:value="${asset.name}" required></div>
+          <div class="col-sm-6 col-lg-3"><label class="form-label" for="property-currency">Currency</label><select id="property-currency" class="form-select" name="currency"><option th:each="currency : ${T(com.smartbox.investory.shared.currency.CurrencyType).values()}" th:value="${currency}" th:text="${currency}" th:selected="${currency == asset.currency}"></option></select></div>
+          <div class="col-sm-6 col-lg-3"><label class="form-label" for="property-value">Current value</label><input id="property-value" class="form-control" name="currentValue" type="number" step="0.01" min="0" th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).moneyInput(asset.currentValue)}" required></div>
+          <div class="col-sm-6 col-lg-3"><label class="form-label" for="purchase-date">Purchase date</label><input id="purchase-date" class="form-control" name="acquisitionDate" type="date" th:value="${asset.acquisitionDate}"></div>
+          <div class="col-sm-6 col-lg-3"><label class="form-label" for="annual-tax-base">Annual tax base</label><input id="annual-tax-base" class="form-control" name="taxBase" type="number" min="0" step="1" th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumberInput(asset.taxBase)}"></div>
+          <div class="col-12"><label class="form-label" for="property-notes">Notes</label><textarea id="property-notes" class="form-control" name="notes" rows="3" th:text="${asset.notes}"></textarea></div>
+        </div>
+        <div class="mt-3"><button class="btn btn-primary">Save property</button></div>
+      </form>
+      <hr>
+      <form class="iv-property-default-tax" method="post" th:action="@{/long-term-assets/{id}/rental-tax-ownership(id=${asset.id})}">
+        <input type="hidden" name="portfolioId" th:value="${portfolioId}">
+        <label class="form-label" for="property-default-tax">Property-level rental-tax default</label>
+        <select class="form-select" id="property-default-tax" name="paidByTenant"><option value="false" th:selected="${!asset.rentalTaxPaidByTenant}">Paid by landlord</option><option value="true" th:selected="${asset.rentalTaxPaidByTenant}">Paid by tenant</option></select>
+        <button class="btn btn-outline-primary" type="submit">Save tax default</button>
+      </form>
     </div>
-  </div>
+  </details>
 
-  <details class="card mb-4">
-    <summary class="card-header iv-property-advanced-summary"><span class="card-title mb-0">Advanced planning</span></summary>
+  <details class="card mb-4 iv-property-advanced">
+    <summary class="card-header iv-property-disclosure"><span class="card-title mb-0">Advanced planning</span></summary>
     <div class="card-body">
       <form class="row g-2 align-items-end" method="post" th:action="@{/long-term-assets/{id}/property-growth(id=${asset.id})}">
         <input type="hidden" name="portfolioId" th:value="${portfolioId}">
         <div class="col-md-4"><label class="form-label" for="growth-rate">Expected annual growth</label><div class="input-group"><input id="growth-rate" class="form-control" name="growthRatePercent" type="number" step="0.01" min="-100" max="100" th:value="${expectedPropertyGrowth == null ? '' : T(com.smartbox.investory.ui.presentation.UiPresentation).percentageInput(expectedPropertyGrowth)}"><span class="input-group-text">%</span></div></div>
-        <div class="col-md-3"><label class="form-label" for="growth-from">Effective from</label><input id="growth-from" class="form-control" name="effectiveFrom" type="date" th:value="${T(java.time.LocalDate).now()}" required></div>
+        <div class="col-md-3"><label class="form-label" for="growth-from">Effective from</label><input id="growth-from" class="form-control" name="effectiveFrom" type="date" th:value="${today}" required></div>
         <div class="col-md-3"><button class="btn btn-outline-primary">Save growth assumption</button></div>
       </form>
     </div>
   </details>
 </main>
+
+<th:block th:fragment="contract-form-fields(prefix, form, includeRollover)">
+  <div class="iv-contract-edit-groups">
+    <fieldset class="iv-contract-edit-group"><legend>Tenant</legend><div class="iv-contract-fields iv-contract-fields--tenant">
+      <div><label class="form-label" th:for="${prefix + '-tenant-name'}">Tenant name</label><input class="form-control" th:id="${prefix + '-tenant-name'}" name="tenantName" maxlength="200" th:value="${form.tenantName}"></div>
+      <div><label class="form-label" th:for="${prefix + '-tenant-email'}">Email</label><input class="form-control" th:id="${prefix + '-tenant-email'}" name="tenantEmail" type="email" maxlength="320" th:value="${form.tenantEmail}"></div>
+      <div><label class="form-label" th:for="${prefix + '-tenant-phone'}">Phone</label><input class="form-control" th:id="${prefix + '-tenant-phone'}" name="tenantPhone" type="tel" maxlength="50" th:value="${form.tenantPhone}"></div>
+    </div></fieldset>
+    <fieldset class="iv-contract-edit-group"><legend>Period</legend><div class="iv-contract-fields">
+      <div><label class="form-label" th:for="${prefix + '-start-date'}">Start date</label><input class="form-control" th:id="${prefix + '-start-date'}" name="startDate" type="date" th:value="${form.startDate}" required></div>
+      <div><label class="form-label" th:for="${prefix + '-expected-end'}">Expected end</label><input class="form-control" th:id="${prefix + '-expected-end'}" name="endDate" type="date" th:value="${form.endDate}"></div>
+      <label class="form-check iv-rollover-option" th:if="${includeRollover}" th:for="${prefix + '-rollover'}"><input class="form-check-input" th:id="${prefix + '-rollover'}" type="checkbox" name="endCurrentContractBeforeStart" value="true" th:checked="${form.endCurrentContractBeforeStart}"><span class="form-check-label">End the current contract the day before this contract starts</span></label>
+    </div></fieldset>
+    <fieldset class="iv-contract-edit-group"><legend>Monthly income</legend>
+      <div class="iv-term-edit-row"><label th:for="${prefix + '-rent'}">Rent</label><input class="form-control" th:id="${prefix + '-rent'}" name="rent" type="number" min="0" step="0.01" th:value="${form.rent}"><select class="form-select" th:id="${prefix + '-rent-frequency'}" name="rentFrequency" th:aria-label="${'Rent frequency ' + prefix}"><option value="MONTHLY" th:selected="${form.rentFrequency.name() == 'MONTHLY'}">Monthly</option><option value="ANNUAL" th:selected="${form.rentFrequency.name() == 'ANNUAL'}">Annual</option></select></div>
+      <div class="iv-term-edit-row"><label th:for="${prefix + '-parking'}">Parking</label><input class="form-control" th:id="${prefix + '-parking'}" name="parkingRent" type="number" min="0" step="0.01" th:value="${form.parkingRent}"><select class="form-select" th:id="${prefix + '-parking-frequency'}" name="parkingRentFrequency" th:aria-label="${'Parking frequency ' + prefix}"><option value="MONTHLY" th:selected="${form.parkingRentFrequency.name() == 'MONTHLY'}">Monthly</option><option value="ANNUAL" th:selected="${form.parkingRentFrequency.name() == 'ANNUAL'}">Annual</option></select></div>
+      <div class="iv-term-edit-row"><label th:for="${prefix + '-other-income'}">Other income</label><input class="form-control" th:id="${prefix + '-other-income'}" name="otherIncome" type="number" min="0" step="0.01" th:value="${form.otherIncome}"><select class="form-select" th:id="${prefix + '-other-income-frequency'}" name="otherIncomeFrequency" th:aria-label="${'Other income frequency ' + prefix}"><option value="MONTHLY" th:selected="${form.otherIncomeFrequency.name() == 'MONTHLY'}">Monthly</option><option value="ANNUAL" th:selected="${form.otherIncomeFrequency.name() == 'ANNUAL'}">Annual</option></select></div>
+    </fieldset>
+    <fieldset class="iv-contract-edit-group"><legend>Monthly expenses</legend>
+      <div class="iv-term-edit-row iv-term-edit-row--payer"><label th:for="${prefix + '-administration'}">Administration</label><input class="form-control" th:id="${prefix + '-administration'}" name="administrationFee" type="number" min="0" step="0.01" th:value="${form.administrationFee}"><select class="form-select" th:id="${prefix + '-administration-frequency'}" name="administrationFeeFrequency" th:aria-label="${'Administration frequency ' + prefix}"><option value="MONTHLY" th:selected="${form.administrationFeeFrequency.name() == 'MONTHLY'}">Monthly</option><option value="ANNUAL" th:selected="${form.administrationFeeFrequency.name() == 'ANNUAL'}">Annual</option></select><select class="form-select" th:id="${prefix + '-administration-payer'}" name="administrationFeePaidByTenant" th:aria-label="${'Administration payer ' + prefix}"><option value="false" th:selected="${!form.administrationFeePaidByTenant}">Landlord pays</option><option value="true" th:selected="${form.administrationFeePaidByTenant}">Tenant pays</option></select></div>
+      <div class="iv-term-edit-row iv-term-edit-row--payer"><label th:for="${prefix + '-utilities'}">Utilities</label><input class="form-control" th:id="${prefix + '-utilities'}" name="utilities" type="number" min="0" step="0.01" th:value="${form.utilities}"><select class="form-select" th:id="${prefix + '-utilities-frequency'}" name="utilitiesFrequency" th:aria-label="${'Utilities frequency ' + prefix}"><option value="MONTHLY" th:selected="${form.utilitiesFrequency.name() == 'MONTHLY'}">Monthly</option><option value="ANNUAL" th:selected="${form.utilitiesFrequency.name() == 'ANNUAL'}">Annual</option></select><select class="form-select" th:id="${prefix + '-utilities-payer'}" name="utilitiesPaidByTenant" th:aria-label="${'Utilities payer ' + prefix}"><option value="false" th:selected="${!form.utilitiesPaidByTenant}">Landlord pays</option><option value="true" th:selected="${form.utilitiesPaidByTenant}">Tenant pays</option></select></div>
+      <div class="iv-term-edit-row iv-term-edit-row--payer"><label th:for="${prefix + '-other-expense'}">Other expense</label><input class="form-control" th:id="${prefix + '-other-expense'}" name="otherExpense" type="number" min="0" step="0.01" th:value="${form.otherExpense}"><select class="form-select" th:id="${prefix + '-other-expense-frequency'}" name="otherExpenseFrequency" th:aria-label="${'Other expense frequency ' + prefix}"><option value="MONTHLY" th:selected="${form.otherExpenseFrequency.name() == 'MONTHLY'}">Monthly</option><option value="ANNUAL" th:selected="${form.otherExpenseFrequency.name() == 'ANNUAL'}">Annual</option></select><select class="form-select" th:id="${prefix + '-other-expense-payer'}" name="otherExpensePaidByTenant" th:aria-label="${'Other expense payer ' + prefix}"><option value="false" th:selected="${!form.otherExpensePaidByTenant}">Landlord pays</option><option value="true" th:selected="${form.otherExpensePaidByTenant}">Tenant pays</option></select></div>
+    </fieldset>
+    <fieldset class="iv-contract-edit-group"><legend>Annual expenses</legend>
+      <div class="iv-term-edit-row iv-term-edit-row--payer"><label th:for="${prefix + '-property-tax'}">Property tax</label><input class="form-control" th:id="${prefix + '-property-tax'}" name="annualPropertyTax" type="number" min="0" step="0.01" th:value="${form.annualPropertyTax}"><select class="form-select" th:id="${prefix + '-property-tax-frequency'}" name="propertyTaxFrequency" th:aria-label="${'Property tax frequency ' + prefix}"><option value="ANNUAL" th:selected="${form.propertyTaxFrequency.name() == 'ANNUAL'}">Annual</option><option value="MONTHLY" th:selected="${form.propertyTaxFrequency.name() == 'MONTHLY'}">Monthly</option></select><select class="form-select" th:id="${prefix + '-property-tax-payer'}" name="propertyTaxPaidByTenant" th:aria-label="${'Property tax payer ' + prefix}"><option value="false" th:selected="${!form.propertyTaxPaidByTenant}">Landlord pays</option><option value="true" th:selected="${form.propertyTaxPaidByTenant}">Tenant pays</option></select></div>
+      <div class="iv-term-edit-row iv-term-edit-row--payer"><label th:for="${prefix + '-insurance'}">Insurance</label><input class="form-control" th:id="${prefix + '-insurance'}" name="annualInsurance" type="number" min="0" step="0.01" th:value="${form.annualInsurance}"><select class="form-select" th:id="${prefix + '-insurance-frequency'}" name="insuranceFrequency" th:aria-label="${'Insurance frequency ' + prefix}"><option value="ANNUAL" th:selected="${form.insuranceFrequency.name() == 'ANNUAL'}">Annual</option><option value="MONTHLY" th:selected="${form.insuranceFrequency.name() == 'MONTHLY'}">Monthly</option></select><select class="form-select" th:id="${prefix + '-insurance-payer'}" name="insurancePaidByTenant" th:aria-label="${'Insurance payer ' + prefix}"><option value="false" th:selected="${!form.insurancePaidByTenant}">Landlord pays</option><option value="true" th:selected="${form.insurancePaidByTenant}">Tenant pays</option></select></div>
+    </fieldset>
+    <fieldset class="iv-contract-edit-group"><legend>Tax ownership</legend><label class="form-label" th:for="${prefix + '-tax-ownership'}">Rental tax</label><select class="form-select" th:id="${prefix + '-tax-ownership'}" name="rentalTaxOwnership"><option value="INHERIT" th:selected="${form.rentalTaxOwnership == 'INHERIT'}">Use property default</option><option value="LANDLORD" th:selected="${form.rentalTaxOwnership == 'LANDLORD'}">Paid by landlord</option><option value="TENANT" th:selected="${form.rentalTaxOwnership == 'TENANT'}">Paid by tenant</option></select></fieldset>
+  </div>
+</th:block>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const panels = [...document.querySelectorAll('.iv-rental-contract')];
+  panels.forEach(panel => panel.addEventListener('toggle', () => {
+    if (panel.open) panels.forEach(other => { if (other !== panel) other.open = false; });
+  }));
+
+  document.querySelectorAll('[data-edit-contract]').forEach(button => button.addEventListener('click', () => {
+    const body = button.closest('.iv-rental-contract__body');
+    body.querySelector('[data-contract-read]').hidden = true;
+    const form = body.querySelector('[data-contract-edit]');
+    form.hidden = false;
+    form.querySelector('input:not([type="hidden"]), select')?.focus();
+  }));
+  document.querySelectorAll('[data-cancel-edit]').forEach(button => button.addEventListener('click', () => {
+    const body = button.closest('.iv-rental-contract__body');
+    body.querySelector('[data-contract-edit]').hidden = true;
+    body.querySelector('[data-contract-read]').hidden = false;
+  }));
+  document.querySelectorAll('[data-contract-edit][data-edit-initial="true"]').forEach(form => {
+    form.closest('.iv-rental-contract').open = true;
+    form.hidden = false;
+    form.closest('.iv-rental-contract__body').querySelector('[data-contract-read]').hidden = true;
+  });
+
+  document.querySelectorAll('[data-terminate-contract]').forEach(button => button.addEventListener('click', () => {
+    const panel = button.closest('[data-contract-read]').querySelector('[data-terminate-panel]');
+    panel.hidden = false;
+    panel.querySelector('input[type="date"]').focus();
+  }));
+  document.querySelectorAll('[data-cancel-terminate]').forEach(button => button.addEventListener('click', () => {
+    button.closest('[data-terminate-panel]').hidden = true;
+  }));
+  document.querySelectorAll('[data-delete-contract]').forEach(form => form.addEventListener('submit', event => {
+    if (!window.confirm('Delete this contract permanently? Its terms will be removed and historical calculations may change.')) event.preventDefault();
+  }));
+
+  const addForm = document.querySelector('[data-add-contract]');
+  document.querySelector('[data-show-add-contract]')?.addEventListener('click', () => {
+    addForm.hidden = false;
+    addForm.querySelector('input:not([type="hidden"])')?.focus();
+  });
+  document.querySelector('[data-cancel-add-contract]')?.addEventListener('click', () => { addForm.hidden = true; });
+  document.querySelector('[data-copy-latest]')?.addEventListener('click', () => {
+    const source = document.querySelector('[data-contract-edit]');
+    if (!source) return;
+    addForm.querySelectorAll('[name]').forEach(target => {
+      if (target.name === 'portfolioId' || target.name === 'endCurrentContractBeforeStart') return;
+      const origin = source.querySelector(`[name="${target.name}"]`);
+      if (!origin) return;
+      if (target.type === 'checkbox') target.checked = origin.checked;
+      else target.value = origin.value;
+    });
+    const start = addForm.querySelector('[name="startDate"]');
+    start.value = addForm.dataset.suggestedStart || '';
+    addForm.querySelector('[name="endDate"]').value = '';
+    start.focus();
+  });
+});
+</script>
 </body>
 </html>

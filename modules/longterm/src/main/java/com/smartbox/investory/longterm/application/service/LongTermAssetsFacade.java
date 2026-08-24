@@ -76,7 +76,9 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
     AssetView asset = asset(portfolioId, id);
     List<ContractView> contracts =
         asset.type() == LongTermAssetType.REAL_ESTATE
-            ? rentalContracts.list(portfolioId, id).stream().map(ContractView::from).toList()
+            ? rentalContracts.list(portfolioId, id).stream()
+                .map(contract -> ContractView.from(contract, date))
+                .toList()
             : List.of();
     return new DetailView(
         asset,
@@ -231,6 +233,9 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
     return rentalContracts.create(
         command.portfolioId(),
         command.assetId(),
+        command.tenantName(),
+        command.tenantEmail(),
+        command.tenantPhone(),
         command.startDate(),
         command.endDate(),
         command.rentalTaxPaidByTenant(),
@@ -239,7 +244,32 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
                 t ->
                     new RentalContractModel.Term(
                         t.type(), t.amount(), t.frequency(), t.paidByTenant()))
+            .toList(),
+        command.endCurrentContractBeforeStart());
+  }
+
+  public LongTermAssetRentalContractEntity updateRentalContract(
+      LongTermAssetsApi.UpdateRentalContractCommand command) {
+    return rentalContracts.update(
+        command.portfolioId(),
+        command.assetId(),
+        command.contractId(),
+        command.tenantName(),
+        command.tenantEmail(),
+        command.tenantPhone(),
+        command.startDate(),
+        command.endDate(),
+        command.rentalTaxPaidByTenant(),
+        command.terms().stream()
+            .map(
+                term ->
+                    new RentalContractModel.Term(
+                        term.type(), term.amount(), term.frequency(), term.paidByTenant()))
             .toList());
+  }
+
+  public void deleteRentalContract(Long portfolioId, Long assetId, Long contractId) {
+    rentalContracts.delete(portfolioId, assetId, contractId);
   }
 
   public LongTermAssetRentalContractEntity endRentalContract(
@@ -588,17 +618,27 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
 
   public record ContractView(
       Long id,
+      String tenantName,
+      String tenantEmail,
+      String tenantPhone,
       LocalDate startDate,
       LocalDate endDate,
       LocalDate terminatedDate,
+      LocalDate effectiveEndDate,
+      com.smartbox.investory.longterm.api.model.RentalContractStatusModel status,
       Boolean rentalTaxPaidByTenant,
       List<TermView> terms) {
-    static ContractView from(LongTermAssetRentalContractEntity c) {
+    static ContractView from(LongTermAssetRentalContractEntity c, LocalDate date) {
       return new ContractView(
           c.getId(),
+          c.getTenantName(),
+          c.getTenantEmail(),
+          c.getTenantPhone(),
           c.getStartDate(),
           c.getEndDate(),
           c.getTerminatedDate(),
+          RentalContractService.effectiveEnd(c),
+          RentalContractService.status(c, date),
           c.getRentalTaxPaidByTenant(),
           c.getTerms().stream()
               .map(

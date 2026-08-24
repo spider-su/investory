@@ -78,37 +78,32 @@ public final class PlanEditorInputNormalizer {
     nonNegative(pension, "annualPension");
 
     SimulationAssumptions assumptions =
-        new SimulationAssumptions(
-                ageAtStart,
-                endAge,
-                annualLiving,
-                inflation,
-                base.cashReturnRate(),
-                bondReturn,
-                investmentReturn,
-                base.realEstateReturnRate(),
-                base.otherReturnRate(),
-                integer(input, "pensionStartAge", base.pensionStartAge()),
-                pension,
-                base.capitalGainTaxRate(),
-                startYear,
-                extras,
-                base.futureEvents(),
-                rentalSpread,
-                spendingSpread,
-                base.fundingStrategy(),
-                reserveYears,
-                harvestThreshold,
-                harvestShare,
+        base.toBuilder()
+            .currentAge(ageAtStart)
+            .endAge(endAge)
+            .annualLivingExpenses(annualLiving)
+            .inflationRate(inflation)
+            .fixedIncomeReturnRate(bondReturn)
+            .equityReturnRate(investmentReturn)
+            .pensionStartAge(integer(input, "pensionStartAge", base.pensionStartAge()))
+            .annualPension(pension)
+            .startYear(startYear)
+            .annualDiscretionaryExpenses(extras)
+            .rentalIncomeGrowthSpread(rentalSpread)
+            .spendingGrowthSpread(spendingSpread)
+            .safeReserveYears(reserveYears)
+            .equityHarvestMinimumReturnRate(harvestThreshold)
+            .equityGainHarvestRate(harvestShare)
+            .allowEmergencyEquityWithdrawal(
                 booleanValue(
-                    input, "allowEmergencyEquityWithdrawal", base.allowEmergencyEquityWithdrawal()),
-                retirementAge,
-                employment,
-                contribution)
-            .withFundingOrder(base.fundingOrder())
-            .withExpenseProfile(
+                    input, "allowEmergencyEquityWithdrawal", base.allowEmergencyEquityWithdrawal()))
+            .retirementAge(retirementAge)
+            .annualEmploymentIncome(employment)
+            .annualPreRetirementContribution(contribution)
+            .expenseProfile(
                 expenseProfile(
-                    input.value("expenseProfile"), base.expenseProfile(), ageAtStart, endAge));
+                    input.value("expenseProfile"), base.expenseProfile(), ageAtStart, endAge))
+            .build();
     ProjectedIncomePolicy incomePolicy =
         new ProjectedIncomePolicy(
             mode(input.value("rentalIncomeMode"), base.projectedIncomePolicy().rentalIncomeMode()),

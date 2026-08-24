@@ -20,7 +20,7 @@ import org.hibernate.annotations.Immutable;
             columnNames = {"simulation_plan_id", "revision_number"}))
 @Getter
 @Setter
-public class SimulationPlanRevisionEntity {
+public class SimulationPlanRevisionEntity implements PersistedSimulationAssumptions {
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;

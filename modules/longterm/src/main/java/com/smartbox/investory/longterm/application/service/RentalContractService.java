@@ -1,45 +1,55 @@
 package com.smartbox.investory.longterm.application.service;
 
 import com.smartbox.investory.longterm.api.model.RentalContractModel;
-import com.smartbox.investory.longterm.infrastructure.asset.*;
-import com.smartbox.investory.longterm.infrastructure.rental.*;
+import com.smartbox.investory.longterm.api.model.RentalContractStatusModel;
+import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetEntity;
+import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetRepository;
+import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
+import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
+import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
+import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractEntity;
+import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractRepository;
+import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractTermEntity;
 import java.time.LocalDate;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Contract-first rental history. Legacy cash-flow rows remain readable for migration compatibility.
- */
+/** Contract-first rental history. Legacy cash-flow rows remain migration compatibility only. */
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class RentalContractService {
+  private static final Pattern EMAIL =
+      Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$", Pattern.CASE_INSENSITIVE);
+
   private final LongTermAssetRepository assets;
   private final LongTermAssetRentalContractRepository contracts;
 
   @Transactional(readOnly = true)
   public List<LongTermAssetRentalContractEntity> list(Long portfolioId, Long assetId) {
-    var asset = owned(portfolioId, assetId);
-    if (asset.getType() != LongTermAssetType.REAL_ESTATE)
-      throw new IllegalArgumentException("Rental contracts apply only to real-estate assets");
-    return contracts.findAllByAssetIdOrderByStartDate(assetId);
+    requireRealEstate(portfolioId, assetId);
+    return contracts.findAllByAssetIdOrderByStartDateDescIdDesc(assetId);
   }
 
   @Transactional(readOnly = true)
   public Optional<LongTermAssetRentalContractEntity> effective(
       Long portfolioId, Long assetId, LocalDate date) {
-    return list(portfolioId, assetId).stream()
-        .filter(c -> applies(c, date))
-        .max(Comparator.comparing(LongTermAssetRentalContractEntity::getStartDate));
+    return list(portfolioId, assetId).stream().filter(c -> applies(c, date)).findFirst();
   }
 
   /** Latest known contract is the projection baseline, including a known future contract. */
   @Transactional(readOnly = true)
   public Optional<LongTermAssetRentalContractEntity> latestKnown(Long portfolioId, Long assetId) {
-    return list(portfolioId, assetId).stream()
-        .max(Comparator.comparing(LongTermAssetRentalContractEntity::getStartDate));
+    return list(portfolioId, assetId).stream().findFirst();
   }
 
   public LongTermAssetRentalContractEntity create(
@@ -48,7 +58,7 @@ public class RentalContractService {
       LocalDate start,
       LocalDate end,
       List<RentalContractModel.Term> terms) {
-    return create(portfolioId, assetId, start, end, null, terms);
+    return create(portfolioId, assetId, null, null, null, start, end, null, terms, false);
   }
 
   public LongTermAssetRentalContractEntity create(
@@ -58,80 +68,173 @@ public class RentalContractService {
       LocalDate end,
       Boolean taxPaidByTenant,
       List<RentalContractModel.Term> terms) {
-    var asset = owned(portfolioId, assetId);
-    if (asset.getType() != LongTermAssetType.REAL_ESTATE)
-      throw new IllegalArgumentException("Rental contracts apply only to real-estate assets");
-    if (start == null || (end != null && end.isBefore(start)))
-      throw new IllegalArgumentException("Invalid contract period");
-    var all = contracts.findAllByAssetIdOrderByStartDate(assetId);
-    var supplied = validatedTerms(terms);
-    var suppliedTypes = EnumSet.noneOf(CashFlowType.class);
-    supplied.forEach(term -> suppliedTypes.add(term.getType()));
-    var previous =
-        all.stream()
-            .filter(old -> old.getStartDate().isBefore(start))
-            .max(Comparator.comparing(LongTermAssetRentalContractEntity::getStartDate))
-            .orElse(null);
-    for (var old : all) {
-      if (!overlaps(old.getStartDate(), effectiveEnd(old), start, end)) continue;
-      if (old.getStartDate().isBefore(start)
-          && (effectiveEnd(old) == null || !effectiveEnd(old).isBefore(start))) {
-        old.setTerminatedDate(start.minusDays(1));
-        contracts.save(old);
-      } else throw new IllegalArgumentException("Overlapping rental contract");
-    }
+    return create(
+        portfolioId, assetId, null, null, null, start, end, taxPaidByTenant, terms, false);
+  }
+
+  public LongTermAssetRentalContractEntity create(
+      Long portfolioId,
+      Long assetId,
+      String tenantName,
+      String tenantEmail,
+      String tenantPhone,
+      LocalDate start,
+      LocalDate end,
+      Boolean taxPaidByTenant,
+      List<RentalContractModel.Term> terms,
+      boolean endCurrentContractBeforeStart) {
+    requireRealEstate(portfolioId, assetId);
+    validatePeriod(start, end, null);
+    Tenant tenant = validateTenant(tenantName, tenantEmail, tenantPhone);
+    List<LongTermAssetRentalContractTermEntity> supplied = validatedTerms(terms);
+    List<LongTermAssetRentalContractEntity> all =
+        contracts.findAllByAssetIdOrderByStartDateDescIdDesc(assetId);
+
+    if (endCurrentContractBeforeStart) closePreviousExpectedPeriod(all, start);
+    rejectOverlap(all, null, start, end);
+
     var contract = new LongTermAssetRentalContractEntity();
     contract.setAssetId(assetId);
-    contract.setStartDate(start);
-    contract.setEndDate(end);
-    contract.setRentalTaxPaidByTenant(taxPaidByTenant);
-    supplied.forEach(term -> addTerm(contract, term));
-    if (previous != null)
-      previous.getTerms().stream()
-          .filter(term -> !suppliedTypes.contains(term.getType()))
-          .forEach(term -> addTerm(contract, term));
+    replaceContractState(contract, tenant, start, end, taxPaidByTenant, supplied, null);
     return contracts.save(contract);
+  }
+
+  public LongTermAssetRentalContractEntity update(
+      Long portfolioId,
+      Long assetId,
+      Long contractId,
+      String tenantName,
+      String tenantEmail,
+      String tenantPhone,
+      LocalDate start,
+      LocalDate end,
+      Boolean taxPaidByTenant,
+      List<RentalContractModel.Term> terms) {
+    var contract = ownedContract(portfolioId, assetId, contractId);
+    validatePeriod(start, end, contract.getTerminatedDate());
+    Tenant tenant = validateTenant(tenantName, tenantEmail, tenantPhone);
+    List<LongTermAssetRentalContractTermEntity> supplied = validatedTerms(terms);
+    rejectOverlap(
+        contracts.findAllByAssetIdOrderByStartDateDescIdDesc(assetId),
+        contractId,
+        start,
+        effectiveEnd(end, contract.getTerminatedDate()));
+    replaceContractState(
+        contract, tenant, start, end, taxPaidByTenant, supplied, contract.getTerminatedDate());
+    return contracts.save(contract);
+  }
+
+  public void delete(Long portfolioId, Long assetId, Long contractId) {
+    contracts.delete(ownedContract(portfolioId, assetId, contractId));
   }
 
   public LongTermAssetRentalContractEntity end(
       Long portfolioId, Long assetId, Long contractId, LocalDate end) {
     var contract = ownedContract(portfolioId, assetId, contractId);
-    if (end == null || end.isBefore(contract.getStartDate()))
-      throw new IllegalArgumentException("Invalid contract end date");
-    if (contract.getTerminatedDate() != null && end.isAfter(contract.getTerminatedDate()))
-      throw new IllegalArgumentException("Cannot extend a terminated contract");
-    contracts.findAllByAssetIdOrderByStartDate(assetId).stream()
-        .filter(other -> !Objects.equals(other.getId(), contractId))
-        .filter(
-            other ->
-                overlaps(other.getStartDate(), effectiveEnd(other), contract.getStartDate(), end))
-        .findAny()
-        .ifPresent(
-            other -> {
-              throw new IllegalArgumentException("Overlapping rental contract");
-            });
+    validatePeriod(contract.getStartDate(), end, contract.getTerminatedDate());
+    rejectOverlap(
+        contracts.findAllByAssetIdOrderByStartDateDescIdDesc(assetId),
+        contractId,
+        contract.getStartDate(),
+        effectiveEnd(end, contract.getTerminatedDate()));
     contract.setEndDate(end);
     return contracts.save(contract);
   }
 
   public void terminate(Long portfolioId, Long assetId, Long contractId, LocalDate date) {
     var contract = ownedContract(portfolioId, assetId, contractId);
-    if (date == null || date.isBefore(contract.getStartDate()))
-      throw new IllegalArgumentException("Invalid termination date");
-    if (contract.getEndDate() != null && date.isAfter(contract.getEndDate()))
-      throw new IllegalArgumentException("Termination cannot follow contract end date");
-    contracts.findAllByAssetIdOrderByStartDate(assetId).stream()
-        .filter(other -> !Objects.equals(other.getId(), contractId))
-        .filter(
-            other ->
-                overlaps(other.getStartDate(), effectiveEnd(other), contract.getStartDate(), date))
-        .findAny()
-        .ifPresent(
-            other -> {
-              throw new IllegalArgumentException("Overlapping rental contract");
-            });
+    if (contract.getTerminatedDate() != null)
+      throw new IllegalArgumentException("Rental contract is already terminated");
+    validatePeriod(contract.getStartDate(), contract.getEndDate(), date);
+    rejectOverlap(
+        contracts.findAllByAssetIdOrderByStartDateDescIdDesc(assetId),
+        contractId,
+        contract.getStartDate(),
+        effectiveEnd(contract.getEndDate(), date));
     contract.setTerminatedDate(date);
     contracts.save(contract);
+  }
+
+  private void closePreviousExpectedPeriod(
+      List<LongTermAssetRentalContractEntity> all, LocalDate newStart) {
+    LongTermAssetRentalContractEntity previous =
+        all.stream()
+            .filter(old -> old.getStartDate().isBefore(newStart))
+            .max(
+                Comparator.comparing(LongTermAssetRentalContractEntity::getStartDate)
+                    .thenComparing(LongTermAssetRentalContractEntity::getId))
+            .orElse(null);
+    if (previous == null
+        || !overlaps(previous.getStartDate(), effectiveEnd(previous), newStart, null)) return;
+    LocalDate expectedEnd = newStart.minusDays(1);
+    if (expectedEnd.isBefore(previous.getStartDate()))
+      throw new IllegalArgumentException("Invalid rollover period");
+    previous.setEndDate(expectedEnd);
+    contracts.save(previous);
+  }
+
+  private static void rejectOverlap(
+      List<LongTermAssetRentalContractEntity> all,
+      Long excludedContractId,
+      LocalDate start,
+      LocalDate end) {
+    all.stream()
+        .filter(other -> !Objects.equals(other.getId(), excludedContractId))
+        .filter(other -> overlaps(other.getStartDate(), effectiveEnd(other), start, end))
+        .findAny()
+        .ifPresent(
+            ignored -> {
+              throw new IllegalArgumentException("Overlapping rental contract");
+            });
+  }
+
+  private static void replaceContractState(
+      LongTermAssetRentalContractEntity contract,
+      Tenant tenant,
+      LocalDate start,
+      LocalDate end,
+      Boolean taxPaidByTenant,
+      List<LongTermAssetRentalContractTermEntity> supplied,
+      LocalDate terminatedDate) {
+    contract.setTenantName(tenant.name());
+    contract.setTenantEmail(tenant.email());
+    contract.setTenantPhone(tenant.phone());
+    contract.setStartDate(start);
+    contract.setEndDate(end);
+    contract.setTerminatedDate(terminatedDate);
+    contract.setRentalTaxPaidByTenant(taxPaidByTenant);
+    contract.getTerms().clear();
+    supplied.forEach(term -> addTerm(contract, term));
+  }
+
+  private static Tenant validateTenant(String name, String email, String phone) {
+    String normalizedName = normalize(name);
+    String normalizedEmail = normalize(email);
+    String normalizedPhone = normalize(phone);
+    if (normalizedName != null && normalizedName.length() > 200)
+      throw new IllegalArgumentException("Tenant name is too long");
+    if (normalizedEmail != null && normalizedEmail.length() > 320)
+      throw new IllegalArgumentException("Tenant email is too long");
+    if (normalizedEmail != null && !EMAIL.matcher(normalizedEmail).matches())
+      throw new IllegalArgumentException("Invalid tenant email");
+    if (normalizedPhone != null && normalizedPhone.length() > 50)
+      throw new IllegalArgumentException("Tenant phone is too long");
+    return new Tenant(normalizedName, normalizedEmail, normalizedPhone);
+  }
+
+  private static String normalize(String value) {
+    if (value == null || value.isBlank()) return null;
+    return value.trim();
+  }
+
+  private static void validatePeriod(LocalDate start, LocalDate end, LocalDate termination) {
+    if (start == null) throw new IllegalArgumentException("Contract start date is required");
+    if (end != null && end.isBefore(start))
+      throw new IllegalArgumentException("Expected end cannot precede contract start");
+    if (termination != null && termination.isBefore(start))
+      throw new IllegalArgumentException("Termination cannot precede contract start");
+    if (termination != null && end != null && termination.isAfter(end))
+      throw new IllegalArgumentException("Termination cannot follow expected end");
   }
 
   private static List<LongTermAssetRentalContractTermEntity> validatedTerms(
@@ -144,7 +247,7 @@ public class RentalContractService {
           || input.frequency() == null
           || input.amount() == null
           || input.amount().signum() < 0)
-        throw new IllegalArgumentException("Invalid rental contract term");
+        throw new IllegalArgumentException("Invalid rental contract amount");
       CashFlowType type = CashFlowType.valueOf(input.type().name());
       if (!types.add(type)) throw new IllegalArgumentException("Duplicate rental contract term");
       var term = new LongTermAssetRentalContractTermEntity();
@@ -168,15 +271,38 @@ public class RentalContractService {
     contract.getTerms().add(term);
   }
 
-  public static boolean applies(LongTermAssetRentalContractEntity c, LocalDate date) {
-    LocalDate end = effectiveEnd(c);
-    return date != null && !date.isBefore(c.getStartDate()) && (end == null || !date.isAfter(end));
+  public static boolean applies(LongTermAssetRentalContractEntity contract, LocalDate date) {
+    LocalDate end = effectiveEnd(contract);
+    return date != null
+        && !date.isBefore(contract.getStartDate())
+        && (end == null || !date.isAfter(end));
   }
 
-  private static LocalDate effectiveEnd(LongTermAssetRentalContractEntity c) {
-    if (c.getEndDate() == null) return c.getTerminatedDate();
-    if (c.getTerminatedDate() == null) return c.getEndDate();
-    return c.getEndDate().isBefore(c.getTerminatedDate()) ? c.getEndDate() : c.getTerminatedDate();
+  public static LocalDate effectiveEnd(LongTermAssetRentalContractEntity contract) {
+    return effectiveEnd(contract.getEndDate(), contract.getTerminatedDate());
+  }
+
+  public static RentalContractStatusModel status(
+      LongTermAssetRentalContractEntity contract, LocalDate date) {
+    if (date.isBefore(contract.getStartDate())) return RentalContractStatusModel.UPCOMING;
+    LocalDate end = effectiveEnd(contract);
+    if (end == null || !date.isAfter(end)) return RentalContractStatusModel.CURRENT;
+    return contract.getTerminatedDate() == null
+        ? RentalContractStatusModel.ENDED
+        : RentalContractStatusModel.TERMINATED;
+  }
+
+  private static LocalDate effectiveEnd(LocalDate expectedEnd, LocalDate termination) {
+    if (expectedEnd == null) return termination;
+    if (termination == null) return expectedEnd;
+    return expectedEnd.isBefore(termination) ? expectedEnd : termination;
+  }
+
+  private LongTermAssetEntity requireRealEstate(Long portfolioId, Long assetId) {
+    LongTermAssetEntity asset = owned(portfolioId, assetId);
+    if (asset.getType() != LongTermAssetType.REAL_ESTATE)
+      throw new IllegalArgumentException("Rental contracts apply only to real-estate assets");
+    return asset;
   }
 
   private LongTermAssetEntity owned(Long portfolioId, Long assetId) {
@@ -186,7 +312,7 @@ public class RentalContractService {
   }
 
   private LongTermAssetRentalContractEntity ownedContract(Long portfolioId, Long assetId, Long id) {
-    owned(portfolioId, assetId);
+    requireRealEstate(portfolioId, assetId);
     return contracts
         .findById(id)
         .filter(c -> Objects.equals(c.getAssetId(), assetId))
@@ -196,4 +322,6 @@ public class RentalContractService {
   private static boolean overlaps(LocalDate a, LocalDate b, LocalDate c, LocalDate d) {
     return !a.isAfter(d == null ? LocalDate.MAX : d) && !c.isAfter(b == null ? LocalDate.MAX : b);
   }
+
+  private record Tenant(String name, String email, String phone) {}
 }

@@ -156,6 +156,17 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
   }
 
   @Override
+  public LongTermAssetsApi.RentalContractView updateRentalContract(
+      LongTermAssetsApi.UpdateRentalContractCommand command) {
+    return rental(delegate.updateRentalContract(command));
+  }
+
+  @Override
+  public void deleteRentalContract(Long portfolioId, Long assetId, Long contractId) {
+    delegate.deleteRentalContract(portfolioId, assetId, contractId);
+  }
+
+  @Override
   public LongTermAssetsApi.RentalContractView endRentalContract(
       Long portfolioId, Long assetId, Long contractId, LocalDate endDate) {
     return rental(delegate.endRentalContract(portfolioId, assetId, contractId, endDate));
@@ -290,9 +301,14 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
                 c ->
                     new LongTermAssetsApi.RentalContractView(
                         c.id(),
+                        c.tenantName(),
+                        c.tenantEmail(),
+                        c.tenantPhone(),
                         c.startDate(),
                         c.endDate(),
                         c.terminatedDate(),
+                        c.effectiveEndDate(),
+                        c.status(),
                         c.rentalTaxPaidByTenant(),
                         c.terms().stream()
                             .map(
@@ -309,9 +325,14 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
   private static LongTermAssetsApi.RentalContractView rental(LongTermAssetRentalContractEntity c) {
     return new LongTermAssetsApi.RentalContractView(
         c.getId(),
+        c.getTenantName(),
+        c.getTenantEmail(),
+        c.getTenantPhone(),
         c.getStartDate(),
         c.getEndDate(),
         c.getTerminatedDate(),
+        RentalContractService.effectiveEnd(c),
+        RentalContractService.status(c, LocalDate.now()),
         c.getRentalTaxPaidByTenant(),
         c.getTerms().stream()
             .map(

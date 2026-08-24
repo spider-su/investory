@@ -2,6 +2,18 @@
 
 Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains future work only.
 
+## 2026-08-24
+
+### Rental contract management
+
+- Added tenant name, email, and phone metadata to real-estate rental contracts.
+- Added stable-identity contract updates, ownership-checked deletion, strict overlap validation, and
+  explicit planned rollover through expected-end dates.
+- Reworked the real-estate detail page around a newest-first accessible contract accordion with full
+  term, payer, tax-ownership, termination, copy, edit, and delete interactions.
+- Moved property settings and advanced planning behind collapsed disclosures and promoted current
+  property value, monthly net income, and yield into the compact page header.
+
 ## 2026-08-17
 
 ### Reconciliation report semantics

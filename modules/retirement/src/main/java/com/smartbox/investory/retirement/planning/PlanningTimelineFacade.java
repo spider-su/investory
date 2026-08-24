@@ -588,39 +588,21 @@ public class PlanningTimelineFacade {
 
   private SimulationAssumptions assumptionsForYear(SimulationAssumptions assumptions, int year) {
     int offset = year - assumptions.startYear();
-    return new SimulationAssumptions(
-        assumptions.currentAge() + offset,
-        assumptions.endAge(),
-        growForYears(
-            assumptions.annualLivingExpenses(), assumptions.effectiveSpendingGrowthRate(), offset),
-        assumptions.inflationRate(),
-        assumptions.cashReturnRate(),
-        assumptions.fixedIncomeReturnRate(),
-        assumptions.equityReturnRate(),
-        assumptions.realEstateReturnRate(),
-        assumptions.otherReturnRate(),
-        assumptions.pensionStartAge(),
-        assumptions.annualPension(),
-        assumptions.capitalGainTaxRate(),
-        year,
-        growForYears(
-            assumptions.annualDiscretionaryExpenses(),
-            assumptions.effectiveSpendingGrowthRate(),
-            offset),
-        assumptions.futureEvents(),
-        assumptions.rentalIncomeGrowthSpread(),
-        assumptions.spendingGrowthSpread(),
-        assumptions.fundingStrategy(),
-        assumptions.safeReserveYears(),
-        assumptions.equityHarvestMinimumReturnRate(),
-        assumptions.equityGainHarvestRate(),
-        assumptions.allowEmergencyEquityWithdrawal(),
-        assumptions.retirementAge(),
-        assumptions.annualEmploymentIncome(),
-        assumptions.annualPreRetirementContribution(),
-        assumptions.fundingOrder(),
-        assumptions.expenseProfile().rebasedAt(offset),
-        assumptions.projectedIncomePolicy());
+    return assumptions.toBuilder()
+        .currentAge(assumptions.currentAge() + offset)
+        .annualLivingExpenses(
+            growForYears(
+                assumptions.annualLivingExpenses(),
+                assumptions.effectiveSpendingGrowthRate(),
+                offset))
+        .startYear(year)
+        .annualDiscretionaryExpenses(
+            growForYears(
+                assumptions.annualDiscretionaryExpenses(),
+                assumptions.effectiveSpendingGrowthRate(),
+                offset))
+        .expenseProfile(assumptions.expenseProfile().rebasedAt(offset))
+        .build();
   }
 
   private Map<PlanningMetric, PlanningMetricValue> deriveHistoricalMarket(

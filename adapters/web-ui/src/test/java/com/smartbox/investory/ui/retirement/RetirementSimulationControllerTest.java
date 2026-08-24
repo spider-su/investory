@@ -766,20 +766,17 @@ class RetirementSimulationControllerTest {
     when(simulations.compareScenarios(eq(p), any(), anyInt())).thenReturn(Map.of());
     var result =
         mockMvc
-        .perform(
-            get("/simulation")
-                .param("planningDisplayCurrency", "PLN")
-                .param("annualExpenses", "45000.00")
-                .param("annualExpensesCanonical", "11250.12345678"))
-        .andExpect(status().isOk())
-        .andReturn();
+            .perform(
+                get("/simulation")
+                    .param("planningDisplayCurrency", "PLN")
+                    .param("annualExpenses", "45000.00")
+                    .param("annualExpensesCanonical", "11250.12345678"))
+            .andExpect(status().isOk())
+            .andReturn();
     var page =
-        (RetirementSimulationPageView)
-            result.getModelAndView().getModel().get("simulationPage");
+        (RetirementSimulationPageView) result.getModelAndView().getModel().get("simulationPage");
     assertEquals(
-        0,
-        new BigDecimal("11250.12345678")
-            .compareTo(page.assumptions().annualLivingExpenses()));
+        0, new BigDecimal("11250.12345678").compareTo(page.assumptions().annualLivingExpenses()));
     verify(planningPresentation, never())
         .fromDisplay(eq(new BigDecimal("45000.00")), eq(CurrencyType.PLN), any(BigDecimal.class));
   }

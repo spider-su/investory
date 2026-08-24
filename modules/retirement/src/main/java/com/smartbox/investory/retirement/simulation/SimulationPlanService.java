@@ -7,7 +7,6 @@ import com.smartbox.investory.longterm.api.LongTermAnnualProjectionApi;
 import com.smartbox.investory.retirement.infrastructure.simulation.*;
 import com.smartbox.investory.retirement.planning.PlanningBaseline;
 import java.math.BigDecimal;
-import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -388,146 +387,17 @@ public class SimulationPlanService {
 
   private SimulationAssumptions assumptions(
       SimulationPlanEntity plan, List<SimulationEvent> eventList) {
-    SimulationAssumptions result =
-        new SimulationAssumptions(
-            plan.getCurrentAge(),
-            plan.getEndAge(),
-            plan.getAnnualLivingExpenses(),
-            plan.getInflationRate(),
-            plan.getCashReturnRate(),
-            plan.getFixedIncomeReturnRate(),
-            plan.getEquityReturnRate(),
-            plan.getRealEstateReturnRate(),
-            plan.getOtherReturnRate(),
-            plan.getPensionStartAge(),
-            plan.getAnnualPension(),
-            plan.getCapitalGainTaxRate(),
-            plan.getStartYear(),
-            plan.getAnnualDiscretionaryExpenses(),
-            eventList,
-            plan.getRentalIncomeGrowthSpread() == null
-                ? SimulationAssumptions.DEFAULT_RENTAL_INCOME_GROWTH_SPREAD
-                : plan.getRentalIncomeGrowthSpread(),
-            plan.getSpendingGrowthSpread() == null
-                ? SimulationAssumptions.DEFAULT_SPENDING_GROWTH_SPREAD
-                : plan.getSpendingGrowthSpread(),
-            plan.getFundingStrategy() == null
-                ? SimulationFundingStrategy.SIMPLE_WATERFALL
-                : plan.getFundingStrategy(),
-            plan.getSafeReserveYears() == null ? BigDecimal.ZERO : plan.getSafeReserveYears(),
-            plan.getEquityHarvestMinimumReturnRate() == null
-                ? BigDecimal.ZERO
-                : plan.getEquityHarvestMinimumReturnRate(),
-            plan.getEquityGainHarvestRate() == null
-                ? BigDecimal.ZERO
-                : plan.getEquityGainHarvestRate(),
-            plan.getAllowEmergencyEquityWithdrawal() == null
-                || plan.getAllowEmergencyEquityWithdrawal(),
-            plan.getRetirementAge() == null ? plan.getCurrentAge() : plan.getRetirementAge(),
-            plan.getAnnualEmploymentIncome() == null
-                ? BigDecimal.ZERO
-                : plan.getAnnualEmploymentIncome(),
-            plan.getAnnualPreRetirementContribution() == null
-                ? BigDecimal.ZERO
-                : plan.getAnnualPreRetirementContribution());
-    return result
-        .withFundingOrder(parseFundingOrder(plan.getFundingOrder()))
-        .withExpenseProfile(parseExpenseProfile(plan.getExpenseProfile()))
-        .withProjectedIncomePolicy(
-            new ProjectedIncomePolicy(
-                plan.getRentalIncomeMode(), plan.getManualRentalIncome(),
-                plan.getBondCashIncomeMode(), plan.getManualBondCashIncome()));
+    return SimulationAssumptionsPersistenceMapper.read(plan, eventList);
   }
 
   private SimulationAssumptions assumptions(
       SimulationPlanRevisionEntity revision, List<SimulationEvent> eventList) {
-    SimulationAssumptions result =
-        new SimulationAssumptions(
-            revision.getCurrentAge(),
-            revision.getEndAge(),
-            revision.getAnnualLivingExpenses(),
-            revision.getInflationRate(),
-            revision.getCashReturnRate(),
-            revision.getFixedIncomeReturnRate(),
-            revision.getEquityReturnRate(),
-            revision.getRealEstateReturnRate(),
-            revision.getOtherReturnRate(),
-            revision.getPensionStartAge(),
-            revision.getAnnualPension(),
-            revision.getCapitalGainTaxRate(),
-            revision.getStartYear(),
-            revision.getAnnualDiscretionaryExpenses(),
-            eventList,
-            revision.getRentalIncomeGrowthSpread() == null
-                ? SimulationAssumptions.DEFAULT_RENTAL_INCOME_GROWTH_SPREAD
-                : revision.getRentalIncomeGrowthSpread(),
-            revision.getSpendingGrowthSpread() == null
-                ? SimulationAssumptions.DEFAULT_SPENDING_GROWTH_SPREAD
-                : revision.getSpendingGrowthSpread(),
-            revision.getFundingStrategy() == null
-                ? SimulationFundingStrategy.SIMPLE_WATERFALL
-                : revision.getFundingStrategy(),
-            revision.getSafeReserveYears() == null
-                ? BigDecimal.ZERO
-                : revision.getSafeReserveYears(),
-            revision.getEquityHarvestMinimumReturnRate() == null
-                ? BigDecimal.ZERO
-                : revision.getEquityHarvestMinimumReturnRate(),
-            revision.getEquityGainHarvestRate() == null
-                ? BigDecimal.ZERO
-                : revision.getEquityGainHarvestRate(),
-            revision.getAllowEmergencyEquityWithdrawal() == null
-                || revision.getAllowEmergencyEquityWithdrawal(),
-            revision.getRetirementAge() == null
-                ? revision.getCurrentAge()
-                : revision.getRetirementAge(),
-            revision.getAnnualEmploymentIncome() == null
-                ? BigDecimal.ZERO
-                : revision.getAnnualEmploymentIncome(),
-            revision.getAnnualPreRetirementContribution() == null
-                ? BigDecimal.ZERO
-                : revision.getAnnualPreRetirementContribution());
-    return result
-        .withFundingOrder(parseFundingOrder(revision.getFundingOrder()))
-        .withExpenseProfile(parseExpenseProfile(revision.getExpenseProfile()))
-        .withProjectedIncomePolicy(
-            new ProjectedIncomePolicy(
-                revision.getRentalIncomeMode(), revision.getManualRentalIncome(),
-                revision.getBondCashIncomeMode(), revision.getManualBondCashIncome()));
+    return SimulationAssumptionsPersistenceMapper.read(revision, eventList);
   }
 
   private static void copy(
       SimulationPlanRevisionEntity target, SimulationAssumptions a, PlanningBaseline baseline) {
-    target.setCurrentAge(a.currentAge());
-    target.setStartYear(a.startYear());
-    target.setEndAge(a.endAge());
-    target.setRetirementAge(a.retirementAge());
-    target.setAnnualEmploymentIncome(a.annualEmploymentIncome());
-    target.setAnnualPreRetirementContribution(a.annualPreRetirementContribution());
-    target.setAnnualLivingExpenses(a.annualLivingExpenses());
-    target.setAnnualDiscretionaryExpenses(a.annualDiscretionaryExpenses());
-    target.setInflationRate(a.inflationRate());
-    target.setRentalIncomeGrowthSpread(a.rentalIncomeGrowthSpread());
-    target.setSpendingGrowthSpread(a.spendingGrowthSpread());
-    target.setRentalIncomeMode(a.projectedIncomePolicy().rentalIncomeMode());
-    target.setManualRentalIncome(a.projectedIncomePolicy().manualRentalIncome());
-    target.setBondCashIncomeMode(a.projectedIncomePolicy().bondCashIncomeMode());
-    target.setManualBondCashIncome(a.projectedIncomePolicy().manualBondCashIncome());
-    target.setFundingStrategy(a.fundingStrategy());
-    target.setFundingOrder(serializeFundingOrder(a.fundingOrder()));
-    target.setExpenseProfile(serializeExpenseProfile(a.expenseProfile()));
-    target.setSafeReserveYears(a.safeReserveYears());
-    target.setEquityHarvestMinimumReturnRate(a.equityHarvestMinimumReturnRate());
-    target.setEquityGainHarvestRate(a.equityGainHarvestRate());
-    target.setAllowEmergencyEquityWithdrawal(a.allowEmergencyEquityWithdrawal());
-    target.setCashReturnRate(a.cashReturnRate());
-    target.setFixedIncomeReturnRate(a.fixedIncomeReturnRate());
-    target.setEquityReturnRate(a.equityReturnRate());
-    target.setRealEstateReturnRate(a.realEstateReturnRate());
-    target.setOtherReturnRate(a.otherReturnRate());
-    target.setPensionStartAge(a.pensionStartAge());
-    target.setAnnualPension(a.annualPension());
-    target.setCapitalGainTaxRate(a.capitalGainTaxRate());
+    SimulationAssumptionsPersistenceMapper.write(target, a);
     if (baseline != null) {
       target.setBaselineAsOfYear(baseline.asOfYear());
       target.setBaselineReserve(baseline.reserve());
@@ -624,50 +494,8 @@ public class SimulationPlanService {
       SimulationPlanEntity p, Long portfolioId, String name, SimulationAssumptions a) {
     p.setPortfolioId(portfolioId);
     p.setName(name.trim());
-    p.setCurrentAge(a.currentAge());
-    p.setStartYear(a.startYear());
-    p.setEndAge(a.endAge());
-    p.setRetirementAge(a.retirementAge());
-    p.setAnnualEmploymentIncome(a.annualEmploymentIncome());
-    p.setAnnualPreRetirementContribution(a.annualPreRetirementContribution());
-    p.setAnnualLivingExpenses(a.annualLivingExpenses());
-    p.setAnnualDiscretionaryExpenses(a.annualDiscretionaryExpenses());
-    p.setInflationRate(a.inflationRate());
-    p.setRentalIncomeGrowthSpread(a.rentalIncomeGrowthSpread());
-    p.setSpendingGrowthSpread(a.spendingGrowthSpread());
-    p.setRentalIncomeMode(a.projectedIncomePolicy().rentalIncomeMode());
-    p.setManualRentalIncome(a.projectedIncomePolicy().manualRentalIncome());
-    p.setBondCashIncomeMode(a.projectedIncomePolicy().bondCashIncomeMode());
-    p.setManualBondCashIncome(a.projectedIncomePolicy().manualBondCashIncome());
-    p.setFundingStrategy(a.fundingStrategy());
-    p.setFundingOrder(serializeFundingOrder(a.fundingOrder()));
-    p.setExpenseProfile(serializeExpenseProfile(a.expenseProfile()));
-    p.setSafeReserveYears(a.safeReserveYears());
-    p.setEquityHarvestMinimumReturnRate(a.equityHarvestMinimumReturnRate());
-    p.setEquityGainHarvestRate(a.equityGainHarvestRate());
-    p.setAllowEmergencyEquityWithdrawal(a.allowEmergencyEquityWithdrawal());
-    p.setCashReturnRate(a.cashReturnRate());
-    p.setFixedIncomeReturnRate(a.fixedIncomeReturnRate());
-    p.setEquityReturnRate(a.equityReturnRate());
-    p.setRealEstateReturnRate(a.realEstateReturnRate());
-    p.setOtherReturnRate(a.otherReturnRate());
-    p.setPensionStartAge(a.pensionStartAge());
-    p.setAnnualPension(a.annualPension());
-    p.setCapitalGainTaxRate(a.capitalGainTaxRate());
+    SimulationAssumptionsPersistenceMapper.write(p, a);
     return p;
-  }
-
-  private static String serializeFundingOrder(List<FundingSource> order) {
-    return String.join(",", order.stream().map(Enum::name).toList());
-  }
-
-  private static List<FundingSource> parseFundingOrder(String value) {
-    if (value == null || isBlank(value)) return SimulationAssumptions.DEFAULT_FUNDING_ORDER;
-    try {
-      return Arrays.stream(value.split(",")).map(String::trim).map(FundingSource::valueOf).toList();
-    } catch (IllegalArgumentException exception) {
-      throw new IllegalArgumentException("Unknown funding source in simulation plan", exception);
-    }
   }
 
   private boolean revisioned() {
@@ -679,31 +507,5 @@ public class SimulationPlanService {
     if (list(portfolioId).stream()
         .anyMatch(p -> !Objects.equals(p.getId(), id) && p.getName().equalsIgnoreCase(name.trim())))
       throw new IllegalArgumentException("Plan name already exists");
-  }
-
-  private static String serializeExpenseProfile(ExpenseProfile profile) {
-    return profile.steps().stream()
-        .map(step -> step.fromYear() + ":" + step.factor().toPlainString())
-        .reduce((left, right) -> left + ";" + right)
-        .orElse("");
-  }
-
-  private static ExpenseProfile parseExpenseProfile(String value) {
-    if (value == null || isBlank(value)) return ExpenseProfile.EMPTY;
-    try {
-      return new ExpenseProfile(
-          Arrays.stream(value.split(";"))
-              .map(String::trim)
-              .map(
-                  entry -> {
-                    String[] parts = entry.split(":", -1);
-                    if (parts.length != 2) throw new IllegalArgumentException();
-                    return new ExpenseProfileStep(
-                        Integer.parseInt(parts[0].trim()), new BigDecimal(parts[1].trim()));
-                  })
-              .toList());
-    } catch (RuntimeException exception) {
-      throw new IllegalArgumentException("Invalid expense profile in simulation plan", exception);
-    }
   }
 }

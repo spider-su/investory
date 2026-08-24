@@ -11,10 +11,14 @@ import com.smartbox.investory.shared.presentation.FinancialPresentation;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.NoSuchElementException;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller
 @RequiredArgsConstructor
@@ -238,34 +242,50 @@ public class LongTermAssetController {
   public String addRentalContract(
       @PathVariable Long id,
       @RequestParam Long portfolioId,
-      @RequestParam LocalDate startDate,
-      @RequestParam(required = false) LocalDate endDate,
-      @RequestParam(required = false) Boolean rentalTaxPaidByTenant,
-      @RequestParam(required = false) BigDecimal rent,
-      @RequestParam(required = false) BigDecimal parkingRent,
-      @RequestParam(required = false) BigDecimal administrationFee,
-      @RequestParam(required = false) BigDecimal utilities,
-      @RequestParam(required = false) BigDecimal otherIncome,
-      @RequestParam(required = false) BigDecimal otherExpense,
-      @RequestParam(required = false) BigDecimal annualPropertyTax,
-      @RequestParam(required = false) BigDecimal annualInsurance) {
-    assets.createRentalContract(
-        new LongTermAssetsApi.RentalContractCommand(
-            portfolioId,
-            id,
-            startDate,
-            endDate,
-            rentalTaxPaidByTenant,
-            rentalTerms(
-                rent,
-                parkingRent,
-                administrationFee,
-                utilities,
-                otherIncome,
-                otherExpense,
-                annualPropertyTax,
-                annualInsurance)));
-    return redirect(id, portfolioId);
+      @ModelAttribute RentalContractForm rentalContract,
+      RedirectAttributes feedback) {
+    try {
+      assets.createRentalContract(rentalContract.createCommand(portfolioId, id));
+      feedback.addFlashAttribute("success", "Rental contract created.");
+    } catch (IllegalArgumentException | NoSuchElementException exception) {
+      feedback.addFlashAttribute("error", rentalError(exception));
+      feedback.addFlashAttribute("rentalContract", rentalContract);
+      feedback.addFlashAttribute("showAddContract", true);
+    }
+    return rentalRedirect(id, portfolioId);
+  }
+
+  @PostMapping("/long-term-assets/{id}/rental-contracts/{contractId}")
+  public String updateRentalContract(
+      @PathVariable Long id,
+      @PathVariable Long contractId,
+      @RequestParam Long portfolioId,
+      @ModelAttribute RentalContractForm rentalContract,
+      RedirectAttributes feedback) {
+    try {
+      assets.updateRentalContract(rentalContract.updateCommand(portfolioId, id, contractId));
+      feedback.addFlashAttribute("success", "Rental contract updated.");
+    } catch (IllegalArgumentException | NoSuchElementException exception) {
+      feedback.addFlashAttribute("error", rentalError(exception));
+      feedback.addFlashAttribute("editContractId", contractId);
+      feedback.addFlashAttribute("contractEditForm", rentalContract);
+    }
+    return rentalRedirect(id, portfolioId);
+  }
+
+  @PostMapping("/long-term-assets/{id}/rental-contracts/{contractId}/delete")
+  public String deleteRentalContract(
+      @PathVariable Long id,
+      @PathVariable Long contractId,
+      @RequestParam Long portfolioId,
+      RedirectAttributes feedback) {
+    try {
+      assets.deleteRentalContract(portfolioId, id, contractId);
+      feedback.addFlashAttribute("success", "Rental contract deleted.");
+    } catch (IllegalArgumentException | NoSuchElementException exception) {
+      feedback.addFlashAttribute("error", rentalError(exception));
+    }
+    return rentalRedirect(id, portfolioId);
   }
 
   @PostMapping("/long-term-assets/{id}/rental-contracts/{contractId}/end")
@@ -273,9 +293,15 @@ public class LongTermAssetController {
       @PathVariable Long id,
       @PathVariable Long contractId,
       @RequestParam Long portfolioId,
-      @RequestParam LocalDate endDate) {
-    assets.endRentalContract(portfolioId, id, contractId, endDate);
-    return redirect(id, portfolioId);
+      @RequestParam LocalDate endDate,
+      RedirectAttributes feedback) {
+    try {
+      assets.endRentalContract(portfolioId, id, contractId, endDate);
+      feedback.addFlashAttribute("success", "Expected contract end updated.");
+    } catch (IllegalArgumentException | NoSuchElementException exception) {
+      feedback.addFlashAttribute("error", rentalError(exception));
+    }
+    return rentalRedirect(id, portfolioId);
   }
 
   @PostMapping("/long-term-assets/{id}/rental-contracts/{contractId}/terminate")
@@ -283,46 +309,22 @@ public class LongTermAssetController {
       @PathVariable Long id,
       @PathVariable Long contractId,
       @RequestParam Long portfolioId,
-      @RequestParam LocalDate terminationDate) {
-    assets.terminateRentalContract(portfolioId, id, contractId, terminationDate);
-    return redirect(id, portfolioId);
-  }
-
-  private static java.util.List<LongTermAssetsApi.RentalTermCommand> rentalTerms(
-      BigDecimal rent,
-      BigDecimal parkingRent,
-      BigDecimal administrationFee,
-      BigDecimal utilities,
-      BigDecimal otherIncome,
-      BigDecimal otherExpense,
-      BigDecimal annualPropertyTax,
-      BigDecimal annualInsurance) {
-    var terms = new java.util.ArrayList<LongTermAssetsApi.RentalTermCommand>();
-    addTerm(terms, CashFlowTypeModel.RENT, rent, FrequencyModel.MONTHLY, false);
-    addTerm(terms, CashFlowTypeModel.PARKING_RENT, parkingRent, FrequencyModel.MONTHLY, false);
-    addTerm(terms, CashFlowTypeModel.ADMIN_FEE, administrationFee, FrequencyModel.MONTHLY, true);
-    addTerm(terms, CashFlowTypeModel.UTILITIES, utilities, FrequencyModel.MONTHLY, true);
-    addTerm(terms, CashFlowTypeModel.OTHER_INCOME, otherIncome, FrequencyModel.MONTHLY, false);
-    addTerm(terms, CashFlowTypeModel.OTHER_EXPENSE, otherExpense, FrequencyModel.MONTHLY, false);
-    addTerm(terms, CashFlowTypeModel.PROPERTY_TAX, annualPropertyTax, FrequencyModel.ANNUAL, false);
-    addTerm(terms, CashFlowTypeModel.INSURANCE, annualInsurance, FrequencyModel.ANNUAL, false);
-    return java.util.List.copyOf(terms);
-  }
-
-  private static void addTerm(
-      java.util.List<LongTermAssetsApi.RentalTermCommand> terms,
-      CashFlowTypeModel type,
-      BigDecimal amount,
-      FrequencyModel frequency,
-      boolean paidByTenant) {
-    if (amount != null)
-      terms.add(new LongTermAssetsApi.RentalTermCommand(type, amount, frequency, paidByTenant));
+      @RequestParam LocalDate terminationDate,
+      RedirectAttributes feedback) {
+    try {
+      assets.terminateRentalContract(portfolioId, id, contractId, terminationDate);
+      feedback.addFlashAttribute("success", "Early termination recorded.");
+    } catch (IllegalArgumentException | NoSuchElementException exception) {
+      feedback.addFlashAttribute("error", rentalError(exception));
+    }
+    return rentalRedirect(id, portfolioId);
   }
 
   @GetMapping("/long-term-assets/{id}")
   public String detail(
       @PathVariable Long id, @RequestParam(defaultValue = "1") Long portfolioId, Model model) {
-    var view = assets.details(portfolioId, id, LocalDate.now(clock));
+    LocalDate today = LocalDate.now(clock);
+    var view = assets.details(portfolioId, id, today);
     model.addAttribute("asset", view.asset());
     model.addAttribute("portfolioId", portfolioId);
     model.addAttribute("summary", view.summary());
@@ -332,6 +334,26 @@ public class LongTermAssetController {
     model.addAttribute("valuationPeriods", view.valuationPeriods());
     model.addAttribute("bondRatePeriods", view.bondRatePeriods());
     model.addAttribute("expectedPropertyGrowth", view.expectedPropertyGrowth());
+    model.addAttribute("today", today);
+    java.util.Map<Long, RentalContractForm> contractForms =
+        view.contracts().stream()
+            .collect(
+                java.util.stream.Collectors.toMap(
+                    LongTermAssetsApi.RentalContractView::id, RentalContractForm::from));
+    if (model.containsAttribute("editContractId") && model.containsAttribute("contractEditForm")) {
+      Object contractId = model.asMap().get("editContractId");
+      if (contractId instanceof Long value)
+        contractForms.put(value, (RentalContractForm) model.asMap().get("contractEditForm"));
+    }
+    model.addAttribute("contractForms", contractForms);
+    if (!model.containsAttribute("rentalContract"))
+      model.addAttribute("rentalContract", new RentalContractForm());
+    view.contracts().stream()
+        .findFirst()
+        .map(LongTermAssetsApi.RentalContractView::effectiveEndDate)
+        .filter(java.util.Objects::nonNull)
+        .map(date -> date.plusDays(1))
+        .ifPresent(date -> model.addAttribute("suggestedNextContractStart", date));
     return switch (view.asset().type()) {
       case BOND -> "bond-detail";
       case REAL_ESTATE -> "real-estate-detail";
@@ -479,6 +501,208 @@ public class LongTermAssetController {
 
   private static String redirect(Long id, Long portfolioId) {
     return "redirect:/long-term-assets/" + id + "?portfolioId=" + portfolioId;
+  }
+
+  private static String rentalRedirect(Long id, Long portfolioId) {
+    return redirect(id, portfolioId) + "#rental-contracts";
+  }
+
+  private static String rentalError(RuntimeException exception) {
+    String message =
+        exception.getMessage() == null
+            ? ""
+            : exception.getMessage().toLowerCase(java.util.Locale.ROOT);
+    if (message.contains("email")) return "Enter a valid tenant email address.";
+    if (message.contains("amount") || message.contains("term"))
+      return "Enter valid, non-negative contract amounts.";
+    if (message.contains("overlapping")) return "This contract overlaps another rental contract.";
+    if (message.contains("start") || message.contains("end") || message.contains("termination"))
+      return "Check the contract start, expected end, and termination dates.";
+    if (message.contains("real-estate")) return "Rental contracts require a real-estate asset.";
+    if (message.contains("not found")) return "Rental contract or property was not found.";
+    return "Rental contract could not be saved. Check the entered values.";
+  }
+
+  @Getter
+  @Setter
+  public static class RentalContractForm {
+    private String tenantName;
+    private String tenantEmail;
+    private String tenantPhone;
+    private LocalDate startDate;
+    private LocalDate endDate;
+    private String rentalTaxOwnership = "INHERIT";
+    private boolean endCurrentContractBeforeStart;
+
+    private BigDecimal rent;
+    private FrequencyModel rentFrequency = FrequencyModel.MONTHLY;
+    private BigDecimal parkingRent;
+    private FrequencyModel parkingRentFrequency = FrequencyModel.MONTHLY;
+    private BigDecimal administrationFee;
+    private FrequencyModel administrationFeeFrequency = FrequencyModel.MONTHLY;
+    private boolean administrationFeePaidByTenant;
+    private BigDecimal utilities;
+    private FrequencyModel utilitiesFrequency = FrequencyModel.MONTHLY;
+    private boolean utilitiesPaidByTenant;
+    private BigDecimal otherIncome;
+    private FrequencyModel otherIncomeFrequency = FrequencyModel.MONTHLY;
+    private BigDecimal otherExpense;
+    private FrequencyModel otherExpenseFrequency = FrequencyModel.MONTHLY;
+    private boolean otherExpensePaidByTenant;
+    private BigDecimal annualPropertyTax;
+    private FrequencyModel propertyTaxFrequency = FrequencyModel.ANNUAL;
+    private boolean propertyTaxPaidByTenant;
+    private BigDecimal annualInsurance;
+    private FrequencyModel insuranceFrequency = FrequencyModel.ANNUAL;
+    private boolean insurancePaidByTenant;
+
+    static RentalContractForm from(LongTermAssetsApi.RentalContractView contract) {
+      var form = new RentalContractForm();
+      form.tenantName = contract.tenantName();
+      form.tenantEmail = contract.tenantEmail();
+      form.tenantPhone = contract.tenantPhone();
+      form.startDate = contract.startDate();
+      form.endDate = contract.endDate();
+      form.rentalTaxOwnership =
+          contract.rentalTaxPaidByTenant() == null
+              ? "INHERIT"
+              : contract.rentalTaxPaidByTenant() ? "TENANT" : "LANDLORD";
+      contract.terms().forEach(term -> form.copy(term));
+      return form;
+    }
+
+    private void copy(LongTermAssetsApi.RentalTermView term) {
+      switch (term.type()) {
+        case RENT -> {
+          rent = term.amount();
+          rentFrequency = term.frequency();
+        }
+        case PARKING_RENT -> {
+          parkingRent = term.amount();
+          parkingRentFrequency = term.frequency();
+        }
+        case ADMIN_FEE -> {
+          administrationFee = term.amount();
+          administrationFeeFrequency = term.frequency();
+          administrationFeePaidByTenant = term.paidByTenant();
+        }
+        case UTILITIES -> {
+          utilities = term.amount();
+          utilitiesFrequency = term.frequency();
+          utilitiesPaidByTenant = term.paidByTenant();
+        }
+        case OTHER_INCOME -> {
+          otherIncome = term.amount();
+          otherIncomeFrequency = term.frequency();
+        }
+        case OTHER_EXPENSE -> {
+          otherExpense = term.amount();
+          otherExpenseFrequency = term.frequency();
+          otherExpensePaidByTenant = term.paidByTenant();
+        }
+        case PROPERTY_TAX -> {
+          annualPropertyTax = term.amount();
+          propertyTaxFrequency = term.frequency();
+          propertyTaxPaidByTenant = term.paidByTenant();
+        }
+        case INSURANCE -> {
+          annualInsurance = term.amount();
+          insuranceFrequency = term.frequency();
+          insurancePaidByTenant = term.paidByTenant();
+        }
+      }
+    }
+
+    LongTermAssetsApi.RentalContractCommand createCommand(Long portfolioId, Long assetId) {
+      return new LongTermAssetsApi.RentalContractCommand(
+          portfolioId,
+          assetId,
+          tenantName,
+          tenantEmail,
+          tenantPhone,
+          startDate,
+          endDate,
+          rentalTaxPaidByTenant(),
+          endCurrentContractBeforeStart,
+          terms());
+    }
+
+    LongTermAssetsApi.UpdateRentalContractCommand updateCommand(
+        Long portfolioId, Long assetId, Long contractId) {
+      return new LongTermAssetsApi.UpdateRentalContractCommand(
+          portfolioId,
+          assetId,
+          contractId,
+          tenantName,
+          tenantEmail,
+          tenantPhone,
+          startDate,
+          endDate,
+          rentalTaxPaidByTenant(),
+          terms());
+    }
+
+    private Boolean rentalTaxPaidByTenant() {
+      return switch (rentalTaxOwnership == null ? "INHERIT" : rentalTaxOwnership) {
+        case "TENANT" -> Boolean.TRUE;
+        case "LANDLORD" -> Boolean.FALSE;
+        default -> null;
+      };
+    }
+
+    private java.util.List<LongTermAssetsApi.RentalTermCommand> terms() {
+      var terms = new java.util.ArrayList<LongTermAssetsApi.RentalTermCommand>();
+      add(terms, CashFlowTypeModel.RENT, rent, rentFrequency, false);
+      add(terms, CashFlowTypeModel.PARKING_RENT, parkingRent, parkingRentFrequency, false);
+      add(
+          terms,
+          CashFlowTypeModel.ADMIN_FEE,
+          administrationFee,
+          administrationFeeFrequency,
+          administrationFeePaidByTenant);
+      add(terms, CashFlowTypeModel.UTILITIES, utilities, utilitiesFrequency, utilitiesPaidByTenant);
+      add(terms, CashFlowTypeModel.OTHER_INCOME, otherIncome, otherIncomeFrequency, false);
+      add(
+          terms,
+          CashFlowTypeModel.OTHER_EXPENSE,
+          otherExpense,
+          otherExpenseFrequency,
+          otherExpensePaidByTenant);
+      add(
+          terms,
+          CashFlowTypeModel.PROPERTY_TAX,
+          annualPropertyTax,
+          propertyTaxFrequency,
+          propertyTaxPaidByTenant);
+      add(
+          terms,
+          CashFlowTypeModel.INSURANCE,
+          annualInsurance,
+          insuranceFrequency,
+          insurancePaidByTenant);
+      return java.util.List.copyOf(terms);
+    }
+
+    private static void add(
+        java.util.List<LongTermAssetsApi.RentalTermCommand> terms,
+        CashFlowTypeModel type,
+        BigDecimal amount,
+        FrequencyModel frequency,
+        boolean paidByTenant) {
+      if (amount != null)
+        terms.add(
+            new LongTermAssetsApi.RentalTermCommand(
+                type,
+                amount,
+                frequency == null ? defaultFrequency(type) : frequency,
+                paidByTenant));
+    }
+
+    private static FrequencyModel defaultFrequency(CashFlowTypeModel type) {
+      return type == CashFlowTypeModel.PROPERTY_TAX || type == CashFlowTypeModel.INSURANCE
+          ? FrequencyModel.ANNUAL
+          : FrequencyModel.MONTHLY;
+    }
   }
 
   public static class AssetForm {

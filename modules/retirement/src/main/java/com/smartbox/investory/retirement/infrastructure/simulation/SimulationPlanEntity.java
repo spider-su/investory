@@ -17,7 +17,7 @@ import lombok.Setter;
             columnNames = {"portfolio_id", "name"}))
 @Getter
 @Setter
-public class SimulationPlanEntity {
+public class SimulationPlanEntity implements PersistedSimulationAssumptions {
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
