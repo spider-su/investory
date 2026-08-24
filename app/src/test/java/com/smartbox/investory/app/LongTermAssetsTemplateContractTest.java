@@ -87,7 +87,11 @@ class LongTermAssetsTemplateContractTest {
         () ->
             assertTrue(
                 html.contains(
-                    "class=\"iv-collapsed-summary\" th:if=\"${!#lists.isEmpty(group.assets)}\"")));
+                    "class=\"iv-collapsed-summary\" th:if=\"${!#lists.isEmpty(group.assets)}\"")),
+        () -> assertTrue(html.contains(">Gross yield</span>")),
+        () -> assertTrue(html.contains("? 'Monthly rent tax' : 'Annual tax'")),
+        () -> assertTrue(css.contains("grid-template-columns: repeat(4, minmax(0, 1fr))")),
+        () -> assertTrue(css.contains("grid-auto-rows: auto")));
   }
 
   private static int occurrences(String value, String token) {

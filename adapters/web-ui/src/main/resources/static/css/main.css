@@ -2226,16 +2226,14 @@ body.iv-modal-open { overflow: hidden; }
 .iv-planning-income-summary__grid .is-total strong { color: var(--iv-primary); }
 .iv-long-term-assets-sections {
     display: grid;
-    grid-template-rows: repeat(4, minmax(0, 1fr));
-    gap: 12px;
-    height: var(--iv-performance-panel-height);
+    grid-auto-rows: auto;
+    gap: 10px;
 }
 .iv-long-term-assets-sections > .iv-planning-section {
     min-height: 0;
     margin-bottom: 0;
 }
 .iv-long-term-assets-sections:has(.iv-planning-section__details[open]) {
-    height: auto;
     grid-template-rows: none;
 }
 .iv-planning-section { margin-bottom: 18px; overflow: hidden; }
@@ -2284,15 +2282,16 @@ body.iv-modal-open { overflow: hidden; }
 .iv-planning-section:has(.iv-planning-section__details:not([open])) > .iv-collapsed-summary { display: grid; }
 .iv-collapsed-summary {
     display: none;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0;
     min-height: 0;
     align-items: center;
-    padding: 8px 16px 10px;
+    padding: 10px 20px 12px;
     border-top: 1px solid var(--iv-border);
 }
-.iv-collapsed-summary__metric { min-width: 0; padding: 0 16px; }
+.iv-collapsed-summary__metric { min-width: 0; padding: 0 20px; }
 .iv-collapsed-summary__metric:first-child { padding-left: 0; }
+.iv-collapsed-summary__metric:last-child { padding-right: 0; }
 .iv-collapsed-summary__metric + .iv-collapsed-summary__metric { border-left: 1px solid var(--iv-metric-divider); }
 .iv-collapsed-summary__label { display: block; color: var(--iv-text-muted); font-size: .66rem; font-weight: 750; letter-spacing: .06em; line-height: 1.2; text-transform: uppercase; }
 .iv-collapsed-summary__value { display: block; margin-top: 4px; color: var(--iv-text); font-size: .95rem; font-variant-numeric: tabular-nums; line-height: 1.15; white-space: nowrap; }
@@ -2339,13 +2338,19 @@ body.iv-modal-open { overflow: hidden; }
     .iv-planning-section__header:has(.iv-planning-section__action) { grid-template-columns: minmax(0, 1fr) auto 18px; gap: 8px; }
     .iv-planning-section__header:has(.iv-planning-section__action) { grid-template-columns: minmax(0, 1fr) auto auto 18px; }
     .iv-planning-section__count { justify-self: start; }
-    .iv-collapsed-summary { padding-inline: 12px; }
-    .iv-collapsed-summary__metric { padding-inline: 10px; }
+    .iv-collapsed-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-inline: 14px; }
+    .iv-collapsed-summary__metric { padding-inline: 12px; }
+    .iv-collapsed-summary__metric:nth-child(3) { padding-left: 0; border-left: 0; }
+    .iv-collapsed-summary__metric:nth-child(n + 3) { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--iv-metric-divider); }
     .iv-planning-section__summary { justify-content: start; }
     .iv-planning-income-summary__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 12px; }
     .iv-planning-income-summary__grid > div:nth-child(4) { border-left: 0; }
 }
 @media (max-width: 600px) {
+    .iv-collapsed-summary { grid-template-columns: 1fr; }
+    .iv-collapsed-summary__metric,
+    .iv-collapsed-summary__metric:nth-child(3) { padding-inline: 0; }
+    .iv-collapsed-summary__metric + .iv-collapsed-summary__metric { margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--iv-metric-divider); border-left: 0; }
     .iv-planning-income-summary__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .iv-planning-income-summary__grid > div:nth-child(odd) { border-left: 0; }
     .iv-planning-section__summary { grid-template-columns: 1fr 1fr; justify-content: stretch; gap: 8px; }
