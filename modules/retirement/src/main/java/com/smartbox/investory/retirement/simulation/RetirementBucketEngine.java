@@ -13,6 +13,22 @@ public final class RetirementBucketEngine {
       BigDecimal annualCosts,
       BigDecimal cashIncome,
       RetirementFundingPolicy policy) {
+    return simulate(
+        start,
+        annualCosts,
+        cashIncome,
+        policy,
+        start.bonds().plannedYieldRate(),
+        start.equities().plannedYieldRate());
+  }
+
+  public Result simulate(
+      PlanningBuckets start,
+      BigDecimal annualCosts,
+      BigDecimal cashIncome,
+      RetirementFundingPolicy policy,
+      BigDecimal bondReturnRate,
+      BigDecimal equityReturnRate) {
     annualCosts = nz(annualCosts);
     cashIncome = nz(cashIncome);
     policy = policy == null ? RetirementFundingPolicy.defaults() : policy;
@@ -20,8 +36,8 @@ public final class RetirementBucketEngine {
     BigDecimal bondsStart = start.bonds().startValue(),
         equitiesStart = start.equities().startValue(),
         realEstateStart = start.realEstate().startValue();
-    BigDecimal bondReturn = bondsStart.multiply(start.bonds().plannedYieldRate());
-    BigDecimal equityReturn = equitiesStart.multiply(start.equities().plannedYieldRate());
+    BigDecimal bondReturn = bondsStart.multiply(nz(bondReturnRate));
+    BigDecimal equityReturn = equitiesStart.multiply(nz(equityReturnRate));
     BigDecimal realEstateReturn = realEstateStart.multiply(start.realEstateGrowthRate());
     BigDecimal bonds = bondsStart.add(bondReturn),
         equities = equitiesStart.add(equityReturn),
@@ -42,7 +58,7 @@ public final class RetirementBucketEngine {
     gap = gap.subtract(realEstateWithdrawal);
     BigDecimal harvest = ZERO;
     if (equityReturn.signum() > 0
-        && start.equities().plannedYieldRate().compareTo(policy.equityHarvestThresholdRate())
+        && nz(equityReturnRate).compareTo(policy.equityHarvestThresholdRate())
             >= 0) {
       BigDecimal eligible = equityReturn.multiply(policy.equityHarvestShare());
       BigDecimal targetGap = start.bonds().targetValue().subtract(bonds).max(ZERO);

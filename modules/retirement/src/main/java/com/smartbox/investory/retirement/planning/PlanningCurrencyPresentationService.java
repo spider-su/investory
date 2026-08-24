@@ -6,7 +6,6 @@ import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;
-import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
@@ -17,36 +16,25 @@ import org.springframework.stereotype.Service;
 /** Backend-authoritative canonical/display conversion for planning presentation only. */
 @Service
 public class PlanningCurrencyPresentationService {
-  private static final CurrencyType CANONICAL = CurrencyType.USD;
   private static final DateTimeFormatter PLAN_PROGRESS_BOUNDARY =
       DateTimeFormatter.ofPattern("d MMM uuuu", java.util.Locale.ENGLISH);
-  private final CurrencyConversion rates;
-  private final Clock clock;
+  private final PlanningMoneyConversionService money;
 
   public PlanningCurrencyPresentationService(CurrencyConversion rates, Clock clock) {
-    this.rates = rates;
-    this.clock = clock;
+    this.money = new PlanningMoneyConversionService(rates, clock);
   }
 
   public BigDecimal toDisplay(BigDecimal canonical, CurrencyType display) {
-    return canonical == null || display == CANONICAL
-        ? canonical
-        : rates.convertToBaseCurrency(canonical, display, CANONICAL, LocalDate.now(clock));
+    return money.toDisplay(canonical, display);
   }
 
   public BigDecimal toDisplay(BigDecimal amount, CurrencyType source, CurrencyType display) {
-    return amount == null || source == display
-        ? amount
-        : rates.convertToBaseCurrency(amount, display, source, LocalDate.now(clock));
+    return money.toDisplay(amount, source, display);
   }
 
   public BigDecimal fromDisplay(
       BigDecimal displayAmount, CurrencyType display, BigDecimal fallback) {
-    return displayAmount == null
-        ? fallback
-        : display == CANONICAL
-            ? displayAmount
-            : rates.convertToBaseCurrency(displayAmount, CANONICAL, display, LocalDate.now(clock));
+    return money.fromDisplay(displayAmount, display, fallback);
   }
 
   public PastPlanningYear display(PastPlanningYear past, CurrencyType display) {

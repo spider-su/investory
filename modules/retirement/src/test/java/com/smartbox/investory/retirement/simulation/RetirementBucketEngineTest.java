@@ -80,6 +80,21 @@ class RetirementBucketEngineTest {
   }
 
   @Test
+  void annualRateSeamOverridesConstantRatesWithoutChangingFundingOrder() {
+    var r =
+        engine.simulate(
+            buckets("0", "100", "1000", "0", "0.10", "0.10"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            policy(),
+            bd("0.03"),
+            bd("0.04"));
+
+    assertThat(r.buckets().get(BucketType.BONDS).returnAmount()).isEqualByComparingTo("3");
+    assertThat(r.buckets().get(BucketType.EQUITIES).returnAmount()).isEqualByComparingTo("40");
+  }
+
+  @Test
   void equityToBondTransferIsSignedAndPortfolioValueNeutral() {
     var r =
         engine.simulate(

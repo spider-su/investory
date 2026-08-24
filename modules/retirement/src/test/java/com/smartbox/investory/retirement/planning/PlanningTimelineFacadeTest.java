@@ -89,6 +89,20 @@ class PlanningTimelineFacadeTest {
   }
 
   @Test
+  void resolvesClosedLiveAndProjectedReviewModesFromTheActiveYear() {
+    PlanningYearEntity historical = new PlanningYearEntity();
+    historical.setId(8L);
+    historical.setPortfolioId(1L);
+    historical.setYear(2025);
+    historical.setStatus(PlanningYearStatus.CLOSED);
+    when(years.findByPortfolioIdAndYear(1L, 2025)).thenReturn(Optional.of(historical));
+
+    assertEquals(YearReviewMode.CLOSED, facade.reviewMode(1L, 2025));
+    assertEquals(YearReviewMode.LIVE, facade.reviewMode(1L, 2026));
+    assertEquals(YearReviewMode.NONE, facade.reviewMode(1L, 2027));
+  }
+
+  @Test
   void closedYearRejectsCasualManualEditsAndReopenIsExplicit() {
     PlanningYearEntity historical = new PlanningYearEntity();
     historical.setId(8L);

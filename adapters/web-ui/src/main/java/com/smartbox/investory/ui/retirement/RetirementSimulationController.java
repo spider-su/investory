@@ -161,13 +161,11 @@ public class RetirementSimulationController {
     // links. Saved plans remain the canonical source when an override is not supplied.
     int requestedCurrentAge = currentAge == null ? 40 : currentAge;
     int requestedEndAge = endAge == null ? 95 : endAge;
-    var profile = profiles.loadProfile(portfolioId);
     Long selectedPlanId = plans.resolvePlanId(portfolioId, planId).orElse(null);
-    var base =
-        selectedPlanId == null
-            ? SimulationAssumptions.defaults(
-                profile, requestedCurrentAge, requestedEndAge, Year.now(clock).getValue())
-            : plans.assumptions(portfolioId, selectedPlanId);
+    var projectionInput =
+        projections.loadInput(portfolioId, selectedPlanId, requestedCurrentAge, requestedEndAge);
+    var profile = projectionInput.profile();
+    var base = projectionInput.assumptions();
     CurrencyType submittedCurrency =
         submittedPlanningDisplayCurrency == null
             ? planningDisplayCurrency

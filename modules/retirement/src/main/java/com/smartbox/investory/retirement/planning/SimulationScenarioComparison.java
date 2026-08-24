@@ -19,7 +19,7 @@ public record SimulationScenarioComparison(
         summaries,
         displaySummaries,
         selectedScenario,
-        selectedScenario == SimulationScenario.CUSTOM);
+        false);
   }
 
   public static SimulationScenarioComparison from(
@@ -29,7 +29,12 @@ public record SimulationScenarioComparison(
       boolean customVisible) {
     Map<SimulationScenario, SimulationDecisionSummary> available =
         new EnumMap<>(SimulationScenario.class);
-    available.putAll(summaries);
+    summaries.forEach(
+        (scenario, summary) -> {
+          if (scenario != SimulationScenario.CUSTOM || customVisible) {
+            available.put(scenario, summary);
+          }
+        });
     if (available.isEmpty()) {
       return new SimulationScenarioComparison(List.of(), "No scenario results available.", null);
     }
@@ -43,7 +48,6 @@ public record SimulationScenarioComparison(
                 SimulationScenario.CUSTOM)
             .stream()
             .filter(available::containsKey)
-            .filter(scenario -> scenario != SimulationScenario.CUSTOM || customVisible)
             .map(
                 scenario -> {
                   SimulationDecisionSummary summary = available.get(scenario);

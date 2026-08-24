@@ -2,7 +2,7 @@
   const state = window.retirementAnalysis || {};
   const charts = state.charts || {};
   const selected = state.selectedScenario || "BASE";
-  const colors = {BASE: "#4dabf7", CONSERVATIVE: "#ff8787", OPTIMISTIC: "#69db7c"};
+  const colors = {BASE: "#4dabf7", CONSERVATIVE: "#ff8787", OPTIMISTIC: "#69db7c", CUSTOM: "#ae7bff"};
   const compact = value => {
     const amount = Number(value);
     const absolute = Math.abs(amount);
@@ -17,7 +17,7 @@
     label: scenario.charAt(0) + scenario.slice(1).toLowerCase(),
     data: (balances[scenario] || []).map(point => point[property] == null ? null : point[property]),
     borderColor: colors[scenario] || "#adb5bd",
-    borderDash: scenario === "CONSERVATIVE" ? [7, 4] : scenario === "OPTIMISTIC" ? [2, 4] : [],
+    borderDash: scenario === "CONSERVATIVE" ? [7, 4] : scenario === "OPTIMISTIC" ? [2, 4] : scenario === "CUSTOM" ? [5, 2] : [],
     borderWidth: scenario === "BASE" ? 3 : 2,
     pointRadius: 0,
     tension: .2

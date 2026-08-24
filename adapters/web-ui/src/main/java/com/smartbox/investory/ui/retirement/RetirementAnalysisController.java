@@ -72,6 +72,8 @@ public class RetirementAnalysisController {
     }
     var projection = projections.load(portfolioId, selectedPlanId, 40, 95, customDeltas);
     var result = analyses.analyze(projection);
+    boolean customVisible = selectedScenario == SimulationScenario.CUSTOM && !customDeltas.isZero();
+    SimulationScenario displayedScenario = customVisible ? selectedScenario : SimulationScenario.BASE;
     var displaySummaries =
         new LinkedHashMap<>(
             presentation.displaySummaries(projection.summaries(), planningDisplayCurrency));
@@ -83,24 +85,24 @@ public class RetirementAnalysisController {
                 ? "Current assumptions"
                 : plans.name(portfolioId, selectedPlanId),
             planningDisplayCurrency,
-            selectedScenario,
+            displayedScenario,
             CustomScenarioView.from(customInput),
             result.available(),
             result.available()
                 ? null
                 : "No future planning years remain after the current-year bridge.",
-            displaySummaries.get(selectedScenario),
+            displaySummaries.get(displayedScenario),
             SimulationScenarioComparison.from(
                 projection.summaries(),
                 displaySummaries,
-                selectedScenario,
-                selectedScenario == SimulationScenario.CUSTOM && !customDeltas.isZero()),
+                displayedScenario,
+                customVisible),
             result.available()
-                ? presentation.displayPlanRisks(result.sensitivity(), planningDisplayCurrency)
+                ? presentation.displayPlanRisks(result.sensitivity().value().orElseThrow(), planningDisplayCurrency)
                 : null,
             result.available()
                 ? presentation.displayPlanningFlexibility(
-                    result.sustainableSpending(), result.retirementAge(), planningDisplayCurrency)
+                    result.sustainableSpending().value().orElseThrow(), result.retirementAge().value().orElseThrow(), planningDisplayCurrency)
                 : null,
             presentation.displayCharts(result.charts(), planningDisplayCurrency),
             result.available()

@@ -23,7 +23,7 @@ public enum SensitivityDriver {
 
   public SensitivityDriverCategory category() {
     return switch (this) {
-      case RECURRING_SPENDING, SAFE_RESERVE_YEARS -> SensitivityDriverCategory.POLICY_LEVER;
+      case RECURRING_SPENDING, SAFE_RESERVE_YEARS, PENSION -> SensitivityDriverCategory.POLICY_LEVER;
       default -> SensitivityDriverCategory.RISK;
     };
   }
