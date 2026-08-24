@@ -540,7 +540,9 @@ public class PlanningCurrencyPresentationService {
     var adverse = result.adverse().sustainability();
     String status;
     if (!result.baseline().sustainable()) {
-      status = "Worsens existing plan shortfall";
+      int compared = result.adverse().sustainability().totalUnfundedAmount()
+          .compareTo(result.baseline().sustainability().totalUnfundedAmount());
+      status = compared > 0 ? "Worsens existing plan shortfall" : compared == 0 ? "Unchanged from Base" : "Improves Base shortfall";
     } else if (result.adverseCausesFailure()) {
       status =
           "Plan fails"
@@ -558,7 +560,29 @@ public class PlanningCurrencyPresentationService {
         result.impact().name().replace('_', ' '),
         reserve,
         wealth,
-        status);
+        status,
+        testedCell(result, result.lowerTestedValue(), result.lowerEvaluation(), display),
+        testedCell(result, result.baseTestedValue(), result.baseline(), display),
+        testedCell(result, result.higherTestedValue(), result.higherEvaluation(), display),
+        result.moreHarmfulDirection() + " is more harmful; " + result.impact().name().replace('_', ' ').toLowerCase());
+  }
+
+  private String testedCell(
+      com.smartbox.investory.retirement.simulation.SimulationSensitivityResult result,
+      BigDecimal value,
+      com.smartbox.investory.retirement.simulation.SimulationEvaluation evaluation,
+      CurrencyType display) {
+    if (value == null || evaluation == null) return "—";
+    String tested = switch (result.driver()) {
+      case INFLATION, RENTAL_INCOME_GROWTH, FIXED_INCOME_RETURN, EQUITY_RETURN, SPENDING_GROWTH -> PlanningPresentation.percentage(value);
+      case RECURRING_SPENDING, PENSION -> toDisplay(value, display).stripTrailingZeros().toPlainString() + " " + display;
+      default -> value.stripTrailingZeros().toPlainString();
+    };
+    var assessment = evaluation.sustainability();
+    String state = assessment.sustainable()
+        ? "Sustainable"
+        : "Fails in " + (assessment.firstFailureYear() == null ? "—" : assessment.firstFailureYear());
+    return tested + " · " + state + " · min liquid " + toDisplay(assessment.minimumSpendableAssets(), display).stripTrailingZeros().toPlainString();
   }
 
   private static String signedMoney(BigDecimal amount) {

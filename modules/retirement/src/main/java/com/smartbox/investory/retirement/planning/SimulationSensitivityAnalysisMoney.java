@@ -13,5 +13,14 @@ public record SimulationSensitivityAnalysisMoney(String interpretation, List<Dri
       String impact,
       String reserveCoverage,
       String wealthChange,
-      String status) {}
+      String status,
+      String lower,
+      String base,
+      String higher,
+      String mainEffect) {
+    public Driver(String label, String perturbation, String impact, String reserveCoverage,
+        String wealthChange, String status) {
+      this(label, perturbation, impact, reserveCoverage, wealthChange, status, "—", "—", "—", "—");
+    }
+  }
 }

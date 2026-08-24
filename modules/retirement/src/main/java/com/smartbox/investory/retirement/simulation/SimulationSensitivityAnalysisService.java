@@ -44,7 +44,24 @@ public class SimulationSensitivityAnalysisService {
     BigDecimal wealth = adverse.sustainability().finalNetWorth().subtract(base.sustainability().finalNetWorth());
     return new SimulationSensitivityResult(d.driver(), d.shock(), base, adverse, favorable, reserve,
         !base.sustainability().recurringFundingGapRequired() && adverse.sustainability().recurringFundingGapRequired(),
-        spendable, wealth, classify(base, adverse, reserve, spendable, wealth));
+        spendable, wealth, classify(base, adverse, reserve, spendable, wealth),
+        testedValue(d.driver(), lowerAssumptions(d, a)), testedValue(d.driver(), a),
+        testedValue(d.driver(), higherAssumptions(d, a)), lower, higher,
+        adverse == lower ? "Lower" : "Higher");
+  }
+  private static SimulationAssumptions lowerAssumptions(Definition d, SimulationAssumptions a) { return d.lower().apply(a); }
+  private static SimulationAssumptions higherAssumptions(Definition d, SimulationAssumptions a) { return d.higher().apply(a); }
+  private static BigDecimal testedValue(SensitivityDriver driver, SimulationAssumptions a) {
+    return switch (driver) {
+      case INFLATION -> a.inflationRate();
+      case RENTAL_INCOME_GROWTH -> a.rentalIncomeGrowthSpread();
+      case FIXED_INCOME_RETURN -> a.fixedIncomeReturnRate();
+      case EQUITY_RETURN -> a.equityReturnRate();
+      case SPENDING_GROWTH -> a.spendingGrowthSpread();
+      case RECURRING_SPENDING -> a.annualLivingExpenses().add(a.annualDiscretionaryExpenses());
+      case PENSION -> a.annualPension();
+      default -> BigDecimal.ZERO;
+    };
   }
   private SimulationEvaluation evaluate(InvestmentProfile p, SimulationAssumptions a, Integer year) {
     return year == null ? evaluations.evaluate(p, a, SimulationScenario.BASE) : evaluations.evaluate(p, a, SimulationScenario.BASE, year);
