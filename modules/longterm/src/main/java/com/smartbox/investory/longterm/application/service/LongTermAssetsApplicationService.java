@@ -12,6 +12,7 @@ import com.smartbox.investory.longterm.application.model.LongTermAssetSummary;
 import com.smartbox.investory.longterm.application.model.RealEstatePlanningSummary;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractEntity;
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class LongTermAssetsApplicationService implements LongTermAssetsApi {
   private final LongTermAssetsFacade delegate;
+  private final Clock clock;
 
   @Override
   public List<AssetSummaryView> list(Long portfolioId, LocalDate date) {
@@ -152,13 +154,13 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
   @Override
   public LongTermAssetsApi.RentalContractView createRentalContract(
       LongTermAssetsApi.RentalContractCommand command) {
-    return rental(delegate.createRentalContract(command));
+    return rental(delegate.createRentalContract(command), LocalDate.now(clock));
   }
 
   @Override
   public LongTermAssetsApi.RentalContractView updateRentalContract(
       LongTermAssetsApi.UpdateRentalContractCommand command) {
-    return rental(delegate.updateRentalContract(command));
+    return rental(delegate.updateRentalContract(command), LocalDate.now(clock));
   }
 
   @Override
@@ -169,7 +171,9 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
   @Override
   public LongTermAssetsApi.RentalContractView endRentalContract(
       Long portfolioId, Long assetId, Long contractId, LocalDate endDate) {
-    return rental(delegate.endRentalContract(portfolioId, assetId, contractId, endDate));
+    return rental(
+        delegate.endRentalContract(portfolioId, assetId, contractId, endDate),
+        LocalDate.now(clock));
   }
 
   @Override
@@ -322,7 +326,8 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
             .toList());
   }
 
-  private static LongTermAssetsApi.RentalContractView rental(LongTermAssetRentalContractEntity c) {
+  private static LongTermAssetsApi.RentalContractView rental(
+      LongTermAssetRentalContractEntity c, LocalDate date) {
     return new LongTermAssetsApi.RentalContractView(
         c.getId(),
         c.getTenantName(),
@@ -332,7 +337,7 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
         c.getEndDate(),
         c.getTerminatedDate(),
         RentalContractService.effectiveEnd(c),
-        RentalContractService.status(c, LocalDate.now()),
+        RentalContractService.status(c, date),
         c.getRentalTaxPaidByTenant(),
         c.getTerms().stream()
             .map(

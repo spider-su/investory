@@ -21,13 +21,19 @@ import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRental
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractRepository;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractTermEntity;
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class RentalContractServiceTest {
+  private static final Clock CLOCK =
+      Clock.fixed(Instant.parse("2025-06-30T12:00:00Z"), ZoneOffset.UTC);
+
   private LongTermAssetRepository assets;
   private LongTermAssetRentalContractRepository contracts;
   private RentalContractService service;
@@ -36,7 +42,7 @@ class RentalContractServiceTest {
   void setUp() {
     assets = mock(LongTermAssetRepository.class);
     contracts = mock(LongTermAssetRentalContractRepository.class);
-    service = new RentalContractService(assets, contracts);
+    service = new RentalContractService(assets, contracts, CLOCK);
     when(assets.findByIdAndPortfolioId(7L, 1L)).thenReturn(Optional.of(realEstate()));
     when(contracts.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
   }
@@ -239,6 +245,19 @@ class RentalContractServiceTest {
         .isEqualTo(RentalContractStatusModel.TERMINATED);
     assertThatThrownBy(() -> service.terminate(1L, 7L, 10L, LocalDate.of(2025, 7, 1)))
         .hasMessageContaining("already terminated");
+  }
+
+  @Test
+  void rejectsFutureActualTerminationUsingApplicationClock() {
+    var current = contract(10L, LocalDate.of(2025, 1, 1), LocalDate.of(2025, 12, 31));
+    when(contracts.findById(10L)).thenReturn(Optional.of(current));
+
+    assertThatThrownBy(() -> service.terminate(1L, 7L, 10L, LocalDate.of(2025, 7, 1)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("later than today");
+
+    assertThat(current.getTerminatedDate()).isNull();
+    verify(contracts, never()).save(current);
   }
 
   @Test

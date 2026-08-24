@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
@@ -242,8 +243,14 @@ public class LongTermAssetController {
   public String addRentalContract(
       @PathVariable Long id,
       @RequestParam Long portfolioId,
-      @ModelAttribute RentalContractForm rentalContract,
+      @ModelAttribute("rentalContract") RentalContractForm rentalContract,
+      BindingResult binding,
       RedirectAttributes feedback) {
+    if (binding.hasErrors()) {
+      preserveBindingErrors(binding, feedback);
+      feedback.addFlashAttribute("showAddContract", true);
+      return rentalRedirect(id, portfolioId);
+    }
     try {
       assets.createRentalContract(rentalContract.createCommand(portfolioId, id));
       feedback.addFlashAttribute("success", "Rental contract created.");
@@ -260,8 +267,14 @@ public class LongTermAssetController {
       @PathVariable Long id,
       @PathVariable Long contractId,
       @RequestParam Long portfolioId,
-      @ModelAttribute RentalContractForm rentalContract,
+      @ModelAttribute("contractEditForm") RentalContractForm rentalContract,
+      BindingResult binding,
       RedirectAttributes feedback) {
+    if (binding.hasErrors()) {
+      preserveBindingErrors(binding, feedback);
+      feedback.addFlashAttribute("editContractId", contractId);
+      return rentalRedirect(id, portfolioId);
+    }
     try {
       assets.updateRentalContract(rentalContract.updateCommand(portfolioId, id, contractId));
       feedback.addFlashAttribute("success", "Rental contract updated.");
@@ -311,6 +324,10 @@ public class LongTermAssetController {
       @RequestParam Long portfolioId,
       @RequestParam LocalDate terminationDate,
       RedirectAttributes feedback) {
+    if (terminationDate.isAfter(LocalDate.now(clock))) {
+      feedback.addFlashAttribute("error", "Actual termination date cannot be later than today.");
+      return rentalRedirect(id, portfolioId);
+    }
     try {
       assets.terminateRentalContract(portfolioId, id, contractId, terminationDate);
       feedback.addFlashAttribute("success", "Early termination recorded.");
@@ -521,6 +538,32 @@ public class LongTermAssetController {
     if (message.contains("real-estate")) return "Rental contracts require a real-estate asset.";
     if (message.contains("not found")) return "Rental contract or property was not found.";
     return "Rental contract could not be saved. Check the entered values.";
+  }
+
+  private static void preserveBindingErrors(BindingResult binding, RedirectAttributes feedback) {
+    binding.getModel().forEach(feedback::addFlashAttribute);
+    feedback.addFlashAttribute("error", "Check the highlighted contract fields.");
+    feedback.addFlashAttribute(
+        "rentalRejectedValues",
+        binding.getFieldErrors().stream()
+            .filter(error -> error.getRejectedValue() != null)
+            .collect(
+                java.util.stream.Collectors.toMap(
+                    org.springframework.validation.FieldError::getField,
+                    error -> String.valueOf(error.getRejectedValue()),
+                    (first, ignored) -> first)));
+    feedback.addFlashAttribute(
+        "rentalBindingErrors",
+        binding.getFieldErrors().stream()
+            .map(
+                error ->
+                    "Invalid "
+                        + error.getField().replaceAll("([A-Z])", " $1").toLowerCase()
+                        + (error.getRejectedValue() == null
+                            ? "."
+                            : ": " + error.getRejectedValue() + "."))
+            .distinct()
+            .toList());
   }
 
   @Getter

@@ -10,6 +10,7 @@ import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractEntity;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractRepository;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractTermEntity;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -35,6 +36,7 @@ public class RentalContractService {
 
   private final LongTermAssetRepository assets;
   private final LongTermAssetRentalContractRepository contracts;
+  private final Clock clock;
 
   @Transactional(readOnly = true)
   public List<LongTermAssetRentalContractEntity> list(Long portfolioId, Long assetId) {
@@ -147,6 +149,8 @@ public class RentalContractService {
     var contract = ownedContract(portfolioId, assetId, contractId);
     if (contract.getTerminatedDate() != null)
       throw new IllegalArgumentException("Rental contract is already terminated");
+    if (date != null && date.isAfter(LocalDate.now(clock)))
+      throw new IllegalArgumentException("Actual termination date cannot be later than today");
     validatePeriod(contract.getStartDate(), contract.getEndDate(), date);
     rejectOverlap(
         contracts.findAllByAssetIdOrderByStartDateDescIdDesc(assetId),

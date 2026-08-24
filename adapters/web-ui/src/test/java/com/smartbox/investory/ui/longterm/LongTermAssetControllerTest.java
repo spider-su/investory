@@ -1,8 +1,13 @@
 package com.smartbox.investory.ui.longterm;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.smartbox.investory.longterm.api.*;
 import com.smartbox.investory.longterm.api.LongTermAssetsApi;
@@ -11,23 +16,31 @@ import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.validation.BeanPropertyBindingResult;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
 @ExtendWith(MockitoExtension.class)
 class LongTermAssetControllerTest {
+  private static final Clock CLOCK =
+      Clock.fixed(Instant.parse("2026-08-24T12:00:00Z"), ZoneOffset.UTC);
+
   @Mock LongTermAssetsApi assets;
   private LongTermAssetController controller;
 
   @BeforeEach
   void setUp() {
-    controller = new LongTermAssetController(assets, Clock.systemUTC());
+    controller = new LongTermAssetController(assets, CLOCK);
   }
 
   @Test
@@ -98,7 +111,8 @@ class LongTermAssetControllerTest {
     form.setAnnualPropertyTax(new BigDecimal("700"));
     form.setPropertyTaxPaidByTenant(true);
 
-    controller.addRentalContract(7L, 1L, form, new RedirectAttributesModelMap());
+    controller.addRentalContract(
+        7L, 1L, form, binding(form, "rentalContract"), new RedirectAttributesModelMap());
 
     var command = ArgumentCaptor.forClass(LongTermAssetsApi.RentalContractCommand.class);
     verify(assets).createRentalContract(command.capture());
@@ -123,7 +137,8 @@ class LongTermAssetControllerTest {
     form.setStartDate(LocalDate.of(2027, 1, 1));
     form.setRentalTaxOwnership("INHERIT");
 
-    controller.updateRentalContract(7L, 44L, 1L, form, new RedirectAttributesModelMap());
+    controller.updateRentalContract(
+        7L, 44L, 1L, form, binding(form, "contractEditForm"), new RedirectAttributesModelMap());
     controller.deleteRentalContract(7L, 44L, 1L, new RedirectAttributesModelMap());
 
     var command = ArgumentCaptor.forClass(LongTermAssetsApi.UpdateRentalContractCommand.class);
@@ -131,6 +146,71 @@ class LongTermAssetControllerTest {
     assertEquals(44L, command.getValue().contractId());
     assertEquals(null, command.getValue().rentalTaxPaidByTenant());
     verify(assets).deleteRentalContract(1L, 7L, 44L);
+  }
+
+  @Test
+  void futureActualTerminationIsRejectedAtControllerBoundary() {
+    var feedback = new RedirectAttributesModelMap();
+
+    controller.terminateRentalContract(7L, 44L, 1L, LocalDate.of(2026, 8, 25), feedback);
+
+    assertEquals(
+        "Actual termination date cannot be later than today.",
+        feedback.getFlashAttributes().get("error"));
+    verify(assets, never()).terminateRentalContract(any(), any(), any(), any());
+  }
+
+  @Test
+  void malformedCreateBindingRedirectsWithValuesErrorsAndOpenForm() throws Exception {
+    var mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
+
+    var result =
+        mockMvc
+            .perform(
+                post("/long-term-assets/7/rental-contracts")
+                    .param("portfolioId", "1")
+                    .param("tenantName", "Tenant retained")
+                    .param("startDate", "not-a-date")
+                    .param("rent", "not-an-amount")
+                    .param("rentFrequency", "NOT_A_FREQUENCY"))
+            .andExpect(status().is3xxRedirection())
+            .andExpect(redirectedUrl("/long-term-assets/7?portfolioId=1#rental-contracts"))
+            .andReturn();
+
+    var flash = result.getFlashMap();
+    assertEquals(true, flash.get("showAddContract"));
+    assertEquals(
+        "Tenant retained",
+        ((LongTermAssetController.RentalContractForm) flash.get("rentalContract")).getTenantName());
+    assertEquals(
+        "not-a-date", ((java.util.Map<?, ?>) flash.get("rentalRejectedValues")).get("startDate"));
+    assertEquals(
+        "not-an-amount", ((java.util.Map<?, ?>) flash.get("rentalRejectedValues")).get("rent"));
+    var errors = (java.util.List<?>) flash.get("rentalBindingErrors");
+    assertFalse(errors.isEmpty());
+    assertTrue(errors.contains("Invalid rent: not-an-amount."));
+    verify(assets, never()).createRentalContract(any());
+  }
+
+  @Test
+  void malformedUpdateBindingReopensEditedContractWithoutCallingService() {
+    var form = new LongTermAssetController.RentalContractForm();
+    form.setTenantName("Tenant retained");
+    var binding = binding(form, "contractEditForm");
+    binding.rejectValue("endDate", "typeMismatch", "bad-date");
+    var feedback = new RedirectAttributesModelMap();
+
+    controller.updateRentalContract(7L, 44L, 1L, form, binding, feedback);
+
+    assertEquals(44L, feedback.getFlashAttributes().get("editContractId"));
+    assertEquals(form, feedback.getFlashAttributes().get("contractEditForm"));
+    assertFalse(
+        ((java.util.List<?>) feedback.getFlashAttributes().get("rentalBindingErrors")).isEmpty());
+    verify(assets, never()).updateRentalContract(any());
+  }
+
+  private static BindingResult binding(Object form, String name) {
+    return new BeanPropertyBindingResult(form, name);
   }
 
   private static LongTermAssetsApi.AssetView assetView(Long id) {

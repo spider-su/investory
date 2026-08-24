@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -67,18 +68,12 @@ public class SimulationSensitivityAnalysisService {
             base,
             baselineYear,
             explicitBaseline,
-            bondProjection.hasPlanBondReturnExposure(
-                profile,
-                base.result() == null || base.result().years().isEmpty()
-                    ? assumptions.startYear()
-                    : base.result().years().getFirst().year(),
-                base.result() == null || base.result().years().isEmpty()
-                    ? assumptions.startYear() + assumptions.endAge() - assumptions.currentAge()
-                    : base.result().years().getLast().year()));
+            bondProjection.hasPlanBondReturnExposure(profile, baselineYear, baselineYear));
     List<SimulationSensitivityResult> results =
         catalogue().stream()
             .filter(definition -> definition.applicable().test(inputs))
             .map(definition -> evaluate(definition, inputs))
+            .filter(Objects::nonNull)
             .filter(result -> result.lowerEvaluation() != null || result.higherEvaluation() != null)
             .sorted(worstFirst())
             .toList();
@@ -91,10 +86,12 @@ public class SimulationSensitivityAnalysisService {
   }
 
   private SimulationSensitivityResult evaluate(Definition definition, Inputs inputs) {
-    SimulationEvaluation lower =
-        safeEvaluate(inputs, definition.lower().apply(inputs.assumptions()));
-    SimulationEvaluation higher =
-        safeEvaluate(inputs, definition.higher().apply(inputs.assumptions()));
+    Perturbation lowerPerturbation = perturb(definition.lower(), definition, inputs.assumptions());
+    Perturbation higherPerturbation =
+        perturb(definition.higher(), definition, inputs.assumptions());
+    SimulationEvaluation lower = evaluate(inputs, lowerPerturbation);
+    SimulationEvaluation higher = evaluate(inputs, higherPerturbation);
+    if (lower == null && higher == null) return null;
     SimulationEvaluation adverse;
     SimulationEvaluation favorable;
     String direction;
@@ -135,23 +132,36 @@ public class SimulationSensitivityAnalysisService {
         spendable,
         wealth,
         classify(inputs.base(), adverse, reserve, spendable, wealth),
-        definition.testedValue().apply(definition.lower().apply(inputs.assumptions())),
+        lowerPerturbation == null ? null : lowerPerturbation.testedValue(),
         definition.testedValue().apply(inputs.assumptions()),
-        definition.testedValue().apply(definition.higher().apply(inputs.assumptions())),
+        higherPerturbation == null ? null : higherPerturbation.testedValue(),
         lower,
         higher,
         direction);
   }
 
-  private SimulationEvaluation safeEvaluate(Inputs inputs, SimulationAssumptions assumptions) {
+  private static Perturbation perturb(
+      Function<SimulationAssumptions, SimulationAssumptions> transformation,
+      Definition definition,
+      SimulationAssumptions assumptions) {
     try {
-      return inputs.explicitBaseline()
-          ? evaluations.evaluate(
-              inputs.profile(), assumptions, SimulationScenario.BASE, inputs.baselineYear())
-          : evaluations.evaluate(inputs.profile(), assumptions, SimulationScenario.BASE);
+      SimulationAssumptions transformed = transformation.apply(assumptions);
+      return new Perturbation(transformed, definition.testedValue().apply(transformed));
     } catch (IllegalArgumentException ex) {
       return null;
     }
+  }
+
+  private SimulationEvaluation evaluate(Inputs inputs, Perturbation perturbation) {
+    if (perturbation == null) return null;
+    return inputs.explicitBaseline()
+        ? evaluations.evaluate(
+            inputs.profile(),
+            perturbation.assumptions(),
+            SimulationScenario.BASE,
+            inputs.baselineYear())
+        : evaluations.evaluate(
+            inputs.profile(), perturbation.assumptions(), SimulationScenario.BASE);
   }
 
   /** Positive means a is more harmful than b. */
@@ -339,6 +349,8 @@ public class SimulationSensitivityAnalysisService {
       Function<SimulationAssumptions, SimulationAssumptions> higher,
       Predicate<Inputs> applicable,
       Function<SimulationAssumptions, BigDecimal> testedValue) {}
+
+  private record Perturbation(SimulationAssumptions assumptions, BigDecimal testedValue) {}
 
   private record Inputs(
       InvestmentProfile profile,

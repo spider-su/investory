@@ -27,6 +27,14 @@ class RetirementAnalysisTemplateContractTest {
     assertTrue(html.contains("Planning levers"));
     assertTrue(html.contains("moreHarmfulDirection"));
     assertTrue(html.contains("analysisPage.flexibility"));
+    assertTrue(html.contains("analysisPage.flexibility.spending.baseLimit"));
+    assertTrue(html.contains("analysisPage.flexibility.spending.conservativeLimit"));
+    assertTrue(html.contains("analysisPage.flexibility.spending.baseHeadroom"));
+    assertTrue(html.contains("analysisPage.flexibility.spending.conservativeHeadroom"));
+    assertTrue(html.contains("analysisPage.flexibility.retirement.base.earliest"));
+    assertTrue(html.contains("analysisPage.flexibility.retirement.base.headroom"));
+    assertTrue(html.contains("analysisPage.flexibility.retirement.conservative.earliest"));
+    assertTrue(html.contains("analysisPage.flexibility.retirement.conservative.headroom"));
     assertTrue(html.contains("analysisPage.analysisAvailable"));
     assertTrue(html.contains("Analysis unavailable"));
     assertTrue(html.contains("No future planning years remain"));

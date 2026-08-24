@@ -12826,11 +12826,11 @@ ALTER TABLE ONLY investory.system_audit_runs
 
 
 --
--- Name: long_term_asset_rental_contract_terms uk_rental_contract_term_type; Type: CONSTRAINT; Schema: investory; Owner: -
+-- Name: long_term_asset_rental_contract_terms ux_rental_contract_term_type; Type: CONSTRAINT; Schema: investory; Owner: -
 --
 
 ALTER TABLE ONLY investory.long_term_asset_rental_contract_terms
-    ADD CONSTRAINT uk_rental_contract_term_type UNIQUE (contract_id, cash_flow_type);
+    ADD CONSTRAINT ux_rental_contract_term_type UNIQUE (contract_id, cash_flow_type);
 
 
 --
@@ -14141,4 +14141,3 @@ REFRESH MATERIALIZED VIEW investory.symbol_performance;
 --
 -- PostgreSQL database dump complete
 --
-

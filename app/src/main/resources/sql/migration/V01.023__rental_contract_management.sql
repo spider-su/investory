@@ -13,23 +13,55 @@ ALTER TABLE investory.long_term_asset_rental_contracts
     ADD CONSTRAINT ck_rental_contract_tenant_phone_length
         CHECK (tenant_phone IS NULL OR char_length(tenant_phone) <= 50);
 
--- Released schemas allowed duplicate term types. Keep the oldest row deterministically
--- before enforcing the contract-level invariant.
+-- Released schemas allowed duplicate term types. Only economically compatible rows can be
+-- normalized without losing their frequency or payer meaning.
+DO $$
+DECLARE
+    incompatible_contract_id bigint;
+    incompatible_type varchar(32);
+BEGIN
+    SELECT contract_id, cash_flow_type
+    INTO incompatible_contract_id, incompatible_type
+    FROM investory.long_term_asset_rental_contract_terms
+    GROUP BY contract_id, cash_flow_type
+    HAVING count(*) > 1
+       AND (count(DISTINCT frequency) > 1 OR count(DISTINCT paid_by_tenant) > 1)
+    ORDER BY contract_id, cash_flow_type
+    LIMIT 1;
+
+    IF FOUND THEN
+        RAISE EXCEPTION
+            'Cannot normalize duplicate rental contract terms for contract % and type %: frequency or payer differs',
+            incompatible_contract_id,
+            incompatible_type;
+    END IF;
+END
+$$;
+
+WITH normalized_terms AS (
+    SELECT min(id) AS retained_id,
+           sum(amount) AS merged_amount
+    FROM investory.long_term_asset_rental_contract_terms
+    GROUP BY contract_id, cash_flow_type
+    HAVING count(*) > 1
+)
+UPDATE investory.long_term_asset_rental_contract_terms term
+SET amount = normalized.merged_amount
+FROM normalized_terms normalized
+WHERE term.id = normalized.retained_id;
+
 WITH duplicate_terms AS (
     SELECT id,
-           row_number() OVER (
-               PARTITION BY contract_id, cash_flow_type
-               ORDER BY id
-           ) AS duplicate_rank
+           min(id) OVER (PARTITION BY contract_id, cash_flow_type) AS retained_id
     FROM investory.long_term_asset_rental_contract_terms
 )
 DELETE FROM investory.long_term_asset_rental_contract_terms term
 USING duplicate_terms duplicate
 WHERE term.id = duplicate.id
-  AND duplicate.duplicate_rank > 1;
+  AND duplicate.id <> duplicate.retained_id;
 
 ALTER TABLE investory.long_term_asset_rental_contract_terms
-    ADD CONSTRAINT uk_rental_contract_term_type
+    ADD CONSTRAINT ux_rental_contract_term_type
         UNIQUE (contract_id, cash_flow_type);
 
 COMMENT ON COLUMN investory.long_term_asset_rental_contracts.tenant_name IS

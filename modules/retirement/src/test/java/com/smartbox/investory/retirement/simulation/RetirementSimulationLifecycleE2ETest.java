@@ -38,6 +38,40 @@ import org.junit.jupiter.api.Test;
 class RetirementSimulationLifecycleE2ETest {
 
   @Test
+  void remainingYearKeepsOneOffEventsAndScalesOnlyRecurringFlows() {
+    InvestmentProfile profile = goldenProfile();
+    SimulationAssumptions assumptions =
+        goldenAssumptions(profile).toBuilder()
+            .futureEvents(
+                List.of(
+                    new SimulationEvent(
+                        null,
+                        2025,
+                        "Accepted one-off income",
+                        new BigDecimal("10000"),
+                        SimulationEventType.ONE_OFF_INCOME,
+                        null)))
+            .build();
+    RetirementSimulationService simulator = new RetirementSimulationService();
+
+    SimulationYear fullYear =
+        simulator.simulate(profile, assumptions, SimulationScenario.BASE).years().getFirst();
+    SimulationYear acceptedFullRemainingYear =
+        simulator.simulateRemainingYear(
+            profile, assumptions, SimulationScenario.BASE, 2025, BigDecimal.ONE);
+    SimulationYear halfRemainingYear =
+        simulator.simulateRemainingYear(
+            profile, assumptions, SimulationScenario.BASE, 2025, new BigDecimal("0.5"));
+
+    assertThat(acceptedFullRemainingYear).isEqualTo(fullYear);
+    assertThat(halfRemainingYear.employmentIncome())
+        .isEqualByComparingTo(fullYear.employmentIncome().multiply(new BigDecimal("0.5")));
+    assertThat(halfRemainingYear.preRetirementContribution())
+        .isEqualByComparingTo(fullYear.preRetirementContribution().multiply(new BigDecimal("0.5")));
+    assertThat(halfRemainingYear.eventIncome()).isEqualByComparingTo(fullYear.eventIncome());
+  }
+
+  @Test
   void goldenPlanLifecyclePersistsRecalculatesAndKeepsScenariosIsolated() throws Exception {
     InvestmentProfile profile = goldenProfile();
     SimulationAssumptions original = goldenAssumptions(profile);

@@ -23,17 +23,70 @@ class SimulationSensitivityAnalysisServiceTest {
         new SimulationEvaluation(
             baseResult, baseSummary, PlanSustainabilityAssessment.from(baseSummary));
     SimulationEvaluationService evaluations = mock(SimulationEvaluationService.class);
+    FrozenBondCashFlowProjection bondProjection = mock(FrozenBondCashFlowProjection.class);
     when(evaluations.evaluate(any(), any(), eq(SimulationScenario.BASE), eq(2026)))
         .thenReturn(canonicalBase);
 
     SimulationSensitivityAnalysis result =
-        new SimulationSensitivityAnalysisService(evaluations)
+        new SimulationSensitivityAnalysisService(evaluations, bondProjection)
             .analyze(new DeterministicAnalysisContext(profile, assumptions, 2026, canonicalBase));
 
     assertSame(canonicalBase, result.baseline());
+    assertFalse(
+        result.drivers().stream()
+            .anyMatch(driver -> driver.driver() == SensitivityDriver.FIXED_INCOME_RETURN));
     verify(evaluations, never()).evaluate(profile, assumptions, SimulationScenario.BASE);
     verify(evaluations, atLeastOnce())
         .evaluate(eq(profile), any(), eq(SimulationScenario.BASE), eq(2026));
+    verify(bondProjection).hasPlanBondReturnExposure(profile, 2026, 2026);
+  }
+
+  @Test
+  void invalidPerturbationIsUnavailableWithoutCrashingAnalysis() {
+    InvestmentProfile profile = profileWithMarketBuckets();
+    SimulationAssumptions assumptions =
+        SimulationAssumptions.defaults(profile, 40, 80, 2027).toBuilder()
+            .inflationRate(new BigDecimal("-0.995"))
+            .build();
+
+    SimulationSensitivityAnalysis result =
+        new SimulationSensitivityAnalysisService(mockEvaluations(assumptions))
+            .analyze(profile, assumptions);
+
+    SimulationSensitivityResult inflation =
+        result.drivers().stream()
+            .filter(driver -> driver.driver() == SensitivityDriver.INFLATION)
+            .findFirst()
+            .orElseThrow();
+    assertNull(inflation.lowerEvaluation());
+    assertNull(inflation.lowerTestedValue());
+    assertNotNull(inflation.higherEvaluation());
+  }
+
+  @Test
+  void simulatorIllegalArgumentExceptionIsNotHiddenAsUnavailable() {
+    InvestmentProfile profile = profileWithMarketBuckets();
+    SimulationAssumptions assumptions = SimulationAssumptions.defaults(profile, 40, 80, 2027);
+    SimulationResult baseResult =
+        new SimulationResult(SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of());
+    SimulationDecisionSummary baseSummary = SimulationDecisionSummary.from(baseResult, assumptions);
+    SimulationEvaluation canonicalBase =
+        new SimulationEvaluation(
+            baseResult, baseSummary, PlanSustainabilityAssessment.from(baseSummary));
+    SimulationEvaluationService evaluations = mock(SimulationEvaluationService.class);
+    when(evaluations.evaluate(any(), any(), eq(SimulationScenario.BASE), eq(2026)))
+        .thenThrow(new IllegalArgumentException("simulator defect"));
+
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                new SimulationSensitivityAnalysisService(evaluations)
+                    .analyze(
+                        new DeterministicAnalysisContext(
+                            profile, assumptions, 2026, canonicalBase)));
+
+    assertEquals("simulator defect", error.getMessage());
   }
 
   @Test
