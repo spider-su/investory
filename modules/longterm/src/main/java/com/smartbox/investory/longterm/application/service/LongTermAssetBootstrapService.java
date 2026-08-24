@@ -501,7 +501,7 @@ public class LongTermAssetBootstrapService {
         BigDecimal assetTax =
             Boolean.TRUE.equals(asset.rentalTaxPaidByTenant())
                 ? BigDecimal.ZERO
-                : taxBase.multiply(rate);
+                : taxBase.multiply(BigDecimal.valueOf(12)).multiply(rate);
         tax = tax.add(assetTax);
       }
     return new Totals(value, gross, expenses, tax, gross.subtract(expenses).subtract(tax));

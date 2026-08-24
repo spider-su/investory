@@ -70,6 +70,7 @@ public final class RealEstatePlanningCalculator {
 
   public BigDecimal annualRentalTax(BigDecimal taxBase, BigDecimal taxRate) {
     return (taxBase == null ? BigDecimal.ZERO : taxBase)
+        .multiply(TWELVE)
         .multiply(taxRate == null ? TAX_RATE : taxRate);
   }
 

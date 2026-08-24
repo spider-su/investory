@@ -169,7 +169,7 @@ class LongTermAssetServiceTest {
   @Test
   void rentalSummaryAnnualizesIncomeAndExpensesAndAppliesTax() {
     LongTermAssetEntity a = asset(LongTermAssetType.REAL_ESTATE, "710000");
-    a.setTaxBase(new BigDecimal("34800"));
+    a.setTaxBase(new BigDecimal("2900"));
     when(cashFlows.findAllByAssetIdOrderByValidFrom(1L))
         .thenReturn(
             List.of(
@@ -221,7 +221,7 @@ class LongTermAssetServiceTest {
   @Test
   void explicitRealEstateTaxBaseIsIndependentFromGrossIncome() {
     LongTermAssetEntity a = asset(LongTermAssetType.REAL_ESTATE, "780000");
-    a.setTaxBase(new BigDecimal("33600"));
+    a.setTaxBase(new BigDecimal("2800"));
     when(cashFlows.findAllByAssetIdOrderByValidFrom(1L))
         .thenReturn(List.of(flow(CashFlowType.RENT, "36000", Frequency.ANNUAL)));
     var s = service.summary(a, DATE);
@@ -606,10 +606,10 @@ class LongTermAssetServiceTest {
   @Test
   void realEstatePlanningColumnsUseMonthlyTurnoverIncomeAndAllocatedReduce() {
     LongTermAssetEntity first = asset(LongTermAssetType.REAL_ESTATE, "780000");
-    first.setTaxBase(new BigDecimal("33600"));
+    first.setTaxBase(new BigDecimal("2800"));
     LongTermAssetEntity second = asset(LongTermAssetType.REAL_ESTATE, "710000");
     second.setId(2L);
-    second.setTaxBase(new BigDecimal("30000"));
+    second.setTaxBase(new BigDecimal("2500"));
     when(assets.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of(first, second));
     when(cashFlows.findAllByAssetIdOrderByValidFrom(1L))
         .thenReturn(
@@ -632,7 +632,7 @@ class LongTermAssetServiceTest {
     assertEquals(new BigDecimal("2900"), firstRow.realEstatePlanning().monthlyIncome());
     BigDecimal expectedReduce =
         new BigDecimal("520")
-            .add(new BigDecimal("33600").multiply(new BigDecimal("0.085")))
+            .add(new BigDecimal("2800").multiply(new BigDecimal("12")).multiply(new BigDecimal("0.085")))
             .divide(new BigDecimal("12"), 18, java.math.RoundingMode.HALF_UP);
     assertEquals(0, firstRow.realEstatePlanning().monthlyReduce().compareTo(expectedReduce));
     assertEquals(
@@ -686,7 +686,7 @@ class LongTermAssetServiceTest {
     var summary = service.list(1L, DATE).getFirst().realEstatePlanning();
     BigDecimal expectedReduce =
         new BigDecimal("520")
-            .add(new BigDecimal("36000").multiply(new BigDecimal("0.085")))
+            .add(new BigDecimal("36000").multiply(new BigDecimal("12")).multiply(new BigDecimal("0.085")))
             .divide(BigDecimal.valueOf(12), 18, java.math.RoundingMode.HALF_UP);
 
     assertEquals(new BigDecimal("36000"), property.getTaxBase());
@@ -772,7 +772,7 @@ class LongTermAssetServiceTest {
     var group = service.grouped(1L, DATE).getFirst();
 
     assertEquals(
-        new BigDecimal("23.375000000000000000"), group.realEstatePlanning().monthlyRentTax());
+        new BigDecimal("280.500000000000000000"), group.realEstatePlanning().monthlyRentTax());
   }
 
   @Test
@@ -1314,8 +1314,7 @@ class LongTermAssetServiceTest {
     LongTermAssetEntity a = asset(LongTermAssetType.REAL_ESTATE, value);
     a.setId(id);
     a.setName(name);
-    a.setTaxBase(
-        new BigDecimal(rent).add(new BigDecimal(parking)).multiply(BigDecimal.valueOf(12)));
+    a.setTaxBase(new BigDecimal(rent).add(new BigDecimal(parking)));
     return a;
   }
 

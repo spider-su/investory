@@ -30,8 +30,8 @@ class RentalContractProjectionTaxTest {
     var result = RentalIncomeProjectionModel.project(asset, Map.of(), 2027, BigDecimal.ZERO);
     assertEquals(new BigDecimal("42000"), result.grossIncome());
     assertEquals(BigDecimal.ZERO, result.expenses());
-    assertEquals(0, new BigDecimal("850").compareTo(result.tax()));
-    assertEquals(0, new BigDecimal("41150").compareTo(result.netIncome()));
+    assertEquals(0, new BigDecimal("10200").compareTo(result.tax()));
+    assertEquals(0, new BigDecimal("31800").compareTo(result.netIncome()));
   }
 
   @Test
