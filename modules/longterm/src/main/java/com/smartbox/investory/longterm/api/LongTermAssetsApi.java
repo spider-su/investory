@@ -69,9 +69,23 @@ public interface LongTermAssetsApi {
 
   void addValuation(Long portfolioId, Long id, ValuationCommand command);
 
+  void updateValuation(Long portfolioId, Long id, Long periodId, ValuationCommand command);
+
+  void deleteValuation(Long portfolioId, Long id, Long periodId);
+
   void addBondRate(Long portfolioId, Long id, BondRateCommand command);
 
+  void updateBondRate(Long portfolioId, Long id, Long periodId, BondRateCommand command);
+
+  void deleteBondRate(Long portfolioId, Long id, Long periodId);
+
   void saveRentalTaxPolicy(Long portfolioId, RentalTaxCommand command);
+
+  void updateRentalTaxPolicy(Long portfolioId, Long policyId, RentalTaxCommand command);
+
+  void deleteRentalTaxPolicy(Long portfolioId, Long policyId);
+
+  List<RentalTaxView> rentalTaxPolicies(Long portfolioId);
 
   record AssetCommand(
       Long portfolioId,
@@ -240,9 +254,21 @@ public interface LongTermAssetsApi {
       InterestTreatmentModel interestTreatment) {}
 
   record ValuationView(
-      LocalDate validFrom, LocalDate validTo, BigDecimal expectedAnnualGrowthRate) {}
+      Long id, LocalDate validFrom, LocalDate validTo, BigDecimal expectedAnnualGrowthRate) {
+    public ValuationView(
+        LocalDate validFrom, LocalDate validTo, BigDecimal expectedAnnualGrowthRate) {
+      this(null, validFrom, validTo, expectedAnnualGrowthRate);
+    }
+  }
 
-  record BondRateView(LocalDate validFrom, LocalDate validTo, BigDecimal annualInterestRate) {}
+  record BondRateView(
+      Long id, LocalDate validFrom, LocalDate validTo, BigDecimal annualInterestRate) {
+    public BondRateView(LocalDate validFrom, LocalDate validTo, BigDecimal annualInterestRate) {
+      this(null, validFrom, validTo, annualInterestRate);
+    }
+  }
+
+  record RentalTaxView(Long id, LocalDate validFrom, LocalDate validTo, BigDecimal rate) {}
 
   record AnnualEconomicsView(
       BigDecimal grossAnnualIncome,

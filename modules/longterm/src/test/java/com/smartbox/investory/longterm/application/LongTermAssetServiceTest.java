@@ -38,6 +38,7 @@ import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -150,6 +151,30 @@ class LongTermAssetServiceTest {
                 })
             .toList());
     return contract;
+  }
+
+  @Test
+  void editingArchivedCashReservePreservesAcquisitionAndLifecycleState() {
+    LongTermAssetEntity reserve = asset(LongTermAssetType.CASH_RESERVE, "900");
+    reserve.setActive(false);
+    reserve.setAcquisitionDate(LocalDate.of(2020, 2, 3));
+    reserve.setAcquisitionValue(new BigDecimal("700"));
+    reserve.setArchivedAt(LocalDate.of(2026, 1, 15));
+    when(assets.findByIdAndPortfolioId(1L, 1L)).thenReturn(Optional.of(reserve));
+    when(assets.findTypeByIdAndPortfolioId(1L, 1L))
+        .thenReturn(Optional.of(LongTermAssetType.CASH_RESERVE));
+    when(assets.save(any(LongTermAssetEntity.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    service.saveCashReserve(
+        1L, 1L, "Edited reserve", CurrencyType.PLN, new BigDecimal("950"), null, "edited", DATE);
+
+    assertEquals(LocalDate.of(2020, 2, 3), reserve.getAcquisitionDate());
+    assertEquals(new BigDecimal("700"), reserve.getAcquisitionValue());
+    assertEquals(LocalDate.of(2026, 1, 15), reserve.getArchivedAt());
+    assertEquals(false, reserve.isActive());
+    assertEquals(new BigDecimal("950"), reserve.getCurrentValue());
+    verify(lifecycle, never()).reactivate(anyLong(), anyLong());
   }
 
   private static LongTermAssetRentalContractEntity contract(LocalDate start, LocalDate end) {
@@ -355,6 +380,72 @@ class LongTermAssetServiceTest {
     overlapping.setAnnualInterestRate(new BigDecimal("0.05"));
     org.junit.jupiter.api.Assertions.assertThrows(
         IllegalArgumentException.class, () -> service.addBondRatePeriod(1L, 1L, overlapping));
+  }
+
+  @Test
+  void valuationPeriodCanBeCorrectedAndDeletedWithoutOverlappingItself() {
+    LongTermAssetEntity asset = asset(LongTermAssetType.REAL_ESTATE, "100");
+    LongTermAssetValuationPeriodEntity existing = new LongTermAssetValuationPeriodEntity();
+    existing.setId(7L);
+    existing.setAssetId(1L);
+    existing.setValidFrom(DATE);
+    existing.setExpectedAnnualGrowthRate(new BigDecimal("0.03"));
+    LongTermAssetValuationPeriodEntity replacement = new LongTermAssetValuationPeriodEntity();
+    replacement.setValidFrom(DATE.plusDays(1));
+    replacement.setExpectedAnnualGrowthRate(new BigDecimal("0.04"));
+    when(assets.findByIdAndPortfolioId(1L, 1L)).thenReturn(Optional.of(asset));
+    when(valuations.findById(7L)).thenReturn(Optional.of(existing));
+    when(valuations.findAllByAssetIdOrderByValidFrom(1L)).thenReturn(List.of(existing));
+
+    service.updateValuationPeriod(1L, 1L, 7L, replacement);
+    service.deleteValuationPeriod(1L, 1L, 7L);
+
+    assertEquals(DATE.plusDays(1), existing.getValidFrom());
+    assertEquals(new BigDecimal("0.04"), existing.getExpectedAnnualGrowthRate());
+    verify(valuations).save(existing);
+    verify(valuations).delete(existing);
+  }
+
+  @Test
+  void bondRatePeriodCanBeCorrectedAndDeletedWithoutOverlappingItself() {
+    LongTermAssetEntity asset = asset(LongTermAssetType.BOND, "100");
+    LongTermAssetBondRatePeriodEntity existing = new LongTermAssetBondRatePeriodEntity();
+    existing.setId(8L);
+    existing.setAssetId(1L);
+    existing.setValidFrom(DATE);
+    existing.setAnnualInterestRate(new BigDecimal("0.05"));
+    LongTermAssetBondRatePeriodEntity replacement = new LongTermAssetBondRatePeriodEntity();
+    replacement.setValidFrom(DATE.plusDays(1));
+    replacement.setAnnualInterestRate(new BigDecimal("0.06"));
+    when(assets.findByIdAndPortfolioId(1L, 1L)).thenReturn(Optional.of(asset));
+    when(bondRates.findById(8L)).thenReturn(Optional.of(existing));
+    when(bondRates.findAllByAssetIdOrderByValidFrom(1L)).thenReturn(List.of(existing));
+
+    service.updateBondRatePeriod(1L, 1L, 8L, replacement);
+    service.deleteBondRatePeriod(1L, 1L, 8L);
+
+    assertEquals(DATE.plusDays(1), existing.getValidFrom());
+    assertEquals(new BigDecimal("0.06"), existing.getAnnualInterestRate());
+    verify(bondRates).save(existing);
+    verify(bondRates).delete(existing);
+  }
+
+  @Test
+  void rentalTaxPolicyCorrectionAndDeleteRequirePortfolioOwnership() {
+    RentalTaxPolicyEntity policy = new RentalTaxPolicyEntity();
+    policy.setId(9L);
+    policy.setPortfolioId(1L);
+    policy.setValidFrom(DATE);
+    policy.setRate(new BigDecimal("0.085"));
+    when(taxPolicies.findById(9L)).thenReturn(Optional.of(policy));
+    when(taxPolicies.findAllByPortfolioIdOrderByValidFrom(1L)).thenReturn(List.of(policy));
+
+    service.saveRentalTaxPolicy(1L, policy);
+    service.deleteRentalTaxPolicy(1L, 9L);
+
+    verify(taxPolicies).save(policy);
+    verify(taxPolicies).delete(policy);
+    assertThrows(NoSuchElementException.class, () -> service.deleteRentalTaxPolicy(2L, 9L));
   }
 
   @Test
@@ -632,7 +723,10 @@ class LongTermAssetServiceTest {
     assertEquals(new BigDecimal("2900"), firstRow.realEstatePlanning().monthlyIncome());
     BigDecimal expectedReduce =
         new BigDecimal("520")
-            .add(new BigDecimal("2800").multiply(new BigDecimal("12")).multiply(new BigDecimal("0.085")))
+            .add(
+                new BigDecimal("2800")
+                    .multiply(new BigDecimal("12"))
+                    .multiply(new BigDecimal("0.085")))
             .divide(new BigDecimal("12"), 18, java.math.RoundingMode.HALF_UP);
     assertEquals(0, firstRow.realEstatePlanning().monthlyReduce().compareTo(expectedReduce));
     assertEquals(
@@ -686,7 +780,10 @@ class LongTermAssetServiceTest {
     var summary = service.list(1L, DATE).getFirst().realEstatePlanning();
     BigDecimal expectedReduce =
         new BigDecimal("520")
-            .add(new BigDecimal("36000").multiply(new BigDecimal("12")).multiply(new BigDecimal("0.085")))
+            .add(
+                new BigDecimal("36000")
+                    .multiply(new BigDecimal("12"))
+                    .multiply(new BigDecimal("0.085")))
             .divide(BigDecimal.valueOf(12), 18, java.math.RoundingMode.HALF_UP);
 
     assertEquals(new BigDecimal("36000"), property.getTaxBase());

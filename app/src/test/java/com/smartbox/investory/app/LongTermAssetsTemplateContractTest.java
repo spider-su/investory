@@ -14,6 +14,14 @@ class LongTermAssetsTemplateContractTest {
       Path.of("../adapters/web-ui/src/main/resources/templates/long-term-assets.html");
   private static final Path HEADER =
       Path.of("../adapters/web-ui/src/main/resources/templates/fragments/app-header.html");
+  private static final Path GENERIC_DETAIL =
+      Path.of("../adapters/web-ui/src/main/resources/templates/long-term-asset-detail.html");
+  private static final Path REAL_ESTATE_DETAIL =
+      Path.of("../adapters/web-ui/src/main/resources/templates/real-estate-detail.html");
+  private static final Path BOND_DETAIL =
+      Path.of("../adapters/web-ui/src/main/resources/templates/bond-detail.html");
+  private static final Path CASH_DETAIL =
+      Path.of("../adapters/web-ui/src/main/resources/templates/cash-reserve-detail.html");
   private static final Path CSS =
       Path.of("../adapters/web-ui/src/main/resources/static/css/main.css");
 
@@ -92,6 +100,27 @@ class LongTermAssetsTemplateContractTest {
         () -> assertTrue(html.contains("? 'Monthly rent tax' : 'Annual tax'")),
         () -> assertTrue(css.contains("grid-template-columns: repeat(4, minmax(0, 1fr))")),
         () -> assertTrue(css.contains("grid-auto-rows: auto")));
+  }
+
+  @Test
+  void assetTypeIsReadOnlyAndEffectiveDatedRecordsHaveCorrectionActions() throws Exception {
+    String generic = Files.readString(GENERIC_DETAIL);
+    String summary = Files.readString(TEMPLATE);
+    String realEstate = Files.readString(REAL_ESTATE_DETAIL);
+    String bond = Files.readString(BOND_DETAIL);
+    String cash = Files.readString(CASH_DETAIL);
+
+    assertAll(
+        () -> assertFalse(generic.contains("<select id=\"asset-type\"")),
+        () -> assertTrue(generic.contains("type=\"hidden\" name=\"type\"")),
+        () -> assertTrue(realEstate.contains("valuation-periods/{periodId}")),
+        () -> assertTrue(realEstate.contains("valuation-periods/{periodId}/delete")),
+        () -> assertTrue(cash.contains("valuation-periods/{periodId}")),
+        () -> assertTrue(cash.contains("valuation-periods/{periodId}/delete")),
+        () -> assertTrue(bond.contains("bond-rate-periods/{periodId}")),
+        () -> assertTrue(bond.contains("bond-rate-periods/{periodId}/delete")),
+        () -> assertTrue(summary.contains("rental-tax-policy/{policyId}")),
+        () -> assertTrue(summary.contains("rental-tax-policy/{policyId}/delete")));
   }
 
   private static int occurrences(String value, String token) {

@@ -37,6 +37,11 @@ public class LongTermAssetPeriodService {
   }
 
   public RentalTaxPolicyEntity saveRentalTaxPolicy(Long portfolioId, RentalTaxPolicyEntity policy) {
+    if (policy.getId() != null)
+      taxPolicies
+          .findById(policy.getId())
+          .filter(existing -> Objects.equals(existing.getPortfolioId(), portfolioId))
+          .orElseThrow(() -> new NoSuchElementException("Rental tax policy not found"));
     policy.setPortfolioId(portfolioId);
     validateRange(policy.getValidFrom(), policy.getValidTo());
     if (policy.getRate() == null
@@ -54,6 +59,15 @@ public class LongTermAssetPeriodService {
               existing.getValidTo()))
         throw new IllegalArgumentException("Overlapping rental tax policies are not allowed");
     return taxPolicies.save(policy);
+  }
+
+  public void deleteRentalTaxPolicy(Long portfolioId, Long policyId) {
+    RentalTaxPolicyEntity policy =
+        taxPolicies
+            .findById(policyId)
+            .filter(existing -> Objects.equals(existing.getPortfolioId(), portfolioId))
+            .orElseThrow(() -> new NoSuchElementException("Rental tax policy not found"));
+    taxPolicies.delete(policy);
   }
 
   public void replaceValuationGrowth(Long assetId, LocalDate from, BigDecimal growthRate) {
@@ -87,6 +101,25 @@ public class LongTermAssetPeriodService {
     return valuations.save(period);
   }
 
+  public LongTermAssetValuationPeriodEntity updateValuationPeriod(
+      Long portfolioId,
+      Long assetId,
+      Long periodId,
+      LongTermAssetValuationPeriodEntity replacement) {
+    LongTermAssetValuationPeriodEntity period = ownedValuation(portfolioId, assetId, periodId);
+    period.setValidFrom(replacement.getValidFrom());
+    period.setValidTo(replacement.getValidTo());
+    period.setExpectedAnnualGrowthRate(replacement.getExpectedAnnualGrowthRate());
+    validateRange(period.getValidFrom(), period.getValidTo());
+    validateGrowthRate(period.getExpectedAnnualGrowthRate());
+    validateValuationOverlap(assetId, period);
+    return valuations.save(period);
+  }
+
+  public void deleteValuationPeriod(Long portfolioId, Long assetId, Long periodId) {
+    valuations.delete(ownedValuation(portfolioId, assetId, periodId));
+  }
+
   public LongTermAssetBondRatePeriodEntity addBondRatePeriod(
       Long portfolioId, Long assetId, LongTermAssetBondRatePeriodEntity period) {
     LongTermAssetEntity asset = owned(portfolioId, assetId);
@@ -94,6 +127,23 @@ public class LongTermAssetPeriodService {
       throw new IllegalArgumentException("Bond-rate periods apply only to bonds");
     saveBondRatePeriod(assetId, period, true);
     return period;
+  }
+
+  public LongTermAssetBondRatePeriodEntity updateBondRatePeriod(
+      Long portfolioId,
+      Long assetId,
+      Long periodId,
+      LongTermAssetBondRatePeriodEntity replacement) {
+    LongTermAssetBondRatePeriodEntity period = ownedBondRate(portfolioId, assetId, periodId);
+    period.setValidFrom(replacement.getValidFrom());
+    period.setValidTo(replacement.getValidTo());
+    period.setAnnualInterestRate(replacement.getAnnualInterestRate());
+    saveBondRatePeriod(assetId, period, true);
+    return period;
+  }
+
+  public void deleteBondRatePeriod(Long portfolioId, Long assetId, Long periodId) {
+    bondRates.delete(ownedBondRate(portfolioId, assetId, periodId));
   }
 
   public void replaceBondRate(
@@ -138,6 +188,24 @@ public class LongTermAssetPeriodService {
         .orElseThrow(() -> new NoSuchElementException("Long-term asset not found"));
   }
 
+  private LongTermAssetValuationPeriodEntity ownedValuation(
+      Long portfolioId, Long assetId, Long periodId) {
+    owned(portfolioId, assetId);
+    return valuations
+        .findById(periodId)
+        .filter(period -> Objects.equals(period.getAssetId(), assetId))
+        .orElseThrow(() -> new NoSuchElementException("Valuation period not found"));
+  }
+
+  private LongTermAssetBondRatePeriodEntity ownedBondRate(
+      Long portfolioId, Long assetId, Long periodId) {
+    owned(portfolioId, assetId);
+    return bondRates
+        .findById(periodId)
+        .filter(period -> Objects.equals(period.getAssetId(), assetId))
+        .orElseThrow(() -> new NoSuchElementException("Bond-rate period not found"));
+  }
+
   private static void validateGrowthRate(BigDecimal rate) {
     if (rate == null
         || rate.compareTo(BigDecimal.ONE.negate()) < 0
@@ -180,6 +248,8 @@ public class LongTermAssetPeriodService {
 
   private void validateValuationOverlap(Long id, LongTermAssetValuationPeriodEntity period) {
     if (valuations.findAllByAssetIdOrderByValidFrom(id).stream()
+        .filter(
+            existing -> period.getId() == null || !Objects.equals(existing.getId(), period.getId()))
         .anyMatch(
             existing ->
                 rangesOverlap(
@@ -192,6 +262,8 @@ public class LongTermAssetPeriodService {
 
   private void validateBondRateOverlap(Long id, LongTermAssetBondRatePeriodEntity period) {
     if (bondRates.findAllByAssetIdOrderByValidFrom(id).stream()
+        .filter(
+            existing -> period.getId() == null || !Objects.equals(existing.getId(), period.getId()))
         .anyMatch(
             existing ->
                 rangesOverlap(

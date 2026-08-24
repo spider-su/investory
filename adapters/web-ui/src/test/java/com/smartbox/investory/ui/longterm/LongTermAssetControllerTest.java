@@ -99,6 +99,38 @@ class LongTermAssetControllerTest {
   }
 
   @Test
+  void effectiveDatedCorrectionsAndDeletesReachApplicationApi() {
+    LocalDate from = LocalDate.of(2026, 1, 1);
+    LocalDate to = LocalDate.of(2026, 12, 31);
+    controller.updateValuationPeriod(7L, 41L, 1L, from, to, new BigDecimal("3.5"));
+    controller.deleteValuationPeriod(7L, 41L, 1L);
+    var bondRate = new LongTermAssetController.BondRateForm();
+    bondRate.setValidFrom(from);
+    bondRate.setValidTo(to);
+    bondRate.setAnnualInterestRate(new BigDecimal("0.06"));
+    controller.updateBondRatePeriod(7L, 42L, 1L, bondRate);
+    controller.deleteBondRatePeriod(7L, 42L, 1L);
+    var tax = new LongTermAssetController.RentalTaxForm();
+    tax.setValidFrom(from);
+    tax.setValidTo(to);
+    controller.updateRentalTaxPolicy(43L, 1L, tax, new BigDecimal("8.5"), null);
+    controller.deleteRentalTaxPolicy(43L, 1L);
+
+    verify(assets)
+        .updateValuation(
+            1L, 7L, 41L, new LongTermAssetsApi.ValuationCommand(from, to, new BigDecimal("3.5")));
+    verify(assets).deleteValuation(1L, 7L, 41L);
+    verify(assets)
+        .updateBondRate(
+            1L, 7L, 42L, new LongTermAssetsApi.BondRateCommand(from, to, new BigDecimal("0.06")));
+    verify(assets).deleteBondRate(1L, 7L, 42L);
+    verify(assets)
+        .updateRentalTaxPolicy(
+            1L, 43L, new LongTermAssetsApi.RentalTaxCommand(from, to, new BigDecimal("8.5"), null));
+    verify(assets).deleteRentalTaxPolicy(1L, 43L);
+  }
+
+  @Test
   void rentalCreateMapsTenantRolloverTaxPayersAndOnlyEnteredTerms() {
     var form = new LongTermAssetController.RentalContractForm();
     form.setTenantName("Tenant");

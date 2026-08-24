@@ -243,6 +243,22 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
   }
 
   @Override
+  public void updateValuation(
+      Long portfolioId, Long id, Long periodId, LongTermAssetsApi.ValuationCommand command) {
+    delegate.updateValuation(
+        portfolioId,
+        id,
+        periodId,
+        new LongTermAssetsFacade.ValuationCommand(
+            command.validFrom(), command.validTo(), command.growthRatePercent()));
+  }
+
+  @Override
+  public void deleteValuation(Long portfolioId, Long id, Long periodId) {
+    delegate.deleteValuation(portfolioId, id, periodId);
+  }
+
+  @Override
   public void addBondRate(Long portfolioId, Long id, LongTermAssetsApi.BondRateCommand command) {
     delegate.addBondRate(
         portfolioId,
@@ -252,11 +268,52 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
   }
 
   @Override
+  public void updateBondRate(
+      Long portfolioId, Long id, Long periodId, LongTermAssetsApi.BondRateCommand command) {
+    delegate.updateBondRate(
+        portfolioId,
+        id,
+        periodId,
+        new LongTermAssetsFacade.BondRateCommand(
+            command.validFrom(), command.validTo(), command.annualInterestRate()));
+  }
+
+  @Override
+  public void deleteBondRate(Long portfolioId, Long id, Long periodId) {
+    delegate.deleteBondRate(portfolioId, id, periodId);
+  }
+
+  @Override
   public void saveRentalTaxPolicy(Long portfolioId, LongTermAssetsApi.RentalTaxCommand command) {
     delegate.saveRentalTaxPolicy(
         portfolioId,
         new LongTermAssetsFacade.RentalTaxCommand(
             command.validFrom(), command.validTo(), command.ratePercent(), command.rate()));
+  }
+
+  @Override
+  public void updateRentalTaxPolicy(
+      Long portfolioId, Long policyId, LongTermAssetsApi.RentalTaxCommand command) {
+    delegate.saveRentalTaxPolicy(
+        portfolioId,
+        policyId,
+        new LongTermAssetsFacade.RentalTaxCommand(
+            command.validFrom(), command.validTo(), command.ratePercent(), command.rate()));
+  }
+
+  @Override
+  public void deleteRentalTaxPolicy(Long portfolioId, Long policyId) {
+    delegate.deleteRentalTaxPolicy(portfolioId, policyId);
+  }
+
+  @Override
+  public List<LongTermAssetsApi.RentalTaxView> rentalTaxPolicies(Long portfolioId) {
+    return delegate.rentalTaxPolicies(portfolioId).stream()
+        .map(
+            policy ->
+                new LongTermAssetsApi.RentalTaxView(
+                    policy.id(), policy.validFrom(), policy.validTo(), policy.rate()))
+        .toList();
   }
 
   private static LongTermAssetsFacade.AssetCommand toInternal(LongTermAssetsApi.AssetCommand c) {
@@ -434,11 +491,12 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
 
   private static LongTermAssetsApi.ValuationView valuation(LongTermAssetsFacade.ValuationView p) {
     return new LongTermAssetsApi.ValuationView(
-        p.validFrom(), p.validTo(), p.expectedAnnualGrowthRate());
+        p.id(), p.validFrom(), p.validTo(), p.expectedAnnualGrowthRate());
   }
 
   private static LongTermAssetsApi.BondRateView bondRate(LongTermAssetsFacade.BondRateView p) {
-    return new LongTermAssetsApi.BondRateView(p.validFrom(), p.validTo(), p.annualInterestRate());
+    return new LongTermAssetsApi.BondRateView(
+        p.id(), p.validFrom(), p.validTo(), p.annualInterestRate());
   }
 
   private static com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType assetType(

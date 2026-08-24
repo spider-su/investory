@@ -250,9 +250,31 @@ public class LongTermAssetService {
     return commands.addValuationPeriod(portfolioId, assetId, period);
   }
 
+  public LongTermAssetValuationPeriodEntity updateValuationPeriod(
+      Long portfolioId, Long assetId, Long periodId, LongTermAssetValuationPeriodEntity period) {
+    return commands.updateValuationPeriod(portfolioId, assetId, periodId, period);
+  }
+
+  public void deleteValuationPeriod(Long portfolioId, Long assetId, Long periodId) {
+    commands.deleteValuationPeriod(portfolioId, assetId, periodId);
+  }
+
   public LongTermAssetBondRatePeriodEntity addBondRatePeriod(
       Long portfolioId, Long assetId, LongTermAssetBondRatePeriodEntity period) {
     return commands.addBondRatePeriod(portfolioId, assetId, period);
+  }
+
+  public LongTermAssetBondRatePeriodEntity updateBondRatePeriod(
+      Long portfolioId, Long assetId, Long periodId, LongTermAssetBondRatePeriodEntity period) {
+    return commands.updateBondRatePeriod(portfolioId, assetId, periodId, period);
+  }
+
+  public void deleteBondRatePeriod(Long portfolioId, Long assetId, Long periodId) {
+    commands.deleteBondRatePeriod(portfolioId, assetId, periodId);
+  }
+
+  public void deleteRentalTaxPolicy(Long portfolioId, Long policyId) {
+    commands.deleteRentalTaxPolicy(portfolioId, policyId);
   }
 
   @Transactional(readOnly = true)
@@ -269,6 +291,11 @@ public class LongTermAssetService {
   public LongTermAssetQueryService.AggregateSummary aggregateForLongTermAssets(
       Long portfolioId, LocalDate date) {
     return queries.aggregateForLongTermAssets(portfolioId, date);
+  }
+
+  @Transactional(readOnly = true)
+  public List<RentalTaxPolicyEntity> rentalTaxPolicies(Long portfolioId) {
+    return queries.rentalTaxPolicies(portfolioId);
   }
 
   @Transactional(readOnly = true)

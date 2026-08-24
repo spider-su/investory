@@ -281,6 +281,11 @@ public class LongTermAssetQueryService {
                         portfolioId, effectiveDate));
   }
 
+  @Transactional(readOnly = true)
+  public List<RentalTaxPolicyEntity> rentalTaxPolicies(Long portfolioId) {
+    return taxPolicies.findAllByPortfolioIdOrderByValidFrom(portfolioId);
+  }
+
   public LongTermAssetSummary summary(LongTermAssetEntity a, LocalDate date) {
     LocalDate effectiveDate = effectiveDate(date);
     BigDecimal gross = BigDecimal.ZERO,

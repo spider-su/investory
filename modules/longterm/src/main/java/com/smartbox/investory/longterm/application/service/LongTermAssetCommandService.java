@@ -68,6 +68,10 @@ public class LongTermAssetCommandService {
     return periods.saveRentalTaxPolicy(portfolioId, policy);
   }
 
+  public void deleteRentalTaxPolicy(Long portfolioId, Long policyId) {
+    periods.deleteRentalTaxPolicy(portfolioId, policyId);
+  }
+
   public LongTermAssetEntity updateTaxBase(Long portfolioId, Long assetId, BigDecimal taxBase) {
     LongTermAssetEntity asset = owned(portfolioId, assetId);
     if (asset.getType() != LongTermAssetType.REAL_ESTATE)
@@ -122,7 +126,8 @@ public class LongTermAssetCommandService {
       BigDecimal annualReturnRate,
       String notes,
       LocalDate effectiveFrom) {
-    LongTermAssetEntity asset = id == null ? new LongTermAssetEntity() : owned(portfolioId, id);
+    boolean creating = id == null;
+    LongTermAssetEntity asset = creating ? new LongTermAssetEntity() : owned(portfolioId, id);
     if (id != null && asset.getType() != LongTermAssetType.CASH_RESERVE)
       throw new IllegalArgumentException("AssetEntity type cannot be changed after creation");
     asset.setPortfolioId(portfolioId);
@@ -130,10 +135,12 @@ public class LongTermAssetCommandService {
     asset.setType(LongTermAssetType.CASH_RESERVE);
     asset.setCurrency(currency);
     asset.setCurrentValue(value);
-    asset.setAcquisitionValue(value);
-    asset.setAcquisitionDate(effectiveFrom);
     asset.setNotes(notes);
-    asset.setActive(true);
+    if (creating) {
+      asset.setAcquisitionValue(value);
+      asset.setAcquisitionDate(effectiveFrom);
+      asset.setActive(true);
+    }
     save(asset);
     periods.replaceValuationGrowth(asset.getId(), effectiveFrom, annualReturnRate);
     return asset;
@@ -310,9 +317,27 @@ public class LongTermAssetCommandService {
     return periods.addValuationPeriod(portfolioId, assetId, period);
   }
 
+  public LongTermAssetValuationPeriodEntity updateValuationPeriod(
+      Long portfolioId, Long assetId, Long periodId, LongTermAssetValuationPeriodEntity period) {
+    return periods.updateValuationPeriod(portfolioId, assetId, periodId, period);
+  }
+
+  public void deleteValuationPeriod(Long portfolioId, Long assetId, Long periodId) {
+    periods.deleteValuationPeriod(portfolioId, assetId, periodId);
+  }
+
   public LongTermAssetBondRatePeriodEntity addBondRatePeriod(
       Long portfolioId, Long assetId, LongTermAssetBondRatePeriodEntity period) {
     return periods.addBondRatePeriod(portfolioId, assetId, period);
+  }
+
+  public LongTermAssetBondRatePeriodEntity updateBondRatePeriod(
+      Long portfolioId, Long assetId, Long periodId, LongTermAssetBondRatePeriodEntity period) {
+    return periods.updateBondRatePeriod(portfolioId, assetId, periodId, period);
+  }
+
+  public void deleteBondRatePeriod(Long portfolioId, Long assetId, Long periodId) {
+    periods.deleteBondRatePeriod(portfolioId, assetId, periodId);
   }
 
   private LocalDate today() {

@@ -42,6 +42,7 @@ public class LongTermAssetController {
         "archivedAssets", showArchived ? assets.archived(portfolioId, date) : java.util.List.of());
     model.addAttribute("groups", groups);
     model.addAttribute("total", total);
+    model.addAttribute("rentalTaxPolicies", assets.rentalTaxPolicies(portfolioId));
     model.addAttribute(
         "longTermHeaderTotal", FinancialPresentation.wholeNumber(total.totalCurrentValue()));
     model.addAttribute(
@@ -493,6 +494,30 @@ public class LongTermAssetController {
     return redirect(id, portfolioId);
   }
 
+  @PostMapping("/long-term-assets/{id}/valuation-periods/{periodId}")
+  public String updateValuationPeriod(
+      @PathVariable Long id,
+      @PathVariable Long periodId,
+      @RequestParam Long portfolioId,
+      @RequestParam LocalDate validFrom,
+      @RequestParam(required = false) LocalDate validTo,
+      @RequestParam BigDecimal expectedAnnualGrowthRatePercent) {
+    assets.updateValuation(
+        portfolioId,
+        id,
+        periodId,
+        new LongTermAssetsApi.ValuationCommand(
+            validFrom, validTo, expectedAnnualGrowthRatePercent));
+    return redirect(id, portfolioId);
+  }
+
+  @PostMapping("/long-term-assets/{id}/valuation-periods/{periodId}/delete")
+  public String deleteValuationPeriod(
+      @PathVariable Long id, @PathVariable Long periodId, @RequestParam Long portfolioId) {
+    assets.deleteValuation(portfolioId, id, periodId);
+    return redirect(id, portfolioId);
+  }
+
   @PostMapping("/long-term-assets/{id}/bond-rate-periods")
   public String addBondRatePeriod(
       @PathVariable Long id, @RequestParam Long portfolioId, @ModelAttribute BondRateForm form) {
@@ -501,6 +526,28 @@ public class LongTermAssetController {
         id,
         new LongTermAssetsApi.BondRateCommand(
             form.validFrom, form.validTo, form.annualInterestRate));
+    return redirect(id, portfolioId);
+  }
+
+  @PostMapping("/long-term-assets/{id}/bond-rate-periods/{periodId}")
+  public String updateBondRatePeriod(
+      @PathVariable Long id,
+      @PathVariable Long periodId,
+      @RequestParam Long portfolioId,
+      @ModelAttribute BondRateForm form) {
+    assets.updateBondRate(
+        portfolioId,
+        id,
+        periodId,
+        new LongTermAssetsApi.BondRateCommand(
+            form.validFrom, form.validTo, form.annualInterestRate));
+    return redirect(id, portfolioId);
+  }
+
+  @PostMapping("/long-term-assets/{id}/bond-rate-periods/{periodId}/delete")
+  public String deleteBondRatePeriod(
+      @PathVariable Long id, @PathVariable Long periodId, @RequestParam Long portfolioId) {
+    assets.deleteBondRate(portfolioId, id, periodId);
     return redirect(id, portfolioId);
   }
 
@@ -516,12 +563,36 @@ public class LongTermAssetController {
     return "redirect:/long-term-assets?portfolioId=" + portfolioId;
   }
 
+  @PostMapping("/long-term-assets/rental-tax-policy/{policyId}")
+  public String updateRentalTaxPolicy(
+      @PathVariable Long policyId,
+      @RequestParam Long portfolioId,
+      @ModelAttribute RentalTaxForm form,
+      @RequestParam(required = false) BigDecimal ratePercent,
+      @RequestParam(required = false) BigDecimal rate) {
+    assets.updateRentalTaxPolicy(
+        portfolioId,
+        policyId,
+        new LongTermAssetsApi.RentalTaxCommand(form.validFrom, form.validTo, ratePercent, rate));
+    return taxPolicyRedirect(portfolioId);
+  }
+
+  @PostMapping("/long-term-assets/rental-tax-policy/{policyId}/delete")
+  public String deleteRentalTaxPolicy(@PathVariable Long policyId, @RequestParam Long portfolioId) {
+    assets.deleteRentalTaxPolicy(portfolioId, policyId);
+    return taxPolicyRedirect(portfolioId);
+  }
+
   private static String redirect(Long id, Long portfolioId) {
     return "redirect:/long-term-assets/" + id + "?portfolioId=" + portfolioId;
   }
 
   private static String rentalRedirect(Long id, Long portfolioId) {
     return redirect(id, portfolioId) + "#rental-contracts";
+  }
+
+  private static String taxPolicyRedirect(Long portfolioId) {
+    return "redirect:/long-term-assets?portfolioId=" + portfolioId + "#rental-tax-policies";
   }
 
   private static String rentalError(RuntimeException exception) {

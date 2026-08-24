@@ -112,6 +112,33 @@ class RentalContractServiceTest {
   }
 
   @Test
+  void explicitRolloverRejectsOverlappingTerminatedContractWithoutChangingExpectedEnd() {
+    var previous = contract(10L, LocalDate.of(2025, 1, 1), LocalDate.of(2025, 12, 31));
+    previous.setTerminatedDate(LocalDate.of(2025, 6, 30));
+    when(contracts.findAllByAssetIdOrderByStartDateDescIdDesc(7L)).thenReturn(List.of(previous));
+
+    assertThatThrownBy(
+            () ->
+                service.create(
+                    1L,
+                    7L,
+                    null,
+                    null,
+                    null,
+                    LocalDate.of(2025, 4, 1),
+                    null,
+                    null,
+                    List.of(),
+                    true))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("terminated");
+
+    assertThat(previous.getEndDate()).isEqualTo(LocalDate.of(2025, 12, 31));
+    assertThat(previous.getTerminatedDate()).isEqualTo(LocalDate.of(2025, 6, 30));
+    verify(contracts, never()).save(previous);
+  }
+
+  @Test
   void updatePreservesIdentityAndAtomicallyReplacesTenantDatesTaxPayerAndTerms() {
     var existing = contract(10L, LocalDate.of(2025, 1, 1), LocalDate.of(2025, 12, 31));
     existing.getTerms().add(term(existing, CashFlowType.RENT, "3000", false));

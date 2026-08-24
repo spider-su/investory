@@ -172,6 +172,8 @@ public class RentalContractService {
             .orElse(null);
     if (previous == null
         || !overlaps(previous.getStartDate(), effectiveEnd(previous), newStart, null)) return;
+    if (previous.getTerminatedDate() != null)
+      throw new IllegalArgumentException("Cannot roll over a terminated rental contract");
     LocalDate expectedEnd = newStart.minusDays(1);
     if (expectedEnd.isBefore(previous.getStartDate()))
       throw new IllegalArgumentException("Invalid rollover period");
