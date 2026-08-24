@@ -246,7 +246,6 @@ class LayerDependencyTest {
   }
 
   @Test
-  @Disabled("Long-term UI adapter migration is tracked separately")
   void longTermWebUiUsesOnlyLongTermPublicApi() {
     noClasses()
         .that()

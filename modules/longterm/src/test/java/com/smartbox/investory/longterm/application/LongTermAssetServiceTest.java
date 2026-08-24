@@ -121,6 +121,20 @@ class LongTermAssetServiceTest {
     return contract;
   }
 
+  private static LongTermAssetRentalContractEntity contract(LocalDate start, LocalDate end) {
+    LongTermAssetRentalContractEntity contract = new LongTermAssetRentalContractEntity();
+    contract.setAssetId(1L);
+    contract.setStartDate(start);
+    contract.setEndDate(end);
+    LongTermAssetRentalContractTermEntity rent = new LongTermAssetRentalContractTermEntity();
+    rent.setContract(contract);
+    rent.setType(CashFlowType.RENT);
+    rent.setAmount(new BigDecimal("1000"));
+    rent.setFrequency(Frequency.MONTHLY);
+    contract.getTerms().add(rent);
+    return contract;
+  }
+
   @Test
   void rentalSummaryAnnualizesIncomeAndExpensesAndAppliesTax() {
     LongTermAssetEntity a = asset(LongTermAssetType.REAL_ESTATE, "710000");
@@ -980,6 +994,20 @@ class LongTermAssetServiceTest {
   }
 
   @Test
+  void overviewUsesEffectiveTerminationOnlyWhileRentContractIsActive() {
+    LongTermAssetEntity property = asset(LongTermAssetType.REAL_ESTATE, "780000");
+    LongTermAssetRentalContractEntity contract =
+        contract(LocalDate.of(2025, 1, 1), LocalDate.of(2026, 12, 31));
+    contract.setTerminatedDate(LocalDate.of(2026, 5, 15));
+    when(assets.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of(property));
+    when(rentalContracts.findAllByAssetIdOrderByStartDate(1L)).thenReturn(List.of(contract));
+
+    assertEquals(
+        LocalDate.of(2026, 5, 15), service.list(1L, LocalDate.of(2026, 5, 1)).getFirst().rentEnd());
+    assertNull(service.list(1L, DATE).getFirst().rentEnd());
+  }
+
+  @Test
   void changingCurrentCashFlowPersistsAndCanClearEndDate() {
     LongTermAssetEntity asset = asset(LongTermAssetType.REAL_ESTATE, "710000");
     LongTermAssetCashFlowEntity old = flow(CashFlowType.RENT, "2900", Frequency.MONTHLY);
@@ -1094,6 +1122,22 @@ class LongTermAssetServiceTest {
     BigDecimal historicalAnnualIncome = service.historicalAnnualSnapshot(1L, 2025).rentalIncome();
 
     assertEquals(0, overviewAnnualIncome.compareTo(historicalAnnualIncome));
+  }
+
+  @Test
+  void historicalAnnualSnapshotKeepsFutureOnlyRentalDataUnavailable() {
+    LongTermAssetEntity apartment = asset(LongTermAssetType.REAL_ESTATE, "710000");
+    LongTermAssetRentalContractEntity future = contract(LocalDate.of(2026, 1, 1), null);
+    when(assets.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of(apartment));
+    when(rentalContracts.findAllByAssetIdOrderByStartDate(1L)).thenReturn(List.of(future));
+    when(currencyRates.convertToBaseCurrency(
+            any(BigDecimal.class),
+            eq(CurrencyType.USD),
+            eq(CurrencyType.PLN),
+            any(LocalDate.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0, BigDecimal.class));
+
+    assertNull(service.historicalAnnualSnapshot(1L, 2025).rentalIncome());
   }
 
   @Test

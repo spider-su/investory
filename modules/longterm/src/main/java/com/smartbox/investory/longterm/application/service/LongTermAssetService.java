@@ -771,7 +771,11 @@ public class LongTermAssetService {
       {
         rentEnd =
             contractModels.stream()
-                .filter(c -> c.startDate() != null && !c.startDate().isAfter(effectiveDate))
+                .filter(
+                    c ->
+                        !effectiveDate.isBefore(c.startDate())
+                            && (effectiveContractEnd(c) == null
+                                || !effectiveDate.isAfter(effectiveContractEnd(c))))
                 .filter(
                     c ->
                         c.terms().stream()
@@ -781,7 +785,7 @@ public class LongTermAssetService {
                                         == com.smartbox.investory.longterm.api.model
                                             .CashFlowTypeModel.RENT))
                 .max(Comparator.comparing(RentalContractModel::startDate))
-                .map(RentalContractModel::endDate)
+                .map(LongTermAssetService::effectiveContractEnd)
                 .orElse(null);
         realEstatePlanning =
             realEstatePlanningCalculator.calculate(
@@ -927,8 +931,10 @@ public class LongTermAssetService {
             .filter(row -> row.type() == LongTermAssetType.REAL_ESTATE)
             .allMatch(
                 row ->
-                    !cashFlows.findAllByAssetIdOrderByValidFrom(row.id()).isEmpty()
-                        || !rentalContracts.findAllByAssetIdOrderByStartDate(row.id()).isEmpty());
+                    cashFlows.findAllByAssetIdOrderByValidFrom(row.id()).stream()
+                            .anyMatch(flow -> !flow.getValidFrom().isAfter(date))
+                        || rentalContracts.findAllByAssetIdOrderByStartDate(row.id()).stream()
+                            .anyMatch(contract -> !contract.getStartDate().isAfter(date)));
     return new LongTermAssetAnnualSnapshotModel(
         null,
         !hasRealEstate || rentalDataComplete ? rentalIncome : null,
@@ -1297,6 +1303,12 @@ public class LongTermAssetService {
     if (c.getEndDate() == null) return c.getTerminatedDate();
     if (c.getTerminatedDate() == null) return c.getEndDate();
     return c.getEndDate().isBefore(c.getTerminatedDate()) ? c.getEndDate() : c.getTerminatedDate();
+  }
+
+  private static LocalDate effectiveContractEnd(RentalContractModel c) {
+    if (c.endDate() == null) return c.terminatedDate();
+    if (c.terminatedDate() == null) return c.endDate();
+    return c.endDate().isBefore(c.terminatedDate()) ? c.endDate() : c.terminatedDate();
   }
 
   public record RentalPeriod(LocalDate effectiveFrom, LocalDate endDate) {}

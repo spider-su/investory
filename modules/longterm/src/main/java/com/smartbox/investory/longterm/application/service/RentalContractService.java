@@ -64,6 +64,14 @@ public class RentalContractService {
     if (start == null || (end != null && end.isBefore(start)))
       throw new IllegalArgumentException("Invalid contract period");
     var all = contracts.findAllByAssetIdOrderByStartDate(assetId);
+    var supplied = validatedTerms(terms);
+    var suppliedTypes = EnumSet.noneOf(CashFlowType.class);
+    supplied.forEach(term -> suppliedTypes.add(term.getType()));
+    var previous =
+        all.stream()
+            .filter(old -> old.getStartDate().isBefore(start))
+            .max(Comparator.comparing(LongTermAssetRentalContractEntity::getStartDate))
+            .orElse(null);
     for (var old : all) {
       if (!overlaps(old.getStartDate(), effectiveEnd(old), start, end)) continue;
       if (old.getStartDate().isBefore(start)
@@ -77,21 +85,11 @@ public class RentalContractService {
     contract.setStartDate(start);
     contract.setEndDate(end);
     contract.setRentalTaxPaidByTenant(taxPaidByTenant);
-    for (var input : terms) {
-      if (input == null
-          || input.type() == null
-          || input.frequency() == null
-          || input.amount() == null
-          || input.amount().signum() < 0)
-        throw new IllegalArgumentException("Invalid rental contract term");
-      var term = new LongTermAssetRentalContractTermEntity();
-      term.setContract(contract);
-      term.setType(CashFlowType.valueOf(input.type().name()));
-      term.setAmount(input.amount());
-      term.setFrequency(Frequency.valueOf(input.frequency().name()));
-      term.setPaidByTenant(input.paidByTenant());
-      contract.getTerms().add(term);
-    }
+    supplied.forEach(term -> addTerm(contract, term));
+    if (previous != null)
+      previous.getTerms().stream()
+          .filter(term -> !suppliedTypes.contains(term.getType()))
+          .forEach(term -> addTerm(contract, term));
     return contracts.save(contract);
   }
 
@@ -122,8 +120,52 @@ public class RentalContractService {
       throw new IllegalArgumentException("Invalid termination date");
     if (contract.getEndDate() != null && date.isAfter(contract.getEndDate()))
       throw new IllegalArgumentException("Termination cannot follow contract end date");
+    contracts.findAllByAssetIdOrderByStartDate(assetId).stream()
+        .filter(other -> !Objects.equals(other.getId(), contractId))
+        .filter(
+            other ->
+                overlaps(other.getStartDate(), effectiveEnd(other), contract.getStartDate(), date))
+        .findAny()
+        .ifPresent(
+            other -> {
+              throw new IllegalArgumentException("Overlapping rental contract");
+            });
     contract.setTerminatedDate(date);
     contracts.save(contract);
+  }
+
+  private static List<LongTermAssetRentalContractTermEntity> validatedTerms(
+      List<RentalContractModel.Term> inputs) {
+    List<LongTermAssetRentalContractTermEntity> result = new ArrayList<>();
+    EnumSet<CashFlowType> types = EnumSet.noneOf(CashFlowType.class);
+    for (var input : inputs == null ? List.<RentalContractModel.Term>of() : inputs) {
+      if (input == null
+          || input.type() == null
+          || input.frequency() == null
+          || input.amount() == null
+          || input.amount().signum() < 0)
+        throw new IllegalArgumentException("Invalid rental contract term");
+      CashFlowType type = CashFlowType.valueOf(input.type().name());
+      if (!types.add(type)) throw new IllegalArgumentException("Duplicate rental contract term");
+      var term = new LongTermAssetRentalContractTermEntity();
+      term.setType(type);
+      term.setAmount(input.amount());
+      term.setFrequency(Frequency.valueOf(input.frequency().name()));
+      term.setPaidByTenant(input.paidByTenant());
+      result.add(term);
+    }
+    return result;
+  }
+
+  private static void addTerm(
+      LongTermAssetRentalContractEntity contract, LongTermAssetRentalContractTermEntity source) {
+    var term = new LongTermAssetRentalContractTermEntity();
+    term.setContract(contract);
+    term.setType(source.getType());
+    term.setAmount(source.getAmount());
+    term.setFrequency(source.getFrequency());
+    term.setPaidByTenant(source.isPaidByTenant());
+    contract.getTerms().add(term);
   }
 
   public static boolean applies(LongTermAssetRentalContractEntity c, LocalDate date) {
