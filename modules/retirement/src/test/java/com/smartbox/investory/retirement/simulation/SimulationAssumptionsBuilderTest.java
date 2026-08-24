@@ -42,6 +42,17 @@ class SimulationAssumptionsBuilderTest {
                 .build());
   }
 
+  @Test
+  void namedCopyAdjustsRecurringSpendingWithoutChangingItsComposition() {
+    SimulationAssumptions source = assumptions();
+
+    SimulationAssumptions changed =
+        source.toBuilder().recurringSpending(new BigDecimal("72000")).build();
+
+    assertEquals(new BigDecimal("60000.000000000000"), changed.annualLivingExpenses());
+    assertEquals(new BigDecimal("12000.000000000000"), changed.annualDiscretionaryExpenses());
+  }
+
   private static SimulationAssumptions assumptions() {
     return new SimulationAssumptions(
         41,

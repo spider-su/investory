@@ -14,7 +14,9 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
@@ -203,8 +205,27 @@ public class RentalContractService {
     contract.setEndDate(end);
     contract.setTerminatedDate(terminatedDate);
     contract.setRentalTaxPaidByTenant(taxPaidByTenant);
-    contract.getTerms().clear();
-    supplied.forEach(term -> addTerm(contract, term));
+    replaceTerms(contract, supplied);
+  }
+
+  private static void replaceTerms(
+      LongTermAssetRentalContractEntity contract,
+      List<LongTermAssetRentalContractTermEntity> supplied) {
+    Map<CashFlowType, LongTermAssetRentalContractTermEntity> existing = new HashMap<>();
+    contract.getTerms().forEach(term -> existing.put(term.getType(), term));
+    EnumSet<CashFlowType> retained = EnumSet.noneOf(CashFlowType.class);
+    for (var source : supplied) {
+      retained.add(source.getType());
+      var target = existing.get(source.getType());
+      if (target == null) {
+        addTerm(contract, source);
+      } else {
+        target.setAmount(source.getAmount());
+        target.setFrequency(source.getFrequency());
+        target.setPaidByTenant(source.isPaidByTenant());
+      }
+    }
+    contract.getTerms().removeIf(term -> !retained.contains(term.getType()));
   }
 
   private static Tenant validateTenant(String name, String email, String phone) {

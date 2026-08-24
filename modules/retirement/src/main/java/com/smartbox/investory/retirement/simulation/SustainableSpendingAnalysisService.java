@@ -154,9 +154,12 @@ public class SustainableSpendingAnalysisService {
           spending,
           baselineYear == null
               ? SustainableSpendingAnalysisService.this.evaluations.evaluate(
-                  profile, assumptions.withRecurringSpending(spending), scenario)
+                  profile, assumptions.toBuilder().recurringSpending(spending).build(), scenario)
               : SustainableSpendingAnalysisService.this.evaluations.evaluate(
-                  profile, assumptions.withRecurringSpending(spending), scenario, baselineYear));
+                  profile,
+                  assumptions.toBuilder().recurringSpending(spending).build(),
+                  scenario,
+                  baselineYear));
     }
 
     private Boundary boundary(BigDecimal low, BigDecimal high) {

@@ -122,7 +122,7 @@ public final class PlanEditorInputNormalizer {
                 base.projectedIncomePolicy().manualBondCashIncome()));
     validateManualIncome(incomePolicy);
     return new Normalized(
-        assumptions.withProjectedIncomePolicy(incomePolicy),
+        assumptions.toBuilder().projectedIncomePolicy(incomePolicy).build(),
         warnings(
             inflation,
             investmentReturn,

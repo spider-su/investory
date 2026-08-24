@@ -242,53 +242,74 @@ public class SimulationSensitivityAnalysisService {
         def(
             SensitivityDriver.INFLATION,
             "±1 pp",
-            a -> a.withInflationRate(a.inflationRate().subtract(ONE_PP)),
-            a -> a.withInflationRate(a.inflationRate().add(ONE_PP)),
+            a -> a.toBuilder().inflationRate(a.inflationRate().subtract(ONE_PP)).build(),
+            a -> a.toBuilder().inflationRate(a.inflationRate().add(ONE_PP)).build(),
             Inputs::horizon,
             SimulationAssumptions::inflationRate),
         def(
             SensitivityDriver.RENTAL_INCOME_GROWTH,
             "±0.5 pp",
-            a -> a.withRentalIncomeGrowthSpread(a.rentalIncomeGrowthSpread().subtract(HALF_PP)),
-            a -> a.withRentalIncomeGrowthSpread(a.rentalIncomeGrowthSpread().add(HALF_PP)),
+            a ->
+                a.toBuilder()
+                    .rentalIncomeGrowthSpread(a.rentalIncomeGrowthSpread().subtract(HALF_PP))
+                    .build(),
+            a ->
+                a.toBuilder()
+                    .rentalIncomeGrowthSpread(a.rentalIncomeGrowthSpread().add(HALF_PP))
+                    .build(),
             Inputs::rental,
             SimulationAssumptions::effectiveRentalIncomeGrowthRate),
         def(
             SensitivityDriver.FIXED_INCOME_RETURN,
             "±1 pp",
-            a -> a.withFixedIncomeReturnRate(a.fixedIncomeReturnRate().subtract(ONE_PP)),
-            a -> a.withFixedIncomeReturnRate(a.fixedIncomeReturnRate().add(ONE_PP)),
+            a ->
+                a.toBuilder()
+                    .fixedIncomeReturnRate(a.fixedIncomeReturnRate().subtract(ONE_PP))
+                    .build(),
+            a -> a.toBuilder().fixedIncomeReturnRate(a.fixedIncomeReturnRate().add(ONE_PP)).build(),
             Inputs::bond,
             SimulationAssumptions::fixedIncomeReturnRate),
         def(
             SensitivityDriver.EQUITY_RETURN,
             "±2 pp",
-            a -> a.withEquityReturnRate(a.equityReturnRate().subtract(TWO_PP)),
-            a -> a.withEquityReturnRate(a.equityReturnRate().add(TWO_PP)),
+            a -> a.toBuilder().equityReturnRate(a.equityReturnRate().subtract(TWO_PP)).build(),
+            a -> a.toBuilder().equityReturnRate(a.equityReturnRate().add(TWO_PP)).build(),
             Inputs::equity,
             SimulationAssumptions::equityReturnRate),
         def(
             SensitivityDriver.SPENDING_GROWTH,
             "±0.5 pp",
-            a -> a.withSpendingGrowthSpread(a.spendingGrowthSpread().subtract(HALF_PP)),
-            a -> a.withSpendingGrowthSpread(a.spendingGrowthSpread().add(HALF_PP)),
+            a ->
+                a.toBuilder()
+                    .spendingGrowthSpread(a.spendingGrowthSpread().subtract(HALF_PP))
+                    .build(),
+            a -> a.toBuilder().spendingGrowthSpread(a.spendingGrowthSpread().add(HALF_PP)).build(),
             Inputs::spendingGrowth,
             SimulationAssumptions::effectiveSpendingGrowthRate),
         def(
             SensitivityDriver.RECURRING_SPENDING,
             "±10%",
             a ->
-                a.withRecurringSpending(spending(a).multiply(BigDecimal.ONE.subtract(TEN_PERCENT))),
-            a -> a.withRecurringSpending(spending(a).multiply(BigDecimal.ONE.add(TEN_PERCENT))),
+                a.toBuilder()
+                    .recurringSpending(spending(a).multiply(BigDecimal.ONE.subtract(TEN_PERCENT)))
+                    .build(),
+            a ->
+                a.toBuilder()
+                    .recurringSpending(spending(a).multiply(BigDecimal.ONE.add(TEN_PERCENT)))
+                    .build(),
             i -> spending(i).signum() > 0,
             a -> spending(a)),
         def(
             SensitivityDriver.PENSION,
             "±10%",
             a ->
-                a.withAnnualPension(
-                    a.annualPension().multiply(BigDecimal.ONE.subtract(TEN_PERCENT))),
-            a -> a.withAnnualPension(a.annualPension().multiply(BigDecimal.ONE.add(TEN_PERCENT))),
+                a.toBuilder()
+                    .annualPension(a.annualPension().multiply(BigDecimal.ONE.subtract(TEN_PERCENT)))
+                    .build(),
+            a ->
+                a.toBuilder()
+                    .annualPension(a.annualPension().multiply(BigDecimal.ONE.add(TEN_PERCENT)))
+                    .build(),
             i -> i.horizon() && i.assumptions().annualPension().signum() > 0,
             SimulationAssumptions::annualPension));
   }

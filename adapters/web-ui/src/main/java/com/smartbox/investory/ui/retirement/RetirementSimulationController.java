@@ -1276,7 +1276,9 @@ public class RetirementSimulationController {
             .build();
     SimulationAssumptions a =
         monthlyLivingCosts == null && annualExpenses != null
-            ? legacyAssumptions.withExpenseProfile(parseExpenseProfile(expenseProfile))
+            ? legacyAssumptions.toBuilder()
+                .expenseProfile(parseExpenseProfile(expenseProfile))
+                .build()
             : planEditorInputNormalizer
                 .normalize(
                     PlanEditorInput.from(

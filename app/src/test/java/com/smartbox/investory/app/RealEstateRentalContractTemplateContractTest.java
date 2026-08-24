@@ -45,8 +45,10 @@ class RealEstateRentalContractTemplateContractTest {
 
     assertThat(occurrences(html, "<details class=\"card mb-4 iv-property-settings\"")).isOne();
     assertThat(occurrences(html, "<details class=\"card mb-4 iv-property-advanced\"")).isOne();
-    assertThat(html.indexOf("Rental contracts")).isLessThan(html.indexOf("Property settings"));
-    assertThat(html.indexOf("Property settings")).isLessThan(html.indexOf("Advanced planning"));
+    assertThat(html.indexOf("<h2 class=\"card-title mb-1\">Rental contracts</h2>"))
+        .isLessThan(html.indexOf("<span class=\"card-title mb-0\">Property settings</span>"));
+    assertThat(html.indexOf("<span class=\"card-title mb-0\">Property settings</span>"))
+        .isLessThan(html.indexOf("<span class=\"card-title mb-0\">Advanced planning</span>"));
   }
 
   @Test

@@ -535,22 +535,7 @@ public record SimulationAssumptions(
 
   /** Derive recurring spending while preserving the current living/discretionary proportion. */
   public SimulationAssumptions withRecurringSpending(BigDecimal recurringSpending) {
-    if (recurringSpending == null || recurringSpending.signum() < 0)
-      throw new IllegalArgumentException("Recurring spending cannot be negative");
-    BigDecimal current = annualLivingExpenses.add(annualDiscretionaryExpenses);
-    BigDecimal living;
-    if (current.signum() == 0) {
-      living = recurringSpending;
-    } else {
-      living =
-          recurringSpending
-              .multiply(annualLivingExpenses)
-              .divide(current, 12, java.math.RoundingMode.HALF_UP);
-    }
-    return toBuilder()
-        .annualLivingExpenses(living)
-        .annualDiscretionaryExpenses(recurringSpending.subtract(living))
-        .build();
+    return toBuilder().recurringSpending(recurringSpending).build();
   }
 
   public SimulationAssumptions withSpendingGrowthSpread(BigDecimal value) {
@@ -571,14 +556,6 @@ public record SimulationAssumptions(
 
   public SimulationAssumptions withFixedIncomeReturnRate(BigDecimal value) {
     return toBuilder().fixedIncomeReturnRate(value).build();
-  }
-
-  public SimulationAssumptions withRealEstateReturnRate(BigDecimal value) {
-    return toBuilder().realEstateReturnRate(value).build();
-  }
-
-  public SimulationAssumptions withSafeReserveYears(BigDecimal value) {
-    return toBuilder().safeReserveYears(value).build();
   }
 
   public SimulationAssumptions withAnnualPension(BigDecimal value) {
@@ -616,14 +593,6 @@ public record SimulationAssumptions(
         .futureEvents(remainingEvents)
         .expenseProfile(expenseProfile.rebasedAt(rebasedStartYear - startYear))
         .build();
-  }
-
-  public SimulationAssumptions withFundingStrategy(SimulationFundingStrategy value) {
-    return toBuilder().fundingStrategy(value).build();
-  }
-
-  public SimulationAssumptions withFundingOrder(List<FundingSource> value) {
-    return toBuilder().fundingOrder(value).build();
   }
 
   public SimulationAssumptions withExpenseProfile(ExpenseProfile value) {
@@ -771,6 +740,22 @@ public record SimulationAssumptions(
 
     public Builder annualDiscretionaryExpenses(BigDecimal value) {
       annualDiscretionaryExpenses = value;
+      return this;
+    }
+
+    /** Adjust total recurring spending while preserving the living/discretionary proportion. */
+    public Builder recurringSpending(BigDecimal value) {
+      if (value == null || value.signum() < 0)
+        throw new IllegalArgumentException("Recurring spending cannot be negative");
+      BigDecimal current = annualLivingExpenses.add(annualDiscretionaryExpenses);
+      BigDecimal living =
+          current.signum() == 0
+              ? value
+              : value
+                  .multiply(annualLivingExpenses)
+                  .divide(current, 12, java.math.RoundingMode.HALF_UP);
+      annualLivingExpenses = living;
+      annualDiscretionaryExpenses = value.subtract(living);
       return this;
     }
 

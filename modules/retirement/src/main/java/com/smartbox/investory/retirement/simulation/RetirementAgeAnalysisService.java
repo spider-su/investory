@@ -107,7 +107,7 @@ public class RetirementAgeAnalysisService {
         && scenario == SimulationScenario.BASE
         && retirementAge == assumptions.retirementAge())
       return context.canonicalBase().sustainable();
-    SimulationAssumptions candidate = assumptions.withRetirementAge(retirementAge);
+    SimulationAssumptions candidate = assumptions.toBuilder().retirementAge(retirementAge).build();
     return (context == null
             ? evaluations.evaluate(profile, candidate, scenario)
             : evaluations.evaluate(profile, candidate, scenario, context.baselineYear()))
