@@ -11,6 +11,13 @@ appear in scenario summaries, sensitivity cells, and retirement-age results. If 
 bridge leaves no forward years, Analysis returns `NO_FORWARD_HORIZON`; no sensitivity,
 sustainable-spending, or retirement-age calculation runs.
 
+The Analysis page is a presentation of this one context: the Base scenario, sensitivity Base
+cells, sustainable-spending evaluation at current spending, and retirement-age evaluation at the
+planned age all reconcile to the same canonical evaluation. Monetary materiality is evaluated in
+the canonical plan currency before any display-currency conversion. Sensitivity cells carry tested
+value, availability, status, failure year, and minimum spendable assets as separate values; the
+web layer formats them but never recomputes outcomes.
+
 ## Deterministic results
 
 Scenarios change coherent assumption sets: Base, Conservative, Optimistic, and an optional Custom
@@ -41,6 +48,10 @@ Bonds only while an effective capital-return period affects the forward horizon.
 source Bonds are excluded even when their principal appears in fixed-income start/end balances.
 Mixed PAY_OUT/CAPITALIZE portfolios apply only when at least one active CAPITALIZE period has
 effective capital return. Expired or inactive periods do not create applicability.
+
+Allocation-only means the reviewed source snapshot has no Bond/Deposit assets and the planning
+allocation contains fixed income. Once reviewed source assets exist, applicability comes from the
+source treatment and active periods, not from the fixed-income balance alone.
 
 Each Lower/Higher perturbation is validated independently. An invalid point is unavailable, not
 clamped; Base and the valid direction remain visible. If both directions are invalid, the driver

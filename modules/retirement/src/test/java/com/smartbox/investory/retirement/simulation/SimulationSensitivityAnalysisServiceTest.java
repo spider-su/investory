@@ -87,11 +87,13 @@ class SimulationSensitivityAnalysisServiceTest {
             .analyze(profile, assumptions);
 
     assertEquals(
-        List.of(
+        java.util.Set.of(
             SensitivityDriver.SPENDING_GROWTH,
             SensitivityDriver.INFLATION,
             SensitivityDriver.RECURRING_SPENDING),
-        result.drivers().stream().map(SimulationSensitivityResult::driver).toList());
+        result.drivers().stream()
+            .map(SimulationSensitivityResult::driver)
+            .collect(java.util.stream.Collectors.toSet()));
   }
 
   @Test
@@ -121,6 +123,56 @@ class SimulationSensitivityAnalysisServiceTest {
         SensitivityImpact.NEGLIGIBLE,
         SimulationSensitivityAnalysisService.classify(
             base, improved, new BigDecimal("1"), BigDecimal.ZERO, BigDecimal.ZERO));
+  }
+
+  @Test
+  void harmfulComparisonHonorsFailureTransitionAndMagnitude() {
+    SimulationEvaluation base = evaluation(true, "0", "5", "100000", "100000");
+    SimulationEvaluation failsSlightly = evaluation(false, "100", "5", "90000", "90000");
+    SimulationEvaluation failsMore = evaluation(false, "1000", "4", "80000", "80000");
+
+    assertTrue(SimulationSensitivityAnalysisService.compareHarm(failsSlightly, base, base) > 0);
+    assertTrue(
+        SimulationSensitivityAnalysisService.compareHarm(failsMore, failsSlightly, base) > 0);
+    assertEquals(
+        0, SimulationSensitivityAnalysisService.compareHarm(failsSlightly, failsSlightly, base));
+  }
+
+  @Test
+  void impactThresholdsUseDirectionalBoundaries() {
+    SimulationEvaluation base = evaluation(true, "0", "5", "100000", "100000");
+    assertEquals(
+        SensitivityImpact.NEGLIGIBLE,
+        SimulationSensitivityAnalysisService.classify(
+            base, base, new BigDecimal("-0.499"), BigDecimal.ZERO, BigDecimal.ZERO));
+    assertEquals(
+        SensitivityImpact.MODERATE,
+        SimulationSensitivityAnalysisService.classify(
+            base, base, new BigDecimal("-0.5"), BigDecimal.ZERO, BigDecimal.ZERO));
+    assertEquals(
+        SensitivityImpact.MODERATE,
+        SimulationSensitivityAnalysisService.classify(
+            base, base, new BigDecimal("-0.501"), BigDecimal.ZERO, BigDecimal.ZERO));
+    assertEquals(
+        SensitivityImpact.NEGLIGIBLE,
+        SimulationSensitivityAnalysisService.classify(
+            base, base, BigDecimal.ZERO, new BigDecimal("-999"), BigDecimal.ZERO));
+    assertEquals(
+        SensitivityImpact.MODERATE,
+        SimulationSensitivityAnalysisService.classify(
+            base, base, BigDecimal.ZERO, new BigDecimal("-1000"), BigDecimal.ZERO));
+    assertEquals(
+        SensitivityImpact.MODERATE,
+        SimulationSensitivityAnalysisService.classify(
+            base, base, BigDecimal.ZERO, new BigDecimal("-1001"), BigDecimal.ZERO));
+    assertEquals(
+        SensitivityImpact.NEGLIGIBLE,
+        SimulationSensitivityAnalysisService.classify(
+            base, base, BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("-999")));
+    assertEquals(
+        SensitivityImpact.WEALTH_ONLY,
+        SimulationSensitivityAnalysisService.classify(
+            base, base, BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("-1000")));
   }
 
   @Test

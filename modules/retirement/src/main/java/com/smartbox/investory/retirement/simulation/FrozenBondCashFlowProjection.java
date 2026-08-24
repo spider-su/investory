@@ -39,13 +39,6 @@ public class FrozenBondCashFlowProjection {
             .filter(asset -> asset.bucket() == EconomicBucket.FIXED_INCOME)
             .map(asset -> zeroIfNull(asset.currentValue()))
             .reduce(ZERO, BigDecimal::add);
-    if (bondCapital.signum() == 0) {
-      bondCapital =
-          frozenAssets(profile).stream()
-              .filter(asset -> asset.bucket() == EconomicBucket.FIXED_INCOME)
-              .map(asset -> zeroIfNull(asset.currentValue()))
-              .reduce(ZERO, BigDecimal::add);
-    }
     BigDecimal capitalizedReturn =
         frozenAssets(profile).stream()
             .filter(asset -> asset.bucket() == EconomicBucket.FIXED_INCOME)
@@ -78,6 +71,20 @@ public class FrozenBondCashFlowProjection {
               }
               return false;
             });
+  }
+
+  /**
+   * True when the plan Bond return assumption changes capital during at least one forward year.
+   * Reviewed source Bonds are applicable only for active CAPITALIZE periods; PAY_OUT source Bonds
+   * contribute cash income and are never made applicable by their balance alone.
+   */
+  public boolean hasPlanBondReturnExposure(InvestmentProfile profile, int firstYear, int lastYear) {
+    if (firstYear > lastYear) return false;
+    if (hasFrozenBondAssets(profile)) {
+      return hasCapitalizedBondYield(profile, firstYear, lastYear);
+    }
+    return profile.allocations().stream()
+        .anyMatch(a -> a.bucket() == EconomicBucket.FIXED_INCOME && a.isNonZero());
   }
 
   /** True when the frozen source snapshot contains explicit Bond assets. */

@@ -60,7 +60,21 @@ public class SimulationSensitivityAnalysisService {
       int baselineYear,
       boolean explicitBaseline,
       SimulationEvaluation base) {
-    Inputs inputs = new Inputs(profile, assumptions, base, baselineYear, explicitBaseline);
+    Inputs inputs =
+        new Inputs(
+            profile,
+            assumptions,
+            base,
+            baselineYear,
+            explicitBaseline,
+            bondProjection.hasPlanBondReturnExposure(
+                profile,
+                base.result() == null || base.result().years().isEmpty()
+                    ? assumptions.startYear()
+                    : base.result().years().getFirst().year(),
+                base.result() == null || base.result().years().isEmpty()
+                    ? assumptions.startYear() + assumptions.endAge() - assumptions.currentAge()
+                    : base.result().years().getLast().year()));
     List<SimulationSensitivityResult> results =
         catalogue().stream()
             .filter(definition -> definition.applicable().test(inputs))
@@ -147,7 +161,7 @@ public class SimulationSensitivityAnalysisService {
     var y = b.sustainability();
     int c =
         Boolean.compare(
-            base.sustainable() && !y.sustainable(), base.sustainable() && !x.sustainable());
+            base.sustainable() && !x.sustainable(), base.sustainable() && !y.sustainable());
     if (c != 0) return c;
     c = x.totalUnfundedAmount().compareTo(y.totalUnfundedAmount());
     if (c != 0) return c;
@@ -180,9 +194,9 @@ public class SimulationSensitivityAnalysisService {
     if (t.totalUnfundedAmount().compareTo(b.totalUnfundedAmount()) > 0
         || (!b.recurringFundingGapRequired() && t.recurringFundingGapRequired()))
       return SensitivityImpact.HIGH;
-    if (reserve.signum() < 0 && reserve.abs().compareTo(MATERIAL_RESERVE_COVERAGE_DELTA) >= 0)
+    if (reserve.compareTo(MATERIAL_RESERVE_COVERAGE_DELTA.negate()) <= 0)
       return SensitivityImpact.MODERATE;
-    if (spendable.signum() < 0 && spendable.abs().compareTo(MATERIAL_SPENDABLE_ASSETS_DELTA) >= 0)
+    if (spendable.negate().compareTo(MATERIAL_SPENDABLE_ASSETS_DELTA) >= 0)
       return SensitivityImpact.MODERATE;
     BigDecimal baseWealth = b.finalNetWorth().abs();
     BigDecimal pct =
@@ -310,7 +324,8 @@ public class SimulationSensitivityAnalysisService {
       SimulationAssumptions assumptions,
       SimulationEvaluation base,
       int baselineYear,
-      boolean explicitBaseline) {
+      boolean explicitBaseline,
+      boolean planBondReturnExposure) {
     boolean horizon() {
       return base.result() == null || !base.result().years().isEmpty();
     }
@@ -339,18 +354,7 @@ public class SimulationSensitivityAnalysisService {
     }
 
     boolean bond() {
-      if (!horizon()) return false;
-      boolean allocationExposure =
-          profile.allocations().stream()
-              .anyMatch(a -> a.bucket() == EconomicBucket.FIXED_INCOME && a.isNonZero());
-      int first =
-          base.result() == null ? assumptions.startYear() : base.result().years().getFirst().year();
-      int last =
-          base.result() == null
-              ? assumptions.startYear() + assumptions.endAge() - assumptions.currentAge()
-              : base.result().years().getLast().year();
-      return allocationExposure
-          || new FrozenBondCashFlowProjection().hasCapitalizedBondYield(profile, first, last);
+      return horizon() && planBondReturnExposure;
     }
   }
 }

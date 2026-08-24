@@ -106,6 +106,50 @@ class FrozenBondCashFlowProjectionTest {
   }
 
   @Test
+  void planBondReturnExposureMatchesSourceTreatmentAndForwardActivity() {
+    var payout =
+        assetWithPeriods(InterestTreatmentModel.PAY_OUT, period("2026-01-01", null, "80", "0.04"));
+    var activeCap =
+        assetWithPeriods(
+            InterestTreatmentModel.CAPITALIZE, period("2026-01-01", "2028-12-31", "80", "0.04"));
+    var expiredCap =
+        assetWithPeriods(
+            InterestTreatmentModel.CAPITALIZE, period("2020-01-01", "2025-12-31", "80", "0.04"));
+
+    assertThat(projection.hasPlanBondReturnExposure(profile(payout), 2026, 2028)).isFalse();
+    assertThat(projection.hasPlanBondReturnExposure(profile(activeCap), 2026, 2028)).isTrue();
+    assertThat(projection.hasPlanBondReturnExposure(profile(expiredCap), 2026, 2028)).isFalse();
+    assertThat(
+            projection.hasPlanBondReturnExposure(profile(List.of(payout, activeCap)), 2026, 2028))
+        .isTrue();
+  }
+
+  @Test
+  void allocationOnlyFixedIncomeHasPlanReturnExposure() {
+    var profile =
+        new InvestmentProfile(
+            1L,
+            CurrencyType.PLN,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            List.of(
+                new com.smartbox.investory.retirement.profile.ProfileAllocation(
+                    EconomicBucket.FIXED_INCOME,
+                    new BigDecimal("1000"),
+                    BigDecimal.ONE,
+                    Liquidity.LIQUID)),
+            List.of());
+
+    assertThat(projection.hasPlanBondReturnExposure(profile, 2026, 2028)).isTrue();
+  }
+
+  @Test
   void explicitAnnualIncomeIsAlreadyNetAndIsNotTaxedAgain() {
     var asset =
         asset(
@@ -213,19 +257,27 @@ class FrozenBondCashFlowProjectionTest {
   }
 
   private static InvestmentProfile profile(ProjectedLongTermAsset asset) {
+    return profile(List.of(asset));
+  }
+
+  private static InvestmentProfile profile(List<ProjectedLongTermAsset> assets) {
+    BigDecimal value =
+        assets.stream()
+            .map(ProjectedLongTermAsset::currentValue)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
     return new InvestmentProfile(
         1L,
         CurrencyType.PLN,
         BigDecimal.ZERO,
-        asset.currentValue(),
-        asset.currentValue(),
+        value,
+        value,
         BigDecimal.ZERO,
         BigDecimal.ZERO,
         BigDecimal.ZERO,
         BigDecimal.ZERO,
-        asset.currentValue(),
+        value,
         List.of(),
-        List.of(asset),
+        assets,
         BigDecimal.ZERO,
         BigDecimal.ZERO);
   }
