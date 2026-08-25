@@ -45,7 +45,16 @@
         if (event.key !== 'Escape') return;
         const openModal = Array.from(document.querySelectorAll('.iv-modal'))
             .find(function (modal) { return modal.style.display !== 'none'; });
-        if (openModal) setModalState(openModal, false);
+        if (openModal) {
+            setModalState(openModal, false);
+            return;
+        }
+        const openDetails = Array.from(document.querySelectorAll('details[open]')).pop();
+        if (openDetails) {
+            openDetails.removeAttribute('open');
+            const trigger = openDetails.querySelector(':scope > summary');
+            if (trigger) trigger.focus();
+        }
     });
 
     // Keep only one disclosure open at a time to reduce visual clutter.
@@ -67,6 +76,39 @@
             if (!metric.contains(event.target)) metric.blur();
         });
     });
+
+    function placeCompactPopover(details) {
+        const panel = details.querySelector(':scope > .iv-compact-popover__panel');
+        const trigger = details.querySelector(':scope > summary');
+        if (!panel || !trigger || !details.open) return;
+        details.classList.remove('placement-top');
+        panel.style.setProperty('--iv-compact-shift-x', '0px');
+        if (window.matchMedia('(max-width: 640px)').matches) return;
+
+        const triggerRect = trigger.getBoundingClientRect();
+        const panelHeight = Math.min(panel.scrollHeight, 320, window.innerHeight - 32);
+        const spaceBelow = window.innerHeight - triggerRect.bottom - 16;
+        const spaceAbove = triggerRect.top - 16;
+        details.classList.toggle('placement-top', spaceBelow < panelHeight && spaceAbove > spaceBelow);
+
+        const panelRect = panel.getBoundingClientRect();
+        const leftCorrection = Math.max(0, 16 - panelRect.left);
+        const rightCorrection = Math.max(0, panelRect.right - (window.innerWidth - 16));
+        panel.style.setProperty('--iv-compact-shift-x', (leftCorrection - rightCorrection) + 'px');
+    }
+
+    const compactPopovers = Array.from(document.querySelectorAll('details.iv-compact-popover'));
+    compactPopovers.forEach(function (details) {
+        details.addEventListener('toggle', function () {
+            if (details.open) window.requestAnimationFrame(function () { placeCompactPopover(details); });
+        });
+    });
+    function repositionOpenCompactPopover() {
+        const open = document.querySelector('details.iv-compact-popover[open]');
+        if (open) placeCompactPopover(open);
+    }
+    window.addEventListener('resize', repositionOpenCompactPopover);
+    window.addEventListener('scroll', repositionOpenCompactPopover, true);
 
     const uploadBox = document.querySelector('.iv-upload-box');
     const xtbInput = document.getElementById('xtb-file-input');

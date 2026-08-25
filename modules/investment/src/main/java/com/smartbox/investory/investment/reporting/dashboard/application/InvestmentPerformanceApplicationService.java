@@ -67,12 +67,14 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
     List<String> sourceLabels = benchmark.getLabels();
     List<PerformanceSeries> fullSeries =
         allSelected
-            ? List.of(new PerformanceSeries("Portfolio", sourceCurve(benchmark, returns)))
+            ? List.of(new PerformanceSeries(null, "Portfolio", sourceCurve(benchmark, returns)))
             : selected.stream()
                 .map(
                     series ->
                         new PerformanceSeries(
-                            accountName(accounts, series.id()), accountCurve(series, returns)))
+                            series.id(),
+                            accountName(accounts, series.id()),
+                            accountCurve(series, returns)))
                 .toList();
     int scopeStart = scopeStart(sourceLabels, query.period());
     List<String> scopedLabels = sourceLabels.subList(scopeStart, sourceLabels.size());
@@ -81,7 +83,7 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
             .map(
                 row ->
                     new PerformanceSeries(
-                        row.label(), scopedCurve(row.values(), scopeStart, returns)))
+                        row.accountId(), row.label(), scopedCurve(row.values(), scopeStart, returns)))
             .toList();
     List<Double> fullBenchmarkCurve =
         returns ? benchmark.getBenchmarkReturnCurve() : benchmark.getBenchmarkCurve();
@@ -92,6 +94,7 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
             .map(
                 row ->
                     new PerformanceSeries(
+                        row.accountId(),
                         row.label(),
                         transform(
                             row.values(),

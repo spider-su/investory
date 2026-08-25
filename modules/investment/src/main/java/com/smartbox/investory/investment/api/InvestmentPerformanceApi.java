@@ -32,7 +32,7 @@ public interface InvestmentPerformanceApi {
       PerformanceKpiView kpis,
       List<PerformanceAccount> accounts) {}
 
-  record PerformanceSeries(String label, List<Double> values) {}
+  record PerformanceSeries(Long accountId, String label, List<Double> values) {}
 
   record PerformanceAccount(Long id, String name, boolean selected) {}
 
