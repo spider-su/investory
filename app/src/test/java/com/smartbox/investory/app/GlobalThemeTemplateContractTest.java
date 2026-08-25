@@ -47,6 +47,7 @@ class GlobalThemeTemplateContractTest {
             Path.of("../adapters/web-ui/src/main/resources/templates/fragments/theme-head.html"),
             StandardCharsets.UTF_8);
     assertThat(html)
+        .contains("/favicon.svg")
         .contains("investory.theme")
         .contains("dataset.theme")
         .contains("dataset.bsTheme")

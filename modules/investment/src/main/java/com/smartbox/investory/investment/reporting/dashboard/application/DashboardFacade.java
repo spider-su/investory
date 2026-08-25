@@ -142,6 +142,16 @@ public class DashboardFacade {
         navigation(query, benchmark));
   }
 
+  public PerformanceKpi loadPerformanceKpi(Long portfolioId) {
+    Portfolio portfolio =
+        DashboardCalculationCopies.portfolio(portfolioService.calculateTotalProfitLoss());
+    return performanceKpi(
+        canonicalKpiPerformance(portfolio.getMonthlyPerformance(), portfolioId));
+  }
+
+  public record PerformanceKpi(
+      ReturnMetric totalReturn, ReturnMetric annualizedReturn, String startDate) {}
+
   private static String yearMonth(String value) {
     if (value == null || value.isBlank()) {
       return "2026-01";
@@ -192,6 +202,7 @@ public class DashboardFacade {
       worst = worstEntry.getKey();
       worstValue = worstEntry.getValue();
     }
+    PerformanceKpi performanceKpi = performanceKpi(kpiPerformance);
     return new PerformanceSummary(
         benchmark.getPortfolioReturnPct(),
         benchmark.getBenchmarkReturnPct(),
@@ -206,16 +217,24 @@ public class DashboardFacade {
         metric(canonical, true),
         metric(canonical, false),
         canonical == null ? null : canonical.attribution(),
-        metric(kpiPerformance, true),
-        kpiPerformance == null
-            ? ReturnMetric.unavailable(ReturnMetric.Status.INSUFFICIENT_DATA, "No KPI history")
-            : PortfolioReturnCalculator.annualized(
-                metric(kpiPerformance, true),
-                kpiPerformance.period().startDate(),
-                kpiPerformance.period().endDate()),
-        kpiPerformance == null || kpiPerformance.period() == null
-            ? null
-            : kpiPerformance.period().startDate().toString());
+        performanceKpi.totalReturn(),
+        performanceKpi.annualizedReturn(),
+        performanceKpi.startDate());
+  }
+
+  private PerformanceKpi performanceKpi(PerformanceResult result) {
+    ReturnMetric totalReturn = metric(result, true);
+    if (result == null || result.period() == null) {
+      return new PerformanceKpi(
+          totalReturn,
+          ReturnMetric.unavailable(ReturnMetric.Status.INSUFFICIENT_DATA, "No KPI history"),
+          null);
+    }
+    return new PerformanceKpi(
+        totalReturn,
+        PortfolioReturnCalculator.annualized(
+            totalReturn, result.period().startDate(), result.period().endDate()),
+        result.period().startDate().toString());
   }
 
   private PeriodPerformance periodPerformance(

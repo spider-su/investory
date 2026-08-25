@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <title>Investory — Portfolio Intelligence</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link href="/favicon.svg" rel="icon" type="image/svg+xml">
     <link href="/css/tabler.min.css" rel="stylesheet">
     <link href="/css/main.css" rel="stylesheet">
     <th:block th:replace="~{fragments/theme-head :: theme}"></th:block>
@@ -80,8 +79,7 @@
                               th:text="|(${stats.formatSignedPercent(stats.gainPct)})|">(+0,0%)</span>
                     </span>
                     </div>
-                    <span class="iv-topbar-metric__label"
-                          th:text="${stats.totalProfit >= 0 ? 'PROFIT' : 'LOSS'}">PROFIT</span>
+                    <span class="iv-topbar-metric__label">INVESTMENT RESULT</span>
                 </div>
                 <div class="iv-metric-context__panel" role="tooltip">
                     <div class="iv-brand__summary-row"><span>Return since KPI start</span><span th:if="${dashboard.performance.summary.kpiReturn.status.name() == 'AVAILABLE'}" th:text="${dashboard.performance.summary.formatSignedPercent(dashboard.performance.summary.kpiReturn.value * 100)}">Unavailable</span><span th:unless="${dashboard.performance.summary.kpiReturn.status.name() == 'AVAILABLE'}">Unavailable</span></div>
@@ -123,7 +121,7 @@
                              th:text="${'Rates updated: ' + dashboard.overview.operational.fx.ratesUpdated}">Rates updated: —</div>
                         <div class="iv-popover-help" th:text="${dashboard.overview.operational == null ? stats.exchangeRates.size() : dashboard.overview.operational.fx.currencyCount} + ' currencies in portfolio'">0 currencies in portfolio</div>
                         </div>
-                        <div class="iv-compact-popover__footer"><button type="button" id="refresh-currency-btn" class="iv-topbar-action-button iv-badge iv-badge--muted">Update currency</button>
+                        <div class="iv-compact-popover__footer"><button type="button" id="refresh-currency-btn" class="iv-topbar-action-button iv-badge iv-badge--muted">Update exchange rates</button>
                         <p id="refresh-currency-status" class="iv-form-status" role="status" aria-live="polite"></p></div>
                     </div>
                 </details>
@@ -152,7 +150,7 @@
                 <div class="iv-hover-context">
                     <button id="refresh-prices-btn"
                             class="iv-topbar-action-button iv-badge iv-badge--muted">
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0 1 4"/><path d="M20 4v7h-7"/></svg> Update History
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0 1 4"/><path d="M20 4v7h-7"/></svg> Update market data
                     </button>
                     <div class="iv-hover-context__panel" role="tooltip">
                         <strong>Portfolio data</strong>
@@ -235,8 +233,8 @@
                                 <button type="button" class="iv-sort-button" data-sort-key="price">Price</button>
                                 <button type="button" class="iv-sort-button" data-sort-key="value">Value</button>
                                 <button type="button" class="iv-sort-button" data-sort-key="unrealized">Unrealized</button>
-                                <button type="button" class="iv-sort-button" data-sort-key="pl">P/L</button>
-                                <button type="button" class="iv-sort-button" data-sort-key="share">Share</button>
+                                <button type="button" class="iv-sort-button" data-sort-key="pl">Return</button>
+                                <button type="button" class="iv-sort-button" data-sort-key="share">Portfolio share</button>
                             </div>
                             <div class="iv-position-popover__row"
                                  th:each="position : ${stats.openPositionValues}"
@@ -315,12 +313,12 @@
                             <div class="iv-realized-attribution-popover">
                                 <section class="iv-realized-attribution-group" aria-labelledby="top-gainers-title">
                                     <h3 id="top-gainers-title" class="iv-realized-attribution-title">Top gainers</h3>
-                                    <div class="iv-realized-attribution-table" role="table" aria-label="Top gainers">
+                                    <div class="iv-realized-attribution-table iv-sortable-grid" role="table" aria-label="Top gainers">
                                         <div class="iv-position-popover__row iv-realized-attribution-row iv-balance-popover__row--head" role="row">
-                                            <span>Symbol</span><span>Total</span><span>Realized</span><span>Unrealized</span><span>Dividends</span><span>Tax</span>
+                                            <button type="button" class="iv-sort-button" data-sort-key="symbol">Symbol</button><button type="button" class="iv-sort-button" data-sort-key="total">Total</button><button type="button" class="iv-sort-button" data-sort-key="realized">Realized</button><button type="button" class="iv-sort-button" data-sort-key="unrealized">Unrealized</button><button type="button" class="iv-sort-button" data-sort-key="dividends">Dividends</button><button type="button" class="iv-sort-button" data-sort-key="tax">Tax</button>
                                         </div>
-                                        <div class="iv-position-popover__row iv-realized-attribution-row" role="row" th:each="symbol : ${topGainers}">
-                                            <span class="iv-sym"><span class="iv-sym__avatar" th:text="${#strings.substring(symbol.symbol, 0, 1)}"></span><a th:if="${symbol.symbol != 'Other'}" th:href="@{/dashboard/assets/{symbol}(symbol=${symbol.symbol})}" th:text="${symbol.symbol}" title="Open asset details"></a><span th:unless="${symbol.symbol != 'Other'}" th:text="${symbol.symbol}"></span></span>
+                                        <div class="iv-position-popover__row iv-realized-attribution-row" role="row" th:each="symbol : ${topGainers}" data-sort-row th:attr="data-sort-symbol=${symbol.symbol},data-sort-total=${symbol.total},data-sort-realized=${symbol.closedProfit},data-sort-unrealized=${symbol.unrealizedProfit},data-sort-dividends=${symbol.dividends},data-sort-tax=${symbol.withholdingTax}">
+                                            <span class="iv-sym"><a th:if="${symbol.symbol != 'Other'}" th:href="@{/dashboard/assets/{symbol}(symbol=${symbol.symbol})}" th:text="${symbol.symbol}" title="Open asset details"></a><span th:unless="${symbol.symbol != 'Other'}" th:text="${symbol.symbol}"></span></span>
                                             <span class="iv-amt iv-pos" th:text="${format.wholeNumber(symbol.total)}"></span>
                                             <span class="iv-amt" th:classappend="${symbol.closedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.wholeNumber(symbol.closedProfit)}"></span>
                                             <span class="iv-amt" th:classappend="${symbol.unrealizedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.wholeNumber(symbol.unrealizedProfit)}"></span>
@@ -331,12 +329,12 @@
                                 </section>
                                 <section class="iv-realized-attribution-group" aria-labelledby="top-losers-title">
                                     <h3 id="top-losers-title" class="iv-realized-attribution-title">Top losers</h3>
-                                    <div class="iv-realized-attribution-table" role="table" aria-label="Top losers">
+                                    <div class="iv-realized-attribution-table iv-sortable-grid" role="table" aria-label="Top losers">
                                         <div class="iv-position-popover__row iv-realized-attribution-row iv-balance-popover__row--head" role="row">
-                                            <span>Symbol</span><span>Total</span><span>Realized</span><span>Unrealized</span><span>Dividends</span><span>Tax</span>
+                                            <button type="button" class="iv-sort-button" data-sort-key="symbol">Symbol</button><button type="button" class="iv-sort-button" data-sort-key="total">Total</button><button type="button" class="iv-sort-button" data-sort-key="realized">Realized</button><button type="button" class="iv-sort-button" data-sort-key="unrealized">Unrealized</button><button type="button" class="iv-sort-button" data-sort-key="dividends">Dividends</button><button type="button" class="iv-sort-button" data-sort-key="tax">Tax</button>
                                         </div>
-                                        <div class="iv-position-popover__row iv-realized-attribution-row" role="row" th:each="symbol : ${topLosers}">
-                                            <span class="iv-sym"><span class="iv-sym__avatar" th:text="${#strings.substring(symbol.symbol, 0, 1)}"></span><a th:if="${symbol.symbol != 'Other'}" th:href="@{/dashboard/assets/{symbol}(symbol=${symbol.symbol})}" th:text="${symbol.symbol}" title="Open asset details"></a><span th:unless="${symbol.symbol != 'Other'}" th:text="${symbol.symbol}"></span></span>
+                                        <div class="iv-position-popover__row iv-realized-attribution-row" role="row" th:each="symbol : ${topLosers}" data-sort-row th:attr="data-sort-symbol=${symbol.symbol},data-sort-total=${symbol.total},data-sort-realized=${symbol.closedProfit},data-sort-unrealized=${symbol.unrealizedProfit},data-sort-dividends=${symbol.dividends},data-sort-tax=${symbol.withholdingTax}">
+                                            <span class="iv-sym"><a th:if="${symbol.symbol != 'Other'}" th:href="@{/dashboard/assets/{symbol}(symbol=${symbol.symbol})}" th:text="${symbol.symbol}" title="Open asset details"></a><span th:unless="${symbol.symbol != 'Other'}" th:text="${symbol.symbol}"></span></span>
                                             <span class="iv-amt iv-neg" th:text="${format.wholeNumber(symbol.total)}"></span>
                                             <span class="iv-amt" th:classappend="${symbol.closedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.wholeNumber(symbol.closedProfit)}"></span>
                                             <span class="iv-amt" th:classappend="${symbol.unrealizedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.wholeNumber(symbol.unrealizedProfit)}"></span>

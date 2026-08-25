@@ -83,7 +83,7 @@ if (fileInput) {
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert('Failed to upload statement layout. Check server logs.');
+                    alert('Couldn\u2019t import this statement. Check the file and try again.');
                 })
                 .finally(() => {
                     if (importStatementBtn) {
@@ -210,8 +210,8 @@ if (fileInput) {
              refreshPricesBtn,
              '/admin/update-history',
              '⏳ Updating history…',
-             'History updated',
-             'Dashboard price refresh');
+              'Market data updated',
+              'Market data update');
      });
  }
 
@@ -233,12 +233,12 @@ if (fileInput) {
                  if (data.failed && data.failed.length) {
                      throw new Error(data.failed.join(', '));
                  }
-                 if (refreshCurrencyStatus) refreshCurrencyStatus.textContent = 'Currency updated';
+                 if (refreshCurrencyStatus) refreshCurrencyStatus.textContent = 'Exchange rates updated';
                  window.setTimeout(() => window.location.reload(), 500);
              })
              .catch(error => {
-                 if (refreshCurrencyStatus) refreshCurrencyStatus.textContent = 'Currency update failed: ' + error.message;
-                 if (window.ivNotify) window.ivNotify('Currency update failed: ' + error.message, 'error');
+                 if (refreshCurrencyStatus) refreshCurrencyStatus.textContent = 'Exchange rate update failed: ' + error.message;
+                 if (window.ivNotify) window.ivNotify('Exchange rate update failed: ' + error.message, 'error');
              })
              .finally(() => {
                  refreshCurrencyBtn.disabled = false;

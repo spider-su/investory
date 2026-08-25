@@ -98,8 +98,10 @@ public final class UiPresentation {
 
   /** Browser-safe percentage-point input, for example 0.075 becomes 7.5. */
   public static String percentageInput(BigDecimal ratio) {
-    return (ratio == null ? BigDecimal.ZERO : ratio.multiply(BigDecimal.valueOf(100)))
-        .setScale(1, FinancialPrecision.REPORTING_ROUNDING)
+    BigDecimal percentagePoints =
+        (ratio == null ? BigDecimal.ZERO : ratio.multiply(BigDecimal.valueOf(100)))
+            .stripTrailingZeros();
+    return (percentagePoints.scale() < 1 ? percentagePoints.setScale(1) : percentagePoints)
         .toPlainString();
   }
 

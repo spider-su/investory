@@ -61,6 +61,11 @@ Recorded dividend withholding and interest tax follow the imported ledger semant
 current calculation. The capital-gains tax estimate is displayed separately and is not deducted from
 headline earnings or ROI.
 
+The Profile page's market-return KPI uses the same canonical cash-flow-neutral annualized total
+return and KPI observation dates as the Investment dashboard. Projected annual income remains a
+separate income-planning metric and includes net dividends and interest; it is not used as the
+market-return KPI.
+
 ## Headline ROI
 
 Headline ROI is:

@@ -9,8 +9,8 @@
             <button type="button" class="iv-sort-button" data-sort-key="name">Name</button>
             <button type="button" class="iv-sort-button" data-sort-key="deposit">Net deposit</button>
             <button type="button" class="iv-sort-button" data-sort-key="balance">Balance</button>
-            <button type="button" class="iv-sort-button" data-sort-key="profit">Profit</button>
-            <button type="button" class="iv-sort-button" data-sort-key="pl">P/L</button>
+            <button type="button" class="iv-sort-button" data-sort-key="profit">Profit/Loss</button>
+            <button type="button" class="iv-sort-button" data-sort-key="pl">Return</button>
             <button type="button" class="iv-sort-button" data-sort-key="cash">Cash</button>
         </div>
         <div class="iv-balance-popover__row" th:each="account : ${stats.accountBalances}" data-sort-row
@@ -37,26 +37,27 @@
 <details th:fragment="valuation" id="data-quality" class="iv-balance-popover iv-data-quality-popover iv-compact-popover iv-compact-popover--wide">
     <summary class="iv-balance-popover__trigger"
              th:classappend="${stats.dataQuality.state == 'HEALTHY'} ? ' iv-badge--pos' : (${stats.dataQuality.state == 'CRITICAL'} ? ' iv-badge--neg' : ' iv-badge--muted')"
-             th:text="${'Valuation: ' + stats.dataQuality.state}">Valuation: HEALTHY</summary>
+             th:text="${'Valuation quality: ' + (stats.dataQuality.state == 'HEALTHY' ? 'Healthy' : (stats.dataQuality.state == 'CRITICAL' ? 'Critical' : 'Needs attention'))}">Valuation quality: Healthy</summary>
     <div class="iv-balance-popover__panel iv-compact-popover__panel">
-        <div class="iv-popover-heading iv-compact-popover__header">Valuation status</div>
+        <div class="iv-popover-heading iv-compact-popover__header">Valuation quality</div>
         <div class="iv-compact-popover__body">
         <div class="iv-popover-help" th:if="${dashboard.overview.operational != null and dashboard.overview.operational.valuation.affectedCount > 0}" th:text="${dashboard.overview.operational.valuation.affectedCount} + ' positions have stale or unreliable valuations'">Affected positions</div>
         <div class="iv-popover-help" th:if="${dashboard.overview.operational != null and !dashboard.overview.operational.valuation.symbols.isEmpty()}" th:text="${#strings.listJoin(dashboard.overview.operational.valuation.symbols, ', ')}">Symbols</div>
         <div class="iv-popover-help" th:if="${dashboard.overview.operational == null or dashboard.overview.operational.valuation.affectedCount == 0}">No affected positions.</div>
-        <div class="iv-position-popover__row"><span>Accounts reconciled</span><span th:text="${stats.dataQuality.reconciledAccounts + '/' + stats.dataQuality.totalAccounts}">0/0</span></div>
-        <div class="iv-position-popover__row"><span>Open positions priced</span><span th:text="${stats.dataQuality.pricedOpenPositions + '/' + stats.dataQuality.totalOpenPositions}">0/0</span></div>
+        <div class="iv-position-popover__row"><span>Positions priced</span><span th:text="${stats.dataQuality.pricedOpenPositions + '/' + stats.dataQuality.totalOpenPositions}">0/0</span></div>
         <div class="iv-position-popover__row"><span>Missing prices</span><span th:text="${stats.dataQuality.missingPriceCount}">0</span></div>
         <div class="iv-position-popover__row"><span>Stale prices (&gt;10 days)</span><span th:text="${stats.dataQuality.stalePriceCount}">0</span></div>
-        <div class="iv-position-popover__row"><span>Proxy prices</span><span th:text="${stats.dataQuality.proxyPriceCount}">0</span></div>
         <div class="iv-position-popover__row"><span>Estimated prices</span><span th:text="${stats.dataQuality.estimatedPriceCount}">0</span></div>
-        <div class="iv-position-popover__row"><span>Missing FX</span><span th:text="${stats.dataQuality.missingFxCount}">0</span></div>
+        <div class="iv-position-popover__row"><span>Missing exchange rates</span><span th:text="${stats.dataQuality.missingFxCount}">0</span></div>
+        <div class="iv-position-popover__row"><span>Last price date</span><span th:text="${stats.dataQuality.latestPriceDate}">-</span></div>
+        <div class="iv-position-popover__row"><span>Last reporting update</span><span th:text="${stats.dataQuality.latestReportingRefreshAt}">-</span></div>
+        <div class="iv-position-popover__row iv-balance-popover__row--head"><span>Technical details</span><span></span></div>
+        <div class="iv-position-popover__row"><span>Accounts reconciled</span><span th:text="${stats.dataQuality.reconciledAccounts + '/' + stats.dataQuality.totalAccounts}">0/0</span></div>
+        <div class="iv-position-popover__row"><span>Proxy prices</span><span th:text="${stats.dataQuality.proxyPriceCount}">0</span></div>
         <div class="iv-position-popover__row"><span>Ambiguous cost currency</span><span th:text="${stats.dataQuality.ambiguousCostBasisCurrencyCount}">0</span></div>
         <div class="iv-position-popover__row"><span>Unclassified cash operations</span><span th:text="${stats.dataQuality.unclassifiedCashOperationCount}">0</span></div>
-        <div class="iv-position-popover__row"><span>Prices as of</span><span th:text="${stats.dataQuality.latestPriceDate}">-</span></div>
         <div class="iv-position-popover__row"><span>FX month</span><span th:text="${stats.dataQuality.latestFxMonth}">-</span></div>
-        <div class="iv-position-popover__row"><span>Reporting refresh</span><span th:text="${stats.dataQuality.latestReportingRefreshAt}">-</span></div>
-        <div class="iv-position-popover__row iv-balance-popover__row--head"><span>Warnings</span><span>Details</span></div>
+        <div class="iv-position-popover__row iv-balance-popover__row--head"><span>Warning</span><span>Details</span></div>
         <div class="iv-position-popover__row" th:each="issue : ${stats.dataQuality.issues}">
             <span th:text="${issue.code + ' · ' + issue.assetId}">STALE_PRICE · AAPL.US</span>
             <span th:text="${issue.priceDate + ' · ' + issue.priceQuality + ' · ' + issue.priceAgeDays + ' days'}">-</span>

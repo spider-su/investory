@@ -3,7 +3,10 @@ package com.smartbox.investory.retirement.profile;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 
-/** Comparable annual income facts for the two Profile asset sources. */
+/**
+ * Comparable annual income facts for the two Profile asset sources. These yields measure projected
+ * net income only; they are not cash-flow-neutral total investment return or annualized KPI return.
+ */
 public record ProfileIncomeSummary(
     BigDecimal marketIncomeYtd,
     BigDecimal marketAnnualIncome,

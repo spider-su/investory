@@ -332,22 +332,27 @@ class DashboardFacadeTest {
             1L, YearMonth.parse("2026-01"), YearMonth.parse("2026-02")))
         .thenReturn(canonical);
 
-    DashboardPageView result =
+    DashboardFacade facade =
         new DashboardFacade(
-                portfolioService,
-                benchmarkService,
-                new DashboardPeriodFilterService(),
-                new PortfolioPeriodMetricsService(),
-                "2026-01-01",
-                performanceQuery,
-                null,
-                new PortfolioStructureQuery(null))
-            .loadDashboard(new DashboardQuery(List.of(), false, "MAX"));
+            portfolioService,
+            benchmarkService,
+            new DashboardPeriodFilterService(),
+            new PortfolioPeriodMetricsService(),
+            "2026-01-01",
+            performanceQuery,
+            null,
+            new PortfolioStructureQuery(null));
+    DashboardPageView result =
+        facade.loadDashboard(new DashboardQuery(List.of(), false, "MAX"));
+    DashboardFacade.PerformanceKpi profileKpi = facade.loadPerformanceKpi(1L);
 
     assertEquals(98.45, result.overview().totalProfit(), 0.001);
     assertEquals(7.25, result.overview().gainPct(), 0.001);
     assertEquals(
         new BigDecimal("0.0725"), result.performance().summary().kpiReturn().value());
+    assertEquals(
+        result.performance().summary().annualizedReturn(), profileKpi.annualizedReturn());
+    assertEquals(result.performance().summary().kpiStartDate(), profileKpi.startDate());
   }
 
   @Test

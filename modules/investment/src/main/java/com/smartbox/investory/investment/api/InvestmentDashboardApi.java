@@ -6,6 +6,18 @@ import java.util.List;
 public interface InvestmentDashboardApi {
   DashboardPageView loadDashboard(DashboardQuery query);
 
+  /** Canonical annualized total return used by every UI that shows the investment KPI. */
+  PerformanceKpiView loadPerformanceKpi(Long portfolioId);
+
+  record PerformanceKpiView(boolean available, String annualizedReturnDisplay, String kpiStartDate) {
+    public PerformanceKpiView {
+      annualizedReturnDisplay =
+          annualizedReturnDisplay == null || annualizedReturnDisplay.isBlank()
+              ? "Unavailable"
+              : annualizedReturnDisplay;
+    }
+  }
+
   record DashboardQuery(
       List<Long> accountIds, boolean benchmarkAccountsSubmitted, String period, Long portfolioId) {
     public DashboardQuery(

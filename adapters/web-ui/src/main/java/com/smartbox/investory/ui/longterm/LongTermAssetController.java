@@ -147,6 +147,7 @@ public class LongTermAssetController {
       @RequestParam Long portfolioId,
       RedirectAttributes feedback) {
     try {
+      form.setActive(true);
       assets.create(form.command(portfolioId));
       return "redirect:/long-term-assets?portfolioId=" + portfolioId;
     } catch (IllegalArgumentException | NoSuchElementException exception) {
@@ -229,7 +230,7 @@ public class LongTermAssetController {
   @PostMapping("/long-term-assets/real-estate")
   public String saveRealEstate(
       @RequestParam Long portfolioId,
-      @ModelAttribute RealEstateEntryModel entry,
+      @ModelAttribute RealEstateForm entry,
       @RequestParam(name = "expectedAnnualGrowthRatePercent", required = false) BigDecimal growth,
       RedirectAttributes feedback) {
     try {
@@ -697,6 +698,22 @@ public class LongTermAssetController {
             .distinct()
             .toList());
   }
+
+  public record RealEstateForm(
+      String name,
+      CurrencyType currency,
+      LocalDate acquisitionDate,
+      BigDecimal acquisitionValue,
+      BigDecimal currentValue,
+      BigDecimal taxBase,
+      BigDecimal monthlyRent,
+      BigDecimal monthlyParkingIncome,
+      BigDecimal monthlyAdministrationCost,
+      BigDecimal monthlyOtherCost,
+      BigDecimal annualPropertyTax,
+      BigDecimal annualInsurance,
+      LocalDate effectiveFrom,
+      String notes) {}
 
   @Getter
   @Setter

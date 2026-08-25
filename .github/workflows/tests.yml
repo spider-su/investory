@@ -38,6 +38,8 @@ jobs:
     name: IT
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/playwright
 
     steps:
       - name: Check out repository
@@ -50,11 +52,18 @@ jobs:
           java-version: '25'
           cache: maven
 
+      - name: Install Playwright Chromium
+        run: |
+          sh ./mvnw --batch-mode --no-transfer-progress "-Duser.home=$RUNNER_TEMP" "-Dmaven.repo.local=$RUNNER_TEMP/m2" -pl app -am -DskipTests install
+          sh ./mvnw --batch-mode --no-transfer-progress "-Duser.home=$RUNNER_TEMP" "-Dmaven.repo.local=$RUNNER_TEMP/m2" -pl app exec:java -Dexec.classpathScope=test -Dexec.mainClass=com.microsoft.playwright.CLI -Dexec.args="install --with-deps chromium"
+
       - name: Run integration tests
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         run: |
           sh ./mvnw --batch-mode --no-transfer-progress "-Duser.home=$RUNNER_TEMP" "-Dmaven.repo.local=$RUNNER_TEMP/m2" -pl app -am -DskipTests install
           sh ./mvnw --batch-mode --no-transfer-progress "-Duser.home=$RUNNER_TEMP" "-Dmaven.repo.local=$RUNNER_TEMP/m2" -pl app test-compile failsafe:integration-test failsafe:verify \
-            "-Dit.test=ValuationInputContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,CurrencyRateUpdaterPostgresIT,SchemaMigrationCheckpoint2IT,IbkrTreasuryImportIT,XtbImportIT"
+            "-Dit.test=ValuationInputContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,CurrencyRateUpdaterPostgresIT,SchemaMigrationCheckpoint2IT,IbkrTreasuryImportIT,XtbImportIT,UiPageSmokeIT,LongTermAssetCrudUiIT"
 
   goldenPath:
     name: Golden path
