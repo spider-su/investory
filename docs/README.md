@@ -25,6 +25,8 @@ resolved by changing the documentation.
   currency roles, and signed position quantity.
 - [`domain/fx-normalization.md`](domain/fx-normalization.md): FX direction, resolution, stale/missing
   rates, and fail-closed reporting behavior.
+- [`domain/broker-imports.md`](domain/broker-imports.md): shared import provenance, identity,
+  idempotency, lifecycle, numeric, and fail-closed semantics for supported brokers.
 - [`domain/long-term-assets.md`](domain/long-term-assets.md): manual real estate, bonds, deposits, cash
   reserves, lifecycle, rental contracts, valuation periods, and planning-facing semantics.
 - [`domain/retirement-simulation.md`](domain/retirement-simulation.md): authoritative deterministic
@@ -41,12 +43,19 @@ resolved by changing the documentation.
   components.
 - [`architecture/modularization.md`](architecture/modularization.md): Maven-module boundary rules and
   dependency direction for the modular monolith.
+- [`architecture/security.md`](architecture/security.md): authentication, roles, route exposure,
+  CSRF/session behavior, secret handling, and the current single-owner isolation boundary.
 - [`architecture/dashboard-application.md`](architecture/dashboard-application.md): dashboard facade,
   query flow, immutable view models, and server-rendered UI boundary.
 - [`architecture/reporting-pipeline.md`](architecture/reporting-pipeline.md): raw ledger ->
   `account_daily` -> reporting layers -> UI/adapters.
 
-## Development
+## Integrations
+
+- [`integrations/overview.md`](integrations/overview.md): authority and failure boundaries for market,
+  FX, Yahoo, Telegram, and optional OpenAI adapters.
+
+## Development and operations
 
 - [`development/testing.md`](development/testing.md): unit/integration/migration testing and database
   snapshot strategy.
@@ -54,6 +63,8 @@ resolved by changing the documentation.
   environment.
 - [`development/agent-workflow.md`](development/agent-workflow.md): isolated worktree/container
   workflow for coding agents.
+- [`development/production.md`](development/production.md): production configuration, startup,
+  migrations, release verification, restart/recovery, and deployment boundaries.
 
 ## Quality
 
@@ -64,7 +75,7 @@ resolved by changing the documentation.
 ## Operational and investigation material
 
 These documents are useful for repeatable administration or historical diagnosis, but they do not
-override the canonical domain, architecture, or quality contracts above.
+override the canonical domain, architecture, integration, or quality contracts above.
 
 - [`long-term-assets-bootstrap.md`](long-term-assets-bootstrap.md): developer/admin bootstrap procedure
   for manual long-term assets.
@@ -93,8 +104,9 @@ Git history remains the long-term history source.
 - One fact has one canonical home; other documents link to it.
 - Product summary belongs in root `README.md`.
 - Intended financial semantics belong in `domain/`.
-- Stable data flow and component boundaries belong in `architecture/`.
-- Repeatable engineering procedures belong in `development/`.
+- Stable data flow, component, and security boundaries belong in `architecture/`.
+- External-adapter authority and failure boundaries belong in `integrations/`.
+- Repeatable engineering and production procedures belong in `development/`.
 - Validation contracts belong in `quality/`.
 - Operational and investigation documents may preserve evidence but must link back to the canonical
   contract they validate and must not redefine it.
