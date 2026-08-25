@@ -53,10 +53,10 @@ public class LongTermAssetController {
         FinancialPresentation.percentage(total.annualEconomics().netYieldAfterTax()));
     model.addAttribute(
         "longTermGrossIncome",
-        FinancialPresentation.compactMoney(total.annualEconomics().grossAnnualIncome()));
+        FinancialPresentation.wholeNumber(total.annualEconomics().grossAnnualIncome()));
     model.addAttribute(
         "longTermExpensesTax",
-        FinancialPresentation.compactMoney(
+        FinancialPresentation.wholeNumber(
             total.annualEconomics().annualExpenses().add(total.annualEconomics().annualTax())));
     model.addAttribute(
         "longTermGrossYield",
