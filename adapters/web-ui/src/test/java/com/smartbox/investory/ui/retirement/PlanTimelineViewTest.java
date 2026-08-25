@@ -75,7 +75,7 @@ class PlanTimelineViewTest {
     var view = PlanTimelineView.from(timeline, summaries, null, 2027, 2026);
 
     assertEquals(2026, view.selectedYear());
-    assertEquals("2027 · AGE 42 · PENSION START", view.years().get(2).heading());
+    assertEquals("2027 · Age 42 · Pension start", view.years().get(2).heading());
   }
 
   @Test

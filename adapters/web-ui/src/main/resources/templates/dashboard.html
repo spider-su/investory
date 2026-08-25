@@ -671,12 +671,12 @@
     const monthlyCashflow = monthlyLabels.map(label => monthlyCashflowData[label] || 0);
     const monthlyAttributions = [[${stats.monthlyPerformance.monthlyAttributions}]] || {};
 
-    const amountFormatter = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
-    const percentFormatter = new Intl.NumberFormat('de-DE', {
+    const amountFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+    const percentFormatter = new Intl.NumberFormat('en-US', {
         minimumFractionDigits: 1,
         maximumFractionDigits: 1
     });
-    const signedUsdFormatter = new Intl.NumberFormat('de-DE', {
+    const signedUsdFormatter = new Intl.NumberFormat('en-US', {
         maximumFractionDigits: 0,
         signDisplay: 'always'
     });

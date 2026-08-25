@@ -91,14 +91,15 @@ class LongTermAssetsTemplateContractTest {
         () -> assertFalse(html.contains("iv-structure-currency--reporting")),
         () -> assertFalse(html.contains("iv-grid--long-term-overview")),
         () -> assertTrue(html.contains("Expected annual net income")),
-        () -> assertTrue(html.contains("Expected monthly net income")),
+        () -> assertFalse(html.contains("Expected monthly net income")),
+        () -> assertTrue(html.contains("'Net yield', ${longTermHeaderYield}")),
         () ->
             assertTrue(css.contains(".iv-planning-topbar--assets .iv-planning-topbar__secondary")),
         () ->
             assertTrue(
                 html.contains(
                     "class=\"iv-collapsed-summary\" th:if=\"${!#lists.isEmpty(group.assets)}\"")),
-        () -> assertTrue(html.contains(">Gross yield</span>")),
+        () -> assertTrue(html.contains(">Net yield</span>")),
         () -> assertTrue(html.contains("? 'Monthly rent tax' : 'Annual tax'")),
         () -> assertTrue(css.contains("grid-template-columns: repeat(4, minmax(0, 1fr))")),
         () -> assertTrue(css.contains("grid-auto-rows: auto")));
@@ -121,8 +122,8 @@ class LongTermAssetsTemplateContractTest {
         () -> assertTrue(cash.contains("valuation-periods/{periodId}/delete")),
         () -> assertTrue(bond.contains("bond-rate-periods/{periodId}")),
         () -> assertTrue(bond.contains("bond-rate-periods/{periodId}/delete")),
-        () -> assertTrue(summary.contains("rental-tax-policy/{policyId}")),
-        () -> assertTrue(summary.contains("rental-tax-policy/{policyId}/delete")));
+        () -> assertFalse(summary.contains("Rental tax policies")),
+        () -> assertFalse(summary.contains("rental-tax-policy")));
   }
 
   private static int occurrences(String value, String token) {

@@ -10,10 +10,10 @@
     <th:block th:replace="~{fragments/theme-head :: theme}"></th:block>
 </head>
 <body>
-<div class="iv-app iv-report-page">
-    <div th:replace="~{fragments/app-header :: appHeader('Reconciliation', 'Read-only pipeline checks. Earliest failed checkpoint is the primary diagnosis.', 'reconciliation', 1, 'Scope', 'Pipeline', 'Status', 'Read-only', 'Source', 'Reporting', null, null, null)}"></div>
+<main class="iv-app iv-planning-page iv-report-page">
+    <div th:replace="~{fragments/app-header :: planningHeader('reconciliation', 1, 'Reconciliation summary', 'Scope', 'Pipeline', null, 'Status', 'Read-only', null, 'Source', 'Reporting', null, null, 'reconciliation', null, null)}"></div>
 
-    <main class="iv-report-page__content">
+    <div class="iv-report-page__content">
         <div class="iv-section-heading">
             <div>
                 <div class="iv-section-heading__eyebrow">Data quality</div>
@@ -22,14 +22,14 @@
             </div>
         </div>
 
-        <section class="iv-grid iv-grid--kpi iv-report-metrics" aria-label="Reconciliation state">
-            <div class="iv-kpi">
+        <section class="iv-reconciliation-state-banner" aria-label="Reconciliation state">
+            <div>
                 <span class="iv-kpi__label">Overall state</span>
                 <strong class="iv-kpi__value" th:classappend="${report.overallState == 'UNRECONCILED'} ? ' iv-neg' : (${report.overallState == 'RECONCILED'} ? ' iv-pos' : ' iv-warn')" th:text="${report.overallState}">REVIEW</strong>
             </div>
-            <div class="iv-kpi">
-                <span class="iv-kpi__label">First failing level</span>
-                <strong class="iv-kpi__value" th:classappend="${report.firstFailingCheckpoint != null} ? ' iv-neg' : ' iv-pos'" th:text="${report.firstFailingCheckpoint == null ? 'None' : report.firstFailingCheckpoint.code + ' — ' + report.firstFailingCheckpoint.name}">None</strong>
+            <div>
+                <span class="iv-kpi__label">First failing checkpoint</span>
+                <strong class="iv-kpi__value" th:classappend="${report.firstFailingCheckpoint != null} ? ' iv-neg' : ' iv-pos'" th:text="${report.firstFailingCheckpoint == null ? 'None' : report.firstFailingCheckpoint.code + ' — ' + #strings.replace(report.firstFailingCheckpoint.name, ' -> ', ' → ')}">None</strong>
             </div>
         </section>
 
@@ -37,7 +37,7 @@
             <div class="iv-card__head"><h3 id="checkpoint-counts-title" class="iv-card__title">Checkpoint counts</h3></div>
             <div class="iv-card__body iv-table-wrap">
                 <table class="iv-table"><thead><tr><th>Checkpoint</th><th>Status</th><th>Issues</th><th>Failures</th><th>Reviews</th></tr></thead>
-                    <tbody><tr th:each="checkpoint : ${report.checkpoints}"><td><strong th:text="${checkpoint.code}">C0</strong><small class="iv-report-table__sub" th:text="${checkpoint.name}">files → import history</small></td><td><span class="iv-badge" th:classappend="${checkpoint.status.name() == 'FAIL'} ? ' iv-badge--neg' : (${checkpoint.status.name() == 'REVIEW' or checkpoint.status.name() == 'BLOCKED'} ? ' iv-badge--warn' : (${checkpoint.status.name() == 'PASS'} ? ' iv-badge--pos' : ' iv-badge--muted'))" th:text="${checkpoint.status}">NOT_CHECKED</span></td><td th:text="${checkpoint.issueCount}">0</td><td th:text="${checkpoint.failureCount}">0</td><td th:text="${checkpoint.reviewCount}">0</td></tr></tbody>
+                    <tbody><tr th:each="checkpoint : ${report.checkpoints}"><td><strong th:text="${checkpoint.code}">C0</strong><small class="iv-report-table__sub" th:text="${#strings.replace(checkpoint.name, ' -> ', ' → ')}">files → import history</small></td><td><span class="iv-badge" th:classappend="${checkpoint.status.name() == 'FAIL'} ? ' iv-badge--neg' : (${checkpoint.status.name() == 'REVIEW' or checkpoint.status.name() == 'BLOCKED'} ? ' iv-badge--warn' : (${checkpoint.status.name() == 'PASS'} ? ' iv-badge--pos' : ' iv-badge--muted'))" th:text="${checkpoint.status}">NOT_CHECKED</span></td><td th:text="${#numbers.formatInteger(checkpoint.issueCount, 1, 'COMMA')}">0</td><td th:text="${#numbers.formatInteger(checkpoint.failureCount, 1, 'COMMA')}">0</td><td th:text="${#numbers.formatInteger(checkpoint.reviewCount, 1, 'COMMA')}">0</td></tr></tbody>
                 </table>
             </div>
         </section>
@@ -68,8 +68,8 @@
                 <span th:unless="${report.checkpoints.?[originalStatus.name() == 'NOT_CHECKED'].isEmpty()}">No issues were found in the executed checks; some checkpoints are still not checked.</span>
             </div>
         </section>
-    </main>
+    </div>
     <div th:replace="~{fragments/app-footer :: buildFooter}"></div>
-</div>
+</main>
 </body>
 </html>

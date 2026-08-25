@@ -44,7 +44,7 @@
 
 <header th:fragment="planningHeader(activePage, portfolioId, summaryLabel, kpi1Label, kpi1Value, kpi1Meta, kpi2Label, kpi2Value, kpi2Meta, kpi3Label, kpi3Value, kpi3Meta, currency, actionMode, contextPlanId, contextScenario)"
         class="iv-topbar iv-app-header-shell iv-planning-topbar"
-        th:classappend="${actionMode == 'assets'} ? ' iv-planning-topbar--assets' : ''">
+        th:classappend="${actionMode == 'assets'} ? ' iv-planning-topbar--assets' : (${actionMode == 'simulation' or actionMode == 'analysis'} ? ' iv-planning-topbar--retirement' : '')">
     <div class="iv-topbar__primary iv-app-header-shell__primary iv-planning-topbar__primary">
         <div class="iv-brand">
             <div class="iv-brand__content">
@@ -94,7 +94,7 @@
                    th:classappend="${availableScenario == simulationPage.selectedScenario} ? ' is-active' : ''"
                    th:attr="aria-current=${availableScenario == simulationPage.selectedScenario ? 'page' : null}">Base</a>
             </nav>
-            <div class="iv-planning-topbar__currency" aria-label="Reporting currency"><span>Reporting currency</span><strong th:text="${currency}">PLN</strong></div>
+            <div class="iv-planning-topbar__currency" th:if="${currency != null}" aria-label="Reporting currency"><span>Reporting currency</span><strong th:text="${currency}">PLN</strong></div>
         </div>
     </div>
 </header>

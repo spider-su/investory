@@ -45,10 +45,11 @@ class InvestmentProfileTemplateContractTest {
         .contains("allocation.bucket")
         .contains("allocation.wholeValueDisplay")
         .contains("Market income · current period")
-        .contains("Expected long-term net income · annual")
         .contains("Expected long-term net yield")
         .contains("iv-profile-income-cards")
         .contains("iv-profile-allocation")
+        .contains("th:if=\"${allocation.nonZero}\"")
+        .doesNotContain("Expected long-term net income · annual")
         .doesNotContain("iv-profile-allocation__summary")
         .doesNotContain("Combined informational view")
         .contains("fragments/theme-head :: theme");

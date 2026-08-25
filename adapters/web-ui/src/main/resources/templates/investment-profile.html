@@ -31,11 +31,6 @@
       <div class="iv-hover-context__panel iv-profile-income-card__context">Dividends and interest observed during the current reporting period.</div>
     </div>
     <div class="iv-kpi iv-profile-income-card iv-hover-context" tabindex="0">
-      <span class="iv-kpi__label">Expected long-term net income · annual</span>
-      <strong class="iv-kpi__value" th:text="${profile.expectedLongTermAssetIncomeWholeDisplay}">0</strong>
-      <div class="iv-hover-context__panel iv-profile-income-card__context">Expected annual after-tax income from current long-term assets.</div>
-    </div>
-    <div class="iv-kpi iv-profile-income-card iv-hover-context" tabindex="0">
       <span class="iv-kpi__label">Expected long-term net yield</span>
       <strong class="iv-kpi__value" th:text="${profile.longTermIncomeYieldDisplay}">0.0%</strong>
       <div class="iv-hover-context__panel iv-profile-income-card__context">Expected annual after-tax long-term income as a share of current long-term asset value.</div>
@@ -53,7 +48,7 @@
       </div>
       <div class="table-responsive">
         <table class="table card-table table-vcenter"><thead><tr><th>Bucket</th><th>Liquidity</th><th class="text-end">Value</th><th class="text-end">Share</th></tr></thead>
-            <tbody><tr th:each="allocation : ${profile.allocations}"><td th:text="${allocation.bucketLabel}">Other</td><td><span class="badge iv-liquidity-badge" th:text="${allocation.liquidityLabel}">Liquid</span></td><td class="text-end" th:text="${allocation.wholeValueDisplay}">0</td><td class="text-end" th:text="${allocation.percentageDisplay}">0.0%</td></tr></tbody>
+            <tbody><tr th:each="allocation : ${profile.allocations}" th:if="${allocation.nonZero}"><td th:text="${allocation.bucketLabel}">Other</td><td><span class="badge iv-liquidity-badge" th:text="${allocation.liquidityLabel}">Liquid</span></td><td class="text-end" th:text="${allocation.wholeValueDisplay}">0</td><td class="text-end" th:text="${allocation.percentageDisplay}">0.0%</td></tr></tbody>
         </table>
       </div>
     </div>

@@ -123,7 +123,7 @@ public final class UiPresentation {
 
   public static String percentage(BigDecimal ratio) {
     return number(ratio == null ? BigDecimal.ZERO : ratio.multiply(BigDecimal.valueOf(100)), 1, 1)
-        + " %";
+        + "%";
   }
 
   public static String signedPercentage(BigDecimal ratio) {

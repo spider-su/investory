@@ -42,7 +42,7 @@ public class LongTermAssetController {
         "archivedAssets", showArchived ? assets.archived(portfolioId, date) : java.util.List.of());
     model.addAttribute("groups", groups);
     model.addAttribute("total", total);
-    model.addAttribute("rentalTaxPolicies", assets.rentalTaxPolicies(portfolioId));
+    model.addAttribute("currency", total.currency());
     model.addAttribute(
         "longTermHeaderTotal", FinancialPresentation.wholeNumber(total.totalCurrentValue()));
     model.addAttribute(
@@ -50,15 +50,7 @@ public class LongTermAssetController {
         FinancialPresentation.wholeNumber(total.annualEconomics().netAnnualIncomeAfterTax()));
     model.addAttribute(
         "longTermHeaderYield",
-        FinancialPresentation.percentage(total.annualEconomics().netYieldAfterTax())
-            + " net yield");
-    model.addAttribute(
-        "longTermHeaderMonthly",
-        FinancialPresentation.wholeNumber(
-            total
-                .annualEconomics()
-                .netAnnualIncomeAfterTax()
-                .divide(BigDecimal.valueOf(12), 2, java.math.RoundingMode.HALF_UP)));
+        FinancialPresentation.percentage(total.annualEconomics().netYieldAfterTax()));
     model.addAttribute(
         "longTermGrossIncome",
         FinancialPresentation.wholeNumber(total.annualEconomics().grossAnnualIncome()));

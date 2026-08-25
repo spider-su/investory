@@ -34,7 +34,7 @@ class AssetAllocationQueryTest {
     var view = new AssetAllocationQuery(allocations, assets).load(1L, portfolio);
 
     assertThat(view.totalValue()).isEqualTo(1000);
-    assertThat(view.buckets()).extracting("name").containsExactly("Equity / ETF", "Cash");
+    assertThat(view.buckets()).extracting("name").containsExactly("ETF", "Cash");
     assertThat(view.buckets().getFirst().weightPct()).isEqualTo(70.0);
     assertThat(view.buckets().stream().mapToDouble(AssetAllocationView.Bucket::value).sum())
         .isEqualTo(view.totalValue());
@@ -66,7 +66,7 @@ class AssetAllocationQueryTest {
     assertThat(view.buckets())
         .extracting("name")
         .containsExactly(
-            "Other", "Commodity / metal", "Fixed income", "REIT / real estate", "Equity / ETF");
+            "Other", "Commodity / metal", "Fixed income", "REIT / real estate", "ETF");
   }
 
   @Test
@@ -80,7 +80,7 @@ class AssetAllocationQueryTest {
 
     var view = new AssetAllocationQuery(allocations, assetRepository).load(1L, new Portfolio());
 
-    assertThat(view.buckets()).extracting("name").containsExactly("Equity / ETF");
+    assertThat(view.buckets()).extracting("name").containsExactly("ETF");
     assertThat(view.buckets().getFirst().value()).isEqualTo(70);
   }
 

@@ -4014,3 +4014,131 @@ body.iv-modal-open { overflow: hidden; }
         border-radius: var(--iv-radius-sm);
     }
 }
+
+/* Post-review layout corrections. */
+.iv-portfolio-structure__grid.iv-profile-structure__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.iv-profile-income-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.iv-profile-allocation,
+.iv-profile-allocation > .card-body {
+    min-height: 0;
+}
+
+.iv-card-section-header__action {
+    display: inline-flex;
+    align-items: center;
+    margin-left: auto;
+}
+
+.iv-card-section-header__action .btn {
+    min-height: 30px;
+}
+
+.iv-planning-page.iv-report-page .iv-report-page__content {
+    width: 100%;
+    padding: 0 0 40px;
+}
+
+.iv-report-page .iv-section-heading {
+    margin-bottom: 14px;
+}
+
+.iv-report-page .iv-section-heading p {
+    max-width: 760px;
+    text-align: left;
+}
+
+.iv-reconciliation-state-banner {
+    display: grid;
+    grid-template-columns: minmax(180px, .55fr) minmax(0, 1.45fr);
+    gap: 0;
+    margin-bottom: var(--iv-space-4);
+    overflow: hidden;
+    border: 1px solid var(--iv-border);
+    border-radius: var(--iv-radius);
+    background: var(--iv-surface);
+}
+
+.iv-reconciliation-state-banner > div {
+    display: grid;
+    align-content: center;
+    gap: 5px;
+    min-width: 0;
+    min-height: 78px;
+    padding: 12px 16px;
+}
+
+.iv-reconciliation-state-banner > div + div {
+    border-left: 1px solid var(--iv-metric-divider);
+}
+
+.iv-reconciliation-state-banner .iv-kpi__label,
+.iv-report-table__sub,
+.iv-plan-timeline__matrix-label,
+.iv-plan-timeline__assumption-name,
+.iv-simulation-help,
+.iv-simulation-chart-help {
+    font-size: .75rem;
+}
+
+.iv-reconciliation-state-banner .iv-kpi__value {
+    overflow-wrap: anywhere;
+    font-size: clamp(1rem, 2vw, 1.3rem);
+}
+
+@media (min-width: 761px) {
+    .iv-plan-timeline__assumptions { overflow-x: visible; }
+}
+
+@media (max-width: 1400px) and (min-width: 601px) {
+    .iv-planning-topbar--retirement .iv-planning-topbar__secondary {
+        grid-template-areas:
+            "main main"
+            "local context";
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        row-gap: 8px;
+        padding-block: 8px;
+    }
+
+    .iv-planning-topbar--retirement .iv-page-nav-slot {
+        grid-area: main;
+        justify-self: center;
+    }
+
+    .iv-planning-topbar--retirement .iv-planning-local-nav-slot {
+        grid-area: local;
+    }
+
+    .iv-planning-topbar--retirement .iv-planning-context-slot {
+        grid-area: context;
+    }
+}
+
+@media (max-width: 600px) {
+    .iv-portfolio-structure__grid.iv-profile-structure__grid,
+    .iv-profile-income-cards,
+    .iv-reconciliation-state-banner {
+        grid-template-columns: 1fr;
+    }
+
+    .iv-reconciliation-state-banner > div + div {
+        border-top: 1px solid var(--iv-metric-divider);
+        border-left: 0;
+    }
+
+    .iv-planning-topbar--retirement .iv-planning-topbar__secondary {
+        grid-template-areas:
+            "main"
+            "local"
+            "context";
+    }
+
+    .iv-planning-topbar--retirement .iv-page-nav-slot { grid-area: main; }
+    .iv-planning-topbar--retirement .iv-planning-local-nav-slot { grid-area: local; }
+    .iv-planning-topbar--retirement .iv-planning-context-slot { grid-area: context; }
+}

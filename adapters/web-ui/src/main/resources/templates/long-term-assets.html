@@ -10,10 +10,10 @@
 </head>
 <body>
 <main class="iv-app iv-planning-page">
-  <div th:replace="~{fragments/app-header :: planningHeader('assets', ${portfolioId}, 'Long-term asset summary', 'Total value', ${longTermHeaderTotal}, null, 'Expected annual net income', ${longTermHeaderIncome}, ${longTermHeaderYield}, 'Expected monthly net income', ${longTermHeaderMonthly}, 'after tax', ${currency}, 'assets', null, null)}"></div>
+  <div th:replace="~{fragments/app-header :: planningHeader('assets', ${portfolioId}, 'Long-term asset summary', 'Total value', ${longTermHeaderTotal}, null, 'Expected annual net income', ${longTermHeaderIncome}, 'annual · after tax', 'Net yield', ${longTermHeaderYield}, 'annual · after tax', ${currency}, 'assets', null, null)}"></div>
   <div class="alert alert-danger" role="alert" th:if="${error}" th:text="${error}">Validation error.</div>
   <div class="iv-long-term-assets-sections">
-  <div th:each="group : ${groups}" class="iv-planning-section iv-card card" th:id="${group.key == 'REAL_ESTATE' ? 'real-estate' : group.key == 'BOND' ? 'bonds' : group.key == 'CASH_RESERVE' ? 'cash-reserves' : 'other-assets'}">
+  <div th:each="group : ${groups}" th:if="${!#lists.isEmpty(group.assets)}" class="iv-planning-section iv-card card" th:id="${group.key == 'REAL_ESTATE' ? 'real-estate' : group.key == 'BOND' ? 'bonds' : group.key == 'CASH_RESERVE' ? 'cash-reserves' : 'other-assets'}">
     <div class="iv-planning-section__details-row">
     <details class="iv-planning-section__details">
       <summary class="iv-planning-section__header" th:classappend="| iv-planning-section__header--${group.key.toLowerCase()}|">
@@ -74,13 +74,13 @@
         <strong class="iv-collapsed-summary__value" th:text="${group.currency == total.currency ? format.wholeNumber(group.totalValue) : format.moneyWhole(group.totalValue, group.currency)}">0</strong>
       </div>
       <div class="iv-collapsed-summary__metric">
-        <span class="iv-collapsed-summary__label" th:text="${group.key == 'REAL_ESTATE' ? 'Monthly income' : 'Annual gross income'}">Income</span>
+        <span class="iv-collapsed-summary__label" th:text="${group.key == 'REAL_ESTATE' ? 'Monthly net income' : 'Annual net income'}">Income</span>
         <strong class="iv-collapsed-summary__value" th:if="${group.key == 'REAL_ESTATE'}" th:text="${format.moneyWhole(group.realEstatePlanning.netMonthlyIncome) + ' / month'}">0 / month</strong>
-        <strong class="iv-collapsed-summary__value" th:if="${group.key != 'REAL_ESTATE'}" th:text="${format.wholeNumber(group.annualEconomics.grossAnnualIncome) + ' / year'}">0 / year</strong>
+        <strong class="iv-collapsed-summary__value" th:if="${group.key != 'REAL_ESTATE'}" th:text="${format.wholeNumber(group.annualEconomics.netAnnualIncomeAfterTax) + ' / year'}">0 / year</strong>
       </div>
       <div class="iv-collapsed-summary__metric">
-        <span class="iv-collapsed-summary__label">Gross yield</span>
-        <strong class="iv-collapsed-summary__value" th:text="${format.percentage(group.annualEconomics.grossYield)}">0.0%</strong>
+        <span class="iv-collapsed-summary__label">Net yield</span>
+        <strong class="iv-collapsed-summary__value" th:text="${format.percentage(group.annualEconomics.netYieldAfterTax)}">0.0%</strong>
       </div>
       <div class="iv-collapsed-summary__metric">
         <span class="iv-collapsed-summary__label" th:text="${group.key == 'REAL_ESTATE' ? 'Monthly rent tax' : 'Annual tax'}">Tax</span>
@@ -90,40 +90,17 @@
     </div>
   </div>
   </div>
-  <section id="rental-tax-policies" class="iv-card card mb-3" aria-labelledby="rental-tax-policy-title">
-    <div class="iv-card-section-header"><span id="rental-tax-policy-title" class="iv-card-section-header__title">Rental tax policies</span></div>
-    <div class="card-body" th:each="policy : ${rentalTaxPolicies}">
-      <form class="row g-2 align-items-end" method="post" th:action="@{/long-term-assets/rental-tax-policy/{policyId}(policyId=${policy.id})}">
-        <input type="hidden" name="portfolioId" th:value="${portfolioId}">
-        <div class="col-md-3"><label class="form-label">Valid from</label><input class="form-control" type="date" name="validFrom" required th:value="${policy.validFrom}"></div>
-        <div class="col-md-3"><label class="form-label">Valid to</label><input class="form-control" type="date" name="validTo" th:value="${policy.validTo}"></div>
-        <div class="col-md-3"><label class="form-label">Rate (%)</label><input class="form-control" type="number" step="0.01" min="0" name="ratePercent" required th:value="${format.percentageInput(policy.rate)}"></div>
-        <div class="col-md-3"><button class="btn btn-primary" type="submit">Update policy</button></div>
-      </form>
-      <form class="mt-2" method="post" th:action="@{/long-term-assets/rental-tax-policy/{policyId}/delete(policyId=${policy.id})}">
-        <input type="hidden" name="portfolioId" th:value="${portfolioId}">
-        <button class="btn btn-sm btn-outline-danger" type="submit">Delete policy</button>
-      </form>
-    </div>
-    <form class="card-body border-top row g-2 align-items-end" method="post" th:action="@{/long-term-assets/rental-tax-policy}">
-      <input type="hidden" name="portfolioId" th:value="${portfolioId}">
-      <div class="col-md-3"><label class="form-label">Valid from</label><input class="form-control" type="date" name="validFrom" required></div>
-      <div class="col-md-3"><label class="form-label">Valid to</label><input class="form-control" type="date" name="validTo"></div>
-      <div class="col-md-3"><label class="form-label">Rate (%)</label><input class="form-control" type="number" step="0.01" min="0" name="ratePercent" required></div>
-      <div class="col-md-3"><button class="btn btn-primary" type="submit">Add policy</button></div>
-    </form>
-  </section>
   <section class="iv-risk-summary iv-portfolio-structure iv-portfolio-structure--long-term" aria-labelledby="long-term-structure-title">
     <div class="iv-card-section-header"><span id="long-term-structure-title" class="iv-card-section-header__title">Long-term allocation</span></div>
     <div class="iv-portfolio-structure__grid iv-portfolio-structure__grid--long-term">
       <details class="iv-structure-card iv-structure-card--allocation">
         <summary>
-          <span>Asset allocation</span>
+          <span class="visually-hidden">Long-term asset allocation details</span>
           <div class="iv-structure-bar" aria-label="Long-term asset allocation">
             <span th:each="group : ${groups}" th:if="${group.totalValue != null and group.totalValue > 0}" class="iv-structure-bar__segment" th:classappend="${' iv-structure-segment--' + (group.key == 'BOND' ? 'fixed-income' : group.key == 'CASH_RESERVE' ? 'cash' : group.key == 'REAL_ESTATE' ? 'real-estate' : 'other')}" th:style="|width:${#strings.replace(groupShares[group.key], '%', '')}%|" th:title="${group.title + ' · ' + groupShares[group.key]}"></span>
           </div>
           <div class="iv-long-term-allocation__legend" aria-label="Asset class percentages">
-            <div th:each="group : ${groups}" class="iv-long-term-allocation__item">
+            <div th:each="group : ${groups}" th:if="${group.totalValue != null and group.totalValue > 0}" class="iv-long-term-allocation__item">
               <span class="iv-long-term-allocation__label"><i class="iv-long-term-allocation__swatch" th:classappend="${' iv-structure-segment--' + (group.key == 'BOND' ? 'fixed-income' : group.key == 'CASH_RESERVE' ? 'cash' : group.key == 'REAL_ESTATE' ? 'real-estate' : 'other')}"></i><span th:text="${group.title}">Asset class</span></span>
               <strong th:text="${groupShares[group.key]}">0.0%</strong>
             </div>

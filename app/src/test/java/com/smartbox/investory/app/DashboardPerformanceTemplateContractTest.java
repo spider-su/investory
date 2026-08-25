@@ -45,6 +45,8 @@ class DashboardPerformanceTemplateContractTest {
     assertTrue(html.contains("performance-scope-aggregation"));
     assertTrue(html.contains("const percentValue ="));
     assertFalse(html.contains("toFixed(1)"));
+    assertTrue(html.contains("new Intl.NumberFormat('en-US'"));
+    assertFalse(html.contains("new Intl.NumberFormat('de-DE'"));
     assertTrue(html.contains("Portfolio data"));
     assertTrue(html.contains("id=\"refresh-prices-btn\""));
     assertTrue(html.contains("Base currency: USD"));

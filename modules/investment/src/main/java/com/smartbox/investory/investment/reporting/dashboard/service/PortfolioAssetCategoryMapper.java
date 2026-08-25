@@ -15,7 +15,7 @@ final class PortfolioAssetCategoryMapper {
       case "BOND", "BONDS", "FIXED_INCOME", "FIXED INCOME" -> "Fixed income";
       case "REIT", "REAL_ESTATE", "REAL ESTATE" -> "REIT / real estate";
       case "METAL", "METALS", "COMMODITY", "COMMODITIES" -> "Commodity / metal";
-      case "ETF" -> "Equity / ETF";
+      case "ETF" -> "ETF";
       case "EQUITY", "STOCK", "STOCKS", "SHARE", "SHARES" -> "Equity";
       default -> fallback(type);
     };
@@ -26,7 +26,7 @@ final class PortfolioAssetCategoryMapper {
     if (type.contains("BOND") || type.contains("FIXED")) return "Fixed income";
     if (type.contains("REIT") || type.contains("REAL")) return "REIT / real estate";
     if (type.contains("METAL") || type.contains("COMMOD")) return "Commodity / metal";
-    if (type.contains("ETF")) return "Equity / ETF";
+    if (type.contains("ETF")) return "ETF";
     if (type.contains("EQUITY") || type.contains("STOCK") || type.contains("SHARE"))
       return "Equity";
     return "Other";
