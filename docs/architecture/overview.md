@@ -141,11 +141,6 @@ Investment and Long-Term only through their `api` packages. A public boundary ex
 immutable business read models, never JPA entities, repositories, SQL projections, or internal
 accounting services. Shared contracts stay small and domain-neutral.
 
-For planning, the public APIs expose economic meaning rather than asset implementation details.
-Retirement consumes normalized balances, cash-flow streams, capital availability, and other
-planning-relevant aggregates. It must not branch on brokerage position types, bond implementation,
-rental-contract implementation, property subtype, or persistence entities.
-
 Current source state is used to prepare a reviewed plan revision. Once reviewed, the revision freezes
 the normalized economic inputs needed to reproduce its Future projection. Later Investment or
 Long-Term changes update Current but do not mutate that revision. Accepting those changes into Future
