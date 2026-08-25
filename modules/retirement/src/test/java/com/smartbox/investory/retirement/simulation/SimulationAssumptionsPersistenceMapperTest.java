@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 import com.smartbox.investory.retirement.infrastructure.simulation.PersistedSimulationAssumptions;
+import com.smartbox.investory.retirement.infrastructure.simulation.SimulationAssumptionsPersistenceMapper;
 import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanEntity;
 import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanRevisionEntity;
 import java.math.BigDecimal;

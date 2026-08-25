@@ -11,6 +11,9 @@ import com.smartbox.investory.investment.api.InvestmentPerformanceApi.Performanc
 import com.smartbox.investory.investment.api.InvestmentPerformanceApi.PerformanceKpiView;
 import com.smartbox.investory.investment.api.InvestmentPerformanceApi.PerformanceSeries;
 import com.smartbox.investory.investment.reporting.BenchmarkService;
+import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriod;
+import java.time.YearMonth;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -71,7 +74,7 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
                         new PerformanceSeries(
                             accountName(accounts, series.id()), accountCurve(series, returns)))
                 .toList();
-    int scopeStart = scopeStart(sourceLabels);
+    int scopeStart = scopeStart(sourceLabels, query.period());
     List<String> scopedLabels = sourceLabels.subList(scopeStart, sourceLabels.size());
     List<PerformanceSeries> sourceSeries =
         fullSeries.stream()
@@ -187,6 +190,8 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
 
   private List<Double> compoundCurve(List<Double> capital, List<Double> monthly) {
     double factor = 1.0;
+    boolean returnStarted = false;
+    boolean returnComplete = true;
     List<Double> result = new ArrayList<>();
     for (int i = 0; i < monthly.size(); i++) {
       Double opening = i < capital.size() ? capital.get(i) : null;
@@ -195,8 +200,13 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
           || rate == null
           || !Double.isFinite(opening)
           || !Double.isFinite(rate)
-          || opening == 0.0) result.add(null);
-      else {
+          || opening == 0.0) {
+        if (returnStarted) returnComplete = false;
+        result.add(null);
+      } else if (!returnComplete) {
+        result.add(null);
+      } else {
+        returnStarted = true;
         factor = rate <= -100.0 ? 0.0 : factor * (1.0 + rate / 100.0);
         result.add(round((factor - 1.0) * 100.0));
       }
@@ -216,7 +226,8 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
     for (String group : groupedLabels(labels, aggregation)) {
       List<Double> bucket = new ArrayList<>();
       for (int i = 0; i < labels.size(); i++)
-        if (group.equals(group(labels.get(i), aggregation))) bucket.add(period.get(i));
+        if (group.equals(group(labels.get(i), aggregation)))
+          bucket.add(i < period.size() ? period.get(i) : null);
       if (returns) {
         result.add(compound(bucket));
       } else {
@@ -268,10 +279,9 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
     return result;
   }
 
-  private int scopeStart(List<String> labels) {
+  private int scopeStart(List<String> labels, String periodValue) {
     int start = labels.size();
-    String configured =
-        kpiStart == null ? "" : kpiStart.substring(0, Math.min(7, kpiStart.length()));
+    String configured = scopeStartLabel(periodValue);
     for (int i = 0; i < labels.size(); i++)
       if (labels.get(i).compareTo(configured) >= 0) {
         start = i;
@@ -280,10 +290,19 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
     return start;
   }
 
+  private String scopeStartLabel(String periodValue) {
+    if (periodValue == null || periodValue.isBlank()) {
+      return kpiStart == null ? "" : kpiStart.substring(0, Math.min(7, kpiStart.length()));
+    }
+    ZonedDateTime start = DashboardPeriod.fromUrlValue(periodValue).startDate(ZonedDateTime.now());
+    return start == null ? "" : YearMonth.from(start).toString();
+  }
+
   private List<Double> scopedCurve(List<Double> values, int start, boolean returns) {
     if (start >= values.size()) return List.of();
     Double prior = start == 0 ? Double.valueOf(0.0) : values.get(start - 1);
-    if (prior == null || start >= values.size()) return List.of();
+    if (prior == null)
+      return values.subList(start, values.size()).stream().map(ignored -> (Double) null).toList();
     return values.subList(start, values.size()).stream()
         .map(
             value ->

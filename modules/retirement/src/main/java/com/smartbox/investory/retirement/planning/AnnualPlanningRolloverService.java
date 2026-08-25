@@ -5,6 +5,7 @@ import java.time.Year;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Advances planning-year reporting state to the calendar boundary.
@@ -22,6 +23,7 @@ public class AnnualPlanningRolloverService {
     this.clock = clock;
   }
 
+  @Transactional
   public AnnualPlanningRolloverResult rollover(Long portfolioId) {
     int currentYear = Year.now(clock).getValue();
     List<Integer> pending = new ArrayList<>();

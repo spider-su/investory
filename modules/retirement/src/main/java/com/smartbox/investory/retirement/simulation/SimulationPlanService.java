@@ -136,7 +136,7 @@ public class SimulationPlanService {
       String name,
       SimulationAssumptions assumptions,
       PlanningBaseline baseline) {
-    SimulationPlanEntity plan = get(portfolioId, id);
+    SimulationPlanEntity plan = getForUpdate(portfolioId, id);
     validateName(portfolioId, name, id);
     if (revisioned()) {
       if (assumptions(plan).equals(assumptions)) {
@@ -165,7 +165,7 @@ public class SimulationPlanService {
   }
 
   public void delete(Long portfolioId, Long id) {
-    SimulationPlanEntity plan = get(portfolioId, id);
+    SimulationPlanEntity plan = getForUpdate(portfolioId, id);
     if (revisioned()) {
       plan.setArchived(true);
       plans.save(plan);
@@ -237,7 +237,7 @@ public class SimulationPlanService {
       BigDecimal amount,
       SimulationEventType type,
       String notes) {
-    SimulationPlanEntity plan = get(portfolioId, planId);
+    SimulationPlanEntity plan = getForUpdate(portfolioId, planId);
     if (!revisioned() || plan.getCurrentRevisionId() == null)
       return saveLegacyEvent(plan, eventId, year, name, amount, type, notes);
     List<SimulationEvent> current = events(portfolioId, planId);
@@ -262,7 +262,7 @@ public class SimulationPlanService {
   }
 
   public void deleteEvent(Long portfolioId, Long planId, Long eventId) {
-    SimulationPlanEntity plan = get(portfolioId, planId);
+    SimulationPlanEntity plan = getForUpdate(portfolioId, planId);
     if (!revisioned() || plan.getCurrentRevisionId() == null) {
       legacyEvents.delete(
           legacyEvents
@@ -423,7 +423,7 @@ public class SimulationPlanService {
    */
   public SimulationPlanRevisionEntity rebaseline(
       Long portfolioId, Long planId, PlanningBaseline baseline) {
-    SimulationPlanEntity plan = get(portfolioId, planId);
+    SimulationPlanEntity plan = getForUpdate(portfolioId, planId);
     if (!revisioned()) throw new IllegalStateException("Plan revisions are not configured");
     SimulationAssumptions current = assumptions(plan);
     int nextNumber =
@@ -437,6 +437,15 @@ public class SimulationPlanService {
     plans.save(plan);
     saveRevisionEvents(revision, current.futureEvents());
     return revision;
+  }
+
+  private SimulationPlanEntity getForUpdate(Long portfolioId, Long id) {
+    SimulationPlanEntity plan =
+        plans
+            .findByIdAndPortfolioIdForUpdate(id, portfolioId)
+            .orElseThrow(() -> new NoSuchElementException("Simulation plan not found"));
+    if (plan.isArchived()) throw new NoSuchElementException("Simulation plan not found");
+    return plan;
   }
 
   private PlanningBaseline baseline(SimulationPlanRevisionEntity revision) {

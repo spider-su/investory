@@ -284,6 +284,8 @@ class RetirementSimulationLifecycleE2ETest {
               });
       when(plans.findByIdAndPortfolioId(anyLong(), anyLong()))
           .thenAnswer(invocation -> Optional.ofNullable(current));
+      when(plans.findByIdAndPortfolioIdForUpdate(anyLong(), anyLong()))
+          .thenAnswer(invocation -> Optional.ofNullable(current));
       when(plans.findAllByPortfolioIdOrderByName(anyLong())).thenAnswer(invocation -> rows);
       when(revisions.save(any()))
           .thenAnswer(

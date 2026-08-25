@@ -191,7 +191,7 @@ public class LongTermAssetBootstrapService {
     if (input.type() == LongTermAssetType.REAL_ESTATE) {
       for (var incoming : safe(input.cashFlows()))
         rentalContracts.findAllByAssetIdOrderByStartDate(stored.getId()).stream()
-            .filter(contract -> !isAnonymousBootstrapContract(contract))
+            .filter(contract -> !contract.isBootstrapManaged())
             .filter(
                 contract ->
                     LongTermAssetPeriodRules.overlaps(
@@ -370,6 +370,12 @@ public class LongTermAssetBootstrapService {
     }
     var points = new ArrayList<>(boundaries);
     var existing = rentalContracts.findAllByAssetIdOrderByStartDate(assetId);
+    var managed =
+        existing.stream().filter(LongTermAssetRentalContractEntity::isBootstrapManaged).toList();
+    if (!managed.isEmpty()) {
+      rentalContracts.deleteAll(managed);
+      rentalContracts.flush();
+    }
     for (int i = 0; i < points.size(); i++) {
       LocalDate start = points.get(i);
       LocalDate end = i + 1 < points.size() ? points.get(i + 1).minusDays(1) : null;
@@ -379,24 +385,13 @@ public class LongTermAssetBootstrapService {
               .filter(f -> f.getValidTo() == null || !f.getValidTo().isBefore(start))
               .toList();
       if (group.isEmpty()) continue;
-      var contract =
-          existing.stream()
-              .filter(LongTermAssetBootstrapService::isAnonymousBootstrapContract)
-              .filter(c -> c.getStartDate().equals(start))
-              .findFirst()
-              .orElseGet(
-                  () ->
-                      existing.stream()
-                          .filter(c -> isAnonymousBootstrapContract(c) && overlaps(c, start, end))
-                          .max(Comparator.comparing(LongTermAssetRentalContractEntity::getStartDate))
-                          .orElseGet(LongTermAssetRentalContractEntity::new));
+      var contract = new LongTermAssetRentalContractEntity();
       contract.setAssetId(assetId);
       contract.setStartDate(start);
       contract.setEndDate(end);
-      if (contract.getMonthlyTaxBase() == null) contract.setMonthlyTaxBase(asset.getTaxBase());
-      if (contract.getRentalTaxPaidByTenant() == null)
-        contract.setRentalTaxPaidByTenant(asset.isRentalTaxPaidByTenant());
-      contract.getTerms().clear();
+      contract.setBootstrapManaged(true);
+      contract.setMonthlyTaxBase(asset.getTaxBase());
+      contract.setRentalTaxPaidByTenant(asset.isRentalTaxPaidByTenant());
       for (var flow : group) {
         if (flow.getValidTo() != null && flow.getValidTo().isBefore(start)) continue;
         var term = new LongTermAssetRentalContractTermEntity();
@@ -410,21 +405,6 @@ public class LongTermAssetBootstrapService {
       rentalContracts.save(contract);
       rentalContracts.flush();
     }
-  }
-
-  private static boolean isAnonymousBootstrapContract(LongTermAssetRentalContractEntity contract) {
-    return contract.getTenantName() == null
-        && contract.getTenantEmail() == null
-        && contract.getTenantPhone() == null
-        && contract.getNotes() == null;
-  }
-
-  private static boolean overlaps(
-      LongTermAssetRentalContractEntity contract, LocalDate start, LocalDate end) {
-    LocalDate contractEnd =
-        contract.getEndDate() == null ? LocalDate.MAX : contract.getEndDate();
-    LocalDate requestedEnd = end == null ? LocalDate.MAX : end;
-    return !contract.getStartDate().isAfter(requestedEnd) && !start.isAfter(contractEnd);
   }
 
   private LongTermAssetCashFlowEntity toCashFlowEntity(

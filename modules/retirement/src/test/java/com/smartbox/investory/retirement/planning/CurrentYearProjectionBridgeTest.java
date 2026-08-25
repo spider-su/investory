@@ -109,6 +109,7 @@ class CurrentYearProjectionBridgeTest {
       assertThat(result.expectedEnd(bucket))
           .isEqualByComparingTo(firstProjected.asMap().get(bucket).startValue());
     }
+    assertThat(result.bridgedProfile().liquidAssets()).isEqualByComparingTo("110");
     assertThat(result.expectedEnd(BucketType.CASH)).isLessThan(result.start(BucketType.CASH));
   }
 

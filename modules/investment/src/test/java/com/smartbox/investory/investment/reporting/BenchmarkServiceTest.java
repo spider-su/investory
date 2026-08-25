@@ -627,12 +627,6 @@ class BenchmarkServiceTest {
 
   @Test
   void calculate_portfolioDailyProfitConvertsNonUsdRowsAtSnapshotDate() {
-    AccountRepository.AccountPortfolioCurrencyRow baseCurrency =
-        org.mockito.Mockito.mock(AccountRepository.AccountPortfolioCurrencyRow.class);
-    when(baseCurrency.getAccountId()).thenReturn(1L);
-    when(baseCurrency.getBaseCurrency()).thenReturn("USD");
-    when(accountRepository.findPortfolioCurrenciesByAccountIdIn(any()))
-        .thenReturn(List.of(baseCurrency));
     when(currencyRateService.convertToBaseCurrency(
             10.0, CurrencyType.USD, CurrencyType.PLN, LocalDate.parse("2026-01-02")))
         .thenReturn(20.0);
@@ -646,6 +640,46 @@ class BenchmarkServiceTest {
     verify(currencyRateService)
         .convertToBaseCurrency(
             10.0, CurrencyType.USD, CurrencyType.PLN, LocalDate.parse("2026-01-02"));
+  }
+
+  @Test
+  void calculate_normalizesMixedCurrencyAccountValuesToDashboardBaseCurrency() {
+    when(accountRepository.findMapByIdIn(any()))
+        .thenAnswer(
+            invocation ->
+                requestedAccounts(
+                    invocation.getArgument(0),
+                    Map.of(1L, account(1L, "PLN account"), 2L, account(2L, "EUR account"))));
+    AccountDailyEntity pln = daily(1L, "2026-01-02", 10.0, 1_010.0, 0.01);
+    pln.setValuationCurrency("PLN");
+    AccountDailyEntity eur = daily(2L, "2026-01-02", 10.0, 1_010.0, 0.01);
+    eur.setValuationCurrency("EUR");
+    when(accountDailyRepository.findAll()).thenReturn(List.of(pln, eur));
+    when(currencyRateService.convertToBaseCurrency(
+            10.0, CurrencyType.USD, CurrencyType.PLN, LocalDate.parse("2026-01-02")))
+        .thenReturn(2.5);
+    when(currencyRateService.convertToBaseCurrency(
+            10.0, CurrencyType.USD, CurrencyType.EUR, LocalDate.parse("2026-01-02")))
+        .thenReturn(12.0);
+
+    Benchmark.AccountValueYear year =
+        benchmarkService.calculate().getAccountValueYears().getFirst();
+
+    assertEquals(
+        List.of(2.5),
+        year.accountSeries().stream()
+            .filter(series -> series.id().equals(1L))
+            .findFirst()
+            .orElseThrow()
+            .profitValues());
+    assertEquals(
+        List.of(12.0),
+        year.accountSeries().stream()
+            .filter(series -> series.id().equals(2L))
+            .findFirst()
+            .orElseThrow()
+            .profitValues());
+    assertEquals(List.of(14.5), year.totalProfitValues());
   }
 
   @Test
@@ -677,7 +711,38 @@ class BenchmarkServiceTest {
     assertTrue(
         benchmark.getAccountOptions().stream()
             .anyMatch(option -> option.id().equals(2L) && option.selected()));
-    assertEquals(2, benchmark.getAccountValueYears().getFirst().accountSeries().size());
+    assertEquals(1, benchmark.getAccountValueYears().getFirst().accountSeries().size());
+    assertEquals(2L, benchmark.getAccountValueYears().getFirst().accountSeries().getFirst().id());
+  }
+
+  @Test
+  void calculate_selectedAccountReturnCanStartAfterAnotherAccountsEarlierHistory() {
+    when(accountRepository.findMapByIdIn(any()))
+        .thenAnswer(
+            invocation ->
+                requestedAccounts(
+                    invocation.getArgument(0),
+                    Map.of(1L, account(1L, "Early"), 2L, account(2L, "Selected"))));
+    when(accountDailyRepository.findAll())
+        .thenReturn(
+            List.of(
+                monthly(1L, "2026-01-01", 0.0, 1_000.0), monthly(2L, "2026-02-01", 0.0, 1_100.0)));
+    when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc())
+        .thenReturn(
+            List.of(
+                monthlyPerformance(1L, "2026-01-01", 1_000.0, 0.0, 0.0),
+                monthlyPerformance(2L, "2026-02-01", 1_000.0, 100.0, 0.0)));
+    when(benchmarkMonthlyCloseRepository.findBySymbolOrderByMonthDateAsc("SPY"))
+        .thenReturn(
+            List.of(
+                benchmarkClose("2025-12", 100.0),
+                benchmarkClose("2026-01", 100.0),
+                benchmarkClose("2026-02", 100.0)));
+
+    Benchmark benchmark = benchmarkService.calculate(List.of(2L));
+
+    assertEquals(java.util.Arrays.asList(null, 10.0), benchmark.getPortfolioReturnCurve());
+    assertEquals(10.0, benchmark.getPortfolioReturnPct());
   }
 
   @Test

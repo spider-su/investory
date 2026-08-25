@@ -35,6 +35,9 @@ public class LongTermAssetRentalContractEntity {
   @Column(name = "monthly_tax_base", precision = 20, scale = 2)
   private BigDecimal monthlyTaxBase;
 
+  @Column(name = "bootstrap_managed", nullable = false)
+  private boolean bootstrapManaged;
+
   @Column(name = "tenant_name", length = 200)
   private String tenantName;
 

@@ -769,6 +769,11 @@ class RetirementSimulationControllerTest {
             .perform(
                 get("/simulation")
                     .param("planningDisplayCurrency", "PLN")
+                    .param("cashReturn", "1.5")
+                    .param("fixedIncomeReturn", "4.5")
+                    .param("equityReturn", "7.5")
+                    .param("realEstateReturn", "3.5")
+                    .param("otherReturn", "2.5")
                     .param("annualExpenses", "45000.00")
                     .param("annualExpensesCanonical", "11250.12345678"))
             .andExpect(status().isOk())
@@ -777,8 +782,27 @@ class RetirementSimulationControllerTest {
         (RetirementSimulationPageView) result.getModelAndView().getModel().get("simulationPage");
     assertEquals(
         0, new BigDecimal("11250.12345678").compareTo(page.assumptions().annualLivingExpenses()));
+    assertEquals(0, new BigDecimal("0.015").compareTo(page.assumptions().cashReturnRate()));
+    assertEquals(0, new BigDecimal("0.045").compareTo(page.assumptions().fixedIncomeReturnRate()));
+    assertEquals(0, new BigDecimal("0.075").compareTo(page.assumptions().equityReturnRate()));
+    assertEquals(0, new BigDecimal("0.035").compareTo(page.assumptions().realEstateReturnRate()));
+    assertEquals(0, new BigDecimal("0.025").compareTo(page.assumptions().otherReturnRate()));
+    verify(planningTimeline, never()).historicalYears(anyLong());
+    verify(planningTimeline, never()).ensureCurrentYear(anyLong());
     verify(planningPresentation, never())
         .fromDisplay(eq(new BigDecimal("45000.00")), eq(CurrencyType.PLN), any(BigDecimal.class));
+  }
+
+  @Test
+  void explicitRolloverMutatesPlanningTimelineAndKeepsSimulationContext() {
+    String redirect =
+        controller.rollover(1L, CurrencyType.EUR, 7L, SimulationScenario.CONSERVATIVE);
+
+    verify(planningTimeline).historicalYears(1L);
+    verify(planningTimeline).ensureCurrentYear(1L);
+    assertEquals(
+        "redirect:/simulation?portfolioId=1&planId=7&planningDisplayCurrency=EUR&selectedScenario=CONSERVATIVE",
+        redirect);
   }
 
   @Test

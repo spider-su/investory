@@ -70,7 +70,9 @@ in Long-Term capital and is reported separately from cash income; it is never co
 Cash-flow rows are supported only as real-estate bootstrap input and are converted into rental
 contracts. Non-real-estate assets cannot define or import generic cash-flow rows. The legacy
 rental-period projection fallback is compatibility-only and is not the normal persisted runtime
-path.
+path. Persisted contracts carry explicit bootstrap ownership. A repeated import atomically replaces
+only bootstrap-owned contracts; manual and pre-ownership contracts are protected from importer
+rewrites even when tenant identity and notes are empty.
 
 Expected real-estate value growth is informational. Deterministic Retirement ignores appreciation
 and does not automatically sell property.

@@ -42,11 +42,10 @@ class LayerDependencyTest {
   }
 
   @Test
-  @Disabled("Legacy retirement adapters remain until their UI migration is complete")
   void retirementUsesOnlyInvestmentAndLongTermPublicBoundaries() {
     noClasses()
         .that()
-        .resideInAnyPackage("..retirement..")
+        .resideInAnyPackage("com.smartbox.investory.retirement..")
         .should()
         .dependOnClassesThat()
         .resideInAnyPackage(
@@ -150,7 +149,6 @@ class LayerDependencyTest {
   }
 
   @Test
-  @Disabled("Legacy retirement adapters remain until their UI migration is complete")
   void deterministicSimulationDoesNotDependOnPersistenceOrDomainImplementations() {
     // SimulationPlanService is the persistence-owning orchestration adapter in this package.
     noClasses()

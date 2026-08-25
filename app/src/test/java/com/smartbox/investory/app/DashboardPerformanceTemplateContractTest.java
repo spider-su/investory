@@ -40,6 +40,8 @@ class DashboardPerformanceTemplateContractTest {
     assertFalse(html.contains("performanceBoardCumulativeReturn"));
     assertFalse(html.contains("performanceBoardPeriodReturn"));
     assertFalse(html.contains("performanceBoardRebasedReturn"));
+    assertTrue(html.contains("const selectedDashboardPeriod ="));
+    assertTrue(html.contains("period: selectedDashboardPeriod"));
     assertTrue(html.contains("performance-scope-aggregation"));
     assertTrue(html.contains("const percentValue ="));
     assertFalse(html.contains("toFixed(1)"));
@@ -130,6 +132,8 @@ class DashboardPerformanceTemplateContractTest {
     assertFalse(html.contains("js-monthly-account\""));
     assertFalse(html.contains("js-account-value-account\""));
     assertFalse(html.contains("js-benchmark-account\""));
+    assertTrue(html.contains("const requestedAccountsLoaded ="));
+    assertTrue(html.contains("[...selectedIds].every(id => loadedIds.has(id))"));
   }
 
   private static int occurrencesOf(String text, String fragment) {

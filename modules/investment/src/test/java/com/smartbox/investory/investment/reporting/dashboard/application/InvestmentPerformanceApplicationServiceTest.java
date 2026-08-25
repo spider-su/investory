@@ -84,6 +84,80 @@ class InvestmentPerformanceApplicationServiceTest {
   }
 
   @Test
+  void missingScopeBoundaryDoesNotCrashAggregatedBars() {
+    Benchmark benchmark = benchmark();
+    benchmark.setPortfolioReturnCurve(java.util.Arrays.asList(null, 21.0, 33.1));
+    benchmark.setBenchmarkReturnCurve(java.util.Arrays.asList(null, 10.25, 15.7625));
+    when(benchmarkService.calculate()).thenReturn(benchmark);
+    InvestmentPerformanceApplicationService service = service("2026-01");
+
+    PerformanceBoardView view =
+        service.load(new PerformanceBoardQuery(null, "quarterly", "return", "bars"));
+
+    assertEquals(List.of("2026-Q1"), view.labels());
+    assertNull(view.series().getFirst().values().getFirst());
+    assertNull(view.benchmarkValues().getFirst());
+  }
+
+  @Test
+  void selectedAccountReturnStaysUnavailableAfterMissingMonth() {
+    Benchmark benchmark = benchmark();
+    Benchmark.AccountSeries row = benchmark.getAccountSeries().getFirst();
+    benchmark.setAccountOptions(
+        List.of(
+            new Benchmark.AccountOption(1L, "Broker", true),
+            new Benchmark.AccountOption(2L, "Other", false)));
+    benchmark.setAccountSeries(
+        List.of(
+            new Benchmark.AccountSeries(
+                row.id(),
+                row.investedCapital(),
+                row.portfolioPl(),
+                row.benchmarkPl(),
+                row.portfolioCurve(),
+                row.benchmarkCurve(),
+                List.of(1_000.0, 1_100.0, 1_200.0),
+                row.returnContributionCurve(),
+                java.util.Arrays.asList(10.0, null, 10.0))));
+    when(benchmarkService.calculate(List.of(1L))).thenReturn(benchmark);
+    InvestmentPerformanceApplicationService service = service("2025-12");
+
+    PerformanceBoardView view =
+        service.load(new PerformanceBoardQuery(List.of(1L), "monthly", "return", "line"));
+
+    assertEquals(java.util.Arrays.asList(10.0, null, null), view.series().getFirst().values());
+  }
+
+  @Test
+  void selectedAccountReturnCanStartAfterPreInceptionMonths() {
+    Benchmark benchmark = benchmark();
+    Benchmark.AccountSeries row = benchmark.getAccountSeries().getFirst();
+    benchmark.setAccountOptions(
+        List.of(
+            new Benchmark.AccountOption(1L, "Broker", true),
+            new Benchmark.AccountOption(2L, "Other", false)));
+    benchmark.setAccountSeries(
+        List.of(
+            new Benchmark.AccountSeries(
+                row.id(),
+                row.investedCapital(),
+                row.portfolioPl(),
+                row.benchmarkPl(),
+                row.portfolioCurve(),
+                row.benchmarkCurve(),
+                java.util.Arrays.asList(null, 1_000.0, 1_100.0),
+                row.returnContributionCurve(),
+                java.util.Arrays.asList(null, 10.0, 10.0))));
+    when(benchmarkService.calculate(List.of(1L))).thenReturn(benchmark);
+    InvestmentPerformanceApplicationService service = service("2025-12");
+
+    PerformanceBoardView view =
+        service.load(new PerformanceBoardQuery(List.of(1L), "monthly", "return", "line"));
+
+    assertEquals(java.util.Arrays.asList(null, 10.0, 21.0), view.series().getFirst().values());
+  }
+
+  @Test
   void configuredStartAfterHistoryReturnsUnavailableKpis() {
     Benchmark benchmark = benchmark();
     when(benchmarkService.calculate()).thenReturn(benchmark);
@@ -96,6 +170,19 @@ class InvestmentPerformanceApplicationServiceTest {
     assertNull(view.kpis().portfolioReturn());
     assertNull(view.kpis().benchmarkReturn());
     assertNull(view.kpis().portfolioProfitLoss());
+  }
+
+  @Test
+  void selectedDashboardPeriodOverridesConfiguredKpiStart() {
+    Benchmark benchmark = benchmark();
+    when(benchmarkService.calculate()).thenReturn(benchmark);
+    InvestmentPerformanceApplicationService service = service("2099-01");
+
+    PerformanceBoardView view =
+        service.load(new PerformanceBoardQuery(null, "monthly", "return", "line", "MAX"));
+
+    assertEquals(benchmark.getLabels(), view.labels());
+    assertEquals(benchmark.getPortfolioReturnCurve(), view.series().getFirst().values());
   }
 
   @Test

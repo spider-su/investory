@@ -760,7 +760,7 @@
     const benchLabels = [[${benchmark != null ? benchmark.labels : null}]] || [];
     const benchAccountSeries = [[${benchmark != null ? benchmark.accountSeries : null}]] || [];
     const benchBenchmarkReturnCurve = [[${benchmark != null ? benchmark.benchmarkReturnCurve : null}]] || [];
-    const performanceBoardKpiStart = [[${dashboard.performance.kpiStart}]] || '2026-01';
+    const selectedDashboardPeriod = [[${selectedPeriod.urlValue()}]] || 'YTD';
     const accountValueYears = [[${benchmark != null ? benchmark.accountValueYears : null}]] || [];
     const benchEl = document.getElementById("benchmark-chart");
     const accountValueEl = document.getElementById("account-value-chart");
@@ -1052,8 +1052,10 @@
             return;
         }
 
-        const allAccountsShown = selectedIds.size === year.accountSeries.length;
-        if (!allAccountsShown) {
+        const loadedIds = new Set(year.accountSeries.map(series => Number(series.id)));
+        const requestedAccountsLoaded = selectedIds.size === loadedIds.size
+            && [...selectedIds].every(id => loadedIds.has(id));
+        if (!requestedAccountsLoaded) {
             const requestId = ++accountValueRequest;
             const ids = [...selectedIds].join(',');
             fetch('/dashboard/account-values?accountIds=' + encodeURIComponent(ids))
@@ -1413,7 +1415,8 @@
             accountIds: performanceBoardSelectedIds().join(','),
             aggregation: document.getElementById('performance-board-aggregation')?.value || 'monthly',
             metric: performanceBoardState.metric,
-            style: performanceBoardState.style
+            style: performanceBoardState.style,
+            period: selectedDashboardPeriod
         });
         const response = await fetch('/dashboard/performance-board?' + params.toString(), { headers: { Accept: 'application/json' } });
         if (!response.ok) throw new Error('Performance board request failed');

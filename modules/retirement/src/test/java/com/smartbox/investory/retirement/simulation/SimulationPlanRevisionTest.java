@@ -27,6 +27,7 @@ class SimulationPlanRevisionTest {
     plan.setCurrentRevisionId(11L);
     SimulationPlanRevisionEntity old = revision(11L, 1);
     when(plans.findByIdAndPortfolioId(7L, 1L)).thenReturn(Optional.of(plan));
+    when(plans.findByIdAndPortfolioIdForUpdate(7L, 1L)).thenReturn(Optional.of(plan));
     when(plans.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of(plan));
     when(revisions.findByIdAndSimulationPlanId(11L, 7L)).thenReturn(Optional.of(old));
     when(revisions.findAllBySimulationPlanIdOrderByRevisionNumberDesc(7L)).thenReturn(List.of(old));
@@ -61,6 +62,7 @@ class SimulationPlanRevisionTest {
     event.setAmount(new BigDecimal("1000"));
     event.setType(SimulationEventType.ONE_OFF_EXPENSE);
     when(plans.findByIdAndPortfolioId(7L, 1L)).thenReturn(Optional.of(plan));
+    when(plans.findByIdAndPortfolioIdForUpdate(7L, 1L)).thenReturn(Optional.of(plan));
     when(plans.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of(plan));
     when(revisions.findByIdAndSimulationPlanId(11L, 7L)).thenReturn(Optional.of(old));
     when(revisions.findAllBySimulationPlanIdOrderByRevisionNumberDesc(7L)).thenReturn(List.of(old));

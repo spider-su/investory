@@ -9,7 +9,12 @@ public interface InvestmentPerformanceApi {
   AccountValueView loadAccountValues(List<Long> accountIds);
 
   record PerformanceBoardQuery(
-      List<Long> accountIds, String aggregation, String metric, String style) {
+      List<Long> accountIds, String aggregation, String metric, String style, String period) {
+    public PerformanceBoardQuery(
+        List<Long> accountIds, String aggregation, String metric, String style) {
+      this(accountIds, aggregation, metric, style, null);
+    }
+
     public PerformanceBoardQuery {
       accountIds = accountIds == null ? null : List.copyOf(accountIds);
       aggregation = aggregation == null ? "monthly" : aggregation;
