@@ -44,19 +44,19 @@ public class LongTermAssetController {
     model.addAttribute("total", total);
     model.addAttribute("currency", total.currency());
     model.addAttribute(
-        "longTermHeaderTotal", FinancialPresentation.wholeNumber(total.totalCurrentValue()));
+        "longTermHeaderTotal", FinancialPresentation.compactMoney(total.totalCurrentValue()));
     model.addAttribute(
         "longTermHeaderIncome",
-        FinancialPresentation.wholeNumber(total.annualEconomics().netAnnualIncomeAfterTax()));
+        FinancialPresentation.compactMoney(total.annualEconomics().netAnnualIncomeAfterTax()));
     model.addAttribute(
         "longTermHeaderYield",
         FinancialPresentation.percentage(total.annualEconomics().netYieldAfterTax()));
     model.addAttribute(
         "longTermGrossIncome",
-        FinancialPresentation.wholeNumber(total.annualEconomics().grossAnnualIncome()));
+        FinancialPresentation.compactMoney(total.annualEconomics().grossAnnualIncome()));
     model.addAttribute(
         "longTermExpensesTax",
-        FinancialPresentation.wholeNumber(
+        FinancialPresentation.compactMoney(
             total.annualEconomics().annualExpenses().add(total.annualEconomics().annualTax())));
     model.addAttribute(
         "longTermGrossYield",
@@ -75,7 +75,7 @@ public class LongTermAssetController {
             g -> {
               model.addAttribute("longTermLargestClass", g.title());
               model.addAttribute(
-                  "longTermLargestClassValue", FinancialPresentation.wholeNumber(g.totalValue()));
+                  "longTermLargestClassValue", FinancialPresentation.compactMoney(g.totalValue()));
               model.addAttribute(
                   "longTermLargestClassShare", share(g.totalValue(), total.totalCurrentValue()));
             });
@@ -729,6 +729,7 @@ public class LongTermAssetController {
     private String tenantPhone;
     private LocalDate startDate;
     private LocalDate endDate;
+    private BigDecimal monthlyTaxBase;
     private String rentalTaxOwnership = "INHERIT";
     private boolean endCurrentContractBeforeStart;
 
@@ -761,6 +762,7 @@ public class LongTermAssetController {
       form.tenantPhone = contract.tenantPhone();
       form.startDate = contract.startDate();
       form.endDate = contract.endDate();
+      form.monthlyTaxBase = contract.monthlyTaxBase();
       form.rentalTaxOwnership =
           contract.rentalTaxPaidByTenant() == null
               ? "INHERIT"
@@ -820,6 +822,7 @@ public class LongTermAssetController {
           tenantPhone,
           startDate,
           endDate,
+          monthlyTaxBase,
           rentalTaxPaidByTenant(),
           endCurrentContractBeforeStart,
           terms());
@@ -836,7 +839,9 @@ public class LongTermAssetController {
           tenantPhone,
           startDate,
           endDate,
+          monthlyTaxBase,
           rentalTaxPaidByTenant(),
+          usesPropertyTaxPayerDefault(),
           terms());
     }
 
@@ -846,6 +851,10 @@ public class LongTermAssetController {
         case "LANDLORD" -> Boolean.FALSE;
         default -> null;
       };
+    }
+
+    private boolean usesPropertyTaxPayerDefault() {
+      return rentalTaxOwnership == null || "INHERIT".equals(rentalTaxOwnership);
     }
 
     private java.util.List<LongTermAssetsApi.RentalTermCommand> terms() {

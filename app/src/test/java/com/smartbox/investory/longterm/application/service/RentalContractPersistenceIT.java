@@ -12,6 +12,8 @@ import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractRepository;
+import com.smartbox.investory.longterm.infrastructure.tax.RentalTaxPolicyEntity;
+import com.smartbox.investory.longterm.infrastructure.tax.RentalTaxPolicyRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.FastDatabaseTest;
 import jakarta.persistence.EntityManager;
@@ -30,6 +32,7 @@ class RentalContractPersistenceIT extends FastDatabaseTest {
   @Autowired LongTermAssetBootstrapService bootstrap;
   @Autowired LongTermAssetRepository assets;
   @Autowired LongTermAssetRentalContractRepository contracts;
+  @Autowired RentalTaxPolicyRepository taxPolicies;
   @Autowired EntityManager entityManager;
 
   @Test
@@ -229,6 +232,57 @@ class RentalContractPersistenceIT extends FastDatabaseTest {
     assertThat(taxBase).isEqualByComparingTo("1000");
     assertThat(rentalTax)
         .isEqualByComparingTo(taxBase.multiply(BigDecimal.valueOf(12)).multiply(taxRate));
+  }
+
+  @Test
+  void rentalEconomicsViewUsesPolicyEffectiveForActiveContractToday() {
+    var oldPolicy = new RentalTaxPolicyEntity();
+    oldPolicy.setPortfolioId(1L);
+    oldPolicy.setValidFrom(LocalDate.of(2020, 1, 1));
+    oldPolicy.setValidTo(LocalDate.of(2020, 12, 31));
+    oldPolicy.setRate(new BigDecimal("0.08"));
+    taxPolicies.save(oldPolicy);
+    var currentPolicy = new RentalTaxPolicyEntity();
+    currentPolicy.setPortfolioId(1L);
+    currentPolicy.setValidFrom(LocalDate.of(2021, 1, 1));
+    currentPolicy.setRate(new BigDecimal("0.10"));
+    taxPolicies.save(currentPolicy);
+
+    var asset = new LongTermAssetEntity();
+    asset.setPortfolioId(1L);
+    asset.setName("Rental view effective policy test");
+    asset.setType(LongTermAssetType.REAL_ESTATE);
+    asset.setCurrency(CurrencyType.PLN);
+    asset.setCurrentValue(new BigDecimal("800000"));
+    asset.setTaxBase(new BigDecimal("1000"));
+    asset.setActive(true);
+    asset = assets.save(asset);
+    var contract =
+        service.create(
+            1L,
+            asset.getId(),
+            null,
+            null,
+            null,
+            LocalDate.of(2020, 1, 1),
+            null,
+            false,
+            java.util.List.of(term(CashFlowTypeModel.RENT, 3000, false)),
+            false);
+    entityManager.flush();
+    entityManager.clear();
+
+    var rate =
+        (BigDecimal)
+            entityManager
+                .createNativeQuery(
+                    "SELECT rental_tax_rate "
+                        + "FROM investory.v_long_term_asset_rental_economics "
+                        + "WHERE contract_id = :contractId")
+                .setParameter("contractId", contract.getId())
+                .getSingleResult();
+
+    assertThat(rate).isEqualByComparingTo("0.10");
   }
 
   private static LongTermAssetBootstrapDocument bootstrapDocument(

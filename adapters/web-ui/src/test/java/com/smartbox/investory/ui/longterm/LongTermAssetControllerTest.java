@@ -179,6 +179,7 @@ class LongTermAssetControllerTest {
     form.setTenantEmail("tenant@example.com");
     form.setTenantPhone("+48 123");
     form.setStartDate(LocalDate.of(2027, 1, 1));
+    form.setMonthlyTaxBase(new BigDecimal("3100"));
     form.setRentalTaxOwnership("TENANT");
     form.setEndCurrentContractBeforeStart(true);
     form.setRent(new BigDecimal("3300"));
@@ -193,6 +194,7 @@ class LongTermAssetControllerTest {
     assertEquals("Tenant", command.getValue().tenantName());
     assertEquals("tenant@example.com", command.getValue().tenantEmail());
     assertEquals("+48 123", command.getValue().tenantPhone());
+    assertEquals(new BigDecimal("3100"), command.getValue().monthlyTaxBase());
     assertEquals(Boolean.TRUE, command.getValue().rentalTaxPaidByTenant());
     assertEquals(true, command.getValue().endCurrentContractBeforeStart());
     assertEquals(
@@ -209,6 +211,7 @@ class LongTermAssetControllerTest {
   void rentalUpdatePreservesContractIdentityAndDeleteUsesOwnedPath() {
     var form = new LongTermAssetController.RentalContractForm();
     form.setStartDate(LocalDate.of(2027, 1, 1));
+    form.setMonthlyTaxBase(new BigDecimal("3200"));
     form.setRentalTaxOwnership("INHERIT");
 
     controller.updateRentalContract(
@@ -218,7 +221,9 @@ class LongTermAssetControllerTest {
     var command = ArgumentCaptor.forClass(LongTermAssetsApi.UpdateRentalContractCommand.class);
     verify(assets).updateRentalContract(command.capture());
     assertEquals(44L, command.getValue().contractId());
+    assertEquals(new BigDecimal("3200"), command.getValue().monthlyTaxBase());
     assertEquals(null, command.getValue().rentalTaxPaidByTenant());
+    assertEquals(true, command.getValue().usePropertyTaxPayerDefault());
     verify(assets).deleteRentalContract(1L, 7L, 44L);
   }
 

@@ -33,6 +33,8 @@ class LongTermAssetsTemplateContractTest {
         () -> assertTrue(html.contains("group.realEstatePlanning.netMonthlyIncome")),
         () -> assertTrue(html.contains("group.realEstatePlanning.totalPaymentMonthly")),
         () -> assertTrue(html.contains("group.realEstatePlanning.monthlyTax")),
+        () -> assertTrue(html.contains("group.realEstatePlanning.monthlyReduce")),
+        () -> assertTrue(html.contains("group.realEstatePlanning.taxBase")),
         () -> assertTrue(html.contains("group.realEstatePlanning.netYield")),
         () -> assertTrue(html.contains("asset.realEstatePlanning.taxBase")),
         () -> assertTrue(html.contains("asset.realEstatePlanning.incomeYield")),
@@ -78,6 +80,9 @@ class LongTermAssetsTemplateContractTest {
         () -> assertTrue(css.contains(".iv-portfolio-structure__grid--long-term")),
         () -> assertTrue(css.contains("grid-template-columns: minmax(0, 1fr)")),
         () -> assertTrue(html.contains("iv-long-term-allocation__legend")),
+        () -> assertTrue(html.contains("format.compactMoney(group.totalValue)")),
+        () -> assertTrue(html.contains("format.compactMoney(group.realEstatePlanning.netMonthlyIncome)")),
+        () -> assertTrue(html.contains("format.compactMoney(group.annualEconomics.netAnnualIncomeAfterTax)")),
         () -> assertTrue(html.contains("th:text=\"${groupShares[group.key]}\"")),
         () ->
             assertTrue(

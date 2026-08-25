@@ -570,7 +570,7 @@ class LongTermAssetServiceTest {
             null,
             BigDecimal.ZERO,
             new RealEstatePlanningSummary(
-                BigDecimal.ZERO,
+                new BigDecimal("1000"),
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
                 new BigDecimal("3000"),
@@ -594,7 +594,7 @@ class LongTermAssetServiceTest {
             null,
             BigDecimal.ZERO,
             new RealEstatePlanningSummary(
-                BigDecimal.ZERO,
+                new BigDecimal("2500"),
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
                 new BigDecimal("2500"),
@@ -602,6 +602,8 @@ class LongTermAssetServiceTest {
                 BigDecimal.ZERO));
     var group = service.groupSummaries(List.of(first, second), CurrencyType.PLN, DATE).getFirst();
     assertEquals(new BigDecimal("5200"), group.netMonthlyIncome());
+    assertEquals(new BigDecimal("300"), group.realEstatePlanning().monthlyReduce());
+    assertEquals(new BigDecimal("3500"), group.realEstatePlanning().taxBase());
   }
 
   @Test

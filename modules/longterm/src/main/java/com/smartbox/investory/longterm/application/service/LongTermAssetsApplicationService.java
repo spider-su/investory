@@ -437,6 +437,8 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
             : new RealEstateGroupPlanningView(
                 g.realEstatePlanning().totalPaymentMonthly(),
                 g.realEstatePlanning().netMonthlyIncome(),
+                g.realEstatePlanning().monthlyReduce(),
+                g.realEstatePlanning().taxBase(),
                 g.realEstatePlanning().monthlyRentTax(),
                 g.realEstatePlanning().incomeYield()));
   }

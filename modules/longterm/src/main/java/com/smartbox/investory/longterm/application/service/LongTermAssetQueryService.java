@@ -649,6 +649,9 @@ public class LongTermAssetQueryService {
     BigDecimal monthlyReduce =
         AggregateSummary.sum(
             rows, r -> planning(r, BigDecimal.ZERO).monthlyReduce(), base, currencyRates, date);
+    BigDecimal taxBase =
+        AggregateSummary.sum(
+            rows, r -> planning(r, BigDecimal.ZERO).taxBase(), base, currencyRates, date);
     BigDecimal monthlyRentTax =
         AggregateSummary.sum(
                 rows, r -> planning(r, BigDecimal.ZERO).annualTax(), base, currencyRates, date)
@@ -659,6 +662,8 @@ public class LongTermAssetQueryService {
             ? new RealEstateGroupPlanningSummary(
                 payment,
                 monthlyIncome.subtract(monthlyReduce),
+                monthlyReduce,
+                taxBase,
                 monthlyRentTax,
                 LongTermAssetCalculator.ratio(
                     monthlyIncome.subtract(monthlyReduce).multiply(BigDecimal.valueOf(12)), value))

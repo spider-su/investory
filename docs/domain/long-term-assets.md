@@ -72,7 +72,11 @@ contracts. Non-real-estate assets cannot define or import generic cash-flow rows
 rental-period projection fallback is compatibility-only and is not the normal persisted runtime
 path. Persisted contracts carry explicit bootstrap ownership. A repeated import atomically replaces
 only bootstrap-owned contracts; manual and pre-ownership contracts are protected from importer
-rewrites even when tenant identity and notes are empty.
+rewrites even when tenant identity and notes are empty. The bootstrap document is authoritative for
+its owned contracts: rebuilding them captures the document asset's current tax base and tax-payer
+default for every supplied rental period. Use separate assets or post-import contract corrections
+when historical periods require different tax snapshots; a later bootstrap import will apply its
+authoritative defaults again.
 
 Expected real-estate value growth is informational. Deterministic Retirement ignores appreciation
 and does not automatically sell property.
@@ -89,8 +93,9 @@ supplied.
 Asset currency is immutable after creation. Changing the denomination requires creating a new asset
 or an explicit conversion workflow; ordinary edits and bootstrap upserts must never relabel stored
 amounts. A rental contract captures the property's monthly rental-tax base and tax-payer default when
-the contract is created. Later property-default edits apply only to new contracts and do not rewrite
-historical rental economics.
+the contract is created. Interactive property-default edits apply only to new contracts and do not
+rewrite historical rental economics. Authoritative bootstrap replacement follows the import contract
+described above.
 
 The Long-Term profile reader returns a persistence-free normalized planning snapshot. Retirement
 uses that snapshot for the current view and stores it in a reviewed revision. Forward simulation

@@ -29,6 +29,10 @@ final class ProfilePresentation {
     return FinancialPresentation.wholeNumber(value);
   }
 
+  static String compactMoney(BigDecimal value) {
+    return FinancialPresentation.compactMoney(value);
+  }
+
   static String percentage(BigDecimal value) {
     return FinancialPresentation.percentage(value);
   }

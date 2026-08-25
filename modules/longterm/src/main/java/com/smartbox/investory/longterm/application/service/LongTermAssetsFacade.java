@@ -247,6 +247,7 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
         command.tenantPhone(),
         command.startDate(),
         command.endDate(),
+        command.monthlyTaxBase(),
         command.rentalTaxPaidByTenant(),
         command.terms().stream()
             .map(
@@ -268,7 +269,9 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
         command.tenantPhone(),
         command.startDate(),
         command.endDate(),
+        command.monthlyTaxBase(),
         command.rentalTaxPaidByTenant(),
+        command.usePropertyTaxPayerDefault(),
         command.terms().stream()
             .map(
                 term ->

@@ -10,6 +10,7 @@ import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractEntity;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractRepository;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractTermEntity;
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -87,8 +88,35 @@ public class RentalContractService {
       Boolean taxPaidByTenant,
       List<RentalContractModel.Term> terms,
       boolean endCurrentContractBeforeStart) {
+    return create(
+        portfolioId,
+        assetId,
+        tenantName,
+        tenantEmail,
+        tenantPhone,
+        start,
+        end,
+        null,
+        taxPaidByTenant,
+        terms,
+        endCurrentContractBeforeStart);
+  }
+
+  public LongTermAssetRentalContractEntity create(
+      Long portfolioId,
+      Long assetId,
+      String tenantName,
+      String tenantEmail,
+      String tenantPhone,
+      LocalDate start,
+      LocalDate end,
+      BigDecimal monthlyTaxBase,
+      Boolean taxPaidByTenant,
+      List<RentalContractModel.Term> terms,
+      boolean endCurrentContractBeforeStart) {
     LongTermAssetEntity asset = requireRealEstate(portfolioId, assetId);
     validatePeriod(start, end, null);
+    validateMonthlyTaxBase(monthlyTaxBase);
     Tenant tenant = validateTenant(tenantName, tenantEmail, tenantPhone);
     List<LongTermAssetRentalContractTermEntity> supplied = validatedTerms(terms);
     List<LongTermAssetRentalContractEntity> all =
@@ -99,7 +127,7 @@ public class RentalContractService {
 
     var contract = new LongTermAssetRentalContractEntity();
     contract.setAssetId(assetId);
-    contract.setMonthlyTaxBase(asset.getTaxBase());
+    contract.setMonthlyTaxBase(monthlyTaxBase == null ? asset.getTaxBase() : monthlyTaxBase);
     replaceContractState(
         contract,
         tenant,
@@ -122,11 +150,41 @@ public class RentalContractService {
       LocalDate end,
       Boolean taxPaidByTenant,
       List<RentalContractModel.Term> terms) {
+    return update(
+        portfolioId,
+        assetId,
+        contractId,
+        tenantName,
+        tenantEmail,
+        tenantPhone,
+        start,
+        end,
+        null,
+        taxPaidByTenant,
+        false,
+        terms);
+  }
+
+  public LongTermAssetRentalContractEntity update(
+      Long portfolioId,
+      Long assetId,
+      Long contractId,
+      String tenantName,
+      String tenantEmail,
+      String tenantPhone,
+      LocalDate start,
+      LocalDate end,
+      BigDecimal monthlyTaxBase,
+      Boolean taxPaidByTenant,
+      boolean usePropertyTaxPayerDefault,
+      List<RentalContractModel.Term> terms) {
     var contract = ownedContract(portfolioId, assetId, contractId);
     validatePeriod(start, end, contract.getTerminatedDate());
+    validateMonthlyTaxBase(monthlyTaxBase);
     Tenant tenant = validateTenant(tenantName, tenantEmail, tenantPhone);
     List<LongTermAssetRentalContractTermEntity> supplied = validatedTerms(terms);
-    if (contract.getMonthlyTaxBase() == null)
+    if (monthlyTaxBase != null) contract.setMonthlyTaxBase(monthlyTaxBase);
+    else if (contract.getMonthlyTaxBase() == null)
       contract.setMonthlyTaxBase(owned(portfolioId, assetId).getTaxBase());
     rejectOverlap(
         contracts.findAllByAssetIdOrderByStartDateDescIdDesc(assetId),
@@ -138,7 +196,9 @@ public class RentalContractService {
         tenant,
         start,
         end,
-        taxPaidByTenant == null
+        usePropertyTaxPayerDefault
+            ? owned(portfolioId, assetId).isRentalTaxPaidByTenant()
+            : taxPaidByTenant == null
             ? Optional.ofNullable(contract.getRentalTaxPaidByTenant())
                 .orElse(owned(portfolioId, assetId).isRentalTaxPaidByTenant())
             : taxPaidByTenant,
@@ -269,6 +329,11 @@ public class RentalContractService {
     if (normalizedPhone != null && normalizedPhone.length() > 50)
       throw new IllegalArgumentException("Tenant phone is too long");
     return new Tenant(normalizedName, normalizedEmail, normalizedPhone);
+  }
+
+  private static void validateMonthlyTaxBase(BigDecimal monthlyTaxBase) {
+    if (monthlyTaxBase != null && monthlyTaxBase.signum() < 0)
+      throw new IllegalArgumentException("Monthly tax base cannot be negative");
   }
 
   private static String normalize(String value) {

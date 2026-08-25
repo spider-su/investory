@@ -84,30 +84,19 @@
                           th:text="${stats.totalProfit >= 0 ? 'PROFIT' : 'LOSS'}">PROFIT</span>
                 </div>
                 <div class="iv-metric-context__panel" role="tooltip">
-                    <strong th:text="${selectedPeriod.label() + ' investment result'}">YTD investment result</strong>
-                    <span>Cash-flow-neutral profit and return for the selected period, after portfolio adjustments.</span>
                     <div class="iv-brand__summary-row"><span>Return since KPI start</span><span th:if="${dashboard.performance.summary.kpiReturn.status.name() == 'AVAILABLE'}" th:text="${dashboard.performance.summary.formatSignedPercent(dashboard.performance.summary.kpiReturn.value * 100)}">Unavailable</span><span th:unless="${dashboard.performance.summary.kpiReturn.status.name() == 'AVAILABLE'}">Unavailable</span></div>
                     <div class="iv-brand__summary-row"><span>Annualized return</span><span th:if="${dashboard.performance.summary.annualizedReturn.status.name() == 'AVAILABLE'}" th:text="${dashboard.performance.summary.formatSignedPercent(dashboard.performance.summary.annualizedReturn.value * 100) + ' p.a.'}">Unavailable</span><span th:unless="${dashboard.performance.summary.annualizedReturn.status.name() == 'AVAILABLE'}">Unavailable</span></div>
                     <small th:if="${dashboard.performance.summary.kpiStartDate != null}" th:text="${'KPI start · ' + dashboard.performance.summary.kpiStartDate}">KPI start · 2026-01-01</small>
                 </div>
             </div>
 
-            <div id="balance-cash" class="iv-topbar-metric iv-metric-context" tabindex="0" aria-label="Portfolio value">
+            <div id="balance-cash" class="iv-topbar-metric" aria-label="Portfolio value">
                 <div class="iv-topbar-metric__content">
                     <div class="iv-topbar-metric__value-row">
                     <span class="iv-topbar-metric__value"
                           th:text="${format.wholeNumber(stats.balance)}">0</span>
                     </div>
                     <span class="iv-topbar-metric__label">BALANCE</span>
-                </div>
-                <div class="iv-metric-context__panel" role="tooltip">
-                    <strong>Portfolio value</strong>
-                    <span>Current portfolio value from Investory’s existing valuation calculation.</span>
-                    <div class="iv-brand__summary-row">
-                        <span>Free cash</span>
-                        <span class="iv-cash-flow-violet"
-                              th:text="${stats.formatBase(stats.cash)}">0</span>
-                    </div>
                 </div>
             </div>
         </div>

@@ -17,11 +17,11 @@ public class InvestmentProfileController {
     var profile = facade.loadProfile(portfolioId);
     model.addAttribute("profile", profile);
     model.addAttribute("portfolioId", portfolioId);
-    model.addAttribute("profileHeaderNetWorth", profile.totalNetWorthWholeDisplay());
-    model.addAttribute("profileHeaderLiquid", profile.liquidAssetsWholeDisplay());
+    model.addAttribute("profileHeaderNetWorth", profile.totalNetWorthCompactDisplay());
+    model.addAttribute("profileHeaderLiquid", profile.liquidAssetsCompactDisplay());
     model.addAttribute(
         "profileHeaderLiquidMeta", profile.liquidAssetsPercentageDisplay() + " of net worth");
-    model.addAttribute("profileHeaderIncome", profile.expectedLongTermAssetIncomeWholeDisplay());
+    model.addAttribute("profileHeaderIncome", profile.expectedLongTermAssetIncomeCompactDisplay());
     model.addAttribute("profileHeaderCurrency", profile.currency());
     return "investment-profile";
   }

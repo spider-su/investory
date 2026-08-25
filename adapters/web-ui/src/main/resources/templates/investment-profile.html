@@ -15,8 +15,8 @@
   <section class="card iv-profile-section iv-portfolio-structure iv-profile-structure" aria-labelledby="structure-title">
     <div class="iv-card-section-header"><span id="structure-title" class="iv-card-section-header__title">Portfolio structure</span></div>
     <div class="iv-portfolio-structure__grid iv-profile-structure__grid">
-      <a class="iv-structure-card iv-profile-structure__metric" href="/dashboard"><span>Market investments</span><strong th:text="${profile.marketPortfolioValueWholeDisplay}">0</strong><small th:text="${profile.marketPortfolioMeta}">0.0% of net worth</small></a>
-      <a class="iv-structure-card iv-profile-structure__metric" th:href="@{/long-term-assets(portfolioId=${portfolioId})}"><span>Long-term assets</span><strong th:text="${profile.longTermAssetValueWholeDisplay}">0</strong><small th:text="${profile.longTermAssetMeta}">0.0% of net worth</small></a>
+      <a class="iv-structure-card iv-profile-structure__metric" href="/dashboard"><span>Market investments</span><strong th:text="${profile.marketPortfolioValueCompactDisplay}">0</strong><small th:text="${profile.marketPortfolioMeta}">0.0% of net worth</small></a>
+      <a class="iv-structure-card iv-profile-structure__metric" th:href="@{/long-term-assets(portfolioId=${portfolioId})}"><span>Long-term assets</span><strong th:text="${profile.longTermAssetValueCompactDisplay}">0</strong><small th:text="${profile.longTermAssetMeta}">0.0% of net worth</small></a>
     </div>
     <div class="iv-structure-currency iv-profile-structure__liquidity" aria-label="Liquidity composition">
       <div class="iv-profile-liquidity__heading"><span>Liquidity</span><small th:text="${profile.liquidAssetsMeta + ' / ' + profile.illiquidAssetsMeta}">0.0% / 0.0%</small></div>
@@ -27,7 +27,7 @@
   <section class="iv-grid iv-grid--kpi iv-grid--portfolio-overview iv-profile-income-cards" aria-label="Income summary">
     <div class="iv-kpi iv-profile-income-card iv-hover-context" tabindex="0">
       <span class="iv-kpi__label">Market income · current period</span>
-      <strong class="iv-kpi__value" th:text="${profile.historicalMarketInvestmentIncomeWholeDisplay}">0</strong>
+      <strong class="iv-kpi__value" th:text="${profile.historicalMarketInvestmentIncomeCompactDisplay}">0</strong>
       <div class="iv-hover-context__panel iv-profile-income-card__context">Dividends and interest observed during the current reporting period.</div>
     </div>
     <div class="iv-kpi iv-profile-income-card iv-hover-context" tabindex="0">
@@ -48,7 +48,7 @@
       </div>
       <div class="table-responsive">
         <table class="table card-table table-vcenter"><thead><tr><th>Bucket</th><th>Liquidity</th><th class="text-end">Value</th><th class="text-end">Share</th></tr></thead>
-            <tbody><tr th:each="allocation : ${profile.allocations}" th:if="${allocation.nonZero}"><td th:text="${allocation.bucketLabel}">Other</td><td><span class="badge iv-liquidity-badge" th:text="${allocation.liquidityLabel}">Liquid</span></td><td class="text-end" th:text="${allocation.wholeValueDisplay}">0</td><td class="text-end" th:text="${allocation.percentageDisplay}">0.0%</td></tr></tbody>
+            <tbody><tr th:each="allocation : ${profile.allocations}" th:if="${allocation.nonZero}"><td th:text="${allocation.bucketLabel}">Other</td><td><span class="badge iv-liquidity-badge" th:text="${allocation.liquidityLabel}">Liquid</span></td><td class="text-end" th:text="${allocation.compactValueDisplay}">0</td><td class="text-end" th:text="${allocation.percentageDisplay}">0.0%</td></tr></tbody>
         </table>
       </div>
     </div>

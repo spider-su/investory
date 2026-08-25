@@ -53,8 +53,7 @@ public class LongTermAssetBootstrapService {
       else creates++;
     }
     var existingPolicies =
-        taxPolicies.findAll().stream()
-            .filter(p -> p.getPortfolioId().equals(document.portfolioId()))
+        taxPolicies.findAllByPortfolioIdOrderByValidFrom(document.portfolioId()).stream()
             .collect(
                 java.util.stream.Collectors.toMap(RentalTaxPolicyEntity::getValidFrom, p -> p));
     int policyCreates = 0;
@@ -100,9 +99,7 @@ public class LongTermAssetBootstrapService {
             .toList(),
         "rental tax policies");
     var storedPolicies =
-        taxPolicies.findAll().stream()
-            .filter(p -> p.getPortfolioId().equals(document.portfolioId()))
-            .toList();
+        taxPolicies.findAllByPortfolioIdOrderByValidFrom(document.portfolioId());
     for (var input : safe(document.rentalTaxPolicies()))
       for (var stored : storedPolicies)
         if (!stored.getValidFrom().equals(input.validFrom())

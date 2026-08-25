@@ -1,0 +1,66 @@
+SET search_path TO investory, public;
+
+CREATE OR REPLACE VIEW investory.v_long_term_asset_rental_economics AS
+WITH term_totals AS (
+    SELECT c.id AS contract_id,
+           c.asset_id,
+           c.start_date AS valid_from,
+           CASE WHEN c.end_date IS NULL THEN c.terminated_date
+                WHEN c.terminated_date IS NULL THEN c.end_date
+                ELSE LEAST(c.end_date, c.terminated_date) END AS valid_to,
+           a.current_value,
+           COALESCE(c.monthly_tax_base::numeric(30, 12), a.tax_base) AS tax_base,
+           COALESCE(c.rental_tax_paid_by_tenant, a.rental_tax_paid_by_tenant) AS rental_tax_paid_by_tenant,
+           a.portfolio_id,
+           COALESCE(SUM(CASE WHEN t.cash_flow_type IN ('RENT','PARKING_RENT','OTHER_INCOME')
+                    THEN CASE WHEN t.frequency = 'MONTHLY' THEN t.amount * 12 ELSE t.amount END ELSE 0 END), 0) AS gross_rental_income,
+           COALESCE(SUM(CASE WHEN t.cash_flow_type IN ('ADMIN_FEE','UTILITIES','PROPERTY_TAX','INSURANCE','OTHER_EXPENSE') AND NOT t.paid_by_tenant
+                    THEN CASE WHEN t.frequency = 'MONTHLY' THEN t.amount * 12 ELSE t.amount END ELSE 0 END), 0) AS landlord_paid_costs,
+           COALESCE(SUM(CASE WHEN t.cash_flow_type IN ('ADMIN_FEE','UTILITIES','PROPERTY_TAX','INSURANCE','OTHER_EXPENSE') AND t.paid_by_tenant
+                    THEN CASE WHEN t.frequency = 'MONTHLY' THEN t.amount * 12 ELSE t.amount END ELSE 0 END), 0) AS tenant_paid_costs
+    FROM investory.long_term_asset_rental_contracts c
+    JOIN investory.long_term_assets a ON a.id = c.asset_id
+    LEFT JOIN investory.long_term_asset_rental_contract_terms t ON t.contract_id = c.id
+    GROUP BY c.id, c.asset_id, c.start_date, c.end_date, c.terminated_date,
+             c.monthly_tax_base, c.rental_tax_paid_by_tenant,
+             a.current_value, a.tax_base, a.rental_tax_paid_by_tenant, a.portfolio_id
+), effective_dates AS (
+    SELECT e.*,
+           GREATEST(e.valid_from, LEAST(CURRENT_DATE, COALESCE(e.valid_to, CURRENT_DATE))) AS policy_date
+    FROM term_totals e
+)
+SELECT e.contract_id,
+       e.asset_id,
+       e.valid_from,
+       e.valid_to,
+       e.current_value,
+       e.tax_base,
+       e.rental_tax_paid_by_tenant,
+       e.portfolio_id,
+       e.gross_rental_income,
+       e.landlord_paid_costs,
+       e.tenant_paid_costs,
+       COALESCE(p.rate, 0.085) AS rental_tax_rate,
+       CASE WHEN e.rental_tax_paid_by_tenant THEN 0
+            ELSE COALESCE(e.tax_base, 0) * 12 * COALESCE(p.rate, 0.085) END AS rental_tax,
+       e.gross_rental_income - e.landlord_paid_costs -
+       CASE WHEN e.rental_tax_paid_by_tenant THEN 0
+            ELSE COALESCE(e.tax_base, 0) * 12 * COALESCE(p.rate, 0.085) END AS net_rental_income,
+       CASE WHEN e.current_value = 0 THEN 0 ELSE
+            (e.gross_rental_income - e.landlord_paid_costs -
+             CASE WHEN e.rental_tax_paid_by_tenant THEN 0
+                  ELSE COALESCE(e.tax_base, 0) * 12 * COALESCE(p.rate, 0.085) END)
+             / e.current_value END AS net_yield
+FROM effective_dates e
+LEFT JOIN LATERAL (
+    SELECT policy.rate
+    FROM investory.rental_tax_policies policy
+    WHERE policy.portfolio_id = e.portfolio_id
+      AND policy.valid_from <= e.policy_date
+      AND (policy.valid_to IS NULL OR policy.valid_to >= e.policy_date)
+    ORDER BY policy.valid_from DESC
+    LIMIT 1
+) p ON true;
+
+COMMENT ON VIEW investory.v_long_term_asset_rental_economics IS
+    'Rental contract economics using the policy effective today for active contracts, contract end for past contracts, and contract start for future contracts.';

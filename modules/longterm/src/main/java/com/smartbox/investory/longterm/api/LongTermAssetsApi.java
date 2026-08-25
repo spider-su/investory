@@ -169,9 +169,35 @@ public interface LongTermAssetsApi {
       String tenantPhone,
       LocalDate startDate,
       LocalDate endDate,
+      BigDecimal monthlyTaxBase,
       Boolean rentalTaxPaidByTenant,
       boolean endCurrentContractBeforeStart,
       List<RentalTermCommand> terms) {
+    public RentalContractCommand(
+        Long portfolioId,
+        Long assetId,
+        String tenantName,
+        String tenantEmail,
+        String tenantPhone,
+        LocalDate startDate,
+        LocalDate endDate,
+        Boolean rentalTaxPaidByTenant,
+        boolean endCurrentContractBeforeStart,
+        List<RentalTermCommand> terms) {
+      this(
+          portfolioId,
+          assetId,
+          tenantName,
+          tenantEmail,
+          tenantPhone,
+          startDate,
+          endDate,
+          null,
+          rentalTaxPaidByTenant,
+          endCurrentContractBeforeStart,
+          terms);
+    }
+
     public RentalContractCommand(
         Long portfolioId,
         Long assetId,
@@ -187,6 +213,7 @@ public interface LongTermAssetsApi {
           null,
           startDate,
           endDate,
+          null,
           rentalTaxPaidByTenant,
           false,
           terms);
@@ -202,8 +229,36 @@ public interface LongTermAssetsApi {
       String tenantPhone,
       LocalDate startDate,
       LocalDate endDate,
+      BigDecimal monthlyTaxBase,
       Boolean rentalTaxPaidByTenant,
-      List<RentalTermCommand> terms) {}
+      boolean usePropertyTaxPayerDefault,
+      List<RentalTermCommand> terms) {
+    public UpdateRentalContractCommand(
+        Long portfolioId,
+        Long assetId,
+        Long contractId,
+        String tenantName,
+        String tenantEmail,
+        String tenantPhone,
+        LocalDate startDate,
+        LocalDate endDate,
+        Boolean rentalTaxPaidByTenant,
+        List<RentalTermCommand> terms) {
+      this(
+          portfolioId,
+          assetId,
+          contractId,
+          tenantName,
+          tenantEmail,
+          tenantPhone,
+          startDate,
+          endDate,
+          null,
+          rentalTaxPaidByTenant,
+          false,
+          terms);
+    }
+  }
 
   record RentalTermCommand(
       CashFlowTypeModel type, BigDecimal amount, FrequencyModel frequency, boolean paidByTenant) {}
@@ -302,6 +357,8 @@ public interface LongTermAssetsApi {
   record RealEstateGroupPlanningView(
       BigDecimal totalPaymentMonthly,
       BigDecimal netMonthlyIncome,
+      BigDecimal monthlyReduce,
+      BigDecimal taxBase,
       BigDecimal monthlyTax,
       BigDecimal netYield) {}
 

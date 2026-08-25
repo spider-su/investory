@@ -182,6 +182,53 @@ class RentalContractServiceTest {
   }
 
   @Test
+  void updateCanCorrectTaxBaseAndApplyCurrentPropertyTaxPayerDefault() {
+    var existing = contract(10L, LocalDate.of(2025, 1, 1), null);
+    existing.setMonthlyTaxBase(new BigDecimal("1000"));
+    existing.setRentalTaxPaidByTenant(true);
+    when(contracts.findById(10L)).thenReturn(Optional.of(existing));
+    when(contracts.findAllByAssetIdOrderByStartDateDescIdDesc(7L)).thenReturn(List.of(existing));
+
+    var updated =
+        service.update(
+            1L,
+            7L,
+            10L,
+            null,
+            null,
+            null,
+            LocalDate.of(2025, 1, 1),
+            null,
+            new BigDecimal("3200"),
+            null,
+            true,
+            List.of());
+
+    assertThat(updated.getMonthlyTaxBase()).isEqualByComparingTo("3200");
+    assertThat(updated.getRentalTaxPaidByTenant()).isFalse();
+  }
+
+  @Test
+  void rejectsNegativeMonthlyTaxBase() {
+    assertThatThrownBy(
+            () ->
+                service.create(
+                    1L,
+                    7L,
+                    null,
+                    null,
+                    null,
+                    LocalDate.of(2026, 1, 1),
+                    null,
+                    new BigDecimal("-1"),
+                    null,
+                    List.of(),
+                    false))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("tax base");
+  }
+
+  @Test
   void updateRejectsOverlapButExcludesItself() {
     var existing = contract(10L, LocalDate.of(2025, 1, 1), LocalDate.of(2025, 12, 31));
     var other = contract(11L, LocalDate.of(2026, 1, 1), null);

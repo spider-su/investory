@@ -63,7 +63,7 @@ class LongTermAssetBootstrapServiceTest {
         .when(portfolioContextReader.findById(1L))
         .thenReturn(Optional.of(new PortfolioContext(1L, CurrencyType.PLN)));
     lenient().when(assets.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of());
-    lenient().when(taxPolicies.findAll()).thenReturn(List.of());
+    lenient().when(taxPolicies.findAllByPortfolioIdOrderByValidFrom(1L)).thenReturn(List.of());
   }
 
   @Test

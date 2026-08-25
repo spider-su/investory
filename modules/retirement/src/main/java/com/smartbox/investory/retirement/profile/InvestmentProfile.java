@@ -186,12 +186,24 @@ public record InvestmentProfile(
     return ProfilePresentation.wholeNumber(totalNetWorth);
   }
 
+  public String totalNetWorthCompactDisplay() {
+    return ProfilePresentation.compactMoney(totalNetWorth);
+  }
+
   public String getMarketPortfolioValueWholeDisplay() {
     return marketPortfolioValueWholeDisplay();
   }
 
+  public String getMarketPortfolioValueCompactDisplay() {
+    return marketPortfolioValueCompactDisplay();
+  }
+
   public String getLongTermAssetValueWholeDisplay() {
     return longTermAssetValueWholeDisplay();
+  }
+
+  public String getLongTermAssetValueCompactDisplay() {
+    return longTermAssetValueCompactDisplay();
   }
 
   public String getLiquidAssetsWholeDisplay() {
@@ -204,6 +216,10 @@ public record InvestmentProfile(
 
   public String getHistoricalMarketInvestmentIncomeWholeDisplay() {
     return historicalMarketInvestmentIncomeWholeDisplay();
+  }
+
+  public String getHistoricalMarketInvestmentIncomeCompactDisplay() {
+    return historicalMarketInvestmentIncomeCompactDisplay();
   }
 
   public String getExpectedLongTermAssetIncomeWholeDisplay() {
@@ -234,6 +250,10 @@ public record InvestmentProfile(
     return ProfilePresentation.wholeNumber(liquidAssets);
   }
 
+  public String liquidAssetsCompactDisplay() {
+    return ProfilePresentation.compactMoney(liquidAssets);
+  }
+
   public String totalInvestmentIncomeDisplay() {
     return ProfilePresentation.money(totalInvestmentIncome, currency);
   }
@@ -246,12 +266,20 @@ public record InvestmentProfile(
     return ProfilePresentation.wholeNumber(marketPortfolioValue);
   }
 
+  public String marketPortfolioValueCompactDisplay() {
+    return ProfilePresentation.compactMoney(marketPortfolioValue);
+  }
+
   public String longTermAssetValueDisplay() {
     return ProfilePresentation.money(longTermAssetValue, currency);
   }
 
   public String longTermAssetValueWholeDisplay() {
     return ProfilePresentation.wholeNumber(longTermAssetValue);
+  }
+
+  public String longTermAssetValueCompactDisplay() {
+    return ProfilePresentation.compactMoney(longTermAssetValue);
   }
 
   public String illiquidAssetsDisplay() {
@@ -286,12 +314,20 @@ public record InvestmentProfile(
     return ProfilePresentation.wholeNumber(historicalMarketInvestmentIncome);
   }
 
+  public String historicalMarketInvestmentIncomeCompactDisplay() {
+    return ProfilePresentation.compactMoney(historicalMarketInvestmentIncome);
+  }
+
   public String expectedLongTermAssetIncomeDisplay() {
     return ProfilePresentation.money(expectedLongTermAssetIncome, currency);
   }
 
   public String expectedLongTermAssetIncomeWholeDisplay() {
     return ProfilePresentation.wholeNumber(expectedLongTermAssetIncome);
+  }
+
+  public String expectedLongTermAssetIncomeCompactDisplay() {
+    return ProfilePresentation.compactMoney(expectedLongTermAssetIncome);
   }
 
   public String longTermIncomeYieldDisplay() {

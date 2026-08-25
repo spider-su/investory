@@ -10712,6 +10712,20 @@ CREATE VIEW investory.v_long_term_asset_rental_economics AS
              JOIN investory.long_term_assets a ON ((a.id = c.asset_id)))
              LEFT JOIN investory.long_term_asset_rental_contract_terms t ON ((t.contract_id = c.id)))
           GROUP BY c.id, c.asset_id, c.start_date, c.end_date, c.terminated_date, c.monthly_tax_base, c.rental_tax_paid_by_tenant, a.current_value, a.tax_base, a.rental_tax_paid_by_tenant, a.portfolio_id
+        ), effective_dates AS (
+         SELECT e_1.contract_id,
+            e_1.asset_id,
+            e_1.valid_from,
+            e_1.valid_to,
+            e_1.current_value,
+            e_1.tax_base,
+            e_1.rental_tax_paid_by_tenant,
+            e_1.portfolio_id,
+            e_1.gross_rental_income,
+            e_1.landlord_paid_costs,
+            e_1.tenant_paid_costs,
+            GREATEST(e_1.valid_from, LEAST(CURRENT_DATE, COALESCE(e_1.valid_to, CURRENT_DATE))) AS policy_date
+           FROM term_totals e_1
         )
  SELECT e.contract_id,
     e.asset_id,
@@ -10742,8 +10756,19 @@ CREATE VIEW investory.v_long_term_asset_rental_economics AS
                 ELSE ((COALESCE(e.tax_base, (0)::numeric) * (12)::numeric) * COALESCE(p.rate, 0.085))
             END) / e.current_value)
         END AS net_yield
-   FROM (term_totals e
-     LEFT JOIN investory.rental_tax_policies p ON (((p.portfolio_id = e.portfolio_id) AND (p.valid_from <= e.valid_from) AND ((p.valid_to IS NULL) OR (p.valid_to >= e.valid_from)))));
+   FROM (effective_dates e
+     LEFT JOIN LATERAL ( SELECT policy.rate
+           FROM investory.rental_tax_policies policy
+          WHERE ((policy.portfolio_id = e.portfolio_id) AND (policy.valid_from <= e.policy_date) AND ((policy.valid_to IS NULL) OR (policy.valid_to >= e.policy_date)))
+          ORDER BY policy.valid_from DESC
+         LIMIT 1) p ON (true));
+
+
+--
+-- Name: VIEW v_long_term_asset_rental_economics; Type: COMMENT; Schema: investory; Owner: -
+--
+
+COMMENT ON VIEW investory.v_long_term_asset_rental_economics IS 'Rental contract economics using the policy effective today for active contracts, contract end for past contracts, and contract start for future contracts.';
 
 
 --
