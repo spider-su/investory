@@ -16,7 +16,7 @@ public interface InvestmentPerformanceApi {
     }
 
     public PerformanceBoardQuery {
-      accountIds = accountIds == null ? null : List.copyOf(accountIds);
+      accountIds = accountIds == null || accountIds.isEmpty() ? null : List.copyOf(accountIds);
       aggregation = aggregation == null ? "monthly" : aggregation;
       metric = metric == null ? "return" : metric;
       style = style == null ? "line" : style;

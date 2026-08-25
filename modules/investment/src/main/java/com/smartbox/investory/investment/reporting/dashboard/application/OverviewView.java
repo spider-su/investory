@@ -131,10 +131,6 @@ public record OverviewView(
     return cashFlow.realizedProfit();
   }
 
-  public Map<CurrencyType, Double> realizedByCurrency() {
-    return cashFlow.realizedByCurrency();
-  }
-
   public double dividends() {
     return cashFlow.dividends();
   }
@@ -161,10 +157,6 @@ public record OverviewView(
 
   public double unrealizedProfit() {
     return positions.unrealizedProfit();
-  }
-
-  public Map<CurrencyType, Double> unrealizedByCurrency() {
-    return positions.unrealizedByCurrency();
   }
 
   public List<com.smartbox.investory.investment.accounting.model.OpenPositionValue>

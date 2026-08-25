@@ -17,9 +17,7 @@ final class DashboardCalculationCopies {
     Portfolio copy = new Portfolio();
     copy.setBaseCurrency(source.getBaseCurrency());
     copy.setRealizedProfit(source.getRealizedProfit());
-    copy.setRealizedByCurrency(copyMap(source.getRealizedByCurrency()));
     copy.setDividends(source.getDividends());
-    copy.setDividendsByCurrency(copyMap(source.getDividendsByCurrency()));
     copy.setDividendTax(source.getDividendTax());
     copy.setCapitalGainsTax(source.getCapitalGainsTax());
     copy.setLossCarryForward(source.getLossCarryForward());
@@ -28,7 +26,6 @@ final class DashboardCalculationCopies {
     copy.setNetDeposits(source.getNetDeposits());
     copy.setInterest(source.getInterest());
     copy.setUnrealizedProfit(source.getUnrealizedProfit());
-    copy.setUnrealizedByCurrency(copyMap(source.getUnrealizedByCurrency()));
     copy.setTotalProfit(source.getTotalProfit());
     copy.setReconciliationStatus(source.getReconciliationStatus());
     copy.setReconciliationDifference(source.getReconciliationDifference());

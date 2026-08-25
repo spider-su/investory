@@ -2,6 +2,7 @@ package com.smartbox.investory.investment.reporting.dashboard.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.accounting.model.Benchmark;
@@ -18,6 +19,19 @@ import org.springframework.test.util.ReflectionTestUtils;
 @ExtendWith(MockitoExtension.class)
 class InvestmentPerformanceApplicationServiceTest {
   @Mock private BenchmarkService benchmarkService;
+
+  @Test
+  void emptyAccountSelectionMeansAllAccounts() {
+    Benchmark benchmark = benchmark();
+    when(benchmarkService.calculate()).thenReturn(benchmark);
+    InvestmentPerformanceApplicationService service = service("2026-01");
+
+    PerformanceBoardView view =
+        service.load(new PerformanceBoardQuery(List.of(), "monthly", "return", "line"));
+
+    verify(benchmarkService).calculate();
+    assertEquals("Portfolio", view.series().getFirst().label());
+  }
 
   @Test
   void chartAndKpisUseTheConfiguredKpiStart() {

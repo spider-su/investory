@@ -263,12 +263,12 @@ public class DashboardFacade {
             : benchmark.isPortfolioPerformanceAvailable()
                 ? benchmark.getPortfolioPl()
                 : performanceProfit(performance);
-    Double returnPct =
-        selectedPeriodReturn.status() == ReturnMetric.Status.AVAILABLE
-            ? selectedPeriodReturn.value().movePointRight(2).doubleValue()
-            : canonical == null && benchmark.isPortfolioPerformanceAvailable()
-                ? benchmark.getPortfolioReturnPct()
-                : null;
+    Double returnPct = null;
+    if (selectedPeriodReturn.status() == ReturnMetric.Status.AVAILABLE) {
+      returnPct = selectedPeriodReturn.value().movePointRight(2).doubleValue();
+    } else if (canonical == null && benchmark.isPortfolioPerformanceAvailable()) {
+      returnPct = benchmark.getPortfolioReturnPct();
+    }
     return new PeriodPerformance(
         profit,
         returnPct,
@@ -422,7 +422,6 @@ public class DashboardFacade {
         portfolio.getWithdrawals(),
         portfolio.getCash(),
         periodPerformance.realizedProfit(),
-        Map.of(),
         periodPerformance.dividends(),
         periodPerformance.taxes(),
         periodPerformance.interest(),
@@ -433,8 +432,9 @@ public class DashboardFacade {
 
   private PositionsView positions(Portfolio portfolio) {
     return new PositionsView(
-        portfolio.getUnrealizedProfit(), portfolio.getUnrealizedByCurrency(),
-        portfolio.getOpenPositionValues(), portfolio.getOpenPositionValuesTotal());
+        portfolio.getUnrealizedProfit(),
+        portfolio.getOpenPositionValues(),
+        portfolio.getOpenPositionValuesTotal());
   }
 
   private RiskView risk(RiskExposureSummary risk) {

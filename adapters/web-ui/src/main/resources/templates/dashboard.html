@@ -133,6 +133,10 @@
                         <div class="iv-popover-help" th:if="${dashboard.overview.operational != null and dashboard.overview.operational.fx.ratesUpdated != null}"
                              th:text="${'Rates updated: ' + dashboard.overview.operational.fx.ratesUpdated}">Rates updated: —</div>
                         <div class="iv-popover-help" th:text="${dashboard.overview.operational == null ? stats.exchangeRates.size() : dashboard.overview.operational.fx.currencyCount} + ' currencies in portfolio'">0 currencies in portfolio</div>
+                        <div class="iv-topbar-fx-popover__total">
+                            <span>Total</span>
+                            <strong th:text="${stats.formatBase(stats.balance) + ' ' + stats.baseCurrency}">0 USD</strong>
+                        </div>
                         <button type="button" id="refresh-currency-btn" class="iv-topbar-action-button iv-badge iv-badge--muted">Update currency</button>
                         <p id="refresh-currency-status" class="iv-form-status" role="status" aria-live="polite"></p>
                     </div>
@@ -222,7 +226,7 @@
     </header>
 
     <!-- KPI tiles -->
-    <section class="iv-grid iv-grid--kpi iv-grid--portfolio-overview">
+    <section id="investment-overview" class="iv-grid iv-grid--kpi iv-grid--portfolio-overview">
         <div class="iv-kpi iv-kpi--popover iv-overview-card">
             <div class="iv-overview-card__heading iv-hover-context" tabindex="0">
                 <p class="iv-kpi__label">
@@ -301,20 +305,6 @@
                             </div>
                         </div>
                     </details>
-                    <details class="iv-balance-popover iv-position-popover iv-dividend-popover">
-                        <summary class="iv-balance-popover__trigger">By currency</summary>
-                        <div class="iv-balance-popover__panel iv-position-popover__panel">
-                            <div class="iv-position-popover__row iv-dividend-popover__row iv-balance-popover__row--head">
-                                <span>Currency</span>
-                                <span>Open P/L</span>
-                            </div>
-                            <div class="iv-position-popover__row iv-dividend-popover__row" th:each="entry : ${stats.unrealizedByCurrency}">
-                                <span th:text="${entry.key}">USD</span>
-                                <span th:classappend="${entry.value >= 0} ? 'iv-pos' : 'iv-neg'"
-                                      th:text="${format.wholeNumber(entry.value) + ' ' + entry.key}">0 USD</span>
-                            </div>
-                        </div>
-                    </details>
                 </div>
         </div>
 
@@ -340,46 +330,11 @@
                     <details class="iv-balance-popover iv-position-popover iv-dividend-popover iv-realized-details">
                         <summary class="iv-balance-popover__trigger">Details</summary>
                         <div class="iv-balance-popover__panel iv-position-popover__panel">
-                            <div class="iv-position-popover__row iv-dividend-popover__row iv-balance-popover__row--head">
-                                <span>Investment result</span>
-                                <span>Amount</span>
-                            </div>
-                            <div class="iv-position-popover__row iv-dividend-popover__row">
-                                <span>Formula</span>
-                                <span>Balance − invested</span>
-                            </div>
-                            <div class="iv-position-popover__row iv-dividend-popover__row">
-                                <span>Investment gain <span class="iv-muted">(gross)</span></span>
-                                <span th:classappend="${stats.totalProfit >= 0} ? 'iv-pos' : 'iv-neg'"
-                                      th:text="${stats.formatBase(stats.totalProfit)}">0</span>
-                            </div>
-                            <div class="iv-position-popover__row iv-dividend-popover__row">
-                                <span>Realized P/L <span class="iv-muted">(gross)</span></span>
-                                <span th:classappend="${stats.realizedProfit >= 0} ? 'iv-pos' : 'iv-neg'"
-                                      th:text="${stats.formatBase(stats.realizedProfit)}">0</span>
-                            </div>
-                            <div class="iv-position-popover__row iv-dividend-popover__row" th:if="${stats.lossCarryForward > 0}">
-                                <span>Loss carry-forward applied</span>
-                                <span th:text="${stats.formatBase(stats.lossCarryForward)}">0</span>
-                            </div>
-                            <div class="iv-position-popover__row iv-dividend-popover__row">
-                                <span>Capital gains tax <span class="iv-muted">(current-year estimate)</span></span>
-                                <span class="iv-neg"
-                                      th:text="${'-' + stats.formatBase(stats.capitalGainsTax)}">0</span>
-                            </div>
-                            <div class="iv-position-popover__row iv-dividend-popover__row">
-                                <span>Investment gain <span class="iv-muted">(selected period · before capital-gains tax)</span></span>
-                                <span th:classappend="${stats.netGain >= 0} ? 'iv-pos' : 'iv-neg'"
-                                      th:text="${stats.formatBase(stats.netGain)}">0</span>
-                            </div>
                             <div class="iv-realized-attribution-popover">
-                                <p class="iv-card__title">What is driving results</p>
-                                <p class="iv-section-heading__note">Since inception · base USD · total = realized + unrealized + dividends − withholding tax.</p>
                                 <section class="iv-grid iv-grid--split">
                                     <div class="iv-card">
                                         <div class="iv-card__head">
-                                            <h3 class="iv-card__title">Largest contributors</h3>
-                                            <span class="iv-card__hint">All results · largest contributors</span>
+                                            <h3 class="iv-card__title">Top gainers</h3>
                                         </div>
                                         <div class="iv-table-wrap">
                                             <table class="iv-table">
@@ -399,8 +354,7 @@
                                     </div>
                                     <div class="iv-card">
                                         <div class="iv-card__head">
-                                            <h3 class="iv-card__title">Largest detractors</h3>
-                                            <span class="iv-card__hint">All results · largest detractors</span>
+                                            <h3 class="iv-card__title">Top losers</h3>
                                         </div>
                                         <div class="iv-table-wrap">
                                             <table class="iv-table">
@@ -419,20 +373,6 @@
                                         </div>
                                     </div>
                                 </section>
-                            </div>
-                        </div>
-                    </details>
-                    <details class="iv-balance-popover iv-position-popover iv-dividend-popover">
-                        <summary class="iv-balance-popover__trigger">By currency</summary>
-                        <div class="iv-balance-popover__panel iv-position-popover__panel">
-                            <div class="iv-position-popover__row iv-dividend-popover__row iv-balance-popover__row--head">
-                                <span>Currency</span>
-                                <span>Closed P/L</span>
-                            </div>
-                            <div class="iv-position-popover__row iv-dividend-popover__row" th:each="entry : ${stats.realizedByCurrency}">
-                                <span th:text="${entry.key}">USD</span>
-                                <span th:classappend="${entry.value >= 0} ? 'iv-pos' : 'iv-neg'"
-                                      th:text="${format.wholeNumber(entry.value) + ' ' + entry.key}">0 USD</span>
                             </div>
                         </div>
                     </details>
@@ -1402,7 +1342,7 @@
         const inputs = Array.from(document.querySelectorAll('.js-performance-board-account'));
         const selected = inputs.filter(input => input.checked).length;
         const label = document.getElementById('performance-board-account-label');
-        if (label) label.textContent = selected === inputs.length ? 'Accounts: All (' + inputs.length + ')' : selected + ' of ' + inputs.length;
+        if (label) label.textContent = selected === 0 || selected === inputs.length ? 'Accounts: All (' + inputs.length + ')' : selected + ' of ' + inputs.length;
     }
 
     function performanceBoardDataset(label, values, color, type, stacked) {
@@ -1410,14 +1350,14 @@
         return { label, data: values, borderColor: color, backgroundColor: bars ? color : color + '22', fill: !bars && label === 'Portfolio', tension: .25, pointRadius: 0, borderWidth: bars ? 0 : 2, borderRadius: bars ? 5 : 0, stack: stacked ? 'accounts' : undefined };
     }
 
-    async function performanceBoardView() {
+    async function performanceBoardView(selectedIds) {
         const params = new URLSearchParams({
-            accountIds: performanceBoardSelectedIds().join(','),
             aggregation: document.getElementById('performance-board-aggregation')?.value || 'monthly',
             metric: performanceBoardState.metric,
             style: performanceBoardState.style,
             period: selectedDashboardPeriod
         });
+        if (selectedIds.length > 0) params.set('accountIds', selectedIds.join(','));
         const response = await fetch('/dashboard/performance-board?' + params.toString(), { headers: { Accept: 'application/json' } });
         if (!response.ok) throw new Error('Performance board request failed');
         return response.json();
@@ -1449,8 +1389,9 @@
         const empty = document.getElementById('performance-board-empty');
         const content = document.getElementById('performance-board-content');
         try {
-            const view = await performanceBoardView();
-            (view.accounts || []).forEach(account => { const input = document.querySelector('.js-performance-board-account[value="' + account.id + '"]'); if (input) input.checked = account.selected; });
+            const selectedIds = performanceBoardSelectedIds();
+            const view = await performanceBoardView(selectedIds);
+            if (selectedIds.length > 0) (view.accounts || []).forEach(account => { const input = document.querySelector('.js-performance-board-account[value="' + account.id + '"]'); if (input) input.checked = account.selected; });
             const labels = view.labels || [];
             const bars = performanceBoardState.style === 'bars';
             const datasets = (view.series || []).map((series, index) => performanceBoardDataset(series.label, series.values || [], performanceBoardPalette[index % performanceBoardPalette.length], bars ? 'bar' : 'line', bars && performanceBoardState.metric === 'pl' && (view.series || []).length > 1));

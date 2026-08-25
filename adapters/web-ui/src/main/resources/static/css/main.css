@@ -614,12 +614,29 @@ main.container-xl.py-4 .table thead th {
     outline: 2px solid var(--iv-primary-soft);
     outline-offset: 1px;
 }
-.iv-topbar-fx-popover__panel {
+.iv-topbar__meta .iv-topbar-fx-popover > .iv-topbar-fx-popover__panel {
+    top: calc(100% + 8px);
     left: auto;
     right: 0;
-    width: min(230px, calc(100vw - 32px));
+    z-index: 1600;
+    width: min(340px, calc(100vw - 32px));
     transform: none;
 }
+.iv-topbar__meta:has(.iv-topbar-fx-popover[open]) { position: relative; z-index: 1500; }
+.iv-topbar:has(.iv-topbar-fx-popover[open]) { z-index: 1400; }
+.iv-topbar-fx-popover__total {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 4px;
+    padding: 10px 6px 2px;
+    border-top: 1px solid var(--iv-border);
+    color: var(--iv-text);
+    font-variant-numeric: tabular-nums;
+}
+.iv-topbar-fx-popover__total span { color: var(--iv-text-muted); font-weight: 700; }
+.iv-topbar-fx-popover__total strong { font-size: .88rem; white-space: nowrap; }
 .iv-action-menu { position: relative; }
 .iv-action-menu__trigger { cursor: pointer; color: var(--iv-primary); }
 .iv-action-menu__panel {
@@ -767,11 +784,15 @@ button:disabled { cursor:wait !important; opacity:.7; }
 
 /* Accounts: keep identity prominent and monetary columns easy to scan. */
 .iv-account-table {
+    width: min(1040px, calc(100vw - var(--iv-dashboard-gutter) - var(--iv-dashboard-gutter)));
+    overflow-x: auto;
     font-variant-numeric: tabular-nums;
 }
 .iv-account-table .iv-balance-popover__row {
+    grid-template-columns: 90px minmax(140px, 1.4fr) repeat(5, minmax(100px, 1fr));
+    min-width: 820px;
     column-gap: 12px;
-    padding-block: 8px;
+    padding: 10px 12px;
     border-top-color: color-mix(in srgb, var(--iv-border) 55%, transparent);
 }
 .iv-account-table .iv-balance-popover__row:not(.iv-balance-popover__row--head):not(.iv-balance-popover__row--total):hover {
@@ -785,7 +806,9 @@ button:disabled { cursor:wait !important; opacity:.7; }
 .iv-account-name {
     color: var(--iv-text);
     font-weight: 600;
+    line-height: 1.3;
 }
+.iv-account-metric { min-width: 0; text-align: right; }
 .iv-account-number {
     font-variant-numeric: tabular-nums;
 }
@@ -1565,10 +1588,15 @@ body.iv-modal-open { overflow: hidden; }
 .iv-event-dot { width:8px; height:8px; border-radius:50%; box-shadow:0 0 0 2px #fff,0 0 0 3px rgba(30,37,54,.12); }
 .iv-event-dot--deposit { background:#2563eb; } .iv-event-dot--dividend { background:#16a34a; } .iv-event-dot--trade { background:#7c3aed; }
 @media (max-width:760px) { .iv-account-filter__item--benchmark { margin-left:0; } .iv-event-legend { width:100%; margin-left:0; } }
-.iv-realized-details.iv-dividend-popover .iv-balance-popover__panel {
-  left: 0;
-  right: auto;
-  width: min(1100px, calc(100vw - 32px));
+#investment-overview { position: relative; }
+#investment-overview:has(.iv-realized-details[open]) { z-index: 1100; }
+#investment-overview .iv-realized-details { position: static; }
+#investment-overview .iv-realized-details.iv-dividend-popover > .iv-balance-popover__panel {
+  top: calc(100% + 8px);
+  right: 0;
+  left: auto;
+  width: min(1100px, 100%);
+  transform: none;
 }
 .iv-page-nav a.is-active {
     color: var(--iv-primary);

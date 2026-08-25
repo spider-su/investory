@@ -417,7 +417,9 @@ class DashboardFacadeTest {
       assertTrue(html.contains("stats.formatBase(stats.realizedProfit)"));
       assertTrue(html.contains("stats.formatBase(stats.incomeTotal)"));
       assertTrue(html.contains("selectedPeriod.label() + ' · before tax'"));
-      assertTrue(html.contains("By currency"));
+      assertFalse(html.contains("By currency"));
+      assertFalse(html.contains("realizedByCurrency"));
+      assertFalse(html.contains("unrealizedByCurrency"));
       assertFalse(html.contains("selectedPeriod.label() + ' · before capital-gains tax'"));
       assertTrue(html.contains("after withholding tax · yield"));
       assertTrue(

@@ -26,6 +26,49 @@ class DashboardPerformanceTemplateContractTest {
   }
 
   @Test
+  void currencyPopoverIsCompactRightAlignedAndAboveHeaderNavigation() throws Exception {
+    String css = Files.readString(Path.of(STYLESHEET));
+
+    assertTrue(
+        css.contains(
+            ".iv-topbar__meta .iv-topbar-fx-popover > .iv-topbar-fx-popover__panel"));
+    assertTrue(css.contains("width: min(340px, calc(100vw - 32px));"));
+    assertTrue(css.contains(".iv-topbar:has(.iv-topbar-fx-popover[open]) { z-index: 1400; }"));
+    assertTrue(
+        css.contains(
+            ".iv-topbar__meta:has(.iv-topbar-fx-popover[open]) { position: relative; z-index: 1500; }"));
+  }
+
+  @Test
+  void realizedDetailsContainsOnlyGainersAndLosersAndUsesOverviewAnchor() throws Exception {
+    String html = Files.readString(Path.of(TEMPLATE));
+    String css = Files.readString(Path.of(STYLESHEET));
+    int detailsStart = html.indexOf("iv-realized-details");
+    int detailsEnd =
+        html.indexOf("<div class=\"iv-kpi iv-kpi--popover iv-overview-card\">", detailsStart);
+    String details = html.substring(detailsStart, detailsEnd);
+
+    assertTrue(html.contains("id=\"investment-overview\""));
+    assertTrue(details.contains("Top gainers"));
+    assertTrue(details.contains("Top losers"));
+    assertFalse(details.contains("Investment result"));
+    assertFalse(details.contains("What is driving results"));
+    assertFalse(details.contains("Capital gains tax"));
+    assertTrue(css.contains("#investment-overview .iv-realized-details { position: static; }"));
+    assertTrue(css.contains("right: 0;"));
+    assertTrue(css.contains("width: min(1100px, 100%);"));
+  }
+
+  @Test
+  void profitCardsDoNotExposeCurrencyBreakdowns() throws Exception {
+    String html = Files.readString(Path.of(TEMPLATE));
+
+    assertFalse(html.contains("By currency"));
+    assertFalse(html.contains("realizedByCurrency"));
+    assertFalse(html.contains("unrealizedByCurrency"));
+  }
+
+  @Test
   void dashboardUsesOneUnifiedPerformanceBoardWithModes() throws Exception {
     String html = Files.readString(Path.of(TEMPLATE));
     String headerControls =
@@ -41,6 +84,9 @@ class DashboardPerformanceTemplateContractTest {
     assertTrue(html.contains("data-style=\"bars\""));
     assertTrue(html.contains("js-performance-board-account"));
     assertTrue(html.contains("Accounts: All (0)"));
+    assertTrue(html.contains("selected === 0 || selected === inputs.length"));
+    assertTrue(html.contains("if (selectedIds.length > 0) params.set('accountIds'"));
+    assertTrue(html.contains("if (selectedIds.length > 0) (view.accounts || [])"));
     assertTrue(html.contains("id=\"performance-board-account-selector\""));
     assertTrue(html.contains(">P/L</button>"));
     assertTrue(html.contains("aria-label=\"Aggregation\""));
@@ -63,12 +109,16 @@ class DashboardPerformanceTemplateContractTest {
     assertTrue(html.contains("Portfolio data"));
     assertTrue(html.contains("id=\"refresh-prices-btn\""));
     assertTrue(html.contains("Base currency: USD"));
+    assertTrue(html.contains("class=\"iv-topbar-fx-popover__total\""));
+    assertTrue(html.contains("stats.formatBase(stats.balance) + ' ' + stats.baseCurrency"));
     assertTrue(html.contains("th:text=\"${'Base: ' + stats.baseCurrency}\">Base: USD</span>"));
     assertTrue(headerControls.contains("stats.formatBase(account.baseNetDeposit)"));
     assertTrue(
         headerControls.contains("stats.formatMoney(account.netDeposit, account.localCurrency)"));
     assertTrue(headerControls.contains("class=\"iv-account-name\""));
     assertTrue(headerControls.contains("class=\"iv-account-id\""));
+    assertTrue(headerControls.contains("class=\"iv-account-metric\""));
+    assertTrue(headerControls.contains("iv-account-metric iv-account-pl"));
     assertTrue(headerControls.contains("data-sort-key=\"pl\""));
     assertTrue(headerControls.contains("Net deposit</button>"));
     assertTrue(headerControls.contains("Balance</button>"));

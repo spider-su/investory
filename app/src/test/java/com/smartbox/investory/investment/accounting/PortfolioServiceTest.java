@@ -257,9 +257,6 @@ class PortfolioServiceTest {
     assertEquals(200.0, result.getWithdrawals(), 0.01);
     assertEquals(800.0, result.getNetDeposits(), 0.01);
     assertEquals(37.5, result.getRoi(), 0.01);
-    assertEquals(200.0, result.getRealizedByCurrency().get(CurrencyType.USD), 0.01);
-    assertEquals(75.0, result.getUnrealizedByCurrency().get(CurrencyType.USD), 0.01);
-    assertEquals(25.0, result.getDividendsByCurrency().get(CurrencyType.USD), 0.01);
     assertEquals(1, result.getAccountBalances().size());
     assertEquals(17959259L, result.getAccountBalances().getFirst().getAccountId());
     assertEquals("IBKR", result.getAccountBalances().getFirst().getAccountName());
@@ -496,7 +493,6 @@ class PortfolioServiceTest {
                     0.0,
                     ZonedDateTime.now())));
     when(closedPositionRepository.findAll()).thenReturn(List.of());
-    when(openedPositionRepository.findAll()).thenReturn(List.of());
     when(currencyRateService.findRate(CurrencyType.USD, CurrencyType.EUR))
         .thenReturn(OptionalDouble.empty());
     when(currencyRateService.findRate(CurrencyType.USD, CurrencyType.PLN))
@@ -658,7 +654,6 @@ class PortfolioServiceTest {
                     ZonedDateTime.now())));
     when(cashOperationRepository.findAll()).thenReturn(List.of(dividend(), dividendTax()));
     when(closedPositionRepository.findAll()).thenReturn(List.of());
-    when(openedPositionRepository.findAll()).thenReturn(List.of());
     when(accountStatisticsRepository.findAll()).thenReturn(List.of());
 
     Portfolio result = portfolioService.calculateTotalProfitLoss();
@@ -734,7 +729,6 @@ class PortfolioServiceTest {
                     0.0,
                     ZonedDateTime.now())));
     when(closedPositionRepository.findAll()).thenReturn(List.of());
-    when(openedPositionRepository.findAll()).thenReturn(List.of(opened("VWRA", -250.0, -1.0)));
 
     Portfolio result = portfolioService.calculateTotalProfitLoss();
 
@@ -743,7 +737,7 @@ class PortfolioServiceTest {
   }
 
   @Test
-  void calculateTotalProfitLoss_usesCurrencyBreakdownProjectionForDetailRowsOnlyWhenKpiExists() {
+  void calculateTotalProfitLoss_skipsCurrencyBreakdownProjectionWhenKpiExists() {
     when(portfolioKpiSummaryRepository.findAll())
         .thenReturn(
             List.of(
@@ -761,33 +755,6 @@ class PortfolioServiceTest {
                     999.0,
                     0.0,
                     ZonedDateTime.now())));
-    when(portfolioCurrencyBreakdownRepository.findAll())
-        .thenReturn(
-            List.of(
-                new PortfolioCurrencyBreakdownEntity(
-                    1L,
-                    CurrencyType.USD,
-                    "REALIZED",
-                    CurrencyType.USD,
-                    100.0,
-                    100.0,
-                    ZonedDateTime.now()),
-                new PortfolioCurrencyBreakdownEntity(
-                    1L,
-                    CurrencyType.USD,
-                    "UNREALIZED",
-                    CurrencyType.USD,
-                    -250.0,
-                    -250.0,
-                    ZonedDateTime.now()),
-                new PortfolioCurrencyBreakdownEntity(
-                    1L,
-                    CurrencyType.USD,
-                    "DIVIDENDS",
-                    CurrencyType.PLN,
-                    400.0,
-                    100.0,
-                    ZonedDateTime.now())));
     when(closedPositionRepository.findAll()).thenReturn(List.of());
 
     Portfolio result = portfolioService.calculateTotalProfitLoss();
@@ -796,9 +763,7 @@ class PortfolioServiceTest {
     assertEquals(999.0, result.getUnrealizedProfit(), 0.01);
     assertEquals(999.0, result.getDividends(), 0.01);
     assertEquals(2997.0, result.getTotalProfit(), 0.01);
-    assertEquals(100.0, result.getRealizedByCurrency().get(CurrencyType.USD), 0.01);
-    assertEquals(-250.0, result.getUnrealizedByCurrency().get(CurrencyType.USD), 0.01);
-    assertEquals(400.0, result.getDividendsByCurrency().get(CurrencyType.PLN), 0.01);
+    verify(portfolioCurrencyBreakdownRepository, never()).findAll();
   }
 
   @Test
@@ -862,9 +827,6 @@ class PortfolioServiceTest {
     assertEquals(20.0, result.getUnrealizedProfit(), 0.01);
     assertEquals(30.0, result.getDividends(), 0.01);
     assertEquals(60.0, result.getTotalProfit(), 0.01);
-    assertEquals(10.0, result.getRealizedByCurrency().get(CurrencyType.USD), 0.01);
-    assertEquals(20.0, result.getUnrealizedByCurrency().get(CurrencyType.USD), 0.01);
-    assertEquals(30.0, result.getDividendsByCurrency().get(CurrencyType.USD), 0.01);
   }
 
   @Test

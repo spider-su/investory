@@ -14,10 +14,8 @@ import lombok.NoArgsConstructor;
 public class Portfolio {
   CurrencyType baseCurrency = CurrencyType.USD;
   double realizedProfit = 0.0;
-  Map<CurrencyType, Double> realizedByCurrency = new HashMap<>();
 
   double dividends = 0.0;
-  Map<CurrencyType, Double> dividendsByCurrency = new HashMap<>();
 
   /** Dividend withholding tax already deducted (base currency, negative). */
   double dividendTax = 0.0;
@@ -44,7 +42,6 @@ public class Portfolio {
   double interest = 0.0;
 
   double unrealizedProfit = 0.0;
-  Map<CurrencyType, Double> unrealizedByCurrency = new HashMap<>();
 
   double totalProfit = 0.0;
 
