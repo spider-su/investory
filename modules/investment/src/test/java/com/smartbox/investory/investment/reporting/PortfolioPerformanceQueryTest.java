@@ -82,15 +82,11 @@ class PortfolioPerformanceQueryTest {
     row.setStartEquity(new BigDecimal("100"));
     row.setEndEquity(new BigDecimal("110"));
     when(repository.findAllByOrderByMonthAscPortfolioIdAsc()).thenReturn(List.of(row));
+    PortfolioPerformanceDailyRow dailyRow =
+        daily("2026-05-31", new BigDecimal("110"), BigDecimal.ZERO, BigDecimal.ZERO);
     when(dailyRepository.findPortfolioPerformanceDaily(
             1L, LocalDate.parse("2026-05-01"), LocalDate.parse("2026-05-31")))
-        .thenReturn(
-            List.of(
-                daily(
-                    "2026-05-31",
-                    new BigDecimal("110"),
-                    BigDecimal.ZERO,
-                    BigDecimal.ZERO)));
+        .thenReturn(List.of(dailyRow));
 
     PerformanceResult result = query.forMonths(YearMonth.of(2026, 5), YearMonth.of(2026, 5));
 
@@ -108,10 +104,11 @@ class PortfolioPerformanceQueryTest {
     row.setStartEquity(new BigDecimal("100"));
     row.setEndEquity(new BigDecimal("110"));
     when(repository.findAllByOrderByMonthAscPortfolioIdAsc()).thenReturn(List.of(row));
+    PortfolioPerformanceDailyRow dailyRow =
+        daily("2026-06-30", new BigDecimal("110"), null, BigDecimal.ZERO);
     when(dailyRepository.findPortfolioPerformanceDaily(
             1L, LocalDate.parse("2026-06-01"), LocalDate.parse("2026-06-30")))
-        .thenReturn(
-            List.of(daily("2026-06-30", new BigDecimal("110"), null, BigDecimal.ZERO)));
+        .thenReturn(List.of(dailyRow));
 
     PerformanceResult result = query.forMonths(YearMonth.of(2026, 6), YearMonth.of(2026, 6));
 

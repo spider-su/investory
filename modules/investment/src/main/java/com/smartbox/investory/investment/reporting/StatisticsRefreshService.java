@@ -34,8 +34,6 @@ public class StatisticsRefreshService {
     try {
       recalculate.run();
       log.info("Projection refresh complete.");
-    } catch (Exception e) {
-      log.warn("Projection refresh failed (non-fatal): {}", e.getMessage());
     } finally {
       if (calculationCache != null) {
         calculationCache.invalidate();

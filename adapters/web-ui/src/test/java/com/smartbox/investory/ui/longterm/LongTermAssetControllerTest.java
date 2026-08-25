@@ -92,10 +92,25 @@ class LongTermAssetControllerTest {
     LongTermAssetController.AssetForm form = new LongTermAssetController.AssetForm();
     form.setType(LongTermAssetTypeModel.REAL_ESTATE);
     form.setCurrentValue(new BigDecimal("780000"));
-    controller.update(7L, form, 1L, new BigDecimal("1800"));
+    controller.update(7L, form, 1L, new BigDecimal("1800"), new RedirectAttributesModelMap());
     var command = ArgumentCaptor.forClass(LongTermAssetsApi.AssetCommand.class);
     verify(assets).update(command.capture());
     assertEquals(new BigDecimal("1800"), command.getValue().taxBase());
+  }
+
+  @Test
+  void illegalTypeUpdateRedirectsWithFeedback() {
+    LongTermAssetController.AssetForm form = new LongTermAssetController.AssetForm();
+    form.setType(LongTermAssetTypeModel.DEPOSIT);
+    var feedback = new RedirectAttributesModelMap();
+    doThrow(new IllegalArgumentException("Asset type cannot be changed after creation"))
+        .when(assets)
+        .update(any());
+
+    String result = controller.update(7L, form, 1L, null, feedback);
+
+    assertEquals("redirect:/long-term-assets/7?portfolioId=1", result);
+    assertEquals("Asset type cannot be changed.", feedback.getFlashAttributes().get("error"));
   }
 
   @Test

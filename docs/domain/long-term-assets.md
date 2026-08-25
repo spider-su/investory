@@ -7,12 +7,12 @@ projection, current snapshot, historical snapshot, and asset summary paths do no
 `long_term_asset_cash_flows` for real estate. Contract terms carry dates, cadence, tax ownership,
 and landlord/tenant expense ownership.
 
-The checked-in bootstrap document may still accept `cashFlows` as import input. Bootstrap converts
-that input into rental contracts before runtime use. It is import compatibility, not a second
-runtime model.
+The checked-in bootstrap document may accept `cashFlows` only for `REAL_ESTATE` import input.
+Bootstrap rejects cash-flow rows for every other asset type and converts accepted rows into rental
+contracts before runtime use. This is real-estate import compatibility, not a second runtime model.
 
-`long_term_asset_cash_flows` remains available for supported non-real-estate recurring asset flows
-and historical/import data. It is not a real-estate rental write path.
+`long_term_asset_cash_flows` is legacy persistence compatibility and is not a supported generic
+cash-flow model for non-real-estate assets.
 
 ## Rental contract lifecycle
 
@@ -67,9 +67,10 @@ the next year.
 Bond interest paid out is a spendable fixed-income cash flow. Capitalized bond interest is retained
 in Long-Term capital and is reported separately from cash income; it is never counted in both places.
 
-Generic cash-flow rows remain supported for non-real-estate assets and legacy/bootstrap imports.
-Real-estate rental economics use rental contracts; the legacy rental-period projection fallback is
-compatibility-only and is not the normal persisted runtime path.
+Cash-flow rows are supported only as real-estate bootstrap input and are converted into rental
+contracts. Non-real-estate assets cannot define or import generic cash-flow rows. The legacy
+rental-period projection fallback is compatibility-only and is not the normal persisted runtime
+path.
 
 Expected real-estate value growth is informational. Deterministic Retirement ignores appreciation
 and does not automatically sell property.

@@ -75,15 +75,12 @@ public class YahooFinanceService {
       String currency = meta.path("currency").asText(null);
       return Optional.of(new YahooQuote(symbol, currency, date, price));
     } catch (IOException e) {
-      log.warn("Yahoo Finance quote skipped for {}: {}", symbol, e.getMessage());
-      return Optional.empty();
+      throw new IllegalStateException("Yahoo Finance request failed for " + symbol, e);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      log.warn("Yahoo Finance quote interrupted for {}", symbol);
-      return Optional.empty();
+      throw new IllegalStateException("Yahoo Finance request interrupted for " + symbol, e);
     } catch (RuntimeException e) {
-      log.warn("Yahoo Finance quote skipped for {}: {}", symbol, e.getMessage());
-      return Optional.empty();
+      throw new IllegalStateException("Yahoo Finance response failed for " + symbol, e);
     }
   }
 

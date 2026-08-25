@@ -24,9 +24,9 @@ public record AssetDetailView(
     List<AssetTransactionView> transactions,
     Double totalRealizedProfitLoss,
     List<AssetDividendView> dividends,
-    double totalGrossDividends,
-    double totalWithholdingTax,
-    double totalNetDividends,
+    Double totalGrossDividends,
+    Double totalWithholdingTax,
+    Double totalNetDividends,
     DashboardPeriod period,
     AssetPerformanceView performance) {
 

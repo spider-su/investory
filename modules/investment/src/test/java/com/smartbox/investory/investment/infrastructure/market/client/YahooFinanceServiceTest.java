@@ -1,10 +1,12 @@
 package com.smartbox.investory.investment.infrastructure.market.client;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -58,5 +60,15 @@ class YahooFinanceServiceTest {
         .thenReturn(response);
 
     assertTrue(service.fetchLatestQuote("UNKNOWN.L").isEmpty());
+  }
+
+  @Test
+  void fetchLatestQuotePropagatesTransportFailure() throws Exception {
+    when(httpClient.send(
+            any(HttpRequest.class),
+            org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any()))
+        .thenThrow(new IOException("network unavailable"));
+
+    assertThrows(IllegalStateException.class, () -> service.fetchLatestQuote("VWRA.L"));
   }
 }

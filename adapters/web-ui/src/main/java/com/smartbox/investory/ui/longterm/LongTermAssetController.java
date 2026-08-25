@@ -385,8 +385,13 @@ public class LongTermAssetController {
       @PathVariable Long id,
       @ModelAttribute AssetForm form,
       @RequestParam Long portfolioId,
-      @RequestParam(required = false) BigDecimal taxBase) {
-    assets.update(form.command(portfolioId, id, taxBase));
+      @RequestParam(required = false) BigDecimal taxBase,
+      RedirectAttributes feedback) {
+    try {
+      assets.update(form.command(portfolioId, id, taxBase));
+    } catch (IllegalArgumentException | NoSuchElementException exception) {
+      feedback.addFlashAttribute("error", assetError(exception));
+    }
     return redirect(id, portfolioId);
   }
 
@@ -593,6 +598,13 @@ public class LongTermAssetController {
 
   private static String taxPolicyRedirect(Long portfolioId) {
     return "redirect:/long-term-assets?portfolioId=" + portfolioId + "#rental-tax-policies";
+  }
+
+  private static String assetError(RuntimeException exception) {
+    String message = exception.getMessage();
+    if (message != null && message.toLowerCase(java.util.Locale.ROOT).contains("type"))
+      return "Asset type cannot be changed.";
+    return message == null || message.isBlank() ? "Long-term asset could not be updated." : message;
   }
 
   private static String rentalError(RuntimeException exception) {
