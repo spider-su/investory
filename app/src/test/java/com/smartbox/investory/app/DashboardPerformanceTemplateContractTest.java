@@ -11,6 +11,19 @@ import org.junit.jupiter.api.Test;
 class DashboardPerformanceTemplateContractTest {
   private static final String TEMPLATE =
       "../adapters/web-ui/src/main/resources/templates/dashboard.html";
+  private static final String STYLESHEET =
+      "../adapters/web-ui/src/main/resources/static/css/main.css";
+
+  @Test
+  void allocationUsesDistinctEtfAndEquityPaletteTokens() throws Exception {
+    String css = Files.readString(Path.of(STYLESHEET));
+
+    assertTrue(css.contains("--iv-asset-etf:"));
+    assertTrue(css.contains(".iv-structure-segment--etf { background: var(--iv-asset-etf); }"));
+    assertTrue(
+        css.contains(".iv-structure-segment--equity { background: var(--iv-asset-equity); }"));
+    assertFalse(css.contains(".iv-structure-segment--etf { background: var(--iv-asset-equity); }"));
+  }
 
   @Test
   void dashboardUsesOneUnifiedPerformanceBoardWithModes() throws Exception {

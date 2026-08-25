@@ -32,8 +32,10 @@
     --iv-blue: #2563eb;
     --iv-asset-cash: var(--iv-orange);
     --iv-asset-fixed-income: var(--iv-blue);
+    --iv-asset-etf: #0891b2;
     --iv-asset-equity: var(--iv-primary);
     --iv-asset-real-estate: var(--iv-green);
+    --iv-asset-commodity: #a16207;
     --iv-asset-other: #8b5cf6;
     --iv-equity: var(--iv-asset-equity);
     --iv-other: var(--iv-asset-other);
@@ -1666,8 +1668,10 @@ body.iv-modal-open { overflow: hidden; }
     --iv-blue: #60a5fa;
     --iv-asset-cash: var(--iv-orange);
     --iv-asset-fixed-income: var(--iv-blue);
+    --iv-asset-etf: #22d3ee;
     --iv-asset-equity: var(--iv-primary);
     --iv-asset-real-estate: var(--iv-green);
+    --iv-asset-commodity: #facc15;
     --iv-asset-other: #a78bfa;
     --iv-equity: var(--iv-asset-equity);
     --iv-other: var(--iv-asset-other);
@@ -3434,11 +3438,11 @@ body.iv-modal-open { overflow: hidden; }
     border-right: 1px solid var(--iv-surface);
 }
 .iv-portfolio-structure--long-term .iv-structure-bar__segment { min-width: 0; }
-.iv-structure-segment--etf { background: var(--iv-asset-equity); }
+.iv-structure-segment--etf { background: var(--iv-asset-etf); }
 .iv-structure-segment--equity { background: var(--iv-asset-equity); }
 .iv-structure-segment--real-estate { background: var(--iv-asset-real-estate); }
 .iv-structure-segment--fixed-income { background: var(--iv-asset-fixed-income); }
-.iv-structure-segment--commodity { background: #a99862; }
+.iv-structure-segment--commodity { background: var(--iv-asset-commodity); }
 .iv-structure-segment--cash { background: var(--iv-asset-cash); }
 .iv-structure-segment--other { background: var(--iv-asset-other); }
 .iv-structure-currency-segment--usd { background: #5577b8; }

@@ -7,6 +7,18 @@ import java.util.Locale;
 final class PortfolioAssetCategoryMapper {
   private PortfolioAssetCategoryMapper() {}
 
+  static int displayOrder(String category) {
+    return switch (category) {
+      case "Cash" -> 0;
+      case "Fixed income" -> 1;
+      case "ETF" -> 2;
+      case "Equity" -> 3;
+      case "REIT / real estate" -> 4;
+      case "Commodity / metal" -> 5;
+      default -> 6;
+    };
+  }
+
   static String category(AssetEntity asset) {
     if (asset == null || asset.getAssetType() == null) return "Other";
     String type = asset.getAssetType().trim().toUpperCase(Locale.ROOT);
