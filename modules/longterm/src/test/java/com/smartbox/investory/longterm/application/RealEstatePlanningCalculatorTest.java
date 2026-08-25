@@ -89,6 +89,23 @@ class RealEstatePlanningCalculatorTest {
     assertEquals(new BigDecimal("2500"), result.taxBase());
   }
 
+  @Test
+  void vacantPropertyHasNoRentalTaxOrNegativeIncome() {
+    var result =
+        new RealEstatePlanningCalculator()
+            .calculate(
+                new BigDecimal("700000"),
+                new BigDecimal("2500"),
+                false,
+                List.of(),
+                DATE,
+                new BigDecimal("0.085"));
+
+    assertEquals(BigDecimal.ZERO, result.annualTax());
+    assertEquals(BigDecimal.ZERO, result.netMonthlyIncome());
+    assertEquals(BigDecimal.ZERO, result.incomeYield());
+  }
+
   private static LongTermAssetCashFlowEntity flow(
       CashFlowType type, String amount, Frequency frequency) {
     LongTermAssetCashFlowEntity flow = new LongTermAssetCashFlowEntity();

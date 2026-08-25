@@ -24,7 +24,54 @@ public record InvestmentProfile(
     BigDecimal currentBondIncome,
     LongTermAnnualProjectionApi.PlanningState longTermPlanningState,
     BigDecimal retirementReserve,
-    BigDecimal investmentCapital) {
+    BigDecimal investmentCapital,
+    ProfileIncomeSummary incomeSummary) {
+  /** Compatibility constructor for callers using the original complete profile contract. */
+  public InvestmentProfile(
+      Long portfolioId,
+      CurrencyType currency,
+      BigDecimal marketPortfolioValue,
+      BigDecimal longTermAssetValue,
+      BigDecimal totalNetWorth,
+      BigDecimal historicalMarketInvestmentIncome,
+      BigDecimal expectedLongTermAssetIncome,
+      BigDecimal totalInvestmentIncome,
+      BigDecimal liquidAssets,
+      BigDecimal illiquidAssets,
+      List<ProfileAllocation> allocations,
+      List<ProjectedLongTermAsset> longTermAssets,
+      BigDecimal currentRentalIncome,
+      BigDecimal currentBondIncome,
+      LongTermAnnualProjectionApi.PlanningState longTermPlanningState,
+      BigDecimal retirementReserve,
+      BigDecimal investmentCapital) {
+    this(
+        portfolioId,
+        currency,
+        marketPortfolioValue,
+        longTermAssetValue,
+        totalNetWorth,
+        historicalMarketInvestmentIncome,
+        expectedLongTermAssetIncome,
+        totalInvestmentIncome,
+        liquidAssets,
+        illiquidAssets,
+        allocations,
+        longTermAssets,
+        currentRentalIncome,
+        currentBondIncome,
+        longTermPlanningState,
+        retirementReserve,
+        investmentCapital,
+        ProfileIncomeSummary.legacy(
+            historicalMarketInvestmentIncome,
+            marketPortfolioValue,
+            expectedLongTermAssetIncome,
+            longTermAssetValue,
+            totalInvestmentIncome,
+            totalNetWorth));
+  }
+
   /**
    * Compatibility constructor for profile read models not yet carrying Long-Term planning state.
    */
@@ -110,6 +157,16 @@ public record InvestmentProfile(
             : longTermPlanningState;
     retirementReserve = retirementReserve == null ? BigDecimal.ZERO : retirementReserve;
     investmentCapital = investmentCapital == null ? BigDecimal.ZERO : investmentCapital;
+    incomeSummary =
+        incomeSummary == null
+            ? ProfileIncomeSummary.legacy(
+                historicalMarketInvestmentIncome,
+                marketPortfolioValue,
+                expectedLongTermAssetIncome,
+                longTermAssetValue,
+                totalInvestmentIncome,
+                totalNetWorth)
+            : incomeSummary;
   }
 
   /** Returns an immutable economic view with the reviewed planning baseline applied. */
@@ -159,7 +216,8 @@ public record InvestmentProfile(
         bondAnnualIncome,
         planningState,
         frozenReserve,
-        frozenInvestment);
+        frozenInvestment,
+        incomeSummary);
   }
 
   public BigDecimal marketPortfolioPercentage() {

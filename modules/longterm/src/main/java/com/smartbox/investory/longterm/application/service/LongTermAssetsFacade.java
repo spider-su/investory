@@ -86,7 +86,6 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
         service.bondDetails(portfolioId, id).map(BondDetailsView::from).orElse(null),
         service.depositDetails(portfolioId, id).map(DepositDetailsView::from).orElse(null),
         service.valuationPeriods(portfolioId, id).stream().map(ValuationView::from).toList(),
-        service.bondRatePeriods(portfolioId, id).stream().map(BondRateView::from).toList(),
         service.expectedPropertyGrowth(portfolioId, id, date),
         contracts);
   }
@@ -365,26 +364,6 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
     service.deleteValuationPeriod(portfolioId, id, periodId);
   }
 
-  public void addBondRate(Long portfolioId, Long id, BondRateCommand command) {
-    LongTermAssetBondRatePeriodEntity period = new LongTermAssetBondRatePeriodEntity();
-    period.setValidFrom(command.validFrom());
-    period.setValidTo(command.validTo());
-    period.setAnnualInterestRate(command.annualInterestRate());
-    service.addBondRatePeriod(portfolioId, id, period);
-  }
-
-  public void updateBondRate(Long portfolioId, Long id, Long periodId, BondRateCommand command) {
-    LongTermAssetBondRatePeriodEntity period = new LongTermAssetBondRatePeriodEntity();
-    period.setValidFrom(command.validFrom());
-    period.setValidTo(command.validTo());
-    period.setAnnualInterestRate(command.annualInterestRate());
-    service.updateBondRatePeriod(portfolioId, id, periodId, period);
-  }
-
-  public void deleteBondRate(Long portfolioId, Long id, Long periodId) {
-    service.deleteBondRatePeriod(portfolioId, id, periodId);
-  }
-
   public void saveRentalTaxPolicy(Long portfolioId, RentalTaxCommand command) {
     saveRentalTaxPolicy(portfolioId, null, command);
   }
@@ -552,9 +531,6 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
   public record ValuationCommand(
       LocalDate validFrom, LocalDate validTo, BigDecimal growthRatePercent) {}
 
-  public record BondRateCommand(
-      LocalDate validFrom, LocalDate validTo, BigDecimal annualInterestRate) {}
-
   public record RentalTaxCommand(
       LocalDate validFrom, LocalDate validTo, BigDecimal ratePercent, BigDecimal rate) {}
 
@@ -650,18 +626,6 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
     }
   }
 
-  public record BondRateView(
-      Long id, LocalDate validFrom, LocalDate validTo, BigDecimal annualInterestRate) {
-    public BondRateView(LocalDate validFrom, LocalDate validTo, BigDecimal annualInterestRate) {
-      this(null, validFrom, validTo, annualInterestRate);
-    }
-
-    static BondRateView from(LongTermAssetBondRatePeriodEntity p) {
-      return new BondRateView(
-          p.getId(), p.getValidFrom(), p.getValidTo(), p.getAnnualInterestRate());
-    }
-  }
-
   public record RentalTaxView(Long id, LocalDate validFrom, LocalDate validTo, BigDecimal rate) {
     static RentalTaxView from(RentalTaxPolicyEntity policy) {
       return new RentalTaxView(
@@ -675,7 +639,6 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
       BondDetailsView bondDetails,
       DepositDetailsView depositDetails,
       List<ValuationView> valuationPeriods,
-      List<BondRateView> bondRatePeriods,
       BigDecimal expectedPropertyGrowth,
       List<ContractView> contracts) {}
 

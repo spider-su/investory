@@ -24,7 +24,6 @@ class LongTermAssetsFacadeTest {
       var asset = asset(type);
       when(service.get(1L, 7L)).thenReturn(Optional.of(asset));
       when(service.valuationPeriods(1L, 7L)).thenReturn(List.of());
-      when(service.bondRatePeriods(1L, 7L)).thenReturn(List.of());
       when(service.bondDetails(1L, 7L)).thenReturn(Optional.empty());
       when(service.depositDetails(1L, 7L)).thenReturn(Optional.empty());
       when(service.summary(any(), any())).thenReturn(null);
@@ -77,7 +76,6 @@ class LongTermAssetsFacadeTest {
     var older = contract(11L, LocalDate.of(2025, 1, 1), LocalDate.of(2026, 6, 30), "Older tenant");
     when(service.get(1L, 7L)).thenReturn(Optional.of(asset));
     when(service.valuationPeriods(1L, 7L)).thenReturn(List.of());
-    when(service.bondRatePeriods(1L, 7L)).thenReturn(List.of());
     when(service.bondDetails(1L, 7L)).thenReturn(Optional.empty());
     when(service.depositDetails(1L, 7L)).thenReturn(Optional.empty());
     when(service.expectedPropertyGrowth(1L, 7L, LocalDate.of(2026, 8, 1)))

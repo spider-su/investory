@@ -18,10 +18,16 @@ public class InvestmentProfileController {
     model.addAttribute("profile", profile);
     model.addAttribute("portfolioId", portfolioId);
     model.addAttribute("profileHeaderNetWorth", profile.totalNetWorthCompactDisplay());
-    model.addAttribute("profileHeaderLiquid", profile.liquidAssetsCompactDisplay());
     model.addAttribute(
-        "profileHeaderLiquidMeta", profile.liquidAssetsPercentageDisplay() + " of net worth");
-    model.addAttribute("profileHeaderIncome", profile.expectedLongTermAssetIncomeCompactDisplay());
+        "profileHeaderIncome", profile.incomeSummary().combinedAnnualIncomeCompactDisplay());
+    model.addAttribute("profileHeaderYield", profile.incomeSummary().combinedNetYieldDisplay());
+    model.addAttribute(
+        "profileMarketProjectedIncome", profile.incomeSummary().marketAnnualIncomeCompactDisplay());
+    model.addAttribute(
+        "profileLongTermExpectedIncome",
+        profile.incomeSummary().longTermAnnualIncomeCompactDisplay());
+    model.addAttribute(
+        "profileMarketYtdIncome", profile.incomeSummary().marketIncomeYtdCompactDisplay());
     model.addAttribute("profileHeaderCurrency", profile.currency());
     return "investment-profile";
   }

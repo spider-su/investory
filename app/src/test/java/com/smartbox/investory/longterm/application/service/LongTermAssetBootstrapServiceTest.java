@@ -158,6 +158,61 @@ class LongTermAssetBootstrapServiceTest {
   }
 
   @Test
+  void dryRunRejectsMissingCurrentValueAndDepositMaturity() {
+    var base = assetInput("missing-value", LongTermAssetType.REAL_ESTATE, "100");
+    var missingValue =
+        new LongTermAssetBootstrapDocument.AssetEntity(
+            base.externalKey(),
+            base.type(),
+            base.name(),
+            base.currency(),
+            base.acquisitionDate(),
+            base.acquisitionValue(),
+            null,
+            base.effectiveFrom(),
+            base.notes(),
+            base.cashFlows(),
+            base.valuationPeriods(),
+            base.bondRatePeriods(),
+            base.bond(),
+            base.deposit(),
+            base.taxBase(),
+            base.rentalTaxPaidByTenant());
+    var missingMaturity =
+        new LongTermAssetBootstrapDocument.AssetEntity(
+            "deposit",
+            LongTermAssetType.DEPOSIT,
+            "Deposit",
+            CurrencyType.PLN,
+            LocalDate.of(2026, 1, 1),
+            new BigDecimal("100"),
+            new BigDecimal("100"),
+            LocalDate.of(2026, 1, 1),
+            null,
+            List.of(),
+            List.of(),
+            List.of(),
+            null,
+            new LongTermAssetBootstrapDocument.Deposit(
+                null,
+                InterestTreatment.PAY_OUT,
+                new BigDecimal("0.05"),
+                new BigDecimal("0.19")));
+
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            service.importDocument(
+                new LongTermAssetBootstrapDocument(1L, List.of(), List.of(missingValue)), true));
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            service.importDocument(
+                new LongTermAssetBootstrapDocument(1L, List.of(), List.of(missingMaturity)), true));
+    verify(assets, never()).save(any());
+  }
+
+  @Test
   void bondFixtureValidatesMaturityRateAndTreatment() {
     var bond =
         new LongTermAssetBootstrapDocument.Bond(
@@ -317,6 +372,28 @@ class LongTermAssetBootstrapServiceTest {
     assertEquals(LocalDate.of(2026, 2, 1), saved.getValue().getStartDate());
     assertEquals(new BigDecimal("2500"), saved.getValue().getMonthlyTaxBase());
     assertTrue(saved.getValue().isBootstrapManaged());
+  }
+
+  @Test
+  void emptyBootstrapRentalInputDeletesStaleManagedContracts() {
+    var existingAsset = asset("property-a", "700000");
+    var importedContract = new LongTermAssetRentalContractEntity();
+    importedContract.setId(11L);
+    importedContract.setAssetId(existingAsset.getId());
+    importedContract.setStartDate(LocalDate.of(2026, 1, 1));
+    importedContract.setBootstrapManaged(true);
+    when(assets.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of(existingAsset));
+    when(assets.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+    when(rentalContracts.findAllByAssetIdOrderByStartDate(existingAsset.getId()))
+        .thenReturn(List.of(importedContract));
+    var input = assetInput("property-a", LongTermAssetType.REAL_ESTATE, "710000");
+
+    service.importDocument(
+        new LongTermAssetBootstrapDocument(1L, List.of(), List.of(input)), false);
+
+    verify(rentalContracts).deleteAll(List.of(importedContract));
+    verify(rentalContracts).flush();
+    verify(rentalContracts, never()).save(any());
   }
 
   @Test

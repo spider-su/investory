@@ -44,6 +44,13 @@ may differ across successive contracts. Contract-level rental-tax ownership rema
 `acquisitionValue` is the historical acquisition/principal value. `currentValue` is the present
 planning valuation. Updating a bond's current value does not overwrite its acquisition history.
 
+Cash reserves and bonds each have one current planning-rate assumption. Saving either asset replaces
+that assumption; users do not maintain effective-dated cash-return or bond-rate history. When a bond
+or cash reserve expires, archive it and create a new asset. Rate-period rows remain an internal
+persistence compatibility detail. Bootstrap accepts at most one cash-reserve valuation period and
+requires exactly one bond-rate period; importing either asset replaces any previously stored rate
+rows. Real-estate valuation growth remains effective-dated.
+
 ## Public boundary
 
 The management API exposes rental-contract commands and persistence-free read views. Legacy rental

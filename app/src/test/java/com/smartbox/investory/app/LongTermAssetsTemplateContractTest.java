@@ -22,6 +22,8 @@ class LongTermAssetsTemplateContractTest {
       Path.of("../adapters/web-ui/src/main/resources/templates/bond-detail.html");
   private static final Path CASH_DETAIL =
       Path.of("../adapters/web-ui/src/main/resources/templates/cash-reserve-detail.html");
+  private static final Path CASH_FORM =
+      Path.of("../adapters/web-ui/src/main/resources/templates/cash-reserve-form.html");
   private static final Path CSS =
       Path.of("../adapters/web-ui/src/main/resources/static/css/main.css");
 
@@ -117,9 +119,23 @@ class LongTermAssetsTemplateContractTest {
                 html.contains(
                     "class=\"iv-collapsed-summary\" th:if=\"${!#lists.isEmpty(group.assets)}\"")),
         () -> assertTrue(html.contains(">Net yield</span>")),
-        () -> assertTrue(html.contains("? 'Monthly rent tax' : 'Annual tax'")),
+        () -> assertTrue(html.contains(">Value</span>")),
+        () -> assertTrue(html.contains(">Net income</span>")),
+        () -> assertTrue(html.contains("? 'Rent tax' : 'Tax'")),
+        () -> assertFalse(html.contains(">Total value</span>")),
+        () -> assertFalse(html.contains("'Monthly net income'")),
+        () -> assertFalse(html.contains("'Annual net income'")),
         () -> assertTrue(css.contains("grid-template-columns: repeat(4, minmax(0, 1fr))")),
         () -> assertTrue(css.contains("grid-auto-rows: auto")));
+  }
+
+  @Test
+  void cashReserveFormCanBeCancelledBackToAssetSummary() throws Exception {
+    String html = Files.readString(CASH_FORM);
+
+    assertTrue(
+        html.contains(
+            "<a class=\"btn btn-link\" th:href=\"@{/long-term-assets(portfolioId=${portfolioId})}\">Cancel</a>"));
   }
 
   @Test
@@ -135,10 +151,8 @@ class LongTermAssetsTemplateContractTest {
         () -> assertTrue(generic.contains("type=\"hidden\" name=\"type\"")),
         () -> assertTrue(realEstate.contains("valuation-periods/{periodId}")),
         () -> assertTrue(realEstate.contains("valuation-periods/{periodId}/delete")),
-        () -> assertTrue(cash.contains("valuation-periods/{periodId}")),
-        () -> assertTrue(cash.contains("valuation-periods/{periodId}/delete")),
-        () -> assertTrue(bond.contains("bond-rate-periods/{periodId}")),
-        () -> assertTrue(bond.contains("bond-rate-periods/{periodId}/delete")),
+        () -> assertFalse(cash.contains("valuation-periods")),
+        () -> assertFalse(bond.contains("bond-rate-periods")),
         () -> assertFalse(summary.contains("Rental tax policies")),
         () -> assertFalse(summary.contains("rental-tax-policy")));
   }

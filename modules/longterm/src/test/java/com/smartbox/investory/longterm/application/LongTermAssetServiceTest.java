@@ -43,6 +43,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -174,6 +175,39 @@ class LongTermAssetServiceTest {
     assertEquals(false, reserve.isActive());
     assertEquals(new BigDecimal("950"), reserve.getCurrentValue());
     verify(lifecycle, never()).reactivate(anyLong(), anyLong());
+  }
+
+  @Test
+  void cashReserveEditReplacesAllStoredReturnRows() {
+    LongTermAssetEntity reserve = asset(LongTermAssetType.CASH_RESERVE, "900");
+    var oldRate = new LongTermAssetValuationPeriodEntity();
+    oldRate.setAssetId(1L);
+    oldRate.setValidFrom(DATE.minusYears(1));
+    oldRate.setExpectedAnnualGrowthRate(new BigDecimal("0.03"));
+    when(assets.findByIdAndPortfolioId(1L, 1L)).thenReturn(Optional.of(reserve));
+    when(assets.findTypeByIdAndPortfolioId(1L, 1L))
+        .thenReturn(Optional.of(LongTermAssetType.CASH_RESERVE));
+    when(assets.save(any(LongTermAssetEntity.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(valuations.findAllByAssetIdOrderByValidFrom(1L)).thenReturn(List.of(oldRate));
+
+    service.saveCashReserve(
+        1L,
+        1L,
+        "Reserve",
+        CurrencyType.PLN,
+        new BigDecimal("950"),
+        new BigDecimal("0.04"),
+        null,
+        DATE);
+
+    verify(valuations).deleteAll(List.of(oldRate));
+    verify(valuations).flush();
+    var saved = ArgumentCaptor.forClass(LongTermAssetValuationPeriodEntity.class);
+    verify(valuations).save(saved.capture());
+    assertEquals(DATE, saved.getValue().getValidFrom());
+    assertEquals(null, saved.getValue().getValidTo());
+    assertEquals(new BigDecimal("0.04"), saved.getValue().getExpectedAnnualGrowthRate());
   }
 
   private static LongTermAssetRentalContractEntity contract(LocalDate start, LocalDate end) {
@@ -366,21 +400,6 @@ class LongTermAssetServiceTest {
   }
 
   @Test
-  void bondRatePeriodSelectionAndOverlapArePortfolioScoped() {
-    LongTermAssetEntity a = asset(LongTermAssetType.BOND, "100");
-    LongTermAssetBondRatePeriodEntity existing = new LongTermAssetBondRatePeriodEntity();
-    existing.setValidFrom(DATE);
-    existing.setAnnualInterestRate(new BigDecimal("0.06"));
-    when(assets.findByIdAndPortfolioId(1L, 1L)).thenReturn(Optional.of(a));
-    when(bondRates.findAllByAssetIdOrderByValidFrom(1L)).thenReturn(List.of(existing));
-    LongTermAssetBondRatePeriodEntity overlapping = new LongTermAssetBondRatePeriodEntity();
-    overlapping.setValidFrom(DATE.plusDays(1));
-    overlapping.setAnnualInterestRate(new BigDecimal("0.05"));
-    org.junit.jupiter.api.Assertions.assertThrows(
-        IllegalArgumentException.class, () -> service.addBondRatePeriod(1L, 1L, overlapping));
-  }
-
-  @Test
   void valuationPeriodCanBeCorrectedAndDeletedWithoutOverlappingItself() {
     LongTermAssetEntity asset = asset(LongTermAssetType.REAL_ESTATE, "100");
     LongTermAssetValuationPeriodEntity existing = new LongTermAssetValuationPeriodEntity();
@@ -402,30 +421,6 @@ class LongTermAssetServiceTest {
     assertEquals(new BigDecimal("0.04"), existing.getExpectedAnnualGrowthRate());
     verify(valuations).save(existing);
     verify(valuations).delete(existing);
-  }
-
-  @Test
-  void bondRatePeriodCanBeCorrectedAndDeletedWithoutOverlappingItself() {
-    LongTermAssetEntity asset = asset(LongTermAssetType.BOND, "100");
-    LongTermAssetBondRatePeriodEntity existing = new LongTermAssetBondRatePeriodEntity();
-    existing.setId(8L);
-    existing.setAssetId(1L);
-    existing.setValidFrom(DATE);
-    existing.setAnnualInterestRate(new BigDecimal("0.05"));
-    LongTermAssetBondRatePeriodEntity replacement = new LongTermAssetBondRatePeriodEntity();
-    replacement.setValidFrom(DATE.plusDays(1));
-    replacement.setAnnualInterestRate(new BigDecimal("0.06"));
-    when(assets.findByIdAndPortfolioId(1L, 1L)).thenReturn(Optional.of(asset));
-    when(bondRates.findById(8L)).thenReturn(Optional.of(existing));
-    when(bondRates.findAllByAssetIdOrderByValidFrom(1L)).thenReturn(List.of(existing));
-
-    service.updateBondRatePeriod(1L, 1L, 8L, replacement);
-    service.deleteBondRatePeriod(1L, 1L, 8L);
-
-    assertEquals(DATE.plusDays(1), existing.getValidFrom());
-    assertEquals(new BigDecimal("0.06"), existing.getAnnualInterestRate());
-    verify(bondRates).save(existing);
-    verify(bondRates).delete(existing);
   }
 
   @Test
@@ -510,6 +505,9 @@ class LongTermAssetServiceTest {
     assertEquals(
         List.of("REAL_ESTATE", "BOND", "CASH_RESERVE", "OTHER"),
         groups.stream().map(LongTermAssetQueryService.AssetGroupSummary::key).toList());
+    assertEquals(
+        List.of("Real estate", "Bonds", "Cash", "Other assets"),
+        groups.stream().map(LongTermAssetQueryService.AssetGroupSummary::title).toList());
     assertEquals(
         List.of("Bond early", "Bond late"),
         groups.get(1).assets().stream().map(LongTermAssetSummary::name).toList());
@@ -604,6 +602,32 @@ class LongTermAssetServiceTest {
     assertEquals(new BigDecimal("5200"), group.netMonthlyIncome());
     assertEquals(new BigDecimal("300"), group.realEstatePlanning().monthlyReduce());
     assertEquals(new BigDecimal("3500"), group.realEstatePlanning().taxBase());
+  }
+
+  @Test
+  void simpleBondUpdateReplacesAllStoredRateRows() {
+    LongTermAssetEntity bond = asset(LongTermAssetType.BOND, "100");
+    bond.setAcquisitionDate(DATE);
+    LongTermAssetBondDetailsEntity details = new LongTermAssetBondDetailsEntity();
+    details.setTaxRate(new BigDecimal("0.19"));
+    var oldRate = new LongTermAssetBondRatePeriodEntity();
+    oldRate.setAssetId(1L);
+    oldRate.setValidFrom(DATE.minusYears(1));
+    oldRate.setAnnualInterestRate(new BigDecimal("0.04"));
+    when(assets.findByIdAndPortfolioId(1L, 1L)).thenReturn(Optional.of(bond));
+    when(bonds.findById(1L)).thenReturn(Optional.of(details));
+    when(bondRates.findAllByAssetIdOrderByValidFrom(1L)).thenReturn(List.of(oldRate));
+
+    service.saveSimpleBond(
+        1L, 1L, new BigDecimal("0.06"), DATE.plusYears(2), InterestTreatment.PAY_OUT);
+
+    verify(bondRates).deleteAll(List.of(oldRate));
+    verify(bondRates).flush();
+    var saved = ArgumentCaptor.forClass(LongTermAssetBondRatePeriodEntity.class);
+    verify(bondRates).save(saved.capture());
+    assertEquals(DATE, saved.getValue().getValidFrom());
+    assertEquals(DATE.plusYears(2), saved.getValue().getValidTo());
+    assertEquals(new BigDecimal("0.06"), saved.getValue().getAnnualInterestRate());
   }
 
   @Test
@@ -852,7 +876,7 @@ class LongTermAssetServiceTest {
   }
 
   @Test
-  void realEstateGroupExposesMonthlyRentTaxAcrossProperties() {
+  void vacantRealEstateGroupHasNoMonthlyRentTax() {
     LongTermAssetEntity first = asset(LongTermAssetType.REAL_ESTATE, "780000");
     first.setTaxBase(new BigDecimal("1800"));
     LongTermAssetEntity second = asset(LongTermAssetType.REAL_ESTATE, "710000");
@@ -868,8 +892,7 @@ class LongTermAssetServiceTest {
 
     var group = service.grouped(1L, DATE).getFirst();
 
-    assertEquals(
-        new BigDecimal("280.500000000000000000"), group.realEstatePlanning().monthlyRentTax());
+    assertEquals(0, BigDecimal.ZERO.compareTo(group.realEstatePlanning().monthlyRentTax()));
   }
 
   @Test

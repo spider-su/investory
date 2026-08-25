@@ -15,7 +15,7 @@
     <div>
       <div class="iv-asset-page__eyebrow">Bond</div>
       <h1 class="h2 mb-0" th:text="${asset.name}">Bond</h1>
-      <p class="iv-asset-page__description">Manual planning bond. Rate history is managed automatically from these values.</p>
+      <p class="iv-asset-page__description">Manual planning bond. Saving replaces its current rate assumption.</p>
     </div>
     <a class="btn btn-outline-secondary" th:href="@{/long-term-assets(portfolioId=${portfolioId})}">Back</a>
   </header>
@@ -39,28 +39,6 @@
     </div>
     <div class="card-footer"><button class="btn btn-primary">Save changes</button></div>
   </form>
-
-  <section class="card mb-4">
-    <div class="card-header"><h2 class="card-title">Effective-dated interest rates</h2></div>
-    <div class="card-body text-secondary" th:if="${#lists.isEmpty(bondRatePeriods)}">No rate periods configured.</div>
-    <div class="card-body border-top" th:each="period : ${bondRatePeriods}">
-      <form class="row g-2 align-items-end" method="post" th:action="@{/long-term-assets/{id}/bond-rate-periods/{periodId}(id=${asset.id},periodId=${period.id})}">
-        <input type="hidden" name="portfolioId" th:value="${portfolioId}">
-        <div class="col-md-3"><label class="form-label">From</label><input class="form-control" name="validFrom" type="date" th:value="${period.validFrom}" required></div>
-        <div class="col-md-3"><label class="form-label">To</label><input class="form-control" name="validTo" type="date" th:value="${period.validTo}"></div>
-        <div class="col-md-3"><label class="form-label">Annual rate</label><input class="form-control" name="annualInterestRate" type="number" step="0.0001" min="0" th:value="${period.annualInterestRate}" required></div>
-        <div class="col-md-3"><button class="btn btn-outline-primary">Update period</button></div>
-      </form>
-      <form class="mt-2" method="post" th:action="@{/long-term-assets/{id}/bond-rate-periods/{periodId}/delete(id=${asset.id},periodId=${period.id})}"><input type="hidden" name="portfolioId" th:value="${portfolioId}"><button class="btn btn-sm btn-outline-danger">Delete period</button></form>
-    </div>
-    <form class="card-body border-top row g-2 align-items-end" method="post" th:action="@{/long-term-assets/{id}/bond-rate-periods(id=${asset.id})}">
-      <input type="hidden" name="portfolioId" th:value="${portfolioId}">
-      <div class="col-md-3"><label class="form-label">From</label><input class="form-control" name="validFrom" type="date" required></div>
-      <div class="col-md-3"><label class="form-label">To</label><input class="form-control" name="validTo" type="date"></div>
-      <div class="col-md-3"><label class="form-label">Annual rate</label><input class="form-control" name="annualInterestRate" type="number" step="0.0001" min="0" required></div>
-      <div class="col-md-3"><button class="btn btn-outline-primary">Add period</button></div>
-    </form>
-  </section>
 
   <div class="iv-asset-page__actions">
     <form method="post" th:action="@{/long-term-assets/{id}/archive(id=${asset.id})}"><input type="hidden" name="portfolioId" th:value="${portfolioId}"><button class="btn btn-outline-danger" th:if="${asset.active}">Archive</button></form>

@@ -89,7 +89,8 @@ public final class RealEstatePlanningCalculator {
             .max(Comparator.comparing(RentalContractModel::startDate))
             .orElse(null);
     if (contract == null)
-      return calculate(currentValue, taxBase, List.of(), date, taxRate, assetTaxPaidByTenant);
+      return new RealEstatePlanningSummary(
+          taxBase, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
     BigDecimal income = BigDecimal.ZERO, payment = BigDecimal.ZERO, expenses = BigDecimal.ZERO;
     for (var term : contract.terms()) {
       BigDecimal monthly =

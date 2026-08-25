@@ -128,7 +128,7 @@ public class LongTermAssetBootstrapService {
           || asset.currency() == null)
         throw new IllegalArgumentException(
             "AssetEntity key " + asset.externalKey() + " requires type, name and currency");
-      requireNonNegative(asset.currentValue(), "current value for " + asset.externalKey());
+      requireRequiredNonNegative(asset.currentValue(), "current value for " + asset.externalKey());
       requireNonNegative(asset.acquisitionValue(), "acquisition value for " + asset.externalKey());
       requireNonNegative(asset.taxBase(), "tax base for " + asset.externalKey());
       if (asset.effectiveFrom() == null)
@@ -162,6 +162,14 @@ public class LongTermAssetBootstrapService {
           asset.valuationPeriods(), "valuation periods for " + asset.externalKey(), false);
       validatePeriods(
           asset.bondRatePeriods(), "bond-rate periods for " + asset.externalKey(), true);
+      if (asset.type() == LongTermAssetType.CASH_RESERVE
+          && safe(asset.valuationPeriods()).size() > 1)
+        throw new IllegalArgumentException(
+            "Cash reserve supports one current return assumption: " + asset.externalKey());
+      if (asset.type() == LongTermAssetType.BOND
+          && safe(asset.bondRatePeriods()).size() != 1)
+        throw new IllegalArgumentException(
+            "Bond requires one current interest-rate assumption: " + asset.externalKey());
       if (asset.type() == LongTermAssetType.BOND) validateBond(asset);
       if (asset.type() == LongTermAssetType.DEPOSIT) validateDeposit(asset);
     }
@@ -204,7 +212,10 @@ public class LongTermAssetBootstrapService {
                           + input.externalKey());
                 });
     }
-    for (var incoming : safe(input.valuationPeriods())) {
+    for (var incoming :
+        input.type() == LongTermAssetType.CASH_RESERVE
+            ? List.<LongTermAssetBootstrapDocument.Period>of()
+            : safe(input.valuationPeriods())) {
       for (var existing : valuations.findAllByAssetIdOrderByValidFrom(stored.getId())) {
         if (!LongTermAssetPeriodRules.samePeriodIdentity(
                 incoming.validFrom(),
@@ -220,7 +231,10 @@ public class LongTermAssetBootstrapService {
               "Overlapping stored valuation period for " + input.externalKey());
       }
     }
-    for (var incoming : safe(input.bondRatePeriods())) {
+    for (var incoming :
+        input.type() == LongTermAssetType.BOND
+            ? List.<LongTermAssetBootstrapDocument.Period>of()
+            : safe(input.bondRatePeriods())) {
       for (var existing : bondRates.findAllByAssetIdOrderByValidFrom(stored.getId())) {
         if (!LongTermAssetPeriodRules.samePeriodIdentity(
                 incoming.validFrom(),
@@ -242,7 +256,7 @@ public class LongTermAssetBootstrapService {
     var deposit = asset.deposit();
     if (deposit == null)
       throw new IllegalArgumentException("Deposit details are required for " + asset.externalKey());
-    if (deposit.maturityDate() != null) validateMaturity(asset, deposit.maturityDate(), "deposit");
+    validateMaturity(asset, deposit.maturityDate(), "deposit");
     if (deposit.interestTreatment() == null)
       throw new IllegalArgumentException(
           "Deposit interest treatment is required for " + asset.externalKey());
@@ -305,6 +319,11 @@ public class LongTermAssetBootstrapService {
       throw new IllegalArgumentException(label + " must be non-negative");
   }
 
+  private static void requireRequiredNonNegative(BigDecimal value, String label) {
+    if (value == null || value.signum() < 0)
+      throw new IllegalArgumentException(label + " is required and must be non-negative");
+  }
+
   private static void requireRate(BigDecimal value, String label, BigDecimal min, BigDecimal max) {
     if (value == null || value.compareTo(min) < 0 || value.compareTo(max) > 0)
       throw new IllegalArgumentException(label + " must be between " + min + " and " + max);
@@ -349,8 +368,14 @@ public class LongTermAssetBootstrapService {
     lifecycle.ensureInitialPeriod(asset);
     if (asset.getType() == LongTermAssetType.REAL_ESTATE)
       upsertRentalContracts(asset, safe(input.cashFlows()));
-    for (var period : safe(input.valuationPeriods())) upsertValuation(asset.getId(), period);
-    for (var period : safe(input.bondRatePeriods())) upsertBondRate(asset.getId(), period);
+    if (asset.getType() == LongTermAssetType.CASH_RESERVE) {
+      replaceBootstrapValuation(asset.getId(), safe(input.valuationPeriods()));
+    } else {
+      for (var period : safe(input.valuationPeriods())) upsertValuation(asset.getId(), period);
+    }
+    if (asset.getType() == LongTermAssetType.BOND) {
+      replaceBootstrapBondRate(asset.getId(), safe(input.bondRatePeriods()).getFirst());
+    }
     if (input.bond() != null) upsertBondDetails(asset.getId(), input.bond());
     if (input.deposit() != null) upsertDepositDetails(asset.getId(), input.deposit());
   }
@@ -359,13 +384,6 @@ public class LongTermAssetBootstrapService {
       LongTermAssetEntity asset, List<LongTermAssetBootstrapDocument.CashFlow> inputFlows) {
     Long assetId = asset.getId();
     var flows = inputFlows.stream().map(this::toCashFlowEntity).toList();
-    if (flows.isEmpty()) return;
-    var boundaries = new TreeSet<LocalDate>();
-    for (var flow : flows) {
-      boundaries.add(flow.getValidFrom());
-      if (flow.getValidTo() != null) boundaries.add(flow.getValidTo().plusDays(1));
-    }
-    var points = new ArrayList<>(boundaries);
     var existing = rentalContracts.findAllByAssetIdOrderByStartDate(assetId);
     var managed =
         existing.stream().filter(LongTermAssetRentalContractEntity::isBootstrapManaged).toList();
@@ -373,6 +391,13 @@ public class LongTermAssetBootstrapService {
       rentalContracts.deleteAll(managed);
       rentalContracts.flush();
     }
+    if (flows.isEmpty()) return;
+    var boundaries = new TreeSet<LocalDate>();
+    for (var flow : flows) {
+      boundaries.add(flow.getValidFrom());
+      if (flow.getValidTo() != null) boundaries.add(flow.getValidTo().plusDays(1));
+    }
+    var points = new ArrayList<>(boundaries);
     for (int i = 0; i < points.size(); i++) {
       LocalDate start = points.get(i);
       LocalDate end = i + 1 < points.size() ? points.get(i + 1).minusDays(1) : null;
@@ -432,17 +457,29 @@ public class LongTermAssetBootstrapService {
     valuations.save(existing);
   }
 
-  private void upsertBondRate(Long assetId, LongTermAssetBootstrapDocument.Period input) {
-    var existing =
-        bondRates.findAllByAssetIdOrderByValidFrom(assetId).stream()
-            .filter(p -> p.getValidFrom().equals(input.validFrom()))
-            .findFirst()
-            .orElseGet(LongTermAssetBondRatePeriodEntity::new);
-    existing.setAssetId(assetId);
-    existing.setValidFrom(input.validFrom());
-    existing.setValidTo(input.validTo());
-    existing.setAnnualInterestRate(input.annualRate());
-    bondRates.save(existing);
+  private void replaceBootstrapValuation(
+      Long assetId, List<LongTermAssetBootstrapDocument.Period> periods) {
+    var existing = valuations.findAllByAssetIdOrderByValidFrom(assetId);
+    if (!existing.isEmpty()) {
+      valuations.deleteAll(existing);
+      valuations.flush();
+    }
+    if (!periods.isEmpty()) upsertValuation(assetId, periods.getFirst());
+  }
+
+  private void replaceBootstrapBondRate(
+      Long assetId, LongTermAssetBootstrapDocument.Period input) {
+    var existing = bondRates.findAllByAssetIdOrderByValidFrom(assetId);
+    if (!existing.isEmpty()) {
+      bondRates.deleteAll(existing);
+      bondRates.flush();
+    }
+    var rate = new LongTermAssetBondRatePeriodEntity();
+    rate.setAssetId(assetId);
+    rate.setValidFrom(input.validFrom());
+    rate.setValidTo(input.validTo());
+    rate.setAnnualInterestRate(input.annualRate());
+    bondRates.save(rate);
   }
 
   private void upsertBondDetails(Long assetId, LongTermAssetBootstrapDocument.Bond input) {

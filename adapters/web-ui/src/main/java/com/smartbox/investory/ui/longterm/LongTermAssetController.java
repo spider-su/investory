@@ -142,9 +142,17 @@ public class LongTermAssetController {
   }
 
   @PostMapping("/long-term-assets")
-  public String create(@ModelAttribute AssetForm form, @RequestParam Long portfolioId) {
-    assets.create(form.command(portfolioId));
-    return "redirect:/long-term-assets?portfolioId=" + portfolioId;
+  public String create(
+      @ModelAttribute AssetForm form,
+      @RequestParam Long portfolioId,
+      RedirectAttributes feedback) {
+    try {
+      assets.create(form.command(portfolioId));
+      return "redirect:/long-term-assets?portfolioId=" + portfolioId;
+    } catch (IllegalArgumentException | NoSuchElementException exception) {
+      feedback.addFlashAttribute("error", assetError(exception));
+      return "redirect:/long-term-assets?portfolioId=" + portfolioId;
+    }
   }
 
   @PostMapping("/long-term-assets/bond")
@@ -157,9 +165,10 @@ public class LongTermAssetController {
       @RequestParam LocalDate maturityDate,
       @RequestParam InterestTreatmentModel interestTreatment,
       @RequestParam BigDecimal annualRatePercent,
-      @RequestParam(required = false) String notes) {
-    var saved =
-        assets.createBond(
+      @RequestParam(required = false) String notes,
+      RedirectAttributes feedback) {
+    try {
+      var saved = assets.createBond(
             new LongTermAssetsApi.BondCommand(
                 portfolioId,
                 null,
@@ -171,7 +180,11 @@ public class LongTermAssetController {
                 interestTreatment,
                 annualRatePercent,
                 notes));
-    return redirect(saved.id(), portfolioId);
+      return redirect(saved.id(), portfolioId);
+    } catch (IllegalArgumentException | NoSuchElementException exception) {
+      feedback.addFlashAttribute("error", assetError(exception));
+      return "redirect:/long-term-assets?portfolioId=" + portfolioId;
+    }
   }
 
   @PostMapping("/long-term-assets/deposit")
@@ -185,9 +198,10 @@ public class LongTermAssetController {
       @RequestParam InterestTreatmentModel interestTreatment,
       @RequestParam BigDecimal annualInterestRate,
       @RequestParam BigDecimal taxRate,
-      @RequestParam(required = false) String notes) {
-    var saved =
-        assets.createDeposit(
+      @RequestParam(required = false) String notes,
+      RedirectAttributes feedback) {
+    try {
+      var saved = assets.createDeposit(
             new LongTermAssetsApi.DepositCommand(
                 portfolioId,
                 name,
@@ -199,7 +213,11 @@ public class LongTermAssetController {
                 annualInterestRate,
                 taxRate,
                 notes));
-    return redirect(saved.id(), portfolioId);
+      return redirect(saved.id(), portfolioId);
+    } catch (IllegalArgumentException | NoSuchElementException exception) {
+      feedback.addFlashAttribute("error", assetError(exception));
+      return "redirect:/long-term-assets?portfolioId=" + portfolioId;
+    }
   }
 
   @GetMapping("/long-term-assets/new/real-estate")
@@ -212,8 +230,10 @@ public class LongTermAssetController {
   public String saveRealEstate(
       @RequestParam Long portfolioId,
       @ModelAttribute RealEstateEntryModel entry,
-      @RequestParam(name = "expectedAnnualGrowthRatePercent", required = false) BigDecimal growth) {
-    assets.saveRealEstate(
+      @RequestParam(name = "expectedAnnualGrowthRatePercent", required = false) BigDecimal growth,
+      RedirectAttributes feedback) {
+    try {
+      assets.saveRealEstate(
         portfolioId,
         new RealEstateEntryModel(
             entry.name(),
@@ -231,7 +251,11 @@ public class LongTermAssetController {
             entry.effectiveFrom(),
             growth,
             entry.notes()));
-    return "redirect:/long-term-assets?portfolioId=" + portfolioId;
+      return "redirect:/long-term-assets?portfolioId=" + portfolioId;
+    } catch (IllegalArgumentException | NoSuchElementException exception) {
+      feedback.addFlashAttribute("error", assetError(exception));
+      return "redirect:/long-term-assets?portfolioId=" + portfolioId;
+    }
   }
 
   private static String share(BigDecimal value, BigDecimal total) {
@@ -350,7 +374,6 @@ public class LongTermAssetController {
     model.addAttribute("bondDetails", view.bondDetails());
     model.addAttribute("depositDetails", view.depositDetails());
     model.addAttribute("valuationPeriods", view.valuationPeriods());
-    model.addAttribute("bondRatePeriods", view.bondRatePeriods());
     model.addAttribute("expectedPropertyGrowth", view.expectedPropertyGrowth());
     model.addAttribute("today", today);
     java.util.Map<Long, RentalContractForm> contractForms =
@@ -558,52 +581,6 @@ public class LongTermAssetController {
       @RequestParam Long portfolioId,
       RedirectAttributes feedback) {
     mutate(() -> assets.deleteValuation(portfolioId, id, periodId), feedback);
-    return redirect(id, portfolioId);
-  }
-
-  @PostMapping("/long-term-assets/{id}/bond-rate-periods")
-  public String addBondRatePeriod(
-      @PathVariable Long id,
-      @RequestParam Long portfolioId,
-      @ModelAttribute BondRateForm form,
-      RedirectAttributes feedback) {
-    mutate(
-        () ->
-            assets.addBondRate(
-                portfolioId,
-                id,
-                new LongTermAssetsApi.BondRateCommand(
-                    form.validFrom, form.validTo, form.annualInterestRate)),
-        feedback);
-    return redirect(id, portfolioId);
-  }
-
-  @PostMapping("/long-term-assets/{id}/bond-rate-periods/{periodId}")
-  public String updateBondRatePeriod(
-      @PathVariable Long id,
-      @PathVariable Long periodId,
-      @RequestParam Long portfolioId,
-      @ModelAttribute BondRateForm form,
-      RedirectAttributes feedback) {
-    mutate(
-        () ->
-            assets.updateBondRate(
-                portfolioId,
-                id,
-                periodId,
-                new LongTermAssetsApi.BondRateCommand(
-                    form.validFrom, form.validTo, form.annualInterestRate)),
-        feedback);
-    return redirect(id, portfolioId);
-  }
-
-  @PostMapping("/long-term-assets/{id}/bond-rate-periods/{periodId}/delete")
-  public String deleteBondRatePeriod(
-      @PathVariable Long id,
-      @PathVariable Long periodId,
-      @RequestParam Long portfolioId,
-      RedirectAttributes feedback) {
-    mutate(() -> assets.deleteBondRate(portfolioId, id, periodId), feedback);
     return redirect(id, portfolioId);
   }
 
@@ -1069,35 +1046,6 @@ public class LongTermAssetController {
 
   public static class DepositDetailsForm extends BondDetailsForm {
     public BigDecimal annualInterestRate;
-
-    public BigDecimal getAnnualInterestRate() {
-      return annualInterestRate;
-    }
-
-    public void setAnnualInterestRate(BigDecimal v) {
-      annualInterestRate = v;
-    }
-  }
-
-  public static class BondRateForm {
-    public LocalDate validFrom, validTo;
-    public BigDecimal annualInterestRate;
-
-    public LocalDate getValidFrom() {
-      return validFrom;
-    }
-
-    public void setValidFrom(LocalDate v) {
-      validFrom = v;
-    }
-
-    public LocalDate getValidTo() {
-      return validTo;
-    }
-
-    public void setValidTo(LocalDate v) {
-      validTo = v;
-    }
 
     public BigDecimal getAnnualInterestRate() {
       return annualInterestRate;

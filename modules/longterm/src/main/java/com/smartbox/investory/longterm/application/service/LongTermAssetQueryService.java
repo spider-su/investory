@@ -144,7 +144,7 @@ public class LongTermAssetQueryService {
             effectiveDate),
         group(
             "CASH_RESERVE",
-            "Cash reserves",
+            "Cash",
             rows.stream()
                 .filter(r -> r.type() == LongTermAssetType.CASH_RESERVE)
                 .sorted(
@@ -260,12 +260,6 @@ public class LongTermAssetQueryService {
         .max(java.util.Comparator.comparing(LongTermAssetValuationPeriodEntity::getValidFrom))
         .map(LongTermAssetValuationPeriodEntity::getExpectedAnnualGrowthRate)
         .orElse(null);
-  }
-
-  @Transactional(readOnly = true)
-  public List<LongTermAssetBondRatePeriodEntity> bondRatePeriods(Long portfolioId, Long id) {
-    owned(portfolioId, id);
-    return bondRates.findAllByAssetIdOrderByValidFrom(id);
   }
 
   @Transactional(readOnly = true)

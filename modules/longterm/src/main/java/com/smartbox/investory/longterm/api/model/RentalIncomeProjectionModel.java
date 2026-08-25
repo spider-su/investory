@@ -127,7 +127,10 @@ public final class RentalIncomeProjectionModel {
         expenses = expenses.add(p.annualExpense().multiply(covered));
     }
     BigDecimal gross = income.values().stream().reduce(ZERO, BigDecimal::add);
-    BigDecimal tax = asset.rentalTaxPaidByTenant() ? ZERO : taxBase(asset).multiply(rate(asset));
+    BigDecimal tax =
+        asset.rentalTaxPaidByTenant()
+            ? ZERO
+            : taxBase(asset).multiply(TWELVE).multiply(rate(asset));
     return result(income, gross, expenses, tax);
   }
 

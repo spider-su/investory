@@ -64,11 +64,11 @@
     </div>
     <div class="iv-collapsed-summary" th:if="${!#lists.isEmpty(group.assets)}" aria-label="Collapsed category summary">
       <div class="iv-collapsed-summary__metric">
-        <span class="iv-collapsed-summary__label">Total value</span>
+        <span class="iv-collapsed-summary__label">Value</span>
         <strong class="iv-collapsed-summary__value" th:text="${format.compactMoney(group.totalValue) + (group.currency == total.currency ? '' : ' ' + group.currency)}">0</strong>
       </div>
       <div class="iv-collapsed-summary__metric">
-        <span class="iv-collapsed-summary__label" th:text="${group.key == 'REAL_ESTATE' ? 'Monthly net income' : 'Annual net income'}">Income</span>
+        <span class="iv-collapsed-summary__label">Net income</span>
         <strong class="iv-collapsed-summary__value" th:if="${group.key == 'REAL_ESTATE'}" th:text="${format.compactMoney(group.realEstatePlanning.netMonthlyIncome) + ' / month'}">0 / month</strong>
         <strong class="iv-collapsed-summary__value" th:if="${group.key != 'REAL_ESTATE'}" th:text="${format.compactMoney(group.annualEconomics.netAnnualIncomeAfterTax) + ' / year'}">0 / year</strong>
       </div>
@@ -77,7 +77,7 @@
         <strong class="iv-collapsed-summary__value" th:text="${format.percentage(group.annualEconomics.netYieldAfterTax)}">0.0%</strong>
       </div>
       <div class="iv-collapsed-summary__metric">
-        <span class="iv-collapsed-summary__label" th:text="${group.key == 'REAL_ESTATE' ? 'Monthly rent tax' : 'Annual tax'}">Tax</span>
+        <span class="iv-collapsed-summary__label" th:text="${group.key == 'REAL_ESTATE' ? 'Rent tax' : 'Tax'}">Tax</span>
         <strong class="iv-collapsed-summary__value" th:if="${group.key == 'REAL_ESTATE'}" th:text="${format.compactMoney(group.realEstatePlanning.monthlyTax) + ' / month'}">0 / month</strong>
         <strong class="iv-collapsed-summary__value" th:if="${group.key != 'REAL_ESTATE'}" th:text="${format.compactMoney(group.annualEconomics.annualTax) + ' / year'}">0 / year</strong>
       </div>

@@ -2926,6 +2926,84 @@ body.iv-modal-open { overflow: hidden; }
     padding: 8px 10px 6px;
     border-top: 1px solid var(--iv-border);
 }
+.iv-profile-sources__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    padding: 16px;
+}
+.iv-profile-source-card {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--iv-border);
+    border-radius: var(--iv-radius-sm);
+    background: color-mix(in srgb, var(--iv-surface-muted) 52%, transparent);
+    color: var(--iv-text);
+    text-decoration: none;
+    transition: border-color .15s ease, background-color .15s ease;
+}
+.iv-profile-source-card:hover,
+.iv-profile-source-card:focus-visible {
+    border-color: var(--iv-primary);
+    background: color-mix(in srgb, var(--iv-primary) 5%, var(--iv-surface-muted));
+}
+.iv-profile-source-card__heading,
+.iv-profile-source-card__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 11px 14px;
+}
+.iv-profile-source-card__heading { border-bottom: 1px solid var(--iv-border); }
+.iv-profile-source-card__heading > span {
+    color: var(--iv-primary-text);
+    font-size: .76rem;
+    font-weight: 800;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+}
+.iv-profile-source-card__heading small,
+.iv-profile-source-card__footer span { color: var(--iv-text-soft); font-size: .72rem; }
+.iv-profile-source-card__metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 12px 0;
+}
+.iv-profile-source-card__metrics > div { min-width: 0; padding: 0 14px; }
+.iv-profile-source-card__metrics > div + div { border-left: 1px solid var(--iv-metric-divider); }
+.iv-profile-source-card__metrics span,
+.iv-profile-source-card__metrics small { display: block; }
+.iv-profile-source-card__metrics span {
+    color: var(--iv-text-muted);
+    font-size: .66rem;
+    font-weight: 750;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+.iv-profile-source-card__metrics strong {
+    display: block;
+    margin-top: 5px;
+    color: var(--iv-text);
+    font-size: 1.08rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.15;
+}
+.iv-profile-source-card__metrics small { margin-top: 3px; color: var(--iv-text-soft); font-size: .66rem; }
+.iv-profile-source-card__footer {
+    min-height: 39px;
+    border-top: 1px solid var(--iv-border);
+    background: color-mix(in srgb, var(--iv-surface) 45%, transparent);
+}
+.iv-profile-source-card__footer strong { font-size: .76rem; font-variant-numeric: tabular-nums; }
+.iv-profile-allocation .iv-allocation-bar { margin-bottom: 10px; }
+.iv-profile-allocation__bucket { display: inline-flex; align-items: center; gap: 9px; }
+.iv-profile-allocation__swatch {
+    width: 9px;
+    height: 9px;
+    flex: 0 0 9px;
+    border-radius: 50%;
+}
 .iv-profile-income-cards { margin: 0 0 18px; }
 .iv-profile-income-card {
     min-height: 92px;
@@ -4221,9 +4299,15 @@ details.iv-compact-popover.placement-top > .iv-compact-popover__panel {
 @media (max-width: 600px) {
     .iv-portfolio-structure__grid.iv-profile-structure__grid,
     .iv-profile-income-cards,
+    .iv-profile-sources__grid,
     .iv-reconciliation-state-banner {
         grid-template-columns: 1fr;
     }
+
+    .iv-profile-sources__grid { gap: 12px; padding: 12px; }
+    .iv-profile-source-card__metrics { grid-template-columns: 1fr; padding: 0; }
+    .iv-profile-source-card__metrics > div { padding: 10px 14px; }
+    .iv-profile-source-card__metrics > div + div { border-top: 1px solid var(--iv-metric-divider); border-left: 0; }
 
     .iv-reconciliation-state-banner > div + div {
         border-top: 1px solid var(--iv-metric-divider);

@@ -73,12 +73,6 @@ public interface LongTermAssetsApi {
 
   void deleteValuation(Long portfolioId, Long id, Long periodId);
 
-  void addBondRate(Long portfolioId, Long id, BondRateCommand command);
-
-  void updateBondRate(Long portfolioId, Long id, Long periodId, BondRateCommand command);
-
-  void deleteBondRate(Long portfolioId, Long id, Long periodId);
-
   void saveRentalTaxPolicy(Long portfolioId, RentalTaxCommand command);
 
   void updateRentalTaxPolicy(Long portfolioId, Long policyId, RentalTaxCommand command);
@@ -277,8 +271,6 @@ public interface LongTermAssetsApi {
 
   record ValuationCommand(LocalDate validFrom, LocalDate validTo, BigDecimal growthRatePercent) {}
 
-  record BondRateCommand(LocalDate validFrom, LocalDate validTo, BigDecimal annualInterestRate) {}
-
   record RentalTaxCommand(
       LocalDate validFrom, LocalDate validTo, BigDecimal ratePercent, BigDecimal rate) {}
 
@@ -313,13 +305,6 @@ public interface LongTermAssetsApi {
     public ValuationView(
         LocalDate validFrom, LocalDate validTo, BigDecimal expectedAnnualGrowthRate) {
       this(null, validFrom, validTo, expectedAnnualGrowthRate);
-    }
-  }
-
-  record BondRateView(
-      Long id, LocalDate validFrom, LocalDate validTo, BigDecimal annualInterestRate) {
-    public BondRateView(LocalDate validFrom, LocalDate validTo, BigDecimal annualInterestRate) {
-      this(null, validFrom, validTo, annualInterestRate);
     }
   }
 
@@ -396,7 +381,6 @@ public interface LongTermAssetsApi {
       BondDetailsView bondDetails,
       DepositDetailsView depositDetails,
       List<ValuationView> valuationPeriods,
-      List<BondRateView> bondRatePeriods,
       BigDecimal expectedPropertyGrowth,
       List<RentalContractView> contracts) {}
 

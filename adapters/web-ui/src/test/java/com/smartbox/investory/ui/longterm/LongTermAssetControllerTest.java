@@ -55,7 +55,8 @@ class LongTermAssetControllerTest {
         LocalDate.of(2028, 2, 28),
         InterestTreatmentModel.CAPITALIZE,
         new BigDecimal("6"),
-        null);
+        null,
+        new RedirectAttributesModelMap());
     var command = ArgumentCaptor.forClass(LongTermAssetsApi.BondCommand.class);
     verify(assets).createBond(command.capture());
     assertEquals(new BigDecimal("150000"), command.getValue().value());
@@ -120,18 +121,12 @@ class LongTermAssetControllerTest {
   }
 
   @Test
-  void effectiveDatedCorrectionsAndDeletesReachApplicationApi() {
+  void realEstateAndTaxEffectiveDatedCorrectionsReachApplicationApi() {
     LocalDate from = LocalDate.of(2026, 1, 1);
     LocalDate to = LocalDate.of(2026, 12, 31);
     var feedback = new RedirectAttributesModelMap();
     controller.updateValuationPeriod(7L, 41L, 1L, from, to, new BigDecimal("3.5"), feedback);
     controller.deleteValuationPeriod(7L, 41L, 1L, feedback);
-    var bondRate = new LongTermAssetController.BondRateForm();
-    bondRate.setValidFrom(from);
-    bondRate.setValidTo(to);
-    bondRate.setAnnualInterestRate(new BigDecimal("0.06"));
-    controller.updateBondRatePeriod(7L, 42L, 1L, bondRate, feedback);
-    controller.deleteBondRatePeriod(7L, 42L, 1L, feedback);
     var tax = new LongTermAssetController.RentalTaxForm();
     tax.setValidFrom(from);
     tax.setValidTo(to);
@@ -143,13 +138,35 @@ class LongTermAssetControllerTest {
             1L, 7L, 41L, new LongTermAssetsApi.ValuationCommand(from, to, new BigDecimal("3.5")));
     verify(assets).deleteValuation(1L, 7L, 41L);
     verify(assets)
-        .updateBondRate(
-            1L, 7L, 42L, new LongTermAssetsApi.BondRateCommand(from, to, new BigDecimal("0.06")));
-    verify(assets).deleteBondRate(1L, 7L, 42L);
-    verify(assets)
         .updateRentalTaxPolicy(
             1L, 43L, new LongTermAssetsApi.RentalTaxCommand(from, to, new BigDecimal("8.5"), null));
     verify(assets).deleteRentalTaxPolicy(1L, 43L);
+  }
+
+  @Test
+  void invalidBondCreationRedirectsToFormWithFeedback() {
+    var feedback = new RedirectAttributesModelMap();
+    doThrow(new IllegalArgumentException("Bond maturity must be on or after acquisition"))
+        .when(assets)
+        .createBond(any());
+
+    String result =
+        controller.createBond(
+            1L,
+            "Bond",
+            CurrencyType.PLN,
+            new BigDecimal("100"),
+            LocalDate.of(2026, 1, 2),
+            LocalDate.of(2026, 1, 1),
+            InterestTreatmentModel.PAY_OUT,
+            new BigDecimal("5"),
+            null,
+            feedback);
+
+    assertEquals("redirect:/long-term-assets?portfolioId=1", result);
+    assertEquals(
+        "Bond maturity must be on or after acquisition",
+        feedback.getFlashAttributes().get("error"));
   }
 
   @Test

@@ -118,11 +118,6 @@ public class LongTermAssetService {
   }
 
   @Transactional(readOnly = true)
-  public List<LongTermAssetBondRatePeriodEntity> bondRatePeriods(Long portfolioId, Long id) {
-    return queries.bondRatePeriods(portfolioId, id);
-  }
-
-  @Transactional(readOnly = true)
   public Optional<RentalTaxPolicyEntity> rentalTaxPolicy(Long portfolioId, LocalDate date) {
     return queries.rentalTaxPolicy(portfolioId, date);
   }
@@ -257,20 +252,6 @@ public class LongTermAssetService {
 
   public void deleteValuationPeriod(Long portfolioId, Long assetId, Long periodId) {
     commands.deleteValuationPeriod(portfolioId, assetId, periodId);
-  }
-
-  public LongTermAssetBondRatePeriodEntity addBondRatePeriod(
-      Long portfolioId, Long assetId, LongTermAssetBondRatePeriodEntity period) {
-    return commands.addBondRatePeriod(portfolioId, assetId, period);
-  }
-
-  public LongTermAssetBondRatePeriodEntity updateBondRatePeriod(
-      Long portfolioId, Long assetId, Long periodId, LongTermAssetBondRatePeriodEntity period) {
-    return commands.updateBondRatePeriod(portfolioId, assetId, periodId, period);
-  }
-
-  public void deleteBondRatePeriod(Long portfolioId, Long assetId, Long periodId) {
-    commands.deleteBondRatePeriod(portfolioId, assetId, periodId);
   }
 
   public void deleteRentalTaxPolicy(Long portfolioId, Long policyId) {

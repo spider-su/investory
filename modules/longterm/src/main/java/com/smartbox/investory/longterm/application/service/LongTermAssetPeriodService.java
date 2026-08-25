@@ -79,6 +79,24 @@ public class LongTermAssetPeriodService {
     saveOpenValuationPeriod(assetId, from, growthRate);
   }
 
+  public void replaceCurrentValuationGrowth(
+      Long assetId, LocalDate from, BigDecimal growthRate) {
+    if (growthRate != null) validateGrowthRate(growthRate);
+    var existing = valuations.findAllByAssetIdOrderByValidFrom(assetId);
+    if (!existing.isEmpty()) {
+      valuations.deleteAll(existing);
+      valuations.flush();
+    }
+    if (growthRate != null) {
+      var period = new LongTermAssetValuationPeriodEntity();
+      period.setAssetId(assetId);
+      period.setValidFrom(from);
+      period.setValidTo(null);
+      period.setExpectedAnnualGrowthRate(growthRate);
+      valuations.save(period);
+    }
+  }
+
   public void saveExpectedPropertyGrowth(
       Long portfolioId, Long assetId, BigDecimal growthRate, LocalDate effectiveFrom) {
     LongTermAssetEntity asset = owned(portfolioId, assetId);
@@ -90,10 +108,8 @@ public class LongTermAssetPeriodService {
   public LongTermAssetValuationPeriodEntity addValuationPeriod(
       Long portfolioId, Long assetId, LongTermAssetValuationPeriodEntity period) {
     LongTermAssetEntity asset = owned(portfolioId, assetId);
-    if (asset.getType() != LongTermAssetType.REAL_ESTATE
-        && asset.getType() != LongTermAssetType.CASH_RESERVE)
-      throw new IllegalArgumentException(
-          "Valuation periods apply only to real estate or cash reserve");
+    if (asset.getType() != LongTermAssetType.REAL_ESTATE)
+      throw new IllegalArgumentException("Valuation periods apply only to real estate");
     validateRange(period.getValidFrom(), period.getValidTo());
     validateGrowthRate(period.getExpectedAnnualGrowthRate());
     validateValuationOverlap(assetId, period);
@@ -120,64 +136,25 @@ public class LongTermAssetPeriodService {
     valuations.delete(ownedValuation(portfolioId, assetId, periodId));
   }
 
-  public LongTermAssetBondRatePeriodEntity addBondRatePeriod(
-      Long portfolioId, Long assetId, LongTermAssetBondRatePeriodEntity period) {
-    LongTermAssetEntity asset = owned(portfolioId, assetId);
-    if (asset.getType() != LongTermAssetType.BOND)
-      throw new IllegalArgumentException("Bond-rate periods apply only to bonds");
-    saveBondRatePeriod(assetId, period, true);
-    return period;
-  }
-
-  public LongTermAssetBondRatePeriodEntity updateBondRatePeriod(
-      Long portfolioId,
-      Long assetId,
-      Long periodId,
-      LongTermAssetBondRatePeriodEntity replacement) {
-    LongTermAssetBondRatePeriodEntity period = ownedBondRate(portfolioId, assetId, periodId);
-    period.setValidFrom(replacement.getValidFrom());
-    period.setValidTo(replacement.getValidTo());
-    period.setAnnualInterestRate(replacement.getAnnualInterestRate());
-    saveBondRatePeriod(assetId, period, true);
-    return period;
-  }
-
-  public void deleteBondRatePeriod(Long portfolioId, Long assetId, Long periodId) {
-    bondRates.delete(ownedBondRate(portfolioId, assetId, periodId));
-  }
-
   public void replaceBondRate(
       Long assetId, LocalDate from, LocalDate maturityDate, BigDecimal rate) {
-    for (LongTermAssetBondRatePeriodEntity existing :
-        bondRates.findAllByAssetIdOrderByValidFrom(assetId).stream()
-            .filter(period -> period.getId() == null || !period.getValidFrom().equals(from))
-            .filter(period -> period.getValidTo() == null || !period.getValidTo().isBefore(from))
-            .toList()) {
-      if (existing.getValidFrom().isBefore(from)) {
-        existing.setValidTo(from.minusDays(1));
-        bondRates.save(existing);
-      } else {
-        bondRates.delete(existing);
-      }
+    var existing = bondRates.findAllByAssetIdOrderByValidFrom(assetId);
+    if (!existing.isEmpty()) {
+      bondRates.deleteAll(existing);
+      bondRates.flush();
     }
-    LongTermAssetBondRatePeriodEntity period =
-        bondRates.findAllByAssetIdOrderByValidFrom(assetId).stream()
-            .filter(existing -> existing.getValidFrom().equals(from))
-            .findFirst()
-            .orElseGet(LongTermAssetBondRatePeriodEntity::new);
+    LongTermAssetBondRatePeriodEntity period = new LongTermAssetBondRatePeriodEntity();
     period.setAssetId(assetId);
     period.setValidFrom(from);
     period.setValidTo(maturityDate);
     period.setAnnualInterestRate(rate);
-    saveBondRatePeriod(assetId, period, period.getId() == null);
+    saveBondRatePeriod(assetId, period);
   }
 
-  private void saveBondRatePeriod(
-      Long assetId, LongTermAssetBondRatePeriodEntity period, boolean validateOverlap) {
+  private void saveBondRatePeriod(Long assetId, LongTermAssetBondRatePeriodEntity period) {
     validateRange(period.getValidFrom(), period.getValidTo());
     if (period.getAnnualInterestRate() == null || period.getAnnualInterestRate().signum() < 0)
       throw new IllegalArgumentException("Bond interest rate must be non-negative");
-    if (validateOverlap) validateBondRateOverlap(assetId, period);
     period.setAssetId(assetId);
     bondRates.save(period);
   }
@@ -195,15 +172,6 @@ public class LongTermAssetPeriodService {
         .findById(periodId)
         .filter(period -> Objects.equals(period.getAssetId(), assetId))
         .orElseThrow(() -> new NoSuchElementException("Valuation period not found"));
-  }
-
-  private LongTermAssetBondRatePeriodEntity ownedBondRate(
-      Long portfolioId, Long assetId, Long periodId) {
-    owned(portfolioId, assetId);
-    return bondRates
-        .findById(periodId)
-        .filter(period -> Objects.equals(period.getAssetId(), assetId))
-        .orElseThrow(() -> new NoSuchElementException("Bond-rate period not found"));
   }
 
   private static void validateGrowthRate(BigDecimal rate) {
@@ -258,20 +226,6 @@ public class LongTermAssetPeriodService {
                     period.getValidFrom(),
                     period.getValidTo())))
       throw new IllegalArgumentException("Overlapping valuation period");
-  }
-
-  private void validateBondRateOverlap(Long id, LongTermAssetBondRatePeriodEntity period) {
-    if (bondRates.findAllByAssetIdOrderByValidFrom(id).stream()
-        .filter(
-            existing -> period.getId() == null || !Objects.equals(existing.getId(), period.getId()))
-        .anyMatch(
-            existing ->
-                rangesOverlap(
-                    existing.getValidFrom(),
-                    existing.getValidTo(),
-                    period.getValidFrom(),
-                    period.getValidTo())))
-      throw new IllegalArgumentException("Overlapping bond-rate period");
   }
 
   private static boolean rangesOverlap(LocalDate a, LocalDate b, LocalDate c, LocalDate d) {

@@ -2,6 +2,7 @@ package com.smartbox.investory.retirement.api;
 
 import com.smartbox.investory.investment.api.BrokerageAssetClassification;
 import com.smartbox.investory.investment.api.BrokerageAssetClassificationReader;
+import com.smartbox.investory.investment.api.BrokerageIncomeSnapshot;
 import com.smartbox.investory.investment.api.BrokeragePortfolioReader;
 import com.smartbox.investory.investment.api.BrokeragePositionSnapshot;
 import com.smartbox.investory.investment.api.SharedBrokeragePortfolioSnapshot;
@@ -19,6 +20,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -54,10 +57,31 @@ public class InvestmentProfileFacade {
     BigDecimal marketValue = toUsd(market.balance(), market.baseCurrency(), date);
     BigDecimal longTermValue = longTerm.totalCurrentValue();
     BigDecimal total = marketValue.add(longTermValue);
+    BrokerageIncomeSnapshot incomeSnapshot =
+        brokeragePortfolioReadService.incomeForMonths(
+            YearMonth.of(date.getYear(), 1), YearMonth.from(date));
+    CurrencyType incomeCurrency =
+        incomeSnapshot == null || incomeSnapshot.baseCurrency() == null
+            ? market.baseCurrency()
+            : incomeSnapshot.baseCurrency();
     BigDecimal marketIncome =
-        toUsd(market.dividends(), market.baseCurrency(), date)
-            .add(toUsd(market.interest(), market.baseCurrency(), date));
+        incomeSnapshot == null
+            ? toUsd(market.dividends(), market.baseCurrency(), date)
+                .add(toUsd(market.interest(), market.baseCurrency(), date))
+            : toUsd(incomeSnapshot.netIncome(), incomeCurrency, date);
+    BigDecimal projectedMarketIncome = annualize(marketIncome, incomeSnapshot, date);
+    BigDecimal marketIncomeBasis =
+        marketIncomeBasis(incomeSnapshot, incomeCurrency, marketValue, date);
     BigDecimal longTermIncome = longTerm.netAnnualIncomeAfterTax();
+    ProfileIncomeSummary incomeSummary =
+        new ProfileIncomeSummary(
+            marketIncome,
+            projectedMarketIncome,
+            ProfileIncomeSummary.ratio(projectedMarketIncome, marketIncomeBasis),
+            longTermIncome,
+            ProfileIncomeSummary.ratio(longTermIncome, longTermValue),
+            projectedMarketIncome.add(longTermIncome),
+            ProfileIncomeSummary.ratio(projectedMarketIncome.add(longTermIncome), total));
     BigDecimal explicitReserve = marketCash;
     for (LongTermAssetProfileAssetModel asset : longTermAssets.list(portfolioId, date)) {
       if (asset.type()
@@ -141,7 +165,8 @@ public class InvestmentProfileFacade {
             date.getYear(),
             LongTermAnnualProjectionApi.Source.PROJECTED),
         explicitReserve,
-        brokerageInvestmentCapital);
+        brokerageInvestmentCapital,
+        incomeSummary);
   }
 
   public List<LongTermAssetProfileAssetModel> loadLongTermAssets(Long portfolioId) {
@@ -215,5 +240,39 @@ public class InvestmentProfileFacade {
 
   private static BigDecimal money(double value) {
     return BigDecimal.valueOf(value);
+  }
+
+  private BigDecimal annualize(
+      BigDecimal income, BrokerageIncomeSnapshot snapshot, LocalDate asOfDate) {
+    LocalDate yearStart = LocalDate.of(asOfDate.getYear(), 1, 1);
+    LocalDate start =
+        snapshot == null || snapshot.periodStart() == null
+            ? yearStart
+            : snapshot.periodStart().isBefore(yearStart) ? yearStart : snapshot.periodStart();
+    LocalDate end =
+        snapshot == null || snapshot.periodEnd() == null || snapshot.periodEnd().isAfter(asOfDate)
+            ? asOfDate
+            : snapshot.periodEnd();
+    if (end.isBefore(start)) return BigDecimal.ZERO;
+    long observedDays = ChronoUnit.DAYS.between(start, end) + 1;
+    return income
+        .multiply(BigDecimal.valueOf(asOfDate.lengthOfYear()))
+        .divide(BigDecimal.valueOf(observedDays), 8, RoundingMode.HALF_UP);
+  }
+
+  private BigDecimal marketIncomeBasis(
+      BrokerageIncomeSnapshot snapshot,
+      CurrencyType sourceCurrency,
+      BigDecimal fallback,
+      LocalDate date) {
+    if (snapshot == null) return fallback;
+    BigDecimal start = toUsd(snapshot.startValue(), sourceCurrency, date);
+    BigDecimal end = toUsd(snapshot.endValue(), sourceCurrency, date);
+    if (start.signum() > 0 && end.signum() > 0) {
+      return start.add(end).divide(BigDecimal.valueOf(2), 8, RoundingMode.HALF_UP);
+    }
+    if (end.signum() > 0) return end;
+    if (start.signum() > 0) return start;
+    return fallback;
   }
 }

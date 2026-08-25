@@ -56,7 +56,6 @@ class LongTermAssetsApplicationServiceTest {
                 null,
                 null,
                 List.of(),
-                List.of(),
                 BigDecimal.ZERO,
                 List.of(contract)));
 
