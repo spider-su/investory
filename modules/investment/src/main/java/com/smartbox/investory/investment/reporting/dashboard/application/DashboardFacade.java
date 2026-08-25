@@ -19,6 +19,7 @@ import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPe
 import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriodFilterService;
 import com.smartbox.investory.investment.reporting.dashboard.service.PortfolioStructureQuery;
 import java.time.YearMonth;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -29,6 +30,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class DashboardFacade {
+  private static final int ATTRIBUTION_NAMED_LIMIT = 9;
 
   private final PortfolioService portfolioService;
   private final BenchmarkService benchmarkService;
@@ -659,11 +661,31 @@ public class DashboardFacade {
     }
     Comparator<InstrumentPerformance> order =
         Comparator.comparingDouble(InstrumentPerformance::getTotal);
-    return portfolio.getPerformancePerSymbol().stream()
+    List<InstrumentPerformance> matching =
+        portfolio.getPerformancePerSymbol().stream()
         .filter(row -> gainers ? row.getTotal() >= 0 : row.getTotal() < 0)
         .sorted(gainers ? order.reversed() : order)
-        .limit(10)
         .toList();
+    if (matching.size() <= ATTRIBUTION_NAMED_LIMIT) {
+      return matching;
+    }
+
+    List<InstrumentPerformance> result =
+        new ArrayList<>(matching.subList(0, ATTRIBUTION_NAMED_LIMIT));
+    result.add(otherPerformance(matching.subList(ATTRIBUTION_NAMED_LIMIT, matching.size())));
+    return List.copyOf(result);
+  }
+
+  private InstrumentPerformance otherPerformance(List<InstrumentPerformance> rows) {
+    return new InstrumentPerformance(
+        "Other",
+        rows.stream().mapToDouble(InstrumentPerformance::getClosedProfit).sum(),
+        rows.stream().mapToDouble(InstrumentPerformance::getUnrealizedProfit).sum(),
+        rows.stream().mapToDouble(InstrumentPerformance::getTotal).sum(),
+        rows.stream().mapToDouble(InstrumentPerformance::getDividends).sum(),
+        rows.stream().mapToDouble(InstrumentPerformance::getWithholdingTax).sum(),
+        rows.stream().mapToDouble(InstrumentPerformance::getMarketValue).sum(),
+        rows.stream().mapToDouble(InstrumentPerformance::getCostBasis).sum());
   }
 
   private record PeriodPerformance(

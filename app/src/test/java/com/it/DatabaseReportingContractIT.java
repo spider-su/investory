@@ -581,6 +581,37 @@ class DatabaseReportingContractIT {
   }
 
   @Test
+  void portfolioContributionGrossAmountsAssignOnlyBoundaryTransferNet() throws SQLException {
+    try (Connection connection = connection()) {
+      connection.setAutoCommit(false);
+      try {
+        double[] before = portfolioContributionSummary(connection, 1L);
+
+        insertCashOperation(connection, "DEPOSIT", 51499241L, 100.0, "external funding");
+        insertCashOperation(connection, "WITHDRAWAL", 51499241L, -30.0, "external withdrawal");
+        insertSubaccountTransfer(connection, 51499241L, 50.0, "Transfer from 99999999 to 51499241");
+        insertSubaccountTransfer(
+            connection, 51499241L, -20.0, "Transfer from 51499241 to 99999999");
+        insertSubaccountTransfer(
+            connection, 51499241L, 200.0, "Transfer from 51993106 to 51499241");
+        insertSubaccountTransfer(
+            connection, 51993106L, -200.0, "Transfer from 51993106 to 51499241");
+
+        try (Statement statement = connection.createStatement()) {
+          statement.execute("REFRESH MATERIALIZED VIEW investory.portfolio_contribution_summary");
+        }
+
+        double[] after = portfolioContributionSummary(connection, 1L);
+        assertEquals(130.0, after[0] - before[0], 0.001, "deposit delta");
+        assertEquals(30.0, after[1] - before[1], 0.001, "withdrawal delta");
+        assertEquals(100.0, after[2] - before[2], 0.001, "net contribution delta");
+      } finally {
+        connection.rollback();
+      }
+    }
+  }
+
+  @Test
   void performanceFlowSeparatesCapitalFromBookkeepingCashEffects() throws SQLException {
     try (Connection connection = connection()) {
       connection.setAutoCommit(false);
@@ -743,6 +774,24 @@ class DatabaseReportingContractIT {
         assertEquals(expectedAccountFlow, result.getBigDecimal(1).doubleValue(), 0.001);
         assertEquals(expectedPortfolioFlow, result.getBigDecimal(2).doubleValue(), 0.001);
         assertEquals(expectedPerformanceFlow, result.getBigDecimal(3).doubleValue(), 0.001);
+      }
+    }
+  }
+
+  private static double[] portfolioContributionSummary(Connection connection, long portfolioId)
+      throws SQLException {
+    try (PreparedStatement statement =
+        connection.prepareStatement(
+            "SELECT total_deposits, total_withdrawals, net_deposits "
+                + "FROM investory.portfolio_contribution_summary WHERE portfolio_id = ?")) {
+      statement.setLong(1, portfolioId);
+      try (ResultSet result = statement.executeQuery()) {
+        assertTrue(result.next());
+        return new double[] {
+          result.getBigDecimal(1).doubleValue(),
+          result.getBigDecimal(2).doubleValue(),
+          result.getBigDecimal(3).doubleValue()
+        };
       }
     }
   }

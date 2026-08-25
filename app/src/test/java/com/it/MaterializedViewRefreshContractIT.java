@@ -20,6 +20,7 @@ class MaterializedViewRefreshContractIT {
           "account_monthly_mv",
           "portfolio_monthly_mv",
           "account_statistics",
+          "portfolio_contribution_summary",
           "portfolio_kpi_summary",
           "portfolio_currency_breakdown",
           "portfolio_asset_allocation",

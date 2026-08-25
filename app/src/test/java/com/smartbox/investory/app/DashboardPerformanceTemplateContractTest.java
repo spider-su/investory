@@ -40,6 +40,37 @@ class DashboardPerformanceTemplateContractTest {
   }
 
   @Test
+  void applicationHeaderLetsTheNavigationRailOwnItsVerticalSpacing() throws Exception {
+    String css = Files.readString(Path.of(STYLESHEET));
+
+    assertTrue(css.contains(".iv-topbar.iv-app-header-shell"));
+    assertTrue(css.contains("padding-bottom: 0;"));
+    assertTrue(css.contains(".iv-topbar__secondary {"));
+    assertTrue(css.contains("align-items: center;"));
+  }
+
+  @Test
+  void compactPopoversShareViewportAwarePlacementAndMobileLayout() throws Exception {
+    String html = Files.readString(Path.of(TEMPLATE));
+    String css = Files.readString(Path.of(STYLESHEET));
+    String accessibility =
+        Files.readString(
+            Path.of(
+                "../adapters/web-ui/src/main/resources/static/js/dashboard-accessibility.js"));
+
+    assertTrue(html.contains("iv-structure-card iv-compact-popover"));
+    assertTrue(html.contains("iv-compact-popover__body"));
+    assertTrue(css.contains("width: min(320px, calc(100vw - 32px));"));
+    assertTrue(css.contains("max-height: min(320px, calc(100vh - 32px));"));
+    assertTrue(css.contains("details.iv-compact-popover.placement-top"));
+    assertTrue(css.contains("@media (max-width: 640px)"));
+    assertTrue(accessibility.contains("function placeCompactPopover(details)"));
+    assertTrue(accessibility.contains("spaceBelow < panelHeight && spaceAbove > spaceBelow"));
+    assertTrue(accessibility.contains("window.addEventListener('scroll'"));
+    assertTrue(accessibility.contains("const openDetails = Array.from"));
+  }
+
+  @Test
   void realizedDetailsContainsOnlyGainersAndLosersAndUsesOverviewAnchor() throws Exception {
     String html = Files.readString(Path.of(TEMPLATE));
     String css = Files.readString(Path.of(STYLESHEET));
@@ -51,12 +82,16 @@ class DashboardPerformanceTemplateContractTest {
     assertTrue(html.contains("id=\"investment-overview\""));
     assertTrue(details.contains("Top gainers"));
     assertTrue(details.contains("Top losers"));
+    assertTrue(details.contains("iv-realized-attribution-row"));
+    assertFalse(details.contains("iv-grid iv-grid--split"));
+    assertFalse(details.contains("<table class=\"iv-table\">"));
     assertFalse(details.contains("Investment result"));
     assertFalse(details.contains("What is driving results"));
     assertFalse(details.contains("Capital gains tax"));
     assertTrue(css.contains("#investment-overview .iv-realized-details { position: static; }"));
     assertTrue(css.contains("right: 0;"));
     assertTrue(css.contains("width: min(1100px, 100%);"));
+    assertTrue(css.contains(".iv-realized-attribution-row"));
   }
 
   @Test
@@ -87,6 +122,13 @@ class DashboardPerformanceTemplateContractTest {
     assertTrue(html.contains("selected === 0 || selected === inputs.length"));
     assertTrue(html.contains("if (selectedIds.length > 0) params.set('accountIds'"));
     assertTrue(html.contains("if (selectedIds.length > 0) (view.accounts || [])"));
+    assertTrue(html.contains("const performanceBoardBenchmarkColor = '#16a34a';"));
+    assertFalse(html.contains("performanceBoardAccountPalette = ['#4f46e5', '#16a34a'"));
+    assertTrue(html.contains("Number(account.id) === Number(series.accountId)"));
+    assertTrue(html.contains("performanceBoardAccountColor(series, index, view.accounts)"));
+    assertTrue(html.contains("const visibleSeries = performanceBoardVisibleSeries(view, selectedIds);"));
+    assertTrue(html.contains("skipNull: bars"));
+    assertTrue(html.contains("barPercentage: bars ? 1 : undefined"));
     assertTrue(html.contains("id=\"performance-board-account-selector\""));
     assertTrue(html.contains(">P/L</button>"));
     assertTrue(html.contains("aria-label=\"Aggregation\""));
@@ -109,8 +151,8 @@ class DashboardPerformanceTemplateContractTest {
     assertTrue(html.contains("Portfolio data"));
     assertTrue(html.contains("id=\"refresh-prices-btn\""));
     assertTrue(html.contains("Base currency: USD"));
-    assertTrue(html.contains("class=\"iv-topbar-fx-popover__total\""));
-    assertTrue(html.contains("stats.formatBase(stats.balance) + ' ' + stats.baseCurrency"));
+    assertFalse(html.contains("Portfolio values are converted to"));
+    assertFalse(html.contains("iv-topbar-fx-popover__total"));
     assertTrue(html.contains("th:text=\"${'Base: ' + stats.baseCurrency}\">Base: USD</span>"));
     assertTrue(headerControls.contains("stats.formatBase(account.baseNetDeposit)"));
     assertTrue(

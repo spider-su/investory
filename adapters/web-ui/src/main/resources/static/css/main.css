@@ -624,19 +624,6 @@ main.container-xl.py-4 .table thead th {
 }
 .iv-topbar__meta:has(.iv-topbar-fx-popover[open]) { position: relative; z-index: 1500; }
 .iv-topbar:has(.iv-topbar-fx-popover[open]) { z-index: 1400; }
-.iv-topbar-fx-popover__total {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 16px;
-    margin-top: 4px;
-    padding: 10px 6px 2px;
-    border-top: 1px solid var(--iv-border);
-    color: var(--iv-text);
-    font-variant-numeric: tabular-nums;
-}
-.iv-topbar-fx-popover__total span { color: var(--iv-text-muted); font-weight: 700; }
-.iv-topbar-fx-popover__total strong { font-size: .88rem; white-space: nowrap; }
 .iv-action-menu { position: relative; }
 .iv-action-menu__trigger { cursor: pointer; color: var(--iv-primary); }
 .iv-action-menu__panel {
@@ -1596,6 +1583,8 @@ body.iv-modal-open { overflow: hidden; }
   right: 0;
   left: auto;
   width: min(1100px, 100%);
+  max-height: min(720px, calc(100vh - 180px));
+  overflow-y: auto;
   transform: none;
 }
 .iv-page-nav a.is-active {
@@ -1640,9 +1629,37 @@ body.iv-modal-open { overflow: hidden; }
 }
 
 .iv-realized-attribution-popover {
-  margin-top: 16px;
+  display: grid;
+  gap: 18px;
+}
+.iv-realized-attribution-group + .iv-realized-attribution-group {
   padding-top: 16px;
   border-top: 1px solid var(--iv-border);
+}
+.iv-realized-attribution-title {
+  margin: 0;
+  padding: 2px 6px 8px;
+  color: var(--iv-text);
+  font-size: .82rem;
+  font-weight: 800;
+}
+.iv-realized-attribution-table {
+  overflow-x: auto;
+}
+.iv-realized-attribution-row {
+  grid-template-columns:
+      minmax(145px, 1.25fr)
+      repeat(5, minmax(105px, .85fr));
+  min-width: 780px;
+  gap: 16px;
+  padding-block: 8px;
+}
+.iv-realized-attribution-row > :first-child { text-align: left; }
+.iv-realized-attribution-row > :nth-child(n+2) { text-align: right; }
+.iv-realized-attribution-row .iv-sym__avatar {
+  width: 24px;
+  height: 24px;
+  font-size: .66rem;
 }
 
 .iv-position-popover__row--total {
@@ -3503,6 +3520,54 @@ body.iv-modal-open { overflow: hidden; }
 .iv-structure-currency > summary { min-height: 42px; }
 .iv-structure-currency .iv-structure-popover { top: calc(100% + 6px); }
 .iv-structure-currency summary > small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+/* Shared small read-only overlay. Large account and attribution tables keep their own layout. */
+details.iv-compact-popover { position: relative; }
+details.iv-compact-popover[open] { z-index: 1590; }
+details.iv-compact-popover > .iv-compact-popover__panel {
+    --iv-compact-shift-x: 0px;
+    top: calc(100% + 8px);
+    right: 0;
+    bottom: auto;
+    left: auto;
+    z-index: 1600;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    width: min(320px, calc(100vw - 32px));
+    max-height: min(320px, calc(100vh - 32px));
+    padding: 12px;
+    overflow: hidden;
+    transform: translateX(var(--iv-compact-shift-x));
+    border-radius: 10px;
+}
+details.iv-compact-popover.iv-compact-popover--wide > .iv-compact-popover__panel {
+    width: min(360px, calc(100vw - 32px));
+}
+details.iv-compact-popover.placement-top > .iv-compact-popover__panel {
+    top: auto;
+    bottom: calc(100% + 8px);
+}
+.iv-compact-popover__header { min-width: 0; padding-bottom: 8px; }
+.iv-compact-popover__body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.iv-compact-popover__footer { padding-top: 8px; border-top: 1px solid var(--iv-border); }
+.iv-structure-popover .iv-compact-popover__body { display: grid; gap: 4px; }
+.iv-structure-popover .iv-compact-popover__body > div { display: flex; justify-content: space-between; gap: 10px; font-variant-numeric: tabular-nums; }
+.iv-structure-popover .iv-compact-popover__body > div > :last-child { text-align: right; }
+.iv-overview-card:has(.iv-compact-popover[open]),
+.iv-portfolio-structure:has(.iv-compact-popover[open]) { position: relative; z-index: 1590; }
+
+@media (max-width: 640px) {
+    details.iv-compact-popover > .iv-compact-popover__panel,
+    details.iv-compact-popover.placement-top > .iv-compact-popover__panel {
+        position: fixed;
+        inset: auto 16px 16px;
+        width: auto;
+        max-height: min(70vh, calc(100vh - 32px));
+        transform: none;
+        border-radius: 14px;
+        box-shadow: 0 18px 48px rgba(15, 23, 42, .3);
+    }
+}
 .iv-long-term-allocation__legend {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3777,6 +3842,10 @@ body.iv-modal-open { overflow: hidden; }
 }
 
 /* Dashboard summary popover: balance owns the free-cash detail. */
+.iv-topbar.iv-app-header-shell {
+    padding-bottom: 0;
+}
+
 @media (min-width: 1201px) {
     .iv-topbar__primary {
         display: grid;
