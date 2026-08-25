@@ -3212,7 +3212,6 @@ body.iv-modal-open { overflow: hidden; }
 }
 .iv-header-rail__yahoo:hover,
 .iv-header-rail__yahoo:focus-visible { color: var(--iv-text); border-color: var(--iv-text-soft); }
-.iv-header-rail__yahoo--disabled { cursor: not-allowed; opacity: .55; }
 .iv-page-nav span,
 .iv-page-nav a { color: var(--iv-text-muted); }
 .iv-page-nav span.is-active,
@@ -3526,6 +3525,11 @@ details.iv-compact-popover > .iv-compact-popover__panel {
 details.iv-compact-popover.iv-compact-popover--wide > .iv-compact-popover__panel {
     width: min(360px, calc(100vw - 32px));
 }
+.iv-portfolio-structure details.iv-compact-popover > .iv-compact-popover__panel {
+    width: max-content;
+    min-width: 220px;
+    max-width: min(320px, calc(100vw - 32px));
+}
 details.iv-compact-popover.placement-top > .iv-compact-popover__panel {
     top: auto;
     bottom: calc(100% + 8px);
@@ -3533,9 +3537,15 @@ details.iv-compact-popover.placement-top > .iv-compact-popover__panel {
 .iv-compact-popover__header { min-width: 0; padding-bottom: 8px; }
 .iv-compact-popover__body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .iv-compact-popover__footer { padding-top: 8px; border-top: 1px solid var(--iv-border); }
-.iv-structure-popover .iv-compact-popover__body { display: grid; gap: 4px; }
-.iv-structure-popover .iv-compact-popover__body > div { display: flex; justify-content: space-between; gap: 10px; font-variant-numeric: tabular-nums; }
+.iv-structure-popover .iv-compact-popover__body {
+    display: grid;
+    grid-template-columns: minmax(0, max-content) max-content;
+    gap: 4px 18px;
+    justify-content: start;
+}
+.iv-structure-popover .iv-compact-popover__body > div { display: contents; font-variant-numeric: tabular-nums; }
 .iv-structure-popover .iv-compact-popover__body > div > :last-child { text-align: right; }
+.iv-structure-popover .iv-compact-popover__body > small { grid-column: 1 / -1; }
 .iv-overview-card:has(.iv-compact-popover[open]),
 .iv-portfolio-structure:has(.iv-compact-popover[open]) { position: relative; z-index: 1590; }
 
@@ -3549,6 +3559,11 @@ details.iv-compact-popover.placement-top > .iv-compact-popover__panel {
         transform: none;
         border-radius: 14px;
         box-shadow: 0 18px 48px rgba(15, 23, 42, .3);
+    }
+    .iv-portfolio-structure details.iv-compact-popover > .iv-compact-popover__panel {
+        width: auto;
+        min-width: 0;
+        max-width: none;
     }
 }
 .iv-long-term-allocation__legend {

@@ -10,10 +10,8 @@ import com.smartbox.investory.investment.infrastructure.market.client.YahooFinan
 import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.ClosedPosition;
-import com.smartbox.investory.investment.infrastructure.persistence.ClosedPositionRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
-import com.smartbox.investory.investment.infrastructure.persistence.OpenedPositionRepository;
+import com.smartbox.investory.investment.infrastructure.persistence.PositionEntity;
+import com.smartbox.investory.investment.infrastructure.persistence.PositionRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.market.fx.CurrencyRateService;
@@ -79,9 +77,8 @@ public class MarketService {
   @org.springframework.beans.factory.annotation.Autowired(required = false)
   private IntegrationConfigurationService integrationConfigurationService;
 
-  private final OpenedPositionRepository openedPositionRepository;
+  private final PositionRepository positionRepository;
   private final AccountRepository accountRepository;
-  private final ClosedPositionRepository closedPositionRepository;
   private final AssetRepository assetRepository;
   private final AssetPriceHistoryRepository assetPriceHistoryRepository;
   private final AssetPriceHistoryGapFillService assetPriceHistoryGapFillService;
@@ -95,9 +92,8 @@ public class MarketService {
   public MarketService(
       TwelveDataService twelveDataService,
       YahooFinanceService yahooFinanceService,
-      OpenedPositionRepository openedPositionRepository,
+      PositionRepository positionRepository,
       AccountRepository accountRepository,
-      ClosedPositionRepository closedPositionRepository,
       AssetRepository assetRepository,
       AssetPriceHistoryRepository assetPriceHistoryRepository,
       AssetPriceHistoryGapFillService assetPriceHistoryGapFillService,
@@ -109,9 +105,8 @@ public class MarketService {
       @Value("${app.market.excluded-symbols:}") String excludedSymbolsCsv) {
     this.twelveDataService = twelveDataService;
     this.yahooFinanceService = yahooFinanceService;
-    this.openedPositionRepository = openedPositionRepository;
+    this.positionRepository = positionRepository;
     this.accountRepository = accountRepository;
-    this.closedPositionRepository = closedPositionRepository;
     this.assetRepository = assetRepository;
     this.assetPriceHistoryRepository = assetPriceHistoryRepository;
     this.assetPriceHistoryGapFillService = assetPriceHistoryGapFillService;
@@ -239,13 +234,13 @@ public class MarketService {
     if (inactiveAssets.isEmpty()) {
       return;
     }
-    Map<String, ClosedPosition> latestClosedBySymbol =
-        closedPositionRepository.findAll().stream()
+    Map<String, PositionEntity> latestClosedBySymbol =
+        positionRepository.findClosed().stream()
             .filter(position -> StringUtils.hasText(position.getSymbol()))
             .filter(position -> position.getClosePrice() != null)
             .collect(
                 Collectors.toMap(
-                    ClosedPosition::getSymbol,
+                    PositionEntity::getSymbol,
                     position -> position,
                     (left, right) -> {
                       ZonedDateTime leftTime = left.getCloseTime();
@@ -261,7 +256,7 @@ public class MarketService {
 
     List<AssetEntity> backfilled = new ArrayList<>();
     for (AssetEntity asset : inactiveAssets) {
-      ClosedPosition latest = latestClosedBySymbol.get(asset.getSymbol());
+      PositionEntity latest = latestClosedBySymbol.get(asset.getSymbol());
       if (latest == null) {
         continue;
       }
@@ -287,8 +282,8 @@ public class MarketService {
 
   private void refreshAssetActivityFromOpenPositions() {
     Set<String> openSymbols =
-        openedPositionRepository.findAll().stream()
-            .map(OpenedPosition::getSymbol)
+        positionRepository.findOpen().stream()
+            .map(PositionEntity::getSymbol)
             .filter(StringUtils::hasText)
             .collect(Collectors.toSet());
 
@@ -638,20 +633,20 @@ public class MarketService {
     if (ibkrAccounts.isEmpty()) {
       return;
     }
-    List<OpenedPosition> positions = openedPositionRepository.findAllByAccountIn(ibkrAccounts);
+    List<PositionEntity> positions = positionRepository.findOpenByAccountIn(ibkrAccounts);
     if (positions.isEmpty()) {
       return;
     }
     Set<String> symbols =
         positions.stream()
-            .map(OpenedPosition::getSymbol)
+            .map(PositionEntity::getSymbol)
             .filter(StringUtils::hasText)
             .collect(Collectors.toSet());
     Map<String, AssetEntity> assetsBySymbol =
         assetRepository.findAllBySymbolIn(symbols).stream()
             .collect(Collectors.toMap(AssetEntity::getSymbol, asset -> asset, (a, b) -> b));
 
-    for (OpenedPosition position : positions) {
+    for (PositionEntity position : positions) {
       AssetEntity asset = assetsBySymbol.get(position.getSymbol());
       if (asset == null || asset.getMarketPrice() == null || asset.getMarketPrice() == 0.0) {
         continue;
@@ -668,7 +663,7 @@ public class MarketService {
             position.getProfitCurrency());
       }
     }
-    openedPositionRepository.saveAll(positions);
+    positionRepository.saveAll(positions);
 
     // AccountEntity cash/equity is broker-imported state. Quote refresh must not rewrite it:
     // account statistics will combine broker cash with current market value from assets.
@@ -684,14 +679,14 @@ public class MarketService {
     if (xtbAccounts.isEmpty()) {
       return 0;
     }
-    List<OpenedPosition> repaired =
-        openedPositionRepository.findAllByAccountIn(xtbAccounts).stream()
+    List<PositionEntity> repaired =
+        positionRepository.findOpenByAccountIn(xtbAccounts).stream()
             .filter(position -> XTB_RECONSTRUCTED_COMMENT.equals(position.getComment()))
             .filter(position -> position.getProfit() == null || position.getProfit() != 0.0)
             .peek(position -> position.setProfit(0.0))
             .toList();
     if (!repaired.isEmpty()) {
-      openedPositionRepository.saveAll(repaired);
+      positionRepository.saveAll(repaired);
     }
     return repaired.size();
   }

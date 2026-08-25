@@ -62,6 +62,12 @@ class DashboardPerformanceTemplateContractTest {
     assertTrue(html.contains("iv-compact-popover__body"));
     assertTrue(css.contains("width: min(320px, calc(100vw - 32px));"));
     assertTrue(css.contains("max-height: min(320px, calc(100vh - 32px));"));
+    assertTrue(
+        css.contains(
+            ".iv-portfolio-structure details.iv-compact-popover > .iv-compact-popover__panel"));
+    assertTrue(css.contains("width: max-content;"));
+    assertTrue(css.contains("grid-template-columns: minmax(0, max-content) max-content;"));
+    assertTrue(css.contains(".iv-compact-popover__body > div { display: contents;"));
     assertTrue(css.contains("details.iv-compact-popover.placement-top"));
     assertTrue(css.contains("@media (max-width: 640px)"));
     assertTrue(accessibility.contains("function placeCompactPopover(details)"));
@@ -88,6 +94,9 @@ class DashboardPerformanceTemplateContractTest {
     assertFalse(details.contains("Investment result"));
     assertFalse(details.contains("What is driving results"));
     assertFalse(details.contains("Capital gains tax"));
+    assertTrue(
+        details.contains("@{/dashboard/assets/{symbol}(symbol=${symbol.symbol})}"));
+    assertTrue(details.contains("th:if=\"${symbol.symbol != 'Other'}\""));
     assertTrue(css.contains("#investment-overview .iv-realized-details { position: static; }"));
     assertTrue(css.contains("right: 0;"));
     assertTrue(css.contains("width: min(1100px, 100%);"));

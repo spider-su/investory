@@ -1,0 +1,76 @@
+package com.smartbox.investory.investment.reconciliation;
+
+import com.smartbox.investory.investment.infrastructure.integration.export.yahoo.YahooExportService;
+import java.time.Instant;
+import java.util.List;
+import org.springframework.stereotype.Component;
+
+/** Verifies that a generated secondary-adapter snapshot still represents current portfolio data. */
+@Component
+final class SecondaryAdapterReconciliationCheck implements ReconciliationCheck {
+
+  private final YahooExportService yahooExportService;
+
+  SecondaryAdapterReconciliationCheck(YahooExportService yahooExportService) {
+    this.yahooExportService = yahooExportService;
+  }
+
+  @Override
+  public ReconciliationCheckpoint checkpoint() {
+    return ReconciliationCheckpoint.C7;
+  }
+
+  @Override
+  public ReconciliationCheckResult execute(ReconciliationContext context) {
+    YahooExportService.YahooExportStatus export = yahooExportService.status();
+    if (export.lastExport() == null) {
+      return result(
+          ReconciliationStatus.REVIEW,
+          "YAHOO_EXPORT_NOT_CREATED",
+          "No Yahoo export snapshot exists",
+          "Generate an export before release reconciliation.");
+    }
+    if (!export.upToDate()) {
+      return result(
+          ReconciliationStatus.FAIL,
+          "YAHOO_EXPORT_STALE",
+          "Yahoo export differs from current portfolio positions or cash",
+          "Regenerate the Yahoo export.");
+    }
+    return new ReconciliationCheckResult(
+        checkpoint(),
+        ReconciliationStatus.PASS,
+        0,
+        0,
+        0,
+        List.of(),
+        "yahoo_export_state + current Yahoo export payload",
+        Instant.now());
+  }
+
+  private ReconciliationCheckResult result(
+      ReconciliationStatus status, String code, String details, String action) {
+    ReconciliationIssue issue =
+        new ReconciliationIssue(
+            status,
+            checkpoint(),
+            "Yahoo portfolio export",
+            code,
+            "Secondary adapter snapshot",
+            null,
+            null,
+            null,
+            details,
+            details,
+            action);
+    return new ReconciliationCheckResult(
+        checkpoint(),
+        status,
+        1,
+        status == ReconciliationStatus.FAIL ? 1 : 0,
+        status == ReconciliationStatus.REVIEW ? 1 : 0,
+        List.of(issue),
+        "yahoo_export_state + current Yahoo export payload",
+        Instant.now());
+  }
+}

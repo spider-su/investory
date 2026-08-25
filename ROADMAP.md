@@ -42,9 +42,7 @@ asset reactivation, and subtype-specific creation are supported.
 
 | Item | Effort | Why |
 |---|---|---|
-| Transport-level fixtures for `TwelveDataService` (`/quote`, `/time_series`, rate-limit 429) | M | Mockito-based `HttpClient` tests already cover parsing and HTTP failures; add WireMock-level request/response contracts and retry behavior. |
 | Extend IBKR FIFO edge-case coverage | M | Existing importer tests cover the main statement flows; add focused cases for lot matching across partial fills, forex rows, and synthetic-ID stability. |
-| Remove private-fixture dependency from remaining XTB ZIP tests | M | The suite already builds synthetic XLSX workbooks, but several ZIP-path tests still skip when private broker exports are absent. Add synthetic ZIP bundles and remove `Assumptions.assumeTrue`. |
 | JaCoCo report (Maven plugin + threshold per package) | S | Surface what's actually covered; today coverage is a guess. |
 
 ## Theme C - Notification depth
@@ -97,17 +95,15 @@ asset reactivation, and subtype-specific creation are supported.
 
 ## Theme H - Data verification & reconciliation
 
-The application reconciliation page now runs C0-C5 from reusable checks backed by persisted
-import, ledger, position, valuation, account-daily, and reporting evidence. C6 and C7 remain
-explicitly `NOT_CHECKED`; QUICK mode also cannot prove external archive completeness without a
-manifest. The report remains `REVIEW` until all required checkpoint and mode evidence is available.
+The application reconciliation page now executes C0-C7 from reusable checks backed by persisted
+import, ledger, position, valuation, account-daily, reporting, dashboard-fallback, and Yahoo-export
+evidence. QUICK mode still cannot prove external archive completeness without a manifest. The
+report remains `REVIEW` until all required checkpoint and mode evidence is available.
 
 The goal is a repeatable proof that imported and derived portfolio data is safe to use, not a collection of manually executed diagnostic SQL. The accounting and tolerance contracts remain in [`docs/quality/reconciliation.md`](docs/quality/reconciliation.md); this section tracks the remaining engineering work.
 
 | Reconciliation follow-up | Status |
 |---|---|
-| Connect C6 dashboard evidence | Planned |
-| Connect C7 secondary-adapter evidence | Planned |
 | Add archive-manifest completeness evidence | Planned |
 | Integrate GOLDEN and ARCHIVE mode-specific evidence | Planned |
 

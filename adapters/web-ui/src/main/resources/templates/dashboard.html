@@ -197,15 +197,11 @@
             <div th:replace="~{fragments/app-header :: appNavigation('investment', ${portfolioId})}"></div>
         </div>
         <div id="iv-header-rail-right" class="iv-header-rail__right">
-            <a th:if="${yahooFinanceUrl != null and !yahooFinanceUrl.isBlank()}"
-               class="iv-header-rail__yahoo"
-               th:href="${yahooFinanceUrl}"
+            <a class="iv-header-rail__yahoo"
+               th:href="${yahooFinanceUrl != null and !yahooFinanceUrl.isBlank() ? yahooFinanceUrl : 'https://finance.yahoo.com/portfolios/'}"
                target="_blank"
                rel="noopener noreferrer"
                aria-label="Open Yahoo Finance portfolio in a new tab">Yahoo Finance ↗</a>
-            <span th:unless="${yahooFinanceUrl != null and !yahooFinanceUrl.isBlank()}"
-                  class="iv-header-rail__yahoo iv-header-rail__yahoo--disabled"
-                  aria-disabled="true">Yahoo Finance ↗</span>
             <div th:replace="~{dashboard/fragments/header-controls :: valuation}"></div>
         </div>
         </div>
@@ -324,7 +320,7 @@
                                             <span>Symbol</span><span>Total</span><span>Realized</span><span>Unrealized</span><span>Dividends</span><span>Tax</span>
                                         </div>
                                         <div class="iv-position-popover__row iv-realized-attribution-row" role="row" th:each="symbol : ${topGainers}">
-                                            <span class="iv-sym"><span class="iv-sym__avatar" th:text="${#strings.substring(symbol.symbol, 0, 1)}"></span><span th:text="${symbol.symbol}"></span></span>
+                                            <span class="iv-sym"><span class="iv-sym__avatar" th:text="${#strings.substring(symbol.symbol, 0, 1)}"></span><a th:if="${symbol.symbol != 'Other'}" th:href="@{/dashboard/assets/{symbol}(symbol=${symbol.symbol})}" th:text="${symbol.symbol}" title="Open asset details"></a><span th:unless="${symbol.symbol != 'Other'}" th:text="${symbol.symbol}"></span></span>
                                             <span class="iv-amt iv-pos" th:text="${format.wholeNumber(symbol.total)}"></span>
                                             <span class="iv-amt" th:classappend="${symbol.closedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.wholeNumber(symbol.closedProfit)}"></span>
                                             <span class="iv-amt" th:classappend="${symbol.unrealizedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.wholeNumber(symbol.unrealizedProfit)}"></span>
@@ -340,7 +336,7 @@
                                             <span>Symbol</span><span>Total</span><span>Realized</span><span>Unrealized</span><span>Dividends</span><span>Tax</span>
                                         </div>
                                         <div class="iv-position-popover__row iv-realized-attribution-row" role="row" th:each="symbol : ${topLosers}">
-                                            <span class="iv-sym"><span class="iv-sym__avatar" th:text="${#strings.substring(symbol.symbol, 0, 1)}"></span><span th:text="${symbol.symbol}"></span></span>
+                                            <span class="iv-sym"><span class="iv-sym__avatar" th:text="${#strings.substring(symbol.symbol, 0, 1)}"></span><a th:if="${symbol.symbol != 'Other'}" th:href="@{/dashboard/assets/{symbol}(symbol=${symbol.symbol})}" th:text="${symbol.symbol}" title="Open asset details"></a><span th:unless="${symbol.symbol != 'Other'}" th:text="${symbol.symbol}"></span></span>
                                             <span class="iv-amt iv-neg" th:text="${format.wholeNumber(symbol.total)}"></span>
                                             <span class="iv-amt" th:classappend="${symbol.closedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.wholeNumber(symbol.closedProfit)}"></span>
                                             <span class="iv-amt" th:classappend="${symbol.unrealizedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.wholeNumber(symbol.unrealizedProfit)}"></span>

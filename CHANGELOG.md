@@ -2,6 +2,17 @@
 
 Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains future work only.
 
+## 2026-08-25
+
+### Investment module hardening
+
+- Migrated `MarketService` from deprecated open/closed compatibility repositories to the canonical
+  position repository.
+- Split benchmark provider persistence and account-value composition out of `BenchmarkService`.
+- Connected C6 dashboard and C7 Yahoo-export adapter reconciliation evidence.
+- Replaced private XTB ZIP fixtures with deterministic generated archives and added loopback HTTP
+  transport contracts for TwelveData and Yahoo Finance.
+
 ## 2026-08-24
 
 ### Rental contract management

@@ -36,11 +36,12 @@ import org.springframework.stereotype.Service;
 @Service
 public class TwelveDataService {
 
-  private static final String BASE_URL = "https://api.twelvedata.com";
+  private static final String DEFAULT_BASE_URL = "https://api.twelvedata.com";
   private static final Duration TIMEOUT = Duration.ofSeconds(10);
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
   private HttpClient httpClient = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
+  private String baseUrl = DEFAULT_BASE_URL;
 
   @Value("${app.api.twelve-data-key:}")
   private String apiKey;
@@ -60,6 +61,11 @@ public class TwelveDataService {
   /** Test seam: set the API key without going through Spring property binding. */
   public void setApiKey(String apiKey) {
     this.apiKey = apiKey;
+  }
+
+  /** Test seam for transport-level tests against a loopback HTTP server. */
+  void setBaseUrl(String baseUrl) {
+    this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
   }
 
   /**
@@ -217,7 +223,7 @@ public class TwelveDataService {
 
   private JsonNode get(String path, Map<String, String> params, String requestApiKey)
       throws TwelveDataException {
-    StringBuilder sb = new StringBuilder(BASE_URL).append(path).append('?');
+    StringBuilder sb = new StringBuilder(baseUrl).append(path).append('?');
     Map<String, String> all = new HashMap<>(params);
     all.put("apikey", requestApiKey);
     boolean first = true;

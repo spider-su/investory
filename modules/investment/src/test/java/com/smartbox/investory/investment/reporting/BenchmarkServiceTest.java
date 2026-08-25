@@ -60,10 +60,8 @@ class BenchmarkServiceTest {
             accountMonthlyPerformanceRepository,
             accountRepository,
             accountStatisticsRepository,
-            normalizedCashOperationRepository,
-            benchmarkMonthlyCloseRepository,
-            twelveDataService,
-            currencyRateService,
+            new BenchmarkAccountValueService(currencyRateService),
+            new BenchmarkMarketDataService(benchmarkMonthlyCloseRepository, twelveDataService),
             "2026-01");
     org.mockito.Mockito.lenient()
         .when(accountRepository.findMapByIdIn(any()))

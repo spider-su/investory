@@ -32,7 +32,8 @@ public class ReconciliationReportService {
             ReconciliationCheckpoint.C0,
             ReconciliationCheckpoint.C1,
             ReconciliationCheckpoint.C2,
-            ReconciliationCheckpoint.C5)) {
+            ReconciliationCheckpoint.C5,
+            ReconciliationCheckpoint.C6)) {
       all.add(DatabaseEvidenceReconciliationCheck.forCheckpoint(jdbcTemplate, checkpoint));
     }
     this.checks =
