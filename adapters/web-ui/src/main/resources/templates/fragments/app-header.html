@@ -111,8 +111,8 @@
     <a th:unless="${activePage == 'profile'}"
        href="/investment-profile"
        th:href="@{/investment-profile(portfolioId=${portfolioId})}">Profile</a>
-    <span th:if="${activePage == 'simulation'}" class="is-active" aria-current="page">Simulation</span>
-    <a th:unless="${activePage == 'simulation'}"
+    <span th:if="${activePage == 'simulation' or activePage == 'analysis'}" class="is-active" aria-current="page">Simulation</span>
+    <a th:unless="${activePage == 'simulation' or activePage == 'analysis'}"
        href="/simulation"
        th:href="@{/simulation(portfolioId=${portfolioId})}">Simulation</a>
     <span th:if="${activePage == 'reconciliation'}" class="is-active" aria-current="page">Reconciliation</span>

@@ -17,6 +17,7 @@ import com.smartbox.investory.investment.infrastructure.market.client.YahooFinan
 import com.smartbox.investory.investment.infrastructure.persistence.*;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
+import com.smartbox.investory.investment.market.fx.CurrencyRateService;
 import com.smartbox.investory.investment.reporting.StatisticsRefreshService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -44,6 +45,7 @@ class MarketServiceTest {
   @Mock private AssetRepository assetRepository;
   @Mock private AssetPriceHistoryRepository assetPriceHistoryRepository;
   @Mock private AssetPriceHistoryGapFillService assetPriceHistoryGapFillService;
+  @Mock private CurrencyRateService currencyRateService;
   @Mock private StatisticsRefreshService statisticsRefreshService;
   @Mock private PlatformTransactionManager transactionManager;
   @Captor private ArgumentCaptor<Iterable<AssetEntity>> assetIterableCaptor;
@@ -253,6 +255,56 @@ class MarketServiceTest {
             BigDecimal.valueOf(194.80),
             100,
             "EXACT_LISTING_MARKET_CLOSE");
+  }
+
+  @Test
+  void updateStocksConvertsNativeQuoteIntoLegacyUsdCache() {
+    AssetEntity supported = newAsset("CDR.PL", "CDR", true);
+    supported.setCurrency(CurrencyType.PLN);
+    when(assetRepository.findAll()).thenReturn(List.of(supported));
+    when(openedPositionRepository.findAll()).thenReturn(List.of(openPosition("CDR.PL")));
+
+    StockQuote quote = new StockQuote();
+    quote.setSymbol("CDR");
+    quote.setClose(160.0);
+    quote.setCurrency("PLN");
+    quote.setDatetime("2026-08-24");
+    when(twelveDataService.fetchStockQuotes("CDR:GPW")).thenReturn(Map.of("CDR:GPW", quote));
+    when(currencyRateService.convertToBaseCurrency(
+            BigDecimal.valueOf(160.0),
+            CurrencyType.USD,
+            CurrencyType.PLN,
+            java.time.LocalDate.of(2026, 8, 24)))
+        .thenReturn(BigDecimal.valueOf(40.0));
+
+    marketService(false, "").updateStocks();
+
+    assertEquals(160.0, supported.getMarketPrice(), 0.00000001);
+    assertEquals(40.0, supported.getMarketPriceUsd(), 0.00000001);
+  }
+
+  @Test
+  void updateStocksConvertsInactiveClosePriceIntoLegacyUsdCache() {
+    AssetEntity inactive = newAsset("CDR.PL", "CDR", false);
+    inactive.setCurrency(CurrencyType.PLN);
+    ClosedPosition latest = new ClosedPosition();
+    latest.setSymbol("CDR.PL");
+    latest.setClosePrice(160.0);
+    latest.setPriceCurrency(CurrencyType.PLN);
+    latest.setCloseTime(java.time.ZonedDateTime.parse("2026-08-24T16:00:00+02:00[Europe/Warsaw]"));
+    when(assetRepository.findAll()).thenReturn(List.of(inactive));
+    when(closedPositionRepository.findAll()).thenReturn(List.of(latest));
+    when(currencyRateService.convertToBaseCurrency(
+            BigDecimal.valueOf(160.0),
+            CurrencyType.USD,
+            CurrencyType.PLN,
+            java.time.LocalDate.of(2026, 8, 24)))
+        .thenReturn(BigDecimal.valueOf(40.0));
+
+    marketService.updateStocks();
+
+    assertEquals(160.0, inactive.getMarketPrice(), 0.00000001);
+    assertEquals(40.0, inactive.getMarketPriceUsd(), 0.00000001);
   }
 
   @Test
@@ -494,6 +546,7 @@ class MarketServiceTest {
         assetRepository,
         assetPriceHistoryRepository,
         assetPriceHistoryGapFillService,
+        currencyRateService,
         statisticsRefreshService,
         transactionManager,
         0L,

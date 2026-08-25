@@ -62,7 +62,7 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
     boolean returns = "return".equalsIgnoreCase(query.metric());
     boolean allSelected = query.accountIds() == null || selected.size() == accounts.size();
     List<String> sourceLabels = benchmark.getLabels();
-    List<PerformanceSeries> sourceSeries =
+    List<PerformanceSeries> fullSeries =
         allSelected
             ? List.of(new PerformanceSeries("Portfolio", sourceCurve(benchmark, returns)))
             : selected.stream()
@@ -71,9 +71,19 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
                         new PerformanceSeries(
                             accountName(accounts, series.id()), accountCurve(series, returns)))
                 .toList();
-    List<Double> benchmarkCurve =
+    int scopeStart = scopeStart(sourceLabels);
+    List<String> scopedLabels = sourceLabels.subList(scopeStart, sourceLabels.size());
+    List<PerformanceSeries> sourceSeries =
+        fullSeries.stream()
+            .map(
+                row ->
+                    new PerformanceSeries(
+                        row.label(), scopedCurve(row.values(), scopeStart, returns)))
+            .toList();
+    List<Double> fullBenchmarkCurve =
         returns ? benchmark.getBenchmarkReturnCurve() : benchmark.getBenchmarkCurve();
-    List<String> labels = groupedLabels(sourceLabels, query.aggregation());
+    List<Double> benchmarkCurve = scopedCurve(fullBenchmarkCurve, scopeStart, returns);
+    List<String> labels = groupedLabels(scopedLabels, query.aggregation());
     List<PerformanceSeries> series =
         sourceSeries.stream()
             .map(
@@ -82,7 +92,7 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
                         row.label(),
                         transform(
                             row.values(),
-                            sourceLabels,
+                            scopedLabels,
                             query.aggregation(),
                             returns,
                             "bars".equalsIgnoreCase(query.style()))))
@@ -91,24 +101,36 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
         "return".equalsIgnoreCase(query.metric())
             ? transform(
                 benchmarkCurve,
-                sourceLabels,
+                scopedLabels,
                 query.aggregation(),
                 true,
                 "bars".equalsIgnoreCase(query.style()))
             : transform(
                 benchmarkCurve,
-                sourceLabels,
+                scopedLabels,
                 query.aggregation(),
                 false,
                 "bars".equalsIgnoreCase(query.style()));
     List<Double> excessValues =
         transform(
-            differenceCurve(sourceSeries.getFirst().values(), benchmark.getBenchmarkReturnCurve()),
-            sourceLabels,
+            differenceCurve(
+                returns
+                    ? sourceSeries.getFirst().values()
+                    : scopedCurve(
+                        allSelected
+                            ? benchmark.getPortfolioReturnCurve()
+                            : accountCurve(selected.getFirst(), true),
+                        scopeStart,
+                        true),
+                scopedCurve(benchmark.getBenchmarkReturnCurve(), scopeStart, true)),
+            scopedLabels,
             query.aggregation(),
             true,
             "bars".equalsIgnoreCase(query.style()));
-    List<Double> kpiSource = sourceSeries.getFirst().values();
+    List<Double> kpiSource =
+        allSelected
+            ? benchmark.getPortfolioReturnCurve()
+            : accountCurve(selected.getFirst(), true);
     List<Double> kpiBenchmark = benchmark.getBenchmarkReturnCurve();
     Double portfolioReturn = last(rebase(kpiSource, sourceLabels));
     Double benchmarkReturn = last(rebase(kpiBenchmark, sourceLabels));
@@ -257,7 +279,11 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
   }
 
   private List<Double> rebase(List<Double> values, List<String> labels) {
-    int start = 0;
+    return scopedCurve(values, scopeStart(labels), true);
+  }
+
+  private int scopeStart(List<String> labels) {
+    int start = labels.size();
     String configured =
         kpiStart == null ? "" : kpiStart.substring(0, Math.min(7, kpiStart.length()));
     for (int i = 0; i < labels.size(); i++)
@@ -265,6 +291,11 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
         start = i;
         break;
       }
+    return start;
+  }
+
+  private List<Double> scopedCurve(List<Double> values, int start, boolean returns) {
+    if (start >= values.size()) return List.of();
     Double prior = start == 0 ? 0.0 : values.get(start - 1);
     if (prior == null || start >= values.size()) return List.of();
     return values.subList(start, values.size()).stream()
@@ -272,7 +303,9 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
             value ->
                 value == null
                     ? null
-                    : round(((1 + value / 100.0) / (1 + prior / 100.0) - 1) * 100.0))
+                    : returns
+                        ? round(((1 + value / 100.0) / (1 + prior / 100.0) - 1) * 100.0)
+                        : round(value - prior))
         .toList();
   }
 

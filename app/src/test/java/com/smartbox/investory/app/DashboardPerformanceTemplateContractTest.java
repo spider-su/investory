@@ -41,6 +41,8 @@ class DashboardPerformanceTemplateContractTest {
     assertFalse(html.contains("performanceBoardPeriodReturn"));
     assertFalse(html.contains("performanceBoardRebasedReturn"));
     assertTrue(html.contains("performance-scope-aggregation"));
+    assertTrue(html.contains("const percentValue ="));
+    assertFalse(html.contains("toFixed(1)"));
     assertTrue(html.contains("Portfolio data"));
     assertTrue(html.contains("id=\"refresh-prices-btn\""));
     assertTrue(html.contains("Base currency: USD"));

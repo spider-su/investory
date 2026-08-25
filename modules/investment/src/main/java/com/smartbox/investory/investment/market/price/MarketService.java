@@ -16,8 +16,11 @@ import com.smartbox.investory.investment.infrastructure.persistence.OpenedPositi
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPositionRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
+import com.smartbox.investory.investment.market.fx.CurrencyRateService;
+import com.smartbox.investory.investment.market.fx.FxRateUnavailableException;
 import com.smartbox.investory.investment.reporting.ReportingDateHelper;
 import com.smartbox.investory.investment.reporting.StatisticsRefreshService;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -88,6 +91,7 @@ public class MarketService {
   private final AssetRepository assetRepository;
   private final AssetPriceHistoryRepository assetPriceHistoryRepository;
   private final AssetPriceHistoryGapFillService assetPriceHistoryGapFillService;
+  private final CurrencyRateService currencyRateService;
   private final StatisticsRefreshService statisticsRefreshService;
   private final boolean skipNonUsListings;
   private final Set<String> excludedAssetSymbols;
@@ -103,6 +107,7 @@ public class MarketService {
       AssetRepository assetRepository,
       AssetPriceHistoryRepository assetPriceHistoryRepository,
       AssetPriceHistoryGapFillService assetPriceHistoryGapFillService,
+      CurrencyRateService currencyRateService,
       StatisticsRefreshService statisticsRefreshService,
       PlatformTransactionManager transactionManager,
       @Value("${app.market.chunk-pause-ms:" + DEFAULT_CHUNK_PAUSE_MS + "}") long chunkPauseMs,
@@ -116,6 +121,7 @@ public class MarketService {
     this.assetRepository = assetRepository;
     this.assetPriceHistoryRepository = assetPriceHistoryRepository;
     this.assetPriceHistoryGapFillService = assetPriceHistoryGapFillService;
+    this.currencyRateService = currencyRateService;
     this.statisticsRefreshService = statisticsRefreshService;
     this.skipNonUsListings = skipNonUsListings;
     this.excludedAssetSymbols = parseSymbolSet(excludedSymbolsCsv);
@@ -265,7 +271,13 @@ public class MarketService {
         continue;
       }
       asset.setMarketPrice(latest.getClosePrice());
-      asset.setMarketPriceUsd(latest.getClosePrice());
+      updateUsdPriceCache(
+          asset,
+          latest.getClosePrice(),
+          latest.getPriceCurrency(),
+          latest.getCloseTime() == null
+              ? ReportingDateHelper.today()
+              : latest.getCloseTime().toLocalDate());
       asset.setPriceSource("ClosedPosition");
       asset.setPriceUpdatedAt(
           latest.getCloseTime() != null ? latest.getCloseTime() : ZonedDateTime.now());
@@ -336,7 +348,7 @@ public class MarketService {
             asset.setMarketPrice(marketPrice);
             // Legacy UI/export cache only. Reporting selects price and currency from
             // v_current_asset_price, then performs the one required FX conversion.
-            asset.setMarketPriceUsd(marketPrice);
+            updateUsdPriceCache(asset, marketPrice, asset.getCurrency(), quoteDate(quote));
             asset.setPriceSource("TwelveData");
             asset.setPriceUpdatedAt(now);
             toSave.add(asset);
@@ -367,7 +379,7 @@ public class MarketService {
           .ifPresent(
               quote -> {
                 asset.setMarketPrice(quote.price());
-                asset.setMarketPriceUsd(quote.price());
+                updateUsdPriceCache(asset, quote.price(), asset.getCurrency(), quote.date());
                 asset.setPriceSource("YahooFinance");
                 asset.setPriceUpdatedAt(ZonedDateTime.now());
                 toSave.add(asset);
@@ -428,6 +440,33 @@ public class MarketService {
       return quote.getCurrency().trim().toUpperCase(Locale.ROOT);
     }
     return asset.getCurrency() != null ? asset.getCurrency().name() : "USD";
+  }
+
+  private void updateUsdPriceCache(
+      AssetEntity asset, double nativePrice, CurrencyType nativeCurrency, LocalDate valuationDate) {
+    if (nativeCurrency == null || valuationDate == null) {
+      asset.setMarketPriceUsd((BigDecimal) null);
+      log.warn(
+          "USD price cache unavailable for {}: native currency or valuation date is missing",
+          asset.getSymbol());
+      return;
+    }
+    if (nativeCurrency == CurrencyType.USD) {
+      asset.setMarketPriceUsd(nativePrice);
+      return;
+    }
+    try {
+      asset.setMarketPriceUsd(
+          currencyRateService.convertToBaseCurrency(
+              BigDecimal.valueOf(nativePrice), CurrencyType.USD, nativeCurrency, valuationDate));
+    } catch (FxRateUnavailableException exception) {
+      asset.setMarketPriceUsd((BigDecimal) null);
+      log.warn(
+          "USD price cache unavailable for {} at {}: {}",
+          asset.getSymbol(),
+          valuationDate,
+          exception.getMessage());
+    }
   }
 
   private double normalizeMarketPrice(AssetEntity asset, double quoteClose) {

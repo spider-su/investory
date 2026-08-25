@@ -38,6 +38,12 @@ class RetirementAnalysisTemplateContractTest {
     assertTrue(html.contains("analysisPage.analysisAvailable"));
     assertTrue(html.contains("Analysis unavailable"));
     assertTrue(html.contains("No future planning years remain"));
+    assertTrue(
+        html.contains(
+            "<main class=\"iv-app iv-planning-page iv-simulation-page iv-retirement-surface\">"));
+    assertFalse(html.contains("container-xl py-4"));
+    assertFalse(html.contains("Evaluated horizon"));
+    assertTrue(html.contains("Active plan:"));
     assertFalse(html.contains("data-analysis-tab=\"portfolio\""));
     assertFalse(html.contains("analysis-reserve"));
     assertTrue(html.contains("Final net worth"));

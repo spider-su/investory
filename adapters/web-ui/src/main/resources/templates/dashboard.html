@@ -766,8 +766,9 @@
     let benchmarkChart = null;
     let accountValueChart = null;
     let accountValueRequest = 0;
-    const signedValue = value => (Number(value) >= 0 ? '+' : '') + Number(value || 0).toLocaleString(undefined, {maximumFractionDigits: 0});
-    const signedPercentValue = value => (Number(value) >= 0 ? '+' : '') + Number(value || 0).toLocaleString(undefined, {minimumFractionDigits: 1, maximumFractionDigits: 1}) + '%';
+    const signedValue = value => (Number(value) >= 0 ? '+' : '') + amountFormatter.format(Number(value || 0));
+    const percentValue = value => percentFormatter.format(Number(value || 0)) + '%';
+    const signedPercentValue = value => (Number(value) >= 0 ? '+' : '') + percentValue(value);
     function renderTable(id, headers, rows) {
         const el = document.getElementById(id); if (!el) return;
         const table = document.createElement('table');
@@ -845,7 +846,7 @@
                         ticks: {
                             color: tickColor,
                             callback: function (value) {
-                                return value.toFixed(1) + ' %';
+                                return percentValue(value);
                             }
                         }
                     }
@@ -866,7 +867,7 @@
                                 const absoluteData = context.dataset.absoluteData || [];
                                 const absoluteValue = absoluteData[context.dataIndex] || 0;
                                 return context.dataset.label + ': '
-                                    + context.parsed.y.toFixed(1) + ' % ('
+                                    + percentValue(context.parsed.y) + ' ('
                                     + signedUsdFormatter.format(Math.round(absoluteValue)) + ')';
                             }
                         }
@@ -956,7 +957,7 @@
         if (!el) return;
         el.classList.toggle('iv-pos', value >= 0);
         el.classList.toggle('iv-neg', value < 0);
-        el.textContent = (signed && value >= 0 ? '+' : '') + value.toFixed(1) + suffix;
+        el.textContent = (signed && value >= 0 ? '+' : '') + percentFormatter.format(value) + suffix;
     }
 
     async function updateBenchmarkSelection() {
@@ -1121,7 +1122,7 @@
                     panel.appendChild(element);
                 };
                 appendLine('strong', a.date + ' · Daily P/L ' + money(a.dailyProfit));
-                appendLine('div', 'Daily return: ' + Number(a.dailyReturnPct || 0).toLocaleString(undefined, {minimumFractionDigits: 1, maximumFractionDigits: 1}) + '%');
+                appendLine('div', 'Daily return: ' + percentValue(a.dailyReturnPct));
                 appendLine('div', 'Opening equity: ' + money(a.openingEquity));
                 appendLine('div', 'Closing equity: ' + money(a.closingEquity));
                 appendLine('div', 'Deposits: ' + money(a.deposits) + ' · Withdrawals: -' + money(a.withdrawals));
@@ -1423,19 +1424,19 @@
         const write = (id, value, suffix, money) => {
             const el = document.getElementById(id); if (!el) return;
             if (value == null) { el.textContent = '—'; return; }
-            el.textContent = (value >= 0 ? '+' : '') + (money ? amountFormatter.format(Math.round(value)) : Number(value).toFixed(1)) + suffix;
+            el.textContent = (value >= 0 ? '+' : '') + (money ? amountFormatter.format(Math.round(value)) : percentFormatter.format(Number(value))) + suffix;
             el.classList.toggle('iv-pos', value >= 0); el.classList.toggle('iv-neg', value < 0);
         };
-        write('performance-board-return', kpis.portfolioReturn, ' %', false);
+        write('performance-board-return', kpis.portfolioReturn, '%', false);
         write('performance-board-pl', kpis.portfolioProfitLoss, '', true);
-        write('performance-board-spy', kpis.benchmarkReturn, ' %', false);
+        write('performance-board-spy', kpis.benchmarkReturn, '%', false);
         write('performance-board-excess', kpis.excessReturn, ' pp', false);
         const showBenchmark = performanceBoardState.metric === 'return' && document.getElementById('performance-board-show-spy')?.checked;
         ['performance-board-spy-kpi', 'performance-board-excess-kpi'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = showBenchmark ? '' : 'none'; });
         const best = document.getElementById('performance-board-best');
         const worst = document.getElementById('performance-board-worst');
-        if (best) best.textContent = kpis.bestPeriod && kpis.bestValue != null ? kpis.bestPeriod + ' · ' + (kpis.bestValue >= 0 ? '+' : '') + Number(kpis.bestValue).toFixed(1) : '—';
-        if (worst) worst.textContent = kpis.worstPeriod && kpis.worstValue != null ? kpis.worstPeriod + ' · ' + (kpis.worstValue >= 0 ? '+' : '') + Number(kpis.worstValue).toFixed(1) : '—';
+        if (best) best.textContent = kpis.bestPeriod && kpis.bestValue != null ? kpis.bestPeriod + ' · ' + (kpis.bestValue >= 0 ? '+' : '') + percentFormatter.format(Number(kpis.bestValue)) : '—';
+        if (worst) worst.textContent = kpis.worstPeriod && kpis.worstValue != null ? kpis.worstPeriod + ' · ' + (kpis.worstValue >= 0 ? '+' : '') + percentFormatter.format(Number(kpis.worstValue)) : '—';
     }
 
     async function renderPerformanceBoard() {
@@ -1456,10 +1457,10 @@
             document.getElementById('performance-scope-aggregation').textContent = (document.getElementById('performance-board-aggregation')?.value || 'monthly').replace(/^./, value => value.toUpperCase());
             const unit = performanceBoardState.metric === 'return' ? '%' : '$';
             if (!performanceBoardChart) {
-                performanceBoardChart = new Chart(performanceBoardEl.getContext('2d'), { type: bars ? 'bar' : 'line', data: { labels, datasets }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: { x: { stacked: bars && performanceBoardState.metric === 'pl', grid: { display: false }, ticks: { color: tickColor, maxRotation: 0, autoSkip: true } }, y: { stacked: bars && performanceBoardState.metric === 'pl', grid: { color: gridColor, drawBorder: false }, ticks: { color: tickColor, callback: value => performanceBoardState.metric === 'return' ? Number(value).toFixed(1) + ' %' : amountFormatter.format(Math.round(value)) } } }, plugins: { legend: { display: true, position: 'top', align: 'end', labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, color: '#6b7488' } }, tooltip: { callbacks: { label: context => context.dataset.label + ': ' + (Number(context.parsed.y) >= 0 ? '+' : '') + (unit === '%' ? Number(context.parsed.y).toFixed(1) + ' %' : amountFormatter.format(Math.round(context.parsed.y)) + ' $') } } } } });
+                performanceBoardChart = new Chart(performanceBoardEl.getContext('2d'), { type: bars ? 'bar' : 'line', data: { labels, datasets }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: { x: { stacked: bars && performanceBoardState.metric === 'pl', grid: { display: false }, ticks: { color: tickColor, maxRotation: 0, autoSkip: true } }, y: { stacked: bars && performanceBoardState.metric === 'pl', grid: { color: gridColor, drawBorder: false }, ticks: { color: tickColor, callback: value => performanceBoardState.metric === 'return' ? percentValue(value) : amountFormatter.format(Math.round(value)) } } }, plugins: { legend: { display: true, position: 'top', align: 'end', labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, color: '#6b7488' } }, tooltip: { callbacks: { label: context => context.dataset.label + ': ' + (Number(context.parsed.y) >= 0 ? '+' : '') + (unit === '%' ? percentValue(context.parsed.y) : amountFormatter.format(Math.round(context.parsed.y)) + ' $') } } } } });
                 enableKeyboardChart(performanceBoardChart, 'performance-board-chart', () => {});
             } else if (performanceBoardChart.config.type !== (bars ? 'bar' : 'line')) { performanceBoardChart.destroy(); performanceBoardChart = null; return renderPerformanceBoard(); } else { performanceBoardChart.data.labels = labels; performanceBoardChart.data.datasets = datasets; performanceBoardChart.update(); }
-            renderTable('performance-board-table', ['Period', ...datasets.map(dataset => dataset.label)], labels.map((label, index) => [label, ...datasets.map(dataset => { const value = dataset.data[index]; return value == null ? '—' : (Number(value) >= 0 ? '+' : '') + (unit === '%' ? Number(value).toFixed(1) + ' %' : amountFormatter.format(Math.round(value)) + ' $'); })]));
+            renderTable('performance-board-table', ['Period', ...datasets.map(dataset => dataset.label)], labels.map((label, index) => [label, ...datasets.map(dataset => { const value = dataset.data[index]; return value == null ? '—' : (Number(value) >= 0 ? '+' : '') + (unit === '%' ? percentValue(value) : amountFormatter.format(Math.round(value)) + ' $'); })]));
         } catch (error) { if (empty) empty.style.display = ''; if (content) content.style.display = 'none'; }
     }
 
