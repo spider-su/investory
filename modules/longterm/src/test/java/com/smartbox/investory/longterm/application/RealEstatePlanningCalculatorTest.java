@@ -4,6 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.smartbox.investory.longterm.application.model.RealEstatePlanningSummary;
 import com.smartbox.investory.longterm.application.service.RealEstatePlanningCalculator;
+import com.smartbox.investory.longterm.api.model.CashFlowTypeModel;
+import com.smartbox.investory.longterm.api.model.FrequencyModel;
+import com.smartbox.investory.longterm.api.model.RentalContractModel;
 import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetCashFlowEntity;
@@ -39,6 +42,51 @@ class RealEstatePlanningCalculatorTest {
     assertEquals(new BigDecimal("681.333333333333333333"), result.monthlyReduce());
     assertEquals(new BigDecimal("2293.666666666666666667"), result.netMonthlyIncome());
     assertEquals(new BigDecimal("0.035287179487"), result.incomeYield());
+  }
+
+  @Test
+  void contractUsesCapturedTaxBaseAndExcludesLandlordPaidFeesFromTenantPayment() {
+    var contract =
+        new RentalContractModel(
+            1L,
+            LocalDate.of(2026, 1, 1),
+            null,
+            null,
+            false,
+            new BigDecimal("2500"),
+            null,
+            null,
+            null,
+            List.of(
+                new RentalContractModel.Term(
+                    CashFlowTypeModel.RENT,
+                    new BigDecimal("3000"),
+                    FrequencyModel.MONTHLY,
+                    false),
+                new RentalContractModel.Term(
+                    CashFlowTypeModel.ADMIN_FEE,
+                    new BigDecimal("600"),
+                    FrequencyModel.MONTHLY,
+                    false),
+                new RentalContractModel.Term(
+                    CashFlowTypeModel.UTILITIES,
+                    new BigDecimal("200"),
+                    FrequencyModel.MONTHLY,
+                    true)));
+
+    var result =
+        new RealEstatePlanningCalculator()
+            .calculate(
+                new BigDecimal("700000"),
+                new BigDecimal("9999"),
+                false,
+                List.of(contract),
+                DATE,
+                new BigDecimal("0.085"));
+
+    assertEquals(new BigDecimal("3200"), result.totalPaymentMonthly());
+    assertEquals(new BigDecimal("2550.000"), result.annualTax());
+    assertEquals(new BigDecimal("2500"), result.taxBase());
   }
 
   private static LongTermAssetCashFlowEntity flow(

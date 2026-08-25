@@ -2,6 +2,7 @@ package com.smartbox.investory.investment.market.price;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -25,6 +26,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -343,6 +347,7 @@ class MarketServiceTest {
 
     StockQuote quote = new StockQuote();
     quote.setClose(110.0);
+    quote.setCurrency("USD");
     when(twelveDataService.fetchStockQuotes("AAPL")).thenReturn(Map.of("AAPL", quote));
 
     marketService.updateStocks();
@@ -351,21 +356,19 @@ class MarketServiceTest {
   }
 
   @Test
-  void updateStocksAppliesManualRemxUkPriceAdjustment() {
-    marketService = marketService(false, "");
+  void updateStocksUsesExactYahooListingForRemxUk() {
     AssetEntity remx = newAsset("REMX.UK", "REMX", true);
     when(assetRepository.findAll()).thenReturn(List.of(remx));
     when(openedPositionRepository.findAll()).thenReturn(List.of(openPosition("REMX.UK")));
-
-    StockQuote quote = new StockQuote();
-    quote.setSymbol("REMX");
-    quote.setClose(65.97);
-    quote.setCurrency("USD");
-    when(twelveDataService.fetchStockQuotes("REMX")).thenReturn(Map.of("REMX", quote));
+    when(yahooFinanceService.fetchLatestQuote("REMX.L"))
+        .thenReturn(
+            Optional.of(
+                new YahooQuote("REMX.L", "USD", java.time.LocalDate.of(2026, 8, 24), 12.93)));
 
     marketService.updateStocks();
 
-    verify(twelveDataService).fetchStockQuotes("REMX");
+    verify(twelveDataService, never()).fetchStockQuotes(anyString());
+    verify(yahooFinanceService).fetchLatestQuote("REMX.L");
     verify(assetRepository).saveAll(assetIterableCaptor.capture());
     List<AssetEntity> saved = toList(assetIterableCaptor.getValue());
     assertEquals(1, saved.size());
@@ -374,11 +377,11 @@ class MarketServiceTest {
     verify(assetPriceHistoryRepository)
         .upsertObservedPrice(
             eq(remx.getId()),
-            any(java.time.LocalDate.class),
-            eq("TWELVE_DATA"),
-            eq("REMX"),
+            eq(java.time.LocalDate.of(2026, 8, 24)),
+            eq("YAHOO_FINANCE"),
+            eq("REMX.L"),
             eq("REMX.UK"),
-            eq("TWELVE_DATA_MARKET_CLOSE"),
+            eq("YAHOO_FINANCE_MARKET_CLOSE"),
             eq("USD"),
             eq(BigDecimal.valueOf(12.93)),
             eq(100),
@@ -424,6 +427,7 @@ class MarketServiceTest {
 
     StockQuote quote = new StockQuote();
     quote.setClose(100.0);
+    quote.setCurrency("USD");
     when(twelveDataService.fetchStockQuotes("JGPI:XETR,CDR:GPW,SGLD:LSE,VHYDl:CBOE"))
         .thenReturn(
             Map.of(
@@ -494,12 +498,96 @@ class MarketServiceTest {
     quoteA.setSymbol("A");
     quoteA.setOpen(101.0);
     quoteA.setClose(105.0);
+    quoteA.setCurrency("USD");
     when(twelveDataService.fetchStockQuotes("A")).thenReturn(Map.of("A", quoteA));
     when(twelveDataService.fetchStockQuotes("B")).thenThrow(new RuntimeException("single failed"));
 
     assertThrows(IllegalStateException.class, marketService::updateStocks);
 
     verify(assetRepository, times(1)).saveAll(org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
+  void updateStocksRejectsQuoteCurrencyMismatchAndUsesYahooFallback() {
+    AssetEntity aapl = newAsset("AAPL.US", "AAPL", true);
+    aapl.setMarketPrice(100.0);
+    when(assetRepository.findAll()).thenReturn(List.of(aapl));
+    when(openedPositionRepository.findAll()).thenReturn(List.of(openPosition("AAPL.US")));
+
+    StockQuote quote = new StockQuote();
+    quote.setSymbol("AAPL");
+    quote.setClose(110.0);
+    quote.setCurrency("EUR");
+    when(twelveDataService.fetchStockQuotes("AAPL")).thenReturn(Map.of("AAPL", quote));
+    when(yahooFinanceService.fetchLatestQuote("AAPL")).thenReturn(Optional.empty());
+
+    marketService.updateStocks();
+
+    assertEquals(100.0, aapl.getMarketPrice());
+    verify(yahooFinanceService).fetchLatestQuote("AAPL");
+    verify(assetPriceHistoryRepository, never())
+        .upsertObservedPrice(
+            any(),
+            any(),
+            anyString(),
+            anyString(),
+            anyString(),
+            anyString(),
+            anyString(),
+            any(),
+            any(),
+            anyString());
+  }
+
+  @Test
+  void updateStocksPropagatesInterruptionAsFailure() throws Exception {
+    marketService = marketService(true, "", 10_000L);
+    List<AssetEntity> assets = new java.util.ArrayList<>();
+    List<OpenedPosition> positions = new java.util.ArrayList<>();
+    Map<String, StockQuote> firstChunk = new LinkedHashMap<>();
+    for (int index = 0; index < 9; index++) {
+      String ticker = "A" + index;
+      assets.add(newAsset(ticker + ".US", ticker, true));
+      positions.add(openPosition(ticker + ".US"));
+      if (index < 8) {
+        StockQuote quote = new StockQuote();
+        quote.setSymbol(ticker);
+        quote.setClose(100.0 + index);
+        quote.setCurrency("USD");
+        firstChunk.put(ticker, quote);
+      }
+    }
+    when(assetRepository.findAll()).thenReturn(assets);
+    when(openedPositionRepository.findAll()).thenReturn(positions);
+    CountDownLatch firstChunkFetched = new CountDownLatch(1);
+    when(twelveDataService.fetchStockQuotes("A0,A1,A2,A3,A4,A5,A6,A7"))
+        .thenAnswer(
+            invocation -> {
+              firstChunkFetched.countDown();
+              return firstChunk;
+            });
+
+    AtomicReference<Throwable> failure = new AtomicReference<>();
+    AtomicReference<Boolean> interrupted = new AtomicReference<>(false);
+    Thread refresh =
+        new Thread(
+            () -> {
+              try {
+                marketService.updateStocks();
+              } catch (Throwable throwable) {
+                failure.set(throwable);
+                interrupted.set(Thread.currentThread().isInterrupted());
+              }
+            });
+    refresh.start();
+    assertTrue(firstChunkFetched.await(2, TimeUnit.SECONDS));
+    refresh.interrupt();
+    refresh.join(2_000L);
+
+    assertTrue(failure.get() instanceof IllegalStateException);
+    assertTrue(failure.get().getMessage().contains("interrupted"));
+    assertTrue(interrupted.get());
+    verify(statisticsRefreshService).refreshAll();
   }
 
   @Test
@@ -537,6 +625,11 @@ class MarketServiceTest {
   }
 
   private MarketService marketService(boolean skipNonUsListings, String excludedSymbolsCsv) {
+    return marketService(skipNonUsListings, excludedSymbolsCsv, 0L);
+  }
+
+  private MarketService marketService(
+      boolean skipNonUsListings, String excludedSymbolsCsv, long chunkPauseMs) {
     return new MarketService(
         twelveDataService,
         yahooFinanceService,
@@ -549,7 +642,7 @@ class MarketServiceTest {
         currencyRateService,
         statisticsRefreshService,
         transactionManager,
-        0L,
+        chunkPauseMs,
         skipNonUsListings,
         excludedSymbolsCsv);
   }

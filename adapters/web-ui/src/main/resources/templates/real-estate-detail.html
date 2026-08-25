@@ -101,7 +101,8 @@
               </section>
               <section class="iv-contract-group">
                 <h3>Tax</h3>
-                <p class="mb-0" th:text="${contract.rentalTaxPaidByTenant == null ? 'Use property default' : (contract.rentalTaxPaidByTenant ? 'Paid by tenant' : 'Paid by landlord')}">Use property default</p>
+                <p class="mb-0" th:text="${contract.rentalTaxPaidByTenant == null ? 'Legacy property default' : (contract.rentalTaxPaidByTenant ? 'Paid by tenant' : 'Paid by landlord')}">Paid by landlord</p>
+                <p class="mb-0 text-secondary" th:text="${'Monthly tax base: ' + T(com.smartbox.investory.ui.presentation.UiPresentation).money(contract.monthlyTaxBase, asset.currency)}">Monthly tax base: 0 PLN</p>
               </section>
             </div>
 
@@ -148,10 +149,10 @@
         <input type="hidden" name="active" th:value="${asset.active}">
         <div class="row g-3">
           <div class="col-lg-6"><label class="form-label" for="property-name">Name</label><input id="property-name" class="form-control" name="name" th:value="${asset.name}" required></div>
-          <div class="col-sm-6 col-lg-3"><label class="form-label" for="property-currency">Currency</label><select id="property-currency" class="form-select" name="currency"><option th:each="currency : ${T(com.smartbox.investory.shared.currency.CurrencyType).values()}" th:value="${currency}" th:text="${currency}" th:selected="${currency == asset.currency}"></option></select></div>
+          <div class="col-sm-6 col-lg-3"><label class="form-label" for="property-currency">Currency</label><input type="hidden" name="currency" th:value="${asset.currency}"><input id="property-currency" class="form-control" th:value="${asset.currency}" readonly aria-readonly="true"></div>
           <div class="col-sm-6 col-lg-3"><label class="form-label" for="property-value">Current value</label><input id="property-value" class="form-control" name="currentValue" type="number" step="0.01" min="0" th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).moneyInput(asset.currentValue)}" required></div>
           <div class="col-sm-6 col-lg-3"><label class="form-label" for="purchase-date">Purchase date</label><input id="purchase-date" class="form-control" name="acquisitionDate" type="date" th:value="${asset.acquisitionDate}"></div>
-          <div class="col-sm-6 col-lg-3"><label class="form-label" for="annual-tax-base">Monthly rental-tax base</label><input id="annual-tax-base" class="form-control" name="taxBase" type="number" min="0" step="1" th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumberInput(asset.taxBase)}"></div>
+          <div class="col-sm-6 col-lg-3"><label class="form-label" for="annual-tax-base">Default monthly tax base for new contracts</label><input id="annual-tax-base" class="form-control" name="taxBase" type="number" min="0" step="1" th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumberInput(asset.taxBase)}"></div>
           <div class="col-12"><label class="form-label" for="property-notes">Notes</label><textarea id="property-notes" class="form-control" name="notes" rows="3" th:text="${asset.notes}"></textarea></div>
         </div>
         <div class="mt-3"><button class="btn btn-primary">Save property</button></div>
@@ -159,7 +160,7 @@
       <hr>
       <form class="iv-property-default-tax" method="post" th:action="@{/long-term-assets/{id}/rental-tax-ownership(id=${asset.id})}">
         <input type="hidden" name="portfolioId" th:value="${portfolioId}">
-        <label class="form-label" for="property-default-tax">Property-level rental-tax default</label>
+        <label class="form-label" for="property-default-tax">Tax payer default for new contracts</label>
         <select class="form-select" id="property-default-tax" name="paidByTenant"><option value="false" th:selected="${!asset.rentalTaxPaidByTenant}">Paid by landlord</option><option value="true" th:selected="${asset.rentalTaxPaidByTenant}">Paid by tenant</option></select>
         <button class="btn btn-outline-primary" type="submit">Save tax default</button>
       </form>

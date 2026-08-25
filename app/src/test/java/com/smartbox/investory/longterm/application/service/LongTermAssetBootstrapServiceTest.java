@@ -50,7 +50,6 @@ class LongTermAssetBootstrapServiceTest {
     service =
         new LongTermAssetBootstrapService(
             assets,
-            cashFlows,
             valuations,
             bondRates,
             bonds,
@@ -191,6 +190,126 @@ class LongTermAssetBootstrapServiceTest {
 
     assertEquals(1, result.assetsToCreate());
     assertEquals(0, result.rentalTax().signum());
+  }
+
+  @Test
+  void dryRunTotalsUseOnlyCashFlowsEffectiveOnAssetDate() {
+    var historical =
+        new LongTermAssetBootstrapDocument.CashFlow(
+            CashFlowType.RENT,
+            new BigDecimal("1000"),
+            Frequency.MONTHLY,
+            LocalDate.of(2026, 1, 1),
+            LocalDate.of(2026, 6, 30));
+    var current =
+        new LongTermAssetBootstrapDocument.CashFlow(
+            CashFlowType.RENT,
+            new BigDecimal("2000"),
+            Frequency.MONTHLY,
+            LocalDate.of(2026, 7, 1),
+            null);
+    var property =
+        new LongTermAssetBootstrapDocument.AssetEntity(
+            "property-a",
+            LongTermAssetType.REAL_ESTATE,
+            "Property A",
+            CurrencyType.PLN,
+            LocalDate.of(2020, 1, 1),
+            new BigDecimal("400000"),
+            new BigDecimal("500000"),
+            LocalDate.of(2026, 7, 1),
+            null,
+            List.of(historical, current),
+            List.of(),
+            List.of(),
+            null,
+            null,
+            BigDecimal.ZERO,
+            false);
+
+    var result =
+        service.importDocument(
+            new LongTermAssetBootstrapDocument(1L, List.of(), List.of(property)), true);
+
+    assertEquals(new BigDecimal("24000"), result.grossAnnualIncome());
+  }
+
+  @Test
+  void existingAssetCurrencyCannotBeRelabeledByBootstrap() {
+    var existing = asset("property-a", "700000");
+    when(assets.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of(existing));
+    var changed = assetInput("property-a", LongTermAssetType.REAL_ESTATE, "710000");
+    changed =
+        new LongTermAssetBootstrapDocument.AssetEntity(
+            changed.externalKey(),
+            changed.type(),
+            changed.name(),
+            CurrencyType.USD,
+            changed.acquisitionDate(),
+            changed.acquisitionValue(),
+            changed.currentValue(),
+            changed.effectiveFrom(),
+            changed.notes(),
+            changed.cashFlows(),
+            changed.valuationPeriods(),
+            changed.bondRatePeriods(),
+            changed.bond(),
+            changed.deposit(),
+            changed.taxBase(),
+            changed.rentalTaxPaidByTenant());
+
+    var document = new LongTermAssetBootstrapDocument(1L, List.of(), List.of(changed));
+
+    assertThrows(IllegalArgumentException.class, () -> service.importDocument(document, false));
+    verify(assets, never()).save(any());
+  }
+
+  @Test
+  void bootstrapCorrectionReusesOverlappingAnonymousContract() {
+    var existingAsset = asset("property-a", "700000");
+    existingAsset.setTaxBase(new BigDecimal("2500"));
+    var importedContract = new LongTermAssetRentalContractEntity();
+    importedContract.setId(11L);
+    importedContract.setAssetId(existingAsset.getId());
+    importedContract.setStartDate(LocalDate.of(2026, 1, 1));
+    when(assets.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of(existingAsset));
+    when(assets.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+    when(rentalContracts.findAllByAssetIdOrderByStartDate(existingAsset.getId()))
+        .thenReturn(List.of(importedContract));
+    var correctedFlow =
+        new LongTermAssetBootstrapDocument.CashFlow(
+            CashFlowType.RENT,
+            new BigDecimal("3000"),
+            Frequency.MONTHLY,
+            LocalDate.of(2026, 2, 1),
+            null);
+    var base = assetInput("property-a", LongTermAssetType.REAL_ESTATE, "710000");
+    var corrected =
+        new LongTermAssetBootstrapDocument.AssetEntity(
+            base.externalKey(),
+            base.type(),
+            base.name(),
+            base.currency(),
+            base.acquisitionDate(),
+            base.acquisitionValue(),
+            base.currentValue(),
+            base.effectiveFrom(),
+            base.notes(),
+            List.of(correctedFlow),
+            base.valuationPeriods(),
+            base.bondRatePeriods(),
+            base.bond(),
+            base.deposit(),
+            new BigDecimal("2500"),
+            false);
+
+    service.importDocument(
+        new LongTermAssetBootstrapDocument(1L, List.of(), List.of(corrected)), false);
+
+    assertEquals(LocalDate.of(2026, 2, 1), importedContract.getStartDate());
+    assertEquals(new BigDecimal("2500"), importedContract.getMonthlyTaxBase());
+    verify(rentalContracts).save(importedContract);
+    verify(rentalContracts).flush();
   }
 
   private static LongTermAssetEntity asset(String key, String value) {

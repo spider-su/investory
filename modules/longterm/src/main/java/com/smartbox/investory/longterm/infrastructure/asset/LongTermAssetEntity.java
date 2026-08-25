@@ -34,6 +34,8 @@ public class LongTermAssetEntity {
   @Column(nullable = false, length = 3)
   private CurrencyType currency;
 
+  @Transient private CurrencyType persistedCurrency;
+
   @Column(name = "acquisition_date")
   private LocalDate acquisitionDate;
 
@@ -70,8 +72,21 @@ public class LongTermAssetEntity {
     updatedAt = createdAt;
   }
 
+  @PostLoad
+  void loaded() {
+    persistedCurrency = currency;
+  }
+
+  @PostPersist
+  @PostUpdate
+  void stored() {
+    persistedCurrency = currency;
+  }
+
   @PreUpdate
   void updated() {
+    if (persistedCurrency != null && currency != persistedCurrency)
+      throw new IllegalArgumentException("Asset currency cannot be changed after creation");
     updatedAt = Instant.now();
   }
 }

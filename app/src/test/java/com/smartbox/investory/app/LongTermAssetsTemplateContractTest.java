@@ -76,7 +76,7 @@ class LongTermAssetsTemplateContractTest {
         () -> assertFalse(html.contains("<summary><span>Annual net income</span>")),
         () -> assertTrue(html.contains("iv-portfolio-structure__grid--long-term")),
         () -> assertTrue(css.contains(".iv-portfolio-structure__grid--long-term")),
-        () -> assertTrue(css.contains("grid-template-columns: minmax(0, 1fr) minmax(0, 2fr)")),
+        () -> assertTrue(css.contains("grid-template-columns: minmax(0, 1fr)")),
         () -> assertTrue(html.contains("iv-long-term-allocation__legend")),
         () -> assertTrue(html.contains("th:text=\"${groupShares[group.key]}\"")),
         () ->
@@ -85,11 +85,13 @@ class LongTermAssetsTemplateContractTest {
         () ->
             assertTrue(
                 css.contains("iv-portfolio-structure--long-term .iv-structure-bar__segment")),
-        () -> assertTrue(html.contains("Reporting currency")),
+        () -> assertTrue(header.contains("Reporting currency")),
         () -> assertFalse(html.contains("Asset currency")),
         () -> assertFalse(html.contains("Long-term asset currency")),
-        () -> assertTrue(html.contains("th:text=\"${total.currency}\"")),
-        () -> assertTrue(css.contains(".iv-structure-currency--reporting")),
+        () -> assertFalse(html.contains("iv-structure-currency--reporting")),
+        () -> assertFalse(html.contains("iv-grid--long-term-overview")),
+        () -> assertTrue(html.contains("Expected annual net income")),
+        () -> assertTrue(html.contains("Expected monthly net income")),
         () ->
             assertTrue(css.contains(".iv-planning-topbar--assets .iv-planning-topbar__secondary")),
         () ->

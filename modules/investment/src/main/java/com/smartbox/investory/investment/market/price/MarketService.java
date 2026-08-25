@@ -66,15 +66,9 @@ public class MarketService {
 
   static final Duration QUOTE_FRESHNESS = Duration.ofHours(4);
 
-  private static final String REMX_UK_SYMBOL = "REMX.UK";
-  // TwelveData has only the NYSE REMX quote. Calibrate that proxy to the London
-  // REMX.UK share price using the 2026-07-31 closes: 65.97 USD / 12.93 USD.
-  private static final double REMX_UK_TWELVE_DATA_DIVISOR = 65.97 / 12.93;
   private static final String VHYD_UK_SYMBOL = "VHYD.UK";
   private static final Map<String, String> TWELVE_DATA_SYMBOL_OVERRIDES =
-      Map.of(
-          REMX_UK_SYMBOL, "REMX",
-          VHYD_UK_SYMBOL, "VHYDl:CBOE");
+      Map.of(VHYD_UK_SYMBOL, "VHYDl:CBOE");
 
   private final TwelveDataService twelveDataService;
   private final YahooFinanceService yahooFinanceService;
@@ -198,9 +192,10 @@ public class MarketService {
       }
       if (idx < chunks.size() && !chunkPause.isZero()) {
         if (!sleep(chunkPause)) {
-          log.warn("AssetEntity price sync interrupted after chunk {}; stopping cleanly", idx);
+          log.warn("AssetEntity price sync interrupted after chunk {}; reporting incomplete", idx);
           refreshStatisticsIfNeeded(refreshAfterUpdate);
-          return;
+          throw new IllegalStateException(
+              "Market refresh interrupted after chunk " + idx + " of " + chunks.size());
         }
       }
     }
@@ -344,7 +339,10 @@ public class MarketService {
             return;
           }
           for (AssetEntity asset : assets) {
-            double marketPrice = normalizeMarketPrice(asset, quote.getClose());
+            if (!isUsableQuote(asset, quote)) {
+              continue;
+            }
+            double marketPrice = quote.getClose();
             asset.setMarketPrice(marketPrice);
             // Legacy UI/export cache only. Reporting selects price and currency from
             // v_current_asset_price, then performs the one required FX conversion.
@@ -442,6 +440,24 @@ public class MarketService {
     return asset.getCurrency() != null ? asset.getCurrency().name() : "USD";
   }
 
+  private boolean isUsableQuote(AssetEntity asset, StockQuote quote) {
+    if (!Double.isFinite(quote.getClose()) || quote.getClose() <= 0.0) {
+      log.warn("TwelveData quote skipped for {}: no positive close price", asset.getSymbol());
+      return false;
+    }
+    if (asset.getCurrency() == null
+        || !StringUtils.hasText(quote.getCurrency())
+        || !asset.getCurrency().name().equalsIgnoreCase(quote.getCurrency().trim())) {
+      log.warn(
+          "TwelveData quote skipped for {}: quote currency {} differs from asset currency {}",
+          asset.getSymbol(),
+          quote.getCurrency(),
+          asset.getCurrency());
+      return false;
+    }
+    return true;
+  }
+
   private void updateUsdPriceCache(
       AssetEntity asset, double nativePrice, CurrencyType nativeCurrency, LocalDate valuationDate) {
     if (nativeCurrency == null || valuationDate == null) {
@@ -467,13 +483,6 @@ public class MarketService {
           valuationDate,
           exception.getMessage());
     }
-  }
-
-  private double normalizeMarketPrice(AssetEntity asset, double quoteClose) {
-    if (REMX_UK_SYMBOL.equals(asset.getSymbol())) {
-      return quoteClose / REMX_UK_TWELVE_DATA_DIVISOR;
-    }
-    return quoteClose;
   }
 
   private String twelveDataSymbol(AssetEntity asset) {
@@ -538,9 +547,7 @@ public class MarketService {
     if (!isNotConfiguredExcluded(asset)) {
       return false;
     }
-    // REMX.UK has an explicit TwelveData mapping/normalization and must refresh even
-    // when generic non-US listings are disabled.
-    return REMX_UK_SYMBOL.equals(symbol) || !(skipNonUsListings && isNonUsExchangeSymbol(symbol));
+    return !(skipNonUsListings && isNonUsExchangeSymbol(symbol));
   }
 
   private boolean isNotConfiguredExcluded(AssetEntity asset) {

@@ -64,7 +64,12 @@ class LongTermAssetControllerTest {
 
   @Test
   void propertyGrowthFormIsSentAsPercentInput() {
-    controller.savePropertyGrowth(7L, 1L, BigDecimal.ONE, LocalDate.of(2026, 1, 1));
+    controller.savePropertyGrowth(
+        7L,
+        1L,
+        BigDecimal.ONE,
+        LocalDate.of(2026, 1, 1),
+        new RedirectAttributesModelMap());
     verify(assets).savePropertyGrowth(1L, 7L, BigDecimal.ONE, LocalDate.of(2026, 1, 1));
   }
 
@@ -80,7 +85,8 @@ class LongTermAssetControllerTest {
         LocalDate.of(2028, 2, 28),
         InterestTreatmentModel.PAY_OUT,
         new BigDecimal("5.75"),
-        "updated");
+        "updated",
+        new RedirectAttributesModelMap());
 
     var command = ArgumentCaptor.forClass(LongTermAssetsApi.BondCommand.class);
     verify(assets).updateBond(command.capture());
@@ -117,19 +123,20 @@ class LongTermAssetControllerTest {
   void effectiveDatedCorrectionsAndDeletesReachApplicationApi() {
     LocalDate from = LocalDate.of(2026, 1, 1);
     LocalDate to = LocalDate.of(2026, 12, 31);
-    controller.updateValuationPeriod(7L, 41L, 1L, from, to, new BigDecimal("3.5"));
-    controller.deleteValuationPeriod(7L, 41L, 1L);
+    var feedback = new RedirectAttributesModelMap();
+    controller.updateValuationPeriod(7L, 41L, 1L, from, to, new BigDecimal("3.5"), feedback);
+    controller.deleteValuationPeriod(7L, 41L, 1L, feedback);
     var bondRate = new LongTermAssetController.BondRateForm();
     bondRate.setValidFrom(from);
     bondRate.setValidTo(to);
     bondRate.setAnnualInterestRate(new BigDecimal("0.06"));
-    controller.updateBondRatePeriod(7L, 42L, 1L, bondRate);
-    controller.deleteBondRatePeriod(7L, 42L, 1L);
+    controller.updateBondRatePeriod(7L, 42L, 1L, bondRate, feedback);
+    controller.deleteBondRatePeriod(7L, 42L, 1L, feedback);
     var tax = new LongTermAssetController.RentalTaxForm();
     tax.setValidFrom(from);
     tax.setValidTo(to);
-    controller.updateRentalTaxPolicy(43L, 1L, tax, new BigDecimal("8.5"), null);
-    controller.deleteRentalTaxPolicy(43L, 1L);
+    controller.updateRentalTaxPolicy(43L, 1L, tax, new BigDecimal("8.5"), null, feedback);
+    controller.deleteRentalTaxPolicy(43L, 1L, feedback);
 
     verify(assets)
         .updateValuation(
@@ -143,6 +150,26 @@ class LongTermAssetControllerTest {
         .updateRentalTaxPolicy(
             1L, 43L, new LongTermAssetsApi.RentalTaxCommand(from, to, new BigDecimal("8.5"), null));
     verify(assets).deleteRentalTaxPolicy(1L, 43L);
+  }
+
+  @Test
+  void periodValidationFailureRedirectsWithFeedbackInsteadOfEscapingAsServerError() {
+    var feedback = new RedirectAttributesModelMap();
+    doThrow(new IllegalArgumentException("Overlapping valuation period"))
+        .when(assets)
+        .addValuation(any(), any(), any());
+
+    String result =
+        controller.addValuationPeriod(
+            7L,
+            1L,
+            LocalDate.of(2026, 1, 1),
+            null,
+            new BigDecimal("3.5"),
+            feedback);
+
+    assertEquals("redirect:/long-term-assets/7?portfolioId=1", result);
+    assertEquals("Overlapping valuation period", feedback.getFlashAttributes().get("error"));
   }
 
   @Test

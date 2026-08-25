@@ -148,11 +148,11 @@ class SimulationTemplateContractTest {
         () -> assertTrue(html.contains("<summary id=\"projection-title\"")),
         () -> assertTrue(header.contains("Edit plan")),
         () -> assertEquals(1, occurrences(header, "iv-page-nav iv-planning-scenario-selector")),
-        () -> assertTrue(header.contains("class=\"iv-planning-scenario-slot\"")),
+        () -> assertTrue(header.contains("class=\"iv-planning-context-slot\"")),
         () ->
             assertTrue(
                 header.contains(
-                    "<nav class=\"iv-page-nav iv-planning-scenario-selector\" aria-label=\"Simulation scenario\">")),
+                    "<nav class=\"iv-page-nav iv-planning-scenario-selector\" th:if=\"${actionMode == 'simulation' and simulationPage != null}\" aria-label=\"Simulation scenario\">")),
         () ->
             assertFalse(
                 header
@@ -226,17 +226,21 @@ class SimulationTemplateContractTest {
   }
 
   @Test
-  void simulationHeaderPlacesBaseCurrencyAfterEditPlan() throws Exception {
+  void simulationHeaderKeepsReportingCurrencyInTheSharedContextSlot() throws Exception {
     String header =
         Files.readString(
             Path.of("../adapters/web-ui/src/main/resources/templates/fragments/app-header.html"));
     int actionsStart = header.indexOf("iv-planning-actions--single");
     int actionsEnd = header.indexOf("</div>", actionsStart);
     String simulationActions = header.substring(actionsStart, actionsEnd);
+    int contextStart = header.indexOf("iv-planning-context-slot");
+    int contextEnd = header.indexOf("</div>", contextStart);
+    String planningContext = header.substring(contextStart, contextEnd);
 
-    assertTrue(
-        simulationActions.indexOf(">Edit plan</a>")
-            < simulationActions.indexOf("iv-planning-base"));
+    assertAll(
+        () -> assertTrue(simulationActions.contains(">Edit plan</a>")),
+        () -> assertFalse(simulationActions.contains("iv-planning-base")),
+        () -> assertTrue(planningContext.contains("Reporting currency")));
   }
 
   @Test

@@ -48,7 +48,7 @@
       const {top, bottom} = chart.chartArea;
       const ctx = chart.ctx;
       ctx.save();
-      ctx.font = `700 10px ${chartFont}`;
+      ctx.font = `700 11px ${chartFont}`;
       ctx.textAlign = 'center';
       markers.forEach(marker => {
         const index = labels.indexOf(marker.year);
@@ -84,12 +84,12 @@
     maintainAspectRatio: false,
     interaction: {mode: 'index', intersect: false},
     plugins: {
-      legend: {position: 'top', labels: {usePointStyle: true, color: colors.text, boxWidth: 8, font: {family: chartFont, size: 10}}},
+      legend: {position: 'top', labels: {usePointStyle: true, color: colors.text, boxWidth: 8, font: {family: chartFont, size: 12}}},
       tooltip: {callbacks: {label: tooltipLabel}}
     },
     scales: {
-      x: {ticks: {color: colors.text, maxTicksLimit: 8, font: {family: chartFont, size: 10}}, grid: {color: colors.grid}},
-      y: {beginAtZero: true, ticks: {color: colors.text, font: {family: chartFont, size: 10}, callback: value => compactMoney(value)}, grid: {color: context => context.tick.value === 0 ? colors.text : colors.grid}}
+      x: {ticks: {color: colors.text, maxTicksLimit: 8, font: {family: chartFont, size: 12}}, grid: {color: colors.grid}},
+      y: {beginAtZero: true, ticks: {color: colors.text, font: {family: chartFont, size: 12}, callback: value => compactMoney(value)}, grid: {color: context => context.tick.value === 0 ? colors.text : colors.grid}}
     },
     elements: {line: {tension: .2, borderWidth: 2}, point: {radius: 0, hitRadius: 8, hoverRadius: 4}}
   };

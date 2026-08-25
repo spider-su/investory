@@ -5621,6 +5621,8 @@ CREATE TABLE investory.long_term_asset_rental_contracts (
     tenant_name character varying(200),
     tenant_email character varying(320),
     tenant_phone character varying(50),
+    monthly_tax_base numeric(20,2),
+    CONSTRAINT ck_rental_contract_monthly_tax_base_non_negative CHECK (((monthly_tax_base IS NULL) OR (monthly_tax_base >= (0)::numeric))),
     CONSTRAINT ck_rental_contract_tenant_email_length CHECK (((tenant_email IS NULL) OR (char_length((tenant_email)::text) <= 320))),
     CONSTRAINT ck_rental_contract_tenant_name_length CHECK (((tenant_name IS NULL) OR (char_length((tenant_name)::text) <= 200))),
     CONSTRAINT ck_rental_contract_tenant_phone_length CHECK (((tenant_phone IS NULL) OR (char_length((tenant_phone)::text) <= 50))),
@@ -5635,6 +5637,13 @@ CREATE TABLE investory.long_term_asset_rental_contracts (
 --
 
 COMMENT ON COLUMN investory.long_term_asset_rental_contracts.tenant_name IS 'Optional tenant display name owned by the rental contract.';
+
+
+--
+-- Name: COLUMN long_term_asset_rental_contracts.monthly_tax_base; Type: COMMENT; Schema: investory; Owner: -
+--
+
+COMMENT ON COLUMN investory.long_term_asset_rental_contracts.monthly_tax_base IS 'Monthly rental-tax base captured for this contract. Prevents later property-default edits from rewriting historical tax.';
 
 
 --
@@ -12019,7 +12028,7 @@ COPY investory.long_term_asset_rental_contract_terms (id, contract_id, cash_flow
 -- Data for Name: long_term_asset_rental_contracts; Type: TABLE DATA; Schema: investory; Owner: -
 --
 
-COPY investory.long_term_asset_rental_contracts (id, asset_id, start_date, end_date, terminated_date, rental_tax_paid_by_tenant, notes, created_at, updated_at, tenant_name, tenant_email, tenant_phone) FROM stdin;
+COPY investory.long_term_asset_rental_contracts (id, asset_id, start_date, end_date, terminated_date, rental_tax_paid_by_tenant, notes, created_at, updated_at, tenant_name, tenant_email, tenant_phone, monthly_tax_base) FROM stdin;
 \.
 
 

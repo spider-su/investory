@@ -199,6 +199,10 @@ public class TwelveDataService {
       quote.setChange(json.path("change").asDouble(0.0));
       quote.setPercentChange(json.path("percent_change").asDouble(0.0));
       quote.setMarketOpen(json.path("is_market_open").asBoolean(false));
+      if (!Double.isFinite(quote.getClose()) || quote.getClose() <= 0.0) {
+        log.warn("Skipping TwelveData quote for {}: no positive close price", quote.getSymbol());
+        return null;
+      }
       return quote;
     } catch (Exception e) {
       log.error("Failed to parse StockQuote: {}", e.getMessage(), e);

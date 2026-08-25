@@ -114,27 +114,19 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
     List<Double> excessValues =
         transform(
             differenceCurve(
-                returns
-                    ? sourceSeries.getFirst().values()
-                    : scopedCurve(
-                        allSelected
-                            ? benchmark.getPortfolioReturnCurve()
-                            : accountCurve(selected.getFirst(), true),
-                        scopeStart,
-                        true),
+                scopedCurve(benchmark.getPortfolioReturnCurve(), scopeStart, true),
                 scopedCurve(benchmark.getBenchmarkReturnCurve(), scopeStart, true)),
             scopedLabels,
             query.aggregation(),
             true,
             "bars".equalsIgnoreCase(query.style()));
-    List<Double> kpiSource =
-        allSelected
-            ? benchmark.getPortfolioReturnCurve()
-            : accountCurve(selected.getFirst(), true);
+    List<Double> kpiSource = benchmark.getPortfolioReturnCurve();
     List<Double> kpiBenchmark = benchmark.getBenchmarkReturnCurve();
-    Double portfolioReturn = last(rebase(kpiSource, sourceLabels));
-    Double benchmarkReturn = last(rebase(kpiBenchmark, sourceLabels));
-    List<Double> periodValues = periodValues(kpiSource);
+    List<Double> scopedKpiSource = scopedCurve(kpiSource, scopeStart, true);
+    List<Double> scopedKpiBenchmark = scopedCurve(kpiBenchmark, scopeStart, true);
+    Double portfolioReturn = last(scopedKpiSource);
+    Double benchmarkReturn = last(scopedKpiBenchmark);
+    List<Double> periodValues = periodValues(scopedKpiSource);
     PerformanceKpiView kpis =
         new PerformanceKpiView(
             portfolioReturn,
@@ -142,10 +134,10 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
             portfolioReturn == null || benchmarkReturn == null
                 ? null
                 : round(portfolioReturn - benchmarkReturn),
-            profitLoss(benchmark, selectedIds, sourceLabels),
-            periodLabel(periodValues, sourceLabels, true),
+            profitLoss(benchmark, selectedIds, sourceLabels, scopeStart),
+            periodLabel(periodValues, scopedLabels, true),
             extreme(periodValues, true),
-            periodLabel(periodValues, sourceLabels, false),
+            periodLabel(periodValues, scopedLabels, false),
             extreme(periodValues, false));
     return new PerformanceBoardView(
         true, labels, series, benchmarkValues, excessValues, kpis, accounts);
@@ -225,10 +217,14 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
       List<Double> bucket = new ArrayList<>();
       for (int i = 0; i < labels.size(); i++)
         if (group.equals(group(labels.get(i), aggregation))) bucket.add(period.get(i));
-      result.add(
-          returns
-              ? compound(bucket)
-              : bucket.stream().filter(Objects::nonNull).mapToDouble(Double::doubleValue).sum());
+      if (returns) {
+        result.add(compound(bucket));
+      } else {
+        result.add(
+            bucket.isEmpty() || bucket.stream().anyMatch(Objects::isNull)
+                ? null
+                : bucket.stream().mapToDouble(Double::doubleValue).sum());
+      }
     }
     return result;
   }
@@ -237,7 +233,7 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
     List<Double> result = new ArrayList<>();
     for (int i = 0; i < cumulative.size(); i++) {
       Double value = cumulative.get(i);
-      Double prior = i == 0 ? 0.0 : cumulative.get(i - 1);
+      Double prior = i == 0 ? Double.valueOf(0.0) : cumulative.get(i - 1);
       result.add(
           value == null || prior == null
               ? null
@@ -248,25 +244,19 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
 
   private List<Double> differenceValues(List<Double> cumulative) {
     List<Double> result = new ArrayList<>();
-    for (int i = 0; i < cumulative.size(); i++)
-      result.add(
-          cumulative.get(i) == null
-              ? null
-              : round(
-                  cumulative.get(i)
-                      - (i == 0 || cumulative.get(i - 1) == null ? 0 : cumulative.get(i - 1))));
+    for (int i = 0; i < cumulative.size(); i++) {
+      Double value = cumulative.get(i);
+      Double prior = i == 0 ? Double.valueOf(0.0) : cumulative.get(i - 1);
+      result.add(value == null || prior == null ? null : round(value - prior));
+    }
     return result;
   }
 
   private Double compound(List<Double> values) {
+    if (values.isEmpty() || values.stream().anyMatch(Objects::isNull)) return null;
     double factor = 1.0;
-    boolean available = false;
-    for (Double value : values)
-      if (value != null) {
-        factor *= 1 + value / 100.0;
-        available = true;
-      }
-    return available ? round((factor - 1) * 100.0) : null;
+    for (Double value : values) factor *= 1 + value / 100.0;
+    return round((factor - 1) * 100.0);
   }
 
   private List<Double> differenceCurve(List<Double> left, List<Double> right) {
@@ -276,10 +266,6 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
       result.add(a == null || b == null ? null : round(a - b));
     }
     return result;
-  }
-
-  private List<Double> rebase(List<Double> values, List<String> labels) {
-    return scopedCurve(values, scopeStart(labels), true);
   }
 
   private int scopeStart(List<String> labels) {
@@ -296,7 +282,7 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
 
   private List<Double> scopedCurve(List<Double> values, int start, boolean returns) {
     if (start >= values.size()) return List.of();
-    Double prior = start == 0 ? 0.0 : values.get(start - 1);
+    Double prior = start == 0 ? Double.valueOf(0.0) : values.get(start - 1);
     if (prior == null || start >= values.size()) return List.of();
     return values.subList(start, values.size()).stream()
         .map(
@@ -331,16 +317,9 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
     return new PerformanceKpiView(null, null, null, null, "—", null, "—", null);
   }
 
-  private Double profitLoss(Benchmark benchmark, Set<Long> selectedIds, List<String> labels) {
-    int start = 0;
-    String configured =
-        kpiStart == null ? "" : kpiStart.substring(0, Math.min(7, kpiStart.length()));
-    for (int i = 0; i < labels.size(); i++) {
-      if (labels.get(i).compareTo(configured) >= 0) {
-        start = i;
-        break;
-      }
-    }
+  private Double profitLoss(
+      Benchmark benchmark, Set<Long> selectedIds, List<String> labels, int start) {
+    if (labels.isEmpty() || start >= labels.size()) return null;
     List<Benchmark.AccountSeries> selected =
         benchmark.getAccountSeries().stream()
             .filter(row -> selectedIds.contains(row.id()))
@@ -351,14 +330,12 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
     for (Benchmark.AccountSeries row : selected) {
       List<Double> curve = row.portfolioCurve();
       if (end >= curve.size()) return null;
-      result += value(curve, end) - (start == 0 ? 0 : value(curve, start - 1));
+      Double endingValue = curve.get(end);
+      Double openingValue = start == 0 ? Double.valueOf(0.0) : curve.get(start - 1);
+      if (endingValue == null || openingValue == null) return null;
+      result += endingValue - openingValue;
     }
     return round(result);
-  }
-
-  private double value(List<Double> values, int index) {
-    Double value = index < values.size() ? values.get(index) : null;
-    return value == null ? 0 : value;
   }
 
   private String group(String label, String aggregation) {

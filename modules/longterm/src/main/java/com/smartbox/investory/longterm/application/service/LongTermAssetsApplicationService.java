@@ -371,6 +371,7 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
                         c.effectiveEndDate(),
                         c.status(),
                         c.rentalTaxPaidByTenant(),
+                        c.monthlyTaxBase(),
                         c.terms().stream()
                             .map(
                                 t ->
@@ -396,6 +397,7 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
         RentalContractService.effectiveEnd(c),
         RentalContractService.status(c, date),
         c.getRentalTaxPaidByTenant(),
+        c.getMonthlyTaxBase(),
         c.getTerms().stream()
             .map(
                 t ->

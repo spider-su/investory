@@ -23,11 +23,12 @@ class InvestmentProfileTemplateContractTest {
         .contains("planningHeader('profile'")
         .contains("profileHeaderNetWorth")
         .contains("profile.expectedLongTermAssetIncome")
+        .contains("Expected long-term net income")
         .contains("Market investments")
         .contains("Long-term assets")
         .contains("Portfolio structure")
         .contains("Liquidity")
-        .contains("Illiquid");
+        .contains("Liquid and illiquid assets");
     assertThat(profileHtml)
         .doesNotContain("Investment profile")
         .doesNotContain("Combined view of traded investments")
@@ -43,11 +44,12 @@ class InvestmentProfileTemplateContractTest {
         .contains("iv-allocation-legend")
         .contains("allocation.bucket")
         .contains("allocation.wholeValueDisplay")
-        .contains("Observed market income")
-        .contains("Long-term annual run rate")
-        .contains("Long-term income yield")
+        .contains("Market income · current period")
+        .contains("Expected long-term net income · annual")
+        .contains("Expected long-term net yield")
         .contains("iv-profile-income-cards")
         .contains("iv-profile-allocation")
+        .doesNotContain("iv-profile-allocation__summary")
         .doesNotContain("Combined informational view")
         .contains("fragments/theme-head :: theme");
   }

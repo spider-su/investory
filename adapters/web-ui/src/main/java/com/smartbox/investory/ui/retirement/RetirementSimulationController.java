@@ -270,7 +270,7 @@ public class RetirementSimulationController {
         selectedPlanId == null ? "Current assumptions" : plans.name(portfolioId, selectedPlanId);
     String activePlanSummary =
         projectedAssumptions.currentAge()
-            + " → "
+            + "–"
             + projectedAssumptions.endAge()
             + " · Retire at "
             + projectedAssumptions.retirementAge()

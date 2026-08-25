@@ -87,7 +87,7 @@ public class RentalContractService {
       Boolean taxPaidByTenant,
       List<RentalContractModel.Term> terms,
       boolean endCurrentContractBeforeStart) {
-    requireRealEstate(portfolioId, assetId);
+    LongTermAssetEntity asset = requireRealEstate(portfolioId, assetId);
     validatePeriod(start, end, null);
     Tenant tenant = validateTenant(tenantName, tenantEmail, tenantPhone);
     List<LongTermAssetRentalContractTermEntity> supplied = validatedTerms(terms);
@@ -99,7 +99,15 @@ public class RentalContractService {
 
     var contract = new LongTermAssetRentalContractEntity();
     contract.setAssetId(assetId);
-    replaceContractState(contract, tenant, start, end, taxPaidByTenant, supplied, null);
+    contract.setMonthlyTaxBase(asset.getTaxBase());
+    replaceContractState(
+        contract,
+        tenant,
+        start,
+        end,
+        taxPaidByTenant == null ? asset.isRentalTaxPaidByTenant() : taxPaidByTenant,
+        supplied,
+        null);
     return contracts.save(contract);
   }
 
@@ -118,13 +126,24 @@ public class RentalContractService {
     validatePeriod(start, end, contract.getTerminatedDate());
     Tenant tenant = validateTenant(tenantName, tenantEmail, tenantPhone);
     List<LongTermAssetRentalContractTermEntity> supplied = validatedTerms(terms);
+    if (contract.getMonthlyTaxBase() == null)
+      contract.setMonthlyTaxBase(owned(portfolioId, assetId).getTaxBase());
     rejectOverlap(
         contracts.findAllByAssetIdOrderByStartDateDescIdDesc(assetId),
         contractId,
         start,
         effectiveEnd(end, contract.getTerminatedDate()));
     replaceContractState(
-        contract, tenant, start, end, taxPaidByTenant, supplied, contract.getTerminatedDate());
+        contract,
+        tenant,
+        start,
+        end,
+        taxPaidByTenant == null
+            ? Optional.ofNullable(contract.getRentalTaxPaidByTenant())
+                .orElse(owned(portfolioId, assetId).isRentalTaxPaidByTenant())
+            : taxPaidByTenant,
+        supplied,
+        contract.getTerminatedDate());
     return contracts.save(contract);
   }
 
@@ -179,6 +198,9 @@ public class RentalContractService {
       throw new IllegalArgumentException("Invalid rollover period");
     previous.setEndDate(expectedEnd);
     contracts.save(previous);
+    // PostgreSQL checks the non-overlap exclusion constraint immediately. Ensure the shortened
+    // predecessor is visible before Hibernate inserts its successor.
+    contracts.flush();
   }
 
   private static void rejectOverlap(

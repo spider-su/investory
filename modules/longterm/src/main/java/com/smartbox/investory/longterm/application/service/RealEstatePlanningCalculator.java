@@ -103,7 +103,9 @@ public final class RealEstatePlanningCalculator {
       if (isIncome(term.type())) income = income.add(monthly);
       // Payment is the recurring tenant turnover shown in planning. Annual landlord
       // costs are reductions, not part of the monthly payment amount.
-      if (isPayment(term.type()) && term.frequency() == FrequencyModel.MONTHLY)
+      if (isPayment(term.type())
+          && term.frequency() == FrequencyModel.MONTHLY
+          && (isIncome(term.type()) || term.paidByTenant()))
         payment = payment.add(monthly);
       if (isExpense(term.type()) && !term.paidByTenant()) expenses = expenses.add(annual);
     }
@@ -111,7 +113,10 @@ public final class RealEstatePlanningCalculator {
         contract.rentalTaxPaidByTenant() == null
             ? assetTaxPaidByTenant
             : contract.rentalTaxPaidByTenant();
-    BigDecimal annualTax = tenant ? BigDecimal.ZERO : annualRentalTax(taxBase, taxRate);
+    BigDecimal effectiveTaxBase =
+        contract.monthlyTaxBase() == null ? taxBase : contract.monthlyTaxBase();
+    BigDecimal annualTax =
+        tenant ? BigDecimal.ZERO : annualRentalTax(effectiveTaxBase, taxRate);
     expenses = normalizeMoney(expenses);
     BigDecimal reduce = expenses.add(annualTax).divide(TWELVE, 18, RoundingMode.HALF_UP);
     BigDecimal net = income.subtract(reduce);
@@ -119,7 +124,8 @@ public final class RealEstatePlanningCalculator {
         currentValue.signum() == 0
             ? BigDecimal.ZERO
             : net.multiply(TWELVE).divide(currentValue, 12, RoundingMode.HALF_UP);
-    return new RealEstatePlanningSummary(taxBase, annualTax, payment, income, reduce, yield);
+    return new RealEstatePlanningSummary(
+        effectiveTaxBase, annualTax, payment, income, reduce, yield);
   }
 
   private static boolean isPayment(CashFlowType type) {

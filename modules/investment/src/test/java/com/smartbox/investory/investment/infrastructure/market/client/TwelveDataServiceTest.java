@@ -114,6 +114,23 @@ class TwelveDataServiceTest {
   }
 
   @Test
+  void fetchStockQuotes_skipsMissingAndNonPositiveClosePrices() throws Exception {
+    stubResponse(
+        200,
+        """
+                {
+                  "ZERO": {"symbol":"ZERO","currency":"USD","close":"0"},
+                  "MISSING": {"symbol":"MISSING","currency":"USD"},
+                  "NEGATIVE": {"symbol":"NEGATIVE","currency":"USD","close":"-1"}
+                }
+                """);
+
+    Map<String, StockQuote> quotes = service.fetchStockQuotes("ZERO,MISSING,NEGATIVE");
+
+    assertTrue(quotes.isEmpty());
+  }
+
+  @Test
   void fetchStockQuotes_throwsIllegalArgumentOnApiErrorPayload() throws Exception {
     stubResponse(
         200,

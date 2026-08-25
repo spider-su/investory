@@ -354,6 +354,7 @@ public interface LongTermAssetsApi {
       LocalDate effectiveEndDate,
       RentalContractStatusModel status,
       Boolean rentalTaxPaidByTenant,
+      BigDecimal monthlyTaxBase,
       List<RentalTermView> terms) {
     public RentalContractView(
         Long id,
@@ -373,6 +374,7 @@ public interface LongTermAssetsApi {
           earlier(endDate, terminatedDate),
           null,
           rentalTaxPaidByTenant,
+          null,
           terms);
     }
 

@@ -106,9 +106,12 @@ class RentalContractServiceTest {
     assertThat(previous.getEndDate()).isEqualTo(LocalDate.of(2025, 12, 31));
     assertThat(previous.getTerminatedDate()).isNull();
     assertThat(created.getTenantName()).isEqualTo("New tenant");
+    assertThat(created.getMonthlyTaxBase()).isEqualByComparingTo("2800");
+    assertThat(created.getRentalTaxPaidByTenant()).isFalse();
     assertThat(created.getTerms())
         .extracting(LongTermAssetRentalContractTermEntity::getType)
         .containsExactly(CashFlowType.RENT);
+    verify(contracts).flush();
   }
 
   @Test
@@ -299,6 +302,8 @@ class RentalContractServiceTest {
     asset.setId(7L);
     asset.setPortfolioId(1L);
     asset.setType(LongTermAssetType.REAL_ESTATE);
+    asset.setTaxBase(new BigDecimal("2800"));
+    asset.setRentalTaxPaidByTenant(false);
     return asset;
   }
 

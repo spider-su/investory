@@ -26,7 +26,6 @@ public class LongTermAssetBootstrapService {
   private static final BigDecimal TWELVE = BigDecimal.valueOf(12);
 
   private final LongTermAssetRepository assets;
-  private final LongTermAssetCashFlowRepository cashFlows;
   private final LongTermAssetValuationPeriodRepository valuations;
   private final LongTermAssetBondRatePeriodRepository bondRates;
   private final LongTermAssetBondDetailsRepository bonds;
@@ -189,22 +188,24 @@ public class LongTermAssetBootstrapService {
 
   private void validateStoredPeriods(
       LongTermAssetEntity stored, LongTermAssetBootstrapDocument.AssetEntity input) {
-    for (var incoming : safe(input.cashFlows())) {
-      for (var existing : cashFlows.findAllByAssetIdOrderByValidFrom(stored.getId())) {
-        if (existing.getType() == incoming.type()
-            && !LongTermAssetPeriodRules.samePeriodIdentity(
-                incoming.validFrom(),
-                incoming.validTo(),
-                existing.getValidFrom(),
-                existing.getValidTo())
-            && LongTermAssetPeriodRules.overlaps(
-                incoming.validFrom(),
-                incoming.validTo(),
-                existing.getValidFrom(),
-                existing.getValidTo()))
-          throw new IllegalArgumentException(
-              "Overlapping stored cash-flow period for " + input.externalKey());
-      }
+    if (input.type() == LongTermAssetType.REAL_ESTATE) {
+      for (var incoming : safe(input.cashFlows()))
+        rentalContracts.findAllByAssetIdOrderByStartDate(stored.getId()).stream()
+            .filter(contract -> !isAnonymousBootstrapContract(contract))
+            .filter(
+                contract ->
+                    LongTermAssetPeriodRules.overlaps(
+                        incoming.validFrom(),
+                        incoming.validTo(),
+                        contract.getStartDate(),
+                        RentalContractService.effectiveEnd(contract)))
+            .findAny()
+            .ifPresent(
+                ignored -> {
+                  throw new IllegalArgumentException(
+                      "Bootstrap rental period overlaps a managed rental contract for "
+                          + input.externalKey());
+                });
     }
     for (var incoming : safe(input.valuationPeriods())) {
       for (var existing : valuations.findAllByAssetIdOrderByValidFrom(stored.getId())) {
@@ -332,6 +333,9 @@ public class LongTermAssetBootstrapService {
     if (existing != null && existing.getType() != input.type())
       throw new IllegalArgumentException(
           "AssetEntity type cannot be changed for bootstrap asset " + input.externalKey());
+    if (existing != null && existing.getCurrency() != input.currency())
+      throw new IllegalArgumentException(
+          "Asset currency cannot be changed for bootstrap asset " + input.externalKey());
     asset.setPortfolioId(portfolioId);
     asset.setExternalKey(input.externalKey());
     asset.setType(input.type());
@@ -347,8 +351,7 @@ public class LongTermAssetBootstrapService {
     asset = assets.save(asset);
     lifecycle.ensureInitialPeriod(asset);
     if (asset.getType() == LongTermAssetType.REAL_ESTATE)
-      upsertRentalContracts(asset.getId(), safe(input.cashFlows()));
-    else for (var flow : safe(input.cashFlows())) upsertCashFlow(asset.getId(), flow);
+      upsertRentalContracts(asset, safe(input.cashFlows()));
     for (var period : safe(input.valuationPeriods())) upsertValuation(asset.getId(), period);
     for (var period : safe(input.bondRatePeriods())) upsertBondRate(asset.getId(), period);
     if (input.bond() != null) upsertBondDetails(asset.getId(), input.bond());
@@ -356,7 +359,8 @@ public class LongTermAssetBootstrapService {
   }
 
   private void upsertRentalContracts(
-      Long assetId, List<LongTermAssetBootstrapDocument.CashFlow> inputFlows) {
+      LongTermAssetEntity asset, List<LongTermAssetBootstrapDocument.CashFlow> inputFlows) {
+    Long assetId = asset.getId();
     var flows = inputFlows.stream().map(this::toCashFlowEntity).toList();
     if (flows.isEmpty()) return;
     var boundaries = new TreeSet<LocalDate>();
@@ -377,12 +381,21 @@ public class LongTermAssetBootstrapService {
       if (group.isEmpty()) continue;
       var contract =
           existing.stream()
+              .filter(LongTermAssetBootstrapService::isAnonymousBootstrapContract)
               .filter(c -> c.getStartDate().equals(start))
               .findFirst()
-              .orElseGet(LongTermAssetRentalContractEntity::new);
+              .orElseGet(
+                  () ->
+                      existing.stream()
+                          .filter(c -> isAnonymousBootstrapContract(c) && overlaps(c, start, end))
+                          .max(Comparator.comparing(LongTermAssetRentalContractEntity::getStartDate))
+                          .orElseGet(LongTermAssetRentalContractEntity::new));
       contract.setAssetId(assetId);
       contract.setStartDate(start);
       contract.setEndDate(end);
+      if (contract.getMonthlyTaxBase() == null) contract.setMonthlyTaxBase(asset.getTaxBase());
+      if (contract.getRentalTaxPaidByTenant() == null)
+        contract.setRentalTaxPaidByTenant(asset.isRentalTaxPaidByTenant());
       contract.getTerms().clear();
       for (var flow : group) {
         if (flow.getValidTo() != null && flow.getValidTo().isBefore(start)) continue;
@@ -395,7 +408,23 @@ public class LongTermAssetBootstrapService {
         contract.getTerms().add(term);
       }
       rentalContracts.save(contract);
+      rentalContracts.flush();
     }
+  }
+
+  private static boolean isAnonymousBootstrapContract(LongTermAssetRentalContractEntity contract) {
+    return contract.getTenantName() == null
+        && contract.getTenantEmail() == null
+        && contract.getTenantPhone() == null
+        && contract.getNotes() == null;
+  }
+
+  private static boolean overlaps(
+      LongTermAssetRentalContractEntity contract, LocalDate start, LocalDate end) {
+    LocalDate contractEnd =
+        contract.getEndDate() == null ? LocalDate.MAX : contract.getEndDate();
+    LocalDate requestedEnd = end == null ? LocalDate.MAX : end;
+    return !contract.getStartDate().isAfter(requestedEnd) && !start.isAfter(contractEnd);
   }
 
   private LongTermAssetCashFlowEntity toCashFlowEntity(
@@ -411,25 +440,6 @@ public class LongTermAssetBootstrapService {
             ? input.paidByTenant()
             : LongTermAssetPeriodRules.defaultPaidByTenant(input.type()));
     return flow;
-  }
-
-  private void upsertCashFlow(Long assetId, LongTermAssetBootstrapDocument.CashFlow input) {
-    var existing =
-        cashFlows.findAllByAssetIdOrderByValidFrom(assetId).stream()
-            .filter(f -> f.getType() == input.type() && f.getValidFrom().equals(input.validFrom()))
-            .findFirst()
-            .orElseGet(LongTermAssetCashFlowEntity::new);
-    existing.setAssetId(assetId);
-    existing.setType(input.type());
-    existing.setAmount(input.amount());
-    existing.setFrequency(input.frequency());
-    existing.setValidFrom(input.validFrom());
-    existing.setValidTo(input.validTo());
-    existing.setPaidByTenant(
-        input.paidByTenant() != null
-            ? input.paidByTenant()
-            : LongTermAssetPeriodRules.defaultPaidByTenant(input.type()));
-    cashFlows.save(existing);
   }
 
   private void upsertValuation(Long assetId, LongTermAssetBootstrapDocument.Period input) {
@@ -486,7 +496,9 @@ public class LongTermAssetBootstrapService {
     for (var asset : safe(document.assets()))
       if (asset.type() == LongTermAssetType.REAL_ESTATE) {
         value = value.add(asset.currentValue());
-        for (var flow : safe(asset.cashFlows())) {
+        for (var flow : safe(asset.cashFlows()).stream()
+            .filter(flow -> appliesOn(flow, asset.effectiveFrom()))
+            .toList()) {
           var annual =
               flow.frequency() == Frequency.MONTHLY
                   ? flow.amount().multiply(TWELVE)
@@ -505,6 +517,12 @@ public class LongTermAssetBootstrapService {
         tax = tax.add(assetTax);
       }
     return new Totals(value, gross, expenses, tax, gross.subtract(expenses).subtract(tax));
+  }
+
+  private static boolean appliesOn(
+      LongTermAssetBootstrapDocument.CashFlow flow, LocalDate date) {
+    return !date.isBefore(flow.validFrom())
+        && (flow.validTo() == null || !date.isAfter(flow.validTo()));
   }
 
   private BigDecimal effectiveTaxRate(LongTermAssetBootstrapDocument document, LocalDate date) {

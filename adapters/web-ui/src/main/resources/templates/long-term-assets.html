@@ -10,30 +10,8 @@
 </head>
 <body>
 <main class="iv-app iv-planning-page">
-  <div th:replace="~{fragments/app-header :: planningHeader('assets', ${portfolioId}, 'Long-term asset summary', 'Total value', ${longTermHeaderTotal}, null, 'Net annual income', ${longTermHeaderIncome}, ${longTermHeaderYield}, 'Monthly net income', ${longTermHeaderMonthly}, 'after tax', ${currency}, 'assets', null, null)}"></div>
-  <section class="iv-grid iv-grid--kpi iv-grid--portfolio-overview iv-grid--long-term-overview" aria-label="Long-term asset summary">
-    <div th:each="group : ${groups}" th:if="${group.key == 'REAL_ESTATE' or group.key == 'BOND' or group.key == 'CASH_RESERVE'}" class="iv-kpi iv-kpi--popover iv-overview-card">
-      <div class="iv-overview-card__heading iv-hover-context" tabindex="0" th:classappend="| iv-asset-summary__heading--${group.key.toLowerCase().replace('_', '-')}|" th:aria-label="${group.title + ' details'}">
-        <p class="iv-kpi__label">
-          <span class="iv-kpi__icon" th:classappend="| iv-asset-summary__icon--${group.key.toLowerCase().replace('_', '-')}|">
-            <svg th:if="${group.key == 'REAL_ESTATE'}" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5M5 10v10h14V10M9 20v-6h6v6"></path></svg>
-            <svg th:if="${group.key == 'BOND'}" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v18H7zM9 7h6M9 11h6M9 15h4"></path></svg>
-            <svg th:if="${group.key == 'CASH_RESERVE'}" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"></rect><circle cx="12" cy="12" r="2.5"></circle><path d="M7 10h.01M17 14h.01"></path></svg>
-          </span>
-          <span th:text="${group.key == 'CASH_RESERVE' ? 'Cash reserves' : group.title}">Real estate</span>
-        </p>
-        <div class="iv-hover-context__panel iv-overview-card__context" role="tooltip">
-          <div class="iv-context-row"><span>Share of long-term assets</span><strong th:text="${groupShares[group.key]}">0.0%</strong></div>
-          <div class="iv-context-row" th:if="${group.key == 'REAL_ESTATE'}"><span>Monthly income</span><strong th:text="${format.moneyWhole(group.realEstatePlanning.netMonthlyIncome) + '/month'}">0/month</strong></div>
-          <div class="iv-context-row" th:if="${group.key == 'REAL_ESTATE'}"><span>Yield</span><strong th:text="${format.percentage(group.realEstatePlanning.netYield)}">0.0%</strong></div>
-          <div class="iv-context-row" th:if="${group.key != 'REAL_ESTATE'}"><span>Annual gross income</span><strong th:text="${format.wholeNumber(group.annualEconomics.grossAnnualIncome) + '/year'}">0/year</strong></div>
-          <div class="iv-context-row" th:if="${group.key != 'REAL_ESTATE'}"><span>Gross yield</span><strong th:text="${format.percentage(group.annualEconomics.grossYield)}">0.0%</strong></div>
-        </div>
-      </div>
-      <p class="iv-kpi__value" th:text="${group.currency == total.currency ? format.wholeNumber(group.totalValue) : format.moneyWhole(group.totalValue, group.currency)}">0</p>
-      <div class="iv-kpi__actions"><a class="iv-balance-popover__trigger" th:href="${group.key == 'REAL_ESTATE' ? '#real-estate' : group.key == 'BOND' ? '#bonds' : '#cash-reserves'}">Details</a></div>
-    </div>
-  </section>
+  <div th:replace="~{fragments/app-header :: planningHeader('assets', ${portfolioId}, 'Long-term asset summary', 'Total value', ${longTermHeaderTotal}, null, 'Expected annual net income', ${longTermHeaderIncome}, ${longTermHeaderYield}, 'Expected monthly net income', ${longTermHeaderMonthly}, 'after tax', ${currency}, 'assets', null, null)}"></div>
+  <div class="alert alert-danger" role="alert" th:if="${error}" th:text="${error}">Validation error.</div>
   <div class="iv-long-term-assets-sections">
   <div th:each="group : ${groups}" class="iv-planning-section iv-card card" th:id="${group.key == 'REAL_ESTATE' ? 'real-estate' : group.key == 'BOND' ? 'bonds' : group.key == 'CASH_RESERVE' ? 'cash-reserves' : 'other-assets'}">
     <div class="iv-planning-section__details-row">
@@ -113,7 +91,7 @@
   </div>
   </div>
   <section id="rental-tax-policies" class="iv-card card mb-3" aria-labelledby="rental-tax-policy-title">
-    <div class="card-header"><h2 id="rental-tax-policy-title" class="card-title">Rental tax policies</h2></div>
+    <div class="iv-card-section-header"><span id="rental-tax-policy-title" class="iv-card-section-header__title">Rental tax policies</span></div>
     <div class="card-body" th:each="policy : ${rentalTaxPolicies}">
       <form class="row g-2 align-items-end" method="post" th:action="@{/long-term-assets/rental-tax-policy/{policyId}(policyId=${policy.id})}">
         <input type="hidden" name="portfolioId" th:value="${portfolioId}">
@@ -136,12 +114,8 @@
     </form>
   </section>
   <section class="iv-risk-summary iv-portfolio-structure iv-portfolio-structure--long-term" aria-labelledby="long-term-structure-title">
-    <div class="iv-card-section-header"><span id="long-term-structure-title" class="iv-card-section-header__title">Portfolio structure</span></div>
+    <div class="iv-card-section-header"><span id="long-term-structure-title" class="iv-card-section-header__title">Long-term allocation</span></div>
     <div class="iv-portfolio-structure__grid iv-portfolio-structure__grid--long-term">
-      <details class="iv-structure-card">
-        <summary><span>Largest asset class</span><strong th:text="${longTermLargestClass ?: 'Unavailable'}">Unavailable</strong><small th:text="${(longTermLargestClassShare ?: '0.0%') + ' · ' + (longTermLargestClassValue ?: '0')}">0.0% · 0</small></summary>
-        <div class="iv-structure-popover"><strong>Asset classes</strong><div th:each="group : ${groups}"><span th:text="${group.title}">Category</span><span th:text="${groupShares[group.key] + ' · ' + format.wholeNumber(group.totalValue)}">0.0% · 0</span></div></div>
-      </details>
       <details class="iv-structure-card iv-structure-card--allocation">
         <summary>
           <span>Asset allocation</span>
@@ -157,9 +131,6 @@
         </summary>
         <div class="iv-structure-popover"><strong>Asset allocation</strong><div th:each="group : ${groups}"><span th:text="${group.title}">Category</span><span th:text="${groupShares[group.key] + ' · ' + format.wholeNumber(group.totalValue)}">0.0% · 0</span></div></div>
       </details>
-    </div>
-    <div class="iv-structure-currency iv-structure-currency--reporting" aria-label="Reporting currency">
-      <span>Reporting currency</span><strong th:text="${total.currency}">PLN</strong>
     </div>
   </section>
 </main>

@@ -23,7 +23,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class LongTermAssetAnnualSnapshotService {
   private final LongTermAssetRepository assets;
-  private final LongTermAssetCashFlowRepository cashFlows;
   private final LongTermAssetRentalContractRepository rentalContracts;
   private final CurrencyConversion currencyRates;
   private final LongTermAssetLifecycleService lifecycle;
@@ -31,13 +30,11 @@ public class LongTermAssetAnnualSnapshotService {
 
   public LongTermAssetAnnualSnapshotService(
       LongTermAssetRepository assets,
-      LongTermAssetCashFlowRepository cashFlows,
       LongTermAssetRentalContractRepository rentalContracts,
       CurrencyConversion currencyRates,
       LongTermAssetLifecycleService lifecycle,
       LongTermAssetQueryService queries) {
     this.assets = assets;
-    this.cashFlows = cashFlows;
     this.rentalContracts = rentalContracts;
     this.currencyRates = currencyRates;
     this.lifecycle = lifecycle;
@@ -94,10 +91,8 @@ public class LongTermAssetAnnualSnapshotService {
             .filter(row -> row.type() == LongTermAssetType.REAL_ESTATE)
             .allMatch(
                 row ->
-                    cashFlows.findAllByAssetIdOrderByValidFrom(row.id()).stream()
-                            .anyMatch(flow -> !flow.getValidFrom().isAfter(date))
-                        || rentalContracts.findAllByAssetIdOrderByStartDate(row.id()).stream()
-                            .anyMatch(contract -> !contract.getStartDate().isAfter(date)));
+                    rentalContracts.findAllByAssetIdOrderByStartDate(row.id()).stream()
+                        .anyMatch(contract -> !contract.getStartDate().isAfter(date)));
     return new LongTermAssetAnnualSnapshotModel(
         null,
         !hasRealEstate || rentalDataComplete ? rentalIncome : null,

@@ -751,8 +751,9 @@
 
     let currentChartTheme = chartTheme();
     let gridColor = currentChartTheme.grid;
-    let tickColor = currentChartTheme.soft;
+    let tickColor = currentChartTheme.legend;
     Chart.defaults.font.family = "Inter, system-ui, sans-serif";
+    Chart.defaults.font.size = 12;
     Chart.defaults.color = tickColor;
     Chart.defaults.borderColor = gridColor;
 
@@ -1457,7 +1458,7 @@
             document.getElementById('performance-scope-aggregation').textContent = (document.getElementById('performance-board-aggregation')?.value || 'monthly').replace(/^./, value => value.toUpperCase());
             const unit = performanceBoardState.metric === 'return' ? '%' : '$';
             if (!performanceBoardChart) {
-                performanceBoardChart = new Chart(performanceBoardEl.getContext('2d'), { type: bars ? 'bar' : 'line', data: { labels, datasets }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: { x: { stacked: bars && performanceBoardState.metric === 'pl', grid: { display: false }, ticks: { color: tickColor, maxRotation: 0, autoSkip: true } }, y: { stacked: bars && performanceBoardState.metric === 'pl', grid: { color: gridColor, drawBorder: false }, ticks: { color: tickColor, callback: value => performanceBoardState.metric === 'return' ? percentValue(value) : amountFormatter.format(Math.round(value)) } } }, plugins: { legend: { display: true, position: 'top', align: 'end', labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, color: '#6b7488' } }, tooltip: { callbacks: { label: context => context.dataset.label + ': ' + (Number(context.parsed.y) >= 0 ? '+' : '') + (unit === '%' ? percentValue(context.parsed.y) : amountFormatter.format(Math.round(context.parsed.y)) + ' $') } } } } });
+                performanceBoardChart = new Chart(performanceBoardEl.getContext('2d'), { type: bars ? 'bar' : 'line', data: { labels, datasets }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: { x: { stacked: bars && performanceBoardState.metric === 'pl', grid: { display: false }, ticks: { color: tickColor, maxRotation: 0, autoSkip: true } }, y: { stacked: bars && performanceBoardState.metric === 'pl', grid: { color: gridColor, drawBorder: false }, ticks: { color: tickColor, callback: value => performanceBoardState.metric === 'return' ? percentValue(value) : amountFormatter.format(Math.round(value)) } } }, plugins: { legend: { display: true, position: 'top', align: 'end', labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, color: currentChartTheme.legend, font: {size: 12} } }, tooltip: { callbacks: { label: context => context.dataset.label + ': ' + (Number(context.parsed.y) >= 0 ? '+' : '') + (unit === '%' ? percentValue(context.parsed.y) : amountFormatter.format(Math.round(context.parsed.y)) + ' $') } } } } });
                 enableKeyboardChart(performanceBoardChart, 'performance-board-chart', () => {});
             } else if (performanceBoardChart.config.type !== (bars ? 'bar' : 'line')) { performanceBoardChart.destroy(); performanceBoardChart = null; return renderPerformanceBoard(); } else { performanceBoardChart.data.labels = labels; performanceBoardChart.data.datasets = datasets; performanceBoardChart.update(); }
             renderTable('performance-board-table', ['Period', ...datasets.map(dataset => dataset.label)], labels.map((label, index) => [label, ...datasets.map(dataset => { const value = dataset.data[index]; return value == null ? '—' : (Number(value) >= 0 ? '+' : '') + (unit === '%' ? percentValue(value) : amountFormatter.format(Math.round(value)) + ' $'); })]));
@@ -1476,7 +1477,7 @@
     function applyChartTheme() {
         currentChartTheme = chartTheme();
         gridColor = currentChartTheme.grid;
-        tickColor = currentChartTheme.soft;
+        tickColor = currentChartTheme.legend;
         Chart.defaults.color = tickColor;
         Chart.defaults.borderColor = gridColor;
 

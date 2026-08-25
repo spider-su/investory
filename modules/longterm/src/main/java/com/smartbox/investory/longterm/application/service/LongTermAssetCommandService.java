@@ -130,6 +130,8 @@ public class LongTermAssetCommandService {
     LongTermAssetEntity asset = creating ? new LongTermAssetEntity() : owned(portfolioId, id);
     if (id != null && asset.getType() != LongTermAssetType.CASH_RESERVE)
       throw new IllegalArgumentException("AssetEntity type cannot be changed after creation");
+    if (!creating && asset.getCurrency() != currency)
+      throw new IllegalArgumentException("Asset currency cannot be changed after creation");
     asset.setPortfolioId(portfolioId);
     asset.setName(name);
     asset.setType(LongTermAssetType.CASH_RESERVE);

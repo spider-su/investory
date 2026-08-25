@@ -12,6 +12,8 @@ Use the sanitized example as a template:
 ```
 
 The process exits after the command. `--dry-run` validates and reports counts/totals without writing.
+Each real-estate total uses the cash-flow rows effective on that asset's `effectiveFrom` date; dated
+historical and future rows are not added together.
 
 ## Format and behavior
 
@@ -31,6 +33,10 @@ other expenses and rental tax are landlord-paid. Import behavior is **upsert**:
 * matching child periods are updated by type and start date;
 * omitted existing periods are retained, preserving history;
 * the same file can be run repeatedly without duplicate rows.
+
+Real-estate cash-flow boundaries are converted to anonymous rental contracts. A later import may
+correct those boundaries by reusing overlapping anonymous contracts. It never overwrites a contract
+that contains tenant identity or notes. Asset type and currency are immutable after initial import.
 
 Validation runs before writes in one transaction. Invalid portfolio, key, date, rate, currency, type,
 amount, maturity, ownership, or overlapping-period data rolls back the complete import. Rental

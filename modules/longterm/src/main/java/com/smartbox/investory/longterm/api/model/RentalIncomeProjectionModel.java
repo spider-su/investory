@@ -144,7 +144,9 @@ public final class RentalIncomeProjectionModel {
         contract.rentalTaxPaidByTenant() == null
             ? asset.rentalTaxPaidByTenant()
             : contract.rentalTaxPaidByTenant();
-    return tenant ? ZERO : taxBase(asset).multiply(TWELVE).multiply(rate(asset));
+    BigDecimal base =
+        contract.monthlyTaxBase() == null ? taxBase(asset) : contract.monthlyTaxBase();
+    return tenant ? ZERO : base.multiply(TWELVE).multiply(rate(asset));
   }
 
   private static BigDecimal taxBase(LongTermAssetProjectionModel asset) {

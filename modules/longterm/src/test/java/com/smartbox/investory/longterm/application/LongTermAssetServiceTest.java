@@ -100,7 +100,6 @@ class LongTermAssetServiceTest {
     var projection =
         new LongTermAssetProjectionQueryService(
             assets,
-            cashFlows,
             valuations,
             bondRates,
             bonds,
@@ -110,7 +109,7 @@ class LongTermAssetServiceTest {
             lifecycle);
     var snapshot =
         new LongTermAssetAnnualSnapshotService(
-            assets, cashFlows, rentalContracts, currencyRates, lifecycle, query);
+            assets, rentalContracts, currencyRates, lifecycle, query);
     var periods = new LongTermAssetPeriodService(assets, valuations, bondRates, taxPolicies);
     var command =
         new LongTermAssetCommandService(
@@ -343,7 +342,6 @@ class LongTermAssetServiceTest {
     rate.setValidTo(LocalDate.of(2028, 12, 31));
     rate.setAnnualInterestRate(new BigDecimal("0.053333333333333333"));
     when(assets.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of(bond));
-    when(cashFlows.findAllByAssetIdOrderByValidFrom(1L)).thenReturn(List.of());
     when(valuations.findAllByAssetIdOrderByValidFrom(1L)).thenReturn(List.of());
     when(bondRates.findAllByAssetIdOrderByValidFrom(1L)).thenReturn(List.of(rate));
     when(bonds.findById(1L)).thenReturn(Optional.of(details));

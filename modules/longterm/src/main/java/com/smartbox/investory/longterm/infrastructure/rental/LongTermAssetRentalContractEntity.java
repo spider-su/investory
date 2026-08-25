@@ -1,6 +1,7 @@
 package com.smartbox.investory.longterm.infrastructure.rental;
 
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,6 +31,9 @@ public class LongTermAssetRentalContractEntity {
 
   @Column(name = "rental_tax_paid_by_tenant")
   private Boolean rentalTaxPaidByTenant;
+
+  @Column(name = "monthly_tax_base", precision = 20, scale = 2)
+  private BigDecimal monthlyTaxBase;
 
   @Column(name = "tenant_name", length = 200)
   private String tenantName;

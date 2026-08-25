@@ -31,8 +31,7 @@ public final class PortfolioReturnCalculator {
                     || row.contributions() == null
                     || row.withdrawals() == null)) {
       return ReturnMetric.unavailable(
-          ReturnMetric.Status.INSUFFICIENT_DATA,
-          "A daily valuation or normalized flow is missing");
+          ReturnMetric.Status.INSUFFICIENT_DATA, "A daily valuation or normalized flow is missing");
     }
     List<DailyPortfolioValue> rows =
         dailyValues.stream().sorted(Comparator.comparing(DailyPortfolioValue::date)).toList();

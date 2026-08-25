@@ -47,6 +47,28 @@ class RentalContractProjectionTaxTest {
         RentalIncomeProjectionModel.project(asset, Map.of(), 2026, BigDecimal.ZERO).tax());
   }
 
+  @Test
+  void contractTaxBaseOverridesLaterPropertyDefault() {
+    var contract =
+        new RentalContractModel(
+            null,
+            LocalDate.of(2026, 1, 1),
+            null,
+            null,
+            false,
+            new BigDecimal("2500"),
+            null,
+            null,
+            null,
+            List.of(term(CashFlowTypeModel.RENT, "3000", false)));
+
+    var result =
+        RentalIncomeProjectionModel.project(
+            asset(List.of(contract), false), Map.of(), 2026, BigDecimal.ZERO);
+
+    assertEquals(0, new BigDecimal("2550.000").compareTo(result.tax()));
+  }
+
   private static RentalContractModel contract(
       LocalDate start, Boolean tax, RentalContractModel.Term... terms) {
     return new RentalContractModel(null, start, null, null, tax, List.of(terms));

@@ -1632,7 +1632,7 @@ body.iv-modal-open { overflow: hidden; }
 /* Dashboard color modes */
 :root {
     color-scheme: light;
-    --iv-chart-grid: rgba(148, 160, 184, .18);
+    --iv-chart-grid: rgba(100, 116, 139, .28);
     --iv-chart-tooltip: #1e2536;
     --iv-chart-tooltip-text: #ffffff;
     --iv-chart-strong-fill: rgba(30, 37, 54, .08);
@@ -1674,7 +1674,7 @@ body.iv-modal-open { overflow: hidden; }
     --iv-liquidity-liquid: #5eead4;
     --iv-liquidity-illiquid: #94a3b8;
 
-    --iv-chart-grid: rgba(148, 163, 184, .18);
+    --iv-chart-grid: rgba(148, 163, 184, .30);
     --iv-chart-tooltip: #060b16;
     --iv-chart-tooltip-text: #f8fafc;
     --iv-chart-strong-fill: rgba(237, 242, 249, .08);
@@ -2058,15 +2058,6 @@ body.iv-modal-open { overflow: hidden; }
     height: 84px;
     min-height: 84px;
 }
-.iv-planning-topbar__primary > .iv-planning-topbar__currency--primary {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    height: 84px;
-    min-height: 84px;
-    color: var(--iv-text-muted);
-    font-size: .78rem;
-}
 .iv-planning-topbar__primary > .iv-brand { align-items: stretch; }
 .iv-planning-topbar__primary .iv-brand__content {
     display: flex;
@@ -2199,16 +2190,23 @@ body.iv-modal-open { overflow: hidden; }
     align-self: center;
 }
 .iv-planning-local-nav-slot { justify-self: start; min-width: 0; }
-.iv-planning-scenario-slot { justify-self: end; min-width: 0; }
+.iv-planning-context-slot { display: flex; align-items: center; justify-self: end; gap: 12px; min-width: 0; }
 .iv-planning-local-nav { display: flex; flex-wrap: wrap; gap: 4px; }
 .iv-planning-local-nav a { display: inline-flex; align-items: center; min-height: 30px; padding: 5px 10px; border: 1px solid transparent; border-radius: 8px; color: var(--iv-text-muted); font-size: .74rem; font-weight: 750; text-decoration: none; white-space: nowrap; }
 .iv-planning-local-nav a:hover, .iv-planning-local-nav a:focus-visible { color: var(--iv-text); border-color: var(--iv-border); }
 .iv-planning-local-nav a.is-active { color: var(--iv-primary); border-color: var(--iv-primary); background: var(--iv-primary-soft); }
 .iv-planning-topbar__currency {
-    justify-self: end;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 5px 9px;
+    border: 1px solid var(--iv-border);
+    border-radius: var(--iv-radius-sm);
+    background: var(--iv-surface-muted);
     color: var(--iv-text-muted);
-    font-size: .78rem;
+    font-size: .75rem;
     font-weight: 600;
+    white-space: nowrap;
 }
 .iv-planning-topbar__currency strong { color: var(--iv-text); }
 
@@ -2236,7 +2234,7 @@ body.iv-modal-open { overflow: hidden; }
 .iv-long-term-assets-sections:has(.iv-planning-section__details[open]) {
     grid-template-rows: none;
 }
-.iv-planning-section { margin-bottom: 18px; overflow: hidden; }
+.iv-planning-section { margin-bottom: var(--iv-space-4); overflow: hidden; }
 .iv-planning-section__details-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -2866,7 +2864,7 @@ body.iv-modal-open { overflow: hidden; }
     margin-top: 0 !important;
     padding-bottom: 6px;
 }
-.iv-profile-structure__grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.iv-profile-structure__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .iv-profile-structure__metric {
     display: flex;
     flex-direction: column;
@@ -3042,7 +3040,7 @@ body.iv-modal-open { overflow: hidden; }
     .iv-planning-topbar__secondary .iv-page-nav-slot,
     .iv-planning-topbar__currency,
     .iv-planning-local-nav-slot,
-    .iv-planning-scenario-slot { justify-self: start; }
+    .iv-planning-context-slot { justify-self: start; flex-wrap: wrap; }
     .iv-composition-dimension__items { grid-template-columns: 1fr 1fr; gap: 8px; }
     .iv-composition-item + .iv-composition-item { padding-left: 8px; }
 }
@@ -3211,6 +3209,41 @@ body.iv-modal-open { overflow: hidden; }
     }
 }
 
+/* Canonical planning-page rhythm and readable data labels. */
+.iv-planning-page > .iv-topbar,
+.iv-planning-page > .card,
+.iv-planning-page > section.card,
+.iv-planning-page .iv-planning-section,
+.iv-planning-page .iv-risk-summary {
+    border-radius: var(--iv-radius);
+}
+.iv-profile-section,
+.iv-planning-section,
+.iv-risk-summary,
+.iv-grid--portfolio-overview { margin-bottom: var(--iv-space-4) !important; }
+.iv-card-section-header__title,
+.iv-planning-section__header h2,
+.iv-planning-summary__item span,
+.iv-planning-summary__item small,
+.iv-profile-structure__metric > span,
+.iv-profile-structure__metric > small,
+.iv-profile-income-card .iv-kpi__label,
+.iv-collapsed-summary__label,
+.iv-planning-section__count,
+.iv-planning-page .table thead th,
+.iv-retirement-surface .iv-card-section-header__title,
+.iv-retirement-surface .iv-retirement-section-kicker,
+.iv-retirement-surface .iv-state-badge {
+    font-size: .75rem;
+}
+.iv-planning-page .text-secondary,
+.iv-retirement-surface .iv-section-note,
+.iv-simulation-chart-help { color: var(--iv-text-muted) !important; }
+
+@media (max-width: 600px) {
+    .iv-profile-structure__grid { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 700px) {
     .iv-simulation-spending-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 12px; }
     .iv-simulation-flexibility-grid { grid-template-columns: 1fr; gap: 18px; }
@@ -3312,9 +3345,7 @@ body.iv-modal-open { overflow: hidden; }
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 10px;
 }
-.iv-portfolio-structure__grid--long-term {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-}
+.iv-portfolio-structure__grid--long-term { grid-template-columns: minmax(0, 1fr); }
 .iv-portfolio-structure__grid > .iv-structure-card + .iv-structure-card,
 .iv-portfolio-structure__grid > .iv-structure-currency + .iv-structure-currency {
     padding-left: 10px;
@@ -3946,5 +3977,40 @@ body.iv-modal-open { overflow: hidden; }
     .iv-topbar__secondary .iv-page-nav-slot > .iv-page-nav {
         position: relative;
         top: auto;
+    }
+}
+
+@media (max-width: 600px) {
+    .iv-planning-summary:not(.iv-planning-summary--six) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px 0;
+        height: auto !important;
+        min-height: 0 !important;
+        padding-block: 10px;
+    }
+
+    .iv-planning-summary:not(.iv-planning-summary--six) .iv-planning-summary__item {
+        min-height: 54px;
+        padding-inline: 6px;
+    }
+
+    .iv-planning-summary:not(.iv-planning-summary--six) .iv-planning-summary__item:nth-child(3) {
+        grid-column: 1 / -1;
+        padding-top: 12px;
+        border-top: 1px solid var(--iv-metric-divider);
+    }
+
+    .iv-planning-summary:not(.iv-planning-summary--six) .iv-planning-summary__item:nth-child(3)::before {
+        display: none;
+    }
+
+    .iv-planning-summary__item strong { font-size: 1.12rem; }
+
+    .iv-planning-topbar__secondary .iv-page-nav-slot > .iv-page-nav {
+        flex-wrap: wrap;
+        justify-content: center;
+        width: 100%;
+        overflow: visible;
+        border-radius: var(--iv-radius-sm);
     }
 }

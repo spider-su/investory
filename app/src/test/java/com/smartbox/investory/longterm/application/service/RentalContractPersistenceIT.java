@@ -36,6 +36,7 @@ class RentalContractPersistenceIT extends FastDatabaseTest {
     asset.setType(LongTermAssetType.REAL_ESTATE);
     asset.setCurrency(CurrencyType.PLN);
     asset.setCurrentValue(new BigDecimal("800000"));
+    asset.setTaxBase(new BigDecimal("2800"));
     asset.setActive(true);
     asset = assets.save(asset);
 
@@ -61,6 +62,7 @@ class RentalContractPersistenceIT extends FastDatabaseTest {
     assertThat(stored.getTenantName()).isEqualTo("Tenant One");
     assertThat(stored.getTenantEmail()).isEqualTo("tenant.one@example.com");
     assertThat(stored.getTenantPhone()).isEqualTo("+48 111 222 333");
+    assertThat(stored.getMonthlyTaxBase()).isEqualByComparingTo("2800");
     assertThat(stored.getTerms()).hasSize(8);
 
     var updated =
@@ -108,6 +110,50 @@ class RentalContractPersistenceIT extends FastDatabaseTest {
                 .setParameter("contractId", contractId)
                 .getSingleResult())
         .isEqualTo(0L);
+  }
+
+  @Test
+  void rolloverFlushesClosedPredecessorBeforeInsertingSuccessor() {
+    var asset = new LongTermAssetEntity();
+    asset.setPortfolioId(1L);
+    asset.setName("Rental rollover persistence test");
+    asset.setType(LongTermAssetType.REAL_ESTATE);
+    asset.setCurrency(CurrencyType.PLN);
+    asset.setCurrentValue(new BigDecimal("800000"));
+    asset.setTaxBase(new BigDecimal("3000"));
+    asset.setActive(true);
+    asset = assets.save(asset);
+
+    var previous =
+        service.create(
+            1L,
+            asset.getId(),
+            "Tenant One",
+            null,
+            null,
+            LocalDate.of(2026, 1, 1),
+            null,
+            null,
+            java.util.List.of(term(CashFlowTypeModel.RENT, 3000, false)),
+            false);
+
+    var successor =
+        service.create(
+            1L,
+            asset.getId(),
+            "Tenant Two",
+            null,
+            null,
+            LocalDate.of(2027, 1, 1),
+            null,
+            null,
+            java.util.List.of(term(CashFlowTypeModel.RENT, 3200, false)),
+            true);
+    entityManager.flush();
+
+    assertThat(contracts.findById(previous.getId()).orElseThrow().getEndDate())
+        .isEqualTo(LocalDate.of(2026, 12, 31));
+    assertThat(successor.getId()).isNotNull();
   }
 
   private static RentalContractModel.Term term(

@@ -84,7 +84,16 @@ contract is a UI prefilling action and never mutates data before submission. Exp
 is preserved by ordinary edits; a new bond uses acquisition value only when redemption was not
 supplied.
 
+Asset currency is immutable after creation. Changing the denomination requires creating a new asset
+or an explicit conversion workflow; ordinary edits and bootstrap upserts must never relabel stored
+amounts. A rental contract captures the property's monthly rental-tax base and tax-payer default when
+the contract is created. Later property-default edits apply only to new contracts and do not rewrite
+historical rental economics.
+
 The Long-Term profile reader returns a persistence-free normalized planning snapshot. Retirement
 uses that snapshot for the current view and stores it in a reviewed revision. Forward simulation
 never re-reads live Long-Term records, rates, taxes, contracts, or allocations. A later source edit
 therefore changes CURRENT only until the user explicitly rebaselines and reviews a new revision.
+The snapshot freezes the rental-tax policy effective on its review date. Future-dated policy changes
+become a new planning assumption when the user rebaselines on or after their effective date; they are
+not scheduled automatically inside an already reviewed revision.

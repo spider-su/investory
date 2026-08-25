@@ -72,9 +72,8 @@
         <div class="iv-topbar__meta iv-app-header-shell__actions iv-planning-actions iv-planning-actions--single" th:if="${actionMode == 'simulation'}" aria-label="Simulation actions">
             <a th:if="${simulationPage != null}" class="iv-topbar-action-button iv-badge iv-badge--muted" th:href="@{/simulation/plan/edit(portfolioId=${portfolioId},planId=${contextPlanId},planningDisplayCurrency=${currency},selectedScenario=${contextScenario},customInflationDelta=${simulationPage == null ? null : simulationPage.customScenario.inflation},customRentalGrowthDelta=${simulationPage == null ? null : simulationPage.customScenario.rentalGrowth},customBondReturnDelta=${simulationPage == null ? null : simulationPage.customScenario.bondReturn},customEquityReturnDelta=${simulationPage == null ? null : simulationPage.customScenario.equityReturn},customSpendingGrowthDelta=${simulationPage == null ? null : simulationPage.customScenario.spendingGrowth})}">Edit plan</a>
             <a th:unless="${simulationPage != null}" class="iv-topbar-action-button iv-badge iv-badge--muted" th:href="@{/simulation/plan/edit(portfolioId=${portfolioId},planId=${contextPlanId},planningDisplayCurrency=${currency},selectedScenario=${contextScenario})}">Edit plan</a>
-            <span class="iv-topbar-action-button iv-planning-base" th:text="${currency}">PLN</span>
         </div>
-        <div class="iv-planning-topbar__currency iv-planning-topbar__currency--primary" th:if="${actionMode != 'assets' and actionMode != 'simulation'}" th:text="${currency}">USD</div>
+        <div th:unless="${actionMode == 'assets' or actionMode == 'simulation'}"></div>
     </div>
     <div class="iv-topbar__secondary iv-app-header-shell__secondary iv-planning-topbar__secondary">
         <div class="iv-planning-local-nav-slot" th:if="${actionMode == 'simulation' or actionMode == 'analysis'}">
@@ -87,16 +86,16 @@
         </div>
         <div th:unless="${actionMode == 'simulation' or actionMode == 'analysis'}"></div>
         <div class="iv-page-nav-slot"><div th:replace="~{fragments/app-header :: appNavigation(${activePage}, ${portfolioId})}"></div></div>
-        <div class="iv-planning-scenario-slot" th:if="${actionMode == 'simulation' and simulationPage != null}">
-            <nav class="iv-page-nav iv-planning-scenario-selector" aria-label="Simulation scenario">
+        <div class="iv-planning-context-slot">
+            <nav class="iv-page-nav iv-planning-scenario-selector" th:if="${actionMode == 'simulation' and simulationPage != null}" aria-label="Simulation scenario">
                 <a th:each="availableScenario : ${simulationPage.availableScenarios}"
                    th:href="@{/simulation(portfolioId=${portfolioId},planId=${simulationPage.selectedPlanId},planningDisplayCurrency=${currency},selectedScenario=${availableScenario},customInflationDelta=${simulationPage.customScenario.inflation},customRentalGrowthDelta=${simulationPage.customScenario.rentalGrowth},customBondReturnDelta=${simulationPage.customScenario.bondReturn},customEquityReturnDelta=${simulationPage.customScenario.equityReturn},customSpendingGrowthDelta=${simulationPage.customScenario.spendingGrowth})}"
                    th:text="${availableScenario.name().substring(0, 1) + availableScenario.name().substring(1).toLowerCase()}"
                    th:classappend="${availableScenario == simulationPage.selectedScenario} ? ' is-active' : ''"
                    th:attr="aria-current=${availableScenario == simulationPage.selectedScenario ? 'page' : null}">Base</a>
             </nav>
+            <div class="iv-planning-topbar__currency" aria-label="Reporting currency"><span>Reporting currency</span><strong th:text="${currency}">PLN</strong></div>
         </div>
-        <div th:unless="${actionMode == 'simulation' and simulationPage != null}"></div>
     </div>
 </header>
 
