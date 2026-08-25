@@ -22,7 +22,7 @@ class InvestmentProfileTemplateContractTest {
         .contains("iv-planning-topbar")
         .contains("planningHeader('profile'")
         .contains("profileHeaderNetWorth")
-        .contains("profile.expectedLongTermAssetIncome")
+        .contains("profileHeaderIncome")
         .contains("Expected long-term net income")
         .contains("Market investments")
         .contains("Long-term assets")
