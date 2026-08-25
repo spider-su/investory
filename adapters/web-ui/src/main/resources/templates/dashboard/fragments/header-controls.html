@@ -57,7 +57,7 @@
         <div class="iv-position-popover__row"><span>Ambiguous cost currency</span><span th:text="${stats.dataQuality.ambiguousCostBasisCurrencyCount}">0</span></div>
         <div class="iv-position-popover__row"><span>Unclassified cash operations</span><span th:text="${stats.dataQuality.unclassifiedCashOperationCount}">0</span></div>
         <div class="iv-position-popover__row"><span>FX month</span><span th:text="${stats.dataQuality.latestFxMonth}">-</span></div>
-        <div class="iv-position-popover__row iv-balance-popover__row--head"><span>Warning</span><span>Details</span></div>
+        <div class="iv-position-popover__row iv-balance-popover__row--head"><span>Warnings</span><span>Details</span></div>
         <div class="iv-position-popover__row" th:each="issue : ${stats.dataQuality.issues}">
             <span th:text="${issue.code + ' · ' + issue.assetId}">STALE_PRICE · AAPL.US</span>
             <span th:text="${issue.priceDate + ' · ' + issue.priceQuality + ' · ' + issue.priceAgeDays + ' days'}">-</span>

@@ -88,7 +88,8 @@ class DashboardPerformanceTemplateContractTest {
     assertTrue(html.contains("id=\"investment-overview\""));
     assertTrue(details.contains("Top gainers"));
     assertTrue(details.contains("Top losers"));
-    assertTrue(details.contains("iv-realized-attribution-row"));
+    assertTrue(details.contains("iv-realized-attribution-table iv-sortable-grid"));
+    assertTrue(details.contains("data-sort-realized=${symbol.closedProfit}"));
     assertFalse(details.contains("iv-grid iv-grid--split"));
     assertFalse(details.contains("<table class=\"iv-table\">"));
     assertFalse(details.contains("Investment result"));
@@ -113,6 +114,29 @@ class DashboardPerformanceTemplateContractTest {
   }
 
   @Test
+  void dashboardWordingUsesBaseCurrencyAndUserFacingActionNames() throws Exception {
+    String html = Files.readString(Path.of(TEMPLATE));
+    String actions =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/static/js/dashboard-actions.js"));
+
+    assertTrue(html.contains("INVESTMENT RESULT"));
+    assertTrue(html.contains("Update market data"));
+    assertTrue(html.contains("Update exchange rates"));
+    assertTrue(html.contains("Income breakdown"));
+    assertTrue(html.contains("Cash interest"));
+    assertTrue(html.contains("Top dividend payers"));
+    assertTrue(html.contains("'Dividends · ' + stats.baseCurrency"));
+    assertTrue(html.contains("const baseCurrency = /*[[${stats.baseCurrency}]]*/ 'USD';"));
+    assertFalse(html.contains("Dividends USD"));
+    assertFalse(html.contains(" + ' $'"));
+    assertTrue(
+        actions.contains("Couldn\\u2019t import this statement. Check the file and try again."));
+    assertTrue(actions.contains("Market data updated"));
+    assertTrue(actions.contains("Exchange rates updated"));
+  }
+
+  @Test
   void dashboardUsesOneUnifiedPerformanceBoardWithModes() throws Exception {
     String html = Files.readString(Path.of(TEMPLATE));
     String headerControls =
@@ -127,7 +151,7 @@ class DashboardPerformanceTemplateContractTest {
     assertTrue(html.contains("data-style=\"line\""));
     assertTrue(html.contains("data-style=\"bars\""));
     assertTrue(html.contains("js-performance-board-account"));
-    assertTrue(html.contains("Accounts: All (0)"));
+    assertTrue(html.contains("All accounts · 0"));
     assertTrue(html.contains("selected === 0 || selected === inputs.length"));
     assertTrue(html.contains("if (selectedIds.length > 0) params.set('accountIds'"));
     assertTrue(html.contains("if (selectedIds.length > 0) (view.accounts || [])"));
@@ -139,7 +163,7 @@ class DashboardPerformanceTemplateContractTest {
     assertTrue(html.contains("skipNull: bars"));
     assertTrue(html.contains("barPercentage: bars ? 1 : undefined"));
     assertTrue(html.contains("id=\"performance-board-account-selector\""));
-    assertTrue(html.contains(">P/L</button>"));
+    assertTrue(html.contains(">Profit/Loss</button>"));
     assertTrue(html.contains("aria-label=\"Aggregation\""));
     assertTrue(html.contains("S&amp;P 500</span>"));
     assertFalse(html.contains("Compare with S&amp;P 500"));
@@ -157,12 +181,14 @@ class DashboardPerformanceTemplateContractTest {
     assertFalse(html.contains("toFixed(1)"));
     assertTrue(html.contains("new Intl.NumberFormat('en-US'"));
     assertFalse(html.contains("new Intl.NumberFormat('de-DE'"));
-    assertTrue(html.contains("Portfolio data"));
+    assertTrue(html.contains("Market data"));
     assertTrue(html.contains("id=\"refresh-prices-btn\""));
     assertTrue(html.contains("Base currency: USD"));
     assertFalse(html.contains("Portfolio values are converted to"));
     assertFalse(html.contains("iv-topbar-fx-popover__total"));
-    assertTrue(html.contains("th:text=\"${'Base: ' + stats.baseCurrency}\">Base: USD</span>"));
+    assertTrue(
+        html.contains(
+            "th:text=\"${'Base currency: ' + stats.baseCurrency}\">Base currency: USD</span>"));
     assertTrue(headerControls.contains("stats.formatBase(account.baseNetDeposit)"));
     assertTrue(
         headerControls.contains("stats.formatMoney(account.netDeposit, account.localCurrency)"));
@@ -173,7 +199,8 @@ class DashboardPerformanceTemplateContractTest {
     assertTrue(headerControls.contains("data-sort-key=\"pl\""));
     assertTrue(headerControls.contains("Net deposit</button>"));
     assertTrue(headerControls.contains("Balance</button>"));
-    assertTrue(headerControls.contains("Profit</button>"));
+    assertTrue(headerControls.contains("Profit/Loss</button>"));
+    assertTrue(headerControls.contains("Return</button>"));
     assertTrue(headerControls.contains("Cash</button>"));
     assertTrue(html.contains("Rates updated:"));
     assertTrue(html.contains("Last import"));
@@ -181,7 +208,8 @@ class DashboardPerformanceTemplateContractTest {
     assertFalse(html.contains("portfolio changes since export"));
     assertFalse(html.contains("yahoo.changes"));
     assertTrue(html.contains("Latest transaction:"));
-    assertTrue(headerControls.contains("Valuation status"));
+    assertTrue(headerControls.contains("Valuation quality"));
+    assertTrue(headerControls.contains("Technical details"));
     assertTrue(html.contains("Asset allocation"));
     assertTrue(html.contains("Portfolio structure"));
     int kpiStripStart = html.indexOf("<div class=\"iv-benchmark iv-performance-metrics\">");
@@ -193,8 +221,8 @@ class DashboardPerformanceTemplateContractTest {
     assertTrue(kpiStrip.contains("Max drawdown"));
     assertTrue(kpiStrip.contains(">TWR</span>"));
     assertTrue(kpiStrip.contains(">XIRR</span>"));
-    assertTrue(kpiStrip.contains(">Benchmark</span>"));
-    assertTrue(kpiStrip.contains(">Excess Return</span>"));
+    assertTrue(kpiStrip.contains(">S&amp;P 500 return</span>"));
+    assertTrue(kpiStrip.contains(">Excess return</span>"));
     assertFalse(kpiStrip.contains(">P/L</span>"));
     assertFalse(kpiStrip.contains("Realized P/L"));
     assertFalse(kpiStrip.contains(">Dividends</span>"));

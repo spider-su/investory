@@ -184,7 +184,7 @@ if (fileInput) {
          })
          .then(data => {
              if (window.ivNotify) {
-                 window.ivNotify(data.message || fallbackSuccess, 'success');
+                 window.ivNotify(fallbackSuccess, 'success');
              }
              window.setTimeout(function () {
                  window.location.reload();
@@ -209,7 +209,7 @@ if (fileInput) {
          runDashboardMaintenance(
              refreshPricesBtn,
              '/admin/update-history',
-             '⏳ Updating history…',
+             'Updating market data…',
               'Market data updated',
               'Market data update');
      });
