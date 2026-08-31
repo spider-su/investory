@@ -4,14 +4,19 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import com.smartbox.investory.retirement.api.model.*;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Planning Progress Service")
 class PlanningProgressServiceTest {
   private final PlanningProgressService service = new PlanningProgressService();
 
+  @DisplayName(
+      "reports Ahead When Reviewed Net Worth Is One Hundred Thousand Above Frozen Baseline")
   @Test
   void reportsAheadWhenReviewedNetWorthIsOneHundredThousandAboveFrozenBaseline() {
     PlanProgressPoint point =
@@ -22,6 +27,8 @@ class PlanningProgressServiceTest {
     assertEquals("2025-12-31", point.boundaryDate().toString());
   }
 
+  @DisplayName(
+      "reports Behind When Reviewed Net Worth Is One Hundred Thousand Below Frozen Baseline")
   @Test
   void reportsBehindWhenReviewedNetWorthIsOneHundredThousandBelowFrozenBaseline() {
     PlanProgressPoint point =
@@ -31,6 +38,7 @@ class PlanningProgressServiceTest {
     assertEquals(PlanProgressState.BEHIND, point.status());
   }
 
+  @DisplayName("reports On Plan When Reviewed And Frozen Net Worth Match")
   @Test
   void reportsOnPlanWhenReviewedAndFrozenNetWorthMatch() {
     PlanProgressPoint point =
@@ -40,6 +48,7 @@ class PlanningProgressServiceTest {
     assertEquals(PlanProgressState.ON_PLAN, point.status());
   }
 
+  @DisplayName("missing Reviewed Actual Net Worth Makes Progress Unavailable")
   @Test
   void missingReviewedActualNetWorthMakesProgressUnavailable() {
     PlanProgressPoint point =
@@ -49,6 +58,7 @@ class PlanningProgressServiceTest {
     assertEquals(new BigDecimal("500000"), point.plannedNetWorth());
   }
 
+  @DisplayName("missing Frozen Baseline Net Worth Makes Progress Unavailable")
   @Test
   void missingFrozenBaselineNetWorthMakesProgressUnavailable() {
     PlanProgressPoint point =
@@ -58,12 +68,14 @@ class PlanningProgressServiceTest {
     assertEquals(new BigDecimal("500000"), point.actualNetWorth());
   }
 
+  @DisplayName("draft Year Is Unavailable Even When Both Net Worth Values Exist")
   @Test
   void draftYearIsUnavailableEvenWhenBothNetWorthValuesExist() {
     assertUnavailable(
         service.compare(year(2025, PlanningYearStatus.DRAFT, "600000", "500000", 7L, 3L)));
   }
 
+  @DisplayName("closed Snapshot Comparison Does Not Use Changed Live Values")
   @Test
   void closedSnapshotComparisonDoesNotUseChangedLiveValues() {
     PastPlanningYear closed = year(2025, PlanningYearStatus.CLOSED, "600000", "500000", 7L, 3L);
@@ -78,6 +90,7 @@ class PlanningProgressServiceTest {
     assertEquals(new BigDecimal("100000"), afterLiveProfileChange.difference());
   }
 
+  @DisplayName("later Baseline Revision Does Not Change Old Closed Comparison")
   @Test
   void laterBaselineRevisionDoesNotChangeOldClosedComparison() {
     PastPlanningYear closed = year(2025, PlanningYearStatus.CLOSED, "600000", "500000", 7L, 3L);
@@ -92,6 +105,7 @@ class PlanningProgressServiceTest {
     assertEquals(3L, point.baselineRevisionId());
   }
 
+  @DisplayName("exposes The Exact Frozen Baseline Provenance")
   @Test
   void exposesTheExactFrozenBaselineProvenance() {
     PlanProgressPoint point =
@@ -101,6 +115,8 @@ class PlanningProgressServiceTest {
     assertEquals(33L, point.baselineRevisionId());
   }
 
+  @DisplayName(
+      "global Progress Uses The Latest Chronological Point Instead Of Summing Yearly Differences")
   @Test
   void globalProgressUsesTheLatestChronologicalPointInsteadOfSummingYearlyDifferences() {
     PlanProgress progress =
@@ -119,6 +135,7 @@ class PlanningProgressServiceTest {
     assertEquals(4L, progress.headline().baselineRevisionId());
   }
 
+  @DisplayName("global Progress Preserves Each Years Frozen Revision When Later Revision Exists")
   @Test
   void globalProgressPreservesEachYearsFrozenRevisionWhenLaterRevisionExists() {
     List<PastPlanningYear> historical =
@@ -142,6 +159,7 @@ class PlanningProgressServiceTest {
         afterRevisionFive.points().stream().map(PlanProgressPoint::baselineRevisionId).toList());
   }
 
+  @DisplayName("global Progress Excludes Unavailable Closed And Draft Years")
   @Test
   void globalProgressExcludesUnavailableClosedAndDraftYears() {
     PlanProgress progress =
@@ -155,6 +173,7 @@ class PlanningProgressServiceTest {
     assertEquals(2025, progress.headline().year());
   }
 
+  @DisplayName("timeline Progress Excludes Live And Projected Rows")
   @Test
   void timelineProgressExcludesLiveAndProjectedRows() {
     PastPlanningYear closed = year(2025, PlanningYearStatus.CLOSED, "180000", "100000", 7L, 1L);
@@ -173,6 +192,7 @@ class PlanningProgressServiceTest {
     assertEquals(List.of(2025), progress.points().stream().map(PlanProgressPoint::year).toList());
   }
 
+  @DisplayName("headline State Can Be Behind Or On Plan")
   @Test
   void headlineStateCanBeBehindOrOnPlan() {
     PlanProgress behind =
@@ -186,6 +206,7 @@ class PlanningProgressServiceTest {
     assertEquals(PlanProgressState.ON_PLAN, onPlan.headline().status());
   }
 
+  @DisplayName("no Comparable History Returns An Available Free Result")
   @Test
   void noComparableHistoryReturnsAnAvailableFreeResult() {
     PlanProgress progress =
@@ -199,6 +220,7 @@ class PlanningProgressServiceTest {
     assertNull(progress.headline());
   }
 
+  @DisplayName("global And Year Review Use The Same Canonical Comparison")
   @Test
   void globalAndYearReviewUseTheSameCanonicalComparison() {
     PastPlanningYear closed = year(2025, PlanningYearStatus.CLOSED, "180000", "100000", 7L, 1L);

@@ -1,7 +1,5 @@
 package com.smartbox.investory.investment.imports;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceFileEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceFileRepository;
@@ -14,6 +12,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 public class ImportSourceEvidenceService {
@@ -22,11 +22,6 @@ public class ImportSourceEvidenceService {
   private final ObjectMapper objectMapper;
 
   @Autowired
-  public ImportSourceEvidenceService(
-      ImportSourceFileRepository fileRepository, ImportSourceRowRepository rowRepository) {
-    this(fileRepository, rowRepository, new ObjectMapper());
-  }
-
   public ImportSourceEvidenceService(
       ImportSourceFileRepository fileRepository,
       ImportSourceRowRepository rowRepository,
@@ -96,7 +91,7 @@ public class ImportSourceEvidenceService {
   private String toJson(Map<String, ?> values) {
     try {
       return objectMapper.writeValueAsString(values);
-    } catch (JsonProcessingException exception) {
+    } catch (JacksonException exception) {
       throw new IllegalArgumentException("Cannot serialize broker source row evidence", exception);
     }
   }

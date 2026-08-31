@@ -1,5 +1,6 @@
 package com.smartbox.investory.investment.reporting;
 
+import com.smartbox.investory.investment.api.reporting.model.Benchmark;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
@@ -7,13 +8,12 @@ import com.smartbox.investory.investment.infrastructure.persistence.account.Acco
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountMonthlyPerformanceRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsRepository;
-import com.smartbox.investory.investment.performance.model.Benchmark;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 
 /**
@@ -64,15 +65,35 @@ public class BenchmarkService {
 
   @Cacheable(cacheNames = "benchmark", key = "'all'")
   public Benchmark calculate() {
-    return calculate(null);
+    return calculate(null, null);
   }
 
   @Cacheable(cacheNames = "benchmark", keyGenerator = "investmentCalculationKeyGenerator")
   public Benchmark calculate(Collection<Long> accountIds) {
+    return calculate(null, accountIds);
+  }
+
+  @Cacheable(cacheNames = "benchmark", keyGenerator = "investmentCalculationKeyGenerator")
+  public Benchmark calculate(Long portfolioId, Collection<Long> accountIds) {
     Benchmark benchmark = new Benchmark();
     try {
-      List<AccountDailyEntity> allRows = accountDailyRepository.findAll();
-      Set<Long> requestedAccounts = accountIds == null ? Set.of() : new HashSet<>(accountIds);
+      List<AccountDailyEntity> allRows =
+          accountDailyRepository.findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(
+              historyStart.atDay(1));
+      Set<Long> portfolioAccounts =
+          accountRepository.findAll().stream()
+              .filter(
+                  account ->
+                      portfolioId == null || Objects.equals(account.getPortfolioId(), portfolioId))
+              .map(AccountEntity::getId)
+              .filter(Objects::nonNull)
+              .collect(Collectors.toSet());
+      allRows =
+          allRows.stream()
+              .filter(row -> portfolioId == null || portfolioAccounts.contains(row.getAccountId()))
+              .toList();
+      Set<Long> requestedAccounts =
+          com.smartbox.investory.shared.util.CollectionUtils.immutableSetOrEmpty(accountIds);
       boolean filterSubmitted = accountIds != null;
       Set<Long> eligibleAccounts =
           accountValueService.activeAccountIds(allRows, accountStatisticsRepository.findAll());
@@ -112,7 +133,9 @@ public class BenchmarkService {
               : null);
 
       List<AccountMonthlyPerformanceEntity> monthlyRows =
-          accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc().stream()
+          accountMonthlyPerformanceRepository
+              .findByMonthGreaterThanEqualOrderByMonthAscAccountIdAsc(historyStart.atDay(1))
+              .stream()
               .filter(row -> row.getMonth() != null)
               .filter(row -> eligibleAccounts.contains(row.getAccountId()))
               .filter(row -> !YearMonth.from(row.getMonth()).isBefore(historyStart))
@@ -195,11 +218,12 @@ public class BenchmarkService {
               ? round(benchmark.getPortfolioReturnPct() - benchmark.getBenchmarkReturnPct())
               : 0.0);
       benchmark.setAvailable(true);
-    } catch (Exception exception) {
-      log.error("Benchmark calculation failed: {}", exception.getMessage(), exception);
-      benchmark.setAvailable(false);
+      return benchmark;
+    } catch (DataAccessException failure) {
+      log.error(
+          "Benchmark calculation failed while reading persisted portfolio or SPY data", failure);
+      throw failure;
     }
-    return benchmark;
   }
 
   private Benchmark.AccountSeries accountSeries(
@@ -261,7 +285,7 @@ public class BenchmarkService {
       AccountMonthlyPerformanceEntity row = monthlyRows.get(label);
       if (row != null) cumulativeProfit += nz(row.getProfit());
       double openingCapital = nz(row == null ? null : row.getStartEquity());
-      Double monthlyReturn = row == null ? null : row.getReturnPct();
+      Double monthlyReturn = row == null ? null : toDouble(row.getReturnPct());
       if (openingCapital == 0.0 || monthlyReturn == null) {
         returnCapitalCurve.add(null);
         returnContributionCurve.add(null);
@@ -371,6 +395,14 @@ public class BenchmarkService {
 
   private static double nz(Double value) {
     return value == null ? 0.0 : value;
+  }
+
+  private static double nz(BigDecimal value) {
+    return value == null ? 0.0 : value.doubleValue();
+  }
+
+  private static Double toDouble(BigDecimal value) {
+    return value == null ? null : value.doubleValue();
   }
 
   private static double round(double value) {

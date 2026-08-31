@@ -12,8 +12,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.smartbox.investory.config.MockMvcSecurityTestConfig;
 import com.smartbox.investory.config.SecurityConfig;
+import com.smartbox.investory.investment.api.importing.ImportBroker;
+import com.smartbox.investory.investment.api.importing.ImportSource;
+import com.smartbox.investory.investment.api.importing.ImportStatus;
 import com.smartbox.investory.investment.api.importing.InvestmentImportApi;
 import com.smartbox.investory.investment.api.importing.InvestmentImportApi.ImportResult;
+import com.smartbox.investory.investment.web.ImportController;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,40 +32,53 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(controllers = ImportController.class)
 @Import({SecurityConfig.class, MockMvcSecurityTestConfig.class})
+@DisplayName("Import Controller")
 class ImportControllerTest {
 
   @Autowired private MockMvc mockMvc;
   @MockitoBean private InvestmentImportApi importApi;
 
+  @DisplayName("import By Broker uploads File And Returns Response")
   @Test
   @WithMockUser(roles = "ADMIN")
   void importByBroker_uploadsFileAndReturnsResponse() throws Exception {
-    when(importApi.importForBroker(eq("XTB"), eq("file.xlsx"), any(), eq("MANUAL"), any()))
-        .thenReturn(new ImportResult(99L, "XTB", "COMPLETED", 10, 10, 0, "ok", false));
+    when(importApi.importForBroker(
+            eq(ImportBroker.XTB), eq("file.xlsx"), any(), eq(ImportSource.MANUAL), any()))
+        .thenReturn(new ImportResult(99L, "XTB", ImportStatus.COMPLETED, 10, 10, 0, "ok", false));
 
     MockMultipartFile multipart =
         new MockMultipartFile(
             "file", "file.xlsx", MediaType.APPLICATION_OCTET_STREAM_VALUE, "payload".getBytes());
 
     mockMvc
-        .perform(multipart("/import/broker/XTB").file(multipart).with(csrf()))
+        .perform(multipart("/api/v1/investment/imports/broker/XTB").file(multipart).with(csrf()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.batchId").value(99))
         .andExpect(jsonPath("$.duplicate").value(false));
 
     ArgumentCaptor<byte[]> bytesCaptor = ArgumentCaptor.forClass(byte[].class);
     verify(importApi)
-        .importForBroker(eq("XTB"), eq("file.xlsx"), bytesCaptor.capture(), eq("MANUAL"), any());
+        .importForBroker(
+            eq(ImportBroker.XTB),
+            eq("file.xlsx"),
+            bytesCaptor.capture(),
+            eq(ImportSource.MANUAL),
+            any());
     org.junit.jupiter.api.Assertions.assertArrayEquals(
         "payload".getBytes(), bytesCaptor.getValue());
   }
 
+  @DisplayName("import By Broker passes Source Metadata")
   @Test
   @WithMockUser(roles = "ADMIN")
   void importByBroker_passesSourceMetadata() throws Exception {
     when(importApi.importForBroker(
-            eq("IBKR"), eq("statement.csv"), any(), eq("TELEGRAM"), eq("telegram-file-123")))
-        .thenReturn(new ImportResult(100L, "IBKR", "COMPLETED", 1, 1, 0, "ok", false));
+            eq(ImportBroker.IBKR),
+            eq("statement.csv"),
+            any(),
+            eq(ImportSource.TELEGRAM),
+            eq("telegram-file-123")))
+        .thenReturn(new ImportResult(100L, "IBKR", ImportStatus.COMPLETED, 1, 1, 0, "ok", false));
 
     MockMultipartFile multipart =
         new MockMultipartFile(
@@ -68,7 +86,7 @@ class ImportControllerTest {
 
     mockMvc
         .perform(
-            multipart("/import/broker/ibkr")
+            multipart("/api/v1/investment/imports/broker/ibkr")
                 .file(multipart)
                 .param("source", "TELEGRAM")
                 .param("sourceRef", "telegram-file-123")
@@ -78,9 +96,14 @@ class ImportControllerTest {
 
     verify(importApi)
         .importForBroker(
-            eq("IBKR"), eq("statement.csv"), any(), eq("TELEGRAM"), eq("telegram-file-123"));
+            eq(ImportBroker.IBKR),
+            eq("statement.csv"),
+            any(),
+            eq(ImportSource.TELEGRAM),
+            eq("telegram-file-123"));
   }
 
+  @DisplayName("import By Broker unknown Broker Returns400")
   @Test
   @WithMockUser(roles = "ADMIN")
   void importByBroker_unknownBrokerReturns400() throws Exception {
@@ -89,14 +112,16 @@ class ImportControllerTest {
             "file", "file.xlsx", MediaType.APPLICATION_OCTET_STREAM_VALUE, "payload".getBytes());
 
     mockMvc
-        .perform(multipart("/import/broker/etoro").file(multipart).with(csrf()))
+        .perform(multipart("/api/v1/investment/imports/broker/etoro").file(multipart).with(csrf()))
         .andExpect(status().isBadRequest());
   }
 
+  @DisplayName("import By Broker parser Failure Returns400")
   @Test
   @WithMockUser(roles = "ADMIN")
-  void importByBroker_parserFailureReturns422() throws Exception {
-    when(importApi.importForBroker(anyString(), anyString(), any(), anyString(), any()))
+  void importByBroker_parserFailureReturns400() throws Exception {
+    when(importApi.importForBroker(
+            any(ImportBroker.class), anyString(), any(), any(ImportSource.class), any()))
         .thenThrow(
             new InvestmentImportApi.ImportFailure(
                 "Failed to import (batchId=5): boom", new IllegalStateException("boom")));
@@ -106,10 +131,11 @@ class ImportControllerTest {
             "file", "file.xlsx", MediaType.APPLICATION_OCTET_STREAM_VALUE, "payload".getBytes());
 
     mockMvc
-        .perform(multipart("/import/broker/XTB").file(multipart).with(csrf()))
-        .andExpect(status().is(422));
+        .perform(multipart("/api/v1/investment/imports/broker/XTB").file(multipart).with(csrf()))
+        .andExpect(status().isBadRequest());
   }
 
+  @DisplayName("import By Broker requires Authentication")
   @Test
   void importByBroker_requiresAuthentication() throws Exception {
     MockMultipartFile multipart =
@@ -117,7 +143,7 @@ class ImportControllerTest {
             "file", "file.xlsx", MediaType.APPLICATION_OCTET_STREAM_VALUE, "payload".getBytes());
 
     mockMvc
-        .perform(multipart("/import/broker/XTB").file(multipart).with(csrf()))
+        .perform(multipart("/api/v1/investment/imports/broker/XTB").file(multipart).with(csrf()))
         .andExpect(status().isUnauthorized());
   }
 }

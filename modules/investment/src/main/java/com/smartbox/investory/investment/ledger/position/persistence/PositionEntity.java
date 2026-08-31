@@ -178,11 +178,7 @@ public class PositionEntity {
     this.brokerProduct = comment;
   }
 
-  public Double getVolume() {
-    return asDouble(volume);
-  }
-
-  public BigDecimal getVolumeValue() {
+  public BigDecimal getVolume() {
     return volume;
   }
 
@@ -190,19 +186,7 @@ public class PositionEntity {
     this.volume = scaleDecimal(volume);
   }
 
-  public void setVolume(Double volume) {
-    this.volume = scaleDecimal(volume);
-  }
-
-  public void setVolume(double volume) {
-    setVolume(Double.valueOf(volume));
-  }
-
-  public Double getOpenPrice() {
-    return asDouble(openPrice);
-  }
-
-  public BigDecimal getOpenPriceValue() {
+  public BigDecimal getOpenPrice() {
     return openPrice;
   }
 
@@ -210,19 +194,7 @@ public class PositionEntity {
     this.openPrice = scaleDecimal(openPrice);
   }
 
-  public void setOpenPrice(Double openPrice) {
-    this.openPrice = scaleDecimal(openPrice);
-  }
-
-  public void setOpenPrice(double openPrice) {
-    setOpenPrice(Double.valueOf(openPrice));
-  }
-
-  public Double getSourceOpenPrice() {
-    return asDouble(sourceOpenPrice);
-  }
-
-  public BigDecimal getSourceOpenPriceValue() {
+  public BigDecimal getSourceOpenPrice() {
     return sourceOpenPrice;
   }
 
@@ -230,27 +202,11 @@ public class PositionEntity {
     this.sourceOpenPrice = scaleDecimal(sourceOpenPrice);
   }
 
-  public void setSourceOpenPrice(Double sourceOpenPrice) {
-    this.sourceOpenPrice = scaleDecimal(sourceOpenPrice);
-  }
-
-  public void setSourceOpenPrice(double sourceOpenPrice) {
-    setSourceOpenPrice(Double.valueOf(sourceOpenPrice));
-  }
-
-  public Double getOpenConversionRate() {
-    return asDouble(openConversionRate);
-  }
-
-  public BigDecimal getOpenConversionRateValue() {
+  public BigDecimal getOpenConversionRate() {
     return openConversionRate;
   }
 
-  public Double getMarketPrice() {
-    return asDouble(marketPrice);
-  }
-
-  public BigDecimal getMarketPriceValue() {
+  public BigDecimal getMarketPrice() {
     return marketPrice;
   }
 
@@ -258,31 +214,11 @@ public class PositionEntity {
     this.marketPrice = scaleDecimal(marketPrice);
   }
 
-  public void setMarketPrice(Double marketPrice) {
-    this.marketPrice = scaleDecimal(marketPrice);
-  }
-
-  public void setMarketPrice(double marketPrice) {
-    setMarketPrice(Double.valueOf(marketPrice));
-  }
-
   public void setOpenConversionRate(BigDecimal openConversionRate) {
     this.openConversionRate = scaleDecimal(openConversionRate);
   }
 
-  public void setOpenConversionRate(Double openConversionRate) {
-    this.openConversionRate = scaleDecimal(openConversionRate);
-  }
-
-  public void setOpenConversionRate(double openConversionRate) {
-    setOpenConversionRate(Double.valueOf(openConversionRate));
-  }
-
-  public Double getClosePrice() {
-    return asDouble(closePrice);
-  }
-
-  public BigDecimal getClosePriceValue() {
+  public BigDecimal getClosePrice() {
     return closePrice;
   }
 
@@ -290,19 +226,7 @@ public class PositionEntity {
     this.closePrice = scaleDecimal(closePrice);
   }
 
-  public void setClosePrice(Double closePrice) {
-    this.closePrice = scaleDecimal(closePrice);
-  }
-
-  public void setClosePrice(double closePrice) {
-    setClosePrice(Double.valueOf(closePrice));
-  }
-
-  public Double getSourceClosePrice() {
-    return asDouble(sourceClosePrice);
-  }
-
-  public BigDecimal getSourceClosePriceValue() {
+  public BigDecimal getSourceClosePrice() {
     return sourceClosePrice;
   }
 
@@ -310,19 +234,7 @@ public class PositionEntity {
     this.sourceClosePrice = scaleDecimal(sourceClosePrice);
   }
 
-  public void setSourceClosePrice(Double sourceClosePrice) {
-    this.sourceClosePrice = scaleDecimal(sourceClosePrice);
-  }
-
-  public void setSourceClosePrice(double sourceClosePrice) {
-    setSourceClosePrice(Double.valueOf(sourceClosePrice));
-  }
-
-  public Double getCloseConversionRate() {
-    return asDouble(closeConversionRate);
-  }
-
-  public BigDecimal getCloseConversionRateValue() {
+  public BigDecimal getCloseConversionRate() {
     return closeConversionRate;
   }
 
@@ -330,19 +242,7 @@ public class PositionEntity {
     this.closeConversionRate = scaleDecimal(closeConversionRate);
   }
 
-  public void setCloseConversionRate(Double closeConversionRate) {
-    this.closeConversionRate = scaleDecimal(closeConversionRate);
-  }
-
-  public void setCloseConversionRate(double closeConversionRate) {
-    setCloseConversionRate(Double.valueOf(closeConversionRate));
-  }
-
-  public Double getPurchaseValue() {
-    return asDouble(purchaseValue);
-  }
-
-  public BigDecimal getPurchaseValueValue() {
+  public BigDecimal getPurchaseValue() {
     return purchaseValue;
   }
 
@@ -350,19 +250,7 @@ public class PositionEntity {
     this.purchaseValue = scaleDecimal(purchaseValue);
   }
 
-  public void setPurchaseValue(Double purchaseValue) {
-    this.purchaseValue = scaleDecimal(purchaseValue);
-  }
-
-  public void setPurchaseValue(double purchaseValue) {
-    setPurchaseValue(Double.valueOf(purchaseValue));
-  }
-
-  public Double getSaleValue() {
-    return asDouble(saleValue);
-  }
-
-  public BigDecimal getSaleValueValue() {
+  public BigDecimal getSaleValue() {
     return saleValue;
   }
 
@@ -370,19 +258,7 @@ public class PositionEntity {
     this.saleValue = scaleDecimal(saleValue);
   }
 
-  public void setSaleValue(Double saleValue) {
-    this.saleValue = scaleDecimal(saleValue);
-  }
-
-  public void setSaleValue(double saleValue) {
-    setSaleValue(Double.valueOf(saleValue));
-  }
-
-  public Double getMargin() {
-    return asDouble(margin);
-  }
-
-  public BigDecimal getMarginValue() {
+  public BigDecimal getMargin() {
     return margin;
   }
 
@@ -390,19 +266,7 @@ public class PositionEntity {
     this.margin = scaleDecimal(margin);
   }
 
-  public void setMargin(Double margin) {
-    this.margin = scaleDecimal(margin);
-  }
-
-  public void setMargin(double margin) {
-    setMargin(Double.valueOf(margin));
-  }
-
-  public Double getCommission() {
-    return asDouble(commission);
-  }
-
-  public BigDecimal getCommissionValue() {
+  public BigDecimal getCommission() {
     return commission;
   }
 
@@ -410,19 +274,7 @@ public class PositionEntity {
     this.commission = scaleDecimal(commission);
   }
 
-  public void setCommission(Double commission) {
-    this.commission = scaleDecimal(commission);
-  }
-
-  public void setCommission(double commission) {
-    setCommission(Double.valueOf(commission));
-  }
-
-  public Double getSwap() {
-    return asDouble(swap);
-  }
-
-  public BigDecimal getSwapValue() {
+  public BigDecimal getSwap() {
     return swap;
   }
 
@@ -430,32 +282,12 @@ public class PositionEntity {
     this.swap = scaleDecimal(swap);
   }
 
-  public void setSwap(Double swap) {
-    this.swap = scaleDecimal(swap);
-  }
-
-  public void setSwap(double swap) {
-    setSwap(Double.valueOf(swap));
-  }
-
-  public Double getProfit() {
-    return asDouble(profit);
-  }
-
-  public BigDecimal getProfitValue() {
+  public BigDecimal getProfit() {
     return profit;
   }
 
   public void setProfit(BigDecimal profit) {
     this.profit = scaleDecimal(profit);
-  }
-
-  public void setProfit(Double profit) {
-    this.profit = scaleDecimal(profit);
-  }
-
-  public void setProfit(double profit) {
-    setProfit(Double.valueOf(profit));
   }
 
   public void setSymbol(String symbol) {
@@ -471,7 +303,7 @@ public class PositionEntity {
   }
 
   public double signedQuantity() {
-    return PositionQuantities.signed(type, getVolume());
+    return PositionQuantities.signed(type, getVolume().doubleValue());
   }
 
   private static Double asDouble(BigDecimal value) {
@@ -480,9 +312,5 @@ public class PositionEntity {
 
   private static BigDecimal scaleDecimal(BigDecimal value) {
     return value == null ? null : value.setScale(8, RoundingMode.HALF_UP);
-  }
-
-  private static BigDecimal scaleDecimal(Double value) {
-    return value == null ? null : scaleDecimal(BigDecimal.valueOf(value));
   }
 }

@@ -1,6 +1,7 @@
 package com.smartbox.investory.retirement.simulation;
 
-import com.smartbox.investory.retirement.profile.InvestmentProfile;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.api.model.*;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -108,9 +109,12 @@ public class RetirementAgeAnalysisService {
         && retirementAge == assumptions.retirementAge())
       return context.canonicalBase().sustainable();
     SimulationAssumptions candidate = assumptions.toBuilder().retirementAge(retirementAge).build();
-    return (context == null
-            ? evaluations.evaluate(profile, candidate, scenario)
-            : evaluations.evaluate(profile, candidate, scenario, context.baselineYear()))
+    if (context == null) return evaluations.evaluate(profile, candidate, scenario).sustainable();
+    SimulationEvaluation cached =
+        evaluations.evaluate(profile, candidate, scenario, context.baselineYear(), context.cache());
+    return (cached == null
+            ? evaluations.evaluate(profile, candidate, scenario, context.baselineYear())
+            : cached)
         .sustainable();
   }
 

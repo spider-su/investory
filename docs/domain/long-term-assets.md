@@ -3,16 +3,16 @@
 ## Rental source of truth
 
 Real-estate rental economics are stored and read through rental contracts and their terms. The
-projection, current snapshot, historical snapshot, and asset summary paths do not read
-`long_term_asset_cash_flows` for real estate. Contract terms carry dates, cadence, tax ownership,
+projection, current snapshot, historical snapshot, and asset summary paths read those contracts.
+Contract terms carry dates, cadence, tax ownership,
 and landlord/tenant expense ownership.
 
 The checked-in bootstrap document may accept `cashFlows` only for `REAL_ESTATE` import input.
 Bootstrap rejects cash-flow rows for every other asset type and converts accepted rows into rental
 contracts before runtime use. This is real-estate import compatibility, not a second runtime model.
 
-`long_term_asset_cash_flows` is legacy persistence compatibility and is not a supported generic
-cash-flow model for non-real-estate assets.
+There is no generic runtime cash-flow persistence. Existing legacy rows are migrated into rental
+contracts and rental terms before the legacy table is removed.
 
 ## Rental contract lifecycle
 
@@ -66,18 +66,16 @@ Retirement must not inspect Long-Term entities or reproduce those calculations. 
 plan may freeze the normalized values returned by this boundary for reproducibility; that snapshot is
 Retirement planning provenance and does not replace Long-Term as the source of current asset state.
 
-For annual retirement planning, `quote` is a non-consuming economic view of one year. It may be used
-to determine cash flows and capital availability, but it never advances maturity or reinvestment
-state. `plan` is the single committed annual transition; only its returned end state is passed to
-the next year.
+The current normalized Long-Term profile snapshot is the only live input to Retirement planning.
+Reviewed Retirement revisions persist that snapshot before simulation; Long-Term does not maintain
+a second quote/plan transition API or infer projection behavior from legacy object shapes.
 
 Bond interest paid out is a spendable fixed-income cash flow. Capitalized bond interest is retained
 in Long-Term capital and is reported separately from cash income; it is never counted in both places.
 
-Cash-flow rows are supported only as real-estate bootstrap input and are converted into rental
-contracts. Non-real-estate assets cannot define or import generic cash-flow rows. The legacy
-rental-period projection fallback is compatibility-only and is not the normal persisted runtime
-path. Persisted contracts carry explicit bootstrap ownership. A repeated import atomically replaces
+Cash-flow rows are supported only as real-estate bootstrap input and are converted directly into
+rental contracts and terms. Non-real-estate assets cannot define or import generic cash-flow rows.
+Persisted contracts carry explicit bootstrap ownership. A repeated import atomically replaces
 only bootstrap-owned contracts; manual and pre-ownership contracts are protected from importer
 rewrites even when tenant identity and notes are empty. The bootstrap document is authoritative for
 its owned contracts: rebuilding them captures the document asset's current tax base and tax-payer
@@ -96,6 +94,15 @@ atomic subtype workflows; deposits require a maturity date. Rental contracts are
 contract is a UI prefilling action and never mutates data before submission. Explicit bond redemption
 is preserved by ordinary edits; a new bond uses acquisition value only when redemption was not
 supplied.
+
+All application-level rates are canonical decimal fractions: `0.085` means 8.5%. HTTP and
+server-rendered form fields use percentage points for display and input, and convert exactly once at
+their boundary. Return, tax, and growth rates are validated again when they enter Long-Term so an
+in-process caller cannot persist percentage points accidentally.
+
+Generic asset PATCH requests are partial updates. Omitted fields preserve their current value;
+explicit null is not used to clear a value. Specialized asset workflows remain the contract for
+bond, deposit, cash-reserve, and real-estate fields.
 
 Asset currency is immutable after creation. Changing the denomination requires creating a new asset
 or an explicit conversion workflow; ordinary edits and bootstrap upserts must never relabel stored

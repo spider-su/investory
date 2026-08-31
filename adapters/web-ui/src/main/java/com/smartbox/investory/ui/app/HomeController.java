@@ -1,9 +1,10 @@
 package com.smartbox.investory.ui.app;
 
-import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi;
+import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
 import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi.DashboardPageView;
 import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi.DashboardQuery;
 import com.smartbox.investory.ui.common.BuildMetadata;
+import com.smartbox.investory.ui.investment.InvestmentDashboardClient;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,16 +16,17 @@ import org.springframework.web.bind.annotation.RequestParam;
 @Controller
 public class HomeController {
 
-  private final InvestmentDashboardApi dashboardFacade;
+  private final InvestmentDashboardClient investmentDashboardFacade;
   private final BuildMetadata buildMetadata;
 
-  public HomeController(InvestmentDashboardApi dashboardFacade) {
-    this(dashboardFacade, BuildMetadata.development());
+  public HomeController(InvestmentDashboardClient investmentDashboardFacade) {
+    this(investmentDashboardFacade, BuildMetadata.development());
   }
 
   @Autowired
-  public HomeController(InvestmentDashboardApi dashboardFacade, BuildMetadata buildMetadata) {
-    this.dashboardFacade = dashboardFacade;
+  public HomeController(
+      InvestmentDashboardClient investmentDashboardFacade, BuildMetadata buildMetadata) {
+    this.investmentDashboardFacade = investmentDashboardFacade;
     this.buildMetadata = buildMetadata;
   }
 
@@ -41,11 +43,13 @@ public class HomeController {
       Model model,
       @RequestParam(required = false) List<Long> accountIds,
       @RequestParam(defaultValue = "false") boolean benchmarkAccountsSubmitted,
-      @RequestParam(required = false) String period,
+      @RequestParam(defaultValue = "YTD") String period,
       @RequestParam(defaultValue = "1") Long portfolioId) {
+    DashboardPeriod selectedPeriod = DashboardPeriod.fromUrlValue(period);
     DashboardPageView dashboard =
-        dashboardFacade.loadDashboard(
-            new DashboardQuery(accountIds, benchmarkAccountsSubmitted, period, portfolioId));
+        investmentDashboardFacade.loadDashboard(
+            new DashboardQuery(
+                accountIds, benchmarkAccountsSubmitted, selectedPeriod, portfolioId));
     model.addAttribute("dashboard", dashboard);
     model.addAttribute("selectedPeriod", dashboard.selectedPeriod());
     model.addAttribute("periods", dashboard.periods());

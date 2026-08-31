@@ -1,5 +1,7 @@
 package com.smartbox.investory.investment.reporting;
 
+import com.smartbox.investory.investment.api.reporting.model.PerformanceAttribution;
+import com.smartbox.investory.investment.api.reporting.model.ReturnMetric;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 

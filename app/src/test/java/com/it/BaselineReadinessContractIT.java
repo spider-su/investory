@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.smartbox.investory.testsupport.SharedPostgres;
+import com.smartbox.investory.testsupport.WorkerDatabase;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -17,26 +19,23 @@ import java.util.stream.Stream;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
-import org.testcontainers.containers.PostgreSQLContainer;
 
 @TestMethodOrder(OrderAnnotation.class)
+@DisplayName("Baseline Readiness Contract")
 class BaselineReadinessContractIT {
 
-  private static final PostgreSQLContainer<?> POSTGRES =
-      new PostgreSQLContainer<>("postgres:17-alpine")
-          .withDatabaseName("investory_baseline_test")
-          .withUsername("investory")
-          .withPassword("investory");
+  private static final WorkerDatabase DATABASE = SharedPostgres.database("baseline");
 
   @BeforeAll
   static void migrateEmptyDatabase() {
-    POSTGRES.start();
+
     Flyway.configure()
-        .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
+        .dataSource(DATABASE.jdbcUrl(), DATABASE.username(), DATABASE.password())
         .schemas("investory")
         .defaultSchema("investory")
         .createSchemas(true)
@@ -47,9 +46,10 @@ class BaselineReadinessContractIT {
 
   @AfterAll
   static void stopDatabase() {
-    POSTGRES.stop();
+    DATABASE.close();
   }
 
+  @DisplayName("migrated Baseline Produces Final Schema And Sample Data Contract")
   @Test
   @Order(1)
   void migratedBaselineProducesFinalSchemaAndSampleDataContract() throws SQLException {
@@ -188,6 +188,7 @@ class BaselineReadinessContractIT {
     }
   }
 
+  @DisplayName("resolver Uses Nearest Historical Bracket And Neutral Precedence")
   @Test
   @Order(2)
   void resolverUsesNearestHistoricalBracketAndNeutralPrecedence() throws SQLException {
@@ -224,6 +225,7 @@ class BaselineReadinessContractIT {
     }
   }
 
+  @DisplayName("raw Ledger Deletion Is Restricted But Derived Rows Can Be Removed")
   @Test
   @Order(3)
   void rawLedgerDeletionIsRestrictedButDerivedRowsCanBeRemoved() throws SQLException {
@@ -263,6 +265,7 @@ class BaselineReadinessContractIT {
     }
   }
 
+  @DisplayName("estimated Cash Fx Is Included And Keeps Aggregate Complete")
   @Test
   @Order(4)
   void estimatedCashFxIsIncludedAndKeepsAggregateComplete() throws SQLException {
@@ -307,7 +310,7 @@ class BaselineReadinessContractIT {
 
   private Connection connection() throws SQLException {
     return DriverManager.getConnection(
-        POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+        DATABASE.jdbcUrl(), DATABASE.username(), DATABASE.password());
   }
 
   private static String resolverValue(

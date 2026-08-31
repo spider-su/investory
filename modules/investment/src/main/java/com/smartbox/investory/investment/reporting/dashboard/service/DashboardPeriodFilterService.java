@@ -1,6 +1,7 @@
 package com.smartbox.investory.investment.reporting.dashboard.service;
 
-import com.smartbox.investory.investment.performance.model.Benchmark;
+import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
+import com.smartbox.investory.investment.api.reporting.model.Benchmark;
 import com.smartbox.investory.investment.performance.model.Performance;
 import com.smartbox.investory.investment.performance.model.Portfolio;
 import java.time.Clock;
@@ -8,6 +9,8 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,7 +39,19 @@ public class DashboardPeriodFilterService {
     this.clock = clock;
   }
 
-  public void apply(Portfolio portfolio, DashboardPeriod period) {
+  public Portfolio filter(Portfolio source, DashboardPeriod period) {
+    Portfolio portfolio = copyPortfolio(source);
+    apply(portfolio, period);
+    return portfolio;
+  }
+
+  public Benchmark filter(Benchmark source, DashboardPeriod period) {
+    Benchmark benchmark = copyBenchmark(source);
+    apply(benchmark, period);
+    return benchmark;
+  }
+
+  private void apply(Portfolio portfolio, DashboardPeriod period) {
     if (portfolio == null || portfolio.getMonthlyPerformance() == null) {
       return;
     }
@@ -56,7 +71,7 @@ public class DashboardPeriodFilterService {
             .sum());
   }
 
-  public void apply(Benchmark benchmark, DashboardPeriod period) {
+  private void apply(Benchmark benchmark, DashboardPeriod period) {
     if (benchmark == null || !benchmark.isAvailable()) {
       return;
     }
@@ -309,6 +324,103 @@ public class DashboardPeriodFilterService {
 
   private double round(double value) {
     return Math.round(value * 100.0) / 100.0;
+  }
+
+  private static Portfolio copyPortfolio(Portfolio source) {
+    if (source == null) return null;
+    Portfolio copy = new Portfolio();
+    copy.setBaseCurrency(source.getBaseCurrency());
+    copy.setRealizedProfit(source.getRealizedProfit());
+    copy.setDividends(source.getDividends());
+    copy.setDividendTax(source.getDividendTax());
+    copy.setCapitalGainsTax(source.getCapitalGainsTax());
+    copy.setLossCarryForward(source.getLossCarryForward());
+    copy.setDeposits(source.getDeposits());
+    copy.setWithdrawals(source.getWithdrawals());
+    copy.setNetDeposits(source.getNetDeposits());
+    copy.setInterest(source.getInterest());
+    copy.setUnrealizedProfit(source.getUnrealizedProfit());
+    copy.setTotalProfit(source.getTotalProfit());
+    copy.setReconciliationStatus(source.getReconciliationStatus());
+    copy.setReconciliationDifference(source.getReconciliationDifference());
+    copy.setDataQuality(source.getDataQuality());
+    copy.setRiskExposure(source.getRiskExposure());
+    copy.setBalance(source.getBalance());
+    copy.setCash(source.getCash());
+    copy.setAccountBalances(source.getAccountBalances());
+    copy.setAccountBalancesTotal(source.getAccountBalancesTotal());
+    copy.setOpenPositionValues(source.getOpenPositionValues());
+    copy.setOpenPositionValuesTotal(source.getOpenPositionValuesTotal());
+    copy.setDividendGainers(source.getDividendGainers());
+    copy.setRoi(source.getRoi());
+    copy.setExchangeRates(copyMap(source.getExchangeRates()));
+    copy.setPerformancePerSymbol(source.getPerformancePerSymbol());
+    copy.setMonthlyPerformance(copyPerformance(source.getMonthlyPerformance()));
+    return copy;
+  }
+
+  private static Performance copyPerformance(Performance source) {
+    if (source == null) return null;
+    Performance copy = new Performance();
+    copy.setBaseCurrency(source.getBaseCurrency());
+    copy.setTotalOpen(source.getTotalOpen());
+    copy.setTotalProfit(source.getTotalProfit());
+    copy.setCalculateMonthlyPerformance(copyMap(source.getCalculateMonthlyPerformance()));
+    copy.setMonthlyOperationsCount(copyMap(source.getMonthlyOperationsCount()));
+    copy.setMonthlyCashflow(copyMap(source.getMonthlyCashflow()));
+    copy.setMonthlyAttributions(copyMap(source.getMonthlyAttributions()));
+    copy.setBase(source.getBase());
+    return copy;
+  }
+
+  private static Benchmark copyBenchmark(Benchmark source) {
+    if (source == null) return null;
+    Benchmark copy = new Benchmark();
+    copy.setAvailable(source.isAvailable());
+    copy.setPortfolioPerformanceAvailable(source.isPortfolioPerformanceAvailable());
+    copy.setBenchmarkAvailable(source.isBenchmarkAvailable());
+    copy.setSymbol(source.getSymbol());
+    copy.setLabels(copyList(source.getLabels()));
+    copy.setPortfolioCurve(copyList(source.getPortfolioCurve()));
+    copy.setBenchmarkCurve(copyList(source.getBenchmarkCurve()));
+    copy.setPortfolioReturnCurve(copyList(source.getPortfolioReturnCurve()));
+    copy.setBenchmarkReturnCurve(copyList(source.getBenchmarkReturnCurve()));
+    copy.setInvestedCapital(source.getInvestedCapital());
+    copy.setPortfolioPl(source.getPortfolioPl());
+    copy.setBenchmarkPl(source.getBenchmarkPl());
+    copy.setPortfolioReturnPct(source.getPortfolioReturnPct());
+    copy.setBenchmarkReturnPct(source.getBenchmarkReturnPct());
+    copy.setAlpha(source.getAlpha());
+    copy.setAccountOptions(copyList(source.getAccountOptions()));
+    copy.setAccountSeries(
+        source.getAccountSeries() == null
+            ? null
+            : source.getAccountSeries().stream()
+                .map(
+                    series ->
+                        new Benchmark.AccountSeries(
+                            series.id(),
+                            series.investedCapital(),
+                            series.portfolioPl(),
+                            series.benchmarkPl(),
+                            copyList(series.portfolioCurve()),
+                            copyList(series.benchmarkCurve()),
+                            copyList(series.returnCapitalCurve()),
+                            copyList(series.returnContributionCurve()),
+                            copyList(series.returnPctCurve())))
+                .toList());
+    copy.setAccountValuesAvailable(source.isAccountValuesAvailable());
+    copy.setSelectedAccountValueYear(source.getSelectedAccountValueYear());
+    copy.setAccountValueYears(copyList(source.getAccountValueYears()));
+    return copy;
+  }
+
+  private static <K, V> HashMap<K, V> copyMap(Map<K, V> values) {
+    return values == null ? null : new LinkedHashMap<>(values);
+  }
+
+  private static <T> List<T> copyList(List<T> values) {
+    return values == null ? null : new ArrayList<>(values);
   }
 
   private record RebasedSeries(

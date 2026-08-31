@@ -28,6 +28,6 @@ public record BrokerageIncomeSnapshot(
   }
 
   private static BigDecimal nz(BigDecimal value) {
-    return value == null ? BigDecimal.ZERO : value;
+    return com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull(value);
   }
 }

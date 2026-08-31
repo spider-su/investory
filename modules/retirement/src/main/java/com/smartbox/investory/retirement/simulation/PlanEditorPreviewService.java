@@ -3,12 +3,16 @@ package com.smartbox.investory.retirement.simulation;
 import static com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull;
 
 import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
+import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
 import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
-import com.smartbox.investory.retirement.planning.CurrentYearBridgeResult;
-import com.smartbox.investory.retirement.planning.ForwardSimulationInput;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.api.model.CurrentYearBridgeResult;
+import com.smartbox.investory.retirement.api.model.ForwardSimulationInput;
+import com.smartbox.investory.retirement.api.model.PlanEditorPreview;
+import com.smartbox.investory.retirement.api.model.PlanEditorPreview.PreviewYear;
 import com.smartbox.investory.retirement.planning.ForwardSimulationInputService;
 import com.smartbox.investory.retirement.planning.PlanningCurrencyPresentationService;
-import com.smartbox.investory.retirement.profile.InvestmentProfile;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -27,6 +31,7 @@ public class PlanEditorPreviewService {
   private final ForwardSimulationInputService forwardInputs;
   private final RetirementSimulation simulations;
   private final LongTermAssetAnnualSnapshotReader longTermAssets;
+  private final LongTermAssetProfileReader currentLongTermAssets;
   private final PlanningCurrencyPresentationService presentation;
   private final Clock clock;
 
@@ -34,11 +39,13 @@ public class PlanEditorPreviewService {
       ForwardSimulationInputService forwardInputs,
       RetirementSimulation simulations,
       LongTermAssetAnnualSnapshotReader longTermAssets,
+      LongTermAssetProfileReader currentLongTermAssets,
       PlanningCurrencyPresentationService presentation,
       Clock clock) {
     this.forwardInputs = forwardInputs;
     this.simulations = simulations;
     this.longTermAssets = longTermAssets;
+    this.currentLongTermAssets = currentLongTermAssets;
     this.presentation = presentation;
     this.clock = clock;
   }
@@ -150,7 +157,9 @@ public class PlanEditorPreviewService {
 
   /** Current Long-term Assets facts used by the editor's read-only fields. */
   public LongTermAssetAnnualSnapshotModel currentFacts(InvestmentProfile profile) {
-    return longTermAssets.currentAnnualSnapshot(profile.portfolioId(), LocalDate.now(clock));
+    return currentLongTermAssets
+        .snapshot(profile.portfolioId(), LocalDate.now(clock))
+        .annualSnapshot();
   }
 
   private PreviewYear year(
@@ -201,7 +210,7 @@ public class PlanEditorPreviewService {
     boolean retired = age >= assumptions.retirementAge();
     BigDecimal employment = retired ? BigDecimal.ZERO : assumptions.annualEmploymentIncome();
     BigDecimal pension =
-        age >= assumptions.pensionStartAge() ? assumptions.annualPension() : BigDecimal.ZERO;
+        assumptions.pensionStartsAtOrBefore(age) ? assumptions.annualPension() : BigDecimal.ZERO;
     BigDecimal currentIncomeTotal =
         sumKnown(employment, facts.rentalIncome(), facts.bondIncome(), pension);
     return new PreviewYear(
@@ -303,75 +312,4 @@ public class PlanEditorPreviewService {
   private BigDecimal displayCanonical(BigDecimal value, CurrencyType displayCurrency) {
     return value == null ? null : presentation.toDisplay(value, displayCurrency);
   }
-
-  public record PlanEditorPreview(
-      int planStartYear,
-      int ageAtPlanStart,
-      int currentPlanningYear,
-      int currentPlanningAge,
-      int projectionStartYear,
-      int retirementYear,
-      int yearsUntilRetirement,
-      int endYear,
-      int endAge,
-      int planHorizonYears,
-      BigDecimal inflationRate,
-      BigDecimal rentalIncomeGrowthSpread,
-      BigDecimal effectiveRentalIncomeGrowthRate,
-      BigDecimal spendingGrowthSpread,
-      BigDecimal effectiveSpendingGrowthRate,
-      BigDecimal monthlyLivingCosts,
-      BigDecimal annualLivingCosts,
-      BigDecimal annualExtras,
-      BigDecimal totalAnnualCosts,
-      BigDecimal nextYearCosts,
-      BigDecimal rentalIncome,
-      BigDecimal bondIncome,
-      Integer plannedIncomeReferenceYear,
-      BigDecimal plannedRentalIncome,
-      BigDecimal plannedBondIncome,
-      BigDecimal plannedInvestmentProfit,
-      BigDecimal plannedCapitalizedBondReturn,
-      BigDecimal plannedPension,
-      BigDecimal plannedAnnualIncome,
-      SimulationAssumptions assumptions,
-      Integer firstFailureAge,
-      List<PreviewYear> years,
-      PreviewYear firstProjectedYear) {}
-
-  /**
-   * Presentation DTO of canonical annual facts; null means the source has no value for that year.
-   */
-  public record PreviewYear(
-      int year,
-      int age,
-      String state,
-      String lifecycle,
-      BigDecimal recurringCosts,
-      BigDecimal eventExpenses,
-      BigDecimal totalCosts,
-      BigDecimal spendingGrowthRate,
-      BigDecimal expenseProfile,
-      BigDecimal employmentIncome,
-      BigDecimal rentalIncome,
-      BigDecimal bondIncome,
-      BigDecimal investmentReturn,
-      BigDecimal capitalizedBondReturn,
-      BigDecimal pension,
-      BigDecimal eventIncome,
-      BigDecimal totalIncome,
-      BigDecimal fundingGap,
-      BigDecimal surplus,
-      BigDecimal reserveStart,
-      BigDecimal reserveTransfer,
-      BigDecimal reserveWithdrawal,
-      BigDecimal reserveEnd,
-      BigDecimal longTermFunding,
-      BigDecimal longTermEnd,
-      BigDecimal investmentStart,
-      BigDecimal investmentReturnForBalance,
-      BigDecimal investmentWithdrawal,
-      BigDecimal investmentEnd,
-      BigDecimal unfunded,
-      String status) {}
 }

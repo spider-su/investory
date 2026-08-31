@@ -2,10 +2,14 @@ package com.smartbox.investory.retirement.simulation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.smartbox.investory.retirement.api.model.*;
 import java.math.BigDecimal;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Projected Income Policy")
 class ProjectedIncomePolicyTest {
+  @DisplayName("source Is The Safe Default")
   @Test
   void sourceIsTheSafeDefault() {
     assertThat(ProjectedIncomePolicy.SOURCE.rentalIncomeMode())
@@ -14,6 +18,7 @@ class ProjectedIncomePolicyTest {
         .isEqualTo(ProjectedIncomePolicy.IncomeMode.SOURCE);
   }
 
+  @DisplayName("manual Values Are Explicit And Non Negative")
   @Test
   void manualValuesAreExplicitAndNonNegative() {
     var policy =

@@ -751,7 +751,6 @@ BEGIN
         EXTRACT(milliseconds FROM clock_timestamp() - started_at);
 END;
 $$;
-
 CREATE OR REPLACE FUNCTION investory.refresh_reconstructed_account_market_daily()
 RETURNS void
 LANGUAGE plpgsql
@@ -800,14 +799,7 @@ BEGIN
     PERFORM investory.refresh_reconstructed_account_market_daily();
     PERFORM investory.refresh_reconstructed_cash_daily();
     PERFORM investory.refresh_account_daily_reconciliation();
-    REFRESH MATERIALIZED VIEW investory.reporting_account_monthly_profit_reconciliation;
-    ANALYZE investory.reporting_account_monthly_profit_reconciliation;
-    REFRESH MATERIALIZED VIEW investory.reporting_account_statistics_vs_daily_reconciliation;
-    ANALYZE investory.reporting_account_statistics_vs_daily_reconciliation;
-    REFRESH MATERIALIZED VIEW investory.reporting_account_daily_cashflow_reconciliation;
-    ANALYZE investory.reporting_account_daily_cashflow_reconciliation;
-    REFRESH MATERIALIZED VIEW investory.reporting_trade_settlement_reconciliation;
-    ANALYZE investory.reporting_trade_settlement_reconciliation;
+    PERFORM investory.refresh_reconciliation_reporting_views();
 END;
 $$;
 
@@ -850,6 +842,9 @@ BEGIN
     REFRESH MATERIALIZED VIEW investory.account_statistics;
     RAISE LOG 'investory refresh stage=account_statistics elapsed_ms=%', EXTRACT(milliseconds FROM clock_timestamp() - step_started);
     step_started := clock_timestamp();
+    REFRESH MATERIALIZED VIEW investory.portfolio_contribution_summary;
+    RAISE LOG 'investory refresh stage=portfolio_contribution_summary elapsed_ms=%', EXTRACT(milliseconds FROM clock_timestamp() - step_started);
+    step_started := clock_timestamp();
     REFRESH MATERIALIZED VIEW investory.portfolio_currency_breakdown;
     RAISE LOG 'investory refresh stage=portfolio_currency_breakdown elapsed_ms=%', EXTRACT(milliseconds FROM clock_timestamp() - step_started);
     step_started := clock_timestamp();
@@ -885,6 +880,10 @@ BEGIN
     REFRESH MATERIALIZED VIEW investory.reporting_account_daily_cashflow_reconciliation;
     ANALYZE investory.reporting_account_daily_cashflow_reconciliation;
     RAISE LOG 'investory refresh stage=reporting_account_daily_cashflow_reconciliation elapsed_ms=%', EXTRACT(milliseconds FROM clock_timestamp() - step_started);
+    step_started := clock_timestamp();
+    REFRESH MATERIALIZED VIEW investory.reporting_account_daily_cashflow_scope;
+    ANALYZE investory.reporting_account_daily_cashflow_scope;
+    RAISE LOG 'investory refresh stage=reporting_account_daily_cashflow_scope elapsed_ms=%', EXTRACT(milliseconds FROM clock_timestamp() - step_started);
     step_started := clock_timestamp();
     REFRESH MATERIALIZED VIEW investory.reporting_trade_settlement_reconciliation;
     ANALYZE investory.reporting_trade_settlement_reconciliation;
@@ -1075,21 +1074,48 @@ $$;
 COMMENT ON FUNCTION investory.run_system_audit(bigint, varchar) IS
     'Runs and persists the canonical reporting audit. The JSON summary is suitable for structured application logs and notification adapters.';
 
-CREATE OR REPLACE FUNCTION investory.audit_finalized_import()
-RETURNS trigger
+-- Final clean-baseline refresh functions. Refreshes are serialized across
+-- application instances before materialized-view relation locks are taken.
+CREATE OR REPLACE FUNCTION investory.refresh_reporting_views()
+RETURNS void
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    IF NEW.status IN ('COMPLETED', 'PARTIAL', 'FAILED', 'NOT_READY')
-       AND (
-           TG_OP = 'INSERT'
-           OR (
-               OLD.status IS DISTINCT FROM NEW.status
-               AND (OLD.status IS NULL OR OLD.status = 'STARTED')
-           )
-       ) THEN
-        PERFORM investory.run_system_audit(NEW.id, 'IMPORT_FINALIZED');
-    END IF;
-    RETURN NEW;
+    PERFORM pg_advisory_xact_lock(2147483647, 1001);
+    REFRESH MATERIALIZED VIEW investory.account_monthly_mv;
+    REFRESH MATERIALIZED VIEW investory.portfolio_monthly_mv;
+    REFRESH MATERIALIZED VIEW investory.account_statistics;
+    REFRESH MATERIALIZED VIEW investory.portfolio_contribution_summary;
+    REFRESH MATERIALIZED VIEW investory.portfolio_currency_breakdown;
+    REFRESH MATERIALIZED VIEW investory.portfolio_asset_allocation;
+    REFRESH MATERIALIZED VIEW investory.symbol_performance;
+    REFRESH MATERIALIZED VIEW investory.portfolio_kpi_summary;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION investory.refresh_reconciliation_views()
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    PERFORM pg_advisory_xact_lock(2147483647, 1001);
+    REFRESH MATERIALIZED VIEW investory.mv_reconstructed_position_daily;
+    ANALYZE investory.mv_reconstructed_position_daily;
+    REFRESH MATERIALIZED VIEW investory.mv_reconstructed_account_market_daily;
+    ANALYZE investory.mv_reconstructed_account_market_daily;
+    REFRESH MATERIALIZED VIEW investory.mv_reconstructed_cash_daily;
+    ANALYZE investory.mv_reconstructed_cash_daily;
+    REFRESH MATERIALIZED VIEW investory.mv_account_daily_reconciliation;
+    ANALYZE investory.mv_account_daily_reconciliation;
+    REFRESH MATERIALIZED VIEW investory.reporting_account_monthly_profit_reconciliation;
+    ANALYZE investory.reporting_account_monthly_profit_reconciliation;
+    REFRESH MATERIALIZED VIEW investory.reporting_account_statistics_vs_daily_reconciliation;
+    ANALYZE investory.reporting_account_statistics_vs_daily_reconciliation;
+    REFRESH MATERIALIZED VIEW investory.reporting_account_daily_cashflow_reconciliation;
+    ANALYZE investory.reporting_account_daily_cashflow_reconciliation;
+    REFRESH MATERIALIZED VIEW investory.reporting_account_daily_cashflow_scope;
+    ANALYZE investory.reporting_account_daily_cashflow_scope;
+    REFRESH MATERIALIZED VIEW investory.reporting_trade_settlement_reconciliation;
+    ANALYZE investory.reporting_trade_settlement_reconciliation;
 END;
 $$;

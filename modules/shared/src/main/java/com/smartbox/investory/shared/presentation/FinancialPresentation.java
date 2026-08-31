@@ -1,5 +1,7 @@
 package com.smartbox.investory.shared.presentation;
 
+import static com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.text.NumberFormat;
@@ -10,8 +12,7 @@ public final class FinancialPresentation {
   private FinancialPresentation() {}
 
   public static String money(BigDecimal value) {
-    BigDecimal rounded =
-        (value == null ? BigDecimal.ZERO : value).setScale(2, RoundingMode.HALF_UP);
+    BigDecimal rounded = zeroIfNull(value).setScale(2, RoundingMode.HALF_UP);
     return rounded.stripTrailingZeros().scale() <= 0
         ? number(rounded, 0, 0)
         : number(rounded, 2, 2);
@@ -27,7 +28,7 @@ public final class FinancialPresentation {
 
   /** Compact summary money, with stable K/M suffixes. */
   public static String compactMoney(BigDecimal value) {
-    BigDecimal amount = value == null ? BigDecimal.ZERO : value;
+    BigDecimal amount = zeroIfNull(value);
     BigDecimal absolute = amount.abs();
     if (absolute.compareTo(BigDecimal.valueOf(1_000_000)) >= 0) {
       return number(amount.divide(BigDecimal.valueOf(1_000_000)), 0, 2) + "M";
@@ -48,7 +49,7 @@ public final class FinancialPresentation {
   }
 
   public static String years(BigDecimal value) {
-    return number(value == null ? BigDecimal.ZERO : value, 1, 1);
+    return number(zeroIfNull(value), 1, 1);
   }
 
   public static String decimalInput(BigDecimal value) {
@@ -60,15 +61,14 @@ public final class FinancialPresentation {
   }
 
   public static String percentageInput(BigDecimal ratio) {
-    return (ratio == null ? BigDecimal.ZERO : ratio.multiply(BigDecimal.valueOf(100)))
+    return zeroIfNull(ratio)
+        .multiply(BigDecimal.valueOf(100))
         .setScale(1, RoundingMode.HALF_UP)
         .toPlainString();
   }
 
   public static String wholeNumberInput(BigDecimal value) {
-    return (value == null ? BigDecimal.ZERO : value)
-        .setScale(0, RoundingMode.HALF_UP)
-        .toPlainString();
+    return zeroIfNull(value).setScale(0, RoundingMode.HALF_UP).toPlainString();
   }
 
   public static String moneyWhole(BigDecimal value, Object currency) {
@@ -80,8 +80,7 @@ public final class FinancialPresentation {
   }
 
   public static String percentage(BigDecimal ratio) {
-    return number(ratio == null ? BigDecimal.ZERO : ratio.multiply(BigDecimal.valueOf(100)), 1, 1)
-        + "%";
+    return number(zeroIfNull(ratio).multiply(BigDecimal.valueOf(100)), 1, 1) + "%";
   }
 
   public static String rate(BigDecimal ratio) {
@@ -96,11 +95,11 @@ public final class FinancialPresentation {
     NumberFormat format = NumberFormat.getNumberInstance(Locale.US);
     format.setMinimumFractionDigits(minimumScale);
     format.setMaximumFractionDigits(maximumScale);
-    return format.format(value == null ? BigDecimal.ZERO : value);
+    return format.format(zeroIfNull(value));
   }
 
   private static String plain(BigDecimal value, int scale) {
-    return (value == null ? BigDecimal.ZERO : value)
+    return zeroIfNull(value)
         .setScale(scale, RoundingMode.HALF_UP)
         .stripTrailingZeros()
         .toPlainString();

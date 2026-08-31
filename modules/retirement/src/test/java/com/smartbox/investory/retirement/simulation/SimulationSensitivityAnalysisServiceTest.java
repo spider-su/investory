@@ -4,14 +4,18 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-import com.smartbox.investory.retirement.profile.*;
+import com.smartbox.investory.profile.api.model.*;
+import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Simulation Sensitivity Analysis Service")
 class SimulationSensitivityAnalysisServiceTest {
+  @DisplayName("context Keeps Projection Base As Sensitivity Baseline")
   @Test
   void contextKeepsProjectionBaseAsSensitivityBaseline() {
     InvestmentProfile profile = profileWithMarketBuckets();
@@ -41,6 +45,7 @@ class SimulationSensitivityAnalysisServiceTest {
     verify(bondProjection).hasPlanBondReturnExposure(profile, 2026, 2026);
   }
 
+  @DisplayName("invalid Perturbation Is Unavailable Without Crashing Analysis")
   @Test
   void invalidPerturbationIsUnavailableWithoutCrashingAnalysis() {
     InvestmentProfile profile = profileWithMarketBuckets();
@@ -63,6 +68,7 @@ class SimulationSensitivityAnalysisServiceTest {
     assertNotNull(inflation.higherEvaluation());
   }
 
+  @DisplayName("simulator Illegal Argument Exception Is Not Hidden As Unavailable")
   @Test
   void simulatorIllegalArgumentExceptionIsNotHiddenAsUnavailable() {
     InvestmentProfile profile = profileWithMarketBuckets();
@@ -89,6 +95,7 @@ class SimulationSensitivityAnalysisServiceTest {
     assertEquals("simulator defect", error.getMessage());
   }
 
+  @DisplayName("failure Risk Ranks Ahead Of Wealth Only Impact")
   @Test
   void failureRiskRanksAheadOfWealthOnlyImpact() {
     SimulationAssumptions assumptions =
@@ -116,6 +123,7 @@ class SimulationSensitivityAnalysisServiceTest {
     verify(evaluations, atLeast(1)).evaluate(eq(profile), any(), eq(SimulationScenario.BASE));
   }
 
+  @DisplayName("inactive Drivers Are Not Presented")
   @Test
   void inactiveDriversAreNotPresented() {
     SimulationAssumptions assumptions =
@@ -129,11 +137,26 @@ class SimulationSensitivityAnalysisServiceTest {
             BigDecimal.ZERO,
             BigDecimal.ZERO,
             BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
             List.of(),
-            List.of());
+            null,
+            null,
+            new com.smartbox.investory.profile.api.model.ProfileAssetProjection(
+                List.of(),
+                java.math.BigDecimal.ZERO,
+                0,
+                com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
+            (BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO),
+            BigDecimal.ZERO
+                .subtract((BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO))
+                .max(java.math.BigDecimal.ZERO),
+            com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO),
+            com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
 
     SimulationSensitivityAnalysis result =
         new SimulationSensitivityAnalysisService(mockEvaluations(assumptions))
@@ -149,6 +172,7 @@ class SimulationSensitivityAnalysisServiceTest {
             .collect(java.util.stream.Collectors.toSet()));
   }
 
+  @DisplayName("growth Cells Expose Effective Rate Not Stored Spread")
   @Test
   void growthCellsExposeEffectiveRateNotStoredSpread() {
     SimulationAssumptions assumptions =
@@ -168,6 +192,7 @@ class SimulationSensitivityAnalysisServiceTest {
     assertEquals(0, rental.higherTestedValue().compareTo(new BigDecimal("0.05")));
   }
 
+  @DisplayName("positive Reserve Movement Is Not Reserve Deterioration")
   @Test
   void positiveReserveMovementIsNotReserveDeterioration() {
     SimulationEvaluation base = evaluation(true, "0", "5", "100000", "100000");
@@ -178,6 +203,7 @@ class SimulationSensitivityAnalysisServiceTest {
             base, improved, new BigDecimal("1"), BigDecimal.ZERO, BigDecimal.ZERO));
   }
 
+  @DisplayName("harmful Comparison Honors Failure Transition And Magnitude")
   @Test
   void harmfulComparisonHonorsFailureTransitionAndMagnitude() {
     SimulationEvaluation base = evaluation(true, "0", "5", "100000", "100000");
@@ -191,6 +217,7 @@ class SimulationSensitivityAnalysisServiceTest {
         0, SimulationSensitivityAnalysisService.compareHarm(failsSlightly, failsSlightly, base));
   }
 
+  @DisplayName("impact Thresholds Use Directional Boundaries")
   @Test
   void impactThresholdsUseDirectionalBoundaries() {
     SimulationEvaluation base = evaluation(true, "0", "5", "100000", "100000");
@@ -228,6 +255,7 @@ class SimulationSensitivityAnalysisServiceTest {
             base, base, BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("-1000")));
   }
 
+  @DisplayName("introducing ARecurring Funding Gap Is AReserve Deterioration")
   @Test
   void introducingARecurringFundingGapIsAReserveDeterioration() {
     SimulationAssumptions assumptions =
@@ -241,11 +269,26 @@ class SimulationSensitivityAnalysisServiceTest {
             BigDecimal.ZERO,
             BigDecimal.ZERO,
             BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
             List.of(),
-            List.of());
+            null,
+            null,
+            new com.smartbox.investory.profile.api.model.ProfileAssetProjection(
+                List.of(),
+                java.math.BigDecimal.ZERO,
+                0,
+                com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
+            (BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO),
+            BigDecimal.ZERO
+                .subtract((BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO))
+                .max(java.math.BigDecimal.ZERO),
+            com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO),
+            com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
     BigDecimal baselineSpending =
         assumptions.annualLivingExpenses().add(assumptions.annualDiscretionaryExpenses());
     SimulationEvaluationService evaluations = mock(SimulationEvaluationService.class);
@@ -352,20 +395,47 @@ class SimulationSensitivityAnalysisServiceTest {
         new BigDecimal("1000000"),
         BigDecimal.ZERO,
         new BigDecimal("1000000"),
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
         new BigDecimal("1000000"),
         BigDecimal.ZERO,
         List.of(
             new ProfileAllocation(
-                EconomicBucket.EQUITY, new BigDecimal("600000"), BigDecimal.ONE, Liquidity.LIQUID),
+                EconomicBucket.EQUITY,
+                new BigDecimal("600000"),
+                BigDecimal.ONE,
+                Liquidity.LIQUID,
+                Liquidity.LIQUID == com.smartbox.investory.profile.api.model.Liquidity.ILLIQUID
+                    ? com.smartbox.investory.profile.api.model.AssetHorizon.LONG_TERM
+                    : com.smartbox.investory.profile.api.model.AssetHorizon.SHORT_TERM),
             new ProfileAllocation(
                 EconomicBucket.FIXED_INCOME,
                 new BigDecimal("400000"),
                 BigDecimal.ONE,
-                Liquidity.LIQUID)),
-        List.of());
+                Liquidity.LIQUID,
+                Liquidity.LIQUID == com.smartbox.investory.profile.api.model.Liquidity.ILLIQUID
+                    ? com.smartbox.investory.profile.api.model.AssetHorizon.LONG_TERM
+                    : com.smartbox.investory.profile.api.model.AssetHorizon.SHORT_TERM)),
+        null,
+        null,
+        new com.smartbox.investory.profile.api.model.ProfileAssetProjection(
+            List.of(),
+            java.math.BigDecimal.ZERO,
+            0,
+            com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
+        (new BigDecimal("1000000") == null ? java.math.BigDecimal.ZERO : new BigDecimal("1000000")),
+        new BigDecimal("1000000")
+            .subtract(
+                (new BigDecimal("1000000") == null
+                    ? java.math.BigDecimal.ZERO
+                    : new BigDecimal("1000000")))
+            .max(java.math.BigDecimal.ZERO),
+        com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
+            BigDecimal.ZERO,
+            new BigDecimal("1000000"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            new BigDecimal("1000000")),
+        com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
   }
 
   private static InvestmentProfile profileWithRentalIncome() {
@@ -377,13 +447,26 @@ class SimulationSensitivityAnalysisServiceTest {
         BigDecimal.ZERO,
         BigDecimal.ZERO,
         BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        List.of(),
         List.of(),
         new BigDecimal("100"),
-        BigDecimal.ZERO);
+        BigDecimal.ZERO,
+        new com.smartbox.investory.profile.api.model.ProfileAssetProjection(
+            List.of(),
+            java.math.BigDecimal.ZERO,
+            0,
+            com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
+        (BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO),
+        BigDecimal.ZERO
+            .subtract((BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO))
+            .max(java.math.BigDecimal.ZERO),
+        com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            new BigDecimal("100"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO),
+        com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
   }
 
   private static SimulationEvaluation evaluation(
@@ -416,17 +499,35 @@ class SimulationSensitivityAnalysisServiceTest {
         new BigDecimal("200"),
         new BigDecimal("200"),
         BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
         new BigDecimal("200"),
         List.of(
             new ProfileAllocation(
                 EconomicBucket.REAL_ESTATE,
                 new BigDecimal("200"),
                 BigDecimal.ONE,
-                Liquidity.ILLIQUID)),
-        assets);
+                Liquidity.ILLIQUID,
+                Liquidity.ILLIQUID == com.smartbox.investory.profile.api.model.Liquidity.ILLIQUID
+                    ? com.smartbox.investory.profile.api.model.AssetHorizon.LONG_TERM
+                    : com.smartbox.investory.profile.api.model.AssetHorizon.SHORT_TERM)),
+        null,
+        null,
+        new com.smartbox.investory.profile.api.model.ProfileAssetProjection(
+            assets,
+            java.math.BigDecimal.ZERO,
+            0,
+            com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
+        (BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO),
+        BigDecimal.ZERO
+            .subtract((BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO))
+            .max(java.math.BigDecimal.ZERO),
+        com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            new BigDecimal("200"),
+            BigDecimal.ZERO,
+            new BigDecimal("200")),
+        com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
   }
 
   private static InvestmentProfile profileWithRealEstateAssets(
@@ -438,24 +539,42 @@ class SimulationSensitivityAnalysisServiceTest {
         new BigDecimal("200"),
         new BigDecimal("200"),
         BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
         new BigDecimal("200"),
         List.of(
             new ProfileAllocation(
                 EconomicBucket.REAL_ESTATE,
                 new BigDecimal("200"),
                 BigDecimal.ONE,
-                Liquidity.ILLIQUID)),
-        assets);
+                Liquidity.ILLIQUID,
+                Liquidity.ILLIQUID == com.smartbox.investory.profile.api.model.Liquidity.ILLIQUID
+                    ? com.smartbox.investory.profile.api.model.AssetHorizon.LONG_TERM
+                    : com.smartbox.investory.profile.api.model.AssetHorizon.SHORT_TERM)),
+        null,
+        null,
+        new com.smartbox.investory.profile.api.model.ProfileAssetProjection(
+            assets,
+            java.math.BigDecimal.ZERO,
+            0,
+            com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
+        (BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO),
+        BigDecimal.ZERO
+            .subtract((BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO))
+            .max(java.math.BigDecimal.ZERO),
+        com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            new BigDecimal("200"),
+            BigDecimal.ZERO,
+            new BigDecimal("200")),
+        com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
   }
 
   private static ProjectedLongTermAsset realEstate(Long id, BigDecimal explicitReturn) {
     return new ProjectedLongTermAsset(
         id,
         "Property " + id,
-        com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel.REAL_ESTATE,
+        com.smartbox.investory.longterm.api.model.LongTermAssetType.REAL_ESTATE,
         EconomicBucket.REAL_ESTATE,
         CurrencyType.PLN,
         new BigDecimal("100"),
@@ -468,10 +587,15 @@ class SimulationSensitivityAnalysisServiceTest {
                     null,
                     BigDecimal.ZERO,
                     BigDecimal.ZERO,
-                    explicitReturn)),
+                    explicitReturn,
+                    null,
+                    false)),
+        java.util.List.of(),
         null,
         null,
         null,
-        BigDecimal.ZERO);
+        BigDecimal.ZERO,
+        null,
+        false);
   }
 }

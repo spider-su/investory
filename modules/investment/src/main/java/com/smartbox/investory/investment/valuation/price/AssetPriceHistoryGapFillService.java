@@ -2,8 +2,8 @@ package com.smartbox.investory.investment.valuation.price;
 
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
-import com.smartbox.investory.investment.ledger.position.persistence.OpenedPosition;
-import com.smartbox.investory.investment.ledger.position.persistence.OpenedPositionRepository;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionRepository;
 import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryRepository;
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
@@ -27,15 +27,15 @@ import org.springframework.util.StringUtils;
 @RequiredArgsConstructor
 public class AssetPriceHistoryGapFillService {
 
-  private final OpenedPositionRepository openedPositionRepository;
+  private final PositionRepository openedPositionRepository;
   private final AssetRepository assetRepository;
   private final AssetPriceHistoryRepository assetPriceHistoryRepository;
 
   @Transactional
   public void fillMissingBusinessDayGaps(LocalDate asOfDate) {
     Set<String> openSymbols =
-        openedPositionRepository.findAll().stream()
-            .map(OpenedPosition::getSymbol)
+        openedPositionRepository.findOpen().stream()
+            .map(PositionEntity::getSymbol)
             .filter(StringUtils::hasText)
             .collect(java.util.stream.Collectors.toCollection(HashSet::new));
     if (openSymbols.isEmpty()) {
@@ -173,6 +173,8 @@ public class AssetPriceHistoryGapFillService {
   }
 
   private static String upper(String value) {
-    return value == null ? "" : value.trim().toUpperCase(java.util.Locale.ROOT);
+    return com.smartbox.investory.shared.util.StringUtils.nullToEmpty(value)
+        .trim()
+        .toUpperCase(java.util.Locale.ROOT);
   }
 }

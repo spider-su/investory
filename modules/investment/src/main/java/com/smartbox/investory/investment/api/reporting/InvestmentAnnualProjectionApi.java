@@ -1,5 +1,6 @@
 package com.smartbox.investory.investment.api.reporting;
 
+import com.smartbox.investory.shared.projection.ProjectionSource;
 import java.math.BigDecimal;
 
 /** Stable black-box annual investment projection boundary. */
@@ -32,7 +33,7 @@ public interface InvestmentAnnualProjectionApi {
         request.requestedWithdrawal(),
         annual.withdrawal(),
         annual.endValue(),
-        Source.valueOf(annual.source().name()));
+        annual.source());
   }
 
   record ProjectionRequest(
@@ -41,13 +42,13 @@ public interface InvestmentAnnualProjectionApi {
       BigDecimal externalContribution,
       BigDecimal annualReturnRate,
       BigDecimal withdrawal,
-      Source source) {
+      ProjectionSource source) {
     public ProjectionRequest(
         int year,
         BigDecimal startValue,
         BigDecimal annualReturnRate,
         BigDecimal withdrawal,
-        Source source) {
+        ProjectionSource source) {
       this(year, startValue, BigDecimal.ZERO, annualReturnRate, withdrawal, source);
     }
 
@@ -56,7 +57,7 @@ public interface InvestmentAnnualProjectionApi {
       externalContribution = nz(externalContribution).max(BigDecimal.ZERO);
       annualReturnRate = nz(annualReturnRate);
       withdrawal = nz(withdrawal).max(BigDecimal.ZERO);
-      source = source == null ? Source.PROJECTED : source;
+      source = source == null ? ProjectionSource.PROJECTED : source;
     }
   }
 
@@ -67,14 +68,14 @@ public interface InvestmentAnnualProjectionApi {
       BigDecimal annualReturnAmount,
       BigDecimal withdrawal,
       BigDecimal endValue,
-      Source source) {
+      ProjectionSource source) {
     public AnnualProjection(
         int year,
         BigDecimal startValue,
         BigDecimal annualReturnAmount,
         BigDecimal withdrawal,
         BigDecimal endValue,
-        Source source) {
+        ProjectionSource source) {
       this(year, startValue, BigDecimal.ZERO, annualReturnAmount, withdrawal, endValue, source);
     }
   }
@@ -85,13 +86,13 @@ public interface InvestmentAnnualProjectionApi {
       BigDecimal externalContribution,
       BigDecimal annualReturnRate,
       BigDecimal requestedWithdrawal,
-      Source source) {
+      ProjectionSource source) {
     public CapitalRequest(
         int year,
         BigDecimal startValue,
         BigDecimal annualReturnRate,
         BigDecimal requestedWithdrawal,
-        Source source) {
+        ProjectionSource source) {
       this(year, startValue, BigDecimal.ZERO, annualReturnRate, requestedWithdrawal, source);
     }
   }
@@ -106,18 +107,13 @@ public interface InvestmentAnnualProjectionApi {
       BigDecimal requestedWithdrawal,
       BigDecimal actualWithdrawal,
       BigDecimal endValue,
-      Source source) {
+      ProjectionSource source) {
     public BigDecimal unfundedRequest() {
       return requestedWithdrawal.subtract(actualWithdrawal).max(BigDecimal.ZERO);
     }
   }
 
-  enum Source {
-    ACTUAL,
-    PROJECTED
-  }
-
   private static BigDecimal nz(BigDecimal value) {
-    return value == null ? BigDecimal.ZERO : value;
+    return com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull(value);
   }
 }

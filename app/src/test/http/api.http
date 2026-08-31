@@ -1,0 +1,32 @@
+### Current reconciliation report
+GET {{host}}/api/v1/investment/reconciliation
+Authorization: Basic {{user}} {{password}}
+
+### Generate Yahoo export
+GET {{host}}/api/v1/investment/export/generate
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+Authorization: Basic {{user}} {{password}}
+
+### Upload first IBKR transaction range (POST requires ROLE_ADMIN)
+POST {{host}}/api/v1/investment/imports/broker/ibkr
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+Authorization: Basic {{user}} {{password}}
+
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="U17959259.TRANSACTIONS.20250211.20251231.csv"
+Content-Type: text/csv
+
+< ../../main/resources/U17959259.TRANSACTIONS.20250211.20251231.csv
+--WebAppBoundary--
+
+### Upload second IBKR transaction range (POST requires ROLE_ADMIN)
+POST {{host}}/api/v1/investment/imports/broker/ibkr
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+Authorization: Basic {{user}} {{password}}
+
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="U17959259.TRANSACTIONS.20260101.20260731.csv"
+Content-Type: text/csv
+
+< ../../main/resources/U17959259.TRANSACTIONS.20260101.20260731.csv
+--WebAppBoundary--

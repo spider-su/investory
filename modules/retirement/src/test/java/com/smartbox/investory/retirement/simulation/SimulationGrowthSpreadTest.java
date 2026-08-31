@@ -2,14 +2,18 @@ package com.smartbox.investory.retirement.simulation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.smartbox.investory.retirement.api.model.*;
 import java.math.BigDecimal;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
+@DisplayName("Simulation Growth Spread")
 class SimulationGrowthSpreadTest {
+  @DisplayName("base Growth Uses Inflation Plus Configured Spreads")
   @Test
   void baseGrowthUsesInflationPlusConfiguredSpreads() {
     SimulationAssumptions assumptions = assumptions();
@@ -18,6 +22,7 @@ class SimulationGrowthSpreadTest {
     assertThat(assumptions.effectiveSpendingGrowthRate()).isEqualByComparingTo("0.040");
   }
 
+  @DisplayName("changing Inflation Keeps Spreads And Changes Both Effective Rates")
   @Test
   void changingInflationKeepsSpreadsAndChangesBothEffectiveRates() {
     SimulationAssumptions assumptions = assumptions().withInflationRate(new BigDecimal("0.030"));
@@ -28,6 +33,7 @@ class SimulationGrowthSpreadTest {
     assertThat(assumptions.effectiveSpendingGrowthRate()).isEqualByComparingTo("0.045");
   }
 
+  @DisplayName("negative Spreads Are Valid When The Effective Rate Remains Multiplicative")
   @Test
   void negativeSpreadsAreValidWhenTheEffectiveRateRemainsMultiplicative() {
     SimulationAssumptions assumptions =
@@ -36,6 +42,7 @@ class SimulationGrowthSpreadTest {
     assertThat(assumptions.effectiveRentalIncomeGrowthRate()).isEqualByComparingTo("0.020");
   }
 
+  @DisplayName("effective Rates Are Inflation Plus Spread")
   @ParameterizedTest
   @MethodSource("spreadCases")
   void effectiveRatesAreInflationPlusSpread(String inflation, String spread, String expected) {
@@ -57,6 +64,7 @@ class SimulationGrowthSpreadTest {
         Arguments.of("0", "-0.01", "-0.01"));
   }
 
+  @DisplayName("scenarios Apply Stress To Inflation And Spreads Before Deriving Nominal Growth")
   @Test
   void scenariosApplyStressToInflationAndSpreadsBeforeDerivingNominalGrowth() {
     SimulationAssumptions assumptions = assumptions();
@@ -81,6 +89,7 @@ class SimulationGrowthSpreadTest {
     assertThat(custom).isEqualTo(base);
   }
 
+  @DisplayName("custom Deltas Are Percentage Point Adjustments To All Supported Drivers")
   @Test
   void customDeltasArePercentagePointAdjustmentsToAllSupportedDrivers() {
     SimulationAssumptions assumptions = assumptions();

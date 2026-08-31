@@ -1,6 +1,5 @@
 package com.smartbox.investory.longterm.application.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smartbox.investory.longterm.application.model.LongTermAssetBootstrapDocument;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -11,12 +10,13 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.ObjectMapper;
 
 @Component
 @Order(Integer.MAX_VALUE)
 @RequiredArgsConstructor
 public class LongTermAssetBootstrapCommand implements ApplicationRunner {
-  private final ObjectMapper objectMapper = new ObjectMapper();
+  private final ObjectMapper objectMapper;
   private final LongTermAssetBootstrapService service;
   private final ConfigurableApplicationContext context;
 

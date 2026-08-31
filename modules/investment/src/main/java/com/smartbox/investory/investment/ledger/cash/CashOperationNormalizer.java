@@ -1,6 +1,7 @@
 package com.smartbox.investory.investment.ledger.cash;
 
 import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationEntity;
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.ArrayDeque;
@@ -670,7 +671,7 @@ public class CashOperationNormalizer {
         || normalizedComment.contains("redemption");
   }
 
-  private static long roundedAbsAmount(Double amount) {
+  private static long roundedAbsAmount(BigDecimal amount) {
     return Math.round(Math.abs(nz(amount)) * 100.0d);
   }
 
@@ -693,6 +694,10 @@ public class CashOperationNormalizer {
 
   private static double nz(Double value) {
     return value == null ? 0.0 : value;
+  }
+
+  private static double nz(BigDecimal value) {
+    return value == null ? 0.0 : value.doubleValue();
   }
 
   private record AccountTransferHint(EconomicDirection direction, long accountId) {}

@@ -1,5 +1,7 @@
 package com.smartbox.investory.retirement.simulation;
 
+import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.shared.projection.ProjectionSource;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -200,7 +202,7 @@ public final class CashFlowAggregationService {
     }
 
     private static BigDecimal nz(BigDecimal value) {
-      return value == null ? BigDecimal.ZERO : value;
+      return com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull(value);
     }
   }
 }

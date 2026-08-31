@@ -2,16 +2,18 @@ package com.smartbox.investory.app;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.smartbox.investory.longterm.api.model.CashFlowTypeModel;
-import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
-import com.smartbox.investory.retirement.planning.PlanningMetric;
-import com.smartbox.investory.retirement.profile.EconomicBucket;
+import com.smartbox.investory.longterm.api.model.CashFlowType;
+import com.smartbox.investory.longterm.api.model.InterestTreatment;
+import com.smartbox.investory.profile.api.model.EconomicBucket;
+import com.smartbox.investory.retirement.api.model.PlanningMetric;
 import com.smartbox.investory.ui.presentation.UiPresentation;
 import java.math.BigDecimal;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("UI Presentation")
 class UiPresentationTest {
+  @DisplayName("formats Money Percent And Zero")
   @Test
   void formatsMoneyPercentAndZero() {
     assertEquals("56,940.44", UiPresentation.money(new BigDecimal("56940.444")));
@@ -40,6 +42,7 @@ class UiPresentationTest {
     assertEquals("0.0 pp", UiPresentation.percentagePoints(BigDecimal.ZERO));
   }
 
+  @DisplayName("formats Compact Summary Money")
   @Test
   void formatsCompactSummaryMoney() {
     assertEquals("999", UiPresentation.compactMoney(new BigDecimal("999")));
@@ -55,15 +58,17 @@ class UiPresentationTest {
     assertEquals("−36.6K", UiPresentation.signedCompactMoney(new BigDecimal("-36600")));
   }
 
+  @DisplayName("labels Planning Enums For People")
   @Test
   void labelsPlanningEnumsForPeople() {
     assertEquals("Fixed income", UiPresentation.bucket(EconomicBucket.FIXED_INCOME));
     assertEquals("Parking rent", UiPresentation.cashFlowType(CashFlowType.PARKING_RENT));
-    assertEquals("Parking rent", UiPresentation.cashFlowType(CashFlowTypeModel.PARKING_RENT));
+    assertEquals("Parking rent", UiPresentation.cashFlowType(CashFlowType.PARKING_RENT));
     assertEquals("Accumulative", UiPresentation.interestTreatment(InterestTreatment.CAPITALIZE));
     assertEquals("Distributed", UiPresentation.interestTreatment(InterestTreatment.PAY_OUT));
   }
 
+  @DisplayName("formats Historical Metrics By Declared Unit")
   @Test
   void formatsHistoricalMetricsByDeclaredUnit() {
     assertEquals(

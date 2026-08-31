@@ -6,21 +6,22 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.retirement.profile.EconomicBucket;
-import com.smartbox.investory.retirement.profile.InvestmentProfile;
-import com.smartbox.investory.retirement.profile.Liquidity;
-import com.smartbox.investory.retirement.profile.ProfileAllocation;
+import com.smartbox.investory.profile.api.model.EconomicBucket;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.profile.api.model.Liquidity;
+import com.smartbox.investory.profile.api.model.ProfileAllocation;
+import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.api.model.RetirementAgeAnalysis;
+import com.smartbox.investory.retirement.api.model.SimulationAssumptions;
+import com.smartbox.investory.retirement.api.model.SimulationEvaluation;
+import com.smartbox.investory.retirement.api.model.SimulationScenario;
+import com.smartbox.investory.retirement.api.model.SimulationSensitivityAnalysis;
+import com.smartbox.investory.retirement.api.model.SustainableSpendingAnalysis;
 import com.smartbox.investory.retirement.simulation.DeterministicAnalysisContext;
-import com.smartbox.investory.retirement.simulation.RetirementAgeAnalysis;
 import com.smartbox.investory.retirement.simulation.RetirementAgeAnalysisService;
 import com.smartbox.investory.retirement.simulation.RetirementSimulationService;
-import com.smartbox.investory.retirement.simulation.SimulationAssumptions;
-import com.smartbox.investory.retirement.simulation.SimulationEvaluation;
 import com.smartbox.investory.retirement.simulation.SimulationEvaluationService;
-import com.smartbox.investory.retirement.simulation.SimulationScenario;
-import com.smartbox.investory.retirement.simulation.SimulationSensitivityAnalysis;
 import com.smartbox.investory.retirement.simulation.SimulationSensitivityAnalysisService;
-import com.smartbox.investory.retirement.simulation.SustainableSpendingAnalysis;
 import com.smartbox.investory.retirement.simulation.SustainableSpendingAnalysisService;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -30,10 +31,14 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Retirement Analysis Real Simulator Reconciliation")
 class RetirementAnalysisRealSimulatorReconciliationTest {
 
+  @DisplayName(
+      "every Analysis Consumer Reconciles To One Real Canonical Base Across Display Currency")
   @Test
   void everyAnalysisConsumerReconcilesToOneRealCanonicalBaseAcrossDisplayCurrency() {
     InvestmentProfile profile = profile();
@@ -122,9 +127,6 @@ class RetirementAnalysisRealSimulatorReconciliationTest {
         new BigDecimal("1000000"),
         BigDecimal.ZERO,
         new BigDecimal("1000000"),
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
         new BigDecimal("100000"),
         BigDecimal.ZERO,
         List.of(
@@ -132,9 +134,39 @@ class RetirementAnalysisRealSimulatorReconciliationTest {
                 EconomicBucket.LIQUID_CASH,
                 new BigDecimal("100000"),
                 BigDecimal.ONE,
-                Liquidity.LIQUID),
+                Liquidity.LIQUID,
+                Liquidity.LIQUID == com.smartbox.investory.profile.api.model.Liquidity.ILLIQUID
+                    ? com.smartbox.investory.profile.api.model.AssetHorizon.LONG_TERM
+                    : com.smartbox.investory.profile.api.model.AssetHorizon.SHORT_TERM),
             new ProfileAllocation(
-                EconomicBucket.EQUITY, new BigDecimal("900000"), BigDecimal.ONE, Liquidity.LIQUID)),
-        List.of());
+                EconomicBucket.EQUITY,
+                new BigDecimal("900000"),
+                BigDecimal.ONE,
+                Liquidity.LIQUID,
+                Liquidity.LIQUID == com.smartbox.investory.profile.api.model.Liquidity.ILLIQUID
+                    ? com.smartbox.investory.profile.api.model.AssetHorizon.LONG_TERM
+                    : com.smartbox.investory.profile.api.model.AssetHorizon.SHORT_TERM)),
+        null,
+        null,
+        new com.smartbox.investory.profile.api.model.ProfileAssetProjection(
+            List.of(),
+            java.math.BigDecimal.ZERO,
+            0,
+            com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
+        (new BigDecimal("100000") == null ? java.math.BigDecimal.ZERO : new BigDecimal("100000")),
+        new BigDecimal("1000000")
+            .subtract(
+                (new BigDecimal("100000") == null
+                    ? java.math.BigDecimal.ZERO
+                    : new BigDecimal("100000")))
+            .max(java.math.BigDecimal.ZERO),
+        com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
+            BigDecimal.ZERO,
+            new BigDecimal("1000000"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            new BigDecimal("1000000")),
+        com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
   }
 }

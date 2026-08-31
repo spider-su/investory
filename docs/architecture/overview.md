@@ -49,17 +49,31 @@ changes are owned by Flyway.
   `valuation.fx.persistence`); shared reporting projections remain under `infrastructure.persistence`.
 - `longterm`: manual non-brokerage asset application services, persistence, and public read contracts
   in `longterm.api`.
-- `retirement`: profile composition, planning, simulation, and their persistence adapters.
+- `profile`: read-only whole-wealth composition over Investment and Long-Term public APIs. Its public
+  query contract and immutable economic models live under `profile.api`.
+- `retirement`: planning, simulation, scenarios, progress tracking, and their persistence adapters.
+  Cross-module plan management, projection, and analysis services are exposed through
+  `retirement.api`; JPA plan and revision entities remain internal.
 - `shared`: domain-neutral currency conversion, portfolio context, notification producer contracts,
   and presentation primitives exposed
   from the Investment public surface where required by the current Maven layout.
-- `integrations`: external adapters, provider configuration, scheduling, export state, and integration
-  and notification persistence. It consumes Investment only through `investment.api` and
-  `investment.port`.
+- `integrations`: external adapters grouped vertically by provider, plus integration management,
+  scheduling, export state, and notification persistence. Generic plugin contracts live in
+  `integrations.management`; provider-neutral notifications are separate from Telegram delivery. It
+  consumes Investment only through `investment.api` and `investment.port`.
 - `app`: application composition, security, scheduling, executable packaging, Flyway resources, and
   global UI concerns.
 
 Use the current package tree as the source of truth if these boundaries change.
+
+## Retirement simulation URL compatibility
+
+The server-rendered `/simulation` page supports legacy deep links that carry transient assumption
+overrides in query parameters. Saved plan values remain canonical when an override is absent; edited
+display-currency values are converted back to canonical values at the UI boundary. New links should
+prefer `portfolioId`, `planId`, `planningDisplayCurrency`, and `selectedScenario`; the legacy
+assumption parameters remain supported for bookmarked links and navigation context until an explicit
+deprecation decision is made. Mapping behavior is covered by `SimulationRequestMapperTest`.
 
 ## Import boundary
 
@@ -112,7 +126,7 @@ Dashboard page data follows this application flow:
 ```text
 HomeController
   -> DashboardQuery
-  -> DashboardFacade
+  -> InvestmentDashboardFacade
   -> existing portfolio/benchmark services and period filtering
   -> DashboardPageView section models
   -> Thymeleaf dashboard and Chart.js presentation code
@@ -124,37 +138,43 @@ This is an application boundary for the internal UI, not a new dashboard JSON AP
 ## Domain boundary direction
 
 Investory remains one Spring Boot application and one JVM process. Maven provides compile-time module
-boundaries while the business ownership is organized around three domains:
+boundaries while business ownership is organized around three source/decision domains and one
+composition module:
 
 - **Investment** owns brokerage accounts, imports, accounting, market data, portfolio reporting,
   dashboard, and reconciliation.
 - **Long-Term Assets** owns manually managed real estate, bonds, deposits, cash reserves, and other
   assets.
-- **Retirement** owns profile composition, planning, simulation, scenarios, and progress tracking.
+- **Profile** composes current whole-wealth state without owning Investment or Long-Term facts.
+- **Retirement** owns planning, simulation, scenarios, and progress tracking.
 
 The intended dependency direction is:
 
 ```text
-Retirement -> Investment public read API
-Retirement -> Long-Term Assets public read API
+Profile -> Investment public read API
+Profile -> Long-Term Assets public read API
+Retirement -> Profile public read API
+Retirement -> Investment and Long-Term planning/history APIs
 
 Investment -> shared primitives/contracts
 Long-Term Assets -> shared primitives/contracts
 ```
 
-Investment and Long-Term Assets do not depend on each other or on Retirement. Retirement depends on
-Investment and Long-Term only through their `api` packages. A public boundary exposes focused,
-immutable business read models, never JPA entities, repositories, SQL projections, or internal
-accounting services. Shared contracts stay small and domain-neutral.
+Investment and Long-Term Assets do not depend on each other, Profile, or Retirement. Profile reads
+both source domains only through their `api` packages. Retirement consumes `profile.api` and retains
+direct access only to focused Investment and Long-Term planning/history APIs. A public boundary
+exposes immutable business read models, never JPA entities, repositories, SQL projections, or
+internal accounting services. Shared contracts stay small and domain-neutral.
 
 Current source state is used to prepare a reviewed plan revision. Once reviewed, the revision freezes
 the normalized economic inputs needed to reproduce its Future projection. Later Investment or
 Long-Term changes update Current but do not mutate that revision. Accepting those changes into Future
 is an explicit review/rebaseline operation that creates a new revision.
 
-`investment.api.portfolio.BrokeragePortfolioReader` publishes immutable shared brokerage snapshots for
-profile composition; its Spring implementation is
-`investment.infrastructure.read.BrokeragePortfolioContextReadService` and it is not multi-portfolio scoped.
+`investment.api.portfolio.BrokeragePortfolioReader` publishes immutable brokerage snapshots. Profile
+composition uses the portfolio-scoped `currentSnapshot(portfolioId)` projection; shared integration
+context may use `currentSharedSnapshot()`. The Spring implementation is
+`investment.infrastructure.read.BrokeragePortfolioReadService`.
 `BrokerageAssetClassificationReader` supplies
 the optional symbol classification needed by the profile, and `HistoricalPortfolioActualsReader`
 supplies portfolio-scoped calendar-year planning facts. Their Investment implementations retain
@@ -172,23 +192,50 @@ depend back on valuation or reporting; valuation does not depend on dashboard or
 Refresh/cache coordination between valuation and projections remains a known orchestration seam.
 Imports remain the write boundary for broker evidence and normalized ledger rows.
 
-Profile composition currently remains in Retirement because `InvestmentProfile` is also the planning
-and simulation input. Extracting only its facade would create a Retirement/Profile module cycle.
-The composition service reads Investment and Long-Term through their public APIs, so Long-Term assets
-are never read directly from Investment persistence or copied into Investment tables.
+Profile composition lives in the downstream `profile` module. `ProfileSummaryReader` and
+`ProfilePlanningReader` expose separate immutable, Profile-owned whole-wealth summary and planning
+models. `ProfileReader` remains a deprecated compatibility aggregate for existing Retirement
+callers, while
+`ProfileQueryService` reads Investment and Long-Term only through public APIs. Profile may reuse
+small, stable Long-Term public value types in `profile.api`; it still never exposes Long-Term
+entities, repositories, or infrastructure types.
+`ProfileReader` remains the compatibility aggregate for callers that need the complete planning
+context.
+`LongTermAssetProfileReader` returns one coherent source snapshot and reuses its summary rows for
+totals, allocation, and annual-income facts. Detailed projection inputs remain a separate batched
+read. Profile's REST adapter maps the internal aggregate to an explicit external response and
+excludes planning-only details and tenant contact data.
+Small stable provenance types are shared when their meaning crosses domain boundaries; projection
+records use `shared.projection.ProjectionSource` for `ACTUAL` and `PROJECTED` rather than defining
+module-specific copies.
+Profile's `EconomicBucket` is the canonical allocation vocabulary reused by Retirement; Retirement
+funding policies likewise use `RetirementFundingSource` (`RESERVE`, `LONG_TERM`, `INVESTMENT`).
+Profile has no dependency on Retirement, so the direction remains acyclic. Long-Term assets are
+never read directly from Investment persistence or copied into Investment tables.
+
+Web UI uses focused Retirement boundaries: `RetirementPlanApi`, `RetirementPlanInputApi`,
+`RetirementTimelineApi`, `RetirementPresentationApi`, `RetirementProjectionApi`, and
+`RetirementAnalysisApi`. Planning and simulation value types are explicitly published
+Retirement-owned economic models; application services, persistence entities, and repositories are
+not part of the Web UI contract. MVC controllers reach those API interfaces only through
+`InProcess*Client` adapters.
 
 `shared.portfolio.PortfolioContextReader` supplies optional portfolio identity and base currency for
 Long-Term validation and aggregation. The Investment-owned repository-backed implementation preserves
 the existing `PortfolioKpiSummaryRepository` lookup and missing-portfolio behavior.
 
-Integration entities and repositories are owned by `integrations.infrastructure.persistence`; notification
-state is owned by `integration.notifications.infrastructure`. They keep their existing database mappings
-and remain adapters outside the three business domains.
+Integration instances, secrets, and jobs are owned by `integrations.management.persistence`.
+Notification state is owned by `integrations.notifications.persistence`; provider-specific export
+state remains beside its export adapter. These types keep their existing database mappings and remain
+adapters outside the three business domains.
 
-Long-Term publishes `LongTermAssetProfileReader` for profile composition and projection inputs, and
-`LongTermAssetAnnualSnapshotReader` for current and historical planning facts. Its public immutable
+Long-Term publishes `LongTermAssetProfileReader` for profile composition, current annual facts, and
+projection inputs, and `LongTermAssetAnnualSnapshotReader` for historical planning facts. Its public immutable
 models include the stable Long-Term asset and cash-flow enums. Retirement callers use these contracts;
 Long-Term persistence and application services remain internal.
+
+Long-Term has no second annual simulation API. Reviewed retirement revisions freeze normalized
+projection inputs from `LongTermAssetProfileReader`; Retirement owns deterministic scenario execution.
 
 Planning must not become an accounting source of truth or depend on a projected result as an actual fact.
 
@@ -219,16 +266,22 @@ boundary. `CurrencyRateService` implements the BigDecimal conversion contract; i
 persistence, cache, and double compatibility APIs remain Investment implementation details. Long-Term
 and Retirement consumers use the shared contract.
 
-`app.UiPresentation` is an application UI helper. Long-Term uses only the shared financial presentation
-primitive; no PlanningPresentation exception or Long-Term-to-Retirement presentation dependency remains.
+`ui.presentation.UiPresentation` is a Web UI helper and accepts only public API models. Long-Term
+uses only the shared financial presentation primitive; no PlanningPresentation exception or
+Long-Term-to-Retirement presentation dependency remains.
 `SimulationPlanService` is the only documented simulation persistence orchestration adapter; deterministic
 simulation classes remain persistence-free.
 
+Provider-neutral portfolio context composition lives in `integrations.portfolio`. Telegram and AI
+consume that service independently; delivery channels do not depend on one another.
+
 The Maven reactor contains `modules/shared`, `modules/investment`, `modules/longterm`,
-`modules/retirement`, `integrations`, `test-support`, `adapters/web-ui`, and `app`. Retirement consumes
-Investment and Long-Term public APIs. Long-Term consumes only `shared`; Investment consumes `shared`.
-Investment and Long-Term do not depend on Retirement or each other. This remains one executable application, not microservices. PostgreSQL schema
-isolation is a separate future epic; this modularization does not change schemas, roles, or Flyway history.
+`modules/profile`, `modules/retirement`, `integrations`, `test-support`, `adapters/web-ui`, and `app`.
+Profile consumes Investment and Long-Term public APIs; Retirement consumes Profile plus focused
+planning/history APIs. Long-Term consumes only `shared`; Investment consumes `shared`. Investment and
+Long-Term do not depend on Profile, Retirement, or each other. This remains one executable
+application, not microservices. PostgreSQL schema isolation is a separate future epic; this
+modularization does not change schemas, roles, or Flyway history.
 
 ## Change rules
 

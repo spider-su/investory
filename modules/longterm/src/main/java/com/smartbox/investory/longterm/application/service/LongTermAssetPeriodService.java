@@ -1,8 +1,9 @@
 package com.smartbox.investory.longterm.application.service;
 
+import com.smartbox.investory.longterm.api.model.*;
+import com.smartbox.investory.longterm.api.model.LongTermAssetType;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetEntity;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetRepository;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.longterm.infrastructure.bond.LongTermAssetBondRatePeriodEntity;
 import com.smartbox.investory.longterm.infrastructure.bond.LongTermAssetBondRatePeriodRepository;
 import com.smartbox.investory.longterm.infrastructure.tax.RentalTaxPolicyEntity;
@@ -11,7 +12,6 @@ import com.smartbox.investory.longterm.infrastructure.valuation.LongTermAssetVal
 import com.smartbox.investory.longterm.infrastructure.valuation.LongTermAssetValuationPeriodRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.NoSuchElementException;
 import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,13 +41,10 @@ public class LongTermAssetPeriodService {
       taxPolicies
           .findById(policy.getId())
           .filter(existing -> Objects.equals(existing.getPortfolioId(), portfolioId))
-          .orElseThrow(() -> new NoSuchElementException("Rental tax policy not found"));
+          .orElseThrow(() -> new RentalTaxPolicyNotFoundException(portfolioId, policy.getId()));
     policy.setPortfolioId(portfolioId);
     validateRange(policy.getValidFrom(), policy.getValidTo());
-    if (policy.getRate() == null
-        || policy.getRate().signum() < 0
-        || policy.getRate().compareTo(BigDecimal.ONE) > 0)
-      throw new IllegalArgumentException("Tax rate must be between 0 and 1");
+    LongTermAssetRateRules.requireReturnRate(policy.getRate(), "Tax rate");
     for (RentalTaxPolicyEntity existing :
         taxPolicies.findAllByPortfolioIdOrderByValidFrom(portfolioId))
       if (Objects.equals(existing.getPortfolioId(), portfolioId)
@@ -66,12 +63,12 @@ public class LongTermAssetPeriodService {
         taxPolicies
             .findById(policyId)
             .filter(existing -> Objects.equals(existing.getPortfolioId(), portfolioId))
-            .orElseThrow(() -> new NoSuchElementException("Rental tax policy not found"));
+            .orElseThrow(() -> new RentalTaxPolicyNotFoundException(portfolioId, policyId));
     taxPolicies.delete(policy);
   }
 
   public void replaceValuationGrowth(Long assetId, LocalDate from, BigDecimal growthRate) {
-    if (growthRate != null) validateGrowthRate(growthRate);
+    if (growthRate != null) LongTermAssetRateRules.requireGrowthRate(growthRate);
     if (growthRate == null) {
       closeValuationPeriods(assetId, from);
       return;
@@ -80,7 +77,7 @@ public class LongTermAssetPeriodService {
   }
 
   public void replaceCurrentValuationGrowth(Long assetId, LocalDate from, BigDecimal growthRate) {
-    if (growthRate != null) validateGrowthRate(growthRate);
+    if (growthRate != null) LongTermAssetRateRules.requireGrowthRate(growthRate);
     var existing = valuations.findAllByAssetIdOrderByValidFrom(assetId);
     if (!existing.isEmpty()) {
       valuations.deleteAll(existing);
@@ -110,7 +107,7 @@ public class LongTermAssetPeriodService {
     if (asset.getType() != LongTermAssetType.REAL_ESTATE)
       throw new IllegalArgumentException("Valuation periods apply only to real estate");
     validateRange(period.getValidFrom(), period.getValidTo());
-    validateGrowthRate(period.getExpectedAnnualGrowthRate());
+    LongTermAssetRateRules.requireGrowthRate(period.getExpectedAnnualGrowthRate());
     validateValuationOverlap(assetId, period);
     period.setAssetId(assetId);
     return valuations.save(period);
@@ -126,7 +123,7 @@ public class LongTermAssetPeriodService {
     period.setValidTo(replacement.getValidTo());
     period.setExpectedAnnualGrowthRate(replacement.getExpectedAnnualGrowthRate());
     validateRange(period.getValidFrom(), period.getValidTo());
-    validateGrowthRate(period.getExpectedAnnualGrowthRate());
+    LongTermAssetRateRules.requireGrowthRate(period.getExpectedAnnualGrowthRate());
     validateValuationOverlap(assetId, period);
     return valuations.save(period);
   }
@@ -152,8 +149,7 @@ public class LongTermAssetPeriodService {
 
   private void saveBondRatePeriod(Long assetId, LongTermAssetBondRatePeriodEntity period) {
     validateRange(period.getValidFrom(), period.getValidTo());
-    if (period.getAnnualInterestRate() == null || period.getAnnualInterestRate().signum() < 0)
-      throw new IllegalArgumentException("Bond interest rate must be non-negative");
+    LongTermAssetRateRules.requireReturnRate(period.getAnnualInterestRate(), "Bond interest rate");
     period.setAssetId(assetId);
     bondRates.save(period);
   }
@@ -161,7 +157,7 @@ public class LongTermAssetPeriodService {
   private LongTermAssetEntity owned(Long portfolioId, Long id) {
     return assets
         .findByIdAndPortfolioId(id, portfolioId)
-        .orElseThrow(() -> new NoSuchElementException("Long-term asset not found"));
+        .orElseThrow(() -> new AssetNotFoundException(portfolioId, id));
   }
 
   private LongTermAssetValuationPeriodEntity ownedValuation(
@@ -170,14 +166,7 @@ public class LongTermAssetPeriodService {
     return valuations
         .findById(periodId)
         .filter(period -> Objects.equals(period.getAssetId(), assetId))
-        .orElseThrow(() -> new NoSuchElementException("Valuation period not found"));
-  }
-
-  private static void validateGrowthRate(BigDecimal rate) {
-    if (rate == null
-        || rate.compareTo(BigDecimal.ONE.negate()) < 0
-        || rate.compareTo(BigDecimal.ONE) > 0)
-      throw new IllegalArgumentException("Expected property growth rate must be between -1 and 1");
+        .orElseThrow(() -> new ValuationNotFoundException(assetId, periodId));
   }
 
   private static void validateRange(LocalDate from, LocalDate to) {

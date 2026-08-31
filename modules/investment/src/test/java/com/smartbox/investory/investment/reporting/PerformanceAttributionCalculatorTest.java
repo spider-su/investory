@@ -2,12 +2,17 @@ package com.smartbox.investory.investment.reporting;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.smartbox.investory.investment.api.reporting.model.PerformanceAttribution;
+import com.smartbox.investory.investment.api.reporting.model.ReturnMetric;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Performance Attribution Calculator")
 class PerformanceAttributionCalculatorTest {
+  @DisplayName("pure Unrealized Or Fx Movement Remains Explicit Residual")
   @Test
   void pureUnrealizedOrFxMovementRemainsExplicitResidual() {
     PerformanceAttribution attribution =
@@ -20,6 +25,7 @@ class PerformanceAttributionCalculatorTest {
     assertThat(attribution.reconcilesWithinTolerance()).isFalse();
   }
 
+  @DisplayName("fee And Tax Effects Use Positive Expense Presentation")
   @Test
   void feeAndTaxEffectsUsePositiveExpensePresentation() {
     PerformanceAttribution attribution =
@@ -30,6 +36,7 @@ class PerformanceAttributionCalculatorTest {
     assertThat(attribution.reconcilesWithinTolerance()).isTrue();
   }
 
+  @DisplayName("mixed Canonical Components Reconcile Without Double Counting")
   @Test
   void mixedCanonicalComponentsReconcileWithoutDoubleCounting() {
     PerformanceAttribution attribution =

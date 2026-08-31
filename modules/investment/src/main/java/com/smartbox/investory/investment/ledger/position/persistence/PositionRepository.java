@@ -36,6 +36,10 @@ public interface PositionRepository extends JpaRepository<PositionEntity, Long> 
   List<PositionEntity> findClosedByAccountIn(@Param("accounts") Collection<Long> accounts);
 
   @Query(
+      "SELECT DISTINCT position.account FROM PositionEntity position WHERE position.account IS NOT NULL")
+  List<Long> findDistinctAccountIds();
+
+  @Query(
       "SELECT position FROM PositionEntity position WHERE position.closeTime IS NULL AND position.assetId = :assetId ORDER BY position.account, position.openTime")
   @EntityGraph(attributePaths = "asset")
   List<PositionEntity> findOpenByAssetId(@Param("assetId") Long assetId);

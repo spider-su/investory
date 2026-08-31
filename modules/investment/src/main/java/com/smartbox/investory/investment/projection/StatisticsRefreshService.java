@@ -2,7 +2,6 @@ package com.smartbox.investory.investment.projection;
 
 import com.smartbox.investory.investment.performance.InvestmentCalculationCache;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /** Refreshes computed account statistics and materialized views after data mutations. */
@@ -11,12 +10,13 @@ import org.springframework.stereotype.Service;
 public class StatisticsRefreshService {
 
   private final PortfolioProjectionService portfolioProjectionService;
+  private final InvestmentCalculationCache calculationCache;
 
-  @Autowired(required = false)
-  private InvestmentCalculationCache calculationCache;
-
-  public StatisticsRefreshService(PortfolioProjectionService portfolioProjectionService) {
+  public StatisticsRefreshService(
+      PortfolioProjectionService portfolioProjectionService,
+      InvestmentCalculationCache calculationCache) {
     this.portfolioProjectionService = portfolioProjectionService;
+    this.calculationCache = calculationCache;
   }
 
   public void refreshAll() {
@@ -34,9 +34,7 @@ public class StatisticsRefreshService {
       recalculate.run();
       log.info("Projection refresh complete.");
     } finally {
-      if (calculationCache != null) {
-        calculationCache.invalidate();
-      }
+      calculationCache.invalidate();
     }
   }
 }

@@ -10,13 +10,24 @@ Run the existing suite with:
 ./mvnw test
 ```
 
+JaCoCo instrumentation is configured in the root Maven build. `verify` writes an HTML report for
+each code-bearing module under `target/site/jacoco/index.html`; the app module also writes the
+cross-module report under `app/target/site/jacoco-aggregate/`. CI combines unit, app-hosted
+cross-module, and integration-test execution data before enforcing the aggregate baseline in
+`docs/quality/coverage-baseline.json`. Generated DTOs and intentional boundary adapters must not
+be padded with assertion-free tests merely to raise a total.
+
 Architecture dependency rules live in `LayerDependencyTest`. They protect the one-way boundary
 between accounting/reporting, profile/dashboard application code, planning, and deterministic
-simulation. The current exceptions are documented in that test: `SimulationPlanService` is still
-the persistence adapter in the simulation package, `InvestmentProfileFacade` still classifies
-symbols through `AssetRepository`, and `PlanningPresentation` is a legacy presentation bridge.
+simulation. Persistence-owning orchestration adapters live under infrastructure packages; the
+deterministic simulation package remains persistence-free.
 
 Tests that do not need a database should remain plain unit tests or Spring test slices.
+
+Pure tests belong with the production module when their dependencies permit it. A small set of
+investment tests remains app-hosted because it uses the shared portfolio fixture module, which
+currently depends on investment; moving those tests without first splitting that fixture module
+would create a Maven cycle. App-bound web configuration and browser/template tests remain in app.
 
 ## Fast database integration tests
 
@@ -80,10 +91,26 @@ $env:PLAYWRIGHT_BROWSERS_PATH = "$PWD/.playwright"
 ./mvnw.cmd -pl app exec:java "-Dexec.classpathScope=test" "-Dexec.mainClass=com.microsoft.playwright.CLI" "-Dexec.args=install chromium"
 $env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
 $env:DOCKER_HOST = "tcp://127.0.0.1:2375"
-./mvnw.cmd -pl app test-compile failsafe:integration-test failsafe:verify "-Dit.test=UiPageSmokeIT,LongTermAssetCrudUiIT,InvestmentDashboardGoldenUiIT"
+./mvnw.cmd -pl app test-compile failsafe:integration-test failsafe:verify "-Dit.test=UiPageSmokeIT,LongTermAssetCrudUiIT,PlanSimulationCrudUiIT,InvestmentDashboardGoldenUiIT"
 ```
 
-CI installs Chromium explicitly and runs this suite in the integration-test job.
+CI installs Chromium explicitly and runs this suite in a dedicated UI integration-test job.
+Backend integration tests run as six independent matrix legs with `fail-fast: false`:
+
+- `contracts`: valuation, system-audit, reporting, baseline-readiness, and benchmark contracts;
+- `imports`: PostgreSQL FX update plus IBKR/XTB import contracts;
+- `schema`: `SchemaMigrationCheckpoint2IT` by itself;
+- `reconciliation-notifications-longterm`: remaining app-owned database contracts;
+- `investment-rest`: Investment REST boundary integration tests;
+- `retirement-rest`: Retirement REST boundary integration tests.
+
+Every committed `*IT` class belongs to exactly one backend, UI, or golden-path CI allowlist. When a
+new integration test is added, add it to the owning leg in the same change; Maven naming alone does
+not make the split CI execute it.
+
+The schema leg is intentionally isolated because the test currently cleans and reapplies the complete
+Flyway chain before each method. Reducing that setup cost is roadmap work; do not weaken its
+disposable-database safety guard to make CI faster.
 
 ## Generate the schema snapshot
 
@@ -163,6 +190,16 @@ rebuild. Keep the full archive and credentials outside the repository and public
 ## Local Testcontainers reuse
 
 Container startup can dominate a short test run. Local reuse is optional.
+
+Integration tests use one PostgreSQL 17 container per test JVM. `FastDatabase` creates the worker
+database from the container's administrative `postgres` database and points Spring at that
+database; scoped migration and golden tests use additional isolated databases in the same
+container. Names are `it_<run-id>_<worker-id>[_scope]`, using `GITHUB_RUN_ID` when available.
+The Maven property `it.test.workers` (default `1`) is passed to the infrastructure; the related
+system properties `investory.test.run-id`, `investory.test.worker-id`,
+`investory.test.database.prefix`, `investory.test.postgres.image`, and
+`investory.test.database.cleanup` are available for CI/local overrides. Cleanup terminates active
+connections before dropping databases and stops the container once at JVM shutdown.
 
 Create or update:
 

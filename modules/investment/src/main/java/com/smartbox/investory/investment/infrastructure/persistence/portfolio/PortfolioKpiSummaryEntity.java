@@ -138,204 +138,104 @@ public class PortfolioKpiSummaryEntity {
     this.updatedAt = updatedAt;
   }
 
-  public Double getTotalDeposits() {
-    return asDouble(totalDeposits);
+  public BigDecimal getTotalDeposits() {
+    return totalDeposits;
   }
 
   public void setTotalDeposits(BigDecimal totalDeposits) {
     this.totalDeposits = scaleDecimal(totalDeposits);
   }
 
-  public void setTotalDeposits(Double totalDeposits) {
-    this.totalDeposits = scaleDecimal(totalDeposits);
-  }
-
-  public void setTotalDeposits(double totalDeposits) {
-    this.totalDeposits = scaleDecimal(totalDeposits);
-  }
-
-  public Double getNetDeposits() {
-    return asDouble(netDeposits);
+  public BigDecimal getNetDeposits() {
+    return netDeposits;
   }
 
   public void setNetDeposits(BigDecimal netDeposits) {
     this.netDeposits = scaleDecimal(netDeposits);
   }
 
-  public void setNetDeposits(Double netDeposits) {
-    this.netDeposits = scaleDecimal(netDeposits);
-  }
-
-  public void setNetDeposits(double netDeposits) {
-    this.netDeposits = scaleDecimal(netDeposits);
-  }
-
-  public Double getTotalWithdrawals() {
-    return asDouble(totalWithdrawals);
+  public BigDecimal getTotalWithdrawals() {
+    return totalWithdrawals;
   }
 
   public void setTotalWithdrawals(BigDecimal totalWithdrawals) {
     this.totalWithdrawals = scaleDecimal(totalWithdrawals);
   }
 
-  public void setTotalWithdrawals(Double totalWithdrawals) {
-    this.totalWithdrawals = scaleDecimal(totalWithdrawals);
-  }
-
-  public void setTotalWithdrawals(double totalWithdrawals) {
-    this.totalWithdrawals = scaleDecimal(totalWithdrawals);
-  }
-
-  public Double getTotalCash() {
-    return asDouble(totalCash);
+  public BigDecimal getTotalCash() {
+    return totalCash;
   }
 
   public void setTotalCash(BigDecimal totalCash) {
     this.totalCash = scaleDecimal(totalCash);
   }
 
-  public void setTotalCash(Double totalCash) {
-    this.totalCash = scaleDecimal(totalCash);
-  }
-
-  public void setTotalCash(double totalCash) {
-    this.totalCash = scaleDecimal(totalCash);
-  }
-
-  public Double getTotalMarketValue() {
-    return asDouble(totalMarketValue);
+  public BigDecimal getTotalMarketValue() {
+    return totalMarketValue;
   }
 
   public void setTotalMarketValue(BigDecimal totalMarketValue) {
     this.totalMarketValue = scaleDecimal(totalMarketValue);
   }
 
-  public void setTotalMarketValue(Double totalMarketValue) {
-    this.totalMarketValue = scaleDecimal(totalMarketValue);
-  }
-
-  public void setTotalMarketValue(double totalMarketValue) {
-    this.totalMarketValue = scaleDecimal(totalMarketValue);
-  }
-
-  public Double getTotalEquity() {
-    return asDouble(totalEquity);
+  public BigDecimal getTotalEquity() {
+    return totalEquity;
   }
 
   public void setTotalEquity(BigDecimal totalEquity) {
     this.totalEquity = scaleDecimal(totalEquity);
   }
 
-  public void setTotalEquity(Double totalEquity) {
-    this.totalEquity = scaleDecimal(totalEquity);
-  }
-
-  public void setTotalEquity(double totalEquity) {
-    this.totalEquity = scaleDecimal(totalEquity);
-  }
-
-  public Double getTotalRealizedProfit() {
-    return asDouble(totalRealizedProfit);
+  public BigDecimal getTotalRealizedProfit() {
+    return totalRealizedProfit;
   }
 
   public void setTotalRealizedProfit(BigDecimal totalRealizedProfit) {
     this.totalRealizedProfit = scaleDecimal(totalRealizedProfit);
   }
 
-  public void setTotalRealizedProfit(Double totalRealizedProfit) {
-    this.totalRealizedProfit = scaleDecimal(totalRealizedProfit);
-  }
-
-  public void setTotalRealizedProfit(double totalRealizedProfit) {
-    this.totalRealizedProfit = scaleDecimal(totalRealizedProfit);
-  }
-
-  public Double getTotalUnrealizedProfit() {
-    return asDouble(totalUnrealizedProfit);
+  public BigDecimal getTotalUnrealizedProfit() {
+    return totalUnrealizedProfit;
   }
 
   public void setTotalUnrealizedProfit(BigDecimal totalUnrealizedProfit) {
     this.totalUnrealizedProfit = scaleDecimal(totalUnrealizedProfit);
   }
 
-  public void setTotalUnrealizedProfit(Double totalUnrealizedProfit) {
-    this.totalUnrealizedProfit = scaleDecimal(totalUnrealizedProfit);
-  }
-
-  public void setTotalUnrealizedProfit(double totalUnrealizedProfit) {
-    this.totalUnrealizedProfit = scaleDecimal(totalUnrealizedProfit);
-  }
-
-  public Double getTotalDividends() {
-    return asDouble(totalDividends);
+  public BigDecimal getTotalDividends() {
+    return totalDividends;
   }
 
   public void setTotalDividends(BigDecimal totalDividends) {
     this.totalDividends = scaleDecimal(totalDividends);
   }
 
-  public void setTotalDividends(Double totalDividends) {
-    this.totalDividends = scaleDecimal(totalDividends);
-  }
-
-  public void setTotalDividends(double totalDividends) {
-    this.totalDividends = scaleDecimal(totalDividends);
-  }
-
-  public Double getTotalInterest() {
-    return asDouble(totalInterest);
+  public BigDecimal getTotalInterest() {
+    return totalInterest;
   }
 
   public void setTotalInterest(BigDecimal totalInterest) {
     this.totalInterest = scaleDecimal(totalInterest);
   }
 
-  public void setTotalInterest(Double totalInterest) {
-    this.totalInterest = scaleDecimal(totalInterest);
-  }
-
-  public void setTotalInterest(double totalInterest) {
-    this.totalInterest = scaleDecimal(totalInterest);
-  }
-
-  public Double getTotalFees() {
-    return asDouble(totalFees);
+  public BigDecimal getTotalFees() {
+    return totalFees;
   }
 
   public void setTotalFees(BigDecimal totalFees) {
     this.totalFees = scaleDecimal(totalFees);
   }
 
-  public void setTotalFees(Double totalFees) {
-    this.totalFees = scaleDecimal(totalFees);
-  }
-
-  public void setTotalFees(double totalFees) {
-    this.totalFees = scaleDecimal(totalFees);
-  }
-
-  public Double getTotalTaxes() {
-    return asDouble(totalTaxes);
+  public BigDecimal getTotalTaxes() {
+    return totalTaxes;
   }
 
   public void setTotalTaxes(BigDecimal totalTaxes) {
     this.totalTaxes = scaleDecimal(totalTaxes);
   }
 
-  public void setTotalTaxes(Double totalTaxes) {
-    this.totalTaxes = scaleDecimal(totalTaxes);
-  }
-
-  public void setTotalTaxes(double totalTaxes) {
-    this.totalTaxes = scaleDecimal(totalTaxes);
-  }
-
   private static BigDecimal scaleDecimal(BigDecimal value) {
     return value == null ? null : value.setScale(8, RoundingMode.HALF_UP);
-  }
-
-  private static BigDecimal scaleDecimal(Double value) {
-    return value == null ? null : scaleDecimal(BigDecimal.valueOf(value));
   }
 
   private static BigDecimal scaleDecimal(double value) {

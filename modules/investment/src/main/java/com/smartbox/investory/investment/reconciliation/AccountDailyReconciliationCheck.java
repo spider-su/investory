@@ -1,7 +1,8 @@
 package com.smartbox.investory.investment.reconciliation;
 
-import com.smartbox.investory.investment.infrastructure.persistence.reconciliation.ReconciliationReportRepository;
-import java.time.Instant;
+import com.smartbox.investory.investment.api.reporting.model.ReconciliationCheckpoint;
+import com.smartbox.investory.investment.api.reporting.model.ReconciliationStatus;
+import com.smartbox.investory.investment.infrastructure.persistence.reconciliation.ReconciliationEvidenceRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -9,7 +10,7 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class AccountDailyReconciliationCheck implements ReconciliationCheck {
-  private final ReconciliationReportRepository repository;
+  private final ReconciliationEvidenceRepository repository;
 
   @Override
   public ReconciliationCheckpoint checkpoint() {
@@ -18,20 +19,18 @@ public class AccountDailyReconciliationCheck implements ReconciliationCheck {
 
   @Override
   public ReconciliationCheckResult execute(ReconciliationContext context) {
-    var summary = repository.summarizeAccountIssues();
+    var rows = repository.findAccountIssues();
     List<ReconciliationIssue> issues =
-        repository.findAccountIssues().stream()
-            .map(RepositoryReconciliationIssueMapper::account)
-            .toList();
+        rows.stream().map(RepositoryReconciliationIssueMapper::account).toList();
     long failures =
-        summary == null
-            ? issues.stream().filter(i -> i.status() == ReconciliationStatus.FAIL).count()
-            : value(summary.getFailures());
+        rows.isEmpty()
+            ? 0
+            : valueOr(rows.getFirst().getFailures(), issues, ReconciliationStatus.FAIL);
     long reviews =
-        summary == null
-            ? issues.stream().filter(i -> i.status() == ReconciliationStatus.REVIEW).count()
-            : value(summary.getWarnings());
-    long total = summary == null ? issues.size() : value(summary.getTotalIssues());
+        rows.isEmpty()
+            ? 0
+            : valueOr(rows.getFirst().getReviews(), issues, ReconciliationStatus.REVIEW);
+    long total = rows.isEmpty() ? 0 : valueOr(rows.getFirst().getTotalIssues(), issues, null);
     return new ReconciliationCheckResult(
         checkpoint(),
         status(failures, reviews),
@@ -40,7 +39,7 @@ public class AccountDailyReconciliationCheck implements ReconciliationCheck {
         reviews,
         issues,
         "v_account_daily_reconciliation",
-        Instant.now());
+        context.startedAt());
   }
 
   private static ReconciliationStatus status(long failures, long reviews) {
@@ -49,7 +48,11 @@ public class AccountDailyReconciliationCheck implements ReconciliationCheck {
     return ReconciliationStatus.PASS;
   }
 
-  private static long value(Long value) {
-    return value == null ? 0 : value;
+  private static long valueOr(
+      Long value, List<ReconciliationIssue> issues, ReconciliationStatus status) {
+    if (value != null) return value;
+    return status == null
+        ? issues.size()
+        : issues.stream().filter(i -> i.status() == status).count();
   }
 }

@@ -3,16 +3,20 @@ package com.smartbox.investory.retirement.planning;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
-import com.smartbox.investory.retirement.profile.InvestmentProfile;
-import com.smartbox.investory.retirement.simulation.*;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.simulation.ForwardSimulationContextFactory;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Forward Simulation Input Service")
 class ForwardSimulationInputServiceTest {
+  @DisplayName("prepares One Rebased Boundary From The Live Profile")
   @Test
   void preparesOneRebasedBoundaryFromTheLiveProfile() {
     Clock clock = Clock.fixed(Instant.parse("2028-06-01T00:00:00Z"), ZoneOffset.UTC);
@@ -53,12 +57,30 @@ class ForwardSimulationInputServiceTest {
         new BigDecimal("1000"),
         BigDecimal.ZERO,
         new BigDecimal("1000"),
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
         new BigDecimal("1000"),
         BigDecimal.ZERO,
         List.of(),
-        List.of());
+        null,
+        null,
+        new com.smartbox.investory.profile.api.model.ProfileAssetProjection(
+            List.of(),
+            java.math.BigDecimal.ZERO,
+            0,
+            com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
+        (new BigDecimal("1000") == null ? java.math.BigDecimal.ZERO : new BigDecimal("1000")),
+        new BigDecimal("1000")
+            .subtract(
+                (new BigDecimal("1000") == null
+                    ? java.math.BigDecimal.ZERO
+                    : new BigDecimal("1000")))
+            .max(java.math.BigDecimal.ZERO),
+        com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
+            BigDecimal.ZERO,
+            new BigDecimal("1000"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            new BigDecimal("1000")),
+        com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
   }
 }

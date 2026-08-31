@@ -1,5 +1,8 @@
 package com.smartbox.investory.investment.reporting;
 
+import com.smartbox.investory.investment.api.reporting.model.DailyPerformanceDetail;
+import com.smartbox.investory.investment.api.reporting.model.InstrumentPerformance;
+import com.smartbox.investory.investment.api.reporting.model.MonthlyAttribution;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
@@ -12,12 +15,10 @@ import com.smartbox.investory.investment.infrastructure.persistence.portfolio.Po
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceRepository;
-import com.smartbox.investory.investment.ledger.position.persistence.ClosedPosition;
-import com.smartbox.investory.investment.ledger.position.persistence.ClosedPositionRepository;
-import com.smartbox.investory.investment.performance.model.DailyPerformanceDetail;
-import com.smartbox.investory.investment.performance.model.InstrumentPerformance;
-import com.smartbox.investory.investment.performance.model.MonthlyAttribution;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionRepository;
 import com.smartbox.investory.investment.performance.model.Performance;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -37,9 +38,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class PortfolioPerformanceQueryService {
-  private static final double ACCOUNT_VISIBILITY_MIN_VALUE = 50.0;
+  private static final BigDecimal ACCOUNT_VISIBILITY_MIN_VALUE = BigDecimal.valueOf(50);
 
-  private final ClosedPositionRepository closedPositionRepository;
+  private final PositionRepository closedPositionRepository;
   private final AccountDailyRepository accountDailyRepository;
   private final AccountRepository accountRepository;
   private final AccountMonthlyPerformanceRepository accountMonthlyPerformanceRepository;
@@ -66,50 +67,56 @@ public class PortfolioPerformanceQueryService {
     for (PortfolioMonthlyPerformanceEntity row :
         portfolioMonthlyPerformanceRepository.findAllByOrderByMonthAscPortfolioIdAsc()) {
       String bucketKey = summaryBucketKey(row.getMonth());
-      monthlyProfit.merge(bucketKey, nz(row.getProfit()), Double::sum);
-      monthlyCashflow.merge(bucketKey, nz(row.getNetCashflow()), Double::sum);
+      monthlyProfit.merge(bucketKey, nz(row.getProfit()).doubleValue(), Double::sum);
+      monthlyCashflow.merge(bucketKey, nz(row.getNetCashflow()).doubleValue(), Double::sum);
       MonthlyAttribution old = attributions.get(bucketKey);
-      double profit = nz(row.getProfit());
-      double realized = nz(row.getRealizedProfit());
-      double dividends = nz(row.getDividends());
-      double interest = nz(row.getInterest());
-      double fees = nz(row.getFees());
-      double taxes = nz(row.getTaxes());
-      double marketFx = profit - realized - dividends - interest - fees - taxes;
+      BigDecimal profit = nz(row.getProfit());
+      BigDecimal realized = nz(row.getRealizedProfit());
+      BigDecimal dividends = nz(row.getDividends());
+      BigDecimal interest = nz(row.getInterest());
+      BigDecimal fees = nz(row.getFees());
+      BigDecimal taxes = nz(row.getTaxes());
+      BigDecimal marketFx =
+          profit
+              .subtract(realized)
+              .subtract(dividends)
+              .subtract(interest)
+              .subtract(fees)
+              .subtract(taxes);
       attributions.put(
           bucketKey,
           old == null
               ? new MonthlyAttribution(
                   bucketKey,
-                  nz(row.getStartEquity()),
-                  nz(row.getEndEquity()),
-                  nz(row.getDepositFlow()),
-                  nz(row.getWithdrawalFlow()),
-                  row.getNetCashflow(),
-                  profit,
-                  marketFx,
-                  realized,
-                  dividends,
-                  interest,
-                  fees,
-                  taxes,
+                  nz(row.getStartEquity()).doubleValue(),
+                  nz(row.getEndEquity()).doubleValue(),
+                  nz(row.getDepositFlow()).doubleValue(),
+                  nz(row.getWithdrawalFlow()).doubleValue(),
+                  nz(row.getNetCashflow()).doubleValue(),
+                  profit.doubleValue(),
+                  marketFx.doubleValue(),
+                  realized.doubleValue(),
+                  dividends.doubleValue(),
+                  interest.doubleValue(),
+                  fees.doubleValue(),
+                  taxes.doubleValue(),
                   0.0,
                   0.0,
                   new ArrayList<>())
               : new MonthlyAttribution(
                   bucketKey,
                   old.openingEquity(),
-                  nz(row.getEndEquity()),
-                  old.deposits() + nz(row.getDepositFlow()),
-                  old.withdrawals() + nz(row.getWithdrawalFlow()),
-                  old.netExternalFlow() + row.getNetCashflow(),
-                  old.totalProfit() + profit,
-                  old.marketAndFxMovement() + marketFx,
-                  old.realizedTradingResult() + realized,
-                  old.dividends() + dividends,
-                  old.cashInterest() + interest,
-                  old.fees() + fees,
-                  old.taxes() + taxes,
+                  nz(row.getEndEquity()).doubleValue(),
+                  bd(old.deposits()).add(nz(row.getDepositFlow())).doubleValue(),
+                  bd(old.withdrawals()).add(nz(row.getWithdrawalFlow())).doubleValue(),
+                  bd(old.netExternalFlow()).add(nz(row.getNetCashflow())).doubleValue(),
+                  bd(old.totalProfit()).add(profit).doubleValue(),
+                  bd(old.marketAndFxMovement()).add(marketFx).doubleValue(),
+                  bd(old.realizedTradingResult()).add(realized).doubleValue(),
+                  bd(old.dividends()).add(dividends).doubleValue(),
+                  bd(old.cashInterest()).add(interest).doubleValue(),
+                  bd(old.fees()).add(fees).doubleValue(),
+                  bd(old.taxes()).add(taxes).doubleValue(),
                   0.0,
                   0.0,
                   old.accounts()));
@@ -119,26 +126,32 @@ public class PortfolioPerformanceQueryService {
         accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc()) {
       if (filterVisibleAccounts && !visibleAccounts.contains(row.getAccountId())) continue;
       String bucketKey = summaryBucketKey(row.getMonth());
-      if (Math.abs(nz(row.getEndEquity())) >= 50.0
-          || Math.abs(nz(row.getProfit())) >= 0.005
-          || Math.abs(nz(row.getNetCashflow())) >= 0.005) {
+      if (nz(row.getEndEquity()).abs().compareTo(ACCOUNT_VISIBILITY_MIN_VALUE) >= 0
+          || nz(row.getProfit()).abs().compareTo(BigDecimal.valueOf(0.005)) >= 0
+          || nz(row.getNetCashflow()).abs().compareTo(BigDecimal.valueOf(0.005)) >= 0) {
         monthlyAccounts
             .computeIfAbsent(bucketKey, ignored -> new TreeSet<>())
             .add(row.getAccountId());
       }
       MonthlyAttribution a = attributions.get(bucketKey);
       if (a != null) {
-        double contribution = nz(row.getProfit());
+        BigDecimal contribution = nz(row.getProfit());
+        BigDecimal totalProfit = bd(a.totalProfit());
         double pct =
-            Math.abs(a.totalProfit()) < 0.000001 ? 0.0 : contribution / a.totalProfit() * 100.0;
+            totalProfit.abs().compareTo(BigDecimal.valueOf(0.000001)) < 0
+                ? 0.0
+                : contribution
+                    .divide(totalProfit, 12, java.math.RoundingMode.HALF_UP)
+                    .multiply(BigDecimal.valueOf(100))
+                    .doubleValue();
         List<MonthlyAttribution.AccountContribution> accounts = new ArrayList<>(a.accounts());
         accounts.add(
             new MonthlyAttribution.AccountContribution(
                 String.valueOf(row.getAccountId()),
-                nz(row.getStartEquity()),
-                nz(row.getEndEquity()),
-                row.getNetCashflow(),
-                contribution,
+                nz(row.getStartEquity()).doubleValue(),
+                nz(row.getEndEquity()).doubleValue(),
+                nz(row.getNetCashflow()).doubleValue(),
+                contribution.doubleValue(),
                 pct));
         attributions.put(
             bucketKey,
@@ -178,10 +191,15 @@ public class PortfolioPerformanceQueryService {
   }
 
   public double calculateWinRate() {
-    List<ClosedPosition> closedPositions = closedPositionRepository.findAll();
+    List<PositionEntity> closedPositions = closedPositionRepository.findClosed();
     if (closedPositions.isEmpty()) return 0.0;
     long profitablePositions =
-        closedPositions.stream().filter(position -> position.getProfit() > 0).count();
+        closedPositions.stream()
+            .filter(
+                position ->
+                    position.getProfit() != null
+                        && position.getProfit().compareTo(BigDecimal.ZERO) > 0)
+            .count();
     return (double) profitablePositions / closedPositions.size() * 100;
   }
 
@@ -194,22 +212,17 @@ public class PortfolioPerformanceQueryService {
 
   public DailyPerformanceDetail dailyPerformanceDetail(LocalDate date, Set<Long> accountIds) {
     List<AccountDailyEntity> rows =
-        accountDailyRepository.findAllByOrderByDateAscAccountIdAsc().stream()
-            .filter(row -> date.equals(row.getDate()))
-            .filter(
-                row ->
-                    accountIds == null
-                        || accountIds.isEmpty()
-                        || accountIds.contains(row.getAccountId()))
-            .toList();
-    double closing = rows.stream().mapToDouble(row -> nz(row.getEquity())).sum();
-    double profit = rows.stream().mapToDouble(row -> nz(row.getDailyProfitAmount())).sum();
-    double deposits = rows.stream().mapToDouble(row -> nz(row.getDeposits())).sum();
-    double withdrawals = rows.stream().mapToDouble(row -> nz(row.getWithdrawals())).sum();
-    double dividends = rows.stream().mapToDouble(row -> nz(row.getDividends())).sum();
-    double interest = rows.stream().mapToDouble(row -> nz(row.getInterest())).sum();
-    double fees = rows.stream().mapToDouble(row -> nz(row.getFees())).sum();
-    double taxes = rows.stream().mapToDouble(row -> nz(row.getTaxes())).sum();
+        accountIds == null || accountIds.isEmpty()
+            ? accountDailyRepository.findByDateOrderByAccountIdAsc(date)
+            : accountDailyRepository.findByDateAndAccountIdInOrderByAccountIdAsc(date, accountIds);
+    BigDecimal closing = sum(rows, AccountDailyEntity::getEquity);
+    BigDecimal profit = sum(rows, AccountDailyEntity::getDailyProfitAmount);
+    BigDecimal deposits = sum(rows, AccountDailyEntity::getDeposits);
+    BigDecimal withdrawals = sum(rows, AccountDailyEntity::getWithdrawals);
+    BigDecimal dividends = sum(rows, AccountDailyEntity::getDividends);
+    BigDecimal interest = sum(rows, AccountDailyEntity::getInterest);
+    BigDecimal fees = sum(rows, AccountDailyEntity::getFees);
+    BigDecimal taxes = sum(rows, AccountDailyEntity::getTaxes);
     List<DailyPerformanceDetail.AccountRow> accounts =
         rows.stream()
             .map(
@@ -217,27 +230,28 @@ public class PortfolioPerformanceQueryService {
                     new DailyPerformanceDetail.AccountRow(
                         row.getAccountId(),
                         nz(row.getEquity())
-                            - nz(row.getDailyProfitAmount())
-                            - nz(row.getDeposits())
-                            + nz(row.getWithdrawals()),
-                        nz(row.getEquity()),
-                        nz(row.getDailyProfitAmount()),
-                        nz(row.getDeposits()),
-                        nz(row.getWithdrawals())))
+                            .subtract(nz(row.getDailyProfitAmount()))
+                            .subtract(nz(row.getDeposits()))
+                            .add(nz(row.getWithdrawals()))
+                            .doubleValue(),
+                        nz(row.getEquity()).doubleValue(),
+                        nz(row.getDailyProfitAmount()).doubleValue(),
+                        nz(row.getDeposits()).doubleValue(),
+                        nz(row.getWithdrawals()).doubleValue()))
             .toList();
     return new DailyPerformanceDetail(
         date,
-        profit,
-        rows.stream().mapToDouble(row -> nz(row.getDailyReturn())).sum(),
-        closing - profit - deposits + withdrawals,
-        closing,
-        deposits,
-        withdrawals,
-        dividends,
-        interest,
-        fees,
-        taxes,
-        profit - dividends - interest - fees - taxes,
+        profit.doubleValue(),
+        rows.stream().mapToDouble(row -> nz(row.getDailyReturn()).doubleValue()).sum(),
+        closing.subtract(profit).subtract(deposits).add(withdrawals).doubleValue(),
+        closing.doubleValue(),
+        deposits.doubleValue(),
+        withdrawals.doubleValue(),
+        dividends.doubleValue(),
+        interest.doubleValue(),
+        fees.doubleValue(),
+        taxes.doubleValue(),
+        profit.subtract(dividends).subtract(interest).subtract(fees).subtract(taxes).doubleValue(),
         accounts,
         "Daily account_daily data cannot separate price movement from FX; residual is combined market/FX movement.");
   }
@@ -245,13 +259,13 @@ public class PortfolioPerformanceQueryService {
   private InstrumentPerformance toInstrumentPerformance(SymbolPerformanceEntity row) {
     return new InstrumentPerformance(
         row.getSymbol(),
-        nz(row.getClosedProfit()),
-        nz(row.getUnrealizedProfit()),
-        nz(row.getTotalProfit()),
-        nz(row.getDividends()),
-        nz(row.getWithholdingTax()),
-        nz(row.getMarketValue()),
-        nz(row.getCostBasis()));
+        nz(row.getClosedProfit()).doubleValue(),
+        nz(row.getUnrealizedProfit()).doubleValue(),
+        nz(row.getTotalProfit()).doubleValue(),
+        nz(row.getDividends()).doubleValue(),
+        nz(row.getWithholdingTax()).doubleValue(),
+        nz(row.getMarketValue()).doubleValue(),
+        nz(row.getCostBasis()).doubleValue());
   }
 
   private Set<Long> cashOnlyAccountIds() {
@@ -263,16 +277,35 @@ public class PortfolioPerformanceQueryService {
   }
 
   private boolean hasVisibleAccountSurface(AccountStatisticsEntity stat) {
-    return Math.abs(nz(stat.getCashBalance()) + nz(stat.getMarketValue()))
-            > ACCOUNT_VISIBILITY_MIN_VALUE
-        || Math.abs(nz(stat.getNetDeposit())) > ACCOUNT_VISIBILITY_MIN_VALUE;
+    return nz(stat.getCashBalance())
+                .add(nz(stat.getMarketValue()))
+                .abs()
+                .compareTo(ACCOUNT_VISIBILITY_MIN_VALUE)
+            > 0
+        || nz(stat.getNetDeposit()).abs().compareTo(ACCOUNT_VISIBILITY_MIN_VALUE) > 0;
   }
 
   private String summaryBucketKey(LocalDate month) {
     return String.format("%d-%02d", month.getYear(), month.getMonthValue());
   }
 
-  private static double nz(Double value) {
-    return value == null ? 0.0 : value;
+  private static BigDecimal nz(Double value) {
+    return value == null ? BigDecimal.ZERO : BigDecimal.valueOf(value);
+  }
+
+  private static BigDecimal nz(BigDecimal value) {
+    return com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull(value);
+  }
+
+  private static BigDecimal bd(double value) {
+    return BigDecimal.valueOf(value);
+  }
+
+  private static <T> BigDecimal sum(
+      List<T> values, java.util.function.Function<T, BigDecimal> getter) {
+    return values.stream()
+        .map(getter)
+        .map(PortfolioPerformanceQueryService::nz)
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
   }
 }

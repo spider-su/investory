@@ -10,8 +10,10 @@ public interface PortfolioExportSnapshotReader {
   record PortfolioExportSnapshot(
       List<ExportPosition> positions, List<ExportCashBalance> cashBalances) {
     public PortfolioExportSnapshot {
-      positions = positions == null ? List.of() : List.copyOf(positions);
-      cashBalances = cashBalances == null ? List.of() : List.copyOf(cashBalances);
+      positions =
+          com.smartbox.investory.shared.util.CollectionUtils.immutableListOrEmpty(positions);
+      cashBalances =
+          com.smartbox.investory.shared.util.CollectionUtils.immutableListOrEmpty(cashBalances);
     }
   }
 

@@ -1,13 +1,13 @@
 package com.smartbox.investory.longterm.application.service;
 
 import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
-import com.smartbox.investory.longterm.api.model.CashFlowTypeModel;
-import com.smartbox.investory.longterm.api.model.FrequencyModel;
-import com.smartbox.investory.longterm.api.model.InterestTreatmentModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileAssetModel;
+import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSnapshotModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSummaryModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
-import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
+import com.smartbox.investory.longterm.api.model.RentalContractModel;
+import com.smartbox.investory.longterm.api.model.RentalContractProjectionModel;
+import com.smartbox.investory.longterm.application.model.LongTermAssetSummary;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -22,89 +22,92 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class LongTermAssetReadService implements LongTermAssetProfileReader {
-  private final LongTermAssetService longTermAssets;
+  private final LongTermAssetQueryService queries;
+  private final LongTermAssetProjectionQueryService projections;
+  private final LongTermAssetAnnualSnapshotService annualSnapshots;
   private final CurrencyConversion currencyRates;
 
   @Override
-  public LongTermAssetProfileSummaryModel aggregate(Long portfolioId, LocalDate date) {
-    LongTermAssetQueryService.AggregateSummary summary =
-        longTermAssets.aggregate(portfolioId, date);
-    return new LongTermAssetProfileSummaryModel(
-        CurrencyType.USD,
-        toUsd(summary.totalCurrentValue(), summary.currency(), date),
-        toUsd(summary.annualEconomics().netAnnualIncomeAfterTax(), summary.currency(), date));
-  }
-
-  @Override
-  public List<LongTermAssetProfileAssetModel> list(Long portfolioId, LocalDate date) {
-    return longTermAssets.list(portfolioId, date).stream()
-        .map(
-            asset ->
-                new LongTermAssetProfileAssetModel(
-                    LongTermAssetTypeModel.valueOf(asset.type().name()),
-                    CurrencyType.USD,
-                    toUsd(asset.currentValue(), asset.currency(), date)))
-        .toList();
-  }
-
-  @Override
-  public List<LongTermAssetProjectionModel> projectionInputs(Long portfolioId, LocalDate date) {
-    return longTermAssets.projectionInputs(portfolioId, date).stream()
-        .map(
-            input ->
-                new LongTermAssetProjectionModel(
-                    input.id(),
-                    input.name(),
-                    LongTermAssetTypeModel.valueOf(input.type().name()),
-                    CurrencyType.USD,
-                    toUsd(input.currentValue(), input.currency(), date),
-                    input.periods().stream()
-                        .map(
-                            period ->
-                                new LongTermAssetProjectionModel.Period(
-                                    period.validFrom(),
-                                    period.validTo(),
-                                    toUsd(period.annualIncome(), input.currency(), date),
-                                    toUsd(period.annualExpense(), input.currency(), date),
-                                    period.annualReturnRate(),
-                                    period.cashFlowType() == null
-                                        ? null
-                                        : CashFlowTypeModel.valueOf(period.cashFlowType().name()),
-                                    period.paidByTenant()))
-                        .toList(),
-                    input.rentalContracts().stream()
-                        .map(
-                            c ->
-                                new com.smartbox.investory.longterm.api.model.RentalContractModel(
-                                    c.id(),
-                                    c.startDate(),
-                                    c.endDate(),
-                                    c.terminatedDate(),
-                                    c.rentalTaxPaidByTenant(),
-                                    toUsd(c.monthlyTaxBase(), input.currency(), date),
-                                    c.tenantName(),
-                                    c.tenantEmail(),
-                                    c.tenantPhone(),
-                                    c.terms().stream()
-                                        .map(
-                                            t ->
-                                                new com.smartbox.investory.longterm.api.model
-                                                    .RentalContractModel.Term(
-                                                    CashFlowTypeModel.valueOf(t.type().name()),
-                                                    toUsd(t.amount(), input.currency(), date),
-                                                    FrequencyModel.valueOf(t.frequency().name()),
-                                                    t.paidByTenant()))
-                                        .toList()))
-                        .toList(),
-                    input.maturityDate(),
-                    toUsd(input.redemptionValue(), input.currency(), date),
-                    input.interestTreatment() == null
-                        ? null
-                        : InterestTreatmentModel.valueOf(input.interestTreatment().name()),
-                    input.taxRate(),
-                    toUsd(input.taxBase(), input.currency(), date),
-                    input.rentalTaxPaidByTenant()))
-        .toList();
+  public LongTermAssetProfileSnapshotModel snapshot(Long portfolioId, LocalDate date) {
+    LongTermAssetProjectionQueryService.Snapshot loaded = projections.snapshot(portfolioId, date);
+    List<LongTermAssetSummary> rows =
+        loaded == null
+            ? queries.list(portfolioId, date)
+            : queries.summaries(loaded.assets(), date, loaded.data());
+    List<LongTermAssetProfileAssetModel> assets =
+        rows.stream()
+            .map(
+                asset ->
+                    new LongTermAssetProfileAssetModel(
+                        asset.type(),
+                        CurrencyType.USD,
+                        toUsd(asset.currentValue(), asset.currency(), date)))
+            .toList();
+    List<LongTermAssetProjectionModel> projectionInputs =
+        (loaded == null ? projections.projectionInputs(portfolioId, date) : loaded.inputs())
+            .stream()
+                .map(
+                    input ->
+                        new LongTermAssetProjectionModel(
+                            input.id(),
+                            input.name(),
+                            input.type(),
+                            CurrencyType.USD,
+                            toUsd(input.currentValue(), input.currency(), date),
+                            input.periods().stream()
+                                .map(
+                                    period ->
+                                        new LongTermAssetProjectionModel.Period(
+                                            period.validFrom(),
+                                            period.validTo(),
+                                            toUsd(period.annualIncome(), input.currency(), date),
+                                            toUsd(period.annualExpense(), input.currency(), date),
+                                            period.annualReturnRate(),
+                                            period.cashFlowType(),
+                                            period.paidByTenant()))
+                                .toList(),
+                            input.rentalContracts().stream()
+                                .map(
+                                    c ->
+                                        new RentalContractProjectionModel(
+                                            c.id(),
+                                            c.startDate(),
+                                            c.endDate(),
+                                            c.terminatedDate(),
+                                            c.rentalTaxPaidByTenant(),
+                                            toUsd(c.monthlyTaxBase(), input.currency(), date),
+                                            c.terms().stream()
+                                                .map(
+                                                    t ->
+                                                        new RentalContractModel.Term(
+                                                            t.type(),
+                                                            toUsd(
+                                                                t.amount(), input.currency(), date),
+                                                            t.frequency(),
+                                                            t.paidByTenant()))
+                                                .toList()))
+                                .toList(),
+                            input.maturityDate(),
+                            toUsd(input.redemptionValue(), input.currency(), date),
+                            input.interestTreatment(),
+                            input.taxRate(),
+                            toUsd(input.taxBase(), input.currency(), date),
+                            input.rentalTaxPaidByTenant()))
+                .toList();
+    BigDecimal totalValue =
+        rows.stream()
+            .map(row -> toUsd(row.currentValue(), row.currency(), date))
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal annualIncome =
+        rows.stream()
+            .map(
+                row -> toUsd(row.annualEconomics().netAnnualIncomeAfterTax(), row.currency(), date))
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    return new LongTermAssetProfileSnapshotModel(
+        new LongTermAssetProfileSummaryModel(CurrencyType.USD, totalValue, annualIncome),
+        assets,
+        projectionInputs,
+        annualSnapshots.currentAnnualSnapshot(rows, date));
   }
 
   private BigDecimal toUsd(BigDecimal amount, CurrencyType source, LocalDate date) {

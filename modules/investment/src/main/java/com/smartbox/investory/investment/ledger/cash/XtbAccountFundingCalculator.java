@@ -66,4 +66,8 @@ public final class XtbAccountFundingCalculator {
   private static double nz(Double value) {
     return value == null ? 0.0 : value;
   }
+
+  private static double nz(java.math.BigDecimal value) {
+    return value == null ? 0.0 : value.doubleValue();
+  }
 }

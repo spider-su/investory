@@ -2,15 +2,18 @@ package com.smartbox.investory.retirement.simulation;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.smartbox.investory.retirement.profile.InvestmentProfile;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Forward Simulation Context Factory")
 class ForwardSimulationContextFactoryTest {
   private static final InvestmentProfile PROFILE =
       new InvestmentProfile(
@@ -21,12 +24,28 @@ class ForwardSimulationContextFactoryTest {
           BigDecimal.TEN,
           BigDecimal.ZERO,
           BigDecimal.ZERO,
-          BigDecimal.ZERO,
-          BigDecimal.ZERO,
-          BigDecimal.ZERO,
           List.of(),
-          List.of());
+          null,
+          null,
+          new com.smartbox.investory.profile.api.model.ProfileAssetProjection(
+              List.of(),
+              java.math.BigDecimal.ZERO,
+              0,
+              com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
+          (BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO),
+          BigDecimal.TEN
+              .subtract((BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO))
+              .max(java.math.BigDecimal.ZERO),
+          com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
+              BigDecimal.ZERO,
+              BigDecimal.TEN,
+              BigDecimal.ZERO,
+              BigDecimal.ZERO,
+              BigDecimal.ZERO,
+              BigDecimal.TEN),
+          com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
 
+  @DisplayName("shared Temporal Helpers Use The Saved Plan Anchor")
   @Test
   void sharedTemporalHelpersUseTheSavedPlanAnchor() {
     SimulationAssumptions assumptions = assumptions(2025, 40, 90).withRetirementAge(45);
@@ -39,6 +58,7 @@ class ForwardSimulationContextFactoryTest {
     assertEquals(2025, ForwardSimulationContextFactory.retirementYear(pastRetirement));
   }
 
+  @DisplayName("historical Plan Anchor Derives Current Age And Retirement Year")
   @Test
   void historicalPlanAnchorDerivesCurrentAgeAndRetirementYear() {
     SimulationAssumptions assumptions = assumptions(2023, 37, 80).withRetirementAge(42);
@@ -49,6 +69,7 @@ class ForwardSimulationContextFactoryTest {
     assertEquals(2023, assumptions.planStartYear());
   }
 
+  @DisplayName("same Year Keeps Saved Age And Starts With The Next Full Year")
   @Test
   void sameYearKeepsSavedAgeAndStartsWithTheNextFullYear() {
     SimulationAssumptions assumptions = assumptions(2026, 40, 80);
@@ -63,6 +84,7 @@ class ForwardSimulationContextFactoryTest {
     assertEquals(41, context.forwardAssumptions().orElseThrow().currentAge());
   }
 
+  @DisplayName("elapsed Years Advance Effective Age And Filter Completed Events")
   @Test
   void elapsedYearsAdvanceEffectiveAgeAndFilterCompletedEvents() {
     SimulationAssumptions assumptions =
@@ -111,6 +133,7 @@ class ForwardSimulationContextFactoryTest {
             .toList());
   }
 
+  @DisplayName("rebasing Preserves Lifecycle And Economic Fields Without Mutating Original")
   @Test
   void rebasingPreservesLifecycleAndEconomicFieldsWithoutMutatingOriginal() {
     SimulationAssumptions original =
@@ -133,6 +156,7 @@ class ForwardSimulationContextFactoryTest {
     assertSame(PROFILE, context.currentProfile());
   }
 
+  @DisplayName("retirement And Pension Remain Absolute When Already Active")
   @Test
   void retirementAndPensionRemainAbsoluteWhenAlreadyActive() {
     SimulationAssumptions original = assumptions(2020, 40, 65).withRetirementAge(50);
@@ -142,11 +166,8 @@ class ForwardSimulationContextFactoryTest {
             original.endAge(),
             original.annualLivingExpenses(),
             original.inflationRate(),
-            original.cashReturnRate(),
             original.fixedIncomeReturnRate(),
             original.equityReturnRate(),
-            original.realEstateReturnRate(),
-            original.otherReturnRate(),
             65,
             new BigDecimal("30000"),
             original.capitalGainTaxRate(),
@@ -162,7 +183,10 @@ class ForwardSimulationContextFactoryTest {
             original.allowEmergencyEquityWithdrawal(),
             original.retirementAge(),
             original.annualEmploymentIncome(),
-            original.annualPreRetirementContribution());
+            original.annualPreRetirementContribution(),
+            original.fundingOrder(),
+            original.expenseProfile(),
+            original.projectedIncomePolicy());
 
     SimulationAssumptions rebased =
         factory("2030-06-01T00:00:00Z")
@@ -175,6 +199,7 @@ class ForwardSimulationContextFactoryTest {
     assertTrue(rebased.currentAge() >= rebased.retirementAge());
   }
 
+  @DisplayName("rebasing Carries Accumulated Retirement Spending Into The First Forward Year")
   @Test
   void rebasingCarriesAccumulatedRetirementSpendingIntoTheFirstForwardYear() {
     SimulationAssumptions original =
@@ -196,6 +221,7 @@ class ForwardSimulationContextFactoryTest {
             .compareTo(rebased.annualLivingExpenses().add(rebased.annualDiscretionaryExpenses())));
   }
 
+  @DisplayName("horizon Boundary Has No Full Projected Year")
   @Test
   void horizonBoundaryHasNoFullProjectedYear() {
     SimulationAssumptions original = assumptions(2026, 40, 42);
@@ -209,6 +235,7 @@ class ForwardSimulationContextFactoryTest {
     assertFalse(context.requiresCurrentYearBridge());
   }
 
+  @DisplayName("beyond Horizon Is Rejected")
   @Test
   void beyondHorizonIsRejected() {
     SimulationAssumptions original = assumptions(2026, 40, 42);

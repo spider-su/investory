@@ -1,6 +1,6 @@
 package com.smartbox.investory.integrations.health;
 
-import com.smartbox.investory.integrations.notifications.NotificationProperties;
+import com.smartbox.investory.integrations.notifications.application.NotificationProperties;
 import com.smartbox.investory.investment.api.operations.ImportOperationsReader;
 import com.smartbox.investory.investment.api.operations.ImportOperationsReader.ImportOperationsSnapshot;
 import java.time.Clock;

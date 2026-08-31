@@ -1,6 +1,7 @@
 package com.smartbox.investory.retirement.infrastructure.planning;
 
-import com.smartbox.investory.retirement.planning.PlanningYearStatus;
+import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.api.model.PlanningYearStatus;
 import jakarta.persistence.*;
 import java.time.Instant;
 import lombok.Getter;

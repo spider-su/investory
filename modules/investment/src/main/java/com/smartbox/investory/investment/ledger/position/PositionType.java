@@ -15,16 +15,6 @@ public enum PositionType {
     };
   }
 
-  public static PositionParseState parseState(String value) {
-    if (value == null) return PositionParseState.UNKNOWN;
-    return switch (value.trim().toUpperCase()) {
-      case "BUY" -> PositionParseState.BUY;
-      case "SELL" -> PositionParseState.SELL;
-      case "CLOSED" -> PositionParseState.CLOSED;
-      default -> PositionParseState.UNKNOWN;
-    };
-  }
-
   public static PositionType fromBrokerSideOrBuy(String value) {
     if (value == null) {
       return BUY;

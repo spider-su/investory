@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.imports.ImportExecutionResult;
+import com.smartbox.investory.investment.imports.ImportSourceEvidenceService;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.ledger.asset.AssetCatalogService;
@@ -18,10 +19,9 @@ import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepositor
 import com.smartbox.investory.investment.ledger.cash.CashOperationType;
 import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationEntity;
 import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationRepository;
-import com.smartbox.investory.investment.ledger.position.persistence.ClosedPosition;
-import com.smartbox.investory.investment.ledger.position.persistence.ClosedPositionRepository;
-import com.smartbox.investory.investment.ledger.position.persistence.OpenedPosition;
-import com.smartbox.investory.investment.ledger.position.persistence.OpenedPositionRepository;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionRepository;
+import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.io.ByteArrayInputStream;
@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -40,14 +41,17 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("Ibkr Import History Service")
 class IbkrImportHistoryServiceTest {
 
-  @Mock private ClosedPositionRepository closedPositionRepository;
+  @Mock private PositionRepository closedPositionRepository;
   @Mock private CashOperationRepository cashOperationRepository;
-  @Mock private OpenedPositionRepository openedPositionRepository;
+  @Mock private PositionRepository openedPositionRepository;
   @Mock private AssetPriceHistoryRepository assetPriceHistoryRepository;
   @Mock private AssetRepository assetRepository;
   @Mock private AccountRepository accountRepository;
+  @Mock private ImportSourceEvidenceService sourceEvidenceService;
+  @Mock private CurrencyRateService currencyRateService;
 
   private IbkrImportService service;
   private final List<CashOperationEntity> persistedCashOperations = new ArrayList<>();
@@ -65,7 +69,9 @@ class IbkrImportHistoryServiceTest {
             assetRepository,
             accountRepository,
             assetCatalogService,
-            reconstructionService);
+            reconstructionService,
+            sourceEvidenceService,
+            currencyRateService);
     persistedCashOperations.clear();
     org.mockito.Mockito.lenient()
         .doAnswer(
@@ -138,6 +144,7 @@ class IbkrImportHistoryServiceTest {
         .build();
   }
 
+  @DisplayName("import Statement maps Ibkr Symbol To Canonical Asset Symbol By Ibrk Column")
   @Test
   void importStatement_mapsIbkrSymbolToCanonicalAssetSymbolByIbrkColumn() throws Exception {
     AssetEntity canonical =
@@ -176,6 +183,7 @@ class IbkrImportHistoryServiceTest {
     assertTrue(operations.getFirst().getAssetId() > 0);
   }
 
+  @DisplayName("import Statement keeps Asset Marked Excluded From Import")
   @Test
   void importStatement_keepsAssetMarkedExcludedFromImport() throws Exception {
     AssetEntity excluded = asset("AIGI.UK");
@@ -196,6 +204,7 @@ class IbkrImportHistoryServiceTest {
     assertEquals(excluded.getId(), persistedCashOperations.getFirst().getAssetId());
   }
 
+  @DisplayName("import Statement preserves Asset Identity For Investment Interest")
   @Test
   void importStatement_preservesAssetIdentityForInvestmentInterest() throws Exception {
     String csv =
@@ -215,6 +224,7 @@ class IbkrImportHistoryServiceTest {
     assertTrue(operation.getAssetId() > 0);
   }
 
+  @DisplayName("import Statement does Not Normalize Bond Etf From Treasury Description")
   @Test
   void importStatement_doesNotNormalizeBondEtfFromTreasuryDescription() throws Exception {
     AssetEntity etf = asset("DTLA.UK");
@@ -230,16 +240,17 @@ class IbkrImportHistoryServiceTest {
     service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
 
     @SuppressWarnings("unchecked")
-    ArgumentCaptor<Iterable<OpenedPosition>> positionCaptor =
-        (ArgumentCaptor<Iterable<OpenedPosition>>)
+    ArgumentCaptor<Iterable<PositionEntity>> positionCaptor =
+        (ArgumentCaptor<Iterable<PositionEntity>>)
             (ArgumentCaptor<?>) ArgumentCaptor.forClass(Iterable.class);
     verify(openedPositionRepository).saveAll(positionCaptor.capture());
-    List<OpenedPosition> positions = toList(positionCaptor.getValue());
+    List<PositionEntity> positions = toList(positionCaptor.getValue());
     assertEquals(1, positions.size());
-    assertEquals(1000.0, positions.getFirst().getVolume(), 0.0001);
-    assertEquals(100.0, positions.getFirst().getOpenPrice(), 0.0001);
+    assertEquals(1000.0, positions.getFirst().getVolume().doubleValue(), 0.0001);
+    assertEquals(100.0, positions.getFirst().getOpenPrice().doubleValue(), 0.0001);
   }
 
+  @DisplayName("import Statement rejects Stock Sell Without Inventory")
   @Test
   void importStatement_rejectsStockSellWithoutInventory() throws Exception {
     String csv =
@@ -256,6 +267,7 @@ class IbkrImportHistoryServiceTest {
                 new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null));
   }
 
+  @DisplayName("import Statement reconstructs Open Positions From Transaction Only File")
   @Test
   void importStatement_reconstructsOpenPositionsFromTransactionOnlyFile() throws Exception {
     String csv =
@@ -270,36 +282,37 @@ class IbkrImportHistoryServiceTest {
     service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
 
     @SuppressWarnings("unchecked")
-    ArgumentCaptor<Iterable<OpenedPosition>> positionCaptor =
-        (ArgumentCaptor<Iterable<OpenedPosition>>)
+    ArgumentCaptor<Iterable<PositionEntity>> positionCaptor =
+        (ArgumentCaptor<Iterable<PositionEntity>>)
             (ArgumentCaptor<?>) ArgumentCaptor.forClass(Iterable.class);
     verify(openedPositionRepository).saveAll(positionCaptor.capture());
-    List<OpenedPosition> positions = toList(positionCaptor.getValue());
+    List<PositionEntity> positions = toList(positionCaptor.getValue());
 
-    OpenedPosition aapl =
+    PositionEntity aapl =
         positions.stream()
             .filter(position -> "AAPL.US".equals(position.getSymbol()))
             .findFirst()
             .orElseThrow();
-    assertEquals(6.0, aapl.getVolume(), 0.01);
-    assertEquals(600.0, aapl.getPurchaseValue(), 0.01);
-    assertEquals(100.0, aapl.getOpenPrice(), 0.01);
+    assertEquals(6.0, aapl.getVolume().doubleValue(), 0.01);
+    assertEquals(600.0, aapl.getPurchaseValue().doubleValue(), 0.01);
+    assertEquals(100.0, aapl.getOpenPrice().doubleValue(), 0.01);
     assertTrue(aapl.getComment().contains("canonical cash history"));
 
     @SuppressWarnings("unchecked")
-    ArgumentCaptor<Iterable<ClosedPosition>> closedCaptor =
-        (ArgumentCaptor<Iterable<ClosedPosition>>)
+    ArgumentCaptor<Iterable<PositionEntity>> closedCaptor =
+        (ArgumentCaptor<Iterable<PositionEntity>>)
             (ArgumentCaptor<?>) ArgumentCaptor.forClass(Iterable.class);
     verify(closedPositionRepository).saveAll(closedCaptor.capture());
-    List<ClosedPosition> closed = toList(closedCaptor.getValue());
+    List<PositionEntity> closed = toList(closedCaptor.getValue());
     assertEquals(1, closed.size());
     assertEquals("AAPL.US", closed.getFirst().getSymbol());
-    assertEquals(4.0, closed.getFirst().getVolume(), 0.01);
-    assertEquals(400.0, closed.getFirst().getPurchaseValue(), 0.01);
-    assertEquals(480.0, closed.getFirst().getSaleValue(), 0.01);
-    assertEquals(80.0, closed.getFirst().getProfit(), 0.01);
+    assertEquals(4.0, closed.getFirst().getVolume().doubleValue(), 0.01);
+    assertEquals(400.0, closed.getFirst().getPurchaseValue().doubleValue(), 0.01);
+    assertEquals(480.0, closed.getFirst().getSaleValue().doubleValue(), 0.01);
+    assertEquals(80.0, closed.getFirst().getProfit().doubleValue(), 0.01);
   }
 
+  @DisplayName("import Statement sets Explicit Currencies For Open Position Snapshot")
   @Test
   void importStatement_setsExplicitCurrenciesForOpenPositionSnapshot() throws Exception {
     String csv =
@@ -313,11 +326,11 @@ class IbkrImportHistoryServiceTest {
     service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
 
     @SuppressWarnings("unchecked")
-    ArgumentCaptor<Iterable<OpenedPosition>> positionCaptor =
-        (ArgumentCaptor<Iterable<OpenedPosition>>)
+    ArgumentCaptor<Iterable<PositionEntity>> positionCaptor =
+        (ArgumentCaptor<Iterable<PositionEntity>>)
             (ArgumentCaptor<?>) ArgumentCaptor.forClass(Iterable.class);
     verify(openedPositionRepository).saveAll(positionCaptor.capture());
-    OpenedPosition position = toList(positionCaptor.getValue()).getFirst();
+    PositionEntity position = toList(positionCaptor.getValue()).getFirst();
 
     assertEquals(CurrencyType.EUR, position.getPriceCurrency());
     assertEquals(CurrencyType.EUR, position.getCostCurrency());
@@ -325,6 +338,7 @@ class IbkrImportHistoryServiceTest {
     assertEquals(CurrencyType.EUR, position.getCommissionCurrency());
   }
 
+  @DisplayName("import Statement does Not Inflate Applied Rows With Open Position Snapshot")
   @Test
   void importStatement_doesNotInflateAppliedRowsWithOpenPositionSnapshot() throws Exception {
     String csv =
@@ -345,6 +359,7 @@ class IbkrImportHistoryServiceTest {
     assertTrue(result.details().contains("1 open positions"));
   }
 
+  @DisplayName("import Statement reconstructs Open Positions From Ibkr Alias Columns")
   @Test
   void importStatement_reconstructsOpenPositionsFromIbkrAliasColumns() throws Exception {
     String csv =
@@ -358,21 +373,22 @@ class IbkrImportHistoryServiceTest {
     service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
 
     @SuppressWarnings("unchecked")
-    ArgumentCaptor<Iterable<OpenedPosition>> positionCaptor =
-        (ArgumentCaptor<Iterable<OpenedPosition>>)
+    ArgumentCaptor<Iterable<PositionEntity>> positionCaptor =
+        (ArgumentCaptor<Iterable<PositionEntity>>)
             (ArgumentCaptor<?>) ArgumentCaptor.forClass(Iterable.class);
     verify(openedPositionRepository).saveAll(positionCaptor.capture());
-    List<OpenedPosition> positions = toList(positionCaptor.getValue());
+    List<PositionEntity> positions = toList(positionCaptor.getValue());
 
     assertEquals(1, positions.size());
-    OpenedPosition vwra = positions.getFirst();
+    PositionEntity vwra = positions.getFirst();
     assertEquals(17959259L, vwra.getAccount());
     assertEquals("VWRA.US", vwra.getSymbol());
-    assertEquals(10.0, vwra.getVolume(), 0.01);
-    assertEquals(1036.54, vwra.getPurchaseValue(), 0.01);
-    assertEquals(103.654, vwra.getOpenPrice(), 0.01);
+    assertEquals(10.0, vwra.getVolume().doubleValue(), 0.01);
+    assertEquals(1036.54, vwra.getPurchaseValue().doubleValue(), 0.01);
+    assertEquals(103.654, vwra.getOpenPrice().doubleValue(), 0.01);
   }
 
+  @DisplayName("import Statement uses Cash Currency Column When Present")
   @Test
   void importStatement_usesCashCurrencyColumnWhenPresent() throws Exception {
     String csv =
@@ -394,9 +410,10 @@ class IbkrImportHistoryServiceTest {
 
     assertEquals(1, operations.size());
     assertEquals(CurrencyType.EUR, operations.getFirst().getCurrency());
-    assertEquals(100.0, operations.getFirst().getAmount(), 0.01);
+    assertEquals(100.0, operations.getFirst().getAmount().doubleValue(), 0.01);
   }
 
+  @DisplayName("import Statement rejects Unknown Asset Instead Of Bootstrapping")
   @Test
   void importStatement_rejectsUnknownAssetInsteadOfBootstrapping() throws Exception {
     when(assetRepository.findAllByIbkrIgnoreCase("NVDA")).thenReturn(List.of());
@@ -417,6 +434,8 @@ class IbkrImportHistoryServiceTest {
     assertTrue(persistedCashOperations.isEmpty());
   }
 
+  @DisplayName(
+      "import Statement uses Statement Base Currency For Cash When Only Price Currency Is Present")
   @Test
   void importStatement_usesStatementBaseCurrencyForCashWhenOnlyPriceCurrencyIsPresent()
       throws Exception {
@@ -446,9 +465,10 @@ class IbkrImportHistoryServiceTest {
     assertEquals(1, operations.size());
     assertEquals(CashOperationType.STOCK_PURCHASE, operations.getFirst().getType());
     assertEquals(CurrencyType.USD, operations.getFirst().getCurrency());
-    assertEquals(-26.45, operations.getFirst().getAmount(), 0.0001);
+    assertEquals(-26.45, operations.getFirst().getAmount().doubleValue(), 0.0001);
   }
 
+  @DisplayName("import Statement maps Dividend Without Row Currency To Statement Base Currency")
   @Test
   void importStatement_mapsDividendWithoutRowCurrencyToStatementBaseCurrency() throws Exception {
     AssetEntity eurListed =
@@ -492,9 +512,10 @@ class IbkrImportHistoryServiceTest {
     assertEquals(1, operations.size());
     assertEquals(CashOperationType.DIVIDEND, operations.getFirst().getType());
     assertEquals(CurrencyType.USD, operations.getFirst().getCurrency());
-    assertEquals(3.99, operations.getFirst().getAmount(), 0.0001);
+    assertEquals(3.99, operations.getFirst().getAmount().doubleValue(), 0.0001);
   }
 
+  @DisplayName("import Statement maps Us Dividend Without Row Currency To Usd")
   @Test
   void importStatement_mapsUsDividendWithoutRowCurrencyToUsd() throws Exception {
     String csv =
@@ -522,9 +543,10 @@ class IbkrImportHistoryServiceTest {
     assertEquals(1, operations.size());
     assertEquals(CashOperationType.DIVIDEND, operations.getFirst().getType());
     assertEquals(CurrencyType.USD, operations.getFirst().getCurrency());
-    assertEquals(14.28, operations.getFirst().getAmount(), 0.0001);
+    assertEquals(14.28, operations.getFirst().getAmount().doubleValue(), 0.0001);
   }
 
+  @DisplayName("import Statement falls Back To Statement Base Currency For Symbol Less Row")
   @Test
   void importStatement_fallsBackToStatementBaseCurrencyForSymbolLessRow() throws Exception {
     String csv =
@@ -554,9 +576,11 @@ class IbkrImportHistoryServiceTest {
     assertEquals(1, operations.size());
     assertEquals(CashOperationType.FREE_FUNDS_INTEREST, operations.getFirst().getType());
     assertEquals(CurrencyType.USD, operations.getFirst().getCurrency());
-    assertEquals(0.10, operations.getFirst().getAmount(), 0.0001);
+    assertEquals(0.10, operations.getFirst().getAmount().doubleValue(), 0.0001);
   }
 
+  @DisplayName(
+      "import Statement does Not Use Configured Account Currency Without Statement Currency")
   @Test
   void importStatement_doesNotUseConfiguredAccountCurrencyWithoutStatementCurrency()
       throws Exception {
@@ -576,6 +600,7 @@ class IbkrImportHistoryServiceTest {
     assertTrue(persistedCashOperations.isEmpty());
   }
 
+  @DisplayName("import Statement rejects Unknown Broker Symbol")
   @Test
   void importStatement_rejectsUnknownBrokerSymbol() {
     when(assetRepository.findAllBySymbolIn(Set.of("UNKNOWN.US"))).thenReturn(List.of());
@@ -595,6 +620,7 @@ class IbkrImportHistoryServiceTest {
     assertTrue(exception.getMessage().contains("Unknown asset mapping"));
   }
 
+  @DisplayName("import Statement writes Exact Ibkr Trade Price To Asset Price History")
   @Test
   void importStatement_writesExactIbkrTradePriceToAssetPriceHistory() throws Exception {
     AssetEntity asset =
@@ -628,6 +654,7 @@ class IbkrImportHistoryServiceTest {
             41L, LocalDate.of(2026, 6, 10), "IUVL.UK", "IUVL", "USD", BigDecimal.valueOf(18.3577));
   }
 
+  @DisplayName("import Statement maps Corporate Action And Adjustment To Concrete Cash Types")
   @Test
   void importStatement_mapsCorporateActionAndAdjustmentToConcreteCashTypes() throws Exception {
     String csv =
@@ -657,6 +684,8 @@ class IbkrImportHistoryServiceTest {
     assertEquals(0, result.rowsFailed());
   }
 
+  @DisplayName(
+      "import Statement maps Ibkr Cash Transfer Deposit To Transfer Instead Of External Deposit")
   @Test
   void importStatement_mapsIbkrCashTransferDepositToTransferInsteadOfExternalDeposit()
       throws Exception {
@@ -681,6 +710,7 @@ class IbkrImportHistoryServiceTest {
     assertNull(operations.getFirst().getSymbol());
   }
 
+  @DisplayName("import Statement preserves Forex Metadata Without Using Pseudo Symbol As Asset Id")
   @Test
   void importStatement_preservesForexMetadataWithoutUsingPseudoSymbolAsAssetId() throws Exception {
     String csv =
@@ -711,6 +741,7 @@ class IbkrImportHistoryServiceTest {
     assertEquals(17959259L, operations.getFirst().getAccount());
   }
 
+  @DisplayName("import Statement compacts Long Bond Symbol Before Asset Insert")
   @Test
   void importStatement_compactsLongBondSymbolBeforeAssetInsert() throws Exception {
     String csv =
@@ -724,20 +755,21 @@ class IbkrImportHistoryServiceTest {
     service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
 
     @SuppressWarnings("unchecked")
-    ArgumentCaptor<Iterable<OpenedPosition>> positionCaptor =
-        (ArgumentCaptor<Iterable<OpenedPosition>>)
+    ArgumentCaptor<Iterable<PositionEntity>> positionCaptor =
+        (ArgumentCaptor<Iterable<PositionEntity>>)
             (ArgumentCaptor<?>) ArgumentCaptor.forClass(Iterable.class);
     verify(openedPositionRepository).saveAll(positionCaptor.capture());
-    List<OpenedPosition> positions = toList(positionCaptor.getValue());
+    List<PositionEntity> positions = toList(positionCaptor.getValue());
     assertEquals(1, positions.size());
     assertEquals("US91282CKB62", positions.getFirst().getSymbol());
-    assertEquals(8000.0, positions.getFirst().getVolume(), 0.01);
-    assertEquals(8039.09, positions.getFirst().getPurchaseValue(), 0.01);
-    assertEquals(1.00488625, positions.getFirst().getOpenPrice(), 0.00000001);
+    assertEquals(8000.0, positions.getFirst().getVolume().doubleValue(), 0.01);
+    assertEquals(8039.09, positions.getFirst().getPurchaseValue().doubleValue(), 0.01);
+    assertEquals(1.00488625, positions.getFirst().getOpenPrice().doubleValue(), 0.00000001);
     assertEquals("T 4 5/8 02/28/26", positions.getFirst().getSourceAssetSymbol());
     assertTrue(positions.getFirst().getAssetId() > 0);
   }
 
+  @DisplayName("import Statement removes Bond Closed By Final Call From Reconstructed Positions")
   @Test
   void importStatement_removesBondClosedByFinalCallFromReconstructedPositions() throws Exception {
     String csv =
@@ -760,27 +792,29 @@ class IbkrImportHistoryServiceTest {
     service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
 
     @SuppressWarnings("unchecked")
-    ArgumentCaptor<Iterable<OpenedPosition>> positionCaptor =
-        (ArgumentCaptor<Iterable<OpenedPosition>>)
+    ArgumentCaptor<Iterable<PositionEntity>> positionCaptor =
+        (ArgumentCaptor<Iterable<PositionEntity>>)
             (ArgumentCaptor<?>) ArgumentCaptor.forClass(Iterable.class);
     verify(openedPositionRepository).saveAll(positionCaptor.capture());
-    List<OpenedPosition> positions = toList(positionCaptor.getValue());
+    List<PositionEntity> positions = toList(positionCaptor.getValue());
 
-    assertEquals(2.0, positions.stream().mapToDouble(OpenedPosition::getVolume).sum(), 0.01);
+    assertEquals(2.0, positions.stream().mapToDouble(p -> p.getVolume().doubleValue()).sum(), 0.01);
     assertTrue(positions.stream().allMatch(position -> "VWRA.US".equals(position.getSymbol())));
     assertFalse(
         positions.stream().anyMatch(position -> "US91282CKB62".equals(position.getSymbol())));
 
     @SuppressWarnings("unchecked")
-    ArgumentCaptor<Iterable<ClosedPosition>> closedCaptor =
-        (ArgumentCaptor<Iterable<ClosedPosition>>)
+    ArgumentCaptor<Iterable<PositionEntity>> closedCaptor =
+        (ArgumentCaptor<Iterable<PositionEntity>>)
             (ArgumentCaptor<?>) ArgumentCaptor.forClass(Iterable.class);
     verify(closedPositionRepository).saveAll(closedCaptor.capture());
-    List<ClosedPosition> closed = toList(closedCaptor.getValue());
+    List<PositionEntity> closed = toList(closedCaptor.getValue());
     assertEquals(3, closed.size());
     assertTrue(closed.stream().allMatch(position -> "US91282CKB62".equals(position.getSymbol())));
-    assertEquals(10000.0, closed.stream().mapToDouble(ClosedPosition::getVolume).sum(), 0.01);
-    assertEquals(10000.0, closed.stream().mapToDouble(ClosedPosition::getSaleValue).sum(), 0.01);
+    assertEquals(
+        10000.0, closed.stream().mapToDouble(p -> p.getVolume().doubleValue()).sum(), 0.01);
+    assertEquals(
+        10000.0, closed.stream().mapToDouble(p -> p.getSaleValue().doubleValue()).sum(), 0.01);
     assertEquals(
         Set.of(LocalDate.of(2025, 3, 26), LocalDate.of(2025, 4, 17), LocalDate.of(2025, 5, 6)),
         closed.stream()
@@ -788,6 +822,7 @@ class IbkrImportHistoryServiceTest {
             .collect(Collectors.toSet()));
   }
 
+  @DisplayName("import Statement deletes Ibkr Positions When Transaction Reconstruction Ends Empty")
   @Test
   void importStatement_deletesIbkrPositionsWhenTransactionReconstructionEndsEmpty()
       throws Exception {
@@ -804,9 +839,10 @@ class IbkrImportHistoryServiceTest {
 
     service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
 
-    verify(openedPositionRepository).deleteByAccount(17959259L);
+    verify(openedPositionRepository).deleteOpenByAccount(17959259L);
   }
 
+  @DisplayName("import Statement uses Account Id From Filename Before Alias Column")
   @Test
   void importStatement_usesAccountIdFromFilenameBeforeAliasColumn() throws Exception {
     String csv =
@@ -828,6 +864,7 @@ class IbkrImportHistoryServiceTest {
     assertEquals(17959259L, operations.getFirst().getAccount());
   }
 
+  @DisplayName("import Statement keeps Alias Fallback When Filename Has No Account")
   @Test
   void importStatement_keepsAliasFallbackWhenFilenameHasNoAccount() throws Exception {
     String csv =
@@ -849,6 +886,8 @@ class IbkrImportHistoryServiceTest {
     assertEquals(18000001L, operations.getFirst().getAccount());
   }
 
+  @DisplayName(
+      "import Statement preserves Forex Trade Component Metadata Without Using Pseudo Asset Id")
   @Test
   void importStatement_preservesForexTradeComponentMetadataWithoutUsingPseudoAssetId()
       throws Exception {
@@ -878,8 +917,10 @@ class IbkrImportHistoryServiceTest {
     assertTrue(operation.getComment().contains("ibkrPrice=1.12"));
   }
 
+  @DisplayName(
+      "import Statement stores Commission Explicitly On Closed Position Without Changing Net Cash")
   @Test
-  void importStatement_storesCommissionExplicitlyOnClosedPositionWithoutChangingNetCash()
+  void importStatement_storesCommissionExplicitlyOnPositionEntityWithoutChangingNetCash()
       throws Exception {
     String csv =
         String.join(
@@ -892,17 +933,18 @@ class IbkrImportHistoryServiceTest {
     service.importStatement(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), null);
 
     @SuppressWarnings("unchecked")
-    ArgumentCaptor<Iterable<ClosedPosition>> closedCaptor =
-        (ArgumentCaptor<Iterable<ClosedPosition>>)
+    ArgumentCaptor<Iterable<PositionEntity>> closedCaptor =
+        (ArgumentCaptor<Iterable<PositionEntity>>)
             (ArgumentCaptor<?>) ArgumentCaptor.forClass(Iterable.class);
     verify(closedPositionRepository).saveAll(closedCaptor.capture());
-    List<ClosedPosition> closed = toList(closedCaptor.getValue());
+    List<PositionEntity> closed = toList(closedCaptor.getValue());
     assertEquals(1, closed.size());
-    assertEquals(-12.0, closed.getFirst().getCommission(), 0.0001);
-    assertEquals(1100.0, closed.getFirst().getSaleValue(), 0.0001);
-    assertEquals(100.0, closed.getFirst().getProfit(), 0.0001);
+    assertEquals(-12.0, closed.getFirst().getCommission().doubleValue(), 0.0001);
+    assertEquals(1100.0, closed.getFirst().getSaleValue().doubleValue(), 0.0001);
+    assertEquals(100.0, closed.getFirst().getProfit().doubleValue(), 0.0001);
   }
 
+  @DisplayName("import Statement rebuilds Positions Across Overlapping Incremental Imports")
   @Test
   void importStatement_rebuildsPositionsAcrossOverlappingIncrementalImports() throws Exception {
     String fileA =
@@ -927,17 +969,18 @@ class IbkrImportHistoryServiceTest {
         new ByteArrayInputStream(fileB.getBytes(StandardCharsets.UTF_8)), "B.csv");
 
     @SuppressWarnings("unchecked")
-    ArgumentCaptor<Iterable<OpenedPosition>> openCaptor =
-        (ArgumentCaptor<Iterable<OpenedPosition>>)
+    ArgumentCaptor<Iterable<PositionEntity>> openCaptor =
+        (ArgumentCaptor<Iterable<PositionEntity>>)
             (ArgumentCaptor<?>) ArgumentCaptor.forClass(Iterable.class);
     verify(openedPositionRepository, atLeastOnce()).saveAll(openCaptor.capture());
-    List<OpenedPosition> latest = toList(openCaptor.getAllValues().getLast());
+    List<PositionEntity> latest = toList(openCaptor.getAllValues().getLast());
 
     assertEquals(404.0, volumeFor(latest, "JGPI.US"), 0.0001);
     assertEquals(146.0, volumeFor(latest, "VWRA.US"), 0.0001);
     assertEquals(0.0, volumeFor(latest, "IUVL.UK"), 0.0001);
   }
 
+  @DisplayName("import Statement rejects Sell Without Historical Inventory")
   @Test
   void importStatement_rejectsSellWithoutHistoricalInventory() throws Exception {
     String fileB =
@@ -956,6 +999,8 @@ class IbkrImportHistoryServiceTest {
                 new ByteArrayInputStream(fileB.getBytes(StandardCharsets.UTF_8)), "B.csv"));
   }
 
+  @DisplayName(
+      "import Statement ignores Stale Snapshot Rows When Canonical History Shows Symbol Closed")
   @Test
   void importStatement_ignoresStaleSnapshotRowsWhenCanonicalHistoryShowsSymbolClosed()
       throws Exception {
@@ -980,21 +1025,21 @@ class IbkrImportHistoryServiceTest {
         new ByteArrayInputStream(fileB.getBytes(StandardCharsets.UTF_8)), "B.csv");
 
     @SuppressWarnings("unchecked")
-    ArgumentCaptor<Iterable<OpenedPosition>> openCaptor =
-        (ArgumentCaptor<Iterable<OpenedPosition>>)
+    ArgumentCaptor<Iterable<PositionEntity>> openCaptor =
+        (ArgumentCaptor<Iterable<PositionEntity>>)
             (ArgumentCaptor<?>) ArgumentCaptor.forClass(Iterable.class);
     verify(openedPositionRepository, atLeastOnce()).saveAll(openCaptor.capture());
-    List<OpenedPosition> latest = toList(openCaptor.getAllValues().getLast());
+    List<PositionEntity> latest = toList(openCaptor.getAllValues().getLast());
 
     assertEquals(0.0, volumeFor(latest, "AAPL.US"), 0.0001);
     assertEquals(10.0, volumeFor(latest, "JGPI.US"), 0.0001);
 
     @SuppressWarnings("unchecked")
-    ArgumentCaptor<Iterable<ClosedPosition>> closedCaptor =
-        (ArgumentCaptor<Iterable<ClosedPosition>>)
+    ArgumentCaptor<Iterable<PositionEntity>> closedCaptor =
+        (ArgumentCaptor<Iterable<PositionEntity>>)
             (ArgumentCaptor<?>) ArgumentCaptor.forClass(Iterable.class);
     verify(closedPositionRepository, atLeastOnce()).saveAll(closedCaptor.capture());
-    List<ClosedPosition> closed = toList(closedCaptor.getAllValues().getLast());
+    List<PositionEntity> closed = toList(closedCaptor.getAllValues().getLast());
 
     assertEquals(
         1, closed.stream().filter(position -> "AAPL.US".equals(position.getSymbol())).count());
@@ -1002,15 +1047,15 @@ class IbkrImportHistoryServiceTest {
         4.0,
         closed.stream()
             .filter(position -> "AAPL.US".equals(position.getSymbol()))
-            .mapToDouble(ClosedPosition::getVolume)
+            .mapToDouble(p -> p.getVolume().doubleValue())
             .sum(),
         0.0001);
   }
 
-  private static double volumeFor(List<OpenedPosition> positions, String symbol) {
+  private static double volumeFor(List<PositionEntity> positions, String symbol) {
     return positions.stream()
         .filter(position -> symbol.equals(position.getSymbol()))
-        .mapToDouble(OpenedPosition::getVolume)
+        .mapToDouble(p -> p.getVolume().doubleValue())
         .sum();
   }
 

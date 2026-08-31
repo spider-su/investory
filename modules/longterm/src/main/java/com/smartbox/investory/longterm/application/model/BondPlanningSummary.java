@@ -1,6 +1,6 @@
 package com.smartbox.investory.longterm.application.model;
 
-import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
+import com.smartbox.investory.longterm.api.model.InterestTreatment;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 

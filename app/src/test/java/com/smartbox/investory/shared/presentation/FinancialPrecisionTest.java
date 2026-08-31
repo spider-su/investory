@@ -3,10 +3,13 @@ package com.smartbox.investory.shared.presentation;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.math.BigDecimal;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Financial Precision")
 class FinancialPrecisionTest {
 
+  @DisplayName("money Uses Half Up For Positive And Negative Half Cents")
   @Test
   void moneyUsesHalfUpForPositiveAndNegativeHalfCents() {
     assertEquals(new BigDecimal("100.00"), FinancialPrecision.money(new BigDecimal("100.004")));
@@ -14,6 +17,7 @@ class FinancialPrecisionTest {
     assertEquals(new BigDecimal("-100.01"), FinancialPrecision.money(new BigDecimal("-100.005")));
   }
 
+  @DisplayName("money Rounds Only After Aggregation")
   @Test
   void moneyRoundsOnlyAfterAggregation() {
     BigDecimal aggregate = new BigDecimal("100.004").add(new BigDecimal("0.004"));
@@ -21,6 +25,7 @@ class FinancialPrecisionTest {
     assertEquals(new BigDecimal("100.01"), FinancialPrecision.money(aggregate));
   }
 
+  @DisplayName("rates And Percentages Use Different Scales")
   @Test
   void ratesAndPercentagesUseDifferentScales() {
     assertEquals(new BigDecimal("1.234568"), FinancialPrecision.rate(new BigDecimal("1.2345678")));
@@ -31,6 +36,7 @@ class FinancialPrecisionTest {
         new BigDecimal("12.3457"), FinancialPrecision.returnPercentage(new BigDecimal("12.34567")));
   }
 
+  @DisplayName("quantities Are Not Passed Through Money Policy")
   @Test
   void quantitiesAreNotPassedThroughMoneyPolicy() {
     BigDecimal quantity = new BigDecimal("10.123456");
@@ -39,6 +45,7 @@ class FinancialPrecisionTest {
     assertEquals(new BigDecimal("10.12"), FinancialPrecision.money(quantity));
   }
 
+  @DisplayName("ratio Preserves Calculation Precision Until Display")
   @Test
   void ratioPreservesCalculationPrecisionUntilDisplay() {
     BigDecimal ratio = FinancialPrecision.ratio(new BigDecimal("1"), new BigDecimal("3"));

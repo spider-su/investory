@@ -4,19 +4,25 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Real Estate Rental Contract Template Contract")
 class RealEstateRentalContractTemplateContractTest {
   private static final Path TEMPLATE =
       Path.of("../adapters/web-ui/src/main/resources/templates/real-estate-detail.html");
   private static final Path CSS =
       Path.of("../adapters/web-ui/src/main/resources/static/css/asset-detail.css");
 
+  @DisplayName("contract Management Is Accordion First And Complete")
   @Test
   void contractManagementIsAccordionFirstAndComplete() throws Exception {
     String html = Files.readString(TEMPLATE);
+    String script =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/static/js/real-estate-detail.js"));
 
-    assertThat(html)
+    assertThat(html + script)
         .contains(
             "iv-property-hero__metrics",
             "Monthly net income",
@@ -51,12 +57,16 @@ class RealEstateRentalContractTemplateContractTest {
         .isLessThan(html.indexOf("<span class=\"card-title mb-0\">Advanced planning</span>"));
   }
 
+  @DisplayName("page Local Script And Responsive Css Keep Accordion Accessible And Scoped")
   @Test
   void pageLocalScriptAndResponsiveCssKeepAccordionAccessibleAndScoped() throws Exception {
     String html = Files.readString(TEMPLATE);
     String css = Files.readString(CSS);
+    String script =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/static/js/real-estate-detail.js"));
 
-    assertThat(html)
+    assertThat(html + script)
         .contains(
             "addEventListener('toggle'",
             "other.open = false",
@@ -72,6 +82,7 @@ class RealEstateRentalContractTemplateContractTest {
             ".iv-property-page { overflow-x: hidden; }");
   }
 
+  @DisplayName("contract Form Fields Are Safe When Form Model Is Missing")
   @Test
   void contractFormFieldsAreSafeWhenFormModelIsMissing() throws Exception {
     String html = Files.readString(TEMPLATE);

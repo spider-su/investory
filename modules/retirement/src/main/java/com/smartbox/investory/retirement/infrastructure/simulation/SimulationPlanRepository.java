@@ -1,5 +1,6 @@
 package com.smartbox.investory.retirement.infrastructure.simulation;
 
+import com.smartbox.investory.retirement.api.model.*;
 import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
@@ -9,7 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface SimulationPlanRepository extends JpaRepository<SimulationPlanEntity, Long> {
-  List<SimulationPlanEntity> findAllByPortfolioIdOrderByName(Long portfolioId);
+  List<SimulationPlanEntity> findAllByPortfolioIdAndArchivedFalseOrderByName(Long portfolioId);
 
   Optional<SimulationPlanEntity> findFirstByPortfolioIdAndArchivedFalseOrderByUpdatedAtDescIdDesc(
       Long portfolioId);

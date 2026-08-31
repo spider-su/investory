@@ -125,252 +125,128 @@ public class AccountStatisticsEntity {
   @Column(name = "updated_at", nullable = false)
   private ZonedDateTime updatedAt;
 
-  public Double getTotalDeposit() {
-    return asDouble(totalDeposit);
+  public BigDecimal getTotalDeposit() {
+    return totalDeposit;
   }
 
   public void setTotalDeposit(BigDecimal totalDeposit) {
     this.totalDeposit = scaleDecimal(totalDeposit);
   }
 
-  public void setTotalDeposit(Double totalDeposit) {
-    this.totalDeposit = scaleDecimal(totalDeposit);
-  }
-
-  public void setTotalDeposit(double totalDeposit) {
-    this.totalDeposit = scaleDecimal(totalDeposit);
-  }
-
-  public Double getTotalWithdrawal() {
-    return asDouble(totalWithdrawal);
+  public BigDecimal getTotalWithdrawal() {
+    return totalWithdrawal;
   }
 
   public void setTotalWithdrawal(BigDecimal totalWithdrawal) {
     this.totalWithdrawal = scaleDecimal(totalWithdrawal);
   }
 
-  public void setTotalWithdrawal(Double totalWithdrawal) {
-    this.totalWithdrawal = scaleDecimal(totalWithdrawal);
-  }
-
-  public void setTotalWithdrawal(double totalWithdrawal) {
-    this.totalWithdrawal = scaleDecimal(totalWithdrawal);
-  }
-
-  public Double getNetDeposit() {
-    return asDouble(netDeposit);
+  public BigDecimal getNetDeposit() {
+    return netDeposit;
   }
 
   public void setNetDeposit(BigDecimal netDeposit) {
     this.netDeposit = scaleDecimal(netDeposit);
   }
 
-  public void setNetDeposit(Double netDeposit) {
-    this.netDeposit = scaleDecimal(netDeposit);
-  }
-
-  public void setNetDeposit(double netDeposit) {
-    this.netDeposit = scaleDecimal(netDeposit);
-  }
-
-  public Double getAccountNetDeposit() {
-    return asDouble(accountNetDeposit);
+  public BigDecimal getAccountNetDeposit() {
+    return accountNetDeposit;
   }
 
   public void setAccountNetDeposit(BigDecimal accountNetDeposit) {
     this.accountNetDeposit = scaleDecimal(accountNetDeposit);
   }
 
-  public void setAccountNetDeposit(Double accountNetDeposit) {
-    this.accountNetDeposit = scaleDecimal(accountNetDeposit);
-  }
-
-  public void setAccountNetDeposit(double accountNetDeposit) {
-    this.accountNetDeposit = scaleDecimal(accountNetDeposit);
-  }
-
-  public Double getCashBalance() {
-    return asDouble(cashBalance);
+  public BigDecimal getCashBalance() {
+    return cashBalance;
   }
 
   public void setCashBalance(BigDecimal cashBalance) {
     this.cashBalance = scaleDecimal(cashBalance);
   }
 
-  public void setCashBalance(Double cashBalance) {
-    this.cashBalance = scaleDecimal(cashBalance);
-  }
-
-  public void setCashBalance(double cashBalance) {
-    this.cashBalance = scaleDecimal(cashBalance);
-  }
-
-  public Double getMarketValue() {
-    return asDouble(marketValue);
+  public BigDecimal getMarketValue() {
+    return marketValue;
   }
 
   public void setMarketValue(BigDecimal marketValue) {
     this.marketValue = scaleDecimal(marketValue);
   }
 
-  public void setMarketValue(Double marketValue) {
-    this.marketValue = scaleDecimal(marketValue);
-  }
-
-  public void setMarketValue(double marketValue) {
-    this.marketValue = scaleDecimal(marketValue);
-  }
-
-  public Double getEquity() {
-    return asDouble(equity);
+  public BigDecimal getEquity() {
+    return equity;
   }
 
   public void setEquity(BigDecimal equity) {
     this.equity = scaleDecimal(equity);
   }
 
-  public void setEquity(Double equity) {
-    this.equity = scaleDecimal(equity);
-  }
-
-  public void setEquity(double equity) {
-    this.equity = scaleDecimal(equity);
-  }
-
-  public Double getCostBase() {
-    return asDouble(costBase);
+  public BigDecimal getCostBase() {
+    return costBase;
   }
 
   public void setCostBase(BigDecimal costBase) {
     this.costBase = scaleDecimal(costBase);
   }
 
-  public void setCostBase(Double costBase) {
-    this.costBase = scaleDecimal(costBase);
-  }
-
-  public void setCostBase(double costBase) {
-    this.costBase = scaleDecimal(costBase);
-  }
-
-  public Double getRealizedProfit() {
-    return asDouble(realizedProfit);
+  public BigDecimal getRealizedProfit() {
+    return realizedProfit;
   }
 
   public void setRealizedProfit(BigDecimal realizedProfit) {
     this.realizedProfit = scaleDecimal(realizedProfit);
   }
 
-  public void setRealizedProfit(Double realizedProfit) {
-    this.realizedProfit = scaleDecimal(realizedProfit);
-  }
-
-  public void setRealizedProfit(double realizedProfit) {
-    this.realizedProfit = scaleDecimal(realizedProfit);
-  }
-
-  public Double getUnrealizedProfit() {
-    return asDouble(unrealizedProfit);
+  public BigDecimal getUnrealizedProfit() {
+    return unrealizedProfit;
   }
 
   public void setUnrealizedProfit(BigDecimal unrealizedProfit) {
     this.unrealizedProfit = scaleDecimal(unrealizedProfit);
   }
 
-  public void setUnrealizedProfit(Double unrealizedProfit) {
-    this.unrealizedProfit = scaleDecimal(unrealizedProfit);
-  }
-
-  public void setUnrealizedProfit(double unrealizedProfit) {
-    this.unrealizedProfit = scaleDecimal(unrealizedProfit);
-  }
-
-  public Double getDividends() {
-    return asDouble(dividends);
+  public BigDecimal getDividends() {
+    return dividends;
   }
 
   public void setDividends(BigDecimal dividends) {
     this.dividends = scaleDecimal(dividends);
   }
 
-  public void setDividends(Double dividends) {
-    this.dividends = scaleDecimal(dividends);
-  }
-
-  public void setDividends(double dividends) {
-    this.dividends = scaleDecimal(dividends);
-  }
-
-  public Double getInterest() {
-    return asDouble(interest);
+  public BigDecimal getInterest() {
+    return interest;
   }
 
   public void setInterest(BigDecimal interest) {
     this.interest = scaleDecimal(interest);
   }
 
-  public void setInterest(Double interest) {
-    this.interest = scaleDecimal(interest);
-  }
-
-  public void setInterest(double interest) {
-    this.interest = scaleDecimal(interest);
-  }
-
-  public Double getFees() {
-    return asDouble(fees);
+  public BigDecimal getFees() {
+    return fees;
   }
 
   public void setFees(BigDecimal fees) {
     this.fees = scaleDecimal(fees);
   }
 
-  public void setFees(Double fees) {
-    this.fees = scaleDecimal(fees);
-  }
-
-  public void setFees(double fees) {
-    this.fees = scaleDecimal(fees);
-  }
-
-  public Double getTaxes() {
-    return asDouble(taxes);
+  public BigDecimal getTaxes() {
+    return taxes;
   }
 
   public void setTaxes(BigDecimal taxes) {
     this.taxes = scaleDecimal(taxes);
   }
 
-  public void setTaxes(Double taxes) {
-    this.taxes = scaleDecimal(taxes);
-  }
-
-  public void setTaxes(double taxes) {
-    this.taxes = scaleDecimal(taxes);
-  }
-
-  public Double getLatestReturnPct() {
-    return asDouble(latestReturnPct);
+  public BigDecimal getLatestReturnPct() {
+    return latestReturnPct;
   }
 
   public void setLatestReturnPct(BigDecimal latestReturnPct) {
     this.latestReturnPct = scaleDecimal(latestReturnPct);
   }
 
-  public void setLatestReturnPct(Double latestReturnPct) {
-    this.latestReturnPct = scaleDecimal(latestReturnPct);
-  }
-
-  public void setLatestReturnPct(double latestReturnPct) {
-    this.latestReturnPct = scaleDecimal(latestReturnPct);
-  }
-
   private static BigDecimal scaleDecimal(BigDecimal value) {
     return value == null ? null : value.setScale(8, RoundingMode.HALF_UP);
-  }
-
-  private static BigDecimal scaleDecimal(Double value) {
-    return value == null ? null : scaleDecimal(BigDecimal.valueOf(value));
   }
 
   private static BigDecimal scaleDecimal(double value) {

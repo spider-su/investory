@@ -7,19 +7,30 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.smartbox.investory.longterm.api.model.*;
+import com.smartbox.investory.longterm.api.model.LongTermAssetType;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetEntity;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.DisplayName;
 
+@DisplayName("Long Term Assets Facade Crud")
 class LongTermAssetsFacadeCrudTest {
+  private static LongTermAssetsFacade facade(
+      LongTermAssetQueryService queries,
+      LongTermAssetCommandService commands,
+      RentalContractService contracts) {
+    return new LongTermAssetsFacade(
+        queries, mock(LongTermAssetAnnualSnapshotService.class), commands, contracts);
+  }
 
   @org.junit.jupiter.api.Test
   void bondCrudPersistsYieldAsDecimalRatePeriod() {
-    var service = mock(LongTermAssetService.class);
+    var queries = mock(LongTermAssetQueryService.class);
+    var commands = mock(LongTermAssetCommandService.class);
     var contracts = mock(RentalContractService.class);
     var stored = new LongTermAssetEntity();
     stored.setId(8L);
@@ -28,11 +39,11 @@ class LongTermAssetsFacadeCrudTest {
     stored.setName("Bond");
     stored.setCurrency(CurrencyType.PLN);
     stored.setCurrentValue(new BigDecimal("150000"));
-    when(service.save(any(LongTermAssetEntity.class))).thenReturn(stored);
+    when(commands.save(any(LongTermAssetEntity.class))).thenReturn(stored);
 
-    var facade = new LongTermAssetsFacade(service, contracts);
+    var facade = facade(queries, commands, contracts);
     facade.createBond(
-        new LongTermAssetsFacade.BondCommand(
+        new com.smartbox.investory.longterm.api.model.BondCommand(
             1L,
             null,
             "Bond",
@@ -40,26 +51,27 @@ class LongTermAssetsFacadeCrudTest {
             new BigDecimal("150000"),
             LocalDate.of(2025, 1, 1),
             LocalDate.of(2028, 1, 1),
-            com.smartbox.investory.longterm.infrastructure.InterestTreatment.CAPITALIZE,
-            new BigDecimal("6.25"),
+            com.smartbox.investory.longterm.api.model.InterestTreatment.CAPITALIZE,
+            new BigDecimal("0.0625"),
             null));
 
-    verify(service)
+    verify(commands)
         .saveSimpleBond(
             1L,
             8L,
             new BigDecimal("0.0625"),
             LocalDate.of(2028, 1, 1),
-            com.smartbox.investory.longterm.infrastructure.InterestTreatment.CAPITALIZE);
+            com.smartbox.investory.longterm.api.model.InterestTreatment.CAPITALIZE);
   }
 
   @org.junit.jupiter.api.Test
   void genericWorkflowSupportsOnlyOtherAssets() {
     LongTermAssetType type = LongTermAssetType.OTHER;
-    var service = mock(LongTermAssetService.class);
+    var queries = mock(LongTermAssetQueryService.class);
+    var commands = mock(LongTermAssetCommandService.class);
     var contracts = mock(RentalContractService.class);
     var stored = new AtomicReference<LongTermAssetEntity>();
-    when(service.save(any(LongTermAssetEntity.class)))
+    when(commands.save(any(LongTermAssetEntity.class)))
         .thenAnswer(
             invocation -> {
               LongTermAssetEntity asset = invocation.getArgument(0);
@@ -67,9 +79,9 @@ class LongTermAssetsFacadeCrudTest {
               stored.set(asset);
               return asset;
             });
-    when(service.get(1L, 7L)).thenAnswer(invocation -> Optional.ofNullable(stored.get()));
+    when(queries.get(1L, 7L)).thenAnswer(invocation -> Optional.ofNullable(stored.get()));
 
-    var facade = new LongTermAssetsFacade(service, contracts);
+    var facade = facade(queries, commands, contracts);
     var created = facade.create(command(type, null, "Created " + type));
 
     assertThat(created.id()).isEqualTo(7L);
@@ -85,28 +97,30 @@ class LongTermAssetsFacadeCrudTest {
     facade.update(command(type, 7L, "Updated " + type));
     assertThat(stored.get().getName()).isEqualTo("Updated " + type);
     assertThat(stored.get().getCurrentValue()).isEqualByComparingTo("1500");
-    verify(service, times(2)).save(stored.get());
+    verify(commands, times(2)).save(stored.get());
 
     facade.archive(1L, 7L);
-    verify(service).archive(1L, 7L);
+    verify(commands).archive(1L, 7L);
     facade.reactivate(1L, 7L);
-    verify(service).reactivate(1L, 7L);
+    verify(commands).reactivate(1L, 7L);
   }
 
   @org.junit.jupiter.api.Test
   void genericWorkflowRejectsSpecializedAssets() {
     var facade =
-        new LongTermAssetsFacade(
-            mock(LongTermAssetService.class), mock(RentalContractService.class));
+        facade(
+            mock(LongTermAssetQueryService.class),
+            mock(LongTermAssetCommandService.class),
+            mock(RentalContractService.class));
     org.assertj.core.api.Assertions.assertThatThrownBy(
             () -> facade.create(command(LongTermAssetType.BOND, null, "Bond")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("subtype workflow");
   }
 
-  private static LongTermAssetsFacade.AssetCommand command(
+  private static com.smartbox.investory.longterm.api.model.AssetCommand command(
       LongTermAssetType type, Long id, String name) {
-    return new LongTermAssetsFacade.AssetCommand(
+    return new com.smartbox.investory.longterm.api.model.AssetCommand(
         1L,
         id,
         name,
@@ -117,6 +131,7 @@ class LongTermAssetsFacadeCrudTest {
         new BigDecimal(id == null ? "1200" : "1500"),
         null,
         true,
-        "notes");
+        "notes",
+        false);
   }
 }

@@ -1,12 +1,14 @@
 package com.smartbox.investory.retirement.planning;
 
-import com.smartbox.investory.retirement.simulation.AnalysisAvailability;
+import com.smartbox.investory.retirement.api.RetirementAnalysisApi;
+import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.api.model.AnalysisAvailability;
+import com.smartbox.investory.retirement.api.model.PlanSustainabilityAssessment;
+import com.smartbox.investory.retirement.api.model.SimulationChartData;
+import com.smartbox.investory.retirement.api.model.SimulationEvaluation;
+import com.smartbox.investory.retirement.api.model.SimulationScenario;
 import com.smartbox.investory.retirement.simulation.DeterministicAnalysisContext;
-import com.smartbox.investory.retirement.simulation.PlanSustainabilityAssessment;
 import com.smartbox.investory.retirement.simulation.RetirementAgeAnalysisService;
-import com.smartbox.investory.retirement.simulation.SimulationChartData;
-import com.smartbox.investory.retirement.simulation.SimulationEvaluation;
-import com.smartbox.investory.retirement.simulation.SimulationScenario;
 import com.smartbox.investory.retirement.simulation.SimulationSensitivityAnalysisService;
 import com.smartbox.investory.retirement.simulation.SustainableSpendingAnalysisService;
 import java.util.EnumMap;
@@ -15,7 +17,7 @@ import org.springframework.stereotype.Service;
 
 /** Orchestrates derived retirement analysis without rebuilding the base projection pipeline. */
 @Service
-public class RetirementAnalysisService {
+public class RetirementAnalysisService implements RetirementAnalysisApi {
   private final SustainableSpendingAnalysisService sustainableSpending;
   private final SimulationSensitivityAnalysisService sensitivity;
   private final RetirementAgeAnalysisService retirementAge;
@@ -56,9 +58,9 @@ public class RetirementAnalysisService {
 
   /** Analysis hides the engine's zero-delta Custom compatibility result. */
   private static Map<
-          SimulationScenario, com.smartbox.investory.retirement.simulation.SimulationResult>
+          SimulationScenario, com.smartbox.investory.retirement.api.model.SimulationResult>
       analysisScenarios(RetirementProjectionContext projection) {
-    Map<SimulationScenario, com.smartbox.investory.retirement.simulation.SimulationResult> result =
+    Map<SimulationScenario, com.smartbox.investory.retirement.api.model.SimulationResult> result =
         new EnumMap<>(SimulationScenario.class);
     result.putAll(projection.scenarioResults());
     var base = result.get(SimulationScenario.BASE);

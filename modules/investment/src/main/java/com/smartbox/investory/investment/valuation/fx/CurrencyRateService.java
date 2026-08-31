@@ -15,7 +15,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.OptionalDouble;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Matcher;
@@ -102,7 +101,7 @@ public class CurrencyRateService implements CurrencyConversion {
           currencyRate.setRateDate(date);
           currencyRate.setSource("EXCHANGERATE_HOST");
           currencyRate.setMethod("MARKET_DAILY");
-          currencyRate.setRate(rate);
+          currencyRate.setRate(rate == null ? null : BigDecimal.valueOf(rate));
           currencyRateRepository.save(currencyRate);
         });
     clearValuationResolutionCache();
@@ -236,7 +235,7 @@ public class CurrencyRateService implements CurrencyConversion {
     }
     if (sourceCurrency == targetCurrency) {
       return new FxRateResolution(
-          BigDecimal.ONE.setScale(FX_SCALE),
+          BigDecimal.ONE.setScale(FX_SCALE, RoundingMode.UNNECESSARY),
           "SAME_CURRENCY",
           transactionTime.toLocalDate(),
           0,
@@ -253,7 +252,7 @@ public class CurrencyRateService implements CurrencyConversion {
     CurrencyRateEntity rate = observation.get();
     boolean direct = rate.getBase() == sourceCurrency && rate.getToCurrency() == targetCurrency;
     BigDecimal resolvedRate =
-        direct ? rate.getRateValue() : BigDecimal.ONE.divide(rate.getRateValue(), FX_MATH_CONTEXT);
+        direct ? rate.getRate() : BigDecimal.ONE.divide(rate.getRate(), FX_MATH_CONTEXT);
     return new FxRateResolution(
         resolvedRate.setScale(FX_SCALE, RoundingMode.HALF_UP),
         "EXECUTION:" + rate.getSource(),
@@ -266,28 +265,20 @@ public class CurrencyRateService implements CurrencyConversion {
 
   private FxRateResolution missingTransactionRate(ZonedDateTime transactionTime) {
     return new FxRateResolution(
-        BigDecimal.ZERO.setScale(FX_SCALE), "MISSING", null, null, "MISSING_RATE", null, null);
+        BigDecimal.ZERO.setScale(FX_SCALE, RoundingMode.UNNECESSARY),
+        "MISSING",
+        null,
+        null,
+        "MISSING_RATE",
+        null,
+        null);
   }
 
-  public double getRate(CurrencyType base, CurrencyType toCurrency) {
-    return getRate(base, toCurrency, LocalDate.now());
-  }
-
-  public OptionalDouble findRate(CurrencyType base, CurrencyType toCurrency) {
+  public Optional<BigDecimal> findRate(CurrencyType base, CurrencyType toCurrency) {
     return findRate(base, toCurrency, LocalDate.now());
   }
 
-  public OptionalDouble findRate(CurrencyType base, CurrencyType toCurrency, LocalDate date) {
-    Optional<BigDecimal> rate = findRateDecimal(base, toCurrency, date);
-    return rate.isPresent() ? OptionalDouble.of(rate.get().doubleValue()) : OptionalDouble.empty();
-  }
-
-  public Optional<BigDecimal> findRateDecimal(CurrencyType base, CurrencyType toCurrency) {
-    return findRateDecimal(base, toCurrency, LocalDate.now());
-  }
-
-  public Optional<BigDecimal> findRateDecimal(
-      CurrencyType base, CurrencyType toCurrency, LocalDate date) {
+  public Optional<BigDecimal> findRate(CurrencyType base, CurrencyType toCurrency, LocalDate date) {
     FxRateResolution resolution = resolveRate(base, toCurrency, date);
     if (!resolution.isUsable()) {
       return Optional.empty();
@@ -295,12 +286,8 @@ public class CurrencyRateService implements CurrencyConversion {
     return Optional.of(resolution.fxRateToTarget());
   }
 
-  public double getRate(CurrencyType base, CurrencyType toCurrency, LocalDate date) {
-    return getRateDecimal(base, toCurrency, date).doubleValue();
-  }
-
-  public BigDecimal getRateDecimal(CurrencyType base, CurrencyType toCurrency, LocalDate date) {
-    return findRateDecimal(base, toCurrency, date)
+  public BigDecimal getRate(CurrencyType base, CurrencyType toCurrency, LocalDate date) {
+    return findRate(base, toCurrency, date)
         .orElseThrow(
             () ->
                 new RuntimeException(
@@ -312,7 +299,7 @@ public class CurrencyRateService implements CurrencyConversion {
     LocalDate effectiveDate = valuationDate == null ? LocalDate.now() : valuationDate;
     if (sourceCurrency == targetCurrency) {
       return new FxRateResolution(
-          BigDecimal.ONE.setScale(FX_SCALE),
+          BigDecimal.ONE.setScale(FX_SCALE, RoundingMode.UNNECESSARY),
           "SAME_CURRENCY",
           effectiveDate,
           0,

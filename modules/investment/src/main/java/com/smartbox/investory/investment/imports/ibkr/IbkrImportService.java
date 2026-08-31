@@ -14,7 +14,7 @@ import com.smartbox.investory.investment.ledger.cash.CashOperationType;
 import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationEntity;
 import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationRepository;
 import com.smartbox.investory.investment.ledger.position.PositionType;
-import com.smartbox.investory.investment.ledger.position.persistence.OpenedPosition;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
 import com.smartbox.investory.investment.reporting.ReportingDateHelper;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryRepository;
@@ -61,6 +61,7 @@ public class IbkrImportService {
   private final AssetCatalogService assetCatalogService;
   private final IbkrPositionReconstructionService ibkrPositionReconstructionService;
   private final ImportSourceEvidenceService sourceEvidenceService;
+  private final CurrencyRateService currencyRateService;
 
   @Autowired
   public IbkrImportService(
@@ -70,7 +71,8 @@ public class IbkrImportService {
       AccountRepository accountRepository,
       AssetCatalogService assetCatalogService,
       IbkrPositionReconstructionService ibkrPositionReconstructionService,
-      ImportSourceEvidenceService sourceEvidenceService) {
+      ImportSourceEvidenceService sourceEvidenceService,
+      CurrencyRateService currencyRateService) {
     this.cashOperationRepository = cashOperationRepository;
     this.assetPriceHistoryRepository = assetPriceHistoryRepository;
     this.assetRepository = assetRepository;
@@ -78,28 +80,8 @@ public class IbkrImportService {
     this.assetCatalogService = assetCatalogService;
     this.ibkrPositionReconstructionService = ibkrPositionReconstructionService;
     this.sourceEvidenceService = sourceEvidenceService;
+    this.currencyRateService = currencyRateService;
   }
-
-  /** Source-compatible constructor for unit tests that exercise parsing without orchestration. */
-  public IbkrImportService(
-      CashOperationRepository cashOperationRepository,
-      AssetPriceHistoryRepository assetPriceHistoryRepository,
-      AssetRepository assetRepository,
-      AccountRepository accountRepository,
-      AssetCatalogService assetCatalogService,
-      IbkrPositionReconstructionService ibkrPositionReconstructionService) {
-    this(
-        cashOperationRepository,
-        assetPriceHistoryRepository,
-        assetRepository,
-        accountRepository,
-        assetCatalogService,
-        ibkrPositionReconstructionService,
-        null);
-  }
-
-  @org.springframework.beans.factory.annotation.Autowired
-  private CurrencyRateService currencyRateService;
 
   /**
    * Imports one statement atomically; valid rows may report PARTIAL when other source rows fail.
@@ -179,16 +161,14 @@ public class IbkrImportService {
         int occurrence = dedup.merge(key, 1, Integer::sum);
         op.setId(BrokerSourceRowIdentity.id(key, occurrence));
         Long sourceRowId =
-            sourceEvidenceService == null
-                ? null
-                : sourceEvidenceService.recordRow(
-                    SECTION,
-                    null,
-                    rowIndex + 1,
-                    value(r, col, "Transaction ID", "TransactionID", "Trade ID", "TradeID"),
-                    occurrence,
-                    String.join(",", r),
-                    rawRowValues(r, col));
+            sourceEvidenceService.recordRow(
+                SECTION,
+                null,
+                rowIndex + 1,
+                value(r, col, "Transaction ID", "TransactionID", "Trade ID", "TradeID"),
+                occurrence,
+                String.join(",", r),
+                rawRowValues(r, col));
         ImportEvidenceContext context = ImportEvidenceContext.current();
         op.setImportSourceRowId(sourceRowId);
         op.setImportHistoryId(context == null ? null : context.importHistoryId());
@@ -199,15 +179,13 @@ public class IbkrImportService {
           op.setSourceAssetSymbol(rawSymbol(rawSymbol));
           op.setBrokerSymbol(rawSymbol(rawSymbol));
         }
-        op.setAmount(net);
+        op.setAmount(decimal(net));
         op.setCurrency(currency);
         op.setComment(
             buildOperationComment(
                 type, rawSymbol, description, quantity, price, grossAmount, commission));
         op.setDate(date);
-        if (currencyRateService != null
-            && isForexTradeComponent(type, rawSymbol, description)
-            && price != null) {
+        if (isForexTradeComponent(type, rawSymbol, description) && price != null) {
           currencyRateService.bindIbkrExecutionRate(
               op, rawSymbol, BigDecimal.valueOf(price), "IBKR:OPERATION:" + op.getId());
         }
@@ -246,8 +224,8 @@ public class IbkrImportService {
             .filter(Objects::nonNull)
             .distinct()
             .toList();
-    List<OpenedPosition> openPositions = new ArrayList<>();
-    int reconstructedClosedPositions = 0;
+    List<PositionEntity> openPositions = new ArrayList<>();
+    int reconstructedPositionEntitys = 0;
     String openPositionsSection = findOpenPositionsSection(rows);
     if (openPositionsSection != null) {
       Long openPositionsAccount =
@@ -263,28 +241,28 @@ public class IbkrImportService {
       ensureAssetsExist(openPositions);
       applyPositionAssetIdentities(openPositions);
       for (Long accountId : affectedAccounts) {
-        List<OpenedPosition> snapshotForAccount =
+        List<PositionEntity> snapshotForAccount =
             openPositions.stream()
                 .filter(position -> Objects.equals(position.getAccount(), accountId))
                 .toList();
         IbkrPositionReconstructionService.ReconstructionResult rebuild =
             ibkrPositionReconstructionService.rebuildFromCanonicalHistory(
                 accountId, snapshotForAccount);
-        reconstructedClosedPositions += rebuild.closedPositions().size();
+        reconstructedPositionEntitys += rebuild.closedPositions().size();
       }
     } else {
       for (Long accountId : affectedAccounts) {
         IbkrPositionReconstructionService.ReconstructionResult rebuild =
             ibkrPositionReconstructionService.rebuildFromCanonicalHistory(accountId, null);
         openPositions.addAll(rebuild.openedPositions());
-        reconstructedClosedPositions += rebuild.closedPositions().size();
+        reconstructedPositionEntitys += rebuild.closedPositions().size();
       }
     }
 
     String details =
         String.format(
             "IBKR: %d source cash operations, %d reconstructed closed positions, %d open positions, %d skipped",
-            cashOps.size(), reconstructedClosedPositions, openPositions.size(), failed);
+            cashOps.size(), reconstructedPositionEntitys, openPositions.size(), failed);
     log.info(details);
     // Batch audit counters are row-level import metrics, not projection/rebuild output sizes.
     int applied = Math.max(0, total - failed);
@@ -294,7 +272,7 @@ public class IbkrImportService {
   /**
    * Parses the "Open Positions" section (if present) into IBKR opened positions and replaces them.
    */
-  private List<OpenedPosition> importOpenPositions(
+  private List<PositionEntity> importOpenPositions(
       List<String[]> rows, Map<String, Integer> dedup, String section, Long accountId) {
     Map<String, Integer> col = locateHeader(rows, section);
     Integer cSymbol = colIndex(col, "Symbol");
@@ -307,7 +285,7 @@ public class IbkrImportService {
     Integer cDiscriminator = colIndex(col, "DataDiscriminator");
 
     ZonedDateTime snapshotEffectiveDate = statementEffectiveDate(rows);
-    List<OpenedPosition> positions = new ArrayList<>();
+    List<PositionEntity> positions = new ArrayList<>();
     for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
       String[] r = rows.get(rowIndex);
       if (r.length <= 2 || !section.equals(r[0]) || !"Data".equals(r[1])) {
@@ -326,19 +304,17 @@ public class IbkrImportService {
       if (symbol == null || quantity == null || quantity == 0.0) {
         continue;
       }
-      OpenedPosition p = new OpenedPosition();
+      PositionEntity p = new PositionEntity();
       p.setId(syntheticId("POS|" + accountId + "|" + symbol, dedup));
       Long sourceRowId =
-          sourceEvidenceService == null
-              ? null
-              : sourceEvidenceService.recordRow(
-                  section,
-                  null,
-                  rowIndex + 1,
-                  value(r, col, "PositionEntity ID", "PositionID", "Conid", "ConID"),
-                  1,
-                  String.join(",", r),
-                  rawRowValues(r, col));
+          sourceEvidenceService.recordRow(
+              section,
+              null,
+              rowIndex + 1,
+              value(r, col, "PositionEntity ID", "PositionID", "Conid", "ConID"),
+              1,
+              String.join(",", r),
+              rawRowValues(r, col));
       ImportEvidenceContext context = ImportEvidenceContext.current();
       p.setImportSourceRowId(sourceRowId);
       p.setImportHistoryId(context == null ? null : context.importHistoryId());
@@ -352,14 +328,14 @@ public class IbkrImportService {
       p.setCostCurrency(monetaryCurrency);
       p.setProfitCurrency(monetaryCurrency);
       p.setCommissionCurrency(monetaryCurrency);
-      p.setVolume(Math.abs(quantity));
+      p.setVolume(BigDecimal.valueOf(Math.abs(quantity)));
       p.setOpenTime(snapshotEffectiveDate);
-      p.setOpenPrice(parseNumber(at(r, cCost)));
-      p.setMarketPrice(parseNumber(at(r, cClose)));
-      p.setPurchaseValue(parseNumber(at(r, cBasis)));
-      p.setProfit(orZero(parseNumber(at(r, cUnrealized))));
-      p.setCommission(0.0);
-      p.setSwap(0.0);
+      p.setOpenPrice(decimal(parseNumber(at(r, cCost))));
+      p.setMarketPrice(decimal(parseNumber(at(r, cClose))));
+      p.setPurchaseValue(decimal(parseNumber(at(r, cBasis))));
+      p.setProfit(decimal(orZero(parseNumber(at(r, cUnrealized)))));
+      p.setCommission(BigDecimal.ZERO);
+      p.setSwap(BigDecimal.ZERO);
       p.setComment("IBKR position snapshot");
       positions.add(p);
     }
@@ -476,6 +452,10 @@ public class IbkrImportService {
     return value == null ? 0.0 : value;
   }
 
+  private static BigDecimal decimal(Double value) {
+    return value == null ? null : BigDecimal.valueOf(value);
+  }
+
   private CashOperationType mapCashType(String type, String description) {
     String normalized = normalizeOperationType(type);
     String normalizedDescription =
@@ -513,10 +493,10 @@ public class IbkrImportService {
     return assetCatalogService.mapIbkrSymbolToCanonical(symbol);
   }
 
-  private void ensureAssetsExist(List<OpenedPosition> openPositions) {
+  private void ensureAssetsExist(List<PositionEntity> openPositions) {
     List<AssetCatalogService.AssetSeed> assets = new ArrayList<>();
     openPositions.stream()
-        .map(OpenedPosition::getSymbol)
+        .map(PositionEntity::getSymbol)
         .map(symbol -> assetCatalogService.seedForSymbol(symbol, CurrencyType.USD))
         .filter(Objects::nonNull)
         .forEach(assets::add);
@@ -552,10 +532,10 @@ public class IbkrImportService {
         });
   }
 
-  private void applyPositionAssetIdentities(List<OpenedPosition> positions) {
+  private void applyPositionAssetIdentities(List<PositionEntity> positions) {
     Set<String> symbols =
         positions.stream()
-            .map(OpenedPosition::getSymbol)
+            .map(PositionEntity::getSymbol)
             .filter(StringUtils::hasText)
             .collect(java.util.stream.Collectors.toSet());
     Map<String, Long> ids =
@@ -819,7 +799,6 @@ public class IbkrImportService {
   }
 
   private void harvestReferenceRates(List<String[]> rows, CurrencyType statementBaseCurrency) {
-    if (currencyRateService == null) return;
     for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
       String[] headerRow = rows.get(rowIndex);
       if (headerRow.length < 3 || !"Header".equalsIgnoreCase(valueAt(headerRow, 1))) continue;

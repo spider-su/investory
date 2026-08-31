@@ -4,19 +4,24 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.*;
 
+import com.smartbox.investory.retirement.api.model.*;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("Annual Planning Rollover Service")
 class AnnualPlanningRolloverServiceTest {
   @Mock PlanningTimelineFacade timeline;
 
+  @DisplayName(
+      "exposes Complete Historical Drafts For Explicit Review And Ensures Calendar Current Year")
   @Test
   void exposesCompleteHistoricalDraftsForExplicitReviewAndEnsuresCalendarCurrentYear() {
     when(timeline.historicalYears(1L)).thenReturn(List.of(2025, 2026));
@@ -37,6 +42,7 @@ class AnnualPlanningRolloverServiceTest {
     verify(timeline).ensureCurrentYear(1L);
   }
 
+  @DisplayName("leaves Incomplete Historical Draft Open And Does Not Close It")
   @Test
   void leavesIncompleteHistoricalDraftOpenAndDoesNotCloseIt() {
     when(timeline.historicalYears(1L)).thenReturn(List.of(2026));
@@ -48,6 +54,7 @@ class AnnualPlanningRolloverServiceTest {
     verify(timeline, never()).closeHistoricalDraft(anyLong(), anyInt());
   }
 
+  @DisplayName("already Closed History Is Idempotent")
   @Test
   void alreadyClosedHistoryIsIdempotent() {
     when(timeline.historicalYears(1L)).thenReturn(List.of(2026));

@@ -1,3 +1,4 @@
+export function initDashboardActions() {
 /* Dashboard companion script. Only progressive-enhancement code that does not need Thymeleaf
    inlining belongs here (chart blocks stay in dashboard.html so they can read `${stats}`). */
 
@@ -46,8 +47,11 @@ if (fileInput) {
                 // Browser automatically applies basic auth if logged into localhost:8080
             })
                 .then(response => {
-                    if (!response.ok) throw new Error('Network response error');
-                    return response.json();
+                    return response.json().catch(function () { return {}; })
+                        .then(function (body) {
+                            if (!response.ok) throw new Error(body.message || ('HTTP ' + response.status));
+                            return body;
+                        });
                 })
                 .then(data => {
                     // Populate data into the modal elements
@@ -83,7 +87,7 @@ if (fileInput) {
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert('Couldn\u2019t import this statement. Check the file and try again.');
+                    alert(error.message || 'Couldn\u2019t import this statement. Check the file and try again.');
                 })
                 .finally(() => {
                     if (importStatementBtn) {
@@ -111,7 +115,7 @@ if (fileInput) {
          yahooGenerateBtn.setAttribute('aria-busy', 'true');
          yahooGenerateBtn.innerHTML = '<span class="iv-spinner" aria-hidden="true"></span> Preparing export…';
 
-         fetch('/export/generate', {
+         fetch('/api/v1/investment/export/generate', {
              method: 'GET',
              credentials: 'same-origin'
          })
@@ -208,7 +212,7 @@ if (fileInput) {
      refreshPricesBtn.addEventListener('click', function () {
          runDashboardMaintenance(
              refreshPricesBtn,
-             '/admin/update-history',
+             '/api/v1/investment/maintenance/update-history',
              'Updating market data…',
               'Market data updated',
               'Couldn’t update market data.');
@@ -224,7 +228,7 @@ if (fileInput) {
          refreshCurrencyBtn.setAttribute('aria-busy', 'true');
          refreshCurrencyBtn.innerHTML = '<span class="iv-spinner" aria-hidden="true"></span> Updating exchange rates…';
          if (refreshCurrencyStatus) refreshCurrencyStatus.textContent = '';
-         fetch('/admin/refresh-currency', { method: 'POST', credentials: 'same-origin' })
+         fetch('/api/v1/investment/maintenance/refresh-currency', { method: 'POST', credentials: 'same-origin' })
              .then(response => {
                  if (!response.ok) throw new Error('HTTP ' + response.status);
                  return response.json();
@@ -310,7 +314,7 @@ if (fileInput) {
          status.textContent = 'Saving price…';
          status.className = 'iv-form-status';
 
-         fetch('/admin/assets/' + encodeURIComponent(symbol) + '/price', {
+         fetch('/api/v1/investment/maintenance/assets/' + encodeURIComponent(symbol) + '/price', {
              method: 'POST',
              credentials: 'same-origin',
              headers: { 'Content-Type': 'application/json' },
@@ -338,4 +342,4 @@ if (fileInput) {
      });
  })();
 
- 
+}

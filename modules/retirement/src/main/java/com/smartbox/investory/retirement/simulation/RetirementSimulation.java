@@ -1,6 +1,7 @@
 package com.smartbox.investory.retirement.simulation;
 
-import com.smartbox.investory.retirement.profile.InvestmentProfile;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.api.model.*;
 import java.util.Map;
 
 /** Application boundary for annual retirement projections. */

@@ -1,8 +1,40 @@
-**/target/**
-**/.idea/**
-**/.git/**
-**/.github/**
-**/node_modules/**
-**/build/**
-*.class
+# Build outputs
+**/target/
+**/build/
+**/out/
+**/dist/
+**/*.class
+
+# Dependencies / caches
+**/node_modules/
+.m2/
+.m2-local/
+.m2-wrapper-cache/
+
+# IDE / VCS internals
+.idea/
+.git/
+
+# Local/generated/runtime data
+.codex-tmp/
+.playwright/
+.local-app-data/
+.buildx-ci/
+.docker-build-config/
+.docker-ci/
+.golden-check/
+
+# Generated/heavy tool output
+tools/generated/
+tools/reconciliation/
+
+# Binary artifacts
 *.jar
+*.war
+*.ear
+
+# Temporary files
+*.log
+*.tmp
+.DS_Store
+Thumbs.db

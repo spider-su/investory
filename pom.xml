@@ -15,6 +15,7 @@
         <module>modules/shared</module>
         <module>modules/investment</module>
         <module>modules/longterm</module>
+        <module>modules/profile</module>
         <module>modules/retirement</module>
         <module>integrations</module>
         <module>test-support</module>
@@ -32,6 +33,10 @@
         <spotless-maven-plugin-google.version>1.35.0</spotless-maven-plugin-google.version>
         <spotless-maven-plugin.version>3.9.0</spotless-maven-plugin.version>
         <git-commit-id-maven-plugin.version>9.2.0</git-commit-id-maven-plugin.version>
+        <springdoc-openapi.version>3.1.0</springdoc-openapi.version>
+        <jacoco.version>0.8.15</jacoco.version>
+        <jacocoArgLine></jacocoArgLine>
+        <it.test.workers>1</it.test.workers>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -100,17 +105,52 @@
                 </configuration>
             </plugin>
             <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+                <configuration>
+                    <propertyName>jacocoArgLine</propertyName>
+                    <excludes>
+                        <exclude>**/*.xlsx</exclude>
+                        <exclude>**/*.zip</exclude>
+                    </excludes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>prepare-coverage-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>coverage-report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
-                    <argLine>-javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar -Xshare:off</argLine>
+                    <argLine>@{jacocoArgLine} -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar -Xshare:off</argLine>
+                    <systemPropertyVariables>
+                        <investory.test.workers>${it.test.workers}</investory.test.workers>
+                        <investory.test.worker-id>${surefire.forkNumber}</investory.test.worker-id>
+                    </systemPropertyVariables>
                 </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
                 <configuration>
-                    <argLine>-javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar -Xshare:off</argLine>
+                    <argLine>@{jacocoArgLine} -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar -Xshare:off</argLine>
+                    <systemPropertyVariables>
+                        <investory.test.workers>${it.test.workers}</investory.test.workers>
+                        <investory.test.worker-id>${surefire.forkNumber}</investory.test.worker-id>
+                    </systemPropertyVariables>
                 </configuration>
                 <executions>
                     <execution>

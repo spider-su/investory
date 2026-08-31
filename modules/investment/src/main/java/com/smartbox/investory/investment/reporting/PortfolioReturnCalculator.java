@@ -1,5 +1,6 @@
 package com.smartbox.investory.investment.reporting;
 
+import com.smartbox.investory.investment.api.reporting.model.ReturnMetric;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
@@ -212,7 +213,7 @@ public final class PortfolioReturnCalculator {
   }
 
   private static BigDecimal nz(BigDecimal value) {
-    return value == null ? BigDecimal.ZERO : value;
+    return com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull(value);
   }
 
   private record CashFlow(LocalDate date, BigDecimal amount) {}

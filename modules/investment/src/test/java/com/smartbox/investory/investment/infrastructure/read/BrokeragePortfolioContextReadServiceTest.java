@@ -8,10 +8,13 @@ import com.smartbox.investory.investment.infrastructure.persistence.portfolio.Po
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioKpiSummaryRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.Optional;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+@DisplayName("Brokerage Portfolio Context Read Service")
 class BrokeragePortfolioContextReadServiceTest {
+  @DisplayName("exposes Existing Portfolio Id And Base Currency")
   @Test
   void exposesExistingPortfolioIdAndBaseCurrency() {
     PortfolioKpiSummaryRepository summaries = Mockito.mock(PortfolioKpiSummaryRepository.class);
@@ -25,6 +28,7 @@ class BrokeragePortfolioContextReadServiceTest {
     assertEquals(CurrencyType.USD, result.orElseThrow().baseCurrency());
   }
 
+  @DisplayName("preserves Missing Portfolio Behavior")
   @Test
   void preservesMissingPortfolioBehavior() {
     PortfolioKpiSummaryRepository summaries = Mockito.mock(PortfolioKpiSummaryRepository.class);

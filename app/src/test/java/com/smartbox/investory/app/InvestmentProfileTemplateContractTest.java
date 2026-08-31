@@ -2,18 +2,21 @@ package com.smartbox.investory.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.smartbox.investory.retirement.profile.InvestmentProfile;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Investment Profile Template Contract")
 class InvestmentProfileTemplateContractTest {
   private static final Path TEMPLATE =
       Path.of("../adapters/web-ui/src/main/resources/templates/investment-profile.html");
   private static final Path SHARED_NAV =
       Path.of("../adapters/web-ui/src/main/resources/templates/fragments/app-header.html");
 
+  @DisplayName("profile Uses Compact Header And Structure Dimensions")
   @Test
   void profileUsesCompactHeaderAndStructureDimensions() throws Exception {
     String profileHtml = Files.readString(TEMPLATE, StandardCharsets.UTF_8);
@@ -23,21 +26,27 @@ class InvestmentProfileTemplateContractTest {
         .contains("planningHeader('profile'")
         .contains("profileHeaderNetWorth")
         .contains("profileHeaderIncome")
+        .contains("profileAnnualCost")
+        .contains("profileAnnualCostMeta")
         .contains("profileMarketAnnualizedReturn")
-        .contains("Annual income")
-        .contains("Market return")
-        .contains("annualized total return")
+        .contains("Net income / year")
+        .contains("Annual cost / year")
         .contains("Market investments")
         .contains("Long-term assets")
         .contains("Income sources")
         .contains("Received YTD")
-        .contains("Current contracts and rates");
+        .contains("profileLongTermYtdIncome");
     assertThat(profileHtml)
         .doesNotContain("Investment profile")
         .doesNotContain("Combined view of traded investments")
-        .doesNotContain("Expected annual income");
+        .doesNotContain("Expected annual income")
+        .doesNotContain("'Market return'")
+        .doesNotContain("<span>Basis</span>")
+        .doesNotContain("<th>Liquidity</th>")
+        .doesNotContain("Liquid assets ${");
   }
 
+  @DisplayName("profile Keeps Allocation And Income Semantics And Global Theme")
   @Test
   void profileKeepsAllocationAndIncomeSemanticsAndGlobalTheme() throws Exception {
     String html =
@@ -49,16 +58,19 @@ class InvestmentProfileTemplateContractTest {
         .contains("allocation.compactValueDisplay")
         .contains("profile.marketPortfolioValueCompactDisplay")
         .contains("profile.longTermAssetValueCompactDisplay")
-        .contains("profile.incomeSummary.marketIncomeYtdCompactDisplay")
+        .contains("profileMarketYtdIncome")
         .contains("profile.incomeSummary.marketAnnualIncomeCompactDisplay")
         .contains("profile.incomeSummary.longTermAnnualIncomeCompactDisplay")
         .contains("Annualized return")
-        .contains("KPI start · ")
-        .contains("Expected income yield")
+        .contains("profileMarketKpiMeta")
+        .contains("Expected annual yield")
         .contains("iv-profile-sources__grid")
         .contains("iv-profile-allocation")
         .contains("th:if=\"${allocation.nonZero}\"")
-        .contains("Liquid assets ${profile.liquidAssetsPercentageDisplay} · Long-term assets")
+        .contains(
+            "Short-term assets ${profile.shortTermAssetsPercentageDisplay} · Long-term assets")
+        .contains("allocation.horizonLabel")
+        .contains("<th>Asset type</th>")
         .doesNotContain("iv-allocation-legend")
         .doesNotContain("iv-profile-income-cards")
         .doesNotContain("Portfolio structure")
@@ -69,22 +81,43 @@ class InvestmentProfileTemplateContractTest {
         .contains("fragments/theme-head :: theme");
   }
 
+  @DisplayName("zero Total Percentage Is Handled By Profile Read Model")
   @Test
   void zeroTotalPercentageIsHandledByProfileReadModel() {
     InvestmentProfile profile =
         new InvestmentProfile(
             1L,
-            null,
-            java.math.BigDecimal.ZERO,
-            java.math.BigDecimal.ZERO,
-            java.math.BigDecimal.ZERO,
+            com.smartbox.investory.shared.currency.CurrencyType.USD,
             java.math.BigDecimal.ZERO,
             java.math.BigDecimal.ZERO,
             java.math.BigDecimal.ZERO,
             java.math.BigDecimal.ZERO,
             java.math.BigDecimal.ZERO,
             java.util.List.of(),
-            java.util.List.of());
+            null,
+            null,
+            new com.smartbox.investory.profile.api.model.ProfileAssetProjection(
+                java.util.List.of(),
+                java.math.BigDecimal.ZERO,
+                0,
+                com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
+            (java.math.BigDecimal.ZERO == null
+                ? java.math.BigDecimal.ZERO
+                : java.math.BigDecimal.ZERO),
+            java.math.BigDecimal.ZERO
+                .subtract(
+                    (java.math.BigDecimal.ZERO == null
+                        ? java.math.BigDecimal.ZERO
+                        : java.math.BigDecimal.ZERO))
+                .max(java.math.BigDecimal.ZERO),
+            com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
+                java.math.BigDecimal.ZERO,
+                java.math.BigDecimal.ZERO,
+                java.math.BigDecimal.ZERO,
+                java.math.BigDecimal.ZERO,
+                java.math.BigDecimal.ZERO,
+                java.math.BigDecimal.ZERO),
+            com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
     assertThat(profile.liquidAssetsPercentage()).isZero();
     assertThat(profile.illiquidAssetsPercentage()).isZero();
   }

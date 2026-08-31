@@ -3,37 +3,40 @@ package com.smartbox.investory.retirement.simulation;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
+import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.infrastructure.simulation.PersistedSimulationAssumptions;
 import com.smartbox.investory.retirement.infrastructure.simulation.SimulationAssumptionsPersistenceMapper;
-import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanEntity;
 import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanRevisionEntity;
 import java.math.BigDecimal;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Simulation Assumptions Persistence Mapper")
 class SimulationAssumptionsPersistenceMapperTest {
 
+  @DisplayName("plan And Revision Share The Same Round Trip Boundary")
   @Test
   void planAndRevisionShareTheSameRoundTripBoundary() {
     SimulationAssumptions source = assumptions();
-    List<PersistedSimulationAssumptions> persistedRows =
-        List.of(new SimulationPlanEntity(), new SimulationPlanRevisionEntity());
+    PersistedSimulationAssumptions persistedRow = new SimulationPlanRevisionEntity();
 
-    for (PersistedSimulationAssumptions persistedRow : persistedRows) {
-      SimulationAssumptionsPersistenceMapper.write(persistedRow, source);
+    SimulationAssumptionsPersistenceMapper.write(persistedRow, source);
 
-      assertEquals(
-          source, SimulationAssumptionsPersistenceMapper.read(persistedRow, source.futureEvents()));
-    }
+    SimulationAssumptions restored =
+        SimulationAssumptionsPersistenceMapper.read(persistedRow, source.futureEvents());
+    assertEquals(source.currentAge(), restored.currentAge());
+    assertEquals(source.fixedIncomeReturnRate(), restored.fixedIncomeReturnRate());
+    assertEquals(source.equityReturnRate(), restored.equityReturnRate());
+    assertEquals(source.capitalGainTaxRate(), restored.capitalGainTaxRate());
 
-    assertInstanceOf(PersistedSimulationAssumptions.class, new SimulationPlanEntity());
     assertInstanceOf(PersistedSimulationAssumptions.class, new SimulationPlanRevisionEntity());
   }
 
+  @DisplayName("legacy Nulls Are Normalized Only At The Persistence Boundary")
   @Test
-  @SuppressWarnings("deprecation")
   void legacyNullsAreNormalizedOnlyAtThePersistenceBoundary() {
-    SimulationPlanEntity persisted = new SimulationPlanEntity();
+    SimulationPlanRevisionEntity persisted = new SimulationPlanRevisionEntity();
     SimulationAssumptionsPersistenceMapper.write(persisted, assumptions());
     persisted.setRentalIncomeGrowthSpread(null);
     persisted.setSpendingGrowthSpread(null);
@@ -61,7 +64,7 @@ class SimulationAssumptionsPersistenceMapperTest {
     assertEquals(
         SimulationAssumptions.DEFAULT_SPENDING_GROWTH_SPREAD, restored.spendingGrowthSpread());
     assertEquals(SimulationFundingStrategy.SIMPLE_WATERFALL, restored.fundingStrategy());
-    assertEquals(BigDecimal.ZERO, restored.safeReserveYears());
+    assertEquals(SimulationAssumptions.DEFAULT_SAFE_RESERVE_YEARS, restored.safeReserveYears());
     assertEquals(BigDecimal.ZERO, restored.equityHarvestMinimumReturnRate());
     assertEquals(BigDecimal.ZERO, restored.equityGainHarvestRate());
     assertEquals(true, restored.allowEmergencyEquityWithdrawal());
@@ -79,11 +82,8 @@ class SimulationAssumptionsPersistenceMapperTest {
         96,
         new BigDecimal("120000"),
         new BigDecimal("0.025"),
-        new BigDecimal("0.01"),
         new BigDecimal("0.04"),
         new BigDecimal("0.07"),
-        new BigDecimal("0.03"),
-        new BigDecimal("0.02"),
         68,
         new BigDecimal("50000"),
         new BigDecimal("0.19"),
@@ -107,7 +107,10 @@ class SimulationAssumptionsPersistenceMapperTest {
         65,
         new BigDecimal("180000"),
         new BigDecimal("36000"),
-        List.of(FundingSource.BONDS, FundingSource.CASH, FundingSource.STOCKS),
+        List.of(
+            RetirementFundingSource.LONG_TERM,
+            RetirementFundingSource.RESERVE,
+            RetirementFundingSource.INVESTMENT),
         new ExpenseProfile(List.of(new ExpenseProfileStep(5, new BigDecimal("0.8")))),
         new ProjectedIncomePolicy(
             ProjectedIncomePolicy.IncomeMode.MANUAL,

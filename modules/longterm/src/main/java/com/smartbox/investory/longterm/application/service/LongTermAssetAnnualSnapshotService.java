@@ -1,10 +1,10 @@
 package com.smartbox.investory.longterm.application.service;
 
+import com.smartbox.investory.longterm.api.model.InterestTreatment;
 import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
+import com.smartbox.investory.longterm.api.model.LongTermAssetType;
 import com.smartbox.investory.longterm.application.model.LongTermAssetSummary;
-import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 import com.smartbox.investory.longterm.infrastructure.asset.*;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.longterm.infrastructure.bond.*;
 import com.smartbox.investory.longterm.infrastructure.deposit.*;
 import com.smartbox.investory.longterm.infrastructure.lifecycle.*;
@@ -51,21 +51,15 @@ public class LongTermAssetAnnualSnapshotService {
   @Transactional(readOnly = true)
   public LongTermAssetAnnualSnapshotModel historicalAnnualSnapshot(Long portfolioId, int year) {
     LocalDate date = LocalDate.of(year, 12, 31);
-    Set<Long> historicalAssetIds =
+    List<LongTermAssetEntity> historicalAssets =
         assets.findAllByPortfolioIdOrderByName(portfolioId).stream()
             .filter(
                 asset ->
                     (asset.getAcquisitionDate() == null
                             || !asset.getAcquisitionDate().isAfter(date))
                         && lifecycle.activeOn(asset, date))
-            .map(LongTermAssetEntity::getId)
-            .collect(java.util.stream.Collectors.toSet());
-    List<LongTermAssetSummary> rows =
-        assets.findAllByPortfolioIdOrderByName(portfolioId).stream()
-            .filter(asset -> historicalAssetIds.contains(asset.getId()))
-            .map(asset -> queries.summary(asset, date))
-            .filter(row -> historicalAssetIds.contains(row.id()))
             .toList();
+    List<LongTermAssetSummary> rows = queries.summaries(historicalAssets, date);
     BigDecimal rentalIncome =
         rows.stream()
             .filter(row -> row.type() == LongTermAssetType.REAL_ESTATE)
@@ -86,13 +80,19 @@ public class LongTermAssetAnnualSnapshotService {
     BigDecimal bondIncome = sumSpendableBondIncome(rows, date);
     boolean hasRealEstate =
         rows.stream().anyMatch(row -> row.type() == LongTermAssetType.REAL_ESTATE);
-    boolean rentalDataComplete =
+    Set<Long> realEstateIds =
         rows.stream()
             .filter(row -> row.type() == LongTermAssetType.REAL_ESTATE)
-            .allMatch(
-                row ->
-                    rentalContracts.findAllByAssetIdOrderByStartDate(row.id()).stream()
-                        .anyMatch(contract -> !contract.getStartDate().isAfter(date)));
+            .map(LongTermAssetSummary::id)
+            .collect(java.util.stream.Collectors.toSet());
+    Set<Long> assetsWithRentalHistory =
+        realEstateIds.isEmpty()
+            ? Set.of()
+            : rentalContracts.findAllWithTermsByAssetIdIn(realEstateIds).stream()
+                .filter(contract -> !contract.getStartDate().isAfter(date))
+                .map(LongTermAssetRentalContractEntity::getAssetId)
+                .collect(java.util.stream.Collectors.toSet());
+    boolean rentalDataComplete = assetsWithRentalHistory.containsAll(realEstateIds);
     return new LongTermAssetAnnualSnapshotModel(
         null,
         !hasRealEstate || rentalDataComplete ? rentalIncome : null,
@@ -105,7 +105,12 @@ public class LongTermAssetAnnualSnapshotService {
   /** Returns current Long-Term facts in the canonical USD application currency. */
   @Transactional(readOnly = true)
   public LongTermAssetAnnualSnapshotModel currentAnnualSnapshot(Long portfolioId, LocalDate date) {
-    List<LongTermAssetSummary> rows = queries.list(portfolioId, date);
+    return currentAnnualSnapshot(queries.list(portfolioId, date), date);
+  }
+
+  /** Builds the current snapshot from already loaded rows to keep composed reads coherent. */
+  public LongTermAssetAnnualSnapshotModel currentAnnualSnapshot(
+      List<LongTermAssetSummary> rows, LocalDate date) {
     BigDecimal realEstateValue =
         sumCanonical(rows, LongTermAssetType.REAL_ESTATE, LongTermAssetSummary::currentValue, date);
     BigDecimal rentalIncome =
@@ -158,7 +163,7 @@ public class LongTermAssetAnnualSnapshotService {
                     || row.bondPlanning().interestTreatment() != InterestTreatment.CAPITALIZE)
         .map(
             row -> {
-              BigDecimal amount = row.netAnnualIncomeAfterTax();
+              BigDecimal amount = row.annualEconomics().netAnnualIncomeAfterTax();
               if (amount == null) return BigDecimal.ZERO;
               return row.currency() == CurrencyType.USD
                   ? amount

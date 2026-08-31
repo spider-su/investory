@@ -2,9 +2,13 @@ package com.smartbox.investory.investment.reporting.dashboard.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.smartbox.investory.investment.api.reporting.model.DashboardPercentageFormatter;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Dashboard Percentage Formatter")
 class DashboardPercentageFormatterTest {
+  @DisplayName("formats Normal Percentages To One Decimal With Locale")
   @Test
   void formatsNormalPercentagesToOneDecimalWithLocale() {
     assertEquals("16.9%", DashboardPercentageFormatter.percent(16.86));
@@ -14,6 +18,7 @@ class DashboardPercentageFormatterTest {
     assertEquals("-3.7%", DashboardPercentageFormatter.percent(-3.74));
   }
 
+  @DisplayName("formats Signed Percentages And Percentage Points")
   @Test
   void formatsSignedPercentagesAndPercentagePoints() {
     assertEquals("+8.4%", DashboardPercentageFormatter.signedPercent(8.42));

@@ -1,0 +1,23 @@
+package com.smartbox.investory.investment.api.asset.model;
+
+public enum AssetCashFlowType {
+  SEC_FEE,
+  SUBACCOUNT_TRANSFER,
+  STOCK_PURCHASE,
+  STOCK_SELL,
+  CLOSE_TRADE,
+  DIVIDEND,
+  FREE_FUNDS_INTEREST,
+  FREE_FUNDS_INTEREST_TAX,
+  COMMISSION,
+  TRANSFER,
+  WITHDRAWAL,
+  DEPOSIT,
+  WITHHOLDING_TAX,
+  SWAP,
+  ROLLOVER,
+  CORRECTION,
+  STAMP_DUTY,
+  TRANSACTION_TAX,
+  UNKNOWN
+}

@@ -15,12 +15,14 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("Cash Flow Aggregator")
 class CashFlowAggregatorTest {
 
   @Mock private CurrencyRateService currencyRateService;
@@ -39,6 +41,7 @@ class CashFlowAggregatorTest {
         .thenAnswer(invocation -> invocation.getArgument(0, BigDecimal.class));
   }
 
+  @DisplayName("aggregate sums Deposits Withdrawals Interest And Dividends")
   @Test
   void aggregate_sumsDepositsWithdrawalsInterestAndDividends() {
     PortfolioTestContext dividendScenario = PortfolioScenarios.createDividendScenario();
@@ -77,6 +80,7 @@ class CashFlowAggregatorTest {
         summary.dividendsByCurrency().get(CurrencyType.USD));
   }
 
+  @DisplayName("aggregate excludes Internal Transfers And Currency Conversions")
   @Test
   void aggregate_excludesInternalTransfersAndCurrencyConversions() {
     PortfolioTestContext transferScenario = PortfolioScenarios.createInternalCashTransferScenario();
@@ -99,6 +103,7 @@ class CashFlowAggregatorTest {
     assertEquals(new BigDecimal("0E-8"), summary.withdrawals());
   }
 
+  @DisplayName("aggregate returns Zero Summary For Empty Input")
   @Test
   void aggregate_returnsZeroSummaryForEmptyInput() {
     CashFlowAggregator.CashFlowSummary summary = aggregator.aggregate(List.of(), CurrencyType.USD);

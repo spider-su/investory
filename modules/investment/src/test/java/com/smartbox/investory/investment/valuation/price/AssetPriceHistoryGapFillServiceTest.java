@@ -7,33 +7,37 @@ import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
-import com.smartbox.investory.investment.ledger.position.persistence.OpenedPosition;
-import com.smartbox.investory.investment.ledger.position.persistence.OpenedPositionRepository;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionRepository;
 import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("Asset Price History Gap Fill Service")
 class AssetPriceHistoryGapFillServiceTest {
 
-  @Mock private OpenedPositionRepository openedPositionRepository;
+  @Mock private PositionRepository openedPositionRepository;
   @Mock private AssetRepository assetRepository;
   @Mock private AssetPriceHistoryRepository assetPriceHistoryRepository;
 
+  @DisplayName(
+      "fill Missing Business Day Gaps backfills Business Days Between Known Rows And To As Of Date")
   @Test
   void fillMissingBusinessDayGaps_backfillsBusinessDaysBetweenKnownRowsAndToAsOfDate() {
     AssetPriceHistoryGapFillService service =
         new AssetPriceHistoryGapFillService(
             openedPositionRepository, assetRepository, assetPriceHistoryRepository);
 
-    OpenedPosition opened = new OpenedPosition();
+    PositionEntity opened = new PositionEntity();
     opened.setSymbol("IUVL");
 
     AssetEntity asset = new AssetEntity();
@@ -41,7 +45,7 @@ class AssetPriceHistoryGapFillServiceTest {
     asset.setSymbol("IUVL");
     asset.setCurrency(CurrencyType.USD);
 
-    when(openedPositionRepository.findAll()).thenReturn(List.of(opened));
+    when(openedPositionRepository.findOpen()).thenReturn(List.of(opened));
     when(assetRepository.findAllBySymbolIn(Set.of("IUVL"))).thenReturn(List.of(asset));
     when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(
             Set.of("IUVL"), LocalDate.of(2026, 7, 17)))
@@ -112,20 +116,21 @@ class AssetPriceHistoryGapFillServiceTest {
             "VERIFIED_ALTERNATE_LISTING");
   }
 
+  @DisplayName("fill Missing Business Day Gaps does Not Use Carry Forward Row As Source")
   @Test
   void fillMissingBusinessDayGaps_doesNotUseCarryForwardRowAsSource() {
     AssetPriceHistoryGapFillService service =
         new AssetPriceHistoryGapFillService(
             openedPositionRepository, assetRepository, assetPriceHistoryRepository);
 
-    OpenedPosition opened = new OpenedPosition();
+    PositionEntity opened = new PositionEntity();
     opened.setSymbol("IUVL");
 
     AssetEntity asset = new AssetEntity();
     asset.setId(101L);
     asset.setSymbol("IUVL");
 
-    when(openedPositionRepository.findAll()).thenReturn(List.of(opened));
+    when(openedPositionRepository.findOpen()).thenReturn(List.of(opened));
     when(assetRepository.findAllBySymbolIn(Set.of("IUVL"))).thenReturn(List.of(asset));
     when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
         .thenReturn(
@@ -145,20 +150,21 @@ class AssetPriceHistoryGapFillServiceTest {
         .upsertCarryForwardPrice(any(), any(), any(), any(), any(), any(), any(), any(), any());
   }
 
+  @DisplayName("fill Missing Business Day Gaps ignores Excluded Asset")
   @Test
   void fillMissingBusinessDayGaps_ignoresExcludedAsset() {
     AssetPriceHistoryGapFillService service =
         new AssetPriceHistoryGapFillService(
             openedPositionRepository, assetRepository, assetPriceHistoryRepository);
 
-    OpenedPosition opened = new OpenedPosition();
+    PositionEntity opened = new PositionEntity();
     opened.setSymbol("EXCLUDED.US");
     AssetEntity asset = new AssetEntity();
     asset.setId(404L);
     asset.setSymbol("EXCLUDED.US");
     asset.setExcludeFromImport(true);
 
-    when(openedPositionRepository.findAll()).thenReturn(List.of(opened));
+    when(openedPositionRepository.findOpen()).thenReturn(List.of(opened));
     when(assetRepository.findAllBySymbolIn(Set.of("EXCLUDED.US"))).thenReturn(List.of(asset));
 
     service.fillMissingBusinessDayGaps(LocalDate.of(2026, 7, 17));
@@ -168,19 +174,20 @@ class AssetPriceHistoryGapFillServiceTest {
         .upsertCarryForwardPrice(any(), any(), any(), any(), any(), any(), any(), any(), any());
   }
 
+  @DisplayName("fill Missing Business Day Gaps prefers Open Lot Price When Split Observations Tie")
   @Test
   void fillMissingBusinessDayGaps_prefersOpenLotPriceWhenSplitObservationsTie() {
     AssetPriceHistoryGapFillService service =
         new AssetPriceHistoryGapFillService(
             openedPositionRepository, assetRepository, assetPriceHistoryRepository);
 
-    OpenedPosition opened = new OpenedPosition();
+    PositionEntity opened = new PositionEntity();
     opened.setSymbol("NFLX.US");
     AssetEntity asset = new AssetEntity();
     asset.setId(202L);
     asset.setSymbol("NFLX.US");
 
-    when(openedPositionRepository.findAll()).thenReturn(List.of(opened));
+    when(openedPositionRepository.findOpen()).thenReturn(List.of(opened));
     when(assetRepository.findAllBySymbolIn(Set.of("NFLX.US"))).thenReturn(List.of(asset));
     when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
         .thenReturn(
@@ -217,19 +224,20 @@ class AssetPriceHistoryGapFillServiceTest {
             "XTB_TRADE_OPEN_OBSERVATION");
   }
 
+  @DisplayName("fill Missing Business Day Gaps copies Currency And Scale Metadata")
   @Test
   void fillMissingBusinessDayGaps_copiesCurrencyAndScaleMetadata() {
     AssetPriceHistoryGapFillService service =
         new AssetPriceHistoryGapFillService(
             openedPositionRepository, assetRepository, assetPriceHistoryRepository);
 
-    OpenedPosition opened = new OpenedPosition();
+    PositionEntity opened = new PositionEntity();
     opened.setSymbol("VWCE.DE");
     AssetEntity asset = new AssetEntity();
     asset.setId(303L);
     asset.setSymbol("VWCE.DE");
 
-    when(openedPositionRepository.findAll()).thenReturn(List.of(opened));
+    when(openedPositionRepository.findOpen()).thenReturn(List.of(opened));
     when(assetRepository.findAllBySymbolIn(Set.of("VWCE.DE"))).thenReturn(List.of(asset));
     when(assetPriceHistoryRepository.findHistoricalPricesBySymbolInBefore(any(), any()))
         .thenReturn(

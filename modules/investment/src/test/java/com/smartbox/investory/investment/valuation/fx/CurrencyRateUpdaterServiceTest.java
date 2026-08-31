@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.smartbox.investory.investment.performance.InvestmentCalculationCache;
 import com.smartbox.investory.investment.port.fx.FxRateProvider;
 import com.smartbox.investory.investment.port.fx.FxRateProvider.FxQuote;
 import com.smartbox.investory.investment.port.fx.FxRateProviderException;
@@ -16,6 +17,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -23,18 +25,21 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("Currency Rate Updater Service")
 class CurrencyRateUpdaterServiceTest {
 
   @Mock private FxRateProvider fxRateProvider;
   @Mock private CurrencyRateService currencyRateService;
+  @Mock private InvestmentCalculationCache calculationCache;
 
   private CurrencyRateUpdaterService updater;
 
   @BeforeEach
   void setUp() {
-    updater = new CurrencyRateUpdaterService(fxRateProvider, currencyRateService);
+    updater = new CurrencyRateUpdaterService(fxRateProvider, currencyRateService, calculationCache);
   }
 
+  @DisplayName("update Currency Rates pushes Rates For Usd Eur And Pln")
   @Test
   void updateCurrencyRates_pushesRatesForUsdEurAndPln() {
     when(fxRateProvider.fetchRates(any())).thenReturn(response(0.9, 4.0, LocalDate.now()));
@@ -75,6 +80,7 @@ class CurrencyRateUpdaterServiceTest {
     verify(fxRateProvider).fetchRates(any());
   }
 
+  @DisplayName("update Currency Rates For Date writes Only That Date")
   @Test
   void updateCurrencyRatesForDate_writesOnlyThatDate() {
     when(fxRateProvider.fetchRates(any()))
@@ -96,6 +102,7 @@ class CurrencyRateUpdaterServiceTest {
     verify(currencyRateService).activateDailyHistoryAt(LocalDate.of(2026, 8, 17));
   }
 
+  @DisplayName("update Currency Rates records Failure When Response Is Null")
   @Test
   void updateCurrencyRates_recordsFailureWhenResponseIsNull() {
     when(fxRateProvider.fetchRates(any())).thenReturn(null);
@@ -106,6 +113,7 @@ class CurrencyRateUpdaterServiceTest {
     assertEquals(1, result.failed().size());
   }
 
+  @DisplayName("update Currency Rates records Failure When Usd Request Is Rate Limited")
   @Test
   void updateCurrencyRates_recordsFailureWhenUsdRequestIsRateLimited() {
     when(fxRateProvider.fetchRates(any()))

@@ -1,7 +1,8 @@
 package com.smartbox.investory.retirement.simulation;
 
-import com.smartbox.investory.retirement.profile.EconomicBucket;
-import com.smartbox.investory.retirement.profile.InvestmentProfile;
+import com.smartbox.investory.profile.api.model.EconomicBucket;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.api.model.*;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Comparator;
@@ -43,7 +44,8 @@ public class SimulationSensitivityAnalysisService {
         assumptions,
         assumptions.startYear(),
         false,
-        evaluations.evaluate(profile, assumptions, SimulationScenario.BASE));
+        evaluations.evaluate(profile, assumptions, SimulationScenario.BASE),
+        new SimulationEvaluationCache());
   }
 
   public SimulationSensitivityAnalysis analyze(DeterministicAnalysisContext context) {
@@ -52,7 +54,8 @@ public class SimulationSensitivityAnalysisService {
         context.assumptions(),
         context.baselineYear(),
         true,
-        context.canonicalBase());
+        context.canonicalBase(),
+        context.cache());
   }
 
   private SimulationSensitivityAnalysis analyzeInternal(
@@ -60,7 +63,8 @@ public class SimulationSensitivityAnalysisService {
       SimulationAssumptions assumptions,
       int baselineYear,
       boolean explicitBaseline,
-      SimulationEvaluation base) {
+      SimulationEvaluation base,
+      SimulationEvaluationCache cache) {
     Inputs inputs =
         new Inputs(
             profile,
@@ -68,7 +72,8 @@ public class SimulationSensitivityAnalysisService {
             base,
             baselineYear,
             explicitBaseline,
-            bondProjection.hasPlanBondReturnExposure(profile, baselineYear, baselineYear));
+            bondProjection.hasPlanBondReturnExposure(profile, baselineYear, baselineYear),
+            cache);
     List<SimulationSensitivityResult> results =
         catalogue().stream()
             .filter(definition -> definition.applicable().test(inputs))
@@ -154,14 +159,31 @@ public class SimulationSensitivityAnalysisService {
 
   private SimulationEvaluation evaluate(Inputs inputs, Perturbation perturbation) {
     if (perturbation == null) return null;
-    return inputs.explicitBaseline()
-        ? evaluations.evaluate(
+    SimulationEvaluation cached =
+        inputs.explicitBaseline()
+            ? evaluations.evaluate(
+                inputs.profile(),
+                perturbation.assumptions(),
+                SimulationScenario.BASE,
+                inputs.baselineYear(),
+                inputs.cache())
+            : inputs
+                .cache()
+                .getOrCompute(
+                    inputs.profile(),
+                    perturbation.assumptions(),
+                    SimulationScenario.BASE,
+                    inputs.baselineYear(),
+                    () ->
+                        evaluations.evaluate(
+                            inputs.profile(), perturbation.assumptions(), SimulationScenario.BASE));
+    return cached != null
+        ? cached
+        : evaluations.evaluate(
             inputs.profile(),
             perturbation.assumptions(),
             SimulationScenario.BASE,
-            inputs.baselineYear())
-        : evaluations.evaluate(
-            inputs.profile(), perturbation.assumptions(), SimulationScenario.BASE);
+            inputs.baselineYear());
   }
 
   /** Positive means a is more harmful than b. */
@@ -358,7 +380,8 @@ public class SimulationSensitivityAnalysisService {
       SimulationEvaluation base,
       int baselineYear,
       boolean explicitBaseline,
-      boolean planBondReturnExposure) {
+      boolean planBondReturnExposure,
+      SimulationEvaluationCache cache) {
     boolean horizon() {
       return base.result() == null || !base.result().years().isEmpty();
     }

@@ -1,5 +1,6 @@
 package com.smartbox.investory.longterm.infrastructure.asset;
 
+import com.smartbox.investory.longterm.api.model.LongTermAssetType;
 import java.util.*;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -19,4 +20,6 @@ public interface LongTermAssetRepository extends JpaRepository<LongTermAssetEnti
       Long portfolioId, String externalKey);
 
   List<LongTermAssetEntity> findAllByPortfolioIdAndActiveTrueOrderByName(Long portfolioId);
+
+  List<LongTermAssetEntity> findAllByPortfolioIdAndActiveFalseOrderByName(Long portfolioId);
 }

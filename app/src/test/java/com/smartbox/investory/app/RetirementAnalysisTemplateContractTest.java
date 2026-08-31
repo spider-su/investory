@@ -5,9 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Retirement Analysis Template Contract")
 class RetirementAnalysisTemplateContractTest {
+  @DisplayName("analysis Is ASeparate Read Only Board Over The Simulation Result")
   @Test
   void analysisIsASeparateReadOnlyBoardOverTheSimulationResult() throws Exception {
     String html =
@@ -52,6 +55,7 @@ class RetirementAnalysisTemplateContractTest {
     assertFalse(html.contains("simulation engine"));
   }
 
+  @DisplayName("simulation And Analysis Are Peer Routes")
   @Test
   void simulationAndAnalysisArePeerRoutes() throws Exception {
     String simulation =

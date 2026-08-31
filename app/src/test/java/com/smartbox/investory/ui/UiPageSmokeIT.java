@@ -14,12 +14,15 @@ import com.smartbox.investory.testsupport.FastDatabaseTest;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Year;
 import java.util.ArrayList;
 import java.util.Locale;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -35,6 +38,7 @@ import org.springframework.test.context.jdbc.Sql;
 @Sql(
     scripts = "/ui/ui-page-smoke-fixture.sql",
     executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS)
+@DisplayName("UI Page Smoke")
 class UiPageSmokeIT extends FastDatabaseTest {
 
   private static final Path ARTIFACT_DIRECTORY = Path.of("target", "ui-test-results");
@@ -57,16 +61,13 @@ class UiPageSmokeIT extends FastDatabaseTest {
     if (playwright != null) playwright.close();
   }
 
+  @DisplayName("page Renders Without Browser Errors")
   @ParameterizedTest(name = "{0}")
   @MethodSource("pageCases")
   void pageRendersWithoutBrowserErrors(PageCase pageCase) throws IOException {
     String baseUrl = "http://127.0.0.1:" + port;
     var failures = new ArrayList<String>();
-    BrowserContext context =
-        browser.newContext(
-            new Browser.NewContextOptions()
-                .setHttpCredentials("admin", "change-me-admin")
-                .setViewportSize(1440, 1000));
+    BrowserContext context = authenticatedContext();
     context
         .tracing()
         .start(new Tracing.StartOptions().setScreenshots(true).setSnapshots(true).setSources(true));
@@ -87,7 +88,9 @@ class UiPageSmokeIT extends FastDatabaseTest {
     try {
       Response response = page.navigate(baseUrl + pageCase.path());
       assertThat(response).as("navigation response").isNotNull();
-      assertThat(response.status()).isEqualTo(pageCase.expectedStatus());
+      assertThat(response.status())
+          .as("HTTP status for %s (%s)", pageCase.name(), pageCase.path())
+          .isEqualTo(pageCase.expectedStatus());
       assertThat(page.title()).contains(pageCase.titleText());
       assertThat(page.locator("body").isVisible()).isTrue();
       if (page.locator("main").count() > 0) assertThat(page.locator("main").isVisible()).isTrue();
@@ -105,6 +108,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
     }
   }
 
+  @DisplayName("dashboard Period Navigation Loads Selected Period")
   @Test
   void dashboardPeriodNavigationLoadsSelectedPeriod() {
     try (BrowserContext context = authenticatedContext()) {
@@ -120,6 +124,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
     }
   }
 
+  @DisplayName("asset Detail Period Navigation Loads Selected Period")
   @Test
   void assetDetailPeriodNavigationLoadsSelectedPeriod() {
     try (BrowserContext context = authenticatedContext()) {
@@ -141,6 +146,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
     }
   }
 
+  @DisplayName("long Term Asset Category Can Be Expanded")
   @Test
   void longTermAssetCategoryCanBeExpanded() {
     try (BrowserContext context = authenticatedContext()) {
@@ -155,6 +161,85 @@ class UiPageSmokeIT extends FastDatabaseTest {
     }
   }
 
+  @DisplayName("long Term Summary Shows Other Allocation And Cash Economics")
+  @Test
+  void longTermSummaryShowsOtherAllocationAndCashEconomics() {
+    try (BrowserContext context = authenticatedContext()) {
+      Page page = context.newPage();
+      page.navigate(baseUrl() + "/long-term-assets?portfolioId=1");
+
+      var other = page.locator("#other-assets");
+      assertThat(other.getByText("Other", new Locator.GetByTextOptions().setExact(true)).count())
+          .isPositive();
+      assertThat(
+              other
+                  .getByText("UI Other Asset", new Locator.GetByTextOptions().setExact(true))
+                  .count())
+          .isPositive();
+      assertThat(page.locator(".iv-long-term-allocation__legend").textContent()).contains("Other");
+
+      page.locator("#cash-reserves .iv-planning-section__header").click();
+      assertThat(page.locator("#cash-reserves").textContent()).contains("1.0%", "150");
+    }
+  }
+
+  @DisplayName("investment Profile Shows Module Owned Summary Semantics")
+  @Test
+  void investmentProfileShowsModuleOwnedSummarySemantics() {
+    try (BrowserContext context = authenticatedContext()) {
+      Page page = context.newPage();
+      page.navigate(baseUrl() + "/investment-profile?portfolioId=1");
+
+      String header = page.locator(".iv-planning-topbar").textContent();
+      assertThat(header)
+          .contains(
+              "Net worth",
+              "Net income / year",
+              "Annual cost / year",
+              "planned · " + Year.now().getValue())
+          .doesNotContain("Market return");
+
+      Locator sourceCards = page.locator(".iv-profile-source-card");
+      assertThat(sourceCards.count()).isEqualTo(2);
+      String marketCard = sourceCards.nth(0).textContent();
+      String longTermCard = sourceCards.nth(1).textContent();
+      assertThat(marketCard).contains("Received YTD", "Annualized return").doesNotContain("p.a.");
+      assertThat(
+              sourceCards
+                  .nth(0)
+                  .locator(".iv-profile-source-card__metrics > div")
+                  .nth(2)
+                  .locator("strong")
+                  .textContent())
+          .matches("-?\\d+\\.\\d%|Unavailable");
+      assertThat(longTermCard).contains("Received YTD").doesNotContain("Basis");
+
+      String allocation = page.locator(".iv-profile-allocation").textContent();
+      assertThat(allocation)
+          .contains("Short-term assets", "Long-term assets", "Asset type")
+          .containsAnyOf("Short-term asset", "Long-term asset")
+          .containsAnyOf("Cash · short-term", "Other · long-term")
+          .doesNotContain("Liquid", "Illiquid");
+
+      String sourceLongTermPercentage = percentageIn(longTermCard);
+      String allocationLongTermPercentage = percentageAfter(allocation, "Long-term assets ");
+      assertThat(sourceLongTermPercentage).isEqualTo(allocationLongTermPercentage);
+    }
+  }
+
+  private static String percentageIn(String text) {
+    var matcher = Pattern.compile("(-?\\d+\\.\\d%)").matcher(text);
+    assertThat(matcher.find()).isTrue();
+    return matcher.group(1);
+  }
+
+  private static String percentageAfter(String text, String prefix) {
+    var matcher = Pattern.compile(Pattern.quote(prefix) + "(-?\\d+\\.\\d%)").matcher(text);
+    assertThat(matcher.find()).isTrue();
+    return matcher.group(1);
+  }
+
+  @DisplayName("real Estate Contract Edit Can Be Opened And Cancelled")
   @Test
   void realEstateContractEditCanBeOpenedAndCancelled() {
     try (BrowserContext context = authenticatedContext()) {
@@ -169,6 +254,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
     }
   }
 
+  @DisplayName("simulation Year Control Changes Visible Snapshot")
   @Test
   void simulationYearControlChangesVisibleSnapshot() {
     try (BrowserContext context = authenticatedContext()) {
@@ -183,6 +269,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
     }
   }
 
+  @DisplayName("plan Editor Shows Invalid Retirement Age")
   @Test
   void planEditorShowsInvalidRetirementAge() {
     try (BrowserContext context = authenticatedContext()) {
@@ -196,6 +283,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
     }
   }
 
+  @DisplayName("retirement Analysis Tabs Switch Panels")
   @Test
   void retirementAnalysisTabsSwitchPanels() {
     try (BrowserContext context = authenticatedContext()) {
@@ -207,6 +295,38 @@ class UiPageSmokeIT extends FastDatabaseTest {
       assertThat(page.locator("#analysis-panel-risk").isVisible()).isTrue();
       assertThat(page.locator("[data-analysis-tab='risk']").getAttribute("aria-selected"))
           .isEqualTo("true");
+    }
+  }
+
+  @DisplayName("settings Page Uses Shared Navigation And Provider Forms")
+  @Test
+  void settingsPageUsesSharedNavigationAndProviderForms() {
+    try (BrowserContext context = authenticatedContext()) {
+      Page page = context.newPage();
+      page.navigate(baseUrl() + "/settings/integrations");
+
+      assertThat(
+              page.locator(".iv-page-nav")
+                  .getByText("Settings", new Locator.GetByTextOptions().setExact(true))
+                  .count())
+          .isPositive();
+      assertThat(page.locator(".iv-settings-card").count()).isGreaterThan(0);
+      assertThat(page.locator(".iv-settings-card").first().locator("button[type='submit']").count())
+          .isPositive();
+      assertThat(page.locator("body").textContent()).doesNotContain("apiKey");
+    }
+  }
+
+  @DisplayName("long Term Asset Dates Use Readable Display Format")
+  @Test
+  void longTermAssetDatesUseReadableDisplayFormat() {
+    try (BrowserContext context = authenticatedContext()) {
+      Page page = context.newPage();
+      page.navigate(baseUrl() + "/long-term-assets/9105?portfolioId=1");
+
+      assertThat(page.locator(".iv-rental-contract__date").first().textContent())
+          .containsPattern("\\b\\d{1,2} [A-Z][a-z]{2} \\d{4}\\b")
+          .doesNotContain("2026-");
     }
   }
 
@@ -225,7 +345,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
                 "Asset not found"),
             new PageCase(
                 "reconciliation",
-                "/dashboard/reconciliation?mode=QUICK",
+                "/dashboard/reconciliation",
                 200,
                 "Reconciliation",
                 "Reconciliation"),
@@ -326,7 +446,13 @@ class UiPageSmokeIT extends FastDatabaseTest {
                 "/simulation/timeline/2025?portfolioId=1&planId=9201",
                 200,
                 "Year review",
-                "2025 Year review"))
+                "2025 Year review"),
+            new PageCase(
+                "integration settings",
+                "/settings/integrations",
+                200,
+                "Integration settings",
+                "Integration settings"))
         .map(page -> Arguments.of(Named.of(page.name(), page)));
   }
 
@@ -345,10 +471,14 @@ class UiPageSmokeIT extends FastDatabaseTest {
   }
 
   private BrowserContext authenticatedContext() {
-    return browser.newContext(
-        new Browser.NewContextOptions()
-            .setHttpCredentials("admin", "change-me-admin")
-            .setViewportSize(1440, 1000));
+    BrowserContext context =
+        browser.newContext(
+            new Browser.NewContextOptions()
+                .setHttpCredentials("admin", "change-me-admin")
+                .setViewportSize(1440, 1000));
+    context.setDefaultTimeout(Duration.ofMinutes(2).toMillis());
+    context.setDefaultNavigationTimeout(Duration.ofMinutes(2).toMillis());
+    return context;
   }
 
   private String baseUrl() {

@@ -13,16 +13,19 @@ import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepositor
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("Asset Catalog Service")
 class AssetCatalogServiceTest {
 
   @Mock private AssetRepository assetRepository;
 
+  @DisplayName("ensure Assets Exist Accepts Existing Exact Symbol")
   @Test
   void ensureAssetsExistAcceptsExistingExactSymbol() {
     AssetCatalogService service = new AssetCatalogService(assetRepository);
@@ -34,6 +37,7 @@ class AssetCatalogServiceTest {
     verify(assetRepository, never()).saveAll(org.mockito.ArgumentMatchers.any());
   }
 
+  @DisplayName("ensure Assets Exist Rejects Unknown Qualified Symbol")
   @Test
   void ensureAssetsExistRejectsUnknownQualifiedSymbol() {
     AssetCatalogService service = new AssetCatalogService(assetRepository);
@@ -47,6 +51,7 @@ class AssetCatalogServiceTest {
     verify(assetRepository, never()).saveAll(org.mockito.ArgumentMatchers.any());
   }
 
+  @DisplayName("normalize Symbols For Storage Rejects Unknown Qualified Symbol")
   @Test
   void normalizeSymbolsForStorageRejectsUnknownQualifiedSymbol() {
     AssetCatalogService service = new AssetCatalogService(assetRepository);
@@ -59,6 +64,7 @@ class AssetCatalogServiceTest {
     verify(assetRepository, never()).findAllByTickerIn(anyCollection());
   }
 
+  @DisplayName("normalize Symbols For Storage Resolves Unique Bare Ticker")
   @Test
   void normalizeSymbolsForStorageResolvesUniqueBareTicker() {
     AssetCatalogService service = new AssetCatalogService(assetRepository);
@@ -72,6 +78,7 @@ class AssetCatalogServiceTest {
     verify(assetRepository, times(1)).findAllByTickerIn(anyCollection());
   }
 
+  @DisplayName("normalize Symbols For Storage Rejects Ambiguous Bare Ticker")
   @Test
   void normalizeSymbolsForStorageRejectsAmbiguousBareTicker() {
     AssetCatalogService service = new AssetCatalogService(assetRepository);
@@ -83,6 +90,7 @@ class AssetCatalogServiceTest {
         IllegalArgumentException.class, () -> service.normalizeSymbolsForStorage(List.of("TSLA")));
   }
 
+  @DisplayName("map Ibkr Symbol To Canonical Uses Existing Ibkr Mapping")
   @Test
   void mapIbkrSymbolToCanonicalUsesExistingIbkrMapping() {
     AssetCatalogService service = new AssetCatalogService(assetRepository);
@@ -92,6 +100,7 @@ class AssetCatalogServiceTest {
     assertEquals("IUVL.UK", service.mapIbkrSymbolToCanonical("IUVL"));
   }
 
+  @DisplayName("map Ibkr Symbol To Canonical Uses Exact Canonical Symbol")
   @Test
   void mapIbkrSymbolToCanonicalUsesExactCanonicalSymbol() {
     AssetCatalogService service = new AssetCatalogService(assetRepository);
@@ -102,6 +111,7 @@ class AssetCatalogServiceTest {
     assertEquals("PG.US", service.mapIbkrSymbolToCanonical("PG.US"));
   }
 
+  @DisplayName("map Ibkr Symbol To Canonical Uses Unique Existing Ticker")
   @Test
   void mapIbkrSymbolToCanonicalUsesUniqueExistingTicker() {
     AssetCatalogService service = new AssetCatalogService(assetRepository);
@@ -113,6 +123,7 @@ class AssetCatalogServiceTest {
     assertEquals("PG.US", service.mapIbkrSymbolToCanonical("PG"));
   }
 
+  @DisplayName("map Ibkr Symbol To Canonical Rejects Unknown Symbol")
   @Test
   void mapIbkrSymbolToCanonicalRejectsUnknownSymbol() {
     AssetCatalogService service = new AssetCatalogService(assetRepository);
@@ -123,6 +134,7 @@ class AssetCatalogServiceTest {
     assertThrows(IllegalArgumentException.class, () -> service.mapIbkrSymbolToCanonical("PG"));
   }
 
+  @DisplayName("map Ibkr Symbol To Canonical Rejects Ambiguous Broker Mapping")
   @Test
   void mapIbkrSymbolToCanonicalRejectsAmbiguousBrokerMapping() {
     AssetCatalogService service = new AssetCatalogService(assetRepository);
@@ -132,6 +144,8 @@ class AssetCatalogServiceTest {
     assertThrows(IllegalArgumentException.class, () -> service.mapIbkrSymbolToCanonical("ABC"));
   }
 
+  @DisplayName(
+      "seed For Symbol Infers Asset Currency From Listing Instead Of Account Currency Hint")
   @Test
   void seedForSymbolInfersAssetCurrencyFromListingInsteadOfAccountCurrencyHint() {
     AssetCatalogService service = new AssetCatalogService(assetRepository);

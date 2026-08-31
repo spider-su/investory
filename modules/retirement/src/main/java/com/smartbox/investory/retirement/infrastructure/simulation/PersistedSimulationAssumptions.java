@@ -1,7 +1,8 @@
 package com.smartbox.investory.retirement.infrastructure.simulation;
 
-import com.smartbox.investory.retirement.simulation.ProjectedIncomePolicy.IncomeMode;
-import com.smartbox.investory.retirement.simulation.SimulationFundingStrategy;
+import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.api.model.ProjectedIncomePolicy.IncomeMode;
+import com.smartbox.investory.retirement.api.model.SimulationFundingStrategy;
 import java.math.BigDecimal;
 
 /** Shared persistence shape for a mutable plan row and an immutable revision row. */
@@ -94,10 +95,6 @@ public interface PersistedSimulationAssumptions {
 
   void setAllowEmergencyEquityWithdrawal(Boolean value);
 
-  BigDecimal getCashReturnRate();
-
-  void setCashReturnRate(BigDecimal value);
-
   BigDecimal getFixedIncomeReturnRate();
 
   void setFixedIncomeReturnRate(BigDecimal value);
@@ -105,14 +102,6 @@ public interface PersistedSimulationAssumptions {
   BigDecimal getEquityReturnRate();
 
   void setEquityReturnRate(BigDecimal value);
-
-  BigDecimal getRealEstateReturnRate();
-
-  void setRealEstateReturnRate(BigDecimal value);
-
-  BigDecimal getOtherReturnRate();
-
-  void setOtherReturnRate(BigDecimal value);
 
   int getPensionStartAge();
 

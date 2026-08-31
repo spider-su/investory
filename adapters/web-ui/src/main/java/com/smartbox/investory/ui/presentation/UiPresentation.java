@@ -1,68 +1,81 @@
 package com.smartbox.investory.ui.presentation;
 
-import com.smartbox.investory.longterm.api.model.CashFlowTypeModel;
-import com.smartbox.investory.longterm.api.model.FrequencyModel;
-import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
-import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
-import com.smartbox.investory.retirement.planning.PlanningMetric;
-import com.smartbox.investory.retirement.profile.EconomicBucket;
-import com.smartbox.investory.retirement.profile.Liquidity;
-import com.smartbox.investory.retirement.simulation.SimulationFundingStrategy;
+import static com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull;
+
+import com.smartbox.investory.longterm.api.model.CashFlowType;
+import com.smartbox.investory.longterm.api.model.Frequency;
+import com.smartbox.investory.longterm.api.model.InterestTreatment;
+import com.smartbox.investory.longterm.api.model.LongTermAssetType;
+import com.smartbox.investory.profile.api.model.EconomicBucket;
+import com.smartbox.investory.profile.api.model.Liquidity;
+import com.smartbox.investory.retirement.api.model.PlanningMetric;
+import com.smartbox.investory.retirement.api.model.SimulationFundingStrategy;
 import com.smartbox.investory.shared.presentation.FinancialPrecision;
+import com.smartbox.investory.shared.presentation.FinancialPresentation;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.text.NumberFormat;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
 /** Stable display formatting and labels for the planning pages. */
 public final class UiPresentation {
+  private static final DateTimeFormatter DATE_FORMAT =
+      DateTimeFormatter.ofPattern("d MMM uuuu", Locale.ENGLISH);
+  private static final DateTimeFormatter DATE_TIME_FORMAT =
+      DateTimeFormatter.ofPattern("d MMM uuuu, HH:mm z", Locale.ENGLISH);
+
   public UiPresentation() {}
 
+  public static String date(LocalDate value) {
+    return value == null ? "—" : DATE_FORMAT.format(value);
+  }
+
+  public static String dateTime(ZonedDateTime value) {
+    return value == null ? "—" : DATE_TIME_FORMAT.format(value);
+  }
+
+  public static String dateTime(OffsetDateTime value) {
+    return value == null
+        ? "—"
+        : DATE_TIME_FORMAT.format(value.atZoneSameInstant(ZoneId.systemDefault()));
+  }
+
+  public static String dateTime(Instant value) {
+    return value == null ? "—" : DATE_TIME_FORMAT.format(value.atZone(ZoneId.systemDefault()));
+  }
+
   public static String money(BigDecimal value) {
-    BigDecimal rounded =
-        (value == null ? BigDecimal.ZERO : value).setScale(2, RoundingMode.HALF_UP);
-    return rounded.stripTrailingZeros().scale() <= 0
-        ? number(rounded, 0, 0)
-        : number(rounded, 2, 2);
+    return FinancialPresentation.money(value);
   }
 
   public static String moneyWhole(BigDecimal value) {
-    return number(value, 0, 0);
+    return FinancialPresentation.moneyWhole(value);
   }
 
   public static String wholeNumber(BigDecimal value) {
-    return number(value, 0, 0);
+    return FinancialPresentation.wholeNumber(value);
   }
 
   /** Formats monetary planning values in thousands with one decimal place. */
   public static String thousands(BigDecimal value) {
-    BigDecimal amount = value == null ? BigDecimal.ZERO : value;
-    return number(amount.divide(BigDecimal.valueOf(1000)), 1, 1);
+    BigDecimal amount = zeroIfNull(value);
+    return number(amount.divide(BigDecimal.valueOf(1000), RoundingMode.HALF_UP), 1, 1);
   }
 
   /** Compact summary money, with a locale-stable K/M suffix and no scientific notation. */
   public static String compactMoney(BigDecimal value) {
-    BigDecimal amount = value == null ? BigDecimal.ZERO : value;
-    BigDecimal absolute = amount.abs();
-    if (absolute.compareTo(BigDecimal.valueOf(1_000_000)) >= 0) {
-      return number(amount.divide(BigDecimal.valueOf(1_000_000)), 0, 2) + "M";
-    }
-    if (absolute.compareTo(BigDecimal.valueOf(1_000)) >= 0) {
-      BigDecimal thousands =
-          amount.divide(BigDecimal.valueOf(1_000)).setScale(1, RoundingMode.HALF_UP);
-      if (thousands.abs().compareTo(BigDecimal.valueOf(1_000)) >= 0) {
-        return number(amount.divide(BigDecimal.valueOf(1_000_000)), 0, 2) + "M";
-      }
-      return number(thousands, 1, 1) + "K";
-    }
-    return number(amount, 0, 0);
+    return FinancialPresentation.compactMoney(value);
   }
 
   /** Compact money with an explicit sign for internal transfers and net changes. */
   public static String signedCompactMoney(BigDecimal value) {
-    BigDecimal amount = value == null ? BigDecimal.ZERO : value;
+    BigDecimal amount = zeroIfNull(value);
     if (amount.signum() > 0) return "+" + compactMoney(amount);
     if (amount.signum() < 0) return "−" + compactMoney(amount.abs());
     return compactMoney(amount);
@@ -78,12 +91,12 @@ public final class UiPresentation {
 
   /** Natural, unitless decimal display for values such as reserve coverage years. */
   public static String decimal(BigDecimal value) {
-    return money(value);
+    return FinancialPresentation.decimal(value);
   }
 
   /** Formats planning durations with one decimal place for coverage/runway values. */
   public static String years(BigDecimal value) {
-    return number(value == null ? BigDecimal.ZERO : value, 0, 1);
+    return number(zeroIfNull(value), 0, 1);
   }
 
   /** Browser-safe unitless decimal form value. */
@@ -99,9 +112,10 @@ public final class UiPresentation {
   /** Browser-safe percentage-point input, for example 0.075 becomes 7.5. */
   public static String percentageInput(BigDecimal ratio) {
     BigDecimal percentagePoints =
-        (ratio == null ? BigDecimal.ZERO : ratio.multiply(BigDecimal.valueOf(100)))
-            .stripTrailingZeros();
-    return (percentagePoints.scale() < 1 ? percentagePoints.setScale(1) : percentagePoints)
+        zeroIfNull(ratio).multiply(BigDecimal.valueOf(100)).stripTrailingZeros();
+    return (percentagePoints.scale() < 1
+            ? percentagePoints.setScale(1, RoundingMode.UNNECESSARY)
+            : percentagePoints)
         .toPlainString();
   }
 
@@ -110,37 +124,34 @@ public final class UiPresentation {
    * #wholeNumber(BigDecimal)}.
    */
   public static String wholeNumberInput(BigDecimal value) {
-    return (value == null ? BigDecimal.ZERO : value)
-        .setScale(0, FinancialPrecision.REPORTING_ROUNDING)
-        .toPlainString();
+    return zeroIfNull(value).setScale(0, FinancialPrecision.REPORTING_ROUNDING).toPlainString();
   }
 
   public static String moneyWhole(BigDecimal value, Object currency) {
-    return moneyWhole(value) + (currency == null ? "" : " " + currency);
+    return FinancialPresentation.moneyWhole(value, currency);
   }
 
   public static String money(BigDecimal value, Object currency) {
-    return money(value) + (currency == null ? "" : " " + currency);
+    return FinancialPresentation.money(value, currency);
   }
 
   public static String percentage(BigDecimal ratio) {
-    return number(ratio == null ? BigDecimal.ZERO : ratio.multiply(BigDecimal.valueOf(100)), 1, 1)
-        + "%";
+    return FinancialPresentation.percentage(ratio);
   }
 
   public static String signedPercentage(BigDecimal ratio) {
-    BigDecimal value = ratio == null ? BigDecimal.ZERO : ratio;
+    BigDecimal value = zeroIfNull(ratio);
     return (value.signum() > 0 ? "+" : "") + percentage(value);
   }
 
   /** Formats a signed percentage-point delta with one decimal place. */
   public static String percentagePoints(BigDecimal value) {
-    BigDecimal points = value == null ? BigDecimal.ZERO : value;
+    BigDecimal points = zeroIfNull(value);
     return (points.signum() > 0 ? "+" : "") + number(points, 1, 1) + " pp";
   }
 
   public static String rate(BigDecimal ratio) {
-    return percentage(ratio);
+    return FinancialPresentation.rate(ratio);
   }
 
   /** Formats a value by its declared planning metric unit after currency conversion, if any. */
@@ -174,6 +185,18 @@ public final class UiPresentation {
     };
   }
 
+  /** CSS token for the investment dashboard allocation bar. */
+  public static String investmentAllocationCssKey(String label) {
+    if (label == null) return "other";
+    return switch (label.trim().toLowerCase(Locale.ROOT)) {
+      case "cash", "liquid cash" -> "cash";
+      case "fixed income", "bonds" -> "fixed-income";
+      case "equity", "stocks" -> "equity";
+      case "real estate" -> "real-estate";
+      default -> "other";
+    };
+  }
+
   public static String liquidity(Liquidity value) {
     return value == Liquidity.ILLIQUID ? "Illiquid" : "Liquid";
   }
@@ -200,6 +223,7 @@ public final class UiPresentation {
   }
 
   public static String cashFlowType(CashFlowType value) {
+    if (value == null) return "—";
     return switch (value) {
       case RENT -> "Rent";
       case PARKING_RENT -> "Parking rent";
@@ -212,17 +236,8 @@ public final class UiPresentation {
     };
   }
 
-  /** Formats the stable Long-Term public API cash-flow type used by current templates. */
-  public static String cashFlowType(CashFlowTypeModel value) {
-    return value == null ? "—" : cashFlowType(CashFlowType.valueOf(value.name()));
-  }
-
-  public static String frequency(Frequency value) {
-    return title(value);
-  }
-
   /** Formats the stable Long-Term public API frequency used by current templates. */
-  public static String frequency(FrequencyModel value) {
+  public static String frequency(Frequency value) {
     return title(value);
   }
 
@@ -230,11 +245,11 @@ public final class UiPresentation {
     NumberFormat format = NumberFormat.getNumberInstance(Locale.US);
     format.setMinimumFractionDigits(minimumScale);
     format.setMaximumFractionDigits(maximumScale);
-    return format.format(value == null ? BigDecimal.ZERO : value);
+    return format.format(zeroIfNull(value));
   }
 
   private static String plain(BigDecimal value, int scale) {
-    return (value == null ? BigDecimal.ZERO : value)
+    return zeroIfNull(value)
         .setScale(scale, FinancialPrecision.REPORTING_ROUNDING)
         .stripTrailingZeros()
         .toPlainString();

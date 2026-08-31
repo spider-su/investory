@@ -1,15 +1,15 @@
 package com.smartbox.investory.longterm.application.service;
 
+import com.smartbox.investory.longterm.api.model.CashFlowType;
+import com.smartbox.investory.longterm.api.model.Frequency;
+import com.smartbox.investory.longterm.api.model.LongTermAssetType;
 import com.smartbox.investory.longterm.application.model.LongTermAssetBootstrapDocument;
 import com.smartbox.investory.longterm.application.model.LongTermAssetBootstrapResult;
 import com.smartbox.investory.longterm.infrastructure.asset.*;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.longterm.infrastructure.bond.*;
 import com.smartbox.investory.longterm.infrastructure.deposit.*;
 import com.smartbox.investory.longterm.infrastructure.lifecycle.*;
 import com.smartbox.investory.longterm.infrastructure.rental.*;
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
-import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import com.smartbox.investory.longterm.infrastructure.tax.*;
 import com.smartbox.investory.longterm.infrastructure.valuation.*;
 import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
@@ -381,7 +381,8 @@ public class LongTermAssetBootstrapService {
   private void upsertRentalContracts(
       LongTermAssetEntity asset, List<LongTermAssetBootstrapDocument.CashFlow> inputFlows) {
     Long assetId = asset.getId();
-    var flows = inputFlows.stream().map(this::toCashFlowEntity).toList();
+    var flows =
+        inputFlows.stream().map(LongTermAssetBootstrapService::toBootstrapCashFlow).toList();
     var existing = rentalContracts.findAllByAssetIdOrderByStartDate(assetId);
     var managed =
         existing.stream().filter(LongTermAssetRentalContractEntity::isBootstrapManaged).toList();
@@ -392,8 +393,8 @@ public class LongTermAssetBootstrapService {
     if (flows.isEmpty()) return;
     var boundaries = new TreeSet<LocalDate>();
     for (var flow : flows) {
-      boundaries.add(flow.getValidFrom());
-      if (flow.getValidTo() != null) boundaries.add(flow.getValidTo().plusDays(1));
+      boundaries.add(flow.validFrom());
+      if (flow.validTo() != null) boundaries.add(flow.validTo().plusDays(1));
     }
     var points = new ArrayList<>(boundaries);
     for (int i = 0; i < points.size(); i++) {
@@ -401,8 +402,8 @@ public class LongTermAssetBootstrapService {
       LocalDate end = i + 1 < points.size() ? points.get(i + 1).minusDays(1) : null;
       var group =
           flows.stream()
-              .filter(f -> !f.getValidFrom().isAfter(start))
-              .filter(f -> f.getValidTo() == null || !f.getValidTo().isBefore(start))
+              .filter(f -> !f.validFrom().isAfter(start))
+              .filter(f -> f.validTo() == null || !f.validTo().isBefore(start))
               .toList();
       if (group.isEmpty()) continue;
       var contract = new LongTermAssetRentalContractEntity();
@@ -413,13 +414,13 @@ public class LongTermAssetBootstrapService {
       contract.setMonthlyTaxBase(asset.getTaxBase());
       contract.setRentalTaxPaidByTenant(asset.isRentalTaxPaidByTenant());
       for (var flow : group) {
-        if (flow.getValidTo() != null && flow.getValidTo().isBefore(start)) continue;
+        if (flow.validTo() != null && flow.validTo().isBefore(start)) continue;
         var term = new LongTermAssetRentalContractTermEntity();
         term.setContract(contract);
-        term.setType(flow.getType());
-        term.setAmount(flow.getAmount());
-        term.setFrequency(flow.getFrequency());
-        term.setPaidByTenant(flow.isPaidByTenant());
+        term.setType(flow.type());
+        term.setAmount(flow.amount());
+        term.setFrequency(flow.frequency());
+        term.setPaidByTenant(flow.paidByTenant());
         contract.getTerms().add(term);
       }
       rentalContracts.save(contract);
@@ -427,19 +428,17 @@ public class LongTermAssetBootstrapService {
     }
   }
 
-  private LongTermAssetCashFlowEntity toCashFlowEntity(
+  private static BootstrapCashFlow toBootstrapCashFlow(
       LongTermAssetBootstrapDocument.CashFlow input) {
-    var flow = new LongTermAssetCashFlowEntity();
-    flow.setType(input.type());
-    flow.setAmount(input.amount());
-    flow.setFrequency(input.frequency());
-    flow.setValidFrom(input.validFrom());
-    flow.setValidTo(input.validTo());
-    flow.setPaidByTenant(
+    return new BootstrapCashFlow(
+        input.type(),
+        input.amount(),
+        input.frequency(),
+        input.validFrom(),
+        input.validTo(),
         input.paidByTenant() != null
             ? input.paidByTenant()
-            : LongTermAssetPeriodRules.defaultPaidByTenant(input.type()));
-    return flow;
+            : input.type() == CashFlowType.ADMIN_FEE || input.type() == CashFlowType.UTILITIES);
   }
 
   private void upsertValuation(Long assetId, LongTermAssetBootstrapDocument.Period input) {
@@ -557,6 +556,14 @@ public class LongTermAssetBootstrapService {
       BigDecimal expenses,
       BigDecimal tax,
       BigDecimal netIncome) {}
+
+  private record BootstrapCashFlow(
+      CashFlowType type,
+      BigDecimal amount,
+      Frequency frequency,
+      LocalDate validFrom,
+      LocalDate validTo,
+      boolean paidByTenant) {}
 
   private record DatePeriod(LocalDate from, LocalDate to) {
     boolean overlaps(DatePeriod other) {

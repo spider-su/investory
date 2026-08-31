@@ -11,7 +11,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,14 +21,16 @@ public class CurrencyRateUpdaterService {
 
   private final FxRateProvider fxRateProvider;
   private final CurrencyRateService currencyRateService;
-
-  @Autowired(required = false)
-  private com.smartbox.investory.investment.performance.InvestmentCalculationCache calculationCache;
+  private final com.smartbox.investory.investment.performance.InvestmentCalculationCache
+      calculationCache;
 
   public CurrencyRateUpdaterService(
-      FxRateProvider fxRateProvider, CurrencyRateService currencyRateService) {
+      FxRateProvider fxRateProvider,
+      CurrencyRateService currencyRateService,
+      com.smartbox.investory.investment.performance.InvestmentCalculationCache calculationCache) {
     this.fxRateProvider = fxRateProvider;
     this.currencyRateService = currencyRateService;
+    this.calculationCache = calculationCache;
   }
 
   public CurrencyRateRefreshResult updateCurrencyRates() {
@@ -57,9 +58,7 @@ public class CurrencyRateUpdaterService {
       ratesByBase.forEach(
           (base, rates) -> currencyRateService.updateRates(base, rates, providerDate));
       currencyRateService.activateDailyHistoryAt(providerDate);
-      if (calculationCache != null) {
-        calculationCache.invalidate();
-      }
+      calculationCache.invalidate();
       return new CurrencyRateRefreshResult(providerDate, List.of("USD", "EUR", "PLN"), List.of());
     } catch (FxRateProviderException e) {
       log.warn("Skipping FX refresh: {}", e.getMessage());

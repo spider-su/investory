@@ -1,6 +1,8 @@
 package com.smartbox.investory.retirement.simulation;
 
-import com.smartbox.investory.retirement.profile.InvestmentProfile;
+import com.smartbox.investory.profile.api.model.EconomicBucket;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.api.model.*;
 import java.math.BigDecimal;
 import java.util.EnumMap;
 import java.util.Map;
@@ -104,6 +106,10 @@ public class RetirementSimulationService implements RetirementSimulation {
     BigDecimal rental =
         rentalBaseline.multiply(
             BigDecimal.ONE.add(effective.rentalIncomeGrowthRate()).pow(yearsFromBaseline));
+    Map<Integer, BigDecimal> eventIncomeByYear =
+        eventTotals(assumptions, SimulationEventType.ONE_OFF_INCOME);
+    Map<Integer, BigDecimal> eventExpenseByYear =
+        eventTotals(assumptions, SimulationEventType.ONE_OFF_EXPENSE);
     PlanningBuckets current = buckets;
     for (int age = assumptions.currentAge(); age <= assumptions.endAge(); age++) {
       int year = assumptions.startYear() + age - assumptions.currentAge();
@@ -119,19 +125,11 @@ public class RetirementSimulationService implements RetirementSimulation {
       BigDecimal employment =
           retired ? ZERO : assumptions.annualEmploymentIncome().multiply(recurringFraction);
       BigDecimal pension =
-          age >= assumptions.pensionStartAge()
+          assumptions.pensionStartsAtOrBefore(age)
               ? assumptions.annualPension().multiply(recurringFraction)
               : ZERO;
-      BigDecimal eventIncome =
-          assumptions.futureEvents().stream()
-              .filter(e -> e.year() == year && e.type() == SimulationEventType.ONE_OFF_INCOME)
-              .map(SimulationEvent::amount)
-              .reduce(ZERO, BigDecimal::add);
-      BigDecimal eventExpense =
-          assumptions.futureEvents().stream()
-              .filter(e -> e.year() == year && e.type() == SimulationEventType.ONE_OFF_EXPENSE)
-              .map(SimulationEvent::amount)
-              .reduce(ZERO, BigDecimal::add);
+      BigDecimal eventIncome = eventIncomeByYear.getOrDefault(year, ZERO);
+      BigDecimal eventExpense = eventExpenseByYear.getOrDefault(year, ZERO);
       BigDecimal periodRental = rental.multiply(recurringFraction);
       BigDecimal bondIncome =
           bondCashFlows.cashIncome(profile, assumptions, year).multiply(recurringFraction);
@@ -143,14 +141,14 @@ public class RetirementSimulationService implements RetirementSimulation {
           new PlanningBuckets(
               current.cash(),
               new PlanningBucket(
-                  BucketType.BONDS,
+                  EconomicBucket.FIXED_INCOME,
                   current.bonds().startValue(),
                   annualBondReturn,
                   current.bonds().spendingPriority(),
                   current.bonds().targetValue(),
                   RefillPolicy.NONE),
               new PlanningBucket(
-                  BucketType.EQUITIES,
+                  EconomicBucket.EQUITY,
                   current.equities().startValue(),
                   annualEquityReturn,
                   current.equities().spendingPriority(),
@@ -167,9 +165,9 @@ public class RetirementSimulationService implements RetirementSimulation {
               assumptions.fundingPolicy(),
               annualBondReturn,
               annualEquityReturn);
-      var c = result.buckets().get(BucketType.CASH);
-      var b = result.buckets().get(BucketType.BONDS);
-      var rawEquities = result.buckets().get(BucketType.EQUITIES);
+      var c = result.buckets().get(EconomicBucket.LIQUID_CASH);
+      var b = result.buckets().get(EconomicBucket.FIXED_INCOME);
+      var rawEquities = result.buckets().get(EconomicBucket.EQUITY);
       // Contributions are an input cash flow before the next year, not a source-domain holding.
       BigDecimal contribution =
           retired
@@ -178,14 +176,14 @@ public class RetirementSimulationService implements RetirementSimulation {
       var e =
           retired || contribution.signum() == 0
               ? rawEquities
-              : new RetirementBucketEngine.BucketResult(
-                  BucketType.EQUITIES,
+              : new BucketResult(
+                  EconomicBucket.EQUITY,
                   rawEquities.startValue(),
                   rawEquities.returnAmount(),
                   rawEquities.refill(),
                   rawEquities.withdrawal(),
                   rawEquities.expectedEndValue().add(contribution));
-      var re = result.buckets().get(BucketType.REAL_ESTATE);
+      var re = result.buckets().get(EconomicBucket.REAL_ESTATE);
       if (result.unfunded().signum() > 0 && failureAge == null) {
         failureAge = age;
         firstShortfall = result.unfunded();
@@ -214,23 +212,33 @@ public class RetirementSimulationService implements RetirementSimulation {
       current =
           new PlanningBuckets(
               new PlanningBucket(
-                  BucketType.CASH, c.expectedEndValue(), ZERO, 1, ZERO, RefillPolicy.NONE),
+                  EconomicBucket.LIQUID_CASH,
+                  c.expectedEndValue(),
+                  ZERO,
+                  1,
+                  ZERO,
+                  RefillPolicy.NONE),
               new PlanningBucket(
-                  BucketType.BONDS,
+                  EconomicBucket.FIXED_INCOME,
                   b.expectedEndValue(),
                   current.bonds().plannedYieldRate(),
                   2,
                   current.bonds().targetValue(),
                   RefillPolicy.NONE),
               new PlanningBucket(
-                  BucketType.EQUITIES,
+                  EconomicBucket.EQUITY,
                   nextEquities,
                   current.equities().plannedYieldRate(),
                   3,
                   ZERO,
                   RefillPolicy.EQUITY_HARVEST),
               new PlanningBucket(
-                  BucketType.REAL_ESTATE, re.expectedEndValue(), ZERO, 4, ZERO, RefillPolicy.NONE),
+                  EconomicBucket.REAL_ESTATE,
+                  re.expectedEndValue(),
+                  ZERO,
+                  4,
+                  ZERO,
+                  RefillPolicy.NONE),
               rental,
               current.realEstateGrowthRate());
       rental = rental.multiply(BigDecimal.ONE.add(effective.rentalIncomeGrowthRate()));
@@ -270,5 +278,14 @@ public class RetirementSimulationService implements RetirementSimulation {
 
   private static BigDecimal nz(BigDecimal value) {
     return value == null ? ZERO : value;
+  }
+
+  private static Map<Integer, BigDecimal> eventTotals(
+      SimulationAssumptions assumptions, SimulationEventType type) {
+    return assumptions.futureEvents().stream()
+        .filter(event -> event.type() == type)
+        .collect(
+            java.util.stream.Collectors.toUnmodifiableMap(
+                SimulationEvent::year, SimulationEvent::amount, BigDecimal::add));
   }
 }

@@ -73,7 +73,10 @@
 
 .iv-property-page .iv-rental-contract__summary:hover { background: var(--iv-surface-muted); }
 .iv-property-page .iv-rental-contract__summary:focus-visible,
-.iv-property-page .iv-property-disclosure:focus-visible { outline: 3px solid var(--tblr-primary); outline-offset: -3px; }
+.iv-property-page .iv-property-disclosure:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--iv-accent) 60%, transparent);
+  outline-offset: -2px;
+}
 .iv-property-page .iv-rental-contract__date { display: grid; gap: 2px; }
 .iv-property-page .iv-rental-contract__date small { color: var(--iv-text-muted); font-size: .68rem; text-transform: uppercase; }
 .iv-property-page .iv-rental-contract__tenant,
@@ -124,7 +127,7 @@
   gap: 16px;
   margin-top: 18px;
   padding: 16px;
-  border: 1px solid var(--tblr-warning);
+  border: 1px solid var(--iv-warning);
   border-radius: var(--iv-radius-sm);
   background: var(--iv-surface);
 }

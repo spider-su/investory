@@ -24,6 +24,6 @@ public record NotificationCandidate(
     Objects.requireNonNull(fingerprint, "Fingerprint is required");
     Objects.requireNonNull(title, "Title is required");
     Objects.requireNonNull(createdAt, "Creation time is required");
-    payload = payload == null ? Map.of() : Map.copyOf(payload);
+    payload = com.smartbox.investory.shared.util.CollectionUtils.immutableMapOrEmpty(payload);
   }
 }

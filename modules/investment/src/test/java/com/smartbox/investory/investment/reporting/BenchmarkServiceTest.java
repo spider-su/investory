@@ -9,6 +9,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.smartbox.investory.investment.api.reporting.model.Benchmark;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
@@ -20,7 +21,6 @@ import com.smartbox.investory.investment.infrastructure.persistence.account.Acco
 import com.smartbox.investory.investment.infrastructure.persistence.benchmark.BenchmarkMonthlyCloseEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.benchmark.BenchmarkMonthlyCloseRepository;
 import com.smartbox.investory.investment.ledger.cash.persistence.NormalizedCashOperationRepository;
-import com.smartbox.investory.investment.performance.model.Benchmark;
 import com.smartbox.investory.investment.port.market.MarketDataProvider;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -32,13 +32,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataAccessException;
 import org.springframework.transaction.annotation.Transactional;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("Benchmark Service")
 class BenchmarkServiceTest {
 
   @Mock private AccountDailyRepository accountDailyRepository;
@@ -73,44 +76,53 @@ class BenchmarkServiceTest {
         .when(accountRepository.findPortfolioCurrenciesByAccountIdIn(any()))
         .thenReturn(List.of());
     org.mockito.Mockito.lenient()
-        .when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc())
+        .when(
+            accountMonthlyPerformanceRepository
+                .findByMonthGreaterThanEqualOrderByMonthAscAccountIdAsc(any()))
         .thenReturn(List.of());
     org.mockito.Mockito.lenient()
         .when(benchmarkMonthlyCloseRepository.findBySymbolOrderByMonthDateAsc("SPY"))
         .thenReturn(List.of());
   }
 
+  @DisplayName("calculate returns Unavailable When No Daily Rows")
   @Test
   void calculate_returnsUnavailableWhenNoDailyRows() {
-    when(accountDailyRepository.findAll()).thenReturn(List.of());
+    when(accountDailyRepository.findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(any()))
+        .thenReturn(List.of());
 
     Benchmark benchmark = benchmarkService.calculate();
 
     assertFalse(benchmark.isAvailable());
   }
 
+  @DisplayName("calculate is Not Wrapped In One Service Transaction")
   @Test
   void calculate_isNotWrappedInOneServiceTransaction() {
     assertNull(BenchmarkService.class.getAnnotation(Transactional.class));
   }
 
+  @DisplayName("calculate propagates Database Failure When Projection Tables Are Not Ready")
   @Test
   void calculate_returnsUnavailableWhenProjectionTablesAreNotReady() {
-    when(accountDailyRepository.findAll()).thenThrow(new RuntimeException("account_daily missing"));
+    when(accountDailyRepository.findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(any()))
+        .thenThrow(
+            new org.springframework.dao.DataAccessResourceFailureException(
+                "account_daily missing"));
 
-    Benchmark benchmark = benchmarkService.calculate();
-
-    assertFalse(benchmark.isAvailable());
+    assertThrows(DataAccessException.class, () -> benchmarkService.calculate());
   }
 
+  @DisplayName("calculate builds Portfolio And Benchmark Curves")
   @Test
   void calculate_buildsPortfolioAndBenchmarkCurves() {
-    when(accountDailyRepository.findAll())
+    when(accountDailyRepository.findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(any()))
         .thenReturn(
             List.of(
                 monthly(1L, "2026-01-01", 10_000.0, 10_000.0),
                 monthly(1L, "2026-02-01", 0.0, 10_120.0)));
-    when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc())
+    when(accountMonthlyPerformanceRepository.findByMonthGreaterThanEqualOrderByMonthAscAccountIdAsc(
+            any()))
         .thenReturn(
             List.of(
                 monthlyPerformance(1L, "2026-01-01", 10_000.0, 0.0, 0.0),
@@ -150,14 +162,16 @@ class BenchmarkServiceTest {
     verify(benchmarkMonthlyCloseRepository).saveAll(anyList());
   }
 
+  @DisplayName("calculate keeps Portfolio History When Spy Closes Are Missing")
   @Test
   void calculate_keepsPortfolioHistoryWhenSpyClosesAreMissing() {
-    when(accountDailyRepository.findAll())
+    when(accountDailyRepository.findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(any()))
         .thenReturn(
             List.of(
                 monthly(1L, "2026-01-01", 10_000.0, 10_000.0),
                 monthly(1L, "2026-02-01", 10_120.0, 10_120.0)));
-    when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc())
+    when(accountMonthlyPerformanceRepository.findByMonthGreaterThanEqualOrderByMonthAscAccountIdAsc(
+            any()))
         .thenReturn(
             List.of(
                 monthlyPerformance(1L, "2026-01-01", 10_000.0, 0.0, 0.0),
@@ -170,14 +184,16 @@ class BenchmarkServiceTest {
     assertEquals(java.util.Arrays.asList(null, null), benchmark.getBenchmarkReturnCurve());
   }
 
+  @DisplayName("calculate uses First In Range Spy Close When The Predecessor Is Unavailable")
   @Test
   void calculate_usesFirstInRangeSpyCloseWhenThePredecessorIsUnavailable() {
-    when(accountDailyRepository.findAll())
+    when(accountDailyRepository.findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(any()))
         .thenReturn(
             List.of(
                 monthly(1L, "2026-01-01", 10_000.0, 10_000.0),
                 monthly(1L, "2026-02-01", 0.0, 10_120.0)));
-    when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc())
+    when(accountMonthlyPerformanceRepository.findByMonthGreaterThanEqualOrderByMonthAscAccountIdAsc(
+            any()))
         .thenReturn(
             List.of(
                 monthlyPerformance(1L, "2026-01-01", 10_000.0, 0.0, 0.0),
@@ -192,16 +208,18 @@ class BenchmarkServiceTest {
     assertEquals(List.of(0.0, 500.0), benchmark.getBenchmarkCurve());
   }
 
+  @DisplayName("calculate compares Monthly Account Value Changes To Same Spy Starting Value")
   @Test
   void calculate_comparesMonthlyAccountValueChangesToSameSpyStartingValue() {
-    when(accountDailyRepository.findAll())
+    when(accountDailyRepository.findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(any()))
         .thenReturn(
             List.of(
                 monthly(1L, "2026-01-01", 0.0, 1000.0),
                 monthly(1L, "2026-02-01", 0.0, 1100.0),
                 monthly(1L, "2026-03-01", 0.0, 990.0),
                 monthly(1L, "2026-04-01", 0.0, 1088.0)));
-    when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc())
+    when(accountMonthlyPerformanceRepository.findByMonthGreaterThanEqualOrderByMonthAscAccountIdAsc(
+            any()))
         .thenReturn(
             List.of(
                 monthlyPerformance(1L, "2026-01-01", 1000.0, 0.0, 0.0),
@@ -228,14 +246,16 @@ class BenchmarkServiceTest {
     assertEquals(8.8, benchmark.getPortfolioReturnCurve().getLast(), 0.01);
   }
 
+  @DisplayName("calculate uses Daily Return So Deposits Do Not Become Performance")
   @Test
   void calculate_usesDailyReturnSoDepositsDoNotBecomePerformance() {
-    when(accountDailyRepository.findAll())
+    when(accountDailyRepository.findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(any()))
         .thenReturn(
             List.of(
                 monthlyWithReturn("2026-01-01", 0.0, 1000.0, null),
                 monthlyWithReturn("2026-02-01", 1000.0, 2100.0, 0.10)));
-    when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc())
+    when(accountMonthlyPerformanceRepository.findByMonthGreaterThanEqualOrderByMonthAscAccountIdAsc(
+            any()))
         .thenReturn(
             List.of(
                 monthlyPerformance(1L, "2026-01-01", 1000.0, 0.0, 0.0),
@@ -259,22 +279,41 @@ class BenchmarkServiceTest {
         List.of(0.0, 100.0), benchmark.getAccountSeries().getFirst().returnContributionCurve());
   }
 
+  @DisplayName("calculate returns Unavailable When Spy Data Is Empty")
   @Test
   void calculate_returnsUnavailableWhenSpyDataIsEmpty() {
-    when(accountDailyRepository.findAll())
+    when(accountDailyRepository.findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(any()))
         .thenReturn(List.of(monthly(1L, "2026-01-01", 1000.0, 1000.0)));
     Benchmark benchmark = benchmarkService.calculate();
     assertFalse(benchmark.isAvailable());
   }
 
+  @DisplayName("calculate propagates Database Failure When Reading Spy Closes")
+  @Test
+  void calculate_propagatesDatabaseFailureWhenReadingSpyCloses() {
+    when(accountDailyRepository.findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(any()))
+        .thenReturn(List.of(monthlyWithStartingValue(1L, "2026-01-01", 1000.0)));
+    when(accountMonthlyPerformanceRepository.findByMonthGreaterThanEqualOrderByMonthAscAccountIdAsc(
+            any()))
+        .thenReturn(List.of(monthlyPerformance(1L, "2026-01-01", 1000.0, 0.0, 0.0)));
+    when(benchmarkMonthlyCloseRepository.findBySymbolOrderByMonthDateAsc("SPY"))
+        .thenThrow(
+            new org.springframework.dao.DataAccessResourceFailureException(
+                "benchmark unavailable"));
+
+    assertThrows(DataAccessException.class, () -> benchmarkService.calculate());
+  }
+
+  @DisplayName("calculate uses Persisted Benchmark Closes Without Fetching")
   @Test
   void calculate_usesPersistedBenchmarkClosesWithoutFetching() {
-    when(accountDailyRepository.findAll())
+    when(accountDailyRepository.findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(any()))
         .thenReturn(
             List.of(
                 monthlyWithStartingValue(1L, "2026-01-01", 1000.0),
                 monthlyWithStartingValue(1L, "2026-02-01", 1100.0)));
-    when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc())
+    when(accountMonthlyPerformanceRepository.findByMonthGreaterThanEqualOrderByMonthAscAccountIdAsc(
+            any()))
         .thenReturn(
             List.of(
                 monthlyPerformance(1L, "2026-01-01", 1000.0, 0.0, 0.0),
@@ -298,6 +337,7 @@ class BenchmarkServiceTest {
     verify(benchmarkMonthlyCloseRepository, never()).saveAll(anyList());
   }
 
+  @DisplayName("calculate excludes Accounts Whose Latest Portfolio Value Is Zero")
   @Test
   void calculate_excludesAccountsWhoseLatestPortfolioValueIsZero() {
     when(accountRepository.findMapByIdIn(any()))
@@ -309,13 +349,14 @@ class BenchmarkServiceTest {
                         1L, account(1L, "Main"),
                         2L, account(2L, "Closed"),
                         3L, account(3L, "PLN Trading"))));
-    when(accountDailyRepository.findAll())
+    when(accountDailyRepository.findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(any()))
         .thenReturn(
             List.of(
                 monthlyWithStartingValue(1L, "2026-01-01", 1100.0),
                 monthlyWithStartingValue(2L, "2026-01-01", 0.0),
                 monthlyWithStartingValue(3L, "2026-01-01", 0.5)));
-    when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc())
+    when(accountMonthlyPerformanceRepository.findByMonthGreaterThanEqualOrderByMonthAscAccountIdAsc(
+            any()))
         .thenReturn(
             List.of(
                 monthlyPerformance(1L, "2026-01-01", 1000.0, 100.0, 0.0),
@@ -333,6 +374,7 @@ class BenchmarkServiceTest {
     assertEquals(1L, benchmark.getAccountSeries().getFirst().id());
   }
 
+  @DisplayName("calculate excludes Accounts Whose Current Statistics Balance Is Zero")
   @Test
   void calculate_excludesAccountsWhoseCurrentStatisticsBalanceIsZero() {
     when(accountRepository.findMapByIdIn(any()))
@@ -345,12 +387,13 @@ class BenchmarkServiceTest {
                         2L, account(2L, "Empty"))));
     when(accountStatisticsRepository.findAll())
         .thenReturn(List.of(accountStatistics(1L, 100.0, 900.0), accountStatistics(2L, 0.0, 0.0)));
-    when(accountDailyRepository.findAll())
+    when(accountDailyRepository.findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(any()))
         .thenReturn(
             List.of(
                 monthlyWithStartingValue(1L, "2026-01-01", 1000.0),
                 monthlyWithStartingValue(2L, "2026-01-01", 500.0)));
-    when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc())
+    when(accountMonthlyPerformanceRepository.findByMonthGreaterThanEqualOrderByMonthAscAccountIdAsc(
+            any()))
         .thenReturn(
             List.of(
                 monthlyPerformance(1L, "2026-01-01", 1000.0, 0.0, 0.0),
@@ -367,6 +410,7 @@ class BenchmarkServiceTest {
     assertEquals(1L, benchmark.getAccountSeries().getFirst().id());
   }
 
+  @DisplayName("calculate keeps Funded Zero Balance Accounts Available From Statistics")
   @Test
   void calculate_keepsFundedZeroBalanceAccountsAvailableFromStatistics() {
     when(accountRepository.findMapByIdIn(any()))
@@ -382,12 +426,13 @@ class BenchmarkServiceTest {
             List.of(
                 accountStatistics(1L, 100.0, 900.0, 1000.0),
                 accountStatistics(2L, 0.0, 0.0, 6500.0)));
-    when(accountDailyRepository.findAll())
+    when(accountDailyRepository.findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(any()))
         .thenReturn(
             List.of(
                 monthlyWithStartingValue(1L, "2026-01-01", 1000.0),
                 monthlyWithStartingValue(2L, "2026-01-01", 500.0)));
-    when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc())
+    when(accountMonthlyPerformanceRepository.findByMonthGreaterThanEqualOrderByMonthAscAccountIdAsc(
+            any()))
         .thenReturn(
             List.of(
                 monthlyPerformance(1L, "2026-01-01", 1000.0, 0.0, 0.0),
@@ -403,6 +448,7 @@ class BenchmarkServiceTest {
     assertEquals(2, benchmark.getAccountSeries().size());
   }
 
+  @DisplayName("calculate filters Account Daily Rows By Selected Accounts")
   @Test
   void calculate_filtersAccountDailyRowsBySelectedAccounts() {
     when(accountRepository.findMapByIdIn(any()))
@@ -413,14 +459,15 @@ class BenchmarkServiceTest {
                     Map.of(
                         1L, account(1L, "Main"),
                         2L, account(2L, "Side"))));
-    when(accountDailyRepository.findAll())
+    when(accountDailyRepository.findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(any()))
         .thenReturn(
             List.of(
                 monthlyWithStartingValue(1L, "2026-01-01", 1000.0),
                 monthlyWithStartingValue(1L, "2026-02-01", 1100.0),
                 monthlyWithStartingValue(2L, "2026-01-01", 5000.0),
                 monthlyWithStartingValue(2L, "2026-02-01", 5000.0)));
-    when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc())
+    when(accountMonthlyPerformanceRepository.findByMonthGreaterThanEqualOrderByMonthAscAccountIdAsc(
+            any()))
         .thenReturn(
             List.of(
                 monthlyPerformance(1L, "2026-01-01", 1000.0, 0.0, 0.0),
@@ -454,15 +501,17 @@ class BenchmarkServiceTest {
     assertEquals(10.0, benchmark.getPortfolioReturnPct(), 0.01);
   }
 
+  @DisplayName("calculate chains Multiple Monthly Returns Instead Of Adding Percentages")
   @Test
   void calculate_chainsMultipleMonthlyReturnsInsteadOfAddingPercentages() {
-    when(accountDailyRepository.findAll())
+    when(accountDailyRepository.findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(any()))
         .thenReturn(
             List.of(
                 monthlyWithStartingValue(1L, "2026-01-01", 10_000.0),
                 monthlyWithStartingValue(1L, "2026-02-01", 11_000.0),
                 monthlyWithStartingValue(1L, "2026-03-01", 12_100.0)));
-    when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc())
+    when(accountMonthlyPerformanceRepository.findByMonthGreaterThanEqualOrderByMonthAscAccountIdAsc(
+            any()))
         .thenReturn(
             List.of(
                 monthlyPerformance(1L, "2026-01-01", 10_000.0, 1_000.0, 0.0),
@@ -482,15 +531,17 @@ class BenchmarkServiceTest {
     assertNotEquals(30.0, benchmark.getPortfolioReturnPct(), 0.01);
   }
 
+  @DisplayName("calculate excludes Deposits From Return But Keeps Them In Profit Amount")
   @Test
   void calculate_excludesDepositsFromReturnButKeepsThemInProfitAmount() {
-    when(accountDailyRepository.findAll())
+    when(accountDailyRepository.findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(any()))
         .thenReturn(
             List.of(
                 monthlyWithStartingValue(1L, "2026-01-01", 0.0),
                 monthlyWithStartingValue(1L, "2026-02-01", 11_000.0),
                 monthlyWithStartingValue(1L, "2026-03-01", 22_000.0)));
-    when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc())
+    when(accountMonthlyPerformanceRepository.findByMonthGreaterThanEqualOrderByMonthAscAccountIdAsc(
+            any()))
         .thenReturn(
             List.of(
                 monthlyPerformance(1L, "2026-01-01", 0.0, 0.0, 10_000.0),
@@ -511,14 +562,16 @@ class BenchmarkServiceTest {
     assertNotEquals(10.0, benchmark.getPortfolioReturnPct(), 0.01);
   }
 
+  @DisplayName("calculate excludes Withdrawals From Return But Keeps Them In Profit Amount")
   @Test
   void calculate_excludesWithdrawalsFromReturnButKeepsThemInProfitAmount() {
-    when(accountDailyRepository.findAll())
+    when(accountDailyRepository.findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(any()))
         .thenReturn(
             List.of(
                 monthlyWithStartingValue(1L, "2026-01-01", 10_000.0),
                 monthlyWithStartingValue(1L, "2026-02-01", 7_000.0)));
-    when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc())
+    when(accountMonthlyPerformanceRepository.findByMonthGreaterThanEqualOrderByMonthAscAccountIdAsc(
+            any()))
         .thenReturn(
             List.of(
                 monthlyPerformance(1L, "2026-01-01", 10_000.0, 1_000.0, 0.0),
@@ -536,6 +589,7 @@ class BenchmarkServiceTest {
     assertEquals(20.0, benchmark.getPortfolioReturnPct(), 0.01);
   }
 
+  @DisplayName("calculate builds Account Value Years From Daily Portfolio Values")
   @Test
   void calculate_buildsAccountValueYearsFromDailyPortfolioValues() {
     when(accountRepository.findMapByIdIn(any()))
@@ -546,7 +600,7 @@ class BenchmarkServiceTest {
                     Map.of(
                         1L, account(1L, "Main"),
                         2L, account(2L, "Side"))));
-    when(accountDailyRepository.findAll())
+    when(accountDailyRepository.findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(any()))
         .thenReturn(
             List.of(
                 daily(1L, "2025-12-29", 0.0, 900.0, null),
@@ -571,6 +625,7 @@ class BenchmarkServiceTest {
     assertEquals(List.of(0.0, 400.0), year2026.totalProfitValues());
   }
 
+  @DisplayName("calculate carries Previous Daily Value Across Missing Account Days")
   @Test
   void calculate_carriesPreviousDailyValueAcrossMissingAccountDays() {
     when(accountRepository.findMapByIdIn(any()))
@@ -581,7 +636,7 @@ class BenchmarkServiceTest {
                     Map.of(
                         1L, account(1L, "Main"),
                         2L, account(2L, "Side"))));
-    when(accountDailyRepository.findAll())
+    when(accountDailyRepository.findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(any()))
         .thenReturn(
             List.of(
                 daily(1L, "2026-01-05", 0.0, 1000.0, null),
@@ -597,6 +652,7 @@ class BenchmarkServiceTest {
     assertEquals(List.of(0.0, 50.0), year2026.totalProfitValues());
   }
 
+  @DisplayName("calculate portfolio Daily Profit Excludes Cash Only Accounts")
   @Test
   void calculate_portfolioDailyProfitExcludesCashOnlyAccounts() {
     AccountEntity cashOnly = account(2L, "Cash reserve");
@@ -607,7 +663,7 @@ class BenchmarkServiceTest {
                 requestedAccounts(
                     invocation.getArgument(0), Map.of(1L, account(1L, "Main"), 2L, cashOnly)));
     when(accountRepository.findAll()).thenReturn(List.of(account(1L, "Main"), cashOnly));
-    when(accountDailyRepository.findAll())
+    when(accountDailyRepository.findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(any()))
         .thenReturn(
             List.of(
                 daily(1L, "2026-01-01", 10.0, 1_010.0, null),
@@ -623,6 +679,7 @@ class BenchmarkServiceTest {
     assertEquals(List.of(10.0, 15.0), year.accountSeries().getFirst().profitValues());
   }
 
+  @DisplayName("calculate portfolio Daily Profit Converts Non Usd Rows At Snapshot Date")
   @Test
   void calculate_portfolioDailyProfitConvertsNonUsdRowsAtSnapshotDate() {
     when(currencyRateService.convertToBaseCurrency(
@@ -630,7 +687,8 @@ class BenchmarkServiceTest {
         .thenReturn(20.0);
     AccountDailyEntity row = daily(1L, "2026-01-02", 10.0, 1_010.0, null);
     row.setValuationCurrency("PLN");
-    when(accountDailyRepository.findAll()).thenReturn(List.of(row));
+    when(accountDailyRepository.findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(any()))
+        .thenReturn(List.of(row));
 
     Benchmark benchmark = benchmarkService.calculate();
 
@@ -640,6 +698,7 @@ class BenchmarkServiceTest {
             10.0, CurrencyType.USD, CurrencyType.PLN, LocalDate.parse("2026-01-02"));
   }
 
+  @DisplayName("calculate normalizes Mixed Currency Account Values To Dashboard Base Currency")
   @Test
   void calculate_normalizesMixedCurrencyAccountValuesToDashboardBaseCurrency() {
     when(accountRepository.findMapByIdIn(any()))
@@ -652,7 +711,8 @@ class BenchmarkServiceTest {
     pln.setValuationCurrency("PLN");
     AccountDailyEntity eur = daily(2L, "2026-01-02", 10.0, 1_010.0, 0.01);
     eur.setValuationCurrency("EUR");
-    when(accountDailyRepository.findAll()).thenReturn(List.of(pln, eur));
+    when(accountDailyRepository.findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(any()))
+        .thenReturn(List.of(pln, eur));
     when(currencyRateService.convertToBaseCurrency(
             10.0, CurrencyType.USD, CurrencyType.PLN, LocalDate.parse("2026-01-02")))
         .thenReturn(2.5);
@@ -680,6 +740,7 @@ class BenchmarkServiceTest {
     assertEquals(List.of(14.5), year.totalProfitValues());
   }
 
+  @DisplayName("calculate marks Only Requested Accounts Selected For Shared Dashboard Filters")
   @Test
   void calculate_marksOnlyRequestedAccountsSelectedForSharedDashboardFilters() {
     when(accountRepository.findMapByIdIn(any()))
@@ -690,10 +751,11 @@ class BenchmarkServiceTest {
                     Map.of(
                         1L, account(1L, "Main"),
                         2L, account(2L, "Side"))));
-    when(accountDailyRepository.findAll())
+    when(accountDailyRepository.findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(any()))
         .thenReturn(
             List.of(monthly(1L, "2026-01-01", 0.0, 1000.0), monthly(2L, "2026-01-01", 0.0, 500.0)));
-    when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc())
+    when(accountMonthlyPerformanceRepository.findByMonthGreaterThanEqualOrderByMonthAscAccountIdAsc(
+            any()))
         .thenReturn(
             List.of(
                 monthlyPerformance(1L, "2026-01-01", 1000.0, 0.0, 0.0),
@@ -713,6 +775,7 @@ class BenchmarkServiceTest {
     assertEquals(2L, benchmark.getAccountValueYears().getFirst().accountSeries().getFirst().id());
   }
 
+  @DisplayName("calculate selected Account Return Can Start After Another Accounts Earlier History")
   @Test
   void calculate_selectedAccountReturnCanStartAfterAnotherAccountsEarlierHistory() {
     when(accountRepository.findMapByIdIn(any()))
@@ -721,11 +784,12 @@ class BenchmarkServiceTest {
                 requestedAccounts(
                     invocation.getArgument(0),
                     Map.of(1L, account(1L, "Early"), 2L, account(2L, "Selected"))));
-    when(accountDailyRepository.findAll())
+    when(accountDailyRepository.findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(any()))
         .thenReturn(
             List.of(
                 monthly(1L, "2026-01-01", 0.0, 1_000.0), monthly(2L, "2026-02-01", 0.0, 1_100.0)));
-    when(accountMonthlyPerformanceRepository.findAllByOrderByMonthAscAccountIdAsc())
+    when(accountMonthlyPerformanceRepository.findByMonthGreaterThanEqualOrderByMonthAscAccountIdAsc(
+            any()))
         .thenReturn(
             List.of(
                 monthlyPerformance(1L, "2026-01-01", 1_000.0, 0.0, 0.0),
@@ -743,13 +807,14 @@ class BenchmarkServiceTest {
     assertEquals(10.0, benchmark.getPortfolioReturnPct());
   }
 
+  @DisplayName("calculate ignores Bookkeeping And Other Cash Movements In Canonical Account Profit")
   @Test
   void calculate_ignoresBookkeepingAndOtherCashMovementsInCanonicalAccountProfit() {
     when(accountRepository.findMapByIdIn(any()))
         .thenAnswer(
             invocation ->
                 requestedAccounts(invocation.getArgument(0), Map.of(1L, account(1L, "Main"))));
-    when(accountDailyRepository.findAll())
+    when(accountDailyRepository.findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(any()))
         .thenReturn(
             List.of(
                 daily(1L, "2026-01-01", 0.0, 1_000.0, 0.0),
@@ -769,24 +834,24 @@ class BenchmarkServiceTest {
     AccountDailyEntity row = new AccountDailyEntity();
     row.setAccountId(accountId);
     row.setDate(LocalDate.parse(month));
-    row.setDeposits(Math.max(netCashFlow, 0.0));
-    row.setWithdrawals(Math.min(netCashFlow, 0.0));
-    row.setEquity(portfolioValue);
+    row.setDeposits(java.math.BigDecimal.valueOf(Math.max(netCashFlow, 0.0)));
+    row.setWithdrawals(java.math.BigDecimal.valueOf(Math.min(netCashFlow, 0.0)));
+    row.setEquity(java.math.BigDecimal.valueOf(portfolioValue));
     return row;
   }
 
   private static AccountDailyEntity daily(
       Long accountId, String date, double dailyProfit, double equity, Double dailyReturn) {
     AccountDailyEntity row = monthly(accountId, date, 0.0, equity);
-    row.setDailyProfitAmount(dailyProfit);
-    row.setDailyReturn(dailyReturn);
+    row.setDailyProfitAmount(java.math.BigDecimal.valueOf(dailyProfit));
+    row.setDailyReturn(dailyReturn == null ? null : java.math.BigDecimal.valueOf(dailyReturn));
     return row;
   }
 
   private static AccountDailyEntity monthlyWithReturn(
       String month, double netCashFlow, double portfolioValue, Double monthlyReturn) {
     AccountDailyEntity row = monthly(1L, month, netCashFlow, portfolioValue);
-    row.setDailyReturn(monthlyReturn);
+    row.setDailyReturn(monthlyReturn == null ? null : java.math.BigDecimal.valueOf(monthlyReturn));
     return row;
   }
 
@@ -844,9 +909,9 @@ class BenchmarkServiceTest {
       Long accountId, double cashBalance, double marketValue, double netDeposit) {
     AccountStatisticsEntity statistics = new AccountStatisticsEntity();
     statistics.setAccountId(accountId);
-    statistics.setCashBalance(cashBalance);
-    statistics.setMarketValue(marketValue);
-    statistics.setNetDeposit(netDeposit);
+    statistics.setCashBalance(java.math.BigDecimal.valueOf(cashBalance));
+    statistics.setMarketValue(java.math.BigDecimal.valueOf(marketValue));
+    statistics.setNetDeposit(java.math.BigDecimal.valueOf(netDeposit));
     return statistics;
   }
 

@@ -4,18 +4,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.performance.PortfolioService;
-import com.smartbox.investory.investment.performance.model.Benchmark;
+import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
+import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi.DashboardQuery;
+import com.smartbox.investory.investment.api.reporting.model.Benchmark;
+import com.smartbox.investory.investment.performance.PortfolioMetricsService;
 import com.smartbox.investory.investment.performance.model.Portfolio;
 import com.smartbox.investory.investment.reporting.BenchmarkService;
-import com.smartbox.investory.investment.reporting.dashboard.application.DashboardFacade;
-import com.smartbox.investory.investment.reporting.dashboard.application.DashboardQuery;
+import com.smartbox.investory.investment.reporting.dashboard.application.InvestmentDashboardFacade;
 import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriodFilterService;
 import com.smartbox.investory.ui.common.BuildMetadata;
 import com.smartbox.investory.ui.presentation.UiPresentation;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -27,21 +29,24 @@ import org.thymeleaf.templatemode.TemplateMode;
 import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 import org.thymeleaf.web.servlet.JakartaServletWebApplication;
 
+@DisplayName("Dashboard Render Smoke")
 class DashboardRenderSmokeTest {
 
+  @DisplayName("dashboard Template Renders Through Thymeleaf")
   @Test
   void dashboardTemplateRendersThroughThymeleaf() {
     Portfolio portfolio = new Portfolio();
     portfolio.setBalance(100.0);
     Benchmark benchmark = new Benchmark();
-    PortfolioService portfolioService = mock(PortfolioService.class);
+    PortfolioMetricsService portfolioMetricsService = mock(PortfolioMetricsService.class);
     BenchmarkService benchmarkService = mock(BenchmarkService.class);
-    when(portfolioService.calculateTotalProfitLoss()).thenReturn(portfolio);
+    when(portfolioMetricsService.calculateTotalProfitLoss()).thenReturn(portfolio);
     when(benchmarkService.calculate()).thenReturn(benchmark);
 
     var dashboard =
-        new DashboardFacade(portfolioService, benchmarkService, new DashboardPeriodFilterService())
-            .loadDashboard(new DashboardQuery(List.of(), false, "1Y"));
+        new InvestmentDashboardFacade(
+                portfolioMetricsService, benchmarkService, new DashboardPeriodFilterService())
+            .loadDashboard(new DashboardQuery(List.of(), false, DashboardPeriod.ONE_YEAR, 1L));
 
     var webApplication = JakartaServletWebApplication.buildApplication(new MockServletContext());
     var context =

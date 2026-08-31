@@ -48,8 +48,4 @@ public class BenchmarkMonthlyCloseEntity {
 
   @Column(name = "fetched_at", nullable = false)
   private ZonedDateTime fetchedAt;
-
-  public void setClosePrice(Double closePrice) {
-    this.closePrice = closePrice == null ? null : BigDecimal.valueOf(closePrice);
-  }
 }

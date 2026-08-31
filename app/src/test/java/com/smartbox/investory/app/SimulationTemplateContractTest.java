@@ -4,9 +4,12 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Simulation Template Contract")
 class SimulationTemplateContractTest {
+  @DisplayName("simulation Template Keeps Projection Presentation Server Backed")
   @Test
   void simulationTemplateKeepsProjectionPresentationServerBacked() throws Exception {
     String html =
@@ -47,8 +50,10 @@ class SimulationTemplateContractTest {
         () -> assertTrue(html.contains("iv-simulation-chart-layout")),
         () -> assertTrue(html.contains("retirementYear")),
         () -> assertTrue(html.contains("pensionStartYear")),
+        () -> assertTrue(html.contains("fragments/theme-head :: theme")),
+        () -> assertFalse(html.contains("src=\"/js/simulation-page.js\"")),
+        () -> assertFalse(html.contains("src=\"/js/retirement-simulation.js\"")),
         () -> assertTrue(html.contains("simulationPage.chartData")),
-        () -> assertTrue(html.contains("chart.js@4.4.1")),
         () -> assertTrue(html.contains("compactMoney(flow.amount)")),
         () -> assertTrue(html.contains("snapshot.incomeSources()")),
         () -> assertTrue(html.contains("timelineMoney[row.year].cashStart")),
@@ -57,6 +62,7 @@ class SimulationTemplateContractTest {
         () -> assertFalse(html.contains("equityEnd")));
   }
 
+  @DisplayName("planning Timeline Uses Compact Bucket Summary Columns")
   @Test
   void planningTimelineUsesCompactBucketSummaryColumns() throws Exception {
     String html =
@@ -118,6 +124,7 @@ class SimulationTemplateContractTest {
         () -> assertTrue(html.contains("timelineMoney[row.year].bondReturn")));
   }
 
+  @DisplayName("simulation Keeps Scenario And Plan Navigation")
   @Test
   void simulationKeepsScenarioAndPlanNavigation() throws Exception {
     String html =
@@ -126,18 +133,25 @@ class SimulationTemplateContractTest {
     String editor =
         Files.readString(
             Path.of("../adapters/web-ui/src/main/resources/templates/simulation-plan-edit.html"));
+    String script =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/static/js/simulation-plan-edit.js"));
     String header =
         Files.readString(
             Path.of("../adapters/web-ui/src/main/resources/templates/fragments/app-header.html"));
-    int actionsStart = header.indexOf("iv-planning-actions--single");
+    String css =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/static/css/components.css"));
+    int actionsStart = header.indexOf("iv-planning-actions--simulation");
     int secondaryStart = header.indexOf("iv-planning-topbar__secondary");
     assertAll(
         () -> assertTrue(html.contains("planningHeader('simulation'")),
         () -> assertFalse(html.contains("iv-simulation-scenario-tabs")),
         () -> assertFalse(html.contains("Edit assumptions")),
         () -> assertTrue(html.contains("iv-plan-timeline__assumptions")),
-        () -> assertTrue(html.contains("iv-card-section-header__action")),
-        () -> assertTrue(html.contains(">Sync years</button>")),
+        () -> assertFalse(html.contains("iv-card-section-header__action")),
+        () -> assertFalse(html.contains(">Sync years</button>")),
+        () -> assertTrue(header.contains(">Sync years</button>")),
         () -> assertFalse(html.contains("Sync planning years")),
         () ->
             assertFalse(
@@ -158,24 +172,38 @@ class SimulationTemplateContractTest {
         () -> assertTrue(header.contains("class=\"iv-planning-context-slot\"")),
         () ->
             assertTrue(
-                header.contains(
-                    "<nav class=\"iv-page-nav iv-planning-scenario-selector\" th:if=\"${actionMode == 'simulation' and simulationPage != null}\" aria-label=\"Simulation scenario\">")),
+                header
+                    .substring(actionsStart, secondaryStart)
+                    .contains("iv-planning-actions__row")),
         () ->
-            assertFalse(
+            assertTrue(
                 header
                     .substring(actionsStart, secondaryStart)
                     .contains("iv-planning-scenario-selector")),
+        () -> assertTrue(header.substring(actionsStart, secondaryStart).contains(">Edit plan</a>")),
+        () ->
+            assertTrue(
+                header.substring(actionsStart, secondaryStart).contains(">Sync years</button>")),
         () -> assertFalse(header.contains("role=\"button\">Base</a>")),
         () ->
             assertFalse(
                 header.contains(
                     "<span class=\"iv-planning-scenario-selector__label\">Scenario</span>")),
         () -> assertTrue(header.contains("availableScenarios")),
+        () -> assertTrue(css.contains(".iv-planning-actions--simulation {")),
+        () ->
+            assertTrue(
+                css.contains(
+                    ".iv-planning-actions--simulation > .iv-planning-scenario-selector {")),
+        () -> assertTrue(css.contains("grid-template-columns: repeat(4, minmax(0, 1fr));")),
+        () -> assertTrue(css.contains("@media (max-width: 1200px) and (min-width: 901px)")),
+        () -> assertTrue(css.contains("grid-template-columns: repeat(2, minmax(0, 1fr));")),
+        () -> assertTrue(css.contains("position: static;")),
         () -> assertTrue(header.contains("iv-plan-status--positive")),
         () -> assertTrue(header.contains("iv-plan-status--negative")),
         () -> assertTrue(header.contains("contextPlanId, contextScenario")),
-        () -> assertTrue(header.contains("planId=${contextPlanId}")),
-        () -> assertTrue(header.contains("selectedScenario=${contextScenario}")),
+        () -> assertTrue(header.contains("planId=${header.contextPlanId}")),
+        () -> assertTrue(header.contains("selectedScenario=${header.contextScenario}")),
         () ->
             assertTrue(
                 html.contains(
@@ -186,13 +214,15 @@ class SimulationTemplateContractTest {
         () -> assertTrue(editor.contains("4. Events")));
   }
 
+  @DisplayName("simulation Keeps Outcome Sections Before Scenario Details")
   @Test
   void simulationKeepsOutcomeSectionsBeforeScenarioDetails() throws Exception {
     String html =
         Files.readString(
             Path.of("../adapters/web-ui/src/main/resources/templates/simulation.html"));
     String css =
-        Files.readString(Path.of("../adapters/web-ui/src/main/resources/static/css/main.css"));
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/static/css/components.css"));
     assertFalse(css.contains("aria-labelledby=\"plan-title\""));
     assertTrue(
         html.indexOf("aria-labelledby=\"plan-title\"")
@@ -212,6 +242,8 @@ class SimulationTemplateContractTest {
     assertFalse(html.contains("id=\"plan-capital-title\""));
   }
 
+  @DisplayName(
+      "simulation Chart Presentation Keeps Signed Gap Semantics Without Obsolete Mode State")
   @Test
   void simulationChartPresentationKeepsSignedGapSemanticsWithoutObsoleteModeState()
       throws Exception {
@@ -232,13 +264,14 @@ class SimulationTemplateContractTest {
         () -> assertFalse(javascript.contains("Cash")));
   }
 
+  @DisplayName("simulation Header Keeps Reporting Currency In The Shared Context Slot")
   @Test
   void simulationHeaderKeepsReportingCurrencyInTheSharedContextSlot() throws Exception {
     String header =
         Files.readString(
             Path.of("../adapters/web-ui/src/main/resources/templates/fragments/app-header.html"));
-    int actionsStart = header.indexOf("iv-planning-actions--single");
-    int actionsEnd = header.indexOf("</div>", actionsStart);
+    int actionsStart = header.indexOf("iv-planning-actions--simulation");
+    int actionsEnd = header.indexOf("iv-planning-topbar__secondary", actionsStart);
     String simulationActions = header.substring(actionsStart, actionsEnd);
     int contextStart = header.indexOf("iv-planning-context-slot");
     int contextEnd = header.indexOf("</div>", contextStart);
@@ -246,10 +279,39 @@ class SimulationTemplateContractTest {
 
     assertAll(
         () -> assertTrue(simulationActions.contains(">Edit plan</a>")),
+        () -> assertTrue(simulationActions.contains(">Sync years</button>")),
+        () -> assertTrue(simulationActions.contains("iv-planning-scenario-selector")),
         () -> assertFalse(simulationActions.contains("iv-planning-base")),
-        () -> assertTrue(planningContext.contains("Reporting currency")));
+        () -> assertTrue(planningContext.contains("Reporting currency")),
+        () -> assertFalse(planningContext.contains("iv-planning-scenario-selector")));
   }
 
+  @DisplayName("assumptions And Capital Use Shared Structural Grids")
+  @Test
+  void assumptionsAndCapitalUseSharedStructuralGrids() throws Exception {
+    String html =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/simulation.html"));
+    String css =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/static/css/components.css"));
+
+    assertAll(
+        () -> assertTrue(html.contains("iv-plan-timeline__assumption-row--header")),
+        () -> assertTrue(html.contains("iv-plan-timeline__assumption-row--plan")),
+        () -> assertTrue(html.contains("iv-plan-timeline__assumption-row--actual")),
+        () -> assertTrue(css.contains("grid-template-columns: subgrid")),
+        () -> assertTrue(css.contains("repeat(3, minmax(0, 1fr))")),
+        () -> assertTrue(html.contains(">Cash</span>")),
+        () -> assertTrue(html.contains(">Bonds</span>")),
+        () -> assertTrue(html.contains(">Equities</span>")),
+        () -> assertTrue(html.contains(">Real Estate</span>")),
+        () -> assertTrue(html.contains("' / month · '")),
+        () -> assertTrue(html.contains("+ ' total'")),
+        () -> assertTrue(html.contains("outlook.minimumLiquidAssetsContext")));
+  }
+
+  @DisplayName("developer Preview Is Configurable And Read Only Facts Are Not Plan Inputs")
   @Test
   void developerPreviewIsConfigurableAndReadOnlyFactsAreNotPlanInputs() throws Exception {
     String editor =
@@ -262,13 +324,17 @@ class SimulationTemplateContractTest {
         () -> assertFalse(editor.contains("name=\"bondIncome\"")));
   }
 
+  @DisplayName("developer Preview Is Cancelled Before Plan Save")
   @Test
   void developerPreviewIsCancelledBeforePlanSave() throws Exception {
     String editor =
         Files.readString(
             Path.of("../adapters/web-ui/src/main/resources/templates/simulation-plan-edit.html"));
-    assertTrue(editor.contains("form.addEventListener('submit'"));
-    assertTrue(editor.contains("form.addEventListener('formdata'"));
+    String script =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/static/js/simulation-plan-edit.js"));
+    assertTrue(script.contains("form.addEventListener('submit'"));
+    assertTrue(script.contains("form.addEventListener('formdata'"));
   }
 
   private static int occurrences(String value, String token) {

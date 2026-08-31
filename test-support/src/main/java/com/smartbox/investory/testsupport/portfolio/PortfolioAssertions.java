@@ -4,7 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationEntity;
-import com.smartbox.investory.investment.ledger.position.persistence.OpenedPosition;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
+import java.math.BigDecimal;
 import java.util.List;
 
 public final class PortfolioAssertions {
@@ -19,19 +20,19 @@ public final class PortfolioAssertions {
         operations.stream()
             .map(CashOperationEntity::getAmount)
             .filter(amount -> amount != null)
-            .mapToDouble(Double::doubleValue)
+            .mapToDouble(BigDecimal::doubleValue)
             .sum();
 
     assertEquals(expectedEndingCash, startingCash + operationTotal, EPSILON);
   }
 
   public static void expectPositionToReconcile(
-      double startingQuantity, List<OpenedPosition> openPositions, double expectedEndingQuantity) {
+      double startingQuantity, List<PositionEntity> openPositions, double expectedEndingQuantity) {
     double openQuantity =
         openPositions.stream()
-            .map(OpenedPosition::getVolume)
+            .map(PositionEntity::getVolume)
             .filter(volume -> volume != null)
-            .mapToDouble(Double::doubleValue)
+            .mapToDouble(BigDecimal::doubleValue)
             .sum();
 
     assertEquals(expectedEndingQuantity, startingQuantity + openQuantity, EPSILON);
@@ -57,7 +58,7 @@ public final class PortfolioAssertions {
       CashOperationEntity transferOut, CashOperationEntity transferIn) {
     assertNotNull(transferOut.getComment(), "transfer out should have a link/comment");
     assertEquals(transferOut.getComment(), transferIn.getComment());
-    assertEquals(0.0, transferOut.getAmount() + transferIn.getAmount(), EPSILON);
+    assertEquals(0.0, transferOut.getAmount().add(transferIn.getAmount()).doubleValue(), EPSILON);
   }
 
   public static void expectTradeToBeValueNeutralAtExecutionPrice(

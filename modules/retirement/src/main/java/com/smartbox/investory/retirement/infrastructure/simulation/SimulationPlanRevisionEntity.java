@@ -1,7 +1,8 @@
 package com.smartbox.investory.retirement.infrastructure.simulation;
 
-import com.smartbox.investory.retirement.simulation.ProjectedIncomePolicy.IncomeMode;
-import com.smartbox.investory.retirement.simulation.SimulationFundingStrategy;
+import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.api.model.ProjectedIncomePolicy.IncomeMode;
+import com.smartbox.investory.retirement.api.model.SimulationFundingStrategy;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -100,20 +101,11 @@ public class SimulationPlanRevisionEntity implements PersistedSimulationAssumpti
   @Column(name = "allow_emergency_equity_withdrawal")
   private Boolean allowEmergencyEquityWithdrawal;
 
-  @Column(name = "cash_return_rate", nullable = false, precision = 20, scale = 12)
-  private BigDecimal cashReturnRate;
-
   @Column(name = "fixed_income_return_rate", nullable = false, precision = 20, scale = 12)
   private BigDecimal fixedIncomeReturnRate;
 
   @Column(name = "equity_return_rate", nullable = false, precision = 20, scale = 12)
   private BigDecimal equityReturnRate;
-
-  @Column(name = "real_estate_return_rate", nullable = false, precision = 20, scale = 12)
-  private BigDecimal realEstateReturnRate;
-
-  @Column(name = "other_return_rate", nullable = false, precision = 20, scale = 12)
-  private BigDecimal otherReturnRate;
 
   @Column(name = "pension_start_age", nullable = false)
   private int pensionStartAge;

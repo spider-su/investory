@@ -14,7 +14,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
@@ -35,21 +34,18 @@ public class ImportOrchestratorService {
   private final AssetPriceFallbackService assetPriceFallbackService;
   private final PortfolioProjectionService portfolioProjectionService;
   private final ReconciliationRefreshService reconciliationRefreshService;
+  private final PriceHistoryCoverageService priceHistoryCoverageService;
+  private final InvestmentCalculationCache calculationCache;
 
-  @Autowired(required = false)
-  private PriceHistoryCoverageService priceHistoryCoverageService;
-
-  @Autowired(required = false)
-  private InvestmentCalculationCache calculationCache;
-
-  @Autowired
   public ImportOrchestratorService(
       List<BrokerImportParser> parsers,
       ImportBatchAuditWriter auditWriter,
       ImportSourceEvidenceService sourceEvidenceService,
       AssetPriceFallbackService assetPriceFallbackService,
       PortfolioProjectionService portfolioProjectionService,
-      ReconciliationRefreshService reconciliationRefreshService) {
+      ReconciliationRefreshService reconciliationRefreshService,
+      PriceHistoryCoverageService priceHistoryCoverageService,
+      InvestmentCalculationCache calculationCache) {
     this.parserByBroker = new EnumMap<>(BrokerType.class);
     for (BrokerImportParser parser : parsers) {
       BrokerImportParser previous = this.parserByBroker.put(parser.brokerType(), parser);
@@ -68,22 +64,8 @@ public class ImportOrchestratorService {
     this.assetPriceFallbackService = assetPriceFallbackService;
     this.portfolioProjectionService = portfolioProjectionService;
     this.reconciliationRefreshService = reconciliationRefreshService;
-  }
-
-  /** Source-compatible constructor for focused parser/orchestrator unit tests. */
-  public ImportOrchestratorService(
-      List<BrokerImportParser> parsers,
-      ImportBatchAuditWriter auditWriter,
-      AssetPriceFallbackService assetPriceFallbackService,
-      PortfolioProjectionService portfolioProjectionService,
-      ReconciliationRefreshService reconciliationRefreshService) {
-    this(
-        parsers,
-        auditWriter,
-        null,
-        assetPriceFallbackService,
-        portfolioProjectionService,
-        reconciliationRefreshService);
+    this.priceHistoryCoverageService = priceHistoryCoverageService;
+    this.calculationCache = calculationCache;
   }
 
   public ImportBatchResponse importFile(
@@ -118,9 +100,7 @@ public class ImportOrchestratorService {
         ImportHistoryEntity original = existing.get();
         ImportHistoryEntity batch = auditWriter.startReprocessBatch(original);
         var sourceFile =
-            sourceEvidenceService == null
-                ? null
-                : sourceEvidenceService.storeArtifact(batch, fileBytes, contentType(fileName));
+            sourceEvidenceService.storeArtifact(batch, fileBytes, contentType(fileName));
         ImportHistoryEntity reloaded;
         try {
           ImportExecutionResult result = runParser(parser, batch, sourceFile, fileBytes, fileName);
@@ -166,10 +146,7 @@ public class ImportOrchestratorService {
 
     ImportHistoryEntity batch =
         auditWriter.startBatch(broker, sourceType, sourceRef, fileName, checksum);
-    var sourceFile =
-        sourceEvidenceService == null
-            ? null
-            : sourceEvidenceService.storeArtifact(batch, fileBytes, contentType(fileName));
+    var sourceFile = sourceEvidenceService.storeArtifact(batch, fileBytes, contentType(fileName));
 
     ImportExecutionResult result;
     try {
@@ -205,15 +182,13 @@ public class ImportOrchestratorService {
           null);
     }
 
-    if (priceHistoryCoverageService != null) {
-      try {
-        priceHistoryCoverageService.ensurePortfolioCoverage(null);
-      } catch (Exception e) {
-        log.warn(
-            "Post-import price-history coverage failed (batchId={}): {}",
-            finalized.getId(),
-            e.getMessage());
-      }
+    try {
+      priceHistoryCoverageService.ensurePortfolioCoverage(null);
+    } catch (Exception e) {
+      log.warn(
+          "Post-import price-history coverage failed (batchId={}): {}",
+          finalized.getId(),
+          e.getMessage());
     }
 
     return toBatchResponse(finalized, finalized.getErrorMessage(), false);
@@ -233,9 +208,6 @@ public class ImportOrchestratorService {
       throws Exception {
     long parserStarted = System.nanoTime();
     try {
-      if (sourceEvidenceService == null) {
-        return parser.importFile(new ByteArrayInputStream(fileBytes), fileName);
-      }
       try (ImportSourceEvidenceService.Scope ignored =
           sourceEvidenceService.open(batch, sourceFile, null)) {
         return parser.importFile(new ByteArrayInputStream(fileBytes), fileName);
@@ -297,9 +269,7 @@ public class ImportOrchestratorService {
     }
 
     if (projectionSucceeded) {
-      if (calculationCache != null) {
-        calculationCache.invalidate();
-      }
+      calculationCache.invalidate();
       long reconciliationStarted = System.nanoTime();
       reconciliationRefreshService.refreshAfterImport(batch.getId());
       log.info("IMPORT PERF reconciliation-schedule={}ms", elapsedMillis(reconciliationStarted));

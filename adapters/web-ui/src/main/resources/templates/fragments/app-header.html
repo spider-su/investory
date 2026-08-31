@@ -44,7 +44,8 @@
 
 <header th:fragment="planningHeader(activePage, portfolioId, summaryLabel, kpi1Label, kpi1Value, kpi1Meta, kpi2Label, kpi2Value, kpi2Meta, kpi3Label, kpi3Value, kpi3Meta, currency, actionMode, contextPlanId, contextScenario)"
         class="iv-topbar iv-app-header-shell iv-planning-topbar"
-        th:classappend="${actionMode == 'assets'} ? ' iv-planning-topbar--assets' : (${actionMode == 'simulation' or actionMode == 'analysis'} ? ' iv-planning-topbar--retirement' : '')">
+        th:with="header=${T(com.smartbox.investory.ui.presentation.PlanningHeaderView).of(activePage, portfolioId, summaryLabel, kpi1Label, kpi1Value, kpi1Meta, kpi2Label, kpi2Value, kpi2Meta, kpi3Label, kpi3Value, kpi3Meta, currency, actionMode, contextPlanId, contextScenario)}"
+        th:classappend="${header.actionMode == 'assets'} ? ' iv-planning-topbar--assets' : (${header.actionMode == 'simulation' or header.actionMode == 'analysis'} ? ' iv-planning-topbar--retirement' : '')">
     <div class="iv-topbar__primary iv-app-header-shell__primary iv-planning-topbar__primary">
         <div class="iv-brand">
             <div class="iv-brand__content">
@@ -56,46 +57,49 @@
                 </div>
             </div>
         </div>
-        <div class="iv-planning-summary iv-app-header-shell__summary" th:attr="aria-label=${summaryLabel}">
-            <div class="iv-planning-summary__item" th:classappend="${kpi1Value == 'Sustainable'} ? ' iv-plan-status--positive' : (${kpi1Value == 'Plan fails'} ? ' iv-plan-status--negative' : '')"><strong th:text="${kpi1Value}">0</strong><span><span th:text="${kpi1Label}">KPI 1</span><small th:if="${kpi1Meta != null}" th:text="${kpi1Meta}"></small></span></div>
-            <div class="iv-planning-summary__item" th:classappend="${actionMode == 'assets' or actionMode == 'profile'} ? ' iv-hover-context' : ' iv-planning-summary__item--plain'" th:attr="tabindex=${(actionMode == 'assets' or actionMode == 'profile') ? 0 : null},aria-label=${(actionMode == 'assets' or actionMode == 'profile') ? kpi2Label + ' details' : null}"><strong th:text="${kpi2Value}">0</strong><span><span th:text="${kpi2Label}">KPI 2</span><small th:if="${kpi2Meta != null}" th:text="${kpi2Meta}"></small></span>
-                <div class="iv-hover-context__panel iv-planning-income-context" th:if="${actionMode == 'assets'}" role="tooltip"><div class="iv-popover-heading">Annual income</div><div class="iv-context-row"><span>Gross income</span><strong th:text="${longTermGrossIncome}">0</strong></div><div class="iv-context-row"><span>Expenses &amp; tax</span><strong th:text="${'-' + longTermExpensesTax}">−0</strong></div><div class="iv-context-row"><span>Gross yield</span><strong th:text="${longTermGrossYield}">0.0%</strong></div></div>
-                <div class="iv-hover-context__panel iv-planning-income-context" th:if="${actionMode == 'profile'}" role="tooltip"><div class="iv-popover-heading">Annual income</div><div class="iv-context-row"><span>Market projected</span><strong th:text="${profileMarketProjectedIncome}">0</strong></div><div class="iv-context-row"><span>Long-term expected</span><strong th:text="${profileLongTermExpectedIncome}">0</strong></div><div class="iv-context-row"><span>Market received YTD</span><strong th:text="${profileMarketYtdIncome}">0</strong></div><div class="iv-context-row iv-context-row--total"><span>Total</span><strong th:text="${kpi2Value}">0</strong></div></div>
+        <div class="iv-planning-summary iv-app-header-shell__summary" th:attr="aria-label=${header.summaryLabel}">
+            <div class="iv-planning-summary__item" th:classappend="${header.kpi1Value == 'Sustainable'} ? ' iv-plan-status--positive' : (${header.kpi1Value == 'Plan fails'} ? ' iv-plan-status--negative' : '')"><strong th:text="${header.kpi1Value}">0</strong><span><span th:text="${header.kpi1Label}">KPI 1</span><small th:if="${header.kpi1Meta != null}" th:text="${header.kpi1Meta}"></small></span></div>
+            <div class="iv-planning-summary__item" th:classappend="${header.actionMode == 'assets' or header.actionMode == 'profile'} ? ' iv-hover-context' : ' iv-planning-summary__item--plain'" th:attr="tabindex=${(header.actionMode == 'assets' or header.actionMode == 'profile') ? 0 : null},aria-label=${(header.actionMode == 'assets' or header.actionMode == 'profile') ? header.kpi2Label + ' details' : null}"><strong th:text="${header.kpi2Value}">0</strong><span><span th:text="${header.kpi2Label}">KPI 2</span><small th:if="${header.kpi2Meta != null}" th:text="${header.kpi2Meta}"></small></span>
+                <div class="iv-hover-context__panel iv-planning-income-context" th:if="${header.actionMode == 'assets'}" role="tooltip"><div class="iv-popover-heading">Annual income</div><div class="iv-context-row"><span>Gross income</span><strong th:text="${longTermGrossIncome}">0</strong></div><div class="iv-context-row"><span>Expenses &amp; tax</span><strong th:text="${'-' + longTermExpensesTax}">−0</strong></div><div class="iv-context-row"><span>Net annual income</span><strong th:text="${longTermNetAnnualIncome}">0</strong></div><div class="iv-context-row iv-context-row--total"><span>Net monthly income</span><strong th:text="${longTermNetMonthlyIncome + ' / month'}">0 / month</strong></div><div class="iv-context-row"><span>Gross yield</span><strong th:text="${longTermGrossYield}">0.0%</strong></div></div>
+                <div class="iv-hover-context__panel iv-planning-income-context" th:if="${header.actionMode == 'profile'}" role="tooltip"><div class="iv-popover-heading">Annual income</div><div class="iv-context-row"><span>Market projected</span><strong th:text="${profileMarketProjectedIncome}">0</strong></div><div class="iv-context-row"><span>Long-term expected</span><strong th:text="${profileLongTermExpectedIncome}">0</strong></div><div class="iv-context-row"><span>Market received YTD</span><strong th:text="${profileMarketYtdIncome}">0</strong></div><div class="iv-context-row iv-context-row--total"><span>Total</span><strong th:text="${header.kpi2Value}">0</strong></div></div>
             </div>
-            <div class="iv-planning-summary__item"><strong th:text="${kpi3Value}">0</strong><span><span th:text="${kpi3Label}">KPI 3</span><small th:if="${kpi3Meta != null}" th:text="${kpi3Meta}"></small></span></div>
+            <div class="iv-planning-summary__item"><strong th:text="${header.kpi3Value}">0</strong><span><span th:text="${header.kpi3Label}">KPI 3</span><small th:if="${header.kpi3Meta != null}" th:text="${header.kpi3Meta}"></small></span></div>
         </div>
-        <div class="iv-topbar__meta iv-app-header-shell__actions iv-planning-actions" th:if="${actionMode == 'assets'}" aria-label="Long-term asset actions">
-            <a class="iv-topbar-action-button iv-badge iv-badge--muted" aria-label="Create rental asset" th:href="@{/long-term-assets/new/real-estate(portfolioId=${portfolioId})}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Rental</a>
-            <a class="iv-topbar-action-button iv-badge iv-badge--muted" aria-label="Create bond asset" th:href="@{/long-term-assets/new/bond(portfolioId=${portfolioId})}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Bond</a>
-            <a class="iv-topbar-action-button iv-badge iv-badge--muted" aria-label="Create cash reserve" th:href="@{/long-term-assets/new/cash-reserve(portfolioId=${portfolioId})}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Cash</a>
-            <a class="iv-topbar-action-button iv-badge iv-badge--muted" aria-label="Create other asset" th:href="@{/long-term-assets/new(portfolioId=${portfolioId})}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Other asset</a>
+        <div class="iv-topbar__meta iv-app-header-shell__actions iv-planning-actions" th:if="${header.actionMode == 'assets'}" aria-label="Long-term asset actions">
+            <a class="iv-topbar-action-button iv-badge iv-badge--muted" aria-label="Create rental asset" th:href="@{/long-term-assets/new/real-estate(portfolioId=${header.portfolioId})}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Rental</a>
+            <a class="iv-topbar-action-button iv-badge iv-badge--muted" aria-label="Create bond asset" th:href="@{/long-term-assets/new/bond(portfolioId=${header.portfolioId})}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Bond</a>
+            <a class="iv-topbar-action-button iv-badge iv-badge--muted" aria-label="Create cash reserve" th:href="@{/long-term-assets/new/cash-reserve(portfolioId=${header.portfolioId})}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Cash</a>
+            <a class="iv-topbar-action-button iv-badge iv-badge--muted" aria-label="Create other asset" th:href="@{/long-term-assets/new(portfolioId=${header.portfolioId})}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Other asset</a>
         </div>
-        <div class="iv-topbar__meta iv-app-header-shell__actions iv-planning-actions iv-planning-actions--single" th:if="${actionMode == 'simulation'}" aria-label="Simulation actions">
-            <a th:if="${simulationPage != null}" class="iv-topbar-action-button iv-badge iv-badge--muted" th:href="@{/simulation/plan/edit(portfolioId=${portfolioId},planId=${contextPlanId},planningDisplayCurrency=${currency},selectedScenario=${contextScenario},customInflationDelta=${simulationPage == null ? null : simulationPage.customScenario.inflation},customRentalGrowthDelta=${simulationPage == null ? null : simulationPage.customScenario.rentalGrowth},customBondReturnDelta=${simulationPage == null ? null : simulationPage.customScenario.bondReturn},customEquityReturnDelta=${simulationPage == null ? null : simulationPage.customScenario.equityReturn},customSpendingGrowthDelta=${simulationPage == null ? null : simulationPage.customScenario.spendingGrowth})}">Edit plan</a>
-            <a th:unless="${simulationPage != null}" class="iv-topbar-action-button iv-badge iv-badge--muted" th:href="@{/simulation/plan/edit(portfolioId=${portfolioId},planId=${contextPlanId},planningDisplayCurrency=${currency},selectedScenario=${contextScenario})}">Edit plan</a>
-        </div>
-        <div th:unless="${actionMode == 'assets' or actionMode == 'simulation'}"></div>
-    </div>
-    <div class="iv-topbar__secondary iv-app-header-shell__secondary iv-planning-topbar__secondary">
-        <div class="iv-planning-local-nav-slot" th:if="${actionMode == 'simulation' or actionMode == 'analysis'}">
-            <nav class="iv-planning-local-nav" aria-label="Retirement view">
-                <a th:if="${actionMode == 'simulation'}" class="is-active" aria-current="page">Projection</a>
-                <a th:if="${actionMode == 'analysis'}" th:href="@{/simulation(portfolioId=${analysisPage.portfolioId},planId=${analysisPage.planId},planningDisplayCurrency=${analysisPage.displayCurrency},selectedScenario=${analysisPage.selectedScenario},customInflationDelta=${analysisPage.customScenario.inflation},customRentalGrowthDelta=${analysisPage.customScenario.rentalGrowth},customBondReturnDelta=${analysisPage.customScenario.bondReturn},customEquityReturnDelta=${analysisPage.customScenario.equityReturn},customSpendingGrowthDelta=${analysisPage.customScenario.spendingGrowth})}">Projection</a>
-                <a th:if="${actionMode == 'simulation' and simulationPage != null}" th:href="@{/analysis(portfolioId=${portfolioId},planId=${contextPlanId},planningDisplayCurrency=${currency},selectedScenario=${contextScenario},customInflationDelta=${simulationPage.customScenario.inflation},customRentalGrowthDelta=${simulationPage.customScenario.rentalGrowth},customBondReturnDelta=${simulationPage.customScenario.bondReturn},customEquityReturnDelta=${simulationPage.customScenario.equityReturn},customSpendingGrowthDelta=${simulationPage.customScenario.spendingGrowth})}">Analysis</a>
-                <a th:if="${actionMode == 'analysis'}" class="is-active" aria-current="page">Analysis</a>
-            </nav>
-        </div>
-        <div th:unless="${actionMode == 'simulation' or actionMode == 'analysis'}"></div>
-        <div class="iv-page-nav-slot"><div th:replace="~{fragments/app-header :: appNavigation(${activePage}, ${portfolioId})}"></div></div>
-        <div class="iv-planning-context-slot">
-            <nav class="iv-page-nav iv-planning-scenario-selector" th:if="${actionMode == 'simulation' and simulationPage != null}" aria-label="Simulation scenario">
+        <div class="iv-topbar__meta iv-app-header-shell__actions iv-planning-actions iv-planning-actions--simulation" th:if="${header.actionMode == 'simulation'}" aria-label="Simulation actions">
+            <div class="iv-planning-actions__row">
+                <a th:if="${simulationPage != null}" class="iv-topbar-action-button iv-badge iv-badge--muted" th:href="@{/simulation/plan/edit(portfolioId=${header.portfolioId},planId=${header.contextPlanId},planningDisplayCurrency=${header.currency},selectedScenario=${header.contextScenario},customInflationDelta=${simulationPage == null ? null : simulationPage.customScenario.inflation},customRentalGrowthDelta=${simulationPage == null ? null : simulationPage.customScenario.rentalGrowth},customBondReturnDelta=${simulationPage == null ? null : simulationPage.customScenario.bondReturn},customEquityReturnDelta=${simulationPage == null ? null : simulationPage.customScenario.equityReturn},customSpendingGrowthDelta=${simulationPage == null ? null : simulationPage.customScenario.spendingGrowth})}">Edit plan</a>
+                <a th:unless="${simulationPage != null}" class="iv-topbar-action-button iv-badge iv-badge--muted" th:href="@{/simulation/plan/edit(portfolioId=${header.portfolioId},planId=${header.contextPlanId},planningDisplayCurrency=${header.currency},selectedScenario=${header.contextScenario})}">Edit plan</a>
+                <form th:if="${simulationPage != null}" method="post" action="/simulation/rollover"><input type="hidden" name="portfolioId" th:value="${header.portfolioId}"><input type="hidden" name="planId" th:value="${header.contextPlanId}"><input type="hidden" name="planningDisplayCurrency" th:value="${header.currency}"><input type="hidden" name="selectedScenario" th:value="${header.contextScenario}"><button class="iv-topbar-action-button iv-badge iv-badge--muted" type="submit">Sync years</button></form>
+            </div>
+            <nav class="iv-page-nav iv-planning-scenario-selector" th:if="${simulationPage != null}" aria-label="Simulation scenario">
                 <a th:each="availableScenario : ${simulationPage.availableScenarios}"
-                   th:href="@{/simulation(portfolioId=${portfolioId},planId=${simulationPage.selectedPlanId},planningDisplayCurrency=${currency},selectedScenario=${availableScenario},customInflationDelta=${simulationPage.customScenario.inflation},customRentalGrowthDelta=${simulationPage.customScenario.rentalGrowth},customBondReturnDelta=${simulationPage.customScenario.bondReturn},customEquityReturnDelta=${simulationPage.customScenario.equityReturn},customSpendingGrowthDelta=${simulationPage.customScenario.spendingGrowth})}"
+                   th:href="@{/simulation(portfolioId=${header.portfolioId},planId=${simulationPage.selectedPlanId},planningDisplayCurrency=${header.currency},selectedScenario=${availableScenario},customInflationDelta=${simulationPage.customScenario.inflation},customRentalGrowthDelta=${simulationPage.customScenario.rentalGrowth},customBondReturnDelta=${simulationPage.customScenario.bondReturn},customEquityReturnDelta=${simulationPage.customScenario.equityReturn},customSpendingGrowthDelta=${simulationPage.customScenario.spendingGrowth})}"
                    th:text="${availableScenario.name().substring(0, 1) + availableScenario.name().substring(1).toLowerCase()}"
                    th:classappend="${availableScenario == simulationPage.selectedScenario} ? ' is-active' : ''"
                    th:attr="aria-current=${availableScenario == simulationPage.selectedScenario ? 'page' : null}">Base</a>
             </nav>
-            <div class="iv-planning-topbar__currency" th:if="${currency != null}" aria-label="Reporting currency"><span>Reporting currency</span><strong th:text="${currency}">PLN</strong></div>
+        </div>
+        <div th:unless="${header.actionMode == 'assets' or header.actionMode == 'simulation'}"></div>
+    </div>
+    <div class="iv-topbar__secondary iv-app-header-shell__secondary iv-planning-topbar__secondary">
+        <div class="iv-planning-local-nav-slot" th:if="${header.actionMode == 'simulation' or header.actionMode == 'analysis'}">
+            <nav class="iv-planning-local-nav" aria-label="Retirement view">
+                <a th:if="${header.actionMode == 'simulation'}" class="is-active" aria-current="page">Projection</a>
+                <a th:if="${header.actionMode == 'analysis'}" th:href="@{/simulation(portfolioId=${analysisPage.portfolioId},planId=${analysisPage.planId},planningDisplayCurrency=${analysisPage.displayCurrency},selectedScenario=${analysisPage.selectedScenario},customInflationDelta=${analysisPage.customScenario.inflation},customRentalGrowthDelta=${analysisPage.customScenario.rentalGrowth},customBondReturnDelta=${analysisPage.customScenario.bondReturn},customEquityReturnDelta=${analysisPage.customScenario.equityReturn},customSpendingGrowthDelta=${analysisPage.customScenario.spendingGrowth})}">Projection</a>
+                <a th:if="${header.actionMode == 'simulation' and simulationPage != null}" th:href="@{/analysis(portfolioId=${header.portfolioId},planId=${header.contextPlanId},planningDisplayCurrency=${header.currency},selectedScenario=${header.contextScenario},customInflationDelta=${simulationPage.customScenario.inflation},customRentalGrowthDelta=${simulationPage.customScenario.rentalGrowth},customBondReturnDelta=${simulationPage.customScenario.bondReturn},customEquityReturnDelta=${simulationPage.customScenario.equityReturn},customSpendingGrowthDelta=${simulationPage.customScenario.spendingGrowth})}">Analysis</a>
+                <a th:if="${header.actionMode == 'analysis'}" class="is-active" aria-current="page">Analysis</a>
+            </nav>
+        </div>
+        <div th:unless="${header.actionMode == 'simulation' or header.actionMode == 'analysis'}"></div>
+        <div class="iv-page-nav-slot"><div th:replace="~{fragments/app-header :: appNavigation(${header.activePage}, ${header.portfolioId})}"></div></div>
+        <div class="iv-planning-context-slot">
+            <div class="iv-planning-topbar__currency" th:if="${header.currency != null}" aria-label="Reporting currency"><span>Reporting currency</span><strong th:text="${header.currency}">PLN</strong></div>
         </div>
     </div>
 </header>
@@ -117,6 +121,8 @@
        th:href="@{/simulation(portfolioId=${portfolioId})}">Simulation</a>
     <span th:if="${activePage == 'reconciliation'}" class="is-active" aria-current="page">Reconciliation</span>
     <a th:unless="${activePage == 'reconciliation'}" href="/dashboard/reconciliation">Reconciliation</a>
+    <a href="/settings/integrations">Settings</a>
 </nav>
 </body>
 </html>
+

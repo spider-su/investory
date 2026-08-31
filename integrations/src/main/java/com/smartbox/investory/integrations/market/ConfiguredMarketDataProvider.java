@@ -1,11 +1,11 @@
 package com.smartbox.investory.integrations.market;
 
-import com.smartbox.investory.integrations.infrastructure.integration.IntegrationType;
-import com.smartbox.investory.integrations.infrastructure.integration.PluginConfig;
-import com.smartbox.investory.integrations.infrastructure.integration.config.IntegrationConfigurationService;
-import com.smartbox.investory.integrations.infrastructure.integration.market.TwelveDataMarketDataPlugin;
-import com.smartbox.investory.integrations.market.client.TwelveDataService;
-import com.smartbox.investory.integrations.market.client.YahooFinanceService;
+import com.smartbox.investory.integrations.management.api.model.IntegrationType;
+import com.smartbox.investory.integrations.management.application.IntegrationConfigurationService;
+import com.smartbox.investory.integrations.management.model.PluginConfig;
+import com.smartbox.investory.integrations.market.twelvedata.TwelveDataMarketDataPlugin;
+import com.smartbox.investory.integrations.market.twelvedata.TwelveDataService;
+import com.smartbox.investory.integrations.market.yahoo.YahooFinanceService;
 import com.smartbox.investory.investment.port.market.MarketDataProvider;
 import com.smartbox.investory.investment.port.market.MarketQuote;
 import java.time.LocalDate;
@@ -33,12 +33,16 @@ public class ConfiguredMarketDataProvider implements MarketDataProvider {
   @Override
   public NavigableMap<LocalDate, Double> fetchDailyCloses(
       String symbol, LocalDate from, LocalDate to) {
-    return twelveDataClient.fetchDailyCloses(symbol, from, to, config().value("apiKey").orElse(""));
+    PluginConfig config = config();
+    return twelveDataClient.fetchDailyCloses(
+        symbol, from, to, config.value("apiKey").orElse(""), config.value("baseUrl").orElse(null));
   }
 
   @Override
   public NavigableMap<String, Double> fetchMonthlyCloses(String symbol, int months) {
-    return twelveDataClient.fetchMonthlyCloses(symbol, months);
+    PluginConfig config = config();
+    return twelveDataClient.fetchMonthlyCloses(
+        symbol, months, config.value("baseUrl").orElse(null));
   }
 
   @Override

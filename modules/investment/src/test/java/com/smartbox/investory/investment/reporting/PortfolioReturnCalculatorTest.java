@@ -3,13 +3,17 @@ package com.smartbox.investory.investment.reporting;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.smartbox.investory.investment.api.reporting.model.ReturnMetric;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Portfolio Return Calculator")
 class PortfolioReturnCalculatorTest {
 
+  @DisplayName("returns Unavailable When Twr Normalized Flow Is Missing")
   @Test
   void returnsUnavailableWhenTwrNormalizedFlowIsMissing() {
     ReturnMetric result =
@@ -22,6 +26,7 @@ class PortfolioReturnCalculatorTest {
     assertEquals(ReturnMetric.Status.INSUFFICIENT_DATA, result.status());
   }
 
+  @DisplayName("annualizes One Year Return")
   @Test
   void annualizesOneYearReturn() {
     ReturnMetric result =
@@ -33,6 +38,7 @@ class PortfolioReturnCalculatorTest {
     assertEquals(0.10, result.value().doubleValue(), 0.0001);
   }
 
+  @DisplayName("annualizes Compounded Multi Year Return")
   @Test
   void annualizesCompoundedMultiYearReturn() {
     ReturnMetric result =
@@ -44,6 +50,7 @@ class PortfolioReturnCalculatorTest {
     assertEquals(Math.sqrt(1.21) - 1.0, result.value().doubleValue(), 0.0001);
   }
 
+  @DisplayName("preserves Negative And Zero Returns")
   @Test
   void preservesNegativeAndZeroReturns() {
     assertEquals(
@@ -66,6 +73,7 @@ class PortfolioReturnCalculatorTest {
         0.0001);
   }
 
+  @DisplayName("returns Unavailable For Missing Or Insufficient History")
   @Test
   void returnsUnavailableForMissingOrInsufficientHistory() {
     ReturnMetric missing =

@@ -4,22 +4,25 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.smartbox.investory.investment.api.reporting.model.AssetAllocationView;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocationEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocationRepository;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
 import com.smartbox.investory.investment.performance.model.Portfolio;
-import com.smartbox.investory.investment.reporting.dashboard.application.AssetAllocationView;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Asset Allocation Query")
 class AssetAllocationQueryTest {
+  @DisplayName("aggregates Existing Valuations By Asset Type And Cash")
   @Test
   void aggregatesExistingValuationsByAssetTypeAndCash() {
     PortfolioAssetAllocationEntity position = new PortfolioAssetAllocationEntity();
     position.setAssetId(7L);
     position.setAssetSymbol("VWRA");
-    position.setTotalValueInBaseCurrency(700d);
+    position.setTotalValueInBaseCurrency(java.math.BigDecimal.valueOf(700));
     AssetEntity asset = new AssetEntity();
     asset.setId(7L);
     asset.setAssetType("ETF");
@@ -33,16 +36,20 @@ class AssetAllocationQueryTest {
 
     var view = new AssetAllocationQuery(allocations, assets).load(1L, portfolio);
 
-    assertThat(view.totalValue()).isEqualTo(1000);
-    assertThat(view.buckets()).extracting("name").containsExactly("Cash", "ETF");
-    assertThat(view.buckets().getLast().weightPct()).isEqualTo(70.0);
+    assertThat(view.totalValue()).isEqualByComparingTo(java.math.BigDecimal.valueOf(1000));
+    assertThat(view.buckets()).extracting("name").containsExactly("ETF", "Cash");
+    assertThat(view.buckets().getFirst().weightPct()).isEqualTo(java.math.BigDecimal.valueOf(70.0));
     assertThat(view.buckets())
         .extracting(AssetAllocationView.Bucket::cssKey)
-        .containsExactly("cash", "etf");
-    assertThat(view.buckets().stream().mapToDouble(AssetAllocationView.Bucket::value).sum())
+        .containsExactly("etf", "cash");
+    assertThat(
+            view.buckets().stream()
+                .map(AssetAllocationView.Bucket::value)
+                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add))
         .isEqualTo(view.totalValue());
   }
 
+  @DisplayName("maps Known Asset Types Deterministically And Unknown Types To Other")
   @Test
   void mapsKnownAssetTypesDeterministicallyAndUnknownTypesToOther() {
     List<PortfolioAssetAllocationEntity> rows =
@@ -71,12 +78,13 @@ class AssetAllocationQueryTest {
     assertThat(view.buckets())
         .extracting("name")
         .containsExactly(
-            "Fixed income", "ETF", "Equity", "REIT / real estate", "Commodity / metal", "Other");
+            "Equity", "Other", "Commodity / metal", "Fixed income", "REIT / real estate", "ETF");
     assertThat(view.buckets())
         .extracting(AssetAllocationView.Bucket::cssKey)
-        .containsExactly("fixed-income", "etf", "equity", "real-estate", "commodity", "other");
+        .containsExactly("equity", "other", "commodity", "fixed-income", "real-estate", "etf");
   }
 
+  @DisplayName("loads Only Rows For Requested Portfolio")
   @Test
   void loadsOnlyRowsForRequestedPortfolio() {
     PortfolioAssetAllocationEntity first = allocation(1L, "VWRA", 70);
@@ -89,7 +97,8 @@ class AssetAllocationQueryTest {
     var view = new AssetAllocationQuery(allocations, assetRepository).load(1L, new Portfolio());
 
     assertThat(view.buckets()).extracting("name").containsExactly("ETF");
-    assertThat(view.buckets().getFirst().value()).isEqualTo(70);
+    assertThat(view.buckets().getFirst().value())
+        .isEqualByComparingTo(java.math.BigDecimal.valueOf(70));
   }
 
   private static PortfolioAssetAllocationEntity allocation(Long id, String symbol, double value) {
@@ -97,7 +106,7 @@ class AssetAllocationQueryTest {
     allocation.setPortfolioId(1L);
     allocation.setAssetId(id);
     allocation.setAssetSymbol(symbol);
-    allocation.setTotalValueInBaseCurrency(value);
+    allocation.setTotalValueInBaseCurrency(java.math.BigDecimal.valueOf(value));
     return allocation;
   }
 

@@ -12,6 +12,7 @@ import com.smartbox.investory.investment.infrastructure.persistence.imports.Impo
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Optional;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -19,12 +20,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("Import History Audit Writer")
 class ImportHistoryAuditWriterTest {
 
   @Mock private ImportRepository importRepository;
 
   @InjectMocks private ImportBatchAuditWriter auditWriter;
 
+  @DisplayName("find Existing Applied Batch ignores Newer Failed Attempt")
   @Test
   void findExistingAppliedBatch_ignoresNewerFailedAttempt() {
     ImportHistoryEntity completed = new ImportHistoryEntity();
@@ -44,6 +47,7 @@ class ImportHistoryAuditWriterTest {
     assertEquals(Optional.of(completed), result);
   }
 
+  @DisplayName("start Batch persists Received Row With Metadata")
   @Test
   void startBatch_persistsReceivedRowWithMetadata() {
     when(importRepository.save(any(ImportHistoryEntity.class)))
@@ -68,6 +72,7 @@ class ImportHistoryAuditWriterTest {
     assertEquals(0, batch.getRowsTotal());
   }
 
+  @DisplayName("start Batch creates Linked Attempt For Same Checksum After Failure")
   @Test
   void startBatch_createsLinkedAttemptForSameChecksumAfterFailure() {
     ImportHistoryEntity failed = new ImportHistoryEntity();
@@ -102,12 +107,13 @@ class ImportHistoryAuditWriterTest {
     assertNotNull(batch.getStartedAt());
   }
 
+  @DisplayName("finalize Applied updates Counts And Status")
   @Test
   void finalizeApplied_updatesCountsAndStatus() {
     ImportHistoryEntity existing = new ImportHistoryEntity();
     existing.setId(5L);
     existing.setStatus(ImportBatchStatus.STARTED);
-    when(importRepository.getById(5L)).thenReturn(existing);
+    when(importRepository.requireById(5L)).thenReturn(existing);
     when(importRepository.save(any(ImportHistoryEntity.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -122,11 +128,12 @@ class ImportHistoryAuditWriterTest {
     assertNotNull(result.getFinishedAt());
   }
 
+  @DisplayName("finalize Failed persists Error And Truncates Raw Payload")
   @Test
   void finalizeFailed_persistsErrorAndTruncatesRawPayload() {
     ImportHistoryEntity existing = new ImportHistoryEntity();
     existing.setId(7L);
-    when(importRepository.getById(7L)).thenReturn(existing);
+    when(importRepository.requireById(7L)).thenReturn(existing);
     when(importRepository.save(any(ImportHistoryEntity.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -141,11 +148,12 @@ class ImportHistoryAuditWriterTest {
     assertEquals(1, failed.getRowsFailed());
   }
 
+  @DisplayName("finalize Applied marks Zero Applied Rows As Failed")
   @Test
   void finalizeApplied_marksZeroAppliedRowsAsFailed() {
     ImportHistoryEntity existing = new ImportHistoryEntity();
     existing.setId(6L);
-    when(importRepository.getById(6L)).thenReturn(existing);
+    when(importRepository.requireById(6L)).thenReturn(existing);
     when(importRepository.save(any(ImportHistoryEntity.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -155,6 +163,7 @@ class ImportHistoryAuditWriterTest {
     assertEquals(ImportBatchStatus.FAILED, result.getStatus());
   }
 
+  @DisplayName("start Reprocess Batch Creates New Attempt Linked To Original")
   @Test
   void startReprocessBatchCreatesNewAttemptLinkedToOriginal() {
     ImportHistoryEntity original = new ImportHistoryEntity();
@@ -188,6 +197,7 @@ class ImportHistoryAuditWriterTest {
     assertEquals(ImportBatchStatus.STARTED, reprocess.getStatus());
   }
 
+  @DisplayName("finalize Failed sets Total When Parser Fails Before Returning Counters")
   @Test
   void finalizeFailed_setsTotalWhenParserFailsBeforeReturningCounters() {
     ImportHistoryEntity existing = new ImportHistoryEntity();
@@ -195,7 +205,7 @@ class ImportHistoryAuditWriterTest {
     existing.setRowsTotal(0);
     existing.setRowsApplied(0);
     existing.setRowsFailed(0);
-    when(importRepository.getById(9L)).thenReturn(existing);
+    when(importRepository.requireById(9L)).thenReturn(existing);
     when(importRepository.save(any(ImportHistoryEntity.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -206,26 +216,29 @@ class ImportHistoryAuditWriterTest {
     assertEquals(1, failed.getRowsFailed());
   }
 
+  @DisplayName("finalize Failed keeps Short Payload Inline")
   @Test
   void finalizeFailed_keepsShortPayloadInline() {
     ImportHistoryEntity existing = new ImportHistoryEntity();
     existing.setId(8L);
-    when(importRepository.getById(8L)).thenReturn(existing);
+    when(importRepository.requireById(8L)).thenReturn(existing);
     when(importRepository.save(any(ImportHistoryEntity.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
 
     auditWriter.finalizeFailed(8L, "boom", "hello".getBytes(StandardCharsets.UTF_8));
   }
 
+  @DisplayName("truncate is Null Safe")
   @Test
   void truncate_isNullSafe() {
     assertNull(ImportBatchAuditWriter.truncate(null));
     assertNull(ImportBatchAuditWriter.truncate(new byte[0]));
   }
 
+  @DisplayName("finalize Applied throws When Batch Is Missing")
   @Test
   void finalizeApplied_throwsWhenBatchIsMissing() {
-    when(importRepository.getById(404L))
+    when(importRepository.requireById(404L))
         .thenThrow(new IllegalStateException("Import batch missing: 404"));
     assertThrows(
         IllegalStateException.class,

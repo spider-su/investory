@@ -3,10 +3,14 @@ package com.smartbox.investory.retirement.simulation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.smartbox.investory.retirement.api.model.*;
 import java.math.BigDecimal;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Retirement Funding Policy")
 class RetirementFundingPolicyTest {
+  @DisplayName("defaults Expose An Explicit Defensive Policy")
   @Test
   void defaultsExposeAnExplicitDefensivePolicy() {
     var policy = RetirementFundingPolicy.defaults();
@@ -16,9 +20,13 @@ class RetirementFundingPolicyTest {
     assertThat(policy.equityHarvestShare()).isEqualByComparingTo("0.75");
     assertThat(policy.allowEmergencyEquityWithdrawal()).isTrue();
     assertThat(policy.fundingOrder())
-        .containsExactly(FundingSource.CASH, FundingSource.BONDS, FundingSource.STOCKS);
+        .containsExactly(
+            RetirementFundingSource.RESERVE,
+            RetirementFundingSource.LONG_TERM,
+            RetirementFundingSource.INVESTMENT);
   }
 
+  @DisplayName("harvest Share Must Be Within Bounds")
   @Test
   void harvestShareMustBeWithinBounds() {
     assertThatThrownBy(

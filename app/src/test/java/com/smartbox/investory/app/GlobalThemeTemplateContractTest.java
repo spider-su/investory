@@ -6,8 +6,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Global Theme Template Contract")
 class GlobalThemeTemplateContractTest {
   private static final List<String> USER_TEMPLATES =
       List.of(
@@ -29,6 +31,7 @@ class GlobalThemeTemplateContractTest {
           "dashboard/asset-detail.html",
           "dashboard/asset-not-found.html");
 
+  @DisplayName("every User Template Uses The Shared Early Theme Initializer")
   @Test
   void everyUserTemplateUsesTheSharedEarlyThemeInitializer() throws Exception {
     for (String template : USER_TEMPLATES) {
@@ -40,6 +43,7 @@ class GlobalThemeTemplateContractTest {
     }
   }
 
+  @DisplayName("shared Theme Fragment Synchronizes Both Theme Attributes And Existing Storage Key")
   @Test
   void sharedThemeFragmentSynchronizesBothThemeAttributesAndExistingStorageKey() throws Exception {
     String html =
@@ -51,6 +55,19 @@ class GlobalThemeTemplateContractTest {
         .contains("investory.theme")
         .contains("dataset.theme")
         .contains("dataset.bsTheme")
-        .contains("/js/theme.js");
+        .contains("/js/theme.js")
+        .contains("/js/turbo-8.0.23.js")
+        .contains("/js/investory-navigation.js")
+        .contains("data-turbo-track=\"reload\"");
+  }
+
+  @DisplayName("Dashboard import remains outside Turbo Drive")
+  @Test
+  void dashboardImportRemainsOutsideTurboDrive() throws Exception {
+    String html =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/dashboard.html"),
+            StandardCharsets.UTF_8);
+    assertThat(html).contains("id=\"xtb-upload-form\"").contains("data-turbo=\"false\"");
   }
 }

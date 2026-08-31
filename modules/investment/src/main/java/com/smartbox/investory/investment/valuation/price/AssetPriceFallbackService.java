@@ -1,9 +1,11 @@
 package com.smartbox.investory.investment.valuation.price;
 
+import static com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull;
+
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
-import com.smartbox.investory.investment.ledger.position.persistence.OpenedPosition;
-import com.smartbox.investory.investment.ledger.position.persistence.OpenedPositionRepository;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionRepository;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -30,7 +32,7 @@ public class AssetPriceFallbackService {
 
   private static final CurrencyType BASE_CURRENCY = CurrencyType.USD;
 
-  private final OpenedPositionRepository openedPositionRepository;
+  private final PositionRepository openedPositionRepository;
   private final AssetRepository assetRepository;
   private final AssetPriceHistoryRepository assetPriceHistoryRepository;
   private final CurrencyRateService currencyRateService;
@@ -38,13 +40,13 @@ public class AssetPriceFallbackService {
   @Transactional
   public void populateMissingPricesFromOpenPositions() {
     Map<String, WeightedPrice> weightedPrices =
-        openedPositionRepository.findAll().stream()
+        openedPositionRepository.findOpen().stream()
             .filter(position -> StringUtils.hasText(position.getSymbol()))
-            .filter(position -> nz(position.getVolume()) > 0.0)
+            .filter(position -> zeroIfNull(position.getVolume()).signum() > 0)
             .filter(position -> position.getOpenPrice() != null)
             .collect(
                 Collectors.groupingBy(
-                    OpenedPosition::getSymbol,
+                    PositionEntity::getSymbol,
                     Collectors.collectingAndThen(Collectors.toList(), this::weightedOpenPrice)));
 
     weightedPrices.values().removeIf(Objects::isNull);
@@ -101,7 +103,7 @@ public class AssetPriceFallbackService {
               && historicalQuote.price().compareTo(BigDecimal.ZERO) > 0
               && (fallbackSource
                   || asset.getMarketPrice() == null
-                  || asset.getMarketPrice() == 0.0)) {
+                  || asset.getMarketPrice().signum() == 0)) {
             CurrencyType historicalCurrency =
                 historicalQuote.currency() != null ? historicalQuote.currency() : currency;
             asset.setMarketPrice(historicalQuote.price());
@@ -120,13 +122,15 @@ public class AssetPriceFallbackService {
             return;
           }
 
-          if (fallbackSource || asset.getMarketPrice() == null || asset.getMarketPrice() == 0.0) {
+          if (fallbackSource
+              || asset.getMarketPrice() == null
+              || asset.getMarketPrice().signum() == 0) {
             asset.setMarketPrice(weightedPrice.price());
             updated = true;
           }
           if (fallbackSource
               || asset.getMarketPriceUsd() == null
-              || asset.getMarketPriceUsd() == 0.0) {
+              || asset.getMarketPriceUsd().signum() == 0) {
             asset.setMarketPriceUsd(
                 currencyRateService.convertToBaseCurrency(
                     weightedPrice.price(), BASE_CURRENCY, currency, rateDate));
@@ -146,18 +150,23 @@ public class AssetPriceFallbackService {
     }
   }
 
-  private WeightedPrice weightedOpenPrice(Collection<OpenedPosition> positions) {
-    double volume = positions.stream().mapToDouble(position -> nz(position.getVolume())).sum();
-    if (volume <= 0.0) {
+  private WeightedPrice weightedOpenPrice(Collection<PositionEntity> positions) {
+    BigDecimal volume =
+        positions.stream()
+            .map(position -> zeroIfNull(position.getVolume()))
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    if (volume.signum() <= 0) {
       return null;
     }
-    double weightedValue =
+    BigDecimal weightedValue =
         positions.stream()
-            .mapToDouble(position -> nz(position.getOpenPrice()) * nz(position.getVolume()))
-            .sum();
+            .map(
+                position ->
+                    zeroIfNull(position.getOpenPrice()).multiply(zeroIfNull(position.getVolume())))
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
     java.util.Set<CurrencyType> currencies =
         positions.stream()
-            .map(OpenedPosition::getPriceCurrency)
+            .map(PositionEntity::getPriceCurrency)
             .filter(Objects::nonNull)
             .collect(java.util.stream.Collectors.toSet());
     // The same instrument can be held across accounts whose reconstruction stamped different
@@ -172,11 +181,8 @@ public class AssetPriceFallbackService {
               + " currency for the weighted-average fallback",
           currencies);
     }
-    return new WeightedPrice(weightedValue / volume, currency);
-  }
-
-  private static double nz(Double value) {
-    return value == null ? 0.0 : value;
+    return new WeightedPrice(
+        weightedValue.divide(volume, 16, java.math.RoundingMode.HALF_UP), currency);
   }
 
   private static HistoricalQuote preferHistoricalQuote(
@@ -202,7 +208,7 @@ public class AssetPriceFallbackService {
     }
   }
 
-  private record WeightedPrice(double price, CurrencyType currency) {}
+  private record WeightedPrice(BigDecimal price, CurrencyType currency) {}
 
   private record HistoricalQuote(
       BigDecimal price,

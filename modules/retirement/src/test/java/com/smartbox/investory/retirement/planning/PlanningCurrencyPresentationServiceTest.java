@@ -6,25 +6,31 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.retirement.profile.InvestmentProfile;
-import com.smartbox.investory.retirement.simulation.SimulationAssumptions;
-import com.smartbox.investory.retirement.simulation.SimulationChartData;
-import com.smartbox.investory.retirement.simulation.SimulationFunding;
-import com.smartbox.investory.retirement.simulation.SimulationFundingStrategy;
-import com.smartbox.investory.retirement.simulation.SimulationScenario;
-import com.smartbox.investory.retirement.simulation.SimulationYear;
-import com.smartbox.investory.retirement.simulation.SustainableSpendingAnalysis;
-import com.smartbox.investory.retirement.simulation.SustainableSpendingResultState;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.api.model.ExpenseProfile;
+import com.smartbox.investory.retirement.api.model.ProjectedIncomePolicy;
+import com.smartbox.investory.retirement.api.model.SimulationAssumptions;
+import com.smartbox.investory.retirement.api.model.SimulationChartData;
+import com.smartbox.investory.retirement.api.model.SimulationFunding;
+import com.smartbox.investory.retirement.api.model.SimulationFundingStrategy;
+import com.smartbox.investory.retirement.api.model.SimulationScenario;
+import com.smartbox.investory.retirement.api.model.SimulationYear;
+import com.smartbox.investory.retirement.api.model.SustainableSpendingAnalysis;
+import com.smartbox.investory.retirement.api.model.SustainableSpendingResultState;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.*;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+@DisplayName("Planning Currency Presentation Service")
 class PlanningCurrencyPresentationServiceTest {
+  @DisplayName("presents Spending Difference As Extra Capacity Or Over Limit")
   @Test
   void presentsSpendingDifferenceAsExtraCapacityOrOverLimit() {
     PlanningCurrencyPresentationService service =
@@ -72,6 +78,7 @@ class PlanningCurrencyPresentationServiceTest {
     assertFalse(overLimit.conservativeHeadroom().contains("-"));
   }
 
+  @DisplayName("converts Both Historical Actual And Expected Values With The Same Display Rate")
   @Test
   void convertsBothHistoricalActualAndExpectedValuesWithTheSameDisplayRate() {
     CurrencyConversion rates = Mockito.mock(CurrencyConversion.class);
@@ -123,6 +130,7 @@ class PlanningCurrencyPresentationServiceTest {
         displayed.expectedValues().get(PlanningMetric.EQUITY_RETURN).derivedValue());
   }
 
+  @DisplayName("converts Profile And Every Monetary Chart Dataset At The Single Display Boundary")
   @Test
   void convertsProfileAndEveryMonetaryChartDatasetAtTheSingleDisplayBoundary() {
     CurrencyConversion rates = Mockito.mock(CurrencyConversion.class);
@@ -142,13 +150,31 @@ class PlanningCurrencyPresentationServiceTest {
             new BigDecimal("100"),
             new BigDecimal("50"),
             new BigDecimal("150"),
-            BigDecimal.ZERO,
-            new BigDecimal("10"),
-            BigDecimal.ZERO,
             new BigDecimal("25"),
             new BigDecimal("125"),
             List.of(),
-            List.of());
+            null,
+            null,
+            new com.smartbox.investory.profile.api.model.ProfileAssetProjection(
+                List.of(),
+                java.math.BigDecimal.ZERO,
+                0,
+                com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
+            (new BigDecimal("25") == null ? java.math.BigDecimal.ZERO : new BigDecimal("25")),
+            new BigDecimal("100")
+                .subtract(
+                    (new BigDecimal("25") == null
+                        ? java.math.BigDecimal.ZERO
+                        : new BigDecimal("25")))
+                .max(java.math.BigDecimal.ZERO),
+            com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
+                BigDecimal.ZERO,
+                new BigDecimal("100"),
+                new BigDecimal("10"),
+                new BigDecimal("50"),
+                BigDecimal.ZERO,
+                new BigDecimal("150")),
+            com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
     PlanningProfileMoney displayedProfile = service.displayProfile(profile, CurrencyType.PLN);
     assertEquals(new BigDecimal("600"), displayedProfile.totalNetWorth());
     assertEquals(new BigDecimal("400"), displayedProfile.marketPortfolioValue());
@@ -181,6 +207,7 @@ class PlanningCurrencyPresentationServiceTest {
         canonicalCharts.balances().get(SimulationScenario.BASE).getFirst().netWorth());
   }
 
+  @DisplayName("historical Presentation Hides Legacy Passive Income Without Deleting It")
   @Test
   void historicalPresentationHidesLegacyPassiveIncomeWithoutDeletingIt() {
     PlanningCurrencyPresentationService service =
@@ -206,6 +233,7 @@ class PlanningCurrencyPresentationServiceTest {
         "171509", displayed.values().get(PlanningMetric.RENTAL_INCOME).value().toPlainString());
   }
 
+  @DisplayName("historical Timeline Does Not Invent Funding Sources From Accounting Buckets")
   @Test
   void historicalTimelineDoesNotInventFundingSourcesFromAccountingBuckets() {
     PlanningMetricValue core = value(PlanningMetric.CORE_SPENDING, "180000");
@@ -244,6 +272,8 @@ class PlanningCurrencyPresentationServiceTest {
     assertNull(displayed.investmentEnd());
   }
 
+  @DisplayName(
+      "leaves Needs Review Timeline Rows Empty Until Historical Facts Or Projection Exists")
   @Test
   void leavesNeedsReviewTimelineRowsEmptyUntilHistoricalFactsOrProjectionExists() {
     PlanningTimeline timeline =
@@ -265,6 +295,7 @@ class PlanningCurrencyPresentationServiceTest {
     assertNull(displayed.investmentEnd());
   }
 
+  @DisplayName("live Timeline Uses All Known Income For Its Funding Gap")
   @Test
   void liveTimelineUsesAllKnownIncomeForItsFundingGap() {
     Map<PlanningMetric, PlanningMetricValue> live =
@@ -308,6 +339,7 @@ class PlanningCurrencyPresentationServiceTest {
     assertEquals(new BigDecimal("135849"), displayed.reserveEnd());
   }
 
+  @DisplayName("projected Timeline Uses Canonical Funding Components")
   @Test
   void projectedTimelineUsesCanonicalFundingComponents() {
     SimulationYear projection = Mockito.mock(SimulationYear.class);
@@ -367,9 +399,6 @@ class PlanningCurrencyPresentationServiceTest {
         BigDecimal.ZERO,
         BigDecimal.ZERO,
         BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
         67,
         BigDecimal.ZERO,
         BigDecimal.ZERO,
@@ -385,9 +414,13 @@ class PlanningCurrencyPresentationServiceTest {
         true,
         65,
         new BigDecimal("120000"),
-        BigDecimal.ZERO);
+        BigDecimal.ZERO,
+        SimulationAssumptions.DEFAULT_FUNDING_ORDER,
+        ExpenseProfile.EMPTY,
+        ProjectedIncomePolicy.SOURCE);
   }
 
+  @DisplayName("current Year Review Exposes Source Baseline And Missing Planning Inputs")
   @Test
   void currentYearReviewExposesSourceBaselineAndMissingPlanningInputs() {
     PlanningCurrencyPresentationService service =
@@ -445,6 +478,8 @@ class PlanningCurrencyPresentationServiceTest {
     assertEquals("Manual planning input", spending.source());
   }
 
+  @DisplayName(
+      "plan Progress Display Converts For Presentation Without Changing Canonical Difference")
   @Test
   void planProgressDisplayConvertsForPresentationWithoutChangingCanonicalDifference() {
     CurrencyConversion rates = Mockito.mock(CurrencyConversion.class);

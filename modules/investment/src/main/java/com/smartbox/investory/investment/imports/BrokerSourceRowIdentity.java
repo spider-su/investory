@@ -45,6 +45,9 @@ public final class BrokerSourceRowIdentity {
   }
 
   public static String normalize(String value) {
-    return value == null ? "" : value.trim().replaceAll("\\s+", " ").toUpperCase(Locale.ROOT);
+    return com.smartbox.investory.shared.util.StringUtils.nullToEmpty(value)
+        .trim()
+        .replaceAll("\\s+", " ")
+        .toUpperCase(Locale.ROOT);
   }
 }

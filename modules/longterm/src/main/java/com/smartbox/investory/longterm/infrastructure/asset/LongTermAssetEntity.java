@@ -1,5 +1,6 @@
 package com.smartbox.investory.longterm.infrastructure.asset;
 
+import com.smartbox.investory.longterm.api.model.LongTermAssetType;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import jakarta.persistence.*;
 import java.math.BigDecimal;

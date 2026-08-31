@@ -1,8 +1,9 @@
 package com.smartbox.investory.retirement.planning;
 
-import com.smartbox.investory.retirement.profile.InvestmentProfile;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.api.model.SimulationAssumptions;
 import com.smartbox.investory.retirement.simulation.ForwardSimulationContextFactory;
-import com.smartbox.investory.retirement.simulation.SimulationAssumptions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 

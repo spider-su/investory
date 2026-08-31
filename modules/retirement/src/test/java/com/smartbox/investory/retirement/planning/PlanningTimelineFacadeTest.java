@@ -7,17 +7,22 @@ import static org.mockito.Mockito.*;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceRepository;
 import com.smartbox.investory.investment.infrastructure.read.HistoricalPortfolioActualsReadService;
-import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
+import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
 import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
+import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSnapshotModel;
+import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSummaryModel;
+import com.smartbox.investory.profile.api.model.*;
+import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.infrastructure.planning.*;
-import com.smartbox.investory.retirement.profile.*;
-import com.smartbox.investory.retirement.simulation.*;
+import com.smartbox.investory.retirement.simulation.ForwardSimulationContextFactory;
+import com.smartbox.investory.retirement.simulation.RetirementSimulation;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.*;
 import java.util.*;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
@@ -27,6 +32,7 @@ import org.mockito.quality.Strictness;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
+@DisplayName("Planning Timeline Facade")
 class PlanningTimelineFacadeTest {
   @Mock PlanningYearRepository years;
   @Mock PlanningYearValueRepository values;
@@ -34,7 +40,7 @@ class PlanningTimelineFacadeTest {
   @Mock RetirementSimulation simulations;
   @Mock CurrentYearProjectionBridge projectionBridge;
   @Mock HistoricalLongTermAssetYearSource longTermAssets;
-  @Mock LongTermAssetAnnualSnapshotReader currentLongTermAssets;
+  @Mock LongTermAssetProfileReader currentLongTermAssets;
   PlanningTimelineFacade facade;
   PlanningYearEntity planningYear;
 
@@ -67,20 +73,22 @@ class PlanningTimelineFacadeTest {
         .when(projectionBridge.projectCurrentYearEnd(any(), any()))
         .thenAnswer(invocation -> invocation.getArgument(0));
     lenient()
-        .when(currentLongTermAssets.currentAnnualSnapshot(eq(1L), any(LocalDate.class)))
+        .when(currentLongTermAssets.snapshot(eq(1L), any(LocalDate.class)))
         .thenReturn(
-            new LongTermAssetAnnualSnapshotModel(
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO));
+            profileSnapshot(
+                new LongTermAssetAnnualSnapshotModel(
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO)));
     lenient()
         .when(longTermAssets.read(anyLong(), anyInt()))
         .thenReturn(HistoricalLongTermAssetYearSource.HistoricalLongTermAssetYear.unavailable());
   }
 
+  @DisplayName("close Copies Live Planning Values And Never Writes Portfolio Facts")
   @Test
   void closeCopiesLivePlanningValuesAndNeverWritesPortfolioFacts() {
     assertThrows(
@@ -88,6 +96,7 @@ class PlanningTimelineFacadeTest {
     verifyNoInteractions(performance, simulations);
   }
 
+  @DisplayName("resolves Closed Live And Projected Review Modes From The Active Year")
   @Test
   void resolvesClosedLiveAndProjectedReviewModesFromTheActiveYear() {
     PlanningYearEntity historical = new PlanningYearEntity();
@@ -102,6 +111,7 @@ class PlanningTimelineFacadeTest {
     assertEquals(YearReviewMode.NONE, facade.reviewMode(1L, 2027));
   }
 
+  @DisplayName("closed Year Rejects Casual Manual Edits And Reopen Is Explicit")
   @Test
   void closedYearRejectsCasualManualEditsAndReopenIsExplicit() {
     PlanningYearEntity historical = new PlanningYearEntity();
@@ -121,6 +131,7 @@ class PlanningTimelineFacadeTest {
     assertNotNull(historical.getReopenedAt());
   }
 
+  @DisplayName("refreshes Stale Accounting Withdrawal But Preserves User Override")
   @Test
   void refreshesStaleAccountingWithdrawalButPreservesUserOverride() {
     PlanningYearEntity historical = new PlanningYearEntity();
@@ -162,7 +173,7 @@ class PlanningTimelineFacadeTest {
               return rows;
             });
 
-    facade.refreshHistoricalAccounting(1L, 2025);
+    facade.refreshHistoricalDerivedValues(1L, 2025);
 
     ArgumentCaptor<PlanningYearValueEntity> saved =
         ArgumentCaptor.forClass(PlanningYearValueEntity.class);
@@ -184,6 +195,7 @@ class PlanningTimelineFacadeTest {
                         && new BigDecimal("180000").equals(value.getApprovedValue())));
   }
 
+  @DisplayName("closed Year Cannot Refresh Accounting Values")
   @Test
   void closedYearCannotRefreshAccountingValues() {
     PlanningYearEntity closed = new PlanningYearEntity();
@@ -192,7 +204,8 @@ class PlanningTimelineFacadeTest {
     closed.setYear(2025);
     closed.setStatus(PlanningYearStatus.CLOSED);
     when(years.findByPortfolioIdAndYear(1L, 2025)).thenReturn(Optional.of(closed));
-    assertThrows(IllegalStateException.class, () -> facade.refreshHistoricalAccounting(1L, 2025));
+    assertThrows(
+        IllegalStateException.class, () -> facade.refreshHistoricalDerivedValues(1L, 2025));
     verifyNoInteractions(performance);
   }
 
@@ -207,6 +220,7 @@ class PlanningTimelineFacadeTest {
     return value;
   }
 
+  @DisplayName("historical Real Estate Is Never APlanning Input")
   @Test
   void historicalRealEstateIsNeverAPlanningInput() {
     PlanningYearValueEntity derived = new PlanningYearValueEntity();
@@ -224,6 +238,7 @@ class PlanningTimelineFacadeTest {
     assertFalse(facade.isHistoricalMetricEditable(1L, 2026, PlanningMetric.REAL_ESTATE));
   }
 
+  @DisplayName("authoritative Metrics Cannot Be Overridden But Planning Spending Can")
   @Test
   void authoritativeMetricsCannotBeOverriddenButPlanningSpendingCan() {
     assertThrows(
@@ -240,6 +255,7 @@ class PlanningTimelineFacadeTest {
                         && BigDecimal.TEN.equals(value.getApprovedValue())));
   }
 
+  @DisplayName("historical Reviewer May Enter Net Worth Without Touching Accounting")
   @Test
   void historicalReviewerMayEnterNetWorthWithoutTouchingAccounting() {
     PlanningYearEntity past = new PlanningYearEntity();
@@ -266,6 +282,7 @@ class PlanningTimelineFacadeTest {
     assertTrue(facade.isHistoricalMetricEditable(1L, 2025, PlanningMetric.NET_WORTH));
   }
 
+  @DisplayName("incomplete Historical Draft Cannot Close")
   @Test
   void incompleteHistoricalDraftCannotClose() {
     PlanningYearEntity past = new PlanningYearEntity();
@@ -279,6 +296,7 @@ class PlanningTimelineFacadeTest {
     assertThrows(IllegalStateException.class, () -> facade.closeHistoricalDraft(1L, 2025));
   }
 
+  @DisplayName("historical Close Status Uses The Same Completeness Policy As Close")
   @Test
   void historicalCloseStatusUsesTheSameCompletenessPolicyAsClose() {
     PlanningYearEntity past = new PlanningYearEntity();
@@ -298,6 +316,7 @@ class PlanningTimelineFacadeTest {
                 List.of("Net worth or market assets", "Annual living costs", "Annual extras")));
   }
 
+  @DisplayName("unavailable Optional Real Estate Does Not Block Historical Close")
   @Test
   void unavailableOptionalRealEstateDoesNotBlockHistoricalClose() {
     PlanningYearEntity past = new PlanningYearEntity();
@@ -328,6 +347,7 @@ class PlanningTimelineFacadeTest {
     assertTrue(status.missingMetrics().isEmpty());
   }
 
+  @DisplayName("baseline Stores Only Simulation Expectation And Is Independent Of Live Facts")
   @Test
   void baselineStoresOnlySimulationExpectationAndIsIndependentOfLiveFacts() {
     SimulationYear projected = projected();
@@ -352,6 +372,8 @@ class PlanningTimelineFacadeTest {
     verifyNoInteractions(performance);
   }
 
+  @DisplayName(
+      "timeline Orders Past Then Live Then Next Year Projection Without Duplicating Current Year")
   @Test
   void timelineOrdersPastThenLiveThenNextYearProjectionWithoutDuplicatingCurrentYear() {
     PlanningYearEntity past = new PlanningYearEntity();
@@ -384,6 +406,7 @@ class PlanningTimelineFacadeTest {
         timeline.years().stream().map(PlanningTimelineYear::state).toList());
   }
 
+  @DisplayName("forward Timeline Keeps Absolute Projected Years For Older Plan Starts")
   @Test
   void forwardTimelineKeepsAbsoluteProjectedYearsForOlderPlanStarts() {
     SimulationAssumptions anchored = assumptions().rebasedTo(37, 2023, List.of());
@@ -413,18 +436,20 @@ class PlanningTimelineFacadeTest {
     assertFalse(timeline.years().stream().anyMatch(row -> row.year() >= 4000));
   }
 
+  @DisplayName("live Timeline Uses Starting Assets Canonical Income And Active Plan Funding")
   @Test
   void liveTimelineUsesStartingAssetsCanonicalIncomeAndActivePlanFunding() {
     when(years.findAllByPortfolioIdOrderByYearAsc(1L)).thenReturn(List.of());
-    when(currentLongTermAssets.currentAnnualSnapshot(eq(1L), any(LocalDate.class)))
+    when(currentLongTermAssets.snapshot(eq(1L), any(LocalDate.class)))
         .thenReturn(
-            new LongTermAssetAnnualSnapshotModel(
-                new BigDecimal("3650000"),
-                new BigDecimal("180000"),
-                new BigDecimal("900000"),
-                new BigDecimal("48000"),
-                new BigDecimal("100000"),
-                BigDecimal.ZERO));
+            profileSnapshot(
+                new LongTermAssetAnnualSnapshotModel(
+                    new BigDecimal("3650000"),
+                    new BigDecimal("180000"),
+                    new BigDecimal("900000"),
+                    new BigDecimal("48000"),
+                    new BigDecimal("100000"),
+                    BigDecimal.ZERO)));
     SimulationAssumptions assumptions = workingAssumptions();
     ForwardSimulationContext context =
         new ForwardSimulationContextFactory(
@@ -448,10 +473,11 @@ class PlanningTimelineFacadeTest {
         new BigDecimal("48000"), live.actualValues().get(PlanningMetric.BOND_INCOME).value());
     assertEquals(
         BigDecimal.ZERO, live.actualValues().get(PlanningMetric.PORTFOLIO_FUNDING).value());
-    verify(currentLongTermAssets).currentAnnualSnapshot(1L, LocalDate.of(2026, 8, 14));
+    verify(currentLongTermAssets).snapshot(1L, LocalDate.of(2026, 8, 14));
     verifyNoInteractions(simulations, projectionBridge);
   }
 
+  @DisplayName("historical Draft Derives Rental Income From Long Term Asset Source")
   @Test
   void historicalDraftDerivesRentalIncomeFromLongTermAssetSource() {
     PlanningYearEntity historical = new PlanningYearEntity();
@@ -487,6 +513,7 @@ class PlanningTimelineFacadeTest {
                         && value.getSourceType() == PlanningValueSource.LONG_TERM_DERIVED));
   }
 
+  @DisplayName("current Timeline Does Not Expose Orphan Baseline Rows Without Revision Provenance")
   @Test
   void currentTimelineDoesNotExposeOrphanBaselineRowsWithoutRevisionProvenance() {
     PlanningYearValueEntity stale = new PlanningYearValueEntity();
@@ -503,6 +530,7 @@ class PlanningTimelineFacadeTest {
     assertTrue(current.expectedValues().isEmpty());
   }
 
+  @DisplayName("complete Market Assets Allow Close When Historical Net Worth Is Unavailable")
   @Test
   void completeMarketAssetsAllowCloseWhenHistoricalNetWorthIsUnavailable() {
     PlanningYearEntity historical = new PlanningYearEntity();
@@ -526,6 +554,7 @@ class PlanningTimelineFacadeTest {
     assertEquals(new BigDecimal("100"), closed.values().get(PlanningMetric.MARKET_ASSETS).value());
   }
 
+  @DisplayName("historical Draft Is Shown As Needs Review Rather Than Final Actual")
   @Test
   void historicalDraftIsShownAsNeedsReviewRatherThanFinalActual() {
     PlanningYearEntity past = new PlanningYearEntity();
@@ -547,6 +576,7 @@ class PlanningTimelineFacadeTest {
     assertEquals(PlanningTimelineState.NEEDS_REVIEW, timeline.years().getFirst().state());
   }
 
+  @DisplayName("future Projection Receives The Bridged Current Year End Profile")
   @Test
   void futureProjectionReceivesTheBridgedCurrentYearEndProfile() {
     InvestmentProfile bridged =
@@ -556,13 +586,31 @@ class PlanningTimelineFacadeTest {
             new BigDecimal("1200"),
             BigDecimal.ZERO,
             new BigDecimal("1200"),
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
             new BigDecimal("1200"),
             BigDecimal.ZERO,
             List.of(),
-            List.of());
+            null,
+            null,
+            new com.smartbox.investory.profile.api.model.ProfileAssetProjection(
+                List.of(),
+                java.math.BigDecimal.ZERO,
+                0,
+                com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
+            (new BigDecimal("1200") == null ? java.math.BigDecimal.ZERO : new BigDecimal("1200")),
+            new BigDecimal("1200")
+                .subtract(
+                    (new BigDecimal("1200") == null
+                        ? java.math.BigDecimal.ZERO
+                        : new BigDecimal("1200")))
+                .max(java.math.BigDecimal.ZERO),
+            com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
+                BigDecimal.ZERO,
+                new BigDecimal("1200"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                new BigDecimal("1200")),
+            com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
     when(years.findAllByPortfolioIdOrderByYearAsc(1L)).thenReturn(List.of());
     when(projectionBridge.projectCurrentYearEnd(profile(), assumptions())).thenReturn(bridged);
     when(simulations.simulate(eq(bridged), any(), eq(SimulationScenario.BASE), anyInt()))
@@ -586,9 +634,6 @@ class PlanningTimelineFacadeTest {
         new BigDecimal("700"),
         new BigDecimal("300"),
         new BigDecimal("1000"),
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
         new BigDecimal("700"),
         new BigDecimal("300"),
         List.of(
@@ -596,20 +641,54 @@ class PlanningTimelineFacadeTest {
                 EconomicBucket.LIQUID_CASH,
                 new BigDecimal("100"),
                 BigDecimal.ONE,
-                Liquidity.LIQUID),
+                Liquidity.LIQUID,
+                Liquidity.LIQUID == com.smartbox.investory.profile.api.model.Liquidity.ILLIQUID
+                    ? com.smartbox.investory.profile.api.model.AssetHorizon.LONG_TERM
+                    : com.smartbox.investory.profile.api.model.AssetHorizon.SHORT_TERM),
             new ProfileAllocation(
                 EconomicBucket.FIXED_INCOME,
                 new BigDecimal("200"),
                 BigDecimal.ONE,
-                Liquidity.LIQUID),
+                Liquidity.LIQUID,
+                Liquidity.LIQUID == com.smartbox.investory.profile.api.model.Liquidity.ILLIQUID
+                    ? com.smartbox.investory.profile.api.model.AssetHorizon.LONG_TERM
+                    : com.smartbox.investory.profile.api.model.AssetHorizon.SHORT_TERM),
             new ProfileAllocation(
-                EconomicBucket.EQUITY, new BigDecimal("400"), BigDecimal.ONE, Liquidity.LIQUID),
+                EconomicBucket.EQUITY,
+                new BigDecimal("400"),
+                BigDecimal.ONE,
+                Liquidity.LIQUID,
+                Liquidity.LIQUID == com.smartbox.investory.profile.api.model.Liquidity.ILLIQUID
+                    ? com.smartbox.investory.profile.api.model.AssetHorizon.LONG_TERM
+                    : com.smartbox.investory.profile.api.model.AssetHorizon.SHORT_TERM),
             new ProfileAllocation(
                 EconomicBucket.REAL_ESTATE,
                 new BigDecimal("300"),
                 BigDecimal.ONE,
-                Liquidity.ILLIQUID)),
-        List.of());
+                Liquidity.ILLIQUID,
+                Liquidity.ILLIQUID == com.smartbox.investory.profile.api.model.Liquidity.ILLIQUID
+                    ? com.smartbox.investory.profile.api.model.AssetHorizon.LONG_TERM
+                    : com.smartbox.investory.profile.api.model.AssetHorizon.SHORT_TERM)),
+        null,
+        null,
+        new com.smartbox.investory.profile.api.model.ProfileAssetProjection(
+            List.of(),
+            java.math.BigDecimal.ZERO,
+            0,
+            com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
+        (new BigDecimal("700") == null ? java.math.BigDecimal.ZERO : new BigDecimal("700")),
+        new BigDecimal("700")
+            .subtract(
+                (new BigDecimal("700") == null ? java.math.BigDecimal.ZERO : new BigDecimal("700")))
+            .max(java.math.BigDecimal.ZERO),
+        com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
+            BigDecimal.ZERO,
+            new BigDecimal("700"),
+            BigDecimal.ZERO,
+            new BigDecimal("300"),
+            BigDecimal.ZERO,
+            new BigDecimal("1000")),
+        com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
   }
 
   private static SimulationAssumptions assumptions() {
@@ -618,10 +697,7 @@ class PlanningTimelineFacadeTest {
         42,
         new BigDecimal("100"),
         new BigDecimal("0.025"),
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
         new BigDecimal("0.06"),
-        BigDecimal.ZERO,
         BigDecimal.ZERO,
         67,
         BigDecimal.ZERO,
@@ -635,7 +711,13 @@ class PlanningTimelineFacadeTest {
         new BigDecimal("5"),
         new BigDecimal("0.07"),
         new BigDecimal("0.75"),
-        true);
+        true,
+        40,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        SimulationAssumptions.DEFAULT_FUNDING_ORDER,
+        ExpenseProfile.EMPTY,
+        ProjectedIncomePolicy.SOURCE);
   }
 
   private static SimulationAssumptions workingAssumptions() {
@@ -644,11 +726,8 @@ class PlanningTimelineFacadeTest {
         80,
         new BigDecimal("192000"),
         new BigDecimal("0.014"),
-        new BigDecimal("0.04"),
         new BigDecimal("0.05"),
         new BigDecimal("0.085"),
-        BigDecimal.ZERO,
-        new BigDecimal("0.04"),
         67,
         new BigDecimal("7000"),
         BigDecimal.ZERO,
@@ -664,7 +743,10 @@ class PlanningTimelineFacadeTest {
         true,
         42,
         new BigDecimal("240000"),
-        new BigDecimal("60000"));
+        new BigDecimal("60000"),
+        SimulationAssumptions.DEFAULT_FUNDING_ORDER,
+        ExpenseProfile.EMPTY,
+        ProjectedIncomePolicy.SOURCE);
   }
 
   private static PlanningYearValueEntity stored(PlanningMetric metric, String amount) {
@@ -725,6 +807,24 @@ class PlanningTimelineFacadeTest {
         new BigDecimal("300"),
         new BigDecimal("1000"),
         false,
-        z);
+        z,
+        SimulationLifecyclePhase.WORKING,
+        z,
+        z,
+        false,
+        z,
+        z,
+        z,
+        z,
+        new SimulationFunding(z, z, z, z, z, z, z, z, z, z, z, z));
+  }
+
+  private static LongTermAssetProfileSnapshotModel profileSnapshot(
+      LongTermAssetAnnualSnapshotModel annualSnapshot) {
+    return new LongTermAssetProfileSnapshotModel(
+        new LongTermAssetProfileSummaryModel(CurrencyType.USD, BigDecimal.ZERO, BigDecimal.ZERO),
+        List.of(),
+        List.of(),
+        annualSnapshot);
   }
 }

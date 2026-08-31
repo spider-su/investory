@@ -1,25 +1,53 @@
 package com.smartbox.investory.investment.api.reporting;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /** Canonical, persistence-free performance read contract for UI and other adapters. */
 public interface InvestmentPerformanceApi {
   PerformanceBoardView load(PerformanceBoardQuery query);
 
-  AccountValueView loadAccountValues(List<Long> accountIds);
+  AccountValueView loadAccountValues(Long portfolioId, List<Long> accountIds);
+
+  default AccountValueView loadAccountValues(List<Long> accountIds) {
+    return loadAccountValues(1L, accountIds);
+  }
 
   record PerformanceBoardQuery(
-      List<Long> accountIds, String aggregation, String metric, String style, String period) {
+      List<Long> accountIds,
+      PerformanceAggregation aggregation,
+      PerformanceMetric metric,
+      PerformanceStyle style,
+      DashboardPeriod period,
+      Long portfolioId) {
     public PerformanceBoardQuery(
-        List<Long> accountIds, String aggregation, String metric, String style) {
-      this(accountIds, aggregation, metric, style, null);
+        List<Long> accountIds,
+        PerformanceAggregation aggregation,
+        PerformanceMetric metric,
+        PerformanceStyle style) {
+      this(accountIds, aggregation, metric, style, null, 1L);
+    }
+
+    public PerformanceBoardQuery(
+        List<Long> accountIds,
+        PerformanceAggregation aggregation,
+        PerformanceMetric metric,
+        PerformanceStyle style,
+        DashboardPeriod period) {
+      this(accountIds, aggregation, metric, style, period, 1L);
     }
 
     public PerformanceBoardQuery {
-      accountIds = accountIds == null || accountIds.isEmpty() ? null : List.copyOf(accountIds);
-      aggregation = aggregation == null ? "monthly" : aggregation;
-      metric = metric == null ? "return" : metric;
-      style = style == null ? "line" : style;
+      accountIds =
+          accountIds == null || accountIds.isEmpty()
+              ? null
+              : com.smartbox.investory.shared.util.CollectionUtils.immutableListOrEmpty(accountIds);
+      aggregation = aggregation == null ? PerformanceAggregation.MONTHLY : aggregation;
+      metric = metric == null ? PerformanceMetric.RETURN : metric;
+      style = style == null ? PerformanceStyle.LINE : style;
+      if (portfolioId == null || portfolioId <= 0) {
+        throw new IllegalArgumentException("portfolioId must be positive");
+      }
     }
   }
 
@@ -27,28 +55,28 @@ public interface InvestmentPerformanceApi {
       boolean available,
       List<String> labels,
       List<PerformanceSeries> series,
-      List<Double> benchmarkValues,
-      List<Double> excessValues,
+      List<BigDecimal> benchmarkValues,
+      List<BigDecimal> excessValues,
       PerformanceKpiView kpis,
       List<PerformanceAccount> accounts) {}
 
-  record PerformanceSeries(Long accountId, String label, List<Double> values) {}
+  record PerformanceSeries(Long accountId, String label, List<BigDecimal> values) {}
 
   record PerformanceAccount(Long id, String name, boolean selected) {}
 
   record PerformanceKpiView(
-      Double portfolioReturn,
-      Double benchmarkReturn,
-      Double excessReturn,
-      Double portfolioProfitLoss,
+      BigDecimal portfolioReturn,
+      BigDecimal benchmarkReturn,
+      BigDecimal excessReturn,
+      BigDecimal portfolioProfitLoss,
       String bestPeriod,
-      Double bestValue,
+      BigDecimal bestValue,
       String worstPeriod,
-      Double worstValue) {}
+      BigDecimal worstValue) {}
 
   record AccountValueView(List<AccountValueYear> years) {
     public AccountValueView {
-      years = years == null ? List.of() : List.copyOf(years);
+      years = com.smartbox.investory.shared.util.CollectionUtils.immutableListOrEmpty(years);
     }
   }
 
@@ -56,22 +84,28 @@ public interface InvestmentPerformanceApi {
       int year,
       List<String> labels,
       List<AccountValueSeries> accountSeries,
-      List<Double> totalProfitValues,
-      List<Double> totalProfitPctValues) {
+      List<BigDecimal> totalProfitValues,
+      List<BigDecimal> totalProfitPctValues) {
     public AccountValueYear {
-      labels = labels == null ? List.of() : List.copyOf(labels);
-      accountSeries = accountSeries == null ? List.of() : List.copyOf(accountSeries);
-      totalProfitValues = totalProfitValues == null ? List.of() : List.copyOf(totalProfitValues);
+      labels = com.smartbox.investory.shared.util.CollectionUtils.immutableListOrEmpty(labels);
+      accountSeries =
+          com.smartbox.investory.shared.util.CollectionUtils.immutableListOrEmpty(accountSeries);
+      totalProfitValues =
+          com.smartbox.investory.shared.util.CollectionUtils.immutableListOrEmpty(
+              totalProfitValues);
       totalProfitPctValues =
-          totalProfitPctValues == null ? List.of() : List.copyOf(totalProfitPctValues);
+          com.smartbox.investory.shared.util.CollectionUtils.immutableListOrEmpty(
+              totalProfitPctValues);
     }
   }
 
   record AccountValueSeries(
-      Long id, String name, List<Double> profitValues, List<Double> profitPctValues) {
+      Long id, String name, List<BigDecimal> profitValues, List<BigDecimal> profitPctValues) {
     public AccountValueSeries {
-      profitValues = profitValues == null ? List.of() : List.copyOf(profitValues);
-      profitPctValues = profitPctValues == null ? List.of() : List.copyOf(profitPctValues);
+      profitValues =
+          com.smartbox.investory.shared.util.CollectionUtils.immutableListOrEmpty(profitValues);
+      profitPctValues =
+          com.smartbox.investory.shared.util.CollectionUtils.immutableListOrEmpty(profitPctValues);
     }
   }
 }

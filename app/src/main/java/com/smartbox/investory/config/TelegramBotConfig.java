@@ -1,6 +1,6 @@
 package com.smartbox.investory.config;
 
-import com.smartbox.investory.integrations.bot.PortfolioBot;
+import com.smartbox.investory.integrations.telegram.PortfolioBot;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

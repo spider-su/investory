@@ -1,6 +1,6 @@
 package com.smartbox.investory.retirement.infrastructure.planning;
 
-import com.smartbox.investory.retirement.planning.*;
+import com.smartbox.investory.retirement.api.model.*;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;

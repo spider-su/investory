@@ -4,15 +4,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-import com.smartbox.investory.longterm.api.LongTermAnnualProjectionApi;
-import com.smartbox.investory.longterm.api.model.InterestTreatmentModel;
-import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
-import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
-import com.smartbox.investory.longterm.application.service.LongTermAnnualProjectionService;
-import com.smartbox.investory.retirement.api.InvestmentProfileFacade;
+import com.smartbox.investory.longterm.api.model.InterestTreatment;
+import com.smartbox.investory.longterm.api.model.LongTermAssetType;
+import com.smartbox.investory.profile.api.ProfileReader;
+import com.smartbox.investory.profile.api.model.EconomicBucket;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.profile.api.model.Liquidity;
+import com.smartbox.investory.profile.api.model.ProfileAssetProjection;
+import com.smartbox.investory.profile.api.model.ProjectedLongTermAsset;
+import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.infrastructure.simulation.*;
-import com.smartbox.investory.retirement.profile.InvestmentProfile;
-import com.smartbox.investory.retirement.simulation.*;
+import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanService;
+import com.smartbox.investory.retirement.simulation.ForwardSimulationContextFactory;
+import com.smartbox.investory.retirement.simulation.RetirementSimulationService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -21,12 +25,15 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Retirement Frozen Plan Lifecycle Integration")
 class RetirementFrozenPlanLifecycleIntegrationTest {
   private static final Clock CLOCK =
       Clock.fixed(Instant.parse("2026-08-22T00:00:00Z"), ZoneOffset.UTC);
 
+  @DisplayName("real Projection Remains Frozen Until Explicit Rebaseline")
   @Test
   void realProjectionRemainsFrozenUntilExplicitRebaseline() {
     var liveA = profile("700000", "575000");
@@ -37,7 +44,7 @@ class RetirementFrozenPlanLifecycleIntegrationTest {
     var planService = store.service();
     var plan = planService.create(1L, "Frozen", assumptions, baselineA);
 
-    var profiles = mock(InvestmentProfileFacade.class);
+    var profiles = mock(ProfileReader.class);
     when(profiles.loadProfile(1L)).thenReturn(liveA, liveB, liveB);
     var simulations = new RetirementSimulationService();
     var contexts = new ForwardSimulationContextFactory(CLOCK);
@@ -60,38 +67,46 @@ class RetirementFrozenPlanLifecycleIntegrationTest {
     var rebased = facade.load(1L, plan.getId(), 40, 45);
     assertThat(revisionB.getId()).isNotEqualTo(firstRevisionId);
     assertThat(rebased.scenarioResults().get(SimulationScenario.BASE)).isNotEqualTo(firstFuture);
-    assertThat(planService.baseline(1L, plan.getId()).investmentCapital())
+    assertThat(planService.details(1L, plan.getId()).baseline().investmentCapital())
         .isEqualByComparingTo("900000");
 
-    var assumptionsB = planService.assumptions(1L, plan.getId()).withRetirementAge(43);
+    var assumptionsB = planService.details(1L, plan.getId()).assumptions().withRetirementAge(43);
     planService.update(1L, plan.getId(), "Frozen", assumptionsB);
-    assertThat(planService.baseline(1L, plan.getId()).investmentCapital())
+    assertThat(planService.details(1L, plan.getId()).baseline().investmentCapital())
         .isEqualByComparingTo("900000");
   }
 
+  @DisplayName("newly Saved Baseline Retains Long Term Bond Projection Inputs")
   @Test
   void newlySavedBaselineRetainsLongTermBondProjectionInputs() {
     var bonds =
         java.util.stream.IntStream.range(0, 6)
             .mapToObj(
                 i ->
-                    new LongTermAssetProjectionModel(
+                    new ProjectedLongTermAsset(
                         (long) i,
                         "Bond " + i,
-                        LongTermAssetTypeModel.BOND,
+                        LongTermAssetType.BOND,
+                        EconomicBucket.FIXED_INCOME,
                         CurrencyType.PLN,
                         new BigDecimal("150000"),
+                        Liquidity.LIQUID,
                         List.of(
-                            new LongTermAssetProjectionModel.Period(
+                            new ProjectedLongTermAsset.Period(
                                 java.time.LocalDate.of(2025, 1, 1),
                                 java.time.LocalDate.of(2028, 12, 31),
                                 new BigDecimal("8000"),
                                 BigDecimal.ZERO,
-                                BigDecimal.ZERO)),
+                                BigDecimal.ZERO,
+                                null,
+                                false)),
+                        java.util.List.of(),
                         java.time.LocalDate.of(2028, 12, 31),
                         new BigDecimal("150000"),
-                        InterestTreatmentModel.PAY_OUT,
-                        new BigDecimal("0.19")))
+                        InterestTreatment.PAY_OUT,
+                        new BigDecimal("0.19"),
+                        null,
+                        false))
             .toList();
     var source = profile("700000", "575000");
     source =
@@ -101,19 +116,26 @@ class RetirementFrozenPlanLifecycleIntegrationTest {
             source.marketPortfolioValue(),
             new BigDecimal("900000"),
             new BigDecimal("3175000"),
-            source.historicalMarketInvestmentIncome(),
-            new BigDecimal("38880"),
-            source.totalInvestmentIncome(),
             source.liquidAssets(),
             source.illiquidAssets(),
             source.allocations(),
-            source.longTermAssets(),
             BigDecimal.ZERO,
             new BigDecimal("38880"),
-            new LongTermAnnualProjectionApi.PlanningState(
-                bonds, BigDecimal.ZERO, 2026, LongTermAnnualProjectionApi.Source.PROJECTED),
+            new ProfileAssetProjection(
+                bonds,
+                BigDecimal.ZERO,
+                2026,
+                com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
             source.retirementReserve(),
-            source.investmentCapital());
+            source.investmentCapital(),
+            com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
+                source.incomeSummary().marketIncomeYtd(),
+                source.marketPortfolioValue(),
+                new BigDecimal("38880"),
+                new BigDecimal("900000"),
+                source.incomeSummary().combinedAnnualIncome(),
+                new BigDecimal("3175000")),
+            com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
     var store = newPlanStore();
     var plan =
         store
@@ -124,17 +146,12 @@ class RetirementFrozenPlanLifecycleIntegrationTest {
                 SimulationAssumptions.defaults(source, 40, 45, 2025),
                 PlanningBaseline.fromProfile(source, 2026));
 
-    var restored = store.service().baseline(1L, plan.getId());
+    var restored = store.service().details(1L, plan.getId()).baseline();
     assertThat(restored.longTermPlanningState().assets()).hasSize(6);
-    var quote =
-        new LongTermAnnualProjectionService()
-            .quote(
-                new LongTermAnnualProjectionApi.PlanningRequest(
-                    2027, BigDecimal.ZERO, restored.longTermPlanningState()));
     assertThat(
-            quote.plannedCashFlows().stream()
-                .filter(f -> f.kind() == LongTermAnnualProjectionApi.CashFlowKind.FIXED_INCOME)
-                .map(LongTermAnnualProjectionApi.PlannedCashFlow::annualAmount)
+            restored.longTermPlanningState().assets().stream()
+                .flatMap(asset -> asset.periods().stream())
+                .map(ProjectedLongTermAsset.Period::annualIncome)
                 .reduce(BigDecimal.ZERO, BigDecimal::add))
         .isEqualByComparingTo("48000");
   }
@@ -152,21 +169,27 @@ class RetirementFrozenPlanLifecycleIntegrationTest {
         r.add(i),
         BigDecimal.ZERO,
         r.add(i),
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
         r,
         BigDecimal.ZERO,
         List.of(),
-        List.of(),
         BigDecimal.ZERO,
-        BigDecimal.ZERO);
+        BigDecimal.ZERO,
+        new com.smartbox.investory.profile.api.model.ProfileAssetProjection(
+            List.of(),
+            java.math.BigDecimal.ZERO,
+            0,
+            com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
+        (r == null ? java.math.BigDecimal.ZERO : r),
+        r.add(i)
+            .subtract((r == null ? java.math.BigDecimal.ZERO : r))
+            .max(java.math.BigDecimal.ZERO),
+        com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
+            BigDecimal.ZERO, r.add(i), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, r.add(i)),
+        com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
   }
 
   private static final class InMemoryPlanStore {
     private final SimulationPlanRepository plans = mock(SimulationPlanRepository.class);
-    private final SimulationPlanEventRepository legacyEvents =
-        mock(SimulationPlanEventRepository.class);
     private final SimulationPlanRevisionRepository revisions =
         mock(SimulationPlanRevisionRepository.class);
     private final SimulationPlanRevisionEventRepository revisionEvents =
@@ -208,7 +231,8 @@ class RetirementFrozenPlanLifecycleIntegrationTest {
     }
 
     private SimulationPlanService service() {
-      return new SimulationPlanService(plans, legacyEvents, revisions, revisionEvents);
+      return new SimulationPlanService(
+          plans, revisions, revisionEvents, new tools.jackson.databind.ObjectMapper());
     }
   }
 }

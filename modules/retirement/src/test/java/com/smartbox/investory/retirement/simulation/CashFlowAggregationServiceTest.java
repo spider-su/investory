@@ -2,12 +2,17 @@ package com.smartbox.investory.retirement.simulation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.shared.projection.ProjectionSource;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Cash Flow Aggregation Service")
 class CashFlowAggregationServiceTest {
+  @DisplayName("aggregates Monthly Annual And One Off Income And Expenses")
   @Test
   void aggregatesMonthlyAnnualAndOneOffIncomeAndExpenses() {
     var result =
@@ -46,6 +51,7 @@ class CashFlowAggregationServiceTest {
     assertThat(result.surplus()).isEqualByComparingTo("750");
   }
 
+  @DisplayName("actual Replaces Only Its Projected Occurrence")
   @Test
   void actualReplacesOnlyItsProjectedOccurrence() {
     var projected =

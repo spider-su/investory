@@ -4,7 +4,7 @@ import org.apache.poi.ss.usermodel.*;
 
 /**
  * Reconciliation helper: reads an XTB "Cash Operations" sheet the same way
- * XtbImportV2Service does (find the header row containing Type/Time/Amount,
+ * XtbImportService does (find the header row containing Type/Time/Amount,
  * skip rows without a parseable Time) and prints per-file:
  *   account, dataRows, sumAmount, and a per-Type breakdown (count,sum).
  */

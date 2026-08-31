@@ -43,7 +43,9 @@ A production candidate should satisfy, in order:
 5. application reconciliation with no unexplained required-check failures;
 6. a production-like smoke pass covering startup, login, dashboard, import/refresh, long-term assets, retirement planning/Analysis, restart, and read-back.
 
-The verification contract and QUICK/GOLDEN/ARCHIVE model are defined in `../quality/reconciliation.md`. A green health endpoint or successful UI load does not replace financial verification.
+The verification tiers are defined in `../quality/reconciliation.md`: the application exposes the
+current-state QUICK report, while golden and full-archive verification run as release tooling. A
+green health endpoint or successful UI load does not replace financial verification.
 
 ## Restart and recovery expectations
 

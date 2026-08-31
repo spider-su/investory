@@ -13,12 +13,15 @@ import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationEn
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.ZonedDateTime;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Cash Operation Normalizer")
 class CashOperationNormalizerTest {
 
   private final CashOperationNormalizer normalizer = new CashOperationNormalizer();
 
+  @DisplayName("normalize classifies Explicit Transfer In Out As Internal Not External")
   @Test
   void normalize_classifiesExplicitTransferInOutAsInternalNotExternal() {
     CashOperationEntity out =
@@ -41,6 +44,7 @@ class CashOperationNormalizerTest {
     assertEquals(rows.get(0).transferGroupId(), rows.get(1).transferGroupId());
   }
 
+  @DisplayName("normalize classifies Currency Conversion As Internal Fx")
   @Test
   void normalize_classifiesCurrencyConversionAsInternalFx() {
     CashOperationEntity pln =
@@ -66,6 +70,7 @@ class CashOperationNormalizerTest {
     assertEquals(rows.get(0).transferGroupId(), rows.get(1).transferGroupId());
   }
 
+  @DisplayName("normalize classifies Dividend And Tax Reversals By Sign")
   @Test
   void normalize_classifiesDividendAndTaxReversalsBySign() {
     CashOperationEntity negativeDividend =
@@ -84,6 +89,7 @@ class CashOperationNormalizerTest {
     assertTrue(rows.get(1).reversal());
   }
 
+  @DisplayName("normalize pairs Zero Net Subaccount Transfers")
   @Test
   void normalize_pairsZeroNetSubaccountTransfers() {
     CashOperationEntity left =
@@ -105,6 +111,7 @@ class CashOperationNormalizerTest {
     assertFalse(rows.get(1).externalFlow());
   }
 
+  @DisplayName("normalize does Not Treat Unexplained Negative Deposit As External Withdrawal")
   @Test
   void normalize_doesNotTreatUnexplainedNegativeDepositAsExternalWithdrawal() {
     CashOperationEntity negativeDeposit =
@@ -117,6 +124,7 @@ class CashOperationNormalizerTest {
     assertFalse(row.externalFlow());
   }
 
+  @DisplayName("normalize does Not Treat Positive Withdrawal As External Deposit")
   @Test
   void normalize_doesNotTreatPositiveWithdrawalAsExternalDeposit() {
     CashOperationEntity positiveWithdrawal =
@@ -129,6 +137,7 @@ class CashOperationNormalizerTest {
     assertFalse(row.externalFlow());
   }
 
+  @DisplayName("normalize zero Deposit Does Not Become Normal Capital Flow")
   @Test
   void normalize_zeroDepositDoesNotBecomeNormalCapitalFlow() {
     CashOperationEntity zeroDeposit =
@@ -142,6 +151,7 @@ class CashOperationNormalizerTest {
     assertFalse(row.externalFlow());
   }
 
+  @DisplayName("normalize unmatched Internal Transfer Remains Visible And Unpaired")
   @Test
   void normalize_unmatchedInternalTransferRemainsVisibleAndUnpaired() {
     CashOperationEntity transferOut =
@@ -156,6 +166,7 @@ class CashOperationNormalizerTest {
     assertNull(row.transferGroupId());
   }
 
+  @DisplayName("normalize transfer Between Accounts Uses Account Clues Not Only Amount And Time")
   @Test
   void normalize_transferBetweenAccountsUsesAccountCluesNotOnlyAmountAndTime() {
     CashOperationEntity legA =
@@ -181,6 +192,7 @@ class CashOperationNormalizerTest {
     assertNull(rows.get(1).transferGroupId());
   }
 
+  @DisplayName("normalize subaccount Transfer Pairing Is Input Order Independent")
   @Test
   void normalize_subaccountTransferPairingIsInputOrderIndependent() {
     CashOperationEntity left =
@@ -201,6 +213,7 @@ class CashOperationNormalizerTest {
     assertEquals(backward.get(0).transferGroupId(), backward.get(1).transferGroupId());
   }
 
+  @DisplayName("normalize negative Interest Becomes Interest Reversal")
   @Test
   void normalize_negativeInterestBecomesInterestReversal() {
     CashOperationEntity interest =
@@ -212,6 +225,7 @@ class CashOperationNormalizerTest {
     assertTrue(row.reversal());
   }
 
+  @DisplayName("normalize ibkr Bond Redemption Is Settlement Not Funding")
   @Test
   void normalize_ibkrBondRedemptionIsSettlementNotFunding() {
     CashOperationEntity redemption =
@@ -226,6 +240,7 @@ class CashOperationNormalizerTest {
     assertTrue(row.tradeCashFlow());
   }
 
+  @DisplayName("normalize fee Corrections Become Fee Reversals")
   @Test
   void normalize_feeCorrectionsBecomeFeeReversals() {
     CashOperationEntity commissionRefund =
@@ -251,7 +266,7 @@ class CashOperationNormalizerTest {
     operation.setId(id);
     operation.setAccount(accountId);
     operation.setType(type);
-    operation.setAmount(amount);
+    operation.setAmount(java.math.BigDecimal.valueOf(amount));
     operation.setCurrency(currency);
     operation.setDate(ZonedDateTime.parse("2026-01-01T00:00:00Z"));
     return operation;

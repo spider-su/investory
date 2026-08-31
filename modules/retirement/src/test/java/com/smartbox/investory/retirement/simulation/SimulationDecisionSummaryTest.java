@@ -5,29 +5,19 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.smartbox.investory.retirement.api.model.*;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Simulation Decision Summary")
 class SimulationDecisionSummaryTest {
+  @DisplayName("derives Decision Metrics From Yearly Results")
   @Test
   void derivesDecisionMetricsFromYearlyResults() {
-    SimulationAssumptions assumptions =
-        new SimulationAssumptions(
-            40,
-            42,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            99,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            2026);
+    SimulationAssumptions assumptions = testAssumptions(42);
     List<SimulationYear> years =
         List.of(
             year(40, 2026, "1000", "100", "20", "150", "70", "1000", false, "0"),
@@ -58,23 +48,10 @@ class SimulationDecisionSummaryTest {
     assertFalse(summary.recurringFundingGapRequired());
   }
 
+  @DisplayName("empty Result Has Safe Metrics")
   @Test
   void emptyResultHasSafeMetrics() {
-    SimulationAssumptions assumptions =
-        new SimulationAssumptions(
-            40,
-            40,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            99,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            2026);
+    SimulationAssumptions assumptions = testAssumptions(40);
     SimulationDecisionSummary summary =
         SimulationDecisionSummary.from(
             new SimulationResult(SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of()),
@@ -83,23 +60,10 @@ class SimulationDecisionSummaryTest {
     assertNull(summary.firstFailureYear());
   }
 
+  @DisplayName("does Not Treat Income Funded Retirement Years As Zero Reserve Coverage")
   @Test
   void doesNotTreatIncomeFundedRetirementYearsAsZeroReserveCoverage() {
-    SimulationAssumptions assumptions =
-        new SimulationAssumptions(
-            40,
-            40,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            99,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            2026);
+    SimulationAssumptions assumptions = testAssumptions(40);
     SimulationDecisionSummary summary =
         SimulationDecisionSummary.from(
             new SimulationResult(
@@ -114,23 +78,10 @@ class SimulationDecisionSummaryTest {
     assertEquals(BigDecimal.ZERO, summary.minimumSafeReserveCoverageYears());
   }
 
+  @DisplayName("chart Data Mirrors Yearly Projection")
   @Test
   void chartDataMirrorsYearlyProjection() {
-    SimulationAssumptions assumptions =
-        new SimulationAssumptions(
-            40,
-            40,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            99,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            2026);
+    SimulationAssumptions assumptions = testAssumptions(40);
     SimulationYear projection = year(40, 2026, "1000", "100", "20", "150", "70", "900", false, "0");
     SimulationChartData charts =
         SimulationChartData.from(
@@ -156,23 +107,11 @@ class SimulationDecisionSummaryTest {
     assertTrue(charts.metadata().failures().isEmpty());
   }
 
+  @DisplayName(
+      "simplified Composition Groups Manual Cash And Contractual Bonds Without Changing Net Worth")
   @Test
   void simplifiedCompositionGroupsManualCashAndContractualBondsWithoutChangingNetWorth() {
-    SimulationAssumptions assumptions =
-        new SimulationAssumptions(
-            40,
-            40,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            99,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            2026);
+    SimulationAssumptions assumptions = SimulationAssumptions.defaults(40, 40, 2026);
     SimulationYear year =
         new SimulationYear(
             40,
@@ -218,7 +157,17 @@ class SimulationDecisionSummaryTest {
             ZERO,
             new BigDecimal("200"),
             false,
-            ZERO);
+            ZERO,
+            SimulationLifecyclePhase.WORKING,
+            ZERO,
+            ZERO,
+            false,
+            ZERO,
+            ZERO,
+            ZERO,
+            ZERO,
+            new SimulationFunding(
+                ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO));
     SimulationChartData charts =
         SimulationChartData.from(
             Map.of(
@@ -232,6 +181,35 @@ class SimulationDecisionSummaryTest {
     assertEquals(new BigDecimal("100"), point.bonds());
     assertEquals(BigDecimal.ZERO, point.apartments());
     assertEquals(new BigDecimal("40"), point.equities());
+  }
+
+  private static SimulationAssumptions testAssumptions(int endAge) {
+    return new SimulationAssumptions(
+        40,
+        endAge,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        99,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        2026,
+        BigDecimal.ZERO,
+        List.of(),
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        SimulationFundingStrategy.SIMPLE_WATERFALL,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        true,
+        40,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        SimulationAssumptions.DEFAULT_FUNDING_ORDER,
+        ExpenseProfile.EMPTY,
+        ProjectedIncomePolicy.SOURCE);
   }
 
   private static SimulationYear year(
@@ -265,21 +243,48 @@ class SimulationDecisionSummaryTest {
         BigDecimal.ZERO,
         p,
         w,
+        w.subtract(u),
+        l,
+        ZERO,
+        ZERO,
+        ZERO,
+        ZERO,
+        ZERO,
+        ZERO,
+        ZERO,
+        ZERO,
+        ZERO,
+        l,
+        ZERO,
+        ZERO,
+        ZERO,
+        ZERO,
+        ZERO,
+        ZERO,
+        ZERO,
+        ZERO,
+        ZERO,
+        ZERO,
+        ZERO,
+        ZERO,
+        ZERO,
         l,
         l,
-        ZERO,
-        ZERO,
-        ZERO,
-        ZERO,
-        ZERO,
-        ZERO,
-        ZERO,
-        ZERO,
         l,
         ZERO,
         n,
         failed,
-        u);
+        u,
+        SimulationLifecyclePhase.WORKING,
+        ZERO,
+        ZERO,
+        false,
+        ZERO,
+        ZERO,
+        ZERO,
+        ZERO,
+        new SimulationFunding(
+            ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO));
   }
 
   private static final BigDecimal ZERO = BigDecimal.ZERO;

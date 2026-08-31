@@ -1,11 +1,12 @@
 package com.smartbox.investory.investment.reporting;
 
+import com.smartbox.investory.investment.api.reporting.model.Benchmark;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsEntity;
-import com.smartbox.investory.investment.performance.model.Benchmark;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -125,7 +126,7 @@ class BenchmarkAccountValueService {
       AccountDailyEntity point = valuesByDay.get(label);
       if (point != null) {
         cumulativeProfit += dailyProfitInBaseCurrency(point);
-        Double dailyReturn = point.getDailyReturn();
+        Double dailyReturn = toDouble(point.getDailyReturn());
         if (complete && dailyReturn != null && dailyReturn >= -1.0) factor *= 1.0 + dailyReturn;
         else if (dailyReturn == null || dailyReturn < -1.0) complete = false;
       }
@@ -196,8 +197,12 @@ class BenchmarkAccountValueService {
     return labels;
   }
 
-  private static double nz(Double value) {
-    return value == null ? 0.0 : value;
+  private static Double toDouble(BigDecimal value) {
+    return value == null ? null : value.doubleValue();
+  }
+
+  private static double nz(BigDecimal value) {
+    return value == null ? 0.0 : value.doubleValue();
   }
 
   private static double round(double value) {

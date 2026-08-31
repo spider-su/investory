@@ -6,14 +6,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Dashboard Performance Template Contract")
 class DashboardPerformanceTemplateContractTest {
   private static final String TEMPLATE =
       "../adapters/web-ui/src/main/resources/templates/dashboard.html";
   private static final String STYLESHEET =
-      "../adapters/web-ui/src/main/resources/static/css/main.css";
+      "../adapters/web-ui/src/main/resources/static/css/components.css";
 
+  @DisplayName("allocation Uses Distinct Etf And Equity Palette Tokens")
   @Test
   void allocationUsesDistinctEtfAndEquityPaletteTokens() throws Exception {
     String css = Files.readString(Path.of(STYLESHEET));
@@ -25,6 +28,7 @@ class DashboardPerformanceTemplateContractTest {
     assertFalse(css.contains(".iv-structure-segment--etf { background: var(--iv-asset-equity); }"));
   }
 
+  @DisplayName("currency Popover Is Compact Right Aligned And Above Header Navigation")
   @Test
   void currencyPopoverIsCompactRightAlignedAndAboveHeaderNavigation() throws Exception {
     String css = Files.readString(Path.of(STYLESHEET));
@@ -38,6 +42,17 @@ class DashboardPerformanceTemplateContractTest {
             ".iv-topbar__meta:has(.iv-topbar-fx-popover[open]) { position: relative; z-index: 1500; }"));
   }
 
+  @DisplayName("action Popovers Stay Above The Header Navigation Rail")
+  @Test
+  void actionPopoversStayAboveTheHeaderNavigationRail() throws Exception {
+    String css = Files.readString(Path.of(STYLESHEET));
+
+    assertTrue(css.contains(".iv-topbar-actions > .iv-hover-context:hover"));
+    assertTrue(css.contains(".iv-topbar-actions > .iv-hover-context:focus-within"));
+    assertTrue(css.contains("z-index: 1100;"));
+  }
+
+  @DisplayName("application Header Lets The Navigation Rail Own Its Vertical Spacing")
   @Test
   void applicationHeaderLetsTheNavigationRailOwnItsVerticalSpacing() throws Exception {
     String css = Files.readString(Path.of(STYLESHEET));
@@ -48,6 +63,7 @@ class DashboardPerformanceTemplateContractTest {
     assertTrue(css.contains("align-items: center;"));
   }
 
+  @DisplayName("compact Popovers Share Viewport Aware Placement And Mobile Layout")
   @Test
   void compactPopoversShareViewportAwarePlacementAndMobileLayout() throws Exception {
     String html = Files.readString(Path.of(TEMPLATE));
@@ -74,6 +90,18 @@ class DashboardPerformanceTemplateContractTest {
     assertTrue(accessibility.contains("const openDetails = Array.from"));
   }
 
+  @DisplayName("portfolio Structure Popovers Size To Their Content")
+  @Test
+  void portfolioStructurePopoversSizeToTheirContent() throws Exception {
+    String css = Files.readString(Path.of(STYLESHEET));
+
+    assertTrue(
+        css.contains(".iv-portfolio-structure details.iv-compact-popover > .iv-structure-popover"));
+    assertTrue(css.contains("width: fit-content;"));
+    assertTrue(css.contains("min-width: 0;"));
+  }
+
+  @DisplayName("realized Details Contains Only Gainers And Losers And Uses Overview Anchor")
   @Test
   void realizedDetailsContainsOnlyGainersAndLosersAndUsesOverviewAnchor() throws Exception {
     String html = Files.readString(Path.of(TEMPLATE));
@@ -101,6 +129,7 @@ class DashboardPerformanceTemplateContractTest {
     assertTrue(css.contains(".iv-realized-attribution-row"));
   }
 
+  @DisplayName("profit Cards Do Not Expose Currency Breakdowns")
   @Test
   void profitCardsDoNotExposeCurrencyBreakdowns() throws Exception {
     String html = Files.readString(Path.of(TEMPLATE));
@@ -110,6 +139,7 @@ class DashboardPerformanceTemplateContractTest {
     assertFalse(html.contains("unrealizedByCurrency"));
   }
 
+  @DisplayName("dashboard Wording Uses Base Currency And User Facing Action Names")
   @Test
   void dashboardWordingUsesBaseCurrencyAndUserFacingActionNames() throws Exception {
     String html = Files.readString(Path.of(TEMPLATE));
@@ -122,9 +152,11 @@ class DashboardPerformanceTemplateContractTest {
     assertTrue(html.contains("Update exchange rates"));
     assertTrue(html.contains("Income breakdown"));
     assertTrue(html.contains("Cash interest"));
+    assertTrue(html.contains("iv-position-popover__row--total"));
+    assertTrue(html.contains("stats.formatBase(stats.incomeTotal)"));
     assertTrue(html.contains("Top dividend payers"));
     assertTrue(html.contains("'Dividends · ' + stats.baseCurrency"));
-    assertTrue(html.contains("const baseCurrency = /*[[${stats.baseCurrency}]]*/ 'USD';"));
+    assertTrue(html.contains("baseCurrency: /*[[${stats.baseCurrency}]]*/ 'USD'"));
     assertFalse(html.contains("Dividends USD"));
     assertFalse(html.contains(" + ' $'"));
     assertTrue(
@@ -140,9 +172,16 @@ class DashboardPerformanceTemplateContractTest {
     assertTrue(actions.contains("Couldn’t update exchange rates."));
   }
 
+  @DisplayName("dashboard Uses One Unified Performance Board With Modes")
   @Test
   void dashboardUsesOneUnifiedPerformanceBoardWithModes() throws Exception {
-    String html = Files.readString(Path.of(TEMPLATE));
+    String html =
+        Files.readString(Path.of(TEMPLATE))
+            + Files.readString(
+                Path.of("../adapters/web-ui/src/main/resources/static/js/dashboard-charts.js"));
+    String charts =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/static/js/dashboard-charts.js"));
     String headerControls =
         Files.readString(
             Path.of(
@@ -159,14 +198,14 @@ class DashboardPerformanceTemplateContractTest {
     assertTrue(html.contains("selected === 0 || selected === inputs.length"));
     assertTrue(html.contains("if (selectedIds.length > 0) params.set('accountIds'"));
     assertTrue(html.contains("if (selectedIds.length > 0) (view.accounts || [])"));
-    assertTrue(html.contains("const performanceBoardBenchmarkColor = '#16a34a';"));
+    assertTrue(charts.contains("const performanceBoardBenchmarkColor = '#16a34a';"));
     assertFalse(html.contains("performanceBoardAccountPalette = ['#4f46e5', '#16a34a'"));
-    assertTrue(html.contains("Number(account.id) === Number(series.accountId)"));
-    assertTrue(html.contains("performanceBoardAccountColor(series, index, view.accounts)"));
+    assertTrue(charts.contains("Number(account.id) === Number(series.accountId)"));
+    assertTrue(charts.contains("performanceBoardAccountColor(series, index, view.accounts)"));
     assertTrue(
-        html.contains("const visibleSeries = performanceBoardVisibleSeries(view, selectedIds);"));
-    assertTrue(html.contains("skipNull: bars"));
-    assertTrue(html.contains("barPercentage: bars ? 1 : undefined"));
+        charts.contains("const visibleSeries = performanceBoardVisibleSeries(view, selectedIds);"));
+    assertTrue(charts.contains("skipNull: bars"));
+    assertTrue(charts.contains("barPercentage: bars ? 1 : undefined"));
     assertTrue(html.contains("id=\"performance-board-account-selector\""));
     assertTrue(html.contains(">Profit/Loss</button>"));
     assertTrue(html.contains("aria-label=\"Aggregation\""));
@@ -179,10 +218,10 @@ class DashboardPerformanceTemplateContractTest {
     assertFalse(html.contains("performanceBoardCumulativeReturn"));
     assertFalse(html.contains("performanceBoardPeriodReturn"));
     assertFalse(html.contains("performanceBoardRebasedReturn"));
-    assertTrue(html.contains("const selectedDashboardPeriod ="));
-    assertTrue(html.contains("period: selectedDashboardPeriod"));
+    assertTrue(charts.contains("const selectedDashboardPeriod ="));
+    assertTrue(charts.contains("period: selectedDashboardPeriod"));
     assertTrue(html.contains("performance-scope-aggregation"));
-    assertTrue(html.contains("const percentValue ="));
+    assertTrue(charts.contains("const percentValue ="));
     assertFalse(html.contains("toFixed(1)"));
     assertTrue(html.contains("new Intl.NumberFormat('en-US'"));
     assertFalse(html.contains("new Intl.NumberFormat('de-DE'"));
@@ -246,10 +285,12 @@ class DashboardPerformanceTemplateContractTest {
     assertFalse(html.contains("Income since inception"));
     assertFalse(html.contains("Exposure data unavailable"));
     assertTrue(html.contains("modal-reconciliation-link"));
-    assertTrue(html.contains("Net external contributions: deposits less withdrawals."));
+    assertFalse(html.contains("Net external contributions: deposits less withdrawals."));
     assertTrue(html.contains("Investment result"));
-    assertFalse(html.contains("selectedPeriod.label() + ' investment result'"));
-    assertFalse(html.contains("Cash-flow-neutral profit and return for the selected period"));
+    assertTrue(html.contains("selectedPeriod.label() + ' investment result'"));
+    assertTrue(
+        html.contains(
+            "Cash-flow-neutral profit and return for the selected period, after portfolio adjustments."));
     assertTrue(html.contains("Return since KPI start"));
     assertTrue(html.contains("Annualized return"));
     assertTrue(html.contains("kpiStartDate"));
@@ -276,13 +317,19 @@ class DashboardPerformanceTemplateContractTest {
                 Path.of(
                     "../adapters/web-ui/src/main/resources/static/js/dashboard-accessibility.js"))
             .contains("document.querySelectorAll('details[open]')"));
+    assertTrue(
+        Files.readString(
+                Path.of(
+                    "../adapters/web-ui/src/main/resources/static/js/dashboard-accessibility.js"))
+            .contains("data-disclosure-group"));
+    assertTrue(html.contains("data-disclosure-group=\"dashboard-popovers\""));
     assertFalse(html.contains("Cumulative P/L by account"));
     assertFalse(html.contains("Profit and loss by selected period"));
     assertFalse(html.contains("js-monthly-account\""));
     assertFalse(html.contains("js-account-value-account\""));
     assertFalse(html.contains("js-benchmark-account\""));
-    assertTrue(html.contains("const requestedAccountsLoaded ="));
-    assertTrue(html.contains("[...selectedIds].every(id => loadedIds.has(id))"));
+    assertTrue(charts.contains("const requestedAccountsLoaded ="));
+    assertTrue(charts.contains("[...selectedIds].every(id => loadedIds.has(id))"));
   }
 
   private static int occurrencesOf(String text, String fragment) {

@@ -1,5 +1,6 @@
 package com.smartbox.investory.investment.reporting.dashboard.application;
 
+import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
 import com.smartbox.investory.investment.api.reporting.InvestmentPerformanceApi;
 import com.smartbox.investory.investment.api.reporting.InvestmentPerformanceApi.AccountValueSeries;
 import com.smartbox.investory.investment.api.reporting.InvestmentPerformanceApi.AccountValueView;
@@ -9,9 +10,12 @@ import com.smartbox.investory.investment.api.reporting.InvestmentPerformanceApi.
 import com.smartbox.investory.investment.api.reporting.InvestmentPerformanceApi.PerformanceBoardView;
 import com.smartbox.investory.investment.api.reporting.InvestmentPerformanceApi.PerformanceKpiView;
 import com.smartbox.investory.investment.api.reporting.InvestmentPerformanceApi.PerformanceSeries;
-import com.smartbox.investory.investment.performance.model.Benchmark;
+import com.smartbox.investory.investment.api.reporting.PerformanceAggregation;
+import com.smartbox.investory.investment.api.reporting.PerformanceMetric;
+import com.smartbox.investory.investment.api.reporting.PerformanceStyle;
+import com.smartbox.investory.investment.api.reporting.model.Benchmark;
 import com.smartbox.investory.investment.reporting.BenchmarkService;
-import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriod;
+import java.math.BigDecimal;
 import java.time.YearMonth;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -30,15 +34,15 @@ import org.springframework.stereotype.Service;
 public class InvestmentPerformanceApplicationService implements InvestmentPerformanceApi {
   private final BenchmarkService benchmarkService;
 
-  @Value("${app.portfolio.performance-kpi-start:2026-01}")
+  @Value("${app.portfolio.performance-kpi-start}")
   private String kpiStart = "2026-01";
 
   @Override
   public PerformanceBoardView load(PerformanceBoardQuery query) {
     Benchmark benchmark =
         query.accountIds() == null
-            ? benchmarkService.calculate()
-            : benchmarkService.calculate(query.accountIds());
+            ? benchmarkService.calculate(query.portfolioId(), null)
+            : benchmarkService.calculate(query.portfolioId(), query.accountIds());
     List<PerformanceAccount> accounts =
         benchmark.getAccountOptions().stream()
             .map(option -> new PerformanceAccount(option.id(), option.name(), option.selected()))
@@ -62,31 +66,26 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
           false, List.of(), List.of(), List.of(), List.of(), emptyKpis(), accounts);
     }
 
-    boolean returns = "return".equalsIgnoreCase(query.metric());
+    boolean returns = query.metric() == PerformanceMetric.RETURN;
     boolean allSelected = query.accountIds() == null || selected.size() == accounts.size();
     List<String> sourceLabels = benchmark.getLabels();
     List<PerformanceSeries> fullSeries =
         allSelected
-            ? List.of(new PerformanceSeries(null, "Portfolio", sourceCurve(benchmark, returns)))
+            ? List.of(
+                new PerformanceSeries(
+                    null, "Portfolio", decimalValues(sourceCurve(benchmark, returns))))
             : selected.stream()
                 .map(
                     series ->
                         new PerformanceSeries(
                             series.id(),
                             accountName(accounts, series.id()),
-                            accountCurve(series, returns)))
+                            decimalValues(accountCurve(series, returns))))
                 .toList();
     int scopeStart = scopeStart(sourceLabels, query.period());
     List<String> scopedLabels = sourceLabels.subList(scopeStart, sourceLabels.size());
     List<PerformanceSeries> sourceSeries =
-        fullSeries.stream()
-            .map(
-                row ->
-                    new PerformanceSeries(
-                        row.accountId(),
-                        row.label(),
-                        scopedCurve(row.values(), scopeStart, returns)))
-            .toList();
+        fullSeries.stream().map(row -> scopedSeries(row, scopeStart, returns)).toList();
     List<Double> fullBenchmarkCurve =
         returns ? benchmark.getBenchmarkReturnCurve() : benchmark.getBenchmarkCurve();
     List<Double> benchmarkCurve = scopedCurve(fullBenchmarkCurve, scopeStart, returns);
@@ -98,27 +97,28 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
                     new PerformanceSeries(
                         row.accountId(),
                         row.label(),
-                        transform(
-                            row.values(),
-                            scopedLabels,
-                            query.aggregation(),
-                            returns,
-                            "bars".equalsIgnoreCase(query.style()))))
+                        decimalValues(
+                            transform(
+                                doubleValues(row.values()),
+                                scopedLabels,
+                                query.aggregation(),
+                                returns,
+                                query.style() == PerformanceStyle.BARS))))
             .toList();
     List<Double> benchmarkValues =
-        "return".equalsIgnoreCase(query.metric())
+        query.metric() == PerformanceMetric.RETURN
             ? transform(
                 benchmarkCurve,
                 scopedLabels,
                 query.aggregation(),
                 true,
-                "bars".equalsIgnoreCase(query.style()))
+                query.style() == PerformanceStyle.BARS)
             : transform(
                 benchmarkCurve,
                 scopedLabels,
                 query.aggregation(),
                 false,
-                "bars".equalsIgnoreCase(query.style()));
+                query.style() == PerformanceStyle.BARS);
     List<Double> excessValues =
         transform(
             differenceCurve(
@@ -127,7 +127,7 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
             scopedLabels,
             query.aggregation(),
             true,
-            "bars".equalsIgnoreCase(query.style()));
+            query.style() == PerformanceStyle.BARS);
     List<Double> kpiSource = benchmark.getPortfolioReturnCurve();
     List<Double> kpiBenchmark = benchmark.getBenchmarkReturnCurve();
     List<Double> scopedKpiSource = scopedCurve(kpiSource, scopeStart, true);
@@ -137,23 +137,29 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
     List<Double> periodValues = periodValues(scopedKpiSource);
     PerformanceKpiView kpis =
         new PerformanceKpiView(
-            portfolioReturn,
-            benchmarkReturn,
+            decimal(portfolioReturn),
+            decimal(benchmarkReturn),
             portfolioReturn == null || benchmarkReturn == null
                 ? null
-                : round(portfolioReturn - benchmarkReturn),
-            profitLoss(benchmark, selectedIds, sourceLabels, scopeStart),
+                : decimal(round(portfolioReturn - benchmarkReturn)),
+            decimal(profitLoss(benchmark, selectedIds, sourceLabels, scopeStart)),
             periodLabel(periodValues, scopedLabels, true),
-            extreme(periodValues, true),
+            decimal(extreme(periodValues, true)),
             periodLabel(periodValues, scopedLabels, false),
-            extreme(periodValues, false));
+            decimal(extreme(periodValues, false)));
     return new PerformanceBoardView(
-        true, labels, series, benchmarkValues, excessValues, kpis, accounts);
+        true,
+        labels,
+        series,
+        decimalValues(benchmarkValues),
+        decimalValues(excessValues),
+        kpis,
+        accounts);
   }
 
   @Override
-  public AccountValueView loadAccountValues(List<Long> accountIds) {
-    Benchmark benchmark = benchmarkService.calculate(accountIds);
+  public AccountValueView loadAccountValues(Long portfolioId, List<Long> accountIds) {
+    Benchmark benchmark = benchmarkService.calculate(portfolioId, accountIds);
     return new AccountValueView(
         benchmark.getAccountValueYears().stream()
             .map(
@@ -167,11 +173,11 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
                                     new AccountValueSeries(
                                         series.id(),
                                         series.name(),
-                                        series.profitValues(),
-                                        series.profitPctValues()))
+                                        decimalValues(series.profitValues()),
+                                        decimalValues(series.profitPctValues())))
                             .toList(),
-                        year.totalProfitValues(),
-                        year.totalProfitPctValues()))
+                        decimalValues(year.totalProfitValues()),
+                        decimalValues(year.totalProfitPctValues())))
             .toList());
   }
 
@@ -219,13 +225,17 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
     return result;
   }
 
-  private List<String> groupedLabels(List<String> labels, String aggregation) {
+  private List<String> groupedLabels(List<String> labels, PerformanceAggregation aggregation) {
     return labels.stream().map(label -> group(label, aggregation)).distinct().toList();
   }
 
   private List<Double> transform(
-      List<Double> values, List<String> labels, String aggregation, boolean returns, boolean bars) {
-    if (!bars || "monthly".equalsIgnoreCase(aggregation)) return values;
+      List<Double> values,
+      List<String> labels,
+      PerformanceAggregation aggregation,
+      boolean returns,
+      boolean bars) {
+    if (!bars || aggregation == PerformanceAggregation.MONTHLY) return values;
     List<Double> period = returns ? periodValues(values) : differenceValues(values);
     List<Double> result = new ArrayList<>();
     for (String group : groupedLabels(labels, aggregation)) {
@@ -284,9 +294,9 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
     return result;
   }
 
-  private int scopeStart(List<String> labels, String periodValue) {
+  private int scopeStart(List<String> labels, DashboardPeriod period) {
     int start = labels.size();
-    String configured = scopeStartLabel(periodValue);
+    String configured = scopeStartLabel(period);
     for (int i = 0; i < labels.size(); i++)
       if (labels.get(i).compareTo(configured) >= 0) {
         start = i;
@@ -295,11 +305,11 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
     return start;
   }
 
-  private String scopeStartLabel(String periodValue) {
-    if (periodValue == null || periodValue.isBlank()) {
+  private String scopeStartLabel(DashboardPeriod period) {
+    if (period == null) {
       return kpiStart == null ? "" : kpiStart.substring(0, Math.min(7, kpiStart.length()));
     }
-    ZonedDateTime start = DashboardPeriod.fromUrlValue(periodValue).startDate(ZonedDateTime.now());
+    ZonedDateTime start = period.startDate(ZonedDateTime.now());
     return start == null ? "" : YearMonth.from(start).toString();
   }
 
@@ -341,6 +351,25 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
     return new PerformanceKpiView(null, null, null, null, "—", null, "—", null);
   }
 
+  private List<BigDecimal> decimalValues(List<Double> values) {
+    return values.stream().map(value -> value == null ? null : BigDecimal.valueOf(value)).toList();
+  }
+
+  private PerformanceSeries scopedSeries(PerformanceSeries row, int scopeStart, boolean returns) {
+    return new PerformanceSeries(
+        row.accountId(),
+        row.label(),
+        decimalValues(scopedCurve(doubleValues(row.values()), scopeStart, returns)));
+  }
+
+  private List<Double> doubleValues(List<BigDecimal> values) {
+    return values.stream().map(value -> value == null ? null : value.doubleValue()).toList();
+  }
+
+  private BigDecimal decimal(Double value) {
+    return value == null ? null : BigDecimal.valueOf(value);
+  }
+
   private Double profitLoss(
       Benchmark benchmark, Set<Long> selectedIds, List<String> labels, int start) {
     if (labels.isEmpty() || start >= labels.size()) return null;
@@ -362,9 +391,9 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
     return round(result);
   }
 
-  private String group(String label, String aggregation) {
-    if ("annual".equalsIgnoreCase(aggregation)) return label.substring(0, 4);
-    if ("quarterly".equalsIgnoreCase(aggregation))
+  private String group(String label, PerformanceAggregation aggregation) {
+    if (aggregation == PerformanceAggregation.ANNUAL) return label.substring(0, 4);
+    if (aggregation == PerformanceAggregation.QUARTERLY)
       return label.substring(0, 4) + "-Q" + ((Integer.parseInt(label.substring(5, 7)) - 1) / 3 + 1);
     return label;
   }

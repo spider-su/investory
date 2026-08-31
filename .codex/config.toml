@@ -1,5 +1,5 @@
 # Investory needs stronger architectural and financial reasoning.
-model = "gpt-5.6-sol"
+model = "gpt-5.6-luna"
 review_model = "gpt-5.6-sol"
 
 # Biggest reasoning-token control.

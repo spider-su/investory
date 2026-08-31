@@ -5,13 +5,17 @@ import static org.mockito.Mockito.*;
 
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.*;
 import com.smartbox.investory.investment.infrastructure.read.HistoricalPortfolioActualsReadService;
+import com.smartbox.investory.retirement.api.model.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Planning Reconciliation Service")
 class PlanningReconciliationServiceTest {
+  @DisplayName("compares Supported Historical Market Metrics Against Calendar Year Performance")
   @Test
   void comparesSupportedHistoricalMarketMetricsAgainstCalendarYearPerformance() {
     PortfolioMonthlyPerformanceRepository repository =
@@ -62,6 +66,7 @@ class PlanningReconciliationServiceTest {
             1L, LocalDate.of(2025, 1, 1), LocalDate.of(2025, 12, 31));
   }
 
+  @DisplayName("missing Historical Source Is Not Available And Does Not Invent AComparison")
   @Test
   void missingHistoricalSourceIsNotAvailableAndDoesNotInventAComparison() {
     PortfolioMonthlyPerformanceRepository repository =
@@ -84,6 +89,7 @@ class PlanningReconciliationServiceTest {
     assertEquals(ReconciliationQuality.UNAVAILABLE, result.metrics().getFirst().quality());
   }
 
+  @DisplayName("incomplete Calendar Year Is Not Labeled Exact")
   @Test
   void incompleteCalendarYearIsNotLabeledExact() {
     PortfolioMonthlyPerformanceRepository repository =

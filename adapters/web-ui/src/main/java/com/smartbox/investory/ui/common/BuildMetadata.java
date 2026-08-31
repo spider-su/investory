@@ -2,7 +2,6 @@ package com.smartbox.investory.ui.common;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.time.format.FormatStyle;
 import java.util.Locale;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,7 +13,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class BuildMetadata {
   private static final DateTimeFormatter FOOTER_FORMAT =
-      DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
+      DateTimeFormatter.ofPattern("d MMM uuuu, HH:mm z")
           .withLocale(Locale.ENGLISH)
           .withZone(ZoneId.systemDefault());
 

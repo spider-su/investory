@@ -1,6 +1,7 @@
 package com.smartbox.investory.retirement.infrastructure.simulation;
 
-import com.smartbox.investory.retirement.simulation.SimulationEventType;
+import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.api.model.SimulationEventType;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -18,6 +19,10 @@ public class SimulationPlanRevisionEventEntity {
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
+
+  /** Stable logical event identity carried across immutable revision snapshots. */
+  @Column(name = "logical_event_id")
+  private Long logicalEventId;
 
   @Column(name = "revision_id", nullable = false)
   private Long revisionId;

@@ -6,9 +6,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Planning Year Template Contract")
 class PlanningYearTemplateContractTest {
+  @DisplayName("historical Draft Supports Only Application Approved Edits And Lifecycle Actions")
   @Test
   void historicalDraftSupportsOnlyApplicationApprovedEditsAndLifecycleActions() throws Exception {
     String html =

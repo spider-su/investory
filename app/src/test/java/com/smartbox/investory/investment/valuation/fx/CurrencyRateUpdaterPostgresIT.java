@@ -6,11 +6,12 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.integrations.fx.client.ExchangeRateClient;
+import com.smartbox.investory.integrations.fx.exchangeratehost.ExchangeRateClient;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.FastDatabaseTest;
 import java.time.LocalDate;
 import java.util.Map;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -21,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @Transactional
+@DisplayName("Currency Rate Updater Postgres")
 class CurrencyRateUpdaterPostgresIT extends FastDatabaseTest {
 
   @Autowired private CurrencyRateUpdaterService updater;
@@ -28,6 +30,7 @@ class CurrencyRateUpdaterPostgresIT extends FastDatabaseTest {
   @Autowired private CurrencyRateService currencyRateService;
   @MockitoBean private ExchangeRateClient client;
 
+  @DisplayName("persists Provider Date Without Identity Rows And Is Idempotent")
   @Test
   void persistsProviderDateWithoutIdentityRowsAndIsIdempotent() {
     ExchangeRateClient.ExchangeRateResponse response =

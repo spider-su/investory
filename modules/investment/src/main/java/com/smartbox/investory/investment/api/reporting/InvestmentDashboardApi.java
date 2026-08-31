@@ -1,16 +1,41 @@
 package com.smartbox.investory.investment.api.reporting;
 
+import com.smartbox.investory.investment.api.reporting.model.CashFlowView;
+import com.smartbox.investory.investment.api.reporting.model.DashboardNavigationView;
+import com.smartbox.investory.investment.api.reporting.model.DataQualityView;
+import com.smartbox.investory.investment.api.reporting.model.OverviewView;
+import com.smartbox.investory.investment.api.reporting.model.PerformanceView;
+import com.smartbox.investory.investment.api.reporting.model.PositionsView;
+import com.smartbox.investory.investment.api.reporting.model.RiskView;
+import com.smartbox.investory.shared.currency.CurrencyType;
+import java.math.BigDecimal;
 import java.util.List;
 
 /** Public dashboard read boundary for presentation adapters. */
 public interface InvestmentDashboardApi {
+  /**
+   * Loads the system-wide dashboard with portfolio-scoped canonical performance and structure
+   * sections selected by {@link DashboardQuery#portfolioId()}. The portfolio id is required so
+   * those sections cannot silently fall back to an arbitrary portfolio.
+   */
   DashboardPageView loadDashboard(DashboardQuery query);
 
   /** Canonical annualized total return used by every UI that shows the investment KPI. */
   PerformanceKpiView loadPerformanceKpi(Long portfolioId);
 
+  /** Total investment result in the portfolio base currency. */
+  InvestmentResultView investmentResult(Long portfolioId);
+
   record PerformanceKpiView(
-      boolean available, String annualizedReturnDisplay, String kpiStartDate) {
+      boolean available,
+      BigDecimal annualizedReturn,
+      String annualizedReturnDisplay,
+      String kpiStartDate) {
+    public PerformanceKpiView(
+        boolean available, String annualizedReturnDisplay, String kpiStartDate) {
+      this(available, null, annualizedReturnDisplay, kpiStartDate);
+    }
+
     public PerformanceKpiView {
       annualizedReturnDisplay =
           annualizedReturnDisplay == null || annualizedReturnDisplay.isBlank()
@@ -19,32 +44,56 @@ public interface InvestmentDashboardApi {
     }
   }
 
-  record DashboardQuery(
-      List<Long> accountIds, boolean benchmarkAccountsSubmitted, String period, Long portfolioId) {
-    public DashboardQuery(
-        List<Long> accountIds, boolean benchmarkAccountsSubmitted, String period) {
-      this(accountIds, benchmarkAccountsSubmitted, period, 1L);
-    }
-
-    public DashboardQuery {
-      accountIds = accountIds == null ? List.of() : List.copyOf(accountIds);
-      portfolioId = portfolioId == null ? 1L : portfolioId;
+  record InvestmentResultView(boolean available, BigDecimal amount, CurrencyType currency) {
+    public static InvestmentResultView unavailable(CurrencyType currency) {
+      return new InvestmentResultView(false, null, currency);
     }
   }
 
-  /** Public dashboard page contract; concrete view objects remain internal to Investment. */
+  record DashboardQuery(
+      List<Long> accountIds,
+      boolean benchmarkAccountsSubmitted,
+      DashboardPeriod period,
+      Long portfolioId) {
+    public DashboardQuery {
+      accountIds =
+          com.smartbox.investory.shared.util.CollectionUtils.immutableListOrEmpty(accountIds);
+      if (portfolioId == null || portfolioId <= 0) {
+        throw new InvalidPortfolioRequest("portfolioId must be positive");
+      }
+      period = period == null ? DashboardPeriod.YEAR_TO_DATE : period;
+    }
+
+    public boolean hasExplicitAccountSelection() {
+      return benchmarkAccountsSubmitted && !accountIds.isEmpty();
+    }
+  }
+
+  class InvalidPortfolioRequest extends IllegalArgumentException {
+    public InvalidPortfolioRequest(String message) {
+      super(message);
+    }
+  }
+
+  class PortfolioNotFoundException extends RuntimeException {
+    public PortfolioNotFoundException(Long portfolioId) {
+      super("Portfolio not found: " + portfolioId);
+    }
+  }
+
+  /** Public dashboard page contract backed by immutable API-owned view models. */
   record DashboardPageView(
-      Object overview,
-      Object performance,
-      Object positions,
-      Object cashFlow,
-      Object risk,
-      Object dataQuality,
-      Object selectedPeriod,
-      @SuppressWarnings("rawtypes") List periods,
-      Object navigation) {
+      OverviewView overview,
+      PerformanceView performance,
+      PositionsView positions,
+      CashFlowView cashFlow,
+      RiskView risk,
+      DataQualityView dataQuality,
+      DashboardPeriod selectedPeriod,
+      List<DashboardPeriod> periods,
+      DashboardNavigationView navigation) {
     public DashboardPageView {
-      periods = periods == null ? List.of() : List.copyOf(periods);
+      periods = com.smartbox.investory.shared.util.CollectionUtils.immutableListOrEmpty(periods);
     }
   }
 }

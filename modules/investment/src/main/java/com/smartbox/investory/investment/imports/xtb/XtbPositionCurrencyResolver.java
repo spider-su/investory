@@ -1,7 +1,8 @@
 package com.smartbox.investory.investment.imports.xtb;
 
-import com.smartbox.investory.investment.ledger.position.persistence.ClosedPosition;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -13,7 +14,7 @@ public class XtbPositionCurrencyResolver {
   private static final double VALUE_TOLERANCE = 0.05;
 
   public Resolution resolve(
-      ClosedPosition position,
+      PositionEntity position,
       CurrencyType accountCurrency,
       CurrencyType configuredCurrency,
       CurrencyType symbolCurrency) {
@@ -53,7 +54,7 @@ public class XtbPositionCurrencyResolver {
   }
 
   private Resolution nonAccountCandidate(
-      ClosedPosition position,
+      PositionEntity position,
       CurrencyType accountCurrency,
       CurrencyType configuredCurrency,
       CurrencyType symbolCurrency) {
@@ -70,16 +71,16 @@ public class XtbPositionCurrencyResolver {
     return new Resolution(resolved, false);
   }
 
-  private List<Double> brokerRates(ClosedPosition position) {
+  private List<Double> brokerRates(PositionEntity position) {
     List<Double> rates = new ArrayList<>(2);
     addPositive(rates, position.getOpenConversionRate());
     addPositive(rates, position.getCloseConversionRate());
     return rates;
   }
 
-  private void addPositive(List<Double> rates, Double rate) {
-    if (rate != null && Double.isFinite(rate) && rate > 0.0) {
-      rates.add(rate);
+  private void addPositive(List<Double> rates, BigDecimal rate) {
+    if (rate != null && rate.signum() > 0) {
+      rates.add(rate.doubleValue());
     }
   }
 
@@ -88,16 +89,21 @@ public class XtbPositionCurrencyResolver {
   }
 
   private void validateValue(
-      ClosedPosition position, String leg, Double price, Double value, Double conversionRate) {
+      PositionEntity position,
+      String leg,
+      BigDecimal price,
+      BigDecimal value,
+      BigDecimal conversionRate) {
     if (price == null
         || value == null
         || conversionRate == null
         || position.getVolume() == null
-        || position.getVolume() == 0.0) {
+        || position.getVolume().signum() == 0) {
       return;
     }
-    double expected = Math.abs(position.getVolume() * price * conversionRate);
-    double actual = Math.abs(value);
+    double expected =
+        position.getVolume().multiply(price).multiply(conversionRate).abs().doubleValue();
+    double actual = value.abs().doubleValue();
     double tolerance = Math.max(0.05, actual * VALUE_TOLERANCE);
     if (Math.abs(expected - actual) > tolerance) {
       throw invalid(
@@ -110,7 +116,7 @@ public class XtbPositionCurrencyResolver {
     }
   }
 
-  private IllegalArgumentException invalid(ClosedPosition position, String reason) {
+  private IllegalArgumentException invalid(PositionEntity position, String reason) {
     return new IllegalArgumentException(
         "Invalid XTB position currency for account "
             + position.getAccount()

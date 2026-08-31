@@ -1,9 +1,9 @@
 package com.smartbox.investory.longterm.application.model;
 
-import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
-import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
+import com.smartbox.investory.longterm.api.model.CashFlowType;
+import com.smartbox.investory.longterm.api.model.Frequency;
+import com.smartbox.investory.longterm.api.model.InterestTreatment;
+import com.smartbox.investory.longterm.api.model.LongTermAssetType;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;

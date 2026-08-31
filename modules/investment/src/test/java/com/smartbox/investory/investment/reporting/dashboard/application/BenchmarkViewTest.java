@@ -2,12 +2,16 @@ package com.smartbox.investory.investment.reporting.dashboard.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.smartbox.investory.investment.api.reporting.model.BenchmarkView;
 import java.util.Arrays;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Benchmark View")
 class BenchmarkViewTest {
 
+  @DisplayName("preserves Unavailable Benchmark Points In Long Range Series")
   @Test
   void preservesUnavailableBenchmarkPointsInLongRangeSeries() {
     BenchmarkView view =

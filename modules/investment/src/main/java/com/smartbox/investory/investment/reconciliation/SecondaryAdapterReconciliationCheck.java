@@ -1,7 +1,8 @@
 package com.smartbox.investory.investment.reconciliation;
 
+import com.smartbox.investory.investment.api.reporting.model.ReconciliationCheckpoint;
+import com.smartbox.investory.investment.api.reporting.model.ReconciliationStatus;
 import com.smartbox.investory.investment.port.export.SecondaryAdapterStatusReader;
-import java.time.Instant;
 import java.util.List;
 import org.springframework.stereotype.Component;
 
@@ -28,14 +29,16 @@ final class SecondaryAdapterReconciliationCheck implements ReconciliationCheck {
           ReconciliationStatus.REVIEW,
           "YAHOO_EXPORT_NOT_CREATED",
           "No Yahoo export snapshot exists",
-          "Generate an export before release reconciliation.");
+          "Generate an export before release reconciliation.",
+          context.startedAt());
     }
     if (!export.upToDate()) {
       return result(
           ReconciliationStatus.FAIL,
           "YAHOO_EXPORT_STALE",
           "Yahoo export differs from current portfolio positions or cash",
-          "Regenerate the Yahoo export.");
+          "Regenerate the Yahoo export.",
+          context.startedAt());
     }
     return new ReconciliationCheckResult(
         checkpoint(),
@@ -45,11 +48,15 @@ final class SecondaryAdapterReconciliationCheck implements ReconciliationCheck {
         0,
         List.of(),
         "yahoo_export_state + current Yahoo export payload",
-        Instant.now());
+        context.startedAt());
   }
 
   private ReconciliationCheckResult result(
-      ReconciliationStatus status, String code, String details, String action) {
+      ReconciliationStatus status,
+      String code,
+      String details,
+      String action,
+      java.time.Instant executedAt) {
     ReconciliationIssue issue =
         new ReconciliationIssue(
             status,
@@ -71,6 +78,6 @@ final class SecondaryAdapterReconciliationCheck implements ReconciliationCheck {
         status == ReconciliationStatus.REVIEW ? 1 : 0,
         List.of(issue),
         "yahoo_export_state + current Yahoo export payload",
-        Instant.now());
+        executedAt);
   }
 }

@@ -15,6 +15,10 @@ public record AnnualEconomics(
     BigDecimal grossYield,
     BigDecimal netYieldBeforeTax,
     BigDecimal netYieldAfterTax) {
+  public BigDecimal monthlyNetIncomeAfterTax() {
+    return netAnnualIncomeAfterTax.divide(BigDecimal.valueOf(12), 2, RoundingMode.HALF_UP);
+  }
+
   public static AnnualEconomics of(
       BigDecimal value, BigDecimal gross, BigDecimal expenses, BigDecimal tax) {
     RentalEconomicsModel rental = RentalEconomicsModel.of(gross, expenses, tax);

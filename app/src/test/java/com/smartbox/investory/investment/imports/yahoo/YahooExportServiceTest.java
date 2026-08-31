@@ -6,14 +6,14 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import com.opencsv.CSVReader;
-import com.smartbox.investory.integrations.infrastructure.integration.export.yahoo.YahooExportService;
+import com.smartbox.investory.integrations.export.yahoo.YahooExportService;
 import com.smartbox.investory.investment.api.exporting.PortfolioExportSnapshotReader;
 import com.smartbox.investory.investment.api.exporting.PortfolioExportSnapshotReader.ExportCashBalance;
 import com.smartbox.investory.investment.api.exporting.PortfolioExportSnapshotReader.ExportPosition;
 import com.smartbox.investory.investment.api.exporting.PortfolioExportSnapshotReader.PortfolioExportSnapshot;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsRepository;
-import com.smartbox.investory.investment.ledger.position.persistence.OpenedPositionRepository;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.portfolio.PortfolioBuilders;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestData;
@@ -25,6 +25,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -32,9 +33,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("Yahoo Export Service")
 class YahooExportServiceTest {
 
-  @Mock private OpenedPositionRepository openedPositionRepository;
+  @Mock private PositionRepository openedPositionRepository;
   @Mock private AccountStatisticsRepository accountStatisticsRepository;
 
   @TempDir Path tempDir;
@@ -47,7 +49,7 @@ class YahooExportServiceTest {
     PortfolioExportSnapshotReader snapshots =
         () ->
             new PortfolioExportSnapshot(
-                openedPositionRepository.findAll().stream()
+                openedPositionRepository.findOpen().stream()
                     .map(
                         p ->
                             new ExportPosition(
@@ -64,17 +66,20 @@ class YahooExportServiceTest {
     return new YahooExportService(snapshots, "");
   }
 
-  private static BigDecimal decimal(Double value) {
-    return value == null ? null : BigDecimal.valueOf(value);
+  private static BigDecimal decimal(Number value) {
+    if (value == null) return null;
+    if (value instanceof BigDecimal) return (BigDecimal) value;
+    return BigDecimal.valueOf(value.doubleValue());
   }
 
+  @DisplayName("export To Yahoo Csv weighted Average Price For Multiple Lots")
   @Test
   void exportToYahooCsv_weightedAveragePriceForMultipleLots() throws Exception {
     Path output = tempDir.resolve("yahoo-export.csv");
     YahooExportService service = service();
 
     // Open lots: 10 AAPL @ $100 + 2 AAPL @ $120 → weighted avg = (10*100 + 2*120) / 12 = 103.33
-    when(openedPositionRepository.findAll())
+    when(openedPositionRepository.findOpen())
         .thenReturn(
             List.of(
                 PortfolioBuilders.openPosition(PortfolioTestData.AAPL)
@@ -111,6 +116,7 @@ class YahooExportServiceTest {
     }
   }
 
+  @DisplayName("export To Yahoo Csv mixed Currency Positions Merged By Raw Price")
   @Test
   void exportToYahooCsv_mixedCurrencyPositionsMergedByRawPrice() throws Exception {
     Path output = tempDir.resolve("yahoo-export-mixed.csv");
@@ -119,7 +125,7 @@ class YahooExportServiceTest {
     // NVDA.US: 1 share @ $146 (USD account) + 1 share @ $150 (PLN account)
     // openPrice is always in instrument currency (USD), NOT account currency.
     // Weighted avg = (146 + 150) / 2 = 148
-    when(openedPositionRepository.findAll())
+    when(openedPositionRepository.findOpen())
         .thenReturn(
             List.of(
                 PortfolioBuilders.openPosition(PortfolioTestData.AAPL)
@@ -156,13 +162,14 @@ class YahooExportServiceTest {
     }
   }
 
+  @DisplayName("export To Yahoo Csv ibkr Positions Merged With Xtb Counterpart")
   @Test
   void exportToYahooCsv_ibkrPositionsMergedWithXtbCounterpart() throws Exception {
     Path output = tempDir.resolve("yahoo-export-ibkr-merge.csv");
     YahooExportService service = service();
 
     // XTB: VWRA.UK (5 @ 90) + IBKR: VWRA (10 @ 92) → merged into VWRA.L (15, avg = 91.33)
-    when(openedPositionRepository.findAll())
+    when(openedPositionRepository.findOpen())
         .thenReturn(
             List.of(
                 PortfolioBuilders.openPosition(PortfolioTestData.IWDA_AS)
@@ -201,12 +208,13 @@ class YahooExportServiceTest {
     }
   }
 
+  @DisplayName("export To Yahoo Csv cash Balance Emits Usdt Row")
   @Test
   void exportToYahooCsv_cashBalanceEmitsUsdtRow() throws Exception {
     Path output = tempDir.resolve("yahoo-export-cash.csv");
     YahooExportService service = service();
 
-    when(openedPositionRepository.findAll()).thenReturn(List.of());
+    when(openedPositionRepository.findOpen()).thenReturn(List.of());
     when(accountStatisticsRepository.findAll())
         .thenReturn(
             List.of(accountStatistics(51499241L, 12699.0), accountStatistics(51548444L, 8000.0)));
@@ -224,12 +232,13 @@ class YahooExportServiceTest {
     }
   }
 
+  @DisplayName("export To Yahoo Csv no Usdt Row When Cash Is Zero")
   @Test
   void exportToYahooCsv_noUsdtRowWhenCashIsZero() throws Exception {
     Path output = tempDir.resolve("yahoo-export-nocash.csv");
     YahooExportService service = service();
 
-    when(openedPositionRepository.findAll())
+    when(openedPositionRepository.findOpen())
         .thenReturn(
             List.of(
                 PortfolioBuilders.openPosition(PortfolioTestData.AAPL)

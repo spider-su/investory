@@ -7,6 +7,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.smartbox.investory.investment.api.asset.model.*;
+import com.smartbox.investory.investment.api.asset.model.AssetDetailView;
+import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceRepository;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
@@ -15,9 +18,8 @@ import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationEn
 import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationRepository;
 import com.smartbox.investory.investment.ledger.position.PositionSettlementModel;
 import com.smartbox.investory.investment.ledger.position.PositionType;
-import com.smartbox.investory.investment.ledger.position.persistence.ClosedPositionRepository;
-import com.smartbox.investory.investment.ledger.position.persistence.OpenedPosition;
-import com.smartbox.investory.investment.ledger.position.persistence.OpenedPositionRepository;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionRepository;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -26,19 +28,22 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Asset Detail Service")
 class AssetDetailServiceTest {
 
   private final AssetRepository assets = mock();
-  private final OpenedPositionRepository open = mock();
-  private final ClosedPositionRepository closed = mock();
+  private final PositionRepository open = mock();
+  private final PositionRepository closed = mock();
   private final CashOperationRepository cash = mock();
   private final SymbolPerformanceRepository performance = mock();
   private final CurrencyRateService currencyRates = mock();
   private final AssetDetailService service =
       new AssetDetailService(assets, open, closed, cash, performance, currencyRates);
 
+  @DisplayName("aggregates Signed Quantities And Weighted Cost By Account")
   @Test
   void aggregatesSignedQuantitiesAndWeightedCostByAccount() {
     AssetEntity asset =
@@ -52,9 +57,9 @@ class AssetDetailServiceTest {
             .assetType("ETF")
             .marketPrice(java.math.BigDecimal.valueOf(120d))
             .build();
-    OpenedPosition first = position(1L, PositionType.BUY, 2d, 100d);
-    OpenedPosition second = position(1L, PositionType.BUY, 1d, 130d);
-    OpenedPosition otherAccount = position(2L, PositionType.SELL, 1d, 90d);
+    PositionEntity first = position(1L, PositionType.BUY, 2d, 100d);
+    PositionEntity second = position(1L, PositionType.BUY, 1d, 130d);
+    PositionEntity otherAccount = position(2L, PositionType.SELL, 1d, 90d);
     when(assets.findBySymbol("VWCE")).thenReturn(Optional.of(asset));
     when(open.findOpenByAssetId(9L)).thenReturn(List.of(first, second, otherAccount));
     when(closed.findClosedByAssetId(9L)).thenReturn(List.of());
@@ -71,6 +76,7 @@ class AssetDetailServiceTest {
     assertThat(view.totalQuantity()).isEqualTo(2d);
   }
 
+  @DisplayName("rejects Blank And Unknown Symbols")
   @Test
   void rejectsBlankAndUnknownSymbols() {
     assertThatThrownBy(() -> service.findBySymbol(" "))
@@ -80,6 +86,7 @@ class AssetDetailServiceTest {
         .isInstanceOf(AssetDetailNotFoundException.class);
   }
 
+  @DisplayName("result Only Position Does Not Expose Full Notional Value")
   @Test
   void resultOnlyPositionDoesNotExposeFullNotionalValue() {
     AssetEntity asset =
@@ -89,7 +96,7 @@ class AssetDetailServiceTest {
             .currency(CurrencyType.USD)
             .marketPrice(BigDecimal.valueOf(120d))
             .build();
-    OpenedPosition position = position(1L, PositionType.BUY, 10d, 100d);
+    PositionEntity position = position(1L, PositionType.BUY, 10d, 100d);
     position.setSettlementModel(PositionSettlementModel.RESULT_ONLY);
     when(assets.findBySymbol("CFD")).thenReturn(Optional.of(asset));
     when(open.findOpenByAssetId(9L)).thenReturn(List.of(position));
@@ -104,6 +111,7 @@ class AssetDetailServiceTest {
     assertThat(view.totalMarketValue()).isNull();
   }
 
+  @DisplayName("converts Dividend Totals To Asset Display Currency")
   @Test
   void convertsDividendTotalsToAssetDisplayCurrency() {
     AssetEntity asset =
@@ -137,12 +145,12 @@ class AssetDetailServiceTest {
     assertThat(view.totalNetDividends()).isEqualTo(12.2d);
   }
 
-  private OpenedPosition position(Long account, PositionType type, double quantity, double price) {
-    OpenedPosition position = new OpenedPosition();
+  private PositionEntity position(Long account, PositionType type, double quantity, double price) {
+    PositionEntity position = new PositionEntity();
     position.setAccount(account);
     position.setType(type);
-    position.setVolume(quantity);
-    position.setOpenPrice(price);
+    position.setVolume(java.math.BigDecimal.valueOf(quantity));
+    position.setOpenPrice(java.math.BigDecimal.valueOf(price));
     position.setCostCurrency(CurrencyType.EUR);
     position.setPriceCurrency(CurrencyType.EUR);
     position.setSettlementModel(PositionSettlementModel.CASH_SETTLED);

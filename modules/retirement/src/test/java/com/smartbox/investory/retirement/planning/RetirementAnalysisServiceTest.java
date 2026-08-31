@@ -10,28 +10,32 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.retirement.profile.InvestmentProfile;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.api.model.ForwardSimulationContext;
+import com.smartbox.investory.retirement.api.model.RetirementAgeAnalysis;
+import com.smartbox.investory.retirement.api.model.SimulationAssumptions;
+import com.smartbox.investory.retirement.api.model.SimulationDecisionSummary;
+import com.smartbox.investory.retirement.api.model.SimulationResult;
+import com.smartbox.investory.retirement.api.model.SimulationScenario;
+import com.smartbox.investory.retirement.api.model.SimulationSensitivityAnalysis;
+import com.smartbox.investory.retirement.api.model.SustainableSpendingAnalysis;
 import com.smartbox.investory.retirement.simulation.DeterministicAnalysisContext;
-import com.smartbox.investory.retirement.simulation.ForwardSimulationContext;
-import com.smartbox.investory.retirement.simulation.RetirementAgeAnalysis;
 import com.smartbox.investory.retirement.simulation.RetirementAgeAnalysisService;
-import com.smartbox.investory.retirement.simulation.SimulationAssumptions;
-import com.smartbox.investory.retirement.simulation.SimulationDecisionSummary;
-import com.smartbox.investory.retirement.simulation.SimulationResult;
-import com.smartbox.investory.retirement.simulation.SimulationScenario;
-import com.smartbox.investory.retirement.simulation.SimulationSensitivityAnalysis;
 import com.smartbox.investory.retirement.simulation.SimulationSensitivityAnalysisService;
-import com.smartbox.investory.retirement.simulation.SustainableSpendingAnalysis;
 import com.smartbox.investory.retirement.simulation.SustainableSpendingAnalysisService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+@DisplayName("Retirement Analysis Service")
 class RetirementAnalysisServiceTest {
+  @DisplayName("reuses Projection Base As Canonical Evaluation For Every Analysis")
   @Test
   void reusesProjectionBaseAsCanonicalEvaluationForEveryAnalysis() {
     InvestmentProfile profile = profile();
@@ -69,6 +73,7 @@ class RetirementAnalysisServiceTest {
     assertSame(summary, context.canonicalBase().decisionSummary());
   }
 
+  @DisplayName("no Forward Horizon Returns Explicit Unavailable State Without Running Analysis")
   @Test
   void noForwardHorizonReturnsExplicitUnavailableStateWithoutRunningAnalysis() {
     InvestmentProfile profile = profile();
@@ -129,10 +134,25 @@ class RetirementAnalysisServiceTest {
         BigDecimal.ZERO,
         BigDecimal.ZERO,
         BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
         List.of(),
-        List.of());
+        null,
+        null,
+        new com.smartbox.investory.profile.api.model.ProfileAssetProjection(
+            List.of(),
+            java.math.BigDecimal.ZERO,
+            0,
+            com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
+        (BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO),
+        BigDecimal.ZERO
+            .subtract((BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO))
+            .max(java.math.BigDecimal.ZERO),
+        com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO),
+        com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
   }
 }

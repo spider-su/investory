@@ -1,5 +1,7 @@
 package com.smartbox.investory.investment.reconciliation;
 
+import com.smartbox.investory.investment.api.reporting.model.ReconciliationCheckpoint;
+import com.smartbox.investory.investment.api.reporting.model.ReconciliationStatus;
 import java.math.BigDecimal;
 
 public record ReconciliationIssue(

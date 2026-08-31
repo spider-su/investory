@@ -1,17 +1,15 @@
 package com.smartbox.investory.longterm.application.service;
 
+import com.smartbox.investory.longterm.api.model.*;
 import com.smartbox.investory.longterm.infrastructure.asset.*;
 import com.smartbox.investory.longterm.infrastructure.lifecycle.*;
 import java.time.Clock;
 import java.time.LocalDate;
-import java.util.NoSuchElementException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Owns active/inactive lifecycle history while keeping LongTermAssetService as the API coordinator.
- */
+/** Owns active/inactive lifecycle history for long-term assets. */
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -106,6 +104,6 @@ public class LongTermAssetLifecycleService {
   private LongTermAssetEntity owned(Long portfolioId, Long assetId) {
     return assets
         .findByIdAndPortfolioId(assetId, portfolioId)
-        .orElseThrow(() -> new NoSuchElementException("Long-term asset not found"));
+        .orElseThrow(() -> new AssetNotFoundException(portfolioId, assetId));
   }
 }

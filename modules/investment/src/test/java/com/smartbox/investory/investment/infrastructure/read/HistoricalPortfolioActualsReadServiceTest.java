@@ -9,9 +9,12 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Historical Portfolio Actuals Read Service")
 class HistoricalPortfolioActualsReadServiceTest {
+  @DisplayName("complete Year Provides Annual Facts And December Assets")
   @Test
   void completeYearProvidesAnnualFactsAndDecemberAssets() {
     PortfolioMonthlyPerformanceRepository repository =
@@ -32,6 +35,7 @@ class HistoricalPortfolioActualsReadServiceTest {
     assertNotNull(result.marketReturn());
   }
 
+  @DisplayName("uses Previous December For Start And Net Annual Flow")
   @Test
   void usesPreviousDecemberForStartAndNetAnnualFlow() {
     PortfolioMonthlyPerformanceRepository repository =
@@ -70,6 +74,7 @@ class HistoricalPortfolioActualsReadServiceTest {
         new BigDecimal("40429.67"), result.netWithdrawal().setScale(2, RoundingMode.HALF_UP));
   }
 
+  @DisplayName("deposits Exceed Withdrawals Produce Net Contribution Only")
   @Test
   void depositsExceedWithdrawalsProduceNetContributionOnly() {
     PortfolioMonthlyPerformanceRepository repository =
@@ -95,6 +100,7 @@ class HistoricalPortfolioActualsReadServiceTest {
         BigDecimal.ZERO.setScale(2), result.netWithdrawal().setScale(2, RoundingMode.HALF_UP));
   }
 
+  @DisplayName("no Flows Produce Zero Net Contribution And Withdrawal")
   @Test
   void noFlowsProduceZeroNetContributionAndWithdrawal() {
     PortfolioMonthlyPerformanceRepository repository =
@@ -114,6 +120,7 @@ class HistoricalPortfolioActualsReadServiceTest {
     assertEquals(BigDecimal.ZERO, result.netWithdrawal());
   }
 
+  @DisplayName("partial Or Duplicate Calendar Year Is Unavailable")
   @Test
   void partialOrDuplicateCalendarYearIsUnavailable() {
     PortfolioMonthlyPerformanceRepository repository =
@@ -129,6 +136,7 @@ class HistoricalPortfolioActualsReadServiceTest {
     assertFalse(new HistoricalPortfolioActualsReadService(repository).read(1L, 2025).complete());
   }
 
+  @DisplayName("missing Monthly Return Keeps Other Facts But Not Annual Return")
   @Test
   void missingMonthlyReturnKeepsOtherFactsButNotAnnualReturn() {
     PortfolioMonthlyPerformanceRepository repository =

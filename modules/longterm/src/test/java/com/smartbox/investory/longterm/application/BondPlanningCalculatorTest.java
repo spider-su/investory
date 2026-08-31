@@ -2,14 +2,17 @@ package com.smartbox.investory.longterm.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.smartbox.investory.longterm.api.model.InterestTreatment;
 import com.smartbox.investory.longterm.application.model.BondPlanningSummary;
 import com.smartbox.investory.longterm.application.service.BondPlanningCalculator;
-import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Bond Planning Calculator")
 class BondPlanningCalculatorTest {
+  @DisplayName("preserves Gross Interest Tax Net Yield Maturity And Treatment")
   @Test
   void preservesGrossInterestTaxNetYieldMaturityAndTreatment() {
     BondPlanningSummary result =

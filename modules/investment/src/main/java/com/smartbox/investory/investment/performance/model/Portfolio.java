@@ -1,5 +1,9 @@
 package com.smartbox.investory.investment.performance.model;
 
+import com.smartbox.investory.investment.api.reporting.model.AccountBalance;
+import com.smartbox.investory.investment.api.reporting.model.DividendGainer;
+import com.smartbox.investory.investment.api.reporting.model.InstrumentPerformance;
+import com.smartbox.investory.investment.api.reporting.model.OpenPositionValue;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.HashMap;
 import java.util.List;

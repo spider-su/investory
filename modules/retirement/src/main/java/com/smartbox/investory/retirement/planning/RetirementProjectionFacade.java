@@ -1,14 +1,16 @@
 package com.smartbox.investory.retirement.planning;
 
-import com.smartbox.investory.retirement.api.InvestmentProfileFacade;
-import com.smartbox.investory.retirement.profile.InvestmentProfile;
+import com.smartbox.investory.profile.api.ProfileReader;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.api.RetirementPlanApi;
+import com.smartbox.investory.retirement.api.RetirementProjectionApi;
+import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.api.model.SimulationAssumptions;
+import com.smartbox.investory.retirement.api.model.SimulationCustomDeltas;
+import com.smartbox.investory.retirement.api.model.SimulationDecisionSummary;
+import com.smartbox.investory.retirement.api.model.SimulationResult;
+import com.smartbox.investory.retirement.api.model.SimulationScenario;
 import com.smartbox.investory.retirement.simulation.RetirementSimulation;
-import com.smartbox.investory.retirement.simulation.SimulationAssumptions;
-import com.smartbox.investory.retirement.simulation.SimulationCustomDeltas;
-import com.smartbox.investory.retirement.simulation.SimulationDecisionSummary;
-import com.smartbox.investory.retirement.simulation.SimulationPlanService;
-import com.smartbox.investory.retirement.simulation.SimulationResult;
-import com.smartbox.investory.retirement.simulation.SimulationScenario;
 import java.time.Clock;
 import java.time.Year;
 import java.util.EnumMap;
@@ -17,16 +19,16 @@ import org.springframework.stereotype.Service;
 
 /** Prepares the single forward-projection context consumed by both retirement boards. */
 @Service
-public class RetirementProjectionFacade {
-  private final InvestmentProfileFacade profiles;
-  private final SimulationPlanService plans;
+public class RetirementProjectionFacade implements RetirementProjectionApi {
+  private final ProfileReader profiles;
+  private final RetirementPlanApi plans;
   private final ForwardSimulationInputService forwardInputs;
   private final RetirementSimulation simulations;
   private final Clock clock;
 
   public RetirementProjectionFacade(
-      InvestmentProfileFacade profiles,
-      SimulationPlanService plans,
+      ProfileReader profiles,
+      RetirementPlanApi plans,
       ForwardSimulationInputService forwardInputs,
       RetirementSimulation simulations,
       Clock clock) {
@@ -42,7 +44,7 @@ public class RetirementProjectionFacade {
   }
 
   public RetirementProjectionContext load(
-      Long portfolioId, Long planId, int defaultCurrentAge, int defaultEndAge) {
+      Long portfolioId, Long planId, Integer defaultCurrentAge, Integer defaultEndAge) {
     return load(
         portfolioId, planId, defaultCurrentAge, defaultEndAge, SimulationCustomDeltas.zero());
   }
@@ -50,27 +52,21 @@ public class RetirementProjectionFacade {
   public RetirementProjectionContext load(
       Long portfolioId,
       Long planId,
-      int defaultCurrentAge,
-      int defaultEndAge,
+      Integer defaultCurrentAge,
+      Integer defaultEndAge,
       SimulationCustomDeltas customDeltas) {
-    RetirementProjectionInput input =
-        loadInput(portfolioId, planId, defaultCurrentAge, defaultEndAge);
-    return project(
-        input.profile(),
-        input.assumptions(),
-        planId == null ? null : plans.baseline(portfolioId, planId),
-        customDeltas);
-  }
-
-  public RetirementProjectionInput loadInput(
-      Long portfolioId, Long planId, int defaultCurrentAge, int defaultEndAge) {
     InvestmentProfile profile = profiles.loadProfile(portfolioId);
+    var planDetails = planId == null ? null : plans.details(portfolioId, planId);
     SimulationAssumptions assumptions =
-        planId == null
+        planDetails == null
             ? SimulationAssumptions.defaults(
-                profile, defaultCurrentAge, defaultEndAge, Year.now(clock).getValue())
-            : plans.assumptions(portfolioId, planId);
-    return new RetirementProjectionInput(profile, assumptions);
+                profile,
+                defaultCurrentAge == null ? 40 : defaultCurrentAge,
+                defaultEndAge == null ? 95 : defaultEndAge,
+                Year.now(clock).getValue())
+            : planDetails.assumptions();
+    return project(
+        profile, assumptions, planDetails == null ? null : planDetails.baseline(), customDeltas);
   }
 
   public RetirementProjectionContext project(
@@ -90,15 +86,7 @@ public class RetirementProjectionFacade {
       PlanningBaseline baseline,
       SimulationCustomDeltas customDeltas) {
     InvestmentProfile projectionProfile =
-        baseline == null
-            ? profile
-            : profile.withPlanningBaseline(
-                baseline.reserve(),
-                baseline.investmentCapital(),
-                baseline.longTermCapital(),
-                baseline.rentalAnnualIncome(),
-                baseline.longTermAnnualIncome(),
-                baseline.longTermPlanningState());
+        baseline == null ? profile : PlanningProfileBaseline.apply(profile, baseline);
     ForwardSimulationInput forward = forwardInputs.prepare(projectionProfile, assumptions);
     SimulationAssumptions projectedAssumptions = forward.forwardAssumptions().orElse(assumptions);
     InvestmentProfile projectedProfile = forward.bridgedProfile();

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.EnableCaching;
@@ -13,8 +14,10 @@ import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+@DisplayName("Spring Cache Behavior")
 class SpringCacheBehaviorTest {
 
+  @DisplayName("repeated Calls Hit Cache And Different Account Sets Use Different Entries")
   @Test
   void repeatedCallsHitCacheAndDifferentAccountSetsUseDifferentEntries() {
     try (var context = new AnnotationConfigApplicationContext(TestConfiguration.class)) {

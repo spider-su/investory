@@ -1,6 +1,8 @@
 package com.smartbox.investory.investment.reporting.dashboard.service;
 
+import com.smartbox.investory.investment.api.reporting.model.DashboardOperationalView;
 import com.smartbox.investory.investment.imports.ImportBatchStatus;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
@@ -8,7 +10,6 @@ import com.smartbox.investory.investment.infrastructure.persistence.imports.Impo
 import com.smartbox.investory.investment.performance.model.Portfolio;
 import com.smartbox.investory.investment.performance.model.PortfolioDataQuality;
 import com.smartbox.investory.investment.port.export.SecondaryAdapterStatusReader;
-import com.smartbox.investory.investment.reporting.dashboard.application.DashboardOperationalView;
 import java.time.ZonedDateTime;
 import java.util.Comparator;
 import java.util.List;
@@ -23,21 +24,31 @@ import org.springframework.transaction.annotation.Transactional;
 public class DashboardOperationalContextService {
   private final ImportRepository importRepository;
   private final AccountStatisticsRepository accountStatisticsRepository;
+  private final AccountRepository accountRepository;
   private final SecondaryAdapterStatusReader secondaryAdapterStatus;
 
   public DashboardOperationalContextService(
       ImportRepository importRepository, AccountStatisticsRepository accountStatisticsRepository) {
-    this(importRepository, accountStatisticsRepository, null);
+    this(importRepository, accountStatisticsRepository, null, null);
+  }
+
+  public DashboardOperationalContextService(
+      ImportRepository importRepository,
+      AccountStatisticsRepository accountStatisticsRepository,
+      SecondaryAdapterStatusReader secondaryAdapterStatus) {
+    this(importRepository, accountStatisticsRepository, secondaryAdapterStatus, null);
   }
 
   @Autowired
   public DashboardOperationalContextService(
       ImportRepository importRepository,
       AccountStatisticsRepository accountStatisticsRepository,
-      SecondaryAdapterStatusReader secondaryAdapterStatus) {
+      SecondaryAdapterStatusReader secondaryAdapterStatus,
+      AccountRepository accountRepository) {
     this.importRepository = importRepository;
     this.accountStatisticsRepository = accountStatisticsRepository;
     this.secondaryAdapterStatus = secondaryAdapterStatus;
+    this.accountRepository = accountRepository;
   }
 
   public DashboardOperationalView load(Portfolio portfolio) {
@@ -55,8 +66,7 @@ public class DashboardOperationalContextService {
             .max(Comparator.naturalOrder())
             .orElse(null);
     ImportHistoryEntity imported = latestImport.orElse(null);
-    long updatedAccounts =
-        quality.reconciledAccounts() > 0 ? quality.reconciledAccounts() : accounts.size();
+    long updatedAccounts = countReportingAccounts(quality, accounts);
     var importContext =
         new DashboardOperationalView.ImportContext(
             imported == null ? null : imported.getFinishedAt(),
@@ -80,6 +90,16 @@ public class DashboardOperationalContextService {
             portfolio.getExchangeRates() == null ? 0 : portfolio.getExchangeRates().size() + 1),
         valuation,
         yahoo(secondaryAdapterStatus));
+  }
+
+  private long countReportingAccounts(
+      PortfolioDataQuality quality, List<AccountStatisticsEntity> accountStatistics) {
+    if (accountRepository != null) {
+      return accountRepository.findAll().stream().filter(account -> !account.isCashOnly()).count();
+    }
+    return quality.reconciledAccounts() > 0
+        ? quality.reconciledAccounts()
+        : accountStatistics.size();
   }
 
   private DashboardOperationalView.YahooContext yahoo(SecondaryAdapterStatusReader service) {

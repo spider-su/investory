@@ -7,18 +7,18 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.api.reporting.HistoricalPortfolioActualsReader;
+import com.smartbox.investory.profile.api.model.EconomicBucket;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.api.model.SimulationAssumptions;
+import com.smartbox.investory.retirement.api.model.SimulationCustomDeltas;
+import com.smartbox.investory.retirement.api.model.SimulationResult;
+import com.smartbox.investory.retirement.api.model.SimulationScenario;
+import com.smartbox.investory.retirement.api.model.SimulationYear;
 import com.smartbox.investory.retirement.infrastructure.planning.PlanningYearRepository;
 import com.smartbox.investory.retirement.infrastructure.planning.PlanningYearValueRepository;
-import com.smartbox.investory.retirement.profile.InvestmentProfile;
-import com.smartbox.investory.retirement.simulation.BucketType;
 import com.smartbox.investory.retirement.simulation.ForwardSimulationContextFactory;
-import com.smartbox.investory.retirement.simulation.RetirementBucketEngine;
 import com.smartbox.investory.retirement.simulation.RetirementSimulation;
-import com.smartbox.investory.retirement.simulation.SimulationAssumptions;
-import com.smartbox.investory.retirement.simulation.SimulationCustomDeltas;
-import com.smartbox.investory.retirement.simulation.SimulationResult;
-import com.smartbox.investory.retirement.simulation.SimulationScenario;
-import com.smartbox.investory.retirement.simulation.SimulationYear;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -26,11 +26,14 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /** Scenario overlays are future-only; historical and LIVE rows are scenario invariant. */
+@DisplayName("Planning Timeline Scenario Isolation")
 class PlanningTimelineScenarioIsolationTest {
 
+  @DisplayName("changing Scenario Changes Projected Rows Only")
   @Test
   void changingScenarioChangesProjectedRowsOnly() {
     Clock clock = Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC);
@@ -119,10 +122,10 @@ class PlanningTimelineScenarioIsolationTest {
   }
 
   private static SimulationResult result(SimulationScenario scenario, String cashEnd) {
-    var cash = bucket(BucketType.CASH, "100", cashEnd);
-    var zeroBonds = bucket(BucketType.BONDS, "0", "0");
-    var zeroEquity = bucket(BucketType.EQUITIES, "0", "0");
-    var zeroRealEstate = bucket(BucketType.REAL_ESTATE, "0", "0");
+    var cash = bucket(EconomicBucket.LIQUID_CASH, "100", cashEnd);
+    var zeroBonds = bucket(EconomicBucket.FIXED_INCOME, "0", "0");
+    var zeroEquity = bucket(EconomicBucket.EQUITY, "0", "0");
+    var zeroRealEstate = bucket(EconomicBucket.REAL_ESTATE, "0", "0");
     SimulationYear year =
         SimulationYear.bucket(
             42,
@@ -146,11 +149,10 @@ class PlanningTimelineScenarioIsolationTest {
         scenario, false, null, BigDecimal.ZERO, BigDecimal.ZERO, List.of(year));
   }
 
-  private static RetirementBucketEngine.BucketResult bucket(
-      BucketType type, String start, String end) {
+  private static BucketResult bucket(EconomicBucket type, String start, String end) {
     BigDecimal startValue = new BigDecimal(start);
     BigDecimal endValue = new BigDecimal(end);
-    return new RetirementBucketEngine.BucketResult(
+    return new BucketResult(
         type,
         startValue,
         BigDecimal.ZERO,
@@ -166,12 +168,28 @@ class PlanningTimelineScenarioIsolationTest {
         new BigDecimal("100"),
         BigDecimal.ZERO,
         new BigDecimal("100"),
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
         new BigDecimal("100"),
         BigDecimal.ZERO,
         List.of(),
-        List.of());
+        null,
+        null,
+        new com.smartbox.investory.profile.api.model.ProfileAssetProjection(
+            List.of(),
+            java.math.BigDecimal.ZERO,
+            0,
+            com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
+        (new BigDecimal("100") == null ? java.math.BigDecimal.ZERO : new BigDecimal("100")),
+        new BigDecimal("100")
+            .subtract(
+                (new BigDecimal("100") == null ? java.math.BigDecimal.ZERO : new BigDecimal("100")))
+            .max(java.math.BigDecimal.ZERO),
+        com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
+            BigDecimal.ZERO,
+            new BigDecimal("100"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            new BigDecimal("100")),
+        com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
   }
 }

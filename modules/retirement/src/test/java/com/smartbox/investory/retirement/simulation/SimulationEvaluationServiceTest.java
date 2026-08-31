@@ -5,12 +5,16 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.retirement.profile.InvestmentProfile;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.api.model.*;
 import java.math.BigDecimal;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Simulation Evaluation Service")
 class SimulationEvaluationServiceTest {
+  @DisplayName("explicit Baseline Year Reaches Canonical Simulator")
   @Test
   void explicitBaselineYearReachesCanonicalSimulator() {
     InvestmentProfile profile = mock(InvestmentProfile.class);

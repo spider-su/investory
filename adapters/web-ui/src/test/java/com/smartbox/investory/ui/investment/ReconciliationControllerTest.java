@@ -7,7 +7,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
-import com.smartbox.investory.investment.api.reporting.InvestmentReconciliationApi;
+import com.smartbox.investory.investment.api.reporting.model.ReconciliationOverallState;
+import com.smartbox.investory.investment.api.reporting.model.ReconciliationReport;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -18,20 +23,30 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.servlet.view.InternalResourceViewResolver;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("Reconciliation Controller")
 class ReconciliationControllerTest {
 
-  @Mock private InvestmentReconciliationApi reconciliationApi;
+  @Mock private InvestmentReconciliationClient reconciliationApi;
 
   @InjectMocks private ReconciliationController reconciliationController;
 
+  @DisplayName("reconciliation Returns Report View")
   @Test
   void reconciliationReturnsReportView() throws Exception {
     MockMvc mockMvc =
         MockMvcBuilders.standaloneSetup(reconciliationController)
             .setViewResolvers(new InternalResourceViewResolver("/WEB-INF/views/", ".jsp"))
             .build();
-    Object report = new Object();
-    when(reconciliationApi.load("QUICK", null)).thenReturn(report);
+    ReconciliationReport report =
+        new ReconciliationReport(
+            ReconciliationOverallState.REVIEW,
+            null,
+            List.of(),
+            List.of(),
+            List.of(),
+            Instant.parse("2026-08-27T10:00:00Z"),
+            LocalDate.of(2026, 8, 27));
+    when(reconciliationApi.loadReconciliationReport()).thenReturn(report);
 
     mockMvc
         .perform(get("/dashboard/reconciliation"))
@@ -39,6 +54,6 @@ class ReconciliationControllerTest {
         .andExpect(view().name("reconciliation"))
         .andExpect(model().attribute("report", report));
 
-    verify(reconciliationApi).load("QUICK", null);
+    verify(reconciliationApi).loadReconciliationReport();
   }
 }

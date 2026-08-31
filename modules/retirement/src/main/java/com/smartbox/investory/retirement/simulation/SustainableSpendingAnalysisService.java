@@ -1,6 +1,7 @@
 package com.smartbox.investory.retirement.simulation;
 
-import com.smartbox.investory.retirement.profile.InvestmentProfile;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.api.model.*;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import org.springframework.stereotype.Service;
@@ -25,8 +26,18 @@ public class SustainableSpendingAnalysisService {
         assumptions.annualLivingExpenses().add(assumptions.annualDiscretionaryExpenses());
     return new SustainableSpendingAnalysis(
         current,
-        find(profile, assumptions, SimulationScenario.BASE, current),
-        find(profile, assumptions, SimulationScenario.CONSERVATIVE, current));
+        find(
+            profile,
+            assumptions,
+            SimulationScenario.BASE,
+            current,
+            new SimulationEvaluationCache()),
+        find(
+            profile,
+            assumptions,
+            SimulationScenario.CONSERVATIVE,
+            current,
+            new SimulationEvaluationCache()));
   }
 
   public SustainableSpendingAnalysis analyze(DeterministicAnalysisContext context) {
@@ -41,22 +52,25 @@ public class SustainableSpendingAnalysisService {
             SimulationScenario.BASE,
             current,
             context.baselineYear(),
-            context.canonicalBase()),
+            context.canonicalBase(),
+            context.cache()),
         find(
             context.profile(),
             assumptions,
             SimulationScenario.CONSERVATIVE,
             current,
             context.baselineYear(),
-            null));
+            null,
+            context.cache()));
   }
 
   private SustainableSpendingAnalysis.ScenarioResult find(
       InvestmentProfile profile,
       SimulationAssumptions assumptions,
       SimulationScenario scenario,
-      BigDecimal current) {
-    Search search = new Search(profile, assumptions, scenario);
+      BigDecimal current,
+      SimulationEvaluationCache cache) {
+    Search search = new Search(profile, assumptions, scenario, null, null, null, cache);
     return find(current, search);
   }
 
@@ -66,9 +80,10 @@ public class SustainableSpendingAnalysisService {
       SimulationScenario scenario,
       BigDecimal current,
       int baselineYear,
-      SimulationEvaluation canonicalCurrent) {
+      SimulationEvaluation canonicalCurrent,
+      SimulationEvaluationCache cache) {
     Search search =
-        new Search(profile, assumptions, scenario, baselineYear, current, canonicalCurrent);
+        new Search(profile, assumptions, scenario, baselineYear, current, canonicalCurrent, cache);
     return find(current, search);
   }
 
@@ -123,11 +138,12 @@ public class SustainableSpendingAnalysisService {
     private final Integer baselineYear;
     private final BigDecimal canonicalSpending;
     private final SimulationEvaluation canonicalCurrent;
+    private final SimulationEvaluationCache cache;
     private int evaluationCount;
 
     private Search(
         InvestmentProfile profile, SimulationAssumptions assumptions, SimulationScenario scenario) {
-      this(profile, assumptions, scenario, null, null, null);
+      this(profile, assumptions, scenario, null, null, null, new SimulationEvaluationCache());
     }
 
     private Search(
@@ -136,13 +152,15 @@ public class SustainableSpendingAnalysisService {
         SimulationScenario scenario,
         Integer baselineYear,
         BigDecimal canonicalSpending,
-        SimulationEvaluation canonicalCurrent) {
+        SimulationEvaluation canonicalCurrent,
+        SimulationEvaluationCache cache) {
       this.profile = profile;
       this.assumptions = assumptions;
       this.scenario = scenario;
       this.baselineYear = baselineYear;
       this.canonicalSpending = canonicalSpending;
       this.canonicalCurrent = canonicalCurrent;
+      this.cache = cache;
     }
 
     private EvaluationAt evaluate(BigDecimal spending) {
@@ -150,16 +168,26 @@ public class SustainableSpendingAnalysisService {
         throw new IllegalStateException("Sustainable spending search exceeded evaluation limit");
       if (canonicalCurrent != null && spending.compareTo(canonicalSpending) == 0)
         return new EvaluationAt(spending, canonicalCurrent);
+      SimulationAssumptions candidate = assumptions.toBuilder().recurringSpending(spending).build();
+      int evaluationBaseline = baselineYear == null ? assumptions.startYear() : baselineYear;
+      SimulationEvaluation cached =
+          baselineYear == null
+              ? cache.getOrCompute(
+                  profile,
+                  candidate,
+                  scenario,
+                  evaluationBaseline,
+                  () ->
+                      SustainableSpendingAnalysisService.this.evaluations.evaluate(
+                          profile, candidate, scenario))
+              : SustainableSpendingAnalysisService.this.evaluations.evaluate(
+                  profile, candidate, scenario, evaluationBaseline, cache);
       return new EvaluationAt(
           spending,
-          baselineYear == null
-              ? SustainableSpendingAnalysisService.this.evaluations.evaluate(
-                  profile, assumptions.toBuilder().recurringSpending(spending).build(), scenario)
+          cached != null
+              ? cached
               : SustainableSpendingAnalysisService.this.evaluations.evaluate(
-                  profile,
-                  assumptions.toBuilder().recurringSpending(spending).build(),
-                  scenario,
-                  baselineYear));
+                  profile, candidate, scenario, evaluationBaseline));
     }
 
     private Boundary boundary(BigDecimal low, BigDecimal high) {

@@ -8,12 +8,15 @@ import java.nio.file.Path;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Thymeleaf Class Reference")
 class ThymeleafClassReferenceTest {
   private static final Pattern APPLICATION_TYPE_LITERAL =
       Pattern.compile("T\\((com\\.smartbox\\.investory(?:\\.[A-Za-z_$][A-Za-z0-9_$]*)+)\\)");
 
+  @DisplayName("application Type Literals Resolve From Every Template")
   @Test
   void applicationTypeLiteralsResolveFromEveryTemplate() throws IOException {
     Path templates = Path.of("..", "adapters", "web-ui", "src", "main", "resources", "templates");

@@ -12,7 +12,7 @@ public interface FxRateProvider {
 
   record FxRequest(CurrencyType base, List<CurrencyType> targets, LocalDate effectiveDate) {
     public FxRequest {
-      targets = targets == null ? List.of() : List.copyOf(targets);
+      targets = com.smartbox.investory.shared.util.CollectionUtils.immutableListOrEmpty(targets);
     }
   }
 

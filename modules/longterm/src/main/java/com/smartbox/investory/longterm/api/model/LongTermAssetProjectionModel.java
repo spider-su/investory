@@ -1,6 +1,7 @@
 package com.smartbox.investory.longterm.api.model;
 
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.util.CollectionUtils;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -15,47 +16,20 @@ import java.util.List;
 public record LongTermAssetProjectionModel(
     Long id,
     String name,
-    LongTermAssetTypeModel type,
+    LongTermAssetType type,
     CurrencyType currency,
     BigDecimal currentValue,
     List<Period> periods,
-    List<RentalContractModel> rentalContracts,
+    List<RentalContractProjectionModel> rentalContracts,
     LocalDate maturityDate,
     BigDecimal redemptionValue,
-    InterestTreatmentModel interestTreatment,
+    InterestTreatment interestTreatment,
     BigDecimal taxRate,
     BigDecimal taxBase,
     boolean rentalTaxPaidByTenant) {
-  public LongTermAssetProjectionModel(
-      Long id,
-      String name,
-      LongTermAssetTypeModel type,
-      CurrencyType currency,
-      BigDecimal currentValue,
-      List<Period> periods,
-      LocalDate maturityDate,
-      BigDecimal redemptionValue,
-      InterestTreatmentModel interestTreatment,
-      BigDecimal taxRate) {
-    this(
-        id,
-        name,
-        type,
-        currency,
-        currentValue,
-        periods,
-        List.of(),
-        maturityDate,
-        redemptionValue,
-        interestTreatment,
-        taxRate,
-        null,
-        false);
-  }
-
   public LongTermAssetProjectionModel {
-    periods = periods == null ? List.of() : List.copyOf(periods);
-    rentalContracts = rentalContracts == null ? List.of() : List.copyOf(rentalContracts);
+    periods = CollectionUtils.immutableListOrEmpty(periods);
+    rentalContracts = CollectionUtils.immutableListOrEmpty(rentalContracts);
   }
 
   public record Period(
@@ -64,82 +38,6 @@ public record LongTermAssetProjectionModel(
       BigDecimal annualIncome,
       BigDecimal annualExpense,
       BigDecimal annualReturnRate,
-      CashFlowTypeModel cashFlowType,
-      boolean paidByTenant) {
-    public Period(
-        LocalDate validFrom,
-        LocalDate validTo,
-        BigDecimal annualIncome,
-        BigDecimal annualExpense,
-        BigDecimal annualReturnRate) {
-      this(validFrom, validTo, annualIncome, annualExpense, annualReturnRate, null, false);
-    }
-
-    public Period(
-        LocalDate validFrom,
-        LocalDate validTo,
-        BigDecimal annualIncome,
-        BigDecimal annualExpense,
-        BigDecimal annualReturnRate,
-        CashFlowTypeModel cashFlowType) {
-      this(validFrom, validTo, annualIncome, annualExpense, annualReturnRate, cashFlowType, false);
-    }
-  }
-
-  public LongTermAssetProjectionModel(
-      Long id,
-      String name,
-      LongTermAssetTypeModel type,
-      CurrencyType currency,
-      BigDecimal currentValue,
-      List<Period> periods,
-      LocalDate maturityDate,
-      BigDecimal redemptionValue,
-      InterestTreatmentModel interestTreatment,
-      BigDecimal taxRate,
-      BigDecimal taxBase) {
-    this(
-        id,
-        name,
-        type,
-        currency,
-        currentValue,
-        periods,
-        List.of(),
-        maturityDate,
-        redemptionValue,
-        interestTreatment,
-        taxRate,
-        taxBase,
-        false);
-  }
-
-  public LongTermAssetProjectionModel(
-      Long id,
-      String name,
-      LongTermAssetTypeModel type,
-      CurrencyType currency,
-      BigDecimal currentValue,
-      List<Period> periods,
-      LocalDate maturityDate,
-      BigDecimal redemptionValue,
-      InterestTreatmentModel interestTreatment,
-      BigDecimal taxRate,
-      BigDecimal taxBase,
-      boolean rentalTaxPaidByTenant) {
-    this(
-        id,
-        name,
-        type,
-        currency,
-        currentValue,
-        periods,
-        List.of(),
-        maturityDate,
-        redemptionValue,
-        interestTreatment,
-        taxRate,
-        taxBase,
-        rentalTaxPaidByTenant);
-  }
+      CashFlowType cashFlowType,
+      boolean paidByTenant) {}
 }

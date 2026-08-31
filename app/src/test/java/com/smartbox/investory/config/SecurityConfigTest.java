@@ -6,7 +6,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.smartbox.investory.investment.api.importing.InvestmentImportApi;
-import com.smartbox.investory.ui.investment.ImportController;
+import com.smartbox.investory.investment.web.ImportController;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -19,12 +20,14 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(controllers = ImportController.class)
 @Import({SecurityConfig.class, MockMvcSecurityTestConfig.class})
+@DisplayName("Security Config")
 class SecurityConfigTest {
 
   @Autowired private MockMvc mockMvc;
 
   @MockitoBean private InvestmentImportApi importApi;
 
+  @DisplayName("unauthenticated Api Request is Unauthorized")
   @Test
   void unauthenticatedApiRequest_isUnauthorized() throws Exception {
     MockMultipartFile file =
@@ -32,7 +35,7 @@ class SecurityConfigTest {
             "file", "file.xlsx", MediaType.APPLICATION_OCTET_STREAM_VALUE, "payload".getBytes());
 
     mockMvc
-        .perform(multipart("/import/broker/XTB").file(file).with(csrf()))
+        .perform(multipart("/api/v1/investment/imports/broker/XTB").file(file).with(csrf()))
         .andExpect(status().isUnauthorized());
   }
 
@@ -46,7 +49,7 @@ class SecurityConfigTest {
             "file", "file.xlsx", MediaType.APPLICATION_OCTET_STREAM_VALUE, "payload".getBytes());
 
     mockMvc
-        .perform(multipart("/import/broker/XTB").file(file).with(csrf()))
+        .perform(multipart("/api/v1/investment/imports/broker/XTB").file(file).with(csrf()))
         .andExpect(status().isForbidden());
   }
 
@@ -60,10 +63,11 @@ class SecurityConfigTest {
             "file", "file.xlsx", MediaType.APPLICATION_OCTET_STREAM_VALUE, "payload".getBytes());
 
     mockMvc
-        .perform(multipart("/import/broker/XTB").file(file).with(csrf()))
+        .perform(multipart("/api/v1/investment/imports/broker/XTB").file(file).with(csrf()))
         .andExpect(status().isOk());
   }
 
+  @DisplayName("read Endpoint requires Authentication By Default")
   @Test
   void readEndpoint_requiresAuthenticationByDefault() throws Exception {
     mockMvc.perform(get("/dashboard")).andExpect(status().isUnauthorized());

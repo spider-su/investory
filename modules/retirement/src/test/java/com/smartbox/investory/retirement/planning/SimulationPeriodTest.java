@@ -3,11 +3,15 @@ package com.smartbox.investory.retirement.planning;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.smartbox.investory.retirement.api.model.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Simulation Period")
 class SimulationPeriodTest {
+  @DisplayName("uses Inclusive Days And Leap Year Denominator")
   @Test
   void usesInclusiveDaysAndLeapYearDenominator() {
     assertEquals(
@@ -18,6 +22,7 @@ class SimulationPeriodTest {
         SimulationPeriod.of(LocalDate.of(2024, 1, 1), LocalDate.of(2024, 7, 1)).yearFraction());
   }
 
+  @DisplayName("current Year Boundaries Are Deterministic")
   @Test
   void currentYearBoundariesAreDeterministic() {
     assertEquals(
@@ -28,6 +33,7 @@ class SimulationPeriodTest {
         SimulationPeriod.of(LocalDate.of(2026, 12, 31), LocalDate.of(2026, 12, 31)).yearFraction());
   }
 
+  @DisplayName("rejects Cross Year Periods")
   @Test
   void rejectsCrossYearPeriods() {
     assertThrows(
@@ -35,6 +41,7 @@ class SimulationPeriodTest {
         () -> SimulationPeriod.of(LocalDate.of(2026, 12, 15), LocalDate.of(2027, 1, 15)));
   }
 
+  @DisplayName("compounds Rates With Stable Scale")
   @Test
   void compoundsRatesWithStableScale() {
     SimulationPeriod halfYear =

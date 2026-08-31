@@ -1,3 +1,4 @@
+export function initDashboardAccessibility() {
 // Dashboard usability enhancements.
 (function () {
     'use strict';
@@ -41,7 +42,7 @@
         });
     });
 
-    document.addEventListener('keydown', function (event) {
+    if (!window.__investoryDashboardAccessibilityGlobals) document.addEventListener('keydown', function (event) {
         if (event.key !== 'Escape') return;
         const openModal = Array.from(document.querySelectorAll('.iv-modal'))
             .find(function (modal) { return modal.style.display !== 'none'; });
@@ -57,19 +58,20 @@
         }
     });
 
-    // Keep only one disclosure open at a time to reduce visual clutter.
+    // Only disclosures that opt into the same named group are mutually exclusive.
     document.querySelectorAll('details').forEach(function (details) {
         details.addEventListener('toggle', function () {
-            if (!details.open) return;
-            document.querySelectorAll('details[open]').forEach(function (other) {
+            const group = details.dataset.disclosureGroup;
+            if (!details.open || !group) return;
+            document.querySelectorAll('details[open][data-disclosure-group="' + group + '"]').forEach(function (other) {
                 if (other !== details) other.removeAttribute('open');
             });
         });
     });
 
-    document.addEventListener('click', function (event) {
+    if (!window.__investoryDashboardAccessibilityGlobals) document.addEventListener('click', function (event) {
         if (event.target.closest && event.target.closest('details')) return;
-        document.querySelectorAll('details[open]').forEach(function (details) {
+        document.querySelectorAll('details.iv-compact-popover[open][data-disclosure-group]').forEach(function (details) {
             details.removeAttribute('open');
         });
         document.querySelectorAll('.iv-metric-context:focus').forEach(function (metric) {
@@ -107,8 +109,10 @@
         const open = document.querySelector('details.iv-compact-popover[open]');
         if (open) placeCompactPopover(open);
     }
-    window.addEventListener('resize', repositionOpenCompactPopover);
-    window.addEventListener('scroll', repositionOpenCompactPopover, true);
+    if (!window.__investoryDashboardAccessibilityGlobals) {
+        window.addEventListener('resize', repositionOpenCompactPopover);
+        window.addEventListener('scroll', repositionOpenCompactPopover, true);
+    }
 
     const uploadBox = document.querySelector('.iv-upload-box');
     const xtbInput = document.getElementById('xtb-file-input');
@@ -167,9 +171,7 @@
                     target.searchParams.append('accountIds', account.value);
                 });
 
-            window.location.assign(
-                target.pathname + target.search + target.hash
-            );
+            window.location.assign(target.pathname + target.search + target.hash);
         });
     });
 
@@ -199,7 +201,20 @@
 
 
 // Trust indicators and contextual FX help.
-document.addEventListener('DOMContentLoaded', () => {
+    const fxInfo = document.querySelector('.iv-chip--fx-info');
+    if (fxInfo) {
+        fxInfo.addEventListener('click', event => { event.stopPropagation(); fxInfo.classList.toggle('is-tooltip-open'); });
+        fxInfo.addEventListener('keydown', event => { if (event.key === 'Escape') fxInfo.classList.remove('is-tooltip-open'); });
+    }
+    const reconciledTime = document.querySelector('[data-reconciled-hours]');
+    if (reconciledTime) {
+        const hours = Number(reconciledTime.dataset.reconciledHours || 0);
+        reconciledTime.textContent = hours === 0 ? 'Last reconciled: just now' : `Last reconciled: ${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
+    }
+    window.__investoryDashboardAccessibilityGlobals = true;
+}
+/* Legacy block intentionally removed: page setup is driven by turbo:load. */
+/*
     const fxInfo = document.querySelector('.iv-chip--fx-info');
     if (fxInfo) {
         fxInfo.addEventListener('click', event => { event.stopPropagation(); fxInfo.classList.toggle('is-tooltip-open'); });
@@ -212,3 +227,4 @@ document.addEventListener('DOMContentLoaded', () => {
         reconciledTime.textContent = hours === 0 ? 'Last reconciled: just now' : `Last reconciled: ${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
     }
 });
+*/

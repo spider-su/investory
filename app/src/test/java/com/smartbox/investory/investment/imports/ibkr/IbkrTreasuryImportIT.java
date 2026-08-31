@@ -9,13 +9,13 @@ import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepositor
 import com.smartbox.investory.investment.ledger.cash.CashOperationType;
 import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationEntity;
 import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationRepository;
-import com.smartbox.investory.investment.ledger.position.persistence.ClosedPosition;
-import com.smartbox.investory.investment.ledger.position.persistence.ClosedPositionRepository;
-import com.smartbox.investory.investment.ledger.position.persistence.OpenedPositionRepository;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionRepository;
 import com.smartbox.investory.testsupport.FastDatabaseTest;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @Transactional
+@DisplayName("Ibkr Treasury Import")
 class IbkrTreasuryImportIT extends FastDatabaseTest {
 
   private static final String TREASURY_ROWS =
@@ -41,10 +42,11 @@ class IbkrTreasuryImportIT extends FastDatabaseTest {
 
   @Autowired private AssetRepository assetRepository;
   @Autowired private CashOperationRepository cashOperationRepository;
-  @Autowired private ClosedPositionRepository closedPositionRepository;
-  @Autowired private OpenedPositionRepository openedPositionRepository;
+  @Autowired private PositionRepository closedPositionRepository;
+  @Autowired private PositionRepository openedPositionRepository;
   @Autowired private IbkrImportService ibkrImportService;
 
+  @DisplayName("imports All Treasury Rows And Reconstructs Redemption")
   @Test
   void importsAllTreasuryRowsAndReconstructsRedemption() throws Exception {
     List<AssetEntity> treasuryAssets = assetRepository.findAllByIbrkIgnoreCase("T458022826");
@@ -81,14 +83,15 @@ class IbkrTreasuryImportIT extends FastDatabaseTest {
             .filter(operation -> operation.getType() == CashOperationType.TRANSFER)
             .count());
 
-    double importedCash = operations.stream().mapToDouble(CashOperationEntity::getAmount).sum();
+    double importedCash = operations.stream().mapToDouble(op -> op.getAmount().doubleValue()).sum();
     assertEquals(-54.03, importedCash, 0.000001);
 
-    List<ClosedPosition> closed = closedPositionRepository.findClosedByAssetId(treasury.getId());
+    List<PositionEntity> closed = closedPositionRepository.findClosedByAssetId(treasury.getId());
     assertEquals(3, closed.size());
-    assertEquals(10000.0, closed.stream().mapToDouble(ClosedPosition::getVolume).sum(), 0.000001);
     assertEquals(
-        10000.0, closed.stream().mapToDouble(ClosedPosition::getSaleValue).sum(), 0.000001);
+        10000.0, closed.stream().mapToDouble(p -> p.getVolume().doubleValue()).sum(), 0.000001);
+    assertEquals(
+        10000.0, closed.stream().mapToDouble(p -> p.getSaleValue().doubleValue()).sum(), 0.000001);
     assertEquals(0, openedPositionRepository.findOpenByAssetId(treasury.getId()).size());
   }
 }

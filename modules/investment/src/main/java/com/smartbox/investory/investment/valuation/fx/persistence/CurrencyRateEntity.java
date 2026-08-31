@@ -64,24 +64,12 @@ public class CurrencyRateEntity {
     if (rateDate == null) throw new IllegalStateException("rateDate is required");
   }
 
-  public double getRate() {
-    return rate == null ? 0.0 : rate.doubleValue();
-  }
-
-  public BigDecimal getRateValue() {
+  public BigDecimal getRate() {
     return rate;
   }
 
   public void setRate(BigDecimal rate) {
     this.rate = scaleRate(rate);
-  }
-
-  public void setRate(Double rate) {
-    this.rate = rate == null ? null : scaleRate(BigDecimal.valueOf(rate));
-  }
-
-  public void setRate(double rate) {
-    setRate(Double.valueOf(rate));
   }
 
   private static BigDecimal scaleRate(BigDecimal rate) {

@@ -1,7 +1,8 @@
 package com.smartbox.investory.retirement.planning;
 
-import com.smartbox.investory.retirement.profile.InvestmentProfile;
-import com.smartbox.investory.retirement.simulation.*;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.simulation.ForwardSimulationContextFactory;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -11,6 +12,7 @@ import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /** Backend-authoritative canonical/display conversion for planning presentation only. */
@@ -21,9 +23,16 @@ public class PlanningCurrencyPresentationService {
   private final PlanningMoneyConversionService money;
   private final RetirementAnalysisPresentation analysisPresentation;
 
-  public PlanningCurrencyPresentationService(CurrencyConversion rates, Clock clock) {
-    this.money = new PlanningMoneyConversionService(rates, clock);
+  @Autowired
+  public PlanningCurrencyPresentationService(PlanningMoneyConversionService money) {
+    this.money = money;
     this.analysisPresentation = new RetirementAnalysisPresentation(money);
+  }
+
+  /** Test factory compatibility; production wiring uses the single service dependency above. */
+  @Deprecated
+  public PlanningCurrencyPresentationService(CurrencyConversion rates, Clock clock) {
+    this(new PlanningMoneyConversionService(rates, clock));
   }
 
   public BigDecimal toDisplay(BigDecimal canonical, CurrencyType display) {
@@ -37,6 +46,12 @@ public class PlanningCurrencyPresentationService {
   public BigDecimal fromDisplay(
       BigDecimal displayAmount, CurrencyType display, BigDecimal fallback) {
     return money.fromDisplay(displayAmount, display, fallback);
+  }
+
+  /** Canonical current-year planned cost, including current-year one-off expenses. */
+  public BigDecimal currentYearAnnualCosts(SimulationAssumptions assumptions, int year) {
+    return annualCostsFor(
+        assumptions, year, eventAmount(assumptions, year, SimulationEventType.ONE_OFF_EXPENSE));
   }
 
   public PastPlanningYear display(PastPlanningYear past, CurrencyType display) {
@@ -193,7 +208,7 @@ public class PlanningCurrencyPresentationService {
         toDisplay(profile.marketPortfolioValue(), profile.currency(), display),
         toDisplay(profile.longTermAssetValue(), profile.currency(), display),
         toDisplay(profile.totalNetWorth(), profile.currency(), display),
-        toDisplay(profile.expectedLongTermAssetIncome(), profile.currency(), display),
+        toDisplay(profile.incomeSummary().longTermAnnualIncome(), profile.currency(), display),
         toDisplay(profile.liquidAssets(), profile.currency(), display),
         toDisplay(profile.illiquidAssets(), profile.currency(), display));
   }
@@ -300,19 +315,19 @@ public class PlanningCurrencyPresentationService {
   }
 
   public SustainableSpendingAnalysisMoney displaySustainableSpending(
-      com.smartbox.investory.retirement.simulation.SustainableSpendingAnalysis analysis,
+      com.smartbox.investory.retirement.api.model.SustainableSpendingAnalysis analysis,
       CurrencyType display) {
     return analysisPresentation.displaySustainableSpending(analysis, display);
   }
 
   public SimulationSensitivityAnalysisMoney displaySensitivity(
-      com.smartbox.investory.retirement.simulation.SimulationSensitivityAnalysis analysis,
+      com.smartbox.investory.retirement.api.model.SimulationSensitivityAnalysis analysis,
       CurrencyType display) {
     return analysisPresentation.displaySensitivity(analysis, display);
   }
 
   public PlanRiskView displayPlanRisks(
-      com.smartbox.investory.retirement.simulation.SimulationSensitivityAnalysis analysis,
+      com.smartbox.investory.retirement.api.model.SimulationSensitivityAnalysis analysis,
       CurrencyType display) {
     return analysisPresentation.displayPlanRisks(analysis, display);
   }
@@ -322,7 +337,7 @@ public class PlanningCurrencyPresentationService {
   }
 
   public PlanningFlexibilityMoney displayPlanningFlexibility(
-      com.smartbox.investory.retirement.simulation.SustainableSpendingAnalysis spending,
+      com.smartbox.investory.retirement.api.model.SustainableSpendingAnalysis spending,
       RetirementAgeAnalysis retirement,
       CurrencyType display) {
     return analysisPresentation.displayPlanningFlexibility(spending, retirement, display);
@@ -450,8 +465,8 @@ public class PlanningCurrencyPresentationService {
                 : BigDecimal.ZERO;
         BigDecimal pension =
             assumptions != null
-                    && ForwardSimulationContextFactory.currentPlanningAge(assumptions, row.year())
-                        >= assumptions.pensionStartAge()
+                    && assumptions.pensionStartsAtOrBefore(
+                        ForwardSimulationContextFactory.currentPlanningAge(assumptions, row.year()))
                 ? assumptions.annualPension()
                 : BigDecimal.ZERO;
         BigDecimal eventIncome =
@@ -605,7 +620,7 @@ public class PlanningCurrencyPresentationService {
   }
 
   private static BigDecimal zero(BigDecimal value) {
-    return value == null ? BigDecimal.ZERO : value;
+    return com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull(value);
   }
 
   private static BigDecimal nonNegative(BigDecimal value) {

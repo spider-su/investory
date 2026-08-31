@@ -1,6 +1,6 @@
 package com.smartbox.investory.longterm.infrastructure.deposit;
 
-import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
+import com.smartbox.investory.longterm.api.model.InterestTreatment;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;

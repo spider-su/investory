@@ -21,10 +21,13 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Database Reporting Contract")
 class DatabaseReportingContractIT {
 
+  @DisplayName("every View Can Be Planned")
   @Test
   void everyViewCanBePlanned() throws SQLException {
     try (Connection connection = connection()) {
@@ -39,6 +42,7 @@ class DatabaseReportingContractIT {
     }
   }
 
+  @DisplayName("every Materialized View Can Be Refreshed And Read")
   @Test
   void everyMaterializedViewCanBeRefreshedAndRead() throws SQLException {
     try (Connection connection = connection()) {
@@ -57,6 +61,7 @@ class DatabaseReportingContractIT {
     }
   }
 
+  @DisplayName("canonical Fx Functions Handle Same Currency And Missing Rates")
   @Test
   void canonicalFxFunctionsHandleSameCurrencyAndMissingRates() throws SQLException {
     try (Connection connection = connection()) {
@@ -99,6 +104,7 @@ class DatabaseReportingContractIT {
     }
   }
 
+  @DisplayName("reconstructed Valuation Uses Normalized Price Currency And One Fx Conversion")
   @Test
   void reconstructedValuationUsesNormalizedPriceCurrencyAndOneFxConversion() throws SQLException {
     long plnPortfolioId = 910013L;
@@ -336,6 +342,7 @@ class DatabaseReportingContractIT {
     assertEquals(marketValue, ((BigDecimal) value.get("market")).doubleValue(), 0.0001);
   }
 
+  @DisplayName("every Cash Operation Enum Has An Explicit Classification Contract")
   @Test
   void everyCashOperationEnumHasAnExplicitClassificationContract() throws SQLException {
     Map<String, String> expectedCategories = new LinkedHashMap<>();
@@ -425,6 +432,7 @@ class DatabaseReportingContractIT {
     }
   }
 
+  @DisplayName("position Operation Enum And Signed Quantity Remain Exhaustive")
   @Test
   void positionOperationEnumAndSignedQuantityRemainExhaustive() throws SQLException {
     try (Connection connection = connection()) {
@@ -452,6 +460,7 @@ class DatabaseReportingContractIT {
     }
   }
 
+  @DisplayName("unresolved Cash Operation Appears In Diagnostics And Monthly Review")
   @Test
   void unresolvedCashOperationAppearsInDiagnosticsAndMonthlyReview() throws SQLException {
     try (Connection connection = connection()) {
@@ -508,6 +517,7 @@ class DatabaseReportingContractIT {
     }
   }
 
+  @DisplayName("ownership And Timezone Contracts Remain Valid")
   @Test
   void ownershipAndTimezoneContractsRemainValid() throws SQLException {
     try (Connection connection = connection();
@@ -536,6 +546,7 @@ class DatabaseReportingContractIT {
     }
   }
 
+  @DisplayName("scoped Subaccount Transfers Count Only The Directional Account Effect")
   @Test
   void scopedSubaccountTransfersCountOnlyTheDirectionalAccountEffect() throws SQLException {
     try (Connection connection = connection()) {
@@ -580,6 +591,7 @@ class DatabaseReportingContractIT {
     }
   }
 
+  @DisplayName("portfolio Contribution Gross Amounts Assign Only Boundary Transfer Net")
   @Test
   void portfolioContributionGrossAmountsAssignOnlyBoundaryTransferNet() throws SQLException {
     try (Connection connection = connection()) {
@@ -611,6 +623,7 @@ class DatabaseReportingContractIT {
     }
   }
 
+  @DisplayName("performance Flow Separates Capital From Bookkeeping Cash Effects")
   @Test
   void performanceFlowSeparatesCapitalFromBookkeepingCashEffects() throws SQLException {
     try (Connection connection = connection()) {
@@ -814,9 +827,7 @@ class DatabaseReportingContractIT {
   private static Connection connection() throws SQLException {
     Connection connection =
         DriverManager.getConnection(
-            FastDatabase.container().getJdbcUrl(),
-            FastDatabase.container().getUsername(),
-            FastDatabase.container().getPassword());
+            FastDatabase.jdbcUrl(), FastDatabase.username(), FastDatabase.password());
     assertNotNull(connection);
     return connection;
   }

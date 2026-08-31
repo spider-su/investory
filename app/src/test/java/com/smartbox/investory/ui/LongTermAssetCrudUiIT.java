@@ -10,6 +10,7 @@ import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.Tracing;
 import com.microsoft.playwright.options.AriaRole;
+import com.microsoft.playwright.options.LoadState;
 import com.smartbox.investory.testsupport.FastDatabaseTest;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -21,15 +22,19 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.jdbc.Sql;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@Sql(scripts = "/ui/ui-page-smoke-fixture.sql")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@DisplayName("Long Term Asset Crud UI")
 class LongTermAssetCrudUiIT extends FastDatabaseTest {
 
   private static final Path ARTIFACT_DIRECTORY = Path.of("target", "ui-test-results");
@@ -55,6 +60,7 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
     if (playwright != null) playwright.close();
   }
 
+  @DisplayName("other Assets Can Be Created Edited And Archived Through The Ui")
   @Test
   void otherAssetsCanBeCreatedEditedAndArchivedThroughTheUi() {
     runScenario(
@@ -105,6 +111,7 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
         });
   }
 
+  @DisplayName("bonds Can Be Created Edited And Archived Through The Ui")
   @Test
   void bondsCanBeCreatedEditedAndArchivedThroughTheUi() {
     runScenario(
@@ -163,6 +170,7 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
         });
   }
 
+  @DisplayName("cash Reserves Can Be Created Edited And Archived Through The Ui")
   @Test
   void cashReservesCanBeCreatedEditedAndArchivedThroughTheUi() {
     runScenario(
@@ -201,6 +209,7 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
         });
   }
 
+  @DisplayName("deposits Can Be Created Edited And Archived Through The Ui")
   @Test
   void depositsCanBeCreatedEditedAndArchivedThroughTheUi() {
     runScenario(
@@ -254,8 +263,8 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
           fill(page, "#asset-notes", edited.notes());
           submitFormContaining(page, "#asset-name", "Save changes");
           fill(page, "#deposit-maturity", edited.maturityDate());
-          fill(page, "#deposit-rate", edited.annualInterestRate());
-          fill(page, "#deposit-tax", edited.taxRate());
+          fill(page, "#deposit-rate", percent(edited.annualInterestRate()));
+          fill(page, "#deposit-tax", percent(edited.taxRate()));
           select(page, "#deposit-interest-mode", edited.interestTreatment());
           submitFormContaining(page, "#deposit-maturity", "Save deposit details");
           assertDeposit(page, firstId, edited, edited.value(), true);
@@ -265,6 +274,8 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
         });
   }
 
+  @DisplayName(
+      "real Estate And Rental Contracts Can Be Created Edited Deleted And Archived Through The Ui")
   @Test
   void realEstateAndRentalContractsCanBeCreatedEditedDeletedAndArchivedThroughTheUi() {
     runScenario(
@@ -427,8 +438,8 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
     fill(page, "[name='value']", asset.value());
     fill(page, "[name='acquisitionDate']", asset.acquisitionDate());
     fill(page, "[name='maturityDate']", asset.maturityDate());
-    fill(page, "[name='annualInterestRate']", asset.annualInterestRate());
-    fill(page, "[name='taxRate']", asset.taxRate());
+    fill(page, "[name='annualInterestRatePercent']", percent(asset.annualInterestRate()));
+    fill(page, "[name='taxRatePercent']", percent(asset.taxRate()));
     select(page, "[name='interestTreatment']", asset.interestTreatment());
     fill(page, "[name='notes']", asset.notes());
     clickButton(page, "Save deposit");
@@ -568,8 +579,8 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
     assertInput(page, "#asset-acquisition-value", acquisitionValue);
     assertInput(page, "#asset-notes", asset.notes());
     assertInput(page, "#deposit-maturity", asset.maturityDate());
-    assertNumberInput(page, "#deposit-rate", asset.annualInterestRate());
-    assertNumberInput(page, "#deposit-tax", asset.taxRate());
+    assertNumberInput(page, "#deposit-rate", percent(asset.annualInterestRate()));
+    assertNumberInput(page, "#deposit-tax", percent(asset.taxRate()));
     assertInput(page, "#deposit-interest-mode", asset.interestTreatment());
     assertBaseDb(
         id,
@@ -932,11 +943,15 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
         .getByRole(
             AriaRole.BUTTON, new Locator.GetByRoleOptions().setName(buttonName).setExact(true))
         .click();
+    // wait for network idle to ensure server-side redirect/processing completes
+    page.waitForLoadState(LoadState.NETWORKIDLE);
   }
 
   private void clickButton(Page page, String name) {
     page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName(name).setExact(true))
         .click();
+    // wait for network idle to ensure server-side redirect/processing completes
+    page.waitForLoadState(LoadState.NETWORKIDLE);
   }
 
   private static void fill(Page page, String selector, String value) {
@@ -1015,6 +1030,10 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
 
   private static String percentRate(String percent) {
     return new BigDecimal(percent).movePointLeft(2).toPlainString();
+  }
+
+  private static String percent(String rate) {
+    return new BigDecimal(rate).movePointRight(2).stripTrailingZeros().toPlainString();
   }
 
   private static String nullToEmpty(String value) {

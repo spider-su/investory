@@ -1,12 +1,11 @@
 package com.smartbox.investory.integrations.fx;
 
-import com.smartbox.investory.integrations.infrastructure.integration.IntegrationType;
-import com.smartbox.investory.integrations.infrastructure.integration.PluginConfig;
-import com.smartbox.investory.integrations.infrastructure.integration.config.IntegrationConfigurationService;
-import com.smartbox.investory.integrations.infrastructure.integration.fx.ExchangeRateHostFxDataPlugin;
+import com.smartbox.investory.integrations.fx.exchangeratehost.ExchangeRateHostFxDataPlugin;
+import com.smartbox.investory.integrations.management.api.model.IntegrationType;
+import com.smartbox.investory.integrations.management.application.IntegrationConfigurationService;
+import com.smartbox.investory.integrations.management.model.PluginConfig;
 import com.smartbox.investory.investment.port.fx.FxRateProvider;
 import com.smartbox.investory.investment.port.fx.FxRateProviderException;
-import java.math.BigDecimal;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -24,21 +23,7 @@ public class ConfiguredFxRateProvider implements FxRateProvider {
       PluginConfig config =
           configuration.resolveForRuntime(
               IntegrationType.FX_DATA, ExchangeRateHostFxDataPlugin.ID, PluginConfig.empty());
-      return plugin
-          .fetchRates(
-              new com.smartbox.investory.integrations.infrastructure.integration.fx.FxRequest(
-                  request.base(), request.targets(), request.effectiveDate()),
-              config)
-          .stream()
-          .map(
-              quote ->
-                  new FxRateProvider.FxQuote(
-                      quote.base(),
-                      quote.target(),
-                      BigDecimal.valueOf(quote.rate()),
-                      request.effectiveDate(),
-                      quote.providerDate()))
-          .toList();
+      return plugin.fetchRates(request, config);
     } catch (RuntimeException exception) {
       throw new FxRateProviderException(exception.getMessage(), exception);
     }

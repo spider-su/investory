@@ -5,4 +5,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface PortfolioCurrencyBreakdownRepository
-    extends ReadOnlyRepository<PortfolioCurrencyBreakdownEntity, PortfolioCurrencyBreakdownId> {}
+    extends ReadOnlyRepository<PortfolioCurrencyBreakdownEntity, PortfolioCurrencyBreakdownId> {
+  java.util.List<PortfolioCurrencyBreakdownEntity> findAllByMetricType(String metricType);
+}

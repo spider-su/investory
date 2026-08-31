@@ -4,8 +4,7 @@ import com.smartbox.investory.investment.infrastructure.persistence.account.Acco
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationEntity;
-import com.smartbox.investory.investment.ledger.position.persistence.ClosedPosition;
-import com.smartbox.investory.investment.ledger.position.persistence.OpenedPosition;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
 import com.smartbox.investory.investment.valuation.fx.persistence.CurrencyRateEntity;
 import java.util.List;
 
@@ -50,11 +49,11 @@ public record PortfolioTestContext(
       List<CashOperationEntity> all) {}
 
   public record Positions(
-      OpenedPosition aaplOpen,
-      OpenedPosition aaplSecondLot,
-      ClosedPosition aaplPartialSale,
-      List<OpenedPosition> open,
-      List<ClosedPosition> closed) {}
+      PositionEntity aaplOpen,
+      PositionEntity aaplSecondLot,
+      PositionEntity aaplPartialSale,
+      List<PositionEntity> open,
+      List<PositionEntity> closed) {}
 
   public record FxRates(
       CurrencyRateEntity eurUsd, CurrencyRateEntity plnUsd, List<CurrencyRateEntity> all) {}

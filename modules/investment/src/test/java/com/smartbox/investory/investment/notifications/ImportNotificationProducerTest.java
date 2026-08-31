@@ -14,14 +14,21 @@ import com.smartbox.investory.investment.infrastructure.persistence.imports.Impo
 import com.smartbox.investory.shared.notifications.NotificationCandidate;
 import com.smartbox.investory.shared.notifications.NotificationEventPublisher;
 import java.time.ZonedDateTime;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.springframework.context.ApplicationEventPublisher;
 
+@DisplayName("Import Notification Producer")
 class ImportNotificationProducerTest {
   private final NotificationEventPublisher events = Mockito.mock(NotificationEventPublisher.class);
-  private final ImportNotificationProducer producer = new ImportNotificationProducer(events);
+  private final ApplicationEventPublisher applicationEvents =
+      Mockito.mock(ApplicationEventPublisher.class);
+  private final ImportNotificationProducer producer =
+      new ImportNotificationProducer(events, applicationEvents);
 
+  @DisplayName("publishes Failed And Partial With Stable Final Status Fingerprint")
   @Test
   void publishesFailedAndPartialWithStableFinalStatusFingerprint() {
     when(events.publish(any())).thenReturn(true);
@@ -36,12 +43,14 @@ class ImportNotificationProducerTest {
     assertTrue(candidates.getAllValues().get(1).fingerprint().endsWith(":8:PARTIAL"));
   }
 
+  @DisplayName("successful Import Does Not Publish")
   @Test
   void successfulImportDoesNotPublish() {
     assertFalse(producer.publishFinalized(batch(9L, ImportBatchStatus.COMPLETED)));
     verify(events, never()).publish(any());
   }
 
+  @DisplayName("failure Payload Uses Only Concise First Line And Hides Telegram Chat Reference")
   @Test
   void failurePayloadUsesOnlyConciseFirstLineAndHidesTelegramChatReference() {
     when(events.publish(any())).thenReturn(true);

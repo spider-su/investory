@@ -128,11 +128,7 @@ public class AccountDailyEntity {
   @Column(name = "updated_at", nullable = false)
   private ZonedDateTime updatedAt;
 
-  public Double getCashBalance() {
-    return asDouble(cashBalance);
-  }
-
-  public BigDecimal getCashBalanceValue() {
+  public BigDecimal getCashBalance() {
     return cashBalance;
   }
 
@@ -140,19 +136,7 @@ public class AccountDailyEntity {
     this.cashBalance = scaleDecimal(cashBalance);
   }
 
-  public void setCashBalance(Double cashBalance) {
-    this.cashBalance = scaleDecimal(cashBalance);
-  }
-
-  public void setCashBalance(double cashBalance) {
-    setCashBalance(Double.valueOf(cashBalance));
-  }
-
-  public Double getMarketValue() {
-    return asDouble(marketValue);
-  }
-
-  public BigDecimal getMarketValueValue() {
+  public BigDecimal getMarketValue() {
     return marketValue;
   }
 
@@ -160,19 +144,7 @@ public class AccountDailyEntity {
     this.marketValue = scaleDecimal(marketValue);
   }
 
-  public void setMarketValue(Double marketValue) {
-    this.marketValue = scaleDecimal(marketValue);
-  }
-
-  public void setMarketValue(double marketValue) {
-    setMarketValue(Double.valueOf(marketValue));
-  }
-
-  public Double getEquity() {
-    return asDouble(equity);
-  }
-
-  public BigDecimal getEquityValue() {
+  public BigDecimal getEquity() {
     return equity;
   }
 
@@ -180,19 +152,7 @@ public class AccountDailyEntity {
     this.equity = scaleDecimal(equity);
   }
 
-  public void setEquity(Double equity) {
-    this.equity = scaleDecimal(equity);
-  }
-
-  public void setEquity(double equity) {
-    setEquity(Double.valueOf(equity));
-  }
-
-  public Double getUnrealizedProfit() {
-    return asDouble(unrealizedProfit);
-  }
-
-  public BigDecimal getUnrealizedProfitValue() {
+  public BigDecimal getUnrealizedProfit() {
     return unrealizedProfit;
   }
 
@@ -200,19 +160,7 @@ public class AccountDailyEntity {
     this.unrealizedProfit = scaleDecimal(unrealizedProfit);
   }
 
-  public void setUnrealizedProfit(Double unrealizedProfit) {
-    this.unrealizedProfit = scaleDecimal(unrealizedProfit);
-  }
-
-  public void setUnrealizedProfit(double unrealizedProfit) {
-    setUnrealizedProfit(Double.valueOf(unrealizedProfit));
-  }
-
-  public Double getCostBase() {
-    return asDouble(costBase);
-  }
-
-  public BigDecimal getCostBaseValue() {
+  public BigDecimal getCostBase() {
     return costBase;
   }
 
@@ -220,19 +168,7 @@ public class AccountDailyEntity {
     this.costBase = scaleDecimal(costBase);
   }
 
-  public void setCostBase(Double costBase) {
-    this.costBase = scaleDecimal(costBase);
-  }
-
-  public void setCostBase(double costBase) {
-    setCostBase(Double.valueOf(costBase));
-  }
-
-  public Double getRealizedProfit() {
-    return asDouble(realizedProfit);
-  }
-
-  public BigDecimal getRealizedProfitValue() {
+  public BigDecimal getRealizedProfit() {
     return realizedProfit;
   }
 
@@ -240,19 +176,7 @@ public class AccountDailyEntity {
     this.realizedProfit = scaleDecimal(realizedProfit);
   }
 
-  public void setRealizedProfit(Double realizedProfit) {
-    this.realizedProfit = scaleDecimal(realizedProfit);
-  }
-
-  public void setRealizedProfit(double realizedProfit) {
-    setRealizedProfit(Double.valueOf(realizedProfit));
-  }
-
-  public Double getDividends() {
-    return asDouble(dividends);
-  }
-
-  public BigDecimal getDividendsValue() {
+  public BigDecimal getDividends() {
     return dividends;
   }
 
@@ -260,19 +184,7 @@ public class AccountDailyEntity {
     this.dividends = scaleDecimal(dividends);
   }
 
-  public void setDividends(Double dividends) {
-    this.dividends = scaleDecimal(dividends);
-  }
-
-  public void setDividends(double dividends) {
-    setDividends(Double.valueOf(dividends));
-  }
-
-  public Double getInterest() {
-    return asDouble(interest);
-  }
-
-  public BigDecimal getInterestValue() {
+  public BigDecimal getInterest() {
     return interest;
   }
 
@@ -280,19 +192,7 @@ public class AccountDailyEntity {
     this.interest = scaleDecimal(interest);
   }
 
-  public void setInterest(Double interest) {
-    this.interest = scaleDecimal(interest);
-  }
-
-  public void setInterest(double interest) {
-    setInterest(Double.valueOf(interest));
-  }
-
-  public Double getFees() {
-    return asDouble(fees);
-  }
-
-  public BigDecimal getFeesValue() {
+  public BigDecimal getFees() {
     return fees;
   }
 
@@ -300,19 +200,7 @@ public class AccountDailyEntity {
     this.fees = scaleDecimal(fees);
   }
 
-  public void setFees(Double fees) {
-    this.fees = scaleDecimal(fees);
-  }
-
-  public void setFees(double fees) {
-    setFees(Double.valueOf(fees));
-  }
-
-  public Double getTaxes() {
-    return asDouble(taxes);
-  }
-
-  public BigDecimal getTaxesValue() {
+  public BigDecimal getTaxes() {
     return taxes;
   }
 
@@ -320,19 +208,7 @@ public class AccountDailyEntity {
     this.taxes = scaleDecimal(taxes);
   }
 
-  public void setTaxes(Double taxes) {
-    this.taxes = scaleDecimal(taxes);
-  }
-
-  public void setTaxes(double taxes) {
-    setTaxes(Double.valueOf(taxes));
-  }
-
-  public Double getDeposits() {
-    return asDouble(deposits);
-  }
-
-  public BigDecimal getDepositsValue() {
+  public BigDecimal getDeposits() {
     return deposits;
   }
 
@@ -340,19 +216,7 @@ public class AccountDailyEntity {
     this.deposits = scaleDecimal(deposits);
   }
 
-  public void setDeposits(Double deposits) {
-    this.deposits = scaleDecimal(deposits);
-  }
-
-  public void setDeposits(double deposits) {
-    setDeposits(Double.valueOf(deposits));
-  }
-
-  public Double getWithdrawals() {
-    return asDouble(withdrawals);
-  }
-
-  public BigDecimal getWithdrawalsValue() {
+  public BigDecimal getWithdrawals() {
     return withdrawals;
   }
 
@@ -360,19 +224,7 @@ public class AccountDailyEntity {
     this.withdrawals = scaleDecimal(withdrawals);
   }
 
-  public void setWithdrawals(Double withdrawals) {
-    this.withdrawals = scaleDecimal(withdrawals);
-  }
-
-  public void setWithdrawals(double withdrawals) {
-    setWithdrawals(Double.valueOf(withdrawals));
-  }
-
-  public Double getDailyProfitAmount() {
-    return asDouble(dailyProfitAmount);
-  }
-
-  public BigDecimal getDailyProfitAmountValue() {
+  public BigDecimal getDailyProfitAmount() {
     return dailyProfitAmount;
   }
 
@@ -380,19 +232,7 @@ public class AccountDailyEntity {
     this.dailyProfitAmount = scaleDecimal(dailyProfitAmount);
   }
 
-  public void setDailyProfitAmount(Double dailyProfitAmount) {
-    this.dailyProfitAmount = scaleDecimal(dailyProfitAmount);
-  }
-
-  public void setDailyProfitAmount(double dailyProfitAmount) {
-    setDailyProfitAmount(Double.valueOf(dailyProfitAmount));
-  }
-
-  public Double getDailyReturn() {
-    return asDouble(dailyReturn);
-  }
-
-  public BigDecimal getDailyReturnValue() {
+  public BigDecimal getDailyReturn() {
     return dailyReturn;
   }
 
@@ -400,32 +240,12 @@ public class AccountDailyEntity {
     this.dailyReturn = scaleDecimal(dailyReturn);
   }
 
-  public void setDailyReturn(Double dailyReturn) {
-    this.dailyReturn = scaleDecimal(dailyReturn);
-  }
-
-  public void setDailyReturn(double dailyReturn) {
-    setDailyReturn(Double.valueOf(dailyReturn));
-  }
-
-  public Double getPortfolioWeight() {
-    return asDouble(portfolioWeight);
-  }
-
-  public BigDecimal getPortfolioWeightValue() {
+  public BigDecimal getPortfolioWeight() {
     return portfolioWeight;
   }
 
   public void setPortfolioWeight(BigDecimal portfolioWeight) {
     this.portfolioWeight = scaleDecimal(portfolioWeight);
-  }
-
-  public void setPortfolioWeight(Double portfolioWeight) {
-    this.portfolioWeight = scaleDecimal(portfolioWeight);
-  }
-
-  public void setPortfolioWeight(double portfolioWeight) {
-    setPortfolioWeight(Double.valueOf(portfolioWeight));
   }
 
   private static Double asDouble(BigDecimal value) {
@@ -434,9 +254,5 @@ public class AccountDailyEntity {
 
   private static BigDecimal scaleDecimal(BigDecimal value) {
     return value == null ? null : value.setScale(8, RoundingMode.HALF_UP);
-  }
-
-  private static BigDecimal scaleDecimal(Double value) {
-    return value == null ? null : scaleDecimal(BigDecimal.valueOf(value));
   }
 }

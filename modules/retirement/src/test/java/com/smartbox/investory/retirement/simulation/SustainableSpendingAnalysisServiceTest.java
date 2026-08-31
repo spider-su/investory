@@ -4,11 +4,15 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-import com.smartbox.investory.retirement.profile.InvestmentProfile;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.api.model.*;
 import java.math.BigDecimal;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Sustainable Spending Analysis Service")
 class SustainableSpendingAnalysisServiceTest {
+  @DisplayName("finds Base And Conservative Boundaries With Bounded Search")
   @Test
   void findsBaseAndConservativeBoundariesWithBoundedSearch() {
     SimulationEvaluationService evaluations = mock(SimulationEvaluationService.class);
@@ -52,6 +56,7 @@ class SustainableSpendingAnalysisServiceTest {
     assertEquals(SustainableSpendingResultState.BOUNDARY_FOUND, result.base().state());
   }
 
+  @DisplayName("reports Negative Headroom When Current Spending Is Already Unsustainable")
   @Test
   void reportsNegativeHeadroomWhenCurrentSpendingIsAlreadyUnsustainable() {
     SimulationEvaluationService evaluations = thresholdEvaluation(new BigDecimal("10000"));
@@ -71,6 +76,7 @@ class SustainableSpendingAnalysisServiceTest {
     assertEquals(SustainableSpendingResultState.BOUNDARY_FOUND, result.base().state());
   }
 
+  @DisplayName("zero Spending Has Normal Limit And No Percentage Headroom")
   @Test
   void zeroSpendingHasNormalLimitAndNoPercentageHeadroom() {
     SimulationEvaluationService evaluations = thresholdEvaluation(new BigDecimal("5000"));
@@ -89,6 +95,7 @@ class SustainableSpendingAnalysisServiceTest {
     assertEquals(SustainableSpendingResultState.BOUNDARY_FOUND, result.base().state());
   }
 
+  @DisplayName("reports No Sustainable Spending When Zero Still Fails")
   @Test
   void reportsNoSustainableSpendingWhenZeroStillFails() {
     SustainableSpendingAnalysis result =
@@ -102,6 +109,7 @@ class SustainableSpendingAnalysisServiceTest {
     assertEquals(BigDecimal.ZERO, result.base().sustainableSpending());
   }
 
+  @DisplayName("reports Upper Bound When Plan Is Sustainable At Maximum Search Value")
   @Test
   void reportsUpperBoundWhenPlanIsSustainableAtMaximumSearchValue() {
     SustainableSpendingAnalysis result =
@@ -115,6 +123,7 @@ class SustainableSpendingAnalysisServiceTest {
     assertFalse(result.base().sustainableBoundaryFound());
   }
 
+  @DisplayName("spending Override Preserves The Living To Discretionary Proportion")
   @Test
   void spendingOverridePreservesTheLivingToDiscretionaryProportion() {
     SimulationAssumptions base =
@@ -157,11 +166,8 @@ class SustainableSpendingAnalysisServiceTest {
         a.endAge(),
         living,
         a.inflationRate(),
-        a.cashReturnRate(),
         a.fixedIncomeReturnRate(),
         a.equityReturnRate(),
-        a.realEstateReturnRate(),
-        a.otherReturnRate(),
         a.pensionStartAge(),
         a.annualPension(),
         a.capitalGainTaxRate(),
@@ -174,6 +180,12 @@ class SustainableSpendingAnalysisServiceTest {
         a.safeReserveYears(),
         a.equityHarvestMinimumReturnRate(),
         a.equityGainHarvestRate(),
-        a.allowEmergencyEquityWithdrawal());
+        a.allowEmergencyEquityWithdrawal(),
+        a.retirementAge(),
+        a.annualEmploymentIncome(),
+        a.annualPreRetirementContribution(),
+        a.fundingOrder(),
+        a.expenseProfile(),
+        a.projectedIncomePolicy());
   }
 }

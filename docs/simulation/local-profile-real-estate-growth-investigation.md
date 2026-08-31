@@ -24,9 +24,9 @@ their effect exactly to the rendered live output. Asset `3` was not changed.
 
 ## Projection path and 2026 rate table
 
-`long_term_asset_valuation_periods` -> `LongTermAssetService.projectionInputs`
+`long_term_asset_valuation_periods` -> `LongTermAssetProjectionQueryService.projectionInputs`
 copies the stored growth rate into `LongTermAssetProjectionInput.Period`.
-`InvestmentProfileFacade` copies `annualReturnRate` unchanged into
+`ProfileQueryService` copies `annualReturnRate` unchanged into
 `ProjectedLongTermAsset.Period`. `RetirementSimulationService.activeRate`
 selects the applicable explicit rate; only a missing explicit rate uses the
 scenario fallback.
@@ -58,7 +58,7 @@ Plan `1` stores valid decimal rates: inflation `0.025`, cash `0.02`, fixed
 income `0.04`, equity `0.06`, real estate `0.025`, other `0.03`, capital-gain
 tax `0.19`. No legacy-scaled saved-plan rate was found.
 
-Return rates and tax rates are dimensionless. Current `InvestmentProfileFacade`
+Return rates and tax rates are dimensionless. Current `ProfileQueryService`
 does **not** FX-convert `annualReturnRate`; it converts only monetary values
 (current value, income, expense, redemption value, and tax base). With the
 observed PLN-to-USD FX rate, converting stored `0.01` would incorrectly create

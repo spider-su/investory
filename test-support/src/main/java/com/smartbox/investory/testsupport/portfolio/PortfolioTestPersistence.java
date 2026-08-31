@@ -3,8 +3,7 @@ package com.smartbox.investory.testsupport.portfolio;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
 import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationRepository;
-import com.smartbox.investory.investment.ledger.position.persistence.ClosedPositionRepository;
-import com.smartbox.investory.investment.ledger.position.persistence.OpenedPositionRepository;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionRepository;
 import com.smartbox.investory.investment.valuation.fx.persistence.CurrencyRateRepository;
 
 /** Small persistence facade for repository/integration tests using PortfolioScenarios. */
@@ -13,16 +12,16 @@ public final class PortfolioTestPersistence {
   private final AccountRepository accountRepository;
   private final AssetRepository assetRepository;
   private final CashOperationRepository cashOperationRepository;
-  private final OpenedPositionRepository openedPositionRepository;
-  private final ClosedPositionRepository closedPositionRepository;
+  private final PositionRepository openedPositionRepository;
+  private final PositionRepository closedPositionRepository;
   private final CurrencyRateRepository currencyRateRepository;
 
   public PortfolioTestPersistence(
       AccountRepository accountRepository,
       AssetRepository assetRepository,
       CashOperationRepository cashOperationRepository,
-      OpenedPositionRepository openedPositionRepository,
-      ClosedPositionRepository closedPositionRepository,
+      PositionRepository openedPositionRepository,
+      PositionRepository closedPositionRepository,
       CurrencyRateRepository currencyRateRepository) {
     this.accountRepository = accountRepository;
     this.assetRepository = assetRepository;

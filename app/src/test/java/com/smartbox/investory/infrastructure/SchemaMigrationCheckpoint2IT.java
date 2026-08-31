@@ -2,53 +2,61 @@ package com.smartbox.investory.infrastructure;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.smartbox.investory.testsupport.SharedPostgres;
+import com.smartbox.investory.testsupport.WorkerDatabase;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.stream.Stream;
 import org.flywaydb.core.Flyway;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * Migration chain test. It always runs against a disposable PostgreSQL container, never against a
  * developer database, so the destructive schema reset below cannot touch real data.
  */
-@Testcontainers
+@DisplayName("Schema Migration Checkpoint2")
 class SchemaMigrationCheckpoint2IT {
 
-  private static final String TEST_DATABASE_NAME = "investory_migration_test";
-
-  @Container
-  private final PostgreSQLContainer<?> postgres =
-      new PostgreSQLContainer<>("postgres:17-alpine")
-          .withDatabaseName(TEST_DATABASE_NAME)
-          .withUsername("investory_test")
-          .withPassword("investory_test");
+  private final WorkerDatabase postgres = SharedPostgres.database("migration_checkpoint");
 
   private String dbUrl() {
-    return postgres.getJdbcUrl();
+    return postgres.jdbcUrl();
   }
 
   private String dbUsername() {
-    return postgres.getUsername();
+    return postgres.username();
   }
 
   private String dbPassword() {
-    return postgres.getPassword();
+    return postgres.password();
   }
 
   private Connection openConnection() throws Exception {
     return DriverManager.getConnection(dbUrl(), dbUsername(), dbPassword());
+  }
+
+  private Flyway flyway(String target) {
+    var configuration =
+        Flyway.configure()
+            .cleanDisabled(false)
+            .dataSource(dbUrl(), dbUsername(), dbPassword())
+            .schemas("investory")
+            .defaultSchema("investory")
+            .locations("classpath:sql/migration");
+    if (target != null) configuration.target(target);
+    return configuration.load();
   }
 
   /**
@@ -58,10 +66,15 @@ class SchemaMigrationCheckpoint2IT {
   private void assertDisposableTestDatabase() {
     String url = dbUrl();
     if (url == null
-        || !url.matches("^jdbc:postgresql://.*/" + TEST_DATABASE_NAME + "(?:\\?.*)?$")) {
+        || !url.matches("^jdbc:postgresql://.*/" + postgres.databaseName() + "(?:\\?.*)?$")) {
       throw new IllegalStateException(
           "Refusing to run migration test against non-disposable database: " + url);
     }
+  }
+
+  @AfterAll
+  static void cleanupDatabase() {
+    SharedPostgres.database("migration_checkpoint").close();
   }
 
   @BeforeEach
@@ -70,12 +83,13 @@ class SchemaMigrationCheckpoint2IT {
 
     Flyway flyway =
         Flyway.configure()
-            .cleanDisabled(true)
+            .cleanDisabled(false)
             .dataSource(dbUrl(), dbUsername(), dbPassword())
             .schemas("investory")
             .defaultSchema("investory")
             .locations("classpath:sql/migration")
             .load();
+    flyway.clean();
     flyway.migrate();
     try (Connection connection = openConnection();
         Statement statement = connection.createStatement()) {
@@ -85,6 +99,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("applies All Migrations And Creates Checkpoint2Invariants")
   @Test
   void appliesAllMigrationsAndCreatesCheckpoint2Invariants() throws Exception {
     try (Connection connection = openConnection();
@@ -159,6 +174,32 @@ class SchemaMigrationCheckpoint2IT {
               WHERE table_schema = 'investory'
                 AND table_name = 'asset_types'
               """));
+      assertFalse(
+          exists(
+              statement,
+              """
+              SELECT 1
+              FROM information_schema.tables
+              WHERE table_schema = 'investory'
+                AND table_name = 'long_term_asset_cash_flows'
+              """));
+      assertTrue(
+          exists(
+              statement,
+              """
+              SELECT 1
+              FROM pg_trigger trigger_row
+              JOIN pg_class table_row ON table_row.oid = trigger_row.tgrelid
+              JOIN pg_namespace namespace_row ON namespace_row.oid = table_row.relnamespace
+              WHERE namespace_row.nspname = 'investory'
+                AND table_row.relname = 'long_term_asset_rental_contracts'
+                AND trigger_row.tgname = 'tr_long_term_rental_contract_type'
+              """));
+      assertTrue(
+          singleString(
+                  statement,
+                  "SELECT pg_get_functiondef('investory.assert_long_term_subtype_consistency()'::regprocedure)")
+              .contains("long_term_asset_rental_contracts"));
       assertEquals(
           11,
           singleInt(
@@ -166,6 +207,27 @@ class SchemaMigrationCheckpoint2IT {
               """
               SELECT count(*)
               FROM investory.asset_types
+              """));
+      assertFalse(
+          exists(
+              statement,
+              """
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'investory'
+                AND table_name = 'simulation_plans'
+                AND column_name = 'funding_order'
+              """));
+      assertTrue(
+          exists(
+              statement,
+              """
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_schema = 'investory'
+                AND table_name = 'simulation_plan_revisions'
+                AND column_name = 'funding_order'
+                AND column_default LIKE '%RESERVE,LONG_TERM,INVESTMENT%'
               """));
       assertTrue(
           exists(
@@ -222,6 +284,7 @@ class SchemaMigrationCheckpoint2IT {
               statement, "reporting_account_statistics_vs_daily_reconciliation"));
       assertTrue(
           materializedViewExists(statement, "reporting_account_daily_cashflow_reconciliation"));
+      assertTrue(viewExists(statement, "reconciliation_account_daily_cashflow_full_precision"));
       assertTrue(viewExists(statement, "reporting_trade_settlement_reconciliation_by_account"));
       assertTrue(viewExists(statement, "v_reporting_validation_summary"));
       assertTrue(viewExists(statement, "v_position_currency_validation"));
@@ -333,6 +396,55 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("rental contract trigger accepts real estate and rejects every other asset type")
+  @Test
+  void rentalContractTriggerEnforcesRealEstateSubtype() throws Exception {
+    assertSubtypeRejected(9101, "BOND");
+    assertSubtypeRejected(9102, "DEPOSIT");
+    assertSubtypeRejected(9103, "CASH_RESERVE");
+    assertSubtypeRejected(9104, "OTHER");
+
+    try (Connection connection = openConnection();
+        Statement statement = connection.createStatement()) {
+      statement.execute(
+          """
+          INSERT INTO investory.long_term_assets
+              (id, portfolio_id, name, asset_type, currency, current_value)
+          VALUES (9105, 1, 'Allowed rental', 'REAL_ESTATE', 'PLN', 100000);
+          INSERT INTO investory.long_term_asset_rental_contracts
+              (id, asset_id, start_date, end_date)
+          VALUES (9105, 9105, DATE '2026-01-01', DATE '2026-12-31');
+          """);
+      assertEquals(
+          1,
+          singleInt(
+              statement,
+              "SELECT count(*) FROM investory.long_term_asset_rental_contracts WHERE id = 9105"));
+    }
+  }
+
+  private void assertSubtypeRejected(long assetId, String assetType) throws Exception {
+    try (Connection connection = openConnection();
+        Statement statement = connection.createStatement()) {
+      statement.execute(
+          "INSERT INTO investory.long_term_assets "
+              + "(id, portfolio_id, name, asset_type, currency, current_value) VALUES ("
+              + assetId
+              + ", 1, 'Invalid rental', '"
+              + assetType
+              + "', 'PLN', 100000)");
+      assertThrows(
+          SQLException.class,
+          () ->
+              statement.execute(
+                  "INSERT INTO investory.long_term_asset_rental_contracts "
+                      + "(asset_id, start_date, end_date) VALUES ("
+                      + assetId
+                      + ", DATE '2026-01-01', DATE '2026-12-31')"));
+    }
+  }
+
+  @DisplayName("monthly Profit Boundary Uses Canonical Account Flow Scope")
   @Test
   void monthlyProfitBoundaryUsesCanonicalAccountFlowScope() throws Exception {
     try (Connection connection = openConnection();
@@ -350,6 +462,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("classifies Ibkr Cash Transfer With Enriched Comment As External Deposit")
   @Test
   void classifiesIbkrCashTransferWithEnrichedCommentAsExternalDeposit() throws Exception {
     try (Connection connection = openConnection();
@@ -376,6 +489,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("stores Jgpi With Declared Currency Across Asset History")
   @Test
   void storesJgpiWithDeclaredCurrencyAcrossAssetHistory() throws Exception {
     try (Connection connection = openConnection();
@@ -404,6 +518,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("preserves Vhyl Distributing Identity Across Mappings")
   @Test
   @Disabled
   void preservesVhylDistributingIdentityAcrossMappings() throws Exception {
@@ -428,6 +543,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("validates Included Asset Identity And Mapping Contracts")
   @Test
   void validatesIncludedAssetIdentityAndMappingContracts() throws Exception {
     try (Connection connection = openConnection();
@@ -456,6 +572,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("flags Included Price Quality Anomalies Without Rejecting History")
   @Test
   void flagsIncludedPriceQualityAnomaliesWithoutRejectingHistory() throws Exception {
     try (Connection connection = openConnection();
@@ -520,6 +637,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("recomputes Included Derived Views And Reports Reconciliation Summary")
   @Test
   void recomputesIncludedDerivedViewsAndReportsReconciliationSummary() throws Exception {
     try (Connection connection = openConnection();
@@ -583,6 +701,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("excluded Assets Are Absent From Valuation And Price Diagnostics")
   @Test
   void excludedAssetsAreAbsentFromValuationAndPriceDiagnostics() throws Exception {
     try (Connection connection = openConnection();
@@ -649,6 +768,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("price History Contract Diagnostics Are Empty After Seed Repair")
   @Test
   void priceHistoryContractDiagnosticsAreEmptyAfterSeedRepair() throws Exception {
     try (Connection connection = openConnection();
@@ -681,6 +801,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("canonical Price Selection Is Unique And Deterministic Across Sources")
   @Test
   void canonicalPriceSelectionIsUniqueAndDeterministicAcrossSources() throws Exception {
     try (Connection connection = openConnection();
@@ -720,6 +841,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("corporate Action Uses Adjusted Return Basis And Compatible Position Quantity")
   @Test
   void corporateActionUsesAdjustedReturnBasisAndCompatiblePositionQuantity() throws Exception {
     try (Connection connection = openConnection();
@@ -795,6 +917,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("bond Monetary Price Uses Unit Contract Multiplier")
   @Test
   void bondMonetaryPriceUsesUnitContractMultiplier() throws Exception {
     try (Connection connection = openConnection();
@@ -840,6 +963,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("current Position Cost Basis Uses Acquisition Date Fx")
   @Test
   void currentPositionCostBasisUsesAcquisitionDateFx() throws Exception {
     try (Connection connection = openConnection();
@@ -879,6 +1003,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("advances Portfolio Sequence Past Seeded Ids")
   @Test
   void advancesPortfolioSequencePastSeededIds() throws Exception {
     try (Connection connection = openConnection();
@@ -895,6 +1020,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("converts Account Daily Values To Portfolio Base Currency")
   @Test
   void convertsAccountDailyValuesToPortfolioBaseCurrency() throws Exception {
     try (Connection connection = openConnection();
@@ -927,6 +1053,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("requires Core Raw Row Fields")
   @Test
   void requiresCoreRawRowFields() throws Exception {
     try (Connection connection = openConnection();
@@ -952,6 +1079,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("same Currency Position Does Not Report Missing Fx")
   @Test
   void sameCurrencyPositionDoesNotReportMissingFx() throws Exception {
     try (Connection connection = openConnection();
@@ -986,6 +1114,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("keeps Usd Cost Currency For Usd Asset Held In Pln Accounts")
   @Test
   void keepsUsdCostCurrencyForUsdAssetHeldInPlnAccounts() throws Exception {
     try (Connection connection = openConnection();
@@ -1067,6 +1196,8 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName(
+      "canonical Portfolio Fx Supports Same Currency Direct Inverse Triangulation Stale And Missing")
   @Test
   void canonicalPortfolioFxSupportsSameCurrencyDirectInverseTriangulationStaleAndMissing()
       throws Exception {
@@ -1172,6 +1303,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("account Statistics Fail Closed When One Cash Operation Has Missing Fx")
   @Test
   void accountStatisticsFailClosedWhenOneCashOperationHasMissingFx() throws Exception {
     try (Connection connection = openConnection();
@@ -1257,6 +1389,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("reconciles Result Only And Same Day Round Trip Contracts")
   @Test
   void reconcilesResultOnlyAndSameDayRoundTripContracts() throws Exception {
     try (Connection connection = openConnection();
@@ -1404,6 +1537,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("historical Excluded Asset Still Resolves Currency In Position Validation")
   @Test
   void historicalExcludedAssetStillResolvesCurrencyInPositionValidation() throws Exception {
     try (Connection connection = openConnection();
@@ -1444,6 +1578,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("account Statistics Uses Cash Ledger Result For Usd Result Only Positions")
   @Test
   void accountStatisticsUsesCashLedgerResultForUsdResultOnlyPositions() throws Exception {
     try (Connection connection = openConnection();
@@ -1502,6 +1637,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("position Reporting Converts Profit And Commission Currencies Before Summing")
   @Test
   void positionReportingConvertsProfitAndCommissionCurrenciesBeforeSumming() throws Exception {
     try (Connection connection = openConnection();
@@ -1613,6 +1749,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("normalized Daily Price Prefers Fresh Effective Observation And Rejects Future Data")
   @Test
   void normalizedDailyPricePrefersFreshEffectiveObservationAndRejectsFutureData() throws Exception {
     try (Connection connection = openConnection();
@@ -1695,6 +1832,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("position Valuation Does Not Bridge AClosed Holding Gap")
   @Test
   void positionValuationDoesNotBridgeAClosedHoldingGap() throws Exception {
     try (Connection connection = openConnection();
@@ -1751,6 +1889,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("approved Alternate Listing Does Not Invent Previous Price Expected Value")
   @Test
   void approvedAlternateListingDoesNotInventPreviousPriceExpectedValue() throws Exception {
     try (Connection connection = openConnection();
@@ -1803,6 +1942,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("manual Weekly Price Movement Is An Explicit Review Not An Ok Mismatch")
   @Test
   void manualWeeklyPriceMovementIsAnExplicitReviewNotAnOkMismatch() throws Exception {
     try (Connection connection = openConnection();
@@ -1886,6 +2026,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("account Daily Reconciliation Uses Total Signed Realized Result")
   @Test
   void accountDailyReconciliationUsesTotalSignedRealizedResult() throws Exception {
     try (Connection connection = openConnection();
@@ -1948,6 +2089,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("statistics Reconciliation Labels Different As Of Dates Explicitly")
   @Test
   void statisticsReconciliationLabelsDifferentAsOfDatesExplicitly() throws Exception {
     try (Connection connection = openConnection();
@@ -1977,6 +2119,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("statistics Reconciliation Labels Realized Only Difference As Semantic Review")
   @Test
   void statisticsReconciliationLabelsRealizedOnlyDifferenceAsSemanticReview() throws Exception {
     try (Connection connection = openConnection();
@@ -2010,6 +2153,7 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("reconciliation Tolerance Uses Full Precision And Configured Display Scale")
   @Test
   void reconciliationToleranceUsesFullPrecisionAndConfiguredDisplayScale() throws Exception {
     try (Connection connection = openConnection();

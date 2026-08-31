@@ -1,5 +1,6 @@
 package com.smartbox.investory.investment.api.operations;
 
+import com.smartbox.investory.investment.api.importing.ImportBroker;
 import java.time.ZonedDateTime;
 import java.util.Optional;
 
@@ -9,7 +10,7 @@ public interface ImportOperationsReader {
 
   record ImportOperationsSnapshot(
       long batchId,
-      String broker,
+      ImportBroker broker,
       String status,
       ZonedDateTime startedAt,
       ZonedDateTime finishedAt) {}

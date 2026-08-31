@@ -1,5 +1,6 @@
 package com.smartbox.investory.investment.reporting;
 
+import com.smartbox.investory.investment.api.reporting.model.PerformanceAttribution;
 import java.math.BigDecimal;
 
 /** Composes attribution from canonical reporting components; does not recalculate P/L. */
@@ -30,6 +31,6 @@ public final class PerformanceAttributionCalculator {
   }
 
   private static BigDecimal nz(BigDecimal value) {
-    return value == null ? BigDecimal.ZERO : value;
+    return com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull(value);
   }
 }

@@ -1,9 +1,10 @@
 package com.smartbox.investory.investment.valuation.fx;
 
+import com.smartbox.investory.shared.currency.CurrencyConversionUnavailableException;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.LocalDate;
 
-public class FxRateUnavailableException extends IllegalStateException {
+public class FxRateUnavailableException extends CurrencyConversionUnavailableException {
 
   public FxRateUnavailableException(
       CurrencyType sourceCurrency,

@@ -70,6 +70,18 @@ resolved by changing the documentation.
 
 - [`quality/reconciliation.md`](quality/reconciliation.md): C0-C7 pipeline checkpoints,
   economic-truth validation, regression classes, and current reconciliation tooling.
+- [`quality/01-investment-dashboard-manual-qa.md`](quality/01-investment-dashboard-manual-qa.md):
+  dashboard, import, valuation, and responsive UI manual checks.
+- [`quality/02-long-term-assets-manual-qa.md`](quality/02-long-term-assets-manual-qa.md):
+  long-term asset, rental contract, lifecycle, and tax manual checks.
+- [`quality/03-investment-profile-manual-qa.md`](quality/03-investment-profile-manual-qa.md):
+  whole-wealth profile and source-lineage manual checks.
+- [`quality/04-retirement-planning-simulation-manual-qa.md`](quality/04-retirement-planning-simulation-manual-qa.md):
+  retirement planning and simulation manual checks.
+- [`quality/05-integrations-manual-qa.md`](quality/05-integrations-manual-qa.md):
+  integration settings, provider, secret, and failure-boundary manual checks.
+- [`quality/06-reconciliation-data-quality-manual-qa.md`](quality/06-reconciliation-data-quality-manual-qa.md):
+  reconciliation and persisted data-quality manual checks.
 - [`reconciliation/local-profile-db-persistence-freeze-readiness.md`](reconciliation/local-profile-db-persistence-freeze-readiness.md): current database/persistence freeze-readiness audit and required remaining checks.
 
 ## Operational and investigation material
@@ -89,8 +101,8 @@ override the canonical domain, architecture, integration, or quality contracts a
 Package-local `README.md` files describe code-specific conventions and should remain next to that
 code. In particular:
 
-- `src/test/java/com/smartbox/testsupport/portfolio/README.md`: deterministic portfolio test data
-  and scenario-building rules.
+- `test-support/src/main/java/com/smartbox/investory/testsupport/README.md`: shared PostgreSQL test
+  infrastructure, deterministic portfolio fixtures, and scenario-building rules.
 
 ## Archive
 

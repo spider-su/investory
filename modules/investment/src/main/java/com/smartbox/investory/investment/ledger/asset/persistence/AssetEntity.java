@@ -108,11 +108,7 @@ public class AssetEntity {
     return active;
   }
 
-  public Double getMarketPrice() {
-    return asDouble(marketPrice);
-  }
-
-  public BigDecimal getMarketPriceValue() {
+  public BigDecimal getMarketPrice() {
     return marketPrice;
   }
 
@@ -120,32 +116,12 @@ public class AssetEntity {
     this.marketPrice = scaleDecimal(marketPrice);
   }
 
-  public void setMarketPrice(Double marketPrice) {
-    this.marketPrice = scaleDecimal(marketPrice);
-  }
-
-  public void setMarketPrice(double marketPrice) {
-    setMarketPrice(Double.valueOf(marketPrice));
-  }
-
-  public Double getMarketPriceUsd() {
-    return asDouble(marketPriceUsd);
-  }
-
-  public BigDecimal getMarketPriceUsdValue() {
+  public BigDecimal getMarketPriceUsd() {
     return marketPriceUsd;
   }
 
   public void setMarketPriceUsd(BigDecimal marketPriceUsd) {
     this.marketPriceUsd = scaleDecimal(marketPriceUsd);
-  }
-
-  public void setMarketPriceUsd(Double marketPriceUsd) {
-    this.marketPriceUsd = scaleDecimal(marketPriceUsd);
-  }
-
-  public void setMarketPriceUsd(double marketPriceUsd) {
-    setMarketPriceUsd(Double.valueOf(marketPriceUsd));
   }
 
   private static Double asDouble(BigDecimal value) {
@@ -154,9 +130,5 @@ public class AssetEntity {
 
   private static BigDecimal scaleDecimal(BigDecimal value) {
     return value == null ? null : value.setScale(8, RoundingMode.HALF_UP);
-  }
-
-  private static BigDecimal scaleDecimal(Double value) {
-    return value == null ? null : scaleDecimal(BigDecimal.valueOf(value));
   }
 }

@@ -2,15 +2,19 @@ package com.smartbox.investory.retirement.simulation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.smartbox.investory.retirement.profile.InvestmentProfile;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /** Lifecycle boundary contract for contributions, retirement, pension and one-off events. */
+@DisplayName("Retirement Lifecycle Cash Flow Integration")
 class RetirementLifecycleCashFlowIntegrationTest {
 
+  @DisplayName("contributions Stop At Retirement And Events Apply At Lifecycle Boundaries")
   @Test
   void contributionsStopAtRetirementAndEventsApplyAtLifecycleBoundaries() {
     var service = new RetirementSimulationService();
@@ -87,15 +91,28 @@ class RetirementLifecycleCashFlowIntegrationTest {
         bd("11000"),
         BigDecimal.ZERO,
         bd("11000"),
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
         bd("10000"),
         BigDecimal.ZERO,
         List.of(),
-        List.of(),
         BigDecimal.ZERO,
-        BigDecimal.ZERO);
+        BigDecimal.ZERO,
+        new com.smartbox.investory.profile.api.model.ProfileAssetProjection(
+            List.of(),
+            java.math.BigDecimal.ZERO,
+            0,
+            com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
+        (bd("10000") == null ? java.math.BigDecimal.ZERO : bd("10000")),
+        bd("11000")
+            .subtract((bd("10000") == null ? java.math.BigDecimal.ZERO : bd("10000")))
+            .max(java.math.BigDecimal.ZERO),
+        com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
+            BigDecimal.ZERO,
+            bd("11000"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            bd("11000")),
+        com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
   }
 
   private static BigDecimal bd(String value) {

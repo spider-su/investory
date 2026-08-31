@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Integration settings · Investory</title>
+  <link href="/css/tabler.min.css" rel="stylesheet">
+  <th:block th:replace="~{fragments/theme-head :: theme}"></th:block>
+</head>
+<body>
+<main class="iv-app iv-settings-page">
+  <header class="iv-topbar iv-app-header-shell iv-settings-topbar">
+    <div class="iv-topbar__primary iv-settings-topbar__primary">
+      <div class="iv-brand">
+        <div class="iv-brand__content">
+          <div class="iv-brand__title-row">
+            <h1 class="iv-brand__title">Investory</h1>
+            <button id="theme-toggle" class="iv-theme-toggle iv-theme-toggle--brand" type="button"
+                    aria-label="Switch to dark mode" title="Switch to dark mode">
+              <svg class="iv-theme-toggle__icon" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="8"></circle>
+                <path d="M12 4a8 8 0 0 0 0 16z" fill="currentColor" stroke="none"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="iv-settings-heading">
+        <span class="iv-settings-heading__kicker">Administration</span>
+        <h2>Integration settings</h2>
+        <p>Configure external providers and credentials.</p>
+      </div>
+      <div aria-hidden="true"></div>
+    </div>
+    <div class="iv-topbar__secondary iv-settings-topbar__secondary">
+      <div aria-hidden="true"></div>
+      <div class="iv-page-nav-slot">
+        <div th:replace="~{fragments/app-header :: appNavigation('settings', null)}"></div>
+      </div>
+      <div aria-hidden="true"></div>
+    </div>
+  </header>
+
+  <section class="iv-settings-content" aria-labelledby="integration-settings-title">
+    <h2 id="integration-settings-title" class="visually-hidden">Integration providers</h2>
+    <div class="iv-alert iv-alert--success" th:if="${success}" th:text="${success}" role="status"></div>
+    <div class="iv-alert iv-alert--error" th:if="${error}" th:text="${error}" role="alert"></div>
+
+    <div class="iv-settings-summary">
+      <strong th:text="${activeCount + ' active / ' + setupCount + ' need setup / ' + failedCount + ' failed'}">0 active / 0 need setup / 0 failed</strong>
+      <span>Integrations are optional. They run when configured and enabled, or when managed by deployment configuration.</span>
+    </div>
+    <div class="iv-settings-list">
+      <section th:each="integration : ${integrations}" class="card iv-settings-card" th:attr="data-purpose=${integration.purpose}">
+        <div class="iv-settings-card__header" th:attr="data-status=${integration.status}">
+          <div>
+            <span class="iv-settings-card__eyebrow" th:text="${integration.purpose}">Market data</span>
+            <h2 th:text="${integration.name}">Provider</h2>
+            <p th:text="${integration.description}">Description</p>
+          </div>
+          <span class="iv-status-badge" th:classappend="${integration.status == 'CONNECTED' ? ' iv-status-badge--enabled' : ' iv-status-badge--disabled'}"
+                th:text="${integration.statusLabel}">Needs configuration</span>
+        </div>
+        <div class="iv-settings-diagnostics" th:if="${integration.lastTestStatus != null}">
+          Last test: <strong th:text="${integration.lastTestStatus}">SUCCESS</strong>
+          <span th:if="${integration.lastTestMessage != null}" th:text="${integration.lastTestMessage}"></span>
+        </div>
+
+        <details class="iv-settings-details">
+          <summary class="btn btn-outline-primary">Configure provider</summary>
+        <form class="iv-settings-form" method="post"
+              th:action="@{'/settings/integrations/' + ${integration.type} + '/' + ${integration.pluginId}}">
+          <div th:each="field : ${integration.fields}" class="iv-settings-field"
+               th:classappend="${field.type.name() == 'BOOLEAN'} ? ' iv-settings-field--checkbox'">
+            <label th:for="${integration.pluginId + '-' + field.key}">
+              <span th:text="${field.label}">Field</span>
+              <small th:if="${field.description}" th:text="${field.description}"></small>
+            </label>
+            <input th:if="${field.type.name() == 'SECRET'}" type="password"
+                   th:name="${'secret.' + field.key}" th:id="${integration.pluginId + '-' + field.key}"
+                   autocomplete="new-password"
+                   th:placeholder="${integration.secrets[field.key].configured ? 'Configured; enter a replacement only' : ''}">
+            <span th:if="${field.type.name() == 'SECRET' and integration.secrets[field.key].configured}" class="text-secondary">Configured</span>
+            <label th:if="${field.type.name() == 'SECRET' and integration.secrets[field.key].configured}" class="form-check-label">
+              <input type="checkbox" th:name="${'clearSecret.' + field.key}" value="true"> Clear stored secret
+            </label>
+            <input th:if="${field.type.name() == 'URL' or field.type.name() == 'STRING' or field.type.name() == 'INTEGER'}"
+                   th:type="${field.type.name() == 'URL' ? 'url' : (field.type.name() == 'INTEGER' ? 'number' : 'text')}"
+                   th:name="${field.key}" th:id="${integration.pluginId + '-' + field.key}"
+                   th:value="${integration.values[field.key] ?: field.defaultValue}">
+            <input th:if="${field.type.name() == 'BOOLEAN'}" type="checkbox"
+                   th:name="${field.key}" value="true" th:id="${integration.pluginId + '-' + field.key}"
+                   th:checked="${integration.values[field.key] == 'true' or (integration.values[field.key] == null and field.defaultValue == 'true')}">
+          </div>
+          <div class="iv-settings-form__actions">
+            <button class="btn btn-primary" type="submit">Save changes</button>
+            <button class="btn btn-outline-primary" type="submit" name="action" value="test" th:if="${integration.testSupported}">Test connection</button>
+          </div>
+        </form>
+        </details>
+        <form class="iv-settings-toggle" method="post"
+              th:action="@{'/settings/integrations/' + ${integration.type} + '/' + ${integration.pluginId} + '/enabled'}">
+          <input type="hidden" name="enabled" th:value="${!integration.enabled}">
+          <button class="btn btn-outline-secondary" type="submit"
+                  th:text="${integration.enabled ? 'Disable integration' : 'Enable integration'}">Enable integration</button>
+        </form>
+        <section th:if="${!integration.availableJobs.isEmpty()}" class="iv-settings-jobs">
+          <h3>Automatic refresh</h3>
+          <form th:each="jobDescriptor : ${integration.availableJobs}" method="post"
+                th:action="@{'/settings/integrations/' + ${integration.type} + '/' + ${integration.pluginId} + '/jobs/' + ${jobDescriptor.jobType}}">
+            <label><span th:text="${jobDescriptor.label}">Refresh</span>
+              <input name="cron" th:value="${integration.jobCron(jobDescriptor.jobType)}" required></label>
+            <label>Timezone <input name="timezone" th:value="${integration.jobTimezone(jobDescriptor.jobType)}"></label>
+            <label><input type="checkbox" name="enabled" value="true"
+                          th:checked="${integration.jobEnabled(jobDescriptor.jobType)}"> Enabled</label>
+            <button class="btn btn-sm btn-outline-secondary" type="submit">Save schedule</button>
+          </form>
+          <div th:each="job : ${integration.jobs}" class="text-secondary">
+            <span th:text="${job.status ?: 'Not run'}">Not run</span>
+            <span th:if="${job.lastError != null}" th:text="${job.lastError}"></span>
+          </div>
+        </section>
+      </section>
+    </div>
+  </section>
+</main>
+<div th:replace="~{fragments/app-footer :: buildFooter}"></div>
+</body>
+</html>
+

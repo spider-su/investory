@@ -4,9 +4,12 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Bond Template Contract")
 class BondTemplateContractTest {
+  @DisplayName("bond Create Form Has One Value Field")
   @Test
   void bondCreateFormHasOneValueField() throws Exception {
     String html =
@@ -18,6 +21,7 @@ class BondTemplateContractTest {
         () -> assertFalse(html.contains("Current value")));
   }
 
+  @DisplayName("bond Edit Form Has One Value Field And Hides Legacy Metrics")
   @Test
   void bondEditFormHasOneValueFieldAndHidesLegacyMetrics() throws Exception {
     String html =

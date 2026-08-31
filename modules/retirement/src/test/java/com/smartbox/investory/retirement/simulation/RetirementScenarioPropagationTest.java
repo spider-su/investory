@@ -2,19 +2,24 @@ package com.smartbox.investory.retirement.simulation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.smartbox.investory.longterm.api.model.InterestTreatmentModel;
-import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
-import com.smartbox.investory.retirement.profile.EconomicBucket;
-import com.smartbox.investory.retirement.profile.InvestmentProfile;
-import com.smartbox.investory.retirement.profile.Liquidity;
-import com.smartbox.investory.retirement.profile.ProjectedLongTermAsset;
+import com.smartbox.investory.longterm.api.model.InterestTreatment;
+import com.smartbox.investory.longterm.api.model.LongTermAssetType;
+import com.smartbox.investory.profile.api.model.EconomicBucket;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.profile.api.model.Liquidity;
+import com.smartbox.investory.profile.api.model.ProjectedLongTermAsset;
+import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.planning.PlanningProfileBaseline;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Retirement Scenario Propagation")
 class RetirementScenarioPropagationTest {
+  @DisplayName("plan Bond Return Is The Scenario Baseline For Every Scenario")
   @Test
   void planBondReturnIsTheScenarioBaselineForEveryScenario() {
     SimulationAssumptions assumptions =
@@ -62,6 +67,7 @@ class RetirementScenarioPropagationTest {
         .isEqualByComparingTo("0.038");
   }
 
+  @DisplayName("derives Base Bond Yield From Frozen Capitalized Return And Applies Scenario Delta")
   @Test
   void derivesBaseBondYieldFromFrozenCapitalizedReturnAndAppliesScenarioDelta() {
     InvestmentProfile profile = profileWithCapitalizedBond("900000", "36000");
@@ -91,6 +97,7 @@ class RetirementScenarioPropagationTest {
         .isEqualByComparingTo("0.040");
   }
 
+  @DisplayName("fallback Bond Yield Uses Selected Scenario Rate When Source Yield Is Unavailable")
   @Test
   void fallbackBondYieldUsesSelectedScenarioRateWhenSourceYieldIsUnavailable() {
     InvestmentProfile profile = emptyProfile();
@@ -110,11 +117,17 @@ class RetirementScenarioPropagationTest {
         .isEqualByComparingTo("0.030");
   }
 
+  @DisplayName("scenario Rates Reach Projected Bond And Equity Returns")
   @Test
   void scenarioRatesReachProjectedBondAndEquityReturns() {
     InvestmentProfile profile =
-        profileWithCapitalizedBond("900000", "36000")
-            .withPlanningBaseline(bd("0"), bd("100000"), bd("900000"), bd("0"), bd("0"));
+        PlanningProfileBaseline.apply(
+            profileWithCapitalizedBond("900000", "36000"),
+            bd("0"),
+            bd("100000"),
+            bd("900000"),
+            bd("0"),
+            bd("0"));
     SimulationAssumptions assumptions =
         assumptions(profile)
             .withFixedIncomeReturnRate(bd("0.040"))
@@ -142,6 +155,7 @@ class RetirementScenarioPropagationTest {
     assertThat(optimisticEquity).isEqualByComparingTo("9000");
   }
 
+  @DisplayName("scenario Deltas Use Bond Period Active At Explicit Baseline Year")
   @Test
   void scenarioDeltasUseBondPeriodActiveAtExplicitBaselineYear() {
     InvestmentProfile profile = profileWithCapitalizedBondPeriods();
@@ -161,11 +175,17 @@ class RetirementScenarioPropagationTest {
         .isEqualByComparingTo("36000");
   }
 
+  @DisplayName("scenario Overlay Changes Projected Rental And Spending Values")
   @Test
   void scenarioOverlayChangesProjectedRentalAndSpendingValues() {
     InvestmentProfile profile =
-        profileWithPayOutBond("900000", "38880")
-            .withPlanningBaseline(bd("0"), bd("100000"), bd("900000"), bd("100"), bd("38880"));
+        PlanningProfileBaseline.apply(
+            profileWithPayOutBond("900000", "38880"),
+            bd("0"),
+            bd("100000"),
+            bd("900000"),
+            bd("100"),
+            bd("38880"));
     SimulationAssumptions assumptions =
         SimulationAssumptions.defaults(profile, 65, 67, 2027)
             .withRecurringSpending(bd("240000"))
@@ -189,6 +209,7 @@ class RetirementScenarioPropagationTest {
     assertThat(optimistic.years().get(1).totalExpenses()).isEqualByComparingTo("242400");
   }
 
+  @DisplayName("scenario Comparison Uses The Same Canonical Simulation Path")
   @Test
   void scenarioComparisonUsesTheSameCanonicalSimulationPath() {
     InvestmentProfile profile = profileWithCapitalizedBond("900000", "36000");
@@ -205,6 +226,7 @@ class RetirementScenarioPropagationTest {
     }
   }
 
+  @DisplayName("custom Is Distinct But Currently Matches Base Projection")
   @Test
   void customIsDistinctButCurrentlyMatchesBaseProjection() {
     InvestmentProfile profile = profileWithCapitalizedBond("900000", "36000");
@@ -218,6 +240,7 @@ class RetirementScenarioPropagationTest {
     assertThat(custom.years()).isEqualTo(base.years());
   }
 
+  @DisplayName("non Zero Custom Deltas Change Only The Custom Projection")
   @Test
   void nonZeroCustomDeltasChangeOnlyTheCustomProjection() {
     InvestmentProfile profile = profileWithCapitalizedBond("900000", "36000");
@@ -252,7 +275,7 @@ class RetirementScenarioPropagationTest {
   }
 
   private static InvestmentProfile profileWithCapitalizedBond(String capital, String annualReturn) {
-    return profileWithBond(capital, annualReturn, InterestTreatmentModel.CAPITALIZE);
+    return profileWithBond(capital, annualReturn, InterestTreatment.CAPITALIZE);
   }
 
   private static InvestmentProfile profileWithCapitalizedBondPeriods() {
@@ -260,7 +283,7 @@ class RetirementScenarioPropagationTest {
         new ProjectedLongTermAsset(
             1L,
             "Bond",
-            LongTermAssetTypeModel.BOND,
+            LongTermAssetType.BOND,
             EconomicBucket.FIXED_INCOME,
             CurrencyType.PLN,
             bd("900000"),
@@ -271,17 +294,21 @@ class RetirementScenarioPropagationTest {
                     LocalDate.of(2026, 12, 31),
                     null,
                     BigDecimal.ZERO,
-                    bd("0.03")),
+                    bd("0.03"),
+                    null,
+                    false),
                 new ProjectedLongTermAsset.Period(
                     LocalDate.of(2027, 1, 1),
                     LocalDate.of(2030, 12, 31),
                     null,
                     BigDecimal.ZERO,
-                    bd("0.05"))),
+                    bd("0.05"),
+                    null,
+                    false)),
             List.of(),
             null,
             null,
-            InterestTreatmentModel.CAPITALIZE,
+            InterestTreatment.CAPITALIZE,
             BigDecimal.ZERO,
             null,
             false);
@@ -292,34 +319,53 @@ class RetirementScenarioPropagationTest {
         bd("900000"),
         bd("1000000"),
         BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
         bd("900000"),
         List.of(),
-        List.of(bond),
         BigDecimal.ZERO,
-        BigDecimal.ZERO);
+        BigDecimal.ZERO,
+        new com.smartbox.investory.profile.api.model.ProfileAssetProjection(
+            List.of(bond),
+            java.math.BigDecimal.ZERO,
+            0,
+            com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
+        (BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO),
+        bd("100000")
+            .subtract((BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO))
+            .max(java.math.BigDecimal.ZERO),
+        com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
+            BigDecimal.ZERO,
+            bd("100000"),
+            BigDecimal.ZERO,
+            bd("900000"),
+            BigDecimal.ZERO,
+            bd("1000000")),
+        com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
   }
 
   private static InvestmentProfile profileWithPayOutBond(String capital, String income) {
-    return profileWithBond(capital, income, InterestTreatmentModel.PAY_OUT);
+    return profileWithBond(capital, income, InterestTreatment.PAY_OUT);
   }
 
   private static InvestmentProfile profileWithBond(
-      String capital, String annualIncome, InterestTreatmentModel treatment) {
+      String capital, String annualIncome, InterestTreatment treatment) {
     ProjectedLongTermAsset bond =
         new ProjectedLongTermAsset(
             1L,
             "Bond",
-            LongTermAssetTypeModel.BOND,
+            LongTermAssetType.BOND,
             EconomicBucket.FIXED_INCOME,
             CurrencyType.PLN,
             bd(capital),
             Liquidity.LIQUID,
             List.of(
                 new ProjectedLongTermAsset.Period(
-                    LocalDate.of(2020, 1, 1), null, bd(annualIncome), BigDecimal.ZERO, bd("0.04"))),
+                    LocalDate.of(2020, 1, 1),
+                    null,
+                    bd(annualIncome),
+                    BigDecimal.ZERO,
+                    bd("0.04"),
+                    null,
+                    false)),
             List.of(),
             null,
             null,
@@ -328,7 +374,7 @@ class RetirementScenarioPropagationTest {
             null,
             false);
     BigDecimal cashIncome =
-        treatment == InterestTreatmentModel.PAY_OUT ? bd(annualIncome) : BigDecimal.ZERO;
+        treatment == InterestTreatment.PAY_OUT ? bd(annualIncome) : BigDecimal.ZERO;
     return new InvestmentProfile(
         1L,
         CurrencyType.PLN,
@@ -336,14 +382,27 @@ class RetirementScenarioPropagationTest {
         bd(capital),
         bd(capital).add(bd("100000")),
         BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
         bd(capital),
         List.of(),
-        List.of(bond),
         BigDecimal.ZERO,
-        cashIncome);
+        cashIncome,
+        new com.smartbox.investory.profile.api.model.ProfileAssetProjection(
+            List.of(bond),
+            java.math.BigDecimal.ZERO,
+            0,
+            com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
+        (BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO),
+        bd("100000")
+            .subtract((BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO))
+            .max(java.math.BigDecimal.ZERO),
+        com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
+            BigDecimal.ZERO,
+            bd("100000"),
+            BigDecimal.ZERO,
+            bd(capital),
+            BigDecimal.ZERO,
+            bd(capital).add(bd("100000"))),
+        com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
   }
 
   private static InvestmentProfile emptyProfile() {
@@ -355,13 +414,26 @@ class RetirementScenarioPropagationTest {
         BigDecimal.ZERO,
         BigDecimal.ZERO,
         BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        List.of(),
         List.of(),
         BigDecimal.ZERO,
-        BigDecimal.ZERO);
+        BigDecimal.ZERO,
+        new com.smartbox.investory.profile.api.model.ProfileAssetProjection(
+            List.of(),
+            java.math.BigDecimal.ZERO,
+            0,
+            com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
+        (BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO),
+        BigDecimal.ZERO
+            .subtract((BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO))
+            .max(java.math.BigDecimal.ZERO),
+        com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO),
+        com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
   }
 
   private static BigDecimal bd(String value) {

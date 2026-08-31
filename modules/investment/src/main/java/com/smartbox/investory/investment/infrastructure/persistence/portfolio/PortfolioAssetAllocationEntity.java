@@ -67,40 +67,24 @@ public class PortfolioAssetAllocationEntity {
   @Column(name = "updated_at", nullable = false)
   private java.time.ZonedDateTime updatedAt;
 
-  public Double getTotalVolume() {
-    return totalVolume == null ? null : totalVolume.doubleValue();
+  public BigDecimal getTotalVolume() {
+    return totalVolume;
   }
 
-  public Double getMarketPrice() {
-    return marketPrice == null ? null : marketPrice.doubleValue();
+  public BigDecimal getMarketPrice() {
+    return marketPrice;
   }
 
-  public Double getCostBasisInBaseCurrency() {
-    return costBasisInBaseCurrency == null ? null : costBasisInBaseCurrency.doubleValue();
+  public BigDecimal getCostBasisInBaseCurrency() {
+    return costBasisInBaseCurrency;
   }
 
-  public Double getTotalValueInBaseCurrency() {
-    return totalValueInBaseCurrency == null ? null : totalValueInBaseCurrency.doubleValue();
+  public BigDecimal getTotalValueInBaseCurrency() {
+    return totalValueInBaseCurrency;
   }
 
-  public Double getUnrealizedPlInBaseCurrency() {
-    return unrealizedPlInBaseCurrency == null ? null : unrealizedPlInBaseCurrency.doubleValue();
-  }
-
-  public void setTotalVolume(Double value) {
-    totalVolume = value == null ? null : BigDecimal.valueOf(value);
-  }
-
-  public void setCostBasisInBaseCurrency(Double value) {
-    costBasisInBaseCurrency = value == null ? null : BigDecimal.valueOf(value);
-  }
-
-  public void setTotalValueInBaseCurrency(Double value) {
-    totalValueInBaseCurrency = value == null ? null : BigDecimal.valueOf(value);
-  }
-
-  public void setUnrealizedPlInBaseCurrency(Double value) {
-    unrealizedPlInBaseCurrency = value == null ? null : BigDecimal.valueOf(value);
+  public BigDecimal getUnrealizedPlInBaseCurrency() {
+    return unrealizedPlInBaseCurrency;
   }
 
   public PortfolioAssetAllocationEntity(

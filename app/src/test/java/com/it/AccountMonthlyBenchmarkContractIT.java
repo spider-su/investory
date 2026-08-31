@@ -10,6 +10,7 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -17,8 +18,10 @@ import org.junit.jupiter.api.Test;
  * {@code account_monthly_benchmark} is a thin projection of {@code account_monthly_mv} and never
  * recalculates profit from boundary equity independently.
  */
+@DisplayName("Account Monthly Benchmark Contract")
 class AccountMonthlyBenchmarkContractIT {
 
+  @DisplayName("benchmark Is APlain View Delegating To Canonical Monthly Projection")
   @Test
   void benchmarkIsAPlainViewDelegatingToCanonicalMonthlyProjection() throws SQLException {
     try (Connection connection = connection();
@@ -60,6 +63,7 @@ class AccountMonthlyBenchmarkContractIT {
     }
   }
 
+  @DisplayName("benchmark Columns Match Canonical Monthly Columns")
   @Test
   void benchmarkColumnsMatchCanonicalMonthlyColumns() throws SQLException {
     try (Connection connection = connection();
@@ -79,8 +83,6 @@ class AccountMonthlyBenchmarkContractIT {
 
   private static Connection connection() throws SQLException {
     return DriverManager.getConnection(
-        FastDatabase.container().getJdbcUrl(),
-        FastDatabase.container().getUsername(),
-        FastDatabase.container().getPassword());
+        FastDatabase.jdbcUrl(), FastDatabase.username(), FastDatabase.password());
   }
 }

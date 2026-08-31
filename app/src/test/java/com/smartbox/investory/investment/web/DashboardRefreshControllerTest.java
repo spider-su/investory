@@ -10,9 +10,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.smartbox.investory.config.MockMvcSecurityTestConfig;
 import com.smartbox.investory.config.SecurityConfig;
 import com.smartbox.investory.investment.api.operations.InvestmentMaintenanceApi;
-import com.smartbox.investory.investment.valuation.price.ManualAssetPriceService.ManualAssetPrice;
+import com.smartbox.investory.investment.api.operations.ManualAssetPriceView;
+import com.smartbox.investory.investment.web.DashboardRefreshController;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import java.math.BigDecimal;
 import java.time.ZonedDateTime;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -23,11 +26,13 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(controllers = DashboardRefreshController.class)
 @Import({SecurityConfig.class, MockMvcSecurityTestConfig.class})
+@DisplayName("Dashboard Refresh Controller")
 class DashboardRefreshControllerTest {
 
   @Autowired private MockMvc mockMvc;
   @MockitoBean private InvestmentMaintenanceApi maintenance;
 
+  @DisplayName("refresh Prices Runs Full Portfolio Update")
   @Test
   @WithMockUser(roles = "ADMIN")
   void refreshPricesRunsFullPortfolioUpdate() throws Exception {
@@ -36,7 +41,7 @@ class DashboardRefreshControllerTest {
             new InvestmentMaintenanceApi.MaintenanceResult(
                 "OK", "Open position prices refreshed", ZonedDateTime.now()));
     mockMvc
-        .perform(post("/admin/refresh-prices").with(csrf()))
+        .perform(post("/api/v1/investment/maintenance/refresh-prices").with(csrf()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("OK"))
         .andExpect(jsonPath("$.message").value("Open position prices refreshed"));
@@ -44,13 +49,15 @@ class DashboardRefreshControllerTest {
     verify(maintenance).refreshPrices();
   }
 
+  @DisplayName("refresh Prices Requires Authentication")
   @Test
   void refreshPricesRequiresAuthentication() throws Exception {
     mockMvc
-        .perform(post("/admin/refresh-prices").with(csrf()))
+        .perform(post("/api/v1/investment/maintenance/refresh-prices").with(csrf()))
         .andExpect(status().isUnauthorized());
   }
 
+  @DisplayName("refresh Currency Runs Fx Update")
   @Test
   @WithMockUser(roles = "ADMIN")
   void refreshCurrencyRunsFxUpdate() throws Exception {
@@ -62,13 +69,14 @@ class DashboardRefreshControllerTest {
                 java.util.List.of()));
 
     mockMvc
-        .perform(post("/admin/refresh-currency").with(csrf()))
+        .perform(post("/api/v1/investment/maintenance/refresh-currency").with(csrf()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.updated[0]").value("USD"));
 
     verify(maintenance).refreshCurrency();
   }
 
+  @DisplayName("rebuild Monthly Runs Projection Recalculation")
   @Test
   @WithMockUser(roles = "ADMIN")
   void rebuildMonthlyRunsProjectionRecalculation() throws Exception {
@@ -77,7 +85,7 @@ class DashboardRefreshControllerTest {
             new InvestmentMaintenanceApi.MaintenanceResult(
                 "OK", "AccountEntity stats rebuilt", ZonedDateTime.now()));
     mockMvc
-        .perform(post("/admin/rebuild-monthly").with(csrf()))
+        .perform(post("/api/v1/investment/maintenance/rebuild-monthly").with(csrf()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("OK"))
         .andExpect(jsonPath("$.message").value("AccountEntity stats rebuilt"));
@@ -85,24 +93,32 @@ class DashboardRefreshControllerTest {
     verify(maintenance).rebuildMonthly();
   }
 
+  @DisplayName("rebuild Monthly Requires Authentication")
   @Test
   void rebuildMonthlyRequiresAuthentication() throws Exception {
     mockMvc
-        .perform(post("/admin/rebuild-monthly").with(csrf()))
+        .perform(post("/api/v1/investment/maintenance/rebuild-monthly").with(csrf()))
         .andExpect(status().isUnauthorized());
   }
 
+  @DisplayName("update Manual Asset Price Returns Updated Price")
   @Test
   @WithMockUser(roles = "ADMIN")
   void updateManualAssetPriceReturnsUpdatedPrice() throws Exception {
     ZonedDateTime updatedAt = ZonedDateTime.parse("2026-07-16T09:00:00Z");
-    when(maintenance.updateManualAssetPrice("SGLD.UK", 15.25))
+    when(maintenance.updateManualAssetPrice("SGLD.UK", BigDecimal.valueOf(15.25)))
         .thenReturn(
-            new ManualAssetPrice("SGLD.UK", 15.25, 15.25, CurrencyType.USD, "Manual", updatedAt));
+            new ManualAssetPriceView(
+                "SGLD.UK",
+                BigDecimal.valueOf(15.25),
+                BigDecimal.valueOf(15.25),
+                CurrencyType.USD,
+                "Manual",
+                updatedAt));
 
     mockMvc
         .perform(
-            post("/admin/assets/SGLD.UK/price")
+            post("/api/v1/investment/maintenance/assets/SGLD.UK/price")
                 .with(csrf())
                 .contentType("application/json")
                 .content("{\"marketPrice\":15.25}"))
@@ -111,41 +127,46 @@ class DashboardRefreshControllerTest {
         .andExpect(jsonPath("$.marketPrice").value(15.25))
         .andExpect(jsonPath("$.source").value("Manual"));
 
-    verify(maintenance).updateManualAssetPrice("SGLD.UK", 15.25);
+    verify(maintenance).updateManualAssetPrice("SGLD.UK", BigDecimal.valueOf(15.25));
   }
 
+  @DisplayName("update Manual Asset Price Requires Authentication")
   @Test
   void updateManualAssetPriceRequiresAuthentication() throws Exception {
     mockMvc
         .perform(
-            post("/admin/assets/SGLD.UK/price")
+            post("/api/v1/investment/maintenance/assets/SGLD.UK/price")
                 .with(csrf())
                 .contentType("application/json")
                 .content("{\"marketPrice\":15.25}"))
         .andExpect(status().isUnauthorized());
   }
 
+  @DisplayName("update Manual Asset Price Requires Admin Role")
   @Test
   @WithMockUser(roles = "USER")
   void updateManualAssetPriceRequiresAdminRole() throws Exception {
     mockMvc
         .perform(
-            post("/admin/assets/SGLD.UK/price")
+            post("/api/v1/investment/maintenance/assets/SGLD.UK/price")
                 .with(csrf())
                 .contentType("application/json")
                 .content("{\"marketPrice\":15.25}"))
         .andExpect(status().isForbidden());
   }
 
+  @DisplayName("update Manual Asset Price Maps Invalid Input To Bad Request")
   @Test
   @WithMockUser(roles = "ADMIN")
   void updateManualAssetPriceMapsInvalidInputToBadRequest() throws Exception {
-    when(maintenance.updateManualAssetPrice("SGLD.UK", -1.0))
-        .thenThrow(new IllegalArgumentException("Market price must be positive"));
+    when(maintenance.updateManualAssetPrice("SGLD.UK", new BigDecimal("-1")))
+        .thenThrow(
+            new InvestmentMaintenanceApi.InvalidMaintenanceRequest(
+                "Market price must be positive", null));
 
     mockMvc
         .perform(
-            post("/admin/assets/SGLD.UK/price")
+            post("/api/v1/investment/maintenance/assets/SGLD.UK/price")
                 .with(csrf())
                 .contentType("application/json")
                 .content("{\"marketPrice\":-1}"))

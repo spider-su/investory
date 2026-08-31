@@ -2,12 +2,16 @@ package com.smartbox.investory.retirement.simulation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.smartbox.investory.retirement.api.model.*;
 import java.math.BigDecimal;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Retirement Surplus Allocator")
 class RetirementSurplusAllocatorTest {
   private final RetirementSurplusAllocator allocator = new RetirementSurplusAllocator();
 
+  @DisplayName("keeps Surplus Unallocated")
   @Test
   void keepsSurplusUnallocated() {
     var r =
@@ -21,6 +25,7 @@ class RetirementSurplusAllocatorTest {
     assertThat(r.unallocatedSurplus()).isEqualByComparingTo("50000");
   }
 
+  @DisplayName("refills Reserve Only To Target")
   @Test
   void refillsReserveOnlyToTarget() {
     var r =
@@ -33,6 +38,7 @@ class RetirementSurplusAllocatorTest {
     assertThat(r.unallocatedSurplus()).isEqualByComparingTo("20000");
   }
 
+  @DisplayName("invests After Reserve Refill")
   @Test
   void investsAfterReserveRefill() {
     var r =

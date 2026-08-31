@@ -5,13 +5,17 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
-import com.smartbox.investory.retirement.profile.InvestmentProfile;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Retirement Age Analysis Service")
 class RetirementAgeAnalysisServiceTest {
+  @DisplayName("finds Earlier Age By Exhaustive Annual Evaluation")
   @Test
   void findsEarlierAgeByExhaustiveAnnualEvaluation() {
     SimulationAssumptions assumptions = assumptions(45, 80, 60);
@@ -29,6 +33,7 @@ class RetirementAgeAnalysisServiceTest {
     assertEquals(36, analysis.conservative().evaluationCount());
   }
 
+  @DisplayName("reports Immediate Retirement When Current Age Is Sustainable")
   @Test
   void reportsImmediateRetirementWhenCurrentAgeIsSustainable() {
     SimulationAssumptions assumptions = assumptions(50, 80, 60);
@@ -40,6 +45,7 @@ class RetirementAgeAnalysisServiceTest {
         RetirementTimingResultState.IMMEDIATE_RETIREMENT_AVAILABLE, analysis.base().state());
   }
 
+  @DisplayName("reports Delay When Planned Age Fails But Later Age Works")
   @Test
   void reportsDelayWhenPlannedAgeFailsButLaterAgeWorks() {
     SimulationAssumptions assumptions = assumptions(45, 80, 55);
@@ -52,6 +58,7 @@ class RetirementAgeAnalysisServiceTest {
     assertEquals(RetirementTimingResultState.DELAY_REQUIRED, analysis.conservative().state());
   }
 
+  @DisplayName("reports No Sustainable Age Inside The Horizon")
   @Test
   void reportsNoSustainableAgeInsideTheHorizon() {
     SimulationAssumptions assumptions = assumptions(45, 60, 55);
@@ -63,6 +70,7 @@ class RetirementAgeAnalysisServiceTest {
     assertEquals(16, analysis.base().evaluationCount());
   }
 
+  @DisplayName("reports Planned Age As The Boundary When Earlier Candidates Fail")
   @Test
   void reportsPlannedAgeAsTheBoundaryWhenEarlierCandidatesFail() {
     SimulationAssumptions assumptions = assumptions(45, 80, 60);
@@ -77,6 +85,7 @@ class RetirementAgeAnalysisServiceTest {
     assertEquals(0, result.headroomYears());
   }
 
+  @DisplayName("exposes Non Monotonic Result Instead Of Calling It ARequired Delay")
   @Test
   void exposesNonMonotonicResultInsteadOfCallingItARequiredDelay() {
     SimulationAssumptions assumptions = assumptions(55, 60, 57);
@@ -114,6 +123,7 @@ class RetirementAgeAnalysisServiceTest {
     assertEquals(0, result.delayYears());
   }
 
+  @DisplayName("only Retirement Age Changes Across Evaluations")
   @Test
   void onlyRetirementAgeChangesAcrossEvaluations() {
     SimulationAssumptions assumptions = assumptions(45, 80, 60);
@@ -173,10 +183,25 @@ class RetirementAgeAnalysisServiceTest {
         BigDecimal.ZERO,
         BigDecimal.ZERO,
         BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
         List.of(),
-        List.of());
+        null,
+        null,
+        new com.smartbox.investory.profile.api.model.ProfileAssetProjection(
+            List.of(),
+            java.math.BigDecimal.ZERO,
+            0,
+            com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
+        (BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO),
+        BigDecimal.ZERO
+            .subtract((BigDecimal.ZERO == null ? java.math.BigDecimal.ZERO : BigDecimal.ZERO))
+            .max(java.math.BigDecimal.ZERO),
+        com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO),
+        com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
   }
 }

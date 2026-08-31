@@ -6,7 +6,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title th:text="${asset.name + ' · Investory'}">Real estate · Investory</title>
   <link href="/css/tabler.min.css" rel="stylesheet">
-  <link href="/css/main.css" rel="stylesheet">
   <link href="/css/asset-detail.css" rel="stylesheet">
 </head>
 <body>
@@ -48,8 +47,8 @@
     <div class="iv-rental-contracts" th:unless="${#lists.isEmpty(contracts)}">
       <details class="iv-rental-contract" th:each="contract, contractStat : ${contracts}" th:open="${contractStat.first}" th:attr="data-contract-id=${contract.id}">
         <summary class="iv-rental-contract__summary">
-          <span class="iv-rental-contract__date"><small>Start</small><strong th:text="${contract.startDate}">2026-04-01</strong></span>
-          <span class="iv-rental-contract__date"><small>Effective end</small><strong th:text="${contract.effectiveEndDate ?: 'Open'}">Open</strong></span>
+          <span class="iv-rental-contract__date"><small>Start</small> <strong th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).date(contract.startDate)}">1 Apr 2026</strong></span>
+          <span class="iv-rental-contract__date"><small>Effective end</small><strong th:text="${contract.effectiveEndDate == null ? 'Open' : T(com.smartbox.investory.ui.presentation.UiPresentation).date(contract.effectiveEndDate)}">Open</strong></span>
           <span class="iv-rental-contract__tenant" th:text="${contract.tenantName ?: 'Tenant not specified'}">Tenant not specified</span>
           <span class="badge iv-rental-contract__status" th:text="${#strings.capitalize(#strings.toLowerCase(contract.status.name()))}">Current</span>
           <span class="iv-rental-contract__rent" th:with="rent=${contract.terms.?[type.name() == 'RENT']}" th:text="${#lists.isEmpty(rent) ? 'No rent' : T(com.smartbox.investory.ui.presentation.UiPresentation).money(rent[0].amount, asset.currency) + ' / ' + #strings.toLowerCase(rent[0].frequency.name())}">3,700 PLN / monthly</span>
@@ -70,8 +69,8 @@
               <section class="iv-contract-group">
                 <h3>Period</h3>
                 <dl class="iv-contract-values">
-                  <div><dt>Start date</dt><dd th:text="${contract.startDate}">2026-04-01</dd></div>
-                  <div><dt>Expected end</dt><dd th:text="${contract.endDate ?: 'Open'}">Open</dd></div>
+                  <div><dt>Start date</dt><dd th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).date(contract.startDate)}">1 Apr 2026</dd></div>
+                  <div><dt>Expected end</dt><dd th:text="${contract.endDate == null ? 'Open' : T(com.smartbox.investory.ui.presentation.UiPresentation).date(contract.endDate)}">Open</dd></div>
                   <div th:if="${contract.terminatedDate}"><dt>Actual termination</dt><dd th:text="${contract.terminatedDate}">2026-12-01</dd></div>
                   <div><dt>Status</dt><dd th:text="${#strings.capitalize(#strings.toLowerCase(contract.status.name()))}">Current</dd></div>
                 </dl>
@@ -236,65 +235,6 @@
   </div>
 </th:block>
 
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  const panels = [...document.querySelectorAll('.iv-rental-contract')];
-  panels.forEach(panel => panel.addEventListener('toggle', () => {
-    if (panel.open) panels.forEach(other => { if (other !== panel) other.open = false; });
-  }));
-
-  document.querySelectorAll('[data-edit-contract]').forEach(button => button.addEventListener('click', () => {
-    const body = button.closest('.iv-rental-contract__body');
-    body.querySelector('[data-contract-read]').hidden = true;
-    const form = body.querySelector('[data-contract-edit]');
-    form.hidden = false;
-    form.querySelector('input:not([type="hidden"]), select')?.focus();
-  }));
-  document.querySelectorAll('[data-cancel-edit]').forEach(button => button.addEventListener('click', () => {
-    const body = button.closest('.iv-rental-contract__body');
-    body.querySelector('[data-contract-edit]').hidden = true;
-    body.querySelector('[data-contract-read]').hidden = false;
-  }));
-  document.querySelectorAll('[data-contract-edit][data-edit-initial="true"]').forEach(form => {
-    form.closest('.iv-rental-contract').open = true;
-    form.hidden = false;
-    form.closest('.iv-rental-contract__body').querySelector('[data-contract-read]').hidden = true;
-  });
-
-  document.querySelectorAll('[data-terminate-contract]').forEach(button => button.addEventListener('click', () => {
-    const panel = button.closest('[data-contract-read]').querySelector('[data-terminate-panel]');
-    panel.hidden = false;
-    panel.querySelector('input[type="date"]').focus();
-  }));
-  document.querySelectorAll('[data-cancel-terminate]').forEach(button => button.addEventListener('click', () => {
-    button.closest('[data-terminate-panel]').hidden = true;
-  }));
-  document.querySelectorAll('[data-delete-contract]').forEach(form => form.addEventListener('submit', event => {
-    if (!window.confirm('Delete this contract permanently? Its terms will be removed and historical calculations may change.')) event.preventDefault();
-  }));
-
-  const addForm = document.querySelector('[data-add-contract]');
-  document.querySelector('[data-show-add-contract]')?.addEventListener('click', () => {
-    addForm.hidden = false;
-    addForm.querySelector('input:not([type="hidden"])')?.focus();
-  });
-  document.querySelector('[data-cancel-add-contract]')?.addEventListener('click', () => { addForm.hidden = true; });
-  document.querySelector('[data-copy-latest]')?.addEventListener('click', () => {
-    const source = document.querySelector('[data-contract-edit]');
-    if (!source) return;
-    addForm.querySelectorAll('[name]').forEach(target => {
-      if (target.name === 'portfolioId' || target.name === 'endCurrentContractBeforeStart') return;
-      const origin = source.querySelector(`[name="${target.name}"]`);
-      if (!origin) return;
-      if (target.type === 'checkbox') target.checked = origin.checked;
-      else target.value = origin.value;
-    });
-    const start = addForm.querySelector('[name="startDate"]');
-    start.value = addForm.dataset.suggestedStart || '';
-    addForm.querySelector('[name="endDate"]').value = '';
-    start.focus();
-  });
-});
-</script>
 </body>
 </html>
+

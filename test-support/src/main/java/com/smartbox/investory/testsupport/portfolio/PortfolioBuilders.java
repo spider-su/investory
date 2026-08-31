@@ -11,8 +11,7 @@ import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.cash.CashOperationType;
 import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationEntity;
 import com.smartbox.investory.investment.ledger.position.PositionType;
-import com.smartbox.investory.investment.ledger.position.persistence.ClosedPosition;
-import com.smartbox.investory.investment.ledger.position.persistence.OpenedPosition;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
 import com.smartbox.investory.investment.valuation.fx.persistence.CurrencyRateEntity;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestData.AccountDefinition;
@@ -40,8 +39,8 @@ public final class PortfolioBuilders {
     return new OpenPositionBuilder(asset);
   }
 
-  public static ClosedPositionBuilder closedPosition(AssetDefinition asset) {
-    return new ClosedPositionBuilder(asset);
+  public static PositionEntityBuilder closedPosition(AssetDefinition asset) {
+    return new PositionEntityBuilder(asset);
   }
 
   public static FxRateBuilder fxRate() {
@@ -60,14 +59,7 @@ public final class PortfolioBuilders {
     return new ImportHistoryBuilder();
   }
 
-  private static void setCurrencies(OpenedPosition position, CurrencyType currency) {
-    position.setPriceCurrency(currency);
-    position.setCostCurrency(currency);
-    position.setProfitCurrency(currency);
-    position.setCommissionCurrency(currency);
-  }
-
-  private static void setCurrencies(ClosedPosition position, CurrencyType currency) {
+  private static void setCurrencies(PositionEntity position, CurrencyType currency) {
     position.setPriceCurrency(currency);
     position.setCostCurrency(currency);
     position.setProfitCurrency(currency);
@@ -119,8 +111,8 @@ public final class PortfolioBuilders {
     }
 
     public AssetBuilder withLatestPrice(double marketPrice, double marketPriceUsd, LocalDate date) {
-      asset.setMarketPrice(marketPrice);
-      asset.setMarketPriceUsd(marketPriceUsd);
+      asset.setMarketPrice(java.math.BigDecimal.valueOf(marketPrice));
+      asset.setMarketPriceUsd(java.math.BigDecimal.valueOf(marketPriceUsd));
       asset.setPriceSource("TestData");
       asset.setPriceUpdatedAt(PortfolioTestData.atNoon(date));
       return this;
@@ -235,7 +227,7 @@ public final class PortfolioBuilders {
       operation.setAccount(account);
       operation.setType(type);
       operation.setSymbol(symbol);
-      operation.setAmount(amount);
+      operation.setAmount(java.math.BigDecimal.valueOf(amount));
       operation.setCurrency(currency);
       operation.setComment(comment);
       operation.setDate(date);
@@ -244,18 +236,20 @@ public final class PortfolioBuilders {
   }
 
   public static final class OpenPositionBuilder {
-    private final OpenedPosition position = new OpenedPosition();
+    private final PositionEntity position = new PositionEntity();
 
     private OpenPositionBuilder(AssetDefinition asset) {
       position.setAccount(PortfolioTestData.IBKR_USD_ACCOUNT_ID);
       position.setSymbol(asset.symbol());
       setCurrencies(position, asset.currency());
       position.setType(PositionType.BUY);
-      position.setVolume(PortfolioTestData.AAPL_FIRST_BUY_QUANTITY);
-      position.setOpenPrice(PortfolioTestData.AAPL_FIRST_BUY_PRICE);
+      position.setVolume(java.math.BigDecimal.valueOf(PortfolioTestData.AAPL_FIRST_BUY_QUANTITY));
+      position.setOpenPrice(java.math.BigDecimal.valueOf(PortfolioTestData.AAPL_FIRST_BUY_PRICE));
       position.setPurchaseValue(
-          PortfolioTestData.AAPL_FIRST_BUY_QUANTITY * PortfolioTestData.AAPL_FIRST_BUY_PRICE);
-      position.setCommission(PortfolioTestData.AAPL_FIRST_BUY_COMMISSION);
+          java.math.BigDecimal.valueOf(
+              PortfolioTestData.AAPL_FIRST_BUY_QUANTITY * PortfolioTestData.AAPL_FIRST_BUY_PRICE));
+      position.setCommission(
+          java.math.BigDecimal.valueOf(PortfolioTestData.AAPL_FIRST_BUY_COMMISSION));
       position.setOpenTime(PortfolioTestData.atNoon(PortfolioTestData.AAPL_FIRST_BUY_DATE));
     }
 
@@ -285,35 +279,38 @@ public final class PortfolioBuilders {
     }
 
     public OpenPositionBuilder quantity(double quantity) {
-      position.setVolume(quantity);
+      position.setVolume(java.math.BigDecimal.valueOf(quantity));
       recalculatePurchaseValue();
       return this;
     }
 
     public OpenPositionBuilder price(double price) {
-      position.setOpenPrice(price);
+      position.setOpenPrice(java.math.BigDecimal.valueOf(price));
       recalculatePurchaseValue();
       return this;
     }
 
     public OpenPositionBuilder marketPrice(double marketPrice) {
-      position.setMarketPrice(marketPrice);
-      position.setProfit((marketPrice - position.getOpenPrice()) * position.getVolume());
+      position.setMarketPrice(java.math.BigDecimal.valueOf(marketPrice));
+      position.setProfit(
+          java.math.BigDecimal.valueOf(
+              (marketPrice - position.getOpenPrice().doubleValue())
+                  * position.getVolume().doubleValue()));
       return this;
     }
 
     public OpenPositionBuilder commission(double commission) {
-      position.setCommission(commission);
+      position.setCommission(java.math.BigDecimal.valueOf(commission));
       return this;
     }
 
     public OpenPositionBuilder swap(double swap) {
-      position.setSwap(swap);
+      position.setSwap(java.math.BigDecimal.valueOf(swap));
       return this;
     }
 
     public OpenPositionBuilder profit(double profit) {
-      position.setProfit(profit);
+      position.setProfit(java.math.BigDecimal.valueOf(profit));
       return this;
     }
 
@@ -327,7 +324,7 @@ public final class PortfolioBuilders {
       return this;
     }
 
-    public OpenedPosition build() {
+    public PositionEntity build() {
       requireText(position.getSymbol(), "open position symbol is required");
       require(position.getAccount() != null, "open position account is required");
       require(position.getPriceCurrency() != null, "open position price currency is required");
@@ -341,62 +338,62 @@ public final class PortfolioBuilders {
 
     private void recalculatePurchaseValue() {
       if (position.getVolume() != null && position.getOpenPrice() != null) {
-        position.setPurchaseValue(position.getVolume() * position.getOpenPrice());
+        position.setPurchaseValue(position.getVolume().multiply(position.getOpenPrice()));
       }
     }
   }
 
-  public static final class ClosedPositionBuilder {
-    private final ClosedPosition position = new ClosedPosition();
+  public static final class PositionEntityBuilder {
+    private final PositionEntity position = new PositionEntity();
 
-    private ClosedPositionBuilder(AssetDefinition asset) {
+    private PositionEntityBuilder(AssetDefinition asset) {
       position.setAccount(PortfolioTestData.IBKR_USD_ACCOUNT_ID);
       position.setSymbol(asset.symbol());
       setCurrencies(position, asset.currency());
       position.setType(PositionType.BUY);
-      position.setVolume(10.0);
-      position.setOpenPrice(100.0);
-      position.setClosePrice(110.0);
-      position.setPurchaseValue(1000.0);
-      position.setSaleValue(1100.0);
-      position.setCommission(0.0);
-      position.setSwap(0.0);
-      position.setProfit(100.0);
+      position.setVolume(java.math.BigDecimal.valueOf(10.0));
+      position.setOpenPrice(java.math.BigDecimal.valueOf(100.0));
+      position.setClosePrice(java.math.BigDecimal.valueOf(110.0));
+      position.setPurchaseValue(java.math.BigDecimal.valueOf(1000.0));
+      position.setSaleValue(java.math.BigDecimal.valueOf(1100.0));
+      position.setCommission(java.math.BigDecimal.valueOf(0.0));
+      position.setSwap(java.math.BigDecimal.valueOf(0.0));
+      position.setProfit(java.math.BigDecimal.valueOf(100.0));
       position.setOpenTime(PortfolioTestData.atNoon(PortfolioTestData.AAPL_FIRST_BUY_DATE));
       position.setCloseTime(PortfolioTestData.atNoon(PortfolioTestData.AAPL_PARTIAL_SALE_DATE));
     }
 
-    public ClosedPositionBuilder profit(double profit) {
-      position.setProfit(profit);
+    public PositionEntityBuilder profit(double profit) {
+      position.setProfit(java.math.BigDecimal.valueOf(profit));
       return this;
     }
 
-    public ClosedPositionBuilder symbol(String symbol) {
+    public PositionEntityBuilder symbol(String symbol) {
       position.setSymbol(symbol);
       return this;
     }
 
-    public ClosedPositionBuilder currency(CurrencyType currency) {
+    public PositionEntityBuilder currency(CurrencyType currency) {
       setCurrencies(position, currency);
       return this;
     }
 
-    public ClosedPositionBuilder commission(double commission) {
-      position.setCommission(commission);
+    public PositionEntityBuilder commission(double commission) {
+      position.setCommission(java.math.BigDecimal.valueOf(commission));
       return this;
     }
 
-    public ClosedPositionBuilder swap(double swap) {
-      position.setSwap(swap);
+    public PositionEntityBuilder swap(double swap) {
+      position.setSwap(java.math.BigDecimal.valueOf(swap));
       return this;
     }
 
-    public ClosedPositionBuilder closeOn(LocalDate closeDate) {
+    public PositionEntityBuilder closeOn(LocalDate closeDate) {
       position.setCloseTime(PortfolioTestData.atNoon(closeDate));
       return this;
     }
 
-    public ClosedPosition build() {
+    public PositionEntity build() {
       requireText(position.getSymbol(), "closed position symbol is required");
       require(position.getCloseTime() != null, "closed position close time is required");
       return position;
@@ -410,18 +407,18 @@ public final class PortfolioBuilders {
       daily.setId(1L);
       daily.setAccountId(PortfolioTestData.IBKR_USD_ACCOUNT_ID);
       daily.setDate(PortfolioTestData.JANUARY_MONTH_END);
-      daily.setCashBalance(0.0);
-      daily.setMarketValue(0.0);
-      daily.setEquity(0.0);
-      daily.setUnrealizedProfit(0.0);
-      daily.setCostBase(0.0);
-      daily.setRealizedProfit(0.0);
-      daily.setDividends(0.0);
-      daily.setInterest(0.0);
-      daily.setFees(0.0);
-      daily.setTaxes(0.0);
-      daily.setDeposits(0.0);
-      daily.setWithdrawals(0.0);
+      daily.setCashBalance(java.math.BigDecimal.valueOf(0.0));
+      daily.setMarketValue(java.math.BigDecimal.valueOf(0.0));
+      daily.setEquity(java.math.BigDecimal.valueOf(0.0));
+      daily.setUnrealizedProfit(java.math.BigDecimal.valueOf(0.0));
+      daily.setCostBase(java.math.BigDecimal.valueOf(0.0));
+      daily.setRealizedProfit(java.math.BigDecimal.valueOf(0.0));
+      daily.setDividends(java.math.BigDecimal.valueOf(0.0));
+      daily.setInterest(java.math.BigDecimal.valueOf(0.0));
+      daily.setFees(java.math.BigDecimal.valueOf(0.0));
+      daily.setTaxes(java.math.BigDecimal.valueOf(0.0));
+      daily.setDeposits(java.math.BigDecimal.valueOf(0.0));
+      daily.setWithdrawals(java.math.BigDecimal.valueOf(0.0));
       daily.setUpdatedAt(PortfolioTestData.atNoon(PortfolioTestData.JANUARY_MONTH_END));
     }
 
@@ -447,16 +444,16 @@ public final class PortfolioBuilders {
     }
 
     public AccountDailyBuilder valuation(double cashBalance, double marketValue, double costBase) {
-      daily.setCashBalance(cashBalance);
-      daily.setMarketValue(marketValue);
-      daily.setEquity(cashBalance + marketValue);
-      daily.setCostBase(costBase);
-      daily.setUnrealizedProfit(marketValue - costBase);
+      daily.setCashBalance(java.math.BigDecimal.valueOf(cashBalance));
+      daily.setMarketValue(java.math.BigDecimal.valueOf(marketValue));
+      daily.setEquity(java.math.BigDecimal.valueOf(cashBalance + marketValue));
+      daily.setCostBase(java.math.BigDecimal.valueOf(costBase));
+      daily.setUnrealizedProfit(java.math.BigDecimal.valueOf(marketValue - costBase));
       return this;
     }
 
     public AccountDailyBuilder equity(double equity) {
-      daily.setEquity(equity);
+      daily.setEquity(java.math.BigDecimal.valueOf(equity));
       return this;
     }
 
@@ -467,12 +464,12 @@ public final class PortfolioBuilders {
         double interest,
         double fees,
         double taxes) {
-      daily.setRealizedProfit(realizedProfit);
-      daily.setUnrealizedProfit(unrealizedProfit);
-      daily.setDividends(dividends);
-      daily.setInterest(interest);
-      daily.setFees(fees);
-      daily.setTaxes(taxes);
+      daily.setRealizedProfit(java.math.BigDecimal.valueOf(realizedProfit));
+      daily.setUnrealizedProfit(java.math.BigDecimal.valueOf(unrealizedProfit));
+      daily.setDividends(java.math.BigDecimal.valueOf(dividends));
+      daily.setInterest(java.math.BigDecimal.valueOf(interest));
+      daily.setFees(java.math.BigDecimal.valueOf(fees));
+      daily.setTaxes(java.math.BigDecimal.valueOf(taxes));
       return this;
     }
 
@@ -510,7 +507,7 @@ public final class PortfolioBuilders {
       currencyRate.setRateDate(monthStart);
       currencyRate.setBase(base);
       currencyRate.setToCurrency(toCurrency);
-      currencyRate.setRate(rate);
+      currencyRate.setRate(java.math.BigDecimal.valueOf(rate));
       return currencyRate;
     }
   }
@@ -521,18 +518,18 @@ public final class PortfolioBuilders {
     private AccountStatisticsBuilder() {
       statistics.setAccountId(PortfolioTestData.IBKR_USD_ACCOUNT_ID);
       statistics.setValuationCurrency(CurrencyType.USD.name());
-      statistics.setTotalDeposit(0.0);
-      statistics.setTotalWithdrawal(0.0);
-      statistics.setNetDeposit(0.0);
-      statistics.setCashBalance(0.0);
-      statistics.setMarketValue(0.0);
-      statistics.setCostBase(0.0);
-      statistics.setRealizedProfit(0.0);
-      statistics.setUnrealizedProfit(0.0);
-      statistics.setDividends(0.0);
-      statistics.setInterest(0.0);
-      statistics.setFees(0.0);
-      statistics.setTaxes(0.0);
+      statistics.setTotalDeposit(java.math.BigDecimal.valueOf(0.0));
+      statistics.setTotalWithdrawal(java.math.BigDecimal.valueOf(0.0));
+      statistics.setNetDeposit(java.math.BigDecimal.valueOf(0.0));
+      statistics.setCashBalance(java.math.BigDecimal.valueOf(0.0));
+      statistics.setMarketValue(java.math.BigDecimal.valueOf(0.0));
+      statistics.setCostBase(java.math.BigDecimal.valueOf(0.0));
+      statistics.setRealizedProfit(java.math.BigDecimal.valueOf(0.0));
+      statistics.setUnrealizedProfit(java.math.BigDecimal.valueOf(0.0));
+      statistics.setDividends(java.math.BigDecimal.valueOf(0.0));
+      statistics.setInterest(java.math.BigDecimal.valueOf(0.0));
+      statistics.setFees(java.math.BigDecimal.valueOf(0.0));
+      statistics.setTaxes(java.math.BigDecimal.valueOf(0.0));
       statistics.setUpdatedAt(PortfolioTestData.atNoon(PortfolioTestData.YEAR_END));
     }
 
@@ -542,31 +539,31 @@ public final class PortfolioBuilders {
     }
 
     public AccountStatisticsBuilder balances(double cash, double marketValue, double costBase) {
-      statistics.setCashBalance(cash);
-      statistics.setMarketValue(marketValue);
-      statistics.setCostBase(costBase);
-      statistics.setUnrealizedProfit(marketValue - costBase);
+      statistics.setCashBalance(java.math.BigDecimal.valueOf(cash));
+      statistics.setMarketValue(java.math.BigDecimal.valueOf(marketValue));
+      statistics.setCostBase(java.math.BigDecimal.valueOf(costBase));
+      statistics.setUnrealizedProfit(java.math.BigDecimal.valueOf(marketValue - costBase));
       return this;
     }
 
     public AccountStatisticsBuilder deposits(double deposits, double withdrawals) {
-      statistics.setTotalDeposit(deposits);
-      statistics.setTotalWithdrawal(withdrawals);
-      statistics.setNetDeposit(deposits + withdrawals);
+      statistics.setTotalDeposit(java.math.BigDecimal.valueOf(deposits));
+      statistics.setTotalWithdrawal(java.math.BigDecimal.valueOf(withdrawals));
+      statistics.setNetDeposit(java.math.BigDecimal.valueOf(deposits + withdrawals));
       return this;
     }
 
     public AccountStatisticsBuilder netDeposits(
         double netDepositBase, double ignoredLocalNetDeposit) {
-      statistics.setNetDeposit(netDepositBase);
+      statistics.setNetDeposit(java.math.BigDecimal.valueOf(netDepositBase));
       return this;
     }
 
     public AccountStatisticsBuilder performance(
         double realizedProfit, double unrealizedProfit, double dividends) {
-      statistics.setRealizedProfit(realizedProfit);
-      statistics.setUnrealizedProfit(unrealizedProfit);
-      statistics.setDividends(dividends);
+      statistics.setRealizedProfit(java.math.BigDecimal.valueOf(realizedProfit));
+      statistics.setUnrealizedProfit(java.math.BigDecimal.valueOf(unrealizedProfit));
+      statistics.setDividends(java.math.BigDecimal.valueOf(dividends));
       return this;
     }
 

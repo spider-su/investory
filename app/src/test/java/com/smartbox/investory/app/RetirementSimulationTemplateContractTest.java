@@ -6,9 +6,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Retirement Simulation Template Contract")
 class RetirementSimulationTemplateContractTest {
+  @DisplayName("simulation Owns Raw Projection And Not Analysis Sections")
   @Test
   void simulationOwnsRawProjectionAndNotAnalysisSections() throws Exception {
     String html =
@@ -54,6 +57,7 @@ class RetirementSimulationTemplateContractTest {
     return count;
   }
 
+  @DisplayName("plan Editor Separates Decisions Facts And Development")
   @Test
   void planEditorSeparatesDecisionsFactsAndDevelopment() throws Exception {
     String editor =
@@ -88,6 +92,7 @@ class RetirementSimulationTemplateContractTest {
     assertTrue(editor.contains("+ Add event"));
   }
 
+  @DisplayName("plan Editor Keeps Rental Growth Out Of Income Assumptions")
   @Test
   void planEditorKeepsRentalGrowthOutOfIncomeAssumptions() throws Exception {
     String editor =
@@ -99,6 +104,7 @@ class RetirementSimulationTemplateContractTest {
     assertTrue(rental >= 0 && rental < incomeStart);
   }
 
+  @DisplayName("plan Editor Preserves Post Bindings And Plan Event Operations")
   @Test
   void planEditorPreservesPostBindingsAndPlanEventOperations() throws Exception {
     String editor =

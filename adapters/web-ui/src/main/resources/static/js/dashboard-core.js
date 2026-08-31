@@ -1,3 +1,4 @@
+export function initDashboardCore() {
 // Modal Close Function helper
 window.closeModal = function() {
     window.ivSetModalState(document.getElementById('status-modal'), false);
@@ -51,4 +52,27 @@ window.closeModal = function() {
             });
         });
     });
+
+    document.querySelectorAll('[data-other-toggle="true"]').forEach(function (otherRow) {
+        function expandRows() {
+            const table = otherRow.closest('.iv-realized-attribution-table');
+            if (!table) return;
+            table.querySelectorAll('[data-initially-hidden="true"]').forEach(function (row) {
+                row.removeAttribute('data-initially-hidden');
+            });
+            otherRow.removeAttribute('data-other-toggle');
+            otherRow.classList.remove('iv-realized-attribution-row--other-toggle');
+        }
+
+        otherRow.addEventListener('click', expandRows);
+        otherRow.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                expandRows();
+            }
+        });
+        otherRow.setAttribute('tabindex', '0');
+        otherRow.setAttribute('aria-label', 'Show more attribution rows');
+    });
 })();
+}

@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class XtbBrokerImportParser implements BrokerImportParser {
 
-  private final XtbImportV2Service xtbImportV2Service;
+  private final XtbImportService xtbImportService;
 
   @Override
   public BrokerType brokerType() {
@@ -24,12 +24,12 @@ public class XtbBrokerImportParser implements BrokerImportParser {
   public ImportExecutionResult importFile(InputStream inputStream, String fileName)
       throws Exception {
     byte[] payload = readAll(inputStream);
-    if (xtbImportV2Service.isZipReport(fileName)) {
-      return xtbImportV2Service.importZip(new ByteArrayInputStream(payload), fileName);
+    if (xtbImportService.isZipReport(fileName)) {
+      return xtbImportService.importZip(new ByteArrayInputStream(payload), fileName);
     }
 
-    if (xtbImportV2Service.supports(new ByteArrayInputStream(payload))) {
-      return xtbImportV2Service.importWorkbook(new ByteArrayInputStream(payload), fileName);
+    if (xtbImportService.supports(new ByteArrayInputStream(payload))) {
+      return xtbImportService.importWorkbook(new ByteArrayInputStream(payload), fileName);
     }
     throw new IllegalArgumentException(
         "Unsupported XTB statement format for V2 importer: " + fileName);

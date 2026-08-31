@@ -1,5 +1,6 @@
 package com.smartbox.investory.investment.performance.model;
 
+import com.smartbox.investory.investment.api.reporting.model.MonthlyAttribution;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.Map;
 import java.util.TreeMap;

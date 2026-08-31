@@ -5,9 +5,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Global Footer Template Contract")
 class GlobalFooterTemplateContractTest {
+  @DisplayName("footer Is One Shared Build Metadata Fragment")
   @Test
   void footerIsOneSharedBuildMetadataFragment() throws Exception {
     String footer =
@@ -20,6 +23,7 @@ class GlobalFooterTemplateContractTest {
         .contains("buildMetadata.builtAt");
   }
 
+  @DisplayName("main Pages Include The Shared Footer")
   @Test
   void mainPagesIncludeTheSharedFooter() throws Exception {
     for (String template :

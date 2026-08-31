@@ -3,6 +3,17 @@
 <body>
 <th:block th:fragment="theme">
     <link href="/favicon.svg" rel="icon" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="/css/tokens.css" rel="stylesheet">
+    <link href="/css/base.css" rel="stylesheet">
+    <link href="/css/components.css" rel="stylesheet">
+    <!-- Hotwire Turbo Drive v8.0.23, vendored from https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.23/dist/turbo.es2017-umd.js -->
+    <script src="/js/turbo-8.0.23.js" data-turbo-track="reload"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" data-turbo-track="reload"></script>
+    <script src="/js/tabler.min.js" data-turbo-track="reload"></script>
+    <script type="module" src="/js/investory-navigation.js" data-turbo-track="reload"></script>
     <script>
         (function () {
             try {
@@ -13,12 +24,16 @@
                 document.documentElement.dataset.theme = theme;
                 document.documentElement.dataset.bsTheme = theme;
             } catch (ignored) {
-                document.documentElement.dataset.theme = 'light';
-                document.documentElement.dataset.bsTheme = 'light';
+                const theme = window.matchMedia('(prefers-color-scheme: dark)').matches
+                    ? 'dark'
+                    : 'light';
+                document.documentElement.dataset.theme = theme;
+                document.documentElement.dataset.bsTheme = theme;
             }
         }());
     </script>
-    <script th:src="@{/js/theme.js}"></script>
+    <script th:src="@{/js/theme.js}" data-turbo-track="reload"></script>
 </th:block>
 </body>
 </html>
+

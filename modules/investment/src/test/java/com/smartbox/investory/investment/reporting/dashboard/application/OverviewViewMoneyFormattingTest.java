@@ -2,13 +2,17 @@ package com.smartbox.investory.investment.reporting.dashboard.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.smartbox.investory.investment.api.reporting.model.OverviewView;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Overview View Money Formatting")
 class OverviewViewMoneyFormattingTest {
 
+  @DisplayName("base Currency Values Do Not Repeat Currency And Original Currency Uses Iso Code")
   @Test
   void baseCurrencyValuesDoNotRepeatCurrencyAndOriginalCurrencyUsesIsoCode() {
     OverviewView usd = view(CurrencyType.USD);
@@ -18,6 +22,7 @@ class OverviewViewMoneyFormattingTest {
     assertEquals("22,686 EUR", usd.formatMoney(22686.0, CurrencyType.EUR));
   }
 
+  @DisplayName("changing Base Currency Changes Which Currency Is Implicit")
   @Test
   void changingBaseCurrencyChangesWhichCurrencyIsImplicit() {
     OverviewView eur = view(CurrencyType.EUR);

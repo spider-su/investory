@@ -1,5 +1,6 @@
 package com.smartbox.investory.retirement.planning;
 
+import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;

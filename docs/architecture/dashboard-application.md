@@ -1,26 +1,35 @@
 # Dashboard application boundary
 
-The server-rendered dashboard enters through `investment.reporting.dashboard.application.DashboardFacade`.
-`investment.web.HomeController` maps request
-parameters to `DashboardQuery` and adds the resulting `DashboardPageView` plus period navigation
-metadata to the Thymeleaf model.
+The server-rendered dashboard enters through the MVC controller in `adapters/web-ui`. It maps request
+parameters to `DashboardQuery` and calls the UI-side `InvestmentDashboardClient`. The active
+in-process implementation injects Investment's public application API directly. Browser-side
+dashboard actions call the versioned REST endpoints, while server-rendered MVC uses the in-process
+client seam. The public API delegates to
+`investment.reporting.dashboard.application.InvestmentDashboardFacade`. The MVC controller adds the resulting
+`DashboardPageView` plus period navigation metadata to the Thymeleaf model.
 
-`DashboardFacade` coordinates the existing `PortfolioService`, `BenchmarkService`, and
+`InvestmentDashboardFacade` coordinates the existing `PortfolioMetricsService`, `BenchmarkService`, and
 `DashboardPeriodFilterService`. It does not recalculate reporting values. The facade maps those
 results into immutable section view models: overview, performance, positions, cash flow, risk, and
 data quality. Financial truth remains in the existing portfolio services and the `account_daily`
 reporting pipeline.
 
-The dashboard facade and view models live in `investment.reporting.dashboard.application`; supporting
-queries and mappers live in `investment.reporting.dashboard.service`. Investment controllers live in
-`investment.web` and retain their existing routes.
+The dashboard facade lives in `investment.reporting.dashboard.application`; its public immutable
+page and section models live in `investment.api.reporting.model`. Supporting
+queries and mappers live in `investment.reporting.dashboard.service`. Investment REST controllers
+live in `investment.web`. Thymeleaf MVC controllers and page formatting remain in `adapters/web-ui`.
 
 Initial rendering remains server-side Thymeleaf. A small presentation alias in `dashboard.html`
 keeps existing expressions stable while the page is incrementally split into section-heading
 fragments. Chart data is still injected by Thymeleaf because Chart.js needs the prepared server
-result. Chart rendering remains in the Thymeleaf-inlined Chart.js block; actions, core page state,
+result. Chart rendering is owned by the static `dashboard-charts.js` module; Thymeleaf only emits
+the small server-data payload consumed by that module. Actions, core page state,
 formatting support, and accessibility behavior are split into static dashboard modules.
-The current static modules are `dashboard.js`, `dashboard-actions.js`, `dashboard-core.js`, and
+Disclosure behavior is opt-in: only `details` elements sharing an explicit
+`data-disclosure-group` auto-close one another. Independent disclosures remain open together,
+while outside-click handling is limited to grouped compact popovers.
+The current static modules are `dashboard.js`, `dashboard-actions.js`, `dashboard-core.js`,
+`dashboard-charts.js`, and
 `dashboard-accessibility.js`; the page does not introduce a frontend framework or a broad dashboard
 API.
 
@@ -51,6 +60,12 @@ The account summary percentage remains simple return on its accounting net-depos
 It is intentionally not required to equal the flow-adjusted benchmark return when external flows
 occur during the selected period.
 
+SPY closes are loaded from persisted benchmark history, with provider refresh used only when required
+history is missing. A database failure while reading portfolio projections or SPY closes is an
+operational reporting failure: the application logs and propagates it. It must not be represented as
+an empty benchmark, which would make a broken data path look like valid missing history.
+
 The performance board scopes its plotted series and headline KPIs to the configured KPI start. Both
 are rebased from the immediately preceding monthly observation, so the displayed endpoint and KPI
 describe the same period.
+

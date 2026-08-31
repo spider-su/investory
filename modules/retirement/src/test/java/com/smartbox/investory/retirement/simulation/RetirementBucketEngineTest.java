@@ -2,12 +2,17 @@ package com.smartbox.investory.retirement.simulation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.smartbox.investory.profile.api.model.EconomicBucket;
+import com.smartbox.investory.retirement.api.model.*;
 import java.math.BigDecimal;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Retirement Bucket Engine")
 class RetirementBucketEngineTest {
   private final RetirementBucketEngine engine = new RetirementBucketEngine();
 
+  @DisplayName("spends Cash First And Does Not Refill It")
   @Test
   void spendsCashFirstAndDoesNotRefillIt() {
     var r =
@@ -16,69 +21,77 @@ class RetirementBucketEngineTest {
             bd("50"),
             BigDecimal.ZERO,
             policy());
-    assertThat(r.buckets().get(BucketType.CASH).withdrawal()).isEqualByComparingTo("50");
-    assertThat(r.buckets().get(BucketType.BONDS).withdrawal()).isZero();
-    assertThat(r.buckets().get(BucketType.CASH).expectedEndValue()).isEqualByComparingTo("50");
+    assertThat(r.buckets().get(EconomicBucket.LIQUID_CASH).withdrawal()).isEqualByComparingTo("50");
+    assertThat(r.buckets().get(EconomicBucket.FIXED_INCOME).withdrawal()).isZero();
+    assertThat(r.buckets().get(EconomicBucket.LIQUID_CASH).expectedEndValue())
+        .isEqualByComparingTo("50");
   }
 
+  @DisplayName("uses Bonds Then Equities Then Real Estate")
   @Test
   void usesBondsThenEquitiesThenRealEstate() {
     var r =
         engine.simulate(
             buckets("50", "100", "80", "100", "0", "0"), bd("300"), BigDecimal.ZERO, policy());
-    assertThat(r.buckets().get(BucketType.CASH).expectedEndValue()).isZero();
-    assertThat(r.buckets().get(BucketType.BONDS).expectedEndValue()).isZero();
-    assertThat(r.buckets().get(BucketType.EQUITIES).expectedEndValue()).isZero();
-    assertThat(r.buckets().get(BucketType.REAL_ESTATE).withdrawal()).isEqualByComparingTo("70");
+    assertThat(r.buckets().get(EconomicBucket.LIQUID_CASH).expectedEndValue()).isZero();
+    assertThat(r.buckets().get(EconomicBucket.FIXED_INCOME).expectedEndValue()).isZero();
+    assertThat(r.buckets().get(EconomicBucket.EQUITY).expectedEndValue()).isZero();
+    assertThat(r.buckets().get(EconomicBucket.REAL_ESTATE).withdrawal()).isEqualByComparingTo("70");
     assertThat(r.unfunded()).isZero();
   }
 
+  @DisplayName("real Estate Is Untouched Until All Liquid Buckets Are Exhausted")
   @Test
   void realEstateIsUntouchedUntilAllLiquidBucketsAreExhausted() {
     var exactlyLiquid =
         engine.simulate(
             buckets("10", "20", "30", "40", "0", "0"), bd("60"), BigDecimal.ZERO, policy());
-    assertThat(exactlyLiquid.buckets().get(BucketType.CASH).expectedEndValue()).isZero();
-    assertThat(exactlyLiquid.buckets().get(BucketType.BONDS).expectedEndValue()).isZero();
-    assertThat(exactlyLiquid.buckets().get(BucketType.EQUITIES).expectedEndValue()).isZero();
-    assertThat(exactlyLiquid.buckets().get(BucketType.REAL_ESTATE).withdrawal()).isZero();
-    assertThat(exactlyLiquid.buckets().get(BucketType.REAL_ESTATE).expectedEndValue())
+    assertThat(exactlyLiquid.buckets().get(EconomicBucket.LIQUID_CASH).expectedEndValue()).isZero();
+    assertThat(exactlyLiquid.buckets().get(EconomicBucket.FIXED_INCOME).expectedEndValue())
+        .isZero();
+    assertThat(exactlyLiquid.buckets().get(EconomicBucket.EQUITY).expectedEndValue()).isZero();
+    assertThat(exactlyLiquid.buckets().get(EconomicBucket.REAL_ESTATE).withdrawal()).isZero();
+    assertThat(exactlyLiquid.buckets().get(EconomicBucket.REAL_ESTATE).expectedEndValue())
         .isEqualByComparingTo("40");
 
     var needsRealEstate =
         engine.simulate(
             buckets("10", "20", "30", "40", "0", "0"), bd("61"), BigDecimal.ZERO, policy());
-    assertThat(needsRealEstate.buckets().get(BucketType.REAL_ESTATE).withdrawal())
+    assertThat(needsRealEstate.buckets().get(EconomicBucket.REAL_ESTATE).withdrawal())
         .isEqualByComparingTo("1");
-    assertThat(needsRealEstate.buckets().get(BucketType.REAL_ESTATE).expectedEndValue())
+    assertThat(needsRealEstate.buckets().get(EconomicBucket.REAL_ESTATE).expectedEndValue())
         .isEqualByComparingTo("39");
   }
 
+  @DisplayName("exhausts Real Estate Before Reporting Unfunded Spending")
   @Test
   void exhaustsRealEstateBeforeReportingUnfundedSpending() {
     var r =
         engine.simulate(
             buckets("10", "20", "30", "10", "0", "0"), bd("75"), BigDecimal.ZERO, policy());
 
-    assertThat(r.buckets().get(BucketType.CASH).expectedEndValue()).isZero();
-    assertThat(r.buckets().get(BucketType.BONDS).expectedEndValue()).isZero();
-    assertThat(r.buckets().get(BucketType.EQUITIES).expectedEndValue()).isZero();
-    assertThat(r.buckets().get(BucketType.REAL_ESTATE).expectedEndValue()).isZero();
-    assertThat(r.buckets().get(BucketType.REAL_ESTATE).withdrawal()).isEqualByComparingTo("10");
+    assertThat(r.buckets().get(EconomicBucket.LIQUID_CASH).expectedEndValue()).isZero();
+    assertThat(r.buckets().get(EconomicBucket.FIXED_INCOME).expectedEndValue()).isZero();
+    assertThat(r.buckets().get(EconomicBucket.EQUITY).expectedEndValue()).isZero();
+    assertThat(r.buckets().get(EconomicBucket.REAL_ESTATE).expectedEndValue()).isZero();
+    assertThat(r.buckets().get(EconomicBucket.REAL_ESTATE).withdrawal()).isEqualByComparingTo("10");
     assertThat(r.unfunded()).isEqualByComparingTo("5");
   }
 
+  @DisplayName("bond Return Carries And Equity Profit Refills Only To Target")
   @Test
   void bondReturnCarriesAndEquityProfitRefillsOnlyToTarget() {
     var r =
         engine.simulate(
             buckets("0", "100", "1000", "0", "0.10", "0.10"), bd("0"), BigDecimal.ZERO, policy());
-    assertThat(r.buckets().get(BucketType.BONDS).returnAmount()).isEqualByComparingTo("10");
-    assertThat(r.buckets().get(BucketType.BONDS).refill()).isEqualByComparingTo("0");
-    assertThat(r.buckets().get(BucketType.EQUITIES).expectedEndValue())
+    assertThat(r.buckets().get(EconomicBucket.FIXED_INCOME).returnAmount())
+        .isEqualByComparingTo("10");
+    assertThat(r.buckets().get(EconomicBucket.FIXED_INCOME).refill()).isEqualByComparingTo("0");
+    assertThat(r.buckets().get(EconomicBucket.EQUITY).expectedEndValue())
         .isEqualByComparingTo("1100");
   }
 
+  @DisplayName("annual Rate Seam Overrides Constant Rates Without Changing Funding Order")
   @Test
   void annualRateSeamOverridesConstantRatesWithoutChangingFundingOrder() {
     var r =
@@ -90,10 +103,12 @@ class RetirementBucketEngineTest {
             bd("0.03"),
             bd("0.04"));
 
-    assertThat(r.buckets().get(BucketType.BONDS).returnAmount()).isEqualByComparingTo("3");
-    assertThat(r.buckets().get(BucketType.EQUITIES).returnAmount()).isEqualByComparingTo("40");
+    assertThat(r.buckets().get(EconomicBucket.FIXED_INCOME).returnAmount())
+        .isEqualByComparingTo("3");
+    assertThat(r.buckets().get(EconomicBucket.EQUITY).returnAmount()).isEqualByComparingTo("40");
   }
 
+  @DisplayName("equity To Bond Transfer Is Signed And Portfolio Value Neutral")
   @Test
   void equityToBondTransferIsSignedAndPortfolioValueNeutral() {
     var r =
@@ -104,13 +119,13 @@ class RetirementBucketEngineTest {
             BigDecimal.ZERO,
             policy());
 
-    var bonds = r.buckets().get(BucketType.BONDS);
-    var equities = r.buckets().get(BucketType.EQUITIES);
+    var bonds = r.buckets().get(EconomicBucket.FIXED_INCOME);
+    var equities = r.buckets().get(EconomicBucket.EQUITY);
     assertThat(bonds.transfer()).isEqualByComparingTo("12");
     assertThat(equities.transfer()).isEqualByComparingTo("-12");
     assertThat(
             r.buckets().values().stream()
-                .map(RetirementBucketEngine.BucketResult::transfer)
+                .map(BucketResult::transfer)
                 .reduce(BigDecimal.ZERO, BigDecimal::add))
         .isZero();
 
@@ -124,6 +139,7 @@ class RetirementBucketEngineTest {
     assertThat(afterTransfer).isEqualByComparingTo(beforeTransfer);
   }
 
+  @DisplayName("harvest Runs At Threshold But Not Just Below It")
   @Test
   void harvestRunsAtThresholdButNotJustBelowIt() {
     var exact =
@@ -140,8 +156,9 @@ class RetirementBucketEngineTest {
             BigDecimal.ZERO,
             BigDecimal.ZERO,
             policy("0.07", "1"));
-    assertThat(exact.buckets().get(BucketType.BONDS).refill()).isEqualByComparingTo("20");
-    assertThat(exact.buckets().get(BucketType.BONDS).expectedEndValue())
+    assertThat(exact.buckets().get(EconomicBucket.FIXED_INCOME).refill())
+        .isEqualByComparingTo("20");
+    assertThat(exact.buckets().get(EconomicBucket.FIXED_INCOME).expectedEndValue())
         .isEqualByComparingTo("100");
 
     var below =
@@ -158,9 +175,10 @@ class RetirementBucketEngineTest {
             BigDecimal.ZERO,
             BigDecimal.ZERO,
             policy("0.07", "1"));
-    assertThat(below.buckets().get(BucketType.BONDS).refill()).isZero();
+    assertThat(below.buckets().get(EconomicBucket.FIXED_INCOME).refill()).isZero();
   }
 
+  @DisplayName("harvest Share Zero And One Respect Eligible Gain And Bond Target")
   @Test
   void harvestShareZeroAndOneRespectEligibleGainAndBondTarget() {
     var zeroShare =
@@ -177,7 +195,7 @@ class RetirementBucketEngineTest {
             BigDecimal.ZERO,
             BigDecimal.ZERO,
             policy("0.07", "0"));
-    assertThat(zeroShare.buckets().get(BucketType.BONDS).refill()).isZero();
+    assertThat(zeroShare.buckets().get(EconomicBucket.FIXED_INCOME).refill()).isZero();
 
     var fullShare =
         engine.simulate(
@@ -193,13 +211,15 @@ class RetirementBucketEngineTest {
             BigDecimal.ZERO,
             BigDecimal.ZERO,
             policy("0.07", "1"));
-    assertThat(fullShare.buckets().get(BucketType.BONDS).refill()).isEqualByComparingTo("100");
-    assertThat(fullShare.buckets().get(BucketType.BONDS).expectedEndValue())
+    assertThat(fullShare.buckets().get(EconomicBucket.FIXED_INCOME).refill())
         .isEqualByComparingTo("100");
-    assertThat(fullShare.buckets().get(BucketType.EQUITIES).expectedEndValue())
+    assertThat(fullShare.buckets().get(EconomicBucket.FIXED_INCOME).expectedEndValue())
+        .isEqualByComparingTo("100");
+    assertThat(fullShare.buckets().get(EconomicBucket.EQUITY).expectedEndValue())
         .isEqualByComparingTo("1000");
   }
 
+  @DisplayName("bonds At Target Do Not Receive Unnecessary Equity Transfer")
   @Test
   void bondsAtTargetDoNotReceiveUnnecessaryEquityTransfer() {
     var r =
@@ -217,10 +237,11 @@ class RetirementBucketEngineTest {
             BigDecimal.ZERO,
             policy());
 
-    assertThat(r.buckets().get(BucketType.BONDS).transfer()).isZero();
-    assertThat(r.buckets().get(BucketType.EQUITIES).transfer()).isZero();
+    assertThat(r.buckets().get(EconomicBucket.FIXED_INCOME).transfer()).isZero();
+    assertThat(r.buckets().get(EconomicBucket.EQUITY).transfer()).isZero();
   }
 
+  @DisplayName("unfunded Is Per Year And Can Recover")
   @Test
   void unfundedIsPerYearAndCanRecover() {
     var start = buckets("0", "0", "0", "0", "0", "0");

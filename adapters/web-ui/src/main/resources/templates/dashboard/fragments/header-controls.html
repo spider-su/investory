@@ -34,7 +34,7 @@
     </div>
 </details>
 
-<details th:fragment="valuation" id="data-quality" class="iv-balance-popover iv-data-quality-popover iv-compact-popover iv-compact-popover--wide">
+<details th:fragment="valuation" id="data-quality" class="iv-balance-popover iv-data-quality-popover iv-topbar-quality iv-compact-popover iv-compact-popover--wide">
     <summary class="iv-balance-popover__trigger"
              th:classappend="${stats.dataQuality.state == 'HEALTHY'} ? ' iv-badge--pos' : (${stats.dataQuality.state == 'CRITICAL'} ? ' iv-badge--neg' : ' iv-badge--muted')"
              th:text="${'Valuation quality: ' + (stats.dataQuality.state == 'HEALTHY' ? 'Healthy' : (stats.dataQuality.state == 'CRITICAL' ? 'Critical' : 'Needs attention'))}">Valuation quality: Healthy</summary>

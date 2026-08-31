@@ -1,19 +1,20 @@
 package com.smartbox.investory.retirement.infrastructure.simulation;
 
-import static com.smartbox.investory.shared.util.StringUtils.isBlank;
+import static org.apache.commons.lang3.StringUtils.isBlank;
 
-import com.smartbox.investory.retirement.simulation.ExpenseProfile;
-import com.smartbox.investory.retirement.simulation.ExpenseProfileStep;
-import com.smartbox.investory.retirement.simulation.FundingSource;
-import com.smartbox.investory.retirement.simulation.ProjectedIncomePolicy;
-import com.smartbox.investory.retirement.simulation.SimulationAssumptions;
-import com.smartbox.investory.retirement.simulation.SimulationEvent;
-import com.smartbox.investory.retirement.simulation.SimulationFundingStrategy;
+import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.api.model.ExpenseProfile;
+import com.smartbox.investory.retirement.api.model.ExpenseProfileStep;
+import com.smartbox.investory.retirement.api.model.ProjectedIncomePolicy;
+import com.smartbox.investory.retirement.api.model.SimulationAssumptions;
+import com.smartbox.investory.retirement.api.model.SimulationEvent;
+import com.smartbox.investory.retirement.api.model.SimulationFundingStrategy;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
-/** Sole translation boundary between compatibility-shaped persistence and active assumptions. */
+/** Sole translation boundary between persistence and active simulation assumptions. */
 public final class SimulationAssumptionsPersistenceMapper {
   private SimulationAssumptionsPersistenceMapper() {}
 
@@ -24,14 +25,11 @@ public final class SimulationAssumptionsPersistenceMapper {
         source.getEndAge(),
         source.getAnnualLivingExpenses(),
         source.getInflationRate(),
-        source.getCashReturnRate(),
         source.getFixedIncomeReturnRate(),
         source.getEquityReturnRate(),
-        source.getRealEstateReturnRate(),
-        source.getOtherReturnRate(),
-        source.getPensionStartAge(),
+        readPensionStartAge(source.getPensionStartAge()),
         source.getAnnualPension(),
-        source.getCapitalGainTaxRate(),
+        defaultValue(source.getCapitalGainTaxRate(), BigDecimal.ZERO),
         source.getStartYear(),
         source.getAnnualDiscretionaryExpenses(),
         events,
@@ -40,10 +38,9 @@ public final class SimulationAssumptionsPersistenceMapper {
             SimulationAssumptions.DEFAULT_RENTAL_INCOME_GROWTH_SPREAD),
         defaultValue(
             source.getSpendingGrowthSpread(), SimulationAssumptions.DEFAULT_SPENDING_GROWTH_SPREAD),
-        source.getFundingStrategy() == null
-            ? SimulationFundingStrategy.SIMPLE_WATERFALL
-            : source.getFundingStrategy(),
-        defaultValue(source.getSafeReserveYears(), BigDecimal.ZERO),
+        SimulationFundingStrategy.SIMPLE_WATERFALL,
+        defaultValue(
+            source.getSafeReserveYears(), SimulationAssumptions.DEFAULT_SAFE_RESERVE_YEARS),
         defaultValue(source.getEquityHarvestMinimumReturnRate(), BigDecimal.ZERO),
         defaultValue(source.getEquityGainHarvestRate(), BigDecimal.ZERO),
         source.getAllowEmergencyEquityWithdrawal() == null
@@ -60,7 +57,6 @@ public final class SimulationAssumptionsPersistenceMapper {
             source.getManualBondCashIncome()));
   }
 
-  @SuppressWarnings("deprecation")
   public static void write(
       PersistedSimulationAssumptions target, SimulationAssumptions assumptions) {
     target.setCurrentAge(assumptions.currentAge());
@@ -79,33 +75,20 @@ public final class SimulationAssumptionsPersistenceMapper {
     target.setBondCashIncomeMode(assumptions.projectedIncomePolicy().bondCashIncomeMode());
     target.setManualBondCashIncome(assumptions.projectedIncomePolicy().manualBondCashIncome());
     target.setFundingStrategy(assumptions.fundingStrategy());
-    target.setFundingOrder(serializeFundingOrder(assumptions.fundingOrder()));
     target.setExpenseProfile(serializeExpenseProfile(assumptions.expenseProfile()));
+    target.setFundingOrder(
+        assumptions.fundingOrder().stream()
+            .map(SimulationAssumptionsPersistenceMapper::serializeFundingSource)
+            .collect(Collectors.joining(",")));
     target.setSafeReserveYears(assumptions.safeReserveYears());
     target.setEquityHarvestMinimumReturnRate(assumptions.equityHarvestMinimumReturnRate());
     target.setEquityGainHarvestRate(assumptions.equityGainHarvestRate());
     target.setAllowEmergencyEquityWithdrawal(assumptions.allowEmergencyEquityWithdrawal());
-    target.setCashReturnRate(assumptions.cashReturnRate());
     target.setFixedIncomeReturnRate(assumptions.fixedIncomeReturnRate());
     target.setEquityReturnRate(assumptions.equityReturnRate());
-    target.setRealEstateReturnRate(assumptions.realEstateReturnRate());
-    target.setOtherReturnRate(assumptions.otherReturnRate());
-    target.setPensionStartAge(assumptions.pensionStartAge());
+    target.setPensionStartAge(writePensionStartAge(assumptions.pensionStartAge()));
     target.setAnnualPension(assumptions.annualPension());
     target.setCapitalGainTaxRate(assumptions.capitalGainTaxRate());
-  }
-
-  static String serializeFundingOrder(List<FundingSource> order) {
-    return String.join(",", order.stream().map(Enum::name).toList());
-  }
-
-  static List<FundingSource> parseFundingOrder(String value) {
-    if (value == null || isBlank(value)) return SimulationAssumptions.DEFAULT_FUNDING_ORDER;
-    try {
-      return Arrays.stream(value.split(",")).map(String::trim).map(FundingSource::valueOf).toList();
-    } catch (IllegalArgumentException exception) {
-      throw new IllegalArgumentException("Unknown funding source in simulation plan", exception);
-    }
   }
 
   static String serializeExpenseProfile(ExpenseProfile profile) {
@@ -134,7 +117,43 @@ public final class SimulationAssumptionsPersistenceMapper {
     }
   }
 
+  private static String serializeFundingSource(RetirementFundingSource source) {
+    return switch (source) {
+      case RESERVE -> "CASH";
+      case LONG_TERM -> "BONDS";
+      case INVESTMENT -> "STOCKS";
+    };
+  }
+
+  static List<RetirementFundingSource> parseFundingOrder(String value) {
+    if (value == null || isBlank(value)) return SimulationAssumptions.DEFAULT_FUNDING_ORDER;
+    try {
+      return Arrays.stream(value.split(","))
+          .map(String::trim)
+          .map(
+              token ->
+                  switch (token) {
+                    case "CASH", "RESERVE" -> RetirementFundingSource.RESERVE;
+                    case "BONDS", "LONG_TERM" -> RetirementFundingSource.LONG_TERM;
+                    case "STOCKS", "INVESTMENT" -> RetirementFundingSource.INVESTMENT;
+                    default ->
+                        throw new IllegalArgumentException("Unknown funding source: " + token);
+                  })
+          .toList();
+    } catch (RuntimeException exception) {
+      throw new IllegalArgumentException("Invalid funding order in simulation plan", exception);
+    }
+  }
+
   private static BigDecimal defaultValue(BigDecimal value, BigDecimal fallback) {
     return value == null ? fallback : value;
+  }
+
+  private static Integer readPensionStartAge(Integer value) {
+    return value == null || value == Integer.MAX_VALUE ? null : value;
+  }
+
+  private static int writePensionStartAge(Integer value) {
+    return value == null ? Integer.MAX_VALUE : value;
   }
 }

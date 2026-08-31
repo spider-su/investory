@@ -2,8 +2,8 @@ package com.smartbox.investory.investment.valuation.price;
 
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
-import com.smartbox.investory.investment.ledger.position.persistence.OpenedPosition;
-import com.smartbox.investory.investment.ledger.position.persistence.OpenedPositionRepository;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionRepository;
 import com.smartbox.investory.investment.performance.InvestmentCalculationCache;
 import com.smartbox.investory.investment.port.market.MarketDataProvider;
 import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryRepository;
@@ -27,7 +27,7 @@ import org.springframework.util.StringUtils;
 @Service
 public class PriceHistoryCoverageService {
 
-  private final OpenedPositionRepository openedPositionRepository;
+  private final PositionRepository openedPositionRepository;
   private final AssetRepository assetRepository;
   private final AssetPriceHistoryRepository historyRepository;
   private final MarketDataProvider marketDataProvider;
@@ -37,7 +37,7 @@ public class PriceHistoryCoverageService {
   private final String benchmarkSymbol;
 
   public PriceHistoryCoverageService(
-      OpenedPositionRepository openedPositionRepository,
+      PositionRepository openedPositionRepository,
       AssetRepository assetRepository,
       AssetPriceHistoryRepository historyRepository,
       MarketDataProvider marketDataProvider,
@@ -115,7 +115,7 @@ public class PriceHistoryCoverageService {
   public PortfolioCoverageResult ensurePortfolioCoverage(Long portfolioId) {
     LocalDate to = LocalDate.now(clock);
     Map<Long, LocalDate> requiredFrom = new LinkedHashMap<>();
-    for (OpenedPosition position : openedPositionRepository.findAll()) {
+    for (PositionEntity position : openedPositionRepository.findOpen()) {
       if (position.getAssetId() == null || position.getOpenTime() == null) continue;
       requiredFrom.merge(
           position.getAssetId(),
@@ -160,7 +160,7 @@ public class PriceHistoryCoverageService {
 
   public record PortfolioCoverageResult(Long portfolioId, List<CoverageResult> results) {
     public PortfolioCoverageResult {
-      results = results == null ? List.of() : List.copyOf(results);
+      results = com.smartbox.investory.shared.util.CollectionUtils.immutableListOrEmpty(results);
     }
   }
 }

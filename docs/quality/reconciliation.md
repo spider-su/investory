@@ -28,7 +28,7 @@ files
 | C4 | `account_daily` | Equity, cash, market value, flows, and investment result reconcile for each account/date. |
 | C5 | reporting layers | Monthly/portfolio summaries equal the lower-level projection and pass economic-truth checks. |
 | C6 | dashboard | Displayed values equal their documented reporting sources within rounding. |
-| C7 | secondary adapters | Exports, notifications, and other adapters agree when they expose the same metric. |
+| C7 | secondary adapters | The current implementation checks the Yahoo export adapter; future adapters must add their own explicit evidence. |
 
 ## Economic-truth checks
 
@@ -114,17 +114,31 @@ solely to improve quality counts.
 
 ### Application reconciliation report coverage
 
+The parameterless application endpoint evaluates system-wide current database/current-valuation
+evidence. It does not claim portfolio scope or historical reconstruction. The UI portfolio ID is
+navigation context only and does not filter reconciliation evidence.
+`GOLDEN` and full `ARCHIVE` reconciliation are release workflows implemented by `GoldenRebuildIT`
+and the private archive tooling, not application REST modes.
+
 The read-only application report connects C0, C1, C2, C5, and C6 to persisted import, ledger,
 position, reporting, and dashboard-fallback evidence. C7 compares the persisted Yahoo export
 snapshot with the current adapter payload: a missing snapshot is `REVIEW`, a stale snapshot is
-`FAIL`, and a matching snapshot is `PASS`. QUICK mode still cannot prove external archive
+`FAIL`, and a matching snapshot is `PASS`. The current-state report still cannot prove external archive
 completeness without an archive manifest. An empty result in an unexecuted checkpoint is not a
 pass. A report is `RECONCILED` only after every required checkpoint has executed and passed. An
 executed failure produces `UNRECONCILED`.
 
-The application uses a reusable typed check engine. Checks execute in C0-C7 order, aggregate
-uncapped counts while retaining capped detail rows, and report mode, execution time, and data-as-of
-date. Check execution errors fail closed with an explicit issue. `BLOCKED` is only a presentation
+C0 evaluates incomplete imports only on the latest `(provider, file_sha256)` attempt; superseded
+failed attempts remain immutable audit evidence but do not permanently fail a successful reprocess.
+C1 reconstructs cash-flow differences from `account_daily` and `normalized_cash_operations` and
+uses `reconciliation_values_match` at full precision. Rounded reporting columns are evidence for
+display only.
+
+The application uses a reusable typed check engine. Checks execute in C0-C7 order. Database checks
+use one bounded query per checkpoint with windowed uncapped counts and at most 250 detail rows.
+Repository-backed C3/C4 checks use the same windowed-count pattern. Reports include execution time
+and current valuation date. Check execution errors fail closed with an explicit issue.
+`BLOCKED` is only a presentation
 status after the earliest original failure; it never replaces the original status.
 
 Checkpoint and issue statuses are typed as `PASS`, `FAIL`, `REVIEW`, `BLOCKED`, and `NOT_CHECKED`.
@@ -159,8 +173,8 @@ are [`docs/domain/retirement-simulation.md`](../domain/retirement-simulation.md)
   source identities, and source checksum drift. New orchestrated broker imports must produce no
   missing-link errors; legacy/manual rows remain explicitly nullable.
 - Shared deterministic portfolio fixtures live under
-  `src/test/java/com/smartbox/testsupport/portfolio`; read the package-local `README.md`.
-- `src/test/manual/api.http` remains a manual API smoke surface.
+  `test-support/src/main/java/com/smartbox/investory/testsupport`; read the package-local `README.md`.
+- `app/src/test/http/api.http` remains a manual API smoke surface.
 
 Do not copy one developer's local account totals, machine paths, database addresses, or a one-time PASS
 result into this document.

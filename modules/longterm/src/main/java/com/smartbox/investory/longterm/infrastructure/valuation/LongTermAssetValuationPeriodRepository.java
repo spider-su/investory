@@ -6,4 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface LongTermAssetValuationPeriodRepository
     extends JpaRepository<LongTermAssetValuationPeriodEntity, Long> {
   List<LongTermAssetValuationPeriodEntity> findAllByAssetIdOrderByValidFrom(Long assetId);
+
+  List<LongTermAssetValuationPeriodEntity> findAllByAssetIdInOrderByAssetIdAscValidFromAsc(
+      Collection<Long> assetIds);
 }

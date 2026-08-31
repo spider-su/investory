@@ -1,11 +1,7 @@
 package com.smartbox.investory.longterm.application.service;
 
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
-import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetCashFlowEntity;
 import java.time.LocalDate;
-import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 /** Shared effective-period rules used by interactive edits and bootstrap imports. */
 public final class LongTermAssetPeriodRules {
@@ -19,27 +15,6 @@ public final class LongTermAssetPeriodRules {
 
   public static boolean activeOn(LocalDate from, LocalDate to, LocalDate date) {
     return !from.isAfter(date) && (to == null || !to.isBefore(date));
-  }
-
-  public static boolean defaultPaidByTenant(CashFlowType type) {
-    return type == CashFlowType.ADMIN_FEE || type == CashFlowType.UTILITIES;
-  }
-
-  public static void ensurePaidByTenant(LongTermAssetCashFlowEntity flow) {
-    if (flow.getPaidByTenant() == null) flow.setPaidByTenant(defaultPaidByTenant(flow.getType()));
-  }
-
-  public static void rejectOverlap(
-      List<LongTermAssetCashFlowEntity> existing,
-      LongTermAssetCashFlowEntity candidate,
-      LocalDate from,
-      LocalDate to,
-      Set<Long> excludedIds) {
-    if (existing.stream()
-        .filter(flow -> flow.getType() == candidate.getType())
-        .filter(flow -> !excludedIds.contains(flow.getId()))
-        .anyMatch(flow -> overlaps(flow.getValidFrom(), flow.getValidTo(), from, to)))
-      throw new IllegalArgumentException("Overlapping cash-flow period");
   }
 
   public static boolean samePeriodIdentity(

@@ -2,6 +2,7 @@ package com.smartbox.investory.retirement.simulation;
 
 import static com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull;
 
+import com.smartbox.investory.retirement.api.model.*;
 import java.math.BigDecimal;
 
 /** Allocates operating surplus without inspecting Investment or Long-Term internals. */

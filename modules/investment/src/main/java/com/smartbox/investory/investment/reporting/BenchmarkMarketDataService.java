@@ -3,6 +3,7 @@ package com.smartbox.investory.investment.reporting;
 import com.smartbox.investory.investment.infrastructure.persistence.benchmark.BenchmarkMonthlyCloseEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.benchmark.BenchmarkMonthlyCloseRepository;
 import com.smartbox.investory.investment.port.market.MarketDataProvider;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZonedDateTime;
@@ -85,7 +86,7 @@ class BenchmarkMarketDataService {
                     .monthDate(YearMonth.parse(month).atDay(1))
                     .build();
           }
-          row.setClosePrice(close);
+          row.setClosePrice(BigDecimal.valueOf(close));
           row.setFetchedAt(now);
           rows.add(row);
         });

@@ -5,18 +5,19 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.*;
 
-import com.smartbox.investory.longterm.api.model.InterestTreatmentModel;
-import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
+import com.smartbox.investory.longterm.api.model.InterestTreatment;
+import com.smartbox.investory.longterm.api.model.LongTermAssetType;
+import com.smartbox.investory.profile.api.model.EconomicBucket;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.profile.api.model.Liquidity;
+import com.smartbox.investory.profile.api.model.ProjectedLongTermAsset;
+import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanEntity;
-import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanEventRepository;
 import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanRepository;
 import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanRevisionEntity;
 import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanRevisionEventRepository;
 import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanRevisionRepository;
-import com.smartbox.investory.retirement.profile.EconomicBucket;
-import com.smartbox.investory.retirement.profile.InvestmentProfile;
-import com.smartbox.investory.retirement.profile.Liquidity;
-import com.smartbox.investory.retirement.profile.ProjectedLongTermAsset;
+import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.nio.file.Files;
@@ -26,6 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -35,8 +37,10 @@ import org.junit.jupiter.api.Test;
  * and Thymeleaf contract layers instead of introducing a second E2E framework. It keeps the browser
  * lifecycle stages explicit and compares every scenario to the canonical simulator.
  */
+@DisplayName("Retirement Simulation Lifecycle E2E")
 class RetirementSimulationLifecycleE2ETest {
 
+  @DisplayName("remaining Year Keeps One Off Events And Scales Only Recurring Flows")
   @Test
   void remainingYearKeepsOneOffEventsAndScalesOnlyRecurringFlows() {
     InvestmentProfile profile = goldenProfile();
@@ -71,6 +75,7 @@ class RetirementSimulationLifecycleE2ETest {
     assertThat(halfRemainingYear.eventIncome()).isEqualByComparingTo(fullYear.eventIncome());
   }
 
+  @DisplayName("golden Plan Lifecycle Persists Recalculates And Keeps Scenarios Isolated")
   @Test
   void goldenPlanLifecyclePersistsRecalculatesAndKeepsScenariosIsolated() throws Exception {
     InvestmentProfile profile = goldenProfile();
@@ -80,21 +85,29 @@ class RetirementSimulationLifecycleE2ETest {
 
     // Create through the same plan-service boundary used by the UI POST handler.
     SimulationPlanEntity created = plans.create(1L, "Golden lifecycle", original);
-    assertThat(plans.assumptions(1L, created.getId())).isEqualTo(original);
+    assertThat(plans.details(1L, created.getId()).assumptions())
+        .isEqualTo(
+            original.toBuilder()
+                .fundingStrategy(SimulationFundingStrategy.SIMPLE_WATERFALL)
+                .build());
     assertThat(store.persistedRevision().getAnnualLivingExpenses())
         .isEqualByComparingTo(original.annualLivingExpenses());
 
     // Edit Plan round-trip: change a safe value, persist it, then restore the golden value.
     SimulationAssumptions edited = original.withRecurringSpending(new BigDecimal("250000"));
     plans.update(1L, created.getId(), "Golden lifecycle", edited);
-    assertThat(plans.assumptions(1L, created.getId()).annualLivingExpenses())
+    assertThat(plans.details(1L, created.getId()).assumptions().annualLivingExpenses())
         .isEqualByComparingTo(edited.annualLivingExpenses());
     plans.update(1L, created.getId(), "Golden lifecycle", original);
-    assertThat(plans.assumptions(1L, created.getId())).isEqualTo(original);
+    assertThat(plans.details(1L, created.getId()).assumptions())
+        .isEqualTo(
+            original.toBuilder()
+                .fundingStrategy(SimulationFundingStrategy.SIMPLE_WATERFALL)
+                .build());
 
     RetirementSimulationService simulator = new RetirementSimulationService();
     Map<SimulationScenario, SimulationResult> scenarios =
-        simulator.compareScenarios(profile, plans.assumptions(1L, created.getId()));
+        simulator.compareScenarios(profile, plans.details(1L, created.getId()).assumptions());
 
     // Base, Conservative, and Optimistic all use the authoritative simulator result.
     assertThat(scenarios)
@@ -111,7 +124,11 @@ class RetirementSimulationLifecycleE2ETest {
         .isNotEqualTo(scenarios.get(SimulationScenario.OPTIMISTIC).years());
 
     // Scenario switching is transient. It must not mutate the persisted plan assumptions.
-    assertThat(plans.assumptions(1L, created.getId())).isEqualTo(original);
+    assertThat(plans.details(1L, created.getId()).assumptions())
+        .isEqualTo(
+            original.toBuilder()
+                .fundingStrategy(SimulationFundingStrategy.SIMPLE_WATERFALL)
+                .build());
     assertThat(store.persistedRevision().getAnnualLivingExpenses())
         .isEqualByComparingTo(original.annualLivingExpenses());
 
@@ -184,6 +201,9 @@ class RetirementSimulationLifecycleE2ETest {
         .withEquityReturnRate(new BigDecimal("0.085"))
         .withAnnualEmploymentIncome(new BigDecimal("120000"))
         .withAnnualPreRetirementContribution(new BigDecimal("24000"))
+        .toBuilder()
+        .fundingStrategy(SimulationFundingStrategy.SIMPLE_WATERFALL)
+        .build()
         .withAnnualPension(new BigDecimal("7000"))
         .withRetirementAge(42)
         .withPensionStartAge(67)
@@ -201,7 +221,7 @@ class RetirementSimulationLifecycleE2ETest {
         new ProjectedLongTermAsset(
             10L,
             "Golden bond",
-            LongTermAssetTypeModel.BOND,
+            LongTermAssetType.BOND,
             EconomicBucket.FIXED_INCOME,
             CurrencyType.PLN,
             new BigDecimal("486000"),
@@ -212,11 +232,13 @@ class RetirementSimulationLifecycleE2ETest {
                     null,
                     new BigDecimal("38880"),
                     BigDecimal.ZERO,
-                    new BigDecimal("0.10"))),
+                    new BigDecimal("0.10"),
+                    null,
+                    false)),
             List.of(),
             LocalDate.of(2028, 12, 31),
             new BigDecimal("486000"),
-            InterestTreatmentModel.PAY_OUT,
+            InterestTreatment.PAY_OUT,
             new BigDecimal("0.20"),
             null,
             false);
@@ -224,7 +246,7 @@ class RetirementSimulationLifecycleE2ETest {
         new ProjectedLongTermAsset(
             11L,
             "Golden rental",
-            LongTermAssetTypeModel.REAL_ESTATE,
+            LongTermAssetType.REAL_ESTATE,
             EconomicBucket.REAL_ESTATE,
             CurrencyType.PLN,
             new BigDecimal("3000000"),
@@ -235,11 +257,13 @@ class RetirementSimulationLifecycleE2ETest {
                     null,
                     new BigDecimal("174803.62"),
                     BigDecimal.ZERO,
-                    BigDecimal.ZERO)),
+                    BigDecimal.ZERO,
+                    null,
+                    false)),
             List.of(),
             null,
             null,
-            InterestTreatmentModel.PAY_OUT,
+            InterestTreatment.PAY_OUT,
             BigDecimal.ZERO,
             null,
             false);
@@ -249,20 +273,35 @@ class RetirementSimulationLifecycleE2ETest {
         new BigDecimal("550000"),
         new BigDecimal("3486000"),
         new BigDecimal("4036000"),
-        BigDecimal.ZERO,
-        new BigDecimal("213683.62"),
-        BigDecimal.ZERO,
         new BigDecimal("100000"),
         new BigDecimal("3000000"),
         List.of(),
-        List.of(rental, bond),
         new BigDecimal("174803.62"),
-        new BigDecimal("38880"));
+        new BigDecimal("38880"),
+        new com.smartbox.investory.profile.api.model.ProfileAssetProjection(
+            List.of(rental, bond),
+            java.math.BigDecimal.ZERO,
+            0,
+            com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
+        (new BigDecimal("100000") == null ? java.math.BigDecimal.ZERO : new BigDecimal("100000")),
+        new BigDecimal("550000")
+            .subtract(
+                (new BigDecimal("100000") == null
+                    ? java.math.BigDecimal.ZERO
+                    : new BigDecimal("100000")))
+            .max(java.math.BigDecimal.ZERO),
+        com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
+            BigDecimal.ZERO,
+            new BigDecimal("550000"),
+            new BigDecimal("213683.62"),
+            new BigDecimal("3486000"),
+            BigDecimal.ZERO,
+            new BigDecimal("4036000")),
+        com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
   }
 
   private static final class InMemoryPlanStore {
     private final SimulationPlanRepository plans = mock(SimulationPlanRepository.class);
-    private final SimulationPlanEventRepository events = mock(SimulationPlanEventRepository.class);
     private final SimulationPlanRevisionRepository revisions =
         mock(SimulationPlanRevisionRepository.class);
     private final SimulationPlanRevisionEventRepository revisionEvents =
@@ -286,7 +325,8 @@ class RetirementSimulationLifecycleE2ETest {
           .thenAnswer(invocation -> Optional.ofNullable(current));
       when(plans.findByIdAndPortfolioIdForUpdate(anyLong(), anyLong()))
           .thenAnswer(invocation -> Optional.ofNullable(current));
-      when(plans.findAllByPortfolioIdOrderByName(anyLong())).thenAnswer(invocation -> rows);
+      when(plans.findAllByPortfolioIdAndArchivedFalseOrderByName(anyLong()))
+          .thenAnswer(invocation -> rows);
       when(revisions.save(any()))
           .thenAnswer(
               invocation -> {
@@ -304,11 +344,11 @@ class RetirementSimulationLifecycleE2ETest {
                       .filter(row -> row.getId().equals(invocation.getArgument(0)))
                       .findFirst());
       when(revisionEvents.findAllByRevisionIdOrderByYearAscIdAsc(anyLong())).thenReturn(List.of());
-      when(events.findAllBySimulationPlanIdOrderByYearAscIdAsc(anyLong())).thenReturn(List.of());
     }
 
     private SimulationPlanService service() {
-      return new SimulationPlanService(plans, events, revisions, revisionEvents);
+      return new SimulationPlanService(
+          plans, revisions, revisionEvents, new tools.jackson.databind.ObjectMapper());
     }
 
     private SimulationPlanRevisionEntity persistedRevision() {

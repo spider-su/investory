@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.performance;
 
-import com.smartbox.investory.investment.ledger.position.persistence.ClosedPosition;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.shared.presentation.FinancialPrecision;
@@ -17,8 +17,8 @@ import org.springframework.stereotype.Component;
  * Estimates Polish capital-gains tax ("Belka", 19 %) for the current tax year, applying loss
  * carry-forward from the previous five years.
  *
- * <p>Extracted from {@code PortfolioService.calculateTotalProfitLoss()} so the tax algorithm can be
- * unit-tested without spinning up the full analytics pipeline.
+ * <p>Extracted from {@code PortfolioMetricsService.calculateTotalProfitLoss()} so the tax algorithm
+ * can be unit-tested without spinning up the full analytics pipeline.
  */
 @Component
 @RequiredArgsConstructor
@@ -35,15 +35,15 @@ public class TaxCalculator {
   /** Tax result in {@code baseCurrency}, rounded to 2 decimal places. */
   public record TaxSummary(BigDecimal capitalGainsTax, BigDecimal lossCarryForward) {}
 
-  public TaxSummary calculate(List<ClosedPosition> closedPositions, CurrencyType baseCurrency) {
+  public TaxSummary calculate(List<PositionEntity> closedPositions, CurrencyType baseCurrency) {
     return calculate(closedPositions, baseCurrency, Year.now().getValue());
   }
 
   /** Year-injectable overload, used by tests so they don't drift across calendar boundaries. */
   public TaxSummary calculate(
-      List<ClosedPosition> closedPositions, CurrencyType baseCurrency, int currentYear) {
+      List<PositionEntity> closedPositions, CurrencyType baseCurrency, int currentYear) {
     Map<Integer, BigDecimal> realizedByYear = new TreeMap<>();
-    for (ClosedPosition position : closedPositions) {
+    for (PositionEntity position : closedPositions) {
       if (position.getCloseTime() == null) {
         continue;
       }
@@ -87,24 +87,24 @@ public class TaxCalculator {
     return new TaxSummary(round(currentYearTaxable.multiply(RATE)), round(appliedToCurrentYear));
   }
 
-  private BigDecimal netProfitInBase(ClosedPosition position, CurrencyType baseCurrency) {
+  private BigDecimal netProfitInBase(PositionEntity position, CurrencyType baseCurrency) {
     var date = position.getCloseTime().toLocalDate();
     return currencyRateService
         .convertToBaseCurrency(
-            nz(position.getProfitValue()).add(nz(position.getSwapValue())),
+            nz(position.getProfit()).add(nz(position.getSwap())),
             baseCurrency,
             position.getProfitCurrency(),
             date)
         .add(
             currencyRateService.convertToBaseCurrency(
-                nz(position.getCommissionValue()),
+                nz(position.getCommission()),
                 baseCurrency,
                 position.getCommissionCurrency(),
                 date));
   }
 
   private static BigDecimal nz(BigDecimal value) {
-    return value == null ? BigDecimal.ZERO : value;
+    return com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull(value);
   }
 
   private static BigDecimal round(BigDecimal value) {

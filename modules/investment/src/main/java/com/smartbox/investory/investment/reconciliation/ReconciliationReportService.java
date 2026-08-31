@@ -1,8 +1,11 @@
 package com.smartbox.investory.investment.reconciliation;
 
-import com.smartbox.investory.investment.infrastructure.persistence.reconciliation.ReconciliationReportRepository;
-import com.smartbox.investory.investment.reconciliation.ReconciliationReport.Checkpoint;
-import com.smartbox.investory.investment.reconciliation.ReconciliationReport.Issue;
+import com.smartbox.investory.investment.api.reporting.model.ReconciliationCheckpoint;
+import com.smartbox.investory.investment.api.reporting.model.ReconciliationOverallState;
+import com.smartbox.investory.investment.api.reporting.model.ReconciliationReport;
+import com.smartbox.investory.investment.api.reporting.model.ReconciliationReport.Checkpoint;
+import com.smartbox.investory.investment.api.reporting.model.ReconciliationReport.Issue;
+import com.smartbox.investory.investment.api.reporting.model.ReconciliationStatus;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -13,54 +16,40 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ReconciliationReportService {
+  private static final Logger LOGGER = LoggerFactory.getLogger(ReconciliationReportService.class);
+
   private final List<ReconciliationCheck> checks;
   private final Clock clock;
 
   @Autowired
-  public ReconciliationReportService(
-      List<ReconciliationCheck> discoveredChecks, JdbcTemplate jdbcTemplate, Clock clock) {
-    List<ReconciliationCheck> all = new ArrayList<>(discoveredChecks);
-    for (ReconciliationCheckpoint checkpoint :
-        List.of(
-            ReconciliationCheckpoint.C0,
-            ReconciliationCheckpoint.C1,
-            ReconciliationCheckpoint.C2,
-            ReconciliationCheckpoint.C5,
-            ReconciliationCheckpoint.C6)) {
-      all.add(DatabaseEvidenceReconciliationCheck.forCheckpoint(jdbcTemplate, checkpoint));
-    }
+  public ReconciliationReportService(ReconciliationCheckRegistry registry, Clock clock) {
+    this(registry.checks(), clock);
+  }
+
+  ReconciliationReportService(List<ReconciliationCheck> checks, Clock clock) {
     this.checks =
-        all.stream()
+        checks.stream()
             .sorted(Comparator.comparingInt(check -> check.checkpoint().ordinal()))
             .toList();
     this.clock = clock;
   }
 
-  /** Compatibility constructor for focused service tests and non-Spring callers. */
-  public ReconciliationReportService(ReconciliationReportRepository repository) {
-    this.checks =
-        List.of(
-            new PositionValuationReconciliationCheck(repository),
-            new AccountDailyReconciliationCheck(repository));
-    this.clock = Clock.systemDefaultZone();
-  }
-
   @Transactional(readOnly = true)
-  public ReconciliationReport load() {
+  public ReconciliationReport generateReport() {
     Instant startedAt = clock.instant();
-    return load(
-        new ReconciliationContext(ReconciliationMode.QUICK, startedAt, LocalDate.now(clock)));
+    return generateReport(new ReconciliationContext(startedAt, LocalDate.now(clock)));
   }
 
   @Transactional(readOnly = true)
-  public ReconciliationReport load(ReconciliationContext context) {
+  public ReconciliationReport generateReport(ReconciliationContext context) {
     Instant reportStarted = context.startedAt() == null ? clock.instant() : context.startedAt();
     Map<ReconciliationCheckpoint, List<ReconciliationCheckResult>> results =
         new EnumMap<>(ReconciliationCheckpoint.class);
@@ -70,6 +59,7 @@ public class ReconciliationReportService {
         results.computeIfAbsent(check.checkpoint(), ignored -> new ArrayList<>()).add(result);
       } catch (Exception exception) {
         ReconciliationCheckpoint checkpoint = check.checkpoint();
+        LOGGER.error("Reconciliation check {} could not execute", checkpoint.code(), exception);
         ReconciliationIssue issue =
             new ReconciliationIssue(
                 ReconciliationStatus.FAIL,
@@ -81,7 +71,7 @@ public class ReconciliationReportService {
                 null,
                 null,
                 "Reconciliation check could not execute",
-                safeMessage(exception),
+                "Internal execution error. See server logs.",
                 "Inspect the check evidence and database state.");
         results
             .computeIfAbsent(checkpoint, ignored -> new ArrayList<>())
@@ -134,7 +124,6 @@ public class ReconciliationReportService {
         checkpoints,
         issueGroups(issues),
         issues,
-        context.mode(),
         reportStarted,
         context.asOfDate());
   }
@@ -185,16 +174,17 @@ public class ReconciliationReportService {
         issue.suggestedAction());
   }
 
-  private static String overallState(List<Checkpoint> checkpoints) {
+  private static ReconciliationOverallState overallState(List<Checkpoint> checkpoints) {
     if (checkpoints.stream().anyMatch(c -> c.originalStatus() == ReconciliationStatus.FAIL)) {
-      return "UNRECONCILED";
+      return ReconciliationOverallState.UNRECONCILED;
     }
     if (checkpoints.stream()
         .anyMatch(
             c ->
                 c.originalStatus() == ReconciliationStatus.REVIEW
-                    || c.originalStatus() == ReconciliationStatus.NOT_CHECKED)) return "REVIEW";
-    return "RECONCILED";
+                    || c.originalStatus() == ReconciliationStatus.NOT_CHECKED))
+      return ReconciliationOverallState.REVIEW;
+    return ReconciliationOverallState.RECONCILED;
   }
 
   private static List<ReconciliationReport.IssueGroup> issueGroups(List<Issue> issues) {
@@ -213,13 +203,6 @@ public class ReconciliationReportService {
       case REVIEW -> 2;
       default -> 3;
     };
-  }
-
-  private static String safeMessage(Exception exception) {
-    String message = exception.getMessage();
-    return message == null
-        ? exception.getClass().getSimpleName()
-        : message.replaceAll("(?i)(key|token|secret|password)=[^, ]+", "$1=[redacted]");
   }
 
   private record Aggregate(

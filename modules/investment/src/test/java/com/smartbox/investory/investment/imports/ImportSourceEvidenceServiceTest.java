@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceFileEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceFileRepository;
@@ -16,13 +15,16 @@ import java.util.LinkedHashMap;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import tools.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("Import Source Evidence Service")
 class ImportSourceEvidenceServiceTest {
   @Mock private ImportSourceFileRepository fileRepository;
   @Mock private ImportSourceRowRepository rowRepository;
@@ -39,6 +41,7 @@ class ImportSourceEvidenceServiceTest {
     ImportEvidenceContext.clear();
   }
 
+  @DisplayName("duplicate Checksum Reuses Immutable Artifact")
   @Test
   void duplicateChecksumReusesImmutableArtifact() {
     ImportHistoryEntity batch = batch();
@@ -53,6 +56,7 @@ class ImportSourceEvidenceServiceTest {
     verify(fileRepository).findByBrokerAndFileSha256(BrokerType.IBKR, batch.getFileSha256());
   }
 
+  @DisplayName("source Row Retains Batch Location And Original Values")
   @Test
   void sourceRowRetainsBatchLocationAndOriginalValues() {
     ImportHistoryEntity batch = batch();

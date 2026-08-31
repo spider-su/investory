@@ -12,10 +12,13 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Valuation Input Contract")
 class ValuationInputContractIT {
 
+  @DisplayName("fx Resolver Uses Latest Available Rate On Or Before Valuation Date")
   @Test
   void fxResolverUsesLatestAvailableRateOnOrBeforeValuationDate() throws SQLException {
     try (Connection connection = connection();
@@ -38,6 +41,7 @@ class ValuationInputContractIT {
     }
   }
 
+  @DisplayName("price Lookup Uses Latest Available Observation On Or Before Valuation Date")
   @Test
   void priceLookupUsesLatestAvailableObservationOnOrBeforeValuationDate() throws SQLException {
     try (Connection connection = connection();
@@ -77,6 +81,7 @@ class ValuationInputContractIT {
     }
   }
 
+  @DisplayName("valuation Fx Uses Documented Source And Freshness Precedence")
   @Test
   void valuationFxUsesDocumentedSourceAndFreshnessPrecedence() throws SQLException {
     try (Connection connection = connection();
@@ -131,6 +136,7 @@ class ValuationInputContractIT {
     }
   }
 
+  @DisplayName("current Price Uses Fresh Observed History Then Native Asset Fallback")
   @Test
   void currentPriceUsesFreshObservedHistoryThenNativeAssetFallback() throws SQLException {
     try (Connection connection = connection();
@@ -181,6 +187,7 @@ class ValuationInputContractIT {
     }
   }
 
+  @DisplayName("emim Generator Rows Use Normalized Scale Metadata")
   @Test
   void emimGeneratorRowsUseNormalizedScaleMetadata() throws SQLException {
     try (Connection connection = connection();
@@ -208,6 +215,7 @@ class ValuationInputContractIT {
     }
   }
 
+  @DisplayName("current Price Applies Scale Exactly Once For Scaled And Unscaled Rows")
   @Test
   void currentPriceAppliesScaleExactlyOnceForScaledAndUnscaledRows() throws SQLException {
     try (Connection connection = connection();
@@ -252,6 +260,7 @@ class ValuationInputContractIT {
     }
   }
 
+  @DisplayName("no Dot Canonical Symbols Do Not Use Unjustified Security Taxonomy")
   @Test
   void noDotCanonicalSymbolsDoNotUseUnjustifiedSecurityTaxonomy() throws SQLException {
     try (Connection connection = connection();
@@ -269,6 +278,7 @@ class ValuationInputContractIT {
     }
   }
 
+  @DisplayName("ibkr Identifiers Resolve To One Canonical Asset")
   @Test
   void ibkrIdentifiersResolveToOneCanonicalAsset() throws SQLException {
     try (Connection connection = connection();
@@ -281,6 +291,7 @@ class ValuationInputContractIT {
     }
   }
 
+  @DisplayName("seeded Treasury Has One Canonical Bond Identity")
   @Test
   void seededTreasuryHasOneCanonicalBondIdentity() throws SQLException {
     try (Connection connection = connection();
@@ -300,6 +311,7 @@ class ValuationInputContractIT {
     }
   }
 
+  @DisplayName("missing Fx Makes Portfolio Daily Totals Incomplete Rather Than Partial")
   @Test
   void missingFxMakesPortfolioDailyTotalsIncompleteRatherThanPartial() throws SQLException {
     try (Connection connection = connection();
@@ -328,6 +340,7 @@ class ValuationInputContractIT {
     }
   }
 
+  @DisplayName("diagnostics And Monthly Review Expose Missing Inputs")
   @Test
   void diagnosticsAndMonthlyReviewExposeMissingInputs() throws SQLException {
     try (Connection connection = connection();
@@ -361,9 +374,7 @@ class ValuationInputContractIT {
   private static Connection connection() throws SQLException {
     Connection connection =
         DriverManager.getConnection(
-            FastDatabase.container().getJdbcUrl(),
-            FastDatabase.container().getUsername(),
-            FastDatabase.container().getPassword());
+            FastDatabase.jdbcUrl(), FastDatabase.username(), FastDatabase.password());
     connection.setAutoCommit(false);
     return connection;
   }

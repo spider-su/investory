@@ -1,15 +1,16 @@
 package com.smartbox.investory.retirement.planning;
 
-import com.smartbox.investory.retirement.simulation.PlanSustainabilityAssessment;
-import com.smartbox.investory.retirement.simulation.RetirementAgeAnalysis;
-import com.smartbox.investory.retirement.simulation.RetirementTimingResultState;
-import com.smartbox.investory.retirement.simulation.SensitivityDriverCategory;
-import com.smartbox.investory.retirement.simulation.SensitivityImpact;
-import com.smartbox.investory.retirement.simulation.SimulationEvaluation;
-import com.smartbox.investory.retirement.simulation.SimulationSensitivityAnalysis;
-import com.smartbox.investory.retirement.simulation.SimulationSensitivityResult;
-import com.smartbox.investory.retirement.simulation.SustainableSpendingAnalysis;
-import com.smartbox.investory.retirement.simulation.SustainableSpendingResultState;
+import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.api.model.PlanSustainabilityAssessment;
+import com.smartbox.investory.retirement.api.model.RetirementAgeAnalysis;
+import com.smartbox.investory.retirement.api.model.RetirementTimingResultState;
+import com.smartbox.investory.retirement.api.model.SensitivityDriverCategory;
+import com.smartbox.investory.retirement.api.model.SensitivityImpact;
+import com.smartbox.investory.retirement.api.model.SimulationEvaluation;
+import com.smartbox.investory.retirement.api.model.SimulationSensitivityAnalysis;
+import com.smartbox.investory.retirement.api.model.SimulationSensitivityResult;
+import com.smartbox.investory.retirement.api.model.SustainableSpendingAnalysis;
+import com.smartbox.investory.retirement.api.model.SustainableSpendingResultState;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.util.List;

@@ -5,10 +5,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+@DisplayName("Dev Tools Well Known Controller")
 class DevToolsWellKnownControllerTest {
   private MockMvc mockMvc;
 
@@ -17,6 +19,7 @@ class DevToolsWellKnownControllerTest {
     mockMvc = MockMvcBuilders.standaloneSetup(new DevToolsWellKnownController()).build();
   }
 
+  @DisplayName("chrome Dev Tools Probe Returns Empty Json")
   @Test
   void chromeDevToolsProbeReturnsEmptyJson() throws Exception {
     mockMvc

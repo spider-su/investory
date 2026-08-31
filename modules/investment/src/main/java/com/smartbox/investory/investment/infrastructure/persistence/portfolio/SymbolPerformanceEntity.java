@@ -104,140 +104,72 @@ public class SymbolPerformanceEntity {
     this.updatedAt = updatedAt;
   }
 
-  public Double getClosedProfit() {
-    return asDouble(closedProfit);
+  public BigDecimal getClosedProfit() {
+    return closedProfit;
   }
 
   public void setClosedProfit(BigDecimal closedProfit) {
     this.closedProfit = scaleDecimal(closedProfit);
   }
 
-  public void setClosedProfit(Double closedProfit) {
-    this.closedProfit = scaleDecimal(closedProfit);
-  }
-
-  public void setClosedProfit(double closedProfit) {
-    this.closedProfit = scaleDecimal(closedProfit);
-  }
-
-  public Double getUnrealizedProfit() {
-    return asDouble(unrealizedProfit);
+  public BigDecimal getUnrealizedProfit() {
+    return unrealizedProfit;
   }
 
   public void setUnrealizedProfit(BigDecimal unrealizedProfit) {
     this.unrealizedProfit = scaleDecimal(unrealizedProfit);
   }
 
-  public void setUnrealizedProfit(Double unrealizedProfit) {
-    this.unrealizedProfit = scaleDecimal(unrealizedProfit);
-  }
-
-  public void setUnrealizedProfit(double unrealizedProfit) {
-    this.unrealizedProfit = scaleDecimal(unrealizedProfit);
-  }
-
-  public Double getTotalProfit() {
-    return asDouble(totalProfit);
+  public BigDecimal getTotalProfit() {
+    return totalProfit;
   }
 
   public void setTotalProfit(BigDecimal totalProfit) {
     this.totalProfit = scaleDecimal(totalProfit);
   }
 
-  public void setTotalProfit(Double totalProfit) {
-    this.totalProfit = scaleDecimal(totalProfit);
-  }
-
-  public void setTotalProfit(double totalProfit) {
-    this.totalProfit = scaleDecimal(totalProfit);
-  }
-
-  public Double getDividends() {
-    return asDouble(dividends);
+  public BigDecimal getDividends() {
+    return dividends;
   }
 
   public void setDividends(BigDecimal dividends) {
     this.dividends = scaleDecimal(dividends);
   }
 
-  public void setDividends(Double dividends) {
-    this.dividends = scaleDecimal(dividends);
-  }
-
-  public void setDividends(double dividends) {
-    this.dividends = scaleDecimal(dividends);
-  }
-
-  public Double getWithholdingTax() {
-    return asDouble(withholdingTax);
+  public BigDecimal getWithholdingTax() {
+    return withholdingTax;
   }
 
   public void setWithholdingTax(BigDecimal withholdingTax) {
     this.withholdingTax = scaleDecimal(withholdingTax);
   }
 
-  public void setWithholdingTax(Double withholdingTax) {
-    this.withholdingTax = scaleDecimal(withholdingTax);
-  }
-
-  public void setWithholdingTax(double withholdingTax) {
-    this.withholdingTax = scaleDecimal(withholdingTax);
-  }
-
-  public Double getTotalVolume() {
-    return asDouble(totalVolume);
+  public BigDecimal getTotalVolume() {
+    return totalVolume;
   }
 
   public void setTotalVolume(BigDecimal totalVolume) {
     this.totalVolume = scaleDecimal(totalVolume);
   }
 
-  public void setTotalVolume(Double totalVolume) {
-    this.totalVolume = scaleDecimal(totalVolume);
-  }
-
-  public void setTotalVolume(double totalVolume) {
-    this.totalVolume = scaleDecimal(totalVolume);
-  }
-
-  public Double getCostBasis() {
-    return asDouble(costBasis);
+  public BigDecimal getCostBasis() {
+    return costBasis;
   }
 
   public void setCostBasis(BigDecimal costBasis) {
     this.costBasis = scaleDecimal(costBasis);
   }
 
-  public void setCostBasis(Double costBasis) {
-    this.costBasis = scaleDecimal(costBasis);
-  }
-
-  public void setCostBasis(double costBasis) {
-    this.costBasis = scaleDecimal(costBasis);
-  }
-
-  public Double getMarketValue() {
-    return asDouble(marketValue);
+  public BigDecimal getMarketValue() {
+    return marketValue;
   }
 
   public void setMarketValue(BigDecimal marketValue) {
     this.marketValue = scaleDecimal(marketValue);
   }
 
-  public void setMarketValue(Double marketValue) {
-    this.marketValue = scaleDecimal(marketValue);
-  }
-
-  public void setMarketValue(double marketValue) {
-    this.marketValue = scaleDecimal(marketValue);
-  }
-
   private static BigDecimal scaleDecimal(BigDecimal value) {
     return value == null ? null : value.setScale(8, RoundingMode.HALF_UP);
-  }
-
-  private static BigDecimal scaleDecimal(Double value) {
-    return value == null ? null : scaleDecimal(BigDecimal.valueOf(value));
   }
 
   private static BigDecimal scaleDecimal(double value) {

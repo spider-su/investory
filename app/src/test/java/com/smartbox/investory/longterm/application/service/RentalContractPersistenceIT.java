@@ -2,15 +2,13 @@ package com.smartbox.investory.longterm.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.smartbox.investory.longterm.api.model.CashFlowTypeModel;
-import com.smartbox.investory.longterm.api.model.FrequencyModel;
+import com.smartbox.investory.longterm.api.model.CashFlowType;
+import com.smartbox.investory.longterm.api.model.Frequency;
+import com.smartbox.investory.longterm.api.model.LongTermAssetType;
 import com.smartbox.investory.longterm.api.model.RentalContractModel;
 import com.smartbox.investory.longterm.application.model.LongTermAssetBootstrapDocument;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetEntity;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetRepository;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
-import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractRepository;
 import com.smartbox.investory.longterm.infrastructure.tax.RentalTaxPolicyEntity;
 import com.smartbox.investory.longterm.infrastructure.tax.RentalTaxPolicyRepository;
@@ -20,6 +18,7 @@ import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Arrays;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -27,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
 @Transactional
+@DisplayName("Rental Contract Persistence")
 class RentalContractPersistenceIT extends FastDatabaseTest {
   @Autowired RentalContractService service;
   @Autowired LongTermAssetBootstrapService bootstrap;
@@ -35,6 +35,7 @@ class RentalContractPersistenceIT extends FastDatabaseTest {
   @Autowired RentalTaxPolicyRepository taxPolicies;
   @Autowired EntityManager entityManager;
 
+  @DisplayName("persists Tenant Updates Terms In Place And Deletes Through Orphan Removal")
   @Test
   void persistsTenantUpdatesTermsInPlaceAndDeletesThroughOrphanRemoval() {
     var asset = new LongTermAssetEntity();
@@ -57,7 +58,7 @@ class RentalContractPersistenceIT extends FastDatabaseTest {
             LocalDate.of(2026, 1, 1),
             LocalDate.of(2026, 12, 31),
             null,
-            Arrays.stream(CashFlowTypeModel.values())
+            Arrays.stream(CashFlowType.values())
                 .map(type -> term(type, type.ordinal() + 1, type.name().contains("FEE")))
                 .toList(),
             false);
@@ -84,8 +85,7 @@ class RentalContractPersistenceIT extends FastDatabaseTest {
             LocalDate.of(2027, 1, 31),
             Boolean.TRUE,
             java.util.List.of(
-                term(CashFlowTypeModel.RENT, 4000, false),
-                term(CashFlowTypeModel.UTILITIES, 500, true)));
+                term(CashFlowType.RENT, 4000, false), term(CashFlowType.UTILITIES, 500, true)));
     entityManager.flush();
     entityManager.clear();
 
@@ -119,6 +119,7 @@ class RentalContractPersistenceIT extends FastDatabaseTest {
         .isEqualTo(0L);
   }
 
+  @DisplayName("rollover Flushes Closed Predecessor Before Inserting Successor")
   @Test
   void rolloverFlushesClosedPredecessorBeforeInsertingSuccessor() {
     var asset = new LongTermAssetEntity();
@@ -141,7 +142,7 @@ class RentalContractPersistenceIT extends FastDatabaseTest {
             LocalDate.of(2026, 1, 1),
             null,
             null,
-            java.util.List.of(term(CashFlowTypeModel.RENT, 3000, false)),
+            java.util.List.of(term(CashFlowType.RENT, 3000, false)),
             false);
 
     var successor =
@@ -154,7 +155,7 @@ class RentalContractPersistenceIT extends FastDatabaseTest {
             LocalDate.of(2027, 1, 1),
             null,
             null,
-            java.util.List.of(term(CashFlowTypeModel.RENT, 3200, false)),
+            java.util.List.of(term(CashFlowType.RENT, 3200, false)),
             true);
     entityManager.flush();
 
@@ -163,6 +164,7 @@ class RentalContractPersistenceIT extends FastDatabaseTest {
     assertThat(successor.getId()).isNotNull();
   }
 
+  @DisplayName("bootstrap Can Move Boundary Later Without Transient Contract Overlap")
   @Test
   void bootstrapCanMoveBoundaryLaterWithoutTransientContractOverlap() {
     bootstrap.importDocument(
@@ -188,6 +190,7 @@ class RentalContractPersistenceIT extends FastDatabaseTest {
     assertThat(stored.get(1).getEndDate()).isNull();
   }
 
+  @DisplayName("rental Economics View Uses Annualized Contract Tax Snapshot")
   @Test
   void rentalEconomicsViewUsesAnnualizedContractTaxSnapshot() {
     var asset = new LongTermAssetEntity();
@@ -210,7 +213,7 @@ class RentalContractPersistenceIT extends FastDatabaseTest {
             LocalDate.of(2026, 1, 1),
             null,
             false,
-            java.util.List.of(term(CashFlowTypeModel.RENT, 3000, false)),
+            java.util.List.of(term(CashFlowType.RENT, 3000, false)),
             false);
     asset.setTaxBase(new BigDecimal("9000"));
     assets.save(asset);
@@ -234,6 +237,7 @@ class RentalContractPersistenceIT extends FastDatabaseTest {
         .isEqualByComparingTo(taxBase.multiply(BigDecimal.valueOf(12)).multiply(taxRate));
   }
 
+  @DisplayName("rental Economics View Uses Policy Effective For Active Contract Today")
   @Test
   void rentalEconomicsViewUsesPolicyEffectiveForActiveContractToday() {
     var oldPolicy = new RentalTaxPolicyEntity();
@@ -267,7 +271,7 @@ class RentalContractPersistenceIT extends FastDatabaseTest {
             LocalDate.of(2020, 1, 1),
             null,
             false,
-            java.util.List.of(term(CashFlowTypeModel.RENT, 3000, false)),
+            java.util.List.of(term(CashFlowType.RENT, 3000, false)),
             false);
     entityManager.flush();
     entityManager.clear();
@@ -314,14 +318,13 @@ class RentalContractPersistenceIT extends FastDatabaseTest {
         CashFlowType.RENT, new BigDecimal(amount), Frequency.MONTHLY, from, to);
   }
 
-  private static RentalContractModel.Term term(
-      CashFlowTypeModel type, int amount, boolean tenantPaid) {
+  private static RentalContractModel.Term term(CashFlowType type, int amount, boolean tenantPaid) {
     return new RentalContractModel.Term(
         type,
         BigDecimal.valueOf(amount),
-        type == CashFlowTypeModel.PROPERTY_TAX || type == CashFlowTypeModel.INSURANCE
-            ? FrequencyModel.ANNUAL
-            : FrequencyModel.MONTHLY,
+        type == CashFlowType.PROPERTY_TAX || type == CashFlowType.INSURANCE
+            ? Frequency.ANNUAL
+            : Frequency.MONTHLY,
         tenantPaid);
   }
 }

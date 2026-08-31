@@ -1,4 +1,6 @@
 // Simulation board presentation only. Financial values come from the server.
+let simulationDestroy = () => {};
+export function initSimulationCharts() {
 (function () {
   document.querySelectorAll('[data-simulation-disclosure]').forEach((item) => {
     item.addEventListener('toggle', () => item.classList.toggle('is-open', item.open));
@@ -13,17 +15,18 @@
   const points = chartData.points || [];
   if ((!canvas && !liquidCanvas) || !window.Chart || points.length === 0) return;
 
-  const css = getComputedStyle(document.documentElement);
-  const token = (name, fallback) => css.getPropertyValue(name).trim() || fallback;
-  const colors = {
-    text: token('--iv-text-muted', '#6b7488'),
-    grid: token('--iv-chart-grid', 'rgba(148, 160, 184, .18)'),
-    spending: token('--iv-negative', '#dc2626'),
-    income: token('--iv-positive', '#16a34a'),
-    gap: token('--iv-primary', '#4f46e5'),
-    bonds: token('--iv-asset-fixed-income', '#2563eb'),
-    equities: token('--iv-asset-equity', '#4f46e5')
-  };
+  const token = (name, fallback) =>
+    getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+  const themeColors = () => ({
+    text: token('--iv-chart-axis', token('--iv-text-muted', '#6b7488')),
+    grid: token('--iv-chart-grid', 'rgba(31, 31, 31, .10)'),
+    spending: token('--iv-negative', '#db2031'),
+    income: token('--iv-positive', '#00916d'),
+    gap: token('--iv-accent', '#376cd5'),
+    bonds: token('--iv-asset-fixed-income', '#376cd5'),
+    equities: token('--iv-asset-equity', '#376cd5')
+  });
+  let colors = themeColors();
   const currency = chartState.currency || 'PLN';
   const chartFont = getComputedStyle(document.body).fontFamily || 'system-ui, sans-serif';
   const compactMoney = (value) => {
@@ -122,6 +125,40 @@
   });
   let chart;
   let liquidChart;
+
+  const applyChartTheme = chartInstance => {
+    if (!chartInstance) return;
+
+    colors = themeColors();
+    chartInstance.options.plugins.legend.labels.color = colors.text;
+    chartInstance.options.scales.x.ticks.color = colors.text;
+    chartInstance.options.scales.x.grid.color = colors.grid;
+    chartInstance.options.scales.y.ticks.color = colors.text;
+    chartInstance.options.scales.y.grid.color =
+      context => context.tick.value === 0 ? colors.text : colors.grid;
+
+    chartInstance.data.datasets.forEach(dataset => {
+      const color = {
+        'Spending': colors.spending,
+        'Income': colors.income,
+        'Gap / surplus': colors.gap,
+        'Bonds': colors.bonds,
+        'Equities': colors.equities
+      }[dataset.label];
+      if (!color) return;
+      dataset.borderColor = color;
+      dataset.backgroundColor = color;
+    });
+
+    chartInstance.update('none');
+  };
+
+  const onThemeChange = () => {
+    applyChartTheme(chart);
+    applyChartTheme(liquidChart);
+  };
+  const onResize = () => { chart?.resize(); liquidChart?.resize(); };
+  window.addEventListener('investory:themechange', onThemeChange);
   const render = (mode) => {
     if (mode === 'LIQUID_CAPITAL' && liquidCanvas && !liquidChart) {
       liquidChart = new Chart(liquidCanvas, {type: 'line', data: liquidCapitalData(), options: {...commonOptions, elements: {...commonOptions.elements, line: {tension: .2, borderWidth: 2}, point: commonOptions.elements.point}}});
@@ -143,6 +180,15 @@
     render(mode);
   };
   switcher?.querySelectorAll('[data-chart-mode]').forEach(button => button.addEventListener('click', () => selectMode(button.dataset.chartMode)));
-  window.addEventListener('resize', () => { chart?.resize(); liquidChart?.resize(); });
+  window.addEventListener('resize', onResize);
   selectMode('LIQUID_CAPITAL');
+  simulationDestroy = () => {
+    window.removeEventListener('investory:themechange', onThemeChange);
+    window.removeEventListener('resize', onResize);
+    chart?.destroy();
+    liquidChart?.destroy();
+    simulationDestroy = () => {};
+  };
 })();
+}
+export function destroySimulationCharts() { simulationDestroy(); }

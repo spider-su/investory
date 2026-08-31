@@ -2,23 +2,27 @@ package com.smartbox.investory.retirement.simulation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.smartbox.investory.longterm.api.model.InterestTreatmentModel;
-import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
-import com.smartbox.investory.retirement.profile.EconomicBucket;
-import com.smartbox.investory.retirement.profile.InvestmentProfile;
-import com.smartbox.investory.retirement.profile.Liquidity;
-import com.smartbox.investory.retirement.profile.ProjectedLongTermAsset;
+import com.smartbox.investory.longterm.api.model.InterestTreatment;
+import com.smartbox.investory.longterm.api.model.LongTermAssetType;
+import com.smartbox.investory.profile.api.model.EconomicBucket;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.profile.api.model.Liquidity;
+import com.smartbox.investory.profile.api.model.ProjectedLongTermAsset;
+import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /** Approved cross-module financial contract. Do not refresh constants from production output. */
+@DisplayName("Retirement Golden Scenario Integration")
 class RetirementGoldenScenarioIntegrationTest {
   // This contract intentionally starts at RetirementSimulationService with a prepared planning
   // state, so it protects simulation arithmetic. Source-to-state mapping is covered separately
-  // by InvestmentProfileFacadeTest and the Long-Term six-bond projection regression.
+  // by ProfileReaderTest and the Long-Term six-bond projection regression.
+  @DisplayName("sustainable Short Horizon Matches Approved Contract")
   @Test
   void sustainableShortHorizonMatchesApprovedContract() {
     var service = new RetirementSimulationService();
@@ -29,6 +33,7 @@ class RetirementGoldenScenarioIntegrationTest {
     assertCheckpoints(result, false);
   }
 
+  @DisplayName("long Horizon Remains Sustainable Under The Bucket Model")
   @Test
   void longHorizonRemainsSustainableUnderTheBucketModel() {
     var service = new RetirementSimulationService();
@@ -154,7 +159,7 @@ class RetirementGoldenScenarioIntegrationTest {
         new ProjectedLongTermAsset(
             10L,
             "Golden bond",
-            LongTermAssetTypeModel.BOND,
+            LongTermAssetType.BOND,
             EconomicBucket.FIXED_INCOME,
             CurrencyType.PLN,
             new BigDecimal("486000"),
@@ -165,11 +170,13 @@ class RetirementGoldenScenarioIntegrationTest {
                     null,
                     new BigDecimal("38880"),
                     BigDecimal.ZERO,
-                    new BigDecimal("0.10"))),
+                    new BigDecimal("0.10"),
+                    null,
+                    false)),
             List.of(),
             LocalDate.of(2028, 12, 31),
             new BigDecimal("486000"),
-            InterestTreatmentModel.PAY_OUT,
+            InterestTreatment.PAY_OUT,
             new BigDecimal("0.20"),
             null,
             false);
@@ -177,7 +184,7 @@ class RetirementGoldenScenarioIntegrationTest {
         new ProjectedLongTermAsset(
             11L,
             "Golden rental",
-            LongTermAssetTypeModel.REAL_ESTATE,
+            LongTermAssetType.REAL_ESTATE,
             EconomicBucket.REAL_ESTATE,
             CurrencyType.PLN,
             new BigDecimal("3000000"),
@@ -188,11 +195,13 @@ class RetirementGoldenScenarioIntegrationTest {
                     null,
                     new BigDecimal("174803.62"),
                     BigDecimal.ZERO,
-                    BigDecimal.ZERO)),
+                    BigDecimal.ZERO,
+                    null,
+                    false)),
             List.of(),
             null,
             null,
-            InterestTreatmentModel.PAY_OUT,
+            InterestTreatment.PAY_OUT,
             BigDecimal.ZERO,
             null,
             false);
@@ -202,14 +211,30 @@ class RetirementGoldenScenarioIntegrationTest {
         new BigDecimal("550000"),
         new BigDecimal("3486000"),
         new BigDecimal("4036000"),
-        BigDecimal.ZERO,
-        new BigDecimal("213683.62"),
-        BigDecimal.ZERO,
         new BigDecimal("100000"),
         new BigDecimal("3000000"),
         List.of(),
-        List.of(rental, bond),
         new BigDecimal("174803.62"),
-        new BigDecimal("38880"));
+        new BigDecimal("38880"),
+        new com.smartbox.investory.profile.api.model.ProfileAssetProjection(
+            List.of(rental, bond),
+            java.math.BigDecimal.ZERO,
+            0,
+            com.smartbox.investory.shared.projection.ProjectionSource.PROJECTED),
+        (new BigDecimal("100000") == null ? java.math.BigDecimal.ZERO : new BigDecimal("100000")),
+        new BigDecimal("550000")
+            .subtract(
+                (new BigDecimal("100000") == null
+                    ? java.math.BigDecimal.ZERO
+                    : new BigDecimal("100000")))
+            .max(java.math.BigDecimal.ZERO),
+        com.smartbox.investory.testsupport.profile.ProfileIncomeSummaryFixtures.annualIncome(
+            BigDecimal.ZERO,
+            new BigDecimal("550000"),
+            new BigDecimal("213683.62"),
+            new BigDecimal("3486000"),
+            BigDecimal.ZERO,
+            new BigDecimal("4036000")),
+        com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation.EMPTY);
   }
 }

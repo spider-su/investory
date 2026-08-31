@@ -7,8 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Long Term Assets Template Contract")
 class LongTermAssetsTemplateContractTest {
   private static final Path TEMPLATE =
       Path.of("../adapters/web-ui/src/main/resources/templates/long-term-assets.html");
@@ -25,8 +27,9 @@ class LongTermAssetsTemplateContractTest {
   private static final Path CASH_FORM =
       Path.of("../adapters/web-ui/src/main/resources/templates/cash-reserve-form.html");
   private static final Path CSS =
-      Path.of("../adapters/web-ui/src/main/resources/static/css/main.css");
+      Path.of("../adapters/web-ui/src/main/resources/static/css/components.css");
 
+  @DisplayName("real Estate Group Uses Public View Properties")
   @Test
   void realEstateGroupUsesPublicViewProperties() throws Exception {
     String html = Files.readString(TEMPLATE);
@@ -47,6 +50,7 @@ class LongTermAssetsTemplateContractTest {
         () -> assertFalse(html.contains("monthlyRentTax")));
   }
 
+  @DisplayName("summary Page Keeps One Clear Creation And Portfolio Structure Contract")
   @Test
   void summaryPageKeepsOneClearCreationAndPortfolioStructureContract() throws Exception {
     String html = Files.readString(TEMPLATE);
@@ -71,7 +75,8 @@ class LongTermAssetsTemplateContractTest {
         () -> assertTrue(assetActions.contains("</svg>Other asset</a>")),
         () ->
             assertTrue(
-                assetActions.contains("@{/long-term-assets/new(portfolioId=${portfolioId})}")),
+                assetActions.contains(
+                    "@{/long-term-assets/new/real-estate(portfolioId=${header.portfolioId})}")),
         () -> assertFalse(assetActions.contains("iv-planning-base")),
         () -> assertFalse(assetActions.contains("th:text=\"${currency}\"")),
         () -> assertFalse(html.contains("iv-planning-section__header-action")),
@@ -103,12 +108,17 @@ class LongTermAssetsTemplateContractTest {
         () -> assertFalse(html.contains("iv-structure-currency--reporting")),
         () -> assertFalse(html.contains("iv-grid--long-term-overview")),
         () -> assertTrue(html.contains("'Value', ${longTermHeaderTotal}, 'all assets'")),
-        () -> assertTrue(html.contains("'Annual income', ${longTermHeaderIncome}, 'net'")),
+        () -> assertTrue(html.contains("'Net income / year', ${longTermHeaderIncome}, 'net'")),
         () -> assertTrue(html.contains("'Annual yield', ${longTermHeaderYield}, 'net'")),
         () -> assertTrue(header.contains("<div class=\"iv-popover-heading\">Annual income</div>")),
         () -> assertTrue(header.contains("<span>Gross income</span>")),
         () -> assertTrue(header.contains("<span>Expenses &amp; tax</span>")),
+        () -> assertTrue(header.contains("<span>Net annual income</span>")),
+        () -> assertTrue(header.contains("<span>Net monthly income</span>")),
+        () -> assertTrue(header.contains("longTermNetMonthlyIncome + ' / month'")),
         () -> assertTrue(header.contains("<span>Gross yield</span>")),
+        () -> assertTrue(css.contains(".iv-planning-income-context {")),
+        () -> assertTrue(css.contains("font-size: .7rem;")),
         () -> assertFalse(html.contains("Expected monthly net income")),
         () ->
             assertFalse(
@@ -121,7 +131,17 @@ class LongTermAssetsTemplateContractTest {
         () ->
             assertTrue(
                 html.contains(
-                    "'Reduce ' + format.moneyWhole(asset.realEstatePlanning.monthlyReduce)")),
+                    "'Reduce ' + format.compactMoney(asset.realEstatePlanning.monthlyReduce)")),
+        () -> assertFalse(html.contains("format.moneyWhole(")),
+        () -> assertFalse(html.contains("format.wholeNumber(")),
+        () -> assertTrue(html.contains("format.compactMoney(asset.currentValue)")),
+        () ->
+            assertTrue(
+                html.contains(
+                    "format.compactMoney(asset.annualEconomics.netAnnualIncomeAfterTax)")),
+        () -> assertTrue(html.contains("format.compactMoney(asset.annualEconomics.annualTax)")),
+        () -> assertTrue(html.contains("iv-structure-segment--' + (group.key == 'BOND'")),
+        () -> assertTrue(html.contains(": 'other')")),
         () ->
             assertTrue(css.contains(".iv-planning-topbar--assets .iv-planning-topbar__secondary")),
         () ->
@@ -130,8 +150,8 @@ class LongTermAssetsTemplateContractTest {
                     "class=\"iv-collapsed-summary\" th:if=\"${!#lists.isEmpty(group.assets)}\"")),
         () -> assertTrue(html.contains(">Net yield</span>")),
         () -> assertTrue(html.contains(">Value</span>")),
-        () -> assertTrue(html.contains(">Net income</span>")),
-        () -> assertTrue(html.contains("? 'Rent tax' : 'Tax'")),
+        () -> assertTrue(html.contains("'Net income / month' : 'Net income / year'")),
+        () -> assertTrue(html.contains("? 'Rent tax / month' : 'Tax / year'")),
         () -> assertFalse(html.contains(">Total value</span>")),
         () -> assertFalse(html.contains("'Monthly net income'")),
         () -> assertFalse(html.contains("'Annual net income'")),
@@ -139,6 +159,7 @@ class LongTermAssetsTemplateContractTest {
         () -> assertTrue(css.contains("grid-auto-rows: auto")));
   }
 
+  @DisplayName("cash Reserve Form Can Be Cancelled Back To Asset Summary")
   @Test
   void cashReserveFormCanBeCancelledBackToAssetSummary() throws Exception {
     String html = Files.readString(CASH_FORM);
@@ -148,6 +169,7 @@ class LongTermAssetsTemplateContractTest {
             "<a class=\"btn btn-link\" th:href=\"@{/long-term-assets(portfolioId=${portfolioId})}\">Cancel</a>"));
   }
 
+  @DisplayName("asset Type Is Read Only And Effective Dated Records Have Correction Actions")
   @Test
   void assetTypeIsReadOnlyAndEffectiveDatedRecordsHaveCorrectionActions() throws Exception {
     String generic = Files.readString(GENERIC_DETAIL);

@@ -1,10 +1,10 @@
 package com.smartbox.investory.investment.reporting.dashboard.service;
 
-import com.smartbox.investory.investment.performance.model.AccountBalance;
-import com.smartbox.investory.investment.performance.model.OpenPositionValue;
+import com.smartbox.investory.investment.api.reporting.model.AccountBalance;
+import com.smartbox.investory.investment.api.reporting.model.AssetAllocationView;
+import com.smartbox.investory.investment.api.reporting.model.OpenPositionValue;
+import com.smartbox.investory.investment.api.reporting.model.PortfolioStructureView;
 import com.smartbox.investory.investment.performance.model.Portfolio;
-import com.smartbox.investory.investment.reporting.dashboard.application.AssetAllocationView;
-import com.smartbox.investory.investment.reporting.dashboard.application.PortfolioStructureView;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.Comparator;
 import java.util.List;
@@ -39,7 +39,11 @@ public class PortfolioStructureQuery {
     // before calculating concentration so duplicate account rows do not understate a holding.
     List<PortfolioStructureView.Holding> holdings =
         positions.stream()
-            .filter(position -> position.getSymbol() != null && position.getValue() > 0.005)
+            .filter(
+                position ->
+                    position.getSymbol() != null
+                        && position.getValue() != null
+                        && position.getValue().compareTo(java.math.BigDecimal.valueOf(0.005)) > 0)
             .collect(
                 Collectors.groupingBy(
                     OpenPositionValue::getSymbol,
@@ -50,9 +54,15 @@ public class PortfolioStructureQuery {
             .map(
                 entry -> {
                   double value =
-                      entry.getValue().stream().mapToDouble(OpenPositionValue::getValue).sum();
+                      entry.getValue().stream()
+                          .map(OpenPositionValue::getValue)
+                          .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add)
+                          .doubleValue();
                   double unrealized =
-                      entry.getValue().stream().mapToDouble(OpenPositionValue::getUnrealized).sum();
+                      entry.getValue().stream()
+                          .map(OpenPositionValue::getUnrealized)
+                          .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add)
+                          .doubleValue();
                   return new PortfolioStructureView.Holding(
                       entry.getKey(), value, weight(value, total), unrealized);
                 })
@@ -90,7 +100,11 @@ public class PortfolioStructureQuery {
 
   private static PortfolioStructureView.CurrencyBucket currencyBucket(
       CurrencyType currency, List<AccountBalance> accounts, double total) {
-    double value = accounts.stream().mapToDouble(AccountBalance::getBalance).sum();
+    double value =
+        accounts.stream()
+            .map(AccountBalance::getBalance)
+            .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add)
+            .doubleValue();
     return new PortfolioStructureView.CurrencyBucket(
         currency,
         value,

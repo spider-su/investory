@@ -14,11 +14,16 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
+@DisplayName("Notification Event Contract")
 class NotificationEventContractIT {
+  @DisplayName("fingerprint Is Unique And Schema Constraints Reject Invalid State")
   @Test
   void fingerprintIsUniqueAndSchemaConstraintsRejectInvalidState() throws SQLException {
     String fingerprint = "contract:" + UUID.randomUUID();
@@ -30,6 +35,7 @@ class NotificationEventContractIT {
     }
   }
 
+  @DisplayName("rolled Back Candidate Is Not Durable")
   @Test
   void rolledBackCandidateIsNotDurable() throws SQLException {
     String fingerprint = "rollback:" + UUID.randomUUID();
@@ -50,6 +56,7 @@ class NotificationEventContractIT {
     }
   }
 
+  @DisplayName("ready Error Audit Producer Publishes Required Context")
   @Test
   void readyErrorAuditProducerPublishesRequiredContext() throws SQLException {
     UUID auditId;
@@ -74,7 +81,9 @@ class NotificationEventContractIT {
     AtomicReference<NotificationCandidate> captured = new AtomicReference<>();
     SystemAuditNotificationProducer producer =
         new SystemAuditNotificationProducer(
-            jdbc(), candidate -> captured.compareAndSet(null, candidate));
+            jdbc(),
+            candidate -> captured.compareAndSet(null, candidate),
+            Mockito.mock(ApplicationEventPublisher.class));
 
     assertTrue(producer.publish(auditId));
     assertEquals("SYSTEM_AUDIT_ERROR:" + auditId, captured.get().fingerprint());
@@ -93,18 +102,14 @@ class NotificationEventContractIT {
   private static JdbcTemplate jdbc() {
     DriverManagerDataSource dataSource =
         new DriverManagerDataSource(
-            FastDatabase.container().getJdbcUrl(),
-            FastDatabase.container().getUsername(),
-            FastDatabase.container().getPassword());
+            FastDatabase.jdbcUrl(), FastDatabase.username(), FastDatabase.password());
     return new JdbcTemplate(dataSource);
   }
 
   private static Connection connection() throws SQLException {
     Connection connection =
         DriverManager.getConnection(
-            FastDatabase.container().getJdbcUrl(),
-            FastDatabase.container().getUsername(),
-            FastDatabase.container().getPassword());
+            FastDatabase.jdbcUrl(), FastDatabase.username(), FastDatabase.password());
     connection.setAutoCommit(false);
     return connection;
   }

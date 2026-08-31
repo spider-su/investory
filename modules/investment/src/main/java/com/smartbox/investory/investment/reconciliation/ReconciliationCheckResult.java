@@ -1,5 +1,7 @@
 package com.smartbox.investory.investment.reconciliation;
 
+import com.smartbox.investory.investment.api.reporting.model.ReconciliationCheckpoint;
+import com.smartbox.investory.investment.api.reporting.model.ReconciliationStatus;
 import java.time.Instant;
 import java.util.List;
 
@@ -13,6 +15,6 @@ public record ReconciliationCheckResult(
     String evidenceSource,
     Instant executedAt) {
   public ReconciliationCheckResult {
-    issues = issues == null ? List.of() : List.copyOf(issues);
+    issues = com.smartbox.investory.shared.util.CollectionUtils.immutableListOrEmpty(issues);
   }
 }

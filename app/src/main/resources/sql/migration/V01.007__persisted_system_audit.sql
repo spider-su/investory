@@ -49,7 +49,20 @@ CREATE INDEX ix_positions_import_source_row
     ON investory.positions(import_source_row_id)
     WHERE import_source_row_id IS NOT NULL;
 
+-- Final clean-baseline provenance rules. Reprocessed attempts use the latest
+-- source artifact, and duplicate identity includes the raw source values.
 CREATE OR REPLACE VIEW investory.reporting_import_provenance_issues AS
+WITH latest_attempt AS (
+    SELECT DISTINCT ON (provider, file_sha256)
+           id, provider, file_sha256
+    FROM investory.import_history
+    ORDER BY provider, file_sha256, attempt_no DESC, id DESC
+),
+latest_source_rows AS (
+    SELECT r.*
+    FROM investory.import_source_rows r
+    JOIN latest_attempt a ON a.id = r.import_history_id
+)
 SELECT 'CASH_OPERATION_MISSING_IMPORT'::text AS issue_code, c.id::text AS financial_row_id,
        c.import_history_id, c.import_source_row_id, 'cash_operations'::text AS financial_table
 FROM investory.cash_operations c
@@ -72,13 +85,14 @@ WHERE p.import_history_id IS NOT NULL AND p.import_source_row_id IS NULL
 UNION ALL
 SELECT 'SOURCE_ROW_WRONG_IMPORT', r.id::text, r.import_history_id,
        r.id, 'import_source_rows'
-FROM investory.import_source_rows r
+FROM latest_source_rows r
 JOIN investory.import_source_files f ON f.id = r.source_file_id
-WHERE f.import_history_id <> r.import_history_id
+JOIN investory.import_history h ON h.id = r.import_history_id
+WHERE f.provider <> h.provider OR f.file_sha256 <> h.file_sha256
 UNION ALL
 SELECT 'ORPHAN_SOURCE_ROW', r.id::text, r.import_history_id,
        r.id, 'import_source_rows'
-FROM investory.import_source_rows r
+FROM latest_source_rows r
 LEFT JOIN investory.cash_operations c ON c.import_source_row_id = r.id
 LEFT JOIN investory.positions p ON p.import_source_row_id = r.id
 WHERE c.id IS NULL AND p.id IS NULL
@@ -96,7 +110,7 @@ JOIN investory.import_source_rows r ON r.id = p.import_source_row_id
 WHERE p.import_history_id <> r.import_history_id
 UNION ALL
 SELECT 'SOURCE_FILE_CHECKSUM_MISMATCH', f.id::text, f.import_history_id,
-       NULL, 'import_source_files'
+       NULL::bigint, 'import_source_files'
 FROM investory.import_source_files f
 JOIN investory.import_history h ON h.id = f.import_history_id
 WHERE f.file_sha256 <> h.file_sha256
@@ -104,10 +118,11 @@ UNION ALL
 SELECT 'DUPLICATE_SOURCE_IDENTITY',
        string_agg(r.id::text, ',' ORDER BY r.id),
        min(r.import_history_id), NULL, 'import_source_rows'
-FROM investory.import_source_rows r
+FROM latest_source_rows r
 WHERE r.source_record_id IS NOT NULL
-GROUP BY r.provider, r.source_record_id, r.source_row_occurrence
+GROUP BY r.provider, r.archive_member_name, r.section_name, r.sheet_name,
+         r.source_record_id, r.source_row_occurrence, r.raw_values
 HAVING count(*) > 1;
 
 COMMENT ON VIEW investory.reporting_import_provenance_issues IS
-    'Diagnostic view. Legacy/manual rows may be nullable; new broker rows must not appear here.';
+    'Diagnostic view. Reprocessed attempts may reuse an immutable source artifact; current provenance is checked on the latest attempt per file checksum and duplicate identity includes raw source values.';

@@ -1,12 +1,19 @@
 package com.smartbox.investory.investment.reporting;
 
+import com.smartbox.investory.investment.api.reporting.TrailingPortfolioReturnReader;
+import com.smartbox.investory.investment.api.reporting.model.PerformanceAttribution;
+import com.smartbox.investory.investment.api.reporting.model.ReturnMetric;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceRepository;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,7 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 /** Application query over the canonical SQL portfolio-monthly reporting projection. */
 @Service
 @Transactional(readOnly = true)
-public class PortfolioPerformanceQuery {
+public class PortfolioPerformanceQuery implements TrailingPortfolioReturnReader {
   private static final BigDecimal ZERO = BigDecimal.ZERO;
 
   private final PortfolioMonthlyPerformanceRepository repository;
@@ -29,17 +36,82 @@ public class PortfolioPerformanceQuery {
 
   /** Returns the exact aggregate for the inclusive monthly range. */
   public PerformanceResult forMonths(YearMonth from, YearMonth to) {
-    return forPortfolioMonths(null, from, to);
+    List<PortfolioMonthlyPerformanceEntity> rows = monthlyRows(null, from, to);
+    if (rows.isEmpty()) {
+      return empty(from, to);
+    }
+    Map<Long, List<PortfolioMonthlyPerformanceEntity>> byPortfolio =
+        rows.stream()
+            .collect(
+                java.util.stream.Collectors.groupingBy(
+                    PortfolioMonthlyPerformanceEntity::getPortfolioId,
+                    LinkedHashMap::new,
+                    java.util.stream.Collectors.toList()));
+    List<CurrencyType> currencies =
+        rows.stream().map(PortfolioMonthlyPerformanceEntity::getBaseCurrency).distinct().toList();
+    if (currencies.size() != 1) {
+      throw new IllegalStateException(
+          "Shared portfolio income requires one base currency, found " + currencies);
+    }
+    LocalDate start =
+        rows.stream()
+            .map(PortfolioMonthlyPerformanceEntity::getFirstDate)
+            .min(Comparator.naturalOrder())
+            .orElseThrow();
+    LocalDate end =
+        rows.stream()
+            .map(PortfolioMonthlyPerformanceEntity::getEndDate)
+            .max(Comparator.naturalOrder())
+            .orElseThrow();
+    BigDecimal startValue =
+        byPortfolio.values().stream()
+            .map(List::getFirst)
+            .map(PortfolioMonthlyPerformanceEntity::getStartEquity)
+            .map(this::nz)
+            .reduce(ZERO, BigDecimal::add);
+    BigDecimal endValue =
+        byPortfolio.values().stream()
+            .map(List::getLast)
+            .map(PortfolioMonthlyPerformanceEntity::getEndEquity)
+            .map(this::nz)
+            .reduce(ZERO, BigDecimal::add);
+    BigDecimal contributions = sum(rows, PortfolioMonthlyPerformanceEntity::getDepositFlow);
+    BigDecimal withdrawals = sum(rows, PortfolioMonthlyPerformanceEntity::getWithdrawalFlow);
+    PerformanceResult result =
+        new PerformanceResult(
+            new PerformancePeriod(start, end),
+            currencies.getFirst(),
+            startValue,
+            endValue,
+            contributions,
+            withdrawals,
+            contributions.subtract(withdrawals),
+            sum(rows, PortfolioMonthlyPerformanceEntity::getProfit),
+            sum(rows, PortfolioMonthlyPerformanceEntity::getRealizedProfit),
+            null,
+            sum(rows, PortfolioMonthlyPerformanceEntity::getDividends),
+            sum(rows, PortfolioMonthlyPerformanceEntity::getInterest),
+            sum(rows, PortfolioMonthlyPerformanceEntity::getFees),
+            sum(rows, PortfolioMonthlyPerformanceEntity::getTaxes),
+            null,
+            ReturnMetric.unavailable(
+                ReturnMetric.Status.INSUFFICIENT_DATA,
+                "Shared multi-portfolio return is not defined"),
+            ReturnMetric.unavailable(
+                ReturnMetric.Status.INSUFFICIENT_DATA,
+                "Shared multi-portfolio return is not defined"),
+            null);
+    return withAttribution(result);
+  }
+
+  @Override
+  public BigDecimal returnPercentage(Long portfolioId, YearMonth from, YearMonth to) {
+    return forPortfolioMonths(portfolioId, from, to).returnPercentage();
   }
 
   /** Returns the exact aggregate for one portfolio and inclusive monthly range. */
   public PerformanceResult forPortfolioMonths(Long portfolioId, YearMonth from, YearMonth to) {
-    List<PortfolioMonthlyPerformanceEntity> rows =
-        repository.findAllByOrderByMonthAscPortfolioIdAsc().stream()
-            .filter(row -> portfolioId == null || portfolioId.equals(row.getPortfolioId()))
-            .filter(row -> from == null || !YearMonth.from(row.getMonth()).isBefore(from))
-            .filter(row -> to == null || !YearMonth.from(row.getMonth()).isAfter(to))
-            .toList();
+    List<PortfolioMonthlyPerformanceEntity> rows = monthlyRows(portfolioId, from, to);
     if (rows.isEmpty()) {
       return empty(from, to);
     }
@@ -123,6 +195,48 @@ public class PortfolioPerformanceQuery {
         PerformanceAttributionCalculator.from(result));
   }
 
+  /** Returns the cumulative portfolio result without loading the dashboard projection rows. */
+  public PortfolioResult portfolioResult(Long portfolioId) {
+    var currencies = repository.findCurrenciesByPortfolioId(portfolioId);
+    if (currencies.isEmpty()) {
+      return new PortfolioResult(null, null);
+    }
+    return new PortfolioResult(
+        repository.sumProfitByPortfolioId(portfolioId), currencies.getFirst());
+  }
+
+  private List<PortfolioMonthlyPerformanceEntity> monthlyRows(
+      Long portfolioId, YearMonth from, YearMonth to) {
+    if (portfolioId == null) {
+      LocalDate fromDate = from == null ? null : from.atDay(1);
+      LocalDate toDate = to == null ? null : to.atEndOfMonth();
+      if (fromDate == null && toDate == null) {
+        return repository.findAllByOrderByMonthAscPortfolioIdAsc();
+      }
+      if (fromDate == null) {
+        return repository.findByMonthLessThanEqualOrderByMonthAscPortfolioIdAsc(toDate);
+      }
+      if (toDate == null) {
+        return repository.findByMonthGreaterThanEqualOrderByMonthAscPortfolioIdAsc(fromDate);
+      }
+      return repository.findByMonthBetweenOrderByMonthAscPortfolioIdAsc(fromDate, toDate);
+    }
+    LocalDate fromDate = from == null ? null : from.atDay(1);
+    LocalDate toDate = to == null ? null : to.atEndOfMonth();
+    if (fromDate == null && toDate == null) {
+      return repository.findByPortfolioIdOrderByMonthAsc(portfolioId);
+    }
+    if (fromDate == null) {
+      return repository.findByPortfolioIdAndMonthLessThanEqualOrderByMonthAsc(portfolioId, toDate);
+    }
+    if (toDate == null) {
+      return repository.findByPortfolioIdAndMonthGreaterThanEqualOrderByMonthAsc(
+          portfolioId, fromDate);
+    }
+    return repository.findByPortfolioIdAndMonthBetweenOrderByMonthAsc(
+        portfolioId, fromDate, toDate);
+  }
+
   private PerformanceResult empty(YearMonth from, YearMonth to) {
     LocalDate start = from == null ? null : from.atDay(1);
     LocalDate end = to == null ? null : to.atEndOfMonth();
@@ -166,4 +280,28 @@ public class PortfolioPerformanceQuery {
   private BigDecimal nz(BigDecimal value) {
     return value == null ? ZERO : value;
   }
+
+  private PerformanceResult withAttribution(PerformanceResult result) {
+    return new PerformanceResult(
+        result.period(),
+        result.baseCurrency(),
+        result.startValue(),
+        result.endValue(),
+        result.contributions(),
+        result.withdrawals(),
+        result.netExternalFlows(),
+        result.investmentResult(),
+        result.realizedProfit(),
+        result.unrealizedProfit(),
+        result.dividends(),
+        result.interest(),
+        result.fees(),
+        result.taxes(),
+        result.returnPercentage(),
+        result.timeWeightedReturn(),
+        result.moneyWeightedReturn(),
+        PerformanceAttributionCalculator.from(result));
+  }
+
+  public record PortfolioResult(BigDecimal investmentResult, CurrencyType baseCurrency) {}
 }

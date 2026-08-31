@@ -1,38 +1,49 @@
-.idea
+# IntelliJ
+.idea/
 *.iml
-*.xml
-!pom.xml
-/target/
+
+# Maven/build output
+**/target/
+*.class
+
+# Local verification output
 /final-clean-verify.out
 /final-clean-verify.err
+*.log
+
+# Large/binary data
 *.xlsx
 *.csv
 *.zip
+
+# Keep golden reconciliation fixtures
 !test-support/src/main/resources/reconciliation/golden/
 !test-support/src/main/resources/reconciliation/golden/**
+
+# Local application config / secrets
+.env
+.env.*
+!.env.example
 **/application-local.yml
 app/src/main/resources/application-k3s.yml
 src/main/resources/application-k3s.yml
-.env
 /src/test/manual/http-client.private.env.json
-/generated
-/scripts
-/tools/Db*.java
-/tools/MigrateFix.java
-/tools/*.class
-/tools/
+
+# Generated/local tooling
+/generated/
 .docker-build-config/
+.docker-ci/
+.local-app-data/
+.m2-local/
+.m2/
+.m2-wrapper-cache/
+.playwright/
+
+# Local scripts/tools
+/scripts/
+/tools/
 /src/test/python/
+
+# GitHub local TODO
 /.github/TODO/
-/.m2-local/
-/.m2/
-/.m2-wrapper-cache/
-/.playwright/
-/app/target/
-/modules/investment/target/
-/modules/longterm/target/
-/modules/retirement/target/
-/modules/shared/target/
-/integrations/target/
-/test-support/target/
-/adapters/web-ui/target/
+/tools/

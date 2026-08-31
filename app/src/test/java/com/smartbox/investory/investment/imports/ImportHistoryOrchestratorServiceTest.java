@@ -14,15 +14,18 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
+import com.smartbox.investory.investment.performance.InvestmentCalculationCache;
 import com.smartbox.investory.investment.projection.PortfolioProjectionService;
 import com.smartbox.investory.investment.reconciliation.ReconciliationRefreshService;
 import com.smartbox.investory.investment.valuation.price.AssetPriceFallbackService;
+import com.smartbox.investory.investment.valuation.price.PriceHistoryCoverageService;
 import com.smartbox.investory.testsupport.portfolio.PortfolioScenarios;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestContext;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -30,13 +33,17 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("Import History Orchestrator Service")
 class ImportHistoryOrchestratorServiceTest {
 
   @Mock private BrokerImportParser xtbParser;
   @Mock private ImportBatchAuditWriter auditWriter;
+  @Mock private ImportSourceEvidenceService sourceEvidenceService;
   @Mock private AssetPriceFallbackService assetPriceFallbackService;
   @Mock private PortfolioProjectionService portfolioProjectionService;
   @Mock private ReconciliationRefreshService reconciliationRefreshService;
+  @Mock private PriceHistoryCoverageService priceHistoryCoverageService;
+  @Mock private InvestmentCalculationCache calculationCache;
   private ImportOrchestratorService importOrchestratorService;
 
   @BeforeEach
@@ -46,11 +53,15 @@ class ImportHistoryOrchestratorServiceTest {
         new ImportOrchestratorService(
             List.of(xtbParser),
             auditWriter,
+            sourceEvidenceService,
             assetPriceFallbackService,
             portfolioProjectionService,
-            reconciliationRefreshService);
+            reconciliationRefreshService,
+            priceHistoryCoverageService,
+            calculationCache);
   }
 
+  @DisplayName("constructor rejects Duplicate Parsers For Same Broker")
   @Test
   void constructor_rejectsDuplicateParsersForSameBroker() {
     BrokerImportParser other = org.mockito.Mockito.mock(BrokerImportParser.class);
@@ -62,11 +73,15 @@ class ImportHistoryOrchestratorServiceTest {
             new ImportOrchestratorService(
                 List.of(xtbParser, other),
                 auditWriter,
+                sourceEvidenceService,
                 assetPriceFallbackService,
                 portfolioProjectionService,
-                reconciliationRefreshService));
+                reconciliationRefreshService,
+                priceHistoryCoverageService,
+                calculationCache));
   }
 
+  @DisplayName("import File reprocesses Duplicate Ibkr File When Open Positions Are Missing")
   @Test
   void importFile_reprocessesDuplicateIbkrFileWhenOpenPositionsAreMissing() throws Exception {
     BrokerImportParser ibkrParser = org.mockito.Mockito.mock(BrokerImportParser.class);
@@ -75,9 +90,12 @@ class ImportHistoryOrchestratorServiceTest {
         new ImportOrchestratorService(
             List.of(ibkrParser),
             auditWriter,
+            sourceEvidenceService,
             assetPriceFallbackService,
             portfolioProjectionService,
-            reconciliationRefreshService);
+            reconciliationRefreshService,
+            priceHistoryCoverageService,
+            calculationCache);
     PortfolioTestContext duplicateScenario = PortfolioScenarios.createDuplicateImportScenario();
     ImportHistoryEntity existing = duplicateScenario.imports().firstImport();
     ImportHistoryEntity reprocess = batch(88L, ImportBatchStatus.STARTED, null, 0, 0, 0);
@@ -107,6 +125,7 @@ class ImportHistoryOrchestratorServiceTest {
     verify(auditWriter, never()).startBatch(any(), any(), any(), anyString(), anyString());
   }
 
+  @DisplayName("import File reprocesses Duplicate Xtb File And Returns Reloaded Batch State")
   @Test
   void importFile_reprocessesDuplicateXtbFileAndReturnsReloadedBatchState() throws Exception {
     ImportHistoryEntity existing = batch(77L, ImportBatchStatus.COMPLETED, "stale", 12, 12, 0);
@@ -138,6 +157,7 @@ class ImportHistoryOrchestratorServiceTest {
     verify(xtbParser).importFile(any(), eq("file.xlsx"));
   }
 
+  @DisplayName("import File reprocesses Completed Attempt After Newer Failed Attempt")
   @Test
   void importFile_reprocessesCompletedAttemptAfterNewerFailedAttempt() throws Exception {
     ImportHistoryEntity completed = batch(77L, ImportBatchStatus.COMPLETED, "ok", 12, 12, 0);
@@ -174,6 +194,7 @@ class ImportHistoryOrchestratorServiceTest {
     verify(auditWriter).finalizeApplied(79L, result);
   }
 
+  @DisplayName("import File reprocesses Duplicate Xtb File Without Mutating Existing Batch")
   @Test
   void importFile_reprocessesDuplicateXtbFileWithoutMutatingExistingBatch() throws Exception {
     ImportHistoryEntity existing = batch(77L, ImportBatchStatus.COMPLETED, "ok", 12, 12, 0);
@@ -206,6 +227,7 @@ class ImportHistoryOrchestratorServiceTest {
     assertEquals("ok", existing.getErrorMessage(), "existing batch must not be mutated");
   }
 
+  @DisplayName("import File processes New File And Returns Applied Summary")
   @Test
   void importFile_processesNewFileAndReturnsAppliedSummary() throws Exception {
     when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
@@ -239,6 +261,7 @@ class ImportHistoryOrchestratorServiceTest {
     verify(reconciliationRefreshService).refreshAfterImport(1L);
   }
 
+  @DisplayName("import File changed Window Starts New Batch And Keeps Prior Import")
   @Test
   void importFile_changedWindowStartsNewBatchAndKeepsPriorImport() throws Exception {
     when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
@@ -269,6 +292,7 @@ class ImportHistoryOrchestratorServiceTest {
     verify(xtbParser).importFile(any(), eq("file.xlsx"));
   }
 
+  @DisplayName("import File rejects Zero Applied Result Without Refreshing Derived Data")
   @Test
   void importFile_rejectsZeroAppliedResultWithoutRefreshingDerivedData() throws Exception {
     when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
@@ -298,6 +322,7 @@ class ImportHistoryOrchestratorServiceTest {
     verify(reconciliationRefreshService, never()).refreshAfterImport(any());
   }
 
+  @DisplayName("import File retries Same Checksum After Failed Batch")
   @Test
   void importFile_retriesSameChecksumAfterFailedBatch() throws Exception {
     when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
@@ -329,6 +354,7 @@ class ImportHistoryOrchestratorServiceTest {
     verify(auditWriter).finalizeApplied(7L, parserResult);
   }
 
+  @DisplayName("import File marks Batch Not Ready When Projection Refresh Fails")
   @Test
   void importFile_marksBatchNotReadyWhenProjectionRefreshFails() throws Exception {
     when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
@@ -361,6 +387,7 @@ class ImportHistoryOrchestratorServiceTest {
     verify(auditWriter).finalizeNotReady(eq(90L), eq(result), contains("projection recalculation"));
   }
 
+  @DisplayName("import File returns Completed When Reconciliation Refresh Is Scheduled")
   @Test
   void importFile_returnsCompletedWhenReconciliationRefreshIsScheduled() throws Exception {
     when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
@@ -384,6 +411,7 @@ class ImportHistoryOrchestratorServiceTest {
     verify(auditWriter, never()).finalizeNotReady(eq(91L), eq(result), anyString());
   }
 
+  @DisplayName("duplicate Reprocess Also Becomes Not Ready When Derived Refresh Fails")
   @Test
   void duplicateReprocessAlsoBecomesNotReadyWhenDerivedRefreshFails() throws Exception {
     ImportHistoryEntity existing = batch(92L, ImportBatchStatus.COMPLETED, "old", 1, 1, 0);
@@ -413,6 +441,7 @@ class ImportHistoryOrchestratorServiceTest {
     verify(auditWriter).finalizeNotReady(eq(93L), eq(result), contains("projection recalculation"));
   }
 
+  @DisplayName("import File records Failed Batch And Row Error When Parser Throws")
   @Test
   void importFile_recordsFailedBatchAndRowErrorWhenParserThrows() throws Exception {
     when(auditWriter.findExistingAppliedBatch(eq(BrokerType.XTB), anyString()))
@@ -439,6 +468,7 @@ class ImportHistoryOrchestratorServiceTest {
     verify(auditWriter, never()).finalizeApplied(any(), any());
   }
 
+  @DisplayName("import File rejects Unknown Broker")
   @Test
   void importFile_rejectsUnknownBroker() {
     assertThrows(

@@ -4,6 +4,7 @@ import com.smartbox.investory.shared.notifications.NotificationCandidate;
 import com.smartbox.investory.shared.notifications.NotificationEventPublisher;
 import com.smartbox.investory.shared.notifications.NotificationEventType;
 import com.smartbox.investory.shared.notifications.NotificationSeverity;
+import com.smartbox.investory.shared.notifications.SystemAuditCompletedEvent;
 import java.sql.Array;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -11,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -19,6 +21,7 @@ import org.springframework.stereotype.Component;
 public class SystemAuditNotificationProducer {
   private final JdbcTemplate jdbcTemplate;
   private final NotificationEventPublisher events;
+  private final ApplicationEventPublisher applicationEvents;
 
   public boolean publish(UUID auditId) {
     java.util.List<AuditFact> matches =
@@ -51,7 +54,7 @@ public class SystemAuditNotificationProducer {
     payload.put("errorCount", Integer.toString(audit.errorCount()));
     payload.put("warningCount", Integer.toString(audit.warningCount()));
     payload.put("checkCodes", audit.checkCodes());
-    return events.publish(
+    NotificationCandidate candidate =
         new NotificationCandidate(
             NotificationEventType.SYSTEM_AUDIT_ERROR,
             NotificationSeverity.ERROR,
@@ -61,7 +64,10 @@ public class SystemAuditNotificationProducer {
             "SYSTEM_AUDIT_ERROR:" + audit.id(),
             "System audit requires action",
             payload,
-            audit.finishedAt()));
+            audit.finishedAt());
+    boolean published = events.publish(candidate);
+    if (published) applicationEvents.publishEvent(new SystemAuditCompletedEvent(candidate));
+    return published;
   }
 
   private static Instant instant(Timestamp value) {

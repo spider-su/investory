@@ -5,11 +5,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("UI Visual Regression Baseline Contract")
 class UiVisualRegressionBaselineContractTest {
   private static final Path BASELINES = Path.of("../docs/quality/ui-baselines");
 
+  @DisplayName("responsive Profile Baselines Cover The Supported Viewport Matrix")
   @Test
   void responsiveProfileBaselinesCoverTheSupportedViewportMatrix() throws Exception {
     Map<String, String> viewports =

@@ -3,12 +3,16 @@ package com.smartbox.investory.retirement.simulation;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.smartbox.investory.retirement.api.model.*;
 import java.math.BigDecimal;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Simulation Assumptions Builder")
 class SimulationAssumptionsBuilderTest {
 
+  @DisplayName("named Copy Changes One Field And Preserves Every Other Record Component")
   @Test
   void namedCopyChangesOneFieldAndPreservesEveryOtherRecordComponent()
       throws ReflectiveOperationException {
@@ -30,6 +34,7 @@ class SimulationAssumptionsBuilderTest {
     }
   }
 
+  @DisplayName("named Copy Still Uses Canonical Validation")
   @Test
   void namedCopyStillUsesCanonicalValidation() {
     SimulationAssumptions source = assumptions();
@@ -38,10 +43,12 @@ class SimulationAssumptionsBuilderTest {
         IllegalArgumentException.class,
         () ->
             source.toBuilder()
-                .fundingOrder(List.of(FundingSource.CASH, FundingSource.CASH))
+                .fundingOrder(
+                    List.of(RetirementFundingSource.RESERVE, RetirementFundingSource.RESERVE))
                 .build());
   }
 
+  @DisplayName("named Copy Adjusts Recurring Spending Without Changing Its Composition")
   @Test
   void namedCopyAdjustsRecurringSpendingWithoutChangingItsComposition() {
     SimulationAssumptions source = assumptions();
@@ -59,11 +66,8 @@ class SimulationAssumptionsBuilderTest {
         96,
         new BigDecimal("120000"),
         new BigDecimal("0.025"),
-        new BigDecimal("0.01"),
         new BigDecimal("0.04"),
         new BigDecimal("0.07"),
-        new BigDecimal("0.03"),
-        new BigDecimal("0.02"),
         68,
         new BigDecimal("50000"),
         new BigDecimal("0.19"),
@@ -87,7 +91,10 @@ class SimulationAssumptionsBuilderTest {
         65,
         new BigDecimal("180000"),
         new BigDecimal("36000"),
-        List.of(FundingSource.BONDS, FundingSource.CASH, FundingSource.STOCKS),
+        List.of(
+            RetirementFundingSource.LONG_TERM,
+            RetirementFundingSource.RESERVE,
+            RetirementFundingSource.INVESTMENT),
         new ExpenseProfile(List.of(new ExpenseProfileStep(5, new BigDecimal("0.8")))),
         new ProjectedIncomePolicy(
             ProjectedIncomePolicy.IncomeMode.MANUAL,

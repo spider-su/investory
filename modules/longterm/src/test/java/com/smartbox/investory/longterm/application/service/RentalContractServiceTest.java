@@ -8,15 +8,14 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.longterm.api.model.CashFlowTypeModel;
-import com.smartbox.investory.longterm.api.model.FrequencyModel;
+import com.smartbox.investory.longterm.api.model.*;
+import com.smartbox.investory.longterm.api.model.CashFlowType;
+import com.smartbox.investory.longterm.api.model.Frequency;
+import com.smartbox.investory.longterm.api.model.LongTermAssetType;
 import com.smartbox.investory.longterm.api.model.RentalContractModel;
 import com.smartbox.investory.longterm.api.model.RentalContractStatusModel;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetEntity;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetRepository;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
-import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractEntity;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractRepository;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractTermEntity;
@@ -28,8 +27,10 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Rental Contract Service")
 class RentalContractServiceTest {
   private static final Clock CLOCK =
       Clock.fixed(Instant.parse("2025-06-30T12:00:00Z"), ZoneOffset.UTC);
@@ -47,6 +48,7 @@ class RentalContractServiceTest {
     when(contracts.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
   }
 
+  @DisplayName("rejects Contracts For Non Real Estate Assets")
   @Test
   void rejectsContractsForNonRealEstateAssets() {
     var asset = realEstate();
@@ -58,6 +60,7 @@ class RentalContractServiceTest {
         .hasMessageContaining("real-estate");
   }
 
+  @DisplayName("create Rejects Overlap Without Mutating Existing Contract")
   @Test
   void createRejectsOverlapWithoutMutatingExistingContract() {
     var previous = contract(10L, LocalDate.of(2025, 1, 1), null);
@@ -74,7 +77,7 @@ class RentalContractServiceTest {
                     LocalDate.of(2026, 1, 1),
                     null,
                     null,
-                    List.of(termModel(CashFlowTypeModel.RENT, "3300", false)),
+                    List.of(termModel(CashFlowType.RENT, "3300", false)),
                     false))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Overlapping");
@@ -84,6 +87,7 @@ class RentalContractServiceTest {
     verify(contracts, never()).save(previous);
   }
 
+  @DisplayName("explicit Rollover Closes Expected Period Without Termination Or Implicit Terms")
   @Test
   void explicitRolloverClosesExpectedPeriodWithoutTerminationOrImplicitTerms() {
     var previous = contract(10L, LocalDate.of(2025, 1, 1), null);
@@ -100,7 +104,7 @@ class RentalContractServiceTest {
             LocalDate.of(2026, 1, 1),
             null,
             null,
-            List.of(termModel(CashFlowTypeModel.RENT, "3300", false)),
+            List.of(termModel(CashFlowType.RENT, "3300", false)),
             true);
 
     assertThat(previous.getEndDate()).isEqualTo(LocalDate.of(2025, 12, 31));
@@ -114,6 +118,8 @@ class RentalContractServiceTest {
     verify(contracts).flush();
   }
 
+  @DisplayName(
+      "explicit Rollover Rejects Overlapping Terminated Contract Without Changing Expected End")
   @Test
   void explicitRolloverRejectsOverlappingTerminatedContractWithoutChangingExpectedEnd() {
     var previous = contract(10L, LocalDate.of(2025, 1, 1), LocalDate.of(2025, 12, 31));
@@ -141,6 +147,7 @@ class RentalContractServiceTest {
     verify(contracts, never()).save(previous);
   }
 
+  @DisplayName("update Preserves Identity And Atomically Replaces Tenant Dates Tax Payer And Terms")
   @Test
   void updatePreservesIdentityAndAtomicallyReplacesTenantDatesTaxPayerAndTerms() {
     var existing = contract(10L, LocalDate.of(2025, 1, 1), LocalDate.of(2025, 12, 31));
@@ -161,8 +168,8 @@ class RentalContractServiceTest {
             LocalDate.of(2026, 1, 31),
             Boolean.TRUE,
             List.of(
-                termModel(CashFlowTypeModel.RENT, "3500", false),
-                termModel(CashFlowTypeModel.UTILITIES, "500", true)));
+                termModel(CashFlowType.RENT, "3500", false),
+                termModel(CashFlowType.UTILITIES, "500", true)));
 
     assertThat(updated).isSameAs(existing);
     assertThat(updated.getId()).isEqualTo(10L);
@@ -181,6 +188,7 @@ class RentalContractServiceTest {
         .matches(LongTermAssetRentalContractTermEntity::isPaidByTenant);
   }
 
+  @DisplayName("update Can Correct Tax Base And Apply Current Property Tax Payer Default")
   @Test
   void updateCanCorrectTaxBaseAndApplyCurrentPropertyTaxPayerDefault() {
     var existing = contract(10L, LocalDate.of(2025, 1, 1), null);
@@ -208,6 +216,7 @@ class RentalContractServiceTest {
     assertThat(updated.getRentalTaxPaidByTenant()).isFalse();
   }
 
+  @DisplayName("rejects Negative Monthly Tax Base")
   @Test
   void rejectsNegativeMonthlyTaxBase() {
     assertThatThrownBy(
@@ -228,6 +237,7 @@ class RentalContractServiceTest {
         .hasMessageContaining("tax base");
   }
 
+  @DisplayName("update Rejects Overlap But Excludes Itself")
   @Test
   void updateRejectsOverlapButExcludesItself() {
     var existing = contract(10L, LocalDate.of(2025, 1, 1), LocalDate.of(2025, 12, 31));
@@ -252,6 +262,7 @@ class RentalContractServiceTest {
         .hasMessageContaining("Overlapping");
   }
 
+  @DisplayName("rejects Duplicate Terms And Invalid Email")
   @Test
   void rejectsDuplicateTermsAndInvalidEmail() {
     when(contracts.findAllByAssetIdOrderByStartDateDescIdDesc(7L)).thenReturn(List.of());
@@ -282,12 +293,13 @@ class RentalContractServiceTest {
                     null,
                     null,
                     List.of(
-                        termModel(CashFlowTypeModel.RENT, "1", false),
-                        termModel(CashFlowTypeModel.RENT, "2", false)),
+                        termModel(CashFlowType.RENT, "1", false),
+                        termModel(CashFlowType.RENT, "2", false)),
                     false))
         .hasMessageContaining("Duplicate");
   }
 
+  @DisplayName("delete Verifies Ownership And Does Not Mutate Adjacent Contracts")
   @Test
   void deleteVerifiesOwnershipAndDoesNotMutateAdjacentContracts() {
     var removed = contract(10L, LocalDate.of(2025, 1, 1), LocalDate.of(2025, 12, 31));
@@ -303,10 +315,11 @@ class RentalContractServiceTest {
 
     removed.setAssetId(99L);
     assertThatThrownBy(() -> service.delete(1L, 7L, 10L))
-        .isInstanceOf(java.util.NoSuchElementException.class)
+        .isInstanceOf(RentalContractNotFoundException.class)
         .hasMessageContaining("contract");
   }
 
+  @DisplayName("validates Early Termination And Calculates Effective End And Status")
   @Test
   void validatesEarlyTerminationAndCalculatesEffectiveEndAndStatus() {
     var current = contract(10L, LocalDate.of(2025, 1, 1), LocalDate.of(2025, 12, 31));
@@ -324,6 +337,7 @@ class RentalContractServiceTest {
         .hasMessageContaining("already terminated");
   }
 
+  @DisplayName("rejects Future Actual Termination Using Application Clock")
   @Test
   void rejectsFutureActualTerminationUsingApplicationClock() {
     var current = contract(10L, LocalDate.of(2025, 1, 1), LocalDate.of(2025, 12, 31));
@@ -337,6 +351,7 @@ class RentalContractServiceTest {
     verify(contracts, never()).save(current);
   }
 
+  @DisplayName("list Uses Newest First Repository Order")
   @Test
   void listUsesNewestFirstRepositoryOrder() {
     when(contracts.findAllByAssetIdOrderByStartDateDescIdDesc(7L)).thenReturn(List.of());
@@ -382,13 +397,13 @@ class RentalContractServiceTest {
   }
 
   private static RentalContractModel.Term termModel(
-      CashFlowTypeModel type, String amount, boolean tenant) {
+      CashFlowType type, String amount, boolean tenant) {
     return new RentalContractModel.Term(
         type,
         new BigDecimal(amount),
-        type == CashFlowTypeModel.PROPERTY_TAX || type == CashFlowTypeModel.INSURANCE
-            ? FrequencyModel.ANNUAL
-            : FrequencyModel.MONTHLY,
+        type == CashFlowType.PROPERTY_TAX || type == CashFlowType.INSURANCE
+            ? Frequency.ANNUAL
+            : Frequency.MONTHLY,
         tenant);
   }
 }

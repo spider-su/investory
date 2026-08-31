@@ -18,8 +18,7 @@ public interface ImportRepository extends JpaRepository<ImportHistoryEntity, Lon
 
   Optional<ImportHistoryEntity> findFirstByStatusOrderByFinishedAtDesc(ImportBatchStatus status);
 
-  @SuppressWarnings("deprecation")
-  default ImportHistoryEntity getById(Long id) {
+  default ImportHistoryEntity requireById(Long id) {
     return findById(id).orElseThrow(() -> new IllegalStateException("Import batch missing: " + id));
   }
 }

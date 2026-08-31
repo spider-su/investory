@@ -2,9 +2,11 @@ package com.smartbox.investory.investment.reporting.dashboard.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.smartbox.investory.investment.performance.model.Benchmark;
+import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
+import com.smartbox.investory.investment.api.reporting.model.Benchmark;
 import com.smartbox.investory.investment.performance.model.Performance;
 import com.smartbox.investory.investment.performance.model.Portfolio;
 import java.io.IOException;
@@ -16,19 +18,23 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Dashboard Period Regression")
 class DashboardPeriodRegressionTest {
 
   private final DashboardPeriodFilterService service = new DashboardPeriodFilterService();
 
+  @DisplayName("invalid Period Is Rejected")
   @Test
-  void missingOrInvalidPeriodDefaultsToYearToDate() {
-    assertEquals(DashboardPeriod.YEAR_TO_DATE, DashboardPeriod.fromUrlValue(null));
-    assertEquals(DashboardPeriod.YEAR_TO_DATE, DashboardPeriod.fromUrlValue(""));
-    assertEquals(DashboardPeriod.YEAR_TO_DATE, DashboardPeriod.fromUrlValue("unsupported"));
+  void invalidPeriodIsRejected() {
+    assertThrows(IllegalArgumentException.class, () -> DashboardPeriod.fromUrlValue(null));
+    assertThrows(IllegalArgumentException.class, () -> DashboardPeriod.fromUrlValue(""));
+    assertThrows(IllegalArgumentException.class, () -> DashboardPeriod.fromUrlValue("unsupported"));
   }
 
+  @DisplayName("filters Monthly And Daily Labels From The Same Period Boundary")
   @Test
   void filtersMonthlyAndDailyLabelsFromTheSamePeriodBoundary() {
     int currentYear = Year.now().getValue();
@@ -42,7 +48,8 @@ class DashboardPeriodRegressionTest {
     Portfolio portfolio = new Portfolio();
     portfolio.setMonthlyPerformance(performance);
 
-    service.apply(portfolio, DashboardPeriod.YEAR_TO_DATE);
+    portfolio = service.filter(portfolio, DashboardPeriod.YEAR_TO_DATE);
+    performance = portfolio.getMonthlyPerformance();
 
     assertEquals(
         List.of(currentJanuary, currentFebruary),
@@ -69,7 +76,7 @@ class DashboardPeriodRegressionTest {
                 List.of(1.0, 3.0, 6.0),
                 List.of(1.0, 3.0, 6.0))));
 
-    service.apply(benchmark, DashboardPeriod.YEAR_TO_DATE);
+    benchmark = service.filter(benchmark, DashboardPeriod.YEAR_TO_DATE);
 
     assertEquals(List.of(currentJanuary, currentFebruary), benchmark.getLabels());
     assertEquals(
@@ -80,6 +87,7 @@ class DashboardPeriodRegressionTest {
         List.of(1.98, 4.95), benchmark.getAccountValueYears().getFirst().totalProfitPctValues());
   }
 
+  @DisplayName("rebases Portfolio And Spy Returns To The Selected Range")
   @Test
   void rebasesPortfolioAndSpyReturnsToTheSelectedRange() {
     int currentYear = Year.now().getValue();
@@ -94,7 +102,7 @@ class DashboardPeriodRegressionTest {
     benchmark.setPortfolioReturnCurve(List.of(10.0, 21.0, 33.1));
     benchmark.setBenchmarkReturnCurve(List.of(5.0, 15.5, 27.05));
 
-    service.apply(benchmark, DashboardPeriod.YEAR_TO_DATE);
+    benchmark = service.filter(benchmark, DashboardPeriod.YEAR_TO_DATE);
 
     assertEquals(List.of(currentJanuary, currentFebruary), benchmark.getLabels());
     assertEquals(List.of(20.0, 50.0), benchmark.getPortfolioCurve());
@@ -105,6 +113,7 @@ class DashboardPeriodRegressionTest {
     assertEquals(0.0, benchmark.getAlpha());
   }
 
+  @DisplayName("every Visible Period Uses One Non Empty Rebased Performance Range")
   @Test
   void everyVisiblePeriodUsesOneNonEmptyRebasedPerformanceRange() {
     YearMonth firstAvailable = YearMonth.now().minusYears(6);
@@ -123,8 +132,8 @@ class DashboardPeriodRegressionTest {
       Benchmark benchmark = benchmarkHistory(firstAvailable, YearMonth.now());
       Portfolio portfolio = portfolioHistory(benchmark.getLabels());
 
-      service.apply(portfolio, period);
-      service.apply(benchmark, period);
+      portfolio = service.filter(portfolio, period);
+      benchmark = service.filter(benchmark, period);
 
       assertTrue(benchmark.isAvailable(), period + " must remain available when history overlaps");
       assertFalse(benchmark.getLabels().isEmpty(), period + " must retain chart labels");
@@ -153,38 +162,43 @@ class DashboardPeriodRegressionTest {
     assertFalse(profits.get(1).equals(profits.get(2)), "3M and YTD P/L must differ");
   }
 
+  @DisplayName("clamps Long Requested Range To First Available Observation")
   @Test
   void clampsLongRequestedRangeToFirstAvailableObservation() {
     YearMonth firstAvailable = YearMonth.now().minusMonths(20);
     Benchmark benchmark = benchmarkHistory(firstAvailable, YearMonth.now());
 
-    service.apply(benchmark, DashboardPeriod.FIVE_YEARS);
+    benchmark = service.filter(benchmark, DashboardPeriod.FIVE_YEARS);
 
     assertTrue(benchmark.isAvailable());
     assertEquals(firstAvailable.toString(), benchmark.getLabels().getFirst());
   }
 
+  @DisplayName("max Never Shows Data Before The Fixed Portfolio Start")
   @Test
   void maxNeverShowsDataBeforeTheFixedPortfolioStart() {
     YearMonth portfolioStart = YearMonth.of(2025, 1);
     Benchmark benchmark = benchmarkHistory(YearMonth.of(2023, 1), YearMonth.of(2026, 8));
 
-    new DashboardPeriodFilterService(portfolioStart.atDay(1), java.time.Clock.systemUTC())
-        .apply(benchmark, DashboardPeriod.MAX);
+    benchmark =
+        new DashboardPeriodFilterService(portfolioStart.atDay(1), java.time.Clock.systemUTC())
+            .filter(benchmark, DashboardPeriod.MAX);
 
     assertEquals(portfolioStart.toString(), benchmark.getLabels().getFirst());
   }
 
+  @DisplayName("marks Benchmark Unavailable Only When Requested Range Has No Observation")
   @Test
   void marksBenchmarkUnavailableOnlyWhenRequestedRangeHasNoObservation() {
     Benchmark benchmark =
         benchmarkHistory(YearMonth.now().minusMonths(4), YearMonth.now().minusMonths(2));
 
-    service.apply(benchmark, DashboardPeriod.ONE_MONTH);
+    benchmark = service.filter(benchmark, DashboardPeriod.ONE_MONTH);
 
     assertFalse(benchmark.isAvailable());
   }
 
+  @DisplayName("shorter Period Returns Only Expected Labels")
   @Test
   void shorterPeriodReturnsOnlyExpectedLabels() {
     YearMonth now = YearMonth.now();
@@ -198,13 +212,14 @@ class DashboardPeriodRegressionTest {
             List.of(10.0, 20.0, 35.0),
             List.of(5.0, 10.0, 15.0));
 
-    service.apply(benchmark, DashboardPeriod.ONE_MONTH);
+    benchmark = service.filter(benchmark, DashboardPeriod.ONE_MONTH);
 
     assertEquals(List.of(boundary, current), benchmark.getLabels());
     assertEquals(List.of(10.0, 25.0), benchmark.getPortfolioCurve());
     assertEquals(2, benchmark.getBenchmarkCurve().size());
   }
 
+  @DisplayName("pln Benchmark Uses Portfolio Base Cash Flows")
   @Test
   void plnBenchmarkUsesPortfolioBaseCashFlows() throws IOException {
     double openingEquityUsd = 10_000.0;

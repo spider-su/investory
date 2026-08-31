@@ -16,6 +16,13 @@ public interface AccountDailyRepository extends JpaRepository<AccountDailyEntity
 
   List<AccountDailyEntity> findAllByOrderByDateAscAccountIdAsc();
 
+  List<AccountDailyEntity> findByDateOrderByAccountIdAsc(LocalDate date);
+
+  List<AccountDailyEntity> findByDateAndAccountIdInOrderByAccountIdAsc(
+      LocalDate date, java.util.Collection<Long> accountIds);
+
+  List<AccountDailyEntity> findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(LocalDate from);
+
   List<AccountDailyEntity> findAllByAccountIdOrderByDateAsc(Long accountId);
 
   @Query(
@@ -51,32 +58,32 @@ public interface AccountDailyRepository extends JpaRepository<AccountDailyEntity
       @Param("accountId") Long accountId, @Param("date") LocalDate date);
 
   @Query(value = "SELECT investory.refresh_app_views()", nativeQuery = true)
-  Object refreshReportingViews();
+  void refreshReportingViews();
 
   @Query(value = "SELECT investory.refresh_recon_views()", nativeQuery = true)
-  Object refreshReconciliationViews();
+  void refreshReconciliationViews();
 
   @Query(value = "SELECT investory.refresh_reconstructed_position_daily()", nativeQuery = true)
   @Transactional(propagation = Propagation.REQUIRES_NEW)
-  Object refreshReconstructedPositionDaily();
+  void refreshReconstructedPositionDaily();
 
   @Query(
       value = "SELECT investory.refresh_reconstructed_account_market_daily()",
       nativeQuery = true)
   @Transactional(propagation = Propagation.REQUIRES_NEW)
-  Object refreshReconstructedAccountMarketDaily();
+  void refreshReconstructedAccountMarketDaily();
 
   @Query(value = "SELECT investory.refresh_reconstructed_cash_daily()", nativeQuery = true)
   @Transactional(propagation = Propagation.REQUIRES_NEW)
-  Object refreshReconstructedCashDaily();
+  void refreshReconstructedCashDaily();
 
   @Query(value = "SELECT investory.refresh_account_daily_reconciliation()", nativeQuery = true)
   @Transactional(propagation = Propagation.REQUIRES_NEW)
-  Object refreshAccountDailyReconciliation();
+  void refreshAccountDailyReconciliation();
 
   @Query(value = "SELECT investory.refresh_reconciliation_reporting_views()", nativeQuery = true)
   @Transactional(propagation = Propagation.REQUIRES_NEW)
-  Object refreshReconciliationReportingViews();
+  void refreshReconciliationReportingViews();
 
   /** Base-currency, non-cash-only daily boundary from the canonical performance projection. */
   interface PortfolioPerformanceDailyRow {

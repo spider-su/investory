@@ -86,6 +86,6 @@ public class HistoricalPortfolioActualsReadService implements HistoricalPortfoli
   }
 
   private static BigDecimal money(BigDecimal value) {
-    return value == null ? BigDecimal.ZERO : value;
+    return com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull(value);
   }
 }

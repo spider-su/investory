@@ -2,16 +2,20 @@ package com.smartbox.investory.retirement.planning;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.smartbox.investory.retirement.simulation.SimulationDecisionSummary;
-import com.smartbox.investory.retirement.simulation.SimulationScenario;
+import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.api.model.SimulationDecisionSummary;
+import com.smartbox.investory.retirement.api.model.SimulationScenario;
 import java.math.BigDecimal;
 import java.util.EnumMap;
 import java.util.Map;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Simulation Scenario Comparison")
 class SimulationScenarioComparisonTest {
   private static final BigDecimal ZERO = BigDecimal.ZERO;
 
+  @DisplayName("failed Scenario With Earlier Failure Is Limiting")
   @Test
   void failedScenarioWithEarlierFailureIsLimiting() {
     var summaries =
@@ -26,6 +30,7 @@ class SimulationScenarioComparisonTest {
     assertEquals("Conservative fails at 2055 · age 70.", comparison.interpretation());
   }
 
+  @DisplayName("sustainable Scenarios Explain The Weakest Margin")
   @Test
   void sustainableScenariosExplainTheWeakestMargin() {
     var summaries =
@@ -45,6 +50,7 @@ class SimulationScenarioComparisonTest {
     assertEquals("100", comparison.scenarios().getFirst().finalSpendableAssetsDisplay());
   }
 
+  @DisplayName("income Funded Scenario Is Not Ranked Worse Than Reserve Scenario")
   @Test
   void incomeFundedScenarioIsNotRankedWorseThanReserveScenario() {
     var summaries =
@@ -59,6 +65,7 @@ class SimulationScenarioComparisonTest {
     assertEquals("N/A", comparison.scenarios().getFirst().minimumReserveCoverageDisplay());
   }
 
+  @DisplayName("zero Delta Custom Is Hidden Unless Custom Is Selected")
   @Test
   void zeroDeltaCustomIsHiddenUnlessCustomIsSelected() {
     var summaries =

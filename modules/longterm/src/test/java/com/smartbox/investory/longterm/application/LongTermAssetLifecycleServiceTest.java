@@ -14,14 +14,17 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+@DisplayName("Long Term Asset Lifecycle Service")
 class LongTermAssetLifecycleServiceTest {
   private static final LocalDate TODAY = LocalDate.of(2026, 8, 20);
   private static final Clock CLOCK =
       Clock.fixed(Instant.parse("2026-08-20T10:00:00Z"), ZoneOffset.UTC);
 
+  @DisplayName("archive On Acquisition Date Creates AValid Same Day Period")
   @Test
   void archiveOnAcquisitionDateCreatesAValidSameDayPeriod() {
     LongTermAssetEntity asset = asset(true, TODAY);
@@ -40,6 +43,7 @@ class LongTermAssetLifecycleServiceTest {
     verify(assets).save(asset);
   }
 
+  @DisplayName("reactivation And Archive On Same Date Never Creates An Invalid Range")
   @Test
   void reactivationAndArchiveOnSameDateNeverCreatesAnInvalidRange() {
     LongTermAssetEntity asset = asset(false, TODAY.minusDays(1));
@@ -58,6 +62,7 @@ class LongTermAssetLifecycleServiceTest {
     assertTrue(!period.getActiveTo().isBefore(period.getActiveFrom()));
   }
 
+  @DisplayName("historical Lookup Uses Persisted Periods And Injected Clock")
   @Test
   void historicalLookupUsesPersistedPeriodsAndInjectedClock() {
     LongTermAssetEntity asset = asset(false, TODAY.minusDays(10));

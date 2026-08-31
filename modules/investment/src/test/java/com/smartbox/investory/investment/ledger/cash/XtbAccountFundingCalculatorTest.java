@@ -8,13 +8,16 @@ import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Xtb Account Funding Calculator")
 class XtbAccountFundingCalculatorTest {
 
   private final XtbAccountFundingCalculator calculator =
       new XtbAccountFundingCalculator(new CashOperationNormalizer());
 
+  @DisplayName("paired Transfer From Displayed Account Counts Once As Negative Funding")
   @Test
   void pairedTransferFromDisplayedAccountCountsOnceAsNegativeFunding() {
     Map<Long, Double> effects =
@@ -25,6 +28,7 @@ class XtbAccountFundingCalculatorTest {
     assertEquals(-1000.0, effects.get(100L));
   }
 
+  @DisplayName("paired Transfer To Displayed Account Counts Once As Positive Funding")
   @Test
   void pairedTransferToDisplayedAccountCountsOnceAsPositiveFunding() {
     Map<Long, Double> effects =
@@ -35,6 +39,7 @@ class XtbAccountFundingCalculatorTest {
     assertEquals(1000.0, effects.get(100L));
   }
 
+  @DisplayName("multiple Directions Net Without Double Counting")
   @Test
   void multipleDirectionsNetWithoutDoubleCounting() {
     Map<Long, Double> effects =
@@ -47,6 +52,7 @@ class XtbAccountFundingCalculatorTest {
     assertEquals(-750.0, effects.get(100L));
   }
 
+  @DisplayName("known Xtb Usd Reconciliation Adjustments Are Represented Exactly")
   @Test
   void knownXtbUsdReconciliationAdjustmentsAreRepresentedExactly() {
     CashOperationEntity firstOut =
@@ -69,6 +75,7 @@ class XtbAccountFundingCalculatorTest {
     assertEquals(995.31, effects.get(51993106L), 0.000001);
   }
 
+  @DisplayName("non Xtb And Non Usd Accounts Are Unaffected")
   @Test
   void nonXtbAndNonUsdAccountsAreUnaffected() {
     CashOperationEntity operation = transfer(1L, 100L, -1000, "Transfer from 100 to 200");
@@ -105,7 +112,7 @@ class XtbAccountFundingCalculatorTest {
     operation.setId(id);
     operation.setAccount(accountId);
     operation.setType(CashOperationType.SUBACCOUNT_TRANSFER);
-    operation.setAmount(amount);
+    operation.setAmount(java.math.BigDecimal.valueOf(amount));
     operation.setCurrency(CurrencyType.USD);
     operation.setComment(comment);
     operation.setDate(ZonedDateTime.parse("2026-01-01T12:00:00Z").plusMinutes(id));

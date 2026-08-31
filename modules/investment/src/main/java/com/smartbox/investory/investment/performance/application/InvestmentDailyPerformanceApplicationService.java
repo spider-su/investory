@@ -1,7 +1,7 @@
 package com.smartbox.investory.investment.performance.application;
 
 import com.smartbox.investory.investment.api.reporting.InvestmentDailyPerformanceApi;
-import com.smartbox.investory.investment.performance.PortfolioService;
+import com.smartbox.investory.investment.performance.PortfolioMetricsService;
 import java.time.LocalDate;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -11,10 +11,11 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class InvestmentDailyPerformanceApplicationService implements InvestmentDailyPerformanceApi {
-  private final PortfolioService portfolioService;
+  private final PortfolioMetricsService portfolioMetricsService;
 
   @Override
-  public Object load(LocalDate date, Set<Long> accountIds) {
-    return portfolioService.dailyPerformanceDetail(date, accountIds);
+  public com.smartbox.investory.investment.api.reporting.model.DailyPerformanceDetail load(
+      LocalDate date, Set<Long> accountIds) {
+    return portfolioMetricsService.dailyPerformanceDetail(date, accountIds);
   }
 }

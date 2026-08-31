@@ -1,28 +1,30 @@
 # Database, persistence, and reconciliation freeze readiness
 
-Reviewed on current main `1e6ddde8d79047b4715890d1bacefb133dbdf6da`.
+Reviewed on local checkout `5e8a1f3` plus the current working-tree benchmark failure fix.
 
 ## Decision
 
 **NOT_READY_TO_FREEZE**
 
-The clean Flyway/Hibernate/golden path is healthy, but production accounting and projection code still performs financial arithmetic through legacy `Double` entity accessors. This conflicts with the required BigDecimal-only financial-calculation boundary.
+The clean Flyway/Hibernate/golden path is healthy. The named reporting, portfolio aggregation, and XTB import paths now keep financial arithmetic in `BigDecimal`; remaining legacy primitive calculations are lower-P2 migration debt and are listed below.
 
 ## Double API audit
 
-Persisted monetary fields in `Position`, `CashOperation`, `AccountDaily`, `Asset`, `AccountStatistics`, and `CurrencyRate` are `BigDecimal` with `numeric(20,8)` mappings. Legacy `Double` accessors remain for compatibility.
+Persisted monetary fields in `Position`, `CashOperation`, `AccountDaily`, `Asset`, `AccountStatistics`, and `CurrencyRate` use `BigDecimal` with `numeric(20,8)` mappings. Canonical persistence getters/setters are `BigDecimal`; remaining primitive conversions must be limited to explicit external, chart, or presentation boundaries.
 
-`TaxCalculator` now uses `Position`'s `BigDecimal` value accessors. Production financial calculation/comparison uses still remain in `PortfolioProjectionService`, `PortfolioService`, `CashOperationNormalizer`, `IbkrPositionReconstructionService`, `AssetPriceFallbackService`, and `MarketService`. These include position value/profit/commission/swap, cash amount, and current-price arithmetic. Dashboard/export/notification compatibility uses also remain, but the calculation/import uses are the freeze blocker.
+`TaxCalculator`, `PortfolioMetricsService`, `XtbImportService`, and the public `InvestmentPerformanceApi` now use `BigDecimal` for canonical financial calculations and reporting values. Remaining primitive calculations are concentrated in legacy cash normalization/funding, IBKR import parsing, market-price provider adapters, return-solving code, and compatibility dashboard models. Dashboard/export/notification compatibility conversions may remain at their presentation or integration boundaries.
 
-Future accounting/domain code must use the matching `*Value()` `BigDecimal` accessor (or add one where an immutable reporting entity has none). This review does not remove compatibility APIs.
+Benchmark failure behavior is explicit: a database failure while loading persisted portfolio data or SPY closes is logged and propagated as a data-access failure. It must not be converted into an empty or unavailable benchmark, because that would hide an operational failure as valid missing history.
+
+Future accounting/domain code must keep arithmetic in `BigDecimal` and convert only at an explicit presentation or external-library boundary.
 
 ## As-of contract
 
-`reporting_account_statistics_vs_daily_reconciliation` is in `V01.005__portfolio_views.sql`, not V01.018 on current main. `CURRENT_DATE <> latest_daily.snapshot_date` is retained intentionally: this is a **current valuation reconciliation**, not a latest-completed-market-session reconciliation. Friday viewed Saturday, a holiday, pre-close, or a refresh lag are explicit `VALUATION_ASOF_DIFFERENCE` review states, not monetary mismatches. `DatabaseReportingContractIT.statisticsReconciliationLabelsDifferentAsOfDatesExplicitly` covers this behavior.
+`reporting_account_statistics_vs_daily_reconciliation` is in `V01.005__portfolio_views.sql`, not the current migration tail. `CURRENT_DATE <> latest_daily.snapshot_date` is retained intentionally: this is a **current valuation reconciliation**, not a latest-completed-market-session reconciliation. Friday viewed Saturday, a holiday, pre-close, or a refresh lag are explicit `VALUATION_ASOF_DIFFERENCE` review states, not monetary mismatches. `DatabaseReportingContractIT.statisticsReconciliationLabelsDifferentAsOfDatesExplicitly` covers this behavior.
 
-## Baseline migration strictness
+## Migration strictness
 
-Current baseline ends at **V01.008**: nine versioned migrations. Historical migrations were not edited.
+The clean baseline chain ends at **V01.008**: nine versioned migrations. The post-`V01.008` patch history was squashed into the original schema/function/view migrations; existing database compatibility is intentionally not supported.
 
 | File | Statement | Classification | Reason |
 | --- | --- | --- | --- |
@@ -38,16 +40,16 @@ No reviewed baseline statement silently accepts incompatible table shape.
 
 ## Fresh database and golden rebuild
 
-- Empty PostgreSQL Flyway migration: **PASS**, nine migrations through `V01.008`; `spring.flyway.out-of-order` is `false`.
+- Empty PostgreSQL Flyway migration: **PASS**, migrations through `V01.008`; `spring.flyway.out-of-order` is `false`.
 - Hibernate validation on the fresh golden database: **PASS**.
 - Golden rebuild: **READY**; independent reconciliation error scan passed.
 - `BaselineReadinessContractIT`: **PASS** on a fresh container; its seed expectations match `V01.003`.
 - `DatabaseReportingContractIT`: **PASS** on a fresh container (10 tests).
 
-The grouped remaining Testcontainers contract command exceeded the local 15-minute timeout during migration-checkpoint work and remains incomplete. Its child processes were terminated before individual reruns to avoid stale build-output locks. A clean individual `MaterializedViewRefreshContractIT` run then exposed a separate contract failure: it expects `v_portfolio_performance_daily`, but the clean V01.008 schema does not contain that relation. Resolve the test/schema contract before freeze; do not weaken it without identifying the intended reporting view.
+The grouped Testcontainers contract command was previously interrupted during migration-checkpoint work. The migration checkpoint, materialized-view, valuation-input, system-audit, and benchmark contracts have since passed in focused runs; repeat the complete clean-container batch before freeze.
 
 ## Known debt blocking freeze
 
-1. Migrate remaining production financial calculations/comparisons from legacy entity `Double` accessors to `BigDecimal` values.
-2. Resolve the missing `v_portfolio_performance_daily` contract exposed by `MaterializedViewRefreshContractIT`, then complete the remaining clean-container contracts: `MaterializedViewRefreshContractIT`, `ValuationInputContractIT`, `SystemAuditContractIT`, `AccountMonthlyBenchmarkContractIT`, and `SchemaMigrationCheckpoint2IT`.
-3. Only then declare the baseline through the then-current Flyway version frozen and require append-only migrations.
+1. Migrate the remaining legacy primitive financial calculations/comparisons in cash normalization/funding, IBKR import parsing, market-price adapters, return solving, and compatibility dashboard models to `BigDecimal` where they are canonical calculations.
+2. Repeat the complete clean-container contract batch, including `MaterializedViewRefreshContractIT`, `ValuationInputContractIT`, `SystemAuditContractIT`, `AccountMonthlyBenchmarkContractIT`, and `SchemaMigrationCheckpoint2IT`.
+3. Only then declare the current Flyway chain frozen and require append-only migrations.

@@ -17,8 +17,8 @@ import org.springframework.stereotype.Component;
  * Aggregates {@link CashOperationEntity} rows into base-currency totals (deposits, withdrawals,
  * interest, dividends and dividend tax) plus a per-currency dividends breakdown.
  *
- * <p>Extracted from {@code PortfolioService.calculateTotalProfitLoss()} so the cash-side accounting
- * can be unit-tested in isolation from positions / tax / FX board logic.
+ * <p>Extracted from {@code PortfolioMetricsService.calculateTotalProfitLoss()} so the cash-side
+ * accounting can be unit-tested in isolation from positions / tax / FX board logic.
  */
 @Component
 @RequiredArgsConstructor
@@ -69,7 +69,7 @@ public class CashFlowAggregator {
           continue;
         }
         LocalDate rateDate = op.getDate() != null ? op.getDate().toLocalDate() : LocalDate.now();
-        BigDecimal amount = nz(op.getAmountValue());
+        BigDecimal amount = nz(op.getAmount());
         BigDecimal base =
             currencyConversion.convertToBaseCurrency(amount, baseCurrency, currency, rateDate);
         switch (op.getType()) {
@@ -136,7 +136,7 @@ public class CashFlowAggregator {
   }
 
   private static BigDecimal nz(BigDecimal value) {
-    return value == null ? BigDecimal.ZERO : value;
+    return com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull(value);
   }
 
   private static BigDecimal scale(BigDecimal value) {

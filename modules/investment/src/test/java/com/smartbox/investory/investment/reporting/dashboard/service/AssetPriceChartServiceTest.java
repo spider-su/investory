@@ -7,20 +7,24 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
 import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceChartRepository;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Asset Price Chart Service")
 class AssetPriceChartServiceTest {
 
   private final AssetRepository assets = mock();
   private final AssetPriceChartRepository prices = mock();
   private final AssetPriceChartService service = new AssetPriceChartService(assets, prices);
 
+  @DisplayName("normalizes Symbol And Maps Canonical Price Rows")
   @Test
   void normalizesSymbolAndMapsCanonicalPriceRows() {
     AssetEntity asset = AssetEntity.builder().id(4L).symbol("VWCE").build();
@@ -41,12 +45,14 @@ class AssetPriceChartServiceTest {
         .singleElement()
         .satisfies(
             point -> {
-              assertThat(point.closePrice()).isEqualTo(123.45);
+              assertThat(point.closePrice())
+                  .isEqualByComparingTo(java.math.BigDecimal.valueOf(123.45));
               assertThat(point.currency()).isEqualTo("EUR");
               assertThat(point.qualityClass()).isEqualTo("A");
             });
   }
 
+  @DisplayName("rejects Blank Or Unknown Symbols Before Price Lookup")
   @Test
   void rejectsBlankOrUnknownSymbolsBeforePriceLookup() {
     assertThatThrownBy(() -> service.findBySymbol(" ", DashboardPeriod.ONE_YEAR))

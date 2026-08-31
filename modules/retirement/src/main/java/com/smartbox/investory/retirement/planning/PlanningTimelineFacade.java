@@ -2,12 +2,15 @@ package com.smartbox.investory.retirement.planning;
 
 import com.smartbox.investory.investment.api.reporting.HistoricalPortfolioActualsReader;
 import com.smartbox.investory.investment.api.reporting.HistoricalPortfolioYear;
-import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
+import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
 import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
-import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
+import com.smartbox.investory.longterm.api.model.LongTermAssetType;
+import com.smartbox.investory.profile.api.model.*;
+import com.smartbox.investory.profile.api.model.EconomicBucket;
+import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.infrastructure.planning.*;
-import com.smartbox.investory.retirement.profile.*;
-import com.smartbox.investory.retirement.simulation.*;
+import com.smartbox.investory.retirement.simulation.ForwardSimulationContextFactory;
+import com.smartbox.investory.retirement.simulation.RetirementSimulation;
 import java.math.BigDecimal;
 import java.time.*;
 import java.util.*;
@@ -30,9 +33,10 @@ public class PlanningTimelineFacade {
   private final CurrentYearProjectionBridge projectionBridge;
   private final Clock clock;
   private final ForwardSimulationContextFactory forwardContexts;
-  private final LongTermAssetAnnualSnapshotReader longTermAssets;
+  private final LongTermAssetProfileReader currentLongTermAssets;
   private final PlanningProgressService planningProgress = new PlanningProgressService();
-  private final YearReviewService yearReviews = new YearReviewService(planningProgress);
+  private final PlanningYearReviewService planningYearReviews =
+      new PlanningYearReviewService(planningProgress);
 
   @Autowired
   public PlanningTimelineFacade(
@@ -44,7 +48,7 @@ public class PlanningTimelineFacade {
       CurrentYearProjectionBridge projectionBridge,
       Clock clock,
       ForwardSimulationContextFactory forwardContexts,
-      LongTermAssetAnnualSnapshotReader longTermAssets) {
+      LongTermAssetProfileReader currentLongTermAssets) {
     this.years = years;
     this.values = values;
     this.historicalPortfolio = historicalPortfolio;
@@ -53,7 +57,7 @@ public class PlanningTimelineFacade {
     this.projectionBridge = projectionBridge;
     this.clock = clock;
     this.forwardContexts = forwardContexts;
-    this.longTermAssets = longTermAssets;
+    this.currentLongTermAssets = currentLongTermAssets;
   }
 
   /** Application read facade for planning progress and year review composition. */
@@ -72,7 +76,7 @@ public class PlanningTimelineFacade {
   }
 
   public YearReview yearReview(PastPlanningYear year) {
-    return yearReviews.review(year);
+    return planningYearReviews.review(year);
   }
 
   public PlanningTimelineFacade(
@@ -226,12 +230,6 @@ public class PlanningTimelineFacade {
     return past(planningYear);
   }
 
-  /** Compatibility alias for the previous accounting-only refresh command. */
-  @Transactional
-  public PastPlanningYear refreshHistoricalAccounting(Long portfolioId, int year) {
-    return refreshHistoricalDerivedValues(portfolioId, year);
-  }
-
   /** Ensures the calendar-current planning year exists without changing historical state. */
   @Transactional
   public boolean ensureCurrentYear(Long portfolioId) {
@@ -361,13 +359,6 @@ public class PlanningTimelineFacade {
     planningYear.setStatus(PlanningYearStatus.DRAFT);
     planningYear.setReopenedAt(Instant.now(clock));
     years.save(planningYear);
-  }
-
-  /** Compatibility alias for the historical correction endpoint. */
-  @Deprecated
-  @Transactional
-  public void reopen(Long portfolioId, int year) {
-    reopenHistoricalYear(portfolioId, year);
   }
 
   @Transactional
@@ -684,24 +675,24 @@ public class PlanningTimelineFacade {
         .allocations()
         .forEach(value -> allocation.merge(value.bucket(), value.value(), BigDecimal::add));
     BigDecimal manualReserve =
-        profile.longTermAssets().stream()
-            .filter(asset -> asset.type() == LongTermAssetTypeModel.CASH_RESERVE)
+        profile.longTermPlanningState().assets().stream()
+            .filter(asset -> asset.type() == LongTermAssetType.CASH_RESERVE)
             .map(ProjectedLongTermAsset::currentValue)
             .reduce(ZERO, BigDecimal::add);
     BigDecimal locked =
-        profile.longTermAssets().stream()
+        profile.longTermPlanningState().assets().stream()
             .filter(
                 asset ->
-                    asset.type() == LongTermAssetTypeModel.BOND
-                        || asset.type() == LongTermAssetTypeModel.DEPOSIT)
+                    asset.type() == LongTermAssetType.BOND
+                        || asset.type() == LongTermAssetType.DEPOSIT)
             .map(ProjectedLongTermAsset::currentValue)
             .reduce(ZERO, BigDecimal::add);
     BigDecimal fixed =
         allocation
             .getOrDefault(EconomicBucket.FIXED_INCOME, ZERO)
             .subtract(
-                profile.longTermAssets().stream()
-                    .filter(asset -> asset.type() == LongTermAssetTypeModel.BOND)
+                profile.longTermPlanningState().assets().stream()
+                    .filter(asset -> asset.type() == LongTermAssetType.BOND)
                     .map(ProjectedLongTermAsset::currentValue)
                     .reduce(ZERO, BigDecimal::add))
             .max(ZERO);
@@ -859,8 +850,7 @@ public class PlanningTimelineFacade {
   }
 
   private static PlanningMetricValue unavailable(PlanningMetric metric) {
-    return new PlanningMetricValue(
-        metric, null, null, PlanningValueSource.UNAVAILABLE, unavailableNote(metric));
+    return PlanningTimelineValueSupport.unavailable(metric);
   }
 
   private CurrentPlanningYear currentForTimeline(
@@ -889,9 +879,9 @@ public class PlanningTimelineFacade {
             PlanningMetric.CASH_RESERVE_VALUE,
             profile.retirementReserve(),
             PlanningValueSource.PORTFOLIO_DERIVED));
-    if (longTermAssets != null) {
+    if (currentLongTermAssets != null) {
       LongTermAssetAnnualSnapshotModel facts =
-          longTermAssets.currentAnnualSnapshot(portfolioId, LocalDate.now(clock));
+          currentLongTermAssets.snapshot(portfolioId, LocalDate.now(clock)).annualSnapshot();
       putCurrentFact(live, PlanningMetric.RENTAL_INCOME, facts.rentalIncome());
       putCurrentFact(live, PlanningMetric.BOND_VALUE, facts.bondValue());
       putCurrentFact(live, PlanningMetric.BOND_INCOME, facts.bondIncome());
@@ -904,7 +894,7 @@ public class PlanningTimelineFacade {
     BigDecimal employment =
         currentAge < assumptions.retirementAge() ? assumptions.annualEmploymentIncome() : ZERO;
     BigDecimal pension =
-        currentAge >= assumptions.pensionStartAge() ? assumptions.annualPension() : ZERO;
+        assumptions.pensionStartsAtOrBefore(currentAge) ? assumptions.annualPension() : ZERO;
     if (rental != null || bond != null) {
       BigDecimal eventIncome =
           assumptions.futureEvents().stream()
@@ -938,14 +928,18 @@ public class PlanningTimelineFacade {
     expected.putAll(current.expectedValues());
     if (bridge != null) {
       putExpectedBucket(
-          expected, PlanningMetric.CASH_RESERVE_VALUE, bridge.expectedEnd(BucketType.CASH));
-      putExpectedBucket(expected, PlanningMetric.SAFE_RESERVE, bridge.expectedEnd(BucketType.CASH));
+          expected,
+          PlanningMetric.CASH_RESERVE_VALUE,
+          bridge.expectedEnd(EconomicBucket.LIQUID_CASH));
       putExpectedBucket(
-          expected, PlanningMetric.FIXED_INCOME, bridge.expectedEnd(BucketType.BONDS));
-      putExpectedBucket(expected, PlanningMetric.BOND_VALUE, bridge.expectedEnd(BucketType.BONDS));
-      putExpectedBucket(expected, PlanningMetric.EQUITY, bridge.expectedEnd(BucketType.EQUITIES));
+          expected, PlanningMetric.SAFE_RESERVE, bridge.expectedEnd(EconomicBucket.LIQUID_CASH));
       putExpectedBucket(
-          expected, PlanningMetric.REAL_ESTATE, bridge.expectedEnd(BucketType.REAL_ESTATE));
+          expected, PlanningMetric.FIXED_INCOME, bridge.expectedEnd(EconomicBucket.FIXED_INCOME));
+      putExpectedBucket(
+          expected, PlanningMetric.BOND_VALUE, bridge.expectedEnd(EconomicBucket.FIXED_INCOME));
+      putExpectedBucket(expected, PlanningMetric.EQUITY, bridge.expectedEnd(EconomicBucket.EQUITY));
+      putExpectedBucket(
+          expected, PlanningMetric.REAL_ESTATE, bridge.expectedEnd(EconomicBucket.REAL_ESTATE));
       putExpectedBucket(
           expected, PlanningMetric.NET_WORTH, bridge.bridgedProfile().totalNetWorth());
     }
@@ -980,24 +974,12 @@ public class PlanningTimelineFacade {
     return value == null ? ZERO : value;
   }
 
-  private static String unavailableNote(PlanningMetric metric) {
-    return switch (metric) {
-      case CORE_SPENDING, DISCRETIONARY_SPENDING -> "Required historical planning input";
-      case NET_WORTH -> "Optional; Market assets provide closure anchor";
-      case REAL_ESTATE, BOND_VALUE, BOND_INCOME, CASH_RESERVE_VALUE, RENTAL_INCOME ->
-          "Historical value unavailable";
-      default -> "Historical value unavailable";
-    };
-  }
-
   private static BigDecimal grow(BigDecimal amount, BigDecimal rate) {
-    return amount.multiply(BigDecimal.ONE.add(rate));
+    return PlanningTimelineValueSupport.grow(amount, rate);
   }
 
   private static BigDecimal growForYears(BigDecimal amount, BigDecimal rate, int years) {
-    BigDecimal result = amount;
-    for (int year = 0; year < Math.max(0, years); year++) result = grow(result, rate);
-    return result;
+    return PlanningTimelineValueSupport.growForYears(amount, rate, years);
   }
 
   private int calendarCurrentYear() {
@@ -1076,6 +1058,6 @@ public class PlanningTimelineFacade {
   }
 
   private static int age(SimulationAssumptions assumptions, int year) {
-    return assumptions.currentAge() + year - assumptions.startYear();
+    return PlanningTimelineValueSupport.age(assumptions, year);
   }
 }

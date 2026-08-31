@@ -2,14 +2,15 @@ package com.smartbox.investory.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.smartbox.investory.retirement.planning.PlanningYearStatus;
-import com.smartbox.investory.retirement.simulation.SimulationScenario;
+import com.smartbox.investory.retirement.api.model.PlanningYearStatus;
+import com.smartbox.investory.retirement.api.model.SimulationScenario;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -22,7 +23,9 @@ import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 import org.thymeleaf.templateresolver.StringTemplateResolver;
 import org.thymeleaf.web.servlet.JakartaServletWebApplication;
 
+@DisplayName("Planning Year Header Render")
 class PlanningYearHeaderRenderTest {
+  @DisplayName("planning Year Header Renders For Draft And Closed States")
   @Test
   void planningYearHeaderRendersForDraftAndClosedStates() throws Exception {
     String source =

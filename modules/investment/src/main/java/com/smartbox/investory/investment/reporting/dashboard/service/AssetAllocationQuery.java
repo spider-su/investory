@@ -1,11 +1,11 @@
 package com.smartbox.investory.investment.reporting.dashboard.service;
 
+import com.smartbox.investory.investment.api.reporting.model.AssetAllocationView;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocationEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocationRepository;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
 import com.smartbox.investory.investment.performance.model.Portfolio;
-import com.smartbox.investory.investment.reporting.dashboard.application.AssetAllocationView;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -54,14 +54,16 @@ public class AssetAllocationQuery {
         buckets.entrySet().stream()
             .map(entry -> entry.getValue().view(entry.getKey(), total))
             .sorted(
-                Comparator.comparingInt(
-                    bucket -> PortfolioAssetCategoryMapper.displayOrder(bucket.name())))
+                Comparator.comparing(AssetAllocationView.Bucket::value)
+                    .reversed()
+                    .thenComparingInt(
+                        bucket -> PortfolioAssetCategoryMapper.displayOrder(bucket.name())))
             .toList();
     return new AssetAllocationView(total, result);
   }
 
-  private static double nz(Double value) {
-    return value == null ? 0.0 : value;
+  private static double nz(java.math.BigDecimal value) {
+    return value == null ? 0.0 : value.doubleValue();
   }
 
   private static final class MutableBucket {

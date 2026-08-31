@@ -4,23 +4,27 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
+import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.infrastructure.simulation.*;
+import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanService;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Simulation Plan Revision")
 class SimulationPlanRevisionTest {
   private final SimulationPlanRepository plans = mock(SimulationPlanRepository.class);
-  private final SimulationPlanEventRepository legacyEvents =
-      mock(SimulationPlanEventRepository.class);
   private final SimulationPlanRevisionRepository revisions =
       mock(SimulationPlanRevisionRepository.class);
   private final SimulationPlanRevisionEventRepository revisionEvents =
       mock(SimulationPlanRevisionEventRepository.class);
   private final SimulationPlanService service =
-      new SimulationPlanService(plans, legacyEvents, revisions, revisionEvents);
+      new SimulationPlanService(
+          plans, revisions, revisionEvents, new tools.jackson.databind.ObjectMapper());
 
+  @DisplayName("editing Creates New Revision And Leaves Old Snapshot Untouched")
   @Test
   void editingCreatesNewRevisionAndLeavesOldSnapshotUntouched() {
     SimulationPlanEntity plan = logicalPlan(7L);
@@ -28,9 +32,11 @@ class SimulationPlanRevisionTest {
     SimulationPlanRevisionEntity old = revision(11L, 1);
     when(plans.findByIdAndPortfolioId(7L, 1L)).thenReturn(Optional.of(plan));
     when(plans.findByIdAndPortfolioIdForUpdate(7L, 1L)).thenReturn(Optional.of(plan));
-    when(plans.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of(plan));
+    when(plans.findAllByPortfolioIdAndArchivedFalseOrderByName(1L)).thenReturn(List.of(plan));
     when(revisions.findByIdAndSimulationPlanId(11L, 7L)).thenReturn(Optional.of(old));
     when(revisions.findAllBySimulationPlanIdOrderByRevisionNumberDesc(7L)).thenReturn(List.of(old));
+    when(revisions.findFirstBySimulationPlanIdOrderByRevisionNumberDesc(7L))
+        .thenReturn(Optional.of(old));
     when(revisionEvents.findAllByRevisionIdOrderByYearAscIdAsc(11L)).thenReturn(List.of());
     when(revisions.save(any()))
         .thenAnswer(
@@ -49,6 +55,7 @@ class SimulationPlanRevisionTest {
     verify(revisions).save(argThat(value -> value.getRevisionNumber() == 2));
   }
 
+  @DisplayName("current Revision Events Are Copied Into New Revision")
   @Test
   void currentRevisionEventsAreCopiedIntoNewRevision() {
     SimulationPlanEntity plan = logicalPlan(7L);
@@ -63,10 +70,14 @@ class SimulationPlanRevisionTest {
     event.setType(SimulationEventType.ONE_OFF_EXPENSE);
     when(plans.findByIdAndPortfolioId(7L, 1L)).thenReturn(Optional.of(plan));
     when(plans.findByIdAndPortfolioIdForUpdate(7L, 1L)).thenReturn(Optional.of(plan));
-    when(plans.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of(plan));
+    when(plans.findAllByPortfolioIdAndArchivedFalseOrderByName(1L)).thenReturn(List.of(plan));
     when(revisions.findByIdAndSimulationPlanId(11L, 7L)).thenReturn(Optional.of(old));
     when(revisions.findAllBySimulationPlanIdOrderByRevisionNumberDesc(7L)).thenReturn(List.of(old));
+    when(revisions.findFirstBySimulationPlanIdOrderByRevisionNumberDesc(7L))
+        .thenReturn(Optional.of(old));
     when(revisionEvents.findAllByRevisionIdOrderByYearAscIdAsc(11L)).thenReturn(List.of(event));
+    when(revisionEvents.save(any(SimulationPlanRevisionEventEntity.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
     when(revisions.save(any()))
         .thenAnswer(
             invocation -> {
@@ -91,6 +102,7 @@ class SimulationPlanRevisionTest {
     assertEquals(12L, plan.getCurrentRevisionId());
   }
 
+  @DisplayName("archived Plan Can Still Resolve Historical Revision")
   @Test
   void archivedPlanCanStillResolveHistoricalRevision() {
     SimulationPlanEntity plan = logicalPlan(7L);
@@ -103,6 +115,7 @@ class SimulationPlanRevisionTest {
     assertSame(old, service.revision(1L, 7L, 11L));
   }
 
+  @DisplayName("null Emergency Equity Withdrawal In Legacy Revision Uses Default")
   @Test
   void nullEmergencyEquityWithdrawalInLegacyRevisionUsesDefault() {
     SimulationPlanEntity plan = logicalPlan(7L);
@@ -156,11 +169,8 @@ class SimulationPlanRevisionTest {
     revision.setEquityHarvestMinimumReturnRate(a.equityHarvestMinimumReturnRate());
     revision.setEquityGainHarvestRate(a.equityGainHarvestRate());
     revision.setAllowEmergencyEquityWithdrawal(a.allowEmergencyEquityWithdrawal());
-    revision.setCashReturnRate(a.cashReturnRate());
     revision.setFixedIncomeReturnRate(a.fixedIncomeReturnRate());
     revision.setEquityReturnRate(a.equityReturnRate());
-    revision.setRealEstateReturnRate(a.realEstateReturnRate());
-    revision.setOtherReturnRate(a.otherReturnRate());
     revision.setPensionStartAge(a.pensionStartAge());
     revision.setAnnualPension(a.annualPension());
     revision.setCapitalGainTaxRate(a.capitalGainTaxRate());
@@ -173,11 +183,8 @@ class SimulationPlanRevisionTest {
         80,
         spending,
         new BigDecimal(".025"),
-        new BigDecimal(".02"),
         new BigDecimal(".04"),
         new BigDecimal(".06"),
-        new BigDecimal(".025"),
-        new BigDecimal(".03"),
         67,
         new BigDecimal("30000"),
         new BigDecimal(".19"),
@@ -190,6 +197,12 @@ class SimulationPlanRevisionTest {
         new BigDecimal("5"),
         new BigDecimal(".07"),
         new BigDecimal(".75"),
-        true);
+        true,
+        65,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        SimulationAssumptions.DEFAULT_FUNDING_ORDER,
+        ExpenseProfile.EMPTY,
+        ProjectedIncomePolicy.SOURCE);
   }
 }

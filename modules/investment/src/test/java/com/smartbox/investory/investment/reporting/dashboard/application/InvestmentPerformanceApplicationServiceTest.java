@@ -7,9 +7,14 @@ import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.api.reporting.InvestmentPerformanceApi.PerformanceBoardQuery;
 import com.smartbox.investory.investment.api.reporting.InvestmentPerformanceApi.PerformanceBoardView;
-import com.smartbox.investory.investment.performance.model.Benchmark;
+import com.smartbox.investory.investment.api.reporting.PerformanceAggregation;
+import com.smartbox.investory.investment.api.reporting.PerformanceMetric;
+import com.smartbox.investory.investment.api.reporting.PerformanceStyle;
+import com.smartbox.investory.investment.api.reporting.model.Benchmark;
 import com.smartbox.investory.investment.reporting.BenchmarkService;
+import java.math.BigDecimal;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -17,42 +22,56 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("Investment Performance Application Service")
 class InvestmentPerformanceApplicationServiceTest {
   @Mock private BenchmarkService benchmarkService;
 
+  @DisplayName("empty Account Selection Means All Accounts")
   @Test
   void emptyAccountSelectionMeansAllAccounts() {
     Benchmark benchmark = benchmark();
-    when(benchmarkService.calculate()).thenReturn(benchmark);
+    when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
     InvestmentPerformanceApplicationService service = service("2026-01");
 
     PerformanceBoardView view =
-        service.load(new PerformanceBoardQuery(List.of(), "monthly", "return", "line"));
+        service.load(
+            new PerformanceBoardQuery(
+                List.of(),
+                PerformanceAggregation.MONTHLY,
+                PerformanceMetric.RETURN,
+                PerformanceStyle.LINE));
 
-    verify(benchmarkService).calculate();
+    verify(benchmarkService).calculate(1L, null);
     assertEquals("Portfolio", view.series().getFirst().label());
   }
 
+  @DisplayName("chart And Kpis Use The Configured Kpi Start")
   @Test
   void chartAndKpisUseTheConfiguredKpiStart() {
     Benchmark benchmark = benchmark();
-    when(benchmarkService.calculate()).thenReturn(benchmark);
+    when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
     InvestmentPerformanceApplicationService service =
         new InvestmentPerformanceApplicationService(benchmarkService);
     ReflectionTestUtils.setField(service, "kpiStart", "2026-01");
 
     PerformanceBoardView view =
-        service.load(new PerformanceBoardQuery(null, "monthly", "return", "line"));
+        service.load(
+            new PerformanceBoardQuery(
+                null,
+                PerformanceAggregation.MONTHLY,
+                PerformanceMetric.RETURN,
+                PerformanceStyle.LINE));
 
     assertEquals(List.of("2026-01", "2026-02"), view.labels());
-    assertEquals(List.of(10.0, 21.0), view.series().getFirst().values());
-    assertEquals(List.of(5.0, 10.25), view.benchmarkValues());
-    assertEquals(21.0, view.kpis().portfolioReturn());
-    assertEquals(10.25, view.kpis().benchmarkReturn());
+    assertEquals(List.of(bd(10), bd(21)), view.series().getFirst().values());
+    assertEquals(List.of(bd(5), bd(10.25)), view.benchmarkValues());
+    assertEquals(bd(21), view.kpis().portfolioReturn());
+    assertEquals(bd(10.25), view.kpis().benchmarkReturn());
     assertEquals("2026-01", view.kpis().bestPeriod());
     assertEquals("2026-01", view.kpis().worstPeriod());
   }
 
+  @DisplayName("missing Profit Boundary Returns Unavailable")
   @Test
   void missingProfitBoundaryReturnsUnavailable() {
     Benchmark benchmark = benchmark();
@@ -69,50 +88,73 @@ class InvestmentPerformanceApplicationServiceTest {
                 row.returnCapitalCurve(),
                 row.returnContributionCurve(),
                 row.returnPctCurve())));
-    when(benchmarkService.calculate()).thenReturn(benchmark);
+    when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
     InvestmentPerformanceApplicationService service = service("2026-02");
 
     PerformanceBoardView view =
-        service.load(new PerformanceBoardQuery(null, "monthly", "return", "line"));
+        service.load(
+            new PerformanceBoardQuery(
+                null,
+                PerformanceAggregation.MONTHLY,
+                PerformanceMetric.RETURN,
+                PerformanceStyle.LINE));
 
     assertNull(view.kpis().portfolioProfitLoss());
   }
 
+  @DisplayName("unavailable Quarterly Buckets Remain Unavailable")
   @Test
   void unavailableQuarterlyBucketsRemainUnavailable() {
     Benchmark benchmark = benchmark();
     benchmark.setPortfolioReturnCurve(java.util.Arrays.asList(10.0, 21.0, null));
     benchmark.setBenchmarkReturnCurve(java.util.Arrays.asList(5.0, 10.25, null));
     benchmark.setPortfolioCurve(java.util.Arrays.asList(100.0, 120.0, null));
-    when(benchmarkService.calculate()).thenReturn(benchmark);
+    when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
     InvestmentPerformanceApplicationService service = service("2026-01");
 
     PerformanceBoardView returns =
-        service.load(new PerformanceBoardQuery(null, "quarterly", "return", "bars"));
+        service.load(
+            new PerformanceBoardQuery(
+                null,
+                PerformanceAggregation.QUARTERLY,
+                PerformanceMetric.RETURN,
+                PerformanceStyle.BARS));
     PerformanceBoardView profit =
-        service.load(new PerformanceBoardQuery(null, "quarterly", "profit", "bars"));
+        service.load(
+            new PerformanceBoardQuery(
+                null,
+                PerformanceAggregation.QUARTERLY,
+                PerformanceMetric.PROFIT,
+                PerformanceStyle.BARS));
 
     assertNull(returns.series().getFirst().values().getFirst());
     assertNull(returns.benchmarkValues().getFirst());
     assertNull(profit.series().getFirst().values().getFirst());
   }
 
+  @DisplayName("missing Scope Boundary Does Not Crash Aggregated Bars")
   @Test
   void missingScopeBoundaryDoesNotCrashAggregatedBars() {
     Benchmark benchmark = benchmark();
     benchmark.setPortfolioReturnCurve(java.util.Arrays.asList(null, 21.0, 33.1));
     benchmark.setBenchmarkReturnCurve(java.util.Arrays.asList(null, 10.25, 15.7625));
-    when(benchmarkService.calculate()).thenReturn(benchmark);
+    when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
     InvestmentPerformanceApplicationService service = service("2026-01");
 
     PerformanceBoardView view =
-        service.load(new PerformanceBoardQuery(null, "quarterly", "return", "bars"));
+        service.load(
+            new PerformanceBoardQuery(
+                null,
+                PerformanceAggregation.QUARTERLY,
+                PerformanceMetric.RETURN,
+                PerformanceStyle.BARS));
 
     assertEquals(List.of("2026-Q1"), view.labels());
     assertNull(view.series().getFirst().values().getFirst());
     assertNull(view.benchmarkValues().getFirst());
   }
 
+  @DisplayName("selected Account Return Stays Unavailable After Missing Month")
   @Test
   void selectedAccountReturnStaysUnavailableAfterMissingMonth() {
     Benchmark benchmark = benchmark();
@@ -133,15 +175,21 @@ class InvestmentPerformanceApplicationServiceTest {
                 List.of(1_000.0, 1_100.0, 1_200.0),
                 row.returnContributionCurve(),
                 java.util.Arrays.asList(10.0, null, 10.0))));
-    when(benchmarkService.calculate(List.of(1L))).thenReturn(benchmark);
+    when(benchmarkService.calculate(1L, List.of(1L))).thenReturn(benchmark);
     InvestmentPerformanceApplicationService service = service("2025-12");
 
     PerformanceBoardView view =
-        service.load(new PerformanceBoardQuery(List.of(1L), "monthly", "return", "line"));
+        service.load(
+            new PerformanceBoardQuery(
+                List.of(1L),
+                PerformanceAggregation.MONTHLY,
+                PerformanceMetric.RETURN,
+                PerformanceStyle.LINE));
 
-    assertEquals(java.util.Arrays.asList(10.0, null, null), view.series().getFirst().values());
+    assertEquals(java.util.Arrays.asList(bd(10), null, null), view.series().getFirst().values());
   }
 
+  @DisplayName("selected Account Return Can Start After Pre Inception Months")
   @Test
   void selectedAccountReturnCanStartAfterPreInceptionMonths() {
     Benchmark benchmark = benchmark();
@@ -162,23 +210,34 @@ class InvestmentPerformanceApplicationServiceTest {
                 java.util.Arrays.asList(null, 1_000.0, 1_100.0),
                 row.returnContributionCurve(),
                 java.util.Arrays.asList(null, 10.0, 10.0))));
-    when(benchmarkService.calculate(List.of(1L))).thenReturn(benchmark);
+    when(benchmarkService.calculate(1L, List.of(1L))).thenReturn(benchmark);
     InvestmentPerformanceApplicationService service = service("2025-12");
 
     PerformanceBoardView view =
-        service.load(new PerformanceBoardQuery(List.of(1L), "monthly", "return", "line"));
+        service.load(
+            new PerformanceBoardQuery(
+                List.of(1L),
+                PerformanceAggregation.MONTHLY,
+                PerformanceMetric.RETURN,
+                PerformanceStyle.LINE));
 
-    assertEquals(java.util.Arrays.asList(null, 10.0, 21.0), view.series().getFirst().values());
+    assertEquals(java.util.Arrays.asList(null, bd(10), bd(21)), view.series().getFirst().values());
   }
 
+  @DisplayName("configured Start After History Returns Unavailable Kpis")
   @Test
   void configuredStartAfterHistoryReturnsUnavailableKpis() {
     Benchmark benchmark = benchmark();
-    when(benchmarkService.calculate()).thenReturn(benchmark);
+    when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
     InvestmentPerformanceApplicationService service = service("2099-01");
 
     PerformanceBoardView view =
-        service.load(new PerformanceBoardQuery(null, "monthly", "return", "line"));
+        service.load(
+            new PerformanceBoardQuery(
+                null,
+                PerformanceAggregation.MONTHLY,
+                PerformanceMetric.RETURN,
+                PerformanceStyle.LINE));
 
     assertEquals(List.of(), view.labels());
     assertNull(view.kpis().portfolioReturn());
@@ -186,19 +245,31 @@ class InvestmentPerformanceApplicationServiceTest {
     assertNull(view.kpis().portfolioProfitLoss());
   }
 
+  @DisplayName("selected Dashboard Period Overrides Configured Kpi Start")
   @Test
   void selectedDashboardPeriodOverridesConfiguredKpiStart() {
     Benchmark benchmark = benchmark();
-    when(benchmarkService.calculate()).thenReturn(benchmark);
+    when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
     InvestmentPerformanceApplicationService service = service("2099-01");
 
     PerformanceBoardView view =
-        service.load(new PerformanceBoardQuery(null, "monthly", "return", "line", "MAX"));
+        service.load(
+            new PerformanceBoardQuery(
+                null,
+                PerformanceAggregation.MONTHLY,
+                PerformanceMetric.RETURN,
+                PerformanceStyle.LINE,
+                com.smartbox.investory.investment.api.reporting.DashboardPeriod.MAX));
 
     assertEquals(benchmark.getLabels(), view.labels());
-    assertEquals(benchmark.getPortfolioReturnCurve(), view.series().getFirst().values());
+    assertEquals(
+        benchmark.getPortfolioReturnCurve().stream()
+            .map(InvestmentPerformanceApplicationServiceTest::bd)
+            .toList(),
+        view.series().getFirst().values());
   }
 
+  @DisplayName("subset Kpis Use The Aggregate Selected Portfolio")
   @Test
   void subsetKpisUseTheAggregateSelectedPortfolio() {
     Benchmark benchmark = benchmark();
@@ -222,14 +293,23 @@ class InvestmentPerformanceApplicationServiceTest {
                 first.returnContributionCurve(),
                 List.of(5.0, 5.0, 5.0))));
     benchmark.setPortfolioReturnCurve(List.of(100.0, 130.0, 160.0));
-    when(benchmarkService.calculate(List.of(1L, 2L))).thenReturn(benchmark);
+    when(benchmarkService.calculate(1L, List.of(1L, 2L))).thenReturn(benchmark);
     InvestmentPerformanceApplicationService service = service("2026-01");
 
     PerformanceBoardView view =
-        service.load(new PerformanceBoardQuery(List.of(1L, 2L), "monthly", "return", "line"));
+        service.load(
+            new PerformanceBoardQuery(
+                List.of(1L, 2L),
+                PerformanceAggregation.MONTHLY,
+                PerformanceMetric.RETURN,
+                PerformanceStyle.LINE));
 
-    assertEquals(30.0, view.kpis().portfolioReturn());
-    assertEquals(19.75, view.excessValues().getLast());
+    assertEquals(bd(30), view.kpis().portfolioReturn());
+    assertEquals(bd(19.75), view.excessValues().getLast());
+  }
+
+  private static BigDecimal bd(double value) {
+    return BigDecimal.valueOf(value);
   }
 
   private InvestmentPerformanceApplicationService service(String start) {

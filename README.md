@@ -59,7 +59,9 @@ projected years.
 - Past/Live/Projected planning timeline, historical annual approval/reopen, and stable current-year
   expected-versus-actual baseline tracking.
 
-Reconciliation is currently developer-facing rather than an end-user workflow. See
+Reconciliation is currently an operator/developer workflow exposed through the dedicated
+`/dashboard/reconciliation` page and internal REST adapter, rather than normal dashboard enrichment.
+See
 [`docs/quality/reconciliation.md`](docs/quality/reconciliation.md) for the validation contract,
 implemented tooling, and known gaps.
 
@@ -175,14 +177,16 @@ not real transactions. See [`docs/domain/planning-timeline.md`](docs/domain/plan
   truth consumed by projections and reporting. Failed text payload previews are capped at 8 KB.
 - Backups are operator-managed. Back up PostgreSQL and retain original broker exports separately; a
   persistent Docker volume is not a backup.
-- Reconciliation remains developer tooling based on `ReconRunner`, local broker files, JDBC checks,
-  and manual verification. The dashboard now maps the available portfolio data-quality and risk
+- Reconciliation remains operator/developer tooling based on the current-state application report,
+  `GoldenRebuildIT`, `ReconRunner`, local broker files, JDBC checks, and manual verification. The
+  dashboard now maps the available portfolio data-quality and risk
   indicators through its dashboard application view models; these are reporting indicators, not a
-  replacement for reconciliation tooling or a separate financial source of truth. IBKR C1
-  currently checks aggregate source-to-ledger cash-amount conservation only; full row/class/currency/date
-  reconciliation is not implemented. Dashboard checkpoint C6 is not automated, secondary checkpoint C7
-  is optional, and repository branch protection must still require the dedicated golden job before
-  treating it as a release gate.
+  replacement for reconciliation tooling or a separate financial source of truth. The standalone
+  `ReconRunner` IBKR C1 path checks aggregate source-to-ledger cash conservation only; the deterministic
+  golden rebuild additionally checks operation, currency, business date, row count, and signed amount.
+  Dashboard checkpoint C6 has automated database evidence coverage, secondary checkpoint C7 is
+  optional when no Yahoo snapshot exists, and repository branch protection must still require the
+  dedicated golden job before treating it as a release gate.
 - The capital-gains estimate follows Polish assumptions. Other tax jurisdictions are not modeled.
 - Retirement planning is a deterministic annual model: it has no Monte Carlo, sequence-of-returns
   randomness, automated real-world trades, automatic real-estate sale, or early contractual redemption.
@@ -203,14 +207,14 @@ Normalized Accounting
 account_daily / reporting views
         │
         ▼
-Portfolio services
+Portfolio services ───────────────> Dashboard / APIs / Exports
         │
-        ▼
-InvestmentProfile ──> Dashboard / APIs / Exports
-        │
-        └────────────> Planning -> Retirement simulation -> Past / Live / Projected
-
-Manual Long-Term Assets ───────────────────────────> InvestmentProfile
+        └───────────────┐
+                        ▼
+Manual Long-Term Assets ──> InvestmentProfile ──> Profile page
+                                      │
+                                      └──> Planning -> Retirement simulation
+                                                       -> Past / Live / Projected
 ```
 
 Manual long-term assets are planning/manual-domain data; they do not enter brokerage accounting.
@@ -371,6 +375,12 @@ Use deployment secrets or a secret manager. Do not commit credentials.
 - [`docs/architecture/`](docs/architecture/): stable architecture and reporting data flow.
 - [`docs/development/`](docs/development/): testing and development environment procedures.
 - [`docs/quality/`](docs/quality/): reconciliation and validation contracts.
+  Manual QA plans: [`dashboard`](docs/quality/01-investment-dashboard-manual-qa.md),
+  [`long-term assets`](docs/quality/02-long-term-assets-manual-qa.md),
+  [`investment profile`](docs/quality/03-investment-profile-manual-qa.md),
+  [`retirement simulation`](docs/quality/04-retirement-planning-simulation-manual-qa.md),
+  [`integrations`](docs/quality/05-integrations-manual-qa.md), and
+  [`reconciliation/data quality`](docs/quality/06-reconciliation-data-quality-manual-qa.md).
 - [`ROADMAP.md`](ROADMAP.md): future work and current priorities.
 - [`CHANGELOG.md`](CHANGELOG.md): completed work and documentation history.
 

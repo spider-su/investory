@@ -10,10 +10,8 @@ import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
 import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationEntity;
 import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationRepository;
-import com.smartbox.investory.investment.ledger.position.persistence.ClosedPosition;
-import com.smartbox.investory.investment.ledger.position.persistence.ClosedPositionRepository;
-import com.smartbox.investory.investment.ledger.position.persistence.OpenedPosition;
-import com.smartbox.investory.investment.ledger.position.persistence.OpenedPositionRepository;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.FastDatabaseTest;
 import java.io.ByteArrayInputStream;
@@ -30,6 +28,7 @@ import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -37,15 +36,17 @@ import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @Transactional
+@DisplayName("Xtb Import")
 class XtbImportIT extends FastDatabaseTest {
 
   private static final long ACCOUNT_ID = 51729109L;
   @Autowired private AssetRepository assetRepository;
   @Autowired private CashOperationRepository cashOperationRepository;
-  @Autowired private ClosedPositionRepository closedPositionRepository;
-  @Autowired private OpenedPositionRepository openedPositionRepository;
-  @Autowired private XtbImportV2Service xtbImportV2Service;
+  @Autowired private PositionRepository closedPositionRepository;
+  @Autowired private PositionRepository openedPositionRepository;
+  @Autowired private XtbImportService xtbImportService;
 
+  @DisplayName("uses Configured Account Currency Keeps Excluded History And Preserves Utc")
   @Test
   void usesConfiguredAccountCurrencyKeepsExcludedHistoryAndPreservesUtc() throws Exception {
     AssetEntity excludedAsset = assetRepository.findBySymbol("ALE.PL").orElseThrow();
@@ -57,7 +58,7 @@ class XtbImportIT extends FastDatabaseTest {
     try {
       TimeZone.setDefault(TimeZone.getTimeZone("America/Los_Angeles"));
       result =
-          xtbImportV2Service.importWorkbook(
+          xtbImportService.importWorkbook(
               new ByteArrayInputStream(workbookBytes()), "IKE_51729109_2025-12-31_2026-07-31.xlsx");
     } finally {
       TimeZone.setDefault(originalTimeZone);
@@ -74,7 +75,7 @@ class XtbImportIT extends FastDatabaseTest {
     assertEquals(
         0,
         cash.stream()
-            .map(CashOperationEntity::getAmountValue)
+            .map(CashOperationEntity::getAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add)
             .compareTo(BigDecimal.valueOf(-300)));
     assertEquals(
@@ -92,8 +93,8 @@ class XtbImportIT extends FastDatabaseTest {
             .orElseThrow()
             .getDate());
 
-    List<OpenedPosition> opened = openedPositionRepository.findOpenByAssetId(excludedAsset.getId());
-    assertEquals(3, opened.stream().mapToDouble(OpenedPosition::getVolume).sum(), 0.000001);
+    List<PositionEntity> opened = openedPositionRepository.findOpenByAssetId(excludedAsset.getId());
+    assertEquals(3, opened.stream().mapToDouble(p -> p.getVolume().doubleValue()).sum(), 0.000001);
     assertTrue(
         opened.stream().allMatch(position -> position.getAssetId().equals(excludedAsset.getId())));
     assertTrue(
@@ -105,9 +106,9 @@ class XtbImportIT extends FastDatabaseTest {
     assertTrue(
         opened.stream().allMatch(position -> position.getCommissionCurrency() == CurrencyType.PLN));
 
-    List<ClosedPosition> closed = closedPositionRepository.findClosedByAssetId(quotedAsset.getId());
+    List<PositionEntity> closed = closedPositionRepository.findClosedByAssetId(quotedAsset.getId());
     assertEquals(1, closed.size());
-    ClosedPosition position = closed.getFirst();
+    PositionEntity position = closed.getFirst();
     assertEquals(CurrencyType.USD, position.getPriceCurrency());
     assertEquals(CurrencyType.PLN, position.getCostCurrency());
     assertEquals(CurrencyType.PLN, position.getProfitCurrency());
@@ -121,10 +122,11 @@ class XtbImportIT extends FastDatabaseTest {
     assertNotNull(position.getAssetId());
   }
 
+  @DisplayName("treats Xtb Three Placeholder As Missing Ticker On Cash Only Rows")
   @Test
   void treatsXtbThreePlaceholderAsMissingTickerOnCashOnlyRows() throws Exception {
     ImportExecutionResult result =
-        xtbImportV2Service.importWorkbook(
+        xtbImportService.importWorkbook(
             new ByteArrayInputStream(cashOnlyPlaceholderWorkbookBytes()),
             "PLN_50290466_2025-12-31_2026-07-31.xlsx");
 
@@ -139,7 +141,7 @@ class XtbImportIT extends FastDatabaseTest {
             .orElseThrow();
 
     assertEquals(CurrencyType.PLN, deposit.getCurrency());
-    assertEquals(0, deposit.getAmountValue().compareTo(BigDecimal.valueOf(14_200)));
+    assertEquals(0, deposit.getAmount().compareTo(BigDecimal.valueOf(14_200)));
     assertNull(deposit.getSymbol());
     assertNull(deposit.getAssetId());
 

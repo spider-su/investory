@@ -53,12 +53,12 @@ public class PortfolioCurrencyBreakdownEntity {
   @Column(name = "updated_at", nullable = false)
   private java.time.ZonedDateTime updatedAt;
 
-  public Double getAmountLocal() {
-    return amountLocal == null ? null : amountLocal.doubleValue();
+  public BigDecimal getAmountLocal() {
+    return amountLocal;
   }
 
-  public Double getAmountInBaseCurrency() {
-    return amountInBaseCurrency == null ? null : amountInBaseCurrency.doubleValue();
+  public BigDecimal getAmountInBaseCurrency() {
+    return amountInBaseCurrency;
   }
 
   public PortfolioCurrencyBreakdownEntity(

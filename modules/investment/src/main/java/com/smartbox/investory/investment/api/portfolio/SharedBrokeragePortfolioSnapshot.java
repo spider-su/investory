@@ -5,10 +5,11 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * Current shared brokerage aggregation for application/profile consumers.
+ * Current brokerage aggregation for application consumers.
  *
- * <p>This is intentionally not portfolio-scoped: current brokerage reporting aggregates the shared
- * market dataset. Multi-portfolio brokerage scoping is a separate change.
+ * <p>{@link BrokeragePortfolioReader#currentSharedSnapshot()} returns the complete shared market
+ * dataset. {@link BrokeragePortfolioReader#currentSnapshot(Long)} returns the same economic shape
+ * scoped to one portfolio.
  */
 public record SharedBrokeragePortfolioSnapshot(
     CurrencyType baseCurrency,
@@ -18,6 +19,7 @@ public record SharedBrokeragePortfolioSnapshot(
     BigDecimal interest,
     List<BrokeragePositionSnapshot> openPositions) {
   public SharedBrokeragePortfolioSnapshot {
-    openPositions = openPositions == null ? List.of() : List.copyOf(openPositions);
+    openPositions =
+        com.smartbox.investory.shared.util.CollectionUtils.immutableListOrEmpty(openPositions);
   }
 }

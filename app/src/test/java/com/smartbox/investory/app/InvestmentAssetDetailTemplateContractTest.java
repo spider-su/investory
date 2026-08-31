@@ -5,19 +5,26 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Investment Asset Detail Template Contract")
 class InvestmentAssetDetailTemplateContractTest {
   private static final Path DETAIL =
       Path.of("../adapters/web-ui/src/main/resources/templates/dashboard/asset-detail.html");
   private static final Path NOT_FOUND =
       Path.of("../adapters/web-ui/src/main/resources/templates/dashboard/asset-not-found.html");
 
+  @DisplayName("asset Detail Uses User Facing Labels And Reporting Language")
   @Test
   void assetDetailUsesUserFacingLabelsAndReportingLanguage() throws Exception {
     String html = Files.readString(DETAIL);
+    String script =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/static/js/asset-detail.js"));
 
     assertTrue(html.contains("Back to Investment"));
+    assertTrue(html.contains("data-turbo=\"false\""));
     assertTrue(html.contains(">Quantity</div>"));
     assertTrue(html.contains(">Manual price</h2>"));
     assertTrue(html.contains(">Save price</button>"));
@@ -34,9 +41,9 @@ class InvestmentAssetDetailTemplateContractTest {
     assertTrue(html.contains(">Market-data ticker</th>"));
     assertTrue(html.contains(">Yahoo Finance symbol</th>"));
     assertTrue(html.contains(">Price quality</th>"));
-    assertTrue(html.contains("Saving price…"));
-    assertTrue(html.contains("Price saved"));
-    assertTrue(html.contains("Couldn’t save the price."));
+    assertTrue(script.contains("Saving price…"));
+    assertTrue(script.contains("Price saved"));
+    assertTrue(script.contains("Couldn’t save the price."));
 
     assertFalse(html.contains("Total quantity"));
     assertFalse(html.contains("Manual current price"));
@@ -47,6 +54,7 @@ class InvestmentAssetDetailTemplateContractTest {
     assertFalse(html.contains("Yahoo symbol"));
   }
 
+  @DisplayName("asset Not Found Page Does Not Render Exception Message")
   @Test
   void assetNotFoundPageDoesNotRenderExceptionMessage() throws Exception {
     String html = Files.readString(NOT_FOUND);

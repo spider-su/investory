@@ -5,4 +5,4 @@ import java.math.BigDecimal;
 
 /** Current Long-Term asset facts required for profile allocation; {@code currentValue} is USD. */
 public record LongTermAssetProfileAssetModel(
-    LongTermAssetTypeModel type, CurrencyType currency, BigDecimal currentValue) {}
+    LongTermAssetType type, CurrencyType currency, BigDecimal currentValue) {}

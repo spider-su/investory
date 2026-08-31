@@ -90,24 +90,12 @@ public class CashOperationEntity {
   @Column(name = "execution_fx_reference", length = 256)
   private String executionFxReference;
 
-  public Double getAmount() {
-    return amount == null ? null : amount.doubleValue();
-  }
-
-  public BigDecimal getAmountValue() {
+  public BigDecimal getAmount() {
     return amount;
   }
 
   public void setAmount(BigDecimal amount) {
     this.amount = scaleAmount(amount);
-  }
-
-  public void setAmount(Double amount) {
-    this.amount = amount == null ? null : scaleAmount(BigDecimal.valueOf(amount));
-  }
-
-  public void setAmount(double amount) {
-    setAmount(Double.valueOf(amount));
   }
 
   public void setSymbol(String symbol) {

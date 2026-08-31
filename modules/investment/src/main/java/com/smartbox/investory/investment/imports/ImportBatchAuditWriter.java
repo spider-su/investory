@@ -90,7 +90,7 @@ public class ImportBatchAuditWriter {
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public ImportHistoryEntity finalizeApplied(Long batchId, ImportExecutionResult result) {
-    ImportHistoryEntity batch = importRepository.getById(batchId);
+    ImportHistoryEntity batch = importRepository.requireById(batchId);
     batch.setStatus(
         result.rowsFailed() == 0 && result.rowsApplied() == result.rowsTotal()
             ? ImportBatchStatus.COMPLETED
@@ -107,7 +107,7 @@ public class ImportBatchAuditWriter {
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public ImportHistoryEntity finalizeFailed(Long batchId, String message, byte[] rawPayload) {
-    ImportHistoryEntity batch = importRepository.getById(batchId);
+    ImportHistoryEntity batch = importRepository.requireById(batchId);
     batch.setStatus(ImportBatchStatus.FAILED);
     if (batch.getRowsTotal() == null || batch.getRowsTotal() < 1) {
       batch.setRowsTotal(1);
@@ -128,7 +128,7 @@ public class ImportBatchAuditWriter {
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public ImportHistoryEntity finalizeNotReady(
       Long batchId, ImportExecutionResult result, String message) {
-    ImportHistoryEntity batch = importRepository.getById(batchId);
+    ImportHistoryEntity batch = importRepository.requireById(batchId);
     batch.setStatus(ImportBatchStatus.NOT_READY);
     batch.setRowsTotal(result.rowsTotal());
     batch.setRowsApplied(result.rowsApplied());

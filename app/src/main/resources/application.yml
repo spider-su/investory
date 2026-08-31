@@ -49,6 +49,13 @@ spring:
     check-template-location: true
     template-resolver-order: 1
 
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  paths-to-match: /api/v1/**
+  swagger-ui:
+    path: /swagger-ui.html
+
 # FX matrix resolution is already batched and cached by CurrencyRateService. Keep the generated
 # native SQL out of normal application logs; enable DEBUG locally when diagnosing SQL itself.
 logging:
@@ -79,8 +86,10 @@ app:
   # Global reporting inception date. Historical views never calculate before this date.
   history-start: ${APP_HISTORY_START:${PORTFOLIO_HISTORY_START:2025-02-01}}
   integrations:
-    # Required before saving or reading encrypted integration secrets.
-    master-key: ${INVESTORY_INTEGRATION_MASTER_KEY:}
+    # Override this fallback with a stable secret outside local development.
+    master-key: ${INVESTORY_INTEGRATION_MASTER_KEY:change-me-integration-master-key}
+    # Permit HTTP/private custom provider endpoints only in an explicitly self-hosted setup.
+    allow-private-base-urls: ${INTEGRATIONS_ALLOW_PRIVATE_BASE_URLS:false}
   portfolio:
     performance-kpi-start: ${PORTFOLIO_PERFORMANCE_KPI_START:2026-01-01}
     # Detailed issue provenance scans reconstructed history and is slow on large datasets.

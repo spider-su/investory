@@ -2,18 +2,14 @@ package com.smartbox.investory.longterm.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.longterm.api.LongTermAssetsApi;
-import com.smartbox.investory.longterm.api.model.CashFlowTypeModel;
-import com.smartbox.investory.longterm.api.model.FrequencyModel;
+import com.smartbox.investory.longterm.api.model.*;
+import com.smartbox.investory.longterm.api.model.LongTermAssetType;
 import com.smartbox.investory.longterm.api.model.RentalContractStatusModel;
 import com.smartbox.investory.longterm.application.model.AnnualEconomics;
-import com.smartbox.investory.longterm.application.model.LongTermAssetSummary;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
-import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractEntity;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -22,19 +18,60 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Long Term Assets Application Service")
 class LongTermAssetsApplicationServiceTest {
   private static final Clock CLOCK =
       Clock.fixed(Instant.parse("2026-08-24T12:00:00Z"), ZoneOffset.UTC);
 
+  @DisplayName("maps Rental Contract Management Fields To Public Boundary")
   @Test
   void mapsRentalContractManagementFieldsToPublicBoundary() {
-    var facade = mock(LongTermAssetsFacade.class);
-    var application = new LongTermAssetsApplicationService(facade, CLOCK);
+    var queries = mock(LongTermAssetQueryService.class);
+    var detail = mock(LongTermAssetQueryService.AssetDetailData.class);
+    var sourceAsset =
+        mock(com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetEntity.class);
+    var sourceContract = mock(LongTermAssetRentalContractEntity.class);
+    var sourceTerm =
+        mock(
+            com.smartbox.investory.longterm.infrastructure.rental
+                .LongTermAssetRentalContractTermEntity.class);
+    var sourceSummary =
+        mock(com.smartbox.investory.longterm.application.model.LongTermAssetSummary.class);
+    when(sourceSummary.annualEconomics()).thenReturn(mock(AnnualEconomics.class));
+    when(sourceTerm.getType()).thenReturn(CashFlowType.UTILITIES);
+    when(sourceTerm.getAmount()).thenReturn(new BigDecimal("450"));
+    when(sourceTerm.getFrequency()).thenReturn(Frequency.MONTHLY);
+    when(sourceTerm.isPaidByTenant()).thenReturn(true);
+    when(sourceContract.getTerms()).thenReturn(List.of(sourceTerm));
+    when(sourceContract.getId()).thenReturn(44L);
+    when(sourceContract.getAssetId()).thenReturn(7L);
+    when(sourceContract.getTenantName()).thenReturn("Tenant");
+    when(sourceContract.getTenantEmail()).thenReturn("tenant@example.com");
+    when(sourceContract.getTenantPhone()).thenReturn("+48 123");
+    when(sourceContract.getStartDate()).thenReturn(LocalDate.of(2026, 1, 1));
+    when(sourceContract.getEndDate()).thenReturn(LocalDate.of(2026, 12, 31));
+    when(sourceContract.getTerminatedDate()).thenReturn(LocalDate.of(2026, 8, 20));
+    when(sourceContract.getRentalTaxPaidByTenant()).thenReturn(Boolean.TRUE);
+    when(sourceContract.getMonthlyTaxBase()).thenReturn(new BigDecimal("1200"));
+    when(detail.asset()).thenReturn(sourceAsset);
+    when(detail.summary()).thenReturn(sourceSummary);
+    when(detail.valuationPeriods()).thenReturn(List.of());
+    when(detail.expectedPropertyGrowth()).thenReturn(BigDecimal.ZERO);
+    when(detail.contracts()).thenReturn(List.of(sourceContract));
+    when(queries.detail(1L, 7L, LocalDate.of(2026, 8, 24))).thenReturn(detail);
+    var application =
+        new LongTermAssetsApplicationService(
+            queries,
+            mock(LongTermAssetAnnualSnapshotService.class),
+            mock(LongTermAssetCommandService.class),
+            mock(RentalContractService.class),
+            CLOCK);
     LocalDate date = LocalDate.of(2026, 8, 24);
     var contract =
-        new LongTermAssetsFacade.ContractView(
+        new RentalContractView(
             44L,
             "Tenant",
             "tenant@example.com",
@@ -45,14 +82,13 @@ class LongTermAssetsApplicationServiceTest {
             LocalDate.of(2026, 8, 20),
             RentalContractStatusModel.TERMINATED,
             Boolean.TRUE,
+            new BigDecimal("1200"),
             List.of(
-                new LongTermAssetsFacade.TermView(
-                    CashFlowType.UTILITIES, new BigDecimal("450"), Frequency.MONTHLY, true)));
-    when(facade.details(1L, 7L, date))
-        .thenReturn(
-            new LongTermAssetsFacade.DetailView(
-                asset(), summary(), null, null, List.of(), BigDecimal.ZERO, List.of(contract)));
-
+                new RentalTermView(
+                    com.smartbox.investory.longterm.api.model.CashFlowType.UTILITIES,
+                    new BigDecimal("450"),
+                    com.smartbox.investory.longterm.api.model.Frequency.MONTHLY,
+                    true)));
     var result = application.details(1L, 7L, date).contracts().getFirst();
 
     assertThat(result.id()).isEqualTo(44L);
@@ -62,31 +98,52 @@ class LongTermAssetsApplicationServiceTest {
     assertThat(result.effectiveEndDate()).isEqualTo(LocalDate.of(2026, 8, 20));
     assertThat(result.status()).isEqualTo(RentalContractStatusModel.TERMINATED);
     assertThat(result.rentalTaxPaidByTenant()).isTrue();
-    assertThat(result.terms().getFirst().type()).isEqualTo(CashFlowTypeModel.UTILITIES);
-    assertThat(result.terms().getFirst().frequency()).isEqualTo(FrequencyModel.MONTHLY);
+    assertThat(result.terms().getFirst().type())
+        .isEqualTo(com.smartbox.investory.longterm.api.model.CashFlowType.UTILITIES);
+    assertThat(result.terms().getFirst().frequency())
+        .isEqualTo(com.smartbox.investory.longterm.api.model.Frequency.MONTHLY);
     assertThat(result.terms().getFirst().paidByTenant()).isTrue();
   }
 
+  @DisplayName("maps Mutation Status With Injected Application Clock")
   @Test
   void mapsMutationStatusWithInjectedApplicationClock() {
-    var facade = mock(LongTermAssetsFacade.class);
-    var application = new LongTermAssetsApplicationService(facade, CLOCK);
+    var rentals = mock(RentalContractService.class);
+    var application =
+        new LongTermAssetsApplicationService(
+            mock(LongTermAssetQueryService.class),
+            mock(LongTermAssetAnnualSnapshotService.class),
+            mock(LongTermAssetCommandService.class),
+            rentals,
+            CLOCK);
     var created = new LongTermAssetRentalContractEntity();
     created.setId(45L);
     created.setAssetId(7L);
     created.setStartDate(LocalDate.of(2026, 8, 25));
-    when(facade.createRentalContract(any())).thenReturn(created);
+    when(rentals.create(
+            any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), anyBoolean()))
+        .thenReturn(created);
 
     var result =
         application.createRentalContract(
-            new LongTermAssetsApi.RentalContractCommand(
-                1L, 7L, null, null, null, LocalDate.of(2026, 8, 25), null, null, false, List.of()));
+            new RentalContractCommand(
+                1L,
+                7L,
+                null,
+                null,
+                null,
+                LocalDate.of(2026, 8, 25),
+                null,
+                null,
+                null,
+                false,
+                List.of()));
 
     assertThat(result.status()).isEqualTo(RentalContractStatusModel.UPCOMING);
   }
 
-  private static LongTermAssetsFacade.AssetView asset() {
-    return new LongTermAssetsFacade.AssetView(
+  private static AssetView asset() {
+    return new AssetView(
         7L,
         1L,
         "Rental",
@@ -99,21 +156,5 @@ class LongTermAssetsApplicationServiceTest {
         true,
         null,
         false);
-  }
-
-  private static LongTermAssetSummary summary() {
-    BigDecimal zero = BigDecimal.ZERO;
-    return new LongTermAssetSummary(
-        7L,
-        "Rental",
-        LongTermAssetType.REAL_ESTATE,
-        CurrencyType.PLN,
-        BigDecimal.ONE,
-        null,
-        null,
-        new AnnualEconomics(zero, zero, zero, zero, zero, zero, zero, zero),
-        null,
-        null,
-        null);
   }
 }

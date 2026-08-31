@@ -16,24 +16,18 @@ public class ReconciliationRefreshService {
   private final PortfolioProjectionService portfolioProjectionService;
   private final JdbcTemplate jdbcTemplate;
   private final boolean enabled;
-
-  @Autowired(required = false)
-  private SystemAuditNotificationProducer notificationProducer;
+  private final SystemAuditNotificationProducer notificationProducer;
 
   @Autowired
   public ReconciliationRefreshService(
       PortfolioProjectionService portfolioProjectionService,
       JdbcTemplate jdbcTemplate,
+      SystemAuditNotificationProducer notificationProducer,
       @Value("${app.import.reconciliation-refresh-enabled:false}") boolean enabled) {
     this.portfolioProjectionService = portfolioProjectionService;
     this.jdbcTemplate = jdbcTemplate;
     this.enabled = enabled;
-  }
-
-  /** Source-compatible constructor for focused refresh tests. */
-  ReconciliationRefreshService(
-      PortfolioProjectionService portfolioProjectionService, boolean enabled) {
-    this(portfolioProjectionService, null, enabled);
+    this.notificationProducer = notificationProducer;
   }
 
   @Async("reconciliationRefreshExecutor")
@@ -53,8 +47,8 @@ public class ReconciliationRefreshService {
     try {
       portfolioProjectionService.refreshReconciliationViews();
     } catch (Exception exception) {
-      log.warn(
-          "Reconciliation refresh failed after import (batchId={}): {}",
+      log.error(
+          "RECONCILIATION_REFRESH_FAILED after import (batchId={}): {}",
           batchId,
           exception.getMessage(),
           exception);
@@ -70,9 +64,6 @@ public class ReconciliationRefreshService {
   }
 
   private void runAuditAfterCommittedImport(Long batchId) {
-    if (jdbcTemplate == null) {
-      return;
-    }
     long started = System.nanoTime();
     java.util.UUID auditId;
     try {
@@ -94,7 +85,7 @@ public class ReconciliationRefreshService {
           (System.nanoTime() - started) / 1_000_000L,
           batchId);
     }
-    if (notificationProducer != null && auditId != null) {
+    if (auditId != null) {
       try {
         notificationProducer.publish(auditId);
       } catch (Exception exception) {

@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -26,6 +27,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("Currency Rate Service")
 class CurrencyRateServiceTest {
 
   @Mock private CurrencyRateRepository currencyRateRepository;
@@ -37,6 +39,7 @@ class CurrencyRateServiceTest {
     service = new CurrencyRateService(currencyRateRepository);
   }
 
+  @DisplayName("convert To Base Currency returns Amount Unchanged For Same Currency")
   @Test
   void convertToBaseCurrency_returnsAmountUnchangedForSameCurrency() {
     assertEquals(
@@ -46,6 +49,7 @@ class CurrencyRateServiceTest {
     verifyNoInteractions(currencyRateRepository);
   }
 
+  @DisplayName("shared Conversion Keeps Big Decimal Same Currency Result")
   @Test
   void sharedConversionKeepsBigDecimalSameCurrencyResult() {
     CurrencyConversion conversion = service;
@@ -57,6 +61,7 @@ class CurrencyRateServiceTest {
     verifyNoInteractions(currencyRateRepository);
   }
 
+  @DisplayName("convert To Base Currency uses Historical Rate For Requested Date")
   @Test
   void convertToBaseCurrency_usesHistoricalRateForRequestedDate() {
     when(currencyRateRepository.resolveFxRatesForDate(LocalDate.of(2026, 6, 15)))
@@ -83,6 +88,7 @@ class CurrencyRateServiceTest {
         1e-9);
   }
 
+  @DisplayName("shared Conversion Keeps Historical Big Decimal Result")
   @Test
   void sharedConversionKeepsHistoricalBigDecimalResult() {
     LocalDate date = LocalDate.of(2026, 6, 15);
@@ -100,6 +106,7 @@ class CurrencyRateServiceTest {
             new BigDecimal("90"), CurrencyType.USD, CurrencyType.EUR, date));
   }
 
+  @DisplayName("first Miss Loads All Currency Pairs For Date In One Batch")
   @Test
   void firstMissLoadsAllCurrencyPairsForDateInOneBatch() {
     FxRateResolutionRow eurToUsd =
@@ -123,6 +130,7 @@ class CurrencyRateServiceTest {
     verify(currencyRateRepository, times(1)).resolveFxRatesForDate(LocalDate.of(2026, 6, 15));
   }
 
+  @DisplayName("convert To Base Currency uses Inverse Rate When Direct Missing")
   @Test
   void convertToBaseCurrency_usesInverseRateWhenDirectMissing() {
     when(currencyRateRepository.resolveFxRatesForDate(LocalDate.of(2026, 6, 15)))
@@ -139,6 +147,7 @@ class CurrencyRateServiceTest {
         1e-9);
   }
 
+  @DisplayName("convert To Base Currency throws When Rate Missing")
   @Test
   void convertToBaseCurrency_throwsWhenRateMissing() {
     CurrencyRateService freshService = new CurrencyRateService(currencyRateRepository);
@@ -149,6 +158,7 @@ class CurrencyRateServiceTest {
                 123.0, CurrencyType.PLN, CurrencyType.EUR, LocalDate.of(2026, 7, 5)));
   }
 
+  @DisplayName("shared Conversion Keeps Missing Rate Failure")
   @Test
   void sharedConversionKeepsMissingRateFailure() {
     CurrencyConversion conversion = new CurrencyRateService(currencyRateRepository);
@@ -163,6 +173,7 @@ class CurrencyRateServiceTest {
                 LocalDate.of(2026, 7, 5)));
   }
 
+  @DisplayName("update Rates persists New Rate When Absent")
   @Test
   void updateRates_persistsNewRateWhenAbsent() {
     when(currencyRateRepository.findFirstByRateDateAndBaseAndToCurrencyAndSourceAndMethod(
@@ -181,9 +192,10 @@ class CurrencyRateServiceTest {
     assertEquals(LocalDate.of(2026, 7, 5), saved.getRateDate());
     assertEquals(CurrencyType.USD, saved.getBase());
     assertEquals(CurrencyType.EUR, saved.getToCurrency());
-    assertEquals(0.95, saved.getRate());
+    assertEquals(new BigDecimal("0.95000000"), saved.getRate());
   }
 
+  @DisplayName("update Rates updates Existing Rate")
   @Test
   void updateRates_updatesExistingRate() {
     CurrencyRateEntity existing =
@@ -200,9 +212,10 @@ class CurrencyRateServiceTest {
 
     verify(currencyRateRepository).save(existing);
     assertEquals(LocalDate.of(2026, 7, 5), existing.getRateDate());
-    assertEquals(0.92, existing.getRate());
+    assertEquals(new BigDecimal("0.92000000"), existing.getRate());
   }
 
+  @DisplayName("get Rate returns Persisted Rate")
   @Test
   void getRate_returnsPersistedRate() {
     when(currencyRateRepository.resolveFxRatesForDate(LocalDate.of(2026, 7, 5)))
@@ -213,9 +226,11 @@ class CurrencyRateServiceTest {
     CurrencyRateService freshService = new CurrencyRateService(currencyRateRepository);
 
     assertEquals(
-        0.91, freshService.getRate(CurrencyType.USD, CurrencyType.EUR, LocalDate.of(2026, 7, 5)));
+        new BigDecimal("0.91"),
+        freshService.getRate(CurrencyType.USD, CurrencyType.EUR, LocalDate.of(2026, 7, 5)));
   }
 
+  @DisplayName("get Rate throws When Missing")
   @Test
   void getRate_throwsWhenMissing() {
     CurrencyRateService freshService = new CurrencyRateService(currencyRateRepository);
@@ -224,6 +239,7 @@ class CurrencyRateServiceTest {
         () -> freshService.getRate(CurrencyType.USD, CurrencyType.PLN, LocalDate.of(2026, 7, 5)));
   }
 
+  @DisplayName("harvest Xtb Execution Rate Preserves Pair Date And Method")
   @Test
   void harvestXtbExecutionRatePreservesPairDateAndMethod() {
     com.smartbox.investory.investment.ledger.cash.persistence.CashOperationEntity operation =
@@ -240,13 +256,15 @@ class CurrencyRateServiceTest {
     assertEquals(LocalDate.of(2026, 1, 2), saved.getRateDate());
     assertEquals(CurrencyType.USD, saved.getBase());
     assertEquals(CurrencyType.PLN, saved.getToCurrency());
-    assertEquals(new BigDecimal("3.57363100"), saved.getRateValue());
+    assertEquals(new BigDecimal("3.57363100"), saved.getRate());
     assertEquals("XTB_EXECUTION", saved.getMethod());
     assertEquals(CurrencyType.USD, operation.getExecutionFxBase());
     assertEquals(CurrencyType.PLN, operation.getExecutionFxToCurrency());
     assertEquals(new BigDecimal("3.573631"), operation.getExecutionFxRate());
   }
 
+  @DisplayName(
+      "harvest Xtb Execution Rates Keep Different Same Day Rates Attached To Their Operations")
   @Test
   void harvestXtbExecutionRatesKeepDifferentSameDayRatesAttachedToTheirOperations() {
     com.smartbox.investory.investment.ledger.cash.persistence.CashOperationEntity first =
@@ -268,6 +286,7 @@ class CurrencyRateServiceTest {
     assertEquals("XTB:OPERATION:101", second.getExecutionFxReference());
   }
 
+  @DisplayName("transaction Resolver Does Not Borrow Unbound Execution Rate")
   @Test
   void transactionResolverDoesNotBorrowUnboundExecutionRate() {
     CurrencyRateEntity execution =
@@ -284,6 +303,7 @@ class CurrencyRateServiceTest {
     assertEquals("MISSING_RATE", result.conversionStatus());
   }
 
+  @DisplayName("caches Complete Matrix For Repeated Same Pair")
   @Test
   void cachesCompleteMatrixForRepeatedSamePair() {
     LocalDate date = LocalDate.of(2026, 8, 10);
@@ -299,6 +319,7 @@ class CurrencyRateServiceTest {
     verify(currencyRateRepository, times(1)).resolveFxRatesForDate(date);
   }
 
+  @DisplayName("caches Complete Matrix For Multiple Pairs And Missing Results")
   @Test
   void cachesCompleteMatrixForMultiplePairsAndMissingResults() {
     LocalDate date = LocalDate.of(2026, 8, 10);
@@ -322,6 +343,7 @@ class CurrencyRateServiceTest {
         .resolveFxRate(date, "USD", "EUR", "VALUATION");
   }
 
+  @DisplayName("cache Separates Dates And Invalidates After Clear Or Rate Update")
   @Test
   void cacheSeparatesDatesAndInvalidatesAfterClearOrRateUpdate() {
     LocalDate first = LocalDate.of(2026, 8, 10);
@@ -353,7 +375,7 @@ class CurrencyRateServiceTest {
     r.setRateDate(date);
     r.setBase(base);
     r.setToCurrency(to);
-    r.setRate(value);
+    r.setRate(java.math.BigDecimal.valueOf(value));
     r.setSource("STATIC_BOOTSTRAP");
     r.setMethod("HISTORICAL_MONTHLY");
     return r;

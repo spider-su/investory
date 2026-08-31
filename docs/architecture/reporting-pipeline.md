@@ -12,8 +12,8 @@ broker imports
   -> normalized cash ledger and position valuation
   -> account_daily
   -> portfolio/account reporting views and materialized views
-  -> PortfolioService / BenchmarkService
-  -> DashboardFacade -> Thymeleaf dashboard
+  -> PortfolioMetricsService / BenchmarkService
+  -> InvestmentDashboardFacade -> Thymeleaf dashboard
   -> compatibility APIs / exports
 ```
 
@@ -67,7 +67,9 @@ monthly return fields. Java application composition exposes those facts through
 `services/portfolio/read/PerformanceResult`; it does not recompute historical accounting formulas.
 Unrealized performance is not populated in `PerformanceResult` until a canonical period-level source
 is available. Existing `Performance` and dashboard view models remain compatibility/presentation
-models and may retain `double` fields.
+models and may retain `double` fields at their legacy chart/UI boundary. The public
+`investment.api.reporting.InvestmentPerformanceApi` exposes canonical reporting numbers as
+`BigDecimal`; conversion to chart/display primitives happens only in the adapter boundary.
 
 Return metrics use the canonical normalized flow semantics. `EXTERNAL_DEPOSIT` and
 `EXTERNAL_WITHDRAWAL` are investor cash flows; `INTERNAL_TRANSFER_IN/OUT`, security transfers,
@@ -104,6 +106,10 @@ rewired to the corresponding `mv_*` facts. The realized-result reconstruction re
 one account/date aggregation over closed positions and cash rows, without the position-by-day
 history expansion that justifies the other materializations.
 
+The C1 application check reads `reconciliation_account_daily_cashflow_full_precision`. The existing
+`reporting_account_daily_cashflow_reconciliation` materialized view remains a rounded diagnostic
+surface; display rounding never determines C1 status.
+
 `refresh_reconciliation_views()` rebuilds the facts in graph order. Post-import application
 orchestration invokes its stages separately, so a slow stage is measurable and does not hold one
 large application transaction. The system audit runs asynchronously after import finalization has
@@ -132,11 +138,16 @@ public naming aliases. `refresh_reconciliation_views()` refreshes reconciliation
 demand; they are not production refresh dependencies. `V01.007__persisted_system_audit.sql` remains the
 persisted audit subsystem and consumes reconciliation review data.
 
-`V01.008__import_provenance.sql` adds immutable broker artifact/row evidence, nullable canonical-row
-provenance links, immutable-evidence triggers, and provenance diagnostics. It does not alter financial
-formulas or account/asset identity.
+Import provenance tables, canonical-row links, immutability triggers, and diagnostics are part of the
+current squashed core/reconciliation baseline. `V01.008__long_term_assets.sql` adds manual Long-Term
+asset, subtype, lifecycle, valuation/rate, rental-contract, planning-year, and simulation-plan
+persistence. `V01.009__remove_legacy_simulation_return_columns.sql` removes return assumptions no
+longer used by the deterministic bucket model. The canonical full-precision C1 evidence view is part
+of `V01.006__reconciliation_views.sql`, and rental-contract subtype enforcement is part of
+`V01.008__long_term_assets.sql`.
 
-Integration ports are under `com.smartbox.investory.integration`. The current first adapter is
+Integration adapters are under `com.smartbox.investory.integrations`; Investment-owned provider
+contracts remain under `investment.port`. The configured FX adapter is
 `ExchangeRateHostFxDataPlugin`; `PluginRegistry` provides typed Spring discovery. IBKR and XTB parser
 beans expose the broker-import port; TwelveData owns external ticker mapping and request-key
 overrides; Yahoo export is exposed through the export port. Persisted FX and market jobs are polled
@@ -186,15 +197,15 @@ the UI layer.
 
 See `docs/quality/reconciliation.md` for checkpoint and economic-truth validation.
 
-The dashboard consumes these existing reporting services through `DashboardFacade`. The facade maps
+The dashboard consumes these existing reporting services through `InvestmentDashboardFacade`. The facade maps
 their results into UI-specific view models; it is not a second reporting source of truth and does not
 change the `account_daily` boundary.
 
-## Migration baseline freeze
+## Migration history contract
 
-The squashed database/accounting baseline `V01.000`–`V01.008` is frozen. Do not edit these migrations
-after the freeze point. Future schema/data migration changes are append-only and start with the next
-available Flyway version, currently `V01.009` (which does not yet exist).
-
-A frozen baseline may be reopened only for a proven defect that requires deliberate baseline
-regeneration, not for routine feature work.
+The current empty-database chain is the complete ordered set under
+`app/src/main/resources/sql/migration`, currently `V01.000` through `V01.009` with deliberate version
+gaps. `V01.000`–`V01.008` form the squashed baseline; `V01.009` is the only later migration. The
+generated fast-test snapshot is derived from the whole chain but never replaces it. This baseline
+was regenerated without preserving the removed 1.019/1.020 database history; existing databases
+must be recreated or otherwise brought to the new baseline before use.

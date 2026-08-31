@@ -1,5 +1,7 @@
 package com.smartbox.investory.retirement.simulation;
 
+import com.smartbox.investory.profile.api.model.EconomicBucket;
+import com.smartbox.investory.retirement.api.model.*;
 import java.math.BigDecimal;
 import java.util.EnumMap;
 import java.util.Map;
@@ -65,33 +67,38 @@ public final class RetirementBucketEngine {
       equities = equities.subtract(harvest);
       bonds = bonds.add(harvest);
     }
-    var rows = new EnumMap<BucketType, BucketResult>(BucketType.class);
+    var rows = new EnumMap<EconomicBucket, BucketResult>(EconomicBucket.class);
     rows.put(
-        BucketType.CASH,
+        EconomicBucket.LIQUID_CASH,
         new BucketResult(
-            BucketType.CASH,
+            EconomicBucket.LIQUID_CASH,
             start.cash().startValue(),
             ZERO,
             ZERO,
             cashWithdrawal,
             cash.max(ZERO)));
     rows.put(
-        BucketType.BONDS,
+        EconomicBucket.FIXED_INCOME,
         new BucketResult(
-            BucketType.BONDS, bondsStart, bondReturn, harvest, bondWithdrawal, bonds.max(ZERO)));
+            EconomicBucket.FIXED_INCOME,
+            bondsStart,
+            bondReturn,
+            harvest,
+            bondWithdrawal,
+            bonds.max(ZERO)));
     rows.put(
-        BucketType.EQUITIES,
+        EconomicBucket.EQUITY,
         new BucketResult(
-            BucketType.EQUITIES,
+            EconomicBucket.EQUITY,
             equitiesStart,
             equityReturn,
             harvest.negate(),
             equityWithdrawal,
             equities.max(ZERO)));
     rows.put(
-        BucketType.REAL_ESTATE,
+        EconomicBucket.REAL_ESTATE,
         new BucketResult(
-            BucketType.REAL_ESTATE,
+            EconomicBucket.REAL_ESTATE,
             realEstateStart,
             realEstateReturn,
             ZERO,
@@ -100,21 +107,8 @@ public final class RetirementBucketEngine {
     return new Result(Map.copyOf(rows), gap, cashIncome, harvest);
   }
 
-  public record BucketResult(
-      BucketType bucket,
-      BigDecimal startValue,
-      BigDecimal returnAmount,
-      BigDecimal refill,
-      BigDecimal withdrawal,
-      BigDecimal expectedEndValue) {
-    /** Signed net internal transfer. Kept separate from the legacy component name. */
-    public BigDecimal transfer() {
-      return refill;
-    }
-  }
-
   public record Result(
-      Map<BucketType, BucketResult> buckets,
+      Map<EconomicBucket, BucketResult> buckets,
       BigDecimal unfunded,
       BigDecimal cashIncome,
       BigDecimal equityHarvestToBonds) {

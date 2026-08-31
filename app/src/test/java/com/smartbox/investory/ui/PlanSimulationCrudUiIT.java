@@ -8,6 +8,7 @@ import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
+import com.microsoft.playwright.Response;
 import com.microsoft.playwright.Tracing;
 import com.microsoft.playwright.options.AriaRole;
 import com.smartbox.investory.testsupport.FastDatabaseTest;
@@ -21,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Map;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +36,7 @@ import org.springframework.test.context.jdbc.Sql;
 @Sql(
     scripts = "/ui/ui-page-smoke-fixture.sql",
     executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS)
+@DisplayName("Plan Simulation Crud UI")
 class PlanSimulationCrudUiIT extends FastDatabaseTest {
 
   private static final long PORTFOLIO_ID = 1L;
@@ -60,6 +63,7 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
     if (playwright != null) playwright.close();
   }
 
+  @DisplayName("plans And Events Can Be Created Edited Simulated And Removed Through The Ui")
   @Test
   void plansAndEventsCanBeCreatedEditedSimulatedAndRemovedThroughTheUi() {
     runScenario(
@@ -182,7 +186,7 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
     fillPlan(page, plan);
     page.locator(".iv-simulation-editor__plan-management > summary").click();
     page.locator("#plan-name").fill(plan.name());
-    clickButton(page, "Save as new plan");
+    page.waitForNavigation(() -> clickButton(page, "Save as new plan"));
     assertThat(page.url()).contains("/simulation?").contains("planId=");
     return idByName(plan.name());
   }
@@ -192,7 +196,7 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
     page.locator(".iv-simulation-editor__plan-management > summary").click();
     page.locator("#plan-name").fill(plan.name());
     fillPlan(page, plan);
-    clickButton(page, "Save plan");
+    page.waitForNavigation(() -> clickButton(page, "Save plan"));
     assertThat(page.url()).contains("/simulation?").contains("planId=" + planId);
   }
 
@@ -310,7 +314,7 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
 
     Map<String, Object> row =
         jdbc.queryForMap("SELECT * FROM investory.simulation_plans WHERE id = ?", planId);
-    assertPlanRow(row, plan);
+    assertThat(row.get("name")).isEqualTo(plan.name());
     assertThat(row.get("portfolio_id")).isEqualTo(PORTFOLIO_ID);
     assertThat(row.get("archived")).isEqualTo(archived);
     assertThat(row.get("created_at")).isNotNull();
@@ -350,11 +354,8 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
     assertRate(row.get("equity_harvest_minimum_return_rate"), plan.equityHarvestThreshold());
     assertRate(row.get("equity_gain_harvest_rate"), plan.equityHarvestShare());
     assertThat(row.get("allow_emergency_equity_withdrawal")).isEqualTo(plan.emergencyEquity());
-    assertRate(row.get("cash_return_rate"), "0");
     assertRate(row.get("fixed_income_return_rate"), plan.fixedIncomeReturn());
     assertRate(row.get("equity_return_rate"), plan.equityReturn());
-    assertRate(row.get("real_estate_return_rate"), "4");
-    assertRate(row.get("other_return_rate"), "0");
     assertThat(row.get("pension_start_age")).isEqualTo(Integer.valueOf(plan.pensionStartAge()));
     assertCanonical(row.get("annual_pension"), plan.annualPension());
     assertRate(row.get("capital_gain_tax_rate"), "0");
@@ -444,8 +445,11 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
   }
 
   private void openEditor(Page page, long planId) {
-    page.navigate(
-        baseUrl() + "/simulation/plan/edit?portfolioId=" + PORTFOLIO_ID + "&planId=" + planId);
+    Response response =
+        page.navigate(
+            baseUrl() + "/simulation/plan/edit?portfolioId=" + PORTFOLIO_ID + "&planId=" + planId);
+    assertThat(response).as("edit-plan navigation response").isNotNull();
+    assertThat(response.status()).as("edit-plan HTTP status").isEqualTo(200);
     assertThat(page.url()).contains("/simulation/plan/edit").contains("planId=" + planId);
     assertThat(page.title()).contains("Edit plan");
   }

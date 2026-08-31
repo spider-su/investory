@@ -48,8 +48,7 @@ import com.smartbox.investory.investment.imports.BrokerType;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationEntity;
-import com.smartbox.investory.investment.ledger.position.persistence.ClosedPosition;
-import com.smartbox.investory.investment.ledger.position.persistence.OpenedPosition;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
 import com.smartbox.investory.investment.valuation.fx.persistence.CurrencyRateEntity;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.List;
@@ -107,7 +106,7 @@ public final class PortfolioScenarios {
     AssetEntity aapl =
         asset(AAPL).withLatestPrice(monthEndPrice, monthEndPrice, JANUARY_MONTH_END).build();
     CashOperationEntity deposit = funded.operations().initialUsdDeposit();
-    OpenedPosition position =
+    PositionEntity position =
         openPosition(AAPL)
             .forAccount(IBKR_USD)
             .quantity(AAPL_FIRST_BUY_QUANTITY)
@@ -147,7 +146,7 @@ public final class PortfolioScenarios {
   public static PortfolioTestContext createMultipleLotsScenario() {
     PortfolioTestContext base = createLongPositionScenario();
     double monthEndPrice = AAPL_PRICES_USD.get(PortfolioTestData.FEBRUARY_MONTH_END);
-    OpenedPosition secondLot =
+    PositionEntity secondLot =
         openPosition(AAPL)
             .forAccount(IBKR_USD)
             .quantity(AAPL_SECOND_BUY_QUANTITY)
@@ -199,17 +198,19 @@ public final class PortfolioScenarios {
     double realizedProfit =
         AAPL_PARTIAL_SALE_QUANTITY * (AAPL_PARTIAL_SALE_PRICE - AAPL_FIRST_BUY_PRICE)
             + AAPL_PARTIAL_SALE_COMMISSION;
-    ClosedPosition sale =
+    PositionEntity sale =
         closedPosition(AAPL)
             .profit(realizedProfit)
             .commission(AAPL_PARTIAL_SALE_COMMISSION)
             .closeOn(AAPL_PARTIAL_SALE_DATE)
             .build();
-    sale.setVolume(AAPL_PARTIAL_SALE_QUANTITY);
-    sale.setOpenPrice(AAPL_FIRST_BUY_PRICE);
-    sale.setClosePrice(AAPL_PARTIAL_SALE_PRICE);
-    sale.setPurchaseValue(AAPL_PARTIAL_SALE_QUANTITY * AAPL_FIRST_BUY_PRICE);
-    sale.setSaleValue(AAPL_PARTIAL_SALE_QUANTITY * AAPL_PARTIAL_SALE_PRICE);
+    sale.setVolume(java.math.BigDecimal.valueOf(AAPL_PARTIAL_SALE_QUANTITY));
+    sale.setOpenPrice(java.math.BigDecimal.valueOf(AAPL_FIRST_BUY_PRICE));
+    sale.setClosePrice(java.math.BigDecimal.valueOf(AAPL_PARTIAL_SALE_PRICE));
+    sale.setPurchaseValue(
+        java.math.BigDecimal.valueOf(AAPL_PARTIAL_SALE_QUANTITY * AAPL_FIRST_BUY_PRICE));
+    sale.setSaleValue(
+        java.math.BigDecimal.valueOf(AAPL_PARTIAL_SALE_QUANTITY * AAPL_PARTIAL_SALE_PRICE));
 
     double remainingQuantity =
         AAPL_FIRST_BUY_QUANTITY + AAPL_SECOND_BUY_QUANTITY - AAPL_PARTIAL_SALE_QUANTITY;
@@ -232,9 +233,10 @@ public final class PortfolioScenarios {
                 remainingQuantity,
                 AAPL_PARTIAL_SALE_PRICE,
                 remainingQuantity * AAPL_PARTIAL_SALE_PRICE,
-                lots.expected().position().costBasis() - sale.getPurchaseValue(),
+                lots.expected().position().costBasis() - sale.getPurchaseValue().doubleValue(),
                 remainingQuantity * AAPL_PARTIAL_SALE_PRICE
-                    - (lots.expected().position().costBasis() - sale.getPurchaseValue())),
+                    - (lots.expected().position().costBasis()
+                        - sale.getPurchaseValue().doubleValue())),
             null,
             lots.expected().valuation(),
             null,
@@ -481,11 +483,11 @@ public final class PortfolioScenarios {
   }
 
   private static PortfolioTestContext.Positions positions(
-      OpenedPosition aaplOpen,
-      OpenedPosition aaplSecondLot,
-      ClosedPosition aaplPartialSale,
-      List<OpenedPosition> open,
-      List<ClosedPosition> closed) {
+      PositionEntity aaplOpen,
+      PositionEntity aaplSecondLot,
+      PositionEntity aaplPartialSale,
+      List<PositionEntity> open,
+      List<PositionEntity> closed) {
     return new PortfolioTestContext.Positions(
         aaplOpen, aaplSecondLot, aaplPartialSale, open, closed);
   }

@@ -3,6 +3,7 @@ package com.smartbox.investory.investment.notifications;
 import com.smartbox.investory.investment.imports.ImportBatchStatus;
 import com.smartbox.investory.investment.imports.ImportSourceType;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
+import com.smartbox.investory.shared.notifications.ImportFinalizedEvent;
 import com.smartbox.investory.shared.notifications.NotificationCandidate;
 import com.smartbox.investory.shared.notifications.NotificationEventPublisher;
 import com.smartbox.investory.shared.notifications.NotificationEventType;
@@ -11,12 +12,14 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
 public class ImportNotificationProducer {
   private final NotificationEventPublisher events;
+  private final ApplicationEventPublisher applicationEvents;
 
   public boolean publishFinalized(ImportHistoryEntity batch) {
     if (batch.getStatus() != ImportBatchStatus.FAILED
@@ -37,7 +40,7 @@ public class ImportNotificationProducer {
     payload.put("errorCount", Integer.toString(failed));
     conciseFailure(batch.getErrorMessage()).ifPresent(value -> payload.put("failure", value));
 
-    return events.publish(
+    NotificationCandidate candidate =
         new NotificationCandidate(
             NotificationEventType.IMPORT_FAILED_OR_PARTIAL,
             batch.getStatus() == ImportBatchStatus.FAILED
@@ -51,7 +54,10 @@ public class ImportNotificationProducer {
                 ? "Import failed"
                 : "Import completed partially",
             payload,
-            batch.getFinishedAt() == null ? Instant.now() : batch.getFinishedAt().toInstant()));
+            batch.getFinishedAt() == null ? Instant.now() : batch.getFinishedAt().toInstant());
+    boolean published = events.publish(candidate);
+    if (published) applicationEvents.publishEvent(new ImportFinalizedEvent(candidate));
+    return published;
   }
 
   private static java.util.Optional<String> safeReference(ImportHistoryEntity batch) {

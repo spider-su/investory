@@ -5,10 +5,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Dashboard Navigation Template Contract")
 class DashboardNavigationTemplateContractTest {
 
+  @DisplayName("top Navigation Keeps Only Cross Page Links Without Bottom Duplicates")
   @Test
   void topNavigationKeepsOnlyCrossPageLinksWithoutBottomDuplicates() throws Exception {
     String template =
@@ -24,6 +27,7 @@ class DashboardNavigationTemplateContractTest {
     assertThat(template)
         .contains("fragments/app-header :: appNavigation('investment', ${portfolioId})")
         .contains("dashboard.navigation.periodUrl(periodOption)")
+        .contains("data-turbo=\"false\"")
         .doesNotContain("benchmarkAccountsSubmitted=true");
     assertThat(fragment)
         .contains("/investment-profile")

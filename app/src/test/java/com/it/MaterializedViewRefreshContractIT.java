@@ -11,8 +11,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Set;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("Materialized View Refresh Contract")
 class MaterializedViewRefreshContractIT {
 
   private static final Set<String> PRODUCTION_MVS =
@@ -38,6 +40,7 @@ class MaterializedViewRefreshContractIT {
           "mv_account_daily_reconciliation",
           "reporting_trade_settlement_reconciliation");
 
+  @DisplayName("explicit Production Refresh Leaves All Expected Mvs Queryable")
   @Test
   void explicitProductionRefreshLeavesAllExpectedMvsQueryable() throws SQLException {
     try (Connection connection = connection();
@@ -92,6 +95,7 @@ class MaterializedViewRefreshContractIT {
     }
   }
 
+  @DisplayName("reconciliation Refresh Is Separate From Production Refresh")
   @Test
   void reconciliationRefreshIsSeparateFromProductionRefresh() throws SQLException {
     try (Connection connection = connection();
@@ -109,6 +113,7 @@ class MaterializedViewRefreshContractIT {
     }
   }
 
+  @DisplayName("reconstruction Mvs And Compatibility Views Remain Queryable")
   @Test
   void reconstructionMvsAndCompatibilityViewsRemainQueryable() throws SQLException {
     try (Connection connection = connection();
@@ -147,6 +152,7 @@ class MaterializedViewRefreshContractIT {
     }
   }
 
+  @DisplayName("portfolio Performance View Excludes Cash Only Accounts")
   @Test
   void portfolioPerformanceViewExcludesCashOnlyAccounts() throws SQLException {
     try (Connection connection = connection();
@@ -161,6 +167,7 @@ class MaterializedViewRefreshContractIT {
     }
   }
 
+  @DisplayName("application Presentation Rounding Is Separate From Reconciliation Decisions")
   @Test
   void applicationPresentationRoundingIsSeparateFromReconciliationDecisions() throws SQLException {
     try (Connection connection = connection();
@@ -202,6 +209,7 @@ class MaterializedViewRefreshContractIT {
     }
   }
 
+  @DisplayName("sector Allocation Remains Deferred Without Canonical Taxonomy")
   @Test
   void sectorAllocationRemainsDeferredWithoutCanonicalTaxonomy() throws SQLException {
     try (Connection connection = connection();
@@ -237,8 +245,6 @@ class MaterializedViewRefreshContractIT {
 
   private static Connection connection() throws SQLException {
     return DriverManager.getConnection(
-        FastDatabase.container().getJdbcUrl(),
-        FastDatabase.container().getUsername(),
-        FastDatabase.container().getPassword());
+        FastDatabase.jdbcUrl(), FastDatabase.username(), FastDatabase.password());
   }
 }

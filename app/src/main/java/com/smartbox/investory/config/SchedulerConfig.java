@@ -1,9 +1,9 @@
 package com.smartbox.investory.config;
 
-import com.smartbox.investory.integrations.notifications.NotificationEventDispatcher;
-import com.smartbox.investory.integrations.notifications.NotificationService;
+import com.smartbox.investory.integrations.notifications.application.NotificationEventDispatcher;
+import com.smartbox.investory.integrations.notifications.application.NotificationService;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateUpdaterService;
-import com.smartbox.investory.investment.valuation.price.MarketService;
+import com.smartbox.investory.investment.valuation.price.MarketDataService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -18,7 +18,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 @RequiredArgsConstructor
 public class SchedulerConfig {
 
-  private final MarketService marketService;
+  private final MarketDataService marketDataService;
   private final CurrencyRateUpdaterService updaterService;
   private final NotificationService notificationService;
   private final NotificationEventDispatcher notificationEventDispatcher;
@@ -35,7 +35,7 @@ public class SchedulerConfig {
 
   @Scheduled(cron = "0 01 22 * * 1-5", zone = "Europe/Warsaw")
   public void recordAtMarketClose() {
-    marketService.fullPortfolioUpdate();
+    marketDataService.fullPortfolioUpdate();
   }
 
   @Scheduled(cron = "0 22 22 * * 1-5", zone = "Europe/Warsaw")

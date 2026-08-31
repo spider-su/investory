@@ -4,8 +4,8 @@ import com.smartbox.investory.investment.api.operations.ImportOperationsReader;
 import com.smartbox.investory.investment.api.operations.PortfolioExposureReader;
 import com.smartbox.investory.investment.api.operations.PortfolioOperationsReader;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportRepository;
-import com.smartbox.investory.investment.ledger.position.persistence.OpenedPositionRepository;
-import com.smartbox.investory.investment.performance.PortfolioService;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionRepository;
+import com.smartbox.investory.investment.performance.PortfolioMetricsService;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -21,9 +21,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class InvestmentOperationalReadService
     implements PortfolioOperationsReader, ImportOperationsReader, PortfolioExposureReader {
-  private final PortfolioService portfolios;
+  private final PortfolioMetricsService portfolios;
   private final ImportRepository imports;
-  private final OpenedPositionRepository positions;
+  private final PositionRepository positions;
   private final CurrencyRateService currencyRates;
 
   @Override
@@ -47,7 +47,8 @@ public class InvestmentOperationalReadService
             batch ->
                 new ImportOperationsSnapshot(
                     batch.getId(),
-                    batch.getBroker().name(),
+                    com.smartbox.investory.investment.api.importing.ImportBroker.valueOf(
+                        batch.getBroker().name()),
                     batch.getStatus().name(),
                     batch.getStartedAt(),
                     batch.getFinishedAt()));
@@ -57,14 +58,16 @@ public class InvestmentOperationalReadService
   public List<SymbolExposure> symbolExposures() {
     Map<String, Double> values = new HashMap<>();
     positions
-        .findAll()
+        .findOpen()
         .forEach(
             position -> {
               if (position.getSymbol() == null) return;
               double price =
                   position.getMarketPrice() != null
-                      ? position.getMarketPrice()
-                      : position.getOpenPrice() == null ? 0.0 : position.getOpenPrice();
+                      ? position.getMarketPrice().doubleValue()
+                      : position.getOpenPrice() == null
+                          ? 0.0
+                          : position.getOpenPrice().doubleValue();
               double nativeValue = Math.abs(position.signedQuantity() * price);
               double base =
                   currencyRates.convertToBaseCurrency(

@@ -3,11 +3,14 @@ package com.smartbox.investory.investment.performance;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
 
+@DisplayName("Investment Calculation Cache")
 class InvestmentCalculationCacheTest {
 
+  @DisplayName("invalidation Clears Portfolio And Benchmark Entries")
   @Test
   void invalidationClearsPortfolioAndBenchmarkEntries() {
     CaffeineCacheManager manager = new CaffeineCacheManager("portfolioCalculation", "benchmark");

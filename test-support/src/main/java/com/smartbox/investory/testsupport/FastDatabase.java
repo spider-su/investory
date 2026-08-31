@@ -11,22 +11,28 @@ public final class FastDatabase {
 
   private static final String SNAPSHOT = "db/snapshot/schema.sql";
 
-  private static final PostgreSQLContainer<?> POSTGRES = startDatabase();
+  private static final WorkerDatabase DATABASE = startDatabase();
 
   private FastDatabase() {}
 
   public static PostgreSQLContainer<?> container() {
-    return POSTGRES;
+    return SharedPostgres.container();
   }
 
-  private static PostgreSQLContainer<?> startDatabase() {
-    PostgreSQLContainer<?> postgres =
-        new PostgreSQLContainer<>("postgres:17-bookworm")
-            .withDatabaseName("investory_test")
-            .withUsername("investory")
-            .withPassword("investory");
+  public static String jdbcUrl() {
+    return DATABASE.jdbcUrl();
+  }
 
-    postgres.start();
+  public static String username() {
+    return DATABASE.username();
+  }
+
+  public static String password() {
+    return DATABASE.password();
+  }
+
+  private static WorkerDatabase startDatabase() {
+    WorkerDatabase database = SharedPostgres.workerDatabase();
 
     if (!resourceExists(SNAPSHOT)) {
       throw new IllegalStateException(
@@ -34,9 +40,9 @@ public final class FastDatabase {
               + SNAPSHOT
               + ". Run bash scripts/update-test-db-snapshot.sh and commit the result.");
     }
-    executeResource(postgres, SNAPSHOT, "/tmp/investory-schema.sql");
+    if (!snapshotLoaded(database)) executeResource(database, SNAPSHOT, "/tmp/investory-schema.sql");
 
-    return postgres;
+    return database;
   }
 
   private static boolean resourceExists(String resource) {
@@ -45,8 +51,9 @@ public final class FastDatabase {
   }
 
   private static void executeResource(
-      PostgreSQLContainer<?> postgres, String resource, String containerPath) {
+      WorkerDatabase database, String resource, String containerPath) {
     try {
+      PostgreSQLContainer<?> postgres = SharedPostgres.container();
       postgres.copyFileToContainer(MountableFile.forClasspathResource(resource), containerPath);
       Container.ExecResult result =
           postgres.execInContainer(
@@ -54,9 +61,9 @@ public final class FastDatabase {
               "-v",
               "ON_ERROR_STOP=1",
               "--username",
-              postgres.getUsername(),
+              database.username(),
               "--dbname",
-              postgres.getDatabaseName(),
+              database.databaseName(),
               "--file",
               containerPath);
 
@@ -76,6 +83,17 @@ public final class FastDatabase {
     } catch (IOException exception) {
       throw new IllegalStateException(
           "Cannot initialize fast test database from " + resource, exception);
+    }
+  }
+
+  private static boolean snapshotLoaded(WorkerDatabase database) {
+    try (var connection = database.openConnection();
+        var statement = connection.createStatement();
+        var result =
+            statement.executeQuery("SELECT to_regclass('investory.flyway_schema_history')")) {
+      return result.next() && result.getString(1) != null;
+    } catch (Exception ignored) {
+      return false;
     }
   }
 }

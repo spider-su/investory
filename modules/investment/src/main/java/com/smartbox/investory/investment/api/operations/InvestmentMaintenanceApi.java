@@ -1,5 +1,6 @@
 package com.smartbox.investory.investment.api.operations;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -14,14 +15,20 @@ public interface InvestmentMaintenanceApi {
 
   MaintenanceResult rebuildMonthly();
 
-  Object updateManualAssetPrice(String symbol, double marketPrice);
+  ManualAssetPriceView updateManualAssetPrice(String symbol, BigDecimal marketPrice);
 
   record MaintenanceResult(String status, String message, ZonedDateTime refreshedAt) {}
 
   record CurrencyRefreshResult(LocalDate rateDate, List<String> updated, List<String> failed) {
     public CurrencyRefreshResult {
-      updated = updated == null ? List.of() : List.copyOf(updated);
-      failed = failed == null ? List.of() : List.copyOf(failed);
+      updated = com.smartbox.investory.shared.util.CollectionUtils.immutableListOrEmpty(updated);
+      failed = com.smartbox.investory.shared.util.CollectionUtils.immutableListOrEmpty(failed);
+    }
+  }
+
+  class InvalidMaintenanceRequest extends RuntimeException {
+    public InvalidMaintenanceRequest(String message, Throwable cause) {
+      super(message, cause);
     }
   }
 }

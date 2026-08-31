@@ -1,5 +1,7 @@
 package com.smartbox.investory.investment.reporting.dashboard.service;
 
+import com.smartbox.investory.investment.api.asset.model.AssetPricePointView;
+import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
 import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceChartRepository;
@@ -33,7 +35,7 @@ public class AssetPriceChartService {
             row ->
                 new AssetPricePointView(
                     row.getPriceDate(),
-                    row.getClosePrice().doubleValue(),
+                    row.getClosePrice(),
                     row.getPriceCurrency(),
                     row.getSource(),
                     row.getQualityScore(),

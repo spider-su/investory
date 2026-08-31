@@ -2,15 +2,15 @@ package com.smartbox.investory.investment.api.importing;
 
 /** UI-facing import command boundary. */
 public interface InvestmentImportApi {
-  ImportResult importAuto(String fileName, byte[] content, String source, String sourceRef);
+  ImportResult importAuto(String fileName, byte[] content, ImportSource source, String sourceRef);
 
   ImportResult importForBroker(
-      String broker, String fileName, byte[] content, String source, String sourceRef);
+      ImportBroker broker, String fileName, byte[] content, ImportSource source, String sourceRef);
 
   record ImportResult(
       long batchId,
       String broker,
-      String status,
+      ImportStatus status,
       int rowsTotal,
       int rowsApplied,
       int rowsFailed,

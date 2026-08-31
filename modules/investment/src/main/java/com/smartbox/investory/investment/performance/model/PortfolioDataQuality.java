@@ -1,5 +1,6 @@
 package com.smartbox.investory.investment.performance.model;
 
+import com.smartbox.investory.investment.api.reporting.model.PortfolioDataQualityIssue;
 import java.time.OffsetDateTime;
 
 public record PortfolioDataQuality(

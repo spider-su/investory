@@ -2,6 +2,7 @@ package com.smartbox.investory.retirement.planning;
 
 import com.smartbox.investory.investment.api.reporting.HistoricalPortfolioActualsReader;
 import com.smartbox.investory.investment.api.reporting.HistoricalPortfolioYear;
+import com.smartbox.investory.retirement.api.model.*;
 import java.math.BigDecimal;
 import java.util.EnumMap;
 import java.util.List;
@@ -103,6 +104,6 @@ public class PlanningReconciliationService {
   }
 
   private static BigDecimal money(BigDecimal value) {
-    return value == null ? BigDecimal.ZERO : value;
+    return com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull(value);
   }
 }

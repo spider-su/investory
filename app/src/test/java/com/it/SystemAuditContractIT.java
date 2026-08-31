@@ -11,10 +11,13 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+@DisplayName("System Audit Contract")
 class SystemAuditContractIT {
 
+  @DisplayName("finalized Import Commits Without Synchronously Running Audit")
   @Test
   void finalizedImportCommitsWithoutSynchronouslyRunningAudit() throws SQLException {
     try (Connection connection = connection();
@@ -59,6 +62,7 @@ class SystemAuditContractIT {
     }
   }
 
+  @DisplayName("failed Import Produces Notification Ready Error")
   @Test
   void failedImportProducesNotificationReadyError() throws SQLException {
     try (Connection connection = connection();
@@ -93,6 +97,7 @@ class SystemAuditContractIT {
     }
   }
 
+  @DisplayName("audit Runs Are Retained And Finished Timestamp Changes Do Not Rerun Audit")
   @Test
   void auditRunsAreRetainedAndFinishedTimestampChangesDoNotRerunAudit() throws SQLException {
     try (Connection connection = connection();
@@ -122,6 +127,7 @@ class SystemAuditContractIT {
     }
   }
 
+  @DisplayName("partial Import Produces Persisted Warning When No Error Overrides It")
   @Test
   void partialImportProducesPersistedWarningWhenNoErrorOverridesIt() throws SQLException {
     try (Connection connection = connection();
@@ -154,6 +160,7 @@ class SystemAuditContractIT {
     }
   }
 
+  @DisplayName("unresolved Transaction Is Persisted As Audit Error")
   @Test
   void unresolvedTransactionIsPersistedAsAuditError() throws SQLException {
     try (Connection connection = connection();
@@ -203,6 +210,7 @@ class SystemAuditContractIT {
     }
   }
 
+  @DisplayName("notification Ready Matches Persisted Notification Status")
   @Test
   void notificationReadyMatchesPersistedNotificationStatus() throws SQLException {
     try (Connection connection = connection();
@@ -217,6 +225,101 @@ class SystemAuditContractIT {
     }
   }
 
+  @DisplayName("reprocessed Artifact Is Not Reported As Current Provenance Failure")
+  @Test
+  void reprocessedArtifactIsNotReportedAsCurrentProvenanceFailure() throws SQLException {
+    try (Connection connection = connection();
+        Statement statement = connection.createStatement()) {
+      String checksum = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+      long originalId = insertImport(statement, checksum, 1, null);
+      long retryId = insertImport(statement, checksum, 2, originalId);
+      long sourceFileId =
+          insertSourceFile(statement, originalId, checksum, "reprocessed-audit.csv");
+      long oldSourceRowId = insertSourceRow(statement, originalId, sourceFileId, "old-row");
+      long currentSourceRowId = insertSourceRow(statement, retryId, sourceFileId, "current-row");
+
+      long accountId;
+      try (ResultSet result =
+          statement.executeQuery("SELECT id FROM investory.accounts ORDER BY id LIMIT 1")) {
+        assertTrue(result.next());
+        accountId = result.getLong(1);
+      }
+      statement.execute(
+          "INSERT INTO investory.cash_operations"
+              + "(id, account_id, operation, amount, currency, comment, date, import_history_id, import_source_row_id) VALUES ("
+              + "-990001, "
+              + accountId
+              + ", 'DEPOSIT', 1, 'USD', 'reprocessed audit', now(), "
+              + retryId
+              + ", "
+              + currentSourceRowId
+              + ")");
+
+      try (ResultSet result =
+          statement.executeQuery(
+              "SELECT count(*) FROM investory.reporting_import_provenance_issues "
+                  + "WHERE import_history_id = "
+                  + retryId
+                  + " AND issue_code IN ('SOURCE_ROW_WRONG_IMPORT', 'ORPHAN_SOURCE_ROW', 'DUPLICATE_SOURCE_IDENTITY')")) {
+        assertTrue(result.next());
+        assertEquals(0, result.getLong(1), issueDetails(statement, retryId));
+      }
+      assertTrue(oldSourceRowId > 0);
+    }
+  }
+
+  private static long insertImport(
+      Statement statement, String checksum, int attemptNo, Long reprocessOf) throws SQLException {
+    String reprocessValue = reprocessOf == null ? "NULL" : reprocessOf.toString();
+    try (ResultSet result =
+        statement.executeQuery(
+            "INSERT INTO investory.import_history(provider, file_name, file_sha256, started_at, finished_at, status, rows_total, rows_applied, rows_failed, attempt_no, reprocess_of) VALUES ("
+                + "'XTB', 'reprocessed-audit.csv', '"
+                + checksum
+                + "', now(), now(), 'COMPLETED', 1, 1, 0, "
+                + attemptNo
+                + ", "
+                + reprocessValue
+                + ") RETURNING id")) {
+      assertTrue(result.next());
+      return result.getLong(1);
+    }
+  }
+
+  private static long insertSourceFile(
+      Statement statement, long importId, String checksum, String fileName) throws SQLException {
+    try (ResultSet result =
+        statement.executeQuery(
+            "INSERT INTO investory.import_source_files(provider, import_history_id, file_name, content_type, file_sha256, original_size, raw_payload) VALUES ("
+                + "'XTB', "
+                + importId
+                + ", '"
+                + fileName
+                + "', 'text/csv', '"
+                + checksum
+                + "', 1, decode('00', 'hex')) RETURNING id")) {
+      assertTrue(result.next());
+      return result.getLong(1);
+    }
+  }
+
+  private static long insertSourceRow(
+      Statement statement, long importId, long sourceFileId, String sourceRecordId)
+      throws SQLException {
+    try (ResultSet result =
+        statement.executeQuery(
+            "INSERT INTO investory.import_source_rows(import_history_id, source_file_id, provider, section_name, sheet_name, source_row_number, source_record_id, source_row_occurrence, raw_values) VALUES ("
+                + importId
+                + ", "
+                + sourceFileId
+                + ", 'XTB', 'Cash Operations', 'Cash Operations', 1, '"
+                + sourceRecordId
+                + "', 1, '{}'::jsonb) RETURNING id")) {
+      assertTrue(result.next());
+      return result.getLong(1);
+    }
+  }
+
   private static long auditCount(Statement statement, long importId) throws SQLException {
     try (ResultSet result =
         statement.executeQuery(
@@ -226,6 +329,20 @@ class SystemAuditContractIT {
       assertTrue(result.next());
       return result.getLong(1);
     }
+  }
+
+  private static String issueDetails(Statement statement, long importId) throws SQLException {
+    StringBuilder details = new StringBuilder();
+    try (ResultSet result =
+        statement.executeQuery(
+            "SELECT issue_code, financial_row_id FROM investory.reporting_import_provenance_issues WHERE import_history_id = "
+                + importId)) {
+      while (result.next()) {
+        if (details.length() > 0) details.append(", ");
+        details.append(result.getString(1)).append("=").append(result.getString(2));
+      }
+    }
+    return details.toString();
   }
 
   private static void runAudit(Statement statement, long importId) throws SQLException {
@@ -238,9 +355,7 @@ class SystemAuditContractIT {
   private static Connection connection() throws SQLException {
     Connection connection =
         DriverManager.getConnection(
-            FastDatabase.container().getJdbcUrl(),
-            FastDatabase.container().getUsername(),
-            FastDatabase.container().getPassword());
+            FastDatabase.jdbcUrl(), FastDatabase.username(), FastDatabase.password());
     connection.setAutoCommit(false);
     assertFalse(connection.isClosed());
     return connection;

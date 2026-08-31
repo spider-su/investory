@@ -26,15 +26,15 @@ public class ManualAssetPriceService {
   private final AssetRepository assetRepository;
   private final AssetPriceHistoryRepository assetPriceHistoryRepository;
   private final CurrencyRateService currencyRateService;
-  private final MarketService marketService;
+  private final MarketDataService marketDataService;
   private final StatisticsRefreshService statisticsRefreshService;
 
   @Transactional
-  public ManualAssetPrice updatePrice(String symbol, double marketPrice) {
+  public ManualAssetPrice updatePrice(String symbol, BigDecimal marketPrice) {
     if (!StringUtils.hasText(symbol)) {
       throw new IllegalArgumentException("AssetEntity symbol is required");
     }
-    if (!Double.isFinite(marketPrice) || marketPrice <= 0.0) {
+    if (marketPrice == null || marketPrice.signum() <= 0) {
       throw new IllegalArgumentException("Market price must be positive");
     }
 
@@ -48,7 +48,7 @@ public class ManualAssetPriceService {
     }
 
     CurrencyType currency = asset.getCurrency() != null ? asset.getCurrency() : BASE_CURRENCY;
-    double marketPriceUsd =
+    BigDecimal marketPriceUsd =
         currency == BASE_CURRENCY
             ? marketPrice
             : currencyRateService.convertToBaseCurrency(
@@ -68,11 +68,11 @@ public class ManualAssetPriceService {
         asset.getSymbol(),
         "MANUAL",
         currency.name(),
-        BigDecimal.valueOf(marketPrice),
+        marketPrice,
         100,
         "MANUAL");
 
-    marketService.syncIbkrPositions();
+    marketDataService.syncIbkrPositions();
     refreshStatisticsAfterCommit();
 
     return new ManualAssetPrice(
@@ -100,8 +100,8 @@ public class ManualAssetPriceService {
 
   public record ManualAssetPrice(
       String symbol,
-      double marketPrice,
-      double marketPriceUsd,
+      BigDecimal marketPrice,
+      BigDecimal marketPriceUsd,
       CurrencyType currency,
       String source,
       ZonedDateTime updatedAt) {}

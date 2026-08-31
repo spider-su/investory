@@ -135,4 +135,19 @@ Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains fut
   current views only until explicit rebaseline.
 - Preserve bond redemption, reconcile rental-tax inheritance in detail views, require complete deposit
   creation, and retain property-tax and insurance terms across rental-contract rollover.
-- Add Long-Term integrity migration `V01.022__long_term_asset_integrity.sql`.
+- Add append-only `V01.019` full-precision C1 reconciliation evidence and `V01.020` rental-subtype
+  enforcement; keep the generated fast-test schema snapshot aligned with the migration chain.
+- Complete the typed Retirement projection REST request/response migration around
+  `ProjectionParameters` and keep HTML plan-editor parsing in the Web UI adapter.
+- Require `portfolioId` on Investment performance and account-value REST reads and filter selected
+  accounts to that portfolio.
+- Define the reconciliation REST report as system-wide current-state evidence; the UI `portfolioId`
+  is navigation context only.
+- Expose generated Springdoc OpenAPI/Swagger discovery and the public Actuator health probe.
+- Require authenticated reads by default while retaining an explicit trusted-environment opt-out.
+- Split backend integration CI into six parallel matrix legs covering every backend integration test,
+  while keeping browser and golden-path tests in dedicated jobs.
+- Added permanent per-module JaCoCo reports and focused freeze coverage for Long-Term services,
+  Investment reporting/price/risk behavior, integration settings/notifications/providers, Web UI
+  controllers, and application infrastructure configuration.
+- Add a persistent light/dark theme toggle with system-preference fallback and shared dark-theme tokens.

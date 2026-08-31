@@ -9,9 +9,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smartbox.investory.investment.imports.ImportExecutionResult;
 import com.smartbox.investory.investment.imports.ibkr.IbkrImportService;
-import com.smartbox.investory.investment.imports.xtb.XtbImportV2Service;
+import com.smartbox.investory.investment.imports.xtb.XtbImportService;
 import com.smartbox.investory.investment.projection.PortfolioProjectionService;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
+import com.smartbox.investory.testsupport.SharedPostgres;
+import com.smartbox.investory.testsupport.WorkerDatabase;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,6 +36,7 @@ import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -41,7 +44,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
 
 /**
  * Clean-database golden reconciliation built from reduced, anonymized broker-derived fixtures.
@@ -54,6 +56,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.NONE,
     properties = "spring.jpa.hibernate.ddl-auto=validate")
+@DisplayName("Golden Rebuild")
 class GoldenRebuildIT {
 
   private static final String ROOT = "/reconciliation/golden/";
@@ -81,15 +84,11 @@ class GoldenRebuildIT {
           "XTB_IKE_CROSS_CURRENCY",
           "XTB_CASH_ONLY_FUNDING");
 
-  private static final PostgreSQLContainer<?> POSTGRES =
-      new PostgreSQLContainer<>("postgres:17-alpine")
-          .withDatabaseName("investory_golden")
-          .withUsername("investory")
-          .withPassword("investory");
+  private static final WorkerDatabase DATABASE = SharedPostgres.database("golden");
 
   @Autowired private JdbcTemplate jdbc;
   @Autowired private IbkrImportService ibkrImportService;
-  @Autowired private XtbImportV2Service xtbImportV2Service;
+  @Autowired private XtbImportService xtbImportService;
   @Autowired private PortfolioProjectionService portfolioProjectionService;
   @Autowired private CurrencyRateService currencyRateService;
   private final GoldenReadinessReport readiness = new GoldenReadinessReport();
@@ -98,9 +97,9 @@ class GoldenRebuildIT {
 
   @BeforeAll
   static void migrateFreshDatabase() {
-    POSTGRES.start();
+
     Flyway.configure()
-        .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
+        .dataSource(DATABASE.jdbcUrl(), DATABASE.username(), DATABASE.password())
         .locations("classpath:sql/migration")
         .load()
         .migrate();
@@ -108,16 +107,17 @@ class GoldenRebuildIT {
 
   @AfterAll
   static void stopDatabase() {
-    POSTGRES.stop();
+    DATABASE.close();
   }
 
   @DynamicPropertySource
   static void databaseProperties(DynamicPropertyRegistry registry) {
-    registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-    registry.add("spring.datasource.username", POSTGRES::getUsername);
-    registry.add("spring.datasource.password", POSTGRES::getPassword);
+    registry.add("spring.datasource.url", DATABASE::jdbcUrl);
+    registry.add("spring.datasource.username", DATABASE::username);
+    registry.add("spring.datasource.password", DATABASE::password);
   }
 
+  @DisplayName("manifest Matches Every Golden Fixture")
   @Test
   @Disabled
   void manifestMatchesEveryGoldenFixture() throws Exception {
@@ -143,6 +143,7 @@ class GoldenRebuildIT {
     assertEquals(EXPECTED_MANIFEST_PATHS, manifestPaths(manifest));
   }
 
+  @DisplayName("rebuilds Reduced Real Corpus And Passes Golden Contracts")
   @Test
   void rebuildsReducedRealCorpusAndPassesGoldenContracts() throws Exception {
     runCheck("checkpoint-contract", "expected/checkpoints.json", this::loadCheckpointContract);
@@ -257,8 +258,7 @@ class GoldenRebuildIT {
 
   private void importXtbFixture() throws Exception {
     try (InputStream input = resource("xtb/investory_xtb_golden.zip")) {
-      ImportExecutionResult result =
-          xtbImportV2Service.importZip(input, "investory_xtb_golden.zip");
+      ImportExecutionResult result = xtbImportService.importZip(input, "investory_xtb_golden.zip");
       assertEquals(0, result.rowsFailed(), result.details());
       assertTrue(result.rowsApplied() > 0, result.details());
     }

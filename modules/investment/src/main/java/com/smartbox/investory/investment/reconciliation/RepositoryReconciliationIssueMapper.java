@@ -1,6 +1,8 @@
 package com.smartbox.investory.investment.reconciliation;
 
-import com.smartbox.investory.investment.infrastructure.persistence.reconciliation.ReconciliationReportRepository;
+import com.smartbox.investory.investment.api.reporting.model.ReconciliationCheckpoint;
+import com.smartbox.investory.investment.api.reporting.model.ReconciliationStatus;
+import com.smartbox.investory.investment.infrastructure.persistence.reconciliation.ReconciliationEvidenceRepository;
 import java.math.BigDecimal;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -8,7 +10,7 @@ import java.util.stream.Stream;
 final class RepositoryReconciliationIssueMapper {
   private RepositoryReconciliationIssueMapper() {}
 
-  static ReconciliationIssue position(ReconciliationReportRepository.PositionIssueRow row) {
+  static ReconciliationIssue position(ReconciliationEvidenceRepository.PositionIssueRow row) {
     ReconciliationStatus status =
         "ERROR".equalsIgnoreCase(row.getSeverity())
             ? ReconciliationStatus.FAIL
@@ -27,7 +29,7 @@ final class RepositoryReconciliationIssueMapper {
         null);
   }
 
-  static ReconciliationIssue account(ReconciliationReportRepository.AccountIssueRow row) {
+  static ReconciliationIssue account(ReconciliationEvidenceRepository.AccountIssueRow row) {
     AccountComponent component = component(row);
     ReconciliationStatus status =
         "FAIL".equalsIgnoreCase(row.getStatus())
@@ -60,7 +62,7 @@ final class RepositoryReconciliationIssueMapper {
         component.suggestedAction());
   }
 
-  private static AccountComponent component(ReconciliationReportRepository.AccountIssueRow row) {
+  private static AccountComponent component(ReconciliationEvidenceRepository.AccountIssueRow row) {
     String code = row.getDiagnosticCode();
     if (code == null || code.isBlank()) {
       return new AccountComponent(

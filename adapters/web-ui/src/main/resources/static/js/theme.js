@@ -56,6 +56,8 @@
 
         const button = document.getElementById('theme-toggle');
         if (!button) return;
+        if (button.dataset.investoryThemeWired === 'true') return;
+        button.dataset.investoryThemeWired = 'true';
 
         button.addEventListener('click', function () {
             const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
@@ -65,11 +67,8 @@
 
     applyTheme(preferredTheme(), false, false);
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', wireToggle);
-    } else {
-        wireToggle();
-    }
+    document.addEventListener('turbo:load', wireToggle);
+    if (document.readyState !== 'loading') wireToggle();
 
     const followSystemTheme = function (event) {
         if (!storedTheme()) {

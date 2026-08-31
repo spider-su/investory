@@ -1,12 +1,12 @@
 package com.smartbox.investory.longterm.application.service;
 
+import com.smartbox.investory.longterm.api.model.*;
+import com.smartbox.investory.longterm.api.model.CashFlowType;
+import com.smartbox.investory.longterm.api.model.LongTermAssetType;
 import com.smartbox.investory.longterm.api.model.RentalContractModel;
 import com.smartbox.investory.longterm.api.model.RentalContractStatusModel;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetEntity;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetRepository;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
-import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractEntity;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractRepository;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractTermEntity;
@@ -19,7 +19,6 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Pattern;
@@ -362,12 +361,12 @@ public class RentalContractService {
           || input.amount() == null
           || input.amount().signum() < 0)
         throw new IllegalArgumentException("Invalid rental contract amount");
-      CashFlowType type = CashFlowType.valueOf(input.type().name());
+      CashFlowType type = input.type();
       if (!types.add(type)) throw new IllegalArgumentException("Duplicate rental contract term");
       var term = new LongTermAssetRentalContractTermEntity();
       term.setType(type);
       term.setAmount(input.amount());
-      term.setFrequency(Frequency.valueOf(input.frequency().name()));
+      term.setFrequency(input.frequency());
       term.setPaidByTenant(input.paidByTenant());
       result.add(term);
     }
@@ -422,7 +421,7 @@ public class RentalContractService {
   private LongTermAssetEntity owned(Long portfolioId, Long assetId) {
     return assets
         .findByIdAndPortfolioId(assetId, portfolioId)
-        .orElseThrow(() -> new NoSuchElementException("Long-term asset not found"));
+        .orElseThrow(() -> new AssetNotFoundException(portfolioId, assetId));
   }
 
   private LongTermAssetRentalContractEntity ownedContract(Long portfolioId, Long assetId, Long id) {
@@ -430,7 +429,7 @@ public class RentalContractService {
     return contracts
         .findById(id)
         .filter(c -> Objects.equals(c.getAssetId(), assetId))
-        .orElseThrow(() -> new NoSuchElementException("Rental contract not found"));
+        .orElseThrow(() -> new RentalContractNotFoundException(assetId, id));
   }
 
   private static boolean overlaps(LocalDate a, LocalDate b, LocalDate c, LocalDate d) {

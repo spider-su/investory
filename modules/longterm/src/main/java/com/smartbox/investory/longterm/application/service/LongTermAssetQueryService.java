@@ -1,5 +1,7 @@
 package com.smartbox.investory.longterm.application.service;
 
+import com.smartbox.investory.longterm.api.model.*;
+import com.smartbox.investory.longterm.api.model.LongTermAssetType;
 import com.smartbox.investory.longterm.api.model.RentalContractModel;
 import com.smartbox.investory.longterm.application.model.AnnualEconomics;
 import com.smartbox.investory.longterm.application.model.BondPlanningSummary;
@@ -7,12 +9,10 @@ import com.smartbox.investory.longterm.application.model.LongTermAssetSummary;
 import com.smartbox.investory.longterm.application.model.RealEstateGroupPlanningSummary;
 import com.smartbox.investory.longterm.application.model.RealEstatePlanningSummary;
 import com.smartbox.investory.longterm.infrastructure.asset.*;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
 import com.smartbox.investory.longterm.infrastructure.bond.*;
 import com.smartbox.investory.longterm.infrastructure.deposit.*;
 import com.smartbox.investory.longterm.infrastructure.lifecycle.*;
 import com.smartbox.investory.longterm.infrastructure.rental.*;
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.longterm.infrastructure.tax.*;
 import com.smartbox.investory.longterm.infrastructure.valuation.*;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
@@ -32,15 +32,12 @@ public class LongTermAssetQueryService {
   public static final BigDecimal REAL_ESTATE_TAX_RATE = new BigDecimal("0.085");
   public static final BigDecimal BOND_TAX_RATE = new BigDecimal("0.19");
   private final LongTermAssetRepository assets;
-  private final LongTermAssetCashFlowRepository cashFlows;
   private final LongTermAssetValuationPeriodRepository valuations;
-  private final LongTermAssetBondRatePeriodRepository bondRates;
-  private final LongTermAssetBondDetailsRepository bonds;
-  private final LongTermAssetDepositDetailsRepository deposits;
   private final RentalTaxPolicyRepository taxPolicies;
   private final PortfolioContextReader portfolioContextReader;
   private final CurrencyConversion currencyRates;
   private final LongTermAssetRentalContractRepository rentalContracts;
+  private final LongTermAssetRelatedDataLoader relatedData;
 
   @Value("${app.long-term-assets.planning-currency:PLN}")
   private CurrencyType planningCurrency = CurrencyType.PLN;
@@ -54,43 +51,37 @@ public class LongTermAssetQueryService {
 
   public LongTermAssetQueryService(
       LongTermAssetRepository assets,
-      LongTermAssetCashFlowRepository cashFlows,
       LongTermAssetValuationPeriodRepository valuations,
-      LongTermAssetBondRatePeriodRepository bondRates,
-      LongTermAssetBondDetailsRepository bonds,
-      LongTermAssetDepositDetailsRepository deposits,
       RentalTaxPolicyRepository taxPolicies,
       PortfolioContextReader portfolioContextReader,
       CurrencyConversion currencyRates,
-      LongTermAssetRentalContractRepository rentalContracts) {
+      LongTermAssetRentalContractRepository rentalContracts,
+      LongTermAssetRelatedDataLoader relatedData) {
     this.assets = assets;
-    this.cashFlows = cashFlows;
     this.valuations = valuations;
-    this.bondRates = bondRates;
-    this.bonds = bonds;
-    this.deposits = deposits;
     this.taxPolicies = taxPolicies;
     this.portfolioContextReader = portfolioContextReader;
     this.currencyRates = currencyRates;
     this.rentalContracts = rentalContracts;
+    this.relatedData = relatedData;
   }
 
   @Transactional(readOnly = true)
   public List<LongTermAssetSummary> list(Long portfolioId, LocalDate date) {
     LocalDate effectiveDate = effectiveDate(date);
-    return assets.findAllByPortfolioIdOrderByName(portfolioId).stream()
-        .filter(LongTermAssetEntity::isActive)
-        .map(a -> summary(a, effectiveDate))
-        .toList();
+    List<LongTermAssetEntity> rows =
+        assets.findAllByPortfolioIdAndActiveTrueOrderByName(portfolioId);
+    SummaryData data = summaryData(portfolioId, rows, effectiveDate);
+    return rows.stream().map(a -> summary(a, effectiveDate, data)).toList();
   }
 
   @Transactional(readOnly = true)
   public List<LongTermAssetSummary> archived(Long portfolioId, LocalDate date) {
     LocalDate effectiveDate = effectiveDate(date);
-    return assets.findAllByPortfolioIdOrderByName(portfolioId).stream()
-        .filter(a -> !a.isActive())
-        .map(a -> summary(a, effectiveDate))
-        .toList();
+    List<LongTermAssetEntity> rows =
+        assets.findAllByPortfolioIdAndActiveFalseOrderByName(portfolioId);
+    SummaryData data = summaryData(portfolioId, rows, effectiveDate);
+    return rows.stream().map(a -> summary(a, effectiveDate, data)).toList();
   }
 
   @Transactional(readOnly = true)
@@ -154,7 +145,7 @@ public class LongTermAssetQueryService {
             effectiveDate),
         group(
             "OTHER",
-            "Other assets",
+            "Other",
             rows.stream()
                 .filter(
                     r ->
@@ -172,94 +163,29 @@ public class LongTermAssetQueryService {
     return assets.findByIdAndPortfolioId(id, portfolioId);
   }
 
-  @Transactional(readOnly = true)
-  public List<LongTermAssetCashFlowEntity> cashFlows(Long portfolioId, Long id) {
-    owned(portfolioId, id);
-    return cashFlows.findAllByAssetIdOrderByValidFrom(id).stream()
-        .sorted(
-            Comparator.comparingInt(
-                    (LongTermAssetCashFlowEntity flow) -> cashFlowOrder(flow.getType()))
-                .thenComparing(LongTermAssetCashFlowEntity::getValidFrom)
-                .thenComparing(flow -> Optional.ofNullable(flow.getId()).orElse(Long.MAX_VALUE)))
-        .toList();
+  public LongTermAssetRentalContractEntity rentalContract(
+      Long portfolioId, Long assetId, Long contractId) {
+    owned(portfolioId, assetId);
+    return rentalContracts
+        .findById(contractId)
+        .filter(contract -> Objects.equals(contract.getAssetId(), assetId))
+        .orElseThrow(() -> new RentalContractNotFoundException(assetId, contractId));
   }
 
-  @Transactional(readOnly = true)
-  public List<LongTermAssetCashFlowEntity> currentCashFlows(
-      Long portfolioId, Long id, LocalDate date) {
-    return cashFlows(portfolioId, id).stream()
-        .filter(flow -> LongTermAssetCalculator.applies(flow, effectiveDate(date)))
-        .toList();
+  public LongTermAssetValuationPeriodEntity valuation(
+      Long portfolioId, Long assetId, Long periodId) {
+    owned(portfolioId, assetId);
+    return valuations
+        .findById(periodId)
+        .filter(period -> Objects.equals(period.getAssetId(), assetId))
+        .orElseThrow(() -> new ValuationNotFoundException(assetId, periodId));
   }
 
-  @Transactional(readOnly = true)
-  public RentalPeriod rentalPeriod(Long portfolioId, Long id, LocalDate date) {
-    List<LongTermAssetCashFlowEntity> current = currentCashFlows(portfolioId, id, date);
-    return current.stream()
-        .min(Comparator.comparing(LongTermAssetCashFlowEntity::getValidFrom))
-        .map(
-            flow ->
-                new RentalPeriod(
-                    flow.getValidFrom(),
-                    current.stream()
-                        .map(LongTermAssetCashFlowEntity::getValidTo)
-                        .filter(Objects::nonNull)
-                        .findFirst()
-                        .orElse(null)))
-        .orElse(new RentalPeriod(null, null));
-  }
-
-  @Transactional(readOnly = true)
-  public List<CashFlowType> availableCashFlowTypes(Long portfolioId, Long id, LocalDate date) {
-    Set<CashFlowType> currentTypes =
-        currentCashFlows(portfolioId, id, date).stream()
-            .map(LongTermAssetCashFlowEntity::getType)
-            .collect(java.util.stream.Collectors.toSet());
-    return Arrays.stream(CashFlowType.values())
-        .filter(type -> !currentTypes.contains(type))
-        .sorted(Comparator.comparingInt(LongTermAssetQueryService::cashFlowOrder))
-        .toList();
-  }
-
-  private static int cashFlowOrder(CashFlowType type) {
-    return switch (type) {
-      case RENT -> 0;
-      case PARKING_RENT -> 1;
-      case ADMIN_FEE -> 2;
-      case UTILITIES -> 3;
-      case PROPERTY_TAX -> 4;
-      case OTHER_INCOME, INSURANCE, OTHER_EXPENSE -> 5;
-    };
-  }
-
-  @Transactional(readOnly = true)
-  public Optional<LongTermAssetBondDetailsEntity> bondDetails(Long portfolioId, Long id) {
-    owned(portfolioId, id);
-    return bonds.findById(id);
-  }
-
-  @Transactional(readOnly = true)
-  public Optional<LongTermAssetDepositDetailsEntity> depositDetails(Long portfolioId, Long id) {
-    owned(portfolioId, id);
-    return deposits.findById(id);
-  }
-
-  @Transactional(readOnly = true)
-  public List<LongTermAssetValuationPeriodEntity> valuationPeriods(Long portfolioId, Long id) {
-    owned(portfolioId, id);
-    return valuations.findAllByAssetIdOrderByValidFrom(id);
-  }
-
-  /** Returns the effective property-growth assumption for presentation and simulation inputs. */
-  public BigDecimal expectedPropertyGrowth(Long portfolioId, Long id, LocalDate date) {
-    return valuationPeriods(portfolioId, id).stream()
-        .filter(
-            period ->
-                !period.getValidFrom().isAfter(date)
-                    && (period.getValidTo() == null || !period.getValidTo().isBefore(date)))
-        .max(java.util.Comparator.comparing(LongTermAssetValuationPeriodEntity::getValidFrom))
-        .map(LongTermAssetValuationPeriodEntity::getExpectedAnnualGrowthRate)
-        .orElse(null);
+  public RentalTaxPolicyEntity rentalTaxPolicy(Long portfolioId, Long policyId) {
+    return taxPolicies
+        .findById(policyId)
+        .filter(policy -> Objects.equals(policy.getPortfolioId(), portfolioId))
+        .orElseThrow(() -> new RentalTaxPolicyNotFoundException(portfolioId, policyId));
   }
 
   @Transactional(readOnly = true)
@@ -282,6 +208,60 @@ public class LongTermAssetQueryService {
 
   public LongTermAssetSummary summary(LongTermAssetEntity a, LocalDate date) {
     LocalDate effectiveDate = effectiveDate(date);
+    return summary(a, effectiveDate, summaryData(a.getPortfolioId(), List.of(a), effectiveDate));
+  }
+
+  public AssetDetailData detail(Long portfolioId, Long id, LocalDate date) {
+    LocalDate effectiveDate = effectiveDate(date);
+    LongTermAssetEntity asset = owned(portfolioId, id);
+    SummaryData data = summaryData(portfolioId, List.of(asset), effectiveDate);
+    List<LongTermAssetValuationPeriodEntity> valuationPeriods =
+        data.valuations().getOrDefault(id, List.of());
+    BigDecimal expectedGrowth =
+        valuationPeriods.stream()
+            .filter(
+                period ->
+                    LongTermAssetCalculator.applies(
+                        period.getValidFrom(), period.getValidTo(), effectiveDate))
+            .max(Comparator.comparing(LongTermAssetValuationPeriodEntity::getValidFrom))
+            .map(LongTermAssetValuationPeriodEntity::getExpectedAnnualGrowthRate)
+            .orElse(null);
+    return new AssetDetailData(
+        asset,
+        summary(asset, effectiveDate, data),
+        data.bonds().get(id),
+        data.deposits().get(id),
+        valuationPeriods,
+        expectedGrowth,
+        data.contracts().getOrDefault(id, List.of()));
+  }
+
+  public record AssetDetailData(
+      LongTermAssetEntity asset,
+      LongTermAssetSummary summary,
+      LongTermAssetBondDetailsEntity bondDetails,
+      LongTermAssetDepositDetailsEntity depositDetails,
+      List<LongTermAssetValuationPeriodEntity> valuationPeriods,
+      BigDecimal expectedPropertyGrowth,
+      List<LongTermAssetRentalContractEntity> contracts) {}
+
+  List<LongTermAssetSummary> summaries(List<LongTermAssetEntity> rows, LocalDate date) {
+    if (rows.isEmpty()) return List.of();
+    LocalDate effectiveDate = effectiveDate(date);
+    SummaryData data = summaryData(rows.getFirst().getPortfolioId(), rows, effectiveDate);
+    return rows.stream().map(row -> summary(row, effectiveDate, data)).toList();
+  }
+
+  List<LongTermAssetSummary> summaries(
+      List<LongTermAssetEntity> rows, LocalDate date, LongTermAssetRelatedDataLoader.Data loaded) {
+    if (rows.isEmpty()) return List.of();
+    LocalDate effectiveDate = effectiveDate(date);
+    SummaryData data = SummaryData.from(loaded);
+    return rows.stream().map(row -> summary(row, effectiveDate, data)).toList();
+  }
+
+  private LongTermAssetSummary summary(
+      LongTermAssetEntity a, LocalDate effectiveDate, SummaryData data) {
     BigDecimal gross = BigDecimal.ZERO,
         expenses = BigDecimal.ZERO,
         tax = BigDecimal.ZERO,
@@ -292,30 +272,8 @@ public class LongTermAssetQueryService {
     LocalDate rentEnd = null;
     if (a.getType() == LongTermAssetType.REAL_ESTATE) {
       var contractModels =
-          rentalContracts.findAllByAssetIdOrderByStartDate(a.getId()).stream()
-              .map(
-                  c ->
-                      new RentalContractModel(
-                          c.getId(),
-                          c.getStartDate(),
-                          c.getEndDate(),
-                          c.getTerminatedDate(),
-                          c.getRentalTaxPaidByTenant(),
-                          c.getMonthlyTaxBase(),
-                          c.getTenantName(),
-                          c.getTenantEmail(),
-                          c.getTenantPhone(),
-                          c.getTerms().stream()
-                              .map(
-                                  t ->
-                                      new RentalContractModel.Term(
-                                          com.smartbox.investory.longterm.api.model
-                                              .CashFlowTypeModel.valueOf(t.getType().name()),
-                                          t.getAmount(),
-                                          com.smartbox.investory.longterm.api.model.FrequencyModel
-                                              .valueOf(t.getFrequency().name()),
-                                          t.isPaidByTenant()))
-                              .toList()))
+          data.contracts().getOrDefault(a.getId(), List.of()).stream()
+              .map(LongTermAssetQueryService::rentalContractModel)
               .toList();
       {
         rentEnd =
@@ -331,8 +289,8 @@ public class LongTermAssetQueryService {
                             .anyMatch(
                                 t ->
                                     t.type()
-                                        == com.smartbox.investory.longterm.api.model
-                                            .CashFlowTypeModel.RENT))
+                                        == com.smartbox.investory.longterm.api.model.CashFlowType
+                                            .RENT))
                 .max(Comparator.comparing(RentalContractModel::startDate))
                 .map(LongTermAssetQueryService::effectiveContractEnd)
                 .orElse(null);
@@ -343,9 +301,7 @@ public class LongTermAssetQueryService {
                 a.isRentalTaxPaidByTenant(),
                 contractModels,
                 effectiveDate,
-                rentalTaxPolicy(a.getPortfolioId(), effectiveDate)
-                    .map(RentalTaxPolicyEntity::getRate)
-                    .orElse(REAL_ESTATE_TAX_RATE));
+                data.rentalTaxRate());
         gross = normalizeMoney(realEstatePlanning.monthlyIncome().multiply(BigDecimal.valueOf(12)));
         expenses =
             normalizeMoney(
@@ -356,9 +312,9 @@ public class LongTermAssetQueryService {
       }
       tax = realEstatePlanning.annualTax();
     } else if (a.getType() == LongTermAssetType.BOND) {
-      LongTermAssetBondDetailsEntity d = bonds.findById(a.getId()).orElse(null);
+      LongTermAssetBondDetailsEntity d = data.bonds().get(a.getId());
       if (d != null) maturity = d.getMaturityDate();
-      rate = currentRate(a.getId(), effectiveDate);
+      rate = currentRate(data.bondRates().getOrDefault(a.getId(), List.of()), effectiveDate);
       bondPlanning =
           bondPlanningCalculator.calculate(
               a.getCurrentValue(),
@@ -369,7 +325,7 @@ public class LongTermAssetQueryService {
       gross = bondPlanning.grossInterest();
       tax = bondPlanning.annualTax();
     } else if (a.getType() == LongTermAssetType.DEPOSIT) {
-      LongTermAssetDepositDetailsEntity d = deposits.findById(a.getId()).orElse(null);
+      LongTermAssetDepositDetailsEntity d = data.deposits().get(a.getId());
       if (d != null) {
         maturity = d.getMaturityDate();
         rate = d.getAnnualInterestRate();
@@ -378,7 +334,7 @@ public class LongTermAssetQueryService {
       }
     } else if (a.getType() == LongTermAssetType.CASH_RESERVE) {
       rate =
-          valuations.findAllByAssetIdOrderByValidFrom(a.getId()).stream()
+          data.valuations().getOrDefault(a.getId(), List.of()).stream()
               .filter(
                   p ->
                       LongTermAssetCalculator.applies(
@@ -386,6 +342,9 @@ public class LongTermAssetQueryService {
               .reduce((first, second) -> second)
               .map(LongTermAssetValuationPeriodEntity::getExpectedAnnualGrowthRate)
               .orElse(BigDecimal.ZERO);
+      // Cash reserve return is entered as a net planning rate. There is no separate tax policy for
+      // this asset type, so the expected return is both gross and net annual income.
+      gross = a.getCurrentValue().multiply(rate);
     }
     AnnualEconomics economics = AnnualEconomics.of(a.getCurrentValue(), gross, expenses, tax);
     return new LongTermAssetSummary(
@@ -408,7 +367,7 @@ public class LongTermAssetQueryService {
     com.smartbox.investory.shared.currency.CurrencyType base =
         portfolioContextReader
             .findById(portfolioId)
-            .orElseThrow(() -> new NoSuchElementException("Portfolio not found"))
+            .orElseThrow(() -> new PortfolioNotFoundException(portfolioId))
             .baseCurrency();
     return AggregateSummary.of(list(portfolioId, date), base, currencyRates, date);
   }
@@ -420,13 +379,14 @@ public class LongTermAssetQueryService {
   }
 
   private LocalDate effectiveDate(LocalDate date) {
-    return date != null && date.isBefore(historyStart) ? historyStart : date;
+    if (date == null) throw new IllegalArgumentException("date must not be null");
+    return date.isBefore(historyStart) ? historyStart : date;
   }
 
   private static BigDecimal normalizeMoney(BigDecimal value) {
     BigDecimal rounded = value.setScale(3, java.math.RoundingMode.HALF_UP);
     return rounded.stripTrailingZeros().scale() <= 0
-        ? rounded.setScale(0)
+        ? rounded.setScale(0, java.math.RoundingMode.UNNECESSARY)
         : rounded.stripTrailingZeros();
   }
 
@@ -449,10 +409,7 @@ public class LongTermAssetQueryService {
     }
 
     public String monthlyNetIncomeWholeDisplay() {
-      return FinancialPresentation.wholeNumber(
-          annualEconomics
-              .netAnnualIncomeAfterTax()
-              .divide(BigDecimal.valueOf(12), 2, java.math.RoundingMode.HALF_UP));
+      return FinancialPresentation.wholeNumber(annualEconomics.monthlyNetIncomeAfterTax());
     }
 
     public String grossAnnualIncomeWholeDisplay() {
@@ -472,65 +429,12 @@ public class LongTermAssetQueryService {
       return annualEconomics.netYieldAfterTax();
     }
 
-    @Deprecated
-    public AggregateSummary(
-        CurrencyType currency,
-        BigDecimal totalCurrentValue,
-        BigDecimal gross,
-        BigDecimal expenses,
-        BigDecimal netBeforeTax,
-        BigDecimal tax,
-        BigDecimal netAfterTax) {
-      this(
-          currency, totalCurrentValue, AnnualEconomics.of(totalCurrentValue, gross, expenses, tax));
-    }
-
     public BigDecimal weightedGrossYield() {
       return annualEconomics.grossYield();
     }
 
     public BigDecimal weightedNetYield() {
       return annualEconomics.netYieldAfterTax();
-    }
-
-    /**
-     * @deprecated Use {@link #annualEconomics()}.
-     */
-    @Deprecated
-    public BigDecimal totalGrossAnnualIncome() {
-      return annualEconomics.grossAnnualIncome();
-    }
-
-    /**
-     * @deprecated Use {@link #annualEconomics()}.
-     */
-    @Deprecated
-    public BigDecimal totalAnnualExpenses() {
-      return annualEconomics.annualExpenses();
-    }
-
-    /**
-     * @deprecated Use {@link #annualEconomics()}.
-     */
-    @Deprecated
-    public BigDecimal totalNetAnnualIncomeBeforeTax() {
-      return annualEconomics.netAnnualIncomeBeforeTax();
-    }
-
-    /**
-     * @deprecated Use {@link #annualEconomics()}.
-     */
-    @Deprecated
-    public BigDecimal estimatedAnnualTax() {
-      return annualEconomics.annualTax();
-    }
-
-    /**
-     * @deprecated Use {@link #annualEconomics()}.
-     */
-    @Deprecated
-    public BigDecimal totalNetAnnualIncomeAfterTax() {
-      return annualEconomics.netAnnualIncomeAfterTax();
     }
 
     static AggregateSummary of(
@@ -585,32 +489,6 @@ public class LongTermAssetQueryService {
     public BigDecimal shareWidth(BigDecimal total) {
       if (total == null || total.signum() == 0) return BigDecimal.ZERO;
       return totalValue.divide(total, 8, java.math.RoundingMode.HALF_UP).movePointRight(2);
-    }
-
-    /**
-     * @deprecated Use {@link #annualEconomics()}.
-     */
-    @Deprecated
-    public BigDecimal grossAnnualIncome() {
-      return annualEconomics.grossAnnualIncome();
-    }
-
-    /**
-     * @deprecated Use {@link #annualEconomics()}.
-     */
-    @Deprecated
-    public BigDecimal grossYield() {
-      return annualEconomics.grossYield();
-    }
-
-    /**
-     * @deprecated Use {@link #realEstatePlanning()}.
-     */
-    @Deprecated
-    public BigDecimal totalPaymentMonthly() {
-      return realEstatePlanning == null
-          ? BigDecimal.ZERO
-          : realEstatePlanning.totalPaymentMonthly();
     }
   }
 
@@ -671,12 +549,80 @@ public class LongTermAssetQueryService {
         : row.realEstatePlanning();
   }
 
-  private BigDecimal currentRate(Long id, LocalDate date) {
-    return bondRates.findAllByAssetIdOrderByValidFrom(id).stream()
+  private static BigDecimal currentRate(
+      List<LongTermAssetBondRatePeriodEntity> rates, LocalDate date) {
+    return rates.stream()
         .filter(p -> LongTermAssetCalculator.applies(p.getValidFrom(), p.getValidTo(), date))
         .findFirst()
         .map(LongTermAssetBondRatePeriodEntity::getAnnualInterestRate)
         .orElse(BigDecimal.ZERO);
+  }
+
+  private SummaryData summaryData(
+      Long portfolioId, List<LongTermAssetEntity> rows, LocalDate effectiveDate) {
+    if (rows.isEmpty()) return SummaryData.empty();
+    List<Long> ids = rows.stream().map(LongTermAssetEntity::getId).toList();
+    LongTermAssetRelatedDataLoader.Data loaded = relatedData.load(portfolioId, ids, effectiveDate);
+    return new SummaryData(
+        loaded.contracts(),
+        loaded.valuations(),
+        loaded.bondRates(),
+        loaded.bonds(),
+        loaded.deposits(),
+        loaded.rentalTaxRate());
+  }
+
+  private static List<Long> idsOfType(List<LongTermAssetEntity> rows, LongTermAssetType type) {
+    return rows.stream()
+        .filter(row -> row.getType() == type)
+        .map(LongTermAssetEntity::getId)
+        .toList();
+  }
+
+  private static RentalContractModel rentalContractModel(
+      LongTermAssetRentalContractEntity contract) {
+    return new RentalContractModel(
+        contract.getId(),
+        contract.getStartDate(),
+        contract.getEndDate(),
+        contract.getTerminatedDate(),
+        contract.getRentalTaxPaidByTenant(),
+        contract.getMonthlyTaxBase(),
+        contract.getTenantName(),
+        contract.getTenantEmail(),
+        contract.getTenantPhone(),
+        contract.getTerms().stream()
+            .map(
+                term ->
+                    new RentalContractModel.Term(
+                        term.getType(),
+                        term.getAmount(),
+                        term.getFrequency(),
+                        term.isPaidByTenant()))
+            .toList());
+  }
+
+  private record SummaryData(
+      Map<Long, List<LongTermAssetRentalContractEntity>> contracts,
+      Map<Long, List<LongTermAssetValuationPeriodEntity>> valuations,
+      Map<Long, List<LongTermAssetBondRatePeriodEntity>> bondRates,
+      Map<Long, LongTermAssetBondDetailsEntity> bonds,
+      Map<Long, LongTermAssetDepositDetailsEntity> deposits,
+      BigDecimal rentalTaxRate) {
+    private static SummaryData from(LongTermAssetRelatedDataLoader.Data loaded) {
+      return new SummaryData(
+          loaded.contracts(),
+          loaded.valuations(),
+          loaded.bondRates(),
+          loaded.bonds(),
+          loaded.deposits(),
+          loaded.rentalTaxRate());
+    }
+
+    private static SummaryData empty() {
+      return new SummaryData(
+          Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), REAL_ESTATE_TAX_RATE);
+    }
   }
 
   private static LocalDate effectiveContractEnd(RentalContractModel c) {
@@ -685,11 +631,9 @@ public class LongTermAssetQueryService {
     return c.endDate().isBefore(c.terminatedDate()) ? c.endDate() : c.terminatedDate();
   }
 
-  public record RentalPeriod(LocalDate effectiveFrom, LocalDate endDate) {}
-
   private LongTermAssetEntity owned(Long portfolioId, Long id) {
     return assets
         .findByIdAndPortfolioId(id, portfolioId)
-        .orElseThrow(() -> new NoSuchElementException("Long-term asset not found"));
+        .orElseThrow(() -> new AssetNotFoundException(portfolioId, id));
   }
 }

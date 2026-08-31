@@ -10,8 +10,8 @@ import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
-import com.smartbox.investory.investment.ledger.position.persistence.OpenedPosition;
-import com.smartbox.investory.investment.ledger.position.persistence.OpenedPositionRepository;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
+import com.smartbox.investory.investment.ledger.position.persistence.PositionRepository;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -19,6 +19,7 @@ import com.smartbox.investory.testsupport.portfolio.PortfolioBuilders;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestData;
 import java.time.LocalDate;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -26,13 +27,28 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("Asset Price Fallback Service")
 class AssetPriceFallbackServiceTest {
 
-  @Mock private OpenedPositionRepository openedPositionRepository;
+  private static void assertEquals(double expected, java.math.BigDecimal actual, double delta) {
+    org.junit.jupiter.api.Assertions.assertEquals(expected, actual.doubleValue(), delta);
+  }
+
+  private static void assertEquals(double expected, double actual, double delta) {
+    org.junit.jupiter.api.Assertions.assertEquals(expected, actual, delta);
+  }
+
+  private static void assertEquals(Object expected, Object actual) {
+    org.junit.jupiter.api.Assertions.assertEquals(expected, actual);
+  }
+
+  @Mock private PositionRepository openedPositionRepository;
   @Mock private AssetRepository assetRepository;
   @Mock private AssetPriceHistoryRepository assetPriceHistoryRepository;
   @Mock private CurrencyRateService currencyRateService;
 
+  @DisplayName(
+      "populate Missing Prices From Open Positions uses Weighted Open Price And Usd Conversion")
   @Test
   @SuppressWarnings("unchecked")
   void populateMissingPricesFromOpenPositions_usesWeightedOpenPriceAndUsdConversion() {
@@ -43,15 +59,18 @@ class AssetPriceFallbackServiceTest {
             assetPriceHistoryRepository,
             currencyRateService);
 
-    OpenedPosition first = position(10.0, 200.0);
-    OpenedPosition second = position(30.0, 220.0);
+    PositionEntity first = position(10.0, 200.0);
+    PositionEntity second = position(30.0, 220.0);
     AssetEntity asset = PortfolioBuilders.asset(PortfolioTestData.PKO_WA).build();
 
-    when(openedPositionRepository.findAll()).thenReturn(List.of(first, second));
+    when(openedPositionRepository.findOpen()).thenReturn(List.of(first, second));
     when(assetRepository.findAllBySymbolIn(any())).thenReturn(List.of(asset));
     when(currencyRateService.convertToBaseCurrency(
-            eq(215.0), eq(CurrencyType.USD), eq(CurrencyType.PLN), any(LocalDate.class)))
-        .thenReturn(53.75);
+            any(java.math.BigDecimal.class),
+            eq(CurrencyType.USD),
+            eq(CurrencyType.PLN),
+            any(LocalDate.class)))
+        .thenReturn(new java.math.BigDecimal("53.75"));
 
     service.populateMissingPricesFromOpenPositions();
 
@@ -64,6 +83,7 @@ class AssetPriceFallbackServiceTest {
     assertEquals("OpenPositionWeightedAverage", saved.getPriceSource());
   }
 
+  @DisplayName("populate Missing Prices From Open Positions does Not Overwrite Existing Price")
   @Test
   void populateMissingPricesFromOpenPositions_doesNotOverwriteExistingPrice() {
     AssetPriceFallbackService service =
@@ -73,7 +93,7 @@ class AssetPriceFallbackServiceTest {
             assetPriceHistoryRepository,
             currencyRateService);
 
-    OpenedPosition position =
+    PositionEntity position =
         PortfolioBuilders.openPosition(PortfolioTestData.SPY).quantity(2.0).price(100.0).build();
     AssetEntity asset =
         PortfolioBuilders.asset(PortfolioTestData.SPY)
@@ -81,7 +101,7 @@ class AssetPriceFallbackServiceTest {
             .build();
     asset.setPriceSource("TwelveData");
 
-    when(openedPositionRepository.findAll()).thenReturn(List.of(position));
+    when(openedPositionRepository.findOpen()).thenReturn(List.of(position));
     when(assetRepository.findAllBySymbolIn(any())).thenReturn(List.of(asset));
 
     service.populateMissingPricesFromOpenPositions();
@@ -90,7 +110,7 @@ class AssetPriceFallbackServiceTest {
     verify(currencyRateService, never()).convertToBaseCurrency(anyDouble(), any(), any(), any());
   }
 
-  private static OpenedPosition position(double volume, double openPrice) {
+  private static PositionEntity position(double volume, double openPrice) {
     return PortfolioBuilders.openPosition(PortfolioTestData.PKO_WA)
         .quantity(volume)
         .price(openPrice)

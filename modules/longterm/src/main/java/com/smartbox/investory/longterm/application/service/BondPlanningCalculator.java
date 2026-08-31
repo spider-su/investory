@@ -1,7 +1,7 @@
 package com.smartbox.investory.longterm.application.service;
 
+import com.smartbox.investory.longterm.api.model.InterestTreatment;
 import com.smartbox.investory.longterm.application.model.BondPlanningSummary;
-import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
