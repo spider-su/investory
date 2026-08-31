@@ -50,9 +50,9 @@ public final class UiPresentation {
       return number(amount.divide(BigDecimal.valueOf(1_000_000)), 0, 2) + "M";
     }
     if (absolute.compareTo(BigDecimal.valueOf(1_000)) >= 0) {
-      BigDecimal thousands = amount.divide(BigDecimal.valueOf(1_000)).setScale(1, RoundingMode.HALF_UP);
-      if (thousands.abs()
-          .compareTo(BigDecimal.valueOf(1_000)) >= 0) {
+      BigDecimal thousands =
+          amount.divide(BigDecimal.valueOf(1_000)).setScale(1, RoundingMode.HALF_UP);
+      if (thousands.abs().compareTo(BigDecimal.valueOf(1_000)) >= 0) {
         return number(amount.divide(BigDecimal.valueOf(1_000_000)), 0, 2) + "M";
       }
       return number(thousands, 1, 1) + "K";

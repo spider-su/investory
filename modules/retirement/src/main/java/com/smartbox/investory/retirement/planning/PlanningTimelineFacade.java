@@ -61,6 +61,16 @@ public class PlanningTimelineFacade {
     return planningProgress.progressForTimeline(timeline);
   }
 
+  /** Resolves reviewability from the canonical planning-year boundary. */
+  @Transactional(readOnly = true)
+  public YearReviewMode reviewMode(Long portfolioId, int year) {
+    int current = activeCurrentYear(portfolioId);
+    if (year == current) return YearReviewMode.LIVE;
+    if (year < current && years.findByPortfolioIdAndYear(portfolioId, year).isPresent())
+      return YearReviewMode.CLOSED;
+    return YearReviewMode.NONE;
+  }
+
   public YearReview yearReview(PastPlanningYear year) {
     return yearReviews.review(year);
   }
@@ -143,11 +153,7 @@ public class PlanningTimelineFacade {
 
     SimulationYear expected =
         simulations
-            .simulate(
-                profile,
-                assumptionsForYear(assumptions, year),
-                SimulationScenario.BASE,
-                year)
+            .simulate(profile, assumptionsForYear(assumptions, year), SimulationScenario.BASE, year)
             .years()
             .getFirst();
 
@@ -157,23 +163,22 @@ public class PlanningTimelineFacade {
     // show the selected plan's spending assumptions for working years.
     planned.put(PlanningMetric.CORE_SPENDING, historicalAssumptions.annualLivingExpenses());
     planned.put(
-        PlanningMetric.DISCRETIONARY_SPENDING,
-        historicalAssumptions.annualDiscretionaryExpenses());
+        PlanningMetric.DISCRETIONARY_SPENDING, historicalAssumptions.annualDiscretionaryExpenses());
     // A retrospective plan has no contemporaneous market snapshot. Use the selected current
     // plan/profile value as the explicit Planned reference for this historical comparison.
     planned.putIfAbsent(PlanningMetric.MARKET_ASSETS, profile.marketPortfolioValue());
 
     planned.forEach(
-            (metric, amount) ->
-                upsert(
-                    planningYear,
-                    PlanningValueKind.BASELINE,
-                    new PlanningMetricValue(
-                        metric,
-                        amount,
-                        null,
-                        PlanningValueSource.SIMULATION_BASELINE,
-                        "Retrospective reference from selected plan")));
+        (metric, amount) ->
+            upsert(
+                planningYear,
+                PlanningValueKind.BASELINE,
+                new PlanningMetricValue(
+                    metric,
+                    amount,
+                    null,
+                    PlanningValueSource.SIMULATION_BASELINE,
+                    "Retrospective reference from selected plan")));
 
     planningYear.setBaselinePlanId(planId);
     planningYear.setBaselineRevisionId(revisionId);
@@ -449,14 +454,11 @@ public class PlanningTimelineFacade {
     List<PlanningTimelineYear> result = new ArrayList<>();
     int planStartYear = forward.context().originalStartYear();
     for (int year = planStartYear; year < current; year++) {
-      PlanningYearEntity stored =
-          years.findByPortfolioIdAndYear(portfolioId, year).orElse(null);
+      PlanningYearEntity stored = years.findByPortfolioIdAndYear(portfolioId, year).orElse(null);
       result.add(
           new PlanningTimelineYear(
               year,
-              forward.context().originalCurrentAge()
-                  + year
-                  - forward.context().originalStartYear(),
+              forward.context().originalCurrentAge() + year - forward.context().originalStartYear(),
               stored == null ? PlanningTimelineState.NEEDS_REVIEW : state(stored),
               stored == null ? null : past(stored),
               null,
@@ -469,7 +471,10 @@ public class PlanningTimelineFacade {
             PlanningTimelineState.LIVE,
             null,
             currentForTimeline(
-                portfolioId, current, profile, forward.context().originalAssumptions(),
+                portfolioId,
+                current,
+                profile,
+                forward.context().originalAssumptions(),
                 forward.currentYearBridge()),
             null));
     if (forward.forwardAssumptions().isPresent())
@@ -485,7 +490,9 @@ public class PlanningTimelineFacade {
     return new PlanningTimeline(result);
   }
 
-  /** Explicitly creates and derives missing historical years without changing closed/manual data. */
+  /**
+   * Explicitly creates and derives missing historical years without changing closed/manual data.
+   */
   @Transactional
   public List<Integer> prefillHistoricalYears(Long portfolioId, int planStartYear) {
     int current = activeCurrentYear(portfolioId);
@@ -581,38 +588,21 @@ public class PlanningTimelineFacade {
 
   private SimulationAssumptions assumptionsForYear(SimulationAssumptions assumptions, int year) {
     int offset = year - assumptions.startYear();
-    return new SimulationAssumptions(
-        assumptions.currentAge() + offset,
-        assumptions.endAge(),
-        growForYears(
-            assumptions.annualLivingExpenses(), assumptions.effectiveSpendingGrowthRate(), offset),
-        assumptions.inflationRate(),
-        assumptions.cashReturnRate(),
-        assumptions.fixedIncomeReturnRate(),
-        assumptions.equityReturnRate(),
-        assumptions.realEstateReturnRate(),
-        assumptions.otherReturnRate(),
-        assumptions.pensionStartAge(),
-        assumptions.annualPension(),
-        assumptions.capitalGainTaxRate(),
-        year,
-        growForYears(
-            assumptions.annualDiscretionaryExpenses(),
-            assumptions.effectiveSpendingGrowthRate(),
-            offset),
-        assumptions.futureEvents(),
-        assumptions.rentalIncomeGrowthSpread(),
-        assumptions.spendingGrowthSpread(),
-        assumptions.fundingStrategy(),
-        assumptions.safeReserveYears(),
-        assumptions.equityHarvestMinimumReturnRate(),
-        assumptions.equityGainHarvestRate(),
-        assumptions.allowEmergencyEquityWithdrawal(),
-        assumptions.retirementAge(),
-        assumptions.annualEmploymentIncome(),
-        assumptions.annualPreRetirementContribution(),
-        assumptions.fundingOrder(),
-        assumptions.expenseProfile().rebasedAt(offset));
+    return assumptions.toBuilder()
+        .currentAge(assumptions.currentAge() + offset)
+        .annualLivingExpenses(
+            growForYears(
+                assumptions.annualLivingExpenses(),
+                assumptions.effectiveSpendingGrowthRate(),
+                offset))
+        .startYear(year)
+        .annualDiscretionaryExpenses(
+            growForYears(
+                assumptions.annualDiscretionaryExpenses(),
+                assumptions.effectiveSpendingGrowthRate(),
+                offset))
+        .expenseProfile(assumptions.expenseProfile().rebasedAt(offset))
+        .build();
   }
 
   private Map<PlanningMetric, PlanningMetricValue> deriveHistoricalMarket(
@@ -918,12 +908,16 @@ public class PlanningTimelineFacade {
     if (rental != null || bond != null) {
       BigDecimal eventIncome =
           assumptions.futureEvents().stream()
-              .filter(event -> event.year() == year && event.type() == SimulationEventType.ONE_OFF_INCOME)
+              .filter(
+                  event ->
+                      event.year() == year && event.type() == SimulationEventType.ONE_OFF_INCOME)
               .map(SimulationEvent::amount)
               .reduce(ZERO, BigDecimal::add);
       BigDecimal eventExpenses =
           assumptions.futureEvents().stream()
-              .filter(event -> event.year() == year && event.type() == SimulationEventType.ONE_OFF_EXPENSE)
+              .filter(
+                  event ->
+                      event.year() == year && event.type() == SimulationEventType.ONE_OFF_EXPENSE)
               .map(SimulationEvent::amount)
               .reduce(ZERO, BigDecimal::add);
       BigDecimal funding =
@@ -943,13 +937,17 @@ public class PlanningTimelineFacade {
     Map<PlanningMetric, PlanningMetricValue> expected = new EnumMap<>(PlanningMetric.class);
     expected.putAll(current.expectedValues());
     if (bridge != null) {
-      putExpectedBucket(expected, PlanningMetric.CASH_RESERVE_VALUE, bridge.expectedEnd(BucketType.CASH));
+      putExpectedBucket(
+          expected, PlanningMetric.CASH_RESERVE_VALUE, bridge.expectedEnd(BucketType.CASH));
       putExpectedBucket(expected, PlanningMetric.SAFE_RESERVE, bridge.expectedEnd(BucketType.CASH));
-      putExpectedBucket(expected, PlanningMetric.FIXED_INCOME, bridge.expectedEnd(BucketType.BONDS));
+      putExpectedBucket(
+          expected, PlanningMetric.FIXED_INCOME, bridge.expectedEnd(BucketType.BONDS));
       putExpectedBucket(expected, PlanningMetric.BOND_VALUE, bridge.expectedEnd(BucketType.BONDS));
       putExpectedBucket(expected, PlanningMetric.EQUITY, bridge.expectedEnd(BucketType.EQUITIES));
-      putExpectedBucket(expected, PlanningMetric.REAL_ESTATE, bridge.expectedEnd(BucketType.REAL_ESTATE));
-      putExpectedBucket(expected, PlanningMetric.NET_WORTH, bridge.bridgedProfile().totalNetWorth());
+      putExpectedBucket(
+          expected, PlanningMetric.REAL_ESTATE, bridge.expectedEnd(BucketType.REAL_ESTATE));
+      putExpectedBucket(
+          expected, PlanningMetric.NET_WORTH, bridge.bridgedProfile().totalNetWorth());
     }
     return new CurrentPlanningYear(
         current.year(),
@@ -961,10 +959,9 @@ public class PlanningTimelineFacade {
   }
 
   private static void putExpectedBucket(
-      Map<PlanningMetric, PlanningMetricValue> values,
-      PlanningMetric metric,
-      BigDecimal amount) {
-    if (amount != null) values.put(metric, derived(metric, amount, PlanningValueSource.SIMULATION_BASELINE));
+      Map<PlanningMetric, PlanningMetricValue> values, PlanningMetric metric, BigDecimal amount) {
+    if (amount != null)
+      values.put(metric, derived(metric, amount, PlanningValueSource.SIMULATION_BASELINE));
   }
 
   private static void putCurrentFact(

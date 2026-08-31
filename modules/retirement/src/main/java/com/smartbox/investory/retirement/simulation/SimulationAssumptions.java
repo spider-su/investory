@@ -52,24 +52,62 @@ public record SimulationAssumptions(
       List.of(FundingSource.CASH, FundingSource.BONDS, FundingSource.STOCKS);
 
   public SimulationAssumptions(
-      int currentAge, int endAge, BigDecimal annualLivingExpenses, BigDecimal inflationRate,
-      BigDecimal cashReturnRate, BigDecimal fixedIncomeReturnRate, BigDecimal equityReturnRate,
-      BigDecimal realEstateReturnRate, BigDecimal otherReturnRate, int pensionStartAge,
-      BigDecimal annualPension, BigDecimal capitalGainTaxRate, int startYear,
-      BigDecimal annualDiscretionaryExpenses, List<SimulationEvent> futureEvents,
-      BigDecimal rentalIncomeGrowthSpread, BigDecimal spendingGrowthSpread,
-      SimulationFundingStrategy fundingStrategy, BigDecimal safeReserveYears,
-      BigDecimal equityHarvestMinimumReturnRate, BigDecimal equityGainHarvestRate,
-      boolean allowEmergencyEquityWithdrawal, int retirementAge, BigDecimal annualEmploymentIncome,
-      BigDecimal annualPreRetirementContribution, List<FundingSource> fundingOrder,
+      int currentAge,
+      int endAge,
+      BigDecimal annualLivingExpenses,
+      BigDecimal inflationRate,
+      BigDecimal cashReturnRate,
+      BigDecimal fixedIncomeReturnRate,
+      BigDecimal equityReturnRate,
+      BigDecimal realEstateReturnRate,
+      BigDecimal otherReturnRate,
+      int pensionStartAge,
+      BigDecimal annualPension,
+      BigDecimal capitalGainTaxRate,
+      int startYear,
+      BigDecimal annualDiscretionaryExpenses,
+      List<SimulationEvent> futureEvents,
+      BigDecimal rentalIncomeGrowthSpread,
+      BigDecimal spendingGrowthSpread,
+      SimulationFundingStrategy fundingStrategy,
+      BigDecimal safeReserveYears,
+      BigDecimal equityHarvestMinimumReturnRate,
+      BigDecimal equityGainHarvestRate,
+      boolean allowEmergencyEquityWithdrawal,
+      int retirementAge,
+      BigDecimal annualEmploymentIncome,
+      BigDecimal annualPreRetirementContribution,
+      List<FundingSource> fundingOrder,
       ExpenseProfile expenseProfile) {
-    this(currentAge, endAge, annualLivingExpenses, inflationRate, cashReturnRate,
-        fixedIncomeReturnRate, equityReturnRate, realEstateReturnRate, otherReturnRate,
-        pensionStartAge, annualPension, capitalGainTaxRate, startYear, annualDiscretionaryExpenses,
-        futureEvents, rentalIncomeGrowthSpread, spendingGrowthSpread, fundingStrategy,
-        safeReserveYears, equityHarvestMinimumReturnRate, equityGainHarvestRate,
-        allowEmergencyEquityWithdrawal, retirementAge, annualEmploymentIncome,
-        annualPreRetirementContribution, fundingOrder, expenseProfile, ProjectedIncomePolicy.SOURCE);
+    this(
+        currentAge,
+        endAge,
+        annualLivingExpenses,
+        inflationRate,
+        cashReturnRate,
+        fixedIncomeReturnRate,
+        equityReturnRate,
+        realEstateReturnRate,
+        otherReturnRate,
+        pensionStartAge,
+        annualPension,
+        capitalGainTaxRate,
+        startYear,
+        annualDiscretionaryExpenses,
+        futureEvents,
+        rentalIncomeGrowthSpread,
+        spendingGrowthSpread,
+        fundingStrategy,
+        safeReserveYears,
+        equityHarvestMinimumReturnRate,
+        equityGainHarvestRate,
+        allowEmergencyEquityWithdrawal,
+        retirementAge,
+        annualEmploymentIncome,
+        annualPreRetirementContribution,
+        fundingOrder,
+        expenseProfile,
+        ProjectedIncomePolicy.SOURCE);
   }
 
   /** Compatibility constructor for callers that predate configurable funding order. */
@@ -386,8 +424,7 @@ public record SimulationAssumptions(
             < 0
         || SimulationScenarioSettings.effectiveGrowthRate(inflationRate, spendingGrowthSpread)
                 .compareTo(BigDecimal.ONE.negate())
-            < 0)
-      throw new IllegalArgumentException("Invalid effective growth rate");
+            < 0) throw new IllegalArgumentException("Invalid effective growth rate");
     if (fundingStrategy == null
         || safeReserveYears == null
         || safeReserveYears.signum() < 0
@@ -413,7 +450,8 @@ public record SimulationAssumptions(
         || futureEvents == null) throw new IllegalArgumentException("Invalid simulation cash flow");
     futureEvents = List.copyOf(futureEvents);
     fundingOrder = List.copyOf(fundingOrder);
-    projectedIncomePolicy = projectedIncomePolicy == null ? ProjectedIncomePolicy.SOURCE : projectedIncomePolicy;
+    projectedIncomePolicy =
+        projectedIncomePolicy == null ? ProjectedIncomePolicy.SOURCE : projectedIncomePolicy;
   }
 
   /** The persisted age is the age at the plan start year, not an independently changing age. */
@@ -435,21 +473,18 @@ public record SimulationAssumptions(
     return projectedIncomePolicy == null ? ProjectedIncomePolicy.SOURCE : projectedIncomePolicy;
   }
 
+  /** Named copy boundary. Use this instead of reconstructing this record positionally. */
+  public Builder toBuilder() {
+    return new Builder(this);
+  }
+
   public SimulationAssumptions withProjectedIncomePolicy(ProjectedIncomePolicy policy) {
-    return new SimulationAssumptions(currentAge, endAge, annualLivingExpenses, inflationRate,
-        cashReturnRate, fixedIncomeReturnRate, equityReturnRate, realEstateReturnRate,
-        otherReturnRate, pensionStartAge, annualPension, capitalGainTaxRate, startYear,
-        annualDiscretionaryExpenses, futureEvents, rentalIncomeGrowthSpread,
-        spendingGrowthSpread, fundingStrategy, safeReserveYears,
-        equityHarvestMinimumReturnRate, equityGainHarvestRate, allowEmergencyEquityWithdrawal,
-        retirementAge, annualEmploymentIncome, annualPreRetirementContribution, fundingOrder,
-        expenseProfile, policy);
+    return toBuilder().projectedIncomePolicy(policy).build();
   }
 
   /** Nominal rental growth: economy-wide inflation plus the persisted rental spread. */
   public BigDecimal effectiveRentalIncomeGrowthRate() {
-    return SimulationScenarioSettings.effectiveGrowthRate(
-        inflationRate, rentalIncomeGrowthSpread);
+    return SimulationScenarioSettings.effectiveGrowthRate(inflationRate, rentalIncomeGrowthSpread);
   }
 
   /** Nominal spending growth: economy-wide inflation plus the persisted spending spread. */
@@ -464,6 +499,10 @@ public record SimulationAssumptions(
 
   public static SimulationAssumptions defaults(
       InvestmentProfile profile, int currentAge, int endAge, int startYear) {
+    return defaults(currentAge, endAge, startYear);
+  }
+
+  public static SimulationAssumptions defaults(int currentAge, int endAge, int startYear) {
     return new SimulationAssumptions(
         currentAge,
         endAge,
@@ -496,303 +535,68 @@ public record SimulationAssumptions(
 
   /** Derive recurring spending while preserving the current living/discretionary proportion. */
   public SimulationAssumptions withRecurringSpending(BigDecimal recurringSpending) {
-    if (recurringSpending == null || recurringSpending.signum() < 0)
-      throw new IllegalArgumentException("Recurring spending cannot be negative");
-    BigDecimal current = annualLivingExpenses.add(annualDiscretionaryExpenses);
-    BigDecimal living;
-    if (current.signum() == 0) {
-      living = recurringSpending;
-    } else {
-      living =
-          recurringSpending
-              .multiply(annualLivingExpenses)
-              .divide(current, 12, java.math.RoundingMode.HALF_UP);
-    }
-    return new SimulationAssumptions(
-        currentAge,
-        endAge,
-        living,
-        inflationRate,
-        cashReturnRate,
-        fixedIncomeReturnRate,
-        equityReturnRate,
-        realEstateReturnRate,
-        otherReturnRate,
-        pensionStartAge,
-        annualPension,
-        capitalGainTaxRate,
-        startYear,
-        recurringSpending.subtract(living),
-        futureEvents,
-        rentalIncomeGrowthSpread,
-        spendingGrowthSpread,
-        fundingStrategy,
-        safeReserveYears,
-        equityHarvestMinimumReturnRate,
-        equityGainHarvestRate,
-        allowEmergencyEquityWithdrawal,
-        retirementAge,
-        annualEmploymentIncome,
-        annualPreRetirementContribution,
-        fundingOrder,
-        expenseProfile, projectedIncomePolicy);
+    return toBuilder().recurringSpending(recurringSpending).build();
   }
 
   public SimulationAssumptions withSpendingGrowthSpread(BigDecimal value) {
-    return copy(
-        value,
-        rentalIncomeGrowthSpread,
-        equityReturnRate,
-        fixedIncomeReturnRate,
-        realEstateReturnRate,
-        safeReserveYears,
-        annualPension);
+    return toBuilder().spendingGrowthSpread(value).build();
   }
 
   public SimulationAssumptions withInflationRate(BigDecimal value) {
-    return new SimulationAssumptions(
-        currentAge,
-        endAge,
-        annualLivingExpenses,
-        value,
-        cashReturnRate,
-        fixedIncomeReturnRate,
-        equityReturnRate,
-        realEstateReturnRate,
-        otherReturnRate,
-        pensionStartAge,
-        annualPension,
-        capitalGainTaxRate,
-        startYear,
-        annualDiscretionaryExpenses,
-        futureEvents,
-        rentalIncomeGrowthSpread,
-        spendingGrowthSpread,
-        fundingStrategy,
-        safeReserveYears,
-        equityHarvestMinimumReturnRate,
-        equityGainHarvestRate,
-        allowEmergencyEquityWithdrawal,
-        retirementAge,
-        annualEmploymentIncome,
-        annualPreRetirementContribution,
-        fundingOrder,
-        expenseProfile, projectedIncomePolicy);
+    return toBuilder().inflationRate(value).build();
   }
 
   public SimulationAssumptions withRentalIncomeGrowthSpread(BigDecimal value) {
-    return copy(
-        spendingGrowthSpread,
-        value,
-        equityReturnRate,
-        fixedIncomeReturnRate,
-        realEstateReturnRate,
-        safeReserveYears,
-        annualPension);
+    return toBuilder().rentalIncomeGrowthSpread(value).build();
   }
 
   public SimulationAssumptions withEquityReturnRate(BigDecimal value) {
-    return copy(
-        spendingGrowthSpread,
-        rentalIncomeGrowthSpread,
-        value,
-        fixedIncomeReturnRate,
-        realEstateReturnRate,
-        safeReserveYears,
-        annualPension);
+    return toBuilder().equityReturnRate(value).build();
   }
 
   public SimulationAssumptions withFixedIncomeReturnRate(BigDecimal value) {
-    return copy(
-        spendingGrowthSpread,
-        rentalIncomeGrowthSpread,
-        equityReturnRate,
-        value,
-        realEstateReturnRate,
-        safeReserveYears,
-        annualPension);
-  }
-
-  public SimulationAssumptions withRealEstateReturnRate(BigDecimal value) {
-    return copy(
-        spendingGrowthSpread,
-        rentalIncomeGrowthSpread,
-        equityReturnRate,
-        fixedIncomeReturnRate,
-        value,
-        safeReserveYears,
-        annualPension);
-  }
-
-  public SimulationAssumptions withSafeReserveYears(BigDecimal value) {
-    return copy(
-        spendingGrowthSpread,
-        rentalIncomeGrowthSpread,
-        equityReturnRate,
-        fixedIncomeReturnRate,
-        realEstateReturnRate,
-        value,
-        annualPension);
+    return toBuilder().fixedIncomeReturnRate(value).build();
   }
 
   public SimulationAssumptions withAnnualPension(BigDecimal value) {
-    return copy(
-        spendingGrowthSpread,
-        rentalIncomeGrowthSpread,
-        equityReturnRate,
-        fixedIncomeReturnRate,
-        realEstateReturnRate,
-        safeReserveYears,
-        value);
+    return toBuilder().annualPension(value).build();
   }
 
   public SimulationAssumptions withAnnualEmploymentIncome(BigDecimal value) {
-    return transitionCopy(retirementAge, value, annualPreRetirementContribution);
+    return toBuilder().annualEmploymentIncome(value).build();
   }
 
   public SimulationAssumptions withAnnualPreRetirementContribution(BigDecimal value) {
-    return transitionCopy(retirementAge, annualEmploymentIncome, value);
+    return toBuilder().annualPreRetirementContribution(value).build();
   }
 
   public SimulationAssumptions withRetirementAge(int value) {
-    return transitionCopy(value, annualEmploymentIncome, annualPreRetirementContribution);
+    return toBuilder().retirementAge(value).build();
   }
 
   public SimulationAssumptions withPensionStartAge(int value) {
-    return new SimulationAssumptions(currentAge, endAge, annualLivingExpenses, inflationRate,
-        cashReturnRate, fixedIncomeReturnRate, equityReturnRate, realEstateReturnRate,
-        otherReturnRate, value, annualPension, capitalGainTaxRate, startYear,
-        annualDiscretionaryExpenses, futureEvents, rentalIncomeGrowthSpread,
-        spendingGrowthSpread, fundingStrategy, safeReserveYears,
-        equityHarvestMinimumReturnRate, equityGainHarvestRate, allowEmergencyEquityWithdrawal,
-        retirementAge, annualEmploymentIncome, annualPreRetirementContribution, fundingOrder,
-        expenseProfile, projectedIncomePolicy);
+    return toBuilder().pensionStartAge(value).build();
   }
 
   /** Rebase the temporal boundary without changing economic assumptions. */
   public SimulationAssumptions rebasedTo(
       int rebasedCurrentAge, int rebasedStartYear, List<SimulationEvent> remainingEvents) {
-    return new SimulationAssumptions(
-        rebasedCurrentAge,
-        endAge,
-        annualLivingExpenses,
-        inflationRate,
-        cashReturnRate,
-        fixedIncomeReturnRate,
-        equityReturnRate,
-        realEstateReturnRate,
-        otherReturnRate,
-        pensionStartAge,
-        annualPension,
-        capitalGainTaxRate,
-        rebasedStartYear,
-        annualDiscretionaryExpenses,
-        remainingEvents,
-        rentalIncomeGrowthSpread,
-        spendingGrowthSpread,
-        fundingStrategy,
-        safeReserveYears,
-        equityHarvestMinimumReturnRate,
-        equityGainHarvestRate,
-        allowEmergencyEquityWithdrawal,
-        retirementAge,
-        annualEmploymentIncome,
-        annualPreRetirementContribution,
-        fundingOrder,
-        expenseProfile.rebasedAt(rebasedStartYear - startYear), projectedIncomePolicy);
-  }
-
-  public SimulationAssumptions withFundingStrategy(SimulationFundingStrategy value) {
-    return new SimulationAssumptions(
-        currentAge,
-        endAge,
-        annualLivingExpenses,
-        inflationRate,
-        cashReturnRate,
-        fixedIncomeReturnRate,
-        equityReturnRate,
-        realEstateReturnRate,
-        otherReturnRate,
-        pensionStartAge,
-        annualPension,
-        capitalGainTaxRate,
-        startYear,
-        annualDiscretionaryExpenses,
-        futureEvents,
-        rentalIncomeGrowthSpread,
-        spendingGrowthSpread,
-        value,
-        safeReserveYears,
-        equityHarvestMinimumReturnRate,
-        equityGainHarvestRate,
-        allowEmergencyEquityWithdrawal,
-        retirementAge,
-        annualEmploymentIncome,
-        annualPreRetirementContribution,
-        fundingOrder,
-        expenseProfile, projectedIncomePolicy);
-  }
-
-  public SimulationAssumptions withFundingOrder(List<FundingSource> value) {
-    return new SimulationAssumptions(
-        currentAge,
-        endAge,
-        annualLivingExpenses,
-        inflationRate,
-        cashReturnRate,
-        fixedIncomeReturnRate,
-        equityReturnRate,
-        realEstateReturnRate,
-        otherReturnRate,
-        pensionStartAge,
-        annualPension,
-        capitalGainTaxRate,
-        startYear,
-        annualDiscretionaryExpenses,
-        futureEvents,
-        rentalIncomeGrowthSpread,
-        spendingGrowthSpread,
-        fundingStrategy,
-        safeReserveYears,
-        equityHarvestMinimumReturnRate,
-        equityGainHarvestRate,
-        allowEmergencyEquityWithdrawal,
-        retirementAge,
-        annualEmploymentIncome,
-        annualPreRetirementContribution,
-        value,
-        expenseProfile, projectedIncomePolicy);
+    int elapsedRetiredYears = Math.max(0, rebasedCurrentAge - Math.max(currentAge, retirementAge));
+    BigDecimal accumulatedSpendingFactor =
+        BigDecimal.ONE.add(effectiveSpendingGrowthRate()).pow(elapsedRetiredYears);
+    return toBuilder()
+        .currentAge(rebasedCurrentAge)
+        .annualLivingExpenses(annualLivingExpenses.multiply(accumulatedSpendingFactor))
+        .startYear(rebasedStartYear)
+        .annualDiscretionaryExpenses(
+            annualDiscretionaryExpenses.multiply(accumulatedSpendingFactor))
+        .futureEvents(remainingEvents)
+        .expenseProfile(expenseProfile.rebasedAt(rebasedStartYear - startYear))
+        .build();
   }
 
   public SimulationAssumptions withExpenseProfile(ExpenseProfile value) {
-    return new SimulationAssumptions(
-        currentAge,
-        endAge,
-        annualLivingExpenses,
-        inflationRate,
-        cashReturnRate,
-        fixedIncomeReturnRate,
-        equityReturnRate,
-        realEstateReturnRate,
-        otherReturnRate,
-        pensionStartAge,
-        annualPension,
-        capitalGainTaxRate,
-        startYear,
-        annualDiscretionaryExpenses,
-        futureEvents,
-        rentalIncomeGrowthSpread,
-        spendingGrowthSpread,
-        fundingStrategy,
-        safeReserveYears,
-        equityHarvestMinimumReturnRate,
-        equityGainHarvestRate,
-        allowEmergencyEquityWithdrawal,
-        retirementAge,
-        annualEmploymentIncome,
-        annualPreRetirementContribution,
-        fundingOrder,
-        value);
+    return toBuilder().expenseProfile(value).build();
   }
 
   /** Calendar context for an expense stage. The persisted stage offset starts at plan start. */
@@ -808,73 +612,253 @@ public record SimulationAssumptions(
     return expenseProfile.factorForYear(calendarYear - planStartYear());
   }
 
-  private SimulationAssumptions copy(
-      BigDecimal spendingGrowth,
-      BigDecimal rentalGrowth,
-      BigDecimal equityReturn,
-      BigDecimal fixedIncomeReturn,
-      BigDecimal realEstateReturn,
-      BigDecimal reserveYears,
-      BigDecimal pension) {
-    return new SimulationAssumptions(
-        currentAge,
-        endAge,
-        annualLivingExpenses,
-        inflationRate,
-        cashReturnRate,
-        fixedIncomeReturn,
-        equityReturn,
-        realEstateReturn,
-        otherReturnRate,
-        pensionStartAge,
-        pension,
-        capitalGainTaxRate,
-        startYear,
-        annualDiscretionaryExpenses,
-        futureEvents,
-        rentalGrowth,
-        spendingGrowth,
-        fundingStrategy,
-        reserveYears,
-        equityHarvestMinimumReturnRate,
-        equityGainHarvestRate,
-        allowEmergencyEquityWithdrawal,
-        retirementAge,
-        annualEmploymentIncome,
-        annualPreRetirementContribution,
-        fundingOrder,
-        expenseProfile, projectedIncomePolicy);
-  }
+  public static final class Builder {
+    private int currentAge;
+    private int endAge;
+    private BigDecimal annualLivingExpenses;
+    private BigDecimal inflationRate;
+    private BigDecimal cashReturnRate;
+    private BigDecimal fixedIncomeReturnRate;
+    private BigDecimal equityReturnRate;
+    private BigDecimal realEstateReturnRate;
+    private BigDecimal otherReturnRate;
+    private int pensionStartAge;
+    private BigDecimal annualPension;
+    private BigDecimal capitalGainTaxRate;
+    private int startYear;
+    private BigDecimal annualDiscretionaryExpenses;
+    private List<SimulationEvent> futureEvents;
+    private BigDecimal rentalIncomeGrowthSpread;
+    private BigDecimal spendingGrowthSpread;
+    private SimulationFundingStrategy fundingStrategy;
+    private BigDecimal safeReserveYears;
+    private BigDecimal equityHarvestMinimumReturnRate;
+    private BigDecimal equityGainHarvestRate;
+    private boolean allowEmergencyEquityWithdrawal;
+    private int retirementAge;
+    private BigDecimal annualEmploymentIncome;
+    private BigDecimal annualPreRetirementContribution;
+    private List<FundingSource> fundingOrder;
+    private ExpenseProfile expenseProfile;
+    private ProjectedIncomePolicy projectedIncomePolicy;
 
-  private SimulationAssumptions transitionCopy(
-      int retirement, BigDecimal employmentIncome, BigDecimal contribution) {
-    return new SimulationAssumptions(
-        currentAge,
-        endAge,
-        annualLivingExpenses,
-        inflationRate,
-        cashReturnRate,
-        fixedIncomeReturnRate,
-        equityReturnRate,
-        realEstateReturnRate,
-        otherReturnRate,
-        pensionStartAge,
-        annualPension,
-        capitalGainTaxRate,
-        startYear,
-        annualDiscretionaryExpenses,
-        futureEvents,
-        rentalIncomeGrowthSpread,
-        spendingGrowthSpread,
-        fundingStrategy,
-        safeReserveYears,
-        equityHarvestMinimumReturnRate,
-        equityGainHarvestRate,
-        allowEmergencyEquityWithdrawal,
-        retirement,
-        employmentIncome,
-        contribution,
-        fundingOrder,
-        expenseProfile, projectedIncomePolicy);
+    private Builder(SimulationAssumptions source) {
+      currentAge = source.currentAge;
+      endAge = source.endAge;
+      annualLivingExpenses = source.annualLivingExpenses;
+      inflationRate = source.inflationRate;
+      cashReturnRate = source.cashReturnRate;
+      fixedIncomeReturnRate = source.fixedIncomeReturnRate;
+      equityReturnRate = source.equityReturnRate;
+      realEstateReturnRate = source.realEstateReturnRate;
+      otherReturnRate = source.otherReturnRate;
+      pensionStartAge = source.pensionStartAge;
+      annualPension = source.annualPension;
+      capitalGainTaxRate = source.capitalGainTaxRate;
+      startYear = source.startYear;
+      annualDiscretionaryExpenses = source.annualDiscretionaryExpenses;
+      futureEvents = source.futureEvents;
+      rentalIncomeGrowthSpread = source.rentalIncomeGrowthSpread;
+      spendingGrowthSpread = source.spendingGrowthSpread;
+      fundingStrategy = source.fundingStrategy;
+      safeReserveYears = source.safeReserveYears;
+      equityHarvestMinimumReturnRate = source.equityHarvestMinimumReturnRate;
+      equityGainHarvestRate = source.equityGainHarvestRate;
+      allowEmergencyEquityWithdrawal = source.allowEmergencyEquityWithdrawal;
+      retirementAge = source.retirementAge;
+      annualEmploymentIncome = source.annualEmploymentIncome;
+      annualPreRetirementContribution = source.annualPreRetirementContribution;
+      fundingOrder = source.fundingOrder;
+      expenseProfile = source.expenseProfile;
+      projectedIncomePolicy = source.projectedIncomePolicy();
+    }
+
+    public Builder currentAge(int value) {
+      currentAge = value;
+      return this;
+    }
+
+    public Builder endAge(int value) {
+      endAge = value;
+      return this;
+    }
+
+    public Builder annualLivingExpenses(BigDecimal value) {
+      annualLivingExpenses = value;
+      return this;
+    }
+
+    public Builder inflationRate(BigDecimal value) {
+      inflationRate = value;
+      return this;
+    }
+
+    public Builder cashReturnRate(BigDecimal value) {
+      cashReturnRate = value;
+      return this;
+    }
+
+    public Builder fixedIncomeReturnRate(BigDecimal value) {
+      fixedIncomeReturnRate = value;
+      return this;
+    }
+
+    public Builder equityReturnRate(BigDecimal value) {
+      equityReturnRate = value;
+      return this;
+    }
+
+    public Builder realEstateReturnRate(BigDecimal value) {
+      realEstateReturnRate = value;
+      return this;
+    }
+
+    public Builder otherReturnRate(BigDecimal value) {
+      otherReturnRate = value;
+      return this;
+    }
+
+    public Builder pensionStartAge(int value) {
+      pensionStartAge = value;
+      return this;
+    }
+
+    public Builder annualPension(BigDecimal value) {
+      annualPension = value;
+      return this;
+    }
+
+    public Builder capitalGainTaxRate(BigDecimal value) {
+      capitalGainTaxRate = value;
+      return this;
+    }
+
+    public Builder startYear(int value) {
+      startYear = value;
+      return this;
+    }
+
+    public Builder annualDiscretionaryExpenses(BigDecimal value) {
+      annualDiscretionaryExpenses = value;
+      return this;
+    }
+
+    /** Adjust total recurring spending while preserving the living/discretionary proportion. */
+    public Builder recurringSpending(BigDecimal value) {
+      if (value == null || value.signum() < 0)
+        throw new IllegalArgumentException("Recurring spending cannot be negative");
+      BigDecimal current = annualLivingExpenses.add(annualDiscretionaryExpenses);
+      BigDecimal living =
+          current.signum() == 0
+              ? value
+              : value
+                  .multiply(annualLivingExpenses)
+                  .divide(current, 12, java.math.RoundingMode.HALF_UP);
+      annualLivingExpenses = living;
+      annualDiscretionaryExpenses = value.subtract(living);
+      return this;
+    }
+
+    public Builder futureEvents(List<SimulationEvent> value) {
+      futureEvents = value;
+      return this;
+    }
+
+    public Builder rentalIncomeGrowthSpread(BigDecimal value) {
+      rentalIncomeGrowthSpread = value;
+      return this;
+    }
+
+    public Builder spendingGrowthSpread(BigDecimal value) {
+      spendingGrowthSpread = value;
+      return this;
+    }
+
+    public Builder fundingStrategy(SimulationFundingStrategy value) {
+      fundingStrategy = value;
+      return this;
+    }
+
+    public Builder safeReserveYears(BigDecimal value) {
+      safeReserveYears = value;
+      return this;
+    }
+
+    public Builder equityHarvestMinimumReturnRate(BigDecimal value) {
+      equityHarvestMinimumReturnRate = value;
+      return this;
+    }
+
+    public Builder equityGainHarvestRate(BigDecimal value) {
+      equityGainHarvestRate = value;
+      return this;
+    }
+
+    public Builder allowEmergencyEquityWithdrawal(boolean value) {
+      allowEmergencyEquityWithdrawal = value;
+      return this;
+    }
+
+    public Builder retirementAge(int value) {
+      retirementAge = value;
+      return this;
+    }
+
+    public Builder annualEmploymentIncome(BigDecimal value) {
+      annualEmploymentIncome = value;
+      return this;
+    }
+
+    public Builder annualPreRetirementContribution(BigDecimal value) {
+      annualPreRetirementContribution = value;
+      return this;
+    }
+
+    public Builder fundingOrder(List<FundingSource> value) {
+      fundingOrder = value;
+      return this;
+    }
+
+    public Builder expenseProfile(ExpenseProfile value) {
+      expenseProfile = value;
+      return this;
+    }
+
+    public Builder projectedIncomePolicy(ProjectedIncomePolicy value) {
+      projectedIncomePolicy = value;
+      return this;
+    }
+
+    public SimulationAssumptions build() {
+      return new SimulationAssumptions(
+          currentAge,
+          endAge,
+          annualLivingExpenses,
+          inflationRate,
+          cashReturnRate,
+          fixedIncomeReturnRate,
+          equityReturnRate,
+          realEstateReturnRate,
+          otherReturnRate,
+          pensionStartAge,
+          annualPension,
+          capitalGainTaxRate,
+          startYear,
+          annualDiscretionaryExpenses,
+          futureEvents,
+          rentalIncomeGrowthSpread,
+          spendingGrowthSpread,
+          fundingStrategy,
+          safeReserveYears,
+          equityHarvestMinimumReturnRate,
+          equityGainHarvestRate,
+          allowEmergencyEquityWithdrawal,
+          retirementAge,
+          annualEmploymentIncome,
+          annualPreRetirementContribution,
+          fundingOrder,
+          expenseProfile,
+          projectedIncomePolicy);
+    }
   }
 }

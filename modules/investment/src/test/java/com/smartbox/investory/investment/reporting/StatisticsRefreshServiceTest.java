@@ -1,5 +1,7 @@
 package com.smartbox.investory.investment.reporting;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
@@ -35,5 +37,17 @@ class StatisticsRefreshServiceTest {
     InOrder ordered = inOrder(portfolioProjectionService);
     ordered.verify(portfolioProjectionService).recalculateAllInNewTransaction();
     verifyNoMoreInteractions(portfolioProjectionService);
+  }
+
+  @Test
+  void refreshFailureEscapesSoCallersCannotReportSuccess() {
+    StatisticsRefreshService service = new StatisticsRefreshService(portfolioProjectionService);
+    doThrow(new IllegalStateException("projection failed"))
+        .when(portfolioProjectionService)
+        .recalculateAll();
+
+    assertThatThrownBy(service::refreshAll)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("projection failed");
   }
 }

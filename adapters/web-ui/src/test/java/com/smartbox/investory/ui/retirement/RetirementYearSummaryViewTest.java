@@ -16,12 +16,38 @@ class RetirementYearSummaryViewTest {
   void mapsCanonicalReturnsAndEndCapitalIntoSummaryBuckets() {
     var money =
         new PlanningTimelineMoney(
-            bd("240000"), bd("176578"), bd("176578"), null, null, null, null, null, null, null, null, null,
-            null, bd("23500"), null, bd("938900"), null, bd("620700"), null, bd("4550000"),
-            null, null, null, null, bd("48000"), bd("46000"), null);
+            bd("240000"),
+            bd("176578"),
+            bd("176578"),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            bd("23500"),
+            null,
+            bd("938900"),
+            null,
+            bd("620700"),
+            null,
+            bd("4550000"),
+            null,
+            null,
+            null,
+            null,
+            bd("48000"),
+            bd("46000"),
+            null);
     var timeline =
         new PlanningTimeline(
-            List.of(new PlanningTimelineYear(2027, 42, PlanningTimelineState.PROJECTED, null, null, null)));
+            List.of(
+                new PlanningTimelineYear(
+                    2027, 42, PlanningTimelineState.PROJECTED, null, null, null)));
 
     var summary = RetirementYearSummaryView.from(timeline, Map.of(2027, money)).get(2027);
 

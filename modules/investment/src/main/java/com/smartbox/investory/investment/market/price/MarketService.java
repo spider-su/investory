@@ -132,6 +132,7 @@ public class MarketService {
 
   private void updateStocks(boolean refreshAfterUpdate) {
     log.info("Updating asset prices started");
+    List<String> refreshFailures = new ArrayList<>();
 
     refreshAssetActivityFromOpenPositions();
 
@@ -183,6 +184,7 @@ public class MarketService {
               try {
                 twelveDataUpdatedAssetIds.addAll(runChunkInNewTransaction(Map.of(ticker, assets)));
               } catch (Exception ex) {
+                refreshFailures.add(ticker + ": " + ex.getMessage());
                 log.warn(
                     "Skipping ticker {} after fallback retry failure: {}", ticker, ex.getMessage());
               }
@@ -196,12 +198,22 @@ public class MarketService {
         }
       }
     }
-    runYahooFallbackInNewTransaction(
+    List<AssetEntity> yahooFallbackAssets =
         activeAssets.stream()
             .filter(asset -> !isQuoteFresh(asset, quoteFreshnessCutoff))
             .filter(asset -> !twelveDataUpdatedAssetIds.contains(asset.getId()))
-            .toList());
+            .toList();
+    try {
+      runYahooFallbackInNewTransaction(yahooFallbackAssets);
+    } catch (RuntimeException exception) {
+      refreshFailures.add("Yahoo fallback: " + exception.getMessage());
+      log.warn("Yahoo Finance fallback failed: {}", exception.getMessage());
+    }
     refreshStatisticsIfNeeded(refreshAfterUpdate);
+    if (!refreshFailures.isEmpty()) {
+      throw new IllegalStateException(
+          "Market refresh incomplete: " + String.join("; ", refreshFailures));
+    }
     log.info("Updating asset prices finished");
   }
 

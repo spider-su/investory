@@ -308,6 +308,12 @@ Changing a market position, valuation, rental contract, bond, or other source re
 changes CURRENT immediately but does not change an already reviewed FUTURE projection. Incorporating
 the new source state is an explicit review/rebaseline operation that creates a new revision.
 
+Reviewed Long-Term economics are persisted as an opaque normalized planning snapshot. This includes
+the year-aware cash-flow and return inputs needed to reproduce the reviewed result; Retirement does
+not calculate bond tax, interest, maturity, rental-contract, or property rules. Future effective-dated
+tax-policy changes apply only when a new baseline is reviewed. They do not retroactively alter an
+existing reviewed snapshot.
+
 The snapshot is planning provenance, not duplicated domain ownership. It stores only the economic
 inputs required by Retirement, never source-domain entities or enough internal structure to
 reimplement Investment or Long-Term calculations.

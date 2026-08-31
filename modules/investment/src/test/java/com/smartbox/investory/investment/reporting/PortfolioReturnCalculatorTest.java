@@ -5,9 +5,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class PortfolioReturnCalculatorTest {
+
+  @Test
+  void returnsUnavailableWhenTwrNormalizedFlowIsMissing() {
+    ReturnMetric result =
+        PortfolioReturnCalculator.twr(
+            new BigDecimal("100"),
+            List.of(
+                new DailyPortfolioValue(
+                    LocalDate.of(2026, 1, 31), new BigDecimal("110"), null, BigDecimal.ZERO)));
+
+    assertEquals(ReturnMetric.Status.INSUFFICIENT_DATA, result.status());
+  }
 
   @Test
   void annualizesOneYearReturn() {

@@ -2,10 +2,11 @@ package com.smartbox.investory.investment.reporting;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository.PortfolioPerformanceDailyRow;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -76,24 +77,73 @@ class PortfolioPerformanceQueryTest {
   }
 
   @Test
-  void assemblesReturnMetricsFromAccountDailyBoundaries() {
+  void assemblesReturnMetricsFromCanonicalPortfolioDailyBoundaries() {
     PortfolioMonthlyPerformanceEntity row = row("2026-05-01", "2026-05-31");
     row.setStartEquity(new BigDecimal("100"));
     row.setEndEquity(new BigDecimal("110"));
     when(repository.findAllByOrderByMonthAscPortfolioIdAsc()).thenReturn(List.of(row));
-    AccountDailyEntity daily = new AccountDailyEntity();
-    daily.setAccountId(1L);
-    daily.setDate(LocalDate.parse("2026-05-31"));
-    daily.setEquity(new BigDecimal("110"));
-    daily.setDeposits(BigDecimal.ZERO);
-    daily.setWithdrawals(BigDecimal.ZERO);
-    when(dailyRepository.findAllByOrderByDateAscAccountIdAsc()).thenReturn(List.of(daily));
+    PortfolioPerformanceDailyRow dailyRow =
+        daily("2026-05-31", new BigDecimal("110"), BigDecimal.ZERO, BigDecimal.ZERO);
+    when(dailyRepository.findPortfolioPerformanceDaily(
+            1L, LocalDate.parse("2026-05-01"), LocalDate.parse("2026-05-31")))
+        .thenReturn(List.of(dailyRow));
 
     PerformanceResult result = query.forMonths(YearMonth.of(2026, 5), YearMonth.of(2026, 5));
 
     assertThat(result.timeWeightedReturn().status()).isEqualTo(ReturnMetric.Status.AVAILABLE);
     assertThat(result.timeWeightedReturn().value()).isEqualByComparingTo("0.1");
     assertThat(result.moneyWeightedReturn().status()).isEqualTo(ReturnMetric.Status.AVAILABLE);
+    verify(dailyRepository)
+        .findPortfolioPerformanceDaily(
+            1L, LocalDate.parse("2026-05-01"), LocalDate.parse("2026-05-31"));
+  }
+
+  @Test
+  void missingNormalizedFlowMakesReturnUnavailable() {
+    PortfolioMonthlyPerformanceEntity row = row("2026-06-01", "2026-06-30");
+    row.setStartEquity(new BigDecimal("100"));
+    row.setEndEquity(new BigDecimal("110"));
+    when(repository.findAllByOrderByMonthAscPortfolioIdAsc()).thenReturn(List.of(row));
+    PortfolioPerformanceDailyRow dailyRow =
+        daily("2026-06-30", new BigDecimal("110"), null, BigDecimal.ZERO);
+    when(dailyRepository.findPortfolioPerformanceDaily(
+            1L, LocalDate.parse("2026-06-01"), LocalDate.parse("2026-06-30")))
+        .thenReturn(List.of(dailyRow));
+
+    PerformanceResult result = query.forMonths(YearMonth.of(2026, 6), YearMonth.of(2026, 6));
+
+    assertThat(result.timeWeightedReturn().status())
+        .isEqualTo(ReturnMetric.Status.INSUFFICIENT_DATA);
+    assertThat(result.moneyWeightedReturn().status())
+        .isEqualTo(ReturnMetric.Status.INSUFFICIENT_DATA);
+  }
+
+  @Test
+  void scopesMonthlyAndDailyPerformanceToRequestedPortfolio() {
+    PortfolioMonthlyPerformanceEntity firstPortfolio = row("2026-07-01", "2026-07-31");
+    PortfolioMonthlyPerformanceEntity otherPortfolio = row("2026-07-01", "2026-07-31");
+    otherPortfolio.setPortfolioId(2L);
+    otherPortfolio.setProfit(new BigDecimal("999"));
+    when(repository.findAllByOrderByMonthAscPortfolioIdAsc())
+        .thenReturn(List.of(firstPortfolio, otherPortfolio));
+
+    PerformanceResult result =
+        query.forPortfolioMonths(1L, YearMonth.of(2026, 7), YearMonth.of(2026, 7));
+
+    assertThat(result.investmentResult()).isEqualByComparingTo("0");
+    verify(dailyRepository)
+        .findPortfolioPerformanceDaily(
+            1L, LocalDate.parse("2026-07-01"), LocalDate.parse("2026-07-31"));
+  }
+
+  private static PortfolioPerformanceDailyRow daily(
+      String date, BigDecimal endValue, BigDecimal contributions, BigDecimal withdrawals) {
+    PortfolioPerformanceDailyRow row = mock();
+    when(row.getDate()).thenReturn(LocalDate.parse(date));
+    when(row.getEndValue()).thenReturn(endValue);
+    when(row.getContributions()).thenReturn(contributions);
+    when(row.getWithdrawals()).thenReturn(withdrawals);
+    return row;
   }
 
   private static PortfolioMonthlyPerformanceEntity row(String firstDate, String endDate) {

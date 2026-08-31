@@ -1,6 +1,7 @@
 package com.smartbox.investory.investment.market.price;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -255,6 +256,19 @@ class MarketServiceTest {
   }
 
   @Test
+  void updateStocksReportsYahooFailureAfterRefreshingPersistedProjections() {
+    AssetEntity vwra = newAsset("VWRA.UK", "VWRA", true);
+    when(assetRepository.findAll()).thenReturn(List.of(vwra));
+    when(openedPositionRepository.findAll()).thenReturn(List.of(openPosition("VWRA.UK")));
+    when(yahooFinanceService.fetchLatestQuote("VWRA.L"))
+        .thenThrow(new IllegalStateException("network unavailable"));
+
+    assertThrows(IllegalStateException.class, marketService::updateStocks);
+
+    verify(statisticsRefreshService).refreshAll();
+  }
+
+  @Test
   void updateStocksDerivesYahooExchangeSuffixesForFallback() {
     AssetEntity etfbw20tr = newAsset("ETFBW20TR.PL", "ETFBW20TR", true);
     etfbw20tr.setCurrency(CurrencyType.PLN);
@@ -408,8 +422,7 @@ class MarketServiceTest {
     when(twelveDataService.fetchStockQuotes(anyString()))
         .thenThrow(new RuntimeException("rate limit"));
 
-    // Must not throw: a failing chunk is logged and the sync continues to the next one.
-    marketService.updateStocks();
+    assertThrows(IllegalStateException.class, marketService::updateStocks);
 
     // 1 failed chunk request + 2 per-symbol fallback retries.
     verify(twelveDataService, times(3)).fetchStockQuotes(anyString());
@@ -432,7 +445,7 @@ class MarketServiceTest {
     when(twelveDataService.fetchStockQuotes("A")).thenReturn(Map.of("A", quoteA));
     when(twelveDataService.fetchStockQuotes("B")).thenThrow(new RuntimeException("single failed"));
 
-    marketService.updateStocks();
+    assertThrows(IllegalStateException.class, marketService::updateStocks);
 
     verify(assetRepository, times(1)).saveAll(org.mockito.ArgumentMatchers.any());
   }

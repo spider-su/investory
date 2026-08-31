@@ -21,8 +21,8 @@ class RetirementBondTreatmentIntegrationTest {
   void capitalizeProducesNoCashIncomeAndIncreasesBondCapitalByPlanReturn() {
     var service = new RetirementSimulationService();
     var profile = profile(InterestTreatmentModel.CAPITALIZE);
-    var year = service.simulate(profile, assumptions(profile), SimulationScenario.BASE)
-        .years().getFirst();
+    var year =
+        service.simulate(profile, assumptions(profile), SimulationScenario.BASE).years().getFirst();
 
     assertThat(year.bondIncome()).isZero();
     assertThat(year.funding().capitalizedBondReturn()).isEqualByComparingTo("40");
@@ -34,8 +34,8 @@ class RetirementBondTreatmentIntegrationTest {
   void payOutProducesCashIncomeAndDoesNotAlsoIncreaseBondPrincipal() {
     var service = new RetirementSimulationService();
     var profile = profile(InterestTreatmentModel.PAY_OUT);
-    var year = service.simulate(profile, assumptions(profile), SimulationScenario.BASE)
-        .years().getFirst();
+    var year =
+        service.simulate(profile, assumptions(profile), SimulationScenario.BASE).years().getFirst();
 
     assertThat(year.bondIncome()).isEqualByComparingTo("80");
     assertThat(year.totalIncome()).isEqualByComparingTo("80");
@@ -56,24 +56,29 @@ class RetirementBondTreatmentIntegrationTest {
   }
 
   private static InvestmentProfile profile(InterestTreatmentModel treatment) {
-    var bond = new ProjectedLongTermAsset(
-        1L,
-        "Bond",
-        LongTermAssetTypeModel.BOND,
-        EconomicBucket.FIXED_INCOME,
-        CurrencyType.PLN,
-        new BigDecimal("1000"),
-        Liquidity.LIQUID,
-        List.of(new ProjectedLongTermAsset.Period(
-            LocalDate.of(2020, 1, 1), null, BigDecimal.ZERO, BigDecimal.ZERO,
-            new BigDecimal("0.10"))),
-        List.of(),
-        null,
-        new BigDecimal("1000"),
-        treatment,
-        new BigDecimal("0.20"),
-        null,
-        false);
+    var bond =
+        new ProjectedLongTermAsset(
+            1L,
+            "Bond",
+            LongTermAssetTypeModel.BOND,
+            EconomicBucket.FIXED_INCOME,
+            CurrencyType.PLN,
+            new BigDecimal("1000"),
+            Liquidity.LIQUID,
+            List.of(
+                new ProjectedLongTermAsset.Period(
+                    LocalDate.of(2020, 1, 1),
+                    null,
+                    new BigDecimal("80"),
+                    BigDecimal.ZERO,
+                    new BigDecimal("0.10"))),
+            List.of(),
+            null,
+            new BigDecimal("1000"),
+            treatment,
+            new BigDecimal("0.20"),
+            null,
+            false);
     return new InvestmentProfile(
         1L,
         CurrencyType.PLN,

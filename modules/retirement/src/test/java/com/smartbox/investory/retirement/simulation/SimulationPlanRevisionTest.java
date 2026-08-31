@@ -101,6 +101,29 @@ class SimulationPlanRevisionTest {
     assertSame(old, service.revision(1L, 7L, 11L));
   }
 
+  @Test
+  void nullEmergencyEquityWithdrawalInLegacyRevisionUsesDefault() {
+    SimulationPlanEntity plan = logicalPlan(7L);
+    plan.setCurrentRevisionId(11L);
+    SimulationPlanRevisionEntity revision = revision(11L, 1);
+    revision.setAllowEmergencyEquityWithdrawal(null);
+    revision.setRetirementAge(null);
+    revision.setRentalIncomeGrowthSpread(null);
+    revision.setSpendingGrowthSpread(null);
+    revision.setFundingStrategy(null);
+    revision.setSafeReserveYears(null);
+    revision.setEquityHarvestMinimumReturnRate(null);
+    revision.setEquityGainHarvestRate(null);
+    revision.setAnnualEmploymentIncome(null);
+    revision.setAnnualPreRetirementContribution(null);
+    when(revisions.findByIdAndSimulationPlanId(11L, 7L)).thenReturn(Optional.of(revision));
+    when(revisionEvents.findAllByRevisionIdOrderByYearAscIdAsc(11L)).thenReturn(List.of());
+
+    SimulationAssumptions assumptions = service.assumptions(plan);
+    assertTrue(assumptions.allowEmergencyEquityWithdrawal());
+    assertEquals(revision.getCurrentAge(), assumptions.retirementAge());
+  }
+
   private static SimulationPlanEntity logicalPlan(Long id) {
     SimulationPlanEntity plan = new SimulationPlanEntity();
     plan.setId(id);

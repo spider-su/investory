@@ -30,6 +30,7 @@ class MaterializedViewRefreshContractIT {
           "reporting_account_monthly_profit_reconciliation",
           "reporting_account_statistics_vs_daily_reconciliation",
           "reporting_account_daily_cashflow_reconciliation",
+          "reporting_account_daily_cashflow_scope",
           "mv_reconstructed_position_daily",
           "mv_reconstructed_account_market_daily",
           "mv_reconstructed_cash_daily",
@@ -58,6 +59,7 @@ class MaterializedViewRefreshContractIT {
                   + "'reporting_account_monthly_profit_reconciliation',"
                   + "'reporting_account_statistics_vs_daily_reconciliation',"
                   + "'reporting_account_daily_cashflow_reconciliation',"
+                  + "'reporting_account_daily_cashflow_scope',"
                   + "'mv_reconstructed_position_daily',"
                   + "'mv_reconstructed_account_market_daily',"
                   + "'mv_reconstructed_cash_daily',"

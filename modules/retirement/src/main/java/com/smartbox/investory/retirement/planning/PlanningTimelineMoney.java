@@ -16,13 +16,21 @@ public record PlanningTimelineMoney(
     BigDecimal reserveEnd,
     BigDecimal longTermCapitalEnd,
     BigDecimal investmentEnd,
-    BigDecimal cashStart, BigDecimal cashEnd,
-    BigDecimal bondsStart, BigDecimal bondsEnd,
-    BigDecimal equitiesStart, BigDecimal equitiesEnd,
-    BigDecimal realEstateStart, BigDecimal realEstateEnd,
-    BigDecimal cashWithdrawal, BigDecimal bondWithdrawal,
-    BigDecimal equityWithdrawal, BigDecimal realEstateWithdrawal,
-    BigDecimal bondReturn, BigDecimal equityReturn, BigDecimal equityRefill) {
+    BigDecimal cashStart,
+    BigDecimal cashEnd,
+    BigDecimal bondsStart,
+    BigDecimal bondsEnd,
+    BigDecimal equitiesStart,
+    BigDecimal equitiesEnd,
+    BigDecimal realEstateStart,
+    BigDecimal realEstateEnd,
+    BigDecimal cashWithdrawal,
+    BigDecimal bondWithdrawal,
+    BigDecimal equityWithdrawal,
+    BigDecimal realEstateWithdrawal,
+    BigDecimal bondReturn,
+    BigDecimal equityReturn,
+    BigDecimal equityRefill) {
 
   /** Net internal transfer received by Bonds; positive means Bonds receive value. */
   public BigDecimal bondTransfer() {
@@ -48,9 +56,33 @@ public record PlanningTimelineMoney(
       BigDecimal reserveEnd,
       BigDecimal longTermCapitalEnd,
       BigDecimal investmentEnd) {
-    this(annualCosts, totalIncome, rentalIncome, bondIncome, fundingGap, reserveWithdrawal,
-        longTermFunding, investmentWithdrawal, unfunded, reserveEnd, longTermCapitalEnd,
-        investmentEnd, null, null, null, null, null, null, null, null, null, null, null, null,
-        null, null, null);
+    this(
+        annualCosts,
+        totalIncome,
+        rentalIncome,
+        bondIncome,
+        fundingGap,
+        reserveWithdrawal,
+        longTermFunding,
+        investmentWithdrawal,
+        unfunded,
+        reserveEnd,
+        longTermCapitalEnd,
+        investmentEnd,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null);
   }
 }

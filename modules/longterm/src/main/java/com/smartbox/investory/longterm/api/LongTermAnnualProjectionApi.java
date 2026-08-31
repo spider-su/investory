@@ -10,8 +10,8 @@ public interface LongTermAnnualProjectionApi {
   AnnualProjection project(ProjectionRequest request);
 
   /**
-   * Planning boundary used by Retirement.  The caller supplies Long-Term source facts and asks
-   * only for annual cash flows and capital; all instrument interpretation stays here.
+   * Planning boundary used by Retirement. The caller supplies Long-Term source facts and asks only
+   * for annual cash flows and capital; all instrument interpretation stays here.
    */
   default PlanningProjection plan(PlanningRequest request) {
     throw new UnsupportedOperationException("Long-Term planning is not configured");
@@ -19,15 +19,18 @@ public interface LongTermAnnualProjectionApi {
 
   /** Non-consuming annual preparation. It never advances the Long-Term planning state. */
   default PlanningQuote quote(PlanningRequest request) {
-    PlanningProjection projection = plan(new PlanningRequest(request.year(), BigDecimal.ZERO, request.state()));
-    return new PlanningQuote(projection.year(), projection.plannedCashFlows(), projection.reserveTransfer(),
-        projection.endCapital(), projection.source(), projection.capitalizedBondReturn());
+    PlanningProjection projection =
+        plan(new PlanningRequest(request.year(), BigDecimal.ZERO, request.state()));
+    return new PlanningQuote(
+        projection.year(),
+        projection.plannedCashFlows(),
+        projection.reserveTransfer(),
+        projection.endCapital(),
+        projection.source(),
+        projection.capitalizedBondReturn());
   }
 
-  record PlanningRequest(
-      int year,
-      BigDecimal requestedCapital,
-      PlanningState state) {
+  record PlanningRequest(int year, BigDecimal requestedCapital, PlanningState state) {
     public PlanningRequest {
       requestedCapital = nz(requestedCapital).max(BigDecimal.ZERO);
       state = state == null ? PlanningState.EMPTY : state;
@@ -50,10 +53,15 @@ public interface LongTermAnnualProjectionApi {
     }
 
     /** Active terminology; the legacy accessor remains source-compatible. */
-    public BigDecimal rentalIncomeGrowthSpread() { return rentalIncomeGrowthRate; }
+    public BigDecimal rentalIncomeGrowthSpread() {
+      return rentalIncomeGrowthRate;
+    }
   }
 
-  enum CashFlowKind { RENTAL_INCOME, FIXED_INCOME }
+  enum CashFlowKind {
+    RENTAL_INCOME,
+    FIXED_INCOME
+  }
 
   record PlannedCashFlow(
       String id, String label, CashFlowKind kind, BigDecimal annualAmount, Source source) {
@@ -73,12 +81,27 @@ public interface LongTermAnnualProjectionApi {
       PlanningState endState,
       Source source,
       BigDecimal capitalizedBondReturn) {
-    public PlanningProjection(int year, List<PlannedCashFlow> plannedCashFlows,
-        BigDecimal reserveTransfer, BigDecimal requestedCapital, BigDecimal actualCapitalProvided,
-        BigDecimal endCapital, PlanningState endState, Source source) {
-      this(year, plannedCashFlows, reserveTransfer, requestedCapital, actualCapitalProvided,
-          endCapital, endState, source, BigDecimal.ZERO);
+    public PlanningProjection(
+        int year,
+        List<PlannedCashFlow> plannedCashFlows,
+        BigDecimal reserveTransfer,
+        BigDecimal requestedCapital,
+        BigDecimal actualCapitalProvided,
+        BigDecimal endCapital,
+        PlanningState endState,
+        Source source) {
+      this(
+          year,
+          plannedCashFlows,
+          reserveTransfer,
+          requestedCapital,
+          actualCapitalProvided,
+          endCapital,
+          endState,
+          source,
+          BigDecimal.ZERO);
     }
+
     public PlanningProjection {
       plannedCashFlows = plannedCashFlows == null ? List.of() : List.copyOf(plannedCashFlows);
       reserveTransfer = nz(reserveTransfer);
@@ -91,13 +114,22 @@ public interface LongTermAnnualProjectionApi {
     }
   }
 
-  record PlanningQuote(int year, List<PlannedCashFlow> plannedCashFlows,
-      BigDecimal reserveTransfer, BigDecimal capitalAvailable, Source source,
+  record PlanningQuote(
+      int year,
+      List<PlannedCashFlow> plannedCashFlows,
+      BigDecimal reserveTransfer,
+      BigDecimal capitalAvailable,
+      Source source,
       BigDecimal capitalizedBondReturn) {
-    public PlanningQuote(int year, List<PlannedCashFlow> plannedCashFlows,
-        BigDecimal reserveTransfer, BigDecimal capitalAvailable, Source source) {
+    public PlanningQuote(
+        int year,
+        List<PlannedCashFlow> plannedCashFlows,
+        BigDecimal reserveTransfer,
+        BigDecimal capitalAvailable,
+        Source source) {
       this(year, plannedCashFlows, reserveTransfer, capitalAvailable, source, BigDecimal.ZERO);
     }
+
     public PlanningQuote {
       plannedCashFlows = plannedCashFlows == null ? List.of() : List.copyOf(plannedCashFlows);
       reserveTransfer = nz(reserveTransfer);
@@ -111,8 +143,15 @@ public interface LongTermAnnualProjectionApi {
   default CapitalProjection projectCapital(ProjectionRequest request) {
     AnnualProjection annual = project(request);
     BigDecimal available = annual.maturedFunding();
-    return new CapitalProjection(request.year(), BigDecimal.ZERO, annual.netBondIncome(),
-        BigDecimal.ZERO, available, request.requiredFunding(), available, BigDecimal.ZERO,
+    return new CapitalProjection(
+        request.year(),
+        BigDecimal.ZERO,
+        annual.netBondIncome(),
+        BigDecimal.ZERO,
+        available,
+        request.requiredFunding(),
+        available,
+        BigDecimal.ZERO,
         annual.source());
   }
 
@@ -150,10 +189,7 @@ public interface LongTermAnnualProjectionApi {
   }
 
   record RentalIncome(
-      BigDecimal monthlyNetIncome,
-      Source source,
-      int baseYear,
-      BigDecimal annualGrowthRate) {
+      BigDecimal monthlyNetIncome, Source source, int baseYear, BigDecimal annualGrowthRate) {
     public RentalIncome(BigDecimal monthlyNetIncome, Source source) {
       this(monthlyNetIncome, source, 0, BigDecimal.ZERO);
     }

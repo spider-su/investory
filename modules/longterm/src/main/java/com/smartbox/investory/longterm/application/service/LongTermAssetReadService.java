@@ -1,13 +1,13 @@
 package com.smartbox.investory.longterm.application.service;
 
 import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
+import com.smartbox.investory.longterm.api.model.CashFlowTypeModel;
+import com.smartbox.investory.longterm.api.model.FrequencyModel;
+import com.smartbox.investory.longterm.api.model.InterestTreatmentModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileAssetModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSummaryModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
-import com.smartbox.investory.longterm.api.model.CashFlowTypeModel;
-import com.smartbox.investory.longterm.api.model.FrequencyModel;
-import com.smartbox.investory.longterm.api.model.InterestTreatmentModel;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -21,14 +21,14 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
-public class LongTermAssetReadService
-    implements LongTermAssetProfileReader {
+public class LongTermAssetReadService implements LongTermAssetProfileReader {
   private final LongTermAssetService longTermAssets;
   private final CurrencyConversion currencyRates;
 
   @Override
   public LongTermAssetProfileSummaryModel aggregate(Long portfolioId, LocalDate date) {
-    LongTermAssetService.AggregateSummary summary = longTermAssets.aggregate(portfolioId, date);
+    LongTermAssetQueryService.AggregateSummary summary =
+        longTermAssets.aggregate(portfolioId, date);
     return new LongTermAssetProfileSummaryModel(
         CurrencyType.USD,
         toUsd(summary.totalCurrentValue(), summary.currency(), date),
@@ -67,7 +67,9 @@ public class LongTermAssetReadService
                                     toUsd(period.annualIncome(), input.currency(), date),
                                     toUsd(period.annualExpense(), input.currency(), date),
                                     period.annualReturnRate(),
-                                    period.cashFlowType() == null ? null : CashFlowTypeModel.valueOf(period.cashFlowType().name()),
+                                    period.cashFlowType() == null
+                                        ? null
+                                        : CashFlowTypeModel.valueOf(period.cashFlowType().name()),
                                     period.paidByTenant()))
                         .toList(),
                     input.rentalContracts().stream()
@@ -79,6 +81,9 @@ public class LongTermAssetReadService
                                     c.endDate(),
                                     c.terminatedDate(),
                                     c.rentalTaxPaidByTenant(),
+                                    c.tenantName(),
+                                    c.tenantEmail(),
+                                    c.tenantPhone(),
                                     c.terms().stream()
                                         .map(
                                             t ->

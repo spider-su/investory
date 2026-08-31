@@ -5,8 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
@@ -66,7 +66,9 @@ class RetirementSimulationControllerTest {
     lenient()
         .when(planningPresentation.displaySummaries(any(), any()))
         .thenReturn(Map.of(SimulationScenario.BASE, summary));
-    lenient().when(planningPresentation.displayTimelineMoney(any(), any(), any())).thenReturn(Map.of());
+    lenient()
+        .when(planningPresentation.displayTimelineMoney(any(), any(), any()))
+        .thenReturn(Map.of());
     controller =
         new RetirementSimulationController(
             profiles,
@@ -174,36 +176,41 @@ class RetirementSimulationControllerTest {
         .andExpect(view().name("simulation"))
         .andExpect(content().string(org.hamcrest.Matchers.containsString("Scenario")))
         .andExpect(content().string(org.hamcrest.Matchers.containsString("Yearly projection")))
-        .andExpect(content().string(org.hamcrest.Matchers.containsString("Planning bucket projection")));
+        .andExpect(
+            content().string(org.hamcrest.Matchers.containsString("Planning bucket projection")));
   }
 
   @Test
   void customRequestUsesSubmittedDeltasForPageAndSimulation() throws Exception {
     InvestmentProfile p = profile();
-    var saved = SimulationAssumptions.defaults(p, 45, 90, 2026)
-        .withInflationRate(new BigDecimal("0.03"))
-        .withRentalIncomeGrowthSpread(new BigDecimal("-0.027"))
-        .withFixedIncomeReturnRate(new BigDecimal("0.04"))
-        .withEquityReturnRate(new BigDecimal("0.075"))
-        .withSpendingGrowthSpread(new BigDecimal("-0.011"));
+    var saved =
+        SimulationAssumptions.defaults(p, 45, 90, 2026)
+            .withInflationRate(new BigDecimal("0.03"))
+            .withRentalIncomeGrowthSpread(new BigDecimal("-0.027"))
+            .withFixedIncomeReturnRate(new BigDecimal("0.04"))
+            .withEquityReturnRate(new BigDecimal("0.075"))
+            .withSpendingGrowthSpread(new BigDecimal("-0.011"));
     when(profiles.loadProfile(1L)).thenReturn(p);
     when(plans.assumptions(1L, 7L)).thenReturn(saved);
     when(simulations.compareScenarios(any(), any(), anyInt(), any())).thenReturn(Map.of());
 
-    var result = mockMvc.perform(get("/simulation")
-            .param("portfolioId", "1")
-            .param("planId", "7")
-            .param("selectedScenario", "CUSTOM")
-            .param("customInflationDelta", "4")
-            .param("customRentalGrowthDelta", "2")
-            .param("customBondReturnDelta", "3")
-            .param("customEquityReturnDelta", "5")
-            .param("customSpendingGrowthDelta", "2"))
-        .andExpect(status().isOk())
-        .andReturn();
+    var result =
+        mockMvc
+            .perform(
+                get("/simulation")
+                    .param("portfolioId", "1")
+                    .param("planId", "7")
+                    .param("selectedScenario", "CUSTOM")
+                    .param("customInflationDelta", "4")
+                    .param("customRentalGrowthDelta", "2")
+                    .param("customBondReturnDelta", "3")
+                    .param("customEquityReturnDelta", "5")
+                    .param("customSpendingGrowthDelta", "2"))
+            .andExpect(status().isOk())
+            .andReturn();
 
-    var page = (RetirementSimulationPageView)
-        result.getModelAndView().getModel().get("simulationPage");
+    var page =
+        (RetirementSimulationPageView) result.getModelAndView().getModel().get("simulationPage");
     assertEquals("4", page.customScenario().inflation());
     assertEquals("2", page.customScenario().rentalGrowth());
     assertEquals("3", page.customScenario().bondReturn());
@@ -217,15 +224,20 @@ class RetirementSimulationControllerTest {
 
     var custom = org.mockito.ArgumentCaptor.forClass(SimulationCustomDeltas.class);
     verify(simulations).compareScenarios(any(), any(), anyInt(), custom.capture());
-    assertEquals(new SimulationCustomDeltas(
-        new BigDecimal("0.04"), new BigDecimal("0.02"), new BigDecimal("0.03"),
-        new BigDecimal("0.05"), new BigDecimal("0.02")), custom.getValue());
-    verify(planningTimeline).loadForwardTimeline(
-        eq(1L), eq(p), any(), eq(SimulationScenario.CUSTOM), eq(custom.getValue()));
+    assertEquals(
+        new SimulationCustomDeltas(
+            new BigDecimal("0.04"),
+            new BigDecimal("0.02"),
+            new BigDecimal("0.03"),
+            new BigDecimal("0.05"),
+            new BigDecimal("0.02")),
+        custom.getValue());
+    verify(planningTimeline)
+        .loadForwardTimeline(
+            eq(1L), eq(p), any(), eq(SimulationScenario.CUSTOM), eq(custom.getValue()));
   }
 
-  private static ScenarioAssumptionView row(
-      RetirementSimulationPageView page, String name) {
+  private static ScenarioAssumptionView row(RetirementSimulationPageView page, String name) {
     return page.scenarioAssumptionRows().stream()
         .filter(row -> row.name().equals(name))
         .findFirst()
@@ -275,7 +287,9 @@ class RetirementSimulationControllerTest {
             List.of());
     when(profiles.loadProfile(1L)).thenReturn(p);
     when(simulations.compareScenarios(
-            org.mockito.ArgumentMatchers.eq(p), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyInt()))
+            org.mockito.ArgumentMatchers.eq(p),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.anyInt()))
         .thenReturn(Map.of());
     var result =
         mockMvc
@@ -285,8 +299,7 @@ class RetirementSimulationControllerTest {
             .andExpect(model().attributeExists("simulationPage"))
             .andReturn();
     var page =
-        (RetirementSimulationPageView)
-            result.getModelAndView().getModel().get("simulationPage");
+        (RetirementSimulationPageView) result.getModelAndView().getModel().get("simulationPage");
     assertEquals(null, page.selectedPlanId());
     assertEquals("Current assumptions", page.activePlanName());
   }
@@ -311,7 +324,13 @@ class RetirementSimulationControllerTest {
         SimulationAssumptions.defaults(p, 45, 90, 2026)
             .withRetirementAge(60)
             .withAnnualEmploymentIncome(new BigDecimal("240000"))
-            .withAnnualPreRetirementContribution(new BigDecimal("50000"));
+            .withAnnualPreRetirementContribution(new BigDecimal("50000"))
+            .withProjectedIncomePolicy(
+                new ProjectedIncomePolicy(
+                    ProjectedIncomePolicy.IncomeMode.MANUAL,
+                    new BigDecimal("120000"),
+                    ProjectedIncomePolicy.IncomeMode.MANUAL,
+                    new BigDecimal("24000")));
     when(profiles.loadProfile(1L)).thenReturn(p);
     when(plans.assumptions(1L, 7L)).thenReturn(saved);
     when(simulations.compareScenarios(eq(p), any(), anyInt())).thenReturn(Map.of());
@@ -326,6 +345,7 @@ class RetirementSimulationControllerTest {
     assertEquals(60, captured.getValue().retirementAge());
     assertEquals(new BigDecimal("240000"), captured.getValue().annualEmploymentIncome());
     assertEquals(new BigDecimal("50000"), captured.getValue().annualPreRetirementContribution());
+    assertEquals(saved.projectedIncomePolicy(), captured.getValue().projectedIncomePolicy());
   }
 
   @Test
@@ -346,8 +366,7 @@ class RetirementSimulationControllerTest {
             .andExpect(status().isOk())
             .andReturn();
     var page =
-        (RetirementSimulationPageView)
-            result.getModelAndView().getModel().get("simulationPage");
+        (RetirementSimulationPageView) result.getModelAndView().getModel().get("simulationPage");
 
     assertEquals(0, new BigDecimal("180000").compareTo(page.annualLivingExpenses()));
     assertEquals(0, new BigDecimal("7000").compareTo(page.annualPension()));
@@ -365,8 +384,7 @@ class RetirementSimulationControllerTest {
 
     var result = mockMvc.perform(get("/simulation").param("portfolioId", "1")).andReturn();
     var page =
-        (RetirementSimulationPageView)
-            result.getModelAndView().getModel().get("simulationPage");
+        (RetirementSimulationPageView) result.getModelAndView().getModel().get("simulationPage");
 
     assertEquals(8L, page.selectedPlanId());
     assertEquals("Plan B", page.activePlanName());
@@ -388,8 +406,7 @@ class RetirementSimulationControllerTest {
             .perform(get("/simulation").param("portfolioId", "1").param("planId", "7"))
             .andReturn();
     var page =
-        (RetirementSimulationPageView)
-            result.getModelAndView().getModel().get("simulationPage");
+        (RetirementSimulationPageView) result.getModelAndView().getModel().get("simulationPage");
 
     assertEquals(7L, page.selectedPlanId());
     assertEquals("Plan A", page.activePlanName());
@@ -416,8 +433,11 @@ class RetirementSimulationControllerTest {
     assertEquals(2026, savedModel.getAttribute("currentPlanningYear"));
     var annualCosts = (BigDecimal) savedModel.getAttribute("displayTotalAnnualCosts");
     var monthlyCosts = (BigDecimal) savedModel.getAttribute("displayMonthlyTotalCosts");
-    assertEquals(0, annualCosts.divide(BigDecimal.valueOf(12), 12, RoundingMode.HALF_UP)
-        .compareTo(monthlyCosts));
+    assertEquals(
+        0,
+        annualCosts
+            .divide(BigDecimal.valueOf(12), 12, RoundingMode.HALF_UP)
+            .compareTo(monthlyCosts));
 
     when(plans.resolvePlanId(1L, null)).thenReturn(Optional.empty());
     ExtendedModelMap defaultModel = new ExtendedModelMap();
@@ -480,8 +500,7 @@ class RetirementSimulationControllerTest {
     assertEquals(new BigDecimal("0.01"), captured.getValue().realEstateReturnRate());
     assertEquals(new BigDecimal("0.02"), captured.getValue().rentalIncomeGrowthSpread());
     assertEquals(new BigDecimal("0.025"), captured.getValue().spendingGrowthSpread());
-    assertEquals(
-        SimulationFundingStrategy.SIMPLE_WATERFALL, captured.getValue().fundingStrategy());
+    assertEquals(SimulationFundingStrategy.SIMPLE_WATERFALL, captured.getValue().fundingStrategy());
     assertEquals(new BigDecimal("0.07"), captured.getValue().equityHarvestMinimumReturnRate());
     assertEquals(0, new BigDecimal("0.75").compareTo(captured.getValue().equityGainHarvestRate()));
     assertEquals(new BigDecimal("0.19"), captured.getValue().capitalGainTaxRate());
@@ -743,18 +762,21 @@ class RetirementSimulationControllerTest {
             BigDecimal.ZERO,
             List.of(),
             List.of());
-    var captured = org.mockito.ArgumentCaptor.forClass(SimulationAssumptions.class);
     when(profiles.loadProfile(1L)).thenReturn(p);
-    when(simulations.compareScenarios(eq(p), captured.capture(), anyInt())).thenReturn(Map.of());
-    mockMvc
-        .perform(
-            get("/simulation")
-                .param("planningDisplayCurrency", "PLN")
-                .param("annualExpenses", "45000.00")
-                .param("annualExpensesCanonical", "11250.12345678"))
-        .andExpect(status().isOk());
+    when(simulations.compareScenarios(eq(p), any(), anyInt())).thenReturn(Map.of());
+    var result =
+        mockMvc
+            .perform(
+                get("/simulation")
+                    .param("planningDisplayCurrency", "PLN")
+                    .param("annualExpenses", "45000.00")
+                    .param("annualExpensesCanonical", "11250.12345678"))
+            .andExpect(status().isOk())
+            .andReturn();
+    var page =
+        (RetirementSimulationPageView) result.getModelAndView().getModel().get("simulationPage");
     assertEquals(
-        0, new BigDecimal("11250.12345678").compareTo(captured.getValue().annualLivingExpenses()));
+        0, new BigDecimal("11250.12345678").compareTo(page.assumptions().annualLivingExpenses()));
     verify(planningPresentation, never())
         .fromDisplay(eq(new BigDecimal("45000.00")), eq(CurrencyType.PLN), any(BigDecimal.class));
   }

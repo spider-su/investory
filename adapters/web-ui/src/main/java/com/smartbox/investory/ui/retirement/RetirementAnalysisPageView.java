@@ -17,6 +17,8 @@ public record RetirementAnalysisPageView(
     CurrencyType displayCurrency,
     SimulationScenario selectedScenario,
     CustomScenarioView customScenario,
+    boolean analysisAvailable,
+    String analysisMessage,
     SimulationDecisionSummaryMoney selectedSummary,
     SimulationScenarioComparison scenarios,
     PlanRiskView risks,

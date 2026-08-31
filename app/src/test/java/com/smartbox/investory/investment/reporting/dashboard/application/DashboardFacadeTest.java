@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -18,10 +19,18 @@ import com.smartbox.investory.investment.accounting.model.Performance;
 import com.smartbox.investory.investment.accounting.model.Portfolio;
 import com.smartbox.investory.investment.accounting.model.RiskExposureSummary;
 import com.smartbox.investory.investment.reporting.BenchmarkService;
+import com.smartbox.investory.investment.reporting.PerformanceAttribution;
+import com.smartbox.investory.investment.reporting.PerformancePeriod;
+import com.smartbox.investory.investment.reporting.PerformanceResult;
+import com.smartbox.investory.investment.reporting.PortfolioPerformanceQuery;
+import com.smartbox.investory.investment.reporting.ReturnMetric;
 import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriod;
 import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriodFilterService;
+import com.smartbox.investory.investment.reporting.dashboard.service.PortfolioStructureQuery;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -237,11 +246,81 @@ class DashboardFacadeTest {
 
     assertEquals(900.0, result.overview().balance());
     assertEquals(200.0, result.overview().totalProfit());
+    assertEquals(4.04, result.overview().gainPct());
     assertEquals(8_888.0, result.overview().netDeposits());
     assertEquals(0.0, result.overview().deposits());
     assertEquals(0.0, result.overview().withdrawals());
     assertEquals(200.0, result.performance().summary().portfolioPl());
     assertEquals(2, result.performance().benchmark().labels().size());
+  }
+
+  @Test
+  void usesCanonicalSelectedPeriodProfitAndReturnForTheHeadline() {
+    Portfolio portfolio = new Portfolio();
+    Performance performance = new Performance();
+    performance.setCalculateMonthlyPerformance(
+        new LinkedHashMap<>(java.util.Map.of("2026-01", 10.0, "2026-02", 20.0)));
+    portfolio.setMonthlyPerformance(performance);
+
+    Benchmark benchmark = new Benchmark();
+    benchmark.setPortfolioPerformanceAvailable(true);
+    benchmark.setPortfolioPl(999.0);
+    benchmark.setPortfolioReturnPct(88.0);
+    when(portfolioService.calculateTotalProfitLoss()).thenReturn(portfolio);
+    when(benchmarkService.calculate()).thenReturn(benchmark);
+
+    PortfolioPerformanceQuery performanceQuery = mock(PortfolioPerformanceQuery.class);
+    PerformanceResult canonical =
+        new PerformanceResult(
+            new PerformancePeriod(LocalDate.parse("2026-01-01"), LocalDate.parse("2026-02-28")),
+            CurrencyType.USD,
+            new BigDecimal("1000"),
+            new BigDecimal("1198.45"),
+            new BigDecimal("100"),
+            BigDecimal.ZERO,
+            new BigDecimal("100"),
+            new BigDecimal("98.45"),
+            BigDecimal.ZERO,
+            null,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            new BigDecimal("0.0725"),
+            ReturnMetric.available(new BigDecimal("0.0725")),
+            ReturnMetric.available(new BigDecimal("0.08")),
+            new PerformanceAttribution(
+                BigDecimal.ZERO,
+                null,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                true,
+                false));
+    when(performanceQuery.forPortfolioMonths(
+            1L, YearMonth.parse("2026-01"), YearMonth.parse("2026-02")))
+        .thenReturn(canonical);
+
+    DashboardPageView result =
+        new DashboardFacade(
+                portfolioService,
+                benchmarkService,
+                new DashboardPeriodFilterService(),
+                new PortfolioPeriodMetricsService(),
+                "2026-01-01",
+                performanceQuery,
+                null,
+                new PortfolioStructureQuery(null))
+            .loadDashboard(new DashboardQuery(List.of(), false, "MAX"));
+
+    assertEquals(98.45, result.overview().totalProfit(), 0.001);
+    assertEquals(7.25, result.overview().gainPct(), 0.001);
+    assertEquals(
+        new BigDecimal("0.0725"), result.performance().summary().kpiReturn().value());
   }
 
   @Test

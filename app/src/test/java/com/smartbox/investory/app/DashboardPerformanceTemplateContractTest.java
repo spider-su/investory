@@ -1,5 +1,6 @@
 package com.smartbox.investory.app;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -34,6 +35,8 @@ class DashboardPerformanceTemplateContractTest {
     assertFalse(html.contains("Compare with S&amp;P 500"));
     assertFalse(html.contains("Line is cumulative; bars show the selected period."));
     assertTrue(html.contains("performance-board-show-spy"));
+    assertEquals(1, occurrencesOf(html, "const performanceBoardEl ="));
+    assertEquals(1, occurrencesOf(html, "let performanceBoardChart ="));
     assertFalse(html.contains("performanceBoardCumulativeReturn"));
     assertFalse(html.contains("performanceBoardPeriodReturn"));
     assertFalse(html.contains("performanceBoardRebasedReturn"));
@@ -92,6 +95,10 @@ class DashboardPerformanceTemplateContractTest {
     assertTrue(html.contains("modal-reconciliation-link"));
     assertTrue(html.contains("Net external contributions: deposits less withdrawals."));
     assertTrue(html.contains("Investment result"));
+    assertTrue(html.contains("selectedPeriod.label() + ' investment result'"));
+    assertTrue(
+        html.contains(
+            "Cash-flow-neutral profit and return for the selected period, after portfolio adjustments."));
     assertTrue(html.contains("Return since KPI start"));
     assertTrue(html.contains("Annualized return"));
     assertTrue(html.contains("kpiStartDate"));
@@ -121,5 +128,9 @@ class DashboardPerformanceTemplateContractTest {
     assertFalse(html.contains("js-monthly-account\""));
     assertFalse(html.contains("js-account-value-account\""));
     assertFalse(html.contains("js-benchmark-account\""));
+  }
+
+  private static int occurrencesOf(String text, String fragment) {
+    return text.split(java.util.regex.Pattern.quote(fragment), -1).length - 1;
   }
 }

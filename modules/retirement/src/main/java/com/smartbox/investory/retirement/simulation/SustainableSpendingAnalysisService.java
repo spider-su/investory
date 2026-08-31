@@ -29,12 +29,50 @@ public class SustainableSpendingAnalysisService {
         find(profile, assumptions, SimulationScenario.CONSERVATIVE, current));
   }
 
+  public SustainableSpendingAnalysis analyze(DeterministicAnalysisContext context) {
+    SimulationAssumptions assumptions = context.assumptions();
+    BigDecimal current =
+        assumptions.annualLivingExpenses().add(assumptions.annualDiscretionaryExpenses());
+    return new SustainableSpendingAnalysis(
+        current,
+        find(
+            context.profile(),
+            assumptions,
+            SimulationScenario.BASE,
+            current,
+            context.baselineYear(),
+            context.canonicalBase()),
+        find(
+            context.profile(),
+            assumptions,
+            SimulationScenario.CONSERVATIVE,
+            current,
+            context.baselineYear(),
+            null));
+  }
+
   private SustainableSpendingAnalysis.ScenarioResult find(
       InvestmentProfile profile,
       SimulationAssumptions assumptions,
       SimulationScenario scenario,
       BigDecimal current) {
     Search search = new Search(profile, assumptions, scenario);
+    return find(current, search);
+  }
+
+  private SustainableSpendingAnalysis.ScenarioResult find(
+      InvestmentProfile profile,
+      SimulationAssumptions assumptions,
+      SimulationScenario scenario,
+      BigDecimal current,
+      int baselineYear,
+      SimulationEvaluation canonicalCurrent) {
+    Search search =
+        new Search(profile, assumptions, scenario, baselineYear, current, canonicalCurrent);
+    return find(current, search);
+  }
+
+  private SustainableSpendingAnalysis.ScenarioResult find(BigDecimal current, Search search) {
     EvaluationAt currentEvaluation = search.evaluate(current);
     BigDecimal sustainable;
     SustainableSpendingResultState state;
@@ -82,22 +120,46 @@ public class SustainableSpendingAnalysisService {
     private final InvestmentProfile profile;
     private final SimulationAssumptions assumptions;
     private final SimulationScenario scenario;
+    private final Integer baselineYear;
+    private final BigDecimal canonicalSpending;
+    private final SimulationEvaluation canonicalCurrent;
     private int evaluationCount;
 
     private Search(
         InvestmentProfile profile, SimulationAssumptions assumptions, SimulationScenario scenario) {
+      this(profile, assumptions, scenario, null, null, null);
+    }
+
+    private Search(
+        InvestmentProfile profile,
+        SimulationAssumptions assumptions,
+        SimulationScenario scenario,
+        Integer baselineYear,
+        BigDecimal canonicalSpending,
+        SimulationEvaluation canonicalCurrent) {
       this.profile = profile;
       this.assumptions = assumptions;
       this.scenario = scenario;
+      this.baselineYear = baselineYear;
+      this.canonicalSpending = canonicalSpending;
+      this.canonicalCurrent = canonicalCurrent;
     }
 
     private EvaluationAt evaluate(BigDecimal spending) {
       if (++evaluationCount > MAX_EVALUATIONS)
         throw new IllegalStateException("Sustainable spending search exceeded evaluation limit");
+      if (canonicalCurrent != null && spending.compareTo(canonicalSpending) == 0)
+        return new EvaluationAt(spending, canonicalCurrent);
       return new EvaluationAt(
           spending,
-          SustainableSpendingAnalysisService.this.evaluations.evaluate(
-              profile, assumptions.withRecurringSpending(spending), scenario));
+          baselineYear == null
+              ? SustainableSpendingAnalysisService.this.evaluations.evaluate(
+                  profile, assumptions.toBuilder().recurringSpending(spending).build(), scenario)
+              : SustainableSpendingAnalysisService.this.evaluations.evaluate(
+                  profile,
+                  assumptions.toBuilder().recurringSpending(spending).build(),
+                  scenario,
+                  baselineYear));
     }
 
     private Boundary boundary(BigDecimal low, BigDecimal high) {

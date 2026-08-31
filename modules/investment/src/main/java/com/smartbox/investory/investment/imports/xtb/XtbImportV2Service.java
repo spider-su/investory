@@ -22,7 +22,6 @@ import com.smartbox.investory.investment.infrastructure.persistence.account.Acco
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.market.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -177,18 +176,18 @@ public class XtbImportV2Service {
         var entries = zip.entries();
         while (entries.hasMoreElements()) {
           ZipEntry entry = entries.nextElement();
-        if (entry.isDirectory() || !entry.getName().toLowerCase(Locale.ROOT).endsWith(".xlsx")) {
-          continue;
+          if (entry.isDirectory() || !entry.getName().toLowerCase(Locale.ROOT).endsWith(".xlsx")) {
+            continue;
+          }
+          ImportEvidenceContext.archiveMember(entry.getName());
+          ImportExecutionResult partial =
+              importWorkbook(zip.getInputStream(entry), entry.getName());
+          total += partial.rowsTotal();
+          applied += partial.rowsApplied();
+          failed += partial.rowsFailed();
+          files++;
+          importedAccounts.add(partial.details());
         }
-        ImportEvidenceContext.archiveMember(entry.getName());
-        ImportExecutionResult partial =
-            importWorkbook(zip.getInputStream(entry), entry.getName());
-        total += partial.rowsTotal();
-        applied += partial.rowsApplied();
-        failed += partial.rowsFailed();
-        files++;
-        importedAccounts.add(partial.details());
-      }
       }
     } finally {
       Files.deleteIfExists(temporaryZip);
@@ -1181,6 +1180,9 @@ public class XtbImportV2Service {
           continue;
         }
         columns.put(label, cell.getColumnIndex());
+        if ("Position ID".equalsIgnoreCase(label)) {
+          columns.putIfAbsent("PositionEntity ID", cell.getColumnIndex());
+        }
       }
       if (columns.keySet().containsAll(required)) {
         columns.put("__row", row.getRowNum());

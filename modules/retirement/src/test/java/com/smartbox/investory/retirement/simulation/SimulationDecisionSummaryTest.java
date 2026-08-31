@@ -1,9 +1,9 @@
 package com.smartbox.investory.retirement.simulation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -107,7 +107,7 @@ class SimulationDecisionSummaryTest {
                 false,
                 null,
                 BigDecimal.ZERO,
-                List.of(year(40, 0, "1000", "100", "50", "150", "0", "900", false, "0"))),
+                List.of(year(40, 2026, "1000", "100", "50", "150", "0", "900", false, "0"))),
             assumptions);
 
     assertFalse(summary.recurringFundingGapRequired());
@@ -131,7 +131,7 @@ class SimulationDecisionSummaryTest {
             BigDecimal.ZERO,
             BigDecimal.ZERO,
             2026);
-    SimulationYear projection = year(40, 0, "1000", "100", "20", "150", "70", "900", false, "0");
+    SimulationYear projection = year(40, 2026, "1000", "100", "20", "150", "70", "900", false, "0");
     SimulationChartData charts =
         SimulationChartData.from(
             java.util.Map.of(
@@ -142,13 +142,15 @@ class SimulationDecisionSummaryTest {
     assertEquals(2026, charts.balances().get(SimulationScenario.BASE).get(0).year());
     assertEquals(
         projection.endNetWorth(), charts.balances().get(SimulationScenario.BASE).get(0).netWorth());
-    assertEquals(
-        projection.totalIncome(),
-        charts.incomeSpending().get(0).recurringIncome());
+    assertEquals(projection.totalIncome(), charts.incomeSpending().get(0).recurringIncome());
     assertEquals(
         projection.coreExpenses().add(projection.discretionaryExpenses()),
         charts.incomeSpending().get(0).plannedSpending());
     assertEquals(projection.equityEnd(), charts.composition().get(0).equities());
+    assertEquals(2026, charts.incomeSpending().getFirst().year());
+    assertEquals(2026, charts.composition().getFirst().year());
+    assertEquals(2026, charts.funding().get(SimulationScenario.BASE).getFirst().year());
+    assertEquals(2026, charts.reserves().get(SimulationScenario.BASE).getFirst().year());
     assertEquals(2026, charts.metadata().retirementYear());
     assertEquals(2026, charts.metadata().horizonEndYear());
     assertTrue(charts.metadata().failures().isEmpty());
@@ -174,7 +176,7 @@ class SimulationDecisionSummaryTest {
     SimulationYear year =
         new SimulationYear(
             40,
-            0,
+            2026,
             ZERO,
             ZERO,
             ZERO,
@@ -234,7 +236,7 @@ class SimulationDecisionSummaryTest {
 
   private static SimulationYear year(
       int age,
-      int offset,
+      int calendarYear,
       String netWorth,
       String core,
       String discretionary,
@@ -252,7 +254,7 @@ class SimulationDecisionSummaryTest {
         u = new BigDecimal(unfunded);
     return new SimulationYear(
         age,
-        offset,
+        calendarYear,
         n,
         c,
         d,

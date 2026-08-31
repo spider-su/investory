@@ -11,9 +11,14 @@ import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotMode
 import com.smartbox.investory.longterm.api.model.RealEstateEntryModel;
 import com.smartbox.investory.longterm.application.model.LongTermAssetSummary;
 import com.smartbox.investory.longterm.application.model.RealEstatePlanningSummary;
+import com.smartbox.investory.longterm.application.service.LongTermAssetAnnualSnapshotService;
 import com.smartbox.investory.longterm.application.service.LongTermAssetCalculator;
 import com.smartbox.investory.longterm.application.service.LongTermAssetCashFlowService;
+import com.smartbox.investory.longterm.application.service.LongTermAssetCommandService;
 import com.smartbox.investory.longterm.application.service.LongTermAssetLifecycleService;
+import com.smartbox.investory.longterm.application.service.LongTermAssetPeriodService;
+import com.smartbox.investory.longterm.application.service.LongTermAssetProjectionQueryService;
+import com.smartbox.investory.longterm.application.service.LongTermAssetQueryService;
 import com.smartbox.investory.longterm.application.service.LongTermAssetService;
 import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 import com.smartbox.investory.longterm.infrastructure.asset.*;
@@ -33,6 +38,7 @@ import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -66,17 +72,21 @@ class LongTermAssetServiceTest {
         .when(rentalContracts.findAllByAssetIdOrderByStartDate(anyLong()))
         .thenAnswer(
             invocation ->
-                cashFlows.findAllByAssetIdOrderByValidFrom(invocation.getArgument(0, Long.class)).stream()
+                cashFlows
+                    .findAllByAssetIdOrderByValidFrom(invocation.getArgument(0, Long.class))
+                    .stream()
                     .filter(f -> f.getType() != CashFlowType.RENT || f.getAmount() != null)
-                    .collect(java.util.stream.Collectors.groupingBy(
-                        f -> java.util.Arrays.asList(f.getValidFrom(), f.getValidTo()),
-                        java.util.LinkedHashMap::new,
-                        java.util.stream.Collectors.toList()))
-                    .values().stream()
+                    .collect(
+                        java.util.stream.Collectors.groupingBy(
+                            f -> java.util.Arrays.asList(f.getValidFrom(), f.getValidTo()),
+                            java.util.LinkedHashMap::new,
+                            java.util.stream.Collectors.toList()))
+                    .values()
+                    .stream()
                     .map(LongTermAssetServiceTest::contractFrom)
                     .toList());
-    service =
-        new LongTermAssetService(
+    var query =
+        new LongTermAssetQueryService(
             assets,
             cashFlows,
             valuations,
@@ -86,35 +96,105 @@ class LongTermAssetServiceTest {
             taxPolicies,
             portfolioContextReader,
             currencyRates,
+            rentalContracts);
+    var projection =
+        new LongTermAssetProjectionQueryService(
+            assets,
+            cashFlows,
+            valuations,
+            bondRates,
+            bonds,
+            deposits,
+            taxPolicies,
+            rentalContracts,
+            lifecycle);
+    var snapshot =
+        new LongTermAssetAnnualSnapshotService(
+            assets, cashFlows, rentalContracts, currencyRates, lifecycle, query);
+    var periods = new LongTermAssetPeriodService(assets, valuations, bondRates, taxPolicies);
+    var command =
+        new LongTermAssetCommandService(
+            assets,
+            cashFlows,
+            valuations,
+            bondRates,
+            bonds,
+            deposits,
             lifecycle,
             new LongTermAssetCashFlowService(assets, cashFlows),
-            rentalContracts,
+            query,
+            periods,
             java.time.Clock.fixed(
                 DATE.atStartOfDay(java.time.ZoneOffset.UTC).toInstant(), java.time.ZoneOffset.UTC));
+    service = new LongTermAssetService(query, projection, snapshot, command);
   }
 
-  private static LongTermAssetRentalContractEntity contractFrom(List<LongTermAssetCashFlowEntity> flows) {
+  private static LongTermAssetRentalContractEntity contractFrom(
+      List<LongTermAssetCashFlowEntity> flows) {
     LongTermAssetCashFlowEntity flow = flows.get(0);
     LongTermAssetRentalContractEntity contract = new LongTermAssetRentalContractEntity();
     contract.setAssetId(flow.getAssetId());
     contract.setStartDate(flow.getValidFrom());
     contract.setEndDate(flow.getValidTo());
-    contract.setTerms(flows.stream().map(f -> {
-      LongTermAssetRentalContractTermEntity term = new LongTermAssetRentalContractTermEntity();
-      term.setContract(contract);
-      term.setType(f.getType());
-      term.setAmount(f.getAmount());
-      term.setFrequency(f.getFrequency());
-      term.setPaidByTenant(f.isPaidByTenant());
-      return term;
-    }).toList());
+    contract.setTerms(
+        flows.stream()
+            .map(
+                f -> {
+                  LongTermAssetRentalContractTermEntity term =
+                      new LongTermAssetRentalContractTermEntity();
+                  term.setContract(contract);
+                  term.setType(f.getType());
+                  term.setAmount(f.getAmount());
+                  term.setFrequency(f.getFrequency());
+                  term.setPaidByTenant(f.isPaidByTenant());
+                  return term;
+                })
+            .toList());
+    return contract;
+  }
+
+  @Test
+  void editingArchivedCashReservePreservesAcquisitionAndLifecycleState() {
+    LongTermAssetEntity reserve = asset(LongTermAssetType.CASH_RESERVE, "900");
+    reserve.setActive(false);
+    reserve.setAcquisitionDate(LocalDate.of(2020, 2, 3));
+    reserve.setAcquisitionValue(new BigDecimal("700"));
+    reserve.setArchivedAt(LocalDate.of(2026, 1, 15));
+    when(assets.findByIdAndPortfolioId(1L, 1L)).thenReturn(Optional.of(reserve));
+    when(assets.findTypeByIdAndPortfolioId(1L, 1L))
+        .thenReturn(Optional.of(LongTermAssetType.CASH_RESERVE));
+    when(assets.save(any(LongTermAssetEntity.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    service.saveCashReserve(
+        1L, 1L, "Edited reserve", CurrencyType.PLN, new BigDecimal("950"), null, "edited", DATE);
+
+    assertEquals(LocalDate.of(2020, 2, 3), reserve.getAcquisitionDate());
+    assertEquals(new BigDecimal("700"), reserve.getAcquisitionValue());
+    assertEquals(LocalDate.of(2026, 1, 15), reserve.getArchivedAt());
+    assertEquals(false, reserve.isActive());
+    assertEquals(new BigDecimal("950"), reserve.getCurrentValue());
+    verify(lifecycle, never()).reactivate(anyLong(), anyLong());
+  }
+
+  private static LongTermAssetRentalContractEntity contract(LocalDate start, LocalDate end) {
+    LongTermAssetRentalContractEntity contract = new LongTermAssetRentalContractEntity();
+    contract.setAssetId(1L);
+    contract.setStartDate(start);
+    contract.setEndDate(end);
+    LongTermAssetRentalContractTermEntity rent = new LongTermAssetRentalContractTermEntity();
+    rent.setContract(contract);
+    rent.setType(CashFlowType.RENT);
+    rent.setAmount(new BigDecimal("1000"));
+    rent.setFrequency(Frequency.MONTHLY);
+    contract.getTerms().add(rent);
     return contract;
   }
 
   @Test
   void rentalSummaryAnnualizesIncomeAndExpensesAndAppliesTax() {
     LongTermAssetEntity a = asset(LongTermAssetType.REAL_ESTATE, "710000");
-    a.setTaxBase(new BigDecimal("34800"));
+    a.setTaxBase(new BigDecimal("2900"));
     when(cashFlows.findAllByAssetIdOrderByValidFrom(1L))
         .thenReturn(
             List.of(
@@ -166,7 +246,7 @@ class LongTermAssetServiceTest {
   @Test
   void explicitRealEstateTaxBaseIsIndependentFromGrossIncome() {
     LongTermAssetEntity a = asset(LongTermAssetType.REAL_ESTATE, "780000");
-    a.setTaxBase(new BigDecimal("33600"));
+    a.setTaxBase(new BigDecimal("2800"));
     when(cashFlows.findAllByAssetIdOrderByValidFrom(1L))
         .thenReturn(List.of(flow(CashFlowType.RENT, "36000", Frequency.ANNUAL)));
     var s = service.summary(a, DATE);
@@ -273,7 +353,8 @@ class LongTermAssetServiceTest {
     assertEquals(LongTermAssetType.BOND, input.type());
     assertEquals(new BigDecimal("900000"), input.currentValue());
     assertEquals(1, input.periods().size());
-    assertEquals(new BigDecimal("0.053333333333333333"), input.periods().getFirst().annualReturnRate());
+    assertEquals(
+        new BigDecimal("0.053333333333333333"), input.periods().getFirst().annualReturnRate());
     assertEquals(LocalDate.of(2028, 12, 31), input.periods().getFirst().validTo());
     assertEquals(InterestTreatment.PAY_OUT, input.interestTreatment());
   }
@@ -302,6 +383,72 @@ class LongTermAssetServiceTest {
   }
 
   @Test
+  void valuationPeriodCanBeCorrectedAndDeletedWithoutOverlappingItself() {
+    LongTermAssetEntity asset = asset(LongTermAssetType.REAL_ESTATE, "100");
+    LongTermAssetValuationPeriodEntity existing = new LongTermAssetValuationPeriodEntity();
+    existing.setId(7L);
+    existing.setAssetId(1L);
+    existing.setValidFrom(DATE);
+    existing.setExpectedAnnualGrowthRate(new BigDecimal("0.03"));
+    LongTermAssetValuationPeriodEntity replacement = new LongTermAssetValuationPeriodEntity();
+    replacement.setValidFrom(DATE.plusDays(1));
+    replacement.setExpectedAnnualGrowthRate(new BigDecimal("0.04"));
+    when(assets.findByIdAndPortfolioId(1L, 1L)).thenReturn(Optional.of(asset));
+    when(valuations.findById(7L)).thenReturn(Optional.of(existing));
+    when(valuations.findAllByAssetIdOrderByValidFrom(1L)).thenReturn(List.of(existing));
+
+    service.updateValuationPeriod(1L, 1L, 7L, replacement);
+    service.deleteValuationPeriod(1L, 1L, 7L);
+
+    assertEquals(DATE.plusDays(1), existing.getValidFrom());
+    assertEquals(new BigDecimal("0.04"), existing.getExpectedAnnualGrowthRate());
+    verify(valuations).save(existing);
+    verify(valuations).delete(existing);
+  }
+
+  @Test
+  void bondRatePeriodCanBeCorrectedAndDeletedWithoutOverlappingItself() {
+    LongTermAssetEntity asset = asset(LongTermAssetType.BOND, "100");
+    LongTermAssetBondRatePeriodEntity existing = new LongTermAssetBondRatePeriodEntity();
+    existing.setId(8L);
+    existing.setAssetId(1L);
+    existing.setValidFrom(DATE);
+    existing.setAnnualInterestRate(new BigDecimal("0.05"));
+    LongTermAssetBondRatePeriodEntity replacement = new LongTermAssetBondRatePeriodEntity();
+    replacement.setValidFrom(DATE.plusDays(1));
+    replacement.setAnnualInterestRate(new BigDecimal("0.06"));
+    when(assets.findByIdAndPortfolioId(1L, 1L)).thenReturn(Optional.of(asset));
+    when(bondRates.findById(8L)).thenReturn(Optional.of(existing));
+    when(bondRates.findAllByAssetIdOrderByValidFrom(1L)).thenReturn(List.of(existing));
+
+    service.updateBondRatePeriod(1L, 1L, 8L, replacement);
+    service.deleteBondRatePeriod(1L, 1L, 8L);
+
+    assertEquals(DATE.plusDays(1), existing.getValidFrom());
+    assertEquals(new BigDecimal("0.06"), existing.getAnnualInterestRate());
+    verify(bondRates).save(existing);
+    verify(bondRates).delete(existing);
+  }
+
+  @Test
+  void rentalTaxPolicyCorrectionAndDeleteRequirePortfolioOwnership() {
+    RentalTaxPolicyEntity policy = new RentalTaxPolicyEntity();
+    policy.setId(9L);
+    policy.setPortfolioId(1L);
+    policy.setValidFrom(DATE);
+    policy.setRate(new BigDecimal("0.085"));
+    when(taxPolicies.findById(9L)).thenReturn(Optional.of(policy));
+    when(taxPolicies.findAllByPortfolioIdOrderByValidFrom(1L)).thenReturn(List.of(policy));
+
+    service.saveRentalTaxPolicy(1L, policy);
+    service.deleteRentalTaxPolicy(1L, 9L);
+
+    verify(taxPolicies).save(policy);
+    verify(taxPolicies).delete(policy);
+    assertThrows(NoSuchElementException.class, () -> service.deleteRentalTaxPolicy(2L, 9L));
+  }
+
+  @Test
   void bondMaturityBeforeAcquisitionIsRejected() {
     LongTermAssetEntity a = asset(LongTermAssetType.BOND, "100");
     a.setAcquisitionDate(DATE);
@@ -309,6 +456,26 @@ class LongTermAssetServiceTest {
     LongTermAssetBondDetailsEntity d = new LongTermAssetBondDetailsEntity();
     d.setMaturityDate(DATE.minusDays(1));
     assertThrows(IllegalArgumentException.class, () -> service.saveBondDetails(1L, 1L, d));
+  }
+
+  @Test
+  void simpleBondUpdatePreservesExplicitRedemption() {
+    LongTermAssetEntity bond = asset(LongTermAssetType.BOND, "100");
+    bond.setAcquisitionDate(DATE);
+    LongTermAssetBondDetailsEntity details = new LongTermAssetBondDetailsEntity();
+    details.setAssetId(1L);
+    details.setMaturityDate(DATE.plusYears(2));
+    details.setInterestTreatment(InterestTreatment.PAY_OUT);
+    details.setTaxRate(new BigDecimal("0.19"));
+    details.setRedemptionValue(new BigDecimal("125"));
+    when(assets.findByIdAndPortfolioId(1L, 1L)).thenReturn(Optional.of(bond));
+    when(bonds.findById(1L)).thenReturn(Optional.of(details));
+    when(bondRates.findAllByAssetIdOrderByValidFrom(1L)).thenReturn(List.of());
+
+    service.saveSimpleBond(
+        1L, 1L, new BigDecimal("0.05"), DATE.plusYears(2), InterestTreatment.PAY_OUT);
+
+    assertEquals(new BigDecimal("125"), details.getRedemptionValue());
   }
 
   @Test
@@ -344,7 +511,7 @@ class LongTermAssetServiceTest {
     var groups = service.groupSummaries(rows, CurrencyType.PLN, DATE);
     assertEquals(
         List.of("REAL_ESTATE", "BOND", "CASH_RESERVE", "OTHER"),
-        groups.stream().map(LongTermAssetService.AssetGroupSummary::key).toList());
+        groups.stream().map(LongTermAssetQueryService.AssetGroupSummary::key).toList());
     assertEquals(
         List.of("Bond early", "Bond late"),
         groups.get(1).assets().stream().map(LongTermAssetSummary::name).toList());
@@ -530,10 +697,10 @@ class LongTermAssetServiceTest {
   @Test
   void realEstatePlanningColumnsUseMonthlyTurnoverIncomeAndAllocatedReduce() {
     LongTermAssetEntity first = asset(LongTermAssetType.REAL_ESTATE, "780000");
-    first.setTaxBase(new BigDecimal("33600"));
+    first.setTaxBase(new BigDecimal("2800"));
     LongTermAssetEntity second = asset(LongTermAssetType.REAL_ESTATE, "710000");
     second.setId(2L);
-    second.setTaxBase(new BigDecimal("30000"));
+    second.setTaxBase(new BigDecimal("2500"));
     when(assets.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of(first, second));
     when(cashFlows.findAllByAssetIdOrderByValidFrom(1L))
         .thenReturn(
@@ -556,7 +723,10 @@ class LongTermAssetServiceTest {
     assertEquals(new BigDecimal("2900"), firstRow.realEstatePlanning().monthlyIncome());
     BigDecimal expectedReduce =
         new BigDecimal("520")
-            .add(new BigDecimal("33600").multiply(new BigDecimal("0.085")))
+            .add(
+                new BigDecimal("2800")
+                    .multiply(new BigDecimal("12"))
+                    .multiply(new BigDecimal("0.085")))
             .divide(new BigDecimal("12"), 18, java.math.RoundingMode.HALF_UP);
     assertEquals(0, firstRow.realEstatePlanning().monthlyReduce().compareTo(expectedReduce));
     assertEquals(
@@ -610,7 +780,10 @@ class LongTermAssetServiceTest {
     var summary = service.list(1L, DATE).getFirst().realEstatePlanning();
     BigDecimal expectedReduce =
         new BigDecimal("520")
-            .add(new BigDecimal("36000").multiply(new BigDecimal("0.085")))
+            .add(
+                new BigDecimal("36000")
+                    .multiply(new BigDecimal("12"))
+                    .multiply(new BigDecimal("0.085")))
             .divide(BigDecimal.valueOf(12), 18, java.math.RoundingMode.HALF_UP);
 
     assertEquals(new BigDecimal("36000"), property.getTaxBase());
@@ -628,7 +801,7 @@ class LongTermAssetServiceTest {
   }
 
   @Test
-  void compactRealEstateEntryCreatesAuthoritativePeriods() {
+  void compactRealEstateEntryDoesNotWriteLegacyCashFlows() {
     when(assets.save(any()))
         .thenAnswer(
             invocation -> {
@@ -636,7 +809,6 @@ class LongTermAssetServiceTest {
               saved.setId(9L);
               return saved;
             });
-    when(cashFlows.findAllByAssetIdOrderByValidFrom(9L)).thenReturn(List.of());
     when(valuations.findAllByAssetIdOrderByValidFrom(9L)).thenReturn(List.of());
     LongTermAssetEntity saved =
         service.saveRealEstateEntry(
@@ -658,7 +830,7 @@ class LongTermAssetServiceTest {
                 new BigDecimal("0.02"),
                 "note"));
     assertEquals(9L, saved.getId());
-    verify(cashFlows, times(6)).save(any(LongTermAssetCashFlowEntity.class));
+    verify(cashFlows, never()).save(any(LongTermAssetCashFlowEntity.class));
     verify(valuations).save(any(LongTermAssetValuationPeriodEntity.class));
   }
 
@@ -697,7 +869,7 @@ class LongTermAssetServiceTest {
     var group = service.grouped(1L, DATE).getFirst();
 
     assertEquals(
-        new BigDecimal("23.375000000000000000"), group.realEstatePlanning().monthlyRentTax());
+        new BigDecimal("280.500000000000000000"), group.realEstatePlanning().monthlyRentTax());
   }
 
   @Test
@@ -950,6 +1122,20 @@ class LongTermAssetServiceTest {
   }
 
   @Test
+  void overviewUsesEffectiveTerminationOnlyWhileRentContractIsActive() {
+    LongTermAssetEntity property = asset(LongTermAssetType.REAL_ESTATE, "780000");
+    LongTermAssetRentalContractEntity contract =
+        contract(LocalDate.of(2025, 1, 1), LocalDate.of(2026, 12, 31));
+    contract.setTerminatedDate(LocalDate.of(2026, 5, 15));
+    when(assets.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of(property));
+    when(rentalContracts.findAllByAssetIdOrderByStartDate(1L)).thenReturn(List.of(contract));
+
+    assertEquals(
+        LocalDate.of(2026, 5, 15), service.list(1L, LocalDate.of(2026, 5, 1)).getFirst().rentEnd());
+    assertNull(service.list(1L, DATE).getFirst().rentEnd());
+  }
+
+  @Test
   void changingCurrentCashFlowPersistsAndCanClearEndDate() {
     LongTermAssetEntity asset = asset(LongTermAssetType.REAL_ESTATE, "710000");
     LongTermAssetCashFlowEntity old = flow(CashFlowType.RENT, "2900", Frequency.MONTHLY);
@@ -1067,6 +1253,22 @@ class LongTermAssetServiceTest {
   }
 
   @Test
+  void historicalAnnualSnapshotKeepsFutureOnlyRentalDataUnavailable() {
+    LongTermAssetEntity apartment = asset(LongTermAssetType.REAL_ESTATE, "710000");
+    LongTermAssetRentalContractEntity future = contract(LocalDate.of(2026, 1, 1), null);
+    when(assets.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of(apartment));
+    when(rentalContracts.findAllByAssetIdOrderByStartDate(1L)).thenReturn(List.of(future));
+    when(currencyRates.convertToBaseCurrency(
+            any(BigDecimal.class),
+            eq(CurrencyType.USD),
+            eq(CurrencyType.PLN),
+            any(LocalDate.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0, BigDecimal.class));
+
+    assertNull(service.historicalAnnualSnapshot(1L, 2025).rentalIncome());
+  }
+
+  @Test
   void historicalAnnualSnapshotExposesBondPayoutIncome() {
     LongTermAssetEntity bond = asset(LongTermAssetType.BOND, "100000");
     LongTermAssetBondDetailsEntity details = new LongTermAssetBondDetailsEntity();
@@ -1080,7 +1282,10 @@ class LongTermAssetServiceTest {
     when(bonds.findById(1L)).thenReturn(Optional.of(details));
     when(bondRates.findAllByAssetIdOrderByValidFrom(1L)).thenReturn(List.of(rate));
     when(currencyRates.convertToBaseCurrency(
-            any(BigDecimal.class), eq(CurrencyType.USD), eq(CurrencyType.PLN), any(LocalDate.class)))
+            any(BigDecimal.class),
+            eq(CurrencyType.USD),
+            eq(CurrencyType.PLN),
+            any(LocalDate.class)))
         .thenAnswer(invocation -> invocation.getArgument(0, BigDecimal.class));
 
     BigDecimal income = service.historicalAnnualSnapshot(1L, 2025).bondIncome();
@@ -1125,7 +1330,10 @@ class LongTermAssetServiceTest {
     when(bonds.findById(1L)).thenReturn(Optional.of(details));
     when(bondRates.findAllByAssetIdOrderByValidFrom(1L)).thenReturn(List.of(rate));
     when(currencyRates.convertToBaseCurrency(
-            any(BigDecimal.class), eq(CurrencyType.USD), eq(CurrencyType.PLN), any(LocalDate.class)))
+            any(BigDecimal.class),
+            eq(CurrencyType.USD),
+            eq(CurrencyType.PLN),
+            any(LocalDate.class)))
         .thenAnswer(invocation -> invocation.getArgument(0, BigDecimal.class));
 
     assertEquals(BigDecimal.ZERO, service.currentAnnualSnapshot(1L, DATE).bondIncome());
@@ -1203,8 +1411,7 @@ class LongTermAssetServiceTest {
     LongTermAssetEntity a = asset(LongTermAssetType.REAL_ESTATE, value);
     a.setId(id);
     a.setName(name);
-    a.setTaxBase(
-        new BigDecimal(rent).add(new BigDecimal(parking)).multiply(BigDecimal.valueOf(12)));
+    a.setTaxBase(new BigDecimal(rent).add(new BigDecimal(parking)));
     return a;
   }
 

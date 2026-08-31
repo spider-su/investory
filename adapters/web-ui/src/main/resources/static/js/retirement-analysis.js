@@ -2,7 +2,7 @@
   const state = window.retirementAnalysis || {};
   const charts = state.charts || {};
   const selected = state.selectedScenario || "BASE";
-  const colors = {BASE: "#4dabf7", CONSERVATIVE: "#ff8787", OPTIMISTIC: "#69db7c"};
+  const colors = {BASE: "#4dabf7", CONSERVATIVE: "#ff8787", OPTIMISTIC: "#69db7c", CUSTOM: "#ae7bff"};
   const compact = value => {
     const amount = Number(value);
     const absolute = Math.abs(amount);
@@ -17,7 +17,7 @@
     label: scenario.charAt(0) + scenario.slice(1).toLowerCase(),
     data: (balances[scenario] || []).map(point => point[property] == null ? null : point[property]),
     borderColor: colors[scenario] || "#adb5bd",
-    borderDash: scenario === "CONSERVATIVE" ? [7, 4] : scenario === "OPTIMISTIC" ? [2, 4] : [],
+    borderDash: scenario === "CONSERVATIVE" ? [7, 4] : scenario === "OPTIMISTIC" ? [2, 4] : scenario === "CUSTOM" ? [5, 2] : [],
     borderWidth: scenario === "BASE" ? 3 : 2,
     pointRadius: 0,
     tension: .2
@@ -33,12 +33,27 @@
     {label: "Funding need", data: funding.map(point => point.requiredPortfolioFunding == null ? null : point.requiredPortfolioFunding), borderColor: "#206bc4", borderWidth: 3, pointRadius: 0},
     {label: "Unfunded", data: funding.map(point => point.unfundedAmount == null ? null : point.unfundedAmount), borderColor: "#ff922b", borderWidth: 3, pointRadius: 0}
   ]}, options});
-  document.querySelectorAll("[data-analysis-tab]").forEach(tab => tab.addEventListener("click", () => {
+  const selectTab = tab => {
     document.querySelectorAll("[data-analysis-tab]").forEach(item => {
       const active = item === tab;
       item.classList.toggle("active", active);
       item.setAttribute("aria-selected", active ? "true" : "false");
     });
-    document.querySelectorAll("[data-analysis-panel]").forEach(panel => panel.hidden = panel.dataset.analysisPanel !== tab.dataset.analysisTab);
-  }));
+    document.querySelectorAll("[data-analysis-panel]").forEach(panel => {
+      const active = panel.dataset.analysisPanel === tab.dataset.analysisTab;
+      panel.hidden = !active;
+      panel.setAttribute("aria-hidden", active ? "false" : "true");
+    });
+  };
+  document.querySelectorAll("[data-analysis-tab]").forEach(tab => {
+    tab.addEventListener("click", () => selectTab(tab));
+    tab.addEventListener("keydown", event => {
+      if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+        const tabs = [...document.querySelectorAll("[data-analysis-tab]")];
+        const step = event.key === "ArrowRight" ? 1 : -1;
+        tabs[(tabs.indexOf(tab) + step + tabs.length) % tabs.length].focus();
+      }
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectTab(tab); }
+    });
+  });
 })();

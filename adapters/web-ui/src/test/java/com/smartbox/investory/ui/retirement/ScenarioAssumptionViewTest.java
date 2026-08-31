@@ -26,8 +26,16 @@ class ScenarioAssumptionViewTest {
 
   @Test
   void observedDeltaIsComparedWithEffectiveRateAndUsesImpactSemantics() {
-    var row = ScenarioAssumptionView.of("Inflation", bd(".03"), bd(".03"), false,
-        bd(".027"), "Observed", "trailing 12 months", ScenarioAssumptionView.Availability.AVAILABLE);
+    var row =
+        ScenarioAssumptionView.of(
+            "Inflation",
+            bd(".03"),
+            bd(".03"),
+            false,
+            bd(".027"),
+            "Observed",
+            "trailing 12 months",
+            ScenarioAssumptionView.Availability.AVAILABLE);
 
     assertEquals(bd("-0.3"), row.observedDeltaPercentagePoints());
     assertEquals(ScenarioAssumptionView.DeltaEffect.POSITIVE, row.observedEffect());
@@ -42,5 +50,7 @@ class ScenarioAssumptionViewTest {
     assertEquals(ScenarioAssumptionView.Availability.UNAVAILABLE, row.availability());
   }
 
-  private static BigDecimal bd(String value) { return new BigDecimal(value); }
+  private static BigDecimal bd(String value) {
+    return new BigDecimal(value);
+  }
 }

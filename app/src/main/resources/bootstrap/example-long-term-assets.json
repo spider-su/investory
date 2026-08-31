@@ -10,7 +10,7 @@
       "name": "Property A",
       "currency": "PLN",
       "currentValue": 710000,
-      "taxBase": 34800,
+      "taxBase": 2900,
       "rentalTaxPaidByTenant": false,
       "effectiveFrom": "2026-01-01",
       "cashFlows": [
@@ -28,7 +28,7 @@
       "name": "Property B",
       "currency": "PLN",
       "currentValue": 710000,
-      "taxBase": 33600,
+      "taxBase": 2800,
       "rentalTaxPaidByTenant": false,
       "effectiveFrom": "2026-01-01",
       "cashFlows": [
@@ -45,7 +45,7 @@
       "name": "Property C",
       "currency": "PLN",
       "currentValue": 700000,
-      "taxBase": 31200,
+      "taxBase": 2600,
       "rentalTaxPaidByTenant": false,
       "effectiveFrom": "2026-01-01",
       "cashFlows": [
@@ -62,7 +62,7 @@
       "name": "Property D",
       "currency": "PLN",
       "currentValue": 780000,
-      "taxBase": 36000,
+      "taxBase": 3000,
       "rentalTaxPaidByTenant": false,
       "effectiveFrom": "2026-01-01",
       "cashFlows": [
@@ -80,7 +80,7 @@
       "name": "Property E",
       "currency": "PLN",
       "currentValue": 750000,
-      "taxBase": 36600,
+      "taxBase": 3050,
       "rentalTaxPaidByTenant": false,
       "effectiveFrom": "2026-01-01",
       "cashFlows": [

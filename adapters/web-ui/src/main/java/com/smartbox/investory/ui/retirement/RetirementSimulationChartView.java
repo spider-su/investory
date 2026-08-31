@@ -30,9 +30,7 @@ public record RetirementSimulationChartView(
       Map<Integer, PlanningTimelineMoney> moneyByYear,
       SimulationAssumptions assumptions) {
     return new RetirementSimulationChartView(
-        timeline.years().stream()
-            .map(row -> point(row, moneyByYear.get(row.year())))
-            .toList(),
+        timeline.years().stream().map(row -> point(row, moneyByYear.get(row.year()))).toList(),
         assumptions == null ? null : ForwardSimulationContextFactory.retirementYear(assumptions),
         pensionStartYear(assumptions));
   }
@@ -47,8 +45,7 @@ public record RetirementSimulationChartView(
   private static Point point(PlanningTimelineYear row, PlanningTimelineMoney money) {
     BigDecimal spending = money == null ? null : money.annualCosts();
     BigDecimal income = money == null ? null : money.totalIncome();
-    BigDecimal gapOrSurplus =
-        spending == null || income == null ? null : income.subtract(spending);
+    BigDecimal gapOrSurplus = spending == null || income == null ? null : income.subtract(spending);
     return new Point(
         row.year(),
         row.state().name(),

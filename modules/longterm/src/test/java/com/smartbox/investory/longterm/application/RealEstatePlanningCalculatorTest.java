@@ -21,7 +21,7 @@ class RealEstatePlanningCalculatorTest {
         new RealEstatePlanningCalculator()
             .calculate(
                 new BigDecimal("780000"),
-                new BigDecimal("33600"),
+                new BigDecimal("2800"),
                 List.of(
                     flow(CashFlowType.RENT, "2650", Frequency.MONTHLY),
                         flow(CashFlowType.PARKING_RENT, "250", Frequency.MONTHLY),

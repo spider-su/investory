@@ -1,17 +1,18 @@
 package com.smartbox.investory.longterm.application.service;
 
 import com.smartbox.investory.longterm.api.*;
-import com.smartbox.investory.longterm.api.model.RealEstateEntryModel;
 import com.smartbox.investory.longterm.api.model.CashFlowTypeModel;
 import com.smartbox.investory.longterm.api.model.FrequencyModel;
 import com.smartbox.investory.longterm.api.model.InterestTreatmentModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
+import com.smartbox.investory.longterm.api.model.RealEstateEntryModel;
 import com.smartbox.investory.longterm.application.model.AnnualEconomics;
 import com.smartbox.investory.longterm.application.model.BondPlanningSummary;
 import com.smartbox.investory.longterm.application.model.LongTermAssetSummary;
 import com.smartbox.investory.longterm.application.model.RealEstatePlanningSummary;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractEntity;
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class LongTermAssetsApplicationService implements LongTermAssetsApi {
   private final LongTermAssetsFacade delegate;
+  private final Clock clock;
 
   @Override
   public List<AssetSummaryView> list(Long portfolioId, LocalDate date) {
@@ -91,6 +93,39 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
   }
 
   @Override
+  public LongTermAssetsApi.PageSnapshot page(Long portfolioId, LocalDate date) {
+    var page = delegate.page(portfolioId, date);
+    return new LongTermAssetsApi.PageSnapshot(
+        page.assets().stream().map(LongTermAssetsApplicationService::summary).toList(),
+        page.groups().stream().map(LongTermAssetsApplicationService::group).toList(),
+        aggregate(page.aggregate()));
+  }
+
+  @Override
+  public List<AssetSummaryView> archived(Long portfolioId, LocalDate date) {
+    return delegate.archived(portfolioId, date).stream()
+        .map(LongTermAssetsApplicationService::summary)
+        .toList();
+  }
+
+  @Override
+  public LongTermAssetsApi.AssetView createDeposit(LongTermAssetsApi.DepositCommand command) {
+    return asset(
+        delegate.createDeposit(
+            new LongTermAssetsFacade.DepositCommand(
+                command.portfolioId(),
+                command.name(),
+                command.currency(),
+                command.value(),
+                command.acquisitionDate(),
+                command.maturityDate(),
+                interest(command.interestTreatment()),
+                command.annualInterestRate(),
+                command.taxRate(),
+                command.notes())));
+  }
+
+  @Override
   public void update(LongTermAssetsApi.AssetCommand command) {
     delegate.update(toInternal(command));
   }
@@ -119,13 +154,26 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
   @Override
   public LongTermAssetsApi.RentalContractView createRentalContract(
       LongTermAssetsApi.RentalContractCommand command) {
-    return rental(delegate.createRentalContract(command));
+    return rental(delegate.createRentalContract(command), LocalDate.now(clock));
+  }
+
+  @Override
+  public LongTermAssetsApi.RentalContractView updateRentalContract(
+      LongTermAssetsApi.UpdateRentalContractCommand command) {
+    return rental(delegate.updateRentalContract(command), LocalDate.now(clock));
+  }
+
+  @Override
+  public void deleteRentalContract(Long portfolioId, Long assetId, Long contractId) {
+    delegate.deleteRentalContract(portfolioId, assetId, contractId);
   }
 
   @Override
   public LongTermAssetsApi.RentalContractView endRentalContract(
       Long portfolioId, Long assetId, Long contractId, LocalDate endDate) {
-    return rental(delegate.endRentalContract(portfolioId, assetId, contractId, endDate));
+    return rental(
+        delegate.endRentalContract(portfolioId, assetId, contractId, endDate),
+        LocalDate.now(clock));
   }
 
   @Override
@@ -195,6 +243,22 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
   }
 
   @Override
+  public void updateValuation(
+      Long portfolioId, Long id, Long periodId, LongTermAssetsApi.ValuationCommand command) {
+    delegate.updateValuation(
+        portfolioId,
+        id,
+        periodId,
+        new LongTermAssetsFacade.ValuationCommand(
+            command.validFrom(), command.validTo(), command.growthRatePercent()));
+  }
+
+  @Override
+  public void deleteValuation(Long portfolioId, Long id, Long periodId) {
+    delegate.deleteValuation(portfolioId, id, periodId);
+  }
+
+  @Override
   public void addBondRate(Long portfolioId, Long id, LongTermAssetsApi.BondRateCommand command) {
     delegate.addBondRate(
         portfolioId,
@@ -204,11 +268,52 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
   }
 
   @Override
+  public void updateBondRate(
+      Long portfolioId, Long id, Long periodId, LongTermAssetsApi.BondRateCommand command) {
+    delegate.updateBondRate(
+        portfolioId,
+        id,
+        periodId,
+        new LongTermAssetsFacade.BondRateCommand(
+            command.validFrom(), command.validTo(), command.annualInterestRate()));
+  }
+
+  @Override
+  public void deleteBondRate(Long portfolioId, Long id, Long periodId) {
+    delegate.deleteBondRate(portfolioId, id, periodId);
+  }
+
+  @Override
   public void saveRentalTaxPolicy(Long portfolioId, LongTermAssetsApi.RentalTaxCommand command) {
     delegate.saveRentalTaxPolicy(
         portfolioId,
         new LongTermAssetsFacade.RentalTaxCommand(
             command.validFrom(), command.validTo(), command.ratePercent(), command.rate()));
+  }
+
+  @Override
+  public void updateRentalTaxPolicy(
+      Long portfolioId, Long policyId, LongTermAssetsApi.RentalTaxCommand command) {
+    delegate.saveRentalTaxPolicy(
+        portfolioId,
+        policyId,
+        new LongTermAssetsFacade.RentalTaxCommand(
+            command.validFrom(), command.validTo(), command.ratePercent(), command.rate()));
+  }
+
+  @Override
+  public void deleteRentalTaxPolicy(Long portfolioId, Long policyId) {
+    delegate.deleteRentalTaxPolicy(portfolioId, policyId);
+  }
+
+  @Override
+  public List<LongTermAssetsApi.RentalTaxView> rentalTaxPolicies(Long portfolioId) {
+    return delegate.rentalTaxPolicies(portfolioId).stream()
+        .map(
+            policy ->
+                new LongTermAssetsApi.RentalTaxView(
+                    policy.id(), policy.validFrom(), policy.validTo(), policy.rate()))
+        .toList();
   }
 
   private static LongTermAssetsFacade.AssetCommand toInternal(LongTermAssetsApi.AssetCommand c) {
@@ -257,31 +362,48 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
                 c ->
                     new LongTermAssetsApi.RentalContractView(
                         c.id(),
+                        c.tenantName(),
+                        c.tenantEmail(),
+                        c.tenantPhone(),
                         c.startDate(),
                         c.endDate(),
                         c.terminatedDate(),
+                        c.effectiveEndDate(),
+                        c.status(),
                         c.rentalTaxPaidByTenant(),
                         c.terms().stream()
                             .map(
                                 t ->
                                     new LongTermAssetsApi.RentalTermView(
-                                        cashFlowType(t.type()), t.amount(), frequency(t.frequency()), t.paidByTenant()))
+                                        cashFlowType(t.type()),
+                                        t.amount(),
+                                        frequency(t.frequency()),
+                                        t.paidByTenant()))
                             .toList()))
             .toList());
   }
 
-  private static LongTermAssetsApi.RentalContractView rental(LongTermAssetRentalContractEntity c) {
+  private static LongTermAssetsApi.RentalContractView rental(
+      LongTermAssetRentalContractEntity c, LocalDate date) {
     return new LongTermAssetsApi.RentalContractView(
         c.getId(),
+        c.getTenantName(),
+        c.getTenantEmail(),
+        c.getTenantPhone(),
         c.getStartDate(),
         c.getEndDate(),
         c.getTerminatedDate(),
+        RentalContractService.effectiveEnd(c),
+        RentalContractService.status(c, date),
         c.getRentalTaxPaidByTenant(),
         c.getTerms().stream()
             .map(
                 t ->
                     new LongTermAssetsApi.RentalTermView(
-                        cashFlowType(t.getType()), t.getAmount(), frequency(t.getFrequency()), t.isPaidByTenant()))
+                        cashFlowType(t.getType()),
+                        t.getAmount(),
+                        frequency(t.getFrequency()),
+                        t.isPaidByTenant()))
             .toList());
   }
 
@@ -300,7 +422,7 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
         s.rentEnd());
   }
 
-  private static AssetGroupView group(LongTermAssetService.AssetGroupSummary g) {
+  private static AssetGroupView group(LongTermAssetQueryService.AssetGroupSummary g) {
     return new AssetGroupView(
         g.key(),
         g.title(),
@@ -317,7 +439,7 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
                 g.realEstatePlanning().incomeYield()));
   }
 
-  private static AggregateView aggregate(LongTermAssetService.AggregateSummary a) {
+  private static AggregateView aggregate(LongTermAssetQueryService.AggregateSummary a) {
     return new AggregateView(a.currency(), a.totalCurrentValue(), economics(a.annualEconomics()));
   }
 
@@ -369,19 +491,52 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
 
   private static LongTermAssetsApi.ValuationView valuation(LongTermAssetsFacade.ValuationView p) {
     return new LongTermAssetsApi.ValuationView(
-        p.validFrom(), p.validTo(), p.expectedAnnualGrowthRate());
+        p.id(), p.validFrom(), p.validTo(), p.expectedAnnualGrowthRate());
   }
 
   private static LongTermAssetsApi.BondRateView bondRate(LongTermAssetsFacade.BondRateView p) {
-    return new LongTermAssetsApi.BondRateView(p.validFrom(), p.validTo(), p.annualInterestRate());
+    return new LongTermAssetsApi.BondRateView(
+        p.id(), p.validFrom(), p.validTo(), p.annualInterestRate());
   }
 
-  private static com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType assetType(LongTermAssetTypeModel value) { return com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType.valueOf(value.name()); }
-  private static LongTermAssetTypeModel assetType(com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType value) { return LongTermAssetTypeModel.valueOf(value.name()); }
-  private static com.smartbox.investory.longterm.infrastructure.rental.CashFlowType cashFlowType(CashFlowTypeModel value) { return com.smartbox.investory.longterm.infrastructure.rental.CashFlowType.valueOf(value.name()); }
-  private static CashFlowTypeModel cashFlowType(com.smartbox.investory.longterm.infrastructure.rental.CashFlowType value) { return CashFlowTypeModel.valueOf(value.name()); }
-  private static com.smartbox.investory.longterm.infrastructure.rental.Frequency frequency(FrequencyModel value) { return com.smartbox.investory.longterm.infrastructure.rental.Frequency.valueOf(value.name()); }
-  private static FrequencyModel frequency(com.smartbox.investory.longterm.infrastructure.rental.Frequency value) { return FrequencyModel.valueOf(value.name()); }
-  private static com.smartbox.investory.longterm.infrastructure.InterestTreatment interest(InterestTreatmentModel value) { return com.smartbox.investory.longterm.infrastructure.InterestTreatment.valueOf(value.name()); }
-  private static InterestTreatmentModel interest(com.smartbox.investory.longterm.infrastructure.InterestTreatment value) { return InterestTreatmentModel.valueOf(value.name()); }
+  private static com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType assetType(
+      LongTermAssetTypeModel value) {
+    return com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType.valueOf(
+        value.name());
+  }
+
+  private static LongTermAssetTypeModel assetType(
+      com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType value) {
+    return LongTermAssetTypeModel.valueOf(value.name());
+  }
+
+  private static com.smartbox.investory.longterm.infrastructure.rental.CashFlowType cashFlowType(
+      CashFlowTypeModel value) {
+    return com.smartbox.investory.longterm.infrastructure.rental.CashFlowType.valueOf(value.name());
+  }
+
+  private static CashFlowTypeModel cashFlowType(
+      com.smartbox.investory.longterm.infrastructure.rental.CashFlowType value) {
+    return CashFlowTypeModel.valueOf(value.name());
+  }
+
+  private static com.smartbox.investory.longterm.infrastructure.rental.Frequency frequency(
+      FrequencyModel value) {
+    return com.smartbox.investory.longterm.infrastructure.rental.Frequency.valueOf(value.name());
+  }
+
+  private static FrequencyModel frequency(
+      com.smartbox.investory.longterm.infrastructure.rental.Frequency value) {
+    return FrequencyModel.valueOf(value.name());
+  }
+
+  private static com.smartbox.investory.longterm.infrastructure.InterestTreatment interest(
+      InterestTreatmentModel value) {
+    return com.smartbox.investory.longterm.infrastructure.InterestTreatment.valueOf(value.name());
+  }
+
+  private static InterestTreatmentModel interest(
+      com.smartbox.investory.longterm.infrastructure.InterestTreatment value) {
+    return InterestTreatmentModel.valueOf(value.name());
+  }
 }

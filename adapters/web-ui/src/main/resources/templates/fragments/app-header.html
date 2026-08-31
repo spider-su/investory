@@ -43,7 +43,8 @@
 </header>
 
 <header th:fragment="planningHeader(activePage, portfolioId, summaryLabel, kpi1Label, kpi1Value, kpi1Meta, kpi2Label, kpi2Value, kpi2Meta, kpi3Label, kpi3Value, kpi3Meta, currency, actionMode, contextPlanId, contextScenario)"
-        class="iv-topbar iv-app-header-shell iv-planning-topbar">
+        class="iv-topbar iv-app-header-shell iv-planning-topbar"
+        th:classappend="${actionMode == 'assets'} ? ' iv-planning-topbar--assets' : ''">
     <div class="iv-topbar__primary iv-app-header-shell__primary iv-planning-topbar__primary">
         <div class="iv-brand">
             <div class="iv-brand__content">
@@ -63,10 +64,10 @@
             <div class="iv-planning-summary__item"><strong th:text="${kpi3Value}">0</strong><span><span th:text="${kpi3Label}">KPI 3</span><small th:if="${kpi3Meta != null}" th:text="${kpi3Meta}"></small></span></div>
         </div>
         <div class="iv-topbar__meta iv-app-header-shell__actions iv-planning-actions" th:if="${actionMode == 'assets'}" aria-label="Long-term asset actions">
-            <a class="iv-topbar-action-button iv-badge iv-badge--muted" th:href="@{/long-term-assets/new/real-estate(portfolioId=${portfolioId})}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Rental</a>
-            <a class="iv-topbar-action-button iv-badge iv-badge--muted" th:href="@{/long-term-assets/new/bond(portfolioId=${portfolioId})}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Bond</a>
-            <a class="iv-topbar-action-button iv-badge iv-badge--muted" th:href="@{/long-term-assets/new/cash-reserve(portfolioId=${portfolioId})}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Cash</a>
-            <span class="iv-topbar-action-button iv-planning-base" th:text="${currency}">PLN</span>
+            <a class="iv-topbar-action-button iv-badge iv-badge--muted" aria-label="Create rental asset" th:href="@{/long-term-assets/new/real-estate(portfolioId=${portfolioId})}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Rental</a>
+            <a class="iv-topbar-action-button iv-badge iv-badge--muted" aria-label="Create bond asset" th:href="@{/long-term-assets/new/bond(portfolioId=${portfolioId})}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Bond</a>
+            <a class="iv-topbar-action-button iv-badge iv-badge--muted" aria-label="Create cash reserve" th:href="@{/long-term-assets/new/cash-reserve(portfolioId=${portfolioId})}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Cash</a>
+            <a class="iv-topbar-action-button iv-badge iv-badge--muted" aria-label="Create other asset" th:href="@{/long-term-assets/new(portfolioId=${portfolioId})}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Other asset</a>
         </div>
         <div class="iv-topbar__meta iv-app-header-shell__actions iv-planning-actions iv-planning-actions--single" th:if="${actionMode == 'simulation'}" aria-label="Simulation actions">
             <a th:if="${simulationPage != null}" class="iv-topbar-action-button iv-badge iv-badge--muted" th:href="@{/simulation/plan/edit(portfolioId=${portfolioId},planId=${contextPlanId},planningDisplayCurrency=${currency},selectedScenario=${contextScenario},customInflationDelta=${simulationPage == null ? null : simulationPage.customScenario.inflation},customRentalGrowthDelta=${simulationPage == null ? null : simulationPage.customScenario.rentalGrowth},customBondReturnDelta=${simulationPage == null ? null : simulationPage.customScenario.bondReturn},customEquityReturnDelta=${simulationPage == null ? null : simulationPage.customScenario.equityReturn},customSpendingGrowthDelta=${simulationPage == null ? null : simulationPage.customScenario.spendingGrowth})}">Edit plan</a>

@@ -31,10 +31,21 @@ public record CashFlowSectionView(
   }
 
   /** Structured names used by the funding summary; values share one temporal basis. */
-  public BigDecimal spendingRequired() { return spending; }
-  public BigDecimal incomeAmount() { return cashIncome; }
-  public BigDecimal capitalFundingAmount() { return capitalFunding(); }
-  public BigDecimal unfundedAmount() { return remainingUnfunded(); }
+  public BigDecimal spendingRequired() {
+    return spending;
+  }
+
+  public BigDecimal incomeAmount() {
+    return cashIncome;
+  }
+
+  public BigDecimal capitalFundingAmount() {
+    return capitalFunding();
+  }
+
+  public BigDecimal unfundedAmount() {
+    return remainingUnfunded();
+  }
 
   public BigDecimal incomeUsed() {
     if (spending == null || cashIncome == null) return BigDecimal.ZERO;
@@ -69,8 +80,11 @@ public record CashFlowSectionView(
 
   public BigDecimal fundingCoveragePercent() {
     if (spending == null || spending.signum() == 0) return BigDecimal.valueOf(100);
-    return fundedAmount().min(spending).max(BigDecimal.ZERO)
-        .multiply(BigDecimal.valueOf(100)).divide(spending, 1, RoundingMode.HALF_UP);
+    return fundedAmount()
+        .min(spending)
+        .max(BigDecimal.ZERO)
+        .multiply(BigDecimal.valueOf(100))
+        .divide(spending, 1, RoundingMode.HALF_UP);
   }
 
   public BigDecimal incomeFundingPercent() {
@@ -95,14 +109,26 @@ public record CashFlowSectionView(
       BigDecimal fundingGap,
       BigDecimal fundingSurplus,
       BigDecimal unfunded) {
-    this(year, income, funding, destinations, cashIncome, spending, fundingGap,
-        fundingSurplus, unfunded, false);
+    this(
+        year,
+        income,
+        funding,
+        destinations,
+        cashIncome,
+        spending,
+        fundingGap,
+        fundingSurplus,
+        unfunded,
+        false);
   }
 
   private BigDecimal percentOfSpending(BigDecimal amount) {
     if (spending == null || spending.signum() == 0 || amount == null) return BigDecimal.ZERO;
-    return amount.max(BigDecimal.ZERO).min(spending)
-        .multiply(BigDecimal.valueOf(100)).divide(spending, 1, RoundingMode.HALF_UP);
+    return amount
+        .max(BigDecimal.ZERO)
+        .min(spending)
+        .multiply(BigDecimal.valueOf(100))
+        .divide(spending, 1, RoundingMode.HALF_UP);
   }
 
   public CashFlowSectionView {
@@ -123,10 +149,14 @@ public record CashFlowSectionView(
       Map<Integer, PlanningTimelineMoney> moneyByYear,
       SimulationAssumptions assumptions,
       Function<BigDecimal, BigDecimal> displayMoney) {
-    var row = timeline.years().stream()
-        .filter(year -> year.state() == PlanningTimelineState.LIVE)
-        .findFirst().orElse(null);
-    return row == null ? null : forYear(row, moneyByYear.get(row.year()), assumptions, displayMoney);
+    var row =
+        timeline.years().stream()
+            .filter(year -> year.state() == PlanningTimelineState.LIVE)
+            .findFirst()
+            .orElse(null);
+    return row == null
+        ? null
+        : forYear(row, moneyByYear.get(row.year()), assumptions, displayMoney);
   }
 
   public static CashFlowSectionView forYear(
@@ -156,20 +186,19 @@ public record CashFlowSectionView(
           income,
           "Salary",
           "Cash",
-          age < assumptions.retirementAge() ? displayMoney.apply(assumptions.annualEmploymentIncome()) : null,
+          age < assumptions.retirementAge()
+              ? displayMoney.apply(assumptions.annualEmploymentIncome())
+              : null,
           "INCOME");
       add(
           income,
           "Pension",
           "Cash",
-          age >= assumptions.pensionStartAge() ? displayMoney.apply(assumptions.annualPension()) : null,
+          age >= assumptions.pensionStartAge()
+              ? displayMoney.apply(assumptions.annualPension())
+              : null,
           "INCOME");
-      add(
-          income,
-          "Events",
-          "Cash",
-          eventIncome(assumptions, row.year(), displayMoney),
-          "INCOME");
+      add(income, "Events", "Cash", eventIncome(assumptions, row.year(), displayMoney), "INCOME");
     }
 
     var funding = new ArrayList<CashFlowFlowView>();
@@ -185,12 +214,10 @@ public record CashFlowSectionView(
     if (incomeTotal != null && spending != null && incomeTotal.compareTo(spending) > 0)
       add(destinations, "Cash", "Surplus", incomeTotal.subtract(spending), "DESTINATION");
 
-    BigDecimal fundingGap = money.fundingGap() == null
-        ? positiveDifference(spending, incomeTotal)
-        : money.fundingGap();
-    BigDecimal economicSources = income.stream()
-        .map(CashFlowFlowView::amount)
-        .reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal fundingGap =
+        money.fundingGap() == null ? positiveDifference(spending, incomeTotal) : money.fundingGap();
+    BigDecimal economicSources =
+        income.stream().map(CashFlowFlowView::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
     return new CashFlowSectionView(
         row.year(),
         withShares(income, economicSources),
@@ -212,28 +239,29 @@ public record CashFlowSectionView(
 
   private static BigDecimal eventIncome(
       SimulationAssumptions assumptions, int year, Function<BigDecimal, BigDecimal> displayMoney) {
-    BigDecimal amount = assumptions.futureEvents().stream()
-        .filter(event -> event.year() == year && event.type() == SimulationEventType.ONE_OFF_INCOME)
-        .map(SimulationEvent::amount)
-        .reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal amount =
+        assumptions.futureEvents().stream()
+            .filter(
+                event -> event.year() == year && event.type() == SimulationEventType.ONE_OFF_INCOME)
+            .map(SimulationEvent::amount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
     return displayMoney.apply(amount);
   }
 
   private static void add(
-      List<CashFlowFlowView> flows,
-      String source,
-      String target,
-      BigDecimal amount,
-      String type) {
+      List<CashFlowFlowView> flows, String source, String target, BigDecimal amount, String type) {
     if (amount != null && amount.signum() > 0)
       flows.add(new CashFlowFlowView(source, target, amount, type, null));
   }
 
-  private static List<CashFlowFlowView> withShares(
-      List<CashFlowFlowView> flows, BigDecimal scale) {
+  private static List<CashFlowFlowView> withShares(List<CashFlowFlowView> flows, BigDecimal scale) {
     if (scale == null || scale.signum() == 0) {
-      return flows.stream().map(flow -> new CashFlowFlowView(
-          flow.source(), flow.target(), flow.amount(), flow.type(), BigDecimal.ZERO)).toList();
+      return flows.stream()
+          .map(
+              flow ->
+                  new CashFlowFlowView(
+                      flow.source(), flow.target(), flow.amount(), flow.type(), BigDecimal.ZERO))
+          .toList();
     }
     return flows.stream()
         .map(
@@ -243,8 +271,9 @@ public record CashFlowSectionView(
                     flow.target(),
                     flow.amount(),
                     flow.type(),
-                    flow.amount().multiply(BigDecimal.valueOf(100)).divide(scale, 1, RoundingMode.HALF_UP)))
+                    flow.amount()
+                        .multiply(BigDecimal.valueOf(100))
+                        .divide(scale, 1, RoundingMode.HALF_UP)))
         .toList();
   }
-
 }

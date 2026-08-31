@@ -78,6 +78,11 @@ negative investor cash flows, withdrawals as positive cash flows, and includes t
 an initial negative flow and ending value as the terminal positive flow. Missing/invalid boundaries
 produce an unavailable metric, not zero.
 
+Dashboard TWR and XIRR read base-currency, non-cash-only daily boundaries from
+`v_portfolio_performance_daily`; application code must not rebuild them by summing raw
+account-currency `account_daily` rows. Selected-period and fixed KPI-start returns therefore share
+the same reporting boundary and differ only by their requested dates.
+
 ### Reconciliation materialization boundary
 
 Reconciliation keeps expensive independent reconstruction separate from cheap reporting joins:

@@ -176,6 +176,27 @@ class ForwardSimulationContextFactoryTest {
   }
 
   @Test
+  void rebasingCarriesAccumulatedRetirementSpendingIntoTheFirstForwardYear() {
+    SimulationAssumptions original =
+        assumptions(2020, 60, 70)
+            .withRetirementAge(65)
+            .withRecurringSpending(new BigDecimal("100"))
+            .withInflationRate(BigDecimal.ZERO)
+            .withSpendingGrowthSpread(new BigDecimal("0.10"));
+
+    SimulationAssumptions rebased =
+        factory("2026-06-01T00:00:00Z")
+            .create(PROFILE, original)
+            .forwardAssumptions()
+            .orElseThrow();
+
+    assertEquals(
+        0,
+        new BigDecimal("121")
+            .compareTo(rebased.annualLivingExpenses().add(rebased.annualDiscretionaryExpenses())));
+  }
+
+  @Test
   void horizonBoundaryHasNoFullProjectedYear() {
     SimulationAssumptions original = assumptions(2026, 40, 42);
 

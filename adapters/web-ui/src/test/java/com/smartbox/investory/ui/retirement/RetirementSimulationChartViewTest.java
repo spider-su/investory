@@ -19,7 +19,9 @@ class RetirementSimulationChartViewTest {
     var money = money("240000", "176578", "938900", "620700");
     var timeline =
         new PlanningTimeline(
-            List.of(new PlanningTimelineYear(2027, 42, PlanningTimelineState.PROJECTED, null, null, null)));
+            List.of(
+                new PlanningTimelineYear(
+                    2027, 42, PlanningTimelineState.PROJECTED, null, null, null)));
 
     var point =
         RetirementSimulationChartView.from(timeline, Map.of(2027, money)).points().getFirst();
@@ -60,8 +62,7 @@ class RetirementSimulationChartViewTest {
             .withPensionStartAge(67);
 
     var chart =
-        RetirementSimulationChartView.from(
-            new PlanningTimeline(List.of()), Map.of(), assumptions);
+        RetirementSimulationChartView.from(new PlanningTimeline(List.of()), Map.of(), assumptions);
 
     assertEquals(2045, chart.retirementYear());
     assertEquals(2052, chart.pensionStartYear());
@@ -70,9 +71,33 @@ class RetirementSimulationChartViewTest {
   private static PlanningTimelineMoney money(
       String spending, String income, String bondsEnd, String equitiesEnd) {
     return new PlanningTimelineMoney(
-        bd(spending), bd(income), null, null, null, null, null, null, null, null, null, null,
-        null, null, null, bd(bondsEnd), null, bd(equitiesEnd), null, null, null, null, null, null,
-        null, null, null);
+        bd(spending),
+        bd(income),
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        bd(bondsEnd),
+        null,
+        bd(equitiesEnd),
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null);
   }
 
   private static BigDecimal bd(String value) {

@@ -84,8 +84,8 @@
                           th:text="${stats.totalProfit >= 0 ? 'PROFIT' : 'LOSS'}">PROFIT</span>
                 </div>
                 <div class="iv-metric-context__panel" role="tooltip">
-                    <strong>Investment result</strong>
-                    <span>Realized and unrealized result plus income, after the existing portfolio adjustments.</span>
+                    <strong th:text="${selectedPeriod.label() + ' investment result'}">YTD investment result</strong>
+                    <span>Cash-flow-neutral profit and return for the selected period, after portfolio adjustments.</span>
                     <div class="iv-brand__summary-row"><span>Return since KPI start</span><span th:if="${dashboard.performance.summary.kpiReturn.status.name() == 'AVAILABLE'}" th:text="${dashboard.performance.summary.formatSignedPercent(dashboard.performance.summary.kpiReturn.value * 100)}">Unavailable</span><span th:unless="${dashboard.performance.summary.kpiReturn.status.name() == 'AVAILABLE'}">Unavailable</span></div>
                     <div class="iv-brand__summary-row"><span>Annualized return</span><span th:if="${dashboard.performance.summary.annualizedReturn.status.name() == 'AVAILABLE'}" th:text="${dashboard.performance.summary.formatSignedPercent(dashboard.performance.summary.annualizedReturn.value * 100) + ' p.a.'}">Unavailable</span><span th:unless="${dashboard.performance.summary.annualizedReturn.status.name() == 'AVAILABLE'}">Unavailable</span></div>
                     <small th:if="${dashboard.performance.summary.kpiStartDate != null}" th:text="${'KPI start · ' + dashboard.performance.summary.kpiStartDate}">KPI start · 2026-01-01</small>
@@ -1384,29 +1384,6 @@
     document.getElementById('performance-metric')?.addEventListener('change', () => setPerformanceMode(document.querySelector('.js-performance-mode.btn-primary')?.dataset.mode || 'overview'));
     document.getElementById('monthly-granularity')?.addEventListener('change', () => setPerformanceMode(document.querySelector('.js-performance-mode.btn-primary')?.dataset.mode || 'overview'));
     setPerformanceMode('overview');
-
-    // Performance Board uses the canonical monthly return contributions and P/L curves prepared by
-    // BenchmarkService. It changes presentation only: line values are cumulative and bar values are
-    // period values, so external funding never becomes investment performance.
-    const performanceBoardEl = document.getElementById('performance-board-chart');
-    let performanceBoardChart = null;
-    const performanceBoardState = { metric: 'return', style: 'line' };
-    const performanceBoardPalette = ['#4f46e5', '#16a34a', '#f59e0b', '#dc2626', '#0891b2', '#7c3aed', '#0f766e', '#be123c'];
-    const performanceBoardNames = new Map(([[${benchmark != null ? benchmark.accountOptions : null}]] || []).map(account => [Number(account.id), account.name]));
-
-    function performanceBoardSelectedIds() {
-        return new Set(Array.from(document.querySelectorAll('.js-performance-board-account:checked')).map(input => Number(input.value)));
-    }
-
-    function performanceBoardUpdateAccountLabel() {
-        const inputs = Array.from(document.querySelectorAll('.js-performance-board-account'));
-        const selected = inputs.filter(input => input.checked).length;
-        const label = document.getElementById('performance-board-account-label');
-        if (!label) return;
-        label.textContent = selected === inputs.length
-            ? 'Accounts: All (' + inputs.length + ')'
-            : selected + ' of ' + inputs.length;
-    }
 
     const performanceBoardEl = document.getElementById('performance-board-chart');
     let performanceBoardChart = null;

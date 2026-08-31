@@ -13,6 +13,83 @@ import org.junit.jupiter.api.Test;
 
 class SimulationSensitivityAnalysisServiceTest {
   @Test
+  void contextKeepsProjectionBaseAsSensitivityBaseline() {
+    InvestmentProfile profile = profileWithMarketBuckets();
+    SimulationAssumptions assumptions = SimulationAssumptions.defaults(profile, 40, 80, 2027);
+    SimulationResult baseResult =
+        new SimulationResult(SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of());
+    SimulationDecisionSummary baseSummary = SimulationDecisionSummary.from(baseResult, assumptions);
+    SimulationEvaluation canonicalBase =
+        new SimulationEvaluation(
+            baseResult, baseSummary, PlanSustainabilityAssessment.from(baseSummary));
+    SimulationEvaluationService evaluations = mock(SimulationEvaluationService.class);
+    FrozenBondCashFlowProjection bondProjection = mock(FrozenBondCashFlowProjection.class);
+    when(evaluations.evaluate(any(), any(), eq(SimulationScenario.BASE), eq(2026)))
+        .thenReturn(canonicalBase);
+
+    SimulationSensitivityAnalysis result =
+        new SimulationSensitivityAnalysisService(evaluations, bondProjection)
+            .analyze(new DeterministicAnalysisContext(profile, assumptions, 2026, canonicalBase));
+
+    assertSame(canonicalBase, result.baseline());
+    assertFalse(
+        result.drivers().stream()
+            .anyMatch(driver -> driver.driver() == SensitivityDriver.FIXED_INCOME_RETURN));
+    verify(evaluations, never()).evaluate(profile, assumptions, SimulationScenario.BASE);
+    verify(evaluations, atLeastOnce())
+        .evaluate(eq(profile), any(), eq(SimulationScenario.BASE), eq(2026));
+    verify(bondProjection).hasPlanBondReturnExposure(profile, 2026, 2026);
+  }
+
+  @Test
+  void invalidPerturbationIsUnavailableWithoutCrashingAnalysis() {
+    InvestmentProfile profile = profileWithMarketBuckets();
+    SimulationAssumptions assumptions =
+        SimulationAssumptions.defaults(profile, 40, 80, 2027).toBuilder()
+            .inflationRate(new BigDecimal("-0.995"))
+            .build();
+
+    SimulationSensitivityAnalysis result =
+        new SimulationSensitivityAnalysisService(mockEvaluations(assumptions))
+            .analyze(profile, assumptions);
+
+    SimulationSensitivityResult inflation =
+        result.drivers().stream()
+            .filter(driver -> driver.driver() == SensitivityDriver.INFLATION)
+            .findFirst()
+            .orElseThrow();
+    assertNull(inflation.lowerEvaluation());
+    assertNull(inflation.lowerTestedValue());
+    assertNotNull(inflation.higherEvaluation());
+  }
+
+  @Test
+  void simulatorIllegalArgumentExceptionIsNotHiddenAsUnavailable() {
+    InvestmentProfile profile = profileWithMarketBuckets();
+    SimulationAssumptions assumptions = SimulationAssumptions.defaults(profile, 40, 80, 2027);
+    SimulationResult baseResult =
+        new SimulationResult(SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of());
+    SimulationDecisionSummary baseSummary = SimulationDecisionSummary.from(baseResult, assumptions);
+    SimulationEvaluation canonicalBase =
+        new SimulationEvaluation(
+            baseResult, baseSummary, PlanSustainabilityAssessment.from(baseSummary));
+    SimulationEvaluationService evaluations = mock(SimulationEvaluationService.class);
+    when(evaluations.evaluate(any(), any(), eq(SimulationScenario.BASE), eq(2026)))
+        .thenThrow(new IllegalArgumentException("simulator defect"));
+
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                new SimulationSensitivityAnalysisService(evaluations)
+                    .analyze(
+                        new DeterministicAnalysisContext(
+                            profile, assumptions, 2026, canonicalBase)));
+
+    assertEquals("simulator defect", error.getMessage());
+  }
+
+  @Test
   void failureRiskRanksAheadOfWealthOnlyImpact() {
     SimulationAssumptions assumptions =
         SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80);
@@ -22,10 +99,20 @@ class SimulationSensitivityAnalysisServiceTest {
     SimulationSensitivityAnalysis result =
         new SimulationSensitivityAnalysisService(evaluations).analyze(profile, assumptions);
 
-    assertEquals(SensitivityDriver.RECURRING_SPENDING, result.drivers().get(0).driver());
+    var recurring =
+        result.drivers().stream()
+            .filter(driver -> driver.driver() == SensitivityDriver.RECURRING_SPENDING)
+            .findFirst()
+            .orElseThrow();
+    assertEquals(SensitivityDriverCategory.PLANNING_LEVER, recurring.driver().category());
     assertEquals(
-        SensitivityDriverCategory.POLICY_LEVER, SensitivityDriver.RECURRING_SPENDING.category());
-    assertEquals(SensitivityImpact.CRITICAL, result.drivers().get(0).impact());
+        SensitivityImpact.CRITICAL,
+        SimulationSensitivityAnalysisService.classify(
+            evaluation(true, "0", "5", "100000", "100000"),
+            evaluation(false, "1000", "5", "90000", "90000"),
+            BigDecimal.ZERO,
+            new BigDecimal("-10000"),
+            new BigDecimal("-10000")));
     verify(evaluations, atLeast(1)).evaluate(eq(profile), any(), eq(SimulationScenario.BASE));
   }
 
@@ -53,143 +140,92 @@ class SimulationSensitivityAnalysisServiceTest {
             .analyze(profile, assumptions);
 
     assertEquals(
-        List.of(
-            SensitivityDriver.RECURRING_SPENDING,
-            SensitivityDriver.SPENDING_GROWTH),
-        result.drivers().stream().map(SimulationSensitivityResult::driver).toList());
+        java.util.Set.of(
+            SensitivityDriver.SPENDING_GROWTH,
+            SensitivityDriver.INFLATION,
+            SensitivityDriver.RECURRING_SPENDING),
+        result.drivers().stream()
+            .map(SimulationSensitivityResult::driver)
+            .collect(java.util.stream.Collectors.toSet()));
   }
 
   @Test
-  void mixedRealEstateOverridesDoNotCreateMarketReturnRisk() {
+  void growthCellsExposeEffectiveRateNotStoredSpread() {
     SimulationAssumptions assumptions =
-        SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80);
-    InvestmentProfile profile = profileWithRealEstateAssets(true);
-
+        SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80, 2027);
+    SimulationEvaluationService evaluations = mockEvaluations(assumptions);
     SimulationSensitivityAnalysis result =
-        new SimulationSensitivityAnalysisService(mockEvaluations(assumptions))
-            .analyze(profile, assumptions);
+        new SimulationSensitivityAnalysisService(evaluations)
+            .analyze(profileWithRentalIncome(), assumptions);
 
-    assertTrue(
+    var rental =
         result.drivers().stream()
-            .noneMatch(driver -> driver.driver() == SensitivityDriver.REAL_ESTATE_RETURN));
+            .filter(driver -> driver.driver() == SensitivityDriver.RENTAL_INCOME_GROWTH)
+            .findFirst()
+            .orElseThrow();
+    assertEquals(0, rental.lowerTestedValue().compareTo(new BigDecimal("0.04")));
+    assertEquals(0, rental.baseTestedValue().compareTo(new BigDecimal("0.045")));
+    assertEquals(0, rental.higherTestedValue().compareTo(new BigDecimal("0.05")));
   }
 
   @Test
-  void allRealEstateOverridesOmitGlobalReturnRisk() {
-    SimulationAssumptions assumptions =
-        SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80);
-    InvestmentProfile profile = profileWithRealEstateAssets(false);
-
-    SimulationSensitivityAnalysis result =
-        new SimulationSensitivityAnalysisService(mockEvaluations(assumptions))
-            .analyze(profile, assumptions);
-
-    assertTrue(
-        result.drivers().stream()
-            .noneMatch(driver -> driver.driver() == SensitivityDriver.REAL_ESTATE_RETURN));
+  void positiveReserveMovementIsNotReserveDeterioration() {
+    SimulationEvaluation base = evaluation(true, "0", "5", "100000", "100000");
+    SimulationEvaluation improved = evaluation(true, "0", "6", "100000", "100000");
+    assertEquals(
+        SensitivityImpact.NEGLIGIBLE,
+        SimulationSensitivityAnalysisService.classify(
+            base, improved, new BigDecimal("1"), BigDecimal.ZERO, BigDecimal.ZERO));
   }
 
   @Test
-  void partialExplicitRealEstatePeriodDoesNotCreateMarketReturnRisk() {
-    SimulationAssumptions assumptions =
-        SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80);
-    ProjectedLongTermAsset asset =
-        new ProjectedLongTermAsset(
-            1L,
-            "Property",
-            com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel.REAL_ESTATE,
-            EconomicBucket.REAL_ESTATE,
-            CurrencyType.PLN,
-            new BigDecimal("100"),
-            Liquidity.ILLIQUID,
-            List.of(
-                new ProjectedLongTermAsset.Period(
-                    LocalDate.of(2026, 1, 1),
-                    LocalDate.of(2030, 12, 31),
-                    BigDecimal.ZERO,
-                    BigDecimal.ZERO,
-                    new BigDecimal("0.04"))),
-            null,
-            null,
-            null,
-            BigDecimal.ZERO);
-    InvestmentProfile profile = profileWithRealEstateAssets(List.of(asset));
+  void harmfulComparisonHonorsFailureTransitionAndMagnitude() {
+    SimulationEvaluation base = evaluation(true, "0", "5", "100000", "100000");
+    SimulationEvaluation failsSlightly = evaluation(false, "100", "5", "90000", "90000");
+    SimulationEvaluation failsMore = evaluation(false, "1000", "4", "80000", "80000");
 
-    SimulationSensitivityAnalysis result =
-        new SimulationSensitivityAnalysisService(mockEvaluations(assumptions))
-            .analyze(profile, assumptions);
-
+    assertTrue(SimulationSensitivityAnalysisService.compareHarm(failsSlightly, base, base) > 0);
     assertTrue(
-        result.drivers().stream()
-            .noneMatch(driver -> driver.driver() == SensitivityDriver.REAL_ESTATE_RETURN));
+        SimulationSensitivityAnalysisService.compareHarm(failsMore, failsSlightly, base) > 0);
+    assertEquals(
+        0, SimulationSensitivityAnalysisService.compareHarm(failsSlightly, failsSlightly, base));
   }
 
   @Test
-  void globalRealEstatePeriodBeforeExplicitOverrideDoesNotCreateMarketReturnRisk() {
-    SimulationAssumptions assumptions =
-        SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80);
-    ProjectedLongTermAsset asset =
-        new ProjectedLongTermAsset(
-            1L,
-            "Property",
-            com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel.REAL_ESTATE,
-            EconomicBucket.REAL_ESTATE,
-            CurrencyType.PLN,
-            new BigDecimal("100"),
-            Liquidity.ILLIQUID,
-            List.of(
-                new ProjectedLongTermAsset.Period(
-                    LocalDate.of(2026, 1, 1),
-                    LocalDate.of(2030, 12, 31),
-                    BigDecimal.ZERO,
-                    BigDecimal.ZERO,
-                    BigDecimal.ZERO),
-                new ProjectedLongTermAsset.Period(
-                    LocalDate.of(2031, 1, 1),
-                    null,
-                    BigDecimal.ZERO,
-                    BigDecimal.ZERO,
-                    new BigDecimal("0.04"))),
-            null,
-            null,
-            null,
-            BigDecimal.ZERO);
-
-    SimulationSensitivityAnalysis result =
-        new SimulationSensitivityAnalysisService(mockEvaluations(assumptions))
-            .analyze(profileWithRealEstateAssets(List.of(asset)), assumptions);
-
-    assertTrue(
-        result.drivers().stream()
-            .noneMatch(driver -> driver.driver() == SensitivityDriver.REAL_ESTATE_RETURN));
-  }
-
-  @Test
-  void globalRealEstateRiskIsNotAddedForAssetsWithoutForwardValue() {
-    SimulationAssumptions assumptions =
-        SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80);
-    ProjectedLongTermAsset asset =
-        new ProjectedLongTermAsset(
-            1L,
-            "Historical property",
-            com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel.REAL_ESTATE,
-            EconomicBucket.REAL_ESTATE,
-            CurrencyType.PLN,
-            BigDecimal.ZERO,
-            Liquidity.ILLIQUID,
-            List.of(),
-            null,
-            null,
-            null,
-            BigDecimal.ZERO);
-
-    SimulationSensitivityAnalysis result =
-        new SimulationSensitivityAnalysisService(mockEvaluations(assumptions))
-            .analyze(profileWithRealEstateAssets(List.of(asset)), assumptions);
-
-    assertTrue(
-        result.drivers().stream()
-            .noneMatch(driver -> driver.driver() == SensitivityDriver.REAL_ESTATE_RETURN));
+  void impactThresholdsUseDirectionalBoundaries() {
+    SimulationEvaluation base = evaluation(true, "0", "5", "100000", "100000");
+    assertEquals(
+        SensitivityImpact.NEGLIGIBLE,
+        SimulationSensitivityAnalysisService.classify(
+            base, base, new BigDecimal("-0.499"), BigDecimal.ZERO, BigDecimal.ZERO));
+    assertEquals(
+        SensitivityImpact.MODERATE,
+        SimulationSensitivityAnalysisService.classify(
+            base, base, new BigDecimal("-0.5"), BigDecimal.ZERO, BigDecimal.ZERO));
+    assertEquals(
+        SensitivityImpact.MODERATE,
+        SimulationSensitivityAnalysisService.classify(
+            base, base, new BigDecimal("-0.501"), BigDecimal.ZERO, BigDecimal.ZERO));
+    assertEquals(
+        SensitivityImpact.NEGLIGIBLE,
+        SimulationSensitivityAnalysisService.classify(
+            base, base, BigDecimal.ZERO, new BigDecimal("-999"), BigDecimal.ZERO));
+    assertEquals(
+        SensitivityImpact.MODERATE,
+        SimulationSensitivityAnalysisService.classify(
+            base, base, BigDecimal.ZERO, new BigDecimal("-1000"), BigDecimal.ZERO));
+    assertEquals(
+        SensitivityImpact.MODERATE,
+        SimulationSensitivityAnalysisService.classify(
+            base, base, BigDecimal.ZERO, new BigDecimal("-1001"), BigDecimal.ZERO));
+    assertEquals(
+        SensitivityImpact.NEGLIGIBLE,
+        SimulationSensitivityAnalysisService.classify(
+            base, base, BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("-999")));
+    assertEquals(
+        SensitivityImpact.WEALTH_ONLY,
+        SimulationSensitivityAnalysisService.classify(
+            base, base, BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("-1000")));
   }
 
   @Test
@@ -330,6 +366,42 @@ class SimulationSensitivityAnalysisServiceTest {
                 BigDecimal.ONE,
                 Liquidity.LIQUID)),
         List.of());
+  }
+
+  private static InvestmentProfile profileWithRentalIncome() {
+    return new InvestmentProfile(
+        1L,
+        CurrencyType.PLN,
+        BigDecimal.ZERO,
+        new BigDecimal("100"),
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        List.of(),
+        List.of(),
+        new BigDecimal("100"),
+        BigDecimal.ZERO);
+  }
+
+  private static SimulationEvaluation evaluation(
+      boolean sustainable, String unfunded, String reserve, String spendable, String wealth) {
+    return new SimulationEvaluation(
+        null,
+        null,
+        new PlanSustainabilityAssessment(
+            sustainable
+                ? PlanSustainabilityStatus.SUSTAINABLE
+                : PlanSustainabilityStatus.UNSUSTAINABLE,
+            null,
+            null,
+            new BigDecimal(unfunded),
+            new BigDecimal(reserve),
+            new BigDecimal(spendable),
+            new BigDecimal(wealth),
+            true));
   }
 
   private static InvestmentProfile profileWithRealEstateAssets(boolean mixed) {

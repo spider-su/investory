@@ -1,22 +1,28 @@
-model = "gpt-5.6-luna"
+# Investory needs stronger architectural and financial reasoning.
+model = "gpt-5.6-sol"
+review_model = "gpt-5.6-sol"
 
 # Biggest reasoning-token control.
 model_reasoning_effort = "medium"
 
 # Keep final responses short.
 model_verbosity = "low"
-
-# Don't spend output on conversational style.
+model_reasoning_summary = "concise"
 personality = "none"
 
-# Optional: prevents accidentally huge AGENTS.md context.
-project_doc_max_bytes = 12000
+# Allows global + root + potential module-specific AGENTS.md files.
+project_doc_max_bytes = 32768
 
+# Fast local autonomy, still restricted to the workspace.
 approval_policy = "never"
 sandbox_mode = "workspace-write"
 
+web_search = "cached"
+
 [windows]
+# Keep until elevated sandbox setup works reliably.
 sandbox = "unelevated"
 
 [sandbox_workspace_write]
+# Required for Maven dependencies and some Testcontainers operations.
 network_access = true

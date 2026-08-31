@@ -3,7 +3,6 @@ package com.smartbox.investory.ui.retirement;
 import com.smartbox.investory.retirement.api.InvestmentProfileFacade;
 import com.smartbox.investory.retirement.planning.*;
 import com.smartbox.investory.retirement.planning.PlanningPresentation;
-import com.smartbox.investory.retirement.profile.InvestmentProfile;
 import com.smartbox.investory.retirement.simulation.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.ui.presentation.UiPresentation;
@@ -162,64 +161,66 @@ public class RetirementSimulationController {
     // links. Saved plans remain the canonical source when an override is not supplied.
     int requestedCurrentAge = currentAge == null ? 40 : currentAge;
     int requestedEndAge = endAge == null ? 95 : endAge;
-    var profile = profiles.loadProfile(portfolioId);
     Long selectedPlanId = plans.resolvePlanId(portfolioId, planId).orElse(null);
-    var base =
-        selectedPlanId == null
-            ? SimulationAssumptions.defaults(
-                profile, requestedCurrentAge, requestedEndAge, Year.now(clock).getValue())
-            : plans.assumptions(portfolioId, selectedPlanId);
+    var projectionInput =
+        projections.loadInput(portfolioId, selectedPlanId, requestedCurrentAge, requestedEndAge);
+    var profile = projectionInput.profile();
+    var base = projectionInput.assumptions();
     CurrencyType submittedCurrency =
         submittedPlanningDisplayCurrency == null
             ? planningDisplayCurrency
             : submittedPlanningDisplayCurrency;
     var assumptions =
-        new SimulationAssumptions(
-            currentAge == null ? base.currentAge() : currentAge,
-            endAge == null ? base.endAge() : endAge,
-            resolveDisplayedMoney(
-                annualExpenses,
-                annualExpensesCanonical,
-                annualExpensesEdited,
-                submittedCurrency,
-                base.annualLivingExpenses()),
-            percentInputToRate(inflation, base.inflationRate()),
-            base.cashReturnRate(),
-            base.fixedIncomeReturnRate(),
-            percentInputToRate(equityReturn, base.equityReturnRate()),
-            base.realEstateReturnRate(),
-            base.otherReturnRate(),
-            pensionStartAge == null ? base.pensionStartAge() : pensionStartAge,
-            resolveDisplayedMoney(
-                annualPension,
-                annualPensionCanonical,
-                annualPensionEdited,
-                submittedCurrency,
-                base.annualPension()),
-            percentInputToRate(capitalGainTaxRate, base.capitalGainTaxRate()),
-            base.startYear(),
-            resolveDisplayedMoney(
-                discretionaryExpenses,
-                discretionaryExpensesCanonical,
-                discretionaryExpensesEdited,
-                submittedCurrency,
-                base.annualDiscretionaryExpenses()),
-            base.futureEvents(),
-            percentInputToRate(rentalIncomeGrowthSpread, base.rentalIncomeGrowthSpread()),
-            percentInputToRate(spendingGrowthSpread, base.spendingGrowthSpread()),
-            fundingStrategy == null ? base.fundingStrategy() : fundingStrategy,
-            safeReserveYears == null ? base.safeReserveYears() : safeReserveYears,
-            equityHarvestMinimumReturn == null ? base.equityHarvestMinimumReturnRate()
-                : percentInputToRate(equityHarvestMinimumReturn, base.equityHarvestMinimumReturnRate()),
-            equityGainHarvest == null ? base.equityGainHarvestRate()
-                : percentInputToRate(equityGainHarvest, base.equityGainHarvestRate()),
-            allowEmergencyEquityWithdrawal == null ? base.allowEmergencyEquityWithdrawal()
-                : allowEmergencyEquityWithdrawal,
-            base.retirementAge(),
-            base.annualEmploymentIncome(),
-            base.annualPreRetirementContribution(),
-            fundingOrder == null ? base.fundingOrder() : parseFundingOrder(fundingOrder),
-            base.expenseProfile());
+        base.toBuilder()
+            .currentAge(currentAge == null ? base.currentAge() : currentAge)
+            .endAge(endAge == null ? base.endAge() : endAge)
+            .annualLivingExpenses(
+                resolveDisplayedMoney(
+                    annualExpenses,
+                    annualExpensesCanonical,
+                    annualExpensesEdited,
+                    submittedCurrency,
+                    base.annualLivingExpenses()))
+            .inflationRate(percentInputToRate(inflation, base.inflationRate()))
+            .equityReturnRate(percentInputToRate(equityReturn, base.equityReturnRate()))
+            .pensionStartAge(pensionStartAge == null ? base.pensionStartAge() : pensionStartAge)
+            .annualPension(
+                resolveDisplayedMoney(
+                    annualPension,
+                    annualPensionCanonical,
+                    annualPensionEdited,
+                    submittedCurrency,
+                    base.annualPension()))
+            .capitalGainTaxRate(percentInputToRate(capitalGainTaxRate, base.capitalGainTaxRate()))
+            .annualDiscretionaryExpenses(
+                resolveDisplayedMoney(
+                    discretionaryExpenses,
+                    discretionaryExpensesCanonical,
+                    discretionaryExpensesEdited,
+                    submittedCurrency,
+                    base.annualDiscretionaryExpenses()))
+            .rentalIncomeGrowthSpread(
+                percentInputToRate(rentalIncomeGrowthSpread, base.rentalIncomeGrowthSpread()))
+            .spendingGrowthSpread(
+                percentInputToRate(spendingGrowthSpread, base.spendingGrowthSpread()))
+            .fundingStrategy(fundingStrategy == null ? base.fundingStrategy() : fundingStrategy)
+            .safeReserveYears(safeReserveYears == null ? base.safeReserveYears() : safeReserveYears)
+            .equityHarvestMinimumReturnRate(
+                equityHarvestMinimumReturn == null
+                    ? base.equityHarvestMinimumReturnRate()
+                    : percentInputToRate(
+                        equityHarvestMinimumReturn, base.equityHarvestMinimumReturnRate()))
+            .equityGainHarvestRate(
+                equityGainHarvest == null
+                    ? base.equityGainHarvestRate()
+                    : percentInputToRate(equityGainHarvest, base.equityGainHarvestRate()))
+            .allowEmergencyEquityWithdrawal(
+                allowEmergencyEquityWithdrawal == null
+                    ? base.allowEmergencyEquityWithdrawal()
+                    : allowEmergencyEquityWithdrawal)
+            .fundingOrder(
+                fundingOrder == null ? base.fundingOrder() : parseFundingOrder(fundingOrder))
+            .build();
     CustomScenarioInput customInput =
         CustomScenarioInput.parse(
             customInflationDelta,
@@ -230,13 +231,16 @@ public class RetirementSimulationController {
     SimulationCustomDeltas customDeltas =
         selectedScenario == SimulationScenario.CUSTOM && !customInput.errors().isEmpty()
             ? SimulationCustomDeltas.zero()
-            : selectedScenario == SimulationScenario.CUSTOM ? customInput.deltas()
-            : SimulationCustomDeltas.zero();
+            : selectedScenario == SimulationScenario.CUSTOM
+                ? customInput.deltas()
+                : SimulationCustomDeltas.zero();
     if (selectedScenario == SimulationScenario.CUSTOM && customInput.errors().isEmpty()) {
       try {
-        SimulationScenarioSettings.forScenario(SimulationScenario.CUSTOM, assumptions, customDeltas);
+        SimulationScenarioSettings.forScenario(
+            SimulationScenario.CUSTOM, assumptions, customDeltas);
       } catch (IllegalArgumentException ex) {
-        customInput = customInput.withError("effective", "Effective assumption is outside the valid range.");
+        customInput =
+            customInput.withError("effective", "Effective assumption is outside the valid range.");
         customDeltas = SimulationCustomDeltas.zero();
       }
     }
@@ -276,28 +280,67 @@ public class RetirementSimulationController {
         new LinkedHashMap<>(
             planningPresentation.displaySummaries(summaries, planningDisplayCurrency));
     var timelineMoney =
-        planningPresentation.displayTimelineMoney(timeline, planningDisplayCurrency, projectedAssumptions);
+        planningPresentation.displayTimelineMoney(
+            timeline, planningDisplayCurrency, projectedAssumptions);
     var yearlySummaries = RetirementYearSummaryView.from(timeline, timelineMoney);
-    var toDisplayMoney = (java.util.function.Function<BigDecimal, BigDecimal>)
-        amount -> displayMoney(amount, planningDisplayCurrency);
-    var cashFlow = CashFlowSectionView.from(
-        timeline, timelineMoney, projectedAssumptions, toDisplayMoney);
-    var chartData = RetirementSimulationChartView.from(timeline, timelineMoney, projectedAssumptions);
-    var planTimeline = PlanTimelineView.from(
-        timeline, yearlySummaries, timelineMoney, projectedAssumptions,
-        chartData.retirementYear(), chartData.pensionStartYear(), Year.now(clock).getValue(),
-        toDisplayMoney);
-    var scenarioAssumptions = ScenarioEffectiveAssumptions.forScenario(
-        projection.projectedProfile(), projectedAssumptions, selectedScenario,
-        projection.forward().context().asOfYear(), customDeltas);
-    Map<String, ScenarioObservation> observations = scenarioObservations == null
-        ? Map.of() : scenarioObservations.load(portfolioId, timeline);
-    var scenarioAssumptionRows = List.of(
-        assumption("Inflation", projectedAssumptions.inflationRate(), scenarioAssumptions.inflationRate(), false, observations),
-        assumption("Rental growth", projectedAssumptions.effectiveRentalIncomeGrowthRate(), scenarioAssumptions.rentalIncomeGrowthRate(), true, observations),
-        assumption("Bond return", scenarioAssumptions.planBondReturnRate(), scenarioAssumptions.bondReturnRate(), true, observations),
-        assumption("Equity return", projectedAssumptions.equityReturnRate(), scenarioAssumptions.equityReturnRate(), true, observations),
-        assumption("Spending growth", projectedAssumptions.effectiveSpendingGrowthRate(), scenarioAssumptions.spendingGrowthRate(), false, observations));
+    var toDisplayMoney =
+        (java.util.function.Function<BigDecimal, BigDecimal>)
+            amount -> displayMoney(amount, planningDisplayCurrency);
+    var cashFlow =
+        CashFlowSectionView.from(timeline, timelineMoney, projectedAssumptions, toDisplayMoney);
+    var chartData =
+        RetirementSimulationChartView.from(timeline, timelineMoney, projectedAssumptions);
+    var planTimeline =
+        PlanTimelineView.from(
+            timeline,
+            yearlySummaries,
+            timelineMoney,
+            projectedAssumptions,
+            chartData.retirementYear(),
+            chartData.pensionStartYear(),
+            Year.now(clock).getValue(),
+            toDisplayMoney);
+    var scenarioAssumptions =
+        ScenarioEffectiveAssumptions.forScenario(
+            projection.projectedProfile(),
+            projectedAssumptions,
+            selectedScenario,
+            projection.forward().context().asOfYear(),
+            customDeltas);
+    Map<String, ScenarioObservation> observations =
+        scenarioObservations == null ? Map.of() : scenarioObservations.load(portfolioId, timeline);
+    var scenarioAssumptionRows =
+        List.of(
+            assumption(
+                "Inflation",
+                projectedAssumptions.inflationRate(),
+                scenarioAssumptions.inflationRate(),
+                false,
+                observations),
+            assumption(
+                "Rental growth",
+                projectedAssumptions.effectiveRentalIncomeGrowthRate(),
+                scenarioAssumptions.rentalIncomeGrowthRate(),
+                true,
+                observations),
+            assumption(
+                "Bond return",
+                scenarioAssumptions.planBondReturnRate(),
+                scenarioAssumptions.bondReturnRate(),
+                true,
+                observations),
+            assumption(
+                "Equity return",
+                projectedAssumptions.equityReturnRate(),
+                scenarioAssumptions.equityReturnRate(),
+                true,
+                observations),
+            assumption(
+                "Spending growth",
+                projectedAssumptions.effectiveSpendingGrowthRate(),
+                scenarioAssumptions.spendingGrowthRate(),
+                false,
+                observations));
     model.addAttribute(
         "simulationPage",
         new RetirementSimulationPageView(
@@ -330,16 +373,29 @@ public class RetirementSimulationController {
   }
 
   private BigDecimal displayMoney(BigDecimal amount, CurrencyType currency) {
-    return planningPresentation.toDisplay(amount, currency)
+    return planningPresentation
+        .toDisplay(amount, currency)
         .setScale(2, RoundingMode.HALF_UP)
         .stripTrailingZeros();
   }
 
-  private ScenarioAssumptionView assumption(String name, BigDecimal plan, BigDecimal effective,
-      boolean higherIsBetter, Map<String, ScenarioObservation> observations) {
-    ScenarioObservation observation = observations.getOrDefault(name, ScenarioObservation.unavailable());
-    return ScenarioAssumptionView.of(name, plan, effective, higherIsBetter, observation.value(),
-        observation.label(), observation.period(), observation.availability());
+  private ScenarioAssumptionView assumption(
+      String name,
+      BigDecimal plan,
+      BigDecimal effective,
+      boolean higherIsBetter,
+      Map<String, ScenarioObservation> observations) {
+    ScenarioObservation observation =
+        observations.getOrDefault(name, ScenarioObservation.unavailable());
+    return ScenarioAssumptionView.of(
+        name,
+        plan,
+        effective,
+        higherIsBetter,
+        observation.value(),
+        observation.label(),
+        observation.period(),
+        observation.availability());
   }
 
   @GetMapping("/simulation/plan/edit")
@@ -364,10 +420,13 @@ public class RetirementSimulationController {
     model.addAttribute(
         "displayProfile", planningPresentation.displayProfile(profile, planningDisplayCurrency));
     model.addAttribute("assumptions", assumptions);
-    model.addAttribute("planningBuckets", PlanningBuckets.fromProfileWithBondYield(profile,
-        assumptions.equityReturnRate(),
-        PlanningBuckets.baseBondYield(
-            profile, assumptions.fixedIncomeReturnRate(), assumptions.startYear())));
+    model.addAttribute(
+        "planningBuckets",
+        PlanningBuckets.fromProfileWithBondYield(
+            profile,
+            assumptions.equityReturnRate(),
+            PlanningBuckets.baseBondYield(
+                profile, assumptions.fixedIncomeReturnRate(), assumptions.startYear())));
     model.addAttribute("planStartYear", assumptions.planStartYear());
     model.addAttribute("ageAtPlanStart", assumptions.ageAtPlanStart());
     model.addAttribute(
@@ -390,7 +449,9 @@ public class RetirementSimulationController {
       model.addAttribute("plannedBondIncome", preview.plannedBondIncome());
       model.addAttribute(
           "plannedEmploymentIncome",
-          preview.firstProjectedYear() == null ? null : preview.firstProjectedYear().employmentIncome());
+          preview.firstProjectedYear() == null
+              ? null
+              : preview.firstProjectedYear().employmentIncome());
       model.addAttribute("plannedInvestmentProfit", preview.plannedInvestmentProfit());
       model.addAttribute("plannedCapitalizedBondReturn", preview.plannedCapitalizedBondReturn());
       model.addAttribute("plannedPension", preview.plannedPension());
@@ -420,7 +481,8 @@ public class RetirementSimulationController {
             planningDisplayCurrency));
     model.addAttribute(
         "displayAnnualLivingCosts",
-        planningPresentation.toDisplay(assumptions.annualLivingExpenses(), planningDisplayCurrency));
+        planningPresentation.toDisplay(
+            assumptions.annualLivingExpenses(), planningDisplayCurrency));
     model.addAttribute(
         "displayMonthlyTotalCosts",
         planningPresentation.toDisplay(
@@ -477,16 +539,21 @@ public class RetirementSimulationController {
               PlanEditorInput.from(fields), base, planningDisplayCurrency);
       return org.springframework.http.ResponseEntity.ok(
           java.util.Map.of(
-              "available", true,
-              "warnings", normalized.warnings(),
+              "available",
+              true,
+              "warnings",
+              normalized.warnings(),
               "derived",
               java.util.Map.of(
                   "effectiveRentalGrowth",
-                  UiPresentation.percentage(normalized.assumptions().effectiveRentalIncomeGrowthRate()),
+                  UiPresentation.percentage(
+                      normalized.assumptions().effectiveRentalIncomeGrowthRate()),
                   "effectiveSpendingGrowth",
-                  UiPresentation.percentage(normalized.assumptions().effectiveSpendingGrowthRate())),
+                  UiPresentation.percentage(
+                      normalized.assumptions().effectiveSpendingGrowthRate())),
               "preview",
-              planEditorPreview.preview(profile, normalized.assumptions(), planningDisplayCurrency)));
+              planEditorPreview.preview(
+                  profile, normalized.assumptions(), planningDisplayCurrency)));
     } catch (IllegalArgumentException | ArithmeticException ex) {
       return org.springframework.http.ResponseEntity.unprocessableEntity()
           .body(java.util.Map.of("available", false, "error", ex.getMessage()));
@@ -503,43 +570,49 @@ public class RetirementSimulationController {
                 monthly.multiply(BigDecimal.valueOf(12)),
                 displayCurrency,
                 base.annualLivingExpenses());
-    return new SimulationAssumptions(
-        integer(
-            fields,
-            "ageAtPlanStart",
-            integer(fields, "currentAge", base.ageAtPlanStart())),
-        integer(fields, "endAge", base.endAge()),
-        annualLiving,
-        percent(fields, "inflation", base.inflationRate()),
-        percent(fields, "cashReturn", base.cashReturnRate()),
-        percent(fields, "fixedIncomeReturn", base.fixedIncomeReturnRate()),
-        percent(fields, "equityReturn", base.equityReturnRate()),
-        base.realEstateReturnRate(),
-        percent(fields, "otherReturn", base.otherReturnRate()),
-        integer(fields, "pensionStartAge", base.pensionStartAge()),
-        money(fields, "annualPension", displayCurrency, base.annualPension()),
-        percent(fields, "capitalGainTaxRate", base.capitalGainTaxRate()),
-        integer(fields, "startYear", base.planStartYear()),
-        money(fields, "discretionaryExpenses", displayCurrency, base.annualDiscretionaryExpenses()),
-        base.futureEvents(),
-        percent(fields, "rentalIncomeGrowthSpread", base.rentalIncomeGrowthSpread()),
-        percent(fields, "spendingGrowthSpread", base.spendingGrowthSpread()),
-        enumValue(
-            fields, "fundingStrategy", SimulationFundingStrategy.class, base.fundingStrategy()),
-        decimalOr(fields, "safeReserveYears", base.safeReserveYears()),
-        percent(fields, "equityHarvestMinimumReturn", base.equityHarvestMinimumReturnRate()),
-        percent(fields, "equityGainHarvest", base.equityGainHarvestRate()),
-        booleanValue(
-            fields, "allowEmergencyEquityWithdrawal", base.allowEmergencyEquityWithdrawal()),
-        integer(fields, "retirementAge", base.retirementAge()),
-        money(fields, "annualEmploymentIncome", displayCurrency, base.annualEmploymentIncome()),
-        money(
-            fields,
-            "annualPreRetirementContribution",
-            displayCurrency,
-            base.annualPreRetirementContribution()),
-        base.fundingOrder(),
-        base.expenseProfile());
+    return base.toBuilder()
+        .currentAge(
+            integer(fields, "ageAtPlanStart", integer(fields, "currentAge", base.ageAtPlanStart())))
+        .endAge(integer(fields, "endAge", base.endAge()))
+        .annualLivingExpenses(annualLiving)
+        .inflationRate(percent(fields, "inflation", base.inflationRate()))
+        .cashReturnRate(percent(fields, "cashReturn", base.cashReturnRate()))
+        .fixedIncomeReturnRate(percent(fields, "fixedIncomeReturn", base.fixedIncomeReturnRate()))
+        .equityReturnRate(percent(fields, "equityReturn", base.equityReturnRate()))
+        .otherReturnRate(percent(fields, "otherReturn", base.otherReturnRate()))
+        .pensionStartAge(integer(fields, "pensionStartAge", base.pensionStartAge()))
+        .annualPension(money(fields, "annualPension", displayCurrency, base.annualPension()))
+        .capitalGainTaxRate(percent(fields, "capitalGainTaxRate", base.capitalGainTaxRate()))
+        .startYear(integer(fields, "startYear", base.planStartYear()))
+        .annualDiscretionaryExpenses(
+            money(
+                fields,
+                "discretionaryExpenses",
+                displayCurrency,
+                base.annualDiscretionaryExpenses()))
+        .rentalIncomeGrowthSpread(
+            percent(fields, "rentalIncomeGrowthSpread", base.rentalIncomeGrowthSpread()))
+        .spendingGrowthSpread(percent(fields, "spendingGrowthSpread", base.spendingGrowthSpread()))
+        .fundingStrategy(
+            enumValue(
+                fields, "fundingStrategy", SimulationFundingStrategy.class, base.fundingStrategy()))
+        .safeReserveYears(decimalOr(fields, "safeReserveYears", base.safeReserveYears()))
+        .equityHarvestMinimumReturnRate(
+            percent(fields, "equityHarvestMinimumReturn", base.equityHarvestMinimumReturnRate()))
+        .equityGainHarvestRate(percent(fields, "equityGainHarvest", base.equityGainHarvestRate()))
+        .allowEmergencyEquityWithdrawal(
+            booleanValue(
+                fields, "allowEmergencyEquityWithdrawal", base.allowEmergencyEquityWithdrawal()))
+        .retirementAge(integer(fields, "retirementAge", base.retirementAge()))
+        .annualEmploymentIncome(
+            money(fields, "annualEmploymentIncome", displayCurrency, base.annualEmploymentIncome()))
+        .annualPreRetirementContribution(
+            money(
+                fields,
+                "annualPreRetirementContribution",
+                displayCurrency,
+                base.annualPreRetirementContribution()))
+        .build();
   }
 
   private BigDecimal money(
@@ -663,6 +736,40 @@ public class RetirementSimulationController {
     model.addAttribute("planningPresentation", planningPresentation);
     model.addAttribute("selectedPlanId", planId);
     model.addAttribute("selectedScenario", selectedScenario);
+    YearReviewMode reviewMode = planningTimeline.reviewMode(portfolioId, year);
+    if (reviewMode == YearReviewMode.LIVE) {
+      var projection = projections.load(portfolioId, planId);
+      PlanningTimeline timeline =
+          planningTimeline.loadForwardTimeline(
+              portfolioId,
+              profile,
+              projection.forward(),
+              selectedScenario,
+              SimulationCustomDeltas.zero());
+      PlanningTimelineYear liveRow =
+          timeline.years().stream()
+              .filter(row -> row.state() == PlanningTimelineState.LIVE && row.year() == year)
+              .findFirst()
+              .orElseThrow(() -> new IllegalArgumentException("Live planning year is unavailable"));
+      var money =
+          planningPresentation
+              .displayTimelineMoney(
+                  timeline, planningDisplayCurrency, projection.projectedAssumptions())
+              .get(year);
+      model.addAttribute(
+          "liveReview",
+          new LiveYearReviewView(
+              year,
+              liveRow.age(),
+              planningDisplayCurrency,
+              liveRow.current(),
+              money,
+              projection.projectedAssumptions()));
+      return "live-year-review";
+    }
+    if (reviewMode == YearReviewMode.NONE)
+      throw new org.springframework.web.server.ResponseStatusException(
+          org.springframework.http.HttpStatus.NOT_FOUND, "Projected year has no review");
     var stored = planningTimeline.pastYear(portfolioId, year);
     model.addAttribute(
         "planningYear", planningPresentation.display(stored, planningDisplayCurrency));
@@ -743,8 +850,11 @@ public class RetirementSimulationController {
       @PathVariable Long planId,
       @RequestParam(defaultValue = "PLN") CurrencyType planningDisplayCurrency,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
-    plans.rebaseline(portfolioId, planId,
-        PlanningBaseline.fromProfile(profiles.loadProfile(portfolioId), Year.now(clock).getValue()));
+    plans.rebaseline(
+        portfolioId,
+        planId,
+        PlanningBaseline.fromProfile(
+            profiles.loadProfile(portfolioId), Year.now(clock).getValue()));
     return simulationRedirect(portfolioId, planId, planningDisplayCurrency, selectedScenario);
   }
 
@@ -937,7 +1047,10 @@ public class RetirementSimulationController {
         inflation,
         rentalIncomeGrowthSpread,
         spendingGrowthSpread,
-        "SOURCE", null, "SOURCE", null,
+        "SOURCE",
+        null,
+        "SOURCE",
+        null,
         fundingStrategy,
         "CASH,BONDS,STOCKS",
         "",
@@ -1001,7 +1114,10 @@ public class RetirementSimulationController {
         inflation,
         rentalIncomeGrowthSpread,
         spendingGrowthSpread,
-        "SOURCE", null, "SOURCE", null,
+        "SOURCE",
+        null,
+        "SOURCE",
+        null,
         fundingStrategy,
         "CASH,BONDS,STOCKS",
         "",
@@ -1072,7 +1188,9 @@ public class RetirementSimulationController {
     int effectiveAgeAtPlanStart = ageAtPlanStart == null ? currentAge : ageAtPlanStart;
     int effectiveStartYear =
         startYear == null
-            ? (storedAssumptions == null ? Year.now(clock).getValue() : storedAssumptions.startYear())
+            ? (storedAssumptions == null
+                ? Year.now(clock).getValue()
+                : storedAssumptions.startYear())
             : startYear;
     validateTemporalAnchor(
         effectiveStartYear,
@@ -1084,100 +1202,164 @@ public class RetirementSimulationController {
             ? annualExpenses
             : monthlyLivingCosts.multiply(BigDecimal.valueOf(12));
     if (annualLivingCostsInput == null) annualLivingCostsInput = BigDecimal.ZERO;
+    SimulationAssumptions saveBase =
+        storedAssumptions == null
+            ? SimulationAssumptions.defaults(effectiveAgeAtPlanStart, endAge, effectiveStartYear)
+            : storedAssumptions;
     SimulationAssumptions legacyAssumptions =
-        new SimulationAssumptions(
-                effectiveAgeAtPlanStart,
-                endAge,
+        saveBase.toBuilder()
+            .currentAge(effectiveAgeAtPlanStart)
+            .endAge(endAge)
+            .annualLivingExpenses(
                 planningPresentation.fromDisplay(
-                    annualLivingCostsInput, planningDisplayCurrency, BigDecimal.ZERO),
-                percentInputToRate(inflation, BigDecimal.ZERO),
-                percentInputToRate(cashReturn, BigDecimal.ZERO),
-                percentInputToRate(fixedIncomeReturn, BigDecimal.ZERO),
-                percentInputToRate(equityReturn, BigDecimal.ZERO),
+                    annualLivingCostsInput, planningDisplayCurrency, BigDecimal.ZERO))
+            .inflationRate(percentInputToRate(inflation, BigDecimal.ZERO))
+            .cashReturnRate(percentInputToRate(cashReturn, BigDecimal.ZERO))
+            .fixedIncomeReturnRate(percentInputToRate(fixedIncomeReturn, BigDecimal.ZERO))
+            .equityReturnRate(percentInputToRate(equityReturn, BigDecimal.ZERO))
+            .realEstateReturnRate(
                 percentInputToRate(
                     realEstateReturn,
                     storedAssumptions == null
                         ? BigDecimal.ZERO
-                        : storedAssumptions.realEstateReturnRate()),
-                percentInputToRate(otherReturn, BigDecimal.ZERO),
-                normalizePensionStartAge(pensionStartAge),
+                        : storedAssumptions.realEstateReturnRate()))
+            .otherReturnRate(percentInputToRate(otherReturn, BigDecimal.ZERO))
+            .pensionStartAge(normalizePensionStartAge(pensionStartAge))
+            .annualPension(
                 planningPresentation.fromDisplay(
-                    annualPension, planningDisplayCurrency, BigDecimal.ZERO),
-                percentInputToRate(capitalGainTaxRate, BigDecimal.ZERO),
-                effectiveStartYear,
+                    annualPension, planningDisplayCurrency, BigDecimal.ZERO))
+            .capitalGainTaxRate(percentInputToRate(capitalGainTaxRate, BigDecimal.ZERO))
+            .startYear(effectiveStartYear)
+            .annualDiscretionaryExpenses(
                 planningPresentation.fromDisplay(
-                    discretionaryExpenses, planningDisplayCurrency, BigDecimal.ZERO),
-                existingEvents,
+                    discretionaryExpenses, planningDisplayCurrency, BigDecimal.ZERO))
+            .futureEvents(existingEvents)
+            .rentalIncomeGrowthSpread(
                 percentInputToRate(
-                    rentalIncomeGrowthSpread, SimulationAssumptions.DEFAULT_RENTAL_INCOME_GROWTH_SPREAD),
+                    rentalIncomeGrowthSpread,
+                    SimulationAssumptions.DEFAULT_RENTAL_INCOME_GROWTH_SPREAD))
+            .spendingGrowthSpread(
                 percentInputToRate(
-                    spendingGrowthSpread, SimulationAssumptions.DEFAULT_SPENDING_GROWTH_SPREAD),
-                SimulationFundingStrategy.SIMPLE_WATERFALL,
+                    spendingGrowthSpread, SimulationAssumptions.DEFAULT_SPENDING_GROWTH_SPREAD))
+            .fundingStrategy(SimulationFundingStrategy.SIMPLE_WATERFALL)
+            .safeReserveYears(
                 storedAssumptions == null
                     ? SimulationAssumptions.DEFAULT_SAFE_RESERVE_YEARS
-                    : storedAssumptions.safeReserveYears(),
+                    : storedAssumptions.safeReserveYears())
+            .equityHarvestMinimumReturnRate(
                 percentInputToRate(
                     equityHarvestMinimumReturn,
-                    SimulationAssumptions.DEFAULT_EQUITY_HARVEST_MINIMUM_RETURN_RATE),
+                    SimulationAssumptions.DEFAULT_EQUITY_HARVEST_MINIMUM_RETURN_RATE))
+            .equityGainHarvestRate(
                 percentInputToRate(
-                    equityGainHarvest, SimulationAssumptions.DEFAULT_EQUITY_GAIN_HARVEST_RATE),
-                allowEmergencyEquityWithdrawal,
-                retirementAge == null ? effectiveAgeAtPlanStart : retirementAge,
+                    equityGainHarvest, SimulationAssumptions.DEFAULT_EQUITY_GAIN_HARVEST_RATE))
+            .allowEmergencyEquityWithdrawal(allowEmergencyEquityWithdrawal)
+            .retirementAge(retirementAge == null ? effectiveAgeAtPlanStart : retirementAge)
+            .annualEmploymentIncome(
                 planningPresentation.fromDisplay(
-                    annualEmploymentIncome, planningDisplayCurrency, BigDecimal.ZERO),
+                    annualEmploymentIncome, planningDisplayCurrency, BigDecimal.ZERO))
+            .annualPreRetirementContribution(
                 planningPresentation.fromDisplay(
                     annualPreRetirementContribution, planningDisplayCurrency, BigDecimal.ZERO))
-            .withFundingOrder(parseFundingOrder(fundingOrder))
-            .withExpenseProfile(ExpenseProfile.EMPTY);
+            .fundingOrder(parseFundingOrder(fundingOrder))
+            .expenseProfile(ExpenseProfile.EMPTY)
+            .projectedIncomePolicy(
+                new ProjectedIncomePolicy(
+                    ProjectedIncomePolicy.IncomeMode.valueOf(
+                        rentalIncomeMode.trim().toUpperCase(java.util.Locale.ROOT)),
+                    planningPresentation.fromDisplay(
+                        manualRentalIncome, planningDisplayCurrency, null),
+                    ProjectedIncomePolicy.IncomeMode.valueOf(
+                        bondCashIncomeMode.trim().toUpperCase(java.util.Locale.ROOT)),
+                    planningPresentation.fromDisplay(
+                        manualBondCashIncome, planningDisplayCurrency, null)))
+            .build();
     SimulationAssumptions a =
         monthlyLivingCosts == null && annualExpenses != null
-            ? legacyAssumptions.withExpenseProfile(parseExpenseProfile(expenseProfile))
+            ? legacyAssumptions.toBuilder()
+                .expenseProfile(parseExpenseProfile(expenseProfile))
+                .build()
             : planEditorInputNormalizer
-            .normalize(
-                PlanEditorInput.from(
-                    Map.ofEntries(
-                        Map.entry("ageAtPlanStart", String.valueOf(effectiveAgeAtPlanStart)),
-                        Map.entry("startYear", String.valueOf(effectiveStartYear)),
-                        Map.entry("endAge", String.valueOf(endAge)),
-                        Map.entry("retirementAge", String.valueOf(retirementAge == null ? effectiveAgeAtPlanStart : retirementAge)),
-                        Map.entry("monthlyLivingCosts", String.valueOf(monthlyLivingCosts == null ? annualLivingCostsInput.divide(BigDecimal.valueOf(12), 12, java.math.RoundingMode.HALF_UP) : monthlyLivingCosts)),
-                        Map.entry("discretionaryExpenses", String.valueOf(discretionaryExpenses)),
-                        Map.entry("inflation", String.valueOf(inflation)),
-                        Map.entry("rentalIncomeGrowthSpread", String.valueOf(rentalIncomeGrowthSpread)),
-                        Map.entry("spendingGrowthSpread", String.valueOf(spendingGrowthSpread)),
-                        Map.entry("rentalIncomeMode", rentalIncomeMode),
-                        Map.entry("manualRentalIncome", String.valueOf(manualRentalIncome == null ? "" : manualRentalIncome)),
-                        Map.entry("bondCashIncomeMode", bondCashIncomeMode),
-                        Map.entry("manualBondCashIncome", String.valueOf(manualBondCashIncome == null ? "" : manualBondCashIncome)),
-                        Map.entry("equityReturn", String.valueOf(equityReturn)),
-                        Map.entry("safeReserveYears", String.valueOf(safeReserveYears)),
-                        Map.entry("equityHarvestThreshold", String.valueOf(equityHarvestMinimumReturn)),
-                        Map.entry("equityHarvestShare", String.valueOf(equityGainHarvest)),
-                        Map.entry("allowEmergencyEquityWithdrawal", String.valueOf(allowEmergencyEquityWithdrawal)),
-                        Map.entry("annualEmploymentIncome", String.valueOf(annualEmploymentIncome)),
-                        Map.entry("annualPreRetirementContribution", String.valueOf(annualPreRetirementContribution)),
-                        Map.entry("annualPension", String.valueOf(annualPension)),
-                        Map.entry("pensionStartAge", pensionStartAge == null ? "" : String.valueOf(pensionStartAge)),
-                        Map.entry("expenseProfile", expenseProfile))),
-                legacyAssumptions,
-                planningDisplayCurrency)
-            .assumptions();
+                .normalize(
+                    PlanEditorInput.from(
+                        Map.ofEntries(
+                            Map.entry("ageAtPlanStart", String.valueOf(effectiveAgeAtPlanStart)),
+                            Map.entry("startYear", String.valueOf(effectiveStartYear)),
+                            Map.entry("endAge", String.valueOf(endAge)),
+                            Map.entry(
+                                "retirementAge",
+                                String.valueOf(
+                                    retirementAge == null
+                                        ? effectiveAgeAtPlanStart
+                                        : retirementAge)),
+                            Map.entry(
+                                "monthlyLivingCosts",
+                                String.valueOf(
+                                    monthlyLivingCosts == null
+                                        ? annualLivingCostsInput.divide(
+                                            BigDecimal.valueOf(12),
+                                            12,
+                                            java.math.RoundingMode.HALF_UP)
+                                        : monthlyLivingCosts)),
+                            Map.entry(
+                                "discretionaryExpenses", String.valueOf(discretionaryExpenses)),
+                            Map.entry("inflation", String.valueOf(inflation)),
+                            Map.entry(
+                                "rentalIncomeGrowthSpread",
+                                String.valueOf(rentalIncomeGrowthSpread)),
+                            Map.entry("spendingGrowthSpread", String.valueOf(spendingGrowthSpread)),
+                            Map.entry("rentalIncomeMode", rentalIncomeMode),
+                            Map.entry(
+                                "manualRentalIncome",
+                                String.valueOf(
+                                    manualRentalIncome == null ? "" : manualRentalIncome)),
+                            Map.entry("bondCashIncomeMode", bondCashIncomeMode),
+                            Map.entry(
+                                "manualBondCashIncome",
+                                String.valueOf(
+                                    manualBondCashIncome == null ? "" : manualBondCashIncome)),
+                            Map.entry("equityReturn", String.valueOf(equityReturn)),
+                            Map.entry("safeReserveYears", String.valueOf(safeReserveYears)),
+                            Map.entry(
+                                "equityHarvestThreshold",
+                                String.valueOf(equityHarvestMinimumReturn)),
+                            Map.entry("equityHarvestShare", String.valueOf(equityGainHarvest)),
+                            Map.entry(
+                                "allowEmergencyEquityWithdrawal",
+                                String.valueOf(allowEmergencyEquityWithdrawal)),
+                            Map.entry(
+                                "annualEmploymentIncome", String.valueOf(annualEmploymentIncome)),
+                            Map.entry(
+                                "annualPreRetirementContribution",
+                                String.valueOf(annualPreRetirementContribution)),
+                            Map.entry("annualPension", String.valueOf(annualPension)),
+                            Map.entry(
+                                "pensionStartAge",
+                                pensionStartAge == null ? "" : String.valueOf(pensionStartAge)),
+                            Map.entry("expenseProfile", expenseProfile))),
+                    legacyAssumptions,
+                    planningDisplayCurrency)
+                .assumptions();
     // Existing-plan edits preserve its reviewed baseline. Live state becomes a frozen baseline
     // only when creating a plan or explicitly rebaselining it.
     var liveProfile = profiles.loadProfile(portfolioId);
-    var planningBaseline = planId != null && !saveAs
-        ? plans.baseline(portfolioId, planId)
-        : liveProfile == null
-            ? null : PlanningBaseline.fromProfile(liveProfile, Year.now(clock).getValue());
+    var planningBaseline =
+        planId != null && !saveAs
+            ? plans.baseline(portfolioId, planId)
+            : liveProfile == null
+                ? null
+                : PlanningBaseline.fromProfile(liveProfile, Year.now(clock).getValue());
     Long savedPlanId;
     if (planningBaseline == null) {
-      savedPlanId = planId == null || saveAs
-          ? plans.createId(portfolioId, name, a)
-          : plans.updateId(portfolioId, planId, name, a);
+      savedPlanId =
+          planId == null || saveAs
+              ? plans.createId(portfolioId, name, a)
+              : plans.updateId(portfolioId, planId, name, a);
     } else {
-      savedPlanId = planId == null || saveAs
-          ? plans.createId(portfolioId, name, a, planningBaseline)
-          : plans.updateId(portfolioId, planId, name, a, planningBaseline);
+      savedPlanId =
+          planId == null || saveAs
+              ? plans.createId(portfolioId, name, a, planningBaseline)
+              : plans.updateId(portfolioId, planId, name, a, planningBaseline);
     }
     CurrencyType returnCurrency =
         returnPlanningDisplayCurrency == null

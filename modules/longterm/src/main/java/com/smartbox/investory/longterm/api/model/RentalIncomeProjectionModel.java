@@ -88,7 +88,9 @@ public final class RentalIncomeProjectionModel {
         income,
         gross,
         expenses,
-        asset.rentalTaxPaidByTenant() ? ZERO : taxBase(asset).multiply(rate(asset)));
+        asset.rentalTaxPaidByTenant()
+            ? ZERO
+            : taxBase(asset).multiply(TWELVE).multiply(rate(asset)));
   }
 
   /** Calculates covered rental economics. Rental tax is prorated by covered calendar days. */
@@ -142,7 +144,7 @@ public final class RentalIncomeProjectionModel {
         contract.rentalTaxPaidByTenant() == null
             ? asset.rentalTaxPaidByTenant()
             : contract.rentalTaxPaidByTenant();
-    return tenant ? ZERO : taxBase(asset).multiply(rate(asset));
+    return tenant ? ZERO : taxBase(asset).multiply(TWELVE).multiply(rate(asset));
   }
 
   private static BigDecimal taxBase(LongTermAssetProjectionModel asset) {
@@ -193,7 +195,10 @@ public final class RentalIncomeProjectionModel {
   }
 
   private static Result result(
-      Map<CashFlowTypeModel, BigDecimal> income, BigDecimal gross, BigDecimal expenses, BigDecimal tax) {
+      Map<CashFlowTypeModel, BigDecimal> income,
+      BigDecimal gross,
+      BigDecimal expenses,
+      BigDecimal tax) {
     var e = RentalEconomicsModel.of(gross, expenses, tax);
     return new Result(income, e.grossIncome(), e.expenses(), e.tax(), e.netIncome());
   }

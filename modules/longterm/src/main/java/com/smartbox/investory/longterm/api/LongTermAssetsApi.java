@@ -1,10 +1,11 @@
 package com.smartbox.investory.longterm.api;
 
-import com.smartbox.investory.longterm.api.model.RealEstateEntryModel;
 import com.smartbox.investory.longterm.api.model.CashFlowTypeModel;
 import com.smartbox.investory.longterm.api.model.FrequencyModel;
 import com.smartbox.investory.longterm.api.model.InterestTreatmentModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
+import com.smartbox.investory.longterm.api.model.RealEstateEntryModel;
+import com.smartbox.investory.longterm.api.model.RentalContractStatusModel;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -13,6 +14,10 @@ import java.util.List;
 /** Public application contract for long-term asset management and read models. */
 public interface LongTermAssetsApi {
   List<AssetSummaryView> list(Long portfolioId, LocalDate date);
+
+  List<AssetSummaryView> archived(Long portfolioId, LocalDate date);
+
+  PageSnapshot page(Long portfolioId, LocalDate date);
 
   List<AssetGroupView> grouped(Long portfolioId, LocalDate date);
 
@@ -28,6 +33,8 @@ public interface LongTermAssetsApi {
 
   AssetView createBond(BondCommand command);
 
+  AssetView createDeposit(DepositCommand command);
+
   void update(AssetCommand command);
 
   void updateBond(BondCommand command);
@@ -35,6 +42,10 @@ public interface LongTermAssetsApi {
   void saveRealEstate(Long portfolioId, RealEstateEntryModel entry);
 
   RentalContractView createRentalContract(RentalContractCommand command);
+
+  RentalContractView updateRentalContract(UpdateRentalContractCommand command);
+
+  void deleteRentalContract(Long portfolioId, Long assetId, Long contractId);
 
   RentalContractView endRentalContract(
       Long portfolioId, Long assetId, Long contractId, LocalDate endDate);
@@ -58,9 +69,23 @@ public interface LongTermAssetsApi {
 
   void addValuation(Long portfolioId, Long id, ValuationCommand command);
 
+  void updateValuation(Long portfolioId, Long id, Long periodId, ValuationCommand command);
+
+  void deleteValuation(Long portfolioId, Long id, Long periodId);
+
   void addBondRate(Long portfolioId, Long id, BondRateCommand command);
 
+  void updateBondRate(Long portfolioId, Long id, Long periodId, BondRateCommand command);
+
+  void deleteBondRate(Long portfolioId, Long id, Long periodId);
+
   void saveRentalTaxPolicy(Long portfolioId, RentalTaxCommand command);
+
+  void updateRentalTaxPolicy(Long portfolioId, Long policyId, RentalTaxCommand command);
+
+  void deleteRentalTaxPolicy(Long portfolioId, Long policyId);
+
+  List<RentalTaxView> rentalTaxPolicies(Long portfolioId);
 
   record AssetCommand(
       Long portfolioId,
@@ -115,6 +140,18 @@ public interface LongTermAssetsApi {
       BigDecimal annualRatePercent,
       String notes) {}
 
+  record DepositCommand(
+      Long portfolioId,
+      String name,
+      CurrencyType currency,
+      BigDecimal value,
+      LocalDate acquisitionDate,
+      LocalDate maturityDate,
+      InterestTreatmentModel interestTreatment,
+      BigDecimal annualInterestRate,
+      BigDecimal taxRate,
+      String notes) {}
+
   record CashReserveCommand(
       Long portfolioId,
       Long id,
@@ -127,6 +164,42 @@ public interface LongTermAssetsApi {
   record RentalContractCommand(
       Long portfolioId,
       Long assetId,
+      String tenantName,
+      String tenantEmail,
+      String tenantPhone,
+      LocalDate startDate,
+      LocalDate endDate,
+      Boolean rentalTaxPaidByTenant,
+      boolean endCurrentContractBeforeStart,
+      List<RentalTermCommand> terms) {
+    public RentalContractCommand(
+        Long portfolioId,
+        Long assetId,
+        LocalDate startDate,
+        LocalDate endDate,
+        Boolean rentalTaxPaidByTenant,
+        List<RentalTermCommand> terms) {
+      this(
+          portfolioId,
+          assetId,
+          null,
+          null,
+          null,
+          startDate,
+          endDate,
+          rentalTaxPaidByTenant,
+          false,
+          terms);
+    }
+  }
+
+  record UpdateRentalContractCommand(
+      Long portfolioId,
+      Long assetId,
+      Long contractId,
+      String tenantName,
+      String tenantEmail,
+      String tenantPhone,
       LocalDate startDate,
       LocalDate endDate,
       Boolean rentalTaxPaidByTenant,
@@ -181,9 +254,21 @@ public interface LongTermAssetsApi {
       InterestTreatmentModel interestTreatment) {}
 
   record ValuationView(
-      LocalDate validFrom, LocalDate validTo, BigDecimal expectedAnnualGrowthRate) {}
+      Long id, LocalDate validFrom, LocalDate validTo, BigDecimal expectedAnnualGrowthRate) {
+    public ValuationView(
+        LocalDate validFrom, LocalDate validTo, BigDecimal expectedAnnualGrowthRate) {
+      this(null, validFrom, validTo, expectedAnnualGrowthRate);
+    }
+  }
 
-  record BondRateView(LocalDate validFrom, LocalDate validTo, BigDecimal annualInterestRate) {}
+  record BondRateView(
+      Long id, LocalDate validFrom, LocalDate validTo, BigDecimal annualInterestRate) {
+    public BondRateView(LocalDate validFrom, LocalDate validTo, BigDecimal annualInterestRate) {
+      this(null, validFrom, validTo, annualInterestRate);
+    }
+  }
+
+  record RentalTaxView(Long id, LocalDate validFrom, LocalDate validTo, BigDecimal rate) {}
 
   record AnnualEconomicsView(
       BigDecimal grossAnnualIncome,
@@ -245,6 +330,9 @@ public interface LongTermAssetsApi {
       AnnualEconomicsView annualEconomics,
       RealEstateGroupPlanningView realEstatePlanning) {}
 
+  record PageSnapshot(
+      List<AssetSummaryView> assets, List<AssetGroupView> groups, AggregateView aggregate) {}
+
   record DetailView(
       AssetView asset,
       AssetSummaryView summary,
@@ -257,11 +345,43 @@ public interface LongTermAssetsApi {
 
   record RentalContractView(
       Long id,
+      String tenantName,
+      String tenantEmail,
+      String tenantPhone,
       LocalDate startDate,
       LocalDate endDate,
       LocalDate terminatedDate,
+      LocalDate effectiveEndDate,
+      RentalContractStatusModel status,
       Boolean rentalTaxPaidByTenant,
-      List<RentalTermView> terms) {}
+      List<RentalTermView> terms) {
+    public RentalContractView(
+        Long id,
+        LocalDate startDate,
+        LocalDate endDate,
+        LocalDate terminatedDate,
+        Boolean rentalTaxPaidByTenant,
+        List<RentalTermView> terms) {
+      this(
+          id,
+          null,
+          null,
+          null,
+          startDate,
+          endDate,
+          terminatedDate,
+          earlier(endDate, terminatedDate),
+          null,
+          rentalTaxPaidByTenant,
+          terms);
+    }
+
+    private static LocalDate earlier(LocalDate expectedEnd, LocalDate termination) {
+      if (expectedEnd == null) return termination;
+      if (termination == null) return expectedEnd;
+      return expectedEnd.isBefore(termination) ? expectedEnd : termination;
+    }
+  }
 
   record RentalTermView(
       CashFlowTypeModel type, BigDecimal amount, FrequencyModel frequency, boolean paidByTenant) {}

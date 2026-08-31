@@ -34,8 +34,14 @@ class SimulationTemplateContractTest {
         () -> assertTrue(html.contains("data-chart-panel=\"LIQUID_CAPITAL\"")),
         () -> assertTrue(html.contains("aria-selected=\"true\"")),
         () -> assertTrue(html.contains("aria-selected=\"false\"")),
-        () -> assertTrue(html.contains("aria-selected=\"true\" aria-controls=\"liquid-capital-chart-panel\"")),
-        () -> assertTrue(html.contains("data-chart-panel=\"CASH_FLOW\" aria-labelledby=\"simulation-chart-title\" hidden")),
+        () ->
+            assertTrue(
+                html.contains(
+                    "aria-selected=\"true\" aria-controls=\"liquid-capital-chart-panel\"")),
+        () ->
+            assertTrue(
+                html.contains(
+                    "data-chart-panel=\"CASH_FLOW\" aria-labelledby=\"simulation-chart-title\" hidden")),
         () -> assertTrue(html.contains("id=\"simulation-chart\"")),
         () -> assertTrue(html.contains("liquid-capital-chart")),
         () -> assertTrue(html.contains("iv-simulation-chart-layout")),
@@ -66,7 +72,8 @@ class SimulationTemplateContractTest {
         () -> assertTrue(html.contains("title=\"View historical year review\"")),
         () -> assertTrue(html.contains("portfolioId=${simulationPage.profile.portfolioId}")),
         () -> assertTrue(html.contains("planId=${simulationPage.selectedPlanId}")),
-        () -> assertTrue(html.contains("planningDisplayCurrency=${simulationPage.displayCurrency}")),
+        () ->
+            assertTrue(html.contains("planningDisplayCurrency=${simulationPage.displayCurrency}")),
         () -> assertTrue(html.contains("selectedScenario=${simulationPage.selectedScenario}")),
         () -> assertTrue(html.contains("customInflationDelta")),
         () -> assertTrue(html.contains("customRentalGrowthDelta")),
@@ -76,9 +83,18 @@ class SimulationTemplateContractTest {
         () -> assertTrue(html.contains("summary.state == 'Projected' ? summary.status : '—'")),
         () -> assertFalse(html.contains("year == 2025")),
         () -> assertFalse(html.contains("year == 2026")),
-        () -> assertTrue(html.contains("<th class=\"text-start\">Year</th><th class=\"text-start\">State</th>")),
-        () -> assertTrue(html.contains("<th class=\"text-end\">Spending</th><th class=\"text-end\">Income</th><th class=\"text-end\">Gap / surplus</th>")),
-        () -> assertTrue(html.contains("<th class=\"text-end\">Cash</th><th class=\"text-end\">Bonds</th><th class=\"text-end\">Equities</th><th class=\"text-end\">Real estate</th><th class=\"text-start\">Status</th>")),
+        () ->
+            assertTrue(
+                html.contains(
+                    "<th class=\"text-start\">Year</th><th class=\"text-start\">State</th>")),
+        () ->
+            assertTrue(
+                html.contains(
+                    "<th class=\"text-end\">Spending</th><th class=\"text-end\">Income</th><th class=\"text-end\">Gap / surplus</th>")),
+        () ->
+            assertTrue(
+                html.contains(
+                    "<th class=\"text-end\">Cash</th><th class=\"text-end\">Bonds</th><th class=\"text-end\">Equities</th><th class=\"text-end\">Real estate</th><th class=\"text-start\">Status</th>")),
         () -> assertTrue(html.contains("yearlySummaries.values()")),
         () -> assertTrue(html.contains("compactMoney(summary.bonds.annualValue)")),
         () -> assertTrue(html.contains("compactMoney(summary.equities.annualValue)")),
@@ -125,22 +141,38 @@ class SimulationTemplateContractTest {
         () -> assertTrue(html.contains("format.percentagePoints(row.deltaPercentagePoints)")),
         () -> assertTrue(html.contains("iv-plan-timeline__warning")),
         () -> assertFalse(html.contains("iv-simulation-failure")),
-        () -> assertTrue(html.contains("<details class=\"card iv-simulation-section\" aria-labelledby=\"projection-title\">")),
+        () ->
+            assertTrue(
+                html.contains(
+                    "<details class=\"card iv-simulation-section\" aria-labelledby=\"projection-title\">")),
         () -> assertTrue(html.contains("<summary id=\"projection-title\"")),
         () -> assertTrue(header.contains("Edit plan")),
         () -> assertEquals(1, occurrences(header, "iv-page-nav iv-planning-scenario-selector")),
         () -> assertTrue(header.contains("class=\"iv-planning-scenario-slot\"")),
-        () -> assertTrue(header.contains("<nav class=\"iv-page-nav iv-planning-scenario-selector\" aria-label=\"Simulation scenario\">")),
-        () -> assertFalse(header.substring(actionsStart, secondaryStart).contains("iv-planning-scenario-selector")),
+        () ->
+            assertTrue(
+                header.contains(
+                    "<nav class=\"iv-page-nav iv-planning-scenario-selector\" aria-label=\"Simulation scenario\">")),
+        () ->
+            assertFalse(
+                header
+                    .substring(actionsStart, secondaryStart)
+                    .contains("iv-planning-scenario-selector")),
         () -> assertFalse(header.contains("role=\"button\">Base</a>")),
-        () -> assertFalse(header.contains("<span class=\"iv-planning-scenario-selector__label\">Scenario</span>")),
+        () ->
+            assertFalse(
+                header.contains(
+                    "<span class=\"iv-planning-scenario-selector__label\">Scenario</span>")),
         () -> assertTrue(header.contains("availableScenarios")),
         () -> assertTrue(header.contains("iv-plan-status--positive")),
         () -> assertTrue(header.contains("iv-plan-status--negative")),
         () -> assertTrue(header.contains("contextPlanId, contextScenario")),
         () -> assertTrue(header.contains("planId=${contextPlanId}")),
         () -> assertTrue(header.contains("selectedScenario=${contextScenario}")),
-        () -> assertTrue(html.contains("${simulationPage.selectedPlanId}, ${simulationPage.selectedScenario}")),
+        () ->
+            assertTrue(
+                html.contains(
+                    "${simulationPage.selectedPlanId}, ${simulationPage.selectedScenario}")),
         () -> assertFalse(header.contains("simulationPage.profile.portfolioId")),
         () -> assertTrue(html.contains("aria-selected")),
         () -> assertTrue(editor.contains("3. Income")),
@@ -153,11 +185,14 @@ class SimulationTemplateContractTest {
         Files.readString(
             Path.of("../adapters/web-ui/src/main/resources/templates/simulation.html"));
     String css =
-        Files.readString(
-            Path.of("../adapters/web-ui/src/main/resources/static/css/main.css"));
+        Files.readString(Path.of("../adapters/web-ui/src/main/resources/static/css/main.css"));
     assertFalse(css.contains("aria-labelledby=\"plan-title\""));
-    assertTrue(html.indexOf("aria-labelledby=\"plan-title\"") < html.indexOf("aria-labelledby=\"financial-outlook-title\""));
-    assertTrue(html.indexOf("aria-labelledby=\"financial-outlook-title\"") < html.indexOf("aria-labelledby=\"projection-title\""));
+    assertTrue(
+        html.indexOf("aria-labelledby=\"plan-title\"")
+            < html.indexOf("aria-labelledby=\"financial-outlook-title\""));
+    assertTrue(
+        html.indexOf("aria-labelledby=\"financial-outlook-title\"")
+            < html.indexOf("aria-labelledby=\"projection-title\""));
     assertFalse(css.contains("grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr)"));
     assertFalse(css.contains("section[aria-labelledby=\"plan-title\"] { grid-column"));
     assertFalse(css.contains("section[aria-labelledby=\"financial-outlook-title\"] { grid-column"));
@@ -171,7 +206,8 @@ class SimulationTemplateContractTest {
   }
 
   @Test
-  void simulationChartPresentationKeepsSignedGapSemanticsWithoutObsoleteModeState() throws Exception {
+  void simulationChartPresentationKeepsSignedGapSemanticsWithoutObsoleteModeState()
+      throws Exception {
     String javascript =
         Files.readString(
             Path.of("../adapters/web-ui/src/main/resources/static/js/retirement-simulation.js"));
@@ -198,7 +234,9 @@ class SimulationTemplateContractTest {
     int actionsEnd = header.indexOf("</div>", actionsStart);
     String simulationActions = header.substring(actionsStart, actionsEnd);
 
-    assertTrue(simulationActions.indexOf(">Edit plan</a>") < simulationActions.indexOf("iv-planning-base"));
+    assertTrue(
+        simulationActions.indexOf(">Edit plan</a>")
+            < simulationActions.indexOf("iv-planning-base"));
   }
 
   @Test
@@ -229,5 +267,4 @@ class SimulationTemplateContractTest {
     }
     return count;
   }
-
 }

@@ -14,6 +14,14 @@ public interface RetirementSimulation {
       SimulationScenario scenario,
       int baselineYear);
 
+  /** Projects only the first planning year using a fraction of recurring flows and returns. */
+  SimulationYear simulateRemainingYear(
+      InvestmentProfile profile,
+      SimulationAssumptions assumptions,
+      SimulationScenario scenario,
+      int baselineYear,
+      java.math.BigDecimal recurringFraction);
+
   default SimulationResult simulate(
       InvestmentProfile profile,
       SimulationAssumptions assumptions,

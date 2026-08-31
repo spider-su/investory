@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 import com.smartbox.investory.longterm.infrastructure.InterestTreatment;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetEntity;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;
+import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractEntity;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -50,13 +51,49 @@ class LongTermAssetsFacadeTest {
 
     facade.updateBond(
         new LongTermAssetsFacade.BondCommand(
-            1L, 7L, "Bond", CurrencyType.PLN, new BigDecimal("150"),
-            LocalDate.of(2024, 1, 1), LocalDate.of(2030, 1, 1),
-            InterestTreatment.PAY_OUT, new BigDecimal("5"), "notes"));
+            1L,
+            7L,
+            "Bond",
+            CurrencyType.PLN,
+            new BigDecimal("150"),
+            LocalDate.of(2024, 1, 1),
+            LocalDate.of(2030, 1, 1),
+            InterestTreatment.PAY_OUT,
+            new BigDecimal("5"),
+            "notes"));
 
     assertThat(bond.getAcquisitionValue()).isEqualByComparingTo("100");
     assertThat(bond.getCurrentValue()).isEqualByComparingTo("150");
     verify(service).save(bond);
+  }
+
+  @Test
+  void realEstateDetailsMapTenantEffectiveEndStatusAndNewestFirstContracts() {
+    var service = mock(LongTermAssetService.class);
+    var rentalContracts = mock(RentalContractService.class);
+    var facade = new LongTermAssetsFacade(service, rentalContracts);
+    var asset = asset(LongTermAssetType.REAL_ESTATE);
+    var newest = contract(12L, LocalDate.of(2026, 7, 1), null, "Newest tenant");
+    var older = contract(11L, LocalDate.of(2025, 1, 1), LocalDate.of(2026, 6, 30), "Older tenant");
+    when(service.get(1L, 7L)).thenReturn(Optional.of(asset));
+    when(service.valuationPeriods(1L, 7L)).thenReturn(List.of());
+    when(service.bondRatePeriods(1L, 7L)).thenReturn(List.of());
+    when(service.bondDetails(1L, 7L)).thenReturn(Optional.empty());
+    when(service.depositDetails(1L, 7L)).thenReturn(Optional.empty());
+    when(service.expectedPropertyGrowth(1L, 7L, LocalDate.of(2026, 8, 1)))
+        .thenReturn(BigDecimal.ZERO);
+    when(rentalContracts.list(1L, 7L)).thenReturn(List.of(newest, older));
+
+    var contracts = facade.details(1L, 7L, LocalDate.of(2026, 8, 1)).contracts();
+
+    assertThat(contracts)
+        .extracting(LongTermAssetsFacade.ContractView::id)
+        .containsExactly(12L, 11L);
+    assertThat(contracts.getFirst().tenantName()).isEqualTo("Newest tenant");
+    assertThat(contracts.getFirst().effectiveEndDate()).isNull();
+    assertThat(contracts.getFirst().status().name()).isEqualTo("CURRENT");
+    assertThat(contracts.getLast().effectiveEndDate()).isEqualTo(LocalDate.of(2026, 6, 30));
+    assertThat(contracts.getLast().status().name()).isEqualTo("ENDED");
   }
 
   private static LongTermAssetEntity asset(LongTermAssetType type) {
@@ -70,5 +107,16 @@ class LongTermAssetsFacadeTest {
     asset.setAcquisitionValue(new BigDecimal("1000"));
     asset.setActive(true);
     return asset;
+  }
+
+  private static LongTermAssetRentalContractEntity contract(
+      Long id, LocalDate start, LocalDate end, String tenant) {
+    var contract = new LongTermAssetRentalContractEntity();
+    contract.setId(id);
+    contract.setAssetId(7L);
+    contract.setStartDate(start);
+    contract.setEndDate(end);
+    contract.setTenantName(tenant);
+    return contract;
   }
 }

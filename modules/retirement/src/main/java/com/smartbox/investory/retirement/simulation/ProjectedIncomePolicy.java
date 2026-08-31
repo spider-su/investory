@@ -8,7 +8,10 @@ public record ProjectedIncomePolicy(
     BigDecimal manualRentalIncome,
     IncomeMode bondCashIncomeMode,
     BigDecimal manualBondCashIncome) {
-  public enum IncomeMode { SOURCE, MANUAL }
+  public enum IncomeMode {
+    SOURCE,
+    MANUAL
+  }
 
   public static final ProjectedIncomePolicy SOURCE =
       new ProjectedIncomePolicy(IncomeMode.SOURCE, null, IncomeMode.SOURCE, null);
@@ -20,11 +23,14 @@ public record ProjectedIncomePolicy(
     manualBondCashIncome = nonNegative(manualBondCashIncome);
   }
 
-  public static ProjectedIncomePolicy source() { return SOURCE; }
+  public static ProjectedIncomePolicy source() {
+    return SOURCE;
+  }
 
   private static BigDecimal nonNegative(BigDecimal value) {
     if (value == null) return null;
-    if (value.signum() < 0) throw new IllegalArgumentException("Manual projected income cannot be negative");
+    if (value.signum() < 0)
+      throw new IllegalArgumentException("Manual projected income cannot be negative");
     return value;
   }
 }

@@ -72,6 +72,12 @@ MWR, or XIRR.
 The dashboard period selector changes period-based performance/benchmark views. It does not redefine
 the current portfolio value or since-inception contribution/earnings totals.
 
+The dashboard header's monetary investment result and adjacent percentage use the same selected
+period and account scope. The amount is canonical period investment profit. The percentage is the
+linked cash-flow-neutral return; it is not the amount divided by since-inception net contributions.
+The fixed KPI-start return uses the same normalized daily valuation and performance-flow boundaries.
+Its annualized value compounds the cumulative return over the actual observation dates.
+
 Monthly profit must represent investment movement rather than external funding. Economic-truth
 reconciliation should be able to explain equity change as flows plus investment result.
 

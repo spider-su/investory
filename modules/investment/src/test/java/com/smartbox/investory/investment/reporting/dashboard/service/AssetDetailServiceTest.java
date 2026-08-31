@@ -7,16 +7,23 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.smartbox.investory.investment.accounting.CashOperationType;
 import com.smartbox.investory.investment.accounting.model.PositionSettlementModel;
 import com.smartbox.investory.investment.accounting.model.PositionType;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
+import com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.CashOperationRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.ClosedPositionRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPositionRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceRepository;
+import com.smartbox.investory.investment.market.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -28,8 +35,9 @@ class AssetDetailServiceTest {
   private final ClosedPositionRepository closed = mock();
   private final CashOperationRepository cash = mock();
   private final SymbolPerformanceRepository performance = mock();
+  private final CurrencyRateService currencyRates = mock();
   private final AssetDetailService service =
-      new AssetDetailService(assets, open, closed, cash, performance);
+      new AssetDetailService(assets, open, closed, cash, performance, currencyRates);
 
   @Test
   void aggregatesSignedQuantitiesAndWeightedCostByAccount() {
@@ -72,6 +80,63 @@ class AssetDetailServiceTest {
         .isInstanceOf(AssetDetailNotFoundException.class);
   }
 
+  @Test
+  void resultOnlyPositionDoesNotExposeFullNotionalValue() {
+    AssetEntity asset =
+        AssetEntity.builder()
+            .id(9L)
+            .symbol("CFD")
+            .currency(CurrencyType.USD)
+            .marketPrice(BigDecimal.valueOf(120d))
+            .build();
+    OpenedPosition position = position(1L, PositionType.BUY, 10d, 100d);
+    position.setSettlementModel(PositionSettlementModel.RESULT_ONLY);
+    when(assets.findBySymbol("CFD")).thenReturn(Optional.of(asset));
+    when(open.findOpenByAssetId(9L)).thenReturn(List.of(position));
+    when(closed.findClosedByAssetId(9L)).thenReturn(List.of());
+    when(cash.findAllByAssetIdAndTypeInOrderByDateDescIdDesc(eq(9L), any())).thenReturn(List.of());
+    when(performance.findAllBySymbol("CFD")).thenReturn(List.of());
+
+    AssetDetailView view = service.findBySymbol("CFD", DashboardPeriod.MAX);
+
+    assertThat(view.holdings().getFirst().marketValue()).isNull();
+    assertThat(view.holdings().getFirst().unrealizedProfitLoss()).isNull();
+    assertThat(view.totalMarketValue()).isNull();
+  }
+
+  @Test
+  void convertsDividendTotalsToAssetDisplayCurrency() {
+    AssetEntity asset =
+        AssetEntity.builder().id(9L).symbol("VWCE").currency(CurrencyType.EUR).build();
+    CashOperationEntity usdDividend = cash(CashOperationType.DIVIDEND, "10", CurrencyType.USD);
+    CashOperationEntity eurDividend = cash(CashOperationType.DIVIDEND, "5", CurrencyType.EUR);
+    CashOperationEntity tax = cash(CashOperationType.WITHHOLDING_TAX, "-2", CurrencyType.USD);
+    when(assets.findBySymbol("VWCE")).thenReturn(Optional.of(asset));
+    when(open.findOpenByAssetId(9L)).thenReturn(List.of());
+    when(closed.findClosedByAssetId(9L)).thenReturn(List.of());
+    when(cash.findAllByAssetIdAndTypeInOrderByDateDescIdDesc(eq(9L), any()))
+        .thenReturn(List.of(usdDividend, eurDividend, tax));
+    when(performance.findAllBySymbol("VWCE")).thenReturn(List.of());
+    when(currencyRates.convertToBaseCurrency(
+            new BigDecimal("10.00000000"),
+            CurrencyType.EUR,
+            CurrencyType.USD,
+            LocalDate.of(2026, 8, 1)))
+        .thenReturn(new BigDecimal("9.00000000"));
+    when(currencyRates.convertToBaseCurrency(
+            new BigDecimal("-2.00000000"),
+            CurrencyType.EUR,
+            CurrencyType.USD,
+            LocalDate.of(2026, 8, 1)))
+        .thenReturn(new BigDecimal("-1.80000000"));
+
+    AssetDetailView view = service.findBySymbol("VWCE", DashboardPeriod.MAX);
+
+    assertThat(view.totalGrossDividends()).isEqualTo(14d);
+    assertThat(view.totalWithholdingTax()).isEqualTo(1.8d);
+    assertThat(view.totalNetDividends()).isEqualTo(12.2d);
+  }
+
   private OpenedPosition position(Long account, PositionType type, double quantity, double price) {
     OpenedPosition position = new OpenedPosition();
     position.setAccount(account);
@@ -82,5 +147,14 @@ class AssetDetailServiceTest {
     position.setPriceCurrency(CurrencyType.EUR);
     position.setSettlementModel(PositionSettlementModel.CASH_SETTLED);
     return position;
+  }
+
+  private CashOperationEntity cash(CashOperationType type, String amount, CurrencyType currency) {
+    CashOperationEntity operation = new CashOperationEntity();
+    operation.setType(type);
+    operation.setAmount(new BigDecimal(amount));
+    operation.setCurrency(currency);
+    operation.setDate(ZonedDateTime.of(2026, 8, 1, 12, 0, 0, 0, ZoneId.of("Europe/Warsaw")));
+    return operation;
   }
 }

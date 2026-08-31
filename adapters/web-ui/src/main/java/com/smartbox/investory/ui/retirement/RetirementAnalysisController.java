@@ -4,9 +4,9 @@ import com.smartbox.investory.retirement.planning.PlanningCurrencyPresentationSe
 import com.smartbox.investory.retirement.planning.RetirementAnalysisService;
 import com.smartbox.investory.retirement.planning.RetirementProjectionFacade;
 import com.smartbox.investory.retirement.planning.SimulationScenarioComparison;
+import com.smartbox.investory.retirement.simulation.SimulationCustomDeltas;
 import com.smartbox.investory.retirement.simulation.SimulationPlanService;
 import com.smartbox.investory.retirement.simulation.SimulationScenario;
-import com.smartbox.investory.retirement.simulation.SimulationCustomDeltas;
 import com.smartbox.investory.retirement.simulation.SimulationScenarioSettings;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.LinkedHashMap;
@@ -65,12 +65,16 @@ public class RetirementAnalysisController {
             projections.loadInput(portfolioId, selectedPlanId, 40, 95).assumptions(),
             customDeltas);
       } catch (IllegalArgumentException ex) {
-        customInput = customInput.withError("effective", "Effective assumption is outside the valid range.");
+        customInput =
+            customInput.withError("effective", "Effective assumption is outside the valid range.");
         customDeltas = SimulationCustomDeltas.zero();
       }
     }
     var projection = projections.load(portfolioId, selectedPlanId, 40, 95, customDeltas);
     var result = analyses.analyze(projection);
+    boolean customVisible = selectedScenario == SimulationScenario.CUSTOM && !customDeltas.isZero();
+    SimulationScenario displayedScenario =
+        customVisible ? selectedScenario : SimulationScenario.BASE;
     var displaySummaries =
         new LinkedHashMap<>(
             presentation.displaySummaries(projection.summaries(), planningDisplayCurrency));
@@ -78,20 +82,35 @@ public class RetirementAnalysisController {
         new RetirementAnalysisPageView(
             portfolioId,
             selectedPlanId,
-            selectedPlanId == null ? "Current assumptions" : plans.name(portfolioId, selectedPlanId),
+            selectedPlanId == null
+                ? "Current assumptions"
+                : plans.name(portfolioId, selectedPlanId),
             planningDisplayCurrency,
-            selectedScenario,
+            displayedScenario,
             CustomScenarioView.from(customInput),
-            displaySummaries.get(selectedScenario),
+            result.available(),
+            result.available()
+                ? null
+                : "No future planning years remain after the current-year bridge.",
+            displaySummaries.get(displayedScenario),
             SimulationScenarioComparison.from(
-                projection.summaries(), displaySummaries, selectedScenario),
-            presentation.displayPlanRisks(result.sensitivity(), planningDisplayCurrency),
-            presentation.displayPlanningFlexibility(
-                result.sustainableSpending(), result.retirementAge(), planningDisplayCurrency),
+                projection.summaries(), displaySummaries, displayedScenario, customVisible),
+            result.available()
+                ? presentation.displayPlanRisks(
+                    result.sensitivity().value().orElseThrow(), planningDisplayCurrency)
+                : null,
+            result.available()
+                ? presentation.displayPlanningFlexibility(
+                    result.sustainableSpending().value().orElseThrow(),
+                    result.retirementAge().value().orElseThrow(),
+                    planningDisplayCurrency)
+                : null,
             presentation.displayCharts(result.charts(), planningDisplayCurrency),
-            projection.projectedAssumptions().currentAge()
-                + " → "
-                + projection.projectedAssumptions().endAge());
+            result.available()
+                ? projection.projectedAssumptions().currentAge()
+                    + " → "
+                    + projection.projectedAssumptions().endAge()
+                : "No future years");
     model.addAttribute("analysisPage", page);
     return "retirement-analysis";
   }

@@ -4,11 +4,11 @@ import com.smartbox.investory.retirement.api.InvestmentProfileFacade;
 import com.smartbox.investory.retirement.profile.InvestmentProfile;
 import com.smartbox.investory.retirement.simulation.RetirementSimulation;
 import com.smartbox.investory.retirement.simulation.SimulationAssumptions;
+import com.smartbox.investory.retirement.simulation.SimulationCustomDeltas;
 import com.smartbox.investory.retirement.simulation.SimulationDecisionSummary;
 import com.smartbox.investory.retirement.simulation.SimulationPlanService;
 import com.smartbox.investory.retirement.simulation.SimulationResult;
 import com.smartbox.investory.retirement.simulation.SimulationScenario;
-import com.smartbox.investory.retirement.simulation.SimulationCustomDeltas;
 import java.time.Clock;
 import java.time.Year;
 import java.util.EnumMap;
@@ -53,9 +53,13 @@ public class RetirementProjectionFacade {
       int defaultCurrentAge,
       int defaultEndAge,
       SimulationCustomDeltas customDeltas) {
-    RetirementProjectionInput input = loadInput(portfolioId, planId, defaultCurrentAge, defaultEndAge);
-    return project(input.profile(), input.assumptions(),
-        planId == null ? null : plans.baseline(portfolioId, planId), customDeltas);
+    RetirementProjectionInput input =
+        loadInput(portfolioId, planId, defaultCurrentAge, defaultEndAge);
+    return project(
+        input.profile(),
+        input.assumptions(),
+        planId == null ? null : plans.baseline(portfolioId, planId),
+        customDeltas);
   }
 
   public RetirementProjectionInput loadInput(
@@ -85,10 +89,16 @@ public class RetirementProjectionFacade {
       SimulationAssumptions assumptions,
       PlanningBaseline baseline,
       SimulationCustomDeltas customDeltas) {
-    InvestmentProfile projectionProfile = baseline == null ? profile : profile.withPlanningBaseline(
-        baseline.reserve(), baseline.investmentCapital(), baseline.longTermCapital(),
-        baseline.rentalAnnualIncome(), baseline.longTermAnnualIncome(),
-        baseline.longTermPlanningState());
+    InvestmentProfile projectionProfile =
+        baseline == null
+            ? profile
+            : profile.withPlanningBaseline(
+                baseline.reserve(),
+                baseline.investmentCapital(),
+                baseline.longTermCapital(),
+                baseline.rentalAnnualIncome(),
+                baseline.longTermAnnualIncome(),
+                baseline.longTermPlanningState());
     ForwardSimulationInput forward = forwardInputs.prepare(projectionProfile, assumptions);
     SimulationAssumptions projectedAssumptions = forward.forwardAssumptions().orElse(assumptions);
     InvestmentProfile projectedProfile = forward.bridgedProfile();
@@ -109,12 +119,6 @@ public class RetirementProjectionFacade {
         (scenario, result) ->
             summaries.put(scenario, SimulationDecisionSummary.from(result, projectedAssumptions)));
     return new RetirementProjectionContext(
-        profile,
-        assumptions,
-        forward,
-        projectedProfile,
-        projectedAssumptions,
-        results,
-        summaries);
+        profile, assumptions, forward, projectedProfile, projectedAssumptions, results, summaries);
   }
 }

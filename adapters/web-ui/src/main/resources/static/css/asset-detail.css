@@ -1,5 +1,4 @@
-.iv-asset-page__header,
-.iv-property-page__header {
+.iv-asset-page__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -17,164 +16,199 @@
   text-transform: uppercase;
 }
 
-.iv-contract-list { border-bottom: 1px solid var(--iv-border); }
+.iv-property-page { min-width: 0; }
 
-.iv-contract {
+.iv-property-page .iv-property-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(230px, 270px);
-  gap: 24px;
-  padding: 18px 20px;
-}
-
-.iv-contract + .iv-contract { border-top: 1px solid var(--iv-border); }
-.iv-contract__content { min-width: 0; }
-
-.iv-contract__dates {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(110px, 1fr));
-  gap: 16px;
-  margin: 0 0 14px;
-}
-
-.iv-contract__dates dt {
-  margin-bottom: 3px;
-  color: var(--iv-text-muted);
-  font-size: .68rem;
-  font-weight: 700;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-}
-
-.iv-contract__dates dd { margin: 0; font-weight: 650; }
-
-.iv-contract__terms {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.iv-contract-term {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-  padding: 7px 9px;
-  border: 1px solid var(--iv-border);
-  border-radius: var(--iv-radius-sm);
-  background: var(--iv-surface-muted);
-  font-size: .78rem;
-  white-space: nowrap;
-}
-
-.iv-contract-term__name,
-.iv-contract-term__frequency { color: var(--iv-text-muted); }
-.iv-contract-term strong { color: var(--iv-text); font-variant-numeric: tabular-nums; }
-.iv-contract__end-form { align-self: center; }
-.iv-contract__end-form .form-label { color: var(--iv-text-muted); }
-
-.iv-contract-form {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(120px, 1fr));
-  gap: 12px;
+  grid-template-columns: minmax(220px, 1fr) minmax(460px, 1.4fr) auto;
   align-items: end;
+  gap: 28px;
+  padding: 18px 20px;
+  border: 1px solid var(--iv-border);
+  border-radius: var(--iv-radius);
+  background: var(--iv-surface);
 }
 
-.iv-contract-form__check {
-  grid-column: span 2;
-  min-height: var(--iv-control-height);
-  align-items: center;
+.iv-property-page .iv-property-hero__back {
+  display: inline-block;
+  margin-bottom: 10px;
+  color: var(--iv-text-muted);
+  font-size: .8rem;
+}
+
+.iv-property-page .iv-property-hero__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
   margin: 0;
 }
 
-.iv-contract-form__submit { justify-self: start; }
+.iv-property-page .iv-property-hero__metrics div { min-width: 0; }
+.iv-property-page .iv-property-hero__metrics dt { color: var(--iv-text-muted); font-size: .74rem; }
+.iv-property-page .iv-property-hero__metrics dd { margin: 3px 0 0; font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 
-.iv-property-support-grid {
-  display: grid;
-  grid-template-columns: minmax(320px, .85fr) minmax(420px, 1.15fr);
-  gap: 24px;
+.iv-property-page .iv-rental-management__header,
+.iv-property-page .iv-add-contract__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
 }
 
-.iv-property-metrics {
+.iv-property-page .iv-rental-contracts { border-top: 1px solid var(--iv-border); }
+.iv-property-page .iv-rental-contract { border-bottom: 1px solid var(--iv-border); }
+
+.iv-property-page .iv-rental-contract__summary {
+  display: grid;
+  grid-template-columns: minmax(100px, .8fr) minmax(110px, .9fr) minmax(150px, 1.35fr) auto minmax(150px, 1.25fr) 20px;
+  align-items: center;
+  gap: 18px;
+  padding: 15px 20px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.iv-property-page .iv-rental-contract__summary::-webkit-details-marker,
+.iv-property-page .iv-property-disclosure::-webkit-details-marker { display: none; }
+
+.iv-property-page .iv-rental-contract__summary:hover { background: var(--iv-surface-muted); }
+.iv-property-page .iv-rental-contract__summary:focus-visible,
+.iv-property-page .iv-property-disclosure:focus-visible { outline: 3px solid var(--tblr-primary); outline-offset: -3px; }
+.iv-property-page .iv-rental-contract__date { display: grid; gap: 2px; }
+.iv-property-page .iv-rental-contract__date small { color: var(--iv-text-muted); font-size: .68rem; text-transform: uppercase; }
+.iv-property-page .iv-rental-contract__tenant,
+.iv-property-page .iv-rental-contract__rent { min-width: 0; overflow-wrap: anywhere; }
+.iv-property-page .iv-rental-contract__rent { text-align: right; font-variant-numeric: tabular-nums; }
+.iv-property-page .iv-rental-contract__indicator { font-size: 1.4rem; transition: transform .15s ease; }
+.iv-property-page .iv-rental-contract[open] .iv-rental-contract__indicator { transform: rotate(90deg); }
+
+.iv-property-page .iv-rental-contract__body { padding: 20px; background: var(--iv-surface-muted); }
+.iv-property-page .iv-contract-groups,
+.iv-property-page .iv-contract-edit-groups {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
 
-.iv-property-metric {
-  display: block;
-  margin-top: 3px;
-  font-size: 1.15rem;
-  font-variant-numeric: tabular-nums;
+.iv-property-page .iv-contract-group,
+.iv-property-page .iv-contract-edit-group {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--iv-border);
+  border-radius: var(--iv-radius-sm);
+  background: var(--iv-surface);
 }
 
-.iv-property-advanced-summary {
+.iv-property-page .iv-contract-group h3,
+.iv-property-page .iv-contract-edit-group legend { margin: 0 0 12px; font-size: .88rem; font-weight: 750; }
+.iv-property-page .iv-contract-edit-group legend { float: none; width: auto; }
+.iv-property-page .iv-contract-values { display: grid; gap: 9px; margin: 0; }
+.iv-property-page .iv-contract-values div { display: grid; grid-template-columns: minmax(110px, .8fr) minmax(0, 1.2fr); gap: 12px; }
+.iv-property-page .iv-contract-values dt { color: var(--iv-text-muted); font-weight: 500; }
+.iv-property-page .iv-contract-values dd { margin: 0; overflow-wrap: anywhere; }
+
+.iv-property-page .iv-rental-contract__actions,
+.iv-property-page .iv-contract-form-actions,
+.iv-property-page .iv-contract-confirm__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.iv-property-page .iv-contract-confirm {
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) minmax(0, 1fr);
+  align-items: end;
+  gap: 16px;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid var(--tblr-warning);
+  border-radius: var(--iv-radius-sm);
+  background: var(--iv-surface);
+}
+.iv-property-page .iv-contract-confirm[hidden] { display: none; }
+.iv-property-page .iv-contract-confirm__actions { grid-column: 1 / -1; margin-top: 0; }
+
+.iv-property-page .iv-contract-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.iv-property-page .iv-contract-fields--tenant { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.iv-property-page .iv-rollover-option { grid-column: 1 / -1; margin: 4px 0 0; }
+.iv-property-page .iv-term-edit-row { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(110px, .8fr) minmax(105px, .75fr); align-items: center; gap: 8px; margin-top: 8px; }
+.iv-property-page .iv-term-edit-row:first-of-type { margin-top: 0; }
+.iv-property-page .iv-term-edit-row--payer { grid-template-columns: minmax(100px, 1fr) minmax(90px, .75fr) minmax(95px, .7fr) minmax(120px, .9fr); }
+
+.iv-property-page .iv-add-contract {
+  padding: 20px;
+  border-top: 1px solid var(--iv-border);
+}
+.iv-property-page .iv-add-contract[hidden],
+.iv-property-page .iv-rental-contract__edit[hidden],
+.iv-property-page .iv-rental-contract__read[hidden] { display: none; }
+.iv-property-page .iv-add-contract__heading { margin-bottom: 18px; }
+
+.iv-property-page .iv-property-disclosure {
+  display: flex;
+  align-items: center;
   cursor: pointer;
   list-style: none;
 }
+.iv-property-page .iv-property-disclosure::after { margin-left: auto; content: "›"; transform: rotate(90deg); }
+.iv-property-page details[open] > .iv-property-disclosure::after { transform: rotate(-90deg); }
+.iv-property-page .iv-property-default-tax { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) auto; align-items: end; gap: 12px; }
 
-.iv-property-advanced-summary::-webkit-details-marker { display: none; }
-.iv-property-advanced-summary::after { margin-left: auto; content: "›"; transform: rotate(90deg); }
-details[open] > .iv-property-advanced-summary::after { transform: rotate(-90deg); }
-
-.iv-asset-page__description {
-  max-width: 720px;
-  margin: 5px 0 0;
-  color: var(--iv-text-muted);
-}
-
-.iv-asset-metrics {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.iv-asset-metric {
-  display: block;
-  margin-top: 3px;
-  color: var(--iv-text);
-  font-size: 1.08rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.iv-asset-section-form {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(120px, 1fr));
-  gap: 12px;
-  align-items: end;
-}
-
+.iv-asset-page__description { max-width: 720px; margin: 5px 0 0; color: var(--iv-text-muted); }
+.iv-asset-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px; }
+.iv-asset-metric { display: block; margin-top: 3px; color: var(--iv-text); font-size: 1.08rem; font-variant-numeric: tabular-nums; }
+.iv-asset-section-form { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 12px; align-items: end; }
 .iv-asset-table td,
 .iv-asset-table th { white-space: nowrap; }
-
-.iv-asset-page__actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 24px;
-}
+.iv-asset-page__actions { display: flex; gap: 8px; margin-top: 24px; }
 
 @media (max-width: 1199px) {
-  .iv-contract-form { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .iv-property-support-grid { grid-template-columns: 1fr; }
+  .iv-property-page .iv-property-hero { grid-template-columns: 1fr auto; }
+  .iv-property-page .iv-property-hero__metrics { grid-column: 1 / -1; grid-row: 2; }
+  .iv-property-page .iv-rental-contract__summary { grid-template-columns: repeat(2, minmax(100px, .8fr)) minmax(140px, 1.25fr) auto 20px; }
+  .iv-property-page .iv-rental-contract__rent { grid-column: 1 / -2; grid-row: 2; text-align: left; }
+  .iv-property-page .iv-rental-contract__indicator { grid-column: -2 / -1; grid-row: 1 / span 2; }
+  .iv-property-page .iv-contract-edit-groups { grid-template-columns: 1fr; }
   .iv-asset-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .iv-asset-section-form { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (max-width: 767px) {
-  .iv-contract { grid-template-columns: 1fr; gap: 16px; padding: 16px; }
-  .iv-contract__dates { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .iv-contract-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .iv-property-metrics { grid-template-columns: 1fr; }
+  .iv-property-page { overflow-x: hidden; }
+  .iv-property-page .iv-property-hero { grid-template-columns: 1fr; align-items: start; gap: 18px; }
+  .iv-property-page .iv-property-hero__metrics { grid-column: auto; grid-row: auto; grid-template-columns: 1fr; gap: 10px; }
+  .iv-property-page .iv-rental-management__header,
+  .iv-property-page .iv-add-contract__heading { align-items: flex-start; flex-direction: column; }
+  .iv-property-page .iv-rental-management__header .btn,
+  .iv-property-page .iv-add-contract__heading .btn { width: 100%; }
+  .iv-property-page .iv-rental-contract__summary { grid-template-columns: repeat(2, minmax(0, 1fr)) 20px; gap: 10px; padding: 14px 16px; }
+  .iv-property-page .iv-rental-contract__tenant,
+  .iv-property-page .iv-rental-contract__status,
+  .iv-property-page .iv-rental-contract__rent { grid-column: 1 / -2; grid-row: auto; text-align: left; }
+  .iv-property-page .iv-rental-contract__status { justify-self: start; }
+  .iv-property-page .iv-rental-contract__indicator { grid-column: -2 / -1; grid-row: 1 / span 4; align-self: center; }
+  .iv-property-page .iv-contract-groups,
+  .iv-property-page .iv-contract-fields,
+  .iv-property-page .iv-contract-fields--tenant { grid-template-columns: 1fr; }
+  .iv-property-page .iv-contract-values div { grid-template-columns: 1fr; gap: 2px; }
+  .iv-property-page .iv-term-edit-row,
+  .iv-property-page .iv-term-edit-row--payer { grid-template-columns: 1fr; padding-bottom: 12px; border-bottom: 1px solid var(--iv-border); }
+  .iv-property-page .iv-rental-contract__actions,
+  .iv-property-page .iv-contract-form-actions { align-items: stretch; flex-direction: column; }
+  .iv-property-page .iv-rental-contract__actions .btn,
+  .iv-property-page .iv-rental-contract__actions form,
+  .iv-property-page .iv-rental-contract__actions form .btn,
+  .iv-property-page .iv-contract-form-actions .btn { width: 100%; }
+  .iv-property-page .iv-contract-confirm { grid-template-columns: 1fr; }
+  .iv-property-page .iv-property-default-tax { grid-template-columns: 1fr; }
   .iv-asset-section-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 479px) {
-  .iv-asset-page__header,
-  .iv-property-page__header { align-items: flex-start; }
-  .iv-contract__dates,
-  .iv-contract-form { grid-template-columns: 1fr; }
-  .iv-contract-form__check { grid-column: auto; }
-  .iv-contract-term { align-items: flex-start; flex-wrap: wrap; white-space: normal; }
+  .iv-asset-page__header { align-items: flex-start; }
   .iv-asset-metrics,
   .iv-asset-section-form { grid-template-columns: 1fr; }
 }

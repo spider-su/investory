@@ -169,6 +169,8 @@ class DatabaseReportingContractIT {
           1,
           true);
 
+      statement.execute("SELECT investory.refresh_reconstructed_position_daily()");
+
       try (PreparedStatement query =
           connection.prepareStatement(
               "SELECT account_id, asset_id, valuation_date, selected_price, price_currency, "
@@ -227,6 +229,7 @@ class DatabaseReportingContractIT {
         }
       } finally {
         deleteCurrencySemanticsFixtures(statement);
+        statement.execute("SELECT investory.refresh_reconstructed_position_daily()");
       }
     }
   }

@@ -7,12 +7,37 @@ projection, current snapshot, historical snapshot, and asset summary paths do no
 `long_term_asset_cash_flows` for real estate. Contract terms carry dates, cadence, tax ownership,
 and landlord/tenant expense ownership.
 
-The checked-in bootstrap document may still accept `cashFlows` as import input. Bootstrap converts
-that input into rental contracts before runtime use. It is import compatibility, not a second
-runtime model.
+The checked-in bootstrap document may accept `cashFlows` only for `REAL_ESTATE` import input.
+Bootstrap rejects cash-flow rows for every other asset type and converts accepted rows into rental
+contracts before runtime use. This is real-estate import compatibility, not a second runtime model.
 
-`long_term_asset_cash_flows` remains available for supported non-real-estate recurring asset flows
-and historical/import data. It is not a real-estate rental write path.
+`long_term_asset_cash_flows` is legacy persistence compatibility and is not a supported generic
+cash-flow model for non-real-estate assets.
+
+## Rental contract lifecycle
+
+Rental contracts support create, read, in-place update, early termination, and explicit deletion.
+Contract identity remains stable during an update. Updating a contract atomically replaces its
+tenant metadata, planned period, contract-level rental-tax ownership, and complete term collection;
+removed terms are deleted. A contract contains at most one term for each cash-flow type.
+
+`endDate` is the expected, planned end of a contract. `terminatedDate` records an actual early
+termination. The effective end is the earlier of those dates. Ordinary editing changes the expected
+end; early termination is a separate lifecycle action and cannot precede the start or follow the
+expected end.
+
+Contracts for one asset cannot overlap. Creating a contract never silently terminates another
+contract. An explicit rollover option may set the immediately preceding contract's expected end to
+the day before the new start, in the same transaction. It does not set `terminatedDate`.
+
+Deletion is correction of incorrectly entered data, not a normal lifecycle transition. It removes
+the selected contract and its terms after portfolio, asset, and real-estate ownership checks. It does
+not reopen or extend adjacent contracts. Because historical projections read contract history,
+deletion may change historical calculations.
+
+Tenant name, email, and phone belong to the rental contract, not the property. They are optional and
+may differ across successive contracts. Contract-level rental-tax ownership remains tri-state:
+`null` inherits the property default, `false` means landlord-paid, and `true` means tenant-paid.
 
 ## Bond values
 
@@ -42,6 +67,24 @@ the next year.
 Bond interest paid out is a spendable fixed-income cash flow. Capitalized bond interest is retained
 in Long-Term capital and is reported separately from cash income; it is never counted in both places.
 
-Generic cash-flow rows remain supported for non-real-estate assets and legacy/bootstrap imports.
-Real-estate rental economics use rental contracts; the legacy rental-period projection fallback is
-compatibility-only and is not the normal persisted runtime path.
+Cash-flow rows are supported only as real-estate bootstrap input and are converted into rental
+contracts. Non-real-estate assets cannot define or import generic cash-flow rows. The legacy
+rental-period projection fallback is compatibility-only and is not the normal persisted runtime
+path.
+
+Expected real-estate value growth is informational. Deterministic Retirement ignores appreciation
+and does not automatically sell property.
+
+## Creation and review invariants
+
+Generic asset creation accepts only `OTHER`. Bonds, deposits, cash reserves, and real estate use
+atomic subtype workflows; deposits require a maturity date. Rental contracts are valid only for
+`REAL_ESTATE` assets. New contracts persist only explicitly supplied terms; copying a previous
+contract is a UI prefilling action and never mutates data before submission. Explicit bond redemption
+is preserved by ordinary edits; a new bond uses acquisition value only when redemption was not
+supplied.
+
+The Long-Term profile reader returns a persistence-free normalized planning snapshot. Retirement
+uses that snapshot for the current view and stores it in a reviewed revision. Forward simulation
+never re-reads live Long-Term records, rates, taxes, contracts, or allocations. A later source edit
+therefore changes CURRENT only until the user explicitly rebaselines and reviews a new revision.

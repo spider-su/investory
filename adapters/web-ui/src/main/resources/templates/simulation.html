@@ -53,7 +53,7 @@
       </div>
       <div class="iv-plan-timeline__snapshots" aria-live="polite">
         <article th:each="snapshot : ${simulationPage.planTimeline.years}" class="iv-plan-snapshot" data-plan-snapshot th:id="${'plan-snapshot-' + snapshot.year}" th:attr="data-year=${snapshot.year},aria-hidden=${snapshot.year != simulationPage.planTimeline.selectedYear}" th:hidden="${snapshot.year != simulationPage.planTimeline.selectedYear}">
-          <div class="iv-plan-snapshot__heading"><strong th:text="${snapshot.heading()}">2026 · AGE 41 · RETIREMENT</strong><span class="iv-state-badge" th:text="${snapshot.summary.state}">Live</span></div>
+          <div class="iv-plan-snapshot__heading"><a th:if="${snapshot.summary.state == 'Actual' or snapshot.summary.state == 'Live'}" th:href="@{/simulation/timeline/{year}(year=${snapshot.year},portfolioId=${simulationPage.profile.portfolioId},planId=${simulationPage.selectedPlanId},planningDisplayCurrency=${simulationPage.displayCurrency},selectedScenario=${simulationPage.selectedScenario})}" th:title="${snapshot.summary.state == 'Live' ? 'View live year review' : 'View historical year review'}"><strong th:text="${snapshot.heading()}">2026 · AGE 41 · RETIREMENT</strong></a><strong th:unless="${snapshot.summary.state == 'Actual' or snapshot.summary.state == 'Live'}" th:text="${snapshot.heading()}">2027 · AGE 42</strong><span class="iv-state-badge" th:text="${snapshot.summary.state}">Live</span></div>
           <div class="iv-plan-snapshot__columns">
             <section th:attr="aria-labelledby=${'plan-cash-flow-title-' + snapshot.year}">
               <h3 th:id="${'plan-cash-flow-title-' + snapshot.year}">Cash flow / funding <small th:if="${snapshot.periodNote() != null}" th:text="${snapshot.periodNote()}">Full-year plan · current balance to expected year end</small></h3>
@@ -93,5 +93,6 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script th:inline="javascript">window.retirementSimulation = {chartData: /*[[${simulationPage.chartData}]]*/ {points: [], retirementYear: null, pensionStartYear: null}, currency: /*[[${simulationPage.displayCurrency.name()}]]*/ "PLN"};</script>
 <script src="/js/retirement-simulation.js"></script>
+<script>(()=>{document.querySelectorAll('.iv-simulation-projection-row--current td:first-child span').forEach(span=>{const year=span.textContent.trim(),link=document.createElement('a');link.className='iv-historical-year-link';link.title='View live year review';link.href='/simulation/timeline/'+encodeURIComponent(year)+window.location.search;link.textContent=year;span.replaceWith(link)})})();</script>
 </body>
 </html>

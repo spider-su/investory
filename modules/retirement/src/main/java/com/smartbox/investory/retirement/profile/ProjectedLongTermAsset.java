@@ -1,9 +1,9 @@
 package com.smartbox.investory.retirement.profile;
 
-import com.smartbox.investory.longterm.api.model.RentalContractModel;
 import com.smartbox.investory.longterm.api.model.CashFlowTypeModel;
 import com.smartbox.investory.longterm.api.model.InterestTreatmentModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;
+import com.smartbox.investory.longterm.api.model.RentalContractModel;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;

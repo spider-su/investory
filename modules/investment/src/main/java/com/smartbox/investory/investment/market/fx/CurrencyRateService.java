@@ -322,8 +322,7 @@ public class CurrencyRateService implements CurrencyConversion {
     }
     Map<FxPair, FxRateResolution> matrix =
         valuationMatrices.computeIfAbsent(effectiveDate, this::loadValuationMatrix);
-    return matrix.getOrDefault(
-        new FxPair(sourceCurrency, targetCurrency), missingValuationRate());
+    return matrix.getOrDefault(new FxPair(sourceCurrency, targetCurrency), missingValuationRate());
   }
 
   private Map<FxPair, FxRateResolution> loadValuationMatrix(LocalDate valuationDate) {
@@ -337,7 +336,8 @@ public class CurrencyRateService implements CurrencyConversion {
     }
     for (CurrencyType source : CurrencyType.values()) {
       for (CurrencyType target : CurrencyType.values()) {
-        if (source != target) matrix.putIfAbsent(new FxPair(source, target), missingValuationRate());
+        if (source != target)
+          matrix.putIfAbsent(new FxPair(source, target), missingValuationRate());
       }
     }
     return Map.copyOf(matrix);

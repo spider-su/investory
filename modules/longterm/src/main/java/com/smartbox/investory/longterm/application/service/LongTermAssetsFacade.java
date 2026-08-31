@@ -37,26 +37,32 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
   }
 
   @Transactional(readOnly = true)
-  public List<LongTermAssetService.AssetGroupSummary> grouped(Long portfolioId, LocalDate date) {
+  public List<LongTermAssetSummary> archived(Long portfolioId, LocalDate date) {
+    return service.archived(portfolioId, date);
+  }
+
+  @Transactional(readOnly = true)
+  public List<LongTermAssetQueryService.AssetGroupSummary> grouped(
+      Long portfolioId, LocalDate date) {
     return service.grouped(portfolioId, date);
   }
 
   @Transactional(readOnly = true)
-  public LongTermAssetService.AggregateSummary aggregate(Long portfolioId, LocalDate date) {
+  public LongTermAssetQueryService.AggregateSummary aggregate(Long portfolioId, LocalDate date) {
     return service.aggregateForLongTermAssets(portfolioId, date);
   }
 
   @Override
   @Transactional(readOnly = true)
-  public com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel historicalAnnualSnapshot(
-      Long portfolioId, int year) {
+  public com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel
+      historicalAnnualSnapshot(Long portfolioId, int year) {
     return service.historicalAnnualSnapshot(portfolioId, year);
   }
 
   @Override
   @Transactional(readOnly = true)
-  public com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel currentAnnualSnapshot(
-      Long portfolioId, LocalDate date) {
+  public com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel
+      currentAnnualSnapshot(Long portfolioId, LocalDate date) {
     return service.currentAnnualSnapshot(portfolioId, date);
   }
 
@@ -68,9 +74,12 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
   @Transactional(readOnly = true)
   public DetailView details(Long portfolioId, Long id, LocalDate date) {
     AssetView asset = asset(portfolioId, id);
-    List<ContractView> contracts = asset.type() == LongTermAssetType.REAL_ESTATE
-        ? rentalContracts.list(portfolioId, id).stream().map(ContractView::from).toList()
-        : List.of();
+    List<ContractView> contracts =
+        asset.type() == LongTermAssetType.REAL_ESTATE
+            ? rentalContracts.list(portfolioId, id).stream()
+                .map(contract -> ContractView.from(contract, date))
+                .toList()
+            : List.of();
     return new DetailView(
         asset,
         service.summary(toEntity(asset), date),
@@ -83,6 +92,8 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
   }
 
   public AssetView create(AssetCommand command) {
+    if (command.type() != LongTermAssetType.OTHER)
+      throw new IllegalArgumentException("Specialized asset types require a subtype workflow");
     LongTermAssetEntity asset = toEntity(command);
     if (asset.getType() == LongTermAssetType.BOND && asset.getCurrentValue() == null)
       asset.setCurrentValue(asset.getAcquisitionValue());
@@ -124,7 +135,8 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
             null,
             true,
             command.notes());
-    AssetView saved = create(asset);
+    LongTermAssetEntity entity = toEntity(asset);
+    AssetView saved = AssetView.from(service.save(entity));
     service.saveSimpleBond(
         command.portfolioId(),
         saved.id(),
@@ -132,6 +144,41 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
         command.maturityDate(),
         command.interestTreatment());
     return saved;
+  }
+
+  @Transactional(readOnly = true)
+  public LongTermAssetQueryService.PageData page(Long portfolioId, LocalDate date) {
+    return service.page(portfolioId, date);
+  }
+
+  @Transactional(readOnly = true)
+  public List<RentalTaxView> rentalTaxPolicies(Long portfolioId) {
+    return service.rentalTaxPolicies(portfolioId).stream().map(RentalTaxView::from).toList();
+  }
+
+  public AssetView createDeposit(DepositCommand command) {
+    if (command.maturityDate() == null)
+      throw new IllegalArgumentException("Deposit maturity is required");
+    LongTermAssetEntity entity = new LongTermAssetEntity();
+    entity.setPortfolioId(command.portfolioId());
+    entity.setName(command.name());
+    entity.setType(LongTermAssetType.DEPOSIT);
+    entity.setCurrency(command.currency());
+    entity.setAcquisitionDate(command.acquisitionDate());
+    entity.setAcquisitionValue(command.value());
+    entity.setCurrentValue(command.value());
+    entity.setActive(true);
+    entity.setNotes(command.notes());
+    AssetView saved = AssetView.from(service.save(entity));
+    saveDepositDetails(
+        command.portfolioId(),
+        saved.id(),
+        new DepositDetailsCommand(
+            command.maturityDate(),
+            command.annualInterestRate(),
+            command.taxRate(),
+            command.interestTreatment()));
+    return AssetView.from(entity);
   }
 
   public AssetView update(AssetCommand command) {
@@ -191,6 +238,9 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
     return rentalContracts.create(
         command.portfolioId(),
         command.assetId(),
+        command.tenantName(),
+        command.tenantEmail(),
+        command.tenantPhone(),
         command.startDate(),
         command.endDate(),
         command.rentalTaxPaidByTenant(),
@@ -199,7 +249,32 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
                 t ->
                     new RentalContractModel.Term(
                         t.type(), t.amount(), t.frequency(), t.paidByTenant()))
+            .toList(),
+        command.endCurrentContractBeforeStart());
+  }
+
+  public LongTermAssetRentalContractEntity updateRentalContract(
+      LongTermAssetsApi.UpdateRentalContractCommand command) {
+    return rentalContracts.update(
+        command.portfolioId(),
+        command.assetId(),
+        command.contractId(),
+        command.tenantName(),
+        command.tenantEmail(),
+        command.tenantPhone(),
+        command.startDate(),
+        command.endDate(),
+        command.rentalTaxPaidByTenant(),
+        command.terms().stream()
+            .map(
+                term ->
+                    new RentalContractModel.Term(
+                        term.type(), term.amount(), term.frequency(), term.paidByTenant()))
             .toList());
+  }
+
+  public void deleteRentalContract(Long portfolioId, Long assetId, Long contractId) {
+    rentalContracts.delete(portfolioId, assetId, contractId);
   }
 
   public LongTermAssetRentalContractEntity endRentalContract(
@@ -271,6 +346,18 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
     service.addValuationPeriod(portfolioId, id, period);
   }
 
+  public void updateValuation(Long portfolioId, Long id, Long periodId, ValuationCommand command) {
+    LongTermAssetValuationPeriodEntity period = new LongTermAssetValuationPeriodEntity();
+    period.setValidFrom(command.validFrom());
+    period.setValidTo(command.validTo());
+    period.setExpectedAnnualGrowthRate(percentToRate(command.growthRatePercent()));
+    service.updateValuationPeriod(portfolioId, id, periodId, period);
+  }
+
+  public void deleteValuation(Long portfolioId, Long id, Long periodId) {
+    service.deleteValuationPeriod(portfolioId, id, periodId);
+  }
+
   public void addBondRate(Long portfolioId, Long id, BondRateCommand command) {
     LongTermAssetBondRatePeriodEntity period = new LongTermAssetBondRatePeriodEntity();
     period.setValidFrom(command.validFrom());
@@ -279,13 +366,34 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
     service.addBondRatePeriod(portfolioId, id, period);
   }
 
+  public void updateBondRate(Long portfolioId, Long id, Long periodId, BondRateCommand command) {
+    LongTermAssetBondRatePeriodEntity period = new LongTermAssetBondRatePeriodEntity();
+    period.setValidFrom(command.validFrom());
+    period.setValidTo(command.validTo());
+    period.setAnnualInterestRate(command.annualInterestRate());
+    service.updateBondRatePeriod(portfolioId, id, periodId, period);
+  }
+
+  public void deleteBondRate(Long portfolioId, Long id, Long periodId) {
+    service.deleteBondRatePeriod(portfolioId, id, periodId);
+  }
+
   public void saveRentalTaxPolicy(Long portfolioId, RentalTaxCommand command) {
+    saveRentalTaxPolicy(portfolioId, null, command);
+  }
+
+  public void saveRentalTaxPolicy(Long portfolioId, Long policyId, RentalTaxCommand command) {
     RentalTaxPolicyEntity policy = new RentalTaxPolicyEntity();
+    policy.setId(policyId);
     policy.setValidFrom(command.validFrom());
     policy.setValidTo(command.validTo());
     policy.setRate(
         command.ratePercent() == null ? command.rate() : percentToRate(command.ratePercent()));
     service.saveRentalTaxPolicy(portfolioId, policy);
+  }
+
+  public void deleteRentalTaxPolicy(Long portfolioId, Long policyId) {
+    service.deleteRentalTaxPolicy(portfolioId, policyId);
   }
 
   private static BigDecimal percentToRate(BigDecimal percent) {
@@ -342,7 +450,8 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
                 v.currentValue(),
                 v.taxBase(),
                 v.active(),
-                v.notes()));
+                v.notes(),
+                v.rentalTaxPaidByTenant()));
     a.setId(v.id());
     return a;
   }
@@ -398,6 +507,18 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
       LocalDate maturityDate,
       InterestTreatment interestTreatment,
       BigDecimal annualRatePercent,
+      String notes) {}
+
+  public record DepositCommand(
+      Long portfolioId,
+      String name,
+      CurrencyType currency,
+      BigDecimal value,
+      LocalDate acquisitionDate,
+      LocalDate maturityDate,
+      InterestTreatment interestTreatment,
+      BigDecimal annualInterestRate,
+      BigDecimal taxRate,
       String notes) {}
 
   public record CashReserveCommand(
@@ -510,16 +631,34 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
   }
 
   public record ValuationView(
-      LocalDate validFrom, LocalDate validTo, BigDecimal expectedAnnualGrowthRate) {
+      Long id, LocalDate validFrom, LocalDate validTo, BigDecimal expectedAnnualGrowthRate) {
+    public ValuationView(
+        LocalDate validFrom, LocalDate validTo, BigDecimal expectedAnnualGrowthRate) {
+      this(null, validFrom, validTo, expectedAnnualGrowthRate);
+    }
+
     static ValuationView from(LongTermAssetValuationPeriodEntity p) {
-      return new ValuationView(p.getValidFrom(), p.getValidTo(), p.getExpectedAnnualGrowthRate());
+      return new ValuationView(
+          p.getId(), p.getValidFrom(), p.getValidTo(), p.getExpectedAnnualGrowthRate());
     }
   }
 
   public record BondRateView(
-      LocalDate validFrom, LocalDate validTo, BigDecimal annualInterestRate) {
+      Long id, LocalDate validFrom, LocalDate validTo, BigDecimal annualInterestRate) {
+    public BondRateView(LocalDate validFrom, LocalDate validTo, BigDecimal annualInterestRate) {
+      this(null, validFrom, validTo, annualInterestRate);
+    }
+
     static BondRateView from(LongTermAssetBondRatePeriodEntity p) {
-      return new BondRateView(p.getValidFrom(), p.getValidTo(), p.getAnnualInterestRate());
+      return new BondRateView(
+          p.getId(), p.getValidFrom(), p.getValidTo(), p.getAnnualInterestRate());
+    }
+  }
+
+  public record RentalTaxView(Long id, LocalDate validFrom, LocalDate validTo, BigDecimal rate) {
+    static RentalTaxView from(RentalTaxPolicyEntity policy) {
+      return new RentalTaxView(
+          policy.getId(), policy.getValidFrom(), policy.getValidTo(), policy.getRate());
     }
   }
 
@@ -535,17 +674,27 @@ public class LongTermAssetsFacade implements LongTermAssetAnnualSnapshotReader {
 
   public record ContractView(
       Long id,
+      String tenantName,
+      String tenantEmail,
+      String tenantPhone,
       LocalDate startDate,
       LocalDate endDate,
       LocalDate terminatedDate,
+      LocalDate effectiveEndDate,
+      com.smartbox.investory.longterm.api.model.RentalContractStatusModel status,
       Boolean rentalTaxPaidByTenant,
       List<TermView> terms) {
-    static ContractView from(LongTermAssetRentalContractEntity c) {
+    static ContractView from(LongTermAssetRentalContractEntity c, LocalDate date) {
       return new ContractView(
           c.getId(),
+          c.getTenantName(),
+          c.getTenantEmail(),
+          c.getTenantPhone(),
           c.getStartDate(),
           c.getEndDate(),
           c.getTerminatedDate(),
+          RentalContractService.effectiveEnd(c),
+          RentalContractService.status(c, date),
           c.getRentalTaxPaidByTenant(),
           c.getTerms().stream()
               .map(

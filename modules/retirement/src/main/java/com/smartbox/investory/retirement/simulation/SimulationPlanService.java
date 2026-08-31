@@ -1,13 +1,12 @@
 package com.smartbox.investory.retirement.simulation;
+
 import static com.smartbox.investory.shared.util.StringUtils.isBlank;
 
-
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.smartbox.investory.longterm.api.LongTermAnnualProjectionApi;
 import com.smartbox.investory.retirement.infrastructure.simulation.*;
 import com.smartbox.investory.retirement.planning.PlanningBaseline;
-import com.smartbox.investory.longterm.api.LongTermAnnualProjectionApi;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
-import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -51,7 +50,9 @@ public class SimulationPlanService {
         .toList();
   }
 
-  /** Resolves an explicit owned plan first; otherwise returns the most recently updated saved plan. */
+  /**
+   * Resolves an explicit owned plan first; otherwise returns the most recently updated saved plan.
+   */
   @Transactional(readOnly = true)
   public Optional<Long> resolvePlanId(Long portfolioId, Long requestedPlanId) {
     if (requestedPlanId != null) return Optional.of(get(portfolioId, requestedPlanId).getId());
@@ -85,8 +86,8 @@ public class SimulationPlanService {
     return create(portfolioId, name, assumptions).getId();
   }
 
-  public Long createId(Long portfolioId, String name, SimulationAssumptions assumptions,
-      PlanningBaseline baseline) {
+  public Long createId(
+      Long portfolioId, String name, SimulationAssumptions assumptions, PlanningBaseline baseline) {
     return create(portfolioId, name, assumptions, baseline).getId();
   }
 
@@ -94,7 +95,11 @@ public class SimulationPlanService {
     return update(portfolioId, id, name, assumptions).getId();
   }
 
-  public Long updateId(Long portfolioId, Long id, String name, SimulationAssumptions assumptions,
+  public Long updateId(
+      Long portfolioId,
+      Long id,
+      String name,
+      SimulationAssumptions assumptions,
       PlanningBaseline baseline) {
     return update(portfolioId, id, name, assumptions, baseline).getId();
   }
@@ -104,8 +109,8 @@ public class SimulationPlanService {
     return create(portfolioId, name, assumptions, null);
   }
 
-  public SimulationPlanEntity create(Long portfolioId, String name,
-      SimulationAssumptions assumptions, PlanningBaseline baseline) {
+  public SimulationPlanEntity create(
+      Long portfolioId, String name, SimulationAssumptions assumptions, PlanningBaseline baseline) {
     validateName(portfolioId, name, null);
     SimulationPlanEntity saved =
         plans.save(copy(new SimulationPlanEntity(), portfolioId, name, assumptions));
@@ -125,8 +130,12 @@ public class SimulationPlanService {
     return update(portfolioId, id, name, assumptions, null);
   }
 
-  public SimulationPlanEntity update(Long portfolioId, Long id, String name,
-      SimulationAssumptions assumptions, PlanningBaseline baseline) {
+  public SimulationPlanEntity update(
+      Long portfolioId,
+      Long id,
+      String name,
+      SimulationAssumptions assumptions,
+      PlanningBaseline baseline) {
     SimulationPlanEntity plan = get(portfolioId, id);
     validateName(portfolioId, name, id);
     if (revisioned()) {
@@ -143,7 +152,8 @@ public class SimulationPlanService {
       // Ordinary assumption edits keep the reviewed economic baseline. A new baseline is
       // supplied only by the explicit review/rebaseline workflow (or a new plan).
       PlanningBaseline effectiveBaseline = baseline == null ? currentBaseline(plan) : baseline;
-      SimulationPlanRevisionEntity revision = createRevision(plan, assumptions, nextNumber, effectiveBaseline);
+      SimulationPlanRevisionEntity revision =
+          createRevision(plan, assumptions, nextNumber, effectiveBaseline);
       plan.setCurrentRevisionId(revision.getId());
       // Keep legacy columns synchronized for old readers; revisions are the authoritative source.
       copy(plan, portfolioId, name, assumptions);
@@ -280,15 +290,21 @@ public class SimulationPlanService {
                 .max()
                 .orElse(0)
             + 1;
-    PlanningBaseline baseline = plan.getCurrentRevisionId() == null ? null
-        : revisions.findByIdAndSimulationPlanId(plan.getCurrentRevisionId(), plan.getId())
-            .map(this::baseline).orElse(null);
+    PlanningBaseline baseline =
+        plan.getCurrentRevisionId() == null
+            ? null
+            : revisions
+                .findByIdAndSimulationPlanId(plan.getCurrentRevisionId(), plan.getId())
+                .map(this::baseline)
+                .orElse(null);
     SimulationPlanRevisionEntity revision = createRevision(plan, current, nextNumber, baseline);
     return revision;
   }
 
   private SimulationPlanRevisionEntity createRevision(
-      SimulationPlanEntity plan, SimulationAssumptions assumptions, int number,
+      SimulationPlanEntity plan,
+      SimulationAssumptions assumptions,
+      int number,
       PlanningBaseline baseline) {
     SimulationPlanRevisionEntity revision = new SimulationPlanRevisionEntity();
     revision.setSimulationPlanId(plan.getId());
@@ -371,125 +387,17 @@ public class SimulationPlanService {
 
   private SimulationAssumptions assumptions(
       SimulationPlanEntity plan, List<SimulationEvent> eventList) {
-    SimulationAssumptions result =
-        new SimulationAssumptions(
-            plan.getCurrentAge(),
-            plan.getEndAge(),
-            plan.getAnnualLivingExpenses(),
-            plan.getInflationRate(),
-            plan.getCashReturnRate(),
-            plan.getFixedIncomeReturnRate(),
-            plan.getEquityReturnRate(),
-            plan.getRealEstateReturnRate(),
-            plan.getOtherReturnRate(),
-            plan.getPensionStartAge(),
-            plan.getAnnualPension(),
-            plan.getCapitalGainTaxRate(),
-            plan.getStartYear(),
-            plan.getAnnualDiscretionaryExpenses(),
-            eventList,
-            plan.getRentalIncomeGrowthSpread() == null
-                ? SimulationAssumptions.DEFAULT_RENTAL_INCOME_GROWTH_SPREAD
-                : plan.getRentalIncomeGrowthSpread(),
-            plan.getSpendingGrowthSpread() == null
-                ? SimulationAssumptions.DEFAULT_SPENDING_GROWTH_SPREAD
-                : plan.getSpendingGrowthSpread(),
-            plan.getFundingStrategy() == null
-                ? SimulationFundingStrategy.SIMPLE_WATERFALL
-                : plan.getFundingStrategy(),
-            plan.getSafeReserveYears() == null ? BigDecimal.ZERO : plan.getSafeReserveYears(),
-            plan.getEquityHarvestMinimumReturnRate() == null
-                ? BigDecimal.ZERO
-                : plan.getEquityHarvestMinimumReturnRate(),
-            plan.getEquityGainHarvestRate() == null
-                ? BigDecimal.ZERO
-                : plan.getEquityGainHarvestRate(),
-            plan.getAllowEmergencyEquityWithdrawal() == null
-                || plan.getAllowEmergencyEquityWithdrawal(),
-            plan.getRetirementAge() == null ? plan.getCurrentAge() : plan.getRetirementAge(),
-            plan.getAnnualEmploymentIncome() == null
-                ? BigDecimal.ZERO
-                : plan.getAnnualEmploymentIncome(),
-            plan.getAnnualPreRetirementContribution() == null
-                ? BigDecimal.ZERO
-                : plan.getAnnualPreRetirementContribution());
-    return result
-        .withFundingOrder(parseFundingOrder(plan.getFundingOrder()))
-        .withExpenseProfile(parseExpenseProfile(plan.getExpenseProfile()))
-        .withProjectedIncomePolicy(new ProjectedIncomePolicy(
-            plan.getRentalIncomeMode(), plan.getManualRentalIncome(),
-            plan.getBondCashIncomeMode(), plan.getManualBondCashIncome()));
+    return SimulationAssumptionsPersistenceMapper.read(plan, eventList);
   }
 
   private SimulationAssumptions assumptions(
       SimulationPlanRevisionEntity revision, List<SimulationEvent> eventList) {
-    SimulationAssumptions result =
-        new SimulationAssumptions(
-            revision.getCurrentAge(),
-            revision.getEndAge(),
-            revision.getAnnualLivingExpenses(),
-            revision.getInflationRate(),
-            revision.getCashReturnRate(),
-            revision.getFixedIncomeReturnRate(),
-            revision.getEquityReturnRate(),
-            revision.getRealEstateReturnRate(),
-            revision.getOtherReturnRate(),
-            revision.getPensionStartAge(),
-            revision.getAnnualPension(),
-            revision.getCapitalGainTaxRate(),
-            revision.getStartYear(),
-            revision.getAnnualDiscretionaryExpenses(),
-            eventList,
-            revision.getRentalIncomeGrowthSpread(),
-            revision.getSpendingGrowthSpread(),
-            revision.getFundingStrategy(),
-            revision.getSafeReserveYears(),
-            revision.getEquityHarvestMinimumReturnRate(),
-            revision.getEquityGainHarvestRate(),
-            revision.getAllowEmergencyEquityWithdrawal(),
-            revision.getRetirementAge(),
-            revision.getAnnualEmploymentIncome(),
-            revision.getAnnualPreRetirementContribution());
-    return result
-        .withFundingOrder(parseFundingOrder(revision.getFundingOrder()))
-        .withExpenseProfile(parseExpenseProfile(revision.getExpenseProfile()))
-        .withProjectedIncomePolicy(new ProjectedIncomePolicy(
-            revision.getRentalIncomeMode(), revision.getManualRentalIncome(),
-            revision.getBondCashIncomeMode(), revision.getManualBondCashIncome()));
+    return SimulationAssumptionsPersistenceMapper.read(revision, eventList);
   }
 
-  private static void copy(SimulationPlanRevisionEntity target, SimulationAssumptions a,
-      PlanningBaseline baseline) {
-    target.setCurrentAge(a.currentAge());
-    target.setStartYear(a.startYear());
-    target.setEndAge(a.endAge());
-    target.setRetirementAge(a.retirementAge());
-    target.setAnnualEmploymentIncome(a.annualEmploymentIncome());
-    target.setAnnualPreRetirementContribution(a.annualPreRetirementContribution());
-    target.setAnnualLivingExpenses(a.annualLivingExpenses());
-    target.setAnnualDiscretionaryExpenses(a.annualDiscretionaryExpenses());
-    target.setInflationRate(a.inflationRate());
-    target.setRentalIncomeGrowthSpread(a.rentalIncomeGrowthSpread());
-    target.setSpendingGrowthSpread(a.spendingGrowthSpread());
-    target.setRentalIncomeMode(a.projectedIncomePolicy().rentalIncomeMode());
-    target.setManualRentalIncome(a.projectedIncomePolicy().manualRentalIncome());
-    target.setBondCashIncomeMode(a.projectedIncomePolicy().bondCashIncomeMode());
-    target.setManualBondCashIncome(a.projectedIncomePolicy().manualBondCashIncome());
-    target.setFundingStrategy(a.fundingStrategy());
-    target.setFundingOrder(serializeFundingOrder(a.fundingOrder()));
-    target.setExpenseProfile(serializeExpenseProfile(a.expenseProfile()));
-    target.setSafeReserveYears(a.safeReserveYears());
-    target.setEquityHarvestMinimumReturnRate(a.equityHarvestMinimumReturnRate());
-    target.setEquityGainHarvestRate(a.equityGainHarvestRate());
-    target.setAllowEmergencyEquityWithdrawal(a.allowEmergencyEquityWithdrawal());
-    target.setCashReturnRate(a.cashReturnRate());
-    target.setFixedIncomeReturnRate(a.fixedIncomeReturnRate());
-    target.setEquityReturnRate(a.equityReturnRate());
-    target.setRealEstateReturnRate(a.realEstateReturnRate());
-    target.setOtherReturnRate(a.otherReturnRate());
-    target.setPensionStartAge(a.pensionStartAge());
-    target.setAnnualPension(a.annualPension());
-    target.setCapitalGainTaxRate(a.capitalGainTaxRate());
+  private static void copy(
+      SimulationPlanRevisionEntity target, SimulationAssumptions a, PlanningBaseline baseline) {
+    SimulationAssumptionsPersistenceMapper.write(target, a);
     if (baseline != null) {
       target.setBaselineAsOfYear(baseline.asOfYear());
       target.setBaselineReserve(baseline.reserve());
@@ -504,18 +412,26 @@ public class SimulationPlanService {
 
   private PlanningBaseline currentBaseline(SimulationPlanEntity plan) {
     if (!revisioned() || plan.getCurrentRevisionId() == null) return null;
-    return revisions.findByIdAndSimulationPlanId(plan.getCurrentRevisionId(), plan.getId())
-        .map(this::baseline).orElse(null);
+    return revisions
+        .findByIdAndSimulationPlanId(plan.getCurrentRevisionId(), plan.getId())
+        .map(this::baseline)
+        .orElse(null);
   }
 
-  /** Explicit review action: accepts current normalized state as a new immutable revision baseline. */
-  public SimulationPlanRevisionEntity rebaseline(Long portfolioId, Long planId,
-      PlanningBaseline baseline) {
+  /**
+   * Explicit review action: accepts current normalized state as a new immutable revision baseline.
+   */
+  public SimulationPlanRevisionEntity rebaseline(
+      Long portfolioId, Long planId, PlanningBaseline baseline) {
     SimulationPlanEntity plan = get(portfolioId, planId);
     if (!revisioned()) throw new IllegalStateException("Plan revisions are not configured");
     SimulationAssumptions current = assumptions(plan);
-    int nextNumber = revisions.findAllBySimulationPlanIdOrderByRevisionNumberDesc(planId).stream()
-        .mapToInt(SimulationPlanRevisionEntity::getRevisionNumber).max().orElse(0) + 1;
+    int nextNumber =
+        revisions.findAllBySimulationPlanIdOrderByRevisionNumberDesc(planId).stream()
+                .mapToInt(SimulationPlanRevisionEntity::getRevisionNumber)
+                .max()
+                .orElse(0)
+            + 1;
     SimulationPlanRevisionEntity revision = createRevision(plan, current, nextNumber, baseline);
     plan.setCurrentRevisionId(revision.getId());
     plans.save(plan);
@@ -524,19 +440,29 @@ public class SimulationPlanService {
   }
 
   private PlanningBaseline baseline(SimulationPlanRevisionEntity revision) {
-    return revision.getBaselineAsOfYear() == null ? null : new PlanningBaseline(
-        revision.getBaselineAsOfYear(), revision.getBaselineReserve(), revision.getBaselineInvestmentCapital(),
-        revision.getBaselineLongTermCapital(), revision.getBaselineRentalIncome(), revision.getBaselineLongTermIncome(),
-        deserializePlanningState(revision.getBaselineLongTermState()));
+    return revision.getBaselineAsOfYear() == null
+        ? null
+        : new PlanningBaseline(
+            revision.getBaselineAsOfYear(),
+            revision.getBaselineReserve(),
+            revision.getBaselineInvestmentCapital(),
+            revision.getBaselineLongTermCapital(),
+            revision.getBaselineRentalIncome(),
+            revision.getBaselineLongTermIncome(),
+            deserializePlanningState(revision.getBaselineLongTermState()));
   }
 
   @Transactional(readOnly = true)
   public PlanningBaseline baseline(Long portfolioId, Long planId) {
     SimulationPlanRevisionEntity revision = currentRevision(portfolioId, planId);
     if (revision == null || revision.getBaselineAsOfYear() == null) return null;
-    return new PlanningBaseline(revision.getBaselineAsOfYear(), revision.getBaselineReserve(),
-        revision.getBaselineInvestmentCapital(), revision.getBaselineLongTermCapital(),
-        revision.getBaselineRentalIncome(), revision.getBaselineLongTermIncome(),
+    return new PlanningBaseline(
+        revision.getBaselineAsOfYear(),
+        revision.getBaselineReserve(),
+        revision.getBaselineInvestmentCapital(),
+        revision.getBaselineLongTermCapital(),
+        revision.getBaselineRentalIncome(),
+        revision.getBaselineLongTermIncome(),
         deserializePlanningState(revision.getBaselineLongTermState()));
   }
 
@@ -554,7 +480,9 @@ public class SimulationPlanService {
     if (value == null || isBlank(value)) return LongTermAnnualProjectionApi.PlanningState.EMPTY;
     try {
       var tree = JSON.readTree(value);
-      if (tree.has("payload")) return JSON.treeToValue(tree.get("payload"), LongTermAnnualProjectionApi.PlanningState.class);
+      if (tree.has("payload"))
+        return JSON.treeToValue(
+            tree.get("payload"), LongTermAnnualProjectionApi.PlanningState.class);
       // Legacy V01.020 payloads were unwrapped; keep them readable.
       return JSON.treeToValue(tree, LongTermAnnualProjectionApi.PlanningState.class);
     } catch (Exception e) {
@@ -566,50 +494,8 @@ public class SimulationPlanService {
       SimulationPlanEntity p, Long portfolioId, String name, SimulationAssumptions a) {
     p.setPortfolioId(portfolioId);
     p.setName(name.trim());
-    p.setCurrentAge(a.currentAge());
-    p.setStartYear(a.startYear());
-    p.setEndAge(a.endAge());
-    p.setRetirementAge(a.retirementAge());
-    p.setAnnualEmploymentIncome(a.annualEmploymentIncome());
-    p.setAnnualPreRetirementContribution(a.annualPreRetirementContribution());
-    p.setAnnualLivingExpenses(a.annualLivingExpenses());
-    p.setAnnualDiscretionaryExpenses(a.annualDiscretionaryExpenses());
-    p.setInflationRate(a.inflationRate());
-    p.setRentalIncomeGrowthSpread(a.rentalIncomeGrowthSpread());
-    p.setSpendingGrowthSpread(a.spendingGrowthSpread());
-    p.setRentalIncomeMode(a.projectedIncomePolicy().rentalIncomeMode());
-    p.setManualRentalIncome(a.projectedIncomePolicy().manualRentalIncome());
-    p.setBondCashIncomeMode(a.projectedIncomePolicy().bondCashIncomeMode());
-    p.setManualBondCashIncome(a.projectedIncomePolicy().manualBondCashIncome());
-    p.setFundingStrategy(a.fundingStrategy());
-    p.setFundingOrder(serializeFundingOrder(a.fundingOrder()));
-    p.setExpenseProfile(serializeExpenseProfile(a.expenseProfile()));
-    p.setSafeReserveYears(a.safeReserveYears());
-    p.setEquityHarvestMinimumReturnRate(a.equityHarvestMinimumReturnRate());
-    p.setEquityGainHarvestRate(a.equityGainHarvestRate());
-    p.setAllowEmergencyEquityWithdrawal(a.allowEmergencyEquityWithdrawal());
-    p.setCashReturnRate(a.cashReturnRate());
-    p.setFixedIncomeReturnRate(a.fixedIncomeReturnRate());
-    p.setEquityReturnRate(a.equityReturnRate());
-    p.setRealEstateReturnRate(a.realEstateReturnRate());
-    p.setOtherReturnRate(a.otherReturnRate());
-    p.setPensionStartAge(a.pensionStartAge());
-    p.setAnnualPension(a.annualPension());
-    p.setCapitalGainTaxRate(a.capitalGainTaxRate());
+    SimulationAssumptionsPersistenceMapper.write(p, a);
     return p;
-  }
-
-  private static String serializeFundingOrder(List<FundingSource> order) {
-    return String.join(",", order.stream().map(Enum::name).toList());
-  }
-
-  private static List<FundingSource> parseFundingOrder(String value) {
-    if (value == null || isBlank(value)) return SimulationAssumptions.DEFAULT_FUNDING_ORDER;
-    try {
-      return Arrays.stream(value.split(",")).map(String::trim).map(FundingSource::valueOf).toList();
-    } catch (IllegalArgumentException exception) {
-      throw new IllegalArgumentException("Unknown funding source in simulation plan", exception);
-    }
   }
 
   private boolean revisioned() {
@@ -621,31 +507,5 @@ public class SimulationPlanService {
     if (list(portfolioId).stream()
         .anyMatch(p -> !Objects.equals(p.getId(), id) && p.getName().equalsIgnoreCase(name.trim())))
       throw new IllegalArgumentException("Plan name already exists");
-  }
-
-  private static String serializeExpenseProfile(ExpenseProfile profile) {
-    return profile.steps().stream()
-        .map(step -> step.fromYear() + ":" + step.factor().toPlainString())
-        .reduce((left, right) -> left + ";" + right)
-        .orElse("");
-  }
-
-  private static ExpenseProfile parseExpenseProfile(String value) {
-    if (value == null || isBlank(value)) return ExpenseProfile.EMPTY;
-    try {
-      return new ExpenseProfile(
-          Arrays.stream(value.split(";"))
-              .map(String::trim)
-              .map(
-                  entry -> {
-                    String[] parts = entry.split(":", -1);
-                    if (parts.length != 2) throw new IllegalArgumentException();
-                    return new ExpenseProfileStep(
-                        Integer.parseInt(parts[0].trim()), new BigDecimal(parts[1].trim()));
-                  })
-              .toList());
-    } catch (RuntimeException exception) {
-      throw new IllegalArgumentException("Invalid expense profile in simulation plan", exception);
-    }
   }
 }

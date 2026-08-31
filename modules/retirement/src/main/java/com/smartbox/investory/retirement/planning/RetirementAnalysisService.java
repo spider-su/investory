@@ -1,9 +1,16 @@
 package com.smartbox.investory.retirement.planning;
 
+import com.smartbox.investory.retirement.simulation.AnalysisAvailability;
+import com.smartbox.investory.retirement.simulation.DeterministicAnalysisContext;
+import com.smartbox.investory.retirement.simulation.PlanSustainabilityAssessment;
 import com.smartbox.investory.retirement.simulation.RetirementAgeAnalysisService;
 import com.smartbox.investory.retirement.simulation.SimulationChartData;
+import com.smartbox.investory.retirement.simulation.SimulationEvaluation;
+import com.smartbox.investory.retirement.simulation.SimulationScenario;
 import com.smartbox.investory.retirement.simulation.SimulationSensitivityAnalysisService;
 import com.smartbox.investory.retirement.simulation.SustainableSpendingAnalysisService;
+import java.util.EnumMap;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 
 /** Orchestrates derived retirement analysis without rebuilding the base projection pipeline. */
@@ -23,10 +30,42 @@ public class RetirementAnalysisService {
   }
 
   public RetirementAnalysisResult analyze(RetirementProjectionContext projection) {
+    SimulationChartData charts =
+        SimulationChartData.from(analysisScenarios(projection), projection.projectedAssumptions());
+    if (projection.forward().forwardAssumptions().isEmpty())
+      return RetirementAnalysisResult.noForwardHorizon(charts);
+
+    var baseResult = projection.scenarioResults().get(SimulationScenario.BASE);
+    var baseSummary = projection.summaries().get(SimulationScenario.BASE);
+    if (baseResult == null || baseSummary == null)
+      throw new IllegalStateException("Forward Analysis requires a canonical Base result");
+    var context =
+        new DeterministicAnalysisContext(
+            projection.projectedProfile(),
+            projection.projectedAssumptions(),
+            projection.forward().context().asOfYear(),
+            new SimulationEvaluation(
+                baseResult, baseSummary, PlanSustainabilityAssessment.from(baseSummary)));
     return new RetirementAnalysisResult(
-        sustainableSpending.analyze(projection.projectedProfile(), projection.projectedAssumptions()),
-        retirementAge.analyze(projection.projectedProfile(), projection.projectedAssumptions()),
-        sensitivity.analyze(projection.projectedProfile(), projection.projectedAssumptions()),
-        SimulationChartData.from(projection.scenarioResults(), projection.projectedAssumptions()));
+        RetirementAnalysisState.AVAILABLE,
+        new AnalysisAvailability.Available<>(sustainableSpending.analyze(context)),
+        new AnalysisAvailability.Available<>(retirementAge.analyze(context)),
+        new AnalysisAvailability.Available<>(sensitivity.analyze(context)),
+        charts);
+  }
+
+  /** Analysis hides the engine's zero-delta Custom compatibility result. */
+  private static Map<
+          SimulationScenario, com.smartbox.investory.retirement.simulation.SimulationResult>
+      analysisScenarios(RetirementProjectionContext projection) {
+    Map<SimulationScenario, com.smartbox.investory.retirement.simulation.SimulationResult> result =
+        new EnumMap<>(SimulationScenario.class);
+    result.putAll(projection.scenarioResults());
+    var base = result.get(SimulationScenario.BASE);
+    var custom = result.get(SimulationScenario.CUSTOM);
+    if (base != null && custom != null && base.years().equals(custom.years())) {
+      result.remove(SimulationScenario.CUSTOM);
+    }
+    return result;
   }
 }

@@ -214,6 +214,8 @@ Manual Long-Term Assets ──────────────────�
 ```
 
 Manual long-term assets are planning/manual-domain data; they do not enter brokerage accounting.
+Real-estate rentals use rental contracts as the runtime source of truth. Reviewed Retirement plans
+freeze normalized Long-Term economics; live edits affect current views until explicit rebaseline.
 `import_history` records import metadata, status, counts, and failures. Normalized rows retain available
 broker identifiers and original asset symbols for traceability, but Investory is not an immutable raw
 event store.

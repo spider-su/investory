@@ -93,7 +93,14 @@ public class IntegrationJobScheduler {
             configurationService
                 .resolveEnabledGlobal(IntegrationType.FX_DATA, ExchangeRateHostFxDataPlugin.ID)
                 .orElse(PluginConfig.empty());
-        currencyRateUpdaterService.updateCurrencyRatesForDate(java.time.LocalDate.now(), config);
+        CurrencyRateUpdaterService.CurrencyRateRefreshResult result =
+            currencyRateUpdaterService.updateCurrencyRatesForDate(
+                java.time.LocalDate.now(), config);
+        if (result == null || !result.failed().isEmpty()) {
+          String failure =
+              result == null ? "FX refresh returned no result" : String.join("; ", result.failed());
+          throw new IllegalStateException(failure);
+        }
       } else if (instance.getPluginType() == IntegrationType.MARKET_DATA
           && "refresh-prices".equals(job.getJobType())) {
         marketService.updateStocks();

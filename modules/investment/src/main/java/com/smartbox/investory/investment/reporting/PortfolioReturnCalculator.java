@@ -22,15 +22,23 @@ public final class PortfolioReturnCalculator {
       return ReturnMetric.unavailable(
           ReturnMetric.Status.INSUFFICIENT_DATA, "Opening value and daily valuations are required");
     }
+    if (dailyValues.stream()
+        .anyMatch(
+            row ->
+                row == null
+                    || row.date() == null
+                    || row.endValue() == null
+                    || row.contributions() == null
+                    || row.withdrawals() == null)) {
+      return ReturnMetric.unavailable(
+          ReturnMetric.Status.INSUFFICIENT_DATA,
+          "A daily valuation or normalized flow is missing");
+    }
     List<DailyPortfolioValue> rows =
         dailyValues.stream().sorted(Comparator.comparing(DailyPortfolioValue::date)).toList();
     BigDecimal previous = openingValue;
     BigDecimal factor = BigDecimal.ONE;
     for (DailyPortfolioValue row : rows) {
-      if (row.endValue() == null || row.date() == null) {
-        return ReturnMetric.unavailable(
-            ReturnMetric.Status.INSUFFICIENT_DATA, "A daily valuation is missing");
-      }
       BigDecimal denominator =
           previous.add(nz(row.contributions())).subtract(nz(row.withdrawals()));
       if (denominator.signum() <= 0) {
@@ -94,6 +102,17 @@ public final class PortfolioReturnCalculator {
     List<CashFlow> flows = new ArrayList<>();
     flows.add(new CashFlow(openingDate, openingValue.negate()));
     if (dailyValues != null) {
+      if (dailyValues.stream()
+          .anyMatch(
+              row ->
+                  row == null
+                      || row.date() == null
+                      || row.contributions() == null
+                      || row.withdrawals() == null)) {
+        return ReturnMetric.unavailable(
+            ReturnMetric.Status.INSUFFICIENT_DATA,
+            "A daily valuation date or normalized flow is missing");
+      }
       dailyValues.stream()
           .filter(row -> !row.date().isBefore(openingDate) && !row.date().isAfter(endingDate))
           .sorted(Comparator.comparing(DailyPortfolioValue::date))

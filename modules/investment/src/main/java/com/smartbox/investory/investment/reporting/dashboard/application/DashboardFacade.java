@@ -96,7 +96,7 @@ public class DashboardFacade {
     Portfolio filteredPortfolio =
         DashboardCalculationCopies.portfolio(portfolioService.calculateTotalProfitLoss());
     PerformanceResult kpiPerformance =
-        canonicalKpiPerformance(filteredPortfolio.getMonthlyPerformance());
+        canonicalKpiPerformance(filteredPortfolio.getMonthlyPerformance(), query.portfolioId());
     periodFilterService.apply(filteredPortfolio, selectedPeriod);
     Portfolio portfolio = DashboardCalculationCopies.portfolio(filteredPortfolio);
 
@@ -116,7 +116,8 @@ public class DashboardFacade {
             benchmark,
             accountPeriodMetrics));
 
-    PerformanceResult canonical = canonicalPerformance(portfolio.getMonthlyPerformance());
+    PerformanceResult canonical =
+        canonicalPerformance(portfolio.getMonthlyPerformance(), query.portfolioId());
     PeriodPerformance periodPerformance =
         periodPerformance(benchmark, portfolio.getMonthlyPerformance(), canonical);
     OverviewView overview =
@@ -255,12 +256,19 @@ public class DashboardFacade {
       taxes = canonical.taxes().doubleValue();
       interest = canonical.interest().doubleValue();
     }
+    ReturnMetric selectedPeriodReturn = metric(canonical, true);
     double profit =
-        benchmark.isPortfolioPerformanceAvailable()
-            ? benchmark.getPortfolioPl()
-            : performanceProfit(performance);
+        canonical != null
+            ? canonical.investmentResult().doubleValue()
+            : benchmark.isPortfolioPerformanceAvailable()
+                ? benchmark.getPortfolioPl()
+                : performanceProfit(performance);
     Double returnPct =
-        benchmark.isPortfolioPerformanceAvailable() ? benchmark.getPortfolioReturnPct() : null;
+        selectedPeriodReturn.status() == ReturnMetric.Status.AVAILABLE
+            ? selectedPeriodReturn.value().movePointRight(2).doubleValue()
+            : canonical == null && benchmark.isPortfolioPerformanceAvailable()
+                ? benchmark.getPortfolioReturnPct()
+                : null;
     return new PeriodPerformance(
         profit,
         returnPct,
@@ -274,7 +282,7 @@ public class DashboardFacade {
         equityObservations == 0 ? 0.0 : equityTotal / equityObservations);
   }
 
-  private PerformanceResult canonicalPerformance(Performance performance) {
+  private PerformanceResult canonicalPerformance(Performance performance, Long portfolioId) {
     if (performanceQuery == null
         || performance == null
         || performance.getCalculateMonthlyPerformance() == null
@@ -286,10 +294,10 @@ public class DashboardFacade {
         .getCalculateMonthlyPerformance()
         .keySet()
         .forEach(label -> months.add(java.time.YearMonth.parse(label)));
-    return performanceQuery.forMonths(months.getFirst(), months.getLast());
+    return performanceQuery.forPortfolioMonths(portfolioId, months.getFirst(), months.getLast());
   }
 
-  private PerformanceResult canonicalKpiPerformance(Performance performance) {
+  private PerformanceResult canonicalKpiPerformance(Performance performance, Long portfolioId) {
     if (performanceQuery == null
         || performance == null
         || performance.getCalculateMonthlyPerformance() == null
@@ -310,7 +318,7 @@ public class DashboardFacade {
             .orElse(null);
     return first == null || last == null || first.isAfter(last)
         ? null
-        : performanceQuery.forMonths(first, last);
+        : performanceQuery.forPortfolioMonths(portfolioId, first, last);
   }
 
   private ReturnMetric metric(PerformanceResult result, boolean twr) {

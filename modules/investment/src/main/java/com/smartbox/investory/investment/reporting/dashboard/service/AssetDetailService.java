@@ -1,6 +1,7 @@
 package com.smartbox.investory.investment.reporting.dashboard.service;
 
 import com.smartbox.investory.investment.accounting.CashOperationType;
+import com.smartbox.investory.investment.accounting.model.PositionSettlementModel;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity;
@@ -11,7 +12,11 @@ import com.smartbox.investory.investment.infrastructure.persistence.OpenedPositi
 import com.smartbox.investory.investment.infrastructure.persistence.OpenedPositionRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceRepository;
+import com.smartbox.investory.investment.market.fx.CurrencyRateService;
 import com.smartbox.investory.investment.market.price.YahooSymbolResolver;
+import com.smartbox.investory.shared.currency.CurrencyType;
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.Comparator;
 import java.util.List;
@@ -34,6 +39,7 @@ public class AssetDetailService {
   private final ClosedPositionRepository closedPositionRepository;
   private final CashOperationRepository cashOperationRepository;
   private final SymbolPerformanceRepository symbolPerformanceRepository;
+  private final CurrencyRateService currencyRateService;
 
   public AssetDetailView findBySymbol(String rawSymbol) {
     return findBySymbol(rawSymbol, DashboardPeriod.ONE_YEAR);
@@ -79,20 +85,16 @@ public class AssetDetailService {
         holdings.stream().allMatch(holding -> holding.unrealizedProfitLoss() != null)
             ? holdings.stream().mapToDouble(AssetHoldingView::unrealizedProfitLoss).sum()
             : null;
-    Double totalRealizedProfitLoss =
-        transactions.stream().allMatch(transaction -> transaction.realizedProfitLoss() != null)
-            ? transactions.stream().mapToDouble(AssetTransactionView::realizedProfitLoss).sum()
-            : null;
-    double totalGrossDividends =
-        dividends.stream()
-            .filter(dividend -> dividend.type() == CashOperationType.DIVIDEND)
-            .mapToDouble(dividend -> safe(dividend.amount()))
-            .sum();
-    double totalWithholdingTax =
-        dividends.stream()
-            .filter(dividend -> dividend.type() == CashOperationType.WITHHOLDING_TAX)
-            .mapToDouble(dividend -> Math.abs(safe(dividend.amount())))
-            .sum();
+    Double totalRealizedProfitLoss = totalRealizedProfitLoss(closedPositions, asset.getCurrency());
+    Double totalGrossDividends =
+        totalCashAmount(dividendOperations, CashOperationType.DIVIDEND, asset.getCurrency(), false);
+    Double totalWithholdingTax =
+        totalCashAmount(
+            dividendOperations, CashOperationType.WITHHOLDING_TAX, asset.getCurrency(), true);
+    Double totalNetDividends =
+        totalGrossDividends == null || totalWithholdingTax == null
+            ? null
+            : totalGrossDividends - totalWithholdingTax;
 
     return new AssetDetailView(
         asset.getId(),
@@ -116,7 +118,7 @@ public class AssetDetailService {
         dividends,
         totalGrossDividends,
         totalWithholdingTax,
-        totalGrossDividends - totalWithholdingTax,
+        totalNetDividends,
         period,
         performance);
   }
@@ -184,22 +186,101 @@ public class AssetDetailService {
                 position -> Math.abs(position.signedQuantity()) * safe(position.getOpenPrice()))
             .sum();
     double averageCost = absoluteQuantity == 0 ? 0 : weightedCost / absoluteQuantity;
-    Double marketPrice = asset.getMarketPrice();
+    PositionSettlementModel settlementModel = settlementModel(positions);
+    CurrencyType priceCurrency = commonPriceCurrency(positions);
+    boolean cashSettled = settlementModel == PositionSettlementModel.CASH_SETTLED;
+    boolean priceMatchesAsset = priceCurrency != null && priceCurrency == asset.getCurrency();
+    Double marketPrice = cashSettled && priceMatchesAsset ? asset.getMarketPrice() : null;
     Double marketValue = marketPrice == null ? null : quantity * marketPrice;
     Double unrealizedProfitLoss =
         marketPrice == null ? null : quantity * (marketPrice - averageCost);
-    OpenedPosition first = positions.getFirst();
 
     return new AssetHoldingView(
         accountId,
         quantity,
         averageCost,
-        first.getCostCurrency(),
+        priceCurrency,
         marketPrice,
-        first.getPriceCurrency(),
+        priceCurrency,
         marketValue,
         unrealizedProfitLoss,
-        first.getSettlementModel());
+        settlementModel);
+  }
+
+  private PositionSettlementModel settlementModel(List<OpenedPosition> positions) {
+    PositionSettlementModel first = positions.getFirst().getSettlementModel();
+    if (first == null
+        || positions.stream().anyMatch(position -> position.getSettlementModel() != first)) {
+      return PositionSettlementModel.UNCLASSIFIED;
+    }
+    return first;
+  }
+
+  private CurrencyType commonPriceCurrency(List<OpenedPosition> positions) {
+    CurrencyType first = positions.getFirst().getPriceCurrency();
+    return first != null
+            && positions.stream().allMatch(position -> position.getPriceCurrency() == first)
+        ? first
+        : null;
+  }
+
+  private Double totalRealizedProfitLoss(
+      List<ClosedPosition> positions, CurrencyType displayCurrency) {
+    BigDecimal total = BigDecimal.ZERO;
+    for (ClosedPosition position : positions) {
+      if (position.getProfitValue() == null || position.getProfitCurrency() == null) {
+        return null;
+      }
+      LocalDate rateDate =
+          position.getCloseTime() == null ? null : position.getCloseTime().toLocalDate();
+      BigDecimal converted =
+          convert(
+              position.getProfitValue(), position.getProfitCurrency(), displayCurrency, rateDate);
+      if (converted == null) {
+        return null;
+      }
+      total = total.add(converted);
+    }
+    return total.doubleValue();
+  }
+
+  private Double totalCashAmount(
+      List<CashOperationEntity> operations,
+      CashOperationType type,
+      CurrencyType displayCurrency,
+      boolean absolute) {
+    BigDecimal total = BigDecimal.ZERO;
+    for (CashOperationEntity operation : operations) {
+      if (operation.getType() != type) {
+        continue;
+      }
+      LocalDate rateDate = operation.getDate() == null ? null : operation.getDate().toLocalDate();
+      BigDecimal converted =
+          convert(operation.getAmountValue(), operation.getCurrency(), displayCurrency, rateDate);
+      if (converted == null) {
+        return null;
+      }
+      total = total.add(absolute ? converted.abs() : converted);
+    }
+    return total.doubleValue();
+  }
+
+  private BigDecimal convert(
+      BigDecimal amount,
+      CurrencyType sourceCurrency,
+      CurrencyType displayCurrency,
+      LocalDate rateDate) {
+    if (amount == null || sourceCurrency == null || displayCurrency == null) {
+      return null;
+    }
+    if (sourceCurrency == displayCurrency) {
+      return amount;
+    }
+    if (rateDate == null) {
+      return null;
+    }
+    return currencyRateService.convertToBaseCurrency(
+        amount, displayCurrency, sourceCurrency, rateDate);
   }
 
   private AssetTransactionView toTransaction(ClosedPosition position) {

@@ -302,6 +302,13 @@ then, their projection uses the existing compatibility path.
 Plan revision provenance is separate from accounting reconciliation and from annual rollover. Stored
 assumptions use canonical currency values; display currency never creates a revision or changes one.
 
+`SimulationAssumptions` is the active application model. Persisted plan and revision rows share the
+compatibility-shaped `PersistedSimulationAssumptions` contract and cross into that model only through
+`SimulationAssumptionsPersistenceMapper`. This mapper owns legacy null defaults and the serialized
+funding-order and expense-profile formats. Runtime, editor, and timeline changes use the named
+`SimulationAssumptions.toBuilder()` copy boundary; new positional construction outside the assumptions
+type and persistence mapper is not part of the supported architecture.
+
 The economic snapshot is not a copy of source-domain tables. It contains only normalized planning
 inputs required by Retirement. Investment and Long-Term remain the owners of how those values were
 derived.

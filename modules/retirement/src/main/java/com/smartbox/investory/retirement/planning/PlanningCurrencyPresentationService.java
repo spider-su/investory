@@ -6,7 +6,6 @@ import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;
-import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
@@ -17,36 +16,27 @@ import org.springframework.stereotype.Service;
 /** Backend-authoritative canonical/display conversion for planning presentation only. */
 @Service
 public class PlanningCurrencyPresentationService {
-  private static final CurrencyType CANONICAL = CurrencyType.USD;
   private static final DateTimeFormatter PLAN_PROGRESS_BOUNDARY =
       DateTimeFormatter.ofPattern("d MMM uuuu", java.util.Locale.ENGLISH);
-  private final CurrencyConversion rates;
-  private final Clock clock;
+  private final PlanningMoneyConversionService money;
+  private final RetirementAnalysisPresentation analysisPresentation;
 
   public PlanningCurrencyPresentationService(CurrencyConversion rates, Clock clock) {
-    this.rates = rates;
-    this.clock = clock;
+    this.money = new PlanningMoneyConversionService(rates, clock);
+    this.analysisPresentation = new RetirementAnalysisPresentation(money);
   }
 
   public BigDecimal toDisplay(BigDecimal canonical, CurrencyType display) {
-    return canonical == null || display == CANONICAL
-        ? canonical
-        : rates.convertToBaseCurrency(canonical, display, CANONICAL, LocalDate.now(clock));
+    return money.toDisplay(canonical, display);
   }
 
   public BigDecimal toDisplay(BigDecimal amount, CurrencyType source, CurrencyType display) {
-    return amount == null || source == display
-        ? amount
-        : rates.convertToBaseCurrency(amount, display, source, LocalDate.now(clock));
+    return money.toDisplay(amount, source, display);
   }
 
   public BigDecimal fromDisplay(
       BigDecimal displayAmount, CurrencyType display, BigDecimal fallback) {
-    return displayAmount == null
-        ? fallback
-        : display == CANONICAL
-            ? displayAmount
-            : rates.convertToBaseCurrency(displayAmount, CANONICAL, display, LocalDate.now(clock));
+    return money.fromDisplay(displayAmount, display, fallback);
   }
 
   public PastPlanningYear display(PastPlanningYear past, CurrencyType display) {
@@ -312,265 +302,30 @@ public class PlanningCurrencyPresentationService {
   public SustainableSpendingAnalysisMoney displaySustainableSpending(
       com.smartbox.investory.retirement.simulation.SustainableSpendingAnalysis analysis,
       CurrencyType display) {
-    var base = analysis.base();
-    var conservative = analysis.conservative();
-    BigDecimal current = toDisplay(analysis.currentRecurringSpending(), display);
-    BigDecimal baseLimit = toDisplay(base.sustainableSpending(), display);
-    BigDecimal conservativeLimit = toDisplay(conservative.sustainableSpending(), display);
-    BigDecimal baseHeadroom = toDisplay(base.headroom(), display);
-    BigDecimal conservativeHeadroom = toDisplay(conservative.headroom(), display);
-    String baseLimitText = spendingLimit(base, baseLimit);
-    String conservativeLimitText = spendingLimit(conservative, conservativeLimit);
-    String baseHeadroomText = spendingHeadroom(base, baseHeadroom);
-    String conservativeHeadroomText = spendingHeadroom(conservative, conservativeHeadroom);
-    String basePercentageText = spendingPercentage(base);
-    String conservativePercentageText = spendingPercentage(conservative);
-    String interpretation;
-    if (base.state()
-            == com.smartbox.investory.retirement.simulation.SustainableSpendingResultState
-                .NO_SUSTAINABLE_SPENDING
-        && conservative.state()
-            == com.smartbox.investory.retirement.simulation.SustainableSpendingResultState
-                .NO_SUSTAINABLE_SPENDING) {
-      interpretation =
-          "Even zero total annual costs does not make the plan sustainable in either scenario.";
-    } else if (base.state()
-            == com.smartbox.investory.retirement.simulation.SustainableSpendingResultState
-                .NON_MONOTONIC_RESULT
-        || conservative.state()
-            == com.smartbox.investory.retirement.simulation.SustainableSpendingResultState
-                .NON_MONOTONIC_RESULT) {
-      interpretation =
-          "No reliable single spending limit can be determined under the tested assumptions.";
-    } else if (base.state()
-            == com.smartbox.investory.retirement.simulation.SustainableSpendingResultState
-                .UPPER_BOUND_NOT_FOUND
-        || conservative.state()
-            == com.smartbox.investory.retirement.simulation.SustainableSpendingResultState
-                .UPPER_BOUND_NOT_FOUND) {
-      interpretation = "The spending limit exceeds the tested range in at least one scenario.";
-    } else if (base.currentSpendingAboveLimit() && conservative.currentSpendingAboveLimit()) {
-      interpretation =
-          "Planned costs are above the spending limit in both Base and Conservative scenarios.";
-    } else if (conservative.currentSpendingAboveLimit()) {
-      interpretation =
-          "Planned costs are about "
-              + displayMoney(display, conservativeHeadroom.abs())
-              + " per year over the Conservative spending limit. The Base plan remains within its limit.";
-    } else if (base.currentSpendingAboveLimit()) {
-      interpretation =
-          "Planned costs are about "
-              + displayMoney(display, baseHeadroom.abs())
-              + " per year over the Base spending limit.";
-    } else {
-      interpretation =
-          "Planned costs are within both Base and Conservative spending limits. Conservative extra capacity is about "
-              + displayMoney(display, conservativeHeadroom.abs())
-              + " per year.";
-    }
-    return new SustainableSpendingAnalysisMoney(
-        PlanningPresentation.wholeNumber(current),
-        baseLimitText,
-        conservativeLimitText,
-        baseHeadroomText,
-        conservativeHeadroomText,
-        basePercentageText,
-        conservativePercentageText,
-        base.currentSpendingAboveLimit(),
-        conservative.currentSpendingAboveLimit(),
-        interpretation);
-  }
-
-  private static String spendingLimit(
-      com.smartbox.investory.retirement.simulation.SustainableSpendingAnalysis.ScenarioResult
-          result,
-      BigDecimal value) {
-    return switch (result.state()) {
-      case BOUNDARY_FOUND -> PlanningPresentation.wholeNumber(value);
-      case UPPER_BOUND_NOT_FOUND -> "Above tested range";
-      case NO_SUSTAINABLE_SPENDING -> "None found";
-      case NON_MONOTONIC_RESULT -> "No reliable spending limit";
-    };
-  }
-
-  private static String spendingHeadroom(
-      com.smartbox.investory.retirement.simulation.SustainableSpendingAnalysis.ScenarioResult
-          result,
-      BigDecimal value) {
-    return result.state()
-            == com.smartbox.investory.retirement.simulation.SustainableSpendingResultState
-                .BOUNDARY_FOUND
-        ? (value.signum() > 0 ? "+" : "") + PlanningPresentation.wholeNumber(value.abs())
-        : "Not determined";
-  }
-
-  private static String spendingPercentage(
-      com.smartbox.investory.retirement.simulation.SustainableSpendingAnalysis.ScenarioResult
-          result) {
-    if (result.state()
-            != com.smartbox.investory.retirement.simulation.SustainableSpendingResultState
-                .BOUNDARY_FOUND
-        || result.headroomPercentage() == null) {
-      return "Not determined";
-    }
-    return (result.headroomPercentage().signum() > 0 ? "+" : "")
-        + PlanningPresentation.percentage(result.headroomPercentage().abs());
+    return analysisPresentation.displaySustainableSpending(analysis, display);
   }
 
   public SimulationSensitivityAnalysisMoney displaySensitivity(
       com.smartbox.investory.retirement.simulation.SimulationSensitivityAnalysis analysis,
       CurrencyType display) {
-    return new SimulationSensitivityAnalysisMoney(
-        analysis.interpretation(),
-        analysis.topDrivers(3).stream()
-            .map(result -> displaySensitivityResult(result, display))
-            .toList());
+    return analysisPresentation.displaySensitivity(analysis, display);
   }
 
   public PlanRiskView displayPlanRisks(
       com.smartbox.investory.retirement.simulation.SimulationSensitivityAnalysis analysis,
       CurrencyType display) {
-    var all =
-        analysis.drivers().stream()
-            .map(result -> displaySensitivityResult(result, display))
-            .toList();
-    var riskResults =
-        analysis.drivers().stream()
-            .filter(
-                result ->
-                    result.driver().category()
-                        == com.smartbox.investory.retirement.simulation.SensitivityDriverCategory
-                            .RISK)
-            .toList();
-    var leverResults =
-        analysis.drivers().stream()
-            .filter(
-                result ->
-                    result.driver().category()
-                        == com.smartbox.investory.retirement.simulation.SensitivityDriverCategory
-                            .POLICY_LEVER)
-            .toList();
-    var risks =
-        riskResults.stream().map(result -> displaySensitivityResult(result, display)).toList();
-    var levers =
-        leverResults.stream().map(result -> displaySensitivityResult(result, display)).toList();
-    String interpretation = riskInterpretation(analysis, riskResults);
-    return new PlanRiskView(interpretation, risks.stream().limit(3).toList(), risks, levers);
+    return analysisPresentation.displayPlanRisks(analysis, display);
   }
 
   public RetirementAgeAnalysisMoney displayRetirementAgeAnalysis(RetirementAgeAnalysis analysis) {
-    var base = displayRetirementScenario(analysis.base());
-    var conservative = displayRetirementScenario(analysis.conservative());
-    String interpretation;
-    if (analysis.conservative().state() == RetirementTimingResultState.NO_SUSTAINABLE_AGE
-        && analysis.base().state() == RetirementTimingResultState.NO_SUSTAINABLE_AGE) {
-      interpretation =
-          "No sustainable retirement age was found within the configured planning horizon in Base or Conservative scenarios.";
-    } else if (analysis.conservative().state() == RetirementTimingResultState.NON_MONOTONIC_RESULT
-        || analysis.base().state() == RetirementTimingResultState.NON_MONOTONIC_RESULT) {
-      interpretation =
-          "Retirement timing results are non-monotonic under the current assumptions; life events or funding-policy timing affect individual ages.";
-    } else if (analysis.conservative().state() == RetirementTimingResultState.DELAY_REQUIRED) {
-      interpretation =
-          "The planned retirement age is not sustainable under Conservative assumptions. Sustainability begins at "
-              + conservative.earliest()
-              + ".";
-    } else if (analysis.conservative().state() == RetirementTimingResultState.ALREADY_RETIRED) {
-      interpretation = "The planned retirement age has passed the current planning boundary.";
-    } else if (analysis.conservative().state()
-        == RetirementTimingResultState.IMMEDIATE_RETIREMENT_AVAILABLE) {
-      interpretation =
-          "The plan supports immediate retirement under the Conservative scenario. Base: "
-              + base.earliest()
-              + ".";
-    } else if (analysis.conservative().headroomYears() > 0) {
-      interpretation =
-          "The Conservative scenario supports retirement "
-              + analysis.conservative().headroomYears()
-              + " years earlier than planned. Base: "
-              + analysis.base().headroomYears()
-              + " years earlier.";
-    } else {
-      interpretation =
-          "The planned retirement age is the earliest sustainable age under Conservative assumptions. Base: "
-              + analysis.base().headroomYears()
-              + " years earlier.";
-    }
-    return new RetirementAgeAnalysisMoney(interpretation, base, conservative);
+    return analysisPresentation.displayRetirementAgeAnalysis(analysis);
   }
 
   public PlanningFlexibilityMoney displayPlanningFlexibility(
       com.smartbox.investory.retirement.simulation.SustainableSpendingAnalysis spending,
       RetirementAgeAnalysis retirement,
       CurrencyType display) {
-    return new PlanningFlexibilityMoney(
-        displaySustainableSpending(spending, display), displayRetirementAgeAnalysis(retirement));
-  }
-
-  private static RetirementAgeAnalysisMoney.Scenario displayRetirementScenario(
-      RetirementAgeAnalysis.ScenarioResult result) {
-    String earliest =
-        result.earliestSustainableRetirementAge() == null
-            ? "None"
-            : "Age "
-                + result.earliestSustainableRetirementAge()
-                + " · "
-                + result.earliestSustainableRetirementYear();
-    String headroom =
-        switch (result.state()) {
-          case IMMEDIATE_RETIREMENT_AVAILABLE -> "Now";
-          case ALREADY_RETIRED -> "Planned age has passed";
-          case EARLIER_RETIREMENT_AVAILABLE -> result.headroomYears() + " years earlier";
-          case PLANNED_AGE_IS_BOUNDARY -> "0 years";
-          case DELAY_REQUIRED -> result.delayYears() + " years delay";
-          case NO_SUSTAINABLE_AGE -> "—";
-          case NON_MONOTONIC_RESULT -> "Non-monotonic result";
-        };
-    String state =
-        switch (result.state()) {
-          case IMMEDIATE_RETIREMENT_AVAILABLE -> "Immediate retirement available";
-          case ALREADY_RETIRED -> "Planned retirement age has passed";
-          case EARLIER_RETIREMENT_AVAILABLE -> "Earlier retirement available";
-          case PLANNED_AGE_IS_BOUNDARY -> "Planned age is boundary";
-          case DELAY_REQUIRED -> "Delay required";
-          case NO_SUSTAINABLE_AGE -> "No sustainable age";
-          case NON_MONOTONIC_RESULT -> "Non-monotonic result";
-        };
-    return new RetirementAgeAnalysisMoney.Scenario(
-        "Age " + result.plannedRetirementAge() + " · " + result.plannedRetirementYear(),
-        earliest,
-        headroom,
-        state,
-        result.plannedRetirementSustainable(),
-        result.earliestSustainableRetirementAge() != null);
-  }
-
-  private SimulationSensitivityAnalysisMoney.Driver displaySensitivityResult(
-      com.smartbox.investory.retirement.simulation.SimulationSensitivityResult result,
-      CurrencyType display) {
-    var baseline = result.baseline().sustainability();
-    var adverse = result.adverse().sustainability();
-    String status;
-    if (!result.baseline().sustainable()) {
-      status = "Worsens existing plan shortfall";
-    } else if (result.adverseCausesFailure()) {
-      status =
-          "Plan fails"
-              + (adverse.firstFailureYear() == null ? "" : " in " + adverse.firstFailureYear());
-    } else if (result.baseline().sustainable()) {
-      status = "Plan remains sustainable";
-    } else {
-      status = "Plan remains unsustainable";
-    }
-    String reserve = reserveCoverageDisplay(baseline) + " → " + reserveCoverageDisplay(adverse);
-    String wealth = signedMoney(toDisplay(result.finalNetWorthDelta(), display));
-    return new SimulationSensitivityAnalysisMoney.Driver(
-        result.driver().label(),
-        result.perturbationLabel(),
-        result.impact().name().replace('_', ' '),
-        reserve,
-        wealth,
-        status);
+    return analysisPresentation.displayPlanningFlexibility(spending, retirement, display);
   }
 
   private static String signedMoney(BigDecimal amount) {
@@ -595,40 +350,6 @@ public class PlanningCurrencyPresentationService {
       case ON_PLAN -> "On plan";
       case UNAVAILABLE -> "Not available yet";
     };
-  }
-
-  private static String reserveCoverageDisplay(
-      com.smartbox.investory.retirement.simulation.PlanSustainabilityAssessment assessment) {
-    return assessment.recurringFundingGapRequired()
-        ? PlanningPresentation.years(assessment.minimumSafeReserveCoverageYears()) + " years"
-        : "Not required";
-  }
-
-  private static String riskInterpretation(
-      com.smartbox.investory.retirement.simulation.SimulationSensitivityAnalysis analysis,
-      java.util.List<com.smartbox.investory.retirement.simulation.SimulationSensitivityResult>
-          risks) {
-    if (risks.isEmpty()) return "No active external risk assumptions were available for testing.";
-    if (risks.stream()
-        .allMatch(
-            result ->
-                result.impact()
-                    == com.smartbox.investory.retirement.simulation.SensitivityImpact.NEGLIGIBLE))
-      return "None of the tested risk assumptions materially threatens plan sustainability.";
-    var top = risks.getFirst();
-    if (analysis.baseline() != null && !analysis.baseline().sustainable())
-      return top.driver().label()
-          + " worsens the existing plan shortfall the most among tested risks.";
-    if (top.impact() == com.smartbox.investory.retirement.simulation.SensitivityImpact.CRITICAL)
-      return top.driver().label() + " is the largest tested risk to plan sustainability.";
-    if (top.isWealthOnly())
-      return top.driver().label()
-          + " is the largest tested wealth effect; plan sustainability remains intact.";
-    return top.driver().label() + " is the largest tested external risk to plan margin.";
-  }
-
-  private static String displayMoney(CurrencyType currency, BigDecimal amount) {
-    return currency + " " + PlanningPresentation.wholeNumber(amount);
   }
 
   private Map<SimulationScenario, List<SimulationChartData.ReservePoint>> displayReserves(
@@ -676,13 +397,21 @@ public class PlanningCurrencyPresentationService {
           reserveEnd = null,
           longTermCapitalEnd = null,
           investmentEnd = null,
-          cashStart = null, cashEnd = null,
-          bondsStart = null, bondsEnd = null,
-          equitiesStart = null, equitiesEnd = null,
-          realEstateStart = null, realEstateEnd = null,
-          cashWithdrawal = null, bondWithdrawal = null,
-          equityWithdrawal = null, realEstateWithdrawal = null,
-          bondReturn = null, equityReturn = null, equityRefill = null;
+          cashStart = null,
+          cashEnd = null,
+          bondsStart = null,
+          bondsEnd = null,
+          equitiesStart = null,
+          equitiesEnd = null,
+          realEstateStart = null,
+          realEstateEnd = null,
+          cashWithdrawal = null,
+          bondWithdrawal = null,
+          equityWithdrawal = null,
+          realEstateWithdrawal = null,
+          bondReturn = null,
+          equityReturn = null,
+          equityRefill = null;
       if ((row.state() == PlanningTimelineState.ACTUAL
               || row.state() == PlanningTimelineState.NEEDS_REVIEW)
           && row.past() != null) {
@@ -692,10 +421,17 @@ public class PlanningCurrencyPresentationService {
                 row.past().values(), PlanningMetric.RENTAL_INCOME, PlanningMetric.PASSIVE_INCOME);
         bondIncome = planningValue(row.past().values(), PlanningMetric.BOND_INCOME);
         totalIncome = sumKnown(rentalIncome, bondIncome);
-        cashEnd = firstValue(row.past().values(), PlanningMetric.CASH_RESERVE_VALUE, PlanningMetric.SAFE_RESERVE, PlanningMetric.MANUAL_LIQUID_RESERVE);
+        cashEnd =
+            firstValue(
+                row.past().values(),
+                PlanningMetric.CASH_RESERVE_VALUE,
+                PlanningMetric.SAFE_RESERVE,
+                PlanningMetric.MANUAL_LIQUID_RESERVE);
         reserveEnd = cashEnd;
-        bondsEnd = firstValue(row.past().values(), PlanningMetric.BOND_VALUE, PlanningMetric.FIXED_INCOME);
-        equitiesEnd = firstValue(row.past().values(), PlanningMetric.EQUITY, PlanningMetric.MARKET_ASSETS);
+        bondsEnd =
+            firstValue(row.past().values(), PlanningMetric.BOND_VALUE, PlanningMetric.FIXED_INCOME);
+        equitiesEnd =
+            firstValue(row.past().values(), PlanningMetric.EQUITY, PlanningMetric.MARKET_ASSETS);
         realEstateEnd = planningValue(row.past().values(), PlanningMetric.REAL_ESTATE);
       } else if (row.state() == PlanningTimelineState.LIVE) {
         Map<PlanningMetric, PlanningMetricValue> currentValues = row.current().actualValues();
@@ -718,25 +454,41 @@ public class PlanningCurrencyPresentationService {
                         >= assumptions.pensionStartAge()
                 ? assumptions.annualPension()
                 : BigDecimal.ZERO;
-        BigDecimal eventIncome = eventAmount(assumptions, row.year(), SimulationEventType.ONE_OFF_INCOME);
+        BigDecimal eventIncome =
+            eventAmount(assumptions, row.year(), SimulationEventType.ONE_OFF_INCOME);
         BigDecimal eventExpenses =
             eventAmount(assumptions, row.year(), SimulationEventType.ONE_OFF_EXPENSE);
         annualCosts = annualCosts == null ? null : annualCosts.add(eventExpenses);
-        totalIncome = employment.add(zero(rentalIncome)).add(zero(bondIncome)).add(pension).add(eventIncome);
+        totalIncome =
+            employment.add(zero(rentalIncome)).add(zero(bondIncome)).add(pension).add(eventIncome);
         fundingGap = gap(annualCosts, totalIncome);
-        cashStart = firstValue(currentValues, PlanningMetric.CASH_RESERVE_VALUE,
-            PlanningMetric.MANUAL_LIQUID_RESERVE, PlanningMetric.SAFE_RESERVE);
-        cashEnd = firstValue(expectedValues, PlanningMetric.CASH_RESERVE_VALUE,
-            PlanningMetric.MANUAL_LIQUID_RESERVE, PlanningMetric.SAFE_RESERVE);
+        cashStart =
+            firstValue(
+                currentValues,
+                PlanningMetric.CASH_RESERVE_VALUE,
+                PlanningMetric.MANUAL_LIQUID_RESERVE,
+                PlanningMetric.SAFE_RESERVE);
+        cashEnd =
+            firstValue(
+                expectedValues,
+                PlanningMetric.CASH_RESERVE_VALUE,
+                PlanningMetric.MANUAL_LIQUID_RESERVE,
+                PlanningMetric.SAFE_RESERVE);
         if (cashEnd == null) cashEnd = cashStart;
-        cashWithdrawal = cashStart == null || cashEnd == null
-            ? null : cashStart.subtract(cashEnd).max(BigDecimal.ZERO);
+        cashWithdrawal =
+            cashStart == null || cashEnd == null
+                ? null
+                : cashStart.subtract(cashEnd).max(BigDecimal.ZERO);
         reserveEnd = cashEnd;
-        bondsStart = firstValue(currentValues, PlanningMetric.BOND_VALUE, PlanningMetric.FIXED_INCOME);
-        bondsEnd = firstValue(expectedValues, PlanningMetric.BOND_VALUE, PlanningMetric.FIXED_INCOME);
+        bondsStart =
+            firstValue(currentValues, PlanningMetric.BOND_VALUE, PlanningMetric.FIXED_INCOME);
+        bondsEnd =
+            firstValue(expectedValues, PlanningMetric.BOND_VALUE, PlanningMetric.FIXED_INCOME);
         if (bondsEnd == null) bondsEnd = bondsStart;
-        equitiesStart = firstValue(currentValues, PlanningMetric.EQUITY, PlanningMetric.MARKET_ASSETS);
-        equitiesEnd = firstValue(expectedValues, PlanningMetric.EQUITY, PlanningMetric.MARKET_ASSETS);
+        equitiesStart =
+            firstValue(currentValues, PlanningMetric.EQUITY, PlanningMetric.MARKET_ASSETS);
+        equitiesEnd =
+            firstValue(expectedValues, PlanningMetric.EQUITY, PlanningMetric.MARKET_ASSETS);
         if (equitiesEnd == null) equitiesEnd = equitiesStart;
         realEstateStart = planningValue(currentValues, PlanningMetric.REAL_ESTATE);
         realEstateEnd = planningValue(expectedValues, PlanningMetric.REAL_ESTATE);
@@ -766,8 +518,10 @@ public class PlanningCurrencyPresentationService {
         cashWithdrawal = row.projection().manualLiquidReserveWithdrawal();
         bondWithdrawal = funding.longTermFunding();
         equityWithdrawal = row.projection().emergencyEquityWithdrawal();
-        realEstateWithdrawal = zero(row.projection().realEstateStart())
-            .subtract(zero(row.projection().realEstateEnd())).max(BigDecimal.ZERO);
+        realEstateWithdrawal =
+            zero(row.projection().realEstateStart())
+                .subtract(zero(row.projection().realEstateEnd()))
+                .max(BigDecimal.ZERO);
         bondReturn = row.projection().capitalizedBondReturn();
         equityReturn = row.projection().equityGain();
         equityRefill = row.projection().equityToFixedIncomeTransfer();
@@ -787,13 +541,20 @@ public class PlanningCurrencyPresentationService {
               toDisplay(reserveEnd, currency),
               toDisplay(longTermCapitalEnd, currency),
               toDisplay(investmentEnd, currency),
-              toDisplay(cashStart, currency), toDisplay(cashEnd, currency),
-              toDisplay(bondsStart, currency), toDisplay(bondsEnd, currency),
-              toDisplay(equitiesStart, currency), toDisplay(equitiesEnd, currency),
-              toDisplay(realEstateStart, currency), toDisplay(realEstateEnd, currency),
-              toDisplay(cashWithdrawal, currency), toDisplay(bondWithdrawal, currency),
-              toDisplay(equityWithdrawal, currency), toDisplay(realEstateWithdrawal, currency),
-              toDisplay(bondReturn, currency), toDisplay(equityReturn, currency),
+              toDisplay(cashStart, currency),
+              toDisplay(cashEnd, currency),
+              toDisplay(bondsStart, currency),
+              toDisplay(bondsEnd, currency),
+              toDisplay(equitiesStart, currency),
+              toDisplay(equitiesEnd, currency),
+              toDisplay(realEstateStart, currency),
+              toDisplay(realEstateEnd, currency),
+              toDisplay(cashWithdrawal, currency),
+              toDisplay(bondWithdrawal, currency),
+              toDisplay(equityWithdrawal, currency),
+              toDisplay(realEstateWithdrawal, currency),
+              toDisplay(bondReturn, currency),
+              toDisplay(equityReturn, currency),
               toDisplay(equityRefill, currency)));
     }
     return result;
@@ -838,7 +599,9 @@ public class PlanningCurrencyPresentationService {
   }
 
   private static BigDecimal gap(BigDecimal expenses, BigDecimal income) {
-    return expenses == null || income == null ? null : expenses.subtract(income).max(BigDecimal.ZERO);
+    return expenses == null || income == null
+        ? null
+        : expenses.subtract(income).max(BigDecimal.ZERO);
   }
 
   private static BigDecimal zero(BigDecimal value) {
@@ -860,8 +623,7 @@ public class PlanningCurrencyPresentationService {
   }
 
   private static BigDecimal firstValue(
-      Map<PlanningMetric, PlanningMetricValue> values,
-      PlanningMetric... metrics) {
+      Map<PlanningMetric, PlanningMetricValue> values, PlanningMetric... metrics) {
     for (PlanningMetric metric : metrics) {
       BigDecimal value = planningValue(values, metric);
       if (value != null) return value;

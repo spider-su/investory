@@ -15,7 +15,8 @@ public record SimulationPeriod(LocalDate startDate, LocalDate endDate, BigDecima
     if (startDate.getYear() != endDate.getYear())
       throw new IllegalArgumentException("Simulation period must stay within one calendar year");
     yearFraction = yearFraction == null ? fraction(startDate, endDate) : yearFraction;
-    if (yearFraction.signum() < 0) throw new IllegalArgumentException("Invalid simulation year fraction");
+    if (yearFraction.signum() < 0)
+      throw new IllegalArgumentException("Invalid simulation year fraction");
   }
 
   public static SimulationPeriod of(LocalDate start, LocalDate end) {
@@ -27,7 +28,8 @@ public record SimulationPeriod(LocalDate startDate, LocalDate endDate, BigDecima
       throw new IllegalArgumentException("Simulation period must stay within one calendar year");
     long days = ChronoUnit.DAYS.between(start, end.plusDays(1));
     int daysInYear = start.lengthOfYear();
-    return BigDecimal.valueOf(days).divide(BigDecimal.valueOf(daysInYear), SCALE, RoundingMode.HALF_UP);
+    return BigDecimal.valueOf(days)
+        .divide(BigDecimal.valueOf(daysInYear), SCALE, RoundingMode.HALF_UP);
   }
 
   public BigDecimal prorate(BigDecimal annualAmount) {

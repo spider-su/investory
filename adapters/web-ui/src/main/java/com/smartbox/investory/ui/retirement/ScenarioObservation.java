@@ -3,9 +3,13 @@ package com.smartbox.investory.ui.retirement;
 import java.math.BigDecimal;
 
 /** Factual, optional comparison value owned by another Investory module. */
-public record ScenarioObservation(BigDecimal value, String label, String period,
-                                  ScenarioAssumptionView.Availability availability) {
+public record ScenarioObservation(
+    BigDecimal value,
+    String label,
+    String period,
+    ScenarioAssumptionView.Availability availability) {
   public static ScenarioObservation unavailable() {
-    return new ScenarioObservation(null, null, null, ScenarioAssumptionView.Availability.UNAVAILABLE);
+    return new ScenarioObservation(
+        null, null, null, ScenarioAssumptionView.Availability.UNAVAILABLE);
   }
 }

@@ -6,4 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface LongTermAssetRentalContractRepository
     extends JpaRepository<LongTermAssetRentalContractEntity, Long> {
   List<LongTermAssetRentalContractEntity> findAllByAssetIdOrderByStartDate(Long assetId);
+
+  List<LongTermAssetRentalContractEntity> findAllByAssetIdOrderByStartDateDescIdDesc(Long assetId);
 }

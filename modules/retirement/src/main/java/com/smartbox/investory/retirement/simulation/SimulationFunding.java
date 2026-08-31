@@ -1,6 +1,4 @@
 package com.smartbox.investory.retirement.simulation;
-import static com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull;
-
 
 import java.math.BigDecimal;
 
@@ -40,13 +38,33 @@ public record SimulationFunding(
   }
 
   public SimulationFunding(
-      BigDecimal fundingGap, BigDecimal reserveStart, BigDecimal reserveTransfer,
-      BigDecimal reserveWithdrawal, BigDecimal reserveEnd, BigDecimal longTermFunding,
-      BigDecimal longTermCapitalEnd, BigDecimal investmentStart, BigDecimal investmentReturn,
-      BigDecimal investmentWithdrawal, BigDecimal investmentEnd, BigDecimal unfunded) {
-    this(fundingGap, reserveStart, reserveTransfer, reserveWithdrawal, reserveEnd, longTermFunding,
-        longTermCapitalEnd, investmentStart, investmentReturn, investmentWithdrawal, investmentEnd,
-        BigDecimal.ZERO, unfunded, BigDecimal.ZERO);
+      BigDecimal fundingGap,
+      BigDecimal reserveStart,
+      BigDecimal reserveTransfer,
+      BigDecimal reserveWithdrawal,
+      BigDecimal reserveEnd,
+      BigDecimal longTermFunding,
+      BigDecimal longTermCapitalEnd,
+      BigDecimal investmentStart,
+      BigDecimal investmentReturn,
+      BigDecimal investmentWithdrawal,
+      BigDecimal investmentEnd,
+      BigDecimal unfunded) {
+    this(
+        fundingGap,
+        reserveStart,
+        reserveTransfer,
+        reserveWithdrawal,
+        reserveEnd,
+        longTermFunding,
+        longTermCapitalEnd,
+        investmentStart,
+        investmentReturn,
+        investmentWithdrawal,
+        investmentEnd,
+        BigDecimal.ZERO,
+        unfunded,
+        BigDecimal.ZERO);
   }
 
   /** Capital moved into the reserve before the reserve withdrawal is applied. */

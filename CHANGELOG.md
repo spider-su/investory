@@ -2,6 +2,18 @@
 
 Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains future work only.
 
+## 2026-08-24
+
+### Rental contract management
+
+- Added tenant name, email, and phone metadata to real-estate rental contracts.
+- Added stable-identity contract updates, ownership-checked deletion, strict overlap validation, and
+  explicit planned rollover through expected-end dates.
+- Reworked the real-estate detail page around a newest-first accessible contract accordion with full
+  term, payer, tax-ownership, termination, copy, edit, and delete interactions.
+- Moved property settings and advanced planning behind collapsed disclosures and promoted current
+  property value, monthly net income, and yield into the compact page header.
+
 ## 2026-08-17
 
 ### Reconciliation report semantics
@@ -98,3 +110,10 @@ Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains fut
 
 - The initial documentation model used `AGENTS.md` as the canonical engineering source.
 - `CLAUDE.md` and `.github/copilot-instructions.md` were kept as thin tool-specific overlays.
+# Unreleased
+
+- Freeze normalized Long-Term economics in reviewed Retirement revisions; live asset edits now affect
+  current views only until explicit rebaseline.
+- Preserve bond redemption, reconcile rental-tax inheritance in detail views, require complete deposit
+  creation, and retain property-tax and insurance terms across rental-contract rollover.
+- Add Long-Term integrity migration `V01.022__long_term_asset_integrity.sql`.

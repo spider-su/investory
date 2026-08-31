@@ -14,14 +14,48 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
 
 class LongTermAssetsFacadeCrudTest {
 
-  @ParameterizedTest
-  @EnumSource(LongTermAssetType.class)
-  void supportsCreateReadUpdateAndSoftDeleteForEveryAssetType(LongTermAssetType type) {
+  @org.junit.jupiter.api.Test
+  void bondCrudPersistsYieldAsDecimalRatePeriod() {
+    var service = mock(LongTermAssetService.class);
+    var contracts = mock(RentalContractService.class);
+    var stored = new LongTermAssetEntity();
+    stored.setId(8L);
+    stored.setPortfolioId(1L);
+    stored.setType(LongTermAssetType.BOND);
+    stored.setName("Bond");
+    stored.setCurrency(CurrencyType.PLN);
+    stored.setCurrentValue(new BigDecimal("150000"));
+    when(service.save(any(LongTermAssetEntity.class))).thenReturn(stored);
+
+    var facade = new LongTermAssetsFacade(service, contracts);
+    facade.createBond(
+        new LongTermAssetsFacade.BondCommand(
+            1L,
+            null,
+            "Bond",
+            CurrencyType.PLN,
+            new BigDecimal("150000"),
+            LocalDate.of(2025, 1, 1),
+            LocalDate.of(2028, 1, 1),
+            com.smartbox.investory.longterm.infrastructure.InterestTreatment.CAPITALIZE,
+            new BigDecimal("6.25"),
+            null));
+
+    verify(service)
+        .saveSimpleBond(
+            1L,
+            8L,
+            new BigDecimal("0.0625"),
+            LocalDate.of(2028, 1, 1),
+            com.smartbox.investory.longterm.infrastructure.InterestTreatment.CAPITALIZE);
+  }
+
+  @org.junit.jupiter.api.Test
+  void genericWorkflowSupportsOnlyOtherAssets() {
+    LongTermAssetType type = LongTermAssetType.OTHER;
     var service = mock(LongTermAssetService.class);
     var contracts = mock(RentalContractService.class);
     var stored = new AtomicReference<LongTermAssetEntity>();
@@ -40,7 +74,7 @@ class LongTermAssetsFacadeCrudTest {
 
     assertThat(created.id()).isEqualTo(7L);
     assertThat(created.portfolioId()).isEqualTo(1L);
-    assertThat(created.type()).isEqualTo(type);
+    assertThat(created.type()).isEqualTo(LongTermAssetType.OTHER);
     assertThat(created.name()).isEqualTo("Created " + type);
 
     var read = facade.asset(1L, 7L);
@@ -57,6 +91,17 @@ class LongTermAssetsFacadeCrudTest {
     verify(service).archive(1L, 7L);
     facade.reactivate(1L, 7L);
     verify(service).reactivate(1L, 7L);
+  }
+
+  @org.junit.jupiter.api.Test
+  void genericWorkflowRejectsSpecializedAssets() {
+    var facade =
+        new LongTermAssetsFacade(
+            mock(LongTermAssetService.class), mock(RentalContractService.class));
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () -> facade.create(command(LongTermAssetType.BOND, null, "Bond")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("subtype workflow");
   }
 
   private static LongTermAssetsFacade.AssetCommand command(

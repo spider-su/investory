@@ -10,13 +10,26 @@ public record RentalContractModel(
     LocalDate endDate,
     LocalDate terminatedDate,
     Boolean rentalTaxPaidByTenant,
+    String tenantName,
+    String tenantEmail,
+    String tenantPhone,
     List<Term> terms) {
   public RentalContractModel {
     terms = terms == null ? List.of() : List.copyOf(terms);
   }
 
   public RentalContractModel(Long id, LocalDate startDate, LocalDate endDate, List<Term> terms) {
-    this(id, startDate, endDate, null, null, terms);
+    this(id, startDate, endDate, null, null, null, null, null, terms);
+  }
+
+  public RentalContractModel(
+      Long id,
+      LocalDate startDate,
+      LocalDate endDate,
+      LocalDate terminatedDate,
+      Boolean rentalTaxPaidByTenant,
+      List<Term> terms) {
+    this(id, startDate, endDate, terminatedDate, rentalTaxPaidByTenant, null, null, null, terms);
   }
 
   public record Term(
