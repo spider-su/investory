@@ -68,6 +68,11 @@ class DashboardRenderSmokeTest {
     String html = templateEngine().process("dashboard", context);
 
     assertThat(html).contains("Investory", "Performance", "Portfolio structure");
+    assertThat(html)
+        .contains(
+            "href=\"https://finance.yahoo.com/portfolios/\"",
+            "aria-label=\"Open Yahoo Finance portfolio in a new tab\"");
+    assertThat(html).doesNotContain("iv-header-rail__yahoo--disabled", "aria-disabled=\"true\"");
 
     int topbarStart = html.indexOf("<header class=\"iv-topbar iv-app-header-shell\">");
     int secondaryStart =

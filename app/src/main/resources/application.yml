@@ -72,6 +72,8 @@ management:
         enabled: true
 
 app:
+  scheduling:
+    enabled: ${SCHEDULING_ENABLED:true}
   ui:
     yahoo-url: ${YAHOO_FINANCE_URL:}
   # Global reporting inception date. Historical views never calculate before this date.

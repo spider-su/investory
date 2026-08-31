@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -151,13 +152,7 @@ class XtbImportHistoryV2ServiceTest {
 
   @Test
   void importZip_parsesNewXtbBundleAndReconstructsOpenPositions() throws Exception {
-    try (InputStream inputStream =
-        getClass()
-            .getResourceAsStream(
-                "/50290466_51499241_51548444_51993106_2023-12-31_2025-12-31.zip")) {
-      org.junit.jupiter.api.Assumptions.assumeTrue(
-          inputStream != null, "Fixture zip not on classpath; skipping");
-
+    try (InputStream inputStream = syntheticZip(List.of("51499241", "51993106"))) {
       ImportExecutionResult result =
           xtbImportV2Service.importZip(
               inputStream, "50290466_51499241_51548444_51993106_2006-01-01_2026-07-05.zip");
@@ -187,12 +182,7 @@ class XtbImportHistoryV2ServiceTest {
   @Test
   void importZip_parsesSecondXtbBundle() throws Exception {
     try (InputStream inputStream =
-        getClass()
-            .getResourceAsStream(
-                "/51707603_51747407_51822121_53582946_2025-12-31_2026-07-31.zip")) {
-      org.junit.jupiter.api.Assumptions.assumeTrue(
-          inputStream != null, "Fixture zip not on classpath; skipping");
-
+        syntheticZip(List.of("51707603", "51747407", "51822121", "53582946", "51729109"))) {
       ImportExecutionResult result =
           xtbImportV2Service.importZip(
               inputStream, "51707603_51747407_51822121_53582946_2025-12-31_2026-07-31.zip");
@@ -313,13 +303,7 @@ class XtbImportHistoryV2ServiceTest {
 
   @Test
   void supports_detectsNewFormatWorkbook() throws Exception {
-    try (InputStream inputStream =
-        getClass()
-            .getResourceAsStream(
-                "/50290466_51499241_51548444_51993106_2023-12-31_2025-12-31.zip")) {
-      org.junit.jupiter.api.Assumptions.assumeTrue(
-          inputStream != null, "Fixture zip not on classpath; skipping");
-
+    try (InputStream inputStream = syntheticZip(List.of("51499241"))) {
       byte[] workbookBytes = firstXlsx(inputStream);
       assertTrue(xtbImportV2Service.supports(new ByteArrayInputStream(workbookBytes)));
     }
@@ -663,6 +647,47 @@ class XtbImportHistoryV2ServiceTest {
     operation.setComment(comment);
     operation.setDate(ZonedDateTime.parse("2026-07-15T00:00:00Z"));
     return operation;
+  }
+
+  private InputStream syntheticZip(List<String> accountIds) throws Exception {
+    ByteArrayOutputStream zipBytes = new ByteArrayOutputStream();
+    try (ZipOutputStream zip = new ZipOutputStream(zipBytes)) {
+      for (String accountId : accountIds) {
+        zip.putNextEntry(new ZipEntry("USD_" + accountId + ".xlsx"));
+        zip.write(syntheticWorkbook(accountId));
+        zip.closeEntry();
+      }
+    }
+    return new ByteArrayInputStream(zipBytes.toByteArray());
+  }
+
+  private byte[] syntheticWorkbook(String accountId) throws Exception {
+    try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+      XSSFSheet cashSheet = workbook.createSheet("Cash Operations");
+      Row account = cashSheet.createRow(0);
+      account.createCell(0).setCellValue("AccountEntity number");
+      account.createCell(1).setCellValue(accountId);
+      Row header = cashSheet.createRow(1);
+      String[] headers = {"ID", "Type", "Ticker", "Time", "Amount", "Comment"};
+      for (int index = 0; index < headers.length; index++) {
+        header.createCell(index).setCellValue(headers[index]);
+      }
+      cashRow(cashSheet, 2, 1, "Transfer", "", 2_000.0, "Transfer in");
+      cashRow(cashSheet, 3, 2, "Stock purchase", "AAPL.US", -1_000.0, "OPEN BUY 10 @ 100");
+
+      XSSFSheet closedSheet = workbook.createSheet("Closed Positions");
+      Row closedAccount = closedSheet.createRow(0);
+      closedAccount.createCell(0).setCellValue("AccountEntity");
+      closedAccount.createCell(1).setCellValue(accountId);
+      Row closedHeader = closedSheet.createRow(1);
+      closedHeader.createCell(0).setCellValue("Ticker");
+      closedHeader.createCell(1).setCellValue("Type");
+      closedHeader.createCell(2).setCellValue("Volume");
+
+      ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+      workbook.write(bytes);
+      return bytes.toByteArray();
+    }
   }
 
   private byte[] firstXlsx(InputStream zipInputStream) throws Exception {

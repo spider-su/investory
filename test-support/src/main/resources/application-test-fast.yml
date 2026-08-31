@@ -9,6 +9,8 @@ spring:
       mode: never
 
 app:
+  scheduling:
+    enabled: false
   telegram:
     enabled: false
   openai:

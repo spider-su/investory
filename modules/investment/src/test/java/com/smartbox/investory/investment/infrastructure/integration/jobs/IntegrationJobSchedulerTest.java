@@ -1,7 +1,8 @@
 package com.smartbox.investory.investment.infrastructure.integration.jobs;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -17,10 +18,14 @@ import com.smartbox.investory.investment.infrastructure.integration.persistence.
 import com.smartbox.investory.investment.market.fx.CurrencyRateUpdaterService;
 import com.smartbox.investory.investment.market.fx.CurrencyRateUpdaterService.CurrencyRateRefreshResult;
 import com.smartbox.investory.investment.market.price.MarketService;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 class IntegrationJobSchedulerTest {
@@ -30,6 +35,11 @@ class IntegrationJobSchedulerTest {
   private final CurrencyRateUpdaterService fx = mock();
   private final MarketService market = mock();
   private final JdbcTemplate jdbc = mock();
+  private final Connection connection = mock();
+  private final PreparedStatement tryLock = mock();
+  private final PreparedStatement unlock = mock();
+  private final ResultSet tryLockResult = mock();
+  private final ResultSet unlockResult = mock();
   private final IntegrationConfigurationService config = mock();
   private final IntegrationJobScheduler scheduler =
       new IntegrationJobScheduler(jobs, instances, fx, market, jdbc, config);
@@ -43,8 +53,7 @@ class IntegrationJobSchedulerTest {
 
     scheduler.poll();
 
-    verify(jdbc, never())
-        .queryForObject(eq("select pg_try_advisory_lock(?)"), eq(Boolean.class), anyLong());
+    verify(jdbc, never()).execute(any(ConnectionCallback.class));
   }
 
   @Test
@@ -53,10 +62,15 @@ class IntegrationJobSchedulerTest {
     IntegrationInstanceEntity instance = instance(IntegrationType.MARKET_DATA, true);
     when(jobs.findByEnabledTrue()).thenReturn(List.of(job));
     when(instances.findById(anyLong())).thenReturn(Optional.of(instance));
-    when(jdbc.queryForObject(eq("select pg_try_advisory_lock(?)"), eq(Boolean.class), anyLong()))
-        .thenReturn(true);
-    when(jdbc.queryForObject(eq("select pg_advisory_unlock(?)"), eq(Boolean.class), anyLong()))
-        .thenReturn(true);
+    allowLock();
+    doAnswer(
+            invocation -> {
+              org.assertj.core.api.Assertions.assertThat(job.getLastStatus()).isEqualTo("STARTED");
+              verify(jobs).save(job);
+              return null;
+            })
+        .when(market)
+        .updateStocks();
 
     scheduler.poll();
 
@@ -72,10 +86,7 @@ class IntegrationJobSchedulerTest {
     IntegrationInstanceEntity instance = instance(IntegrationType.FX_DATA, true);
     when(jobs.findByEnabledTrue()).thenReturn(List.of(job));
     when(instances.findById(anyLong())).thenReturn(Optional.of(instance));
-    when(jdbc.queryForObject(eq("select pg_try_advisory_lock(?)"), eq(Boolean.class), anyLong()))
-        .thenReturn(true);
-    when(jdbc.queryForObject(eq("select pg_advisory_unlock(?)"), eq(Boolean.class), anyLong()))
-        .thenReturn(true);
+    allowLock();
     when(fx.updateCurrencyRatesForDate(
             org.mockito.ArgumentMatchers.any(LocalDate.class), org.mockito.ArgumentMatchers.any()))
         .thenReturn(
@@ -94,10 +105,7 @@ class IntegrationJobSchedulerTest {
     IntegrationInstanceEntity instance = instance(IntegrationType.MARKET_DATA, true);
     when(jobs.findByEnabledTrue()).thenReturn(List.of(job));
     when(instances.findById(anyLong())).thenReturn(Optional.of(instance));
-    when(jdbc.queryForObject(eq("select pg_try_advisory_lock(?)"), eq(Boolean.class), anyLong()))
-        .thenReturn(true);
-    when(jdbc.queryForObject(eq("select pg_advisory_unlock(?)"), eq(Boolean.class), anyLong()))
-        .thenReturn(true);
+    allowLock();
     doThrow(new IllegalStateException("Market refresh incomplete: ABC"))
         .when(market)
         .updateStocks();
@@ -118,6 +126,26 @@ class IntegrationJobSchedulerTest {
     job.setCron(cron);
     job.setTimezone(timezone);
     return job;
+  }
+
+  @SuppressWarnings("unchecked")
+  private void allowLock() {
+    when(jdbc.execute(any(ConnectionCallback.class)))
+        .thenAnswer(
+            invocation ->
+                ((ConnectionCallback<Void>) invocation.getArgument(0)).doInConnection(connection));
+    try {
+      when(connection.prepareStatement("select pg_try_advisory_lock(?)")).thenReturn(tryLock);
+      when(tryLock.executeQuery()).thenReturn(tryLockResult);
+      when(tryLockResult.next()).thenReturn(true);
+      when(tryLockResult.getBoolean(1)).thenReturn(true);
+      when(connection.prepareStatement("select pg_advisory_unlock(?)")).thenReturn(unlock);
+      when(unlock.executeQuery()).thenReturn(unlockResult);
+      when(unlockResult.next()).thenReturn(true);
+      when(unlockResult.getBoolean(1)).thenReturn(true);
+    } catch (java.sql.SQLException exception) {
+      throw new AssertionError(exception);
+    }
   }
 
   private IntegrationInstanceEntity instance(IntegrationType type, boolean enabled) {

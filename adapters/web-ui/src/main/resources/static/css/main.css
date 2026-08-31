@@ -32,8 +32,10 @@
     --iv-blue: #2563eb;
     --iv-asset-cash: var(--iv-orange);
     --iv-asset-fixed-income: var(--iv-blue);
+    --iv-asset-etf: #0891b2;
     --iv-asset-equity: var(--iv-primary);
     --iv-asset-real-estate: var(--iv-green);
+    --iv-asset-commodity: #a16207;
     --iv-asset-other: #8b5cf6;
     --iv-equity: var(--iv-asset-equity);
     --iv-other: var(--iv-asset-other);
@@ -612,12 +614,16 @@ main.container-xl.py-4 .table thead th {
     outline: 2px solid var(--iv-primary-soft);
     outline-offset: 1px;
 }
-.iv-topbar-fx-popover__panel {
+.iv-topbar__meta .iv-topbar-fx-popover > .iv-topbar-fx-popover__panel {
+    top: calc(100% + 8px);
     left: auto;
     right: 0;
-    width: min(230px, calc(100vw - 32px));
+    z-index: 1600;
+    width: min(340px, calc(100vw - 32px));
     transform: none;
 }
+.iv-topbar__meta:has(.iv-topbar-fx-popover[open]) { position: relative; z-index: 1500; }
+.iv-topbar:has(.iv-topbar-fx-popover[open]) { z-index: 1400; }
 .iv-action-menu { position: relative; }
 .iv-action-menu__trigger { cursor: pointer; color: var(--iv-primary); }
 .iv-action-menu__panel {
@@ -765,11 +771,15 @@ button:disabled { cursor:wait !important; opacity:.7; }
 
 /* Accounts: keep identity prominent and monetary columns easy to scan. */
 .iv-account-table {
+    width: min(1040px, calc(100vw - var(--iv-dashboard-gutter) - var(--iv-dashboard-gutter)));
+    overflow-x: auto;
     font-variant-numeric: tabular-nums;
 }
 .iv-account-table .iv-balance-popover__row {
+    grid-template-columns: 90px minmax(140px, 1.4fr) repeat(5, minmax(100px, 1fr));
+    min-width: 820px;
     column-gap: 12px;
-    padding-block: 8px;
+    padding: 10px 12px;
     border-top-color: color-mix(in srgb, var(--iv-border) 55%, transparent);
 }
 .iv-account-table .iv-balance-popover__row:not(.iv-balance-popover__row--head):not(.iv-balance-popover__row--total):hover {
@@ -783,7 +793,9 @@ button:disabled { cursor:wait !important; opacity:.7; }
 .iv-account-name {
     color: var(--iv-text);
     font-weight: 600;
+    line-height: 1.3;
 }
+.iv-account-metric { min-width: 0; text-align: right; }
 .iv-account-number {
     font-variant-numeric: tabular-nums;
 }
@@ -1563,10 +1575,17 @@ body.iv-modal-open { overflow: hidden; }
 .iv-event-dot { width:8px; height:8px; border-radius:50%; box-shadow:0 0 0 2px #fff,0 0 0 3px rgba(30,37,54,.12); }
 .iv-event-dot--deposit { background:#2563eb; } .iv-event-dot--dividend { background:#16a34a; } .iv-event-dot--trade { background:#7c3aed; }
 @media (max-width:760px) { .iv-account-filter__item--benchmark { margin-left:0; } .iv-event-legend { width:100%; margin-left:0; } }
-.iv-realized-details.iv-dividend-popover .iv-balance-popover__panel {
-  left: 0;
-  right: auto;
-  width: min(1100px, calc(100vw - 32px));
+#investment-overview { position: relative; }
+#investment-overview:has(.iv-realized-details[open]) { z-index: 1100; }
+#investment-overview .iv-realized-details { position: static; }
+#investment-overview .iv-realized-details.iv-dividend-popover > .iv-balance-popover__panel {
+  top: calc(100% + 8px);
+  right: 0;
+  left: auto;
+  width: min(1100px, 100%);
+  max-height: min(720px, calc(100vh - 180px));
+  overflow-y: auto;
+  transform: none;
 }
 .iv-page-nav a.is-active {
     color: var(--iv-primary);
@@ -1610,9 +1629,37 @@ body.iv-modal-open { overflow: hidden; }
 }
 
 .iv-realized-attribution-popover {
-  margin-top: 16px;
+  display: grid;
+  gap: 18px;
+}
+.iv-realized-attribution-group + .iv-realized-attribution-group {
   padding-top: 16px;
   border-top: 1px solid var(--iv-border);
+}
+.iv-realized-attribution-title {
+  margin: 0;
+  padding: 2px 6px 8px;
+  color: var(--iv-text);
+  font-size: .82rem;
+  font-weight: 800;
+}
+.iv-realized-attribution-table {
+  overflow-x: auto;
+}
+.iv-realized-attribution-row {
+  grid-template-columns:
+      minmax(145px, 1.25fr)
+      repeat(5, minmax(105px, .85fr));
+  min-width: 780px;
+  gap: 16px;
+  padding-block: 8px;
+}
+.iv-realized-attribution-row > :first-child { text-align: left; }
+.iv-realized-attribution-row > :nth-child(n+2) { text-align: right; }
+.iv-realized-attribution-row .iv-sym__avatar {
+  width: 24px;
+  height: 24px;
+  font-size: .66rem;
 }
 
 .iv-position-popover__row--total {
@@ -1632,7 +1679,7 @@ body.iv-modal-open { overflow: hidden; }
 /* Dashboard color modes */
 :root {
     color-scheme: light;
-    --iv-chart-grid: rgba(148, 160, 184, .18);
+    --iv-chart-grid: rgba(100, 116, 139, .28);
     --iv-chart-tooltip: #1e2536;
     --iv-chart-tooltip-text: #ffffff;
     --iv-chart-strong-fill: rgba(30, 37, 54, .08);
@@ -1666,15 +1713,17 @@ body.iv-modal-open { overflow: hidden; }
     --iv-blue: #60a5fa;
     --iv-asset-cash: var(--iv-orange);
     --iv-asset-fixed-income: var(--iv-blue);
+    --iv-asset-etf: #22d3ee;
     --iv-asset-equity: var(--iv-primary);
     --iv-asset-real-estate: var(--iv-green);
+    --iv-asset-commodity: #facc15;
     --iv-asset-other: #a78bfa;
     --iv-equity: var(--iv-asset-equity);
     --iv-other: var(--iv-asset-other);
     --iv-liquidity-liquid: #5eead4;
     --iv-liquidity-illiquid: #94a3b8;
 
-    --iv-chart-grid: rgba(148, 163, 184, .18);
+    --iv-chart-grid: rgba(148, 163, 184, .30);
     --iv-chart-tooltip: #060b16;
     --iv-chart-tooltip-text: #f8fafc;
     --iv-chart-strong-fill: rgba(237, 242, 249, .08);
@@ -2058,15 +2107,6 @@ body.iv-modal-open { overflow: hidden; }
     height: 84px;
     min-height: 84px;
 }
-.iv-planning-topbar__primary > .iv-planning-topbar__currency--primary {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    height: 84px;
-    min-height: 84px;
-    color: var(--iv-text-muted);
-    font-size: .78rem;
-}
 .iv-planning-topbar__primary > .iv-brand { align-items: stretch; }
 .iv-planning-topbar__primary .iv-brand__content {
     display: flex;
@@ -2199,16 +2239,23 @@ body.iv-modal-open { overflow: hidden; }
     align-self: center;
 }
 .iv-planning-local-nav-slot { justify-self: start; min-width: 0; }
-.iv-planning-scenario-slot { justify-self: end; min-width: 0; }
+.iv-planning-context-slot { display: flex; align-items: center; justify-self: end; gap: 12px; min-width: 0; }
 .iv-planning-local-nav { display: flex; flex-wrap: wrap; gap: 4px; }
 .iv-planning-local-nav a { display: inline-flex; align-items: center; min-height: 30px; padding: 5px 10px; border: 1px solid transparent; border-radius: 8px; color: var(--iv-text-muted); font-size: .74rem; font-weight: 750; text-decoration: none; white-space: nowrap; }
 .iv-planning-local-nav a:hover, .iv-planning-local-nav a:focus-visible { color: var(--iv-text); border-color: var(--iv-border); }
 .iv-planning-local-nav a.is-active { color: var(--iv-primary); border-color: var(--iv-primary); background: var(--iv-primary-soft); }
 .iv-planning-topbar__currency {
-    justify-self: end;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 5px 9px;
+    border: 1px solid var(--iv-border);
+    border-radius: var(--iv-radius-sm);
+    background: var(--iv-surface-muted);
     color: var(--iv-text-muted);
-    font-size: .78rem;
+    font-size: .75rem;
     font-weight: 600;
+    white-space: nowrap;
 }
 .iv-planning-topbar__currency strong { color: var(--iv-text); }
 
@@ -2236,7 +2283,7 @@ body.iv-modal-open { overflow: hidden; }
 .iv-long-term-assets-sections:has(.iv-planning-section__details[open]) {
     grid-template-rows: none;
 }
-.iv-planning-section { margin-bottom: 18px; overflow: hidden; }
+.iv-planning-section { margin-bottom: var(--iv-space-4); overflow: hidden; }
 .iv-planning-section__details-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -2302,36 +2349,19 @@ body.iv-modal-open { overflow: hidden; }
 .iv-planning-section .table td:not(:first-child) { text-align: right; }
 .iv-planning-section .table th,
 .iv-planning-section .table td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.long-term-assets-table--real-estate th:first-child,
-.long-term-assets-table--real-estate td:first-child { width: 28%; }
-.long-term-assets-table--real-estate th:nth-child(2),
-.long-term-assets-table--real-estate td:nth-child(2),
-.long-term-assets-table--real-estate th:nth-child(3),
-.long-term-assets-table--real-estate td:nth-child(3),
-.long-term-assets-table--real-estate th:nth-child(4),
-.long-term-assets-table--real-estate td:nth-child(4),
-.long-term-assets-table--real-estate th:nth-child(5),
-.long-term-assets-table--real-estate td:nth-child(5) { width: 14%; }
-.long-term-assets-table--real-estate th:nth-child(6),
-.long-term-assets-table--real-estate td:nth-child(6) { width: 10%; }
-.long-term-assets-table--bond th:first-child,
-.long-term-assets-table--bond td:first-child { width: 25%; }
-.long-term-assets-table--bond th:nth-child(2),
-.long-term-assets-table--bond td:nth-child(2) { width: 13%; }
-.long-term-assets-table--bond th:nth-child(3),
-.long-term-assets-table--bond td:nth-child(3) { width: 14%; }
-.long-term-assets-table--bond th:nth-child(4),
-.long-term-assets-table--bond td:nth-child(4) { width: 12%; }
-.long-term-assets-table--bond th:nth-child(5),
-.long-term-assets-table--bond td:nth-child(5) { width: 14%; }
-.long-term-assets-table--bond th:nth-child(6),
-.long-term-assets-table--bond td:nth-child(6) { width: 10%; }
-.long-term-assets-table--bond th:nth-child(7),
-.long-term-assets-table--bond td:nth-child(7) { width: 12%; }
-.long-term-assets-table--cash-reserve th:first-child,
-.long-term-assets-table--cash-reserve td:first-child { width: 32%; }
-.long-term-assets-table--cash-reserve th:not(:first-child),
-.long-term-assets-table--cash-reserve td:not(:first-child) { width: 17%; }
+.long-term-assets-table th:first-child,
+.long-term-assets-table td:first-child { width: 28%; }
+.long-term-assets-table th:nth-child(2),
+.long-term-assets-table td:nth-child(2) { width: 16%; }
+.long-term-assets-table th:nth-child(3),
+.long-term-assets-table td:nth-child(3) { width: 12%; }
+.long-term-assets-table th:nth-child(4),
+.long-term-assets-table td:nth-child(4) { width: 18%; }
+.long-term-assets-table th:nth-child(5),
+.long-term-assets-table td:nth-child(5) { width: 14%; }
+.long-term-assets-table th:nth-child(6),
+.long-term-assets-table td:nth-child(6) { width: 12%; }
+.long-term-assets-table td .iv-report-table__sub { text-align: right; }
 
 @media (max-width: 900px) {
     .iv-planning-section__header,
@@ -2866,7 +2896,7 @@ body.iv-modal-open { overflow: hidden; }
     margin-top: 0 !important;
     padding-bottom: 6px;
 }
-.iv-profile-structure__grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.iv-profile-structure__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .iv-profile-structure__metric {
     display: flex;
     flex-direction: column;
@@ -2895,6 +2925,84 @@ body.iv-modal-open { overflow: hidden; }
     margin-top: 10px;
     padding: 8px 10px 6px;
     border-top: 1px solid var(--iv-border);
+}
+.iv-profile-sources__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    padding: 16px;
+}
+.iv-profile-source-card {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--iv-border);
+    border-radius: var(--iv-radius-sm);
+    background: color-mix(in srgb, var(--iv-surface-muted) 52%, transparent);
+    color: var(--iv-text);
+    text-decoration: none;
+    transition: border-color .15s ease, background-color .15s ease;
+}
+.iv-profile-source-card:hover,
+.iv-profile-source-card:focus-visible {
+    border-color: var(--iv-primary);
+    background: color-mix(in srgb, var(--iv-primary) 5%, var(--iv-surface-muted));
+}
+.iv-profile-source-card__heading,
+.iv-profile-source-card__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 11px 14px;
+}
+.iv-profile-source-card__heading { border-bottom: 1px solid var(--iv-border); }
+.iv-profile-source-card__heading > span {
+    color: var(--iv-primary-text);
+    font-size: .76rem;
+    font-weight: 800;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+}
+.iv-profile-source-card__heading small,
+.iv-profile-source-card__footer span { color: var(--iv-text-soft); font-size: .72rem; }
+.iv-profile-source-card__metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 12px 0;
+}
+.iv-profile-source-card__metrics > div { min-width: 0; padding: 0 14px; }
+.iv-profile-source-card__metrics > div + div { border-left: 1px solid var(--iv-metric-divider); }
+.iv-profile-source-card__metrics span,
+.iv-profile-source-card__metrics small { display: block; }
+.iv-profile-source-card__metrics span {
+    color: var(--iv-text-muted);
+    font-size: .66rem;
+    font-weight: 750;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+.iv-profile-source-card__metrics strong {
+    display: block;
+    margin-top: 5px;
+    color: var(--iv-text);
+    font-size: 1.08rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.15;
+}
+.iv-profile-source-card__metrics small { margin-top: 3px; color: var(--iv-text-soft); font-size: .66rem; }
+.iv-profile-source-card__footer {
+    min-height: 39px;
+    border-top: 1px solid var(--iv-border);
+    background: color-mix(in srgb, var(--iv-surface) 45%, transparent);
+}
+.iv-profile-source-card__footer strong { font-size: .76rem; font-variant-numeric: tabular-nums; }
+.iv-profile-allocation .iv-allocation-bar { margin-bottom: 10px; }
+.iv-profile-allocation__bucket { display: inline-flex; align-items: center; gap: 9px; }
+.iv-profile-allocation__swatch {
+    width: 9px;
+    height: 9px;
+    flex: 0 0 9px;
+    border-radius: 50%;
 }
 .iv-profile-income-cards { margin: 0 0 18px; }
 .iv-profile-income-card {
@@ -3042,7 +3150,7 @@ body.iv-modal-open { overflow: hidden; }
     .iv-planning-topbar__secondary .iv-page-nav-slot,
     .iv-planning-topbar__currency,
     .iv-planning-local-nav-slot,
-    .iv-planning-scenario-slot { justify-self: start; }
+    .iv-planning-context-slot { justify-self: start; flex-wrap: wrap; }
     .iv-composition-dimension__items { grid-template-columns: 1fr 1fr; gap: 8px; }
     .iv-composition-item + .iv-composition-item { padding-left: 8px; }
 }
@@ -3182,7 +3290,6 @@ body.iv-modal-open { overflow: hidden; }
 }
 .iv-header-rail__yahoo:hover,
 .iv-header-rail__yahoo:focus-visible { color: var(--iv-text); border-color: var(--iv-text-soft); }
-.iv-header-rail__yahoo--disabled { cursor: not-allowed; opacity: .55; }
 .iv-page-nav span,
 .iv-page-nav a { color: var(--iv-text-muted); }
 .iv-page-nav span.is-active,
@@ -3209,6 +3316,41 @@ body.iv-modal-open { overflow: hidden; }
         grid-template-columns: 1fr;
         row-gap: 10px;
     }
+}
+
+/* Canonical planning-page rhythm and readable data labels. */
+.iv-planning-page > .iv-topbar,
+.iv-planning-page > .card,
+.iv-planning-page > section.card,
+.iv-planning-page .iv-planning-section,
+.iv-planning-page .iv-risk-summary {
+    border-radius: var(--iv-radius);
+}
+.iv-profile-section,
+.iv-planning-section,
+.iv-risk-summary,
+.iv-grid--portfolio-overview { margin-bottom: var(--iv-space-4) !important; }
+.iv-card-section-header__title,
+.iv-planning-section__header h2,
+.iv-planning-summary__item span,
+.iv-planning-summary__item small,
+.iv-profile-structure__metric > span,
+.iv-profile-structure__metric > small,
+.iv-profile-income-card .iv-kpi__label,
+.iv-collapsed-summary__label,
+.iv-planning-section__count,
+.iv-planning-page .table thead th,
+.iv-retirement-surface .iv-card-section-header__title,
+.iv-retirement-surface .iv-retirement-section-kicker,
+.iv-retirement-surface .iv-state-badge {
+    font-size: .75rem;
+}
+.iv-planning-page .text-secondary,
+.iv-retirement-surface .iv-section-note,
+.iv-simulation-chart-help { color: var(--iv-text-muted) !important; }
+
+@media (max-width: 600px) {
+    .iv-profile-structure__grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 700px) {
@@ -3312,9 +3454,7 @@ body.iv-modal-open { overflow: hidden; }
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 10px;
 }
-.iv-portfolio-structure__grid--long-term {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-}
+.iv-portfolio-structure__grid--long-term { grid-template-columns: minmax(0, 1fr); }
 .iv-portfolio-structure__grid > .iv-structure-card + .iv-structure-card,
 .iv-portfolio-structure__grid > .iv-structure-currency + .iv-structure-currency {
     padding-left: 10px;
@@ -3403,11 +3543,11 @@ body.iv-modal-open { overflow: hidden; }
     border-right: 1px solid var(--iv-surface);
 }
 .iv-portfolio-structure--long-term .iv-structure-bar__segment { min-width: 0; }
-.iv-structure-segment--etf { background: var(--iv-asset-equity); }
+.iv-structure-segment--etf { background: var(--iv-asset-etf); }
 .iv-structure-segment--equity { background: var(--iv-asset-equity); }
 .iv-structure-segment--real-estate { background: var(--iv-asset-real-estate); }
 .iv-structure-segment--fixed-income { background: var(--iv-asset-fixed-income); }
-.iv-structure-segment--commodity { background: #a99862; }
+.iv-structure-segment--commodity { background: var(--iv-asset-commodity); }
 .iv-structure-segment--cash { background: var(--iv-asset-cash); }
 .iv-structure-segment--other { background: var(--iv-asset-other); }
 .iv-structure-currency-segment--usd { background: #5577b8; }
@@ -3440,6 +3580,70 @@ body.iv-modal-open { overflow: hidden; }
 .iv-structure-currency > summary { min-height: 42px; }
 .iv-structure-currency .iv-structure-popover { top: calc(100% + 6px); }
 .iv-structure-currency summary > small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+/* Shared small read-only overlay. Large account and attribution tables keep their own layout. */
+details.iv-compact-popover { position: relative; }
+details.iv-compact-popover[open] { z-index: 1590; }
+details.iv-compact-popover > .iv-compact-popover__panel {
+    --iv-compact-shift-x: 0px;
+    top: calc(100% + 8px);
+    right: 0;
+    bottom: auto;
+    left: auto;
+    z-index: 1600;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    width: min(320px, calc(100vw - 32px));
+    max-height: min(320px, calc(100vh - 32px));
+    padding: 12px;
+    overflow: hidden;
+    transform: translateX(var(--iv-compact-shift-x));
+    border-radius: 10px;
+}
+details.iv-compact-popover.iv-compact-popover--wide > .iv-compact-popover__panel {
+    width: min(360px, calc(100vw - 32px));
+}
+.iv-portfolio-structure details.iv-compact-popover > .iv-compact-popover__panel {
+    width: max-content;
+    min-width: 220px;
+    max-width: min(320px, calc(100vw - 32px));
+}
+details.iv-compact-popover.placement-top > .iv-compact-popover__panel {
+    top: auto;
+    bottom: calc(100% + 8px);
+}
+.iv-compact-popover__header { min-width: 0; padding-bottom: 8px; }
+.iv-compact-popover__body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.iv-compact-popover__footer { padding-top: 8px; border-top: 1px solid var(--iv-border); }
+.iv-structure-popover .iv-compact-popover__body {
+    display: grid;
+    grid-template-columns: minmax(0, max-content) max-content;
+    gap: 4px 18px;
+    justify-content: start;
+}
+.iv-structure-popover .iv-compact-popover__body > div { display: contents; font-variant-numeric: tabular-nums; }
+.iv-structure-popover .iv-compact-popover__body > div > :last-child { text-align: right; }
+.iv-structure-popover .iv-compact-popover__body > small { grid-column: 1 / -1; }
+.iv-overview-card:has(.iv-compact-popover[open]),
+.iv-portfolio-structure:has(.iv-compact-popover[open]) { position: relative; z-index: 1590; }
+
+@media (max-width: 640px) {
+    details.iv-compact-popover > .iv-compact-popover__panel,
+    details.iv-compact-popover.placement-top > .iv-compact-popover__panel {
+        position: fixed;
+        inset: auto 16px 16px;
+        width: auto;
+        max-height: min(70vh, calc(100vh - 32px));
+        transform: none;
+        border-radius: 14px;
+        box-shadow: 0 18px 48px rgba(15, 23, 42, .3);
+    }
+    .iv-portfolio-structure details.iv-compact-popover > .iv-compact-popover__panel {
+        width: auto;
+        min-width: 0;
+        max-width: none;
+    }
+}
 .iv-long-term-allocation__legend {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3714,6 +3918,10 @@ body.iv-modal-open { overflow: hidden; }
 }
 
 /* Dashboard summary popover: balance owns the free-cash detail. */
+.iv-topbar.iv-app-header-shell {
+    padding-bottom: 0;
+}
+
 @media (min-width: 1201px) {
     .iv-topbar__primary {
         display: grid;
@@ -3947,4 +4155,173 @@ body.iv-modal-open { overflow: hidden; }
         position: relative;
         top: auto;
     }
+}
+
+@media (max-width: 600px) {
+    .iv-planning-summary:not(.iv-planning-summary--six) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px 0;
+        height: auto !important;
+        min-height: 0 !important;
+        padding-block: 10px;
+    }
+
+    .iv-planning-summary:not(.iv-planning-summary--six) .iv-planning-summary__item {
+        min-height: 54px;
+        padding-inline: 6px;
+    }
+
+    .iv-planning-summary:not(.iv-planning-summary--six) .iv-planning-summary__item:nth-child(3) {
+        grid-column: 1 / -1;
+        padding-top: 12px;
+        border-top: 1px solid var(--iv-metric-divider);
+    }
+
+    .iv-planning-summary:not(.iv-planning-summary--six) .iv-planning-summary__item:nth-child(3)::before {
+        display: none;
+    }
+
+    .iv-planning-summary__item strong { font-size: 1.12rem; }
+
+    .iv-planning-topbar__secondary .iv-page-nav-slot > .iv-page-nav {
+        flex-wrap: wrap;
+        justify-content: center;
+        width: 100%;
+        overflow: visible;
+        border-radius: var(--iv-radius-sm);
+    }
+}
+
+/* Post-review layout corrections. */
+.iv-portfolio-structure__grid.iv-profile-structure__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.iv-profile-income-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.iv-profile-allocation,
+.iv-profile-allocation > .card-body {
+    min-height: 0;
+}
+
+.iv-card-section-header__action {
+    display: inline-flex;
+    align-items: center;
+    margin-left: auto;
+}
+
+.iv-card-section-header__action .btn {
+    min-height: 30px;
+}
+
+.iv-planning-page.iv-report-page .iv-report-page__content {
+    width: 100%;
+    padding: 0 0 40px;
+}
+
+.iv-report-page .iv-section-heading {
+    margin-bottom: 14px;
+}
+
+.iv-report-page .iv-section-heading p {
+    max-width: 760px;
+    text-align: left;
+}
+
+.iv-reconciliation-state-banner {
+    display: grid;
+    grid-template-columns: minmax(180px, .55fr) minmax(0, 1.45fr);
+    gap: 0;
+    margin-bottom: var(--iv-space-4);
+    overflow: hidden;
+    border: 1px solid var(--iv-border);
+    border-radius: var(--iv-radius);
+    background: var(--iv-surface);
+}
+
+.iv-reconciliation-state-banner > div {
+    display: grid;
+    align-content: center;
+    gap: 5px;
+    min-width: 0;
+    min-height: 78px;
+    padding: 12px 16px;
+}
+
+.iv-reconciliation-state-banner > div + div {
+    border-left: 1px solid var(--iv-metric-divider);
+}
+
+.iv-reconciliation-state-banner .iv-kpi__label,
+.iv-report-table__sub,
+.iv-plan-timeline__matrix-label,
+.iv-plan-timeline__assumption-name,
+.iv-simulation-help,
+.iv-simulation-chart-help {
+    font-size: .75rem;
+}
+
+.iv-reconciliation-state-banner .iv-kpi__value {
+    overflow-wrap: anywhere;
+    font-size: clamp(1rem, 2vw, 1.3rem);
+}
+
+@media (min-width: 761px) {
+    .iv-plan-timeline__assumptions { overflow-x: visible; }
+}
+
+@media (max-width: 1400px) and (min-width: 601px) {
+    .iv-planning-topbar--retirement .iv-planning-topbar__secondary {
+        grid-template-areas:
+            "main main"
+            "local context";
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        row-gap: 8px;
+        padding-block: 8px;
+    }
+
+    .iv-planning-topbar--retirement .iv-page-nav-slot {
+        grid-area: main;
+        justify-self: center;
+    }
+
+    .iv-planning-topbar--retirement .iv-planning-local-nav-slot {
+        grid-area: local;
+    }
+
+    .iv-planning-topbar--retirement .iv-planning-context-slot {
+        grid-area: context;
+    }
+}
+
+@media (max-width: 600px) {
+    .iv-portfolio-structure__grid.iv-profile-structure__grid,
+    .iv-profile-income-cards,
+    .iv-profile-sources__grid,
+    .iv-reconciliation-state-banner {
+        grid-template-columns: 1fr;
+    }
+
+    .iv-profile-sources__grid { gap: 12px; padding: 12px; }
+    .iv-profile-source-card__metrics { grid-template-columns: 1fr; padding: 0; }
+    .iv-profile-source-card__metrics > div { padding: 10px 14px; }
+    .iv-profile-source-card__metrics > div + div { border-top: 1px solid var(--iv-metric-divider); border-left: 0; }
+
+    .iv-reconciliation-state-banner > div + div {
+        border-top: 1px solid var(--iv-metric-divider);
+        border-left: 0;
+    }
+
+    .iv-planning-topbar--retirement .iv-planning-topbar__secondary {
+        grid-template-areas:
+            "main"
+            "local"
+            "context";
+    }
+
+    .iv-planning-topbar--retirement .iv-page-nav-slot { grid-area: main; }
+    .iv-planning-topbar--retirement .iv-planning-local-nav-slot { grid-area: local; }
+    .iv-planning-topbar--retirement .iv-planning-context-slot { grid-area: context; }
 }

@@ -15,9 +15,9 @@ class UiPresentationTest {
   @Test
   void formatsMoneyPercentAndZero() {
     assertEquals("56,940.44", UiPresentation.money(new BigDecimal("56940.444")));
-    assertEquals("7.5 %", UiPresentation.percentage(new BigDecimal("0.07548783")));
+    assertEquals("7.5%", UiPresentation.percentage(new BigDecimal("0.07548783")));
     assertEquals("0", UiPresentation.money(BigDecimal.ZERO.setScale(8)));
-    assertEquals("0.0 %", UiPresentation.percentage(BigDecimal.ZERO.setScale(8)));
+    assertEquals("0.0%", UiPresentation.percentage(BigDecimal.ZERO.setScale(8)));
     assertEquals("56,940 PLN", UiPresentation.moneyWhole(new BigDecimal("56940.444"), "PLN"));
     assertEquals("2000", UiPresentation.wholeNumberInput(new BigDecimal("2000.000000000000")));
     assertEquals("1,030", UiPresentation.money(new BigDecimal("1030.00000000")));
@@ -26,10 +26,11 @@ class UiPresentationTest {
     assertEquals("0", UiPresentation.money(new BigDecimal("0E-8")));
     assertEquals("38,880", UiPresentation.money(new BigDecimal("38880.00015480")));
     assertEquals("178,961.17", UiPresentation.money(new BigDecimal("178961.16944085")));
-    assertEquals("7.0 %", UiPresentation.percentage(new BigDecimal("0.07")));
-    assertEquals("75.0 %", UiPresentation.percentage(new BigDecimal("0.75")));
+    assertEquals("7.0%", UiPresentation.percentage(new BigDecimal("0.07")));
+    assertEquals("75.0%", UiPresentation.percentage(new BigDecimal("0.75")));
     assertEquals("2.5", UiPresentation.percentageInput(new BigDecimal("0.025")));
     assertEquals("7.0", UiPresentation.percentageInput(new BigDecimal("0.07")));
+    assertEquals("4.75", UiPresentation.percentageInput(new BigDecimal("0.0475")));
     assertEquals("1030.5", UiPresentation.moneyInput(new BigDecimal("1030.50000000")));
     assertEquals("1.03", UiPresentation.decimal(new BigDecimal("1.03000000")));
     assertEquals("2", UiPresentation.years(new BigDecimal("2")));
@@ -73,11 +74,11 @@ class UiPresentationTest {
         UiPresentation.planningMetric(
             PlanningMetric.CORE_SPENDING, new BigDecimal("45000"), "PLN"));
     assertEquals(
-        "-2.0 %",
+        "-2.0%",
         UiPresentation.planningMetric(
             PlanningMetric.MARKET_RETURN, new BigDecimal("-0.0203"), "PLN"));
     assertEquals(
-        "7.0 %",
+        "7.0%",
         UiPresentation.planningMetric(PlanningMetric.EQUITY_RETURN, new BigDecimal("0.07"), "EUR"));
   }
 }

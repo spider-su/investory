@@ -54,6 +54,8 @@ class DashboardNavigationTemplateContractTest {
         .contains("th:href=\"@{/simulation(portfolioId=${portfolioId})}\"")
         .contains("th:href=\"@{/long-term-assets(portfolioId=${portfolioId})}\"");
     assertThat(fragment)
+        .contains("activePage == 'simulation' or activePage == 'analysis'");
+    assertThat(fragment)
         .doesNotContain("Overview")
         .doesNotContain("Performance")
         .doesNotContain("Positions")

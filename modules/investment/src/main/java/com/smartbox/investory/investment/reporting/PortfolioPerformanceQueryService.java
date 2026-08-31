@@ -37,7 +37,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class PortfolioPerformanceQueryService {
-  private static final double OTHER_BUCKET_RATIO = 0.019;
   private static final double ACCOUNT_VISIBILITY_MIN_VALUE = 50.0;
 
   private final ClosedPositionRepository closedPositionRepository;
@@ -187,44 +186,10 @@ public class PortfolioPerformanceQueryService {
   }
 
   public List<InstrumentPerformance> calculatePerformancePerInstrument() {
-    List<InstrumentPerformance> performances =
-        symbolPerformanceRepository.findAll().stream()
-            .map(this::toInstrumentPerformance)
-            .sorted(Comparator.comparing(InstrumentPerformance::getTotal))
-            .toList();
-    double threshold =
-        performances.stream()
-                .filter(Objects::nonNull)
-                .mapToDouble(InstrumentPerformance::getTotal)
-                .sum()
-            * OTHER_BUCKET_RATIO;
-    List<InstrumentPerformance> major = new ArrayList<>();
-    double otherClosed = 0.0, otherUnrealized = 0.0, otherDividends = 0.0, otherTax = 0.0;
-    double otherMarketValue = 0.0, otherCostBasis = 0.0;
-    for (InstrumentPerformance dto : performances) {
-      if (Math.abs(dto.getTotal()) >= Math.abs(threshold)) major.add(dto);
-      else {
-        otherClosed += dto.getClosedProfit();
-        otherUnrealized += dto.getUnrealizedProfit();
-        otherDividends += dto.getDividends();
-        otherTax += dto.getWithholdingTax();
-        otherMarketValue += dto.getMarketValue();
-        otherCostBasis += dto.getCostBasis();
-      }
-    }
-    major.sort(Comparator.comparingDouble(InstrumentPerformance::getTotal).reversed());
-    if (otherClosed != 0.0 || otherUnrealized != 0.0 || otherDividends != 0.0 || otherTax != 0.0)
-      major.add(
-          new InstrumentPerformance(
-              "Other",
-              otherClosed,
-              otherUnrealized,
-              otherClosed + otherUnrealized + otherDividends - otherTax,
-              otherDividends,
-              otherTax,
-              otherMarketValue,
-              otherCostBasis));
-    return major;
+    return symbolPerformanceRepository.findAll().stream()
+        .map(this::toInstrumentPerformance)
+        .sorted(Comparator.comparingDouble(InstrumentPerformance::getTotal).reversed())
+        .toList();
   }
 
   public DailyPerformanceDetail dailyPerformanceDetail(LocalDate date, Set<Long> accountIds) {

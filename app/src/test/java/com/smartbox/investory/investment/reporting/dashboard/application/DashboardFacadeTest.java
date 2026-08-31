@@ -32,6 +32,7 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -72,6 +73,32 @@ class DashboardFacadeTest {
     assertEquals("2026-01", result.performance().kpiStart());
     verify(periodFilterService).apply(portfolio, DashboardPeriod.ONE_YEAR);
     verify(periodFilterService).apply(benchmark, DashboardPeriod.ONE_YEAR);
+  }
+
+  @Test
+  void attributionKeepsNineNamedRowsAndAggregatesTheRestPerResultSide() {
+    Portfolio portfolio = new Portfolio();
+    List<InstrumentPerformance> rows = new ArrayList<>();
+    for (int value = 1; value <= 11; value++) {
+      rows.add(new InstrumentPerformance("GAIN-" + value, value, 0.0, value));
+      rows.add(new InstrumentPerformance("LOSS-" + value, -value, 0.0, -value));
+    }
+    portfolio.setPerformancePerSymbol(rows);
+    when(portfolioService.calculateTotalProfitLoss()).thenReturn(portfolio);
+    when(benchmarkService.calculate()).thenReturn(new Benchmark());
+
+    DashboardPageView result =
+        new DashboardFacade(portfolioService, benchmarkService, periodFilterService)
+            .loadDashboard(new DashboardQuery(List.of(), false, "MAX"));
+
+    assertEquals(10, result.performance().topGainers().size());
+    assertEquals("GAIN-11", result.performance().topGainers().getFirst().getSymbol());
+    assertEquals("Other", result.performance().topGainers().getLast().getSymbol());
+    assertEquals(3.0, result.performance().topGainers().getLast().getTotal(), 0.001);
+    assertEquals(10, result.performance().topLosers().size());
+    assertEquals("LOSS-11", result.performance().topLosers().getFirst().getSymbol());
+    assertEquals("Other", result.performance().topLosers().getLast().getSymbol());
+    assertEquals(-3.0, result.performance().topLosers().getLast().getTotal(), 0.001);
   }
 
   @Test
@@ -305,22 +332,27 @@ class DashboardFacadeTest {
             1L, YearMonth.parse("2026-01"), YearMonth.parse("2026-02")))
         .thenReturn(canonical);
 
-    DashboardPageView result =
+    DashboardFacade facade =
         new DashboardFacade(
-                portfolioService,
-                benchmarkService,
-                new DashboardPeriodFilterService(),
-                new PortfolioPeriodMetricsService(),
-                "2026-01-01",
-                performanceQuery,
-                null,
-                new PortfolioStructureQuery(null))
-            .loadDashboard(new DashboardQuery(List.of(), false, "MAX"));
+            portfolioService,
+            benchmarkService,
+            new DashboardPeriodFilterService(),
+            new PortfolioPeriodMetricsService(),
+            "2026-01-01",
+            performanceQuery,
+            null,
+            new PortfolioStructureQuery(null));
+    DashboardPageView result =
+        facade.loadDashboard(new DashboardQuery(List.of(), false, "MAX"));
+    DashboardFacade.PerformanceKpi profileKpi = facade.loadPerformanceKpi(1L);
 
     assertEquals(98.45, result.overview().totalProfit(), 0.001);
     assertEquals(7.25, result.overview().gainPct(), 0.001);
     assertEquals(
         new BigDecimal("0.0725"), result.performance().summary().kpiReturn().value());
+    assertEquals(
+        result.performance().summary().annualizedReturn(), profileKpi.annualizedReturn());
+    assertEquals(result.performance().summary().kpiStartDate(), profileKpi.startDate());
   }
 
   @Test
@@ -417,7 +449,9 @@ class DashboardFacadeTest {
       assertTrue(html.contains("stats.formatBase(stats.realizedProfit)"));
       assertTrue(html.contains("stats.formatBase(stats.incomeTotal)"));
       assertTrue(html.contains("selectedPeriod.label() + ' · before tax'"));
-      assertTrue(html.contains("By currency"));
+      assertFalse(html.contains("By currency"));
+      assertFalse(html.contains("realizedByCurrency"));
+      assertFalse(html.contains("unrealizedByCurrency"));
       assertFalse(html.contains("selectedPeriod.label() + ' · before capital-gains tax'"));
       assertTrue(html.contains("after withholding tax · yield"));
       assertTrue(

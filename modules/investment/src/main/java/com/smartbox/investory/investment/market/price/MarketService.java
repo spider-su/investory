@@ -10,14 +10,15 @@ import com.smartbox.investory.investment.infrastructure.market.client.YahooFinan
 import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.ClosedPosition;
-import com.smartbox.investory.investment.infrastructure.persistence.ClosedPositionRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
-import com.smartbox.investory.investment.infrastructure.persistence.OpenedPositionRepository;
+import com.smartbox.investory.investment.infrastructure.persistence.PositionEntity;
+import com.smartbox.investory.investment.infrastructure.persistence.PositionRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
+import com.smartbox.investory.investment.market.fx.CurrencyRateService;
+import com.smartbox.investory.investment.market.fx.FxRateUnavailableException;
 import com.smartbox.investory.investment.reporting.ReportingDateHelper;
 import com.smartbox.investory.investment.reporting.StatisticsRefreshService;
+import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -63,15 +64,9 @@ public class MarketService {
 
   static final Duration QUOTE_FRESHNESS = Duration.ofHours(4);
 
-  private static final String REMX_UK_SYMBOL = "REMX.UK";
-  // TwelveData has only the NYSE REMX quote. Calibrate that proxy to the London
-  // REMX.UK share price using the 2026-07-31 closes: 65.97 USD / 12.93 USD.
-  private static final double REMX_UK_TWELVE_DATA_DIVISOR = 65.97 / 12.93;
   private static final String VHYD_UK_SYMBOL = "VHYD.UK";
   private static final Map<String, String> TWELVE_DATA_SYMBOL_OVERRIDES =
-      Map.of(
-          REMX_UK_SYMBOL, "REMX",
-          VHYD_UK_SYMBOL, "VHYDl:CBOE");
+      Map.of(VHYD_UK_SYMBOL, "VHYDl:CBOE");
 
   private final TwelveDataService twelveDataService;
   private final YahooFinanceService yahooFinanceService;
@@ -82,12 +77,12 @@ public class MarketService {
   @org.springframework.beans.factory.annotation.Autowired(required = false)
   private IntegrationConfigurationService integrationConfigurationService;
 
-  private final OpenedPositionRepository openedPositionRepository;
+  private final PositionRepository positionRepository;
   private final AccountRepository accountRepository;
-  private final ClosedPositionRepository closedPositionRepository;
   private final AssetRepository assetRepository;
   private final AssetPriceHistoryRepository assetPriceHistoryRepository;
   private final AssetPriceHistoryGapFillService assetPriceHistoryGapFillService;
+  private final CurrencyRateService currencyRateService;
   private final StatisticsRefreshService statisticsRefreshService;
   private final boolean skipNonUsListings;
   private final Set<String> excludedAssetSymbols;
@@ -97,12 +92,12 @@ public class MarketService {
   public MarketService(
       TwelveDataService twelveDataService,
       YahooFinanceService yahooFinanceService,
-      OpenedPositionRepository openedPositionRepository,
+      PositionRepository positionRepository,
       AccountRepository accountRepository,
-      ClosedPositionRepository closedPositionRepository,
       AssetRepository assetRepository,
       AssetPriceHistoryRepository assetPriceHistoryRepository,
       AssetPriceHistoryGapFillService assetPriceHistoryGapFillService,
+      CurrencyRateService currencyRateService,
       StatisticsRefreshService statisticsRefreshService,
       PlatformTransactionManager transactionManager,
       @Value("${app.market.chunk-pause-ms:" + DEFAULT_CHUNK_PAUSE_MS + "}") long chunkPauseMs,
@@ -110,12 +105,12 @@ public class MarketService {
       @Value("${app.market.excluded-symbols:}") String excludedSymbolsCsv) {
     this.twelveDataService = twelveDataService;
     this.yahooFinanceService = yahooFinanceService;
-    this.openedPositionRepository = openedPositionRepository;
+    this.positionRepository = positionRepository;
     this.accountRepository = accountRepository;
-    this.closedPositionRepository = closedPositionRepository;
     this.assetRepository = assetRepository;
     this.assetPriceHistoryRepository = assetPriceHistoryRepository;
     this.assetPriceHistoryGapFillService = assetPriceHistoryGapFillService;
+    this.currencyRateService = currencyRateService;
     this.statisticsRefreshService = statisticsRefreshService;
     this.skipNonUsListings = skipNonUsListings;
     this.excludedAssetSymbols = parseSymbolSet(excludedSymbolsCsv);
@@ -192,9 +187,10 @@ public class MarketService {
       }
       if (idx < chunks.size() && !chunkPause.isZero()) {
         if (!sleep(chunkPause)) {
-          log.warn("AssetEntity price sync interrupted after chunk {}; stopping cleanly", idx);
+          log.warn("AssetEntity price sync interrupted after chunk {}; reporting incomplete", idx);
           refreshStatisticsIfNeeded(refreshAfterUpdate);
-          return;
+          throw new IllegalStateException(
+              "Market refresh interrupted after chunk " + idx + " of " + chunks.size());
         }
       }
     }
@@ -238,13 +234,13 @@ public class MarketService {
     if (inactiveAssets.isEmpty()) {
       return;
     }
-    Map<String, ClosedPosition> latestClosedBySymbol =
-        closedPositionRepository.findAll().stream()
+    Map<String, PositionEntity> latestClosedBySymbol =
+        positionRepository.findClosed().stream()
             .filter(position -> StringUtils.hasText(position.getSymbol()))
             .filter(position -> position.getClosePrice() != null)
             .collect(
                 Collectors.toMap(
-                    ClosedPosition::getSymbol,
+                    PositionEntity::getSymbol,
                     position -> position,
                     (left, right) -> {
                       ZonedDateTime leftTime = left.getCloseTime();
@@ -260,12 +256,18 @@ public class MarketService {
 
     List<AssetEntity> backfilled = new ArrayList<>();
     for (AssetEntity asset : inactiveAssets) {
-      ClosedPosition latest = latestClosedBySymbol.get(asset.getSymbol());
+      PositionEntity latest = latestClosedBySymbol.get(asset.getSymbol());
       if (latest == null) {
         continue;
       }
       asset.setMarketPrice(latest.getClosePrice());
-      asset.setMarketPriceUsd(latest.getClosePrice());
+      updateUsdPriceCache(
+          asset,
+          latest.getClosePrice(),
+          latest.getPriceCurrency(),
+          latest.getCloseTime() == null
+              ? ReportingDateHelper.today()
+              : latest.getCloseTime().toLocalDate());
       asset.setPriceSource("ClosedPosition");
       asset.setPriceUpdatedAt(
           latest.getCloseTime() != null ? latest.getCloseTime() : ZonedDateTime.now());
@@ -280,8 +282,8 @@ public class MarketService {
 
   private void refreshAssetActivityFromOpenPositions() {
     Set<String> openSymbols =
-        openedPositionRepository.findAll().stream()
-            .map(OpenedPosition::getSymbol)
+        positionRepository.findOpen().stream()
+            .map(PositionEntity::getSymbol)
             .filter(StringUtils::hasText)
             .collect(Collectors.toSet());
 
@@ -332,11 +334,14 @@ public class MarketService {
             return;
           }
           for (AssetEntity asset : assets) {
-            double marketPrice = normalizeMarketPrice(asset, quote.getClose());
+            if (!isUsableQuote(asset, quote)) {
+              continue;
+            }
+            double marketPrice = quote.getClose();
             asset.setMarketPrice(marketPrice);
             // Legacy UI/export cache only. Reporting selects price and currency from
             // v_current_asset_price, then performs the one required FX conversion.
-            asset.setMarketPriceUsd(marketPrice);
+            updateUsdPriceCache(asset, marketPrice, asset.getCurrency(), quoteDate(quote));
             asset.setPriceSource("TwelveData");
             asset.setPriceUpdatedAt(now);
             toSave.add(asset);
@@ -367,7 +372,7 @@ public class MarketService {
           .ifPresent(
               quote -> {
                 asset.setMarketPrice(quote.price());
-                asset.setMarketPriceUsd(quote.price());
+                updateUsdPriceCache(asset, quote.price(), asset.getCurrency(), quote.date());
                 asset.setPriceSource("YahooFinance");
                 asset.setPriceUpdatedAt(ZonedDateTime.now());
                 toSave.add(asset);
@@ -430,11 +435,49 @@ public class MarketService {
     return asset.getCurrency() != null ? asset.getCurrency().name() : "USD";
   }
 
-  private double normalizeMarketPrice(AssetEntity asset, double quoteClose) {
-    if (REMX_UK_SYMBOL.equals(asset.getSymbol())) {
-      return quoteClose / REMX_UK_TWELVE_DATA_DIVISOR;
+  private boolean isUsableQuote(AssetEntity asset, StockQuote quote) {
+    if (!Double.isFinite(quote.getClose()) || quote.getClose() <= 0.0) {
+      log.warn("TwelveData quote skipped for {}: no positive close price", asset.getSymbol());
+      return false;
     }
-    return quoteClose;
+    if (asset.getCurrency() == null
+        || !StringUtils.hasText(quote.getCurrency())
+        || !asset.getCurrency().name().equalsIgnoreCase(quote.getCurrency().trim())) {
+      log.warn(
+          "TwelveData quote skipped for {}: quote currency {} differs from asset currency {}",
+          asset.getSymbol(),
+          quote.getCurrency(),
+          asset.getCurrency());
+      return false;
+    }
+    return true;
+  }
+
+  private void updateUsdPriceCache(
+      AssetEntity asset, double nativePrice, CurrencyType nativeCurrency, LocalDate valuationDate) {
+    if (nativeCurrency == null || valuationDate == null) {
+      asset.setMarketPriceUsd((BigDecimal) null);
+      log.warn(
+          "USD price cache unavailable for {}: native currency or valuation date is missing",
+          asset.getSymbol());
+      return;
+    }
+    if (nativeCurrency == CurrencyType.USD) {
+      asset.setMarketPriceUsd(nativePrice);
+      return;
+    }
+    try {
+      asset.setMarketPriceUsd(
+          currencyRateService.convertToBaseCurrency(
+              BigDecimal.valueOf(nativePrice), CurrencyType.USD, nativeCurrency, valuationDate));
+    } catch (FxRateUnavailableException exception) {
+      asset.setMarketPriceUsd((BigDecimal) null);
+      log.warn(
+          "USD price cache unavailable for {} at {}: {}",
+          asset.getSymbol(),
+          valuationDate,
+          exception.getMessage());
+    }
   }
 
   private String twelveDataSymbol(AssetEntity asset) {
@@ -499,9 +542,7 @@ public class MarketService {
     if (!isNotConfiguredExcluded(asset)) {
       return false;
     }
-    // REMX.UK has an explicit TwelveData mapping/normalization and must refresh even
-    // when generic non-US listings are disabled.
-    return REMX_UK_SYMBOL.equals(symbol) || !(skipNonUsListings && isNonUsExchangeSymbol(symbol));
+    return !(skipNonUsListings && isNonUsExchangeSymbol(symbol));
   }
 
   private boolean isNotConfiguredExcluded(AssetEntity asset) {
@@ -592,20 +633,20 @@ public class MarketService {
     if (ibkrAccounts.isEmpty()) {
       return;
     }
-    List<OpenedPosition> positions = openedPositionRepository.findAllByAccountIn(ibkrAccounts);
+    List<PositionEntity> positions = positionRepository.findOpenByAccountIn(ibkrAccounts);
     if (positions.isEmpty()) {
       return;
     }
     Set<String> symbols =
         positions.stream()
-            .map(OpenedPosition::getSymbol)
+            .map(PositionEntity::getSymbol)
             .filter(StringUtils::hasText)
             .collect(Collectors.toSet());
     Map<String, AssetEntity> assetsBySymbol =
         assetRepository.findAllBySymbolIn(symbols).stream()
             .collect(Collectors.toMap(AssetEntity::getSymbol, asset -> asset, (a, b) -> b));
 
-    for (OpenedPosition position : positions) {
+    for (PositionEntity position : positions) {
       AssetEntity asset = assetsBySymbol.get(position.getSymbol());
       if (asset == null || asset.getMarketPrice() == null || asset.getMarketPrice() == 0.0) {
         continue;
@@ -622,7 +663,7 @@ public class MarketService {
             position.getProfitCurrency());
       }
     }
-    openedPositionRepository.saveAll(positions);
+    positionRepository.saveAll(positions);
 
     // AccountEntity cash/equity is broker-imported state. Quote refresh must not rewrite it:
     // account statistics will combine broker cash with current market value from assets.
@@ -638,14 +679,14 @@ public class MarketService {
     if (xtbAccounts.isEmpty()) {
       return 0;
     }
-    List<OpenedPosition> repaired =
-        openedPositionRepository.findAllByAccountIn(xtbAccounts).stream()
+    List<PositionEntity> repaired =
+        positionRepository.findOpenByAccountIn(xtbAccounts).stream()
             .filter(position -> XTB_RECONSTRUCTED_COMMENT.equals(position.getComment()))
             .filter(position -> position.getProfit() == null || position.getProfit() != 0.0)
             .peek(position -> position.setProfit(0.0))
             .toList();
     if (!repaired.isEmpty()) {
-      openedPositionRepository.saveAll(repaired);
+      positionRepository.saveAll(repaired);
     }
     return repaired.size();
   }

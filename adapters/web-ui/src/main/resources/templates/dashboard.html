@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <title>Investory — Portfolio Intelligence</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link href="/favicon.svg" rel="icon" type="image/svg+xml">
     <link href="/css/tabler.min.css" rel="stylesheet">
     <link href="/css/main.css" rel="stylesheet">
     <th:block th:replace="~{fragments/theme-head :: theme}"></th:block>
@@ -80,19 +79,16 @@
                               th:text="|(${stats.formatSignedPercent(stats.gainPct)})|">(+0,0%)</span>
                     </span>
                     </div>
-                    <span class="iv-topbar-metric__label"
-                          th:text="${stats.totalProfit >= 0 ? 'PROFIT' : 'LOSS'}">PROFIT</span>
+                    <span class="iv-topbar-metric__label">INVESTMENT RESULT</span>
                 </div>
                 <div class="iv-metric-context__panel" role="tooltip">
-                    <strong th:text="${selectedPeriod.label() + ' investment result'}">YTD investment result</strong>
-                    <span>Cash-flow-neutral profit and return for the selected period, after portfolio adjustments.</span>
                     <div class="iv-brand__summary-row"><span>Return since KPI start</span><span th:if="${dashboard.performance.summary.kpiReturn.status.name() == 'AVAILABLE'}" th:text="${dashboard.performance.summary.formatSignedPercent(dashboard.performance.summary.kpiReturn.value * 100)}">Unavailable</span><span th:unless="${dashboard.performance.summary.kpiReturn.status.name() == 'AVAILABLE'}">Unavailable</span></div>
                     <div class="iv-brand__summary-row"><span>Annualized return</span><span th:if="${dashboard.performance.summary.annualizedReturn.status.name() == 'AVAILABLE'}" th:text="${dashboard.performance.summary.formatSignedPercent(dashboard.performance.summary.annualizedReturn.value * 100) + ' p.a.'}">Unavailable</span><span th:unless="${dashboard.performance.summary.annualizedReturn.status.name() == 'AVAILABLE'}">Unavailable</span></div>
                     <small th:if="${dashboard.performance.summary.kpiStartDate != null}" th:text="${'KPI start · ' + dashboard.performance.summary.kpiStartDate}">KPI start · 2026-01-01</small>
                 </div>
             </div>
 
-            <div id="balance-cash" class="iv-topbar-metric iv-metric-context" tabindex="0" aria-label="Portfolio value">
+            <div id="balance-cash" class="iv-topbar-metric" aria-label="Portfolio value">
                 <div class="iv-topbar-metric__content">
                     <div class="iv-topbar-metric__value-row">
                     <span class="iv-topbar-metric__value"
@@ -100,26 +96,17 @@
                     </div>
                     <span class="iv-topbar-metric__label">BALANCE</span>
                 </div>
-                <div class="iv-metric-context__panel" role="tooltip">
-                    <strong>Portfolio value</strong>
-                    <span>Current portfolio value from Investory’s existing valuation calculation.</span>
-                    <div class="iv-brand__summary-row">
-                        <span>Free cash</span>
-                        <span class="iv-cash-flow-violet"
-                              th:text="${stats.formatBase(stats.cash)}">0</span>
-                    </div>
-                </div>
             </div>
         </div>
         <div class="iv-topbar__meta iv-app-header-shell__actions">
             <div class="iv-topbar__toolbar">
-                <details class="iv-balance-popover iv-topbar-fx-popover">
+                <details class="iv-balance-popover iv-topbar-fx-popover iv-compact-popover">
                     <summary class="iv-topbar-fx-popover__trigger">
-                        <span th:text="${'Base: ' + stats.baseCurrency}">Base: USD</span> <span class="iv-info-icon" aria-hidden="true">i</span>
+                        <span th:text="${'Base currency: ' + stats.baseCurrency}">Base currency: USD</span> <span class="iv-info-icon" aria-hidden="true">i</span>
                     </summary>
-                    <div class="iv-balance-popover__panel iv-topbar-fx-popover__panel">
-                        <div class="iv-popover-heading" th:text="${'Base currency: ' + stats.baseCurrency}">Base currency: USD</div>
-                        <p class="iv-popover-help" th:text="${'Portfolio values are converted to ' + stats.baseCurrency + '.'}">Portfolio values are converted to USD.</p>
+                    <div class="iv-balance-popover__panel iv-topbar-fx-popover__panel iv-compact-popover__panel">
+                        <div class="iv-popover-heading iv-compact-popover__header" th:text="${'Base currency: ' + stats.baseCurrency}">Base currency: USD</div>
+                        <div class="iv-compact-popover__body">
                         <div class="iv-position-popover__row iv-dividend-popover__row"
                              th:if="${stats.exchangeRates.get(T(com.smartbox.investory.shared.currency.CurrencyType).EUR) != null}">
                             <span th:text="${stats.baseCurrency + ' → EUR'}">USD → EUR</span>
@@ -133,8 +120,9 @@
                         <div class="iv-popover-help" th:if="${dashboard.overview.operational != null and dashboard.overview.operational.fx.ratesUpdated != null}"
                              th:text="${'Rates updated: ' + dashboard.overview.operational.fx.ratesUpdated}">Rates updated: —</div>
                         <div class="iv-popover-help" th:text="${dashboard.overview.operational == null ? stats.exchangeRates.size() : dashboard.overview.operational.fx.currencyCount} + ' currencies in portfolio'">0 currencies in portfolio</div>
-                        <button type="button" id="refresh-currency-btn" class="iv-topbar-action-button iv-badge iv-badge--muted">Update currency</button>
-                        <p id="refresh-currency-status" class="iv-form-status" role="status" aria-live="polite"></p>
+                        </div>
+                        <div class="iv-compact-popover__footer"><button type="button" id="refresh-currency-btn" class="iv-topbar-action-button iv-badge iv-badge--muted">Update exchange rates</button>
+                        <p id="refresh-currency-status" class="iv-form-status" role="status" aria-live="polite"></p></div>
                     </div>
                 </details>
             </div>
@@ -162,12 +150,12 @@
                 <div class="iv-hover-context">
                     <button id="refresh-prices-btn"
                             class="iv-topbar-action-button iv-badge iv-badge--muted">
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0 1 4"/><path d="M20 4v7h-7"/></svg> Update History
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0 1 4"/><path d="M20 4v7h-7"/></svg> Update market data
                     </button>
                     <div class="iv-hover-context__panel" role="tooltip">
-                        <strong>Portfolio data</strong>
+                        <strong>Market data</strong>
                         <span th:if="${dashboard.overview.operational != null and dashboard.overview.operational.freshness.lastUpdate != null}"
-                              th:text="${'Last update: ' + #temporals.format(dashboard.overview.operational.freshness.lastUpdate, 'MMM d, HH:mm')}">Last update: —</span>
+                              th:text="${'Last market data update: ' + #temporals.format(dashboard.overview.operational.freshness.lastUpdate, 'MMM d, HH:mm')}">Last market data update: —</span>
                         <span th:if="${dashboard.overview.operational != null and dashboard.overview.operational.freshness.latestTransaction != null}"
                               th:text="${'Latest transaction: ' + #temporals.format(dashboard.overview.operational.freshness.latestTransaction, 'MMM d, HH:mm')}">Latest transaction: —</span>
                         <span th:if="${dashboard.overview.operational != null and dashboard.overview.operational.freshness.latestValuation != null}"
@@ -207,22 +195,18 @@
             <div th:replace="~{fragments/app-header :: appNavigation('investment', ${portfolioId})}"></div>
         </div>
         <div id="iv-header-rail-right" class="iv-header-rail__right">
-            <a th:if="${yahooFinanceUrl != null and !yahooFinanceUrl.isBlank()}"
-               class="iv-header-rail__yahoo"
-               th:href="${yahooFinanceUrl}"
+            <a class="iv-header-rail__yahoo"
+               th:href="${yahooFinanceUrl != null and !yahooFinanceUrl.isBlank() ? yahooFinanceUrl : 'https://finance.yahoo.com/portfolios/'}"
                target="_blank"
                rel="noopener noreferrer"
                aria-label="Open Yahoo Finance portfolio in a new tab">Yahoo Finance ↗</a>
-            <span th:unless="${yahooFinanceUrl != null and !yahooFinanceUrl.isBlank()}"
-                  class="iv-header-rail__yahoo iv-header-rail__yahoo--disabled"
-                  aria-disabled="true">Yahoo Finance ↗</span>
             <div th:replace="~{dashboard/fragments/header-controls :: valuation}"></div>
         </div>
         </div>
     </header>
 
     <!-- KPI tiles -->
-    <section class="iv-grid iv-grid--kpi iv-grid--portfolio-overview">
+    <section id="investment-overview" class="iv-grid iv-grid--kpi iv-grid--portfolio-overview">
         <div class="iv-kpi iv-kpi--popover iv-overview-card">
             <div class="iv-overview-card__heading iv-hover-context" tabindex="0">
                 <p class="iv-kpi__label">
@@ -249,8 +233,8 @@
                                 <button type="button" class="iv-sort-button" data-sort-key="price">Price</button>
                                 <button type="button" class="iv-sort-button" data-sort-key="value">Value</button>
                                 <button type="button" class="iv-sort-button" data-sort-key="unrealized">Unrealized</button>
-                                <button type="button" class="iv-sort-button" data-sort-key="pl">P/L</button>
-                                <button type="button" class="iv-sort-button" data-sort-key="share">Share</button>
+                                <button type="button" class="iv-sort-button" data-sort-key="pl">Return</button>
+                                <button type="button" class="iv-sort-button" data-sort-key="share">Portfolio share</button>
                             </div>
                             <div class="iv-position-popover__row"
                                  th:each="position : ${stats.openPositionValues}"
@@ -301,20 +285,6 @@
                             </div>
                         </div>
                     </details>
-                    <details class="iv-balance-popover iv-position-popover iv-dividend-popover">
-                        <summary class="iv-balance-popover__trigger">By currency</summary>
-                        <div class="iv-balance-popover__panel iv-position-popover__panel">
-                            <div class="iv-position-popover__row iv-dividend-popover__row iv-balance-popover__row--head">
-                                <span>Currency</span>
-                                <span>Open P/L</span>
-                            </div>
-                            <div class="iv-position-popover__row iv-dividend-popover__row" th:each="entry : ${stats.unrealizedByCurrency}">
-                                <span th:text="${entry.key}">USD</span>
-                                <span th:classappend="${entry.value >= 0} ? 'iv-pos' : 'iv-neg'"
-                                      th:text="${format.wholeNumber(entry.value) + ' ' + entry.key}">0 USD</span>
-                            </div>
-                        </div>
-                    </details>
                 </div>
         </div>
 
@@ -340,99 +310,39 @@
                     <details class="iv-balance-popover iv-position-popover iv-dividend-popover iv-realized-details">
                         <summary class="iv-balance-popover__trigger">Details</summary>
                         <div class="iv-balance-popover__panel iv-position-popover__panel">
-                            <div class="iv-position-popover__row iv-dividend-popover__row iv-balance-popover__row--head">
-                                <span>Investment result</span>
-                                <span>Amount</span>
-                            </div>
-                            <div class="iv-position-popover__row iv-dividend-popover__row">
-                                <span>Formula</span>
-                                <span>Balance − invested</span>
-                            </div>
-                            <div class="iv-position-popover__row iv-dividend-popover__row">
-                                <span>Investment gain <span class="iv-muted">(gross)</span></span>
-                                <span th:classappend="${stats.totalProfit >= 0} ? 'iv-pos' : 'iv-neg'"
-                                      th:text="${stats.formatBase(stats.totalProfit)}">0</span>
-                            </div>
-                            <div class="iv-position-popover__row iv-dividend-popover__row">
-                                <span>Realized P/L <span class="iv-muted">(gross)</span></span>
-                                <span th:classappend="${stats.realizedProfit >= 0} ? 'iv-pos' : 'iv-neg'"
-                                      th:text="${stats.formatBase(stats.realizedProfit)}">0</span>
-                            </div>
-                            <div class="iv-position-popover__row iv-dividend-popover__row" th:if="${stats.lossCarryForward > 0}">
-                                <span>Loss carry-forward applied</span>
-                                <span th:text="${stats.formatBase(stats.lossCarryForward)}">0</span>
-                            </div>
-                            <div class="iv-position-popover__row iv-dividend-popover__row">
-                                <span>Capital gains tax <span class="iv-muted">(current-year estimate)</span></span>
-                                <span class="iv-neg"
-                                      th:text="${'-' + stats.formatBase(stats.capitalGainsTax)}">0</span>
-                            </div>
-                            <div class="iv-position-popover__row iv-dividend-popover__row">
-                                <span>Investment gain <span class="iv-muted">(selected period · before capital-gains tax)</span></span>
-                                <span th:classappend="${stats.netGain >= 0} ? 'iv-pos' : 'iv-neg'"
-                                      th:text="${stats.formatBase(stats.netGain)}">0</span>
-                            </div>
                             <div class="iv-realized-attribution-popover">
-                                <p class="iv-card__title">What is driving results</p>
-                                <p class="iv-section-heading__note">Since inception · base USD · total = realized + unrealized + dividends − withholding tax.</p>
-                                <section class="iv-grid iv-grid--split">
-                                    <div class="iv-card">
-                                        <div class="iv-card__head">
-                                            <h3 class="iv-card__title">Largest contributors</h3>
-                                            <span class="iv-card__hint">All results · largest contributors</span>
+                                <section class="iv-realized-attribution-group" aria-labelledby="top-gainers-title">
+                                    <h3 id="top-gainers-title" class="iv-realized-attribution-title">Top gainers</h3>
+                                    <div class="iv-realized-attribution-table iv-sortable-grid" role="table" aria-label="Top gainers">
+                                        <div class="iv-position-popover__row iv-realized-attribution-row iv-balance-popover__row--head" role="row">
+                                            <button type="button" class="iv-sort-button" data-sort-key="symbol">Symbol</button><button type="button" class="iv-sort-button" data-sort-key="total">Total</button><button type="button" class="iv-sort-button" data-sort-key="realized">Realized</button><button type="button" class="iv-sort-button" data-sort-key="unrealized">Unrealized</button><button type="button" class="iv-sort-button" data-sort-key="dividends">Dividends</button><button type="button" class="iv-sort-button" data-sort-key="tax">Tax</button>
                                         </div>
-                                        <div class="iv-table-wrap">
-                                            <table class="iv-table">
-                                                <thead><tr><th>Symbol</th><th class="iv-text-right">Total</th><th class="iv-text-right">Realized</th><th class="iv-text-right">Unrealized</th><th class="iv-text-right">Dividends</th><th class="iv-text-right">Tax</th></tr></thead>
-                                                <tbody>
-                                                <tr th:each="symbol : ${topGainers}">
-                                                    <td><span class="iv-sym"><span class="iv-sym__avatar" th:text="${#strings.substring(symbol.symbol, 0, 1)}"></span><span th:text="${symbol.symbol}"></span></span></td>
-                                                    <td class="iv-text-right iv-amt iv-pos" th:text="${format.wholeNumber(symbol.total)}"></td>
-                                                    <td class="iv-text-right iv-amt" th:classappend="${symbol.closedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.wholeNumber(symbol.closedProfit)}"></td>
-                                                    <td class="iv-text-right iv-amt" th:classappend="${symbol.unrealizedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.wholeNumber(symbol.unrealizedProfit)}"></td>
-                                                    <td class="iv-text-right iv-amt" th:text="${format.wholeNumber(symbol.dividends)}"></td>
-                                                    <td class="iv-text-right iv-amt" th:classappend="${symbol.withholdingTax > 0} ? 'iv-neg' : ''" th:text="${'-' + format.wholeNumber(symbol.withholdingTax)}"></td>
-                                                </tr>
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                    <div class="iv-card">
-                                        <div class="iv-card__head">
-                                            <h3 class="iv-card__title">Largest detractors</h3>
-                                            <span class="iv-card__hint">All results · largest detractors</span>
-                                        </div>
-                                        <div class="iv-table-wrap">
-                                            <table class="iv-table">
-                                                <thead><tr><th>Symbol</th><th class="iv-text-right">Total</th><th class="iv-text-right">Realized</th><th class="iv-text-right">Unrealized</th><th class="iv-text-right">Dividends</th><th class="iv-text-right">Tax</th></tr></thead>
-                                                <tbody>
-                                                <tr th:each="symbol : ${topLosers}">
-                                                    <td><span class="iv-sym"><span class="iv-sym__avatar" th:text="${#strings.substring(symbol.symbol, 0, 1)}"></span><span th:text="${symbol.symbol}"></span></span></td>
-                                                    <td class="iv-text-right iv-amt iv-neg" th:text="${format.wholeNumber(symbol.total)}"></td>
-                                                    <td class="iv-text-right iv-amt" th:classappend="${symbol.closedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.wholeNumber(symbol.closedProfit)}"></td>
-                                                    <td class="iv-text-right iv-amt" th:classappend="${symbol.unrealizedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.wholeNumber(symbol.unrealizedProfit)}"></td>
-                                                    <td class="iv-text-right iv-amt" th:text="${format.wholeNumber(symbol.dividends)}"></td>
-                                                    <td class="iv-text-right iv-amt" th:classappend="${symbol.withholdingTax > 0} ? 'iv-neg' : ''" th:text="${'-' + format.wholeNumber(symbol.withholdingTax)}"></td>
-                                                </tr>
-                                                </tbody>
-                                            </table>
+                                        <div class="iv-position-popover__row iv-realized-attribution-row" role="row" th:each="symbol : ${topGainers}" data-sort-row th:attr="data-sort-symbol=${symbol.symbol},data-sort-total=${symbol.total},data-sort-realized=${symbol.closedProfit},data-sort-unrealized=${symbol.unrealizedProfit},data-sort-dividends=${symbol.dividends},data-sort-tax=${symbol.withholdingTax}">
+                                            <span class="iv-sym"><a th:if="${symbol.symbol != 'Other'}" th:href="@{/dashboard/assets/{symbol}(symbol=${symbol.symbol})}" th:text="${symbol.symbol}" title="Open asset details"></a><span th:unless="${symbol.symbol != 'Other'}" th:text="${symbol.symbol}"></span></span>
+                                            <span class="iv-amt iv-pos" th:text="${format.wholeNumber(symbol.total)}"></span>
+                                            <span class="iv-amt" th:classappend="${symbol.closedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.wholeNumber(symbol.closedProfit)}"></span>
+                                            <span class="iv-amt" th:classappend="${symbol.unrealizedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.wholeNumber(symbol.unrealizedProfit)}"></span>
+                                            <span class="iv-amt" th:text="${format.wholeNumber(symbol.dividends)}"></span>
+                                            <span class="iv-amt" th:classappend="${symbol.withholdingTax > 0} ? 'iv-neg' : ''" th:text="${'-' + format.wholeNumber(symbol.withholdingTax)}"></span>
                                         </div>
                                     </div>
                                 </section>
-                            </div>
-                        </div>
-                    </details>
-                    <details class="iv-balance-popover iv-position-popover iv-dividend-popover">
-                        <summary class="iv-balance-popover__trigger">By currency</summary>
-                        <div class="iv-balance-popover__panel iv-position-popover__panel">
-                            <div class="iv-position-popover__row iv-dividend-popover__row iv-balance-popover__row--head">
-                                <span>Currency</span>
-                                <span>Closed P/L</span>
-                            </div>
-                            <div class="iv-position-popover__row iv-dividend-popover__row" th:each="entry : ${stats.realizedByCurrency}">
-                                <span th:text="${entry.key}">USD</span>
-                                <span th:classappend="${entry.value >= 0} ? 'iv-pos' : 'iv-neg'"
-                                      th:text="${format.wholeNumber(entry.value) + ' ' + entry.key}">0 USD</span>
+                                <section class="iv-realized-attribution-group" aria-labelledby="top-losers-title">
+                                    <h3 id="top-losers-title" class="iv-realized-attribution-title">Top losers</h3>
+                                    <div class="iv-realized-attribution-table iv-sortable-grid" role="table" aria-label="Top losers">
+                                        <div class="iv-position-popover__row iv-realized-attribution-row iv-balance-popover__row--head" role="row">
+                                            <button type="button" class="iv-sort-button" data-sort-key="symbol">Symbol</button><button type="button" class="iv-sort-button" data-sort-key="total">Total</button><button type="button" class="iv-sort-button" data-sort-key="realized">Realized</button><button type="button" class="iv-sort-button" data-sort-key="unrealized">Unrealized</button><button type="button" class="iv-sort-button" data-sort-key="dividends">Dividends</button><button type="button" class="iv-sort-button" data-sort-key="tax">Tax</button>
+                                        </div>
+                                        <div class="iv-position-popover__row iv-realized-attribution-row" role="row" th:each="symbol : ${topLosers}" data-sort-row th:attr="data-sort-symbol=${symbol.symbol},data-sort-total=${symbol.total},data-sort-realized=${symbol.closedProfit},data-sort-unrealized=${symbol.unrealizedProfit},data-sort-dividends=${symbol.dividends},data-sort-tax=${symbol.withholdingTax}">
+                                            <span class="iv-sym"><a th:if="${symbol.symbol != 'Other'}" th:href="@{/dashboard/assets/{symbol}(symbol=${symbol.symbol})}" th:text="${symbol.symbol}" title="Open asset details"></a><span th:unless="${symbol.symbol != 'Other'}" th:text="${symbol.symbol}"></span></span>
+                                            <span class="iv-amt iv-neg" th:text="${format.wholeNumber(symbol.total)}"></span>
+                                            <span class="iv-amt" th:classappend="${symbol.closedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.wholeNumber(symbol.closedProfit)}"></span>
+                                            <span class="iv-amt" th:classappend="${symbol.unrealizedProfit >= 0} ? 'iv-pos' : 'iv-neg'" th:text="${format.wholeNumber(symbol.unrealizedProfit)}"></span>
+                                            <span class="iv-amt" th:text="${format.wholeNumber(symbol.dividends)}"></span>
+                                            <span class="iv-amt" th:classappend="${symbol.withholdingTax > 0} ? 'iv-neg' : ''" th:text="${'-' + format.wholeNumber(symbol.withholdingTax)}"></span>
+                                        </div>
+                                    </div>
+                                </section>
                             </div>
                         </div>
                     </details>
@@ -463,43 +373,45 @@
                th:classappend="${stats.incomeTotal >= 0} ? 'iv-pos' : 'iv-neg'"
                th:text="${stats.formatBase(stats.incomeTotal)}">0</p>
             <div class="iv-kpi__actions">
-                    <details class="iv-balance-popover iv-position-popover iv-dividend-popover">
+                    <details class="iv-balance-popover iv-position-popover iv-dividend-popover iv-compact-popover">
                         <summary class="iv-balance-popover__trigger">Details</summary>
-                        <div class="iv-balance-popover__panel iv-position-popover__panel">
-                            <div class="iv-position-popover__row iv-dividend-popover__row iv-balance-popover__row--head">
-                                <span>Income and tax</span>
+                        <div class="iv-balance-popover__panel iv-position-popover__panel iv-compact-popover__panel">
+                            <div class="iv-position-popover__row iv-dividend-popover__row iv-balance-popover__row--head iv-compact-popover__header">
+                                <span>Income breakdown</span>
                                 <span>Amount</span>
                             </div>
-                        <div class="iv-position-popover__row iv-dividend-popover__row">
+                        <div class="iv-compact-popover__body">
+                            <div class="iv-position-popover__row iv-dividend-popover__row">
                             <span>Dividends <span class="iv-muted">(gross)</span></span>
                             <span class="iv-pos"
                                   th:text="${stats.formatBase(stats.dividends)}">0</span>
-                        </div>
+                            </div>
                             <div class="iv-position-popover__row iv-dividend-popover__row">
                                 <span>Dividend withholding tax</span>
                                 <span class="iv-neg"
                                       th:text="${stats.formatBase(stats.dividendTax)}">0</span>
                             </div>
                             <div class="iv-position-popover__row iv-dividend-popover__row">
-                                <span>Free-funds interest</span>
+                                <span>Cash interest</span>
                                 <span th:classappend="${stats.interest >= 0} ? 'iv-pos' : 'iv-neg'"
                                       th:text="${stats.formatBase(stats.interest)}">0</span>
                             </div>
                         </div>
+                        </div>
                     </details>
-                    <details class="iv-balance-popover iv-position-popover iv-dividend-popover"
+                    <details class="iv-balance-popover iv-position-popover iv-dividend-popover iv-compact-popover"
                              th:if="${stats.dividendGainers != null and !stats.dividendGainers.isEmpty()}">
-                        <summary class="iv-balance-popover__trigger">Top payers</summary>
-                        <div class="iv-balance-popover__panel iv-position-popover__panel">
-                            <div class="iv-position-popover__row iv-dividend-popover__row iv-balance-popover__row--head">
+                        <summary class="iv-balance-popover__trigger">Top dividend payers</summary>
+                        <div class="iv-balance-popover__panel iv-position-popover__panel iv-compact-popover__panel">
+                            <div class="iv-position-popover__row iv-dividend-popover__row iv-balance-popover__row--head iv-compact-popover__header">
                                 <span>Symbol</span>
-                                <span>Dividends USD</span>
+                                <span th:text="${'Dividends · ' + stats.baseCurrency}">Dividends · USD</span>
                             </div>
-                            <div class="iv-position-popover__row iv-dividend-popover__row" th:each="row : ${stats.dividendGainers}">
+                            <div class="iv-compact-popover__body"><div class="iv-position-popover__row iv-dividend-popover__row" th:each="row : ${stats.dividendGainers}">
                                 <span th:text="${row.symbol}">AAPL.US</span>
                                 <span class="iv-pos"
                                       th:text="${stats.formatBase(row.dividends)}">0</span>
-                            </div>
+                            </div></div>
                         </div>
                     </details>
                 </div>
@@ -575,23 +487,23 @@
             </div>
             <div class="iv-card__body">
                 <div class="iv-benchmark iv-performance-metrics">
-                    <div class="iv-benchmark__stat iv-performance-metric--result"><span class="iv-benchmark__label">Return</span><span class="iv-benchmark__value" id="performance-board-return">—</span></div>
+                    <div class="iv-benchmark__stat iv-performance-metric--result"><span class="iv-benchmark__label">Period return</span><span class="iv-benchmark__value" id="performance-board-return">—</span></div>
                     <div class="iv-benchmark__stat iv-performance-metric--risk iv-performance-metric--group-start"><span class="iv-benchmark__label">Current drawdown</span><span class="iv-benchmark__value" th:text="${dashboard.performance.summary.formatPercent(dashboard.performance.summary.currentDrawdownPct)}">0,0%</span></div>
                     <div class="iv-benchmark__stat iv-performance-metric--risk"><span class="iv-benchmark__label">Max drawdown</span><span class="iv-benchmark__value" th:text="${dashboard.performance.summary.formatPercent(dashboard.performance.summary.maxDrawdownPct)}">0,0%</span></div>
                     <div class="iv-benchmark__stat iv-performance-metric--group-start" th:if="${dashboard.performance.summary.timeWeightedReturn.status.name() == 'AVAILABLE'}"><span class="iv-benchmark__label" title="Portfolio performance independent of contribution timing">TWR</span><span class="iv-benchmark__value" th:text="${dashboard.performance.summary.formatSignedPercent(dashboard.performance.summary.timeWeightedReturn.value * 100)}">—</span></div>
                     <div class="iv-benchmark__stat" th:if="${dashboard.performance.summary.moneyWeightedReturn.status.name() == 'AVAILABLE'}"><span class="iv-benchmark__label" title="Annualized return based on dated investor cash flows">XIRR</span><span class="iv-benchmark__value" th:text="${dashboard.performance.summary.formatSignedPercent(dashboard.performance.summary.moneyWeightedReturn.value * 100)}">—</span></div>
-                    <div class="iv-benchmark__stat iv-performance-metric--relative iv-performance-metric--group-start" id="performance-board-spy-kpi"><span class="iv-benchmark__label">Benchmark</span><span class="iv-benchmark__value" id="performance-board-spy">—</span></div>
-                    <div class="iv-benchmark__stat iv-performance-metric--relative" id="performance-board-excess-kpi"><span class="iv-benchmark__label">Excess Return</span><span class="iv-benchmark__value" id="performance-board-excess">—</span></div>
+                    <div class="iv-benchmark__stat iv-performance-metric--relative iv-performance-metric--group-start" id="performance-board-spy-kpi"><span class="iv-benchmark__label">S&amp;P 500 return</span><span class="iv-benchmark__value" id="performance-board-spy">—</span></div>
+                    <div class="iv-benchmark__stat iv-performance-metric--relative" id="performance-board-excess-kpi"><span class="iv-benchmark__label">Excess return</span><span class="iv-benchmark__value" id="performance-board-excess">—</span></div>
                 </div>
                 <div class="iv-card__controls iv-performance-toolbar" role="toolbar" aria-label="Performance controls">
-                    <div class="btn-list" role="group" aria-label="Metric"><button type="button" class="btn btn-sm btn-primary js-performance-board-metric" data-metric="return">Return %</button><button type="button" class="btn btn-sm btn-outline-secondary js-performance-board-metric" data-metric="pl">P/L</button></div>
+                    <div class="btn-list" role="group" aria-label="Metric"><button type="button" class="btn btn-sm btn-primary js-performance-board-metric" data-metric="return">Return</button><button type="button" class="btn btn-sm btn-outline-secondary js-performance-board-metric" data-metric="pl">Profit/Loss</button></div>
                     <div class="btn-list" role="group" aria-label="Chart style"><button type="button" class="btn btn-sm btn-primary js-performance-board-style" data-style="line">Line</button><button type="button" class="btn btn-sm btn-outline-secondary js-performance-board-style" data-style="bars">Bars</button></div>
                     <label class="iv-select-field iv-performance-aggregation"><select id="performance-board-aggregation" aria-label="Aggregation"><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="annual">Annual</option></select></label>
                     <details id="performance-board-account-selector" class="iv-balance-popover iv-performance-account-selector">
-                        <summary id="performance-board-account-label" class="iv-balance-popover__trigger">Accounts: All (0)</summary>
+                        <summary id="performance-board-account-label" class="iv-balance-popover__trigger">All accounts · 0</summary>
                         <div class="iv-balance-popover__panel iv-performance-account-panel">
                             <strong>Accounts</strong>
-                            <div class="iv-account-filter__actions"><button type="button" class="iv-link-button" id="performance-board-check-all">All accounts</button><button type="button" class="iv-link-button" id="performance-board-uncheck-all">Clear</button></div>
+                            <div class="iv-account-filter__actions"><button type="button" class="iv-link-button" id="performance-board-check-all">Select all</button><button type="button" class="iv-link-button" id="performance-board-uncheck-all">Reset to all</button></div>
                             <div class="iv-account-filter">
                                 <label class="iv-account-filter__item" th:each="account : ${benchmark.accountOptions}">
                                     <input type="checkbox" class="js-performance-board-account" th:value="${account.id}" th:checked="${account.selected}">
@@ -602,7 +514,7 @@
                     </details>
                     <label class="iv-account-filter__item iv-account-filter__item--benchmark" id="performance-board-benchmark-field"><input type="checkbox" id="performance-board-show-spy" checked><span>S&amp;P 500</span></label>
                 </div>
-                <div class="iv-empty" id="performance-board-empty" th:style="${benchmark.available} ? 'display:none' : ''">Select at least one account with monthly history to show performance.</div>
+                <div class="iv-empty" id="performance-board-empty" th:style="${benchmark.available} ? 'display:none' : ''">No performance history is available for this period.</div>
                 <div id="performance-board-content" th:style="${benchmark.available} ? '' : 'display:none'">
                     <div class="iv-chart"><canvas id="performance-board-chart" tabindex="0" role="img" aria-label="Selected portfolio performance. Use View as table for keyboard access."></canvas></div>
                     <details class="iv-chart-table"><summary>View as table</summary><div id="performance-board-table"></div></details>
@@ -617,35 +529,36 @@
             <span id="portfolio-structure-title" class="iv-card-section-header__title">Portfolio structure</span>
         </div>
         <div class="iv-portfolio-structure__grid">
-            <details class="iv-structure-card">
-                <summary><span>Cash</span><strong th:text="${stats.formatBase(stats.portfolioStructure.cash)}">0</strong><small th:text="${stats.formatPercent(stats.portfolioStructure.cashWeightPct) + ' of portfolio'}">0,0% of portfolio</small></summary>
-                <div class="iv-structure-popover">
-                    <strong>Cash</strong>
-                    <div th:each="account : ${stats.accountBalances}"><span th:text="${account.accountName}">Account</span><span th:text="${stats.formatBase(account.cash)}">0</span></div>
-                    <div class="iv-structure-popover__total"><span>Total</span><span th:text="${stats.formatBase(stats.portfolioStructure.cash)}">0</span></div>
+            <details class="iv-structure-card iv-compact-popover">
+                <summary><span>Cash</span><strong th:text="${stats.formatBase(stats.portfolioStructure.cash)}">0</strong><small th:text="${stats.formatPercent(stats.portfolioStructure.cashWeightPct) + ' portfolio share'}">0,0% portfolio share</small></summary>
+                <div class="iv-structure-popover iv-compact-popover__panel">
+                    <strong class="iv-compact-popover__header">Cash</strong>
+                    <div class="iv-compact-popover__body"><div th:each="account : ${stats.accountBalances}"><span th:text="${account.accountName}">Account</span><span th:text="${stats.formatBase(account.cash)}">0</span></div></div>
+                    <div class="iv-structure-popover__total iv-compact-popover__footer"><span>Total</span><span th:text="${stats.formatBase(stats.portfolioStructure.cash)}">0</span></div>
                 </div>
             </details>
-            <details class="iv-structure-card">
+            <details class="iv-structure-card iv-compact-popover">
                 <summary><span>Largest holding</span><strong th:text="${stats.portfolioStructure.largestHolding == null ? 'Unavailable' : stats.portfolioStructure.largestHolding.symbol}">Unavailable</strong><small th:if="${stats.portfolioStructure.largestHolding != null}" th:text="${stats.formatPercent(stats.portfolioStructure.largestHolding.weightPct) + ' · ' + stats.formatBase(stats.portfolioStructure.largestHolding.value)}">0,0% · 0</small></summary>
-                <div class="iv-structure-popover" th:if="${stats.portfolioStructure.largestHolding != null}">
-                    <strong th:text="${stats.portfolioStructure.largestHolding.symbol}">Holding</strong>
+                <div class="iv-structure-popover iv-compact-popover__panel" th:if="${stats.portfolioStructure.largestHolding != null}">
+                    <strong class="iv-compact-popover__header" th:text="${stats.portfolioStructure.largestHolding.symbol}">Holding</strong>
+                    <div class="iv-compact-popover__body">
                     <div><span>Value</span><span th:text="${stats.formatBase(stats.portfolioStructure.largestHolding.value)}">0</span></div>
-                    <div><span>Portfolio weight</span><span th:text="${#numbers.formatDecimal(stats.portfolioStructure.largestHolding.weightPct, 1, 'NONE', 1, 'COMMA')} + '%'">0.0%</span></div>
-                    <div><span>Unrealized P/L</span><span th:text="${stats.formatBase(stats.portfolioStructure.largestHolding.unrealized)}">0</span></div>
+                    <div><span>Portfolio share</span><span th:text="${#numbers.formatDecimal(stats.portfolioStructure.largestHolding.weightPct, 1, 'NONE', 1, 'COMMA')} + '%'">0.0%</span></div>
+                    <div><span>Unrealized P/L</span><span th:text="${stats.formatBase(stats.portfolioStructure.largestHolding.unrealized)}">0</span></div></div>
                 </div>
             </details>
-            <details class="iv-structure-card">
+            <details class="iv-structure-card iv-compact-popover">
                 <summary><span>Concentration</span><strong th:text="${'Top 5 · ' + stats.formatPercent(stats.portfolioStructure.topFiveWeightPct)}">Top 5 · 0,0%</strong><small th:text="${'Top 10 · ' + stats.formatPercent(stats.portfolioStructure.topTenWeightPct)}">Top 10 · 0,0%</small></summary>
-                <div class="iv-structure-popover"><strong>Top holdings</strong><div th:each="holding : ${stats.portfolioStructure.topHoldings}"><span th:text="${holding.symbol}">Symbol</span><span th:text="${stats.formatPercent(holding.weightPct)}">0,0%</span></div></div>
+                <div class="iv-structure-popover iv-compact-popover__panel"><strong class="iv-compact-popover__header">Top holdings</strong><div class="iv-compact-popover__body"><div th:each="holding : ${stats.portfolioStructure.topHoldings}"><span th:text="${holding.symbol}">Symbol</span><span th:text="${stats.formatPercent(holding.weightPct)}">0,0%</span></div></div></div>
             </details>
-            <details class="iv-structure-card iv-structure-card--allocation">
+            <details class="iv-structure-card iv-structure-card--allocation iv-compact-popover">
                 <summary><span>Asset allocation</span><div class="iv-structure-bar" aria-label="Asset allocation by portfolio value"><span th:each="bucket : ${stats.portfolioStructure.assetAllocation.buckets}" class="iv-structure-bar__segment" th:classappend="${' iv-structure-segment--' + bucket.cssKey()}" th:style="${'width:' + bucket.weightPct + '%'}" th:title="${bucket.name + ' · ' + stats.formatPercent(bucket.weightPct)}"></span></div><small th:text="${stats.portfolioStructure.assetAllocation.buckets.isEmpty() ? 'Unavailable' : #strings.listJoin(stats.portfolioStructure.assetAllocation.buckets.![name], ' · ')}">Unavailable</small></summary>
-                <div class="iv-structure-popover"><strong>Asset allocation</strong><div th:each="bucket : ${stats.portfolioStructure.assetAllocation.buckets}"><span th:text="${bucket.name}">Category</span><span th:text="${stats.formatBase(bucket.value) + ' · ' + stats.formatPercent(bucket.weightPct)}">0 · 0,0%</span></div></div>
+                <div class="iv-structure-popover iv-compact-popover__panel"><strong class="iv-compact-popover__header">Asset allocation</strong><div class="iv-compact-popover__body"><div th:each="bucket : ${stats.portfolioStructure.assetAllocation.buckets}"><span th:text="${bucket.name}">Category</span><span th:text="${stats.formatBase(bucket.value) + ' · ' + stats.formatPercent(bucket.weightPct)}">0 · 0,0%</span></div></div></div>
             </details>
         </div>
-        <details class="iv-structure-currency">
+        <details class="iv-structure-currency iv-compact-popover">
             <summary><span>Account currency</span><div class="iv-structure-bar" aria-label="Portfolio value by account currency"><span th:each="bucket : ${stats.portfolioStructure.accountCurrencies}" class="iv-structure-bar__segment" th:classappend="${' iv-structure-currency-segment--' + bucket.currency.name().toLowerCase()}" th:style="${'width:' + bucket.weightPct + '%'}" th:title="${bucket.currency + ' · ' + stats.formatPercent(bucket.weightPct)}"></span></div><small th:text="${stats.portfolioStructure.accountCurrencies.isEmpty() ? 'Unavailable' : #strings.listJoin(stats.portfolioStructure.accountCurrencies.![currency], ' · ')}">Unavailable</small></summary>
-            <div class="iv-structure-popover"><strong>Account currency</strong><div th:each="bucket : ${stats.portfolioStructure.accountCurrencies}"><span th:text="${bucket.currency}">USD</span><span th:text="${stats.formatBase(bucket.value) + ' · ' + stats.formatPercent(bucket.weightPct)}">0 · 0,0%</span></div><small>Based on account currency, not underlying security exposure.</small></div>
+            <div class="iv-structure-popover iv-compact-popover__panel"><strong class="iv-compact-popover__header">Account currency</strong><div class="iv-compact-popover__body"><div th:each="bucket : ${stats.portfolioStructure.accountCurrencies}"><span th:text="${bucket.currency}">USD</span><span th:text="${stats.formatBase(bucket.value) + ' · ' + stats.formatPercent(bucket.weightPct)}">0 · 0,0%</span></div><small>Account currencies, not underlying asset exposure.</small></div></div>
         </details>
     </section>
 
@@ -671,12 +584,13 @@
     const monthlyCashflow = monthlyLabels.map(label => monthlyCashflowData[label] || 0);
     const monthlyAttributions = [[${stats.monthlyPerformance.monthlyAttributions}]] || {};
 
-    const amountFormatter = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
-    const percentFormatter = new Intl.NumberFormat('de-DE', {
+    const amountFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+    const percentFormatter = new Intl.NumberFormat('en-US', {
         minimumFractionDigits: 1,
         maximumFractionDigits: 1
     });
-    const signedUsdFormatter = new Intl.NumberFormat('de-DE', {
+    const baseCurrency = /*[[${stats.baseCurrency}]]*/ 'USD';
+    const signedBaseFormatter = new Intl.NumberFormat('en-US', {
         maximumFractionDigits: 0,
         signDisplay: 'always'
     });
@@ -697,7 +611,7 @@
                 const value = Number(chart.data.datasets[0].data[index] || 0);
                 const profitText = amountFormatter.format(Math.round(value));
                 const cashflowValue = chart._periodFlows?.[index] || 0;
-                const cashflowText = signedUsdFormatter.format(Math.round(cashflowValue));
+                const cashflowText = signedBaseFormatter.format(Math.round(cashflowValue)) + ' ' + baseCurrency;
                 const accountText = count + (count === 1 ? ' account' : ' accounts');
                 const detailText = Math.abs(cashflowValue) >= 1
                     ? accountText + ' · flow ' + cashflowText
@@ -751,23 +665,25 @@
 
     let currentChartTheme = chartTheme();
     let gridColor = currentChartTheme.grid;
-    let tickColor = currentChartTheme.soft;
+    let tickColor = currentChartTheme.legend;
     Chart.defaults.font.family = "Inter, system-ui, sans-serif";
+    Chart.defaults.font.size = 12;
     Chart.defaults.color = tickColor;
     Chart.defaults.borderColor = gridColor;
 
     const benchLabels = [[${benchmark != null ? benchmark.labels : null}]] || [];
     const benchAccountSeries = [[${benchmark != null ? benchmark.accountSeries : null}]] || [];
     const benchBenchmarkReturnCurve = [[${benchmark != null ? benchmark.benchmarkReturnCurve : null}]] || [];
-    const performanceBoardKpiStart = [[${dashboard.performance.kpiStart}]] || '2026-01';
+    const selectedDashboardPeriod = [[${selectedPeriod.urlValue()}]] || 'YTD';
     const accountValueYears = [[${benchmark != null ? benchmark.accountValueYears : null}]] || [];
     const benchEl = document.getElementById("benchmark-chart");
     const accountValueEl = document.getElementById("account-value-chart");
     let benchmarkChart = null;
     let accountValueChart = null;
     let accountValueRequest = 0;
-    const signedValue = value => (Number(value) >= 0 ? '+' : '') + Number(value || 0).toLocaleString(undefined, {maximumFractionDigits: 0});
-    const signedPercentValue = value => (Number(value) >= 0 ? '+' : '') + Number(value || 0).toLocaleString(undefined, {minimumFractionDigits: 1, maximumFractionDigits: 1}) + '%';
+    const signedValue = value => (Number(value) >= 0 ? '+' : '') + amountFormatter.format(Number(value || 0));
+    const percentValue = value => percentFormatter.format(Number(value || 0)) + '%';
+    const signedPercentValue = value => (Number(value) >= 0 ? '+' : '') + percentValue(value);
     function renderTable(id, headers, rows) {
         const el = document.getElementById(id); if (!el) return;
         const table = document.createElement('table');
@@ -810,7 +726,7 @@
                 labels: benchLabels,
                 datasets: [
                     {
-                        label: 'Portfolio cumulative return',
+                        label: 'Portfolio',
                         data: [],
                         borderColor: '#4f46e5',
                         backgroundColor: 'rgba(79, 70, 229, .12)',
@@ -820,7 +736,7 @@
                         borderWidth: 2
                     },
                     {
-                        label: 'S&P 500 cumulative return',
+                        label: 'S&P 500',
                         data: [],
                         borderColor: '#16a34a',
                         backgroundColor: 'rgba(22, 163, 74, .08)',
@@ -845,7 +761,7 @@
                         ticks: {
                             color: tickColor,
                             callback: function (value) {
-                                return value.toFixed(1) + ' %';
+                                return percentValue(value);
                             }
                         }
                     }
@@ -866,8 +782,8 @@
                                 const absoluteData = context.dataset.absoluteData || [];
                                 const absoluteValue = absoluteData[context.dataIndex] || 0;
                                 return context.dataset.label + ': '
-                                    + context.parsed.y.toFixed(1) + ' % ('
-                                    + signedUsdFormatter.format(Math.round(absoluteValue)) + ')';
+                                    + percentValue(context.parsed.y) + ' ('
+                                    + signedBaseFormatter.format(Math.round(absoluteValue)) + ' ' + baseCurrency + ')';
                             }
                         }
                     }
@@ -956,7 +872,7 @@
         if (!el) return;
         el.classList.toggle('iv-pos', value >= 0);
         el.classList.toggle('iv-neg', value < 0);
-        el.textContent = (signed && value >= 0 ? '+' : '') + value.toFixed(1) + suffix;
+        el.textContent = (signed && value >= 0 ? '+' : '') + percentFormatter.format(value) + suffix;
     }
 
     async function updateBenchmarkSelection() {
@@ -981,7 +897,7 @@
             const last = values => values.length && values.at(-1) != null ? Number(values.at(-1)) : null;
             const portfolioPct = last(portfolio), benchmarkPct = last(benchmark);
             const excess = view.excessValues || [];
-            renderTable('benchmark-table', ['Period', 'Portfolio cumulative return', 'S&P 500 cumulative return', 'Excess return'], (view.labels || []).map((label, i) => [label, portfolio[i] == null ? '—' : signedPercentValue(portfolio[i]), benchmark[i] == null ? '—' : signedPercentValue(benchmark[i]), excess[i] == null ? '—' : signedPercentValue(excess[i]).replace('%', ' pp')]));
+            renderTable('benchmark-table', ['Period', 'Portfolio', 'S&P 500', 'Excess return'], (view.labels || []).map((label, i) => [label, portfolio[i] == null ? '—' : signedPercentValue(portfolio[i]), benchmark[i] == null ? '—' : signedPercentValue(benchmark[i]), excess[i] == null ? '—' : signedPercentValue(excess[i]).replace('%', ' pp')]));
             if (portfolioPct != null) setBenchmarkValue('benchmark-you', portfolioPct, ' %', false);
             if (benchmarkPct != null) setBenchmarkValue('benchmark-spy', benchmarkPct, ' %', false);
             if (view.kpis?.excessReturn != null) setBenchmarkValue('benchmark-alpha', view.kpis.excessReturn, ' pp', true);
@@ -1034,8 +950,8 @@
         const hintEl = document.getElementById('account-value-hint');
         if (!hintEl) return;
         hintEl.textContent = mode === 'percent'
-            ? 'Calendar year · external cash flows excluded · cumulative daily P/L · %'
-            : 'Calendar year · external cash flows excluded · cumulative daily P/L · base USD';
+            ? 'Calendar year · external cash flows excluded · cumulative daily return · %'
+            : 'Calendar year · external cash flows excluded · cumulative daily profit/loss · ' + baseCurrency;
     }
 
     function updateAccountValueChart(selectedIds) {
@@ -1050,8 +966,10 @@
             return;
         }
 
-        const allAccountsShown = selectedIds.size === year.accountSeries.length;
-        if (!allAccountsShown) {
+        const loadedIds = new Set(year.accountSeries.map(series => Number(series.id)));
+        const requestedAccountsLoaded = selectedIds.size === loadedIds.size
+            && [...selectedIds].every(id => loadedIds.has(id));
+        if (!requestedAccountsLoaded) {
             const requestId = ++accountValueRequest;
             const ids = [...selectedIds].join(',');
             fetch('/dashboard/account-values?accountIds=' + encodeURIComponent(ids))
@@ -1076,7 +994,7 @@
         accountValueChart.data.labels = year.labels || [];
         accountValueChart.data.datasets = [
             {
-                label: 'Portfolio total',
+                label: 'Portfolio',
                 data: total,
                 borderColor: chartTheme().strong,
                 backgroundColor: chartTheme().strongFill,
@@ -1113,15 +1031,15 @@
             try {
                 const response = await fetch('/dashboard/daily-attribution?date=' + encodeURIComponent(date) + '&accountIds=' + encodeURIComponent(ids));
                 const a = await response.json();
-                const money = value => signedUsdFormatter.format(Math.round(Number(value || 0)));
+                const money = value => signedBaseFormatter.format(Math.round(Number(value || 0))) + ' ' + baseCurrency;
                 panel.replaceChildren();
                 const appendLine = (tag, text) => {
                     const element = document.createElement(tag);
                     element.textContent = text;
                     panel.appendChild(element);
                 };
-                appendLine('strong', a.date + ' · Daily P/L ' + money(a.dailyProfit));
-                appendLine('div', 'Daily return: ' + Number(a.dailyReturnPct || 0).toLocaleString(undefined, {minimumFractionDigits: 1, maximumFractionDigits: 1}) + '%');
+                appendLine('strong', a.date + ' · Daily profit/loss ' + money(a.dailyProfit));
+                appendLine('div', 'Daily return: ' + percentValue(a.dailyReturnPct));
                 appendLine('div', 'Opening equity: ' + money(a.openingEquity));
                 appendLine('div', 'Closing equity: ' + money(a.closingEquity));
                 appendLine('div', 'Deposits: ' + money(a.deposits) + ' · Withdrawals: -' + money(a.withdrawals));
@@ -1137,7 +1055,7 @@
             } catch (error) { panel.textContent = 'Daily attribution unavailable.'; }
         };
         accountValueChart.update();
-        renderTable('account-value-table', ['Date', 'Portfolio P/L USD'], (year.labels || []).map((label, i) => [label, signedValue(total[i]) + (mode === 'percent' ? ' %' : ' USD')]));
+        renderTable('account-value-table', ['Date', mode === 'percent' ? 'Portfolio return' : 'Portfolio profit/loss · ' + baseCurrency], (year.labels || []).map((label, i) => [label, signedValue(total[i]) + (mode === 'percent' ? ' %' : ' ' + baseCurrency)]));
     }
 
     document.querySelectorAll('.js-benchmark-account')
@@ -1228,7 +1146,7 @@
             monthlyChart._periodSourceLabels = grouped.values.map(row => row.sourceLabels);
             monthlyChart._selectedAccountIds = partial ? selectedMonthlyIds : null;
             monthlyChart.update();
-            renderTable('monthly-table', ['Period', 'P/L USD'], grouped.labels.map((label, i) => [label, signedValue(values[i]) + ' USD']));
+            renderTable('monthly-table', ['Period', 'Profit/Loss · ' + baseCurrency], grouped.labels.map((label, i) => [label, signedValue(values[i]) + ' ' + baseCurrency]));
             return;
         }
         monthlyChart = new Chart(ctxMonthly, {
@@ -1236,7 +1154,7 @@
         data: {
             labels: grouped.labels,
             datasets: [{
-                label: 'P/L in base USD',
+                label: 'Profit/Loss · ' + baseCurrency,
                 data: values,
                 backgroundColor: values.map(val => val >= 0 ? '#16a34a' : '#dc2626'),
                 hoverBackgroundColor: values.map(val => val >= 0 ? '#15803d' : '#b91c1c'),
@@ -1277,11 +1195,11 @@
                     titleFont: { weight: '700' },
                     callbacks: {
                         label: function (context) {
-                            return 'P/L: ' + signedUsdFormatter.format(Math.round(context.parsed.y));
+                            return 'Profit/Loss: ' + signedBaseFormatter.format(Math.round(context.parsed.y)) + ' ' + baseCurrency;
                         },
                         afterLabel: function (context) {
                             const count = monthlyChart?._periodCounts?.[context.dataIndex] || 0;
-                            const cashflow = signedUsdFormatter.format(Math.round(monthlyChart?._periodFlows?.[context.dataIndex] || 0));
+                            const cashflow = signedBaseFormatter.format(Math.round(monthlyChart?._periodFlows?.[context.dataIndex] || 0)) + ' ' + baseCurrency;
                             return 'Accounts: ' + count + '\nExternal flow: ' + cashflow;
                         }
                     }
@@ -1295,14 +1213,14 @@
         monthlyChart._periodSourceLabels = grouped.values.map(row => row.sourceLabels);
         monthlyChart._selectedAccountIds = partial ? selectedMonthlyIds : null;
         monthlyChart.update();
-        renderTable('monthly-table', ['Period', 'P/L USD'], grouped.labels.map((label, i) => [label, signedValue(values[i]) + ' USD']));
+        renderTable('monthly-table', ['Period', 'Profit/Loss · ' + baseCurrency], grouped.labels.map((label, i) => [label, signedValue(values[i]) + ' ' + baseCurrency]));
         monthlyChart.options.onClick = function (event, elements) {
             if (!elements.length) return;
             const label = monthlyChart.data.labels[elements[0].index];
             const sourceLabels = monthlyChart._periodSourceLabels?.[elements[0].index] || [label];
             const attributions = sourceLabels.map(sourceLabel => monthlyAttributions[sourceLabel]).filter(Boolean);
             if (!attributions.length) return;
-            const money = value => signedUsdFormatter.format(Math.round(Number(value || 0)));
+            const money = value => signedBaseFormatter.format(Math.round(Number(value || 0))) + ' ' + baseCurrency;
             const selectedAccountIds = monthlyChart._selectedAccountIds;
             const filteredAttributions = attributions.map(attribution => ({
                 ...attribution,
@@ -1388,7 +1306,8 @@
     const performanceBoardEl = document.getElementById('performance-board-chart');
     let performanceBoardChart = null;
     const performanceBoardState = { metric: 'return', style: 'line' };
-    const performanceBoardPalette = ['#4f46e5', '#16a34a', '#f59e0b', '#dc2626', '#0891b2', '#7c3aed', '#0f766e', '#be123c'];
+    const performanceBoardAccountPalette = ['#5b4bff', '#38bdf8', '#f59e0b', '#f43f5e', '#a855f7', '#14b8a6', '#f97316', '#ec4899'];
+    const performanceBoardBenchmarkColor = '#16a34a';
 
     function performanceBoardSelectedIds() {
         return Array.from(document.querySelectorAll('.js-performance-board-account:checked')).map(input => Number(input.value));
@@ -1398,21 +1317,35 @@
         const inputs = Array.from(document.querySelectorAll('.js-performance-board-account'));
         const selected = inputs.filter(input => input.checked).length;
         const label = document.getElementById('performance-board-account-label');
-        if (label) label.textContent = selected === inputs.length ? 'Accounts: All (' + inputs.length + ')' : selected + ' of ' + inputs.length;
+        if (label) label.textContent = selected === 0 || selected === inputs.length ? 'All accounts · ' + inputs.length : selected + ' of ' + inputs.length;
     }
 
     function performanceBoardDataset(label, values, color, type, stacked) {
         const bars = type === 'bar';
-        return { label, data: values, borderColor: color, backgroundColor: bars ? color : color + '22', fill: !bars && label === 'Portfolio', tension: .25, pointRadius: 0, borderWidth: bars ? 0 : 2, borderRadius: bars ? 5 : 0, stack: stacked ? 'accounts' : undefined };
+        return { label, data: values, borderColor: color, backgroundColor: bars ? color : color + '22', fill: !bars && label === 'Portfolio', tension: .25, pointRadius: 0, borderWidth: bars ? 0 : 2, borderRadius: bars ? 5 : 0, grouped: bars, skipNull: bars, barPercentage: bars ? 1 : undefined, categoryPercentage: bars ? .72 : undefined, stack: stacked ? 'accounts' : undefined };
     }
 
-    async function performanceBoardView() {
+    function performanceBoardAccountColor(series, visibleIndex, accounts) {
+        const accountIndex = (accounts || []).findIndex(account => Number(account.id) === Number(series.accountId));
+        const paletteIndex = accountIndex >= 0 ? accountIndex : visibleIndex;
+        return performanceBoardAccountPalette[paletteIndex % performanceBoardAccountPalette.length];
+    }
+
+    function performanceBoardVisibleSeries(view, selectedIds) {
+        const series = view.series || [];
+        if (selectedIds.length === 0) return series;
+        const selectedNames = new Set((view.accounts || []).filter(account => account.selected).map(account => account.name));
+        return series.filter(row => row.label === 'Portfolio' || selectedNames.has(row.label));
+    }
+
+    async function performanceBoardView(selectedIds) {
         const params = new URLSearchParams({
-            accountIds: performanceBoardSelectedIds().join(','),
             aggregation: document.getElementById('performance-board-aggregation')?.value || 'monthly',
             metric: performanceBoardState.metric,
-            style: performanceBoardState.style
+            style: performanceBoardState.style,
+            period: selectedDashboardPeriod
         });
+        if (selectedIds.length > 0) params.set('accountIds', selectedIds.join(','));
         const response = await fetch('/dashboard/performance-board?' + params.toString(), { headers: { Accept: 'application/json' } });
         if (!response.ok) throw new Error('Performance board request failed');
         return response.json();
@@ -1423,19 +1356,19 @@
         const write = (id, value, suffix, money) => {
             const el = document.getElementById(id); if (!el) return;
             if (value == null) { el.textContent = '—'; return; }
-            el.textContent = (value >= 0 ? '+' : '') + (money ? amountFormatter.format(Math.round(value)) : Number(value).toFixed(1)) + suffix;
+            el.textContent = (value >= 0 ? '+' : '') + (money ? amountFormatter.format(Math.round(value)) : percentFormatter.format(Number(value))) + suffix;
             el.classList.toggle('iv-pos', value >= 0); el.classList.toggle('iv-neg', value < 0);
         };
-        write('performance-board-return', kpis.portfolioReturn, ' %', false);
+        write('performance-board-return', kpis.portfolioReturn, '%', false);
         write('performance-board-pl', kpis.portfolioProfitLoss, '', true);
-        write('performance-board-spy', kpis.benchmarkReturn, ' %', false);
+        write('performance-board-spy', kpis.benchmarkReturn, '%', false);
         write('performance-board-excess', kpis.excessReturn, ' pp', false);
         const showBenchmark = performanceBoardState.metric === 'return' && document.getElementById('performance-board-show-spy')?.checked;
         ['performance-board-spy-kpi', 'performance-board-excess-kpi'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = showBenchmark ? '' : 'none'; });
         const best = document.getElementById('performance-board-best');
         const worst = document.getElementById('performance-board-worst');
-        if (best) best.textContent = kpis.bestPeriod && kpis.bestValue != null ? kpis.bestPeriod + ' · ' + (kpis.bestValue >= 0 ? '+' : '') + Number(kpis.bestValue).toFixed(1) : '—';
-        if (worst) worst.textContent = kpis.worstPeriod && kpis.worstValue != null ? kpis.worstPeriod + ' · ' + (kpis.worstValue >= 0 ? '+' : '') + Number(kpis.worstValue).toFixed(1) : '—';
+        if (best) best.textContent = kpis.bestPeriod && kpis.bestValue != null ? kpis.bestPeriod + ' · ' + (kpis.bestValue >= 0 ? '+' : '') + percentFormatter.format(Number(kpis.bestValue)) : '—';
+        if (worst) worst.textContent = kpis.worstPeriod && kpis.worstValue != null ? kpis.worstPeriod + ' · ' + (kpis.worstValue >= 0 ? '+' : '') + percentFormatter.format(Number(kpis.worstValue)) : '—';
     }
 
     async function renderPerformanceBoard() {
@@ -1444,22 +1377,24 @@
         const empty = document.getElementById('performance-board-empty');
         const content = document.getElementById('performance-board-content');
         try {
-            const view = await performanceBoardView();
-            (view.accounts || []).forEach(account => { const input = document.querySelector('.js-performance-board-account[value="' + account.id + '"]'); if (input) input.checked = account.selected; });
+            const selectedIds = performanceBoardSelectedIds();
+            const view = await performanceBoardView(selectedIds);
+            if (selectedIds.length > 0) (view.accounts || []).forEach(account => { const input = document.querySelector('.js-performance-board-account[value="' + account.id + '"]'); if (input) input.checked = account.selected; });
             const labels = view.labels || [];
             const bars = performanceBoardState.style === 'bars';
-            const datasets = (view.series || []).map((series, index) => performanceBoardDataset(series.label, series.values || [], performanceBoardPalette[index % performanceBoardPalette.length], bars ? 'bar' : 'line', bars && performanceBoardState.metric === 'pl' && (view.series || []).length > 1));
-            if (performanceBoardState.metric === 'return' && document.getElementById('performance-board-show-spy')?.checked && (view.benchmarkValues || []).some(value => value != null)) datasets.push(performanceBoardDataset('S&P 500', view.benchmarkValues, '#16a34a', bars ? 'bar' : 'line', false));
+            const visibleSeries = performanceBoardVisibleSeries(view, selectedIds);
+            const datasets = visibleSeries.map((series, index) => performanceBoardDataset(series.label, series.values || [], performanceBoardAccountColor(series, index, view.accounts), bars ? 'bar' : 'line', bars && performanceBoardState.metric === 'pl' && visibleSeries.length > 1));
+            if (performanceBoardState.metric === 'return' && document.getElementById('performance-board-show-spy')?.checked && (view.benchmarkValues || []).some(value => value != null)) datasets.push(performanceBoardDataset('S&P 500', view.benchmarkValues, performanceBoardBenchmarkColor, bars ? 'bar' : 'line', false));
             if (!view.available || !datasets.length) { if (empty) empty.style.display = ''; if (content) content.style.display = 'none'; return; }
             if (empty) empty.style.display = 'none'; if (content) content.style.display = '';
             writePerformanceKpis(view);
             document.getElementById('performance-scope-aggregation').textContent = (document.getElementById('performance-board-aggregation')?.value || 'monthly').replace(/^./, value => value.toUpperCase());
-            const unit = performanceBoardState.metric === 'return' ? '%' : '$';
+            const unit = performanceBoardState.metric === 'return' ? '%' : baseCurrency;
             if (!performanceBoardChart) {
-                performanceBoardChart = new Chart(performanceBoardEl.getContext('2d'), { type: bars ? 'bar' : 'line', data: { labels, datasets }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: { x: { stacked: bars && performanceBoardState.metric === 'pl', grid: { display: false }, ticks: { color: tickColor, maxRotation: 0, autoSkip: true } }, y: { stacked: bars && performanceBoardState.metric === 'pl', grid: { color: gridColor, drawBorder: false }, ticks: { color: tickColor, callback: value => performanceBoardState.metric === 'return' ? Number(value).toFixed(1) + ' %' : amountFormatter.format(Math.round(value)) } } }, plugins: { legend: { display: true, position: 'top', align: 'end', labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, color: '#6b7488' } }, tooltip: { callbacks: { label: context => context.dataset.label + ': ' + (Number(context.parsed.y) >= 0 ? '+' : '') + (unit === '%' ? Number(context.parsed.y).toFixed(1) + ' %' : amountFormatter.format(Math.round(context.parsed.y)) + ' $') } } } } });
+                performanceBoardChart = new Chart(performanceBoardEl.getContext('2d'), { type: bars ? 'bar' : 'line', data: { labels, datasets }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: { x: { stacked: bars && performanceBoardState.metric === 'pl', grid: { display: false }, ticks: { color: tickColor, maxRotation: 0, autoSkip: true } }, y: { stacked: bars && performanceBoardState.metric === 'pl', grid: { color: gridColor, drawBorder: false }, ticks: { color: tickColor, callback: value => performanceBoardState.metric === 'return' ? percentValue(value) : amountFormatter.format(Math.round(value)) } } }, plugins: { legend: { display: true, position: 'top', align: 'end', labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, color: currentChartTheme.legend, font: {size: 12} } }, tooltip: { callbacks: { label: context => context.dataset.label + ': ' + (Number(context.parsed.y) >= 0 ? '+' : '') + (unit === '%' ? percentValue(context.parsed.y) : amountFormatter.format(Math.round(context.parsed.y)) + ' ' + unit) } } } } });
                 enableKeyboardChart(performanceBoardChart, 'performance-board-chart', () => {});
             } else if (performanceBoardChart.config.type !== (bars ? 'bar' : 'line')) { performanceBoardChart.destroy(); performanceBoardChart = null; return renderPerformanceBoard(); } else { performanceBoardChart.data.labels = labels; performanceBoardChart.data.datasets = datasets; performanceBoardChart.update(); }
-            renderTable('performance-board-table', ['Period', ...datasets.map(dataset => dataset.label)], labels.map((label, index) => [label, ...datasets.map(dataset => { const value = dataset.data[index]; return value == null ? '—' : (Number(value) >= 0 ? '+' : '') + (unit === '%' ? Number(value).toFixed(1) + ' %' : amountFormatter.format(Math.round(value)) + ' $'); })]));
+            renderTable('performance-board-table', ['Period', ...datasets.map(dataset => dataset.label)], labels.map((label, index) => [label, ...datasets.map(dataset => { const value = dataset.data[index]; return value == null ? '—' : (Number(value) >= 0 ? '+' : '') + (unit === '%' ? percentValue(value) : amountFormatter.format(Math.round(value)) + ' ' + unit); })]));
         } catch (error) { if (empty) empty.style.display = ''; if (content) content.style.display = 'none'; }
     }
 
@@ -1475,11 +1410,11 @@
     function applyChartTheme() {
         currentChartTheme = chartTheme();
         gridColor = currentChartTheme.grid;
-        tickColor = currentChartTheme.soft;
+        tickColor = currentChartTheme.legend;
         Chart.defaults.color = tickColor;
         Chart.defaults.borderColor = gridColor;
 
-        if (accountValueChart?.data?.datasets?.[0]?.label === 'Portfolio total') {
+        if (accountValueChart?.data?.datasets?.[0]?.label === 'Portfolio') {
             accountValueChart.data.datasets[0].borderColor = currentChartTheme.strong;
             accountValueChart.data.datasets[0].backgroundColor = currentChartTheme.strongFill;
         }

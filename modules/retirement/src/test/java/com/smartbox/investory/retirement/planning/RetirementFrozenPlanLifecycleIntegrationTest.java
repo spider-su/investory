@@ -186,6 +186,8 @@ class RetirementFrozenPlanLifecycleIntegrationTest {
               });
       when(plans.findByIdAndPortfolioId(any(), any()))
           .thenAnswer(invocation -> Optional.ofNullable(plan));
+      when(plans.findByIdAndPortfolioIdForUpdate(any(), any()))
+          .thenAnswer(invocation -> Optional.ofNullable(plan));
       when(revisions.save(any()))
           .thenAnswer(
               invocation -> {

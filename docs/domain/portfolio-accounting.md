@@ -25,6 +25,11 @@ external deposits - external withdrawals
 Internal transfers and currency conversions move value between accounts/currencies but do not change
 portfolio-level contributed capital.
 
+The dashboard's gross deposit and withdrawal amounts start with real external flows. Transfers that
+cross the tracked-account boundary are first netted together. A positive boundary net is added only
+to deposits; a negative boundary net is added only to withdrawals. This preserves net contributions
+without inflating both gross sides. Transfers between two tracked accounts remain excluded.
+
 Reporting keeps three flow concepts separate:
 
 - cash effect: every ledger operation that changes reconstructed cash;
@@ -55,6 +60,11 @@ realized P/L
 Recorded dividend withholding and interest tax follow the imported ledger semantics used by the
 current calculation. The capital-gains tax estimate is displayed separately and is not deducted from
 headline earnings or ROI.
+
+The Profile page's market-return KPI uses the same canonical cash-flow-neutral annualized total
+return and KPI observation dates as the Investment dashboard. Projected annual income remains a
+separate income-planning metric and includes net dividends and interest; it is not used as the
+market-return KPI.
 
 ## Headline ROI
 

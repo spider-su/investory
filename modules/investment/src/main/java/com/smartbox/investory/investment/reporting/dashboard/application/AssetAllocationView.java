@@ -14,7 +14,7 @@ public record AssetAllocationView(double totalValue, List<Bucket> buckets) {
 
     public String cssKey() {
       return switch (name) {
-        case "Equity / ETF" -> "etf";
+        case "ETF" -> "etf";
         case "Equity" -> "equity";
         case "REIT / real estate" -> "real-estate";
         case "Fixed income" -> "fixed-income";

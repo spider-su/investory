@@ -259,31 +259,6 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
   }
 
   @Override
-  public void addBondRate(Long portfolioId, Long id, LongTermAssetsApi.BondRateCommand command) {
-    delegate.addBondRate(
-        portfolioId,
-        id,
-        new LongTermAssetsFacade.BondRateCommand(
-            command.validFrom(), command.validTo(), command.annualInterestRate()));
-  }
-
-  @Override
-  public void updateBondRate(
-      Long portfolioId, Long id, Long periodId, LongTermAssetsApi.BondRateCommand command) {
-    delegate.updateBondRate(
-        portfolioId,
-        id,
-        periodId,
-        new LongTermAssetsFacade.BondRateCommand(
-            command.validFrom(), command.validTo(), command.annualInterestRate()));
-  }
-
-  @Override
-  public void deleteBondRate(Long portfolioId, Long id, Long periodId) {
-    delegate.deleteBondRate(portfolioId, id, periodId);
-  }
-
-  @Override
   public void saveRentalTaxPolicy(Long portfolioId, LongTermAssetsApi.RentalTaxCommand command) {
     delegate.saveRentalTaxPolicy(
         portfolioId,
@@ -355,7 +330,6 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
         v.bondDetails() == null ? null : bond(v.bondDetails()),
         v.depositDetails() == null ? null : deposit(v.depositDetails()),
         v.valuationPeriods().stream().map(LongTermAssetsApplicationService::valuation).toList(),
-        v.bondRatePeriods().stream().map(LongTermAssetsApplicationService::bondRate).toList(),
         v.expectedPropertyGrowth(),
         v.contracts().stream()
             .map(
@@ -371,6 +345,7 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
                         c.effectiveEndDate(),
                         c.status(),
                         c.rentalTaxPaidByTenant(),
+                        c.monthlyTaxBase(),
                         c.terms().stream()
                             .map(
                                 t ->
@@ -396,6 +371,7 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
         RentalContractService.effectiveEnd(c),
         RentalContractService.status(c, date),
         c.getRentalTaxPaidByTenant(),
+        c.getMonthlyTaxBase(),
         c.getTerms().stream()
             .map(
                 t ->
@@ -435,6 +411,8 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
             : new RealEstateGroupPlanningView(
                 g.realEstatePlanning().totalPaymentMonthly(),
                 g.realEstatePlanning().netMonthlyIncome(),
+                g.realEstatePlanning().monthlyReduce(),
+                g.realEstatePlanning().taxBase(),
                 g.realEstatePlanning().monthlyRentTax(),
                 g.realEstatePlanning().incomeYield()));
   }
@@ -492,11 +470,6 @@ public class LongTermAssetsApplicationService implements LongTermAssetsApi {
   private static LongTermAssetsApi.ValuationView valuation(LongTermAssetsFacade.ValuationView p) {
     return new LongTermAssetsApi.ValuationView(
         p.id(), p.validFrom(), p.validTo(), p.expectedAnnualGrowthRate());
-  }
-
-  private static LongTermAssetsApi.BondRateView bondRate(LongTermAssetsFacade.BondRateView p) {
-    return new LongTermAssetsApi.BondRateView(
-        p.id(), p.validFrom(), p.validTo(), p.annualInterestRate());
   }
 
   private static com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType assetType(

@@ -24,7 +24,54 @@ public record InvestmentProfile(
     BigDecimal currentBondIncome,
     LongTermAnnualProjectionApi.PlanningState longTermPlanningState,
     BigDecimal retirementReserve,
-    BigDecimal investmentCapital) {
+    BigDecimal investmentCapital,
+    ProfileIncomeSummary incomeSummary) {
+  /** Compatibility constructor for callers using the original complete profile contract. */
+  public InvestmentProfile(
+      Long portfolioId,
+      CurrencyType currency,
+      BigDecimal marketPortfolioValue,
+      BigDecimal longTermAssetValue,
+      BigDecimal totalNetWorth,
+      BigDecimal historicalMarketInvestmentIncome,
+      BigDecimal expectedLongTermAssetIncome,
+      BigDecimal totalInvestmentIncome,
+      BigDecimal liquidAssets,
+      BigDecimal illiquidAssets,
+      List<ProfileAllocation> allocations,
+      List<ProjectedLongTermAsset> longTermAssets,
+      BigDecimal currentRentalIncome,
+      BigDecimal currentBondIncome,
+      LongTermAnnualProjectionApi.PlanningState longTermPlanningState,
+      BigDecimal retirementReserve,
+      BigDecimal investmentCapital) {
+    this(
+        portfolioId,
+        currency,
+        marketPortfolioValue,
+        longTermAssetValue,
+        totalNetWorth,
+        historicalMarketInvestmentIncome,
+        expectedLongTermAssetIncome,
+        totalInvestmentIncome,
+        liquidAssets,
+        illiquidAssets,
+        allocations,
+        longTermAssets,
+        currentRentalIncome,
+        currentBondIncome,
+        longTermPlanningState,
+        retirementReserve,
+        investmentCapital,
+        ProfileIncomeSummary.legacy(
+            historicalMarketInvestmentIncome,
+            marketPortfolioValue,
+            expectedLongTermAssetIncome,
+            longTermAssetValue,
+            totalInvestmentIncome,
+            totalNetWorth));
+  }
+
   /**
    * Compatibility constructor for profile read models not yet carrying Long-Term planning state.
    */
@@ -110,6 +157,16 @@ public record InvestmentProfile(
             : longTermPlanningState;
     retirementReserve = retirementReserve == null ? BigDecimal.ZERO : retirementReserve;
     investmentCapital = investmentCapital == null ? BigDecimal.ZERO : investmentCapital;
+    incomeSummary =
+        incomeSummary == null
+            ? ProfileIncomeSummary.legacy(
+                historicalMarketInvestmentIncome,
+                marketPortfolioValue,
+                expectedLongTermAssetIncome,
+                longTermAssetValue,
+                totalInvestmentIncome,
+                totalNetWorth)
+            : incomeSummary;
   }
 
   /** Returns an immutable economic view with the reviewed planning baseline applied. */
@@ -159,7 +216,8 @@ public record InvestmentProfile(
         bondAnnualIncome,
         planningState,
         frozenReserve,
-        frozenInvestment);
+        frozenInvestment,
+        incomeSummary);
   }
 
   public BigDecimal marketPortfolioPercentage() {
@@ -186,12 +244,24 @@ public record InvestmentProfile(
     return ProfilePresentation.wholeNumber(totalNetWorth);
   }
 
+  public String totalNetWorthCompactDisplay() {
+    return ProfilePresentation.compactMoney(totalNetWorth);
+  }
+
   public String getMarketPortfolioValueWholeDisplay() {
     return marketPortfolioValueWholeDisplay();
   }
 
+  public String getMarketPortfolioValueCompactDisplay() {
+    return marketPortfolioValueCompactDisplay();
+  }
+
   public String getLongTermAssetValueWholeDisplay() {
     return longTermAssetValueWholeDisplay();
+  }
+
+  public String getLongTermAssetValueCompactDisplay() {
+    return longTermAssetValueCompactDisplay();
   }
 
   public String getLiquidAssetsWholeDisplay() {
@@ -204,6 +274,10 @@ public record InvestmentProfile(
 
   public String getHistoricalMarketInvestmentIncomeWholeDisplay() {
     return historicalMarketInvestmentIncomeWholeDisplay();
+  }
+
+  public String getHistoricalMarketInvestmentIncomeCompactDisplay() {
+    return historicalMarketInvestmentIncomeCompactDisplay();
   }
 
   public String getExpectedLongTermAssetIncomeWholeDisplay() {
@@ -234,6 +308,10 @@ public record InvestmentProfile(
     return ProfilePresentation.wholeNumber(liquidAssets);
   }
 
+  public String liquidAssetsCompactDisplay() {
+    return ProfilePresentation.compactMoney(liquidAssets);
+  }
+
   public String totalInvestmentIncomeDisplay() {
     return ProfilePresentation.money(totalInvestmentIncome, currency);
   }
@@ -246,12 +324,20 @@ public record InvestmentProfile(
     return ProfilePresentation.wholeNumber(marketPortfolioValue);
   }
 
+  public String marketPortfolioValueCompactDisplay() {
+    return ProfilePresentation.compactMoney(marketPortfolioValue);
+  }
+
   public String longTermAssetValueDisplay() {
     return ProfilePresentation.money(longTermAssetValue, currency);
   }
 
   public String longTermAssetValueWholeDisplay() {
     return ProfilePresentation.wholeNumber(longTermAssetValue);
+  }
+
+  public String longTermAssetValueCompactDisplay() {
+    return ProfilePresentation.compactMoney(longTermAssetValue);
   }
 
   public String illiquidAssetsDisplay() {
@@ -286,12 +372,20 @@ public record InvestmentProfile(
     return ProfilePresentation.wholeNumber(historicalMarketInvestmentIncome);
   }
 
+  public String historicalMarketInvestmentIncomeCompactDisplay() {
+    return ProfilePresentation.compactMoney(historicalMarketInvestmentIncome);
+  }
+
   public String expectedLongTermAssetIncomeDisplay() {
     return ProfilePresentation.money(expectedLongTermAssetIncome, currency);
   }
 
   public String expectedLongTermAssetIncomeWholeDisplay() {
     return ProfilePresentation.wholeNumber(expectedLongTermAssetIncome);
+  }
+
+  public String expectedLongTermAssetIncomeCompactDisplay() {
+    return ProfilePresentation.compactMoney(expectedLongTermAssetIncome);
   }
 
   public String longTermIncomeYieldDisplay() {

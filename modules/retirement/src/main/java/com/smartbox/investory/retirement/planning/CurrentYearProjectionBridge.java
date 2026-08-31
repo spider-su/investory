@@ -128,7 +128,7 @@ public class CurrentYearProjectionBridge {
         profile.historicalMarketInvestmentIncome(),
         profile.expectedLongTermAssetIncome(),
         profile.totalInvestmentIncome(),
-        cashEnd,
+        liquidEnd,
         illiquidEnd,
         rebaseAllocations(profile.allocations(), boundaries),
         profile.longTermAssets(),

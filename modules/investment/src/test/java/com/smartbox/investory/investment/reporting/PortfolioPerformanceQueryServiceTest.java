@@ -40,7 +40,7 @@ class PortfolioPerformanceQueryServiceTest {
   }
 
   @Test
-  void instrumentPerformancePreservesOtherBucketSemantics() {
+  void instrumentPerformanceReturnsSymbolsForDashboardBucketing() {
     when(symbols.findAll())
         .thenReturn(
             List.of(
@@ -51,7 +51,7 @@ class PortfolioPerformanceQueryServiceTest {
 
     assertThat(result).hasSize(2);
     assertThat(result.get(0).getSymbol()).isEqualTo("major");
-    assertThat(result.get(1).getSymbol()).isEqualTo("Other");
-    assertThat(result.get(1).getTotal()).isEqualTo(0.5);
+    assertThat(result.get(1).getSymbol()).isEqualTo("minor");
+    assertThat(result.get(1).getTotal()).isEqualTo(1.0);
   }
 }

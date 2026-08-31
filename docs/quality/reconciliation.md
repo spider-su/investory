@@ -114,12 +114,13 @@ solely to improve quality counts.
 
 ### Application reconciliation report coverage
 
-The read-only application report now connects C0, C1, C2, and C5 to existing persisted import,
-ledger, position, account-daily, and reporting evidence. C6 and C7 remain explicitly
-`NOT_CHECKED`; QUICK mode also cannot prove external archive completeness without an archive
-manifest. An empty result in an unexecuted checkpoint is not a pass. A report is `RECONCILED` only
-after every required checkpoint has executed and passed. An executed failure produces
-`UNRECONCILED`.
+The read-only application report connects C0, C1, C2, C5, and C6 to persisted import, ledger,
+position, reporting, and dashboard-fallback evidence. C7 compares the persisted Yahoo export
+snapshot with the current adapter payload: a missing snapshot is `REVIEW`, a stale snapshot is
+`FAIL`, and a matching snapshot is `PASS`. QUICK mode still cannot prove external archive
+completeness without an archive manifest. An empty result in an unexecuted checkpoint is not a
+pass. A report is `RECONCILED` only after every required checkpoint has executed and passed. An
+executed failure produces `UNRECONCILED`.
 
 The application uses a reusable typed check engine. Checks execute in C0-C7 order, aggregate
 uncapped counts while retaining capped detail rows, and report mode, execution time, and data-as-of

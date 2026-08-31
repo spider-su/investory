@@ -6,5 +6,7 @@ import java.math.BigDecimal;
 public record RealEstateGroupPlanningSummary(
     BigDecimal totalPaymentMonthly,
     BigDecimal netMonthlyIncome,
+    BigDecimal monthlyReduce,
+    BigDecimal taxBase,
     BigDecimal monthlyRentTax,
     BigDecimal incomeYield) {}

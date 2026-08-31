@@ -65,6 +65,7 @@ final class DatabaseEvidenceReconciliationCheck {
         case C1 -> "reporting_account_daily_cashflow_reconciliation";
         case C2 -> "reporting_position_lot_duplicates";
         case C5 -> "v_reporting_validation_summary";
+        case C6 -> "v_portfolio_service_fallback_reconciliation";
         default -> checkpoint.displayName();
       };
     }
@@ -92,6 +93,8 @@ final class DatabaseEvidenceReconciliationCheck {
         case C2 -> "SELECT COUNT(*) FROM investory.reporting_position_lot_duplicates";
         case C5 ->
             "SELECT COUNT(*) FROM investory.v_reporting_validation_summary WHERE status IN ('FAIL', 'WARN')";
+        case C6 ->
+            "SELECT COUNT(*) FROM investory.v_portfolio_service_fallback_reconciliation WHERE fallback_reconciliation_status <> 'MATCH'";
         default -> "SELECT 0";
       };
     }

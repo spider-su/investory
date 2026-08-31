@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.accounting.model.OpenPositionValue;
 import com.smartbox.investory.investment.api.BrokerageAssetClassificationReader;
+import com.smartbox.investory.investment.api.BrokerageIncomeSnapshot;
 import com.smartbox.investory.investment.api.BrokeragePortfolioReader;
 import com.smartbox.investory.investment.api.BrokeragePositionSnapshot;
 import com.smartbox.investory.investment.api.InvestmentAnnualProjectionApi;
@@ -84,6 +85,39 @@ class InvestmentProfileFacadeTest {
     assertEquals(new BigDecimal("3000"), profile.illiquidAssets());
     assertEquals(new BigDecimal("380.0"), profile.totalInvestmentIncome());
     assertEquals(new BigDecimal("260"), profile.currentRentalIncome());
+  }
+
+  @Test
+  void comparesCalendarYtdMarketIncomeWithExpectedLongTermIncome() {
+    when(brokeragePortfolioReadService.currentSharedSnapshot())
+        .thenReturn(
+            snapshot(CurrencyType.USD, 2000, 500, 999, 999, List.of(position("KNOWN", 1500))));
+    when(brokeragePortfolioReadService.incomeForMonths(any(), any()))
+        .thenReturn(
+            new BrokerageIncomeSnapshot(
+                CurrencyType.USD,
+                LocalDate.of(2026, 1, 1),
+                DATE,
+                new BigDecimal("1800"),
+                new BigDecimal("2200"),
+                new BigDecimal("100"),
+                new BigDecimal("20"),
+                new BigDecimal("10")));
+    when(brokerageAssetClassificationReader.findBySymbol("KNOWN")).thenReturn(Optional.empty());
+    when(longTermAssets.aggregate(PORTFOLIO, DATE))
+        .thenReturn(
+            new LongTermAssetProfileSummaryModel(
+                CurrencyType.USD, new BigDecimal("3000"), new BigDecimal("260")));
+    when(longTermAssets.list(PORTFOLIO, DATE))
+        .thenReturn(List.of(summary(LongTermAssetTypeModel.REAL_ESTATE, "3000", "260")));
+
+    ProfileIncomeSummary income = facade.loadProfile(PORTFOLIO).incomeSummary();
+
+    assertEquals(new BigDecimal("110"), income.marketIncomeYtd());
+    assertEquals(new BigDecimal("264.14473684"), income.marketAnnualIncome());
+    assertEquals(new BigDecimal("0.13207237"), income.marketNetYield());
+    assertEquals(new BigDecimal("524.14473684"), income.combinedAnnualIncome());
+    assertEquals(new BigDecimal("0.10482895"), income.combinedNetYield());
   }
 
   @Test

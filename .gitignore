@@ -27,6 +27,7 @@ src/main/resources/application-k3s.yml
 /.m2-local/
 /.m2/
 /.m2-wrapper-cache/
+/.playwright/
 /app/target/
 /modules/investment/target/
 /modules/longterm/target/

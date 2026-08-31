@@ -50,3 +50,7 @@ reporting MV before ratios are formed.
 The account summary percentage remains simple return on its accounting net-deposit denominator.
 It is intentionally not required to equal the flow-adjusted benchmark return when external flows
 occur during the selected period.
+
+The performance board scopes its plotted series and headline KPIs to the configured KPI start. Both
+are rebased from the immediately preceding monthly observation, so the displayed endpoint and KPI
+describe the same period.

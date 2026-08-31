@@ -19,6 +19,7 @@ import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPe
 import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriodFilterService;
 import com.smartbox.investory.investment.reporting.dashboard.service.PortfolioStructureQuery;
 import java.time.YearMonth;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -29,6 +30,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class DashboardFacade {
+  private static final int ATTRIBUTION_NAMED_LIMIT = 9;
 
   private final PortfolioService portfolioService;
   private final BenchmarkService benchmarkService;
@@ -140,6 +142,16 @@ public class DashboardFacade {
         navigation(query, benchmark));
   }
 
+  public PerformanceKpi loadPerformanceKpi(Long portfolioId) {
+    Portfolio portfolio =
+        DashboardCalculationCopies.portfolio(portfolioService.calculateTotalProfitLoss());
+    return performanceKpi(
+        canonicalKpiPerformance(portfolio.getMonthlyPerformance(), portfolioId));
+  }
+
+  public record PerformanceKpi(
+      ReturnMetric totalReturn, ReturnMetric annualizedReturn, String startDate) {}
+
   private static String yearMonth(String value) {
     if (value == null || value.isBlank()) {
       return "2026-01";
@@ -190,6 +202,7 @@ public class DashboardFacade {
       worst = worstEntry.getKey();
       worstValue = worstEntry.getValue();
     }
+    PerformanceKpi performanceKpi = performanceKpi(kpiPerformance);
     return new PerformanceSummary(
         benchmark.getPortfolioReturnPct(),
         benchmark.getBenchmarkReturnPct(),
@@ -204,16 +217,24 @@ public class DashboardFacade {
         metric(canonical, true),
         metric(canonical, false),
         canonical == null ? null : canonical.attribution(),
-        metric(kpiPerformance, true),
-        kpiPerformance == null
-            ? ReturnMetric.unavailable(ReturnMetric.Status.INSUFFICIENT_DATA, "No KPI history")
-            : PortfolioReturnCalculator.annualized(
-                metric(kpiPerformance, true),
-                kpiPerformance.period().startDate(),
-                kpiPerformance.period().endDate()),
-        kpiPerformance == null || kpiPerformance.period() == null
-            ? null
-            : kpiPerformance.period().startDate().toString());
+        performanceKpi.totalReturn(),
+        performanceKpi.annualizedReturn(),
+        performanceKpi.startDate());
+  }
+
+  private PerformanceKpi performanceKpi(PerformanceResult result) {
+    ReturnMetric totalReturn = metric(result, true);
+    if (result == null || result.period() == null) {
+      return new PerformanceKpi(
+          totalReturn,
+          ReturnMetric.unavailable(ReturnMetric.Status.INSUFFICIENT_DATA, "No KPI history"),
+          null);
+    }
+    return new PerformanceKpi(
+        totalReturn,
+        PortfolioReturnCalculator.annualized(
+            totalReturn, result.period().startDate(), result.period().endDate()),
+        result.period().startDate().toString());
   }
 
   private PeriodPerformance periodPerformance(
@@ -263,12 +284,12 @@ public class DashboardFacade {
             : benchmark.isPortfolioPerformanceAvailable()
                 ? benchmark.getPortfolioPl()
                 : performanceProfit(performance);
-    Double returnPct =
-        selectedPeriodReturn.status() == ReturnMetric.Status.AVAILABLE
-            ? selectedPeriodReturn.value().movePointRight(2).doubleValue()
-            : canonical == null && benchmark.isPortfolioPerformanceAvailable()
-                ? benchmark.getPortfolioReturnPct()
-                : null;
+    Double returnPct = null;
+    if (selectedPeriodReturn.status() == ReturnMetric.Status.AVAILABLE) {
+      returnPct = selectedPeriodReturn.value().movePointRight(2).doubleValue();
+    } else if (canonical == null && benchmark.isPortfolioPerformanceAvailable()) {
+      returnPct = benchmark.getPortfolioReturnPct();
+    }
     return new PeriodPerformance(
         profit,
         returnPct,
@@ -422,7 +443,6 @@ public class DashboardFacade {
         portfolio.getWithdrawals(),
         portfolio.getCash(),
         periodPerformance.realizedProfit(),
-        Map.of(),
         periodPerformance.dividends(),
         periodPerformance.taxes(),
         periodPerformance.interest(),
@@ -433,8 +453,9 @@ public class DashboardFacade {
 
   private PositionsView positions(Portfolio portfolio) {
     return new PositionsView(
-        portfolio.getUnrealizedProfit(), portfolio.getUnrealizedByCurrency(),
-        portfolio.getOpenPositionValues(), portfolio.getOpenPositionValuesTotal());
+        portfolio.getUnrealizedProfit(),
+        portfolio.getOpenPositionValues(),
+        portfolio.getOpenPositionValuesTotal());
   }
 
   private RiskView risk(RiskExposureSummary risk) {
@@ -659,11 +680,31 @@ public class DashboardFacade {
     }
     Comparator<InstrumentPerformance> order =
         Comparator.comparingDouble(InstrumentPerformance::getTotal);
-    return portfolio.getPerformancePerSymbol().stream()
+    List<InstrumentPerformance> matching =
+        portfolio.getPerformancePerSymbol().stream()
         .filter(row -> gainers ? row.getTotal() >= 0 : row.getTotal() < 0)
         .sorted(gainers ? order.reversed() : order)
-        .limit(10)
         .toList();
+    if (matching.size() <= ATTRIBUTION_NAMED_LIMIT) {
+      return matching;
+    }
+
+    List<InstrumentPerformance> result =
+        new ArrayList<>(matching.subList(0, ATTRIBUTION_NAMED_LIMIT));
+    result.add(otherPerformance(matching.subList(ATTRIBUTION_NAMED_LIMIT, matching.size())));
+    return List.copyOf(result);
+  }
+
+  private InstrumentPerformance otherPerformance(List<InstrumentPerformance> rows) {
+    return new InstrumentPerformance(
+        "Other",
+        rows.stream().mapToDouble(InstrumentPerformance::getClosedProfit).sum(),
+        rows.stream().mapToDouble(InstrumentPerformance::getUnrealizedProfit).sum(),
+        rows.stream().mapToDouble(InstrumentPerformance::getTotal).sum(),
+        rows.stream().mapToDouble(InstrumentPerformance::getDividends).sum(),
+        rows.stream().mapToDouble(InstrumentPerformance::getWithholdingTax).sum(),
+        rows.stream().mapToDouble(InstrumentPerformance::getMarketValue).sum(),
+        rows.stream().mapToDouble(InstrumentPerformance::getCostBasis).sum());
   }
 
   private record PeriodPerformance(

@@ -144,7 +144,7 @@ public class LongTermAssetQueryService {
             effectiveDate),
         group(
             "CASH_RESERVE",
-            "Cash reserves",
+            "Cash",
             rows.stream()
                 .filter(r -> r.type() == LongTermAssetType.CASH_RESERVE)
                 .sorted(
@@ -263,12 +263,6 @@ public class LongTermAssetQueryService {
   }
 
   @Transactional(readOnly = true)
-  public List<LongTermAssetBondRatePeriodEntity> bondRatePeriods(Long portfolioId, Long id) {
-    owned(portfolioId, id);
-    return bondRates.findAllByAssetIdOrderByValidFrom(id);
-  }
-
-  @Transactional(readOnly = true)
   public Optional<RentalTaxPolicyEntity> rentalTaxPolicy(Long portfolioId, LocalDate date) {
     LocalDate effectiveDate = effectiveDate(date);
     return taxPolicies
@@ -307,6 +301,7 @@ public class LongTermAssetQueryService {
                           c.getEndDate(),
                           c.getTerminatedDate(),
                           c.getRentalTaxPaidByTenant(),
+                          c.getMonthlyTaxBase(),
                           c.getTenantName(),
                           c.getTenantEmail(),
                           c.getTenantPhone(),
@@ -648,6 +643,9 @@ public class LongTermAssetQueryService {
     BigDecimal monthlyReduce =
         AggregateSummary.sum(
             rows, r -> planning(r, BigDecimal.ZERO).monthlyReduce(), base, currencyRates, date);
+    BigDecimal taxBase =
+        AggregateSummary.sum(
+            rows, r -> planning(r, BigDecimal.ZERO).taxBase(), base, currencyRates, date);
     BigDecimal monthlyRentTax =
         AggregateSummary.sum(
                 rows, r -> planning(r, BigDecimal.ZERO).annualTax(), base, currencyRates, date)
@@ -658,6 +656,8 @@ public class LongTermAssetQueryService {
             ? new RealEstateGroupPlanningSummary(
                 payment,
                 monthlyIncome.subtract(monthlyReduce),
+                monthlyReduce,
+                taxBase,
                 monthlyRentTax,
                 LongTermAssetCalculator.ratio(
                     monthlyIncome.subtract(monthlyReduce).multiply(BigDecimal.valueOf(12)), value))

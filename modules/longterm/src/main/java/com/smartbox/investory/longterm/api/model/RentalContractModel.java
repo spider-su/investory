@@ -10,6 +10,7 @@ public record RentalContractModel(
     LocalDate endDate,
     LocalDate terminatedDate,
     Boolean rentalTaxPaidByTenant,
+    BigDecimal monthlyTaxBase,
     String tenantName,
     String tenantEmail,
     String tenantPhone,
@@ -19,7 +20,7 @@ public record RentalContractModel(
   }
 
   public RentalContractModel(Long id, LocalDate startDate, LocalDate endDate, List<Term> terms) {
-    this(id, startDate, endDate, null, null, null, null, null, terms);
+    this(id, startDate, endDate, null, null, null, null, null, null, terms);
   }
 
   public RentalContractModel(
@@ -29,7 +30,17 @@ public record RentalContractModel(
       LocalDate terminatedDate,
       Boolean rentalTaxPaidByTenant,
       List<Term> terms) {
-    this(id, startDate, endDate, terminatedDate, rentalTaxPaidByTenant, null, null, null, terms);
+    this(
+        id,
+        startDate,
+        endDate,
+        terminatedDate,
+        rentalTaxPaidByTenant,
+        null,
+        null,
+        null,
+        null,
+        terms);
   }
 
   public record Term(

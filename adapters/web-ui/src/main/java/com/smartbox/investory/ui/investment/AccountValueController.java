@@ -20,7 +20,7 @@ public class AccountValueController {
   InvestmentPerformanceApi.AccountValueView accountValues(
       @RequestParam(required = false) String accountIds) {
     List<Long> ids =
-        accountIds == null || accountIds.isBlank()
+        accountIds == null
             ? null
             : Arrays.stream(accountIds.split(","))
                 .filter(value -> !value.isBlank())

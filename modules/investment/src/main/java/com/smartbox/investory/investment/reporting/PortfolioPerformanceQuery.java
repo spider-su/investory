@@ -153,10 +153,7 @@ public class PortfolioPerformanceQuery {
         .map(
             row ->
                 new DailyPortfolioValue(
-                    row.getDate(),
-                    row.getEndValue(),
-                    row.getContributions(),
-                    row.getWithdrawals()))
+                    row.getDate(), row.getEndValue(), row.getContributions(), row.getWithdrawals()))
         .toList();
   }
 

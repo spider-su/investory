@@ -9,9 +9,14 @@ public interface InvestmentPerformanceApi {
   AccountValueView loadAccountValues(List<Long> accountIds);
 
   record PerformanceBoardQuery(
-      List<Long> accountIds, String aggregation, String metric, String style) {
+      List<Long> accountIds, String aggregation, String metric, String style, String period) {
+    public PerformanceBoardQuery(
+        List<Long> accountIds, String aggregation, String metric, String style) {
+      this(accountIds, aggregation, metric, style, null);
+    }
+
     public PerformanceBoardQuery {
-      accountIds = accountIds == null ? null : List.copyOf(accountIds);
+      accountIds = accountIds == null || accountIds.isEmpty() ? null : List.copyOf(accountIds);
       aggregation = aggregation == null ? "monthly" : aggregation;
       metric = metric == null ? "return" : metric;
       style = style == null ? "line" : style;
@@ -27,7 +32,7 @@ public interface InvestmentPerformanceApi {
       PerformanceKpiView kpis,
       List<PerformanceAccount> accounts) {}
 
-  record PerformanceSeries(String label, List<Double> values) {}
+  record PerformanceSeries(Long accountId, String label, List<Double> values) {}
 
   record PerformanceAccount(Long id, String name, boolean selected) {}
 

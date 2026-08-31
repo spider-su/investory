@@ -156,7 +156,6 @@ public class RetirementSimulationController {
       @RequestParam(required = false) String customEquityReturnDelta,
       @RequestParam(required = false) String customSpendingGrowthDelta,
       Model model) {
-    rollover.rollover(portfolioId);
     // Optional assumption parameters are retained as transient/query overrides for legacy deep
     // links. Saved plans remain the canonical source when an override is not supplied.
     int requestedCurrentAge = currentAge == null ? 40 : currentAge;
@@ -182,7 +181,12 @@ public class RetirementSimulationController {
                     submittedCurrency,
                     base.annualLivingExpenses()))
             .inflationRate(percentInputToRate(inflation, base.inflationRate()))
+            .cashReturnRate(percentInputToRate(cashReturn, base.cashReturnRate()))
+            .fixedIncomeReturnRate(
+                percentInputToRate(fixedIncomeReturn, base.fixedIncomeReturnRate()))
             .equityReturnRate(percentInputToRate(equityReturn, base.equityReturnRate()))
+            .realEstateReturnRate(percentInputToRate(realEstateReturn, base.realEstateReturnRate()))
+            .otherReturnRate(percentInputToRate(otherReturn, base.otherReturnRate()))
             .pensionStartAge(pensionStartAge == null ? base.pensionStartAge() : pensionStartAge)
             .annualPension(
                 resolveDisplayedMoney(
@@ -270,7 +274,7 @@ public class RetirementSimulationController {
         selectedPlanId == null ? "Current assumptions" : plans.name(portfolioId, selectedPlanId);
     String activePlanSummary =
         projectedAssumptions.currentAge()
-            + " → "
+            + "–"
             + projectedAssumptions.endAge()
             + " · Retire at "
             + projectedAssumptions.retirementAge()
@@ -651,6 +655,16 @@ public class RetirementSimulationController {
       Map<String, String> fields, String name, Class<T> type, T fallback) {
     String raw = fields.get(name);
     return raw == null || raw.isBlank() ? fallback : Enum.valueOf(type, raw);
+  }
+
+  @PostMapping("/simulation/rollover")
+  public String rollover(
+      @RequestParam(defaultValue = "1") Long portfolioId,
+      @RequestParam(defaultValue = "PLN") CurrencyType planningDisplayCurrency,
+      @RequestParam(required = false) Long planId,
+      @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
+    rollover.rollover(portfolioId);
+    return simulationRedirect(portfolioId, planId, planningDisplayCurrency, selectedScenario);
   }
 
   @PostMapping("/simulation/timeline/past/{year}")

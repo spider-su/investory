@@ -23,14 +23,21 @@ import org.springframework.util.StringUtils;
 @Service
 public class YahooFinanceService {
 
-  private static final String BASE_URL = "https://query1.finance.yahoo.com/v8/finance/chart/";
+  private static final String DEFAULT_BASE_URL =
+      "https://query1.finance.yahoo.com/v8/finance/chart/";
   private static final Duration TIMEOUT = Duration.ofSeconds(10);
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
   private HttpClient httpClient = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
+  private String baseUrl = DEFAULT_BASE_URL;
 
   public void setHttpClient(HttpClient httpClient) {
     this.httpClient = httpClient;
+  }
+
+  /** Test seam for transport-level tests against a loopback HTTP server. */
+  void setBaseUrl(String baseUrl) {
+    this.baseUrl = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
   }
 
   public Optional<YahooQuote> fetchLatestQuote(String symbol) {
@@ -40,7 +47,7 @@ public class YahooFinanceService {
     try {
       URI uri =
           URI.create(
-              BASE_URL
+              baseUrl
                   + URLEncoder.encode(symbol, StandardCharsets.UTF_8)
                   + "?range=5d&interval=1d");
       HttpRequest request =

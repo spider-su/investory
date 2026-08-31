@@ -177,6 +177,27 @@ class RentalIncomeProjectionTest {
   }
 
   @Test
+  void legacyActualYearAnnualizesMonthlyRentalTaxBase() {
+    var asset =
+        new LongTermAssetProjectionModel(
+            1L,
+            "Rental",
+            LongTermAssetTypeModel.REAL_ESTATE,
+            CurrencyType.USD,
+            BigDecimal.ZERO,
+            List.of(period(2026, null, "12000", CashFlowTypeModel.RENT)),
+            List.of(),
+            null,
+            null,
+            null,
+            bd("0.10"),
+            bd("1000"),
+            false);
+
+    assertBd("1200.00", RentalIncomeProjectionModel.actualYear(asset, 2026).tax());
+  }
+
+  @Test
   void expensesCarryForwardWithoutRentalGrowth() {
     var asset =
         asset(

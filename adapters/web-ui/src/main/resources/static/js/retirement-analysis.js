@@ -2,7 +2,17 @@
   const state = window.retirementAnalysis || {};
   const charts = state.charts || {};
   const selected = state.selectedScenario || "BASE";
-  const colors = {BASE: "#4dabf7", CONSERVATIVE: "#ff8787", OPTIMISTIC: "#69db7c", CUSTOM: "#ae7bff"};
+  const css = getComputedStyle(document.documentElement);
+  const token = (name, fallback) => css.getPropertyValue(name).trim() || fallback;
+  const chartFont = getComputedStyle(document.body).fontFamily || "system-ui, sans-serif";
+  const colors = {
+    BASE: token("--iv-blue", "#4dabf7"),
+    CONSERVATIVE: token("--iv-negative", "#ff8787"),
+    OPTIMISTIC: token("--iv-positive", "#69db7c"),
+    CUSTOM: token("--iv-asset-other", "#ae7bff"),
+    text: token("--iv-text-muted", "#6b7488"),
+    grid: token("--iv-chart-grid", "rgba(100, 116, 139, .28)")
+  };
   const compact = value => {
     const amount = Number(value);
     const absolute = Math.abs(amount);
@@ -22,7 +32,7 @@
     pointRadius: 0,
     tension: .2
   }));
-  const options = {responsive: true, interaction: {mode: "index", intersect: false}, plugins: {legend: {position: "top"}, tooltip: {callbacks: {label: c => `${c.dataset.label}: ${money(c.parsed.y)}`}}}, scales: {x: {ticks: {maxTicksLimit: 8}}, y: {beginAtZero: true, ticks: {callback: value => compact(value)}}}};
+  const options = {responsive: true, interaction: {mode: "index", intersect: false}, plugins: {legend: {position: "top", labels: {usePointStyle: true, color: colors.text, font: {family: chartFont, size: 12}}}, tooltip: {callbacks: {label: c => `${c.dataset.label}: ${money(c.parsed.y)}`}}}, scales: {x: {ticks: {color: colors.text, maxTicksLimit: 8, font: {family: chartFont, size: 12}}, grid: {color: colors.grid}}, y: {beginAtZero: true, ticks: {color: colors.text, font: {family: chartFont, size: 12}, callback: value => compact(value)}, grid: {color: colors.grid}}}};
   const portfolio = document.getElementById("analysis-portfolio");
   if (portfolio) new Chart(portfolio, {type: "line", data: {labels, datasets: lineDatasets("liquidAssets")}, options});
   const funding = (charts.funding || {})[selected] || [];

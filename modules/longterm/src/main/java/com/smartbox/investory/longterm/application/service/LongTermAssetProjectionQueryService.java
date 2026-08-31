@@ -9,7 +9,6 @@ import com.smartbox.investory.longterm.infrastructure.bond.*;
 import com.smartbox.investory.longterm.infrastructure.deposit.*;
 import com.smartbox.investory.longterm.infrastructure.lifecycle.*;
 import com.smartbox.investory.longterm.infrastructure.rental.*;
-import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.longterm.infrastructure.tax.*;
 import com.smartbox.investory.longterm.infrastructure.valuation.*;
 import java.math.BigDecimal;
@@ -25,7 +24,6 @@ public class LongTermAssetProjectionQueryService {
   public static final BigDecimal REAL_ESTATE_TAX_RATE = new BigDecimal("0.085");
   public static final BigDecimal BOND_TAX_RATE = new BigDecimal("0.19");
   private final LongTermAssetRepository assets;
-  private final LongTermAssetCashFlowRepository cashFlows;
   private final LongTermAssetValuationPeriodRepository valuations;
   private final LongTermAssetBondRatePeriodRepository bondRates;
   private final LongTermAssetBondDetailsRepository bonds;
@@ -39,7 +37,6 @@ public class LongTermAssetProjectionQueryService {
 
   public LongTermAssetProjectionQueryService(
       LongTermAssetRepository assets,
-      LongTermAssetCashFlowRepository cashFlows,
       LongTermAssetValuationPeriodRepository valuations,
       LongTermAssetBondRatePeriodRepository bondRates,
       LongTermAssetBondDetailsRepository bonds,
@@ -48,7 +45,6 @@ public class LongTermAssetProjectionQueryService {
       LongTermAssetRentalContractRepository rentalContracts,
       LongTermAssetLifecycleService lifecycle) {
     this.assets = assets;
-    this.cashFlows = cashFlows;
     this.valuations = valuations;
     this.bondRates = bondRates;
     this.bonds = bonds;
@@ -83,6 +79,7 @@ public class LongTermAssetProjectionQueryService {
                           c.getEndDate(),
                           c.getTerminatedDate(),
                           c.getRentalTaxPaidByTenant(),
+                          c.getMonthlyTaxBase(),
                           c.getTenantName(),
                           c.getTenantEmail(),
                           c.getTenantPhone(),
@@ -98,21 +95,6 @@ public class LongTermAssetProjectionQueryService {
                                           t.isPaidByTenant()))
                               .toList()))
               .toList();
-      if (asset.getType() != LongTermAssetType.REAL_ESTATE) {
-        for (LongTermAssetCashFlowEntity flow :
-            cashFlows.findAllByAssetIdOrderByValidFrom(asset.getId())) {
-          BigDecimal annual = LongTermAssetCalculator.annualAmount(flow);
-          periods.add(
-              new LongTermAssetProjectionInput.Period(
-                  flow.getValidFrom(),
-                  flow.getValidTo(),
-                  isIncome(flow.getType()) ? annual : BigDecimal.ZERO,
-                  isIncome(flow.getType()) ? BigDecimal.ZERO : annual,
-                  BigDecimal.ZERO,
-                  flow.getType(),
-                  flow.isPaidByTenant()));
-        }
-      }
       for (LongTermAssetValuationPeriodEntity period :
           valuations.findAllByAssetIdOrderByValidFrom(asset.getId()))
         periods.add(
@@ -200,9 +182,4 @@ public class LongTermAssetProjectionQueryService {
     return lifecycle.activeOn(asset, date);
   }
 
-  private static boolean isIncome(CashFlowType type) {
-    return type == CashFlowType.RENT
-        || type == CashFlowType.PARKING_RENT
-        || type == CashFlowType.OTHER_INCOME;
-  }
 }

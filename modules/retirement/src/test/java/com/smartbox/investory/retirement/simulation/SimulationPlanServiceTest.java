@@ -49,6 +49,12 @@ class SimulationPlanServiceTest {
   @BeforeEach
   void setUp() {
     when(eventRepository.findAllBySimulationPlanIdOrderByYearAscIdAsc(any())).thenReturn(List.of());
+    lenient()
+        .when(repository.findByIdAndPortfolioIdForUpdate(anyLong(), anyLong()))
+        .thenAnswer(
+            invocation ->
+                repository.findByIdAndPortfolioId(
+                    invocation.getArgument(0), invocation.getArgument(1)));
   }
 
   @Test
@@ -86,6 +92,7 @@ class SimulationPlanServiceTest {
 
     SimulationPlanEntity updated =
         service.update(1L, created.getId(), "Updated plan", assumptions.withRetirementAge(45));
+    verify(repository).findByIdAndPortfolioIdForUpdate(created.getId(), 1L);
     assertEquals("Updated plan", updated.getName());
     assertEquals(45, service.assumptions(1L, created.getId()).retirementAge());
 

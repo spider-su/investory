@@ -23,7 +23,7 @@ public final class DashboardPercentageFormatter {
 
   private static String percent(Double value, boolean sign) {
     if (value == null) return "-";
-    NumberFormat formatter = NumberFormat.getNumberInstance(Locale.GERMANY);
+    NumberFormat formatter = NumberFormat.getNumberInstance(Locale.US);
     formatter.setRoundingMode(RoundingMode.HALF_UP);
     formatter.setMinimumFractionDigits(1);
     formatter.setMaximumFractionDigits(1);

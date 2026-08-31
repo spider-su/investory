@@ -210,6 +210,7 @@ class LongTermAssetDetailRenderSmokeTest {
         effectiveEnd,
         status,
         null,
+        new BigDecimal("2500"),
         List.of(
             new LongTermAssetsApi.RentalTermView(
                 CashFlowTypeModel.RENT, rent, FrequencyModel.MONTHLY, false)));

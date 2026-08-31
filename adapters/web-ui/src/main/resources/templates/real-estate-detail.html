@@ -22,7 +22,11 @@
       <div><dt>Monthly net income</dt><dd th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).money(summary.realEstatePlanning.netMonthlyIncome, asset.currency)}">0 PLN</dd></div>
       <div><dt>Income yield</dt><dd th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).percentage(summary.realEstatePlanning.incomeYield)}">0.0%</dd></div>
     </dl>
-    <a class="btn btn-outline-secondary" href="#property-settings">Property settings</a>
+    <div class="iv-asset-page__actions">
+      <a class="btn btn-outline-secondary" href="#property-settings">Property settings</a>
+      <form method="post" th:action="@{/long-term-assets/{id}/archive(id=${asset.id})}"><input type="hidden" name="portfolioId" th:value="${portfolioId}"><button class="btn btn-outline-danger" th:if="${asset.active}">Archive</button></form>
+      <form method="post" th:action="@{/long-term-assets/{id}/reactivate(id=${asset.id})}"><input type="hidden" name="portfolioId" th:value="${portfolioId}"><button class="btn btn-outline-success" th:unless="${asset.active}">Reactivate</button></form>
+    </div>
   </header>
 
   <div class="alert alert-success" role="status" th:if="${success}" th:text="${success}">Saved.</div>
@@ -101,7 +105,8 @@
               </section>
               <section class="iv-contract-group">
                 <h3>Tax</h3>
-                <p class="mb-0" th:text="${contract.rentalTaxPaidByTenant == null ? 'Use property default' : (contract.rentalTaxPaidByTenant ? 'Paid by tenant' : 'Paid by landlord')}">Use property default</p>
+                <p class="mb-0" th:text="${contract.rentalTaxPaidByTenant == null ? 'Legacy property default' : (contract.rentalTaxPaidByTenant ? 'Paid by tenant' : 'Paid by landlord')}">Paid by landlord</p>
+                <p class="mb-0 text-secondary" th:text="${'Monthly tax base: ' + T(com.smartbox.investory.ui.presentation.UiPresentation).money(contract.monthlyTaxBase, asset.currency)}">Monthly tax base: 0 PLN</p>
               </section>
             </div>
 
@@ -148,10 +153,10 @@
         <input type="hidden" name="active" th:value="${asset.active}">
         <div class="row g-3">
           <div class="col-lg-6"><label class="form-label" for="property-name">Name</label><input id="property-name" class="form-control" name="name" th:value="${asset.name}" required></div>
-          <div class="col-sm-6 col-lg-3"><label class="form-label" for="property-currency">Currency</label><select id="property-currency" class="form-select" name="currency"><option th:each="currency : ${T(com.smartbox.investory.shared.currency.CurrencyType).values()}" th:value="${currency}" th:text="${currency}" th:selected="${currency == asset.currency}"></option></select></div>
+          <div class="col-sm-6 col-lg-3"><label class="form-label" for="property-currency">Currency</label><input type="hidden" name="currency" th:value="${asset.currency}"><input id="property-currency" class="form-control" th:value="${asset.currency}" readonly aria-readonly="true"></div>
           <div class="col-sm-6 col-lg-3"><label class="form-label" for="property-value">Current value</label><input id="property-value" class="form-control" name="currentValue" type="number" step="0.01" min="0" th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).moneyInput(asset.currentValue)}" required></div>
           <div class="col-sm-6 col-lg-3"><label class="form-label" for="purchase-date">Purchase date</label><input id="purchase-date" class="form-control" name="acquisitionDate" type="date" th:value="${asset.acquisitionDate}"></div>
-          <div class="col-sm-6 col-lg-3"><label class="form-label" for="annual-tax-base">Monthly rental-tax base</label><input id="annual-tax-base" class="form-control" name="taxBase" type="number" min="0" step="1" th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumberInput(asset.taxBase)}"></div>
+          <div class="col-sm-6 col-lg-3"><label class="form-label" for="annual-tax-base">Default monthly tax base for new contracts</label><input id="annual-tax-base" class="form-control" name="taxBase" type="number" min="0" step="0.01" th:value="${T(com.smartbox.investory.ui.presentation.UiPresentation).moneyInput(asset.taxBase)}"></div>
           <div class="col-12"><label class="form-label" for="property-notes">Notes</label><textarea id="property-notes" class="form-control" name="notes" rows="3" th:text="${asset.notes}"></textarea></div>
         </div>
         <div class="mt-3"><button class="btn btn-primary">Save property</button></div>
@@ -159,7 +164,7 @@
       <hr>
       <form class="iv-property-default-tax" method="post" th:action="@{/long-term-assets/{id}/rental-tax-ownership(id=${asset.id})}">
         <input type="hidden" name="portfolioId" th:value="${portfolioId}">
-        <label class="form-label" for="property-default-tax">Property-level rental-tax default</label>
+        <label class="form-label" for="property-default-tax">Tax payer default for new contracts</label>
         <select class="form-select" id="property-default-tax" name="paidByTenant"><option value="false" th:selected="${!asset.rentalTaxPaidByTenant}">Paid by landlord</option><option value="true" th:selected="${asset.rentalTaxPaidByTenant}">Paid by tenant</option></select>
         <button class="btn btn-outline-primary" type="submit">Save tax default</button>
       </form>
@@ -227,7 +232,7 @@
       <div class="iv-term-edit-row iv-term-edit-row--payer"><label th:for="${prefix + '-property-tax'}">Property tax</label><input class="form-control" th:id="${prefix + '-property-tax'}" name="annualPropertyTax" type="number" min="0" step="0.01" th:value="${form?.annualPropertyTax}"><select class="form-select" th:id="${prefix + '-property-tax-frequency'}" name="propertyTaxFrequency" th:aria-label="${'Property tax frequency ' + prefix}"><option value="ANNUAL" th:selected="${form?.propertyTaxFrequency?.name() == 'ANNUAL'}">Annual</option><option value="MONTHLY" th:selected="${form?.propertyTaxFrequency?.name() == 'MONTHLY'}">Monthly</option></select><select class="form-select" th:id="${prefix + '-property-tax-payer'}" name="propertyTaxPaidByTenant" th:aria-label="${'Property tax payer ' + prefix}"><option value="false" th:selected="${!(form?.propertyTaxPaidByTenant ?: false)}">Landlord pays</option><option value="true" th:selected="${form?.propertyTaxPaidByTenant ?: false}">Tenant pays</option></select></div>
       <div class="iv-term-edit-row iv-term-edit-row--payer"><label th:for="${prefix + '-insurance'}">Insurance</label><input class="form-control" th:id="${prefix + '-insurance'}" name="annualInsurance" type="number" min="0" step="0.01" th:value="${form?.annualInsurance}"><select class="form-select" th:id="${prefix + '-insurance-frequency'}" name="insuranceFrequency" th:aria-label="${'Insurance frequency ' + prefix}"><option value="ANNUAL" th:selected="${form?.insuranceFrequency?.name() == 'ANNUAL'}">Annual</option><option value="MONTHLY" th:selected="${form?.insuranceFrequency?.name() == 'MONTHLY'}">Monthly</option></select><select class="form-select" th:id="${prefix + '-insurance-payer'}" name="insurancePaidByTenant" th:aria-label="${'Insurance payer ' + prefix}"><option value="false" th:selected="${!(form?.insurancePaidByTenant ?: false)}">Landlord pays</option><option value="true" th:selected="${form?.insurancePaidByTenant ?: false}">Tenant pays</option></select></div>
     </fieldset>
-    <fieldset class="iv-contract-edit-group"><legend>Tax ownership</legend><label class="form-label" th:for="${prefix + '-tax-ownership'}">Rental tax</label><select class="form-select" th:id="${prefix + '-tax-ownership'}" name="rentalTaxOwnership"><option value="INHERIT" th:selected="${form?.rentalTaxOwnership == 'INHERIT' or form?.rentalTaxOwnership == null}">Use property default</option><option value="LANDLORD" th:selected="${form?.rentalTaxOwnership == 'LANDLORD'}">Paid by landlord</option><option value="TENANT" th:selected="${form?.rentalTaxOwnership == 'TENANT'}">Paid by tenant</option></select></fieldset>
+    <fieldset class="iv-contract-edit-group"><legend>Rental tax</legend><div class="iv-contract-fields"><div><label class="form-label" th:for="${prefix + '-monthly-tax-base'}">Monthly tax base</label><input class="form-control" th:id="${prefix + '-monthly-tax-base'}" name="monthlyTaxBase" type="number" min="0" step="0.01" th:value="${form?.monthlyTaxBase}" placeholder="Property default"></div><div><label class="form-label" th:for="${prefix + '-tax-ownership'}">Tax payer</label><select class="form-select" th:id="${prefix + '-tax-ownership'}" name="rentalTaxOwnership"><option value="INHERIT" th:selected="${form?.rentalTaxOwnership == 'INHERIT' or form?.rentalTaxOwnership == null}">Use property default</option><option value="LANDLORD" th:selected="${form?.rentalTaxOwnership == 'LANDLORD'}">Paid by landlord</option><option value="TENANT" th:selected="${form?.rentalTaxOwnership == 'TENANT'}">Paid by tenant</option></select></div></div></fieldset>
   </div>
 </th:block>
 

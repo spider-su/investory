@@ -55,7 +55,8 @@ class LongTermAssetControllerTest {
         LocalDate.of(2028, 2, 28),
         InterestTreatmentModel.CAPITALIZE,
         new BigDecimal("6"),
-        null);
+        null,
+        new RedirectAttributesModelMap());
     var command = ArgumentCaptor.forClass(LongTermAssetsApi.BondCommand.class);
     verify(assets).createBond(command.capture());
     assertEquals(new BigDecimal("150000"), command.getValue().value());
@@ -64,7 +65,12 @@ class LongTermAssetControllerTest {
 
   @Test
   void propertyGrowthFormIsSentAsPercentInput() {
-    controller.savePropertyGrowth(7L, 1L, BigDecimal.ONE, LocalDate.of(2026, 1, 1));
+    controller.savePropertyGrowth(
+        7L,
+        1L,
+        BigDecimal.ONE,
+        LocalDate.of(2026, 1, 1),
+        new RedirectAttributesModelMap());
     verify(assets).savePropertyGrowth(1L, 7L, BigDecimal.ONE, LocalDate.of(2026, 1, 1));
   }
 
@@ -80,7 +86,8 @@ class LongTermAssetControllerTest {
         LocalDate.of(2028, 2, 28),
         InterestTreatmentModel.PAY_OUT,
         new BigDecimal("5.75"),
-        "updated");
+        "updated",
+        new RedirectAttributesModelMap());
 
     var command = ArgumentCaptor.forClass(LongTermAssetsApi.BondCommand.class);
     verify(assets).updateBond(command.capture());
@@ -114,35 +121,72 @@ class LongTermAssetControllerTest {
   }
 
   @Test
-  void effectiveDatedCorrectionsAndDeletesReachApplicationApi() {
+  void realEstateAndTaxEffectiveDatedCorrectionsReachApplicationApi() {
     LocalDate from = LocalDate.of(2026, 1, 1);
     LocalDate to = LocalDate.of(2026, 12, 31);
-    controller.updateValuationPeriod(7L, 41L, 1L, from, to, new BigDecimal("3.5"));
-    controller.deleteValuationPeriod(7L, 41L, 1L);
-    var bondRate = new LongTermAssetController.BondRateForm();
-    bondRate.setValidFrom(from);
-    bondRate.setValidTo(to);
-    bondRate.setAnnualInterestRate(new BigDecimal("0.06"));
-    controller.updateBondRatePeriod(7L, 42L, 1L, bondRate);
-    controller.deleteBondRatePeriod(7L, 42L, 1L);
+    var feedback = new RedirectAttributesModelMap();
+    controller.updateValuationPeriod(7L, 41L, 1L, from, to, new BigDecimal("3.5"), feedback);
+    controller.deleteValuationPeriod(7L, 41L, 1L, feedback);
     var tax = new LongTermAssetController.RentalTaxForm();
     tax.setValidFrom(from);
     tax.setValidTo(to);
-    controller.updateRentalTaxPolicy(43L, 1L, tax, new BigDecimal("8.5"), null);
-    controller.deleteRentalTaxPolicy(43L, 1L);
+    controller.updateRentalTaxPolicy(43L, 1L, tax, new BigDecimal("8.5"), null, feedback);
+    controller.deleteRentalTaxPolicy(43L, 1L, feedback);
 
     verify(assets)
         .updateValuation(
             1L, 7L, 41L, new LongTermAssetsApi.ValuationCommand(from, to, new BigDecimal("3.5")));
     verify(assets).deleteValuation(1L, 7L, 41L);
     verify(assets)
-        .updateBondRate(
-            1L, 7L, 42L, new LongTermAssetsApi.BondRateCommand(from, to, new BigDecimal("0.06")));
-    verify(assets).deleteBondRate(1L, 7L, 42L);
-    verify(assets)
         .updateRentalTaxPolicy(
             1L, 43L, new LongTermAssetsApi.RentalTaxCommand(from, to, new BigDecimal("8.5"), null));
     verify(assets).deleteRentalTaxPolicy(1L, 43L);
+  }
+
+  @Test
+  void invalidBondCreationRedirectsToFormWithFeedback() {
+    var feedback = new RedirectAttributesModelMap();
+    doThrow(new IllegalArgumentException("Bond maturity must be on or after acquisition"))
+        .when(assets)
+        .createBond(any());
+
+    String result =
+        controller.createBond(
+            1L,
+            "Bond",
+            CurrencyType.PLN,
+            new BigDecimal("100"),
+            LocalDate.of(2026, 1, 2),
+            LocalDate.of(2026, 1, 1),
+            InterestTreatmentModel.PAY_OUT,
+            new BigDecimal("5"),
+            null,
+            feedback);
+
+    assertEquals("redirect:/long-term-assets?portfolioId=1", result);
+    assertEquals(
+        "Bond maturity must be on or after acquisition",
+        feedback.getFlashAttributes().get("error"));
+  }
+
+  @Test
+  void periodValidationFailureRedirectsWithFeedbackInsteadOfEscapingAsServerError() {
+    var feedback = new RedirectAttributesModelMap();
+    doThrow(new IllegalArgumentException("Overlapping valuation period"))
+        .when(assets)
+        .addValuation(any(), any(), any());
+
+    String result =
+        controller.addValuationPeriod(
+            7L,
+            1L,
+            LocalDate.of(2026, 1, 1),
+            null,
+            new BigDecimal("3.5"),
+            feedback);
+
+    assertEquals("redirect:/long-term-assets/7?portfolioId=1", result);
+    assertEquals("Overlapping valuation period", feedback.getFlashAttributes().get("error"));
   }
 
   @Test
@@ -152,6 +196,7 @@ class LongTermAssetControllerTest {
     form.setTenantEmail("tenant@example.com");
     form.setTenantPhone("+48 123");
     form.setStartDate(LocalDate.of(2027, 1, 1));
+    form.setMonthlyTaxBase(new BigDecimal("3100"));
     form.setRentalTaxOwnership("TENANT");
     form.setEndCurrentContractBeforeStart(true);
     form.setRent(new BigDecimal("3300"));
@@ -166,6 +211,7 @@ class LongTermAssetControllerTest {
     assertEquals("Tenant", command.getValue().tenantName());
     assertEquals("tenant@example.com", command.getValue().tenantEmail());
     assertEquals("+48 123", command.getValue().tenantPhone());
+    assertEquals(new BigDecimal("3100"), command.getValue().monthlyTaxBase());
     assertEquals(Boolean.TRUE, command.getValue().rentalTaxPaidByTenant());
     assertEquals(true, command.getValue().endCurrentContractBeforeStart());
     assertEquals(
@@ -182,6 +228,7 @@ class LongTermAssetControllerTest {
   void rentalUpdatePreservesContractIdentityAndDeleteUsesOwnedPath() {
     var form = new LongTermAssetController.RentalContractForm();
     form.setStartDate(LocalDate.of(2027, 1, 1));
+    form.setMonthlyTaxBase(new BigDecimal("3200"));
     form.setRentalTaxOwnership("INHERIT");
 
     controller.updateRentalContract(
@@ -191,7 +238,9 @@ class LongTermAssetControllerTest {
     var command = ArgumentCaptor.forClass(LongTermAssetsApi.UpdateRentalContractCommand.class);
     verify(assets).updateRentalContract(command.capture());
     assertEquals(44L, command.getValue().contractId());
+    assertEquals(new BigDecimal("3200"), command.getValue().monthlyTaxBase());
     assertEquals(null, command.getValue().rentalTaxPaidByTenant());
+    assertEquals(true, command.getValue().usePropertyTaxPayerDefault());
     verify(assets).deleteRentalContract(1L, 7L, 44L);
   }
 

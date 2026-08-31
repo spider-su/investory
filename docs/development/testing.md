@@ -48,6 +48,35 @@ The base class:
 
 Do not use this base class for tests whose purpose is migration validation.
 
+## Browser UI smoke tests
+
+`UiPageSmokeIT` starts the application on a random port, loads the snapshot-backed PostgreSQL
+database plus `ui-page-smoke-fixture.sql`, and visits every rendered page with headless Chromium.
+It checks the response, title, stable page text, browser errors, and failed first-party requests.
+Focused checks also exercise the main JavaScript controls. Failed page cases write a screenshot,
+rendered HTML, and Playwright trace under `app/target/ui-test-results`.
+
+`LongTermAssetCrudUiIT` covers the complete browser-to-database lifecycle for other assets,
+bonds, cash reserves, deposits, and rental properties. Every type is created twice through its UI,
+then checked in the rendered detail view and PostgreSQL. The first item is edited and checked
+again; the second item is archived and verified absent from the active list while retained as an
+inactive database row. Rental-property coverage additionally creates and edits rental contracts,
+checks all contract terms and tax ownership fields, and deletes the second property's contract.
+Each scenario uses unique data in the disposable snapshot-backed test database.
+
+Install the matching Chromium binary once, then run the suite:
+
+```powershell
+$env:PLAYWRIGHT_BROWSERS_PATH = "$PWD/.playwright"
+./mvnw.cmd -pl app -am -DskipTests install
+./mvnw.cmd -pl app exec:java "-Dexec.classpathScope=test" "-Dexec.mainClass=com.microsoft.playwright.CLI" "-Dexec.args=install chromium"
+$env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
+$env:DOCKER_HOST = "tcp://127.0.0.1:2375"
+./mvnw.cmd -pl app test-compile failsafe:integration-test failsafe:verify "-Dit.test=UiPageSmokeIT,LongTermAssetCrudUiIT"
+```
+
+CI installs Chromium explicitly and runs this suite in the integration-test job.
+
 ## Generate the schema snapshot
 
 Run from the repository root with Docker available:

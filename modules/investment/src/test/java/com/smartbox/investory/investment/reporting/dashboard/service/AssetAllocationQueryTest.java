@@ -34,8 +34,10 @@ class AssetAllocationQueryTest {
     var view = new AssetAllocationQuery(allocations, assets).load(1L, portfolio);
 
     assertThat(view.totalValue()).isEqualTo(1000);
-    assertThat(view.buckets()).extracting("name").containsExactly("Equity / ETF", "Cash");
-    assertThat(view.buckets().getFirst().weightPct()).isEqualTo(70.0);
+    assertThat(view.buckets()).extracting("name").containsExactly("Cash", "ETF");
+    assertThat(view.buckets().getLast().weightPct()).isEqualTo(70.0);
+    assertThat(view.buckets()).extracting(AssetAllocationView.Bucket::cssKey)
+        .containsExactly("cash", "etf");
     assertThat(view.buckets().stream().mapToDouble(AssetAllocationView.Bucket::value).sum())
         .isEqualTo(view.totalValue());
   }
@@ -48,25 +50,34 @@ class AssetAllocationQueryTest {
             allocation(2L, "REIT", 20),
             allocation(3L, "FIXED_INCOME", 30),
             allocation(4L, "METAL", 40),
-            allocation(5L, "mystery", 50));
+            allocation(5L, "mystery", 50),
+            allocation(6L, "STOCK", 60));
     List<AssetEntity> assets =
         List.of(
             asset(1L, "ETF"),
             asset(2L, "REIT"),
             asset(3L, "FIXED_INCOME"),
             asset(4L, "METAL"),
-            asset(5L, "mystery"));
+            asset(5L, "mystery"),
+            asset(6L, "EQUITY"));
     PortfolioAssetAllocationRepository allocations = mock(PortfolioAssetAllocationRepository.class);
     AssetRepository assetRepository = mock(AssetRepository.class);
     when(allocations.findAllByPortfolioId(1L)).thenReturn(rows);
-    when(assetRepository.findAllById(List.of(1L, 2L, 3L, 4L, 5L))).thenReturn(assets);
+    when(assetRepository.findAllById(List.of(1L, 2L, 3L, 4L, 5L, 6L))).thenReturn(assets);
 
     var view = new AssetAllocationQuery(allocations, assetRepository).load(1L, new Portfolio());
 
     assertThat(view.buckets())
         .extracting("name")
         .containsExactly(
-            "Other", "Commodity / metal", "Fixed income", "REIT / real estate", "Equity / ETF");
+            "Fixed income",
+            "ETF",
+            "Equity",
+            "REIT / real estate",
+            "Commodity / metal",
+            "Other");
+    assertThat(view.buckets()).extracting(AssetAllocationView.Bucket::cssKey)
+        .containsExactly("fixed-income", "etf", "equity", "real-estate", "commodity", "other");
   }
 
   @Test
@@ -80,7 +91,7 @@ class AssetAllocationQueryTest {
 
     var view = new AssetAllocationQuery(allocations, assetRepository).load(1L, new Portfolio());
 
-    assertThat(view.buckets()).extracting("name").containsExactly("Equity / ETF");
+    assertThat(view.buckets()).extracting("name").containsExactly("ETF");
     assertThat(view.buckets().getFirst().value()).isEqualTo(70);
   }
 

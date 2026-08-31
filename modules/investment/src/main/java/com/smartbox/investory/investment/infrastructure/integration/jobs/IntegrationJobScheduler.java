@@ -10,15 +10,19 @@ import com.smartbox.investory.investment.infrastructure.integration.persistence.
 import com.smartbox.investory.investment.infrastructure.integration.persistence.IntegrationJobRepository;
 import com.smartbox.investory.investment.market.fx.CurrencyRateUpdaterService;
 import com.smartbox.investory.investment.market.price.MarketService;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /** Polls persisted jobs so changes take effect without an application restart. */
 @Slf4j
@@ -33,7 +37,6 @@ public class IntegrationJobScheduler {
   private final IntegrationConfigurationService configurationService;
 
   @Scheduled(fixedDelayString = "${app.integrations.scheduler-poll-ms:60000}")
-  @Transactional
   public void poll() {
     ZonedDateTime now = ZonedDateTime.now();
     for (IntegrationJobEntity job : jobRepository.findByEnabledTrue()) {
@@ -43,21 +46,31 @@ public class IntegrationJobScheduler {
         continue;
       }
       long lockKey = lockKey(instance, job);
-      if (!tryLock(lockKey)) {
-        log.info("Skipping overlapping integration job {}", job.getId());
-        continue;
-      }
-      try {
-        run(job, instance, now);
-      } finally {
-        jdbcTemplate.queryForObject("select pg_advisory_unlock(?)", Boolean.class, lockKey);
-      }
+      jdbcTemplate.execute(
+          (ConnectionCallback<Void>)
+              connection -> {
+                if (!advisoryLock(connection, "select pg_try_advisory_lock(?)", lockKey)) {
+                  log.info("Skipping overlapping integration job {}", job.getId());
+                  return null;
+                }
+                try {
+                  run(job, instance, now);
+                } finally {
+                  advisoryLock(connection, "select pg_advisory_unlock(?)", lockKey);
+                }
+                return null;
+              });
     }
   }
 
-  private boolean tryLock(long lockKey) {
-    return Boolean.TRUE.equals(
-        jdbcTemplate.queryForObject("select pg_try_advisory_lock(?)", Boolean.class, lockKey));
+  private boolean advisoryLock(Connection connection, String sql, long lockKey)
+      throws SQLException {
+    try (PreparedStatement statement = connection.prepareStatement(sql)) {
+      statement.setLong(1, lockKey);
+      try (ResultSet result = statement.executeQuery()) {
+        return result.next() && result.getBoolean(1);
+      }
+    }
   }
 
   private long lockKey(IntegrationInstanceEntity instance, IntegrationJobEntity job) {

@@ -53,7 +53,9 @@ public class AssetAllocationQuery {
     List<AssetAllocationView.Bucket> result =
         buckets.entrySet().stream()
             .map(entry -> entry.getValue().view(entry.getKey(), total))
-            .sorted(Comparator.comparing(AssetAllocationView.Bucket::value).reversed())
+            .sorted(
+                Comparator.comparingInt(
+                    bucket -> PortfolioAssetCategoryMapper.displayOrder(bucket.name())))
             .toList();
     return new AssetAllocationView(total, result);
   }

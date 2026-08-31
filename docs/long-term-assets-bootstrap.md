@@ -12,13 +12,16 @@ Use the sanitized example as a template:
 ```
 
 The process exits after the command. `--dry-run` validates and reports counts/totals without writing.
+Each real-estate total uses the cash-flow rows effective on that asset's `effectiveFrom` date; dated
+historical and future rows are not added together.
 
 ## Format and behavior
 
 The JSON document contains `portfolioId`, rental-tax policies, and assets. Legacy `cashFlows` input
 is accepted only for real-estate assets and is converted transactionally into dated rental contracts
-with contract terms. Other asset types cannot import cash-flow rows. Assets also support valuation
-periods, bond-rate periods, bond details, and deposit details. See
+with contract terms. Other asset types cannot import cash-flow rows. Real estate supports historical
+valuation periods. A cash reserve accepts zero or one current return period, and a bond requires one
+current rate period plus its bond details. Deposit details include a required maturity date. See
 `app/src/main/resources/bootstrap/example-long-term-assets.json`.
 
 Assets use `externalKey` as a stable identity scoped to a portfolio. Real-estate assets may provide
@@ -28,9 +31,13 @@ other expenses and rental tax are landlord-paid. Import behavior is **upsert**:
 
 * matching assets are updated;
 * new assets are created;
-* matching child periods are updated by type and start date;
-* omitted existing periods are retained, preserving history;
+* matching real-estate valuation periods are updated by start date and omitted periods are retained;
+* cash-reserve and bond rate rows are replaced by their single imported current assumption;
 * the same file can be run repeatedly without duplicate rows.
+
+Real-estate cash-flow boundaries are converted to bootstrap-owned rental contracts. A later import
+fully replaces those contracts, including deleting them when `cashFlows` is empty. It never overwrites
+manual or pre-ownership contracts. Asset type and currency are immutable after initial import.
 
 Validation runs before writes in one transaction. Invalid portfolio, key, date, rate, currency, type,
 amount, maturity, ownership, or overlapping-period data rolls back the complete import. Rental
@@ -39,9 +46,9 @@ zero rental tax. The effective policy is selected by portfolio and calculation d
 fallback when no policy applies.
 
 Asset type is immutable after creation. Bootstrap updates preserve the existing lifecycle history;
-they do not silently convert an archived asset or discard archive/reactivation periods. Cash-flow,
-valuation, and bond-rate periods are checked against both the incoming document and stored periods,
-while an existing period identified by the same effective start date is updated idempotently.
+they do not silently convert an archived asset or discard archive/reactivation periods. Rental input
+and real-estate valuation periods are checked for overlap. Cash and bond rates follow the single
+current-assumption replacement rule described above.
 
 Lifecycle history uses inclusive date periods and the application `Clock`. If several lifecycle
 transitions occur on one date, the date-only model collapses them to that date and never writes an

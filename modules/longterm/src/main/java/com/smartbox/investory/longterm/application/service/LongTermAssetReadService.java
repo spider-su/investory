@@ -81,6 +81,7 @@ public class LongTermAssetReadService implements LongTermAssetProfileReader {
                                     c.endDate(),
                                     c.terminatedDate(),
                                     c.rentalTaxPaidByTenant(),
+                                    toUsd(c.monthlyTaxBase(), input.currency(), date),
                                     c.tenantName(),
                                     c.tenantEmail(),
                                     c.tenantPhone(),

@@ -44,6 +44,13 @@ may differ across successive contracts. Contract-level rental-tax ownership rema
 `acquisitionValue` is the historical acquisition/principal value. `currentValue` is the present
 planning valuation. Updating a bond's current value does not overwrite its acquisition history.
 
+Cash reserves and bonds each have one current planning-rate assumption. Saving either asset replaces
+that assumption; users do not maintain effective-dated cash-return or bond-rate history. When a bond
+or cash reserve expires, archive it and create a new asset. Rate-period rows remain an internal
+persistence compatibility detail. Bootstrap accepts at most one cash-reserve valuation period and
+requires exactly one bond-rate period; importing either asset replaces any previously stored rate
+rows. Real-estate valuation growth remains effective-dated.
+
 ## Public boundary
 
 The management API exposes rental-contract commands and persistence-free read views. Legacy rental
@@ -70,7 +77,13 @@ in Long-Term capital and is reported separately from cash income; it is never co
 Cash-flow rows are supported only as real-estate bootstrap input and are converted into rental
 contracts. Non-real-estate assets cannot define or import generic cash-flow rows. The legacy
 rental-period projection fallback is compatibility-only and is not the normal persisted runtime
-path.
+path. Persisted contracts carry explicit bootstrap ownership. A repeated import atomically replaces
+only bootstrap-owned contracts; manual and pre-ownership contracts are protected from importer
+rewrites even when tenant identity and notes are empty. The bootstrap document is authoritative for
+its owned contracts: rebuilding them captures the document asset's current tax base and tax-payer
+default for every supplied rental period. Use separate assets or post-import contract corrections
+when historical periods require different tax snapshots; a later bootstrap import will apply its
+authoritative defaults again.
 
 Expected real-estate value growth is informational. Deterministic Retirement ignores appreciation
 and does not automatically sell property.
@@ -84,7 +97,17 @@ contract is a UI prefilling action and never mutates data before submission. Exp
 is preserved by ordinary edits; a new bond uses acquisition value only when redemption was not
 supplied.
 
+Asset currency is immutable after creation. Changing the denomination requires creating a new asset
+or an explicit conversion workflow; ordinary edits and bootstrap upserts must never relabel stored
+amounts. A rental contract captures the property's monthly rental-tax base and tax-payer default when
+the contract is created. Interactive property-default edits apply only to new contracts and do not
+rewrite historical rental economics. Authoritative bootstrap replacement follows the import contract
+described above.
+
 The Long-Term profile reader returns a persistence-free normalized planning snapshot. Retirement
 uses that snapshot for the current view and stores it in a reviewed revision. Forward simulation
 never re-reads live Long-Term records, rates, taxes, contracts, or allocations. A later source edit
 therefore changes CURRENT only until the user explicitly rebaselines and reviews a new revision.
+The snapshot freezes the rental-tax policy effective on its review date. Future-dated policy changes
+become a new planning assumption when the user rebaselines on or after their effective date; they are
+not scheduled automatically inside an already reviewed revision.

@@ -20,7 +20,8 @@ public class InvestmentPerformanceController {
       @RequestParam(required = false) String accountIds,
       @RequestParam(defaultValue = "monthly") String aggregation,
       @RequestParam(defaultValue = "return") String metric,
-      @RequestParam(defaultValue = "line") String style) {
+      @RequestParam(defaultValue = "line") String style,
+      @RequestParam(required = false) String period) {
     List<Long> ids =
         accountIds == null
             ? null
@@ -29,7 +30,7 @@ public class InvestmentPerformanceController {
                 .filter(value -> !value.isBlank())
                 .map(Long::valueOf)
                 .toList();
-    return performanceApi.load(new PerformanceBoardQuery(ids, aggregation, metric, style));
+    return performanceApi.load(new PerformanceBoardQuery(ids, aggregation, metric, style, period));
   }
 
   @GetMapping("/dashboard/account-performance")

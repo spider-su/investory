@@ -108,7 +108,7 @@ public class RetirementAnalysisController {
             presentation.displayCharts(result.charts(), planningDisplayCurrency),
             result.available()
                 ? projection.projectedAssumptions().currentAge()
-                    + " → "
+                    + "–"
                     + projection.projectedAssumptions().endAge()
                 : "No future years");
     model.addAttribute("analysisPage", page);

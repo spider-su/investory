@@ -130,6 +130,8 @@ public class LongTermAssetCommandService {
     LongTermAssetEntity asset = creating ? new LongTermAssetEntity() : owned(portfolioId, id);
     if (id != null && asset.getType() != LongTermAssetType.CASH_RESERVE)
       throw new IllegalArgumentException("AssetEntity type cannot be changed after creation");
+    if (!creating && asset.getCurrency() != currency)
+      throw new IllegalArgumentException("Asset currency cannot be changed after creation");
     asset.setPortfolioId(portfolioId);
     asset.setName(name);
     asset.setType(LongTermAssetType.CASH_RESERVE);
@@ -142,7 +144,7 @@ public class LongTermAssetCommandService {
       asset.setActive(true);
     }
     save(asset);
-    periods.replaceValuationGrowth(asset.getId(), effectiveFrom, annualReturnRate);
+    periods.replaceCurrentValuationGrowth(asset.getId(), effectiveFrom, annualReturnRate);
     return asset;
   }
 
@@ -324,20 +326,6 @@ public class LongTermAssetCommandService {
 
   public void deleteValuationPeriod(Long portfolioId, Long assetId, Long periodId) {
     periods.deleteValuationPeriod(portfolioId, assetId, periodId);
-  }
-
-  public LongTermAssetBondRatePeriodEntity addBondRatePeriod(
-      Long portfolioId, Long assetId, LongTermAssetBondRatePeriodEntity period) {
-    return periods.addBondRatePeriod(portfolioId, assetId, period);
-  }
-
-  public LongTermAssetBondRatePeriodEntity updateBondRatePeriod(
-      Long portfolioId, Long assetId, Long periodId, LongTermAssetBondRatePeriodEntity period) {
-    return periods.updateBondRatePeriod(portfolioId, assetId, periodId, period);
-  }
-
-  public void deleteBondRatePeriod(Long portfolioId, Long assetId, Long periodId) {
-    periods.deleteBondRatePeriod(portfolioId, assetId, periodId);
   }
 
   private LocalDate today() {

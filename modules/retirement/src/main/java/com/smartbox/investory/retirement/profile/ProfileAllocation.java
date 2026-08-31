@@ -21,6 +21,10 @@ public record ProfileAllocation(
     return ProfilePresentation.wholeNumber(value);
   }
 
+  public String compactValueDisplay() {
+    return ProfilePresentation.compactMoney(value);
+  }
+
   public boolean isNonZero() {
     return value != null && value.signum() != 0;
   }
@@ -35,6 +39,10 @@ public record ProfileAllocation(
 
   public String getWholeValueDisplay() {
     return wholeValueDisplay();
+  }
+
+  public String getCompactValueDisplay() {
+    return compactValueDisplay();
   }
 
   public String getPercentageDisplay() {

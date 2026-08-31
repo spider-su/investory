@@ -106,9 +106,12 @@ class RentalContractServiceTest {
     assertThat(previous.getEndDate()).isEqualTo(LocalDate.of(2025, 12, 31));
     assertThat(previous.getTerminatedDate()).isNull();
     assertThat(created.getTenantName()).isEqualTo("New tenant");
+    assertThat(created.getMonthlyTaxBase()).isEqualByComparingTo("2800");
+    assertThat(created.getRentalTaxPaidByTenant()).isFalse();
     assertThat(created.getTerms())
         .extracting(LongTermAssetRentalContractTermEntity::getType)
         .containsExactly(CashFlowType.RENT);
+    verify(contracts).flush();
   }
 
   @Test
@@ -176,6 +179,53 @@ class RentalContractServiceTest {
         .filteredOn(term -> term.getType() == CashFlowType.UTILITIES)
         .singleElement()
         .matches(LongTermAssetRentalContractTermEntity::isPaidByTenant);
+  }
+
+  @Test
+  void updateCanCorrectTaxBaseAndApplyCurrentPropertyTaxPayerDefault() {
+    var existing = contract(10L, LocalDate.of(2025, 1, 1), null);
+    existing.setMonthlyTaxBase(new BigDecimal("1000"));
+    existing.setRentalTaxPaidByTenant(true);
+    when(contracts.findById(10L)).thenReturn(Optional.of(existing));
+    when(contracts.findAllByAssetIdOrderByStartDateDescIdDesc(7L)).thenReturn(List.of(existing));
+
+    var updated =
+        service.update(
+            1L,
+            7L,
+            10L,
+            null,
+            null,
+            null,
+            LocalDate.of(2025, 1, 1),
+            null,
+            new BigDecimal("3200"),
+            null,
+            true,
+            List.of());
+
+    assertThat(updated.getMonthlyTaxBase()).isEqualByComparingTo("3200");
+    assertThat(updated.getRentalTaxPaidByTenant()).isFalse();
+  }
+
+  @Test
+  void rejectsNegativeMonthlyTaxBase() {
+    assertThatThrownBy(
+            () ->
+                service.create(
+                    1L,
+                    7L,
+                    null,
+                    null,
+                    null,
+                    LocalDate.of(2026, 1, 1),
+                    null,
+                    new BigDecimal("-1"),
+                    null,
+                    List.of(),
+                    false))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("tax base");
   }
 
   @Test
@@ -299,6 +349,8 @@ class RentalContractServiceTest {
     asset.setId(7L);
     asset.setPortfolioId(1L);
     asset.setType(LongTermAssetType.REAL_ESTATE);
+    asset.setTaxBase(new BigDecimal("2800"));
+    asset.setRentalTaxPaidByTenant(false);
     return asset;
   }
 

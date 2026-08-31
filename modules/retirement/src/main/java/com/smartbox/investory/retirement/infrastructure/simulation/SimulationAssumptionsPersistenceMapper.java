@@ -1,17 +1,23 @@
-package com.smartbox.investory.retirement.simulation;
+package com.smartbox.investory.retirement.infrastructure.simulation;
 
 import static com.smartbox.investory.shared.util.StringUtils.isBlank;
 
-import com.smartbox.investory.retirement.infrastructure.simulation.PersistedSimulationAssumptions;
+import com.smartbox.investory.retirement.simulation.ExpenseProfile;
+import com.smartbox.investory.retirement.simulation.ExpenseProfileStep;
+import com.smartbox.investory.retirement.simulation.FundingSource;
+import com.smartbox.investory.retirement.simulation.ProjectedIncomePolicy;
+import com.smartbox.investory.retirement.simulation.SimulationAssumptions;
+import com.smartbox.investory.retirement.simulation.SimulationEvent;
+import com.smartbox.investory.retirement.simulation.SimulationFundingStrategy;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 
 /** Sole translation boundary between compatibility-shaped persistence and active assumptions. */
-final class SimulationAssumptionsPersistenceMapper {
+public final class SimulationAssumptionsPersistenceMapper {
   private SimulationAssumptionsPersistenceMapper() {}
 
-  static SimulationAssumptions read(
+  public static SimulationAssumptions read(
       PersistedSimulationAssumptions source, List<SimulationEvent> events) {
     return new SimulationAssumptions(
         source.getCurrentAge(),
@@ -55,7 +61,8 @@ final class SimulationAssumptionsPersistenceMapper {
   }
 
   @SuppressWarnings("deprecation")
-  static void write(PersistedSimulationAssumptions target, SimulationAssumptions assumptions) {
+  public static void write(
+      PersistedSimulationAssumptions target, SimulationAssumptions assumptions) {
     target.setCurrentAge(assumptions.currentAge());
     target.setStartYear(assumptions.startYear());
     target.setEndAge(assumptions.endAge());
