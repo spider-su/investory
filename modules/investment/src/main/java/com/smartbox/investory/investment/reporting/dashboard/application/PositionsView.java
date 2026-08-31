@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.reporting.dashboard.application;
 
-import com.smartbox.investory.investment.accounting.model.OpenPositionValue;
+import com.smartbox.investory.investment.performance.model.OpenPositionValue;
 import java.util.List;
 
 public record PositionsView(

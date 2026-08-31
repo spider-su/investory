@@ -1,12 +1,12 @@
 package com.smartbox.investory.testsupport.portfolio;
 
-import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
-import com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity;
-import com.smartbox.investory.investment.infrastructure.persistence.ClosedPosition;
-import com.smartbox.investory.investment.infrastructure.persistence.CurrencyRateEntity;
-import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
+import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
+import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationEntity;
+import com.smartbox.investory.investment.ledger.position.persistence.ClosedPosition;
+import com.smartbox.investory.investment.ledger.position.persistence.OpenedPosition;
+import com.smartbox.investory.investment.valuation.fx.persistence.CurrencyRateEntity;
 import java.util.List;
 
 public record PortfolioTestContext(

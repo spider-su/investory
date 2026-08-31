@@ -2,6 +2,7 @@ package com.smartbox.investory.investment.imports;
 
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportRepository;
+import com.smartbox.investory.investment.notifications.ImportNotificationProducer;
 import java.time.ZonedDateTime;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,9 @@ public class ImportBatchAuditWriter {
   static final int RAW_PAYLOAD_LIMIT = 8 * 1024;
 
   private final ImportRepository importRepository;
+
+  @org.springframework.beans.factory.annotation.Autowired(required = false)
+  private ImportNotificationProducer notificationProducer;
 
   @Transactional(readOnly = true)
   public Optional<ImportHistoryEntity> findExistingAppliedBatch(BrokerType broker, String sha256) {
@@ -96,7 +100,9 @@ public class ImportBatchAuditWriter {
     batch.setRowsFailed(result.rowsFailed());
     batch.setErrorMessage(result.details());
     batch.setFinishedAt(ZonedDateTime.now());
-    return importRepository.save(batch);
+    ImportHistoryEntity saved = importRepository.save(batch);
+    publishFinalized(saved);
+    return saved;
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -114,8 +120,9 @@ public class ImportBatchAuditWriter {
             ? message
             : message + "\n" + payloadPreview);
     batch.setFinishedAt(ZonedDateTime.now());
-    importRepository.save(batch);
-    return batch;
+    ImportHistoryEntity saved = importRepository.save(batch);
+    publishFinalized(saved);
+    return saved;
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -160,5 +167,9 @@ public class ImportBatchAuditWriter {
       }
     }
     return true;
+  }
+
+  private void publishFinalized(ImportHistoryEntity batch) {
+    if (notificationProducer != null) notificationProducer.publishFinalized(batch);
   }
 }

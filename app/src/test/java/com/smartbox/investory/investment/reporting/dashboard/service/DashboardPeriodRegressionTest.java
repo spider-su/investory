@@ -4,9 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.smartbox.investory.investment.accounting.model.Benchmark;
-import com.smartbox.investory.investment.accounting.model.Performance;
-import com.smartbox.investory.investment.accounting.model.Portfolio;
+import com.smartbox.investory.investment.performance.model.Benchmark;
+import com.smartbox.investory.investment.performance.model.Performance;
+import com.smartbox.investory.investment.performance.model.Portfolio;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;

@@ -1,8 +1,8 @@
 package com.smartbox.investory.ui.app;
 
-import com.smartbox.investory.investment.api.InvestmentDashboardApi;
-import com.smartbox.investory.investment.api.InvestmentDashboardApi.DashboardPageView;
-import com.smartbox.investory.investment.api.InvestmentDashboardApi.DashboardQuery;
+import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi;
+import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi.DashboardPageView;
+import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi.DashboardQuery;
 import com.smartbox.investory.ui.common.BuildMetadata;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;

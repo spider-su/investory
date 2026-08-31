@@ -28,7 +28,7 @@ if (fileInput) {
             if (importStatementBtn) {
                 importStatementBtn.disabled = true;
                 importStatementBtn.setAttribute('aria-busy', 'true');
-                importStatementBtn.innerHTML = '<span class="iv-spinner" aria-hidden="true"></span> Importing…';
+                importStatementBtn.innerHTML = '<span class="iv-spinner" aria-hidden="true"></span> Importing statement…';
             }
             if (yahooGenerateBtn) yahooGenerateBtn.disabled = true;
             if (refreshPricesBtn) refreshPricesBtn.disabled = true;
@@ -109,7 +109,7 @@ if (fileInput) {
          const originalExportHtml = yahooGenerateBtn.innerHTML;
          yahooGenerateBtn.disabled = true;
          yahooGenerateBtn.setAttribute('aria-busy', 'true');
-         yahooGenerateBtn.innerHTML = '<span class="iv-spinner" aria-hidden="true"></span> Exporting…';
+         yahooGenerateBtn.innerHTML = '<span class="iv-spinner" aria-hidden="true"></span> Preparing export…';
 
          fetch('/export/generate', {
              method: 'GET',
@@ -137,13 +137,13 @@ if (fileInput) {
                  document.body.removeChild(a);
 
                  if (window.ivNotify) {
-                     window.ivNotify('Downloaded: ' + fileName, 'success');
+                     window.ivNotify('Portfolio exported', 'success');
                  }
              })
              .catch(error => {
                  console.error('Yahoo export error:', error);
                  if (window.ivNotify) {
-                     window.ivNotify('Export failed: ' + error.message, 'error');
+                     window.ivNotify('Couldn’t create the export. Try again.', 'error');
                  }
              })
              .finally(() => {
@@ -161,7 +161,7 @@ if (fileInput) {
      return '<span class="iv-spinner" aria-hidden="true"></span> ' + text + ' (' + Math.floor((Date.now() - startedAt) / 1000) + 's)';
  }
 
- function runDashboardMaintenance(button, url, loadingText, fallbackSuccess, errorLabel) {
+ function runDashboardMaintenance(button, url, loadingText, successMessage, failureMessage) {
      if (!button) return;
      button.disabled = true;
      button.setAttribute('aria-busy', 'true');
@@ -182,18 +182,18 @@ if (fileInput) {
              }
              return response.json();
          })
-         .then(data => {
+         .then(() => {
              if (window.ivNotify) {
-                 window.ivNotify(fallbackSuccess, 'success');
+                 window.ivNotify(successMessage, 'success');
              }
              window.setTimeout(function () {
                  window.location.reload();
              }, 700);
          })
          .catch(error => {
-             console.error(errorLabel + ' error:', error);
+             console.error('Dashboard maintenance error:', error);
              if (window.ivNotify) {
-                 window.ivNotify(errorLabel + ' failed: ' + error.message, 'error');
+                 window.ivNotify(failureMessage, 'error');
              }
          })
          .finally(() => {
@@ -211,7 +211,7 @@ if (fileInput) {
              '/admin/update-history',
              'Updating market data…',
               'Market data updated',
-              'Market data update');
+              'Couldn’t update market data.');
      });
  }
 
@@ -222,7 +222,7 @@ if (fileInput) {
          const originalText = refreshCurrencyBtn.textContent;
          refreshCurrencyBtn.disabled = true;
          refreshCurrencyBtn.setAttribute('aria-busy', 'true');
-         refreshCurrencyBtn.innerHTML = '<span class="iv-spinner" aria-hidden="true"></span> Updating…';
+         refreshCurrencyBtn.innerHTML = '<span class="iv-spinner" aria-hidden="true"></span> Updating exchange rates…';
          if (refreshCurrencyStatus) refreshCurrencyStatus.textContent = '';
          fetch('/admin/refresh-currency', { method: 'POST', credentials: 'same-origin' })
              .then(response => {
@@ -237,8 +237,8 @@ if (fileInput) {
                  window.setTimeout(() => window.location.reload(), 500);
              })
              .catch(error => {
-                 if (refreshCurrencyStatus) refreshCurrencyStatus.textContent = 'Exchange rate update failed: ' + error.message;
-                 if (window.ivNotify) window.ivNotify('Exchange rate update failed: ' + error.message, 'error');
+                 if (refreshCurrencyStatus) refreshCurrencyStatus.textContent = 'Couldn’t update exchange rates.';
+                 if (window.ivNotify) window.ivNotify('Couldn’t update exchange rates.', 'error');
              })
              .finally(() => {
                  refreshCurrencyBtn.disabled = false;
@@ -307,7 +307,7 @@ if (fileInput) {
          }
 
          saveButton.disabled = true;
-         status.textContent = 'Saving...';
+         status.textContent = 'Saving price…';
          status.className = 'iv-form-status';
 
          fetch('/admin/assets/' + encodeURIComponent(symbol) + '/price', {
@@ -324,12 +324,12 @@ if (fileInput) {
                  if (!result.ok) {
                      throw new Error(result.body.message || ('HTTP ' + result.status));
                  }
-                 status.textContent = 'Saved. Refreshing...';
+                 status.textContent = 'Price saved';
                  status.className = 'iv-form-status iv-pos';
                  window.setTimeout(function () { window.location.reload(); }, 450);
              })
              .catch(function (error) {
-                 status.textContent = 'Error: ' + error.message;
+                 status.textContent = 'Couldn’t save the price.';
                  status.className = 'iv-form-status iv-neg';
              })
              .finally(function () {

@@ -21,9 +21,7 @@ class UiVisualRegressionBaselineContractTest {
 
     for (var viewport : viewports.entrySet()) {
       Path baseline = BASELINES.resolve("profile-" + viewport.getKey() + ".png");
-      assertThat(baseline)
-          .as("%s baseline at %s", viewport.getKey(), viewport.getValue())
-          .exists();
+      assertThat(baseline).as("%s baseline at %s", viewport.getKey(), viewport.getValue()).exists();
       assertThat(Files.size(baseline)).isGreaterThan(10_000L);
     }
   }

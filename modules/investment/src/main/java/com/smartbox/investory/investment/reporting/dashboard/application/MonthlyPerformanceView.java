@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.reporting.dashboard.application;
 
-import com.smartbox.investory.investment.accounting.model.MonthlyAttribution;
+import com.smartbox.investory.investment.performance.model.MonthlyAttribution;
 import java.util.Map;
 
 public record MonthlyPerformanceView(

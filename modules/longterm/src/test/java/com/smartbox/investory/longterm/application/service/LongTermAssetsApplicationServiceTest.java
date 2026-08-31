@@ -51,13 +51,7 @@ class LongTermAssetsApplicationServiceTest {
     when(facade.details(1L, 7L, date))
         .thenReturn(
             new LongTermAssetsFacade.DetailView(
-                asset(),
-                summary(),
-                null,
-                null,
-                List.of(),
-                BigDecimal.ZERO,
-                List.of(contract)));
+                asset(), summary(), null, null, List.of(), BigDecimal.ZERO, List.of(contract)));
 
     var result = application.details(1L, 7L, date).contracts().getFirst();
 

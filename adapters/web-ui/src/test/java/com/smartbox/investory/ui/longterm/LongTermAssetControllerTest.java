@@ -66,11 +66,7 @@ class LongTermAssetControllerTest {
   @Test
   void propertyGrowthFormIsSentAsPercentInput() {
     controller.savePropertyGrowth(
-        7L,
-        1L,
-        BigDecimal.ONE,
-        LocalDate.of(2026, 1, 1),
-        new RedirectAttributesModelMap());
+        7L, 1L, BigDecimal.ONE, LocalDate.of(2026, 1, 1), new RedirectAttributesModelMap());
     verify(assets).savePropertyGrowth(1L, 7L, BigDecimal.ONE, LocalDate.of(2026, 1, 1));
   }
 
@@ -178,12 +174,7 @@ class LongTermAssetControllerTest {
 
     String result =
         controller.addValuationPeriod(
-            7L,
-            1L,
-            LocalDate.of(2026, 1, 1),
-            null,
-            new BigDecimal("3.5"),
-            feedback);
+            7L, 1L, LocalDate.of(2026, 1, 1), null, new BigDecimal("3.5"), feedback);
 
     assertEquals("redirect:/long-term-assets/7?portfolioId=1", result);
     assertEquals("Overlapping valuation period", feedback.getFlashAttributes().get("error"));

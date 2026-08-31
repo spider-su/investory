@@ -1,7 +1,7 @@
 package com.smartbox.investory.ui.investment;
 
-import com.smartbox.investory.investment.api.InvestmentPerformanceApi;
-import com.smartbox.investory.investment.api.InvestmentPerformanceApi.PerformanceBoardQuery;
+import com.smartbox.investory.investment.api.reporting.InvestmentPerformanceApi;
+import com.smartbox.investory.investment.api.reporting.InvestmentPerformanceApi.PerformanceBoardQuery;
 import java.util.List;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;

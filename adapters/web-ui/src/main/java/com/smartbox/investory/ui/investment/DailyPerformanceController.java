@@ -1,6 +1,6 @@
 package com.smartbox.investory.ui.investment;
 
-import com.smartbox.investory.investment.api.InvestmentDailyPerformanceApi;
+import com.smartbox.investory.investment.api.reporting.InvestmentDailyPerformanceApi;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.Set;

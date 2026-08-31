@@ -1,15 +1,13 @@
 package com.smartbox.investory.investment.reporting;
 
-import com.smartbox.investory.investment.accounting.model.Benchmark;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsEntity;
-import com.smartbox.investory.investment.market.fx.CurrencyRateService;
+import com.smartbox.investory.investment.performance.model.Benchmark;
+import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -86,7 +84,9 @@ class BenchmarkAccountValueService {
                 Collectors.groupingBy(
                     row -> row.getDate().getYear(), TreeMap::new, Collectors.toList()));
     List<Benchmark.AccountValueYear> years = new ArrayList<>();
-    rowsByYear.descendingMap().forEach((year, rows) -> addYear(years, year, rows, availableAccounts, accountsById));
+    rowsByYear
+        .descendingMap()
+        .forEach((year, rows) -> addYear(years, year, rows, availableAccounts, accountsById));
     return years;
   }
 
@@ -132,7 +132,8 @@ class BenchmarkAccountValueService {
       profitValues.add(round(cumulativeProfit));
       returnValues.add(complete ? round((factor - 1.0) * 100.0) : null);
     }
-    return new Benchmark.AccountValueSeries(account.getId(), account.getName(), profitValues, returnValues);
+    return new Benchmark.AccountValueSeries(
+        account.getId(), account.getName(), profitValues, returnValues);
   }
 
   private Benchmark.AccountValueSeries sumAccountValueSeries(
@@ -179,7 +180,8 @@ class BenchmarkAccountValueService {
   }
 
   private boolean hasAccountValueSurface(AccountStatisticsEntity stat) {
-    return Math.abs(nz(stat.getCashBalance()) + nz(stat.getMarketValue())) > ACTIVE_ACCOUNT_MIN_VALUE
+    return Math.abs(nz(stat.getCashBalance()) + nz(stat.getMarketValue()))
+            > ACTIVE_ACCOUNT_MIN_VALUE
         || Math.abs(nz(stat.getNetDeposit())) > ACTIVE_ACCOUNT_MIN_VALUE;
   }
 

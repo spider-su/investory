@@ -90,7 +90,12 @@ public final class RealEstatePlanningCalculator {
             .orElse(null);
     if (contract == null)
       return new RealEstatePlanningSummary(
-          taxBase, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
+          taxBase,
+          BigDecimal.ZERO,
+          BigDecimal.ZERO,
+          BigDecimal.ZERO,
+          BigDecimal.ZERO,
+          BigDecimal.ZERO);
     BigDecimal income = BigDecimal.ZERO, payment = BigDecimal.ZERO, expenses = BigDecimal.ZERO;
     for (var term : contract.terms()) {
       BigDecimal monthly =
@@ -106,8 +111,7 @@ public final class RealEstatePlanningCalculator {
       // costs are reductions, not part of the monthly payment amount.
       if (isPayment(term.type())
           && term.frequency() == FrequencyModel.MONTHLY
-          && (isIncome(term.type()) || term.paidByTenant()))
-        payment = payment.add(monthly);
+          && (isIncome(term.type()) || term.paidByTenant())) payment = payment.add(monthly);
       if (isExpense(term.type()) && !term.paidByTenant()) expenses = expenses.add(annual);
     }
     boolean tenant =
@@ -116,8 +120,7 @@ public final class RealEstatePlanningCalculator {
             : contract.rentalTaxPaidByTenant();
     BigDecimal effectiveTaxBase =
         contract.monthlyTaxBase() == null ? taxBase : contract.monthlyTaxBase();
-    BigDecimal annualTax =
-        tenant ? BigDecimal.ZERO : annualRentalTax(effectiveTaxBase, taxRate);
+    BigDecimal annualTax = tenant ? BigDecimal.ZERO : annualRentalTax(effectiveTaxBase, taxRate);
     expenses = normalizeMoney(expenses);
     BigDecimal reduce = expenses.add(annualTax).divide(TWELVE, 18, RoundingMode.HALF_UP);
     BigDecimal net = income.subtract(reduce);

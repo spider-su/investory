@@ -139,7 +139,10 @@ class SimulationTemplateContractTest {
         () -> assertTrue(html.contains("iv-card-section-header__action")),
         () -> assertTrue(html.contains(">Sync years</button>")),
         () -> assertFalse(html.contains("Sync planning years")),
-        () -> assertFalse(html.contains("<span class=\"text-secondary\" th:text=\"${simulationPage.displayCurrency}\">PLN</span>")),
+        () ->
+            assertFalse(
+                html.contains(
+                    "<span class=\"text-secondary\" th:text=\"${simulationPage.displayCurrency}\">PLN</span>")),
         () -> assertTrue(html.contains("format.percentage(row.effectiveRate)")),
         () -> assertTrue(html.contains("format.percentage(row.planRate)")),
         () -> assertTrue(html.contains("format.percentagePoints(row.deltaPercentagePoints)")),

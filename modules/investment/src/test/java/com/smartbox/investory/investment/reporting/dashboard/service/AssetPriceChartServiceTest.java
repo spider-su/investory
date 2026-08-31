@@ -7,9 +7,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
-import com.smartbox.investory.investment.infrastructure.persistence.AssetPriceChartRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
+import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
+import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
+import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceChartRepository;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;

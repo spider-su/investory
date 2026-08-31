@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.reporting.dashboard.application;
 
-import com.smartbox.investory.investment.accounting.model.PortfolioDataQualityIssue;
+import com.smartbox.investory.investment.performance.model.PortfolioDataQualityIssue;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;

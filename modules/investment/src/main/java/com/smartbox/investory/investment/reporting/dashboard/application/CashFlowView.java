@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.reporting.dashboard.application;
 
-import com.smartbox.investory.investment.accounting.model.DividendGainer;
+import com.smartbox.investory.investment.performance.model.DividendGainer;
 import java.util.List;
 
 public record CashFlowView(

@@ -1,11 +1,11 @@
 package com.smartbox.investory.retirement.api;
 
-import com.smartbox.investory.investment.api.BrokerageAssetClassification;
-import com.smartbox.investory.investment.api.BrokerageAssetClassificationReader;
-import com.smartbox.investory.investment.api.BrokerageIncomeSnapshot;
-import com.smartbox.investory.investment.api.BrokeragePortfolioReader;
-import com.smartbox.investory.investment.api.BrokeragePositionSnapshot;
-import com.smartbox.investory.investment.api.SharedBrokeragePortfolioSnapshot;
+import com.smartbox.investory.investment.api.portfolio.BrokerageAssetClassification;
+import com.smartbox.investory.investment.api.portfolio.BrokerageAssetClassificationReader;
+import com.smartbox.investory.investment.api.portfolio.BrokerageIncomeSnapshot;
+import com.smartbox.investory.investment.api.portfolio.BrokeragePortfolioReader;
+import com.smartbox.investory.investment.api.portfolio.BrokeragePositionSnapshot;
+import com.smartbox.investory.investment.api.portfolio.SharedBrokeragePortfolioSnapshot;
 import com.smartbox.investory.longterm.api.LongTermAnnualProjectionApi;
 import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
 import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;

@@ -98,8 +98,7 @@ public class LongTermAssetBootstrapService {
             .map(p -> new DatePeriod(p.validFrom(), p.validTo()))
             .toList(),
         "rental tax policies");
-    var storedPolicies =
-        taxPolicies.findAllByPortfolioIdOrderByValidFrom(document.portfolioId());
+    var storedPolicies = taxPolicies.findAllByPortfolioIdOrderByValidFrom(document.portfolioId());
     for (var input : safe(document.rentalTaxPolicies()))
       for (var stored : storedPolicies)
         if (!stored.getValidFrom().equals(input.validFrom())
@@ -166,8 +165,7 @@ public class LongTermAssetBootstrapService {
           && safe(asset.valuationPeriods()).size() > 1)
         throw new IllegalArgumentException(
             "Cash reserve supports one current return assumption: " + asset.externalKey());
-      if (asset.type() == LongTermAssetType.BOND
-          && safe(asset.bondRatePeriods()).size() != 1)
+      if (asset.type() == LongTermAssetType.BOND && safe(asset.bondRatePeriods()).size() != 1)
         throw new IllegalArgumentException(
             "Bond requires one current interest-rate assumption: " + asset.externalKey());
       if (asset.type() == LongTermAssetType.BOND) validateBond(asset);
@@ -467,8 +465,7 @@ public class LongTermAssetBootstrapService {
     if (!periods.isEmpty()) upsertValuation(assetId, periods.getFirst());
   }
 
-  private void replaceBootstrapBondRate(
-      Long assetId, LongTermAssetBootstrapDocument.Period input) {
+  private void replaceBootstrapBondRate(Long assetId, LongTermAssetBootstrapDocument.Period input) {
     var existing = bondRates.findAllByAssetIdOrderByValidFrom(assetId);
     if (!existing.isEmpty()) {
       bondRates.deleteAll(existing);
@@ -510,9 +507,10 @@ public class LongTermAssetBootstrapService {
     for (var asset : safe(document.assets()))
       if (asset.type() == LongTermAssetType.REAL_ESTATE) {
         value = value.add(asset.currentValue());
-        for (var flow : safe(asset.cashFlows()).stream()
-            .filter(flow -> appliesOn(flow, asset.effectiveFrom()))
-            .toList()) {
+        for (var flow :
+            safe(asset.cashFlows()).stream()
+                .filter(flow -> appliesOn(flow, asset.effectiveFrom()))
+                .toList()) {
           var annual =
               flow.frequency() == Frequency.MONTHLY
                   ? flow.amount().multiply(TWELVE)
@@ -533,8 +531,7 @@ public class LongTermAssetBootstrapService {
     return new Totals(value, gross, expenses, tax, gross.subtract(expenses).subtract(tax));
   }
 
-  private static boolean appliesOn(
-      LongTermAssetBootstrapDocument.CashFlow flow, LocalDate date) {
+  private static boolean appliesOn(LongTermAssetBootstrapDocument.CashFlow flow, LocalDate date) {
     return !date.isBefore(flow.validFrom())
         && (flow.validTo() == null || !date.isAfter(flow.validTo()));
   }

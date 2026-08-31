@@ -42,15 +42,20 @@ changes are owned by Flyway.
 
 ## Main code areas
 
-- `investment`: brokerage imports, accounting, market/FX, reporting/dashboard, reconciliation, and
-  Investment persistence. Its cross-domain reads are interfaces and immutable records in
-  `investment.api`; repository-backed readers live in `investment.infrastructure.read`.
+- `investment`: brokerage imports, ledger, valuation, performance, projections,
+  reporting/dashboard, reconciliation, and Investment persistence. Public contracts are grouped by
+  capability under `investment.api`; external provider ports are grouped under `investment.port`.
+  Clearly owned persistence stays beside its slice (for example `ledger.position.persistence` and
+  `valuation.fx.persistence`); shared reporting projections remain under `infrastructure.persistence`.
 - `longterm`: manual non-brokerage asset application services, persistence, and public read contracts
   in `longterm.api`.
 - `retirement`: profile composition, planning, simulation, and their persistence adapters.
-- `shared`: domain-neutral currency conversion, portfolio context, and presentation primitives exposed
+- `shared`: domain-neutral currency conversion, portfolio context, notification producer contracts,
+  and presentation primitives exposed
   from the Investment public surface where required by the current Maven layout.
-- `integrations`: external adapters plus integration and notification persistence.
+- `integrations`: external adapters, provider configuration, scheduling, export state, and integration
+  and notification persistence. It consumes Investment only through `investment.api` and
+  `investment.port`.
 - `app`: application composition, security, scheduling, executable packaging, Flyway resources, and
   global UI concerns.
 
@@ -88,6 +93,7 @@ projection. They do not copy Investment or Long-Term persistence models and do n
 of accounting truth.
 
 See `docs/architecture/reporting-pipeline.md` for the reporting lineage.
+See `docs/architecture/notifications.md` for durable notification lifecycle and adapter boundaries.
 
 ## Runtime boundaries
 
@@ -146,13 +152,30 @@ the normalized economic inputs needed to reproduce its Future projection. Later 
 Long-Term changes update Current but do not mutate that revision. Accepting those changes into Future
 is an explicit review/rebaseline operation that creates a new revision.
 
-`investment.api.BrokeragePortfolioReader` publishes immutable shared brokerage snapshots for
+`investment.api.portfolio.BrokeragePortfolioReader` publishes immutable shared brokerage snapshots for
 profile composition; its Spring implementation is
-`investment.infrastructure.read.BrokeragePortfolioReadService` and it is not multi-portfolio scoped.
+`investment.infrastructure.read.BrokeragePortfolioContextReadService` and it is not multi-portfolio scoped.
 `BrokerageAssetClassificationReader` supplies
 the optional symbol classification needed by the profile, and `HistoricalPortfolioActualsReader`
 supplies portfolio-scoped calendar-year planning facts. Their Investment implementations retain
 persistence access behind the boundary.
+
+Market and FX provider configuration is adapter-owned. Investment defines `MarketDataProvider` and
+`FxRateProvider`; TwelveData, Yahoo Finance, and ExchangeRateHost implementations live in
+`integrations`. Secondary exporters read a typed `PortfolioExportSnapshotReader`, and their own
+delivery/export state remains in `integrations`. Telegram, notifications, health checks, and AI use
+typed Investment query/command APIs; they do not read Investment repositories or scrape rendered UI.
+
+Inside Investment, dependency direction is ledger -> valuation -> projection/performance -> reporting
+and public application APIs. Higher-level slices may read lower-level persistence. Ledger does not
+depend back on valuation or reporting; valuation does not depend on dashboard or reconciliation.
+Refresh/cache coordination between valuation and projections remains a known orchestration seam.
+Imports remain the write boundary for broker evidence and normalized ledger rows.
+
+Profile composition currently remains in Retirement because `InvestmentProfile` is also the planning
+and simulation input. Extracting only its facade would create a Retirement/Profile module cycle.
+The composition service reads Investment and Long-Term through their public APIs, so Long-Term assets
+are never read directly from Investment persistence or copied into Investment tables.
 
 `shared.portfolio.PortfolioContextReader` supplies optional portfolio identity and base currency for
 Long-Term validation and aggregation. The Investment-owned repository-backed implementation preserves

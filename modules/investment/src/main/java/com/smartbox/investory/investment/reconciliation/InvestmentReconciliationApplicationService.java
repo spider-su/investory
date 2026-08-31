@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.reconciliation;
 
-import com.smartbox.investory.investment.api.InvestmentReconciliationApi;
+import com.smartbox.investory.investment.api.reporting.InvestmentReconciliationApi;
 import java.time.Instant;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;

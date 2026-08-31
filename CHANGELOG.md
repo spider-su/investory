@@ -4,6 +4,14 @@ Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains fut
 
 ## 2026-08-25
 
+### Durable notification events
+
+- Added a channel-neutral notification candidate contract and durable fingerprinted outbox with
+  bounded retry/delivery state.
+- Added P0 producers for persisted system-audit errors, failed/partial imports, and reviewed
+  retirement-plan transitions to unsustainable.
+- Added event-specific Telegram formatters with actionable links while keeping Telegram optional.
+
 ### Investment module hardening
 
 - Migrated `MarketService` from deprecated open/closed compatibility repositories to the canonical

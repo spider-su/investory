@@ -5,9 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.accounting.model.Benchmark;
-import com.smartbox.investory.investment.api.InvestmentPerformanceApi.PerformanceBoardQuery;
-import com.smartbox.investory.investment.api.InvestmentPerformanceApi.PerformanceBoardView;
+import com.smartbox.investory.investment.api.reporting.InvestmentPerformanceApi.PerformanceBoardQuery;
+import com.smartbox.investory.investment.api.reporting.InvestmentPerformanceApi.PerformanceBoardView;
+import com.smartbox.investory.investment.performance.model.Benchmark;
 import com.smartbox.investory.investment.reporting.BenchmarkService;
 import java.util.List;
 import org.junit.jupiter.api.Test;

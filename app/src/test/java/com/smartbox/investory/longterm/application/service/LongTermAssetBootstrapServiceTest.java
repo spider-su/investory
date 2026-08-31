@@ -194,10 +194,7 @@ class LongTermAssetBootstrapServiceTest {
             List.of(),
             null,
             new LongTermAssetBootstrapDocument.Deposit(
-                null,
-                InterestTreatment.PAY_OUT,
-                new BigDecimal("0.05"),
-                new BigDecimal("0.19")));
+                null, InterestTreatment.PAY_OUT, new BigDecimal("0.05"), new BigDecimal("0.19")));
 
     assertThrows(
         IllegalArgumentException.class,

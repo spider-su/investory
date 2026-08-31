@@ -1,6 +1,6 @@
 package com.smartbox.investory.ui.investment;
 
-import com.smartbox.investory.investment.api.InvestmentPerformanceApi;
+import com.smartbox.investory.investment.api.reporting.InvestmentPerformanceApi;
 import java.util.Arrays;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;

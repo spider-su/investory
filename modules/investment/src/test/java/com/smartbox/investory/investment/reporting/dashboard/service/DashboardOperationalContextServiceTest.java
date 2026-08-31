@@ -4,9 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.accounting.model.Portfolio;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportRepository;
+import com.smartbox.investory.investment.performance.model.Portfolio;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 

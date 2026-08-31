@@ -1,14 +1,14 @@
 package com.smartbox.investory.investment.reporting.dashboard.application;
 
-import com.smartbox.investory.investment.accounting.PortfolioService;
-import com.smartbox.investory.investment.accounting.model.AccountBalance;
-import com.smartbox.investory.investment.accounting.model.Benchmark;
-import com.smartbox.investory.investment.accounting.model.InstrumentPerformance;
-import com.smartbox.investory.investment.accounting.model.MonthlyAttribution;
-import com.smartbox.investory.investment.accounting.model.Performance;
-import com.smartbox.investory.investment.accounting.model.Portfolio;
-import com.smartbox.investory.investment.accounting.model.PortfolioDataQuality;
-import com.smartbox.investory.investment.accounting.model.RiskExposureSummary;
+import com.smartbox.investory.investment.performance.PortfolioService;
+import com.smartbox.investory.investment.performance.model.AccountBalance;
+import com.smartbox.investory.investment.performance.model.Benchmark;
+import com.smartbox.investory.investment.performance.model.InstrumentPerformance;
+import com.smartbox.investory.investment.performance.model.MonthlyAttribution;
+import com.smartbox.investory.investment.performance.model.Performance;
+import com.smartbox.investory.investment.performance.model.Portfolio;
+import com.smartbox.investory.investment.performance.model.PortfolioDataQuality;
+import com.smartbox.investory.investment.performance.model.RiskExposureSummary;
 import com.smartbox.investory.investment.reporting.BenchmarkService;
 import com.smartbox.investory.investment.reporting.PerformanceResult;
 import com.smartbox.investory.investment.reporting.PortfolioPerformanceQuery;
@@ -145,8 +145,7 @@ public class DashboardFacade {
   public PerformanceKpi loadPerformanceKpi(Long portfolioId) {
     Portfolio portfolio =
         DashboardCalculationCopies.portfolio(portfolioService.calculateTotalProfitLoss());
-    return performanceKpi(
-        canonicalKpiPerformance(portfolio.getMonthlyPerformance(), portfolioId));
+    return performanceKpi(canonicalKpiPerformance(portfolio.getMonthlyPerformance(), portfolioId));
   }
 
   public record PerformanceKpi(
@@ -682,9 +681,9 @@ public class DashboardFacade {
         Comparator.comparingDouble(InstrumentPerformance::getTotal);
     List<InstrumentPerformance> matching =
         portfolio.getPerformancePerSymbol().stream()
-        .filter(row -> gainers ? row.getTotal() >= 0 : row.getTotal() < 0)
-        .sorted(gainers ? order.reversed() : order)
-        .toList();
+            .filter(row -> gainers ? row.getTotal() >= 0 : row.getTotal() < 0)
+            .sorted(gainers ? order.reversed() : order)
+            .toList();
     if (matching.size() <= ATTRIBUTION_NAMED_LIMIT) {
       return matching;
     }

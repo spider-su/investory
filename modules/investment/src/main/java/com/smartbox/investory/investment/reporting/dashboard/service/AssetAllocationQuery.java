@@ -1,10 +1,10 @@
 package com.smartbox.investory.investment.reporting.dashboard.service;
 
-import com.smartbox.investory.investment.accounting.model.Portfolio;
-import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
-import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocationEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocationRepository;
+import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
+import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
+import com.smartbox.investory.investment.performance.model.Portfolio;
 import com.smartbox.investory.investment.reporting.dashboard.application.AssetAllocationView;
 import java.util.ArrayList;
 import java.util.Comparator;

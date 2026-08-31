@@ -2,11 +2,11 @@ package com.smartbox.investory.longterm.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.smartbox.investory.longterm.application.model.RealEstatePlanningSummary;
-import com.smartbox.investory.longterm.application.service.RealEstatePlanningCalculator;
 import com.smartbox.investory.longterm.api.model.CashFlowTypeModel;
 import com.smartbox.investory.longterm.api.model.FrequencyModel;
 import com.smartbox.investory.longterm.api.model.RentalContractModel;
+import com.smartbox.investory.longterm.application.model.RealEstatePlanningSummary;
+import com.smartbox.investory.longterm.application.service.RealEstatePlanningCalculator;
 import com.smartbox.investory.longterm.infrastructure.rental.CashFlowType;
 import com.smartbox.investory.longterm.infrastructure.rental.Frequency;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetCashFlowEntity;
@@ -59,10 +59,7 @@ class RealEstatePlanningCalculatorTest {
             null,
             List.of(
                 new RentalContractModel.Term(
-                    CashFlowTypeModel.RENT,
-                    new BigDecimal("3000"),
-                    FrequencyModel.MONTHLY,
-                    false),
+                    CashFlowTypeModel.RENT, new BigDecimal("3000"), FrequencyModel.MONTHLY, false),
                 new RentalContractModel.Term(
                     CashFlowTypeModel.ADMIN_FEE,
                     new BigDecimal("600"),

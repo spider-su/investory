@@ -4,9 +4,9 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 import com.smartbox.investory.integrations.bot.PortfolioBot;
-import com.smartbox.investory.investment.accounting.PortfolioService;
-import com.smartbox.investory.investment.accounting.model.Portfolio;
-import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.investment.api.operations.PortfolioOperationsReader;
+import com.smartbox.investory.investment.api.operations.PortfolioOperationsReader.PortfolioOperationsSnapshot;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,7 +22,7 @@ class NotificationServiceTest {
 
   @Mock private ObjectProvider<PortfolioBot> botProvider;
   @Mock private PortfolioBot bot;
-  @Mock private PortfolioService portfolioService;
+  @Mock private PortfolioOperationsReader investment;
   @Mock private AlertRule firingRule;
   @Mock private AlertRule silentRule;
   @Mock private AlertRule throwingRule;
@@ -39,27 +39,20 @@ class NotificationServiceTest {
   @Test
   void sendDailyDigest_skipsWhenNotificationsDisabled() {
     properties.setEnabled(false);
-    service = new NotificationService(botProvider, portfolioService, List.of(), properties);
+    service = new NotificationService(botProvider, investment, List.of(), properties);
 
     service.sendDailyDigest();
 
-    verifyNoInteractions(portfolioService, botProvider, bot);
+    verifyNoInteractions(investment, botProvider, bot);
   }
 
   @Test
   void sendDailyDigest_buildsAndSendsMessageWhenBotAvailable() {
-    Portfolio portfolio = new Portfolio();
-    portfolio.setBaseCurrency(CurrencyType.USD);
-    portfolio.setBalance(12345.0);
-    portfolio.setTotalProfit(678.0);
-    portfolio.setUnrealizedProfit(100.0);
-    portfolio.setRealizedProfit(578.0);
-    portfolio.setDividends(50.0);
-    portfolio.setCapitalGainsTax(12.5);
-    when(portfolioService.calculateTotalProfitLoss()).thenReturn(portfolio);
+    PortfolioOperationsSnapshot portfolio = portfolio(12345, 678, 100, 578, 50, 12.5);
+    when(investment.portfolio()).thenReturn(portfolio);
     when(botProvider.getIfAvailable()).thenReturn(bot);
 
-    service = new NotificationService(botProvider, portfolioService, List.of(), properties);
+    service = new NotificationService(botProvider, investment, List.of(), properties);
     service.sendDailyDigest();
 
     ArgumentCaptor<String> messageCaptor = ArgumentCaptor.forClass(String.class);
@@ -72,20 +65,19 @@ class NotificationServiceTest {
 
   @Test
   void sendDailyDigest_logsWhenBotUnavailable() {
-    Portfolio portfolio = new Portfolio();
-    portfolio.setBaseCurrency(CurrencyType.USD);
-    when(portfolioService.calculateTotalProfitLoss()).thenReturn(portfolio);
+    PortfolioOperationsSnapshot portfolio = portfolio(0, 0, 0, 0, 0, 0);
+    when(investment.portfolio()).thenReturn(portfolio);
     when(botProvider.getIfAvailable()).thenReturn(null);
 
-    service = new NotificationService(botProvider, portfolioService, List.of(), properties);
+    service = new NotificationService(botProvider, investment, List.of(), properties);
     // Just assert it does not throw and does not call bot.sendMessage (no bot was returned).
     service.sendDailyDigest();
   }
 
   @Test
   void sendDailyDigest_swallowsExceptions() {
-    when(portfolioService.calculateTotalProfitLoss()).thenThrow(new RuntimeException("boom"));
-    service = new NotificationService(botProvider, portfolioService, List.of(), properties);
+    when(investment.portfolio()).thenThrow(new RuntimeException("boom"));
+    service = new NotificationService(botProvider, investment, List.of(), properties);
 
     // Must not propagate; scheduler keeps running.
     service.sendDailyDigest();
@@ -105,10 +97,7 @@ class NotificationServiceTest {
 
     service =
         new NotificationService(
-            botProvider,
-            portfolioService,
-            List.of(firingRule, silentRule, throwingRule),
-            properties);
+            botProvider, investment, List.of(firingRule, silentRule, throwingRule), properties);
     service.runAlerts();
 
     ArgumentCaptor<String> messageCaptor = ArgumentCaptor.forClass(String.class);
@@ -119,11 +108,27 @@ class NotificationServiceTest {
   @Test
   void runAlerts_skipsWhenDisabled() {
     properties.setEnabled(false);
-    service =
-        new NotificationService(botProvider, portfolioService, List.of(firingRule), properties);
+    service = new NotificationService(botProvider, investment, List.of(firingRule), properties);
 
     service.runAlerts();
 
     verifyNoInteractions(firingRule);
+  }
+
+  private static PortfolioOperationsSnapshot portfolio(
+      double balance,
+      double total,
+      double unrealized,
+      double realized,
+      double dividends,
+      double tax) {
+    return new PortfolioOperationsSnapshot(
+        "USD",
+        BigDecimal.valueOf(balance),
+        BigDecimal.valueOf(total),
+        BigDecimal.valueOf(unrealized),
+        BigDecimal.valueOf(realized),
+        BigDecimal.valueOf(dividends),
+        BigDecimal.valueOf(tax));
   }
 }

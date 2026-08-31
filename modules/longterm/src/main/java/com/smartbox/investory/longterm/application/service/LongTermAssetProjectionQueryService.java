@@ -181,5 +181,4 @@ public class LongTermAssetProjectionQueryService {
   private boolean activeOn(LongTermAssetEntity asset, LocalDate date) {
     return lifecycle.activeOn(asset, date);
   }
-
 }

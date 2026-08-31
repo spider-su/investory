@@ -1,8 +1,8 @@
 package com.smartbox.investory.investment.reporting.dashboard.service;
 
-import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
-import com.smartbox.investory.investment.infrastructure.persistence.AssetPriceChartRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
+import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
+import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
+import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceChartRepository;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.List;

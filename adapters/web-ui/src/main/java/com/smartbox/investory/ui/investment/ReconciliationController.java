@@ -1,6 +1,6 @@
 package com.smartbox.investory.ui.investment;
 
-import com.smartbox.investory.investment.api.InvestmentReconciliationApi;
+import com.smartbox.investory.investment.api.reporting.InvestmentReconciliationApi;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;

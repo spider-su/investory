@@ -1,8 +1,8 @@
 package com.smartbox.investory.investment.infrastructure.read;
 
-import com.smartbox.investory.investment.api.BrokerageAssetClassification;
-import com.smartbox.investory.investment.api.BrokerageAssetClassificationReader;
-import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
+import com.smartbox.investory.investment.api.portfolio.BrokerageAssetClassification;
+import com.smartbox.investory.investment.api.portfolio.BrokerageAssetClassificationReader;
+import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

@@ -1,7 +1,7 @@
 package com.smartbox.investory.investment.infrastructure.read;
 
-import com.smartbox.investory.investment.api.HistoricalPortfolioActualsReader;
-import com.smartbox.investory.investment.api.HistoricalPortfolioYear;
+import com.smartbox.investory.investment.api.reporting.HistoricalPortfolioActualsReader;
+import com.smartbox.investory.investment.api.reporting.HistoricalPortfolioYear;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceRepository;
 import java.math.BigDecimal;

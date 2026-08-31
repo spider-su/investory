@@ -10,6 +10,9 @@ on:
 permissions:
   contents: read
 
+env:
+  MAVEN_USER_HOME: ${{ github.workspace }}/.m2
+
 concurrency:
   group: tests-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -41,17 +44,22 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
-          cache: maven
+
+      - name: Restore Maven cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.m2
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml', '.mvn/wrapper/maven-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
 
       - name: Run tests
-        run: sh ./mvnw --batch-mode --no-transfer-progress "-Duser.home=$RUNNER_TEMP" "-Dmaven.repo.local=$RUNNER_TEMP/m2" test
+        run: sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" test
 
   it:
     name: IT
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/playwright
 
     steps:
       - name: Check out repository
@@ -62,20 +70,30 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
-          cache: maven
+
+      - name: Restore Maven cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.m2
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml', '.mvn/wrapper/maven-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
 
       - name: Install Playwright Chromium
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/playwright
         run: |
-          sh ./mvnw --batch-mode --no-transfer-progress "-Duser.home=$RUNNER_TEMP" "-Dmaven.repo.local=$RUNNER_TEMP/m2" -pl app -am -DskipTests install
-          sh ./mvnw --batch-mode --no-transfer-progress "-Duser.home=$RUNNER_TEMP" "-Dmaven.repo.local=$RUNNER_TEMP/m2" -pl app exec:java -Dexec.classpathScope=test -Dexec.mainClass=com.microsoft.playwright.CLI -Dexec.args="install --with-deps chromium"
+          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl app -am -DskipTests install
+          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl app exec:java -Dexec.classpathScope=test -Dexec.mainClass=com.microsoft.playwright.CLI -Dexec.args="install --with-deps chromium"
 
       - name: Run integration tests
         env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/playwright
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         run: |
-          sh ./mvnw --batch-mode --no-transfer-progress "-Duser.home=$RUNNER_TEMP" "-Dmaven.repo.local=$RUNNER_TEMP/m2" -pl app -am -DskipTests install
-          sh ./mvnw --batch-mode --no-transfer-progress "-Duser.home=$RUNNER_TEMP" "-Dmaven.repo.local=$RUNNER_TEMP/m2" -pl app test-compile failsafe:integration-test failsafe:verify \
-            "-Dit.test=ValuationInputContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,CurrencyRateUpdaterPostgresIT,SchemaMigrationCheckpoint2IT,IbkrTreasuryImportIT,XtbImportIT,UiPageSmokeIT,LongTermAssetCrudUiIT"
+          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl app -am -DskipTests install
+          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl app test-compile failsafe:integration-test failsafe:verify \
+            "-Dit.test=ValuationInputContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,CurrencyRateUpdaterPostgresIT,SchemaMigrationCheckpoint2IT,IbkrTreasuryImportIT,XtbImportIT,UiPageSmokeIT,LongTermAssetCrudUiIT,InvestmentDashboardGoldenUiIT"
 
   goldenPath:
     name: Golden path
@@ -91,14 +109,21 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
-          cache: maven
+
+      - name: Restore Maven cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.m2
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml', '.mvn/wrapper/maven-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
 
       - name: Run offline golden gate
         run: |
-          sh ./mvnw --batch-mode --no-transfer-progress "-Duser.home=$RUNNER_TEMP" "-Dmaven.repo.local=$RUNNER_TEMP/m2" -pl app -am -DskipTests install
-          sh ./mvnw --batch-mode --no-transfer-progress "-Duser.home=$RUNNER_TEMP" "-Dmaven.repo.local=$RUNNER_TEMP/m2" -pl app \
+          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl app -am -DskipTests install
+          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl app \
             "-Dmaven.compiler.useIncrementalCompilation=false" \
             "-Dtest=GoldenRebuildIT" test
 
       - name: Check formatting
-        run: sh ./mvnw --batch-mode --no-transfer-progress "-Duser.home=$RUNNER_TEMP" "-Dmaven.repo.local=$RUNNER_TEMP/m2" spotless:check
+        run: sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" spotless:check

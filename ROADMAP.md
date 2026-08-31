@@ -8,8 +8,10 @@ only routes coding agents to those sources.
 ## Next priorities (high impact, low risk)
 
 1. **Align dashboard profit explanation with the service formula** _(S)_ - the headline is calculated from realized P/L, unrealized P/L, net dividends, and interest, while one dashboard popover describes it as portfolio value minus net deposits. Show the implemented formula and expose any reconciliation difference separately.
-2. **Persist `DrawdownAlertRule` peak equity** _(S)_ - currently in-memory and resets on every restart. Store it in a dedicated `notification_state` table; do not restore the removed `portfolio_history` table.
-3. **Per-rule alert deduplication** _(S)_ - the same condition can fire every weekday at the 22:22 notification run. Add `last_fired_at` per `AlertRule.code()` and only re-fire after N hours or a state change.
+2. **Move drawdown, concentration, and stale-import rules onto durable transitions** _(M)_ - use the
+   notification outbox plus persisted threshold/recovery state; do not fire again while state is unchanged.
+3. **Add P1 maturity and contract-expiry producers** _(M)_ - rental expiry at 60/30/7 days and
+   Bond/Deposit maturity at 30/7 days, with rollover/strategy context and stable fingerprints.
 
 The verification gate is intentionally first: accounting/import changes should not be considered complete until the reduced real-world corpus rebuilds cleanly and reproducibly.
 
@@ -49,11 +51,11 @@ asset reactivation, and subtype-specific creation are supported.
 
 | Item | Effort | Why |
 |---|---|---|
-| `notification_event` table + repository (rule_code, message, fired_at, ack_at) | M | Foundation for dedup, history, in-app inbox. |
 | "Notifications" tab on dashboard | M | Read from `notification_event`; lets you ack or mute rules from the UI. |
 | Mute / snooze per rule (`POST /notifications/rules/{code}/mute`) | S | Pairs with the tab; admin-only. |
-| `WeeklyPnlAlertRule` (Friday-only digest of last 5 days) | S | Concrete demo that the SPI is genuinely pluggable. |
-| Telegram retry queue + circuit breaker | M | Today a failed Telegram send is just logged. Move to a small in-memory queue with backoff so a flaky network doesn't drop messages. |
+| Replace daily digest with weekly portfolio digest | S | Keep routine movement out of immediate alerts; include income, drawdown, concentration, upcoming obligations, plan status, warnings, and tax estimate. |
+| Recovery notifications and operator replay | M | Persist recovery for P0/P1 state transitions and provide a safe replay path for `EXHAUSTED` events. |
+| Remaining action rules | M | Stuck imports, stale price/FX data, annual plan review, and material live-versus-baseline deviation. |
 
 ## Theme D - Import depth
 

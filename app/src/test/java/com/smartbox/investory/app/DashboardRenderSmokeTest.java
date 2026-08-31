@@ -4,9 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.accounting.PortfolioService;
-import com.smartbox.investory.investment.accounting.model.Benchmark;
-import com.smartbox.investory.investment.accounting.model.Portfolio;
+import com.smartbox.investory.investment.performance.PortfolioService;
+import com.smartbox.investory.investment.performance.model.Benchmark;
+import com.smartbox.investory.investment.performance.model.Portfolio;
 import com.smartbox.investory.investment.reporting.BenchmarkService;
 import com.smartbox.investory.investment.reporting.dashboard.application.DashboardFacade;
 import com.smartbox.investory.investment.reporting.dashboard.application.DashboardQuery;

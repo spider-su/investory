@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.reconciliation;
 
-import com.smartbox.investory.investment.infrastructure.integration.export.yahoo.YahooExportService;
+import com.smartbox.investory.investment.port.export.SecondaryAdapterStatusReader;
 import java.time.Instant;
 import java.util.List;
 import org.springframework.stereotype.Component;
@@ -9,10 +9,10 @@ import org.springframework.stereotype.Component;
 @Component
 final class SecondaryAdapterReconciliationCheck implements ReconciliationCheck {
 
-  private final YahooExportService yahooExportService;
+  private final SecondaryAdapterStatusReader statusReader;
 
-  SecondaryAdapterReconciliationCheck(YahooExportService yahooExportService) {
-    this.yahooExportService = yahooExportService;
+  SecondaryAdapterReconciliationCheck(SecondaryAdapterStatusReader statusReader) {
+    this.statusReader = statusReader;
   }
 
   @Override
@@ -22,7 +22,7 @@ final class SecondaryAdapterReconciliationCheck implements ReconciliationCheck {
 
   @Override
   public ReconciliationCheckResult execute(ReconciliationContext context) {
-    YahooExportService.YahooExportStatus export = yahooExportService.status();
+    SecondaryAdapterStatusReader.ExportStatus export = statusReader.status();
     if (export.lastExport() == null) {
       return result(
           ReconciliationStatus.REVIEW,

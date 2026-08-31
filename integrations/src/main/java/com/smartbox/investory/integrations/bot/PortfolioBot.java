@@ -1,10 +1,8 @@
 package com.smartbox.investory.integrations.bot;
 
 import com.smartbox.investory.integrations.openai.OpenAiChatService;
-import com.smartbox.investory.investment.imports.BrokerType;
-import com.smartbox.investory.investment.imports.ImportBatchResponse;
-import com.smartbox.investory.investment.imports.ImportOrchestratorService;
-import com.smartbox.investory.investment.imports.ImportSourceType;
+import com.smartbox.investory.investment.api.importing.InvestmentImportApi;
+import com.smartbox.investory.investment.api.importing.InvestmentImportApi.ImportResult;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Locale;
@@ -37,17 +35,17 @@ public class PortfolioBot extends TelegramLongPollingBot {
   @Value("${app.telegram.bot-username:}")
   private String botUsername;
 
-  private final ImportOrchestratorService importOrchestratorService;
+  private final InvestmentImportApi investmentImports;
   private final OpenAiChatService openAiChatService;
   private final PortfolioCommandRouter portfolioCommandRouter;
 
   public PortfolioBot(
       @Value("${app.telegram.bot-token:}") String botToken,
-      ImportOrchestratorService importOrchestratorService,
+      InvestmentImportApi investmentImports,
       OpenAiChatService openAiChatService,
       PortfolioCommandRouter portfolioCommandRouter) {
     super(botToken);
-    this.importOrchestratorService = importOrchestratorService;
+    this.investmentImports = investmentImports;
     this.openAiChatService = openAiChatService;
     this.portfolioCommandRouter = portfolioCommandRouter;
   }
@@ -138,7 +136,7 @@ public class PortfolioBot extends TelegramLongPollingBot {
       return;
     }
 
-    BrokerType broker = detectBroker(fileName);
+    String broker = detectBroker(fileName);
     if (broker == null) {
       sendTo(
           replyChatId,
@@ -150,9 +148,8 @@ public class PortfolioBot extends TelegramLongPollingBot {
 
     try {
       byte[] bytes = downloadDocumentBytes(document);
-      ImportBatchResponse result =
-          importOrchestratorService.importFile(
-              broker, bytes, fileName, ImportSourceType.TELEGRAM, replyChatId);
+      ImportResult result =
+          investmentImports.importForBroker(broker, fileName, bytes, "TELEGRAM", replyChatId);
       sendTo(replyChatId, formatImportSummary(result));
     } catch (Exception e) {
       log.warn("Telegram import failed for {}", fileName, e);
@@ -181,27 +178,27 @@ public class PortfolioBot extends TelegramLongPollingBot {
     }
   }
 
-  static BrokerType detectBroker(String fileName) {
+  static String detectBroker(String fileName) {
     if (fileName == null) {
       return null;
     }
     String lower = fileName.toLowerCase(Locale.ROOT);
     if (lower.contains("xtb")) {
-      return BrokerType.XTB;
+      return "XTB";
     }
     if (lower.contains("ibkr")) {
-      return BrokerType.IBKR;
+      return "IBKR";
     }
     if (IBKR_TRANSACTION_FILE.matcher(lower).matches()) {
-      return BrokerType.IBKR;
+      return "IBKR";
     }
     if (lower.endsWith(".xlsx")) {
-      return BrokerType.XTB;
+      return "XTB";
     }
     return null;
   }
 
-  private String formatImportSummary(ImportBatchResponse r) {
+  private String formatImportSummary(ImportResult r) {
     StringBuilder sb = new StringBuilder();
     sb.append(r.duplicate() ? "Already imported." : "Import complete.").append('\n');
     sb.append("Broker: ").append(r.broker()).append('\n');
@@ -239,5 +236,20 @@ public class PortfolioBot extends TelegramLongPollingBot {
       return;
     }
     sendTo(chatId.trim(), data);
+  }
+
+  /** Delivery-outbox entry point. Returns only after Telegram confirms every message chunk. */
+  public void sendMessageConfirmed(String data) {
+    if (chatId == null || chatId.isBlank()) {
+      throw new IllegalStateException("Telegram chat-id is not configured");
+    }
+    for (int start = 0; start < data.length(); start += MAX_MESSAGE_LENGTH) {
+      int end = Math.min(start + MAX_MESSAGE_LENGTH, data.length());
+      try {
+        execute(new SendMessage(chatId.trim(), data.substring(start, end)));
+      } catch (TelegramApiException exception) {
+        throw new IllegalStateException("Telegram rejected notification delivery", exception);
+      }
+    }
   }
 }

@@ -9,9 +9,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.accounting.model.Benchmark;
-import com.smartbox.investory.investment.infrastructure.market.client.TwelveDataService;
-import com.smartbox.investory.investment.infrastructure.persistence.NormalizedCashOperationRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
@@ -22,7 +19,10 @@ import com.smartbox.investory.investment.infrastructure.persistence.account.Acco
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.benchmark.BenchmarkMonthlyCloseEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.benchmark.BenchmarkMonthlyCloseRepository;
-import com.smartbox.investory.investment.market.fx.CurrencyRateService;
+import com.smartbox.investory.investment.ledger.cash.persistence.NormalizedCashOperationRepository;
+import com.smartbox.investory.investment.performance.model.Benchmark;
+import com.smartbox.investory.investment.port.market.MarketDataProvider;
+import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
@@ -47,7 +47,7 @@ class BenchmarkServiceTest {
   @Mock private AccountStatisticsRepository accountStatisticsRepository;
   @Mock private NormalizedCashOperationRepository normalizedCashOperationRepository;
   @Mock private BenchmarkMonthlyCloseRepository benchmarkMonthlyCloseRepository;
-  @Mock private TwelveDataService twelveDataService;
+  @Mock private MarketDataProvider marketDataProvider;
   @Mock private CurrencyRateService currencyRateService;
 
   private BenchmarkService benchmarkService;
@@ -61,7 +61,7 @@ class BenchmarkServiceTest {
             accountRepository,
             accountStatisticsRepository,
             new BenchmarkAccountValueService(currencyRateService),
-            new BenchmarkMarketDataService(benchmarkMonthlyCloseRepository, twelveDataService),
+            new BenchmarkMarketDataService(benchmarkMonthlyCloseRepository, marketDataProvider),
             "2026-01");
     org.mockito.Mockito.lenient()
         .when(accountRepository.findMapByIdIn(any()))
@@ -120,7 +120,7 @@ class BenchmarkServiceTest {
     closes.put("2025-12", 500.0);
     closes.put("2026-01", 500.0);
     closes.put("2026-02", 525.0);
-    when(twelveDataService.fetchMonthlyCloses(anyString(), anyInt())).thenReturn(closes);
+    when(marketDataProvider.fetchMonthlyCloses(anyString(), anyInt())).thenReturn(closes);
     when(benchmarkMonthlyCloseRepository.findBySymbolOrderByMonthDateAsc("SPY"))
         .thenReturn(List.of())
         .thenReturn(
@@ -294,7 +294,7 @@ class BenchmarkServiceTest {
     Benchmark benchmark = benchmarkService.calculate();
 
     assertTrue(benchmark.isAvailable());
-    verify(twelveDataService, never()).fetchMonthlyCloses(anyString(), anyInt());
+    verify(marketDataProvider, never()).fetchMonthlyCloses(anyString(), anyInt());
     verify(benchmarkMonthlyCloseRepository, never()).saveAll(anyList());
   }
 
@@ -431,7 +431,7 @@ class BenchmarkServiceTest {
     closes.put("2025-12", 500.0);
     closes.put("2026-01", 500.0);
     closes.put("2026-02", 525.0);
-    when(twelveDataService.fetchMonthlyCloses(anyString(), anyInt())).thenReturn(closes);
+    when(marketDataProvider.fetchMonthlyCloses(anyString(), anyInt())).thenReturn(closes);
     when(benchmarkMonthlyCloseRepository.findBySymbolOrderByMonthDateAsc("SPY"))
         .thenReturn(List.of())
         .thenReturn(

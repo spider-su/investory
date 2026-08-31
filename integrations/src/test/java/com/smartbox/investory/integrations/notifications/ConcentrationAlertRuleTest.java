@@ -2,15 +2,11 @@ package com.smartbox.investory.integrations.notifications;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
-import com.smartbox.investory.investment.infrastructure.persistence.OpenedPositionRepository;
-import com.smartbox.investory.investment.market.fx.CurrencyRateService;
-import com.smartbox.investory.testsupport.portfolio.PortfolioBuilders;
-import com.smartbox.investory.testsupport.portfolio.PortfolioTestData;
+import com.smartbox.investory.investment.api.operations.PortfolioExposureReader;
+import com.smartbox.investory.investment.api.operations.PortfolioExposureReader.SymbolExposure;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,8 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class ConcentrationAlertRuleTest {
 
-  @Mock private OpenedPositionRepository openedPositionRepository;
-  @Mock private CurrencyRateService currencyRateService;
+  @Mock private PortfolioExposureReader investment;
 
   private NotificationProperties properties;
   private ConcentrationAlertRule rule;
@@ -32,23 +27,17 @@ class ConcentrationAlertRuleTest {
   void setUp() {
     properties = new NotificationProperties();
     properties.setConcentrationThresholdPct(25.0);
-    rule = new ConcentrationAlertRule(openedPositionRepository, currencyRateService, properties);
-    // Identity FX conversion for simplicity. lenient() because the empty-portfolio test skips
-    // conversion.
-    org.mockito.Mockito.lenient()
-        .when(currencyRateService.convertToBaseCurrency(anyDouble(), any(), any()))
-        .thenAnswer(invocation -> invocation.getArgument(0, Double.class));
+    rule = new ConcentrationAlertRule(investment, properties);
   }
 
   @Test
   void evaluate_firesWhenSymbolExceedsThreshold() {
-    when(openedPositionRepository.findAll())
+    when(investment.symbolExposures())
         .thenReturn(
             List.of(
-                position(PortfolioTestData.AAPL, 10.0, 100.0), // 1000
-                position(PortfolioTestData.MSFT, 1.0, 100.0), // 100
-                position(PortfolioTestData.SPY, 1.0, 100.0) // 100
-                ));
+                exposure("AAPL.US", 1000.0),
+                exposure("MSFT.US", 100.0),
+                exposure("SPY.US", 100.0)));
 
     Optional<String> result = rule.evaluate();
 
@@ -59,31 +48,26 @@ class ConcentrationAlertRuleTest {
 
   @Test
   void evaluate_isQuietForBalancedPortfolio() {
-    when(openedPositionRepository.findAll())
+    when(investment.symbolExposures())
         .thenReturn(
             List.of(
-                position(PortfolioTestData.AAPL, 1.0, 100.0),
-                position(PortfolioTestData.MSFT, 1.0, 100.0),
-                position(PortfolioTestData.SPY, 1.0, 100.0),
-                position(PortfolioTestData.TSLA, 1.0, 100.0),
-                position(PortfolioTestData.BTC, 1.0, 100.0)));
+                exposure("AAPL.US", 100.0),
+                exposure("MSFT.US", 100.0),
+                exposure("SPY.US", 100.0),
+                exposure("TSLA.US", 100.0),
+                exposure("BTC", 100.0)));
 
     assertFalse(rule.evaluate().isPresent());
   }
 
   @Test
   void evaluate_isSafeWhenPortfolioIsEmpty() {
-    when(openedPositionRepository.findAll()).thenReturn(List.of());
+    when(investment.symbolExposures()).thenReturn(List.of());
 
     assertFalse(rule.evaluate().isPresent());
   }
 
-  private static OpenedPosition position(
-      PortfolioTestData.AssetDefinition asset, double volume, double price) {
-    return PortfolioBuilders.openPosition(asset)
-        .quantity(volume)
-        .price(price)
-        .marketPrice(price)
-        .build();
+  private static SymbolExposure exposure(String symbol, double value) {
+    return new SymbolExposure(symbol, BigDecimal.valueOf(value), "USD");
   }
 }

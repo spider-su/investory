@@ -6,14 +6,14 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.accounting.model.OpenPositionValue;
-import com.smartbox.investory.investment.api.BrokerageAssetClassificationReader;
-import com.smartbox.investory.investment.api.BrokerageIncomeSnapshot;
-import com.smartbox.investory.investment.api.BrokeragePortfolioReader;
-import com.smartbox.investory.investment.api.BrokeragePositionSnapshot;
-import com.smartbox.investory.investment.api.InvestmentAnnualProjectionApi;
-import com.smartbox.investory.investment.api.SharedBrokeragePortfolioSnapshot;
-import com.smartbox.investory.investment.application.InvestmentAnnualProjectionService;
+import com.smartbox.investory.investment.api.portfolio.BrokerageAssetClassificationReader;
+import com.smartbox.investory.investment.api.portfolio.BrokerageIncomeSnapshot;
+import com.smartbox.investory.investment.api.portfolio.BrokeragePortfolioReader;
+import com.smartbox.investory.investment.api.portfolio.BrokeragePositionSnapshot;
+import com.smartbox.investory.investment.api.portfolio.SharedBrokeragePortfolioSnapshot;
+import com.smartbox.investory.investment.api.reporting.InvestmentAnnualProjectionApi;
+import com.smartbox.investory.investment.performance.model.OpenPositionValue;
+import com.smartbox.investory.investment.projection.InvestmentAnnualProjectionService;
 import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
 import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
 import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
@@ -283,7 +283,7 @@ class InvestmentProfileFacadeTest {
     when(brokerageAssetClassificationReader.findBySymbol("ETF"))
         .thenReturn(
             Optional.of(
-                new com.smartbox.investory.investment.api.BrokerageAssetClassification(
+                new com.smartbox.investory.investment.api.portfolio.BrokerageAssetClassification(
                     "ETF", "ETF")));
     when(longTermAssets.aggregate(PORTFOLIO, DATE))
         .thenReturn(
@@ -371,7 +371,7 @@ class InvestmentProfileFacadeTest {
     when(brokerageAssetClassificationReader.findBySymbol("ETF"))
         .thenReturn(
             Optional.of(
-                new com.smartbox.investory.investment.api.BrokerageAssetClassification(
+                new com.smartbox.investory.investment.api.portfolio.BrokerageAssetClassification(
                     "ETF", "ETF")));
     when(longTermAssets.aggregate(PORTFOLIO, DATE))
         .thenReturn(

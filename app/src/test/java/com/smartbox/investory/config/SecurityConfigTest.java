@@ -5,7 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.smartbox.investory.investment.api.InvestmentImportApi;
+import com.smartbox.investory.investment.api.importing.InvestmentImportApi;
 import com.smartbox.investory.ui.investment.ImportController;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

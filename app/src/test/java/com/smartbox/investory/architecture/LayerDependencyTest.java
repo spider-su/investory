@@ -5,6 +5,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import com.tngtech.archunit.ArchConfiguration;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
+import com.tngtech.archunit.core.importer.ImportOption;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.stereotype.Component;
@@ -17,7 +18,9 @@ class LayerDependencyTest {
   }
 
   private static final JavaClasses MAIN =
-      new ClassFileImporter().importPackages("com.smartbox.investory");
+      new ClassFileImporter()
+          .withImportOption(new ImportOption.DoNotIncludeTests())
+          .importPackages("com.smartbox.investory");
 
   @Test
   void investmentDoesNotDependOnOtherBusinessDomains() {
@@ -26,7 +29,30 @@ class LayerDependencyTest {
         .resideInAnyPackage("..investment..")
         .should()
         .dependOnClassesThat()
-        .resideInAnyPackage("..longterm..", "..retirement..")
+        .resideInAnyPackage("..longterm..", "..retirement..", "..integrations..")
+        .check(MAIN);
+  }
+
+  @Test
+  void integrationsUseOnlyInvestmentApiAndPorts() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..integrations..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage(
+            "..investment.accounting..",
+            "..investment.ledger..",
+            "..investment.performance..",
+            "..investment.projection..",
+            "..investment.operations..",
+            "..investment.imports..",
+            "..investment.market..",
+            "..investment.valuation..",
+            "..investment.reporting..",
+            "..investment.reconciliation..",
+            "..investment.infrastructure..",
+            "..investment.web..")
         .check(MAIN);
   }
 
@@ -50,8 +76,13 @@ class LayerDependencyTest {
         .dependOnClassesThat()
         .resideInAnyPackage(
             "..investment.accounting..",
+            "..investment.ledger..",
+            "..investment.performance..",
+            "..investment.projection..",
+            "..investment.operations..",
             "..investment.imports..",
             "..investment.market..",
+            "..investment.valuation..",
             "..investment.reporting..",
             "..investment.reconciliation..",
             "..investment.infrastructure..",
@@ -83,8 +114,13 @@ class LayerDependencyTest {
         .dependOnClassesThat()
         .resideInAnyPackage(
             "..investment.accounting..",
+            "..investment.ledger..",
+            "..investment.performance..",
+            "..investment.projection..",
+            "..investment.operations..",
             "..investment.imports..",
             "..investment.market..",
+            "..investment.valuation..",
             "..investment.reporting..",
             "..investment.reconciliation..",
             "..investment.infrastructure..",
@@ -162,8 +198,13 @@ class LayerDependencyTest {
         .resideInAnyPackage(
             "..retirement.infrastructure..",
             "..investment.accounting..",
+            "..investment.ledger..",
+            "..investment.performance..",
+            "..investment.projection..",
+            "..investment.operations..",
             "..investment.imports..",
             "..investment.market..",
+            "..investment.valuation..",
             "..investment.reporting..",
             "..investment.reconciliation..",
             "..investment.infrastructure..",
@@ -179,18 +220,36 @@ class LayerDependencyTest {
         .resideInAnyPackage("..investment.reporting.dashboard.application..")
         .should()
         .dependOnClassesThat()
-        .resideInAnyPackage("..investment.infrastructure.persistence..")
+        .resideInAnyPackage("..investment..persistence..")
         .check(MAIN);
   }
 
   @Test
-  void accountingDoesNotDependOnRetirementPlanningOrSimulation() {
+  void investmentLedgerDoesNotDependOnHigherLevelSlices() {
     noClasses()
         .that()
-        .resideInAnyPackage("..investment.accounting..")
+        .resideInAnyPackage("..investment.ledger..")
         .should()
         .dependOnClassesThat()
-        .resideInAnyPackage("..retirement.planning..", "..retirement.simulation..")
+        .resideInAnyPackage(
+            "..investment.performance..",
+            "..investment.projection..",
+            "..investment.reporting..",
+            "..investment.reconciliation..",
+            "..investment.valuation..",
+            "..retirement.planning..",
+            "..retirement.simulation..")
+        .check(MAIN);
+  }
+
+  @Test
+  void investmentValuationDoesNotDependOnHigherLevelSlices() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..investment.valuation..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage("..investment.reporting.dashboard..", "..investment.reconciliation..")
         .check(MAIN);
   }
 
@@ -235,8 +294,13 @@ class LayerDependencyTest {
         .dependOnClassesThat()
         .resideInAnyPackage(
             "..investment.accounting..",
+            "..investment.ledger..",
+            "..investment.performance..",
+            "..investment.projection..",
+            "..investment.operations..",
             "..investment.imports..",
             "..investment.market..",
+            "..investment.valuation..",
             "..investment.reporting..",
             "..investment.reconciliation..",
             "..investment.infrastructure..")

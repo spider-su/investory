@@ -1,15 +1,15 @@
 package com.smartbox.investory.investment.reporting.dashboard.application;
 
-import com.smartbox.investory.investment.accounting.model.Benchmark;
-import com.smartbox.investory.investment.api.InvestmentPerformanceApi;
-import com.smartbox.investory.investment.api.InvestmentPerformanceApi.AccountValueSeries;
-import com.smartbox.investory.investment.api.InvestmentPerformanceApi.AccountValueView;
-import com.smartbox.investory.investment.api.InvestmentPerformanceApi.AccountValueYear;
-import com.smartbox.investory.investment.api.InvestmentPerformanceApi.PerformanceAccount;
-import com.smartbox.investory.investment.api.InvestmentPerformanceApi.PerformanceBoardQuery;
-import com.smartbox.investory.investment.api.InvestmentPerformanceApi.PerformanceBoardView;
-import com.smartbox.investory.investment.api.InvestmentPerformanceApi.PerformanceKpiView;
-import com.smartbox.investory.investment.api.InvestmentPerformanceApi.PerformanceSeries;
+import com.smartbox.investory.investment.api.reporting.InvestmentPerformanceApi;
+import com.smartbox.investory.investment.api.reporting.InvestmentPerformanceApi.AccountValueSeries;
+import com.smartbox.investory.investment.api.reporting.InvestmentPerformanceApi.AccountValueView;
+import com.smartbox.investory.investment.api.reporting.InvestmentPerformanceApi.AccountValueYear;
+import com.smartbox.investory.investment.api.reporting.InvestmentPerformanceApi.PerformanceAccount;
+import com.smartbox.investory.investment.api.reporting.InvestmentPerformanceApi.PerformanceBoardQuery;
+import com.smartbox.investory.investment.api.reporting.InvestmentPerformanceApi.PerformanceBoardView;
+import com.smartbox.investory.investment.api.reporting.InvestmentPerformanceApi.PerformanceKpiView;
+import com.smartbox.investory.investment.api.reporting.InvestmentPerformanceApi.PerformanceSeries;
+import com.smartbox.investory.investment.performance.model.Benchmark;
 import com.smartbox.investory.investment.reporting.BenchmarkService;
 import com.smartbox.investory.investment.reporting.dashboard.service.DashboardPeriod;
 import java.time.YearMonth;
@@ -83,7 +83,9 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
             .map(
                 row ->
                     new PerformanceSeries(
-                        row.accountId(), row.label(), scopedCurve(row.values(), scopeStart, returns)))
+                        row.accountId(),
+                        row.label(),
+                        scopedCurve(row.values(), scopeStart, returns)))
             .toList();
     List<Double> fullBenchmarkCurve =
         returns ? benchmark.getBenchmarkReturnCurve() : benchmark.getBenchmarkCurve();

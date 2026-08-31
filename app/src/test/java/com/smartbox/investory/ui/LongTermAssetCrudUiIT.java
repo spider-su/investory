@@ -169,11 +169,9 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
         "cash-reserves-crud",
         page -> {
           var first =
-              new CashAsset(
-                  "UI CRUD Cash One", "USD", "18000.18", "3.25", "cash first note");
+              new CashAsset("UI CRUD Cash One", "USD", "18000.18", "3.25", "cash first note");
           var second =
-              new CashAsset(
-                  "UI CRUD Cash Two", "EUR", "28000.28", "2.75", "cash second note");
+              new CashAsset("UI CRUD Cash Two", "EUR", "28000.28", "2.75", "cash second note");
 
           long firstId = createCash(page, first);
           long secondId = createCash(page, second);
@@ -554,7 +552,8 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
             id);
     assertDate(rate.get("valid_from"), acquisitionDate.toString());
     assertThat(rate.get("valid_to")).isNull();
-    assertDecimal(rate.get("expected_annual_growth_rate"), percentRate(asset.annualReturnPercent()));
+    assertDecimal(
+        rate.get("expected_annual_growth_rate"), percentRate(asset.annualReturnPercent()));
     assertCount("investory.long_term_asset_valuation_periods", "asset_id", id, 1);
   }
 
@@ -677,7 +676,8 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
     select(page, prefix + "-other-income-frequency", contract.otherIncomeFrequency());
     fill(page, prefix + "-administration", contract.administration());
     select(page, prefix + "-administration-frequency", contract.administrationFrequency());
-    select(page, prefix + "-administration-payer", Boolean.toString(contract.administrationTenant()));
+    select(
+        page, prefix + "-administration-payer", Boolean.toString(contract.administrationTenant()));
     fill(page, prefix + "-utilities", contract.utilities());
     select(page, prefix + "-utilities-frequency", contract.utilitiesFrequency());
     select(page, prefix + "-utilities-payer", Boolean.toString(contract.utilitiesTenant()));
@@ -692,7 +692,9 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
     select(page, prefix + "-insurance-payer", Boolean.toString(contract.insuranceTenant()));
     fill(page, prefix + "-monthly-tax-base", contract.monthlyTaxBase());
     select(page, prefix + "-tax-ownership", contract.taxOwnership());
-    panel.getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions().setName("Save changes")).click();
+    panel
+        .getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions().setName("Save changes"))
+        .click();
     assertThat(page.locator("[role='status']").textContent()).contains("Rental contract updated");
   }
 
@@ -700,7 +702,8 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
     openDetail(page, assetId);
     Locator panel = page.locator("[data-contract-id='" + contractId + "']");
     assertThat(panel.count()).isEqualTo(1);
-    if (contract.tenantName() != null) assertThat(panel.textContent()).contains(contract.tenantName());
+    if (contract.tenantName() != null)
+      assertThat(panel.textContent()).contains(contract.tenantName());
     panel.locator("[data-edit-contract]").click();
     String prefix = "#edit-" + contractId;
     assertInput(page, prefix + "-tenant-name", nullToEmpty(contract.tenantName()));
@@ -736,7 +739,8 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
         .isEqualTo("TENANT".equals(contract.taxOwnership()));
     assertTerm(contractId, "RENT", contract.rent(), contract.rentFrequency(), false);
     assertTerm(contractId, "PARKING_RENT", contract.parking(), contract.parkingFrequency(), false);
-    assertTerm(contractId, "OTHER_INCOME", contract.otherIncome(), contract.otherIncomeFrequency(), false);
+    assertTerm(
+        contractId, "OTHER_INCOME", contract.otherIncome(), contract.otherIncomeFrequency(), false);
     assertTerm(
         contractId,
         "ADMIN_FEE",
@@ -780,7 +784,11 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
                     contract.insurance())
                 .filter(value -> value != null && new BigDecimal(value).signum() != 0)
                 .count();
-    assertCount("investory.long_term_asset_rental_contract_terms", "contract_id", contractId, expectedTerms);
+    assertCount(
+        "investory.long_term_asset_rental_contract_terms",
+        "contract_id",
+        contractId,
+        expectedTerms);
   }
 
   private void deleteContract(Page page, long assetId, long contractId) {
@@ -890,14 +898,15 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
         .isNotNull();
     openDetail(page, id);
     revealPropertySettingsIfNeeded(page, "Reactivate");
-    assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Reactivate")).isVisible())
+    assertThat(
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Reactivate"))
+                .isVisible())
         .isTrue();
   }
 
   private void revealPropertySettingsIfNeeded(Page page, String action) {
     Locator actionButton =
-        page.getByRole(
-            AriaRole.BUTTON, new Page.GetByRoleOptions().setName(action).setExact(true));
+        page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName(action).setExact(true));
     if (actionButton.count() > 0 && !actionButton.isVisible())
       page.locator("#property-settings > summary").click();
   }
@@ -920,13 +929,13 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
   private void submitFormContaining(Page page, String fieldSelector, String buttonName) {
     page.locator(fieldSelector)
         .locator("xpath=ancestor::form")
-        .getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions().setName(buttonName).setExact(true))
+        .getByRole(
+            AriaRole.BUTTON, new Locator.GetByRoleOptions().setName(buttonName).setExact(true))
         .click();
   }
 
   private void clickButton(Page page, String name) {
-    page.getByRole(
-            AriaRole.BUTTON, new Page.GetByRoleOptions().setName(name).setExact(true))
+    page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName(name).setExact(true))
         .click();
   }
 

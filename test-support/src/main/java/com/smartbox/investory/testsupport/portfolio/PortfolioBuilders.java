@@ -1,19 +1,19 @@
 package com.smartbox.investory.testsupport.portfolio;
 
-import com.smartbox.investory.investment.accounting.CashOperationType;
-import com.smartbox.investory.investment.accounting.model.PositionType;
 import com.smartbox.investory.investment.imports.BrokerType;
 import com.smartbox.investory.investment.imports.ImportBatchStatus;
 import com.smartbox.investory.investment.imports.ImportSourceType;
-import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
-import com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity;
-import com.smartbox.investory.investment.infrastructure.persistence.ClosedPosition;
-import com.smartbox.investory.investment.infrastructure.persistence.CurrencyRateEntity;
-import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
+import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
+import com.smartbox.investory.investment.ledger.cash.CashOperationType;
+import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationEntity;
+import com.smartbox.investory.investment.ledger.position.PositionType;
+import com.smartbox.investory.investment.ledger.position.persistence.ClosedPosition;
+import com.smartbox.investory.investment.ledger.position.persistence.OpenedPosition;
+import com.smartbox.investory.investment.valuation.fx.persistence.CurrencyRateEntity;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestData.AccountDefinition;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestData.AssetDefinition;

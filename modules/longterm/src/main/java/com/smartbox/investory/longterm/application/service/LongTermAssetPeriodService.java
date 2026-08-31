@@ -79,8 +79,7 @@ public class LongTermAssetPeriodService {
     saveOpenValuationPeriod(assetId, from, growthRate);
   }
 
-  public void replaceCurrentValuationGrowth(
-      Long assetId, LocalDate from, BigDecimal growthRate) {
+  public void replaceCurrentValuationGrowth(Long assetId, LocalDate from, BigDecimal growthRate) {
     if (growthRate != null) validateGrowthRate(growthRate);
     var existing = valuations.findAllByAssetIdOrderByValidFrom(assetId);
     if (!existing.isEmpty()) {

@@ -1,9 +1,9 @@
 package com.smartbox.investory.investment.reporting.dashboard.application;
 
-import com.smartbox.investory.investment.api.InvestmentDashboardApi;
-import com.smartbox.investory.investment.api.InvestmentDashboardApi.DashboardPageView;
-import com.smartbox.investory.investment.api.InvestmentDashboardApi.DashboardQuery;
-import com.smartbox.investory.investment.api.InvestmentDashboardApi.PerformanceKpiView;
+import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi;
+import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi.DashboardPageView;
+import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi.DashboardQuery;
+import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi.PerformanceKpiView;
 import com.smartbox.investory.investment.reporting.ReturnMetric;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -42,8 +42,7 @@ public class InvestmentDashboardApplicationService implements InvestmentDashboar
     boolean available = annualized.status() == ReturnMetric.Status.AVAILABLE;
     String display =
         available
-            ? DashboardPercentageFormatter.signedPercent(
-                    annualized.value().doubleValue() * 100)
+            ? DashboardPercentageFormatter.signedPercent(annualized.value().doubleValue() * 100)
                 + " p.a."
             : "Unavailable";
     return new PerformanceKpiView(available, display, performanceKpi.startDate());

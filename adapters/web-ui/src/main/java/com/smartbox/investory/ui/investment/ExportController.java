@@ -1,6 +1,6 @@
 package com.smartbox.investory.ui.investment;
 
-import com.smartbox.investory.investment.api.YahooPortfolioExportApi;
+import com.smartbox.investory.investment.api.exporting.YahooPortfolioExportApi;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;

@@ -45,12 +45,12 @@ import static com.smartbox.investory.testsupport.portfolio.PortfolioTestData.TSL
 import static com.smartbox.investory.testsupport.portfolio.PortfolioTestData.XTB_EUR;
 
 import com.smartbox.investory.investment.imports.BrokerType;
-import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
-import com.smartbox.investory.investment.infrastructure.persistence.CashOperationEntity;
-import com.smartbox.investory.investment.infrastructure.persistence.ClosedPosition;
-import com.smartbox.investory.investment.infrastructure.persistence.CurrencyRateEntity;
-import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
+import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
+import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationEntity;
+import com.smartbox.investory.investment.ledger.position.persistence.ClosedPosition;
+import com.smartbox.investory.investment.ledger.position.persistence.OpenedPosition;
+import com.smartbox.investory.investment.valuation.fx.persistence.CurrencyRateEntity;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.List;
 

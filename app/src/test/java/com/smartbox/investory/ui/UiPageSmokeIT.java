@@ -112,8 +112,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
       page.navigate(baseUrl() + "/dashboard?portfolioId=1");
 
       var yearToDate =
-          page.locator(".iv-period-nav a")
-              .filter(new Locator.FilterOptions().setHasText("YTD"));
+          page.locator(".iv-period-nav a").filter(new Locator.FilterOptions().setHasText("YTD"));
       yearToDate.click();
 
       assertThat(page.url()).contains("period=YTD");

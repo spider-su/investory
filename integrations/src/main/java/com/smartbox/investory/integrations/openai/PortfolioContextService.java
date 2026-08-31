@@ -1,20 +1,15 @@
 package com.smartbox.investory.integrations.openai;
 
+import com.smartbox.investory.investment.api.portfolio.BrokeragePortfolioReader;
+import com.smartbox.investory.investment.api.portfolio.SharedBrokeragePortfolioSnapshot;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
 
-/**
- * Supplies the AI assistant with the same current values shown by the Investory dashboard.
- *
- * <p>The service reads the rendered dashboard instead of reimplementing portfolio calculations,
- * keeping Telegram answers aligned with the application's existing valuation logic.
- */
+/** Supplies the AI assistant with typed current portfolio data from Investment's public API. */
 @Slf4j
 @Service
 public class PortfolioContextService {
@@ -67,19 +62,16 @@ public class PortfolioContextService {
           "benchmark",
           "stress");
 
-  private final RestClient restClient;
+  private final BrokeragePortfolioReader portfolios;
   private final boolean enabled;
-  private final String dashboardUrl;
   private final int maxCharacters;
 
   public PortfolioContextService(
+      BrokeragePortfolioReader portfolios,
       @Value("${app.openai.portfolio-context.enabled:true}") boolean enabled,
-      @Value("${app.openai.portfolio-context.dashboard-url:http://localhost:8080/dashboard}")
-          String dashboardUrl,
       @Value("${app.openai.portfolio-context.max-characters:16000}") int maxCharacters) {
-    this.restClient = RestClient.builder().build();
+    this.portfolios = portfolios;
     this.enabled = enabled;
-    this.dashboardUrl = dashboardUrl;
     this.maxCharacters = Math.max(1000, maxCharacters);
   }
 
@@ -96,26 +88,28 @@ public class PortfolioContextService {
     }
 
     try {
-      String html =
-          restClient
-              .get()
-              .uri(dashboardUrl)
-              .accept(MediaType.TEXT_HTML)
-              .retrieve()
-              .body(String.class);
-
-      if (html == null || html.isBlank()) {
-        log.debug("Investory dashboard returned no content for AI context");
-        return "";
-      }
-
-      String context = htmlToText(html);
+      String context = format(portfolios.currentSharedSnapshot());
       return context.length() <= maxCharacters ? context : context.substring(0, maxCharacters);
     } catch (RuntimeException e) {
       // A failed context lookup must not prevent general AI replies.
-      log.warn("Could not load Investory dashboard context from {}", dashboardUrl, e);
+      log.warn("Could not load typed Investment context", e);
       return "";
     }
+  }
+
+  static String format(SharedBrokeragePortfolioSnapshot snapshot) {
+    StringBuilder value = new StringBuilder("Current brokerage portfolio\n");
+    value.append("Base currency: ").append(snapshot.baseCurrency()).append('\n');
+    value.append("Balance: ").append(snapshot.balance()).append('\n');
+    value.append("Cash: ").append(snapshot.cash()).append('\n');
+    value.append("Dividends: ").append(snapshot.dividends()).append('\n');
+    value.append("Interest: ").append(snapshot.interest()).append('\n');
+    value.append("Positions:\n");
+    snapshot
+        .openPositions()
+        .forEach(
+            p -> value.append("- ").append(p.symbol()).append(": ").append(p.value()).append('\n'));
+    return value.toString().trim();
   }
 
   static boolean isPortfolioQuestion(String message) {

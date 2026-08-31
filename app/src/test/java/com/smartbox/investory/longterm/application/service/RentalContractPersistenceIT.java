@@ -2,10 +2,10 @@ package com.smartbox.investory.longterm.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.smartbox.investory.longterm.application.model.LongTermAssetBootstrapDocument;
 import com.smartbox.investory.longterm.api.model.CashFlowTypeModel;
 import com.smartbox.investory.longterm.api.model.FrequencyModel;
 import com.smartbox.investory.longterm.api.model.RentalContractModel;
+import com.smartbox.investory.longterm.application.model.LongTermAssetBootstrapDocument;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetEntity;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetRepository;
 import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetType;

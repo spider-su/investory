@@ -30,8 +30,7 @@ class DashboardPerformanceTemplateContractTest {
     String css = Files.readString(Path.of(STYLESHEET));
 
     assertTrue(
-        css.contains(
-            ".iv-topbar__meta .iv-topbar-fx-popover > .iv-topbar-fx-popover__panel"));
+        css.contains(".iv-topbar__meta .iv-topbar-fx-popover > .iv-topbar-fx-popover__panel"));
     assertTrue(css.contains("width: min(340px, calc(100vw - 32px));"));
     assertTrue(css.contains(".iv-topbar:has(.iv-topbar-fx-popover[open]) { z-index: 1400; }"));
     assertTrue(
@@ -55,8 +54,7 @@ class DashboardPerformanceTemplateContractTest {
     String css = Files.readString(Path.of(STYLESHEET));
     String accessibility =
         Files.readString(
-            Path.of(
-                "../adapters/web-ui/src/main/resources/static/js/dashboard-accessibility.js"));
+            Path.of("../adapters/web-ui/src/main/resources/static/js/dashboard-accessibility.js"));
 
     assertTrue(html.contains("iv-structure-card iv-compact-popover"));
     assertTrue(html.contains("iv-compact-popover__body"));
@@ -95,8 +93,7 @@ class DashboardPerformanceTemplateContractTest {
     assertFalse(details.contains("Investment result"));
     assertFalse(details.contains("What is driving results"));
     assertFalse(details.contains("Capital gains tax"));
-    assertTrue(
-        details.contains("@{/dashboard/assets/{symbol}(symbol=${symbol.symbol})}"));
+    assertTrue(details.contains("@{/dashboard/assets/{symbol}(symbol=${symbol.symbol})}"));
     assertTrue(details.contains("th:if=\"${symbol.symbol != 'Other'}\""));
     assertTrue(css.contains("#investment-overview .iv-realized-details { position: static; }"));
     assertTrue(css.contains("right: 0;"));
@@ -132,8 +129,15 @@ class DashboardPerformanceTemplateContractTest {
     assertFalse(html.contains(" + ' $'"));
     assertTrue(
         actions.contains("Couldn\\u2019t import this statement. Check the file and try again."));
+    assertTrue(actions.contains("Importing statement…"));
+    assertTrue(actions.contains("Preparing export…"));
+    assertTrue(actions.contains("Portfolio exported"));
+    assertTrue(actions.contains("Couldn’t create the export. Try again."));
     assertTrue(actions.contains("Market data updated"));
+    assertTrue(actions.contains("Couldn’t update market data."));
+    assertTrue(actions.contains("Updating exchange rates…"));
     assertTrue(actions.contains("Exchange rates updated"));
+    assertTrue(actions.contains("Couldn’t update exchange rates."));
   }
 
   @Test
@@ -159,7 +163,8 @@ class DashboardPerformanceTemplateContractTest {
     assertFalse(html.contains("performanceBoardAccountPalette = ['#4f46e5', '#16a34a'"));
     assertTrue(html.contains("Number(account.id) === Number(series.accountId)"));
     assertTrue(html.contains("performanceBoardAccountColor(series, index, view.accounts)"));
-    assertTrue(html.contains("const visibleSeries = performanceBoardVisibleSeries(view, selectedIds);"));
+    assertTrue(
+        html.contains("const visibleSeries = performanceBoardVisibleSeries(view, selectedIds);"));
     assertTrue(html.contains("skipNull: bars"));
     assertTrue(html.contains("barPercentage: bars ? 1 : undefined"));
     assertTrue(html.contains("id=\"performance-board-account-selector\""));

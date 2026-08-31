@@ -1,6 +1,5 @@
 package com.smartbox.investory.investment.reporting;
 
-import com.smartbox.investory.investment.accounting.model.Benchmark;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
@@ -8,12 +7,12 @@ import com.smartbox.investory.investment.infrastructure.persistence.account.Acco
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountMonthlyPerformanceRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsRepository;
+import com.smartbox.investory.investment.performance.model.Benchmark;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -29,7 +28,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
-/** Coordinates benchmark reporting; provider storage and account-value composition live separately. */
+/**
+ * Coordinates benchmark reporting; provider storage and account-value composition live separately.
+ */
 @Slf4j
 @Service
 public class BenchmarkService {
@@ -118,7 +119,9 @@ public class BenchmarkService {
               .toList();
       if (monthlyRows.isEmpty()) return benchmark;
       List<AccountMonthlyPerformanceEntity> selectedRows =
-          monthlyRows.stream().filter(row -> selectedAccounts.contains(row.getAccountId())).toList();
+          monthlyRows.stream()
+              .filter(row -> selectedAccounts.contains(row.getAccountId()))
+              .toList();
       if (selectedRows.isEmpty()) return benchmark;
 
       YearMonth end =
@@ -144,7 +147,8 @@ public class BenchmarkService {
       List<Benchmark.AccountSeries> accountSeries =
           monthlyRows.stream()
               .collect(Collectors.groupingBy(AccountMonthlyPerformanceEntity::getAccountId))
-              .entrySet().stream()
+              .entrySet()
+              .stream()
               .map(entry -> accountSeries(entry.getKey(), entry.getValue(), labels, closes))
               .filter(series -> series.investedCapital() != 0.0)
               .sorted(Comparator.comparing(Benchmark.AccountSeries::id))
@@ -166,7 +170,9 @@ public class BenchmarkService {
                 .filter(Objects::nonNull)
                 .toList();
         benchmarkCurve.add(
-            values.isEmpty() ? null : round(values.stream().mapToDouble(Double::doubleValue).sum()));
+            values.isEmpty()
+                ? null
+                : round(values.stream().mapToDouble(Double::doubleValue).sum()));
       }
       double investedCapital =
           selectedSeries.stream().mapToDouble(Benchmark.AccountSeries::investedCapital).sum();

@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.reporting.dashboard.service;
 
-import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
+import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import java.util.Locale;
 
 /** Deterministic mapping from the existing asset type field to dashboard categories. */

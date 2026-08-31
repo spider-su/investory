@@ -1,6 +1,6 @@
 package com.smartbox.investory.ui.investment;
 
-import com.smartbox.investory.investment.api.InvestmentAssetApi;
+import com.smartbox.investory.investment.api.asset.InvestmentAssetApi;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
@@ -28,8 +28,7 @@ public class AssetDetailController {
 
   @ExceptionHandler(InvestmentAssetApi.AssetNotFoundException.class)
   @ResponseStatus(HttpStatus.NOT_FOUND)
-  public String notFound(InvestmentAssetApi.AssetNotFoundException exception, Model model) {
-    model.addAttribute("message", exception.getMessage());
+  public String notFound() {
     return "dashboard/asset-not-found";
   }
 }

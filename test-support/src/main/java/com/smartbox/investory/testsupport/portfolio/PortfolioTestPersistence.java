@@ -1,11 +1,11 @@
 package com.smartbox.investory.testsupport.portfolio;
 
-import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.CashOperationRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.ClosedPositionRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.CurrencyRateRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.OpenedPositionRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
+import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
+import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationRepository;
+import com.smartbox.investory.investment.ledger.position.persistence.ClosedPositionRepository;
+import com.smartbox.investory.investment.ledger.position.persistence.OpenedPositionRepository;
+import com.smartbox.investory.investment.valuation.fx.persistence.CurrencyRateRepository;
 
 /** Small persistence facade for repository/integration tests using PortfolioScenarios. */
 public final class PortfolioTestPersistence {

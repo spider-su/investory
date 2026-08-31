@@ -2,7 +2,7 @@ package com.smartbox.investory.investment.imports.xtb;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.smartbox.investory.investment.infrastructure.persistence.ClosedPosition;
+import com.smartbox.investory.investment.ledger.position.persistence.ClosedPosition;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import org.junit.jupiter.api.Test;
 

@@ -1,6 +1,6 @@
 package com.smartbox.investory.ui.retirement;
 
-import com.smartbox.investory.investment.api.InvestmentDashboardApi;
+import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi;
 import com.smartbox.investory.retirement.api.InvestmentProfileFacade;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;

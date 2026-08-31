@@ -1,6 +1,6 @@
 package com.smartbox.investory.ui.investment;
 
-import com.smartbox.investory.investment.api.InvestmentMaintenanceApi;
+import com.smartbox.investory.investment.api.operations.InvestmentMaintenanceApi;
 import java.time.ZonedDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;

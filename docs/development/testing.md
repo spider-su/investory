@@ -64,6 +64,14 @@ inactive database row. Rental-property coverage additionally creates and edits r
 checks all contract terms and tax ownership fields, and deletes the second property's contract.
 Each scenario uses unique data in the disposable snapshot-backed test database.
 
+`InvestmentDashboardGoldenUiIT` rebuilds the investment portfolio from the committed IBKR, XTB,
+and FX golden-path fixtures in an isolated PostgreSQL database. It checks every rendered dashboard
+amount against the application view models and the current-position database view. It then drives
+the market and currency refresh controls with deterministic mocks: `VWRA.UK` becomes `150.00`, and
+USD/PLN becomes `4.00` with reciprocal PLN/USD `0.25`. After each refresh it verifies the persisted
+price/rates, recalculated balances and positions, and all visible overview, performance, income,
+allocation, account, currency, winner, and loser values. Import/export UI is intentionally excluded.
+
 Install the matching Chromium binary once, then run the suite:
 
 ```powershell
@@ -72,7 +80,7 @@ $env:PLAYWRIGHT_BROWSERS_PATH = "$PWD/.playwright"
 ./mvnw.cmd -pl app exec:java "-Dexec.classpathScope=test" "-Dexec.mainClass=com.microsoft.playwright.CLI" "-Dexec.args=install chromium"
 $env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
 $env:DOCKER_HOST = "tcp://127.0.0.1:2375"
-./mvnw.cmd -pl app test-compile failsafe:integration-test failsafe:verify "-Dit.test=UiPageSmokeIT,LongTermAssetCrudUiIT"
+./mvnw.cmd -pl app test-compile failsafe:integration-test failsafe:verify "-Dit.test=UiPageSmokeIT,LongTermAssetCrudUiIT,InvestmentDashboardGoldenUiIT"
 ```
 
 CI installs Chromium explicitly and runs this suite in the integration-test job.

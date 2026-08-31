@@ -12,10 +12,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.smartbox.investory.config.MockMvcSecurityTestConfig;
 import com.smartbox.investory.config.SecurityConfig;
-import com.smartbox.investory.investment.api.InvestmentImportApi;
-import com.smartbox.investory.investment.imports.BrokerType;
-import com.smartbox.investory.investment.imports.ImportBatchResponse;
-import com.smartbox.investory.investment.imports.ImportBatchStatus;
+import com.smartbox.investory.investment.api.importing.InvestmentImportApi;
+import com.smartbox.investory.investment.api.importing.InvestmentImportApi.ImportResult;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,9 +36,7 @@ class ImportControllerTest {
   @WithMockUser(roles = "ADMIN")
   void importByBroker_uploadsFileAndReturnsResponse() throws Exception {
     when(importApi.importForBroker(eq("XTB"), eq("file.xlsx"), any(), eq("MANUAL"), any()))
-        .thenReturn(
-            new ImportBatchResponse(
-                99L, BrokerType.XTB, ImportBatchStatus.COMPLETED, 10, 10, 0, "ok", false));
+        .thenReturn(new ImportResult(99L, "XTB", "COMPLETED", 10, 10, 0, "ok", false));
 
     MockMultipartFile multipart =
         new MockMultipartFile(
@@ -64,9 +60,7 @@ class ImportControllerTest {
   void importByBroker_passesSourceMetadata() throws Exception {
     when(importApi.importForBroker(
             eq("IBKR"), eq("statement.csv"), any(), eq("TELEGRAM"), eq("telegram-file-123")))
-        .thenReturn(
-            new ImportBatchResponse(
-                100L, BrokerType.IBKR, ImportBatchStatus.COMPLETED, 1, 1, 0, "ok", false));
+        .thenReturn(new ImportResult(100L, "IBKR", "COMPLETED", 1, 1, 0, "ok", false));
 
     MockMultipartFile multipart =
         new MockMultipartFile(

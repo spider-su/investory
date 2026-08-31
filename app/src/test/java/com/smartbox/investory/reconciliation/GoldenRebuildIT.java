@@ -7,11 +7,11 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.smartbox.investory.investment.accounting.PortfolioProjectionService;
 import com.smartbox.investory.investment.imports.ImportExecutionResult;
-import com.smartbox.investory.investment.imports.ibrk.IbkrImportService;
+import com.smartbox.investory.investment.imports.ibkr.IbkrImportService;
 import com.smartbox.investory.investment.imports.xtb.XtbImportV2Service;
-import com.smartbox.investory.investment.market.fx.CurrencyRateService;
+import com.smartbox.investory.investment.projection.PortfolioProjectionService;
+import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;

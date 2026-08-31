@@ -1,11 +1,11 @@
 package com.smartbox.investory.investment.infrastructure.read;
 
-import com.smartbox.investory.investment.accounting.PortfolioService;
-import com.smartbox.investory.investment.accounting.model.Portfolio;
-import com.smartbox.investory.investment.api.BrokeragePortfolioReader;
-import com.smartbox.investory.investment.api.BrokerageIncomeSnapshot;
-import com.smartbox.investory.investment.api.BrokeragePositionSnapshot;
-import com.smartbox.investory.investment.api.SharedBrokeragePortfolioSnapshot;
+import com.smartbox.investory.investment.api.portfolio.BrokerageIncomeSnapshot;
+import com.smartbox.investory.investment.api.portfolio.BrokeragePortfolioReader;
+import com.smartbox.investory.investment.api.portfolio.BrokeragePositionSnapshot;
+import com.smartbox.investory.investment.api.portfolio.SharedBrokeragePortfolioSnapshot;
+import com.smartbox.investory.investment.performance.PortfolioService;
+import com.smartbox.investory.investment.performance.model.Portfolio;
 import com.smartbox.investory.investment.reporting.PerformanceResult;
 import com.smartbox.investory.investment.reporting.PortfolioPerformanceQuery;
 import java.math.BigDecimal;

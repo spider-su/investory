@@ -9,15 +9,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.accounting.PortfolioService;
-import com.smartbox.investory.investment.accounting.model.AccountBalance;
-import com.smartbox.investory.investment.accounting.model.Benchmark;
-import com.smartbox.investory.investment.accounting.model.InstrumentPerformance;
-import com.smartbox.investory.investment.accounting.model.MonthlyAttribution;
-import com.smartbox.investory.investment.accounting.model.OpenPositionValue;
-import com.smartbox.investory.investment.accounting.model.Performance;
-import com.smartbox.investory.investment.accounting.model.Portfolio;
-import com.smartbox.investory.investment.accounting.model.RiskExposureSummary;
+import com.smartbox.investory.investment.performance.PortfolioService;
+import com.smartbox.investory.investment.performance.model.AccountBalance;
+import com.smartbox.investory.investment.performance.model.Benchmark;
+import com.smartbox.investory.investment.performance.model.InstrumentPerformance;
+import com.smartbox.investory.investment.performance.model.MonthlyAttribution;
+import com.smartbox.investory.investment.performance.model.OpenPositionValue;
+import com.smartbox.investory.investment.performance.model.Performance;
+import com.smartbox.investory.investment.performance.model.Portfolio;
+import com.smartbox.investory.investment.performance.model.RiskExposureSummary;
 import com.smartbox.investory.investment.reporting.BenchmarkService;
 import com.smartbox.investory.investment.reporting.PerformanceAttribution;
 import com.smartbox.investory.investment.reporting.PerformancePeriod;
@@ -342,16 +342,13 @@ class DashboardFacadeTest {
             performanceQuery,
             null,
             new PortfolioStructureQuery(null));
-    DashboardPageView result =
-        facade.loadDashboard(new DashboardQuery(List.of(), false, "MAX"));
+    DashboardPageView result = facade.loadDashboard(new DashboardQuery(List.of(), false, "MAX"));
     DashboardFacade.PerformanceKpi profileKpi = facade.loadPerformanceKpi(1L);
 
     assertEquals(98.45, result.overview().totalProfit(), 0.001);
     assertEquals(7.25, result.overview().gainPct(), 0.001);
-    assertEquals(
-        new BigDecimal("0.0725"), result.performance().summary().kpiReturn().value());
-    assertEquals(
-        result.performance().summary().annualizedReturn(), profileKpi.annualizedReturn());
+    assertEquals(new BigDecimal("0.0725"), result.performance().summary().kpiReturn().value());
+    assertEquals(result.performance().summary().annualizedReturn(), profileKpi.annualizedReturn());
     assertEquals(result.performance().summary().kpiStartDate(), profileKpi.startDate());
   }
 

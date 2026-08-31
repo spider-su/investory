@@ -6,14 +6,19 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import com.opencsv.CSVReader;
-import com.smartbox.investory.investment.infrastructure.integration.export.yahoo.YahooExportService;
-import com.smartbox.investory.investment.infrastructure.persistence.OpenedPositionRepository;
+import com.smartbox.investory.integrations.infrastructure.integration.export.yahoo.YahooExportService;
+import com.smartbox.investory.investment.api.exporting.PortfolioExportSnapshotReader;
+import com.smartbox.investory.investment.api.exporting.PortfolioExportSnapshotReader.ExportCashBalance;
+import com.smartbox.investory.investment.api.exporting.PortfolioExportSnapshotReader.ExportPosition;
+import com.smartbox.investory.investment.api.exporting.PortfolioExportSnapshotReader.PortfolioExportSnapshot;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsRepository;
+import com.smartbox.investory.investment.ledger.position.persistence.OpenedPositionRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.portfolio.PortfolioBuilders;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestData;
 import java.io.FileReader;
+import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -39,7 +44,28 @@ class YahooExportServiceTest {
   }
 
   private YahooExportService service() {
-    return new YahooExportService(openedPositionRepository, accountStatisticsRepository, "");
+    PortfolioExportSnapshotReader snapshots =
+        () ->
+            new PortfolioExportSnapshot(
+                openedPositionRepository.findAll().stream()
+                    .map(
+                        p ->
+                            new ExportPosition(
+                                p.getAccount(),
+                                p.getSymbol(),
+                                decimal(p.getVolume()),
+                                decimal(p.getOpenPrice()),
+                                decimal(p.getMarketPrice())))
+                    .toList(),
+                accountStatisticsRepository.findAll().stream()
+                    .filter(s -> s.getCashBalance() != null)
+                    .map(s -> new ExportCashBalance(s.getAccountId(), decimal(s.getCashBalance())))
+                    .toList());
+    return new YahooExportService(snapshots, "");
+  }
+
+  private static BigDecimal decimal(Double value) {
+    return value == null ? null : BigDecimal.valueOf(value);
   }
 
   @Test

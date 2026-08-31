@@ -1,8 +1,8 @@
 package com.smartbox.investory.investment.reporting.dashboard.service;
 
-import com.smartbox.investory.investment.accounting.model.Benchmark;
-import com.smartbox.investory.investment.accounting.model.Performance;
-import com.smartbox.investory.investment.accounting.model.Portfolio;
+import com.smartbox.investory.investment.performance.model.Benchmark;
+import com.smartbox.investory.investment.performance.model.Performance;
+import com.smartbox.investory.investment.performance.model.Portfolio;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.YearMonth;

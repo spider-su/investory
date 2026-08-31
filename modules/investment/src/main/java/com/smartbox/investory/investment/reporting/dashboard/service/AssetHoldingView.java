@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.reporting.dashboard.service;
 
-import com.smartbox.investory.investment.accounting.model.PositionSettlementModel;
+import com.smartbox.investory.investment.ledger.position.PositionSettlementModel;
 import com.smartbox.investory.shared.currency.CurrencyType;
 
 public record AssetHoldingView(

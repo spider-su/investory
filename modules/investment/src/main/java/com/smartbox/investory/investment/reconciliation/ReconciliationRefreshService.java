@@ -1,6 +1,7 @@
 package com.smartbox.investory.investment.reconciliation;
 
-import com.smartbox.investory.investment.accounting.PortfolioProjectionService;
+import com.smartbox.investory.investment.notifications.SystemAuditNotificationProducer;
+import com.smartbox.investory.investment.projection.PortfolioProjectionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,6 +16,9 @@ public class ReconciliationRefreshService {
   private final PortfolioProjectionService portfolioProjectionService;
   private final JdbcTemplate jdbcTemplate;
   private final boolean enabled;
+
+  @Autowired(required = false)
+  private SystemAuditNotificationProducer notificationProducer;
 
   @Autowired
   public ReconciliationRefreshService(
@@ -70,9 +74,11 @@ public class ReconciliationRefreshService {
       return;
     }
     long started = System.nanoTime();
+    java.util.UUID auditId;
     try {
-      jdbcTemplate.queryForObject(
-          "SELECT investory.run_system_audit(?, 'POST_IMPORT')", java.util.UUID.class, batchId);
+      auditId =
+          jdbcTemplate.queryForObject(
+              "SELECT investory.run_system_audit(?, 'POST_IMPORT')", java.util.UUID.class, batchId);
     } catch (Exception exception) {
       // Import data and its finalized status are already committed. Audit failures are operational
       // follow-up work and must never turn a successful import into a database rollback.
@@ -81,11 +87,25 @@ public class ReconciliationRefreshService {
           batchId,
           exception.getMessage(),
           exception);
+      return;
     } finally {
       log.info(
           "IMPORT PERF system-audit={}ms batchId={}",
           (System.nanoTime() - started) / 1_000_000L,
           batchId);
+    }
+    if (notificationProducer != null && auditId != null) {
+      try {
+        notificationProducer.publish(auditId);
+      } catch (Exception exception) {
+        // The audit is already committed. Notification follow-up is explicitly best-effort here;
+        // retain a visible operational error so it can be replayed by audit ID.
+        log.error(
+            "System-audit notification persistence failed auditId={}: {}",
+            auditId,
+            exception.getMessage(),
+            exception);
+      }
     }
   }
 }

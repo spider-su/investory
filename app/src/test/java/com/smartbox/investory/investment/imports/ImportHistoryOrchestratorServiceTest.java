@@ -13,10 +13,10 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.accounting.PortfolioProjectionService;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
-import com.smartbox.investory.investment.market.price.AssetPriceFallbackService;
+import com.smartbox.investory.investment.projection.PortfolioProjectionService;
 import com.smartbox.investory.investment.reconciliation.ReconciliationRefreshService;
+import com.smartbox.investory.investment.valuation.price.AssetPriceFallbackService;
 import com.smartbox.investory.testsupport.portfolio.PortfolioScenarios;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestContext;
 import java.nio.charset.StandardCharsets;

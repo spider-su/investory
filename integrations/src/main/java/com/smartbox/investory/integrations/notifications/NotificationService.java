@@ -1,8 +1,8 @@
 package com.smartbox.investory.integrations.notifications;
 
 import com.smartbox.investory.integrations.bot.PortfolioBot;
-import com.smartbox.investory.investment.accounting.PortfolioService;
-import com.smartbox.investory.investment.accounting.model.Portfolio;
+import com.smartbox.investory.investment.api.operations.PortfolioOperationsReader;
+import com.smartbox.investory.investment.api.operations.PortfolioOperationsReader.PortfolioOperationsSnapshot;
 import java.util.List;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +24,7 @@ import org.springframework.stereotype.Service;
 public class NotificationService {
 
   private final ObjectProvider<PortfolioBot> botProvider;
-  private final PortfolioService portfolioService;
+  private final PortfolioOperationsReader investment;
   private final List<AlertRule> alertRules;
   private final NotificationProperties properties;
 
@@ -33,7 +33,7 @@ public class NotificationService {
       return;
     }
     try {
-      Portfolio p = portfolioService.calculateTotalProfitLoss();
+      PortfolioOperationsSnapshot p = investment.portfolio();
       String message = buildDigest(p);
       send(message);
     } catch (Exception e) {
@@ -59,23 +59,23 @@ public class NotificationService {
     }
   }
 
-  private String buildDigest(Portfolio p) {
+  private String buildDigest(PortfolioOperationsSnapshot p) {
     return String.format(
         "\uD83D\uDCCA Daily digest%n"
             + "Balance: %s %s%n"
             + "Total P/L: %s %s (unrealized %s, realized %s)%n"
             + "Dividends: %s %s%n"
             + "Cap-gains tax (est): %s %s",
-        fmt(p.getBalance()),
-        p.getBaseCurrency(),
-        fmt(p.getTotalProfit()),
-        p.getBaseCurrency(),
-        fmt(p.getUnrealizedProfit()),
-        fmt(p.getRealizedProfit()),
-        fmt(p.getDividends()),
-        p.getBaseCurrency(),
-        fmt(p.getCapitalGainsTax()),
-        p.getBaseCurrency());
+        fmt(p.balance().doubleValue()),
+        p.baseCurrency(),
+        fmt(p.totalProfit().doubleValue()),
+        p.baseCurrency(),
+        fmt(p.unrealizedProfit().doubleValue()),
+        fmt(p.realizedProfit().doubleValue()),
+        fmt(p.dividends().doubleValue()),
+        p.baseCurrency(),
+        fmt(p.capitalGainsTax().doubleValue()),
+        p.baseCurrency());
   }
 
   private static String fmt(double value) {

@@ -5,8 +5,8 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 
 import com.smartbox.investory.integrations.notifications.NotificationService;
-import com.smartbox.investory.investment.market.fx.CurrencyRateUpdaterService;
-import com.smartbox.investory.investment.market.price.MarketService;
+import com.smartbox.investory.investment.valuation.fx.CurrencyRateUpdaterService;
+import com.smartbox.investory.investment.valuation.price.MarketService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;

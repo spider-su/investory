@@ -9,8 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.smartbox.investory.config.MockMvcSecurityTestConfig;
 import com.smartbox.investory.config.SecurityConfig;
-import com.smartbox.investory.investment.api.InvestmentMaintenanceApi;
-import com.smartbox.investory.investment.market.price.ManualAssetPriceService.ManualAssetPrice;
+import com.smartbox.investory.investment.api.operations.InvestmentMaintenanceApi;
+import com.smartbox.investory.investment.valuation.price.ManualAssetPriceService.ManualAssetPrice;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.time.ZonedDateTime;
 import org.junit.jupiter.api.Test;
@@ -55,7 +55,11 @@ class DashboardRefreshControllerTest {
   @WithMockUser(roles = "ADMIN")
   void refreshCurrencyRunsFxUpdate() throws Exception {
     when(maintenance.refreshCurrency())
-        .thenReturn(java.util.Map.of("updated", java.util.List.of("USD", "EUR", "PLN")));
+        .thenReturn(
+            new InvestmentMaintenanceApi.CurrencyRefreshResult(
+                java.time.LocalDate.now(),
+                java.util.List.of("USD", "EUR", "PLN"),
+                java.util.List.of()));
 
     mockMvc
         .perform(post("/admin/refresh-currency").with(csrf()))

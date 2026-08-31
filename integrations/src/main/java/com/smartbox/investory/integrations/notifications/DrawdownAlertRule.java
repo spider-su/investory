@@ -2,8 +2,7 @@ package com.smartbox.investory.integrations.notifications;
 
 import com.smartbox.investory.integrations.notifications.infrastructure.DrawdownAlertStateEntity;
 import com.smartbox.investory.integrations.notifications.infrastructure.DrawdownAlertStateRepository;
-import com.smartbox.investory.investment.accounting.PortfolioService;
-import com.smartbox.investory.investment.accounting.model.Portfolio;
+import com.smartbox.investory.investment.api.operations.PortfolioOperationsReader;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.ZonedDateTime;
@@ -19,7 +18,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class DrawdownAlertRule implements AlertRule {
 
-  private final PortfolioService portfolioService;
+  private final PortfolioOperationsReader investment;
   private final NotificationProperties properties;
   private final DrawdownAlertStateRepository stateRepository;
   private final Clock clock;
@@ -31,8 +30,8 @@ public class DrawdownAlertRule implements AlertRule {
 
   @Override
   public Optional<String> evaluate() {
-    Portfolio p = portfolioService.calculateTotalProfitLoss();
-    double equity = p.getBalance();
+    var p = investment.portfolio();
+    double equity = p.balance().doubleValue();
     DrawdownAlertStateEntity state =
         stateRepository
             .findById(DrawdownAlertStateEntity.SINGLETON_ID)
@@ -53,11 +52,7 @@ public class DrawdownAlertRule implements AlertRule {
       return Optional.of(
           String.format(
               "Drawdown alert: %.1f%% below peak (peak %,.0f %s, now %,.0f %s)",
-              drawdownPct,
-              state.getPeakEquity(),
-              p.getBaseCurrency(),
-              equity,
-              p.getBaseCurrency()));
+              drawdownPct, state.getPeakEquity(), p.baseCurrency(), equity, p.baseCurrency()));
     }
     return Optional.empty();
   }

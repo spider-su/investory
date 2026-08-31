@@ -4,11 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.accounting.model.Portfolio;
-import com.smartbox.investory.investment.infrastructure.persistence.AssetEntity;
-import com.smartbox.investory.investment.infrastructure.persistence.AssetRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocationEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocationRepository;
+import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
+import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
+import com.smartbox.investory.investment.performance.model.Portfolio;
 import com.smartbox.investory.investment.reporting.dashboard.application.AssetAllocationView;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -36,7 +36,8 @@ class AssetAllocationQueryTest {
     assertThat(view.totalValue()).isEqualTo(1000);
     assertThat(view.buckets()).extracting("name").containsExactly("Cash", "ETF");
     assertThat(view.buckets().getLast().weightPct()).isEqualTo(70.0);
-    assertThat(view.buckets()).extracting(AssetAllocationView.Bucket::cssKey)
+    assertThat(view.buckets())
+        .extracting(AssetAllocationView.Bucket::cssKey)
         .containsExactly("cash", "etf");
     assertThat(view.buckets().stream().mapToDouble(AssetAllocationView.Bucket::value).sum())
         .isEqualTo(view.totalValue());
@@ -70,13 +71,9 @@ class AssetAllocationQueryTest {
     assertThat(view.buckets())
         .extracting("name")
         .containsExactly(
-            "Fixed income",
-            "ETF",
-            "Equity",
-            "REIT / real estate",
-            "Commodity / metal",
-            "Other");
-    assertThat(view.buckets()).extracting(AssetAllocationView.Bucket::cssKey)
+            "Fixed income", "ETF", "Equity", "REIT / real estate", "Commodity / metal", "Other");
+    assertThat(view.buckets())
+        .extracting(AssetAllocationView.Bucket::cssKey)
         .containsExactly("fixed-income", "etf", "equity", "real-estate", "commodity", "other");
   }
 

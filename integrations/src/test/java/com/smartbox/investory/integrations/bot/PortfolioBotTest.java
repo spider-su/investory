@@ -1,12 +1,10 @@
 package com.smartbox.investory.integrations.bot;
 
-import static com.smartbox.investory.investment.imports.BrokerType.IBKR;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.smartbox.investory.investment.imports.BrokerType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -29,7 +27,7 @@ class PortfolioBotTest {
     // extension fallbacks
     "statement-2026.xlsx, XTB"
   })
-  void detectBroker_resolvesKnownBrokers(String fileName, BrokerType expected) {
+  void detectBroker_resolvesKnownBrokers(String fileName, String expected) {
     assertEquals(expected, PortfolioBot.detectBroker(fileName));
   }
 
@@ -86,8 +84,8 @@ class PortfolioBotTest {
 
   @Test
   void detectBroker_isCaseInsensitive() {
-    assertEquals(BrokerType.XTB, PortfolioBot.detectBroker("AccountEntity.XLSX"));
-    assertEquals(IBKR, PortfolioBot.detectBroker("MyIbkrAccount.CSV"));
-    assertEquals(IBKR, PortfolioBot.detectBroker("U17959259.TRANSACTIONS.20250211.20251231.CSV"));
+    assertEquals("XTB", PortfolioBot.detectBroker("AccountEntity.XLSX"));
+    assertEquals("IBKR", PortfolioBot.detectBroker("MyIbkrAccount.CSV"));
+    assertEquals("IBKR", PortfolioBot.detectBroker("U17959259.TRANSACTIONS.20250211.20251231.CSV"));
   }
 }

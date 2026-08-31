@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.reporting.dashboard.application;
 
-import com.smartbox.investory.investment.api.InvestmentAssetApi;
+import com.smartbox.investory.investment.api.asset.InvestmentAssetApi;
 import com.smartbox.investory.investment.reporting.dashboard.service.AssetDetailNotFoundException;
 import com.smartbox.investory.investment.reporting.dashboard.service.AssetDetailService;
 import com.smartbox.investory.investment.reporting.dashboard.service.AssetPriceChartService;

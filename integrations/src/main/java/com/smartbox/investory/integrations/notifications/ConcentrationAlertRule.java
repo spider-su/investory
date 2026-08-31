@@ -1,11 +1,8 @@
 package com.smartbox.investory.integrations.notifications;
 
-import com.smartbox.investory.investment.infrastructure.persistence.OpenedPosition;
-import com.smartbox.investory.investment.infrastructure.persistence.OpenedPositionRepository;
-import com.smartbox.investory.investment.market.fx.CurrencyRateService;
+import com.smartbox.investory.investment.api.operations.PortfolioExposureReader;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -21,8 +18,7 @@ public class ConcentrationAlertRule implements AlertRule {
 
   private static final CurrencyType BASE = CurrencyType.USD;
 
-  private final OpenedPositionRepository openedPositionRepository;
-  private final CurrencyRateService currencyRateService;
+  private final PortfolioExposureReader investment;
   private final NotificationProperties properties;
 
   @Override
@@ -34,19 +30,9 @@ public class ConcentrationAlertRule implements AlertRule {
   public Optional<String> evaluate() {
     Map<String, Double> exposureBySymbol = new HashMap<>();
     double total = 0.0;
-    List<OpenedPosition> positions = openedPositionRepository.findAll();
-    for (OpenedPosition p : positions) {
-      if (p.getSymbol() == null) {
-        continue;
-      }
-      double volume = p.signedQuantity();
-      double price =
-          p.getMarketPrice() != null
-              ? p.getMarketPrice()
-              : (p.getOpenPrice() != null ? p.getOpenPrice() : 0.0);
-      double native_ = Math.abs(volume * price);
-      double base = currencyRateService.convertToBaseCurrency(native_, BASE, p.getPriceCurrency());
-      exposureBySymbol.merge(p.getSymbol(), base, Double::sum);
+    for (var exposure : investment.symbolExposures()) {
+      double base = exposure.value().doubleValue();
+      exposureBySymbol.merge(exposure.symbol(), base, Double::sum);
       total += base;
     }
     if (total <= 0.0) {

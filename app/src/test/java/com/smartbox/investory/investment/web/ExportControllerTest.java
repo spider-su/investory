@@ -10,7 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.smartbox.investory.config.MockMvcSecurityTestConfig;
 import com.smartbox.investory.config.SecurityConfig;
-import com.smartbox.investory.investment.infrastructure.integration.export.yahoo.YahooExportService;
+import com.smartbox.investory.integrations.infrastructure.integration.export.yahoo.YahooExportService;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;

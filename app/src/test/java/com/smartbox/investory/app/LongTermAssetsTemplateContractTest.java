@@ -83,8 +83,13 @@ class LongTermAssetsTemplateContractTest {
         () -> assertTrue(css.contains("grid-template-columns: minmax(0, 1fr)")),
         () -> assertTrue(html.contains("iv-long-term-allocation__legend")),
         () -> assertTrue(html.contains("format.compactMoney(group.totalValue)")),
-        () -> assertTrue(html.contains("format.compactMoney(group.realEstatePlanning.netMonthlyIncome)")),
-        () -> assertTrue(html.contains("format.compactMoney(group.annualEconomics.netAnnualIncomeAfterTax)")),
+        () ->
+            assertTrue(
+                html.contains("format.compactMoney(group.realEstatePlanning.netMonthlyIncome)")),
+        () ->
+            assertTrue(
+                html.contains(
+                    "format.compactMoney(group.annualEconomics.netAnnualIncomeAfterTax)")),
         () -> assertTrue(html.contains("th:text=\"${groupShares[group.key]}\"")),
         () ->
             assertTrue(
@@ -105,13 +110,18 @@ class LongTermAssetsTemplateContractTest {
         () -> assertTrue(header.contains("<span>Expenses &amp; tax</span>")),
         () -> assertTrue(header.contains("<span>Gross yield</span>")),
         () -> assertFalse(html.contains("Expected monthly net income")),
-        () -> assertFalse(html.contains("<th th:if=\"${group.key != 'REAL_ESTATE'}\">Gross income</th>")),
+        () ->
+            assertFalse(
+                html.contains("<th th:if=\"${group.key != 'REAL_ESTATE'}\">Gross income</th>")),
         () -> assertFalse(html.contains(">Monthly Reduce</th>")),
         () -> assertFalse(html.contains(">Income Yield</th>")),
         () -> assertFalse(html.contains(">Maturity</th>")),
         () -> assertTrue(html.contains("<th>Net yield</th>")),
         () -> assertTrue(html.contains("<th>End date</th>")),
-        () -> assertTrue(html.contains("'Reduce ' + format.moneyWhole(asset.realEstatePlanning.monthlyReduce)")),
+        () ->
+            assertTrue(
+                html.contains(
+                    "'Reduce ' + format.moneyWhole(asset.realEstatePlanning.monthlyReduce)")),
         () ->
             assertTrue(css.contains(".iv-planning-topbar--assets .iv-planning-topbar__secondary")),
         () ->

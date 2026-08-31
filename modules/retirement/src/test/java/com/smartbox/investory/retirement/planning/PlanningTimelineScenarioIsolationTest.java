@@ -6,7 +6,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.smartbox.investory.investment.api.HistoricalPortfolioActualsReader;
+import com.smartbox.investory.investment.api.reporting.HistoricalPortfolioActualsReader;
 import com.smartbox.investory.retirement.infrastructure.planning.PlanningYearRepository;
 import com.smartbox.investory.retirement.infrastructure.planning.PlanningYearValueRepository;
 import com.smartbox.investory.retirement.profile.InvestmentProfile;

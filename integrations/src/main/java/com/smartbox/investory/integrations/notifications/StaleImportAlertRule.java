@@ -1,8 +1,7 @@
 package com.smartbox.investory.integrations.notifications;
 
-import com.smartbox.investory.investment.imports.ImportBatchStatus;
-import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
-import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportRepository;
+import com.smartbox.investory.investment.api.operations.ImportOperationsReader;
+import com.smartbox.investory.investment.api.operations.ImportOperationsReader.ImportOperationsSnapshot;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
@@ -16,7 +15,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class StaleImportAlertRule implements AlertRule {
 
-  private final ImportRepository importRepository;
+  private final ImportOperationsReader investment;
   private final NotificationProperties properties;
 
   @Override
@@ -26,22 +25,22 @@ public class StaleImportAlertRule implements AlertRule {
 
   @Override
   public Optional<String> evaluate() {
-    Optional<ImportHistoryEntity> latest = importRepository.findFirstByOrderByIdDesc();
+    Optional<ImportOperationsSnapshot> latest = investment.latestImport();
     if (latest.isEmpty()) {
       return Optional.of("No broker imports recorded yet.");
     }
-    ImportHistoryEntity batch = latest.get();
-    ZonedDateTime ts = batch.getFinishedAt() != null ? batch.getFinishedAt() : batch.getStartedAt();
+    ImportOperationsSnapshot batch = latest.get();
+    ZonedDateTime ts = batch.finishedAt() != null ? batch.finishedAt() : batch.startedAt();
     if (ts == null) {
       return Optional.empty();
     }
     long ageDays = ChronoUnit.DAYS.between(ts.toLocalDate(), ZonedDateTime.now().toLocalDate());
     int threshold = properties.getStaleImportDays();
-    if (ageDays >= threshold || batch.getStatus() == ImportBatchStatus.FAILED) {
+    if (ageDays >= threshold || "FAILED".equals(batch.status())) {
       return Optional.of(
           String.format(
               "Stale import: last batch #%d (%s, %s) is %d day(s) old.",
-              batch.getId(), batch.getBroker(), batch.getStatus(), ageDays));
+              batch.batchId(), batch.broker(), batch.status(), ageDays));
     }
     return Optional.empty();
   }

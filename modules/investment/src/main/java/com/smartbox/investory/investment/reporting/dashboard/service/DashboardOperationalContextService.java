@@ -1,13 +1,13 @@
 package com.smartbox.investory.investment.reporting.dashboard.service;
 
-import com.smartbox.investory.investment.accounting.model.Portfolio;
-import com.smartbox.investory.investment.accounting.model.PortfolioDataQuality;
 import com.smartbox.investory.investment.imports.ImportBatchStatus;
-import com.smartbox.investory.investment.infrastructure.integration.export.yahoo.YahooExportService;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportRepository;
+import com.smartbox.investory.investment.performance.model.Portfolio;
+import com.smartbox.investory.investment.performance.model.PortfolioDataQuality;
+import com.smartbox.investory.investment.port.export.SecondaryAdapterStatusReader;
 import com.smartbox.investory.investment.reporting.dashboard.application.DashboardOperationalView;
 import java.time.ZonedDateTime;
 import java.util.Comparator;
@@ -23,7 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class DashboardOperationalContextService {
   private final ImportRepository importRepository;
   private final AccountStatisticsRepository accountStatisticsRepository;
-  private final YahooExportService yahooExportService;
+  private final SecondaryAdapterStatusReader secondaryAdapterStatus;
 
   public DashboardOperationalContextService(
       ImportRepository importRepository, AccountStatisticsRepository accountStatisticsRepository) {
@@ -34,10 +34,10 @@ public class DashboardOperationalContextService {
   public DashboardOperationalContextService(
       ImportRepository importRepository,
       AccountStatisticsRepository accountStatisticsRepository,
-      YahooExportService yahooExportService) {
+      SecondaryAdapterStatusReader secondaryAdapterStatus) {
     this.importRepository = importRepository;
     this.accountStatisticsRepository = accountStatisticsRepository;
-    this.yahooExportService = yahooExportService;
+    this.secondaryAdapterStatus = secondaryAdapterStatus;
   }
 
   public DashboardOperationalView load(Portfolio portfolio) {
@@ -79,12 +79,12 @@ public class DashboardOperationalContextService {
             quality.latestFxMonth(),
             portfolio.getExchangeRates() == null ? 0 : portfolio.getExchangeRates().size() + 1),
         valuation,
-        yahoo(yahooExportService));
+        yahoo(secondaryAdapterStatus));
   }
 
-  private DashboardOperationalView.YahooContext yahoo(YahooExportService service) {
+  private DashboardOperationalView.YahooContext yahoo(SecondaryAdapterStatusReader service) {
     if (service == null) return new DashboardOperationalView.YahooContext(null, false);
-    YahooExportService.YahooExportStatus status = service.status();
+    SecondaryAdapterStatusReader.ExportStatus status = service.status();
     return new DashboardOperationalView.YahooContext(status.lastExport(), status.upToDate());
   }
 

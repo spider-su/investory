@@ -41,6 +41,9 @@ public class RetirementSimulationController {
   @Autowired(required = false)
   private ScenarioObservationService scenarioObservations;
 
+  @Autowired(required = false)
+  private RetirementPlanReviewService planReviews;
+
   @Value("${develop.mode:true}")
   private boolean developMode = true;
 
@@ -510,6 +513,14 @@ public class RetirementSimulationController {
         "displayAnnualPreRetirementContribution",
         planningPresentation.toDisplay(
             assumptions.annualPreRetirementContribution(), planningDisplayCurrency));
+    model.addAttribute(
+        "displayManualRentalIncome",
+        planningPresentation.toDisplay(
+            assumptions.projectedIncomePolicy().manualRentalIncome(), planningDisplayCurrency));
+    model.addAttribute(
+        "displayManualBondCashIncome",
+        planningPresentation.toDisplay(
+            assumptions.projectedIncomePolicy().manualBondCashIncome(), planningDisplayCurrency));
     Map<Long, BigDecimal> displayEventAmounts = new LinkedHashMap<>();
     assumptions
         .futureEvents()
@@ -864,11 +875,10 @@ public class RetirementSimulationController {
       @PathVariable Long planId,
       @RequestParam(defaultValue = "PLN") CurrencyType planningDisplayCurrency,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
-    plans.rebaseline(
-        portfolioId,
-        planId,
-        PlanningBaseline.fromProfile(
-            profiles.loadProfile(portfolioId), Year.now(clock).getValue()));
+    PlanningBaseline baseline =
+        PlanningBaseline.fromProfile(profiles.loadProfile(portfolioId), Year.now(clock).getValue());
+    if (planReviews == null) plans.rebaseline(portfolioId, planId, baseline);
+    else planReviews.rebaseline(portfolioId, planId, baseline);
     return simulationRedirect(portfolioId, planId, planningDisplayCurrency, selectedScenario);
   }
 
@@ -1179,9 +1189,10 @@ public class RetirementSimulationController {
       @RequestParam(defaultValue = "CASH,BONDS,STOCKS") String fundingOrder,
       @RequestParam(defaultValue = "") String expenseProfile,
       @RequestParam(defaultValue = "5") BigDecimal safeReserveYears,
-      @RequestParam(defaultValue = "7") BigDecimal equityHarvestMinimumReturn,
-      @RequestParam(defaultValue = "75") BigDecimal equityGainHarvest,
-      @RequestParam(defaultValue = "true") boolean allowEmergencyEquityWithdrawal,
+      @RequestParam(name = "equityHarvestThreshold", defaultValue = "7")
+          BigDecimal equityHarvestMinimumReturn,
+      @RequestParam(name = "equityHarvestShare", defaultValue = "75") BigDecimal equityGainHarvest,
+      @RequestParam(defaultValue = "false") boolean allowEmergencyEquityWithdrawal,
       @RequestParam(defaultValue = "0") BigDecimal cashReturn,
       @RequestParam(defaultValue = "0") BigDecimal fixedIncomeReturn,
       @RequestParam BigDecimal equityReturn,

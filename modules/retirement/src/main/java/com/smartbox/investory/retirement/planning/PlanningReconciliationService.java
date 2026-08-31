@@ -1,7 +1,7 @@
 package com.smartbox.investory.retirement.planning;
 
-import com.smartbox.investory.investment.api.HistoricalPortfolioActualsReader;
-import com.smartbox.investory.investment.api.HistoricalPortfolioYear;
+import com.smartbox.investory.investment.api.reporting.HistoricalPortfolioActualsReader;
+import com.smartbox.investory.investment.api.reporting.HistoricalPortfolioYear;
 import java.math.BigDecimal;
 import java.util.EnumMap;
 import java.util.List;

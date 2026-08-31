@@ -1,6 +1,6 @@
 package com.smartbox.investory.investment.imports.xtb;
 
-import com.smartbox.investory.investment.infrastructure.persistence.ClosedPosition;
+import com.smartbox.investory.investment.ledger.position.persistence.ClosedPosition;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.ArrayList;
 import java.util.List;

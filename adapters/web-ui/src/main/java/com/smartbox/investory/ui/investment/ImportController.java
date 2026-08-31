@@ -1,6 +1,6 @@
 package com.smartbox.investory.ui.investment;
 
-import com.smartbox.investory.investment.api.InvestmentImportApi;
+import com.smartbox.investory.investment.api.importing.InvestmentImportApi;
 import java.io.IOException;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;

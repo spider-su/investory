@@ -1,7 +1,7 @@
 package com.smartbox.investory.retirement.planning;
 
-import com.smartbox.investory.investment.api.HistoricalPortfolioActualsReader;
-import com.smartbox.investory.investment.api.HistoricalPortfolioYear;
+import com.smartbox.investory.investment.api.reporting.HistoricalPortfolioActualsReader;
+import com.smartbox.investory.investment.api.reporting.HistoricalPortfolioYear;
 import com.smartbox.investory.longterm.api.LongTermAssetAnnualSnapshotReader;
 import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
 import com.smartbox.investory.longterm.api.model.LongTermAssetTypeModel;

@@ -199,9 +199,9 @@ public class RentalContractService {
         usePropertyTaxPayerDefault
             ? owned(portfolioId, assetId).isRentalTaxPaidByTenant()
             : taxPaidByTenant == null
-            ? Optional.ofNullable(contract.getRentalTaxPaidByTenant())
-                .orElse(owned(portfolioId, assetId).isRentalTaxPaidByTenant())
-            : taxPaidByTenant,
+                ? Optional.ofNullable(contract.getRentalTaxPaidByTenant())
+                    .orElse(owned(portfolioId, assetId).isRentalTaxPaidByTenant())
+                : taxPaidByTenant,
         supplied,
         contract.getTerminatedDate());
     return contracts.save(contract);

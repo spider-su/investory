@@ -143,9 +143,7 @@ public class LongTermAssetController {
 
   @PostMapping("/long-term-assets")
   public String create(
-      @ModelAttribute AssetForm form,
-      @RequestParam Long portfolioId,
-      RedirectAttributes feedback) {
+      @ModelAttribute AssetForm form, @RequestParam Long portfolioId, RedirectAttributes feedback) {
     try {
       form.setActive(true);
       assets.create(form.command(portfolioId));
@@ -169,18 +167,19 @@ public class LongTermAssetController {
       @RequestParam(required = false) String notes,
       RedirectAttributes feedback) {
     try {
-      var saved = assets.createBond(
-            new LongTermAssetsApi.BondCommand(
-                portfolioId,
-                null,
-                name,
-                currency,
-                value,
-                acquisitionDate,
-                maturityDate,
-                interestTreatment,
-                annualRatePercent,
-                notes));
+      var saved =
+          assets.createBond(
+              new LongTermAssetsApi.BondCommand(
+                  portfolioId,
+                  null,
+                  name,
+                  currency,
+                  value,
+                  acquisitionDate,
+                  maturityDate,
+                  interestTreatment,
+                  annualRatePercent,
+                  notes));
       return redirect(saved.id(), portfolioId);
     } catch (IllegalArgumentException | NoSuchElementException exception) {
       feedback.addFlashAttribute("error", assetError(exception));
@@ -202,18 +201,19 @@ public class LongTermAssetController {
       @RequestParam(required = false) String notes,
       RedirectAttributes feedback) {
     try {
-      var saved = assets.createDeposit(
-            new LongTermAssetsApi.DepositCommand(
-                portfolioId,
-                name,
-                currency,
-                value,
-                acquisitionDate,
-                maturityDate,
-                interestTreatment,
-                annualInterestRate,
-                taxRate,
-                notes));
+      var saved =
+          assets.createDeposit(
+              new LongTermAssetsApi.DepositCommand(
+                  portfolioId,
+                  name,
+                  currency,
+                  value,
+                  acquisitionDate,
+                  maturityDate,
+                  interestTreatment,
+                  annualInterestRate,
+                  taxRate,
+                  notes));
       return redirect(saved.id(), portfolioId);
     } catch (IllegalArgumentException | NoSuchElementException exception) {
       feedback.addFlashAttribute("error", assetError(exception));
@@ -235,23 +235,23 @@ public class LongTermAssetController {
       RedirectAttributes feedback) {
     try {
       assets.saveRealEstate(
-        portfolioId,
-        new RealEstateEntryModel(
-            entry.name(),
-            entry.currency(),
-            entry.acquisitionDate(),
-            entry.acquisitionValue(),
-            entry.currentValue(),
-            entry.taxBase(),
-            entry.monthlyRent(),
-            entry.monthlyParkingIncome(),
-            entry.monthlyAdministrationCost(),
-            entry.monthlyOtherCost(),
-            entry.annualPropertyTax(),
-            entry.annualInsurance(),
-            entry.effectiveFrom(),
-            growth,
-            entry.notes()));
+          portfolioId,
+          new RealEstateEntryModel(
+              entry.name(),
+              entry.currency(),
+              entry.acquisitionDate(),
+              entry.acquisitionValue(),
+              entry.currentValue(),
+              entry.taxBase(),
+              entry.monthlyRent(),
+              entry.monthlyParkingIncome(),
+              entry.monthlyAdministrationCost(),
+              entry.monthlyOtherCost(),
+              entry.annualPropertyTax(),
+              entry.annualInsurance(),
+              entry.effectiveFrom(),
+              growth,
+              entry.notes()));
       return "redirect:/long-term-assets?portfolioId=" + portfolioId;
     } catch (IllegalArgumentException | NoSuchElementException exception) {
       feedback.addFlashAttribute("error", assetError(exception));
@@ -476,10 +476,7 @@ public class LongTermAssetController {
                 portfolioId,
                 id,
                 new LongTermAssetsApi.BondDetailsCommand(
-                    form.maturityDate,
-                    form.taxRate,
-                    form.interestTreatment,
-                    form.redemptionValue)),
+                    form.maturityDate, form.taxRate, form.interestTreatment, form.redemptionValue)),
         feedback);
     return redirect(id, portfolioId);
   }
@@ -623,9 +620,7 @@ public class LongTermAssetController {
 
   @PostMapping("/long-term-assets/rental-tax-policy/{policyId}/delete")
   public String deleteRentalTaxPolicy(
-      @PathVariable Long policyId,
-      @RequestParam Long portfolioId,
-      RedirectAttributes feedback) {
+      @PathVariable Long policyId, @RequestParam Long portfolioId, RedirectAttributes feedback) {
     mutate(() -> assets.deleteRentalTaxPolicy(portfolioId, policyId), feedback);
     return taxPolicyRedirect(portfolioId);
   }
