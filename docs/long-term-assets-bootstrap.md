@@ -7,17 +7,20 @@ This is an explicit developer/admin import for manual long-term assets. It is no
 Use the sanitized example as a template:
 
 ```powershell
-./mvnw spring-boot:run "-Dspring-boot.run.profiles=local" "-Dspring-boot.run.arguments=--bootstrap-long-term-assets=src/main/resources/bootstrap/example-long-term-assets.json --dry-run"
-./mvnw spring-boot:run "-Dspring-boot.run.profiles=local" "-Dspring-boot.run.arguments=--bootstrap-long-term-assets=src/main/resources/bootstrap/example-long-term-assets.json"
+./mvnw -pl app -am spring-boot:run "-Dspring-boot.run.profiles=local" "-Dspring-boot.run.arguments=--bootstrap-long-term-assets=app/src/main/resources/bootstrap/example-long-term-assets.json --dry-run"
+./mvnw -pl app -am spring-boot:run "-Dspring-boot.run.profiles=local" "-Dspring-boot.run.arguments=--bootstrap-long-term-assets=app/src/main/resources/bootstrap/example-long-term-assets.json"
 ```
 
 The process exits after the command. `--dry-run` validates and reports counts/totals without writing.
 
 ## Format and behavior
 
-The JSON document contains `portfolioId`, rental-tax policies, and assets. Assets use the existing domain enums and support cash-flow periods, valuation periods, bond-rate periods, bond details, and deposit details. See `src/main/resources/bootstrap/example-long-term-assets.json`.
+The JSON document contains `portfolioId`, rental-tax policies, and assets. Real-estate rental history is normalized into dated rental contracts with contract terms; legacy `cashFlows` input remains accepted and is converted transactionally. Assets also support valuation periods, bond-rate periods, bond details, and deposit details. See `app/src/main/resources/bootstrap/example-long-term-assets.json`.
 
-Assets use `externalKey` as a stable identity scoped to a portfolio. Import behavior is **upsert**:
+Assets use `externalKey` as a stable identity scoped to a portfolio. Real-estate assets may provide
+`taxBase` and `rentalTaxPaidByTenant`; expense cash-flow entries may provide `paidByTenant`. Omitted
+ownership flags use the compatibility defaults: administration fees and utilities are tenant-paid;
+other expenses and rental tax are landlord-paid. Import behavior is **upsert**:
 
 * matching assets are updated;
 * new assets are created;
@@ -25,7 +28,21 @@ Assets use `externalKey` as a stable identity scoped to a portfolio. Import beha
 * omitted existing periods are retained, preserving history;
 * the same file can be run repeatedly without duplicate rows.
 
-Validation runs before writes in one transaction. Invalid portfolio, key, date, rate, currency, type, amount, maturity, or overlapping-period data rolls back the complete import.
+Validation runs before writes in one transaction. Invalid portfolio, key, date, rate, currency, type,
+amount, maturity, ownership, or overlapping-period data rolls back the complete import. Rental
+economics are `gross income - landlord-paid expenses - effective rental tax`; a missing tax base means
+zero rental tax. The effective policy is selected by portfolio and calculation date, with an 8.5%
+fallback when no policy applies.
+
+Asset type is immutable after creation. Bootstrap updates preserve the existing lifecycle history;
+they do not silently convert an archived asset or discard archive/reactivation periods. Cash-flow,
+valuation, and bond-rate periods are checked against both the incoming document and stored periods,
+while an existing period identified by the same effective start date is updated idempotently.
+
+Lifecycle history uses inclusive date periods and the application `Clock`. If several lifecycle
+transitions occur on one date, the date-only model collapses them to that date and never writes an
+invalid range; the current active flag remains authoritative for current lists, while historical
+lookups use the persisted lifecycle periods.
 
 ## Reconciliation
 
@@ -33,9 +50,9 @@ The example contains five sanitized properties and two bonds. The property total
 
 * value: `3,650,000 PLN`
 * gross annual rent/parking: `172,200 PLN`
-* operating expenses: `34,054 PLN`
-* rental tax at `8.5%`: `14,637 PLN`
-* net after tax: `123,509 PLN`
+* landlord-paid operating expenses and rental tax are calculated from each property's effective cash-flow ownership, tax base, and policy date;
+* tenant-paid administration fees and utilities are excluded from landlord operating expenses;
+* the persisted import and dry-run use the same canonical economics.
 
 The Investment Profile converts native asset values and income to the portfolio base currency through the existing `CurrencyRateService`. No bootstrap-specific FX implementation is used.
 

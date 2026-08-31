@@ -23,7 +23,7 @@ Tests that do not need a database should remain plain unit tests or Spring test 
 Fast database tests use PostgreSQL Testcontainers but disable Flyway. The database is initialized directly from:
 
 ```text
-src/test/resources/db/snapshot/schema.sql
+test-support/src/main/resources/db/snapshot/schema.sql
 ```
 
 The snapshot is required. If it is missing, fast-test support fails with instructions to regenerate it;
@@ -60,9 +60,9 @@ The script:
 
 1. starts the PostgreSQL service from `.devcontainer/compose.yml`;
 2. creates a temporary `investory_snapshot` database;
-3. applies all SQL files from `src/main/resources/sql/migration` in filename order;
+3. applies all SQL files from `app/src/main/resources/sql/migration` in filename order;
 4. dumps the clean `investory` schema and migration seed data;
-5. writes `src/test/resources/db/snapshot/schema.sql`;
+5. writes `test-support/src/main/resources/db/snapshot/schema.sql`;
 6. deletes the temporary database.
 
 The script never dumps the normal `investory` development database, so personal portfolio rows are not copied into the repository.
@@ -71,7 +71,7 @@ Regenerate and commit the snapshot whenever a migration changes:
 
 ```bash
 bash scripts/update-test-db-snapshot.sh
-git add src/test/resources/db/snapshot/schema.sql
+git add test-support/src/main/resources/db/snapshot/schema.sql
 git commit -m "Update fast test database snapshot"
 ```
 

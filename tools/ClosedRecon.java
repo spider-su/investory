@@ -21,8 +21,8 @@ public class ClosedRecon {
               Sheet closed = wb.getSheet("Closed Positions");
               Sheet cash = wb.getSheet("Cash Operations");
               if (closed == null || cash == null) continue;
-              Long acc = parseLong(readHeaderValue(cash, "Account number"));
-              if (acc == null) acc = parseLong(readHeaderValue(closed, "Account"));
+              Long acc = parseLong(readHeaderValue(cash, "AccountEntity number"));
+              if (acc == null) acc = parseLong(readHeaderValue(closed, "AccountEntity"));
               if (acc == null) continue;
               int hdr = findHeader(closed, "Ticker", "Type", "Volume");
               Row hr = closed.getRow(hdr);

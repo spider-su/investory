@@ -104,7 +104,7 @@ orchestration invokes its stages separately, so a slow stage is measurable and d
 large application transaction. The system audit runs asynchronously after import finalization has
 committed; an audit failure cannot roll back canonical imported data.
 
-For exact current view names and definitions, inspect `src/main/resources/sql/migration`.
+For exact current view names and definitions, inspect `app/src/main/resources/sql/migration`.
 
 ## SQL migration boundaries
 

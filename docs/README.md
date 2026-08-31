@@ -25,8 +25,8 @@ resolved by changing the documentation.
   currency roles, and signed position quantity.
 - [`domain/fx-normalization.md`](domain/fx-normalization.md): FX direction, resolution, stale/missing
   rates, and fail-closed reporting behavior.
-- [`domain/retirement-simulation.md`](domain/retirement-simulation.md): deterministic retirement
-  funding, liquidity, strategy, and independent growth-rate semantics.
+- [`domain/retirement-simulation.md`](domain/retirement-simulation.md): authoritative deterministic
+  retirement model, planning buckets, funding/refill strategy, lifecycle, and growth-rate semantics.
 - [`domain/planning-timeline.md`](domain/planning-timeline.md): Actual/Live/Projected lifecycle,
   expected-versus-actual baseline, temporal anchor, display currency, and planning/accounting isolation.
 

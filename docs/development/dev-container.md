@@ -99,7 +99,7 @@ These credentials are development-only and must not be reused in production.
 Open the IntelliJ terminal inside the Dev Container and run:
 
 ```bash
-./mvnw spring-boot:run
+./mvnw -pl app -am spring-boot:run
 ```
 
 The container supplies `DB_URL`, `DB_USERNAME`, and `DB_PASSWORD` for its PostgreSQL service. It also

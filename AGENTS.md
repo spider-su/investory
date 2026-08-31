@@ -13,7 +13,7 @@ Do not duplicate project documentation here.
 - Read dependency and framework versions from the current build/source; do not guess them.
 - Make the smallest change that solves the task. Do not refactor unrelated code.
 - Repository-local edits, builds, tests, formatting, and verification are pre-approved unless destructive.
-- Schema changes go through versioned Flyway SQL under `src/main/resources/sql/migration`.
+- Schema changes go through versioned Flyway SQL under `app/src/main/resources/sql/migration`.
 - For local runs, use the datasource settings from the current configuration/environment; do not assume a Spring profile changes them.
 - For live database debugging, always use the JDBC driver and connection settings from the local profile; do not use `psql` or guessed database credentials.
 - Run targeted tests first. Use broader verification for cross-cutting changes or before merge.
@@ -59,7 +59,7 @@ Package-local `README.md` files are authoritative for the code immediately aroun
 - Common checks: `./mvnw test`, `./mvnw clean verify`, `./mvnw spotless:check`.
 - In PowerShell, use `./mvnw.cmd` and always quote Maven `-D...` properties, for example `./mvnw.cmd "-Dit.test=SystemAuditContractIT,BaselineReadinessContractIT" verify`, so shell expansion cannot drop the property.
 - Use a default 360-second command timeout for Maven builds and tests; increase it for known long integration suites.
-- Local application: `./mvnw spring-boot:run` (`./mvnw.cmd` in PowerShell).
+- Local application: `./mvnw -pl app -am spring-boot:run` (`./mvnw.cmd` in PowerShell).
 - Docker/Testcontainers in this workspace use `DOCKER_HOST=tcp://127.0.0.1:2375`; set `$env:DOCKER_HOST` before Docker-backed tests or tools.
 - Do not record exact test counts or dependency versions here when they can be read from the build.
 

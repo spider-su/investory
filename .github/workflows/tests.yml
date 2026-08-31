@@ -31,6 +31,9 @@ jobs:
           java-version: '25'
           cache: maven
 
+      - name: Remove potentially corrupt Mockito cache entry
+        run: rm -f "$HOME/.m2/repository/org/mockito/mockito-core/5.23.0/mockito-core-5.23.0.jar"
+
       - name: Run tests
         run: sh ./mvnw --batch-mode --no-transfer-progress test
 
@@ -50,11 +53,14 @@ jobs:
           java-version: '25'
           cache: maven
 
+      - name: Remove potentially corrupt Mockito cache entry
+        run: rm -f "$HOME/.m2/repository/org/mockito/mockito-core/5.23.0/mockito-core-5.23.0.jar"
+
       - name: Run integration tests
-        run: >-
-          sh ./mvnw --batch-mode --no-transfer-progress test-compile failsafe:integration-test
-          failsafe:verify
-          "-Dit.test=ValuationInputContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,CurrencyRateUpdaterPostgresIT,SchemaMigrationCheckpoint2IT,IbkrTreasuryImportIT,XtbImportIT"
+        run: |
+          sh ./mvnw --batch-mode --no-transfer-progress -pl app -am -DskipTests install
+          sh ./mvnw --batch-mode --no-transfer-progress -pl app test-compile failsafe:integration-test failsafe:verify \
+            "-Dit.test=ValuationInputContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,CurrencyRateUpdaterPostgresIT,SchemaMigrationCheckpoint2IT,IbkrTreasuryImportIT,XtbImportIT"
 
   goldenPath:
     name: Golden path
@@ -72,8 +78,15 @@ jobs:
           java-version: '25'
           cache: maven
 
+      - name: Remove potentially corrupt Mockito cache entry
+        run: rm -f "$HOME/.m2/repository/org/mockito/mockito-core/5.23.0/mockito-core-5.23.0.jar"
+
       - name: Run offline golden gate
-        run: sh ./mvnw --batch-mode --no-transfer-progress clean "-Dmaven.compiler.useIncrementalCompilation=false" "-Dtest=GoldenRebuildIT" test
+        run: |
+          sh ./mvnw --batch-mode --no-transfer-progress -pl app -am -DskipTests install
+          sh ./mvnw --batch-mode --no-transfer-progress -pl app \
+            "-Dmaven.compiler.useIncrementalCompilation=false" \
+            "-Dtest=GoldenRebuildIT" test
 
       - name: Check formatting
         run: sh ./mvnw --batch-mode --no-transfer-progress spotless:check

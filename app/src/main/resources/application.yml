@@ -1,0 +1,147 @@
+spring:
+  cache:
+    type: caffeine
+    cache-names: portfolioCalculation,benchmark
+    caffeine:
+      spec: maximumSize=100,expireAfterAccess=6h,recordStats
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 60MB
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate.ddl-auto: validate
+    generate-ddl: false
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: investory
+        jdbc.batch_size: 50
+        jdbc.batch_versioned_data: true
+        order_inserts: true
+        order_updates: true
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/investory}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      # Keep timestamptz -> date reporting semantics deterministic across local and CI databases.
+      connection-init-sql: SET TIME ZONE 'Europe/Warsaw'
+      keepalive-time: 30000
+      max-lifetime: 1800000
+      idle-timeout: 600000
+      connection-test-query: SELECT 1
+  flyway:
+    enabled: true
+    schemas: investory
+    default-schema: investory
+    create-schemas: true
+    locations: classpath:sql/migration
+    out-of-order: false
+  thymeleaf:
+    prefix: classpath:/templates/
+    suffix: .html
+    mode: HTML
+    cache: false
+    check-template: true
+    check-template-location: true
+    template-resolver-order: 1
+
+# FX matrix resolution is already batched and cached by CurrencyRateService. Keep the generated
+# native SQL out of normal application logs; enable DEBUG locally when diagnosing SQL itself.
+logging:
+  level:
+    org.hibernate.SQL: INFO
+    org.hibernate.orm.jdbc.bind: INFO
+
+# Development-only calculation tables in the Plan Editor. Disable in production.
+develop:
+  mode: ${DEVELOP_MODE:true}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: when_authorized
+      probes:
+        enabled: true
+
+app:
+  ui:
+    yahoo-url: ${YAHOO_FINANCE_URL:}
+  # Global reporting inception date. Historical views never calculate before this date.
+  history-start: ${APP_HISTORY_START:${PORTFOLIO_HISTORY_START:2025-02-01}}
+  integrations:
+    # Required before saving or reading encrypted integration secrets.
+    master-key: ${INVESTORY_INTEGRATION_MASTER_KEY:}
+  portfolio:
+    performance-kpi-start: ${PORTFOLIO_PERFORMANCE_KPI_START:2026-01-01}
+    # Detailed issue provenance scans reconstructed history and is slow on large datasets.
+    data-quality-issues-enabled: ${PORTFOLIO_DATA_QUALITY_ISSUES_ENABLED:false}
+    # Optional dashboard enrichment: fallback reconciliation, data-quality details, and risk exposure.
+    dashboard-enrichment-enabled: ${PORTFOLIO_DASHBOARD_ENRICHMENT_ENABLED:false}
+  benchmark:
+    symbol: ${PORTFOLIO_BENCHMARK_SYMBOL:SPY}
+  import:
+    # Reconciliation materialized views are diagnostic and expensive; refresh them manually or opt in.
+    reconciliation-refresh-enabled: ${IMPORT_RECONCILIATION_REFRESH_ENABLED:false}
+  api:
+    twelve-data-key: ${TWELVEDATA_API_KEY:}
+    exchange-rate-key: ${EXCHANGERATE_API_KEY:}
+  security:
+    # Read routes require HTTP Basic by default. Set false only for a trusted local network.
+    read-authentication-required: ${APP_SECURITY_READ_AUTHENTICATION_REQUIRED:true}
+    admin-username: ${APP_SECURITY_ADMIN_USERNAME:admin}
+    admin-password: ${APP_SECURITY_ADMIN_PASSWORD:change-me-admin}
+    user-username: ${APP_SECURITY_USER_USERNAME:user}
+    user-password: ${APP_SECURITY_USER_PASSWORD:change-me-user}
+  telegram:
+    enabled: ${TELEGRAM_BOT_ENABLED:false}
+    bot-username: ${TELEGRAM_BOT_USERNAME:}
+    bot-token: ${TELEGRAM_BOT_TOKEN:}
+    chat-id: ${TELEGRAM_CHAT_ID:}
+  openai:
+    enabled: ${OPENAI_ENABLED:false}
+    api-key: ${OPENAI_API_KEY:}
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+    model: ${OPENAI_MODEL:gpt-5-mini}
+    max-output-tokens: ${OPENAI_MAX_OUTPUT_TOKENS:1200}
+    instructions: ${OPENAI_INSTRUCTIONS:You are the Investory assistant. Give concise, factual answers about investing and portfolio management. Do not claim access to portfolio data unless it was included in the user's message. State uncertainty clearly. Do not provide personalized financial guarantees.}
+    portfolio-context:
+      enabled: ${OPENAI_PORTFOLIO_CONTEXT_ENABLED:true}
+      dashboard-url: ${OPENAI_PORTFOLIO_CONTEXT_URL:http://localhost:8080/dashboard}
+      max-characters: ${OPENAI_PORTFOLIO_CONTEXT_MAX_CHARACTERS:16000}
+    analysis:
+      enabled: ${OPENAI_ANALYSIS_ENABLED:false}
+      zone: ${OPENAI_ANALYSIS_ZONE:Europe/Warsaw}
+      # First day of every month, 09:00 local time.
+      monthly-cron: ${OPENAI_ANALYSIS_MONTHLY_CRON:0 0 9 1 * *}
+      # Second day of Jan/Apr/Jul/Oct, avoiding duplicate delivery with monthly report.
+      quarterly-cron: ${OPENAI_ANALYSIS_QUARTERLY_CRON:0 15 9 2 1,4,7,10 *}
+      # Third day of January, after monthly and quarterly reports.
+      annual-cron: ${OPENAI_ANALYSIS_ANNUAL_CRON:0 30 9 3 1 *}
+  notifications:
+    enabled: ${NOTIFICATIONS_ENABLED:true}
+    drawdown-threshold-pct: ${ALERT_DRAWDOWN_PCT:10}
+    drawdown-cooldown-hours: ${ALERT_DRAWDOWN_COOLDOWN_HOURS:24}
+    concentration-threshold-pct: ${ALERT_CONCENTRATION_PCT:25}
+    stale-import-days: ${ALERT_STALE_IMPORT_DAYS:7}
+  market:
+    chunk-pause-ms: ${MARKET_CHUNK_PAUSE_MS:120000}
+    # Current TwelveData plan does not allow non-US exchange quotes; manual prices cover these.
+    skip-non-us-listings: ${MARKET_SKIP_NON_US_LISTINGS:true}
+    # Comma-separated stored asset symbols to skip even when they look US-listed.
+    excluded-symbols: ${MARKET_EXCLUDED_SYMBOLS:}
+  long-term-assets:
+    planning-currency: ${LONG_TERM_ASSETS_PLANNING_CURRENCY:PLN}
+  export:
+    yahoo:
+      # Comma-separated account IDs to include in Yahoo CSV export.
+      # Leave empty (or omit) to export ALL accounts.
+      # Example: accounts: 51499241,U17959259
+      accounts: ${YAHOO_EXPORT_ACCOUNTS:}
