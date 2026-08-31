@@ -28,7 +28,7 @@ files
 | C4 | `account_daily` | Equity, cash, market value, flows, and investment result reconcile for each account/date. |
 | C5 | reporting layers | Monthly/portfolio summaries equal the lower-level projection and pass economic-truth checks. |
 | C6 | dashboard | Displayed values equal their documented reporting sources within rounding. |
-| C7 | secondary adapters | Ghostfolio, Yahoo export, Telegram, and other adapters agree when they expose the same metric. |
+| C7 | secondary adapters | Exports, notifications, and other adapters agree when they expose the same metric. |
 
 ## Economic-truth checks
 
@@ -102,11 +102,63 @@ Reconciliation has a separate SQL boundary. Production calculations live in
 and never refreshes the trade-settlement reconciliation MV. Reconciliation refresh is explicit/on
 demand. Estimated FX is usable for authoritative conversion; stale and missing FX fail closed.
 
+Account quality has three distinct states:
+
+- `RECONCILED` — no true accounting or required-data-availability failure.
+- `REVIEW` — an explicit semantic, as-of, or no-validation-snapshot review without a confirmed
+  accounting failure.
+- `UNRECONCILED` — a true material reconciliation failure or missing required valuation input.
+
+Semantic review rows remain visible. They are not suppressed or converted into accounting failures
+solely to improve quality counts.
+
+### Application reconciliation report coverage
+
+The read-only application report now connects C0, C1, C2, and C5 to existing persisted import,
+ledger, position, account-daily, and reporting evidence. C6 and C7 remain explicitly
+`NOT_CHECKED`; QUICK mode also cannot prove external archive completeness without an archive
+manifest. An empty result in an unexecuted checkpoint is not a pass. A report is `RECONCILED` only
+after every required checkpoint has executed and passed. An executed failure produces
+`UNRECONCILED`.
+
+The application uses a reusable typed check engine. Checks execute in C0-C7 order, aggregate
+uncapped counts while retaining capped detail rows, and report mode, execution time, and data-as-of
+date. Check execution errors fail closed with an explicit issue. `BLOCKED` is only a presentation
+status after the earliest original failure; it never replaces the original status.
+
+Checkpoint and issue statuses are typed as `PASS`, `FAIL`, `REVIEW`, `BLOCKED`, and `NOT_CHECKED`.
+Issues retain both original and effective status. Later executed failures/reviews are displayed as
+`BLOCKED` after an earlier failure, without changing original status or aggregate counts.
+`firstFailingCheckpoint` always uses original failures. Displayed issue rows are capped for page
+performance; checkpoint totals and failure/review counts come from uncapped aggregate queries.
+
+### Current valuation as-of status
+
+`reporting_account_statistics_vs_daily_reconciliation` is a current valuation reconciliation.
+`VALUATION_ASOF_DIFFERENCE` intentionally includes a latest `account_daily` snapshot that is not
+`CURRENT_DATE`: Friday/weekend, holiday, pre-close, and refresh-lag views require review but are
+not monetary mismatches. Do not reinterpret it as a latest-completed-market-session reconciliation
+without an explicit contract change and regression coverage.
+
+## Retirement planning boundary
+
+Retirement simulation and planning are outside accounting reconciliation. They read the canonical portfolio
+and long-term-asset inputs but never write accounting facts. Their current financial and lifecycle contracts
+are [`docs/domain/retirement-simulation.md`](../domain/retirement-simulation.md) and
+[`docs/domain/planning-timeline.md`](../domain/planning-timeline.md).
+
 ## Current tooling
 
-- `tools/ReconRunner.java` enforces C0 completeness for all supplied IBKR/XTB files, implements XTB C1 checks, and checks aggregate IBKR source-to-ledger cash-amount conservation.
+- `tools/ReconRunner.java` enforces C0 completeness for all supplied IBKR/XTB files, implements XTB C1 checks, and provides the developer-facing aggregate IBKR cash conservation check.
+- `GoldenRebuildIT` starts a fresh Testcontainers PostgreSQL database, applies Flyway, imports the
+  reduced broker corpus, loads deterministic FX data, rebuilds projections, and emits a JSON
+  `READY` or `NOT_READY` report. Its IBKR C1 contract checks operation, currency, business date,
+  row count, and signed Net Amount. The dedicated CI workflow job runs it with no live market/FX step.
+- `reporting_import_provenance_issues` checks missing/wrong canonical links, orphan evidence, duplicate
+  source identities, and source checksum drift. New orchestrated broker imports must produce no
+  missing-link errors; legacy/manual rows remain explicitly nullable.
 - Shared deterministic portfolio fixtures live under
-  `src/test/java/com/example/demo/testsupport/portfolio`; read the package-local `README.md`.
+  `src/test/java/com/smartbox/testsupport/portfolio`; read the package-local `README.md`.
 - `src/test/manual/api.http` remains a manual API smoke surface.
 
 Do not copy one developer's local account totals, machine paths, database addresses, or a one-time PASS
@@ -114,10 +166,10 @@ result into this document.
 
 ## Known gaps
 
-Track implementation gaps in `ROADMAP.md`, not as a growing historical diary here. IBKR C1 currently
-checks aggregate cash-amount conservation only; row counts, operation classes, currencies, and date
-coverage still need fuller source-to-ledger reconciliation. Other notable gaps are automated dashboard
-checkpoint coverage and making the complete golden pipeline a reliable CI gate.
+Track implementation gaps in `ROADMAP.md`, not as a growing historical diary here. The reduced golden
+corpus covers the supported IBKR C1 dimensions; full private-archive verification remains a release
+check outside public CI.
 
-When those ship, update tests/tooling, remove the roadmap item, and record completion in
-`CHANGELOG.md`.
+The remaining release gap is enforcing the dedicated golden result as a repository
+branch-protection/release requirement. Full private-archive verification also remains an operator
+check outside public CI.

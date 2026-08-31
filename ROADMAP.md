@@ -7,14 +7,24 @@ only routes coding agents to those sources.
 
 ## Next priorities (high impact, low risk)
 
-1. **Finish deterministic golden reconciliation and make it a release gate** _(M)_ - stabilize and freeze the heavily reduced real IBKR/XTB corpus around previously observed edge cases, then make a clean-PostgreSQL rebuild produce an explicit `READY` / `NOT_READY` result. The golden path must remain offline and deterministic: Flyway -> import -> local FX/prices -> projections -> reconciliation -> semantic checkpoints.
-2. **PR test job + migration-test recovery** _(M)_ - the existing workflow only builds and publishes the Docker image on `main`, while `SchemaMigrationCheckpoint2Test` is disabled. Add a `mvn test` pull-request job and make the migration chain test reliable enough to gate merges.
-3. **Restore authoritative dashboard quality status** _(M)_ - `PortfolioService` currently bypasses reconciliation, data-quality, and risk enrichment. Re-enable them through a cached or on-demand path and add regression tests before presenting the result as trustworthy dashboard state.
-4. **Align dashboard profit explanation with the service formula** _(S)_ - the headline is calculated from realized P/L, unrealized P/L, net dividends, and interest, while one dashboard popover describes it as portfolio value minus net deposits. Show the implemented formula and expose any reconciliation difference separately.
-5. **Persist `DrawdownAlertRule` peak equity** _(S)_ - currently in-memory and resets on every restart. Store it in a dedicated `notification_state` table; do not restore the removed `portfolio_history` table.
-6. **Per-rule alert deduplication** _(S)_ - the same condition can fire every weekday at the 22:22 notification run. Add `last_fired_at` per `AlertRule.code()` and only re-fire after N hours or a state change.
+1. **Align dashboard profit explanation with the service formula** _(S)_ - the headline is calculated from realized P/L, unrealized P/L, net dividends, and interest, while one dashboard popover describes it as portfolio value minus net deposits. Show the implemented formula and expose any reconciliation difference separately.
+2. **Persist `DrawdownAlertRule` peak equity** _(S)_ - currently in-memory and resets on every restart. Store it in a dedicated `notification_state` table; do not restore the removed `portfolio_history` table.
+3. **Per-rule alert deduplication** _(S)_ - the same condition can fire every weekday at the 22:22 notification run. Add `last_fired_at` per `AlertRule.code()` and only re-fire after N hours or a state change.
 
 The verification gate is intentionally first: accounting/import changes should not be considered complete until the reduced real-world corpus rebuilds cleanly and reproducibly.
+
+## Planning follow-ups
+
+The implemented long-term assets, deterministic retirement simulation, Reserve + Harvest policy, manual
+cash reserve, planning display currency, and Actual/Live/Projected timeline are no longer roadmap work.
+
+| Item | Effort | Why |
+|---|---|---|
+| Portfolio-scoped market aggregation for planning | M | `InvestmentProfile` currently combines portfolio-scoped manual assets with shared market aggregation; make multi-portfolio planning semantics explicit and safe. |
+| Richer Live-year tracking and longer actual-versus-plan history | M | The current annual baseline/timeline is intentionally compact. Add reliable flow and strategy tracking without turning planning into transaction budgeting. |
+| Assumption calibration from closed years | M | Use approved historical planning data as an optional review input; do not silently alter assumptions. |
+| Monte Carlo / sequence-risk model | L | Keep separate from the deterministic annual planning contract. |
+| Explicit real-estate sale strategy | M | Current simulation intentionally never sells real estate automatically. |
 
 ## Theme A - Observability & ops
 
@@ -34,7 +44,6 @@ The verification gate is intentionally first: accounting/import changes should n
 | Extend IBKR FIFO edge-case coverage | M | Existing importer tests cover the main statement flows; add focused cases for lot matching across partial fills, forex rows, and synthetic-ID stability. |
 | Remove private-fixture dependency from remaining XTB ZIP tests | M | The suite already builds synthetic XLSX workbooks, but several ZIP-path tests still skip when private broker exports are absent. Add synthetic ZIP bundles and remove `Assumptions.assumeTrue`. |
 | JaCoCo report (Maven plugin + threshold per package) | S | Surface what's actually covered; today coverage is a guess. |
-| Re-enable migration-chain Testcontainers coverage and add a full-context boot test | M | `SchemaMigrationCheckpoint2Test` exists but is disabled, and no test currently boots the full Spring application context against PostgreSQL. |
 
 ## Theme C - Notification depth
 
@@ -60,7 +69,7 @@ The verification gate is intentionally first: accounting/import changes should n
 
 | Item | Effort | Why |
 |---|---|---|
-| Define and enforce read-route authentication policy | S | The current security chain protects `POST`, `PUT`, and `DELETE`, then permits every other request. Decide which dashboard/API reads may be public and require authentication for the rest. |
+| Define and enforce read-route authentication policy | S | The current security chain protects `POST`, `PUT`, and `DELETE`, then permits every other request. Decide which dashboard/API reads may be public, require authentication for the rest, and remove the `change-me-*` credential defaults before deployment. |
 | Per-user data scoping (add `owner_id` column to all positional tables + Flyway migration) | L | Today every authenticated user sees the same portfolio. Required before exposing the instance to more than one human. |
 | CSRF for UI POST routes only | S | CSRF is globally off; enable for the dashboard's import form and keep API routes off (Basic auth). |
 | Rate limiting on import endpoints (`bucket4j`) | S | Anyone with admin can DOS the orchestrator with a giant XLSX loop. |
@@ -69,7 +78,6 @@ The verification gate is intentionally first: accounting/import changes should n
 
 | Item | Effort | Why |
 |---|---|---|
-| Maven wrapper (`mvnw`) | S | Maven is still an external prerequisite. Vendor and verify the wrapper, then switch CI, Docker, `README.md`, and `AGENTS.md` together. |
 | Bind Spotless to `verify` and add a pre-commit hook | S | Formatting is configured but remains optional and can drift between contributors. |
 | Bump `telegrambots` 6.9 → 7.x / 10.x (Boot starter, split artifacts) | M | 6.x is no longer maintained; the 7.x+ line ships a Spring Boot starter (`telegrambots-springboot-longpolling-starter`) and splits client/meta into separate jars. This requires reworking `PortfolioBot` to the newer consumer API. |
 
@@ -80,26 +88,32 @@ The verification gate is intentionally first: accounting/import changes should n
 | Full positions workspace (broker/account/currency filters) | M | A sortable open-position popover already exists. Promote it to a persistent table with filters and explicit open/closed scope. |
 | Extend the existing asset detail page (`/dashboard/assets/{symbol}`) | M | The page already shows price history, current holdings, closed transactions, and dividends. Add lot-level attribution, broker filters, and an optional technical-analysis snapshot. |
 | Align headline profit UI copy with the component calculation | S | Remove the stale “portfolio value − net deposits” explanation or present it only as an independently reconciled check. |
-| Restore dashboard reconciliation/data-quality/risk enrichment | M | The service currently skips these calculations unconditionally; make the path performant, tested, and explicit about freshness. |
+| Restore dashboard reconciliation/data-quality/risk enrichment | M | Database diagnostics are implemented. The normal dashboard path keeps this expensive enrichment opt-in/on-demand until a performant, tested freshness strategy is available. |
 | Dark-mode toggle | S | Tabler.css already ships a dark variant. |
 | "Import progress" SSE stream | M | Long-running IBKR imports today show nothing until they finish. |
 | Mobile layout pass | S | The grid breaks below 720px. |
 
 ## Theme H - Data verification & reconciliation
 
+The application reconciliation page now runs C0-C5 from reusable checks backed by persisted
+import, ledger, position, valuation, account-daily, and reporting evidence. C6 and C7 remain
+explicitly `NOT_CHECKED`; QUICK mode also cannot prove external archive completeness without a
+manifest. The report remains `REVIEW` until all required checkpoint and mode evidence is available.
+
 The goal is a repeatable proof that imported and derived portfolio data is safe to use, not a collection of manually executed diagnostic SQL. The accounting and tolerance contracts remain in [`docs/quality/reconciliation.md`](docs/quality/reconciliation.md); this section tracks the remaining engineering work.
+
+| Reconciliation follow-up | Status |
+|---|---|
+| Connect C6 dashboard evidence | Planned |
+| Connect C7 secondary-adapter evidence | Planned |
+| Add archive-manifest completeness evidence | Planned |
+| Integrate GOLDEN and ARCHIVE mode-specific evidence | Planned |
 
 | Item | Effort | Why |
 |---|---|---|
-| Finish and freeze the minimal real-broker golden corpus | M | Keep only the smallest real IBKR/XTB rows needed to reproduce known historical edge cases: direct Treasury percent-of-par lifecycle/redemption, IBKR business-date handling, FX/income/tax rows, XTB VHYD rebooking, true inter-account transfer, RESULT_ONLY CFD, IKE cross-currency holdings, and cash-only funding. Preserve broker semantics exactly, record source hashes/provenance, and require explicit review for fixture changes. |
-| Standardize reconciliation check results | M | Give every check the same result contract (`check_id`, scope/account/asset/date, expected, actual, difference, tolerance, status, severity, message) so cash, positions, realized result, accounting identities, and reporting checks can share one runner and one report format. |
-| Reusable verification runner with `quick`, `golden`, and `archive` modes | M | `quick` audits the current DB, `golden` rebuilds the frozen reduced corpus from an empty PostgreSQL database, and `archive` rebuilds the complete private broker history. All three must execute the same reconciliation rules where their data scope overlaps. |
-| Deterministic clean-DB golden gate | M | Start fresh Testcontainers PostgreSQL, run Flyway, import frozen broker fixtures, load only local deterministic FX/price observations, rebuild projections/views, run semantic checkpoints and reconciliation checks, and exit non-zero on any blocker/error. No live market or FX network calls. |
 | Full private-archive clean rebuild | L | Periodically verify the complete original broker archive from scratch to catch interactions intentionally absent from the small CI corpus. Source files must be hash-manifested so a changed export cannot silently change the accepted result. |
-| Machine + human verification reports | S | Emit concise console status plus JSON/CSV/Markdown details. The summary must identify top residuals and distinguish `BLOCKER`, `ERROR`, `WARNING`, and `INFO`; do not hide failures by widening tolerances. |
-| Explicit `READY` / `NOT_READY` contract | S | Define readiness as zero blocker/error reconciliation failures, zero unexplained material residuals, passing golden checkpoints, and passing reporting consistency. Warnings may remain only when their degraded-data semantics are explicit. |
-| CI/release integration | M | Run the golden verification on accounting/import/reconciliation changes and require a green result before merge/release. Keep the full private archive outside normal public CI but make it a standard pre-release/local verification command. |
-| Regression-corpus growth rule | S | Every newly confirmed production accounting/import bug must land with the smallest real or faithful reduced fixture that reproduces it plus one semantic assertion. This prevents repeated rediscovery of previously fixed edge cases without letting the corpus grow into a copy of the full archive. |
+| Machine + human verification reports | S | Extend the existing JSON/console readiness output if needed so all release checks identify top residuals and distinguish `BLOCKER`, `ERROR`, `WARNING`, and `INFO`; do not hide failures by widening tolerances. |
+| CI/release integration | M | The golden job exists; require its green result before merge/release through repository branch protection and keep the full private archive outside normal public CI as a standard pre-release/local verification command. |
 
 Target end state:
 
@@ -117,7 +131,7 @@ all modes -> standardized reconciliation report -> READY / NOT_READY
 - **Real-time market data (websocket).** TwelveData REST polling is sufficient for daily snapshots; sockets add complexity without clear payoff.
 - **Migrating off Telegram.** Slack/Discord adapters are easier after `NotificationService` supports multiple channels.
 - **Replacing JPA with R2DBC / WebFlux.** There is no throughput problem to solve.
-- **Yahoo as primary quote source.** Keep Yahoo as an optional CSV-export target rather than the primary quote provider.
+- **Yahoo as primary quote source.** Do not promote Yahoo from fallback quote provider to the primary market-data provider.
 
 ## How to use this file
 

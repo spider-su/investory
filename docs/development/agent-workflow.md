@@ -29,9 +29,9 @@ bash scripts/agent-devcontainer.sh validate 142
 This runs:
 
 ```text
-mvn -B spotless:check
-mvn -B test
-mvn -B package -DskipTests
+./mvnw -B spotless:check
+./mvnw -B test
+./mvnw -B package -DskipTests
 ```
 
 The orchestrator should call the validation helper after every implementation or fix attempt. It should treat a non-zero exit code as a failed attempt and include the command output in the next coding-agent request.

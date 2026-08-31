@@ -450,6 +450,31 @@ ON CONFLICT (symbol) DO UPDATE SET
     asset_type = EXCLUDED.asset_type,
     active = EXCLUDED.active;
 
+-- Yahoo symbols normally derive from canonical symbols. Persist an override only
+-- where derivation cannot express the provider symbol.
+UPDATE investory.assets
+SET yahoo = CASE
+    WHEN upper(symbol) = 'BRKB.US' THEN 'BRK-B'
+    ELSE NULL
+END
+WHERE (upper(symbol) <> 'BRKB.US' AND upper(yahoo) = upper(symbol))
+   OR upper(yahoo) = CASE
+       WHEN upper(symbol) = 'BRKB.US' THEN 'BRK-B'
+       WHEN upper(symbol) LIKE '%.US' THEN upper(ticker)
+       WHEN upper(symbol) LIKE '%.UK' THEN upper(ticker || '.L')
+       WHEN upper(symbol) LIKE '%.PL' THEN upper(ticker || '.WA')
+       WHEN upper(symbol) LIKE '%.FR' THEN upper(ticker || '.PA')
+       WHEN upper(symbol) LIKE '%.NL' THEN upper(ticker || '.AS')
+       WHEN upper(symbol) LIKE '%.ES' THEN upper(ticker || '.MC')
+       WHEN upper(symbol) LIKE '%.IT' THEN upper(ticker || '.MI')
+       WHEN upper(symbol) LIKE '%.SE' THEN upper(ticker || '.ST')
+       WHEN upper(symbol) LIKE '%.NO' THEN upper(ticker || '.OL')
+       WHEN upper(symbol) LIKE '%.FI' THEN upper(ticker || '.HE')
+       WHEN upper(symbol) LIKE '%.DK' THEN upper(ticker || '.CO')
+       ELSE upper(symbol)
+   END
+   OR (upper(symbol) = 'BRKB.US' AND upper(yahoo) IN ('BRKB', 'BRKB.US'));
+
 UPDATE investory.assets
 SET isin = 'US91282CKB62'
 WHERE symbol = 'T458022826.US';

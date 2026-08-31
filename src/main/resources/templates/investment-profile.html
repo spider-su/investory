@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>Profile · Investory</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="/css/tabler.min.css" rel="stylesheet">
+  <link href="/css/main.css" rel="stylesheet">
+  <th:block th:replace="~{fragments/theme-head :: theme}"></th:block>
+</head>
+<body>
+<main class="iv-app iv-planning-page iv-profile-page">
+  <div th:replace="~{fragments/app-header :: planningHeader('profile', ${portfolioId}, 'Profile summary', 'Total net worth', ${profileHeaderNetWorth}, null, 'Liquid assets', ${profileHeaderLiquid}, ${profileHeaderLiquidMeta}, 'Net annual income', ${profileHeaderIncome}, '/ year', ${profileHeaderCurrency}, 'profile')}"></div>
+
+  <section class="card iv-profile-section iv-portfolio-structure iv-profile-structure" aria-labelledby="structure-title">
+    <div class="iv-card-section-header"><span id="structure-title" class="iv-card-section-header__title">Portfolio structure</span></div>
+    <div class="iv-portfolio-structure__grid iv-profile-structure__grid">
+      <a class="iv-structure-card iv-profile-structure__metric" href="/dashboard"><span>Market investments</span><strong th:text="${profile.marketPortfolioValueWholeDisplay}">0</strong><small th:text="${profile.marketPortfolioMeta}">0.0% of net worth</small></a>
+      <a class="iv-structure-card iv-profile-structure__metric" th:href="@{/long-term-assets(portfolioId=${portfolioId})}"><span>Long-term assets</span><strong th:text="${profile.longTermAssetValueWholeDisplay}">0</strong><small th:text="${profile.longTermAssetMeta}">0.0% of net worth</small></a>
+      <div class="iv-structure-card iv-profile-structure__metric"><span>Liquid assets</span><strong th:text="${profile.liquidAssetsWholeDisplay}">0</strong><small th:text="${profile.liquidAssetsMeta}">0.0% of net worth</small></div>
+      <div class="iv-structure-card iv-profile-structure__metric"><span>Illiquid assets</span><strong th:text="${profile.illiquidAssetsWholeDisplay}">0</strong><small th:text="${profile.illiquidAssetsMeta}">0.0% of net worth</small></div>
+    </div>
+    <div class="iv-structure-currency iv-profile-structure__liquidity" aria-label="Liquidity composition">
+      <div class="iv-profile-liquidity__heading"><span>Liquidity</span><small th:text="${profile.liquidAssetsMeta + ' / ' + profile.illiquidAssetsMeta}">0.0% / 0.0%</small></div>
+      <div class="iv-structure-bar" role="img" aria-label="Liquid and illiquid assets"><span class="iv-structure-bar__segment iv-liquidity-segment--liquid" th:style="|width:${profile.liquidAssetsPercentage().movePointRight(2)}%|"></span><span class="iv-structure-bar__segment iv-liquidity-segment--illiquid" th:style="|width:${profile.illiquidAssetsPercentage().movePointRight(2)}%|"></span></div>
+    </div>
+  </section>
+
+  <section class="iv-grid iv-grid--kpi iv-grid--portfolio-overview iv-profile-income-cards" aria-label="Income summary">
+    <div class="iv-kpi iv-profile-income-card iv-hover-context" tabindex="0">
+      <span class="iv-kpi__label">Observed market income</span>
+      <strong class="iv-kpi__value" th:text="${profile.historicalMarketInvestmentIncomeWholeDisplay}">0</strong>
+      <div class="iv-hover-context__panel iv-profile-income-card__context">Dividends and interest observed during the current reporting period.</div>
+    </div>
+    <div class="iv-kpi iv-profile-income-card iv-hover-context" tabindex="0">
+      <span class="iv-kpi__label">Long-term annual run rate</span>
+      <strong class="iv-kpi__value" th:text="${profile.expectedLongTermAssetIncomeWholeDisplay}">0</strong>
+      <div class="iv-hover-context__panel iv-profile-income-card__context">Expected annual after-tax income from current long-term assets.</div>
+    </div>
+    <div class="iv-kpi iv-profile-income-card iv-hover-context" tabindex="0">
+      <span class="iv-kpi__label">Long-term income yield</span>
+      <strong class="iv-kpi__value" th:text="${profile.longTermIncomeYieldDisplay}">0.0%</strong>
+      <div class="iv-hover-context__panel iv-profile-income-card__context">Expected annual after-tax long-term income as a share of current long-term asset value.</div>
+    </div>
+  </section>
+
+  <section class="card iv-profile-section iv-profile-allocation" aria-labelledby="allocation-title">
+    <div class="iv-card-section-header"><span id="allocation-title" class="iv-card-section-header__title">Allocation</span></div>
+    <div class="card-body">
+      <div class="iv-allocation-bar" role="img" aria-label="Portfolio allocation by economic bucket">
+        <div th:each="allocation : ${profile.allocations}" th:if="${allocation.nonZero}" class="iv-allocation-bar__segment" th:classappend="${allocation.allocationCssClass}" th:style="|width:${allocation.percentage * 100}%|" th:title="${allocation.legendLabel}"></div>
+      </div>
+      <div class="iv-allocation-legend" aria-label="Allocation legend">
+        <div th:each="allocation : ${profile.allocations}" th:if="${allocation.nonZero}" class="iv-allocation-legend__item"><span class="iv-allocation-legend__swatch" th:classappend="${allocation.allocationCssClass}" aria-hidden="true"></span><span th:text="${allocation.legendLabel}">Equity · 0.0%</span></div>
+      </div>
+      <div class="table-responsive">
+        <table class="table card-table table-vcenter"><thead><tr><th>Bucket</th><th>Liquidity</th><th class="text-end">Value</th><th class="text-end">Share</th></tr></thead>
+            <tbody><tr th:each="allocation : ${profile.allocations}"><td th:text="${allocation.bucketLabel}">Other</td><td><span class="badge iv-liquidity-badge" th:text="${allocation.liquidityLabel}">Liquid</span></td><td class="text-end" th:text="${allocation.wholeValueDisplay}">0</td><td class="text-end" th:text="${allocation.percentageDisplay}">0.0%</td></tr></tbody>
+        </table>
+      </div>
+      <div class="iv-profile-allocation__summary" aria-label="Allocation summary">
+        <div><span>Largest allocation</span><strong th:text="${profile.largestAllocationLabelDisplay + ' · ' + profile.largestAllocationShareDisplay}">—</strong></div>
+        <div><span>Liquid allocation</span><strong th:text="${profile.liquidAssetsMeta}">0.0%</strong></div>
+        <div><span>Illiquid allocation</span><strong th:text="${profile.illiquidAssetsMeta}">0.0%</strong></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+<div th:replace="~{fragments/app-footer :: buildFooter}"></div>
+</body>
+</html>

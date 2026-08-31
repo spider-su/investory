@@ -1,28 +1,37 @@
 # Investory
 
-Investory consolidates broker activity into portfolio analytics that separate contributed capital from investment performance.
+Investory is a personal investment and financial-planning system. It consolidates brokerage investments
+and manually managed long-term assets into a unified financial profile, separates contributed capital
+from investment performance, and supports deterministic retirement planning with historical, live, and
+projected years.
 
-## The three investor questions
+## What Investory answers
 
-### How much is my portfolio worth?
+### What do I own today?
 
-Current portfolio value combines account cash and the market value of open positions in the portfolio
-base currency. Individual broker accounts remain visible, while the headline value represents the
-consolidated portfolio.
+- Broker accounts, market positions, and cash.
+- Manual long-term assets: real estate, bonds, deposits, cash reserves, and other assets.
+- A read-only unified `InvestmentProfile` for planning and simulation.
 
-### How much did I contribute, and how much did investments earn?
+### How much did I contribute and earn?
 
-External deposits and withdrawals are reported separately from investment results. Internal transfers
-and currency conversions move money between accounts or currencies but do not change portfolio-level
-contributed capital.
+- External deposits and withdrawals, distinct from internal transfers and FX conversions.
+- Realized/unrealized P/L, dividends, interest, and canonical portfolio performance.
 
-Investment earnings are separated into realized profit, unrealized profit, dividends net of recorded
-withholding tax, and interest.
+### How am I performing?
 
-### How did I perform versus my benchmark?
+- Monthly performance, historical account value, attribution, currency exposure, positions, and SPY
+  comparison for selected accounts and periods.
 
-Investory compares selected active accounts with SPY over the selected dashboard period. Account and
-period selection are supported; the benchmark symbol is currently fixed.
+### Can my assets fund future spending?
+
+- Deterministic retirement simulation using spending need, rental/passive income, pension, safe reserve,
+  asset returns, and configurable funding strategy.
+
+### Am I following the plan?
+
+- Past/Actual annual snapshots, Current/Live actual-versus-expected tracking, and Future/Projected
+  simulation years with an explicit approval/reopen workflow.
 
 ## What works today
 
@@ -34,6 +43,21 @@ period selection are supported; the benchmark symbol is currently fixed.
 - IBKR and XTB statement imports with checksum-based duplicate detection and idempotent exact-file reprocessing.
 - Scheduled market-price and FX refresh, historical price storage, and manual price overrides.
 - Yahoo Finance export and developer reconciliation and pipeline-validation tooling.
+- Manual long-term assets: real estate, bonds, contractual deposits, planning-only cash reserves, and
+  generic other assets.
+- `InvestmentProfile` aggregation of brokerage and manual assets without writing either source.
+- Deterministic retirement simulation with independent inflation, rental-income-growth, spending-growth,
+  and asset-return assumptions.
+- Configurable Simple Waterfall and Reserve + equity harvest funding strategies. New plans default to a
+  five-year safe-reserve target, 7% harvest gate, 75% eligible-gain fraction, and enabled emergency
+  equity withdrawal.
+- Contractual maturity redemption, PAY_OUT versus CAPITALIZE interest treatment, and planning-only
+  manual cash reserve funding before market cash and fixed income.
+- Planning display/input currency selection: PLN (default), USD, or EUR; planning storage remains
+  canonical USD/base amounts.
+- Natural money and percentage presentation; percentage inputs use percentage points.
+- Past/Live/Projected planning timeline, historical annual approval/reopen, and stable current-year
+  expected-versus-actual baseline tracking.
 
 Reconciliation is currently developer-facing rather than an end-user workflow. See
 [`docs/quality/reconciliation.md`](docs/quality/reconciliation.md) for the validation contract,
@@ -50,6 +74,16 @@ implemented tooling, and known gaps.
 | Market data | TwelveData supplies automatic quotes, historical prices, and SPY monthly closes. The scheduled market refresh runs on weekdays at 22:01 Europe/Warsaw. |
 | FX data | exchangerate.host supplies USD-based daily rates; EUR and PLN cross-rates are derived locally. Each observation keeps its provider date and provenance. |
 | Asset coverage | Imported asset symbols must resolve to exactly one existing canonical asset; unknown or ambiguous mappings fail instead of creating guessed assets. Automatic quote coverage depends on TwelveData mappings and plan limits. Non-US listings are skipped by default and may require manual prices. Real-time websocket pricing is not implemented. |
+
+### Manual long-term assets
+
+| Type | Current behavior |
+|------|------------------|
+| `REAL_ESTATE` | Current value, effective-dated income/expense periods, rental income, explicit tax base, and value growth. |
+| `BOND` | Contractual fixed income with maturity/redemption and `PAY_OUT` or `CAPITALIZE` interest treatment. |
+| `DEPOSIT` | Contractual deposit; locked until its configured maturity. |
+| `CASH_RESERVE` | Planning-only manual liquid reserve; immediately spendable and used before market cash/fixed income under Reserve + Harvest. |
+| `OTHER` | Generic long-term asset; not automatically sold by retirement simulation. |
 
 ## How calculations work
 
@@ -70,6 +104,54 @@ The period selector filters monthly performance and rebases the benchmark compar
 change current portfolio value, since-inception contributions, headline investment earnings, or
 headline ROI.
 
+## Retirement planning
+
+At a high level, recurring spending need minus rental/passive income and pension gives portfolio funding
+need. Under Reserve + Harvest, funding uses:
+
+```text
+manual cash reserve -> market cash -> spendable fixed income -> optional emergency equity
+```
+
+In strong equity years, eligible positive equity gain first replenishes the safe reserve, but never beyond
+its target; any remainder may refill the three-year bond ladder. The configurable deterministic defaults
+are five years of recurring funding gap, a 7% return gate, and a 75% eligible-gain fraction. Below the
+gate there is no normal harvest; transfers do not normally consume equity principal. These are planning
+defaults, not financial advice.
+
+The canonical contract, formulas, liquidity policy, and scenario semantics are in
+[`docs/domain/retirement-simulation.md`](docs/domain/retirement-simulation.md).
+
+## Planning calculations
+
+| Metric | Concise calculation |
+|--------|---------------------|
+| Recurring funding gap | `max(core + discretionary - recurring passive income - pension, 0)` |
+| Required portfolio funding | `max(total expenses - passive income - pension - event income, 0)` |
+| Safe reserve | Manual cash reserve + market cash + spendable market fixed income |
+| Safe reserve target | Recurring funding gap × safe-reserve years |
+| Eligible equity gain | Positive investment return on equity remaining after funding |
+| Equity-to-reserve transfer | Limited by reserve shortfall, eligible gain fraction, and equity balance |
+| Actual portfolio withdrawal | Amount actually funded under the configured withdrawal policy |
+| Unfunded amount | Required funding − actual withdrawal |
+
+## Planning timeline
+
+```text
+Past                 Current               Future
+Actual               Live                  Projected
+approved snapshot    actual vs expected    deterministic simulation
+```
+
+- **Past/Actual**: approved annual planning snapshot, derived from authoritative sources where
+  possible and corrected only with planning-domain values; immutable until explicitly reopened.
+- **Current/Live**: current portfolio/manual assets compared with a stable expected baseline.
+- **Future/Projected**: deterministic simulation only; never persisted as historical facts.
+
+Planning reads accounting through `InvestmentProfile`; it does not mutate positions, cash operations,
+`account_daily`, prices, FX history, or API response data. Simulated reserve transfers are
+not real transactions. See [`docs/domain/planning-timeline.md`](docs/domain/planning-timeline.md).
+
 ### Financial interpretation
 
 - Internal transfers change account cash but do not change portfolio contributed capital.
@@ -88,18 +170,26 @@ headline ROI.
   Partial-overlap idempotency is not a formal guarantee and needs stronger validation.
 - SPY is the only benchmark. Benchmark selection is limited to accounts and dashboard period.
 - Investory uses one shared portfolio dataset. Per-user data isolation is not implemented.
-- Original broker files are not retained. Investory stores normalized portfolio rows, import metadata,
-  file hashes, counts, available broker identifiers, and source symbols. Failed text payload previews
-  are capped at 8 KB.
+- Uploaded broker artifacts and parsed broker rows are retained as immutable provenance evidence in
+  `import_source_files` and `import_source_rows`; normalized portfolio rows remain the accounting
+  truth consumed by projections and reporting. Failed text payload previews are capped at 8 KB.
 - Backups are operator-managed. Back up PostgreSQL and retain original broker exports separately; a
   persistent Docker volume is not a backup.
 - Reconciliation remains developer tooling based on `ReconRunner`, local broker files, JDBC checks,
-  and manual verification. The dashboard reconciliation, data-quality, and risk-enrichment branch is
-  currently disabled in `PortfolioService`; it is not an authoritative user-facing status. IBKR C1
+  and manual verification. The dashboard now maps the available portfolio data-quality and risk
+  indicators through its dashboard application view models; these are reporting indicators, not a
+  replacement for reconciliation tooling or a separate financial source of truth. IBKR C1
   currently checks aggregate source-to-ledger cash-amount conservation only; full row/class/currency/date
   reconciliation is not implemented. Dashboard checkpoint C6 is not automated, secondary checkpoint C7
-  is optional, and the full golden pipeline is not yet a CI gate.
+  is optional, and repository branch protection must still require the dedicated golden job before
+  treating it as a release gate.
 - The capital-gains estimate follows Polish assumptions. Other tax jurisdictions are not modeled.
+- Retirement planning is a deterministic annual model: it has no Monte Carlo, sequence-of-returns
+  randomness, automated real-world trades, automatic real-estate sale, or early contractual redemption.
+- Current-year planning uses a deterministic remaining-year bridge, not detailed monthly cash-flow
+  simulation. Planning corrections are annual planning values, not personal expense transactions.
+- Simulation assumptions are planning inputs, not forecasts. Market aggregation is currently shared;
+  planning is not safe for independently scoped multi-portfolio market data.
 
 ## Architecture overview
 
@@ -107,24 +197,23 @@ headline ROI.
 Broker Files
         │
         ▼
-Import Audit + Normalized Ledger
+Normalized Accounting
         │
         ▼
-Positions + Cash Operations + Assets
+account_daily / reporting views
         │
         ▼
-Historical Prices + FX
+Portfolio services
         │
         ▼
-account_daily
+InvestmentProfile ──> Dashboard / APIs / Exports
         │
-        ▼
-Views / Materialized Views
-        │
-        ▼
-Dashboard / APIs / Exports
+        └────────────> Planning -> Retirement simulation -> Past / Live / Projected
+
+Manual Long-Term Assets ───────────────────────────> InvestmentProfile
 ```
 
+Manual long-term assets are planning/manual-domain data; they do not enter brokerage accounting.
 `import_history` records import metadata, status, counts, and failures. Normalized rows retain available
 broker identifiers and original asset symbols for traceability, but Investory is not an immutable raw
 event store.
@@ -179,7 +268,7 @@ Set different values when your PostgreSQL host, database, or credentials differ.
 ### 3. Start the application
 
 ```bash
-mvn spring-boot:run
+./mvnw spring-boot:run
 ```
 
 The base configuration reads `DB_URL`, `DB_USERNAME`, and `DB_PASSWORD` and otherwise uses the local
@@ -245,8 +334,10 @@ curl --fail-with-body \
 ## Security and deployment status
 
 - HTTP Basic uses in-memory `ADMIN` and `USER` credentials.
-- `POST`, `PUT`, and `DELETE` routes require the `ADMIN` role. All other routes are currently permitted
-  without authentication, including the dashboard and read-only API routes.
+- `POST`, `PUT`, and `DELETE` routes require the `ADMIN` role. Read routes require authentication by
+  default, including the dashboard and read-only API routes. Set
+  `APP_SECURITY_READ_AUTHENTICATION_REQUIRED=false` only for a trusted local network.
+- `/actuator/health` is public for liveness checks; health details are shown only to authenticated users.
 - CSRF protection is currently disabled.
 - All authenticated users see the same portfolio because per-user data scoping is not implemented.
 - The `prod` profile requires explicit database credentials and all four `APP_SECURITY_*` variables.
@@ -264,7 +355,7 @@ export APP_SECURITY_ADMIN_PASSWORD=replace-me
 export APP_SECURITY_USER_USERNAME=user
 export APP_SECURITY_USER_PASSWORD=replace-me
 
-mvn spring-boot:run -Dspring-boot.run.profiles=prod
+./mvnw spring-boot:run -Dspring-boot.run.profiles=prod
 ```
 
 Use deployment secrets or a secret manager. Do not commit credentials.
@@ -278,7 +369,6 @@ Use deployment secrets or a secret manager. Do not commit credentials.
 - [`docs/architecture/`](docs/architecture/): stable architecture and reporting data flow.
 - [`docs/development/`](docs/development/): testing and development environment procedures.
 - [`docs/quality/`](docs/quality/): reconciliation and validation contracts.
-- [`docs/integrations/`](docs/integrations/): integration-specific compatibility contracts.
 - [`ROADMAP.md`](ROADMAP.md): future work and current priorities.
 - [`CHANGELOG.md`](CHANGELOG.md): completed work and documentation history.
 

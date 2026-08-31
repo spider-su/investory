@@ -31,12 +31,12 @@ Read only the documents relevant to the task:
 | Asset identity, position currencies, signed quantity | `docs/domain/asset-identity-and-money.md` |
 | FX conversion and missing/stale-rate policy | `docs/domain/fx-normalization.md` |
 | Overall architecture and package boundaries | `docs/architecture/overview.md` |
+| Dashboard facade, view models, and Thymeleaf flow | `docs/architecture/dashboard-application.md` |
 | Projections, reporting data lineage, valuation layers | `docs/architecture/reporting-pipeline.md` |
 | Reconciliation and economic-truth checks | `docs/quality/reconciliation.md` |
 | Tests and database-test strategy | `docs/development/testing.md` |
 | Dev Container / local environment | `docs/development/dev-container.md` |
 | Isolated agent worktrees and validation | `docs/development/agent-workflow.md` |
-| Ghostfolio compatibility | `docs/integrations/ghostfolio.md` |
 | Future work | `ROADMAP.md` |
 | Completed work | `CHANGELOG.md` |
 
@@ -56,9 +56,11 @@ Package-local `README.md` files are authoritative for the code immediately aroun
 ## Build defaults
 
 - Java 25+ and Maven.
-- Common checks: `mvn test`, `mvn clean verify`, `mvn spotless:check`.
+- Common checks: `./mvnw test`, `./mvnw clean verify`, `./mvnw spotless:check`.
+- In PowerShell, use `./mvnw.cmd` and always quote Maven `-D...` properties, for example `./mvnw.cmd "-Dit.test=SystemAuditContractIT,BaselineReadinessContractIT" verify`, so shell expansion cannot drop the property.
 - Use a default 360-second command timeout for Maven builds and tests; increase it for known long integration suites.
-- Local application: `mvn spring-boot:run`.
+- Local application: `./mvnw spring-boot:run` (`./mvnw.cmd` in PowerShell).
+- Docker/Testcontainers in this workspace use `DOCKER_HOST=tcp://127.0.0.1:2375`; set `$env:DOCKER_HOST` before Docker-backed tests or tools.
 - Do not record exact test counts or dependency versions here when they can be read from the build.
 
 ## Documentation discipline

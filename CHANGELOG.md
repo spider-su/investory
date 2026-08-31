@@ -2,6 +2,51 @@
 
 Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains future work only.
 
+## 2026-08-17
+
+### Reconciliation report semantics
+
+- Added typed C0-C7 checkpoint and issue statuses with explicit `NOT_CHECKED` partial coverage.
+- Preserved original failures while marking later downstream issues `BLOCKED`.
+- Switched checkpoint counts to uncapped aggregate queries and added stable account diagnostic codes.
+- Updated the reconciliation page to distinguish incomplete coverage from a reconciled pipeline.
+- Added the reusable ordered check engine and connected current database evidence for C0, C1, C2,
+  and C5; C6 and C7 remain explicitly `NOT_CHECKED`.
+
+## 2026-08-14
+
+### Database, persistence, and reconciliation baseline
+
+- Established the PostgreSQL/Testcontainers-safe squashed database baseline through `V01.008`.
+- Aligned numeric persistence, deterministic asset identity/source-symbol mappings, explicit currency
+  roles, price-history provenance metadata, and the FX usable-status contract.
+- Separated production reporting SQL from independent reconciliation reconstruction and persisted
+  audit diagnostics.
+- Added settlement, account-day, monthly, and account-statistics reconciliation with explicit
+  semantic review classifications and `REVIEW` versus `UNRECONCILED` quality semantics.
+- Retained immutable `import_source_files` and `import_source_rows` evidence with canonical-row
+  provenance links and deletion protections for raw financial facts.
+- Added the deterministic clean-PostgreSQL `GoldenRebuild` path and CI golden job.
+
+### Long-term assets, planning, and simulation
+
+- Added manual long-term asset support for real estate, contractual bonds/deposits, planning-only cash
+  reserve, and other assets; manual assets contribute to the read-only `InvestmentProfile`.
+- Added deterministic retirement simulation with independent inflation, rental-income growth, spending
+  growth, asset returns, required/actual/unfunded funding values, and maturity/interest-treatment rules.
+- Added Reserve + equity harvest funding strategy with configurable safe reserve, gain-only harvest,
+  emergency equity policy, and deterministic manual-cash withdrawal priority.
+- Added planning display/input currency presentation (PLN default, USD, EUR) while retaining canonical
+  planning storage.
+- Added the Actual/Live/Projected planning timeline, planning-year snapshots and baselines, explicit
+  close/reopen workflow, current-year bridge, and stable saved-plan calendar/age anchor.
+
+### Documentation
+
+- Reframed the product documentation around accounting, manual long-term assets, deterministic planning,
+  and the planning timeline. Added canonical planning-timeline semantics and removed stale simulation
+  wording from reconciliation documentation.
+
 ## 2026-08-07
 
 ### Documentation architecture

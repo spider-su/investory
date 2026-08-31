@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>Plan editor · Investory</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="/css/tabler.min.css" rel="stylesheet">
+  <link href="/css/main.css" rel="stylesheet">
+  <th:block th:replace="~{fragments/theme-head :: theme}"></th:block>
+</head>
+<body>
+<main class="iv-app iv-planning-page iv-simulation-page iv-simulation-editor">
+  <div th:replace="~{fragments/app-header :: planningHeader('simulation', ${profile.portfolioId}, 'Plan editor', 'Net worth', ${displayProfile.totalNetWorthWholeDisplay}, null, 'Long-term assets', ${displayProfile.longTermAssetValueWholeDisplay}, null, 'Long-term income', ${displayProfile.expectedLongTermAssetIncomeWholeDisplay}, '/ year', ${planningDisplayCurrency}, 'simulation')}"></div>
+
+  <section class="card iv-simulation-section iv-simulation-editor__intro">
+    <div class="iv-card-section-header"><span class="iv-card-section-header__title">Configure plan</span><span class="text-secondary">Changes apply when you save.</span></div>
+    <div class="card-body"><p class="text-secondary mb-0">Set the assumptions that define this retirement projection. Current portfolio facts remain read-only inputs to the simulation.</p></div>
+  </section>
+
+  <section class="card iv-simulation-editor__section" th:if="${selectedPlanId != null and currentRevision != null}">
+    <div class="iv-card-section-header"><span class="iv-card-section-header__title">Plan revision</span><span class="text-secondary">Assumption changes create a new immutable revision.</span></div>
+    <div class="card-body"><p class="mb-2"><strong>Current revision</strong> · <span th:text="${'Revision ' + currentRevision.revisionNumber}">Revision 1</span> · <span th:text="${currentRevision.createdAt}">date</span></p><details><summary>Revision history (<span th:text="${revisionHistory.size()}">1</span>)</summary><ul class="mb-0 mt-2"><li th:each="revision : ${revisionHistory}" th:text="${'Revision ' + revision.revisionNumber + ' · ' + revision.createdAt}">Revision 1</li></ul></details></div>
+  </section>
+
+  <form id="plan-editor-form" class="iv-simulation-editor__form" method="post" action="/simulation/plans">
+    <input type="hidden" name="portfolioId" th:value="${profile.portfolioId}">
+    <input type="hidden" name="planId" th:value="${selectedPlanId}">
+    <input type="hidden" name="planningDisplayCurrency" th:value="${planningDisplayCurrency}">
+    <input type="hidden" name="returnPlanningDisplayCurrency" th:value="${planningDisplayCurrency}">
+    <input type="hidden" name="selectedScenario" th:value="${selectedScenario}">
+
+    <section class="card iv-simulation-editor__section">
+      <div class="iv-card-section-header"><span class="iv-card-section-header__title">Plan</span></div>
+      <div class="card-body iv-simulation-editor__grid">
+        <div><label class="form-label" for="plan-name">Plan name</label><input id="plan-name" class="form-control" name="name" th:value="${planName}" placeholder="Current plan" required></div>
+        <div th:if="${!existingPlan}"><label class="form-label" for="current-age">Current age</label><input id="current-age" class="form-control" name="currentAge" type="number" min="0" th:value="${assumptions.currentAge}" required></div>
+        <div th:if="${existingPlan}"><label class="form-label">Age at plan start (<span th:text="${assumptions.startYear}">2025</span>)</label><div class="form-control-plaintext" th:text="${assumptions.currentAge}">40</div><div class="form-hint">This temporal anchor is read-only.</div></div>
+        <div th:if="${existingPlan}"><label class="form-label">Current planning age</label><div class="form-control-plaintext" th:text="${currentPlanningAge}">41</div></div>
+        <div><label class="form-label" for="end-age">End age</label><input id="end-age" class="form-control" name="endAge" type="number" min="1" th:value="${assumptions.endAge}" required></div>
+        <div><label class="form-label" for="retirement-age">Retirement age</label><input id="retirement-age" class="form-control" name="retirementAge" type="number" min="0" th:value="${assumptions.retirementAge}" required><div class="form-hint">Planned retirement: <span th:text="${plannedRetirementYear}">2030</span>. Employment and contributions stop; retirement spending starts.</div></div>
+      </div>
+      <div class="card-body border-top" th:if="${developMode != null and developMode and planPreview != null}">
+        <div class="text-secondary small mb-2">Development preview · temporal assumptions</div>
+        <table class="table table-sm mb-0"><tbody>
+          <tr><td>Current planning age</td><td class="text-end" id="preview-current-age" th:text="${planPreview.currentPlanningAge}">41</td></tr>
+          <tr><td>Planned retirement year</td><td class="text-end" id="preview-retirement-year" th:text="${planPreview.retirementYear}">2027</td></tr>
+          <tr><td>Years until retirement</td><td class="text-end" id="preview-years-retirement" th:text="${planPreview.yearsUntilRetirement}">1</td></tr>
+          <tr><td>Plan horizon</td><td class="text-end" id="preview-horizon" th:text="${planPreview.planHorizonYears}">39</td></tr>
+        </tbody></table>
+      </div>
+    </section>
+
+    <section class="card iv-simulation-editor__section">
+      <div class="iv-card-section-header"><span class="iv-card-section-header__title">Spending</span></div>
+      <div class="card-body iv-simulation-editor__grid">
+        <div><label class="form-label" for="monthly-living-costs">Monthly living costs</label><input id="monthly-living-costs" class="form-control" name="monthlyLivingCosts" type="number" min="0" step="0.01" th:value="${T(com.smartbox.investory.services.PlanningPresentation).moneyInput(displayMonthlyLivingCosts)}" required></div>
+        <div><label class="form-label" for="discretionary-expenses">Annual extras</label><input id="discretionary-expenses" class="form-control" name="discretionaryExpenses" type="number" min="0" step="0.01" th:value="${T(com.smartbox.investory.services.PlanningPresentation).moneyInput(displayDiscretionaryExpenses)}" required></div>
+        <div><label class="form-label" for="spending-growth">Cost growth</label><div class="input-group"><input id="spending-growth" class="form-control" name="spendingGrowth" type="number" step="0.1" min="1" max="99" th:value="${T(com.smartbox.investory.services.PlanningPresentation).percentageInput(assumptions.spendingGrowthRate)}" required><span class="input-group-text">%</span></div></div>
+        <div><span class="form-label d-block">Total annual costs</span><span class="form-control-plaintext" th:text="${T(com.smartbox.investory.services.PlanningPresentation).money(displayTotalAnnualCosts)}">240,000</span></div>
+      </div>
+      <div class="card-body border-top" th:if="${developMode != null and developMode and planPreview != null}">
+        <div class="text-secondary small mb-2">Development preview · spending</div>
+        <table class="table table-sm mb-0"><tbody>
+          <tr><td>Annual living costs</td><td class="text-end" id="preview-annual-living" th:text="${T(com.smartbox.investory.services.PlanningPresentation).wholeNumber(planPreview.annualLivingCosts)}">192,000</td></tr>
+          <tr><td>Annual extras</td><td class="text-end" id="preview-annual-extras" th:text="${T(com.smartbox.investory.services.PlanningPresentation).wholeNumber(planPreview.annualExtras)}">70,000</td></tr>
+          <tr><td>Total annual costs</td><td class="text-end" id="preview-total-costs" th:text="${T(com.smartbox.investory.services.PlanningPresentation).wholeNumber(planPreview.totalAnnualCosts)}">262,000</td></tr>
+          <tr><td>First projected-year costs</td><td class="text-end" id="preview-next-costs" th:text="${planPreview.nextYearCosts == null ? '—' : T(com.smartbox.investory.services.PlanningPresentation).wholeNumber(planPreview.nextYearCosts)}">268,550</td></tr>
+        </tbody></table>
+      </div>
+    </section>
+
+    <section class="card iv-simulation-editor__section">
+      <div class="iv-card-section-header"><span class="iv-card-section-header__title">Income</span></div>
+      <div class="card-body iv-simulation-editor__grid">
+        <div><label class="form-label" for="employment-income">Employment income / year</label><input id="employment-income" class="form-control" name="annualEmploymentIncome" type="number" min="0" step="0.01" required th:value="${T(com.smartbox.investory.services.PlanningPresentation).moneyInput(displayAnnualEmploymentIncome)}"><div class="form-hint">Shown during working years; not automatically invested.</div></div>
+        <div><label class="form-label" for="pre-retirement-contribution">Portfolio contribution before retirement / year</label><input id="pre-retirement-contribution" class="form-control" name="annualPreRetirementContribution" type="number" min="0" step="0.01" required th:value="${T(com.smartbox.investory.services.PlanningPresentation).moneyInput(displayAnnualPreRetirementContribution)}"><div class="form-hint">Explicit amount added to liquid cash while working.</div></div>
+        <div><label class="form-label" for="pension-start-age">Pension start age</label><input id="pension-start-age" class="form-control" name="pensionStartAge" type="number" min="0" required th:value="${assumptions.pensionStartAge == 2147483647 ? '' : assumptions.pensionStartAge}"></div>
+        <div><label class="form-label" for="annual-pension">Annual pension</label><input id="annual-pension" class="form-control" name="annualPension" type="number" min="0" step="0.01" required th:value="${T(com.smartbox.investory.services.PlanningPresentation).moneyInput(displayAnnualPension)}"></div>
+        <div><label class="form-label" for="rental-growth">Rental income growth</label><div class="input-group"><input id="rental-growth" class="form-control" name="rentalIncomeGrowth" type="number" step="0.1" min="1" max="99" th:value="${T(com.smartbox.investory.services.PlanningPresentation).percentageInput(assumptions.rentalIncomeGrowthRate)}" required><span class="input-group-text">%</span></div><div class="form-hint">Portfolio and long-term income remain current portfolio facts.</div></div>
+        <div><span class="form-label d-block">Rental income / year · current Long-term Assets</span><span class="form-control-plaintext" th:text="${currentRentalIncome == null ? '—' : T(com.smartbox.investory.services.PlanningPresentation).wholeNumber(currentRentalIncome)}">—</span><div class="form-hint">Current Long-term Assets fact · read-only</div></div>
+        <div><span class="form-label d-block">Bond interest / year · current Long-term Assets</span><span class="form-control-plaintext" th:text="${currentBondIncome == null ? '—' : T(com.smartbox.investory.services.PlanningPresentation).wholeNumber(currentBondIncome)}">—</span><div class="form-hint">Current Long-term Assets fact · read-only</div></div>
+      </div>
+      <div class="card-body border-top" th:if="${developMode != null and developMode and planPreview != null}">
+        <div class="text-secondary small mb-2">Development preview · income (contribution is shown separately)</div>
+        <table class="table table-sm mb-0"><thead><tr><th>Year</th><th>Lifecycle</th><th class="text-end">Employment</th><th class="text-end">Rental</th><th class="text-end">Bond interest</th><th class="text-end">Pension</th><th class="text-end">Contribution</th></tr></thead><tbody id="preview-income-rows"><tr th:each="year : ${planPreview.years}"><td th:text="${year.year}">2026</td><td th:text="${year.lifecycle}">WORKING</td><td class="text-end" th:text="${T(com.smartbox.investory.services.PlanningPresentation).wholeNumber(year.employmentIncome)}">240,000</td><td class="text-end" th:text="${T(com.smartbox.investory.services.PlanningPresentation).wholeNumber(year.rentalIncome)}">145,995</td><td class="text-end" th:text="${T(com.smartbox.investory.services.PlanningPresentation).wholeNumber(year.bondIncome)}">48,000</td><td class="text-end" th:text="${T(com.smartbox.investory.services.PlanningPresentation).wholeNumber(year.pension)}">0</td><td class="text-end" th:text="${T(com.smartbox.investory.services.PlanningPresentation).wholeNumber(year.contribution)}">120,000</td></tr></tbody></table>
+      </div>
+    </section>
+
+    <section class="card iv-simulation-editor__section">
+      <div class="iv-card-section-header"><span class="iv-card-section-header__title">Funding &amp; reserve strategy</span></div>
+      <div class="card-body iv-simulation-editor__grid">
+        <div><label class="form-label" for="funding-strategy">Funding strategy</label><select id="funding-strategy" class="form-select" name="fundingStrategy"><option value="SIMPLE_WATERFALL" th:selected="${assumptions.fundingStrategy.name() == 'SIMPLE_WATERFALL'}">Simple waterfall</option><option value="RESERVE_AND_HARVEST" th:selected="${assumptions.fundingStrategy.name() == 'RESERVE_AND_HARVEST'}">Reserve + equity harvest</option></select></div>
+        <div><label class="form-label" for="safe-reserve-years">Safe-reserve target</label><div class="input-group"><input id="safe-reserve-years" class="form-control" name="safeReserveYears" type="number" min="0" step="0.1" required th:value="${T(com.smartbox.investory.services.PlanningPresentation).decimalInput(assumptions.safeReserveYears)}"><span class="input-group-text">years</span></div><div class="form-hint">Target is measured in years of recurring portfolio funding need, after recurring income.</div></div>
+        <div><label class="form-label" for="emergency-equity">Emergency equity withdrawal</label><select id="emergency-equity" class="form-select" name="allowEmergencyEquityWithdrawal"><option value="true" th:selected="${assumptions.allowEmergencyEquityWithdrawal}">Allowed</option><option value="false" th:selected="${!assumptions.allowEmergencyEquityWithdrawal}">Not allowed</option></select></div>
+        <div><label class="form-label" for="harvest-threshold">Equity harvest threshold</label><div class="input-group"><input id="harvest-threshold" class="form-control" name="equityHarvestMinimumReturn" type="number" step="0.1" min="1" max="99" th:value="${T(com.smartbox.investory.services.PlanningPresentation).percentageInput(assumptions.equityHarvestMinimumReturnRate)}" required><span class="input-group-text">%</span></div></div>
+        <div><label class="form-label" for="harvest-share">Eligible gain to transfer</label><div class="input-group"><input id="harvest-share" class="form-control" name="equityGainHarvest" type="number" step="0.1" min="1" max="99" th:value="${T(com.smartbox.investory.services.PlanningPresentation).percentageInput(assumptions.equityGainHarvestRate)}" required><span class="input-group-text">%</span></div></div>
+      </div>
+      <div class="card-body border-top" th:if="${developMode != null and developMode and planPreview != null}">
+        <div class="text-secondary small mb-2">Development preview · funding and reserve</div>
+        <table class="table table-sm mb-0"><tbody><tr th:if="${planPreview.firstProjectedYear != null}"><td>Recurring portfolio need</td><td class="text-end" id="preview-portfolio-need" th:text="${T(com.smartbox.investory.services.PlanningPresentation).wholeNumber(planPreview.firstProjectedYear.portfolioNeed)}">0</td></tr><tr><td>Reserve target years</td><td class="text-end" id="preview-reserve-years" th:text="${T(com.smartbox.investory.services.PlanningPresentation).decimal(planPreview.assumptions.safeReserveYears)}">5</td></tr><tr th:if="${planPreview.firstProjectedYear != null}"><td>Target reserve amount</td><td class="text-end" id="preview-reserve-target" th:text="${T(com.smartbox.investory.services.PlanningPresentation).wholeNumber(planPreview.firstProjectedYear.reserveTarget)}">0</td></tr><tr th:if="${planPreview.firstProjectedYear != null}"><td>Reserve before</td><td class="text-end" id="preview-reserve-before" th:text="${T(com.smartbox.investory.services.PlanningPresentation).wholeNumber(planPreview.firstProjectedYear.reserveBefore)}">0</td></tr><tr th:if="${planPreview.firstProjectedYear != null}"><td>Reserve after</td><td class="text-end" id="preview-reserve-after" th:text="${T(com.smartbox.investory.services.PlanningPresentation).wholeNumber(planPreview.firstProjectedYear.reserveAfter)}">0</td></tr><tr th:if="${planPreview.firstProjectedYear != null}"><td>Equity harvest</td><td class="text-end" id="preview-equity-harvest" th:text="${T(com.smartbox.investory.services.PlanningPresentation).wholeNumber(planPreview.firstProjectedYear.equityHarvest)}">0</td></tr><tr th:if="${planPreview.firstProjectedYear != null}"><td>Emergency equity withdrawal</td><td class="text-end" id="preview-emergency-equity" th:text="${T(com.smartbox.investory.services.PlanningPresentation).wholeNumber(planPreview.firstProjectedYear.emergencyEquityWithdrawal)}">0</td></tr></tbody></table>
+      </div>
+    </section>
+
+    <details class="card iv-simulation-editor__section iv-simulation-editor__advanced"><summary>Portfolio assumptions</summary><div class="card-body iv-simulation-editor__grid">
+      <div><label class="form-label" for="inflation">Inflation</label><div class="input-group"><input id="inflation" class="form-control" name="inflation" type="number" step="0.1" min="1" max="99" th:value="${T(com.smartbox.investory.services.PlanningPresentation).percentageInput(assumptions.inflationRate)}" required><span class="input-group-text">%</span></div></div>
+      <div><label class="form-label" for="cash-return">Cash return</label><div class="input-group"><input id="cash-return" class="form-control" name="cashReturn" type="number" step="0.1" min="1" max="99" th:value="${T(com.smartbox.investory.services.PlanningPresentation).percentageInput(assumptions.cashReturnRate)}" required><span class="input-group-text">%</span></div></div>
+      <div><label class="form-label" for="fixed-income-return">Fixed-income return</label><div class="input-group"><input id="fixed-income-return" class="form-control" name="fixedIncomeReturn" type="number" step="0.1" min="1" max="99" th:value="${T(com.smartbox.investory.services.PlanningPresentation).percentageInput(assumptions.fixedIncomeReturnRate)}" required><span class="input-group-text">%</span></div></div>
+      <div><label class="form-label" for="equity-return">Equity return</label><div class="input-group"><input id="equity-return" class="form-control" name="equityReturn" type="number" step="0.1" min="1" max="99" th:value="${T(com.smartbox.investory.services.PlanningPresentation).percentageInput(assumptions.equityReturnRate)}" required><span class="input-group-text">%</span></div></div>
+      <div><label class="form-label" for="other-return">Other return</label><div class="input-group"><input id="other-return" class="form-control" name="otherReturn" type="number" step="0.1" min="1" max="99" th:value="${T(com.smartbox.investory.services.PlanningPresentation).percentageInput(assumptions.otherReturnRate)}" required><span class="input-group-text">%</span></div></div>
+      <div><label class="form-label" for="capital-gain-tax">Projected market harvest tax</label><div class="input-group"><input id="capital-gain-tax" class="form-control" name="capitalGainTaxRate" type="number" step="0.1" min="1" max="99" th:value="${T(com.smartbox.investory.services.PlanningPresentation).percentageInput(assumptions.capitalGainTaxRate)}" required><span class="input-group-text">%</span></div></div>
+    </div><div class="card-body border-top" th:if="${developMode != null and developMode and planPreview != null}"><div class="text-secondary small mb-2">Development preview · first projected portfolio year</div><table class="table table-sm mb-0"><thead><tr><th>Asset</th><th class="text-end">Start</th><th class="text-end">End</th><th class="text-end">Return</th></tr></thead><tbody><tr th:if="${planPreview.firstProjectedYear != null}"><td>Cash</td><td class="text-end" th:text="${T(com.smartbox.investory.services.PlanningPresentation).wholeNumber(planPreview.firstProjectedYear.cashStart)}">0</td><td class="text-end" th:text="${T(com.smartbox.investory.services.PlanningPresentation).wholeNumber(planPreview.firstProjectedYear.cashEnd)}">0</td><td class="text-end" th:text="${T(com.smartbox.investory.services.PlanningPresentation).percentage(planPreview.assumptions.cashReturnRate)}">2.0%</td></tr><tr th:if="${planPreview.firstProjectedYear != null}"><td>Market fixed income</td><td class="text-end" th:text="${T(com.smartbox.investory.services.PlanningPresentation).wholeNumber(planPreview.firstProjectedYear.fixedIncomeStart)}">0</td><td class="text-end" th:text="${T(com.smartbox.investory.services.PlanningPresentation).wholeNumber(planPreview.firstProjectedYear.fixedIncomeEnd)}">0</td><td class="text-end" th:text="${T(com.smartbox.investory.services.PlanningPresentation).percentage(planPreview.assumptions.fixedIncomeReturnRate)}">5.0%</td></tr><tr th:if="${planPreview.firstProjectedYear != null}"><td>Equity</td><td class="text-end" th:text="${T(com.smartbox.investory.services.PlanningPresentation).wholeNumber(planPreview.firstProjectedYear.equityStart)}">0</td><td class="text-end" th:text="${T(com.smartbox.investory.services.PlanningPresentation).wholeNumber(planPreview.firstProjectedYear.equityEnd)}">0</td><td class="text-end" th:text="${T(com.smartbox.investory.services.PlanningPresentation).percentage(planPreview.firstProjectedYear.equityReturn)}">8.0%</td></tr></tbody></table><div class="form-hint mt-2">Market fixed-income return applies to projected/reinvested fixed income. Contractual bonds retain their own economics until maturity and are not included in this row.</div></div></details>
+
+    <div class="iv-simulation-editor__actions"><a class="btn btn-outline-secondary" th:href="@{/simulation(portfolioId=${profile.portfolioId},planId=${selectedPlanId},planningDisplayCurrency=${planningDisplayCurrency},selectedScenario=${selectedScenario})}">Cancel</a><button class="btn btn-outline-primary" type="submit" name="saveAs" value="true">Save as new plan</button><button class="btn btn-primary" type="submit" name="saveAs" value="false">Save</button></div>
+  </form>
+
+  <section class="card iv-simulation-editor__section iv-simulation-editor__plans">
+    <div class="iv-card-section-header"><span class="iv-card-section-header__title">Saved plans</span></div>
+    <div class="card-body"><p class="text-secondary">Select a saved assumption set or manage its name. The simulation always reads current portfolio data.</p><div class="iv-simulation-editor__plan-list"><div th:each="plan : ${plans}" class="iv-simulation-editor__plan-row"><a th:href="@{/simulation/plan/edit(portfolioId=${profile.portfolioId},planId=${plan.id},planningDisplayCurrency=${planningDisplayCurrency},selectedScenario=${selectedScenario})}" th:text="${plan.name}" th:classappend="${plan.id == selectedPlanId} ? ' is-active'">Plan</a><form method="post" th:action="@{/simulation/plans/{id}/delete(id=${plan.id})}"><input type="hidden" name="portfolioId" th:value="${profile.portfolioId}"><input type="hidden" name="currentPlanId" th:value="${selectedPlanId}"><input type="hidden" name="planningDisplayCurrency" th:value="${planningDisplayCurrency}"><input type="hidden" name="selectedScenario" th:value="${selectedScenario}"><input type="hidden" name="returnToEdit" value="true"><button class="btn btn-sm btn-outline-danger" type="submit">Delete</button></form></div><span th:if="${#lists.isEmpty(plans)}" class="text-secondary">No saved plans yet.</span></div></div>
+  </section>
+
+  <section class="card iv-simulation-editor__section" th:if="${selectedPlanId != null}">
+    <div class="iv-card-section-header"><span class="iv-card-section-header__title">Life events</span><span class="text-secondary">Plan-specific one-off income or expense</span></div>
+    <div class="card-body"><form class="iv-simulation-editor__event-form" method="post" th:action="@{/simulation/plans/{id}/events(id=${selectedPlanId})}"><input type="hidden" name="portfolioId" th:value="${profile.portfolioId}"><input type="hidden" name="planningDisplayCurrency" th:value="${planningDisplayCurrency}"><input type="hidden" name="returnToEdit" value="true"><input type="hidden" name="selectedScenario" th:value="${selectedScenario}"><input class="form-control" name="year" type="number" min="1900" max="9999" placeholder="Year" required><input class="form-control" name="name" placeholder="Description" required><input class="form-control" name="amount" type="number" min="0" step="0.01" placeholder="Amount" required><select class="form-select" name="type"><option value="ONE_OFF_EXPENSE">Expense</option><option value="ONE_OFF_INCOME">Income</option></select><input class="form-control" name="notes" placeholder="Notes"><button class="btn btn-outline-primary" type="submit">Add event</button></form>
+      <div class="iv-simulation-editor__event-list"><div th:each="event : ${assumptions.futureEvents}" class="iv-simulation-editor__event-row"><span th:text="${event.year + ' · ' + event.name}">2028 · Event</span><span th:text="${T(com.smartbox.investory.services.PlanningPresentation).money(displayEventAmounts[event.id]) + ' · ' + (event.type.name() == 'ONE_OFF_EXPENSE' ? 'Expense' : 'Income')}">0 · Expense</span><form method="post" th:action="@{/simulation/plans/{id}/events/{eventId}/delete(id=${selectedPlanId},eventId=${event.id})}"><input type="hidden" name="portfolioId" th:value="${profile.portfolioId}"><input type="hidden" name="planningDisplayCurrency" th:value="${planningDisplayCurrency}"><input type="hidden" name="returnToEdit" value="true"><input type="hidden" name="selectedScenario" th:value="${selectedScenario}"><button class="btn btn-sm btn-outline-danger" type="submit">Delete</button></form></div><span th:if="${#lists.isEmpty(assumptions.futureEvents)}" class="text-secondary">No life events.</span></div>
+    </div>
+  </section>
+</main>
+<div th:replace="~{fragments/app-footer :: buildFooter}"></div>
+<script th:if="${developMode != null and developMode}" th:inline="javascript">
+(() => {
+  const form = document.getElementById('plan-editor-form');
+  if (!form) return;
+  let timer;
+  let sequence = 0;
+  let controller;
+  const money = value => value == null ? '—' : new Intl.NumberFormat(undefined, {maximumFractionDigits: 0}).format(value);
+  const refresh = () => {
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      const requestId = ++sequence;
+      if (controller) controller.abort();
+      controller = new AbortController();
+      try {
+        const response = await fetch('/simulation/plans/preview', {method: 'POST', body: new FormData(form), signal: controller.signal});
+        if (!response.ok) return;
+        const value = await response.json();
+        if (requestId !== sequence || value.available === false) return;
+        document.getElementById('preview-current-age').textContent = value.currentPlanningAge;
+        document.getElementById('preview-retirement-year').textContent = value.retirementYear;
+        document.getElementById('preview-years-retirement').textContent = value.yearsUntilRetirement;
+        document.getElementById('preview-horizon').textContent = value.planHorizonYears;
+        document.getElementById('preview-annual-living').textContent = money(value.annualLivingCosts);
+        document.getElementById('preview-annual-extras').textContent = money(value.annualExtras);
+        document.getElementById('preview-total-costs').textContent = money(value.totalAnnualCosts);
+        document.getElementById('preview-next-costs').textContent = money(value.nextYearCosts);
+        const first = value.firstProjectedYear;
+        if (first) {
+          document.getElementById('preview-portfolio-need').textContent = money(first.portfolioNeed);
+          document.getElementById('preview-reserve-years').textContent = first.reserveTarget == null ? '—' : value.assumptions.safeReserveYears;
+          document.getElementById('preview-reserve-target').textContent = money(first.reserveTarget);
+          document.getElementById('preview-reserve-before').textContent = money(first.reserveBefore);
+          document.getElementById('preview-reserve-after').textContent = money(first.reserveAfter);
+          document.getElementById('preview-equity-harvest').textContent = money(first.equityHarvest);
+          document.getElementById('preview-emergency-equity').textContent = money(first.emergencyEquityWithdrawal);
+        }
+        const rows = document.getElementById('preview-income-rows');
+        rows.innerHTML = (value.years || []).map(year => `<tr><td>${year.year}</td><td>${year.lifecycle}</td><td class="text-end">${money(year.employmentIncome)}</td><td class="text-end">${money(year.rentalIncome)}</td><td class="text-end">${money(year.bondIncome)}</td><td class="text-end">${money(year.pension)}</td><td class="text-end">${money(year.contribution)}</td></tr>`).join('');
+      } catch (error) { if (error.name !== 'AbortError') console.debug('Plan preview unavailable'); }
+    }, 300);
+  };
+  form.querySelectorAll('input, select').forEach(input => { if (input.name !== 'name') { input.addEventListener('input', refresh); input.addEventListener('change', refresh); } });
+})();
+</script>
+</body>
+</html>

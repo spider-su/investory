@@ -7,7 +7,7 @@
     <link href="/favicon.svg" rel="icon" type="image/svg+xml">
     <link href="/css/tabler.min.css" rel="stylesheet">
     <link href="/css/main.css" rel="stylesheet">
-    <script src="/js/theme.js"></script>
+    <th:block th:replace="~{fragments/theme-head :: theme}"></th:block>
 </head>
 <body>
 <main class="container-xl py-4">
@@ -25,6 +25,15 @@
         <div class="col-sm-6 col-lg-3"><div class="card"><div class="card-body"><div class="text-secondary">Total quantity</div><div class="h2 mb-0" th:text="${#numbers.formatDecimal(asset.totalQuantity, 1, 'POINT', 4, 'COMMA')}">-</div></div></div></div>
         <div class="col-sm-6 col-lg-3"><div class="card"><div class="card-body"><div class="text-secondary">Market value</div><div class="h2 mb-0" th:text="${asset.totalMarketValue == null ? 'Unavailable' : #numbers.formatDecimal(asset.totalMarketValue, 1, 'POINT', 2, 'COMMA') + ' ' + asset.currency}">-</div></div></div></div>
         <div class="col-sm-6 col-lg-3"><div class="card"><div class="card-body"><div class="text-secondary">Unrealized P/L</div><div class="h2 mb-0" th:classappend="${asset.totalUnrealizedProfitLoss != null and asset.totalUnrealizedProfitLoss < 0 ? ' text-danger' : ' text-success'}" th:text="${asset.totalUnrealizedProfitLoss == null ? 'Unavailable' : #numbers.formatDecimal(asset.totalUnrealizedProfitLoss, 1, 'POINT', 2, 'COMMA') + ' ' + asset.currency}">-</div></div></div></div>
+    </section>
+
+    <section class="card mt-4" aria-labelledby="manual-price-title">
+        <div class="card-header"><h2 id="manual-price-title" class="card-title">Manual current price</h2></div>
+        <form id="manual-price-form" class="card-body row g-3 align-items-end" th:attr="data-url=@{/admin/assets/{symbol}/price(symbol=${asset.symbol})}">
+            <div class="col-sm-5"><label class="form-label" for="manual-market-price">Price in <span th:text="${asset.currency}">USD</span></label><input id="manual-market-price" class="form-control" name="marketPrice" type="number" min="0.000001" step="0.000001" required th:value="${asset.marketPrice}"></div>
+            <div class="col-sm-auto"><button class="btn btn-primary" type="submit">Save manual price</button></div>
+            <div class="col-12"><small id="manual-price-status" class="text-secondary">Saves a manual price for today and rebuilds portfolio projections.</small></div>
+        </form>
     </section>
 
     <section class="card mt-4" aria-labelledby="holdings-title"><div class="card-header"><h2 id="holdings-title" class="card-title">Current holdings</h2></div><div th:if="${asset.hasHoldings()}" class="table-responsive"><table class="table card-table table-vcenter"><thead><tr><th>Account</th><th class="text-end">Quantity</th><th class="text-end">Average cost</th><th class="text-end">Market price</th><th class="text-end">Market value</th><th class="text-end">Unrealized P/L</th><th>Settlement</th></tr></thead><tbody><tr th:each="holding : ${asset.holdings}"><td th:text="${holding.accountId}">-</td><td class="text-end" th:text="${#numbers.formatDecimal(holding.quantity, 1, 'POINT', 4, 'COMMA')}">-</td><td class="text-end" th:text="${#numbers.formatDecimal(holding.averageCost, 1, 'POINT', 2, 'COMMA') + ' ' + holding.costCurrency}">-</td><td class="text-end" th:text="${holding.marketPrice == null ? 'Unavailable' : #numbers.formatDecimal(holding.marketPrice, 1, 'POINT', 2, 'COMMA') + ' ' + holding.priceCurrency}">-</td><td class="text-end" th:text="${holding.marketValue == null ? 'Unavailable' : #numbers.formatDecimal(holding.marketValue, 1, 'POINT', 2, 'COMMA') + ' ' + holding.priceCurrency}">-</td><td class="text-end" th:classappend="${holding.unrealizedProfitLoss != null and holding.unrealizedProfitLoss < 0 ? ' text-danger' : ' text-success'}" th:text="${holding.unrealizedProfitLoss == null ? 'Unavailable' : #numbers.formatDecimal(holding.unrealizedProfitLoss, 1, 'POINT', 2, 'COMMA') + ' ' + holding.priceCurrency}">-</td><td th:text="${holding.settlementModel}">-</td></tr></tbody></table></div><div th:unless="${asset.hasHoldings()}" class="card-body text-secondary">No open holdings for this symbol.</div></section>
@@ -98,6 +107,33 @@
     priceHistoryDetails.addEventListener('toggle', () => {
         if (priceHistoryDetails.open) {
             requestAnimationFrame(() => priceChart.resize());
+        }
+    });
+</script>
+<script>
+    const manualPriceForm = document.getElementById('manual-price-form');
+    manualPriceForm.addEventListener('submit', async event => {
+        event.preventDefault();
+        const priceInput = document.getElementById('manual-market-price');
+        const submitButton = manualPriceForm.querySelector('button[type="submit"]');
+        const status = document.getElementById('manual-price-status');
+        submitButton.disabled = true;
+        status.className = 'text-secondary';
+        status.textContent = 'Saving price and rebuilding projections…';
+        try {
+            const response = await fetch(manualPriceForm.dataset.url, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({marketPrice: Number(priceInput.value)})
+            });
+            if (!response.ok) {
+                throw new Error('Manual price save failed.');
+            }
+            window.location.reload();
+        } catch (error) {
+            status.className = 'text-danger';
+            status.textContent = error.message;
+            submitButton.disabled = false;
         }
     });
 </script>
