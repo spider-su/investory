@@ -72,4 +72,14 @@ class SecurityConfigTest {
   void readEndpoint_requiresAuthenticationByDefault() throws Exception {
     mockMvc.perform(get("/dashboard")).andExpect(status().isUnauthorized());
   }
+
+  @Test
+  void readinessProbe_isOpen() throws Exception {
+    mockMvc.perform(get("/actuator/health/readiness")).andExpect(status().isNotFound());
+  }
+
+  @Test
+  void livenessProbe_isOpen() throws Exception {
+    mockMvc.perform(get("/actuator/health/liveness")).andExpect(status().isNotFound());
+  }
 }

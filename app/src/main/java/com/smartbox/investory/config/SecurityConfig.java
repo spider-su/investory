@@ -38,6 +38,8 @@ public class SecurityConfig {
                             "/css/**",
                             "/js/**",
                             "/actuator/health",
+                            "/actuator/health/readiness",
+                            "/actuator/health/liveness",
                             "/swagger-ui.html",
                             "/swagger-ui/**",
                             "/v3/api-docs/**")
