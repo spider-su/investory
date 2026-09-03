@@ -5,22 +5,14 @@ import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.PlanningBaseline;
 import com.smartbox.investory.retirement.api.model.RetirementProjectionContext;
 import com.smartbox.investory.retirement.api.model.SimulationAssumptions;
-import com.smartbox.investory.retirement.api.model.SimulationCustomDeltas;
 
 /** Public query boundary for prepared retirement projections. */
 public interface RetirementProjectionApi {
   RetirementProjectionContext load(Long portfolioId, Long planId);
 
   RetirementProjectionContext load(
-      Long portfolioId,
-      Long planId,
-      Integer defaultCurrentAge,
-      Integer defaultEndAge,
-      SimulationCustomDeltas customDeltas);
+      Long portfolioId, Long planId, Integer defaultCurrentAge, Integer defaultEndAge);
 
   RetirementProjectionContext project(
-      InvestmentProfile profile,
-      SimulationAssumptions assumptions,
-      PlanningBaseline baseline,
-      SimulationCustomDeltas customDeltas);
+      InvestmentProfile profile, SimulationAssumptions assumptions, PlanningBaseline baseline);
 }

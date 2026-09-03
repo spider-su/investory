@@ -19,7 +19,10 @@ public class AccountDailyReconciliationCheck implements ReconciliationCheck {
 
   @Override
   public ReconciliationCheckResult execute(ReconciliationContext context) {
-    var rows = repository.findAccountIssues();
+    var rows =
+        context.portfolioId() == null
+            ? repository.findAccountIssues()
+            : repository.findAccountIssuesByPortfolioId(context.portfolioId());
     List<ReconciliationIssue> issues =
         rows.stream().map(RepositoryReconciliationIssueMapper::account).toList();
     long failures =
@@ -38,7 +41,7 @@ public class AccountDailyReconciliationCheck implements ReconciliationCheck {
         failures,
         reviews,
         issues,
-        "v_account_daily_reconciliation",
+        "recon_v_account_daily",
         context.startedAt());
   }
 

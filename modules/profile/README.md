@@ -12,8 +12,8 @@ longterm.api ----/
 
 - `profile.api` contains separate summary and planning query ports plus immutable economic models.
 - `ProfileSummaryReader` is the summary boundary used by REST and display consumers.
-- `ProfilePlanningReader` is the planning-input boundary. `ProfileReader` remains only as a
-  deprecated compatibility aggregate for existing Retirement callers during migration.
+- `ProfilePlanningReader` is the planning-input boundary. Consumers that need a full
+  `InvestmentProfile` compose the two narrow readers through `ProfileComposition`.
 - `profile.application` implements aggregation through Investment and Long-Term public APIs.
 - Profile owns no source-domain persistence and writes no Investment or Long-Term tables.
 - Brokerage portfolio accounting remains in Investment.
@@ -25,6 +25,8 @@ longterm.api ----/
 - Brokerage and Long-Term source totals are both portfolio-scoped. Allocation reconciliation keeps
   source classifications unchanged and exposes any source-total delta in
   `ProfileAllocationReconciliation`.
-- Profile composition reads one coherent Long-Term profile snapshot. The Long-Term adapter reuses
-  one summary-row read for totals, allocation, and annual-income facts; detailed projection inputs
-  remain one separate batched read.
+- `ProfileComposition` combines two independent reads and does not promise one database snapshot.
+  The Long-Term adapter itself returns one coherent source snapshot for totals, allocation, and
+  annual-income facts; detailed projection inputs remain one separate batched read. Retirement
+  uses `ProfileSnapshotReader`, whose implementation reads both profile parts in one
+  `REPEATABLE_READ` transaction for reproducible calculations.

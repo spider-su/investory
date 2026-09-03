@@ -26,8 +26,6 @@ class LongTermAssetsTemplateContractTest {
       Path.of("../adapters/web-ui/src/main/resources/templates/cash-reserve-detail.html");
   private static final Path CASH_FORM =
       Path.of("../adapters/web-ui/src/main/resources/templates/cash-reserve-form.html");
-  private static final Path CSS =
-      Path.of("../adapters/web-ui/src/main/resources/static/css/components.css");
 
   @DisplayName("real Estate Group Uses Public View Properties")
   @Test
@@ -55,7 +53,7 @@ class LongTermAssetsTemplateContractTest {
   void summaryPageKeepsOneClearCreationAndPortfolioStructureContract() throws Exception {
     String html = Files.readString(TEMPLATE);
     String header = Files.readString(HEADER);
-    String css = Files.readString(CSS);
+    String css = CssTestSupport.readComposedStylesheet();
     String assetActions =
         header.substring(
             header.indexOf("aria-label=\"Long-term asset actions\""),
@@ -174,7 +172,7 @@ class LongTermAssetsTemplateContractTest {
   void assetTypeIsReadOnlyAndEffectiveDatedRecordsHaveCorrectionActions() throws Exception {
     String generic = Files.readString(GENERIC_DETAIL);
     String summary = Files.readString(TEMPLATE);
-    String realEstate = Files.readString(REAL_ESTATE_DETAIL);
+    String realEstate = HtmlTestSupport.readTemplateWithFragments(REAL_ESTATE_DETAIL);
     String bond = Files.readString(BOND_DETAIL);
     String cash = Files.readString(CASH_DETAIL);
 

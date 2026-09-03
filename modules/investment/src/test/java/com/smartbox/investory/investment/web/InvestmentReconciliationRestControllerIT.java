@@ -30,10 +30,10 @@ class InvestmentReconciliationRestControllerIT {
             .build();
   }
 
-  @DisplayName("report Loads Current System Wide Diagnostic")
+  @DisplayName("report Loads Portfolio Diagnostic")
   @Test
-  void reportLoadsCurrentSystemWideDiagnostic() throws Exception {
-    when(reconciliation.loadReconciliationReport())
+  void reportLoadsPortfolioDiagnostic() throws Exception {
+    when(reconciliation.loadReconciliationReport(7L))
         .thenReturn(
             new ReconciliationReport(
                 ReconciliationOverallState.REVIEW,
@@ -44,13 +44,19 @@ class InvestmentReconciliationRestControllerIT {
                 Instant.parse("2026-08-29T10:00:00Z"),
                 LocalDate.of(2026, 8, 29)));
 
-    mvc.perform(get("/api/v1/investment/reconciliation"))
+    mvc.perform(get("/api/v1/investment/reconciliation").param("portfolioId", "7"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.overallState").value("REVIEW"))
         .andExpect(jsonPath("$.checkpoints").isArray())
         .andExpect(jsonPath("$.issueGroups").isArray())
         .andExpect(jsonPath("$.issues").isArray())
         .andExpect(jsonPath("$.asOfDate").value("2026-08-29"));
-    verify(reconciliation).loadReconciliationReport();
+    verify(reconciliation).loadReconciliationReport(7L);
+  }
+
+  @Test
+  void reportRequiresPortfolioId() throws Exception {
+    mvc.perform(get("/api/v1/investment/reconciliation")).andExpect(status().isBadRequest());
+    verifyNoInteractions(reconciliation);
   }
 }

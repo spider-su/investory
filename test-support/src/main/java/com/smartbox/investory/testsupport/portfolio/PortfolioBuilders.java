@@ -10,6 +10,7 @@ import com.smartbox.investory.investment.infrastructure.persistence.imports.Impo
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.cash.CashOperationType;
 import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationEntity;
+import com.smartbox.investory.investment.ledger.position.PositionSettlementModel;
 import com.smartbox.investory.investment.ledger.position.PositionType;
 import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
 import com.smartbox.investory.investment.valuation.fx.persistence.CurrencyRateEntity;
@@ -208,6 +209,17 @@ public final class PortfolioBuilders {
       return this;
     }
 
+    public CashOperationBuilder amount(double amount, CurrencyType currency) {
+      this.amount = amount;
+      this.currency = currency;
+      return this;
+    }
+
+    public CashOperationBuilder symbol(String symbol) {
+      this.symbol = symbol;
+      return this;
+    }
+
     public CashOperationBuilder on(LocalDate date) {
       this.date = PortfolioTestData.atNoon(date);
       return this;
@@ -321,6 +333,16 @@ public final class PortfolioBuilders {
 
     public OpenPositionBuilder type(PositionType type) {
       position.setType(type);
+      return this;
+    }
+
+    public OpenPositionBuilder settlementModel(PositionSettlementModel settlementModel) {
+      position.setSettlementModel(settlementModel);
+      return this;
+    }
+
+    public OpenPositionBuilder closeOn(LocalDate date) {
+      position.setCloseTime(PortfolioTestData.atNoon(date));
       return this;
     }
 

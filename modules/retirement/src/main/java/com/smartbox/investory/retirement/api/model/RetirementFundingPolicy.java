@@ -12,23 +12,7 @@ public record RetirementFundingPolicy(
     BigDecimal equityHarvestThresholdRate,
     BigDecimal equityHarvestShare,
     boolean allowEmergencyEquityWithdrawal,
-    List<RetirementFundingSource> fundingOrder,
-    ProjectedIncomePolicy projectedIncomePolicy) {
-  public RetirementFundingPolicy(
-      BigDecimal reserveTargetYears,
-      BigDecimal equityHarvestThresholdRate,
-      BigDecimal equityHarvestShare,
-      boolean allowEmergencyEquityWithdrawal,
-      List<RetirementFundingSource> fundingOrder) {
-    this(
-        reserveTargetYears,
-        equityHarvestThresholdRate,
-        equityHarvestShare,
-        allowEmergencyEquityWithdrawal,
-        fundingOrder,
-        ProjectedIncomePolicy.SOURCE);
-  }
-
+    List<RetirementFundingSource> fundingOrder) {
   public static final BigDecimal DEFAULT_RESERVE_TARGET_YEARS = BigDecimal.valueOf(5);
   public static final BigDecimal DEFAULT_HARVEST_THRESHOLD = BigDecimal.valueOf(0.07);
   public static final BigDecimal DEFAULT_HARVEST_SHARE = BigDecimal.valueOf(0.75);
@@ -48,8 +32,6 @@ public record RetirementFundingPolicy(
       throw new IllegalArgumentException("Harvest share must be between 0 and 1");
     fundingOrder =
         fundingOrder == null || fundingOrder.isEmpty() ? DEFAULT_ORDER : List.copyOf(fundingOrder);
-    projectedIncomePolicy =
-        projectedIncomePolicy == null ? ProjectedIncomePolicy.SOURCE : projectedIncomePolicy;
     if (fundingOrder.stream().anyMatch(source -> source == null)
         || new HashSet<>(fundingOrder).size() != fundingOrder.size())
       throw new IllegalArgumentException("Funding order must contain unique sources");
@@ -61,8 +43,7 @@ public record RetirementFundingPolicy(
         DEFAULT_HARVEST_THRESHOLD,
         DEFAULT_HARVEST_SHARE,
         true,
-        DEFAULT_ORDER,
-        ProjectedIncomePolicy.SOURCE);
+        DEFAULT_ORDER);
   }
 
   public static RetirementFundingPolicy fromLegacy(SimulationAssumptions assumptions) {
@@ -71,8 +52,7 @@ public record RetirementFundingPolicy(
         assumptions.equityHarvestMinimumReturnRate(),
         assumptions.equityGainHarvestRate(),
         assumptions.allowEmergencyEquityWithdrawal(),
-        assumptions.fundingOrder(),
-        assumptions.projectedIncomePolicy());
+        assumptions.fundingOrder());
   }
 
   /** Domain-neutral names used by the active policy. */

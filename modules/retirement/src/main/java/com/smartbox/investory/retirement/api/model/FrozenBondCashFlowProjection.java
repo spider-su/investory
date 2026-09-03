@@ -9,17 +9,15 @@ import com.smartbox.investory.profile.api.model.ProjectedLongTermAsset;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import org.springframework.stereotype.Component;
 
 /** Evaluates bond cash-flow details from the immutable profile planning snapshot. */
+@Component
 public class FrozenBondCashFlowProjection {
   private static final BigDecimal ZERO = BigDecimal.ZERO;
 
   public BigDecimal cashIncome(
       InvestmentProfile profile, SimulationAssumptions assumptions, int year) {
-    var policy = assumptions.projectedIncomePolicy();
-    if (policy.bondCashIncomeMode() == ProjectedIncomePolicy.IncomeMode.MANUAL)
-      return zeroIfNull(policy.manualBondCashIncome());
-
     return frozenAssets(profile).stream()
         .filter(asset -> asset.bucket() == EconomicBucket.FIXED_INCOME)
         .filter(asset -> asset.maturityDate() == null || year <= asset.maturityDate().getYear())

@@ -2,7 +2,7 @@ SET search_path TO investory, public;
 
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 
-CREATE TABLE investory.long_term_assets (
+CREATE TABLE IF NOT EXISTS investory.long_term_assets (
     id bigserial PRIMARY KEY,
     portfolio_id bigint NOT NULL REFERENCES investory.portfolios(id),
     name varchar(255) NOT NULL,
@@ -33,12 +33,12 @@ COMMENT ON COLUMN investory.long_term_assets.asset_type IS
 COMMENT ON COLUMN investory.long_term_assets.external_key IS
     'Optional stable identity used by explicit long-term asset bootstrap imports; not an accounting identifier.';
 
-CREATE INDEX ix_long_term_assets_portfolio_active ON investory.long_term_assets(portfolio_id, active);
-CREATE UNIQUE INDEX ux_long_term_assets_portfolio_external_key
+CREATE INDEX IF NOT EXISTS ix_long_term_assets_portfolio_active ON investory.long_term_assets(portfolio_id, active);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_long_term_assets_portfolio_external_key
     ON investory.long_term_assets(portfolio_id, external_key)
     WHERE external_key IS NOT NULL;
 
-CREATE TABLE investory.long_term_asset_valuation_periods (
+CREATE TABLE IF NOT EXISTS investory.long_term_asset_valuation_periods (
     id bigserial PRIMARY KEY,
     asset_id bigint NOT NULL REFERENCES investory.long_term_assets(id) ON DELETE CASCADE,
     valid_from date NOT NULL,
@@ -54,10 +54,10 @@ CREATE TABLE investory.long_term_asset_valuation_periods (
         )
 );
 
-CREATE INDEX ix_long_term_asset_valuation_periods_asset_dates
+CREATE INDEX IF NOT EXISTS ix_long_term_asset_valuation_periods_asset_dates
     ON investory.long_term_asset_valuation_periods(asset_id, valid_from, valid_to);
 
-CREATE TABLE investory.long_term_asset_bond_rate_periods (
+CREATE TABLE IF NOT EXISTS investory.long_term_asset_bond_rate_periods (
     id bigserial PRIMARY KEY,
     asset_id bigint NOT NULL REFERENCES investory.long_term_assets(id) ON DELETE CASCADE,
     valid_from date NOT NULL,
@@ -71,14 +71,14 @@ CREATE TABLE investory.long_term_asset_bond_rate_periods (
         )
 );
 
-CREATE INDEX ix_long_term_asset_bond_rate_periods_asset_dates
+CREATE INDEX IF NOT EXISTS ix_long_term_asset_bond_rate_periods_asset_dates
     ON investory.long_term_asset_bond_rate_periods(asset_id, valid_from, valid_to);
 
-CREATE TABLE investory.long_term_asset_real_estate_details (
+CREATE TABLE IF NOT EXISTS investory.long_term_asset_real_estate_details (
     asset_id bigint PRIMARY KEY REFERENCES investory.long_term_assets(id) ON DELETE CASCADE
 );
 
-CREATE TABLE investory.long_term_asset_bond_details (
+CREATE TABLE IF NOT EXISTS investory.long_term_asset_bond_details (
     asset_id bigint PRIMARY KEY REFERENCES investory.long_term_assets(id) ON DELETE CASCADE,
     maturity_date date NOT NULL,
     interest_treatment varchar(16) NOT NULL CHECK (interest_treatment IN ('PAY_OUT','CAPITALIZE')),
@@ -86,7 +86,7 @@ CREATE TABLE investory.long_term_asset_bond_details (
     redemption_value numeric(30,12) CHECK (redemption_value IS NULL OR redemption_value >= 0)
 );
 
-CREATE TABLE investory.long_term_asset_deposit_details (
+CREATE TABLE IF NOT EXISTS investory.long_term_asset_deposit_details (
     asset_id bigint PRIMARY KEY REFERENCES investory.long_term_assets(id) ON DELETE CASCADE,
     maturity_date date NOT NULL,
     interest_treatment varchar(16) NOT NULL CHECK (interest_treatment IN ('PAY_OUT','CAPITALIZE')),
@@ -97,7 +97,7 @@ CREATE TABLE investory.long_term_asset_deposit_details (
 COMMENT ON TABLE investory.long_term_asset_deposit_details IS
     'Complete deposit subtype state. Maturity is required and deposit creation persists this row atomically with the asset.';
 
-CREATE TABLE investory.rental_tax_policies (
+CREATE TABLE IF NOT EXISTS investory.rental_tax_policies (
     id bigserial PRIMARY KEY,
     portfolio_id bigint NOT NULL REFERENCES investory.portfolios(id) ON DELETE CASCADE,
     valid_from date NOT NULL,
@@ -112,10 +112,15 @@ CREATE TABLE investory.rental_tax_policies (
         )
 );
 
-CREATE INDEX ix_rental_tax_policies_portfolio_dates
+CREATE INDEX IF NOT EXISTS ix_rental_tax_policies_portfolio_dates
     ON investory.rental_tax_policies(portfolio_id, valid_from, valid_to);
 
-CREATE TABLE investory.long_term_asset_lifecycle_periods (
+INSERT INTO investory.reconciliation_parameters(parameter_name, numeric_value, description)
+VALUES ('long_term_default_rental_tax_rate', 0.085,
+        'Fallback annual rental-tax rate when no portfolio policy is effective.')
+ON CONFLICT (parameter_name) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS investory.long_term_asset_lifecycle_periods (
     id bigserial PRIMARY KEY,
     asset_id bigint NOT NULL REFERENCES investory.long_term_assets(id) ON DELETE CASCADE,
     active_from date NOT NULL,
@@ -128,10 +133,10 @@ CREATE TABLE investory.long_term_asset_lifecycle_periods (
         )
 );
 
-CREATE INDEX ix_long_term_asset_lifecycle_periods_asset_dates
+CREATE INDEX IF NOT EXISTS ix_long_term_asset_lifecycle_periods_asset_dates
     ON investory.long_term_asset_lifecycle_periods(asset_id, active_from, active_to);
 
-CREATE TABLE investory.long_term_asset_rental_contracts (
+CREATE TABLE IF NOT EXISTS investory.long_term_asset_rental_contracts (
     id bigserial PRIMARY KEY,
     asset_id bigint NOT NULL REFERENCES investory.long_term_assets(id) ON DELETE CASCADE,
     start_date date NOT NULL,
@@ -167,9 +172,9 @@ CREATE TABLE investory.long_term_asset_rental_contracts (
         )
 );
 
-CREATE INDEX ix_rental_contracts_asset_dates
+CREATE INDEX IF NOT EXISTS ix_rental_contracts_asset_dates
     ON investory.long_term_asset_rental_contracts(asset_id, start_date, end_date);
-CREATE INDEX ix_rental_contracts_asset_start
+CREATE INDEX IF NOT EXISTS ix_rental_contracts_asset_start
     ON investory.long_term_asset_rental_contracts(asset_id, start_date DESC);
 
 COMMENT ON COLUMN investory.long_term_asset_rental_contracts.monthly_tax_base IS
@@ -185,7 +190,7 @@ COMMENT ON COLUMN investory.long_term_asset_rental_contracts.tenant_email IS
 COMMENT ON COLUMN investory.long_term_asset_rental_contracts.tenant_phone IS
     'Optional tenant phone owned by the rental contract.';
 
-CREATE TABLE investory.long_term_asset_rental_contract_terms (
+CREATE TABLE IF NOT EXISTS investory.long_term_asset_rental_contract_terms (
     id bigserial PRIMARY KEY,
     contract_id bigint NOT NULL REFERENCES investory.long_term_asset_rental_contracts(id) ON DELETE CASCADE,
     cash_flow_type varchar(32) NOT NULL CHECK (cash_flow_type IN ('RENT', 'PARKING_RENT', 'ADMIN_FEE', 'UTILITIES', 'PROPERTY_TAX', 'INSURANCE', 'OTHER_INCOME', 'OTHER_EXPENSE')),
@@ -195,24 +200,29 @@ CREATE TABLE investory.long_term_asset_rental_contract_terms (
     CONSTRAINT ux_rental_contract_term_type UNIQUE (contract_id, cash_flow_type)
 );
 
-CREATE INDEX ix_rental_contract_terms_contract
+CREATE INDEX IF NOT EXISTS ix_rental_contract_terms_contract
     ON investory.long_term_asset_rental_contract_terms(contract_id, cash_flow_type);
 
-CREATE TABLE investory.simulation_plans (
+CREATE TABLE IF NOT EXISTS investory.simulation_plans (
     id bigserial PRIMARY KEY,
     portfolio_id bigint NOT NULL REFERENCES investory.portfolios(id) ON DELETE CASCADE,
     name varchar(255) NOT NULL,
-    current_revision_id bigint NOT NULL,
+    current_revision_id bigint,
     archived boolean NOT NULL DEFAULT false,
+    sandbox boolean NOT NULL DEFAULT false,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
     CHECK (btrim(name) <> ''),
     UNIQUE (portfolio_id, name)
 );
 
-CREATE INDEX ix_simulation_plans_portfolio ON investory.simulation_plans(portfolio_id);
+CREATE INDEX IF NOT EXISTS ix_simulation_plans_portfolio ON investory.simulation_plans(portfolio_id);
 
-CREATE TABLE investory.simulation_plan_revisions (
+CREATE UNIQUE INDEX IF NOT EXISTS uq_simulation_plans_one_sandbox_per_portfolio
+    ON investory.simulation_plans (portfolio_id)
+    WHERE sandbox AND NOT archived;
+
+CREATE TABLE IF NOT EXISTS investory.simulation_plan_revisions (
     id bigserial PRIMARY KEY,
     simulation_plan_id bigint NOT NULL REFERENCES investory.simulation_plans(id) ON DELETE RESTRICT,
     revision_number integer NOT NULL CHECK (revision_number > 0),
@@ -234,18 +244,11 @@ CREATE TABLE investory.simulation_plan_revisions (
     equity_harvest_minimum_return_rate numeric(20,12) DEFAULT 0.07,
     equity_gain_harvest_rate numeric(20,12) DEFAULT 0.75,
     allow_emergency_equity_withdrawal boolean DEFAULT false,
-    cash_return_rate numeric(20,12) NOT NULL,
     fixed_income_return_rate numeric(20,12) NOT NULL,
     equity_return_rate numeric(20,12) NOT NULL,
-    real_estate_return_rate numeric(20,12) NOT NULL,
-    other_return_rate numeric(20,12) NOT NULL,
     pension_start_age integer NOT NULL,
     annual_pension numeric(30,12) NOT NULL,
     capital_gain_tax_rate numeric(20,12) NOT NULL,
-    rental_income_mode varchar(16) NOT NULL DEFAULT 'SOURCE',
-    manual_rental_income numeric(30,12),
-    bond_cash_income_mode varchar(16) NOT NULL DEFAULT 'SOURCE',
-    manual_bond_cash_income numeric(30,12),
     baseline_as_of_year integer,
     baseline_reserve numeric(30,12),
     baseline_investment_capital numeric(30,12),
@@ -258,11 +261,7 @@ CREATE TABLE investory.simulation_plan_revisions (
     CONSTRAINT uq_simulation_plan_revisions_plan_number
         UNIQUE (simulation_plan_id, revision_number),
     CONSTRAINT uq_simulation_plan_revisions_id_plan
-        UNIQUE (id, simulation_plan_id),
-    CONSTRAINT ck_simulation_plan_revisions_rental_income_mode
-        CHECK (rental_income_mode IN ('SOURCE', 'MANUAL')),
-    CONSTRAINT ck_simulation_plan_revisions_bond_cash_income_mode
-        CHECK (bond_cash_income_mode IN ('SOURCE', 'MANUAL'))
+        UNIQUE (id, simulation_plan_id)
 );
 
 COMMENT ON TABLE investory.simulation_plan_revisions IS
@@ -275,7 +274,7 @@ ALTER TABLE investory.simulation_plans
         FOREIGN KEY (current_revision_id, id)
         REFERENCES investory.simulation_plan_revisions (id, simulation_plan_id);
 
-CREATE TABLE investory.simulation_plan_revision_events (
+CREATE TABLE IF NOT EXISTS investory.simulation_plan_revision_events (
     id bigserial PRIMARY KEY,
     logical_event_id bigint,
     revision_id bigint NOT NULL REFERENCES investory.simulation_plan_revisions(id) ON DELETE RESTRICT,
@@ -287,9 +286,9 @@ CREATE TABLE investory.simulation_plan_revision_events (
     created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX ix_simulation_plan_revision_events_revision_year
+CREATE INDEX IF NOT EXISTS ix_simulation_plan_revision_events_revision_year
     ON investory.simulation_plan_revision_events(revision_id, event_year, id);
-CREATE INDEX ix_simulation_plan_revision_events_logical_id
+CREATE INDEX IF NOT EXISTS ix_simulation_plan_revision_events_logical_id
     ON investory.simulation_plan_revision_events(logical_event_id);
 
 COMMENT ON TABLE investory.simulation_plan_revision_events IS
@@ -297,9 +296,9 @@ COMMENT ON TABLE investory.simulation_plan_revision_events IS
 COMMENT ON COLUMN investory.simulation_plan_revision_events.logical_event_id IS
     'Stable logical event identity copied across immutable plan revisions; null only for legacy rows.';
 
-CREATE TABLE investory.planning_years (
+CREATE TABLE IF NOT EXISTS investory.planning_years (
     id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-    portfolio_id bigint NOT NULL,
+    portfolio_id bigint NOT NULL REFERENCES investory.portfolios(id) ON DELETE CASCADE,
     planning_year integer NOT NULL,
     status varchar(16) NOT NULL,
     baseline_plan_id bigint,
@@ -317,7 +316,7 @@ CREATE TABLE investory.planning_years (
         REFERENCES investory.simulation_plan_revisions (id, simulation_plan_id)
 );
 
-CREATE TABLE investory.planning_year_values (
+CREATE TABLE IF NOT EXISTS investory.planning_year_values (
     id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     planning_year_id bigint NOT NULL REFERENCES investory.planning_years(id) ON DELETE CASCADE,
     value_kind varchar(16) NOT NULL,
@@ -337,7 +336,7 @@ COMMENT ON COLUMN investory.planning_years.baseline_revision_id IS
 COMMENT ON TABLE investory.planning_year_values IS
     'Planning-only derived, approved, and baseline values. Never an accounting fact table.';
 
-CREATE OR REPLACE FUNCTION investory.assert_long_term_subtype_consistency()
+CREATE OR REPLACE FUNCTION investory.longterm_fn_assert_subtype_consistency()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
@@ -351,98 +350,57 @@ BEGIN
     IF actual_type IS NULL
        OR (TG_TABLE_NAME = 'long_term_asset_bond_details' AND actual_type <> 'BOND')
        OR (TG_TABLE_NAME = 'long_term_asset_deposit_details' AND actual_type <> 'DEPOSIT')
-       OR (TG_TABLE_NAME = 'long_term_asset_rental_contracts' AND actual_type <> 'REAL_ESTATE') THEN
+       OR (TG_TABLE_NAME = 'long_term_asset_rental_contracts' AND actual_type <> 'REAL_ESTATE')
+       OR (TG_TABLE_NAME = 'long_term_asset_real_estate_details' AND actual_type <> 'REAL_ESTATE') THEN
         RAISE EXCEPTION 'Subtype details do not match asset type';
     END IF;
     RETURN NEW;
 END
 $$;
 
-CREATE TRIGGER tr_long_term_bond_details_type
+CREATE TRIGGER longterm_trg_bond_details_type
 BEFORE INSERT OR UPDATE ON investory.long_term_asset_bond_details
-FOR EACH ROW EXECUTE FUNCTION investory.assert_long_term_subtype_consistency();
+FOR EACH ROW EXECUTE FUNCTION investory.longterm_fn_assert_subtype_consistency();
 
-CREATE TRIGGER tr_long_term_deposit_details_type
+CREATE TRIGGER longterm_trg_deposit_details_type
 BEFORE INSERT OR UPDATE ON investory.long_term_asset_deposit_details
-FOR EACH ROW EXECUTE FUNCTION investory.assert_long_term_subtype_consistency();
+FOR EACH ROW EXECUTE FUNCTION investory.longterm_fn_assert_subtype_consistency();
 
-CREATE TRIGGER tr_long_term_rental_contract_type
+CREATE TRIGGER longterm_trg_rental_contract_type
 BEFORE INSERT OR UPDATE ON investory.long_term_asset_rental_contracts
-FOR EACH ROW EXECUTE FUNCTION investory.assert_long_term_subtype_consistency();
+FOR EACH ROW EXECUTE FUNCTION investory.longterm_fn_assert_subtype_consistency();
 
-CREATE OR REPLACE VIEW investory.v_long_term_asset_rental_economics AS
-WITH term_totals AS (
-    SELECT c.id AS contract_id,
-           c.asset_id,
-           c.start_date AS valid_from,
-           CASE WHEN c.end_date IS NULL THEN c.terminated_date
-                WHEN c.terminated_date IS NULL THEN c.end_date
-                ELSE LEAST(c.end_date, c.terminated_date) END AS valid_to,
-           a.current_value,
-           COALESCE(c.monthly_tax_base::numeric(30, 12), a.tax_base) AS tax_base,
-           COALESCE(c.rental_tax_paid_by_tenant, a.rental_tax_paid_by_tenant) AS rental_tax_paid_by_tenant,
-           a.portfolio_id,
-           COALESCE(SUM(CASE WHEN t.cash_flow_type IN ('RENT','PARKING_RENT','OTHER_INCOME')
-                    THEN CASE WHEN t.frequency = 'MONTHLY' THEN t.amount * 12 ELSE t.amount END ELSE 0 END), 0) AS gross_rental_income,
-           COALESCE(SUM(CASE WHEN t.cash_flow_type IN ('ADMIN_FEE','UTILITIES','PROPERTY_TAX','INSURANCE','OTHER_EXPENSE') AND NOT t.paid_by_tenant
-                    THEN CASE WHEN t.frequency = 'MONTHLY' THEN t.amount * 12 ELSE t.amount END ELSE 0 END), 0) AS landlord_paid_costs,
-           COALESCE(SUM(CASE WHEN t.cash_flow_type IN ('ADMIN_FEE','UTILITIES','PROPERTY_TAX','INSURANCE','OTHER_EXPENSE') AND t.paid_by_tenant
-                    THEN CASE WHEN t.frequency = 'MONTHLY' THEN t.amount * 12 ELSE t.amount END ELSE 0 END), 0) AS tenant_paid_costs
-    FROM investory.long_term_asset_rental_contracts c
-    JOIN investory.long_term_assets a ON a.id = c.asset_id
-    LEFT JOIN investory.long_term_asset_rental_contract_terms t ON t.contract_id = c.id
-    GROUP BY c.id, c.asset_id, c.start_date, c.end_date, c.terminated_date,
-             c.monthly_tax_base, c.rental_tax_paid_by_tenant,
-             a.current_value, a.tax_base, a.rental_tax_paid_by_tenant, a.portfolio_id
-), effective_dates AS (
-    SELECT e.*,
-           GREATEST(e.valid_from, LEAST(CURRENT_DATE, COALESCE(e.valid_to, CURRENT_DATE))) AS policy_date
-    FROM term_totals e
-)
-SELECT e.contract_id,
-       e.asset_id,
-       e.valid_from,
-       e.valid_to,
-       e.current_value,
-       e.tax_base,
-       e.rental_tax_paid_by_tenant,
-       e.portfolio_id,
-       e.gross_rental_income,
-       e.landlord_paid_costs,
-       e.tenant_paid_costs,
-       COALESCE(p.rate, 0.085) AS rental_tax_rate,
-       CASE WHEN e.rental_tax_paid_by_tenant THEN 0
-            ELSE COALESCE(e.tax_base, 0) * 12 * COALESCE(p.rate, 0.085) END AS rental_tax,
-       e.gross_rental_income - e.landlord_paid_costs -
-       CASE WHEN e.rental_tax_paid_by_tenant THEN 0
-            ELSE COALESCE(e.tax_base, 0) * 12 * COALESCE(p.rate, 0.085) END AS net_rental_income,
-       CASE WHEN e.current_value = 0 THEN 0 ELSE
-            (e.gross_rental_income - e.landlord_paid_costs -
-             CASE WHEN e.rental_tax_paid_by_tenant THEN 0
-                  ELSE COALESCE(e.tax_base, 0) * 12 * COALESCE(p.rate, 0.085) END)
-             / e.current_value END AS net_yield
-FROM effective_dates e
-LEFT JOIN LATERAL (
-    SELECT policy.rate
-    FROM investory.rental_tax_policies policy
-    WHERE policy.portfolio_id = e.portfolio_id
-      AND policy.valid_from <= e.policy_date
-      AND (policy.valid_to IS NULL OR policy.valid_to >= e.policy_date)
-    ORDER BY policy.valid_from DESC
-    LIMIT 1
-) p ON true;
+CREATE TRIGGER longterm_trg_real_estate_details_type
+BEFORE INSERT OR UPDATE ON investory.long_term_asset_real_estate_details
+FOR EACH ROW EXECUTE FUNCTION investory.longterm_fn_assert_subtype_consistency();
 
-COMMENT ON VIEW investory.v_long_term_asset_rental_economics IS
-    'Rental contract economics using the policy effective today for active contracts, contract end for past contracts, and contract start for future contracts.';
+CREATE OR REPLACE FUNCTION investory.longterm_fn_assert_parent_type_consistency()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF OLD.asset_type IS DISTINCT FROM NEW.asset_type THEN
+        IF NEW.asset_type <> 'BOND'
+           AND EXISTS (SELECT 1 FROM investory.long_term_asset_bond_details d WHERE d.asset_id = NEW.id) THEN
+            RAISE EXCEPTION 'Asset type cannot change while bond details exist';
+        END IF;
+        IF NEW.asset_type <> 'DEPOSIT'
+           AND EXISTS (SELECT 1 FROM investory.long_term_asset_deposit_details d WHERE d.asset_id = NEW.id) THEN
+            RAISE EXCEPTION 'Asset type cannot change while deposit details exist';
+        END IF;
+        IF NEW.asset_type <> 'REAL_ESTATE'
+           AND EXISTS (SELECT 1 FROM investory.long_term_asset_real_estate_details d WHERE d.asset_id = NEW.id) THEN
+            RAISE EXCEPTION 'Asset type cannot change while real-estate details exist';
+        END IF;
+        IF NEW.asset_type <> 'REAL_ESTATE'
+           AND EXISTS (SELECT 1 FROM investory.long_term_asset_rental_contracts c WHERE c.asset_id = NEW.id) THEN
+            RAISE EXCEPTION 'Asset type cannot change while rental contracts exist';
+        END IF;
+    END IF;
+    RETURN NEW;
+END
+$$;
 
-CREATE OR REPLACE VIEW investory.v_long_term_asset_latest_rental_contract AS
-SELECT *
-FROM (
-    SELECT e.*,
-           row_number() OVER (
-               PARTITION BY e.asset_id
-               ORDER BY e.valid_from DESC, e.contract_id DESC
-           ) AS contract_rank
-    FROM investory.v_long_term_asset_rental_economics e
-) ranked
-WHERE contract_rank = 1;
+CREATE TRIGGER longterm_trg_asset_type_consistency
+BEFORE UPDATE OF asset_type ON investory.long_term_assets
+FOR EACH ROW EXECUTE FUNCTION investory.longterm_fn_assert_parent_type_consistency();

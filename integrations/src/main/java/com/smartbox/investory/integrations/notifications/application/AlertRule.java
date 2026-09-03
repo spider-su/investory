@@ -1,5 +1,6 @@
 package com.smartbox.investory.integrations.notifications.application;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -14,4 +15,11 @@ public interface AlertRule {
 
   /** Empty when the rule does not fire. */
   Optional<String> evaluate();
+
+  /** Returns the individual incidents observed by this rule. */
+  default List<AlertObservation> evaluateObservations() {
+    return evaluate()
+        .map(message -> List.of(new AlertObservation("", message)))
+        .orElseGet(List::of);
+  }
 }

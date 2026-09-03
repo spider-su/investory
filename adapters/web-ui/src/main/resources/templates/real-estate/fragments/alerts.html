@@ -1,0 +1,8 @@
+<!-- Real-estate status messages. -->
+<th:block xmlns:th="http://www.thymeleaf.org" th:fragment="alerts">
+  <div class="alert alert-success" role="status" th:if="${success}" th:text="${success}">Saved.</div>
+  <div class="alert alert-danger" role="alert" th:if="${error}">
+    <span th:text="${error}">Validation error.</span>
+    <ul class="mb-0 mt-1" th:if="${rentalBindingErrors}"><li th:each="bindingError : ${rentalBindingErrors}" th:text="${bindingError}">Invalid field.</li></ul>
+  </div>
+</th:block>

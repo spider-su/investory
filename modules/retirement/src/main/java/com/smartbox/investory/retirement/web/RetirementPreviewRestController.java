@@ -5,6 +5,7 @@ import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.EditorPreviewResponse;
 import com.smartbox.investory.retirement.api.model.PlanEditorInput;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.validation.annotation.Validated;
@@ -21,17 +22,27 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/retirement/portfolios/{portfolioId}/preview")
 public class RetirementPreviewRestController {
   private final RetirementPreviewApi previews;
+  private final PortfolioContextReader portfolios;
 
-  public RetirementPreviewRestController(RetirementPreviewApi previews) {
+  public RetirementPreviewRestController(
+      RetirementPreviewApi previews, PortfolioContextReader portfolios) {
     this.previews = previews;
+    this.portfolios = portfolios;
   }
 
   @PostMapping
   public EditorPreviewResponse editorPreview(
       @PathVariable @NotNull Long portfolioId,
       @RequestParam(required = false) Long planId,
-      @RequestParam(defaultValue = "PLN") CurrencyType planningDisplayCurrency,
+      @RequestParam(required = false) CurrencyType planningDisplayCurrency,
       @Valid @RequestBody PlanEditorInput request) {
-    return previews.editorPreview(portfolioId, planId, planningDisplayCurrency, request);
+    CurrencyType currency =
+        planningDisplayCurrency != null
+            ? planningDisplayCurrency
+            : portfolios
+                .findById(portfolioId)
+                .map(context -> context.localCurrency())
+                .orElse(CurrencyType.PLN);
+    return previews.editorPreview(portfolioId, planId, currency, request);
   }
 }

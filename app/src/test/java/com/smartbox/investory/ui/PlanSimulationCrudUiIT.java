@@ -12,6 +12,7 @@ import com.microsoft.playwright.Response;
 import com.microsoft.playwright.Tracing;
 import com.microsoft.playwright.options.AriaRole;
 import com.smartbox.investory.testsupport.FastDatabaseTest;
+import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorPlanFacts;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -29,18 +30,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.jdbc.Sql;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@Sql(
-    scripts = "/ui/ui-page-smoke-fixture.sql",
-    executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS)
 @DisplayName("Plan Simulation Crud UI")
 class PlanSimulationCrudUiIT extends FastDatabaseTest {
 
   private static final long PORTFOLIO_ID = 1L;
-  private static final long SOURCE_PLAN_ID = 9201L;
+  private static final long SOURCE_PLAN_ID = HappyInvestorPlanFacts.SEED_PLAN_ID;
   private static final Path ARTIFACT_DIRECTORY = Path.of("target", "ui-test-results");
 
   @Value("${local.server.port}")
@@ -70,29 +67,25 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
         page -> {
           PlanData first =
               new PlanData(
-                  "UI Simulation Plan One",
+                  HappyInvestorPlanFacts.NAME + " CRUD",
                   "2024",
                   "40",
-                  "63",
-                  "88",
-                  "4321.09",
-                  "8765.43",
-                  "2.3",
-                  "1.1",
-                  "1.7",
-                  "MANUAL",
-                  "15432.10",
-                  "MANUAL",
-                  "8765.40",
-                  "120000.50",
-                  "18000.75",
-                  "36000.25",
-                  "67",
-                  "4.4",
-                  "7.6",
-                  "2.5",
-                  "6.5",
                   "60",
+                  "85",
+                  "3000",
+                  "500",
+                  "2.5",
+                  "2.5",
+                  "2.5",
+                  "7500",
+                  "1000",
+                  "2000",
+                  "67",
+                  "4",
+                  "7",
+                  "2",
+                  "5",
+                  "25",
                   true);
           PlanData second =
               new PlanData(
@@ -106,10 +99,6 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
                   "3.1",
                   "0.8",
                   "2.0",
-                  "SOURCE",
-                  "0",
-                  "MANUAL",
-                  "7654.30",
                   "110000.25",
                   "15000.50",
                   "42000.75",
@@ -147,10 +136,6 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
                   "2.7",
                   "1.3",
                   "1.9",
-                  "MANUAL",
-                  "16543.21",
-                  "SOURCE",
-                  "0",
                   "135000.75",
                   "22000.25",
                   "39000.50",
@@ -210,10 +195,6 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
     fill(page, "#inflation", plan.inflation());
     fill(page, "#spending-growth", plan.spendingGrowth());
     fill(page, "#rental-growth", plan.rentalGrowth());
-    page.locator("#rental-income-mode").selectOption(plan.rentalIncomeMode());
-    fill(page, "#manual-rental-income", plan.manualRentalIncome());
-    page.locator("#bond-cash-income-mode").selectOption(plan.bondIncomeMode());
-    fill(page, "#manual-bond-cash-income", plan.manualBondIncome());
     fill(page, "#employment-income", plan.employmentIncome());
     fill(page, "#pre-retirement-contribution", plan.preRetirementContribution());
     fill(page, "#annual-pension", plan.annualPension());
@@ -294,12 +275,10 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
       assertInput(page, "#inflation", plan.inflation());
       assertInput(page, "#spending-growth", plan.spendingGrowth());
       assertInput(page, "#rental-growth", plan.rentalGrowth());
-      assertThat(page.locator("#rental-income-mode").inputValue())
-          .isEqualTo(plan.rentalIncomeMode());
-      assertInput(page, "#manual-rental-income", plan.manualRentalIncome());
-      assertThat(page.locator("#bond-cash-income-mode").inputValue())
-          .isEqualTo(plan.bondIncomeMode());
-      assertInput(page, "#manual-bond-cash-income", plan.manualBondIncome());
+      assertThat(page.locator("#manual-rental-income").count()).isZero();
+      assertThat(page.locator("#manual-bond-cash-income").count()).isZero();
+      assertThat(page.locator("#rental-income-mode").count()).isZero();
+      assertThat(page.locator("#bond-cash-income-mode").count()).isZero();
       assertInput(page, "#employment-income", plan.employmentIncome());
       assertInput(page, "#pre-retirement-contribution", plan.preRetirementContribution());
       assertInput(page, "#annual-pension", plan.annualPension());
@@ -361,10 +340,6 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
     assertRate(row.get("capital_gain_tax_rate"), "0");
     assertThat(row.get("funding_order")).isEqualTo("CASH,BONDS,STOCKS");
     assertThat(row.get("expense_profile")).isEqualTo("");
-    assertThat(row.get("rental_income_mode")).isEqualTo(plan.rentalIncomeMode());
-    assertNullableCanonical(row.get("manual_rental_income"), plan.manualRentalIncome());
-    assertThat(row.get("bond_cash_income_mode")).isEqualTo(plan.bondIncomeMode());
-    assertNullableCanonical(row.get("manual_bond_cash_income"), plan.manualBondIncome());
   }
 
   private void assertEvent(Page page, long planId, EventData event) {
@@ -425,23 +400,6 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
             page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("Conservative"))
                 .getAttribute("aria-current"))
         .isEqualTo("page");
-
-    page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("Custom")).click();
-    Locator custom = page.locator(".iv-custom-scenario");
-    custom.locator("input[name='customInflationDelta']").fill("0.7");
-    custom.locator("input[name='customRentalGrowthDelta']").fill("-0.4");
-    custom.locator("input[name='customBondReturnDelta']").fill("-0.8");
-    custom.locator("input[name='customEquityReturnDelta']").fill("1.2");
-    custom.locator("input[name='customSpendingGrowthDelta']").fill("0.5");
-    custom.getByRole(AriaRole.BUTTON).click();
-    assertThat(page.url())
-        .contains("selectedScenario=CUSTOM")
-        .contains("customInflationDelta=0.7")
-        .contains("customEquityReturnDelta=1.2");
-    page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("Reset")).click();
-    custom = page.locator(".iv-custom-scenario");
-    assertThat(custom.locator("input[name='customInflationDelta']").inputValue()).isEqualTo("0");
-    assertThat(custom.locator("input[name='customEquityReturnDelta']").inputValue()).isEqualTo("0");
   }
 
   private void openEditor(Page page, long planId) {
@@ -484,11 +442,6 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
 
   private void assertRate(Object actual, String percent) {
     assertDecimal(actual, new BigDecimal(percent).movePointLeft(2).toPlainString());
-  }
-
-  private void assertNullableCanonical(Object actual, String expected) {
-    if (expected == null || expected.isBlank()) assertThat(actual).isNull();
-    else assertCanonical(actual, expected);
   }
 
   private void assertCanonical(Object actual, String displayed) {
@@ -593,10 +546,6 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
       String inflation,
       String spendingGrowth,
       String rentalGrowth,
-      String rentalIncomeMode,
-      String manualRentalIncome,
-      String bondIncomeMode,
-      String manualBondIncome,
       String employmentIncome,
       String preRetirementContribution,
       String annualPension,

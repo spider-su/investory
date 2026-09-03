@@ -31,8 +31,20 @@ public final class FastDatabase {
     return DATABASE.password();
   }
 
+  /** Returns a separately initialized snapshot-backed database for a stateful test scope. */
+  public static WorkerDatabase scopedDatabase(String scope) {
+    if (scope == null || scope.isBlank()) {
+      throw new IllegalArgumentException("A non-blank database scope is required");
+    }
+    return startDatabase(scope);
+  }
+
   private static WorkerDatabase startDatabase() {
-    WorkerDatabase database = SharedPostgres.workerDatabase();
+    return startDatabase(null);
+  }
+
+  private static WorkerDatabase startDatabase(String scope) {
+    WorkerDatabase database = SharedPostgres.database(scope);
 
     if (!resourceExists(SNAPSHOT)) {
       throw new IllegalStateException(

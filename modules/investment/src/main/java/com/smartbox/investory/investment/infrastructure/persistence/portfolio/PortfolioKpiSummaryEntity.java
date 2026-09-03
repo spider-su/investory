@@ -96,6 +96,9 @@ public class PortfolioKpiSummaryEntity {
   @Column(name = "total_taxes", precision = 20, scale = 8)
   private BigDecimal totalTaxes;
 
+  @Column(name = "roi_pct", precision = 20, scale = 8)
+  private BigDecimal roiPct;
+
   @Column(name = "activity_count")
   private Integer activityCount;
 
@@ -232,6 +235,10 @@ public class PortfolioKpiSummaryEntity {
 
   public void setTotalTaxes(BigDecimal totalTaxes) {
     this.totalTaxes = scaleDecimal(totalTaxes);
+  }
+
+  public BigDecimal getRoiPct() {
+    return roiPct;
   }
 
   private static BigDecimal scaleDecimal(BigDecimal value) {

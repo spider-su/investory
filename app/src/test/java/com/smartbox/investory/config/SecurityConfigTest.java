@@ -63,7 +63,11 @@ class SecurityConfigTest {
             "file", "file.xlsx", MediaType.APPLICATION_OCTET_STREAM_VALUE, "payload".getBytes());
 
     mockMvc
-        .perform(multipart("/api/v1/investment/imports/broker/XTB").file(file).with(csrf()))
+        .perform(
+            multipart("/api/v1/investment/imports/broker/XTB")
+                .file(file)
+                .param("portfolioId", "1")
+                .with(csrf()))
         .andExpect(status().isOk());
   }
 

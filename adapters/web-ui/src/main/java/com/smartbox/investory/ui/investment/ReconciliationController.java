@@ -13,8 +13,8 @@ public class ReconciliationController {
   private final InvestmentReconciliationClient reconciliation;
 
   @GetMapping("/dashboard/reconciliation")
-  public String reconciliation(Model model, @RequestParam(defaultValue = "1") Long portfolioId) {
-    var report = reconciliation.loadReconciliationReport();
+  public String reconciliation(Model model, @RequestParam Long portfolioId) {
+    var report = reconciliation.loadReconciliationReport(portfolioId);
     model.addAttribute("report", report);
     model.addAttribute("portfolioId", portfolioId);
     return "reconciliation";

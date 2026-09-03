@@ -1,6 +1,6 @@
 # Monthly reconciliation after flow-scope fix
 
-Generated: 2026-08-13 from the local database after migration `01.012`.
+Generated: 2026-08-13 from the local database after the pre-squash migration `01.012`.
 
 ## Contract implemented
 
@@ -55,11 +55,11 @@ rows show zero displayed difference:
 
 ## Refresh prerequisite status
 
-Flyway applied `01.012` successfully. The normal reporting refresh completed.
+The pre-squash database had applied `01.012` successfully. The normal reporting refresh completed.
 The account/day materialized view still has the old local definition: its
 `pg_get_viewdef` uses `open_quantity` for result-only valuation. The existing
 `JdbcRebuildResultOnly` utility was attempted but stopped because dependent
-views (`v_reporting_validation_summary`, portfolio quality views, and related
+views (`recon_v_reporting_validation_summary`, portfolio quality views, and related
 position diagnostics) require a dependency-aware rebuild.
 
 Therefore the account/day and downstream counts above are explicitly **not**
@@ -68,7 +68,7 @@ final post-RESULT_ONLY values. No imported facts were changed.
 ## Tests and verification
 
 - Flyway validation passed for all 12 migrations.
-- Migration `01.012` applied successfully.
+- Pre-squash migration `01.012` was applied successfully.
 - Monthly material query returned `0` rows after refresh.
 - Added a database contract test asserting the monthly reconciliation view
   reads `normalized_cash_operations` and `is_external_flow`/internal-flow

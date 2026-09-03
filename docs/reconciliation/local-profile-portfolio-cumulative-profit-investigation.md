@@ -13,7 +13,7 @@ benchmark performance.
 
 The daily chart and the new canonical portfolio performance view exclude
 accounts marked `accounts.cash_only = true`. Whole-portfolio balance/equity
-columns remain available from `v_portfolio_daily`.
+columns remain available from `app_v_portfolio_daily`.
 
 ## A. Exact data paths
 
@@ -21,14 +21,14 @@ columns remain available from `v_portfolio_daily`.
 
 ```text
 account_daily
-  -> account_monthly_mv
+  -> app_v_account_monthly
   -> AccountMonthlyPerformanceRepository
   -> PortfolioService.calculateMonthlyPerformance()
   -> dashboard.overview.monthlyPerformance
   -> monthly-performance-chart
 ```
 
-`account_monthly_mv` converts account-daily monetary values to portfolio base
+`app_v_account_monthly` converts account-daily monetary values to portfolio base
 currency using the snapshot-date FX rate, then sums `daily_profit_amount` into
 `total_profit`. The monthly chart uses these totals or account attribution rows
 for a selected-account subset.
@@ -103,7 +103,7 @@ snapshot; its exact producer cannot be proven from current rows.
 
 ## D. Semantics and FX
 
-`v_portfolio_daily`:
+`app_v_portfolio_daily`:
 
 1. joins all `account_daily` rows to their portfolio;
 2. converts equity and daily profit to portfolio base currency with
@@ -113,7 +113,7 @@ snapshot; its exact producer cannot be proven from current rows.
 The daily chart now starts from `AccountDaily.dailyProfitAmount` and explicitly
 converts it when the row valuation currency differs from the portfolio base
 currency, using `CurrencyRateService.convertToBaseCurrency(..., row.date)`.
-This aligns its currency contract with `v_portfolio_daily`.
+This aligns its currency contract with `app_v_portfolio_daily`.
 
 No equivalent inactive/import-excluded asset filter was found in this path. The
 concrete population filter is `cash_only`, not asset activity.
@@ -172,8 +172,8 @@ Evidence collected locally:
 | Object | Evidence |
 |---|---|
 | `account_daily` | latest `updated_at`: `2026-08-12 22:05:12.830451` |
-| `account_monthly_mv` | August total: `6,777.15`; `updated_at`: `2026-08-12 22:05:08.028206` |
-| `v_portfolio_daily` | live view; `updated_at` is `NOW()` and is not a persisted refresh marker |
+| `app_v_account_monthly` | August total: `6,777.15`; `updated_at`: `2026-08-12 22:05:08.028206` |
+| `app_v_portfolio_daily` | live view; `updated_at` is `NOW()` and is not a persisted refresh marker |
 | application dashboard path | reads `AccountDaily` and `AccountMonthlyPerformance`; no dashboard snapshot cache found |
 | refresh path | `PortfolioProjectionService.recalculateAll()` saves `account_daily`, then calls `refresh_app_views()` |
 
@@ -196,11 +196,11 @@ Implemented paths:
 
 - `BenchmarkService`: `performanceAccounts` excludes cash-only accounts for the
   daily cumulative series; benchmark eligibility remains a separate scope.
-- `v_portfolio_performance_daily`: new SQL view filters `NOT a.cash_only` and
+- `app_v_portfolio_performance_daily`: new SQL view filters `NOT a.cash_only` and
   applies `resolve_fx_rate` to `account_daily.daily_profit_amount`.
-- `portfolio_monthly_mv`: now reads `v_portfolio_performance_daily`, so monthly
+- `app_v_portfolio_monthly`: now reads `app_v_portfolio_performance_daily`, so monthly
   portfolio P/L, flows, and return use the same non-cash scope.
-- `v_portfolio_daily`: whole-portfolio balance/equity/cash fields remain intact
+- `app_v_portfolio_daily`: whole-portfolio balance/equity/cash fields remain intact
   for valuation and net-worth consumers.
 - `PortfolioService`: existing visible-account filtering continues to exclude
   cash-only accounts for the dashboard monthly attribution surface.

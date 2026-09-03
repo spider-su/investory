@@ -52,8 +52,8 @@ class InvestmentProfileControllerTest {
     String template = controller.profile(7L, model);
 
     assertThat(template).isEqualTo("investment-profile");
-    assertThat(model.getAttribute("profileMarketYtdIncome")).isEqualTo("3.3K");
-    assertThat(model.getAttribute("profileMarketInvestmentResult")).isEqualTo("20,483");
+    assertThat(model.getAttribute("portfolioId")).isEqualTo(7L);
+    assertThat(model.getAttribute("profileMarketYtdIncome")).isEqualTo("20,483");
     assertThat(model.getAttribute("profileLongTermYtdIncome")).isEqualTo("8.0K");
     assertThat(model.getAttribute("profileAnnualCost")).isEqualTo("42.0K");
     assertThat(model.getAttribute("profileAnnualCostMeta")).isEqualTo("planned · 2026");

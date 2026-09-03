@@ -1,12 +1,6 @@
 SET search_path TO investory, public;
 
-
-
-
-
-
-
-CREATE OR REPLACE VIEW investory.reporting_system_audit AS
+CREATE OR REPLACE VIEW investory.recon_v_system_audit AS
 SELECT
     run.id AS audit_run_id,
     run.import_history_id,
@@ -25,9 +19,9 @@ SELECT
 FROM investory.system_audit_runs run
 LEFT JOIN investory.import_history import_row ON import_row.id = run.import_history_id;
 
-COMMENT ON VIEW investory.reporting_system_audit IS
+COMMENT ON VIEW investory.recon_v_system_audit IS
     'Canonical persisted audit API. structured_log_payload can be logged as JSON and notification_ready can drive Telegram, email, or other adapters outside the database.';
-CREATE OR REPLACE FUNCTION investory.reject_import_evidence_mutation()
+CREATE OR REPLACE FUNCTION investory.shared_fn_reject_import_evidence_mutation()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
@@ -35,23 +29,23 @@ BEGIN
     RAISE EXCEPTION 'Import evidence is immutable: %.%', TG_TABLE_SCHEMA, TG_TABLE_NAME;
 END;
 $$;
-CREATE TRIGGER trg_import_source_files_immutable
+CREATE TRIGGER shared_trg_import_source_files_immutable
     BEFORE UPDATE OR DELETE ON investory.import_source_files
-    FOR EACH ROW EXECUTE FUNCTION investory.reject_import_evidence_mutation();
-CREATE TRIGGER trg_import_source_rows_immutable
+FOR EACH ROW EXECUTE FUNCTION investory.shared_fn_reject_import_evidence_mutation();
+CREATE TRIGGER shared_trg_import_source_rows_immutable
     BEFORE UPDATE OR DELETE ON investory.import_source_rows
-    FOR EACH ROW EXECUTE FUNCTION investory.reject_import_evidence_mutation();
+    FOR EACH ROW EXECUTE FUNCTION investory.shared_fn_reject_import_evidence_mutation();
 
-CREATE INDEX ix_cash_operations_import_source_row
+CREATE INDEX IF NOT EXISTS ix_cash_operations_import_source_row
     ON investory.cash_operations(import_source_row_id)
     WHERE import_source_row_id IS NOT NULL;
-CREATE INDEX ix_positions_import_source_row
+CREATE INDEX IF NOT EXISTS ix_positions_import_source_row
     ON investory.positions(import_source_row_id)
     WHERE import_source_row_id IS NOT NULL;
 
 -- Final clean-baseline provenance rules. Reprocessed attempts use the latest
 -- source artifact, and duplicate identity includes the raw source values.
-CREATE OR REPLACE VIEW investory.reporting_import_provenance_issues AS
+CREATE OR REPLACE VIEW investory.recon_v_import_provenance_issues AS
 WITH latest_attempt AS (
     SELECT DISTINCT ON (provider, file_sha256)
            id, provider, file_sha256
@@ -124,5 +118,5 @@ GROUP BY r.provider, r.archive_member_name, r.section_name, r.sheet_name,
          r.source_record_id, r.source_row_occurrence, r.raw_values
 HAVING count(*) > 1;
 
-COMMENT ON VIEW investory.reporting_import_provenance_issues IS
+COMMENT ON VIEW investory.recon_v_import_provenance_issues IS
     'Diagnostic view. Reprocessed attempts may reuse an immutable source artifact; current provenance is checked on the latest attempt per file checksum and duplicate identity includes raw source values.';

@@ -30,8 +30,19 @@ class DailyPerformanceControllerIT {
     mvc.perform(
             get("/api/v1/investment/performance/daily-attribution")
                 .param("date", "2026-08-27")
+                .param("portfolioId", "7")
                 .param("accountIds", "1, 2,2"))
         .andExpect(status().isOk());
-    verify(performance).load(LocalDate.of(2026, 8, 27), Set.of(1L, 2L));
+    verify(performance).load(7L, LocalDate.of(2026, 8, 27), Set.of(1L, 2L));
+  }
+
+  @Test
+  void attributionRequiresPositivePortfolio() throws Exception {
+    mvc.perform(
+            get("/api/v1/investment/performance/daily-attribution")
+                .param("date", "2026-08-27")
+                .param("portfolioId", "0"))
+        .andExpect(status().isBadRequest());
+    verifyNoInteractions(performance);
   }
 }

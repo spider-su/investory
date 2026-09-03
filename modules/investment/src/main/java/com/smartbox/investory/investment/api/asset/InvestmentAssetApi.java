@@ -7,9 +7,9 @@ import java.util.List;
 
 /** UI-facing read contract for investment asset detail pages. */
 public interface InvestmentAssetApi {
-  AssetDetailView detail(String symbol, DashboardPeriod period);
+  AssetDetailView detail(Long portfolioId, String symbol, DashboardPeriod period);
 
-  List<AssetPricePointView> priceHistory(String symbol, DashboardPeriod period);
+  List<AssetPricePointView> priceHistory(Long portfolioId, String symbol, DashboardPeriod period);
 
   List<DashboardPeriod> periods();
 

@@ -1,0 +1,203 @@
+<!-- Dashboard header and action rail. -->
+<th:block xmlns:th="http://www.thymeleaf.org" th:fragment="dashboardHeader">
+    <header class="iv-topbar iv-app-header-shell">
+        <div class="iv-topbar__primary iv-app-header-shell__primary">
+        <div class="iv-brand">
+            <div class="iv-brand__content">
+                <div class="iv-brand__title-row">
+                    <h1 class="iv-brand__title">Investory</h1>
+                    <button id="theme-toggle" class="iv-theme-toggle iv-theme-toggle--brand" type="button"
+                            aria-label="Switch to dark mode" title="Switch to dark mode">
+                        <svg class="iv-theme-toggle__icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <circle cx="12" cy="12" r="8"></circle>
+                            <path d="M12 4a8 8 0 0 0 0 16z"
+                                  fill="currentColor" stroke="none"></path>
+                        </svg>
+                    </button>
+                </div>
+                <nav class="iv-period-nav" aria-label="Dashboard period">
+                    <a th:each="periodOption : ${periods}"
+                       th:if="${periodOption.urlValue() != '3Y'}"
+                       th:href="${dashboard.navigation.periodUrl(periodOption)}"
+                       th:text="${periodOption.label()}"
+                       th:class="${periodOption == selectedPeriod}
+                           ? 'iv-badge iv-badge--selected'
+                           : 'iv-badge iv-badge--muted'"
+                       th:attr="aria-current=${periodOption == selectedPeriod} ? 'page' : null">
+                        1Y
+                    </a>
+                </nav>
+            </div>
+        </div>
+        <div class="iv-topbar-summary iv-app-header-shell__summary">
+            <div id="cash-flows" class="iv-topbar-metric iv-metric-context" tabindex="0" aria-label="Invested: net external contributions">
+                <div class="iv-topbar-metric__content">
+                    <div class="iv-topbar-metric__value-row">
+                        <span class="iv-topbar-metric__value iv-cash-flow-violet"
+                              th:text="${format.wholeNumber(stats.netDeposits)}">0</span>
+                    </div>
+                    <span class="iv-topbar-metric__label">INVESTED</span>
+                </div>
+                <div class="iv-metric-context__panel" role="tooltip">
+                    <strong>Invested</strong>
+                    <div class="iv-brand__summary-row">
+                        <span>Deposits</span>
+                        <span class="iv-cash-flow-green"
+                              th:text="${stats.formatBase(stats.deposits)}">0</span>
+                    </div>
+                    <div class="iv-brand__summary-row">
+                        <span>Withdrawals</span>
+                        <span class="iv-cash-flow-red"
+                              th:text="${stats.formatBase(stats.withdrawals)}">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="investment-gain" class="iv-topbar-metric iv-metric-context" tabindex="0" aria-label="Investment result">
+                <div class="iv-topbar-metric__content">
+                    <div class="iv-topbar-metric__value-row"
+                     th:classappend="${stats.totalProfit >= 0} ? 'iv-pos' : 'iv-neg'">
+                    <span class="iv-topbar-metric__profit-value-wrap">
+                        <span class="iv-topbar-metric__value"
+                              th:text="${format.wholeNumber(stats.totalProfit)}">0</span>
+                        <span class="iv-topbar-metric__percent"
+                              th:if="${stats.gainPct != null}"
+                              th:text="|(${stats.formatSignedPercent(stats.gainPct)})|">(+0,0%)</span>
+                    </span>
+                    </div>
+                    <span class="iv-topbar-metric__label">INVESTMENT RESULT</span>
+                </div>
+                <div class="iv-metric-context__panel" role="tooltip">
+                    <strong th:text="${selectedPeriod.label() + ' investment result'}">YTD investment result</strong>
+                    <span>Cash-flow-neutral profit and return for the selected period, after portfolio adjustments.</span>
+                    <div class="iv-brand__summary-row"><span>Return since KPI start</span><span th:if="${dashboard.performance.summary.kpiReturn.status.name() == 'AVAILABLE'}" th:text="${dashboard.performance.summary.formatSignedPercent(dashboard.performance.summary.kpiReturn.value * 100)}">Unavailable</span><span th:unless="${dashboard.performance.summary.kpiReturn.status.name() == 'AVAILABLE'}">Unavailable</span></div>
+                    <div class="iv-brand__summary-row"><span>Annualized return</span><span th:if="${dashboard.performance.summary.annualizedReturn.status.name() == 'AVAILABLE'}" th:text="${dashboard.performance.summary.formatSignedPercent(dashboard.performance.summary.annualizedReturn.value * 100)}">Unavailable</span><span th:unless="${dashboard.performance.summary.annualizedReturn.status.name() == 'AVAILABLE'}">Unavailable</span></div>
+                    <small th:if="${dashboard.performance.summary.kpiStartDate != null}" th:text="${'KPI start · ' + dashboard.performance.summary.kpiStartDate}">KPI start · 2026-01-01</small>
+                </div>
+            </div>
+
+            <div id="balance-cash" class="iv-topbar-metric" aria-label="Portfolio value">
+                <div class="iv-topbar-metric__content">
+                    <div class="iv-topbar-metric__value-row">
+                    <span class="iv-topbar-metric__value"
+                          th:text="${format.wholeNumber(stats.balance)}">0</span>
+                    </div>
+                    <span class="iv-topbar-metric__label">BALANCE</span>
+                </div>
+            </div>
+        </div>
+        <div class="iv-topbar__meta iv-app-header-shell__actions">
+            <div class="iv-topbar__toolbar">
+                <details class="iv-balance-popover iv-topbar-fx-popover iv-compact-popover">
+                    <summary class="iv-topbar-fx-popover__trigger">
+                        <span th:text="${'Base currency: ' + stats.baseCurrency}">Base currency: USD</span> <span class="iv-info-icon" aria-hidden="true">i</span>
+                    </summary>
+                    <div class="iv-balance-popover__panel iv-topbar-fx-popover__panel iv-compact-popover__panel">
+                        <div class="iv-popover-heading iv-compact-popover__header" th:text="${'Base currency: ' + stats.baseCurrency}">Base currency: USD</div>
+                        <div class="iv-compact-popover__body">
+                        <div class="iv-position-popover__row iv-dividend-popover__row"
+                             th:if="${stats.exchangeRates.get(T(com.smartbox.investory.shared.currency.CurrencyType).USD) != null}">
+                            <span th:text="${stats.baseCurrency + ' → USD'}">USD → USD</span>
+                            <span th:text="${#numbers.formatDecimal(stats.exchangeRates.get(T(com.smartbox.investory.shared.currency.CurrencyType).USD), 1, 'POINT', 2, 'COMMA')}">0.00</span>
+                        </div>
+                        <div class="iv-position-popover__row iv-dividend-popover__row"
+                             th:if="${stats.exchangeRates.get(T(com.smartbox.investory.shared.currency.CurrencyType).EUR) != null}">
+                            <span th:text="${stats.baseCurrency + ' → EUR'}">USD → EUR</span>
+                            <span th:text="${#numbers.formatDecimal(stats.exchangeRates.get(T(com.smartbox.investory.shared.currency.CurrencyType).EUR), 1, 'POINT', 2, 'COMMA')}">0.00</span>
+                        </div>
+                        <div class="iv-position-popover__row iv-dividend-popover__row"
+                             th:if="${stats.exchangeRates.get(T(com.smartbox.investory.shared.currency.CurrencyType).PLN) != null}">
+                            <span th:text="${stats.baseCurrency + ' → PLN'}">USD → PLN</span>
+                            <span th:text="${#numbers.formatDecimal(stats.exchangeRates.get(T(com.smartbox.investory.shared.currency.CurrencyType).PLN), 1, 'POINT', 2, 'COMMA')}">0.00</span>
+                        </div>
+                        <div class="iv-popover-help" th:if="${dashboard.overview.operational != null and dashboard.overview.operational.fx.ratesUpdated != null}"
+                             th:text="${'Rates updated: ' + dashboard.overview.operational.fx.ratesUpdated}">Rates updated: —</div>
+                        <div class="iv-popover-help" th:text="${dashboard.overview.operational == null ? stats.exchangeRates.size() : dashboard.overview.operational.fx.currencyCount} + ' currencies in portfolio'">0 currencies in portfolio</div>
+                        </div>
+                        <div class="iv-compact-popover__footer"><button type="button" id="refresh-currency-btn" class="iv-topbar-action-button iv-badge iv-badge--muted">Update exchange rates</button>
+                        <p id="refresh-currency-status" class="iv-form-status" role="status" aria-live="polite"></p></div>
+                    </div>
+                </details>
+            </div>
+                <div class="iv-topbar-actions" aria-label="Portfolio actions">
+                <form id="xtb-upload-form" action="/api/v1/investment/imports" method="POST" enctype="multipart/form-data" data-turbo="false" style="margin:0;">
+                    <input type="hidden" name="portfolioId" th:value="${portfolioId}" />
+                    <div class="iv-hover-context">
+                        <button type="button"
+                                id="import-statement-btn"
+                                class="iv-topbar-action-button iv-badge iv-badge--muted">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7 9m5-5 5 5"/><path d="M5 13v6h14v-6"/></svg> Import
+                        </button>
+                        <div class="iv-hover-context__panel" role="tooltip">
+                            <strong>Last import</strong>
+                            <span th:if="${dashboard.overview.operational != null and dashboard.overview.operational.importContext.available()}"
+                                  th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).dateTime(dashboard.overview.operational.importContext.finishedAt)}">—</span>
+                            <span th:if="${dashboard.overview.operational == null or !dashboard.overview.operational.importContext.available()}">No imports yet</span>
+                            <span th:if="${dashboard.overview.operational != null and dashboard.overview.operational.importContext.available()}"
+                                  th:text="${dashboard.overview.operational.importContext.accountsProcessed} + ' accounts processed'">0 accounts processed</span>
+                            <span th:if="${dashboard.overview.operational != null and dashboard.overview.operational.importContext.rowsApplied > 0}"
+                                  th:text="${dashboard.overview.operational.importContext.rowsApplied} + ' rows applied'">0 rows applied</span>
+                        </div>
+                    </div>
+                    <input type="file" id="xtb-file-input" name="file" multiple accept=".xlsx,.zip,.csv" style="display: none;" />
+                </form>
+                <div class="iv-hover-context">
+                    <button id="refresh-prices-btn"
+                            class="iv-topbar-action-button iv-badge iv-badge--muted">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0 1 4"/><path d="M20 4v7h-7"/></svg> Update market data
+                    </button>
+                    <div class="iv-hover-context__panel" role="tooltip">
+                        <strong>Market data</strong>
+                        <span th:if="${dashboard.overview.operational != null and dashboard.overview.operational.freshness.lastUpdate != null}"
+                              th:text="${'Last market data update: ' + T(com.smartbox.investory.ui.presentation.UiPresentation).dateTime(dashboard.overview.operational.freshness.lastUpdate)}">Last market data update: —</span>
+                        <span th:if="${dashboard.overview.operational != null and dashboard.overview.operational.freshness.latestTransaction != null}"
+                              th:text="${'Latest transaction: ' + T(com.smartbox.investory.ui.presentation.UiPresentation).dateTime(dashboard.overview.operational.freshness.latestTransaction)}">Latest transaction: —</span>
+                        <span th:if="${dashboard.overview.operational != null and dashboard.overview.operational.freshness.latestValuation != null}"
+                              th:text="${'Latest valuation: ' + dashboard.overview.operational.freshness.latestValuation}">Latest valuation: —</span>
+                        <span th:if="${dashboard.overview.operational != null and dashboard.overview.operational.freshness.accountsUpdated > 0}"
+                              th:text="${dashboard.overview.operational.freshness.accountsUpdated} + ' accounts updated'">0 accounts updated</span>
+                        <span th:if="${stats.dataQuality.stalePriceCount > 0}"
+                              class="iv-hover-context__warning"
+                              th:text="${'⚠ Stale prices: ' + stats.dataQuality.stalePriceCount}">⚠ Stale prices</span>
+                        <span th:if="${stats.dataQuality.stalePriceCount == 0}"
+                              th:text="${stats.dataQuality.pricedOpenPositions} + ' positions priced'">0 positions priced</span>
+                    </div>
+                </div>
+                <div class="iv-hover-context">
+                    <button id="yahoo-generate-btn"
+                            th:attr="data-portfolio-id=${portfolioId}"
+                            class="iv-topbar-action-button iv-badge iv-badge--muted">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12m0 0-5-5m5 5 5-5"/><path d="M5 20h14"/></svg> Export
+                    </button>
+                    <div class="iv-hover-context__panel" role="tooltip">
+                        <strong>Yahoo Finance</strong>
+                        <span th:if="${dashboard.overview.operational == null or dashboard.overview.operational.yahoo.neverExported()}">Never exported</span>
+                        <span th:if="${dashboard.overview.operational != null and !dashboard.overview.operational.yahoo.neverExported() and dashboard.overview.operational.yahoo.upToDate}">✓ Up to date</span>
+                        <span th:if="${dashboard.overview.operational != null and !dashboard.overview.operational.yahoo.neverExported() and !dashboard.overview.operational.yahoo.upToDate}">Changes since export</span>
+                        <span th:if="${dashboard.overview.operational != null and !dashboard.overview.operational.yahoo.neverExported()}"
+                              th:text="${'Last export: ' + T(com.smartbox.investory.ui.presentation.UiPresentation).dateTime(dashboard.overview.operational.yahoo.lastExport)}">Last export: —</span>
+                    </div>
+                </div>
+            </div>
+            <span id="file-chosen-name" class="iv-badge iv-badge--muted" style="display:none; margin-top:8px;"></span>
+        </div>
+        </div>
+        <div class="iv-topbar__secondary iv-app-header-shell__secondary">
+        <div id="iv-header-rail-left" class="iv-header-rail__left">
+            <div th:replace="~{dashboard/fragments/header-controls :: accounts}"></div>
+        </div>
+        <div class="iv-page-nav-slot">
+            <div th:replace="~{fragments/app-header :: appNavigation('investment', ${portfolioId})}"></div>
+        </div>
+        <div id="iv-header-rail-right" class="iv-header-rail__right">
+            <a class="iv-header-rail__yahoo"
+               th:href="${yahooFinanceUrl != null and !yahooFinanceUrl.isBlank() ? yahooFinanceUrl : 'https://finance.yahoo.com/portfolios/'}"
+               target="_blank"
+               rel="noopener noreferrer"
+               aria-label="Open Yahoo Finance portfolio in a new tab">Yahoo Finance ↗</a>
+            <div th:replace="~{dashboard/fragments/header-controls :: valuation}"></div>
+        </div>
+        </div>
+    </header>
+
+</th:block>

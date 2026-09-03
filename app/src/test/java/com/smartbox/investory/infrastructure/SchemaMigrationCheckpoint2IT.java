@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.smartbox.investory.testsupport.SharedPostgres;
 import com.smartbox.investory.testsupport.WorkerDatabase;
+import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorReportingFacts;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -124,7 +125,7 @@ class SchemaMigrationCheckpoint2IT {
               JOIN pg_namespace n ON n.oid = t.relnamespace
               WHERE n.nspname = 'investory'
                 AND t.relname = 'import_history'
-                AND c.conname = 'chk_import_history_file_sha256_lower_hex_v01004'
+                AND c.conname = 'chk_import_history_file_sha256_lower_hex'
               """));
       assertTrue(
           exists(
@@ -136,7 +137,7 @@ class SchemaMigrationCheckpoint2IT {
               JOIN pg_namespace n ON n.oid = t.relnamespace
               WHERE n.nspname = 'investory'
                 AND t.relname = 'import_history'
-                AND c.conname = 'chk_import_history_rows_balance_v01004'
+                AND c.conname = 'chk_import_history_rows_balance'
               """));
       assertTrue(
           exists(
@@ -193,13 +194,47 @@ class SchemaMigrationCheckpoint2IT {
               JOIN pg_namespace namespace_row ON namespace_row.oid = table_row.relnamespace
               WHERE namespace_row.nspname = 'investory'
                 AND table_row.relname = 'long_term_asset_rental_contracts'
-                AND trigger_row.tgname = 'tr_long_term_rental_contract_type'
+                AND trigger_row.tgname = 'longterm_trg_rental_contract_type'
               """));
       assertTrue(
           singleString(
                   statement,
-                  "SELECT pg_get_functiondef('investory.assert_long_term_subtype_consistency()'::regprocedure)")
+                  "SELECT pg_get_functiondef('investory.longterm_fn_assert_subtype_consistency()'::regprocedure)")
               .contains("long_term_asset_rental_contracts"));
+      assertTrue(
+          exists(
+              statement,
+              """
+              SELECT 1 FROM pg_trigger
+              WHERE tgrelid = 'investory.long_term_asset_real_estate_details'::regclass
+                AND tgname = 'longterm_trg_real_estate_details_type'
+              """));
+      assertTrue(
+          exists(
+              statement,
+              """
+              SELECT 1 FROM pg_trigger
+              WHERE tgrelid = 'investory.long_term_assets'::regclass
+                AND tgname = 'longterm_trg_asset_type_consistency'
+              """));
+      assertTrue(
+          exists(
+              statement,
+              """
+              SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'investory'
+                AND table_name = 'simulation_plans'
+                AND column_name = 'current_revision_id'
+                AND is_nullable = 'YES'
+              """));
+      assertTrue(
+          exists(
+              statement,
+              """
+              SELECT 1 FROM pg_constraint
+              WHERE conrelid = 'investory.planning_years'::regclass
+                AND pg_get_constraintdef(oid) LIKE 'FOREIGN KEY (portfolio_id)%'
+              """));
       assertEquals(
           11,
           singleInt(
@@ -264,71 +299,54 @@ class SchemaMigrationCheckpoint2IT {
                 AND t.relname = 'asset_source_symbols'
                 AND c.conname = 'chk_asset_source_symbols_price_scale_factor_positive'
               """));
-      assertTrue(viewExists(statement, "v_normalized_daily_price"));
-      assertTrue(viewExists(statement, "v_canonical_asset_daily_return"));
-      assertTrue(viewExists(statement, "v_reconstructed_position_daily"));
-      assertTrue(materializedViewExists(statement, "mv_reconstructed_position_daily"));
-      assertTrue(materializedViewExists(statement, "mv_reconstructed_account_market_daily"));
-      assertTrue(materializedViewExists(statement, "mv_reconstructed_cash_daily"));
-      assertTrue(viewExists(statement, "v_position_valuation_validation"));
-      assertTrue(viewExists(statement, "reporting_asset_identity_issues"));
-      assertTrue(viewExists(statement, "reporting_asset_price_quality_issues"));
-      assertTrue(viewExists(statement, "v_account_daily_reconciliation"));
-      assertTrue(materializedViewExists(statement, "mv_account_daily_reconciliation"));
-      assertTrue(viewExists(statement, "v_non_usd_closed_trade_reconciliation"));
-      assertTrue(materializedViewExists(statement, "reporting_trade_settlement_reconciliation"));
+      assertTrue(viewExists(statement, "app_v_normalized_daily_price"));
+      assertTrue(viewExists(statement, "app_v_canonical_asset_daily_return"));
+      assertTrue(viewExists(statement, "app_v_reconstructed_position_daily"));
+      assertTrue(materializedViewExists(statement, "recon_v_reconstructed_position_daily_mv"));
       assertTrue(
-          materializedViewExists(statement, "reporting_account_monthly_profit_reconciliation"));
+          materializedViewExists(statement, "recon_v_reconstructed_account_market_daily_mv"));
+      assertTrue(materializedViewExists(statement, "recon_v_reconstructed_cash_daily_mv"));
+      assertTrue(viewExists(statement, "recon_v_position_valuation_validation"));
+      assertTrue(viewExists(statement, "recon_v_asset_identity_issues"));
+      assertTrue(viewExists(statement, "recon_v_asset_price_quality_issues"));
+      assertTrue(viewExists(statement, "recon_v_account_daily"));
+      assertTrue(materializedViewExists(statement, "recon_v_account_daily_reconciliation_mv"));
+      assertTrue(viewExists(statement, "recon_v_non_usd_closed_trade"));
+      assertTrue(materializedViewExists(statement, "recon_v_trade_settlement"));
+      assertTrue(materializedViewExists(statement, "recon_v_account_monthly_profit"));
+      assertTrue(materializedViewExists(statement, "recon_v_account_statistics_vs_daily"));
+      assertTrue(materializedViewExists(statement, "recon_v_account_daily_cashflow"));
+      assertTrue(viewExists(statement, "recon_v_account_daily_cashflow_full_precision"));
+      assertTrue(viewExists(statement, "recon_v_trade_settlement_by_account"));
+      assertTrue(viewExists(statement, "recon_v_reporting_validation_summary"));
+      assertTrue(viewExists(statement, "recon_v_position_currency_validation"));
+      assertTrue(columnExists(statement, "app_v_normalized_daily_price", "selection_priority"));
+      assertTrue(columnExists(statement, "app_v_normalized_daily_price", "selected_price_date"));
       assertTrue(
-          materializedViewExists(
-              statement, "reporting_account_statistics_vs_daily_reconciliation"));
+          columnExists(statement, "app_v_normalized_daily_price", "underlying_observation_date"));
+      assertTrue(columnExists(statement, "app_v_normalized_daily_price", "price_age_days"));
       assertTrue(
-          materializedViewExists(statement, "reporting_account_daily_cashflow_reconciliation"));
-      assertTrue(viewExists(statement, "reconciliation_account_daily_cashflow_full_precision"));
-      assertTrue(viewExists(statement, "reporting_trade_settlement_reconciliation_by_account"));
-      assertTrue(viewExists(statement, "v_reporting_validation_summary"));
-      assertTrue(viewExists(statement, "v_position_currency_validation"));
-      assertTrue(columnExists(statement, "v_normalized_daily_price", "selection_priority"));
-      assertTrue(columnExists(statement, "v_normalized_daily_price", "selected_price_date"));
+          columnExists(statement, "app_v_reconstructed_position_daily", "contract_multiplier"));
       assertTrue(
-          columnExists(statement, "v_normalized_daily_price", "underlying_observation_date"));
-      assertTrue(columnExists(statement, "v_normalized_daily_price", "price_age_days"));
-      assertTrue(columnExists(statement, "v_reconstructed_position_daily", "contract_multiplier"));
-      assertTrue(columnExists(statement, "v_reconstructed_position_daily", "selected_price_date"));
+          columnExists(statement, "app_v_reconstructed_position_daily", "selected_price_date"));
       assertTrue(
-          relationColumnExists(
-              statement, "v_account_daily_reconciliation", "market_value_difference"));
-      assertTrue(columnExists(statement, "v_non_usd_closed_trade_reconciliation", "anomaly_code"));
-      assertTrue(
-          relationColumnExists(
-              statement, "reporting_trade_settlement_reconciliation", "settlement_model"));
-      assertTrue(
-          relationColumnExists(
-              statement, "reporting_trade_settlement_reconciliation", "missing_fx_count"));
+          relationColumnExists(statement, "recon_v_account_daily", "market_value_difference"));
+      assertTrue(columnExists(statement, "recon_v_non_usd_closed_trade", "anomaly_code"));
+      assertTrue(relationColumnExists(statement, "recon_v_trade_settlement", "settlement_model"));
+      assertTrue(relationColumnExists(statement, "recon_v_trade_settlement", "missing_fx_count"));
+      assertTrue(relationColumnExists(statement, "recon_v_trade_settlement", "is_complete"));
+      assertTrue(relationColumnExists(statement, "recon_v_trade_settlement", "anomaly_code"));
       assertTrue(
           relationColumnExists(
-              statement, "reporting_trade_settlement_reconciliation", "is_complete"));
+              statement, "recon_v_trade_settlement", "position_close_result_base"));
+      assertTrue(
+          relationColumnExists(statement, "recon_v_trade_settlement", "carried_close_quantity"));
       assertTrue(
           relationColumnExists(
-              statement, "reporting_trade_settlement_reconciliation", "anomaly_code"));
+              statement, "recon_v_trade_settlement", "same_day_round_trip_quantity"));
       assertTrue(
           relationColumnExists(
-              statement,
-              "reporting_trade_settlement_reconciliation",
-              "position_close_result_base"));
-      assertTrue(
-          relationColumnExists(
-              statement, "reporting_trade_settlement_reconciliation", "carried_close_quantity"));
-      assertTrue(
-          relationColumnExists(
-              statement,
-              "reporting_trade_settlement_reconciliation",
-              "same_day_round_trip_quantity"));
-      assertTrue(
-          relationColumnExists(
-              statement,
-              "reporting_trade_settlement_reconciliation",
-              "result_settlement_difference_base"));
+              statement, "recon_v_trade_settlement", "result_settlement_difference_base"));
       assertTrue(columnExists(statement, "positions", "settlement_model"));
       assertTrue(columnExists(statement, "positions", "broker_product"));
       assertTrue(columnExists(statement, "positions", "source_position_id"));
@@ -337,10 +355,10 @@ class SchemaMigrationCheckpoint2IT {
       assertTrue(columnExists(statement, "positions", "source_close_price"));
       assertTrue(columnExists(statement, "positions", "open_conversion_rate"));
       assertTrue(columnExists(statement, "positions", "close_conversion_rate"));
-      assertTrue(columnExists(statement, "v_reporting_validation_summary", "status"));
-      assertTrue(columnExists(statement, "v_open_position_values", "account_currency"));
-      assertTrue(columnExists(statement, "v_open_position_values", "position_row_count"));
-      assertTrue(columnExists(statement, "v_position_currency_validation", "anomaly_code"));
+      assertTrue(columnExists(statement, "recon_v_reporting_validation_summary", "status"));
+      assertTrue(columnExists(statement, "app_v_open_position_values", "account_currency"));
+      assertTrue(columnExists(statement, "app_v_open_position_values", "position_row_count"));
+      assertTrue(columnExists(statement, "recon_v_position_currency_validation", "anomaly_code"));
       assertEquals(
           "bigint",
           singleString(
@@ -423,6 +441,36 @@ class SchemaMigrationCheckpoint2IT {
     }
   }
 
+  @DisplayName("historical inverse FX interpolation is linear in the directed rate")
+  @Test
+  void historicalInverseFxInterpolationUsesDirectedRate() throws Exception {
+    try (Connection connection = openConnection();
+        Statement statement = connection.createStatement()) {
+      statement.executeUpdate(
+          "DELETE FROM investory.exchange_rates WHERE source = 'TEST' AND rate_date BETWEEN DATE '2000-01-01' AND DATE '2000-01-03'");
+      statement.executeUpdate(
+          """
+          INSERT INTO investory.exchange_rates(rate_date, base, to_currency, rate, source, method)
+          VALUES (DATE '2000-01-01', 'USD', 'EUR', 2, 'TEST', 'HISTORICAL_MONTHLY'),
+                 (DATE '2000-01-03', 'USD', 'EUR', 4, 'TEST', 'HISTORICAL_MONTHLY')
+          """);
+      assertEquals(
+          3.0,
+          Double.parseDouble(
+              singleString(
+                  statement,
+                  "SELECT fx_rate_to_target FROM investory.resolve_fx_rate(DATE '2000-01-02', 'USD', 'EUR')")),
+          0.000001);
+      assertEquals(
+          0.375,
+          Double.parseDouble(
+              singleString(
+                  statement,
+                  "SELECT fx_rate_to_target FROM investory.resolve_fx_rate(DATE '2000-01-02', 'EUR', 'USD')")),
+          0.000001);
+    }
+  }
+
   private void assertSubtypeRejected(long assetId, String assetType) throws Exception {
     try (Connection connection = openConnection();
         Statement statement = connection.createStatement()) {
@@ -453,7 +501,7 @@ class SchemaMigrationCheckpoint2IT {
             statement.executeQuery(
                 "SELECT definition FROM pg_matviews "
                     + "WHERE schemaname = 'investory' "
-                    + "AND matviewname = 'reporting_account_monthly_profit_reconciliation'")) {
+                    + "AND matviewname = 'recon_v_account_monthly_profit'")) {
       assertTrue(result.next(), "monthly reconciliation materialized view must exist");
       String definition = result.getString(1).toLowerCase(java.util.Locale.ROOT);
       assertTrue(definition.contains("normalized_cash_operations"));
@@ -474,16 +522,17 @@ class SchemaMigrationCheckpoint2IT {
           ) values (
               -900001, 17959259, 'TRANSFER', null, 7838.285, 'USD',
               'Cash Transfer | ibkrRawType=Deposit | ibkrRawSymbol=- | ibkrGrossAmount=7838.285',
-              timestamptz '2025-02-12 00:00:00+01:00'
+          timestamptz '2025-02-12 00:00:00+01:00'
           )
           """);
+      statement.execute("SELECT investory.refresh_app_views()");
       assertEquals(
           "EXTERNAL_DEPOSIT",
           singleString(
               statement,
               """
               select normalized_category
-              from investory.normalized_cash_operations
+              from investory.app_v_normalized_cash_operations
               where operation_id = -900001
               """));
     }
@@ -552,23 +601,22 @@ class SchemaMigrationCheckpoint2IT {
           0,
           singleInt(
               statement,
-              "select count(*) from investory.reporting_asset_identity_issues "
+              "select count(*) from investory.recon_v_asset_identity_issues "
                   + "where severity = 'ERROR'"));
       assertEquals(
           0,
           singleInt(
               statement,
-              "select count(*) from investory.reporting_asset_identity_issues i "
+              "select count(*) from investory.recon_v_asset_identity_issues i "
                   + "join investory.assets a on a.id = i.asset_id "
                   + "where a.exclude_from_import"));
       assertTrue(
           exists(
-              statement,
-              "select 1 from pg_constraint where conname = 'chk_assets_isin_format_v01011'"));
+              statement, "select 1 from pg_constraint where conname = 'chk_assets_isin_format'"));
       assertTrue(
           exists(
               statement,
-              "select 1 from pg_constraint where conname = 'chk_assets_exchange_mic_format_v01011'"));
+              "select 1 from pg_constraint where conname = 'chk_assets_exchange_mic_format'"));
     }
   }
 
@@ -606,24 +654,25 @@ class SchemaMigrationCheckpoint2IT {
               'LINEAR_BUSINESS_DAY', date '2026-06-01', date '2026-06-03', 80,
               'INTERPOLATED_XTB', false, false, 1)
           """);
+      statement.execute("select investory.refresh_app_views()");
       assertTrue(
           singleInt(
                   statement,
-                  "select count(*) from investory.reporting_asset_price_quality_issues "
+                  "select count(*) from investory.recon_v_asset_price_quality_issues "
                       + "where issue_code = 'EXTREME_SAME_DATE_SOURCE_DISAGREEMENT' "
                       + "and asset_symbol = 'JGPI.DE' and price_date = date '2026-05-01'")
               > 0);
       assertTrue(
           singleInt(
                   statement,
-                  "select count(*) from investory.reporting_asset_price_quality_issues "
+                  "select count(*) from investory.recon_v_asset_price_quality_issues "
                       + "where issue_code = 'EXTREME_DAILY_MOVE' "
                       + "and asset_symbol = 'JGPI.DE' and price_date = date '2026-05-02'")
               > 0);
       assertTrue(
           singleInt(
                   statement,
-                  "select count(*) from investory.reporting_asset_price_quality_issues "
+                  "select count(*) from investory.recon_v_asset_price_quality_issues "
                       + "where issue_code = 'SUSPICIOUS_INTERPOLATION' "
                       + "and asset_symbol = 'JGPI.DE' and price_date = date '2026-06-02'")
               > 0);
@@ -631,7 +680,7 @@ class SchemaMigrationCheckpoint2IT {
           0,
           singleInt(
               statement,
-              "select count(*) from investory.reporting_asset_price_quality_issues i "
+              "select count(*) from investory.recon_v_asset_price_quality_issues i "
                   + "join investory.assets a on a.id = i.asset_id "
                   + "where a.exclude_from_import"));
     }
@@ -642,33 +691,37 @@ class SchemaMigrationCheckpoint2IT {
   void recomputesIncludedDerivedViewsAndReportsReconciliationSummary() throws Exception {
     try (Connection connection = openConnection();
         Statement statement = connection.createStatement()) {
-      statement.execute("select investory.refresh_reporting_views()");
-      statement.execute("select investory.refresh_reconciliation_views()");
+      statement.execute("select investory.refresh_app_views()");
+      statement.execute("select investory.refresh_reconstructed_position_daily()");
+      statement.execute("select investory.refresh_reconstructed_account_market_daily()");
+      statement.execute("select investory.refresh_reconstructed_cash_daily()");
+      statement.execute("select investory.refresh_account_daily_reconciliation()");
+      statement.execute("select investory.refresh_reconciliation_reporting_views()");
 
       int marketValueMismatches =
           singleInt(
               statement,
-              "select count(*) from investory.v_account_daily_reconciliation "
+              "select count(*) from investory.recon_v_account_daily "
                   + "where status = 'FAIL' and validation_message = 'market value mismatch'");
       int costBasisMismatches =
           singleInt(
               statement,
-              "select count(*) from investory.v_account_daily_reconciliation "
+              "select count(*) from investory.recon_v_account_daily "
                   + "where status = 'FAIL' and validation_message = 'cost base mismatch'");
       int missingPrices =
           singleInt(
               statement,
-              "select count(*) from investory.v_position_valuation_validation "
+              "select count(*) from investory.recon_v_position_valuation_validation "
                   + "where validation_code = 'MISSING_PRICE'");
       int missingMultipliers =
           singleInt(
               statement,
-              "select count(*) from investory.v_position_valuation_validation "
+              "select count(*) from investory.recon_v_position_valuation_validation "
                   + "where validation_code = 'MISSING_MULTIPLIER'");
       int currencyInconsistencies =
           singleInt(
               statement,
-              "select count(*) from investory.reporting_asset_price_quality_issues "
+              "select count(*) from investory.recon_v_asset_price_quality_issues "
                   + "where issue_code = 'PRICE_CURRENCY_MISMATCH'");
       String largestDifference =
           singleString(
@@ -678,7 +731,7 @@ class SchemaMigrationCheckpoint2IT {
                   + "abs(coalesce(cost_base_difference, 0)), "
                   + "abs(coalesce(unrealized_difference, 0)), "
                   + "abs(coalesce(realized_difference, 0)))), 0), 'FM9999999990.00000000') "
-                  + "from investory.v_account_daily_reconciliation");
+                  + "from investory.recon_v_account_daily");
       String summary =
           "market_value_mismatches="
               + marketValueMismatches
@@ -730,6 +783,7 @@ class SchemaMigrationCheckpoint2IT {
                   excludedCurrency,
                   excludedAssetId,
                   excludedCurrency));
+      statement.execute("SELECT investory.refresh_app_views()");
       assertEquals(
           4,
           singleInt(
@@ -739,31 +793,31 @@ class SchemaMigrationCheckpoint2IT {
           1,
           singleInt(
               statement,
-              "SELECT count(*) FROM investory.normalized_cash_operations WHERE operation_id BETWEEN -910004 AND -910001"));
+              "SELECT count(*) FROM investory.app_v_normalized_cash_operations WHERE operation_id BETWEEN -910004 AND -910001"));
       assertEquals(
           1,
           singleInt(
               statement,
-              "SELECT count(*) FROM investory.normalized_cash_operations WHERE operation_id = -910004"));
+              "SELECT count(*) FROM investory.app_v_normalized_cash_operations WHERE operation_id = -910004"));
       assertEquals(
           0,
           singleInt(
               statement,
-              "SELECT count(*) FROM investory.v_canonical_asset_daily_price cp "
+              "SELECT count(*) FROM investory.app_v_canonical_asset_daily_price cp "
                   + "JOIN investory.assets a ON a.id = cp.asset_id "
                   + "WHERE a.exclude_from_import"));
       assertEquals(
           0,
           singleInt(
               statement,
-              "SELECT count(*) FROM investory.reporting_price_history_contract_issues i "
+              "SELECT count(*) FROM investory.recon_v_price_history_contract_issues i "
                   + "JOIN investory.assets a ON a.id = i.asset_id "
                   + "WHERE a.exclude_from_import"));
       assertEquals(
           0,
           singleInt(
               statement,
-              "SELECT count(*) FROM investory.v_current_asset_price "
+              "SELECT count(*) FROM investory.app_v_current_asset_price "
                   + "WHERE asset_id IN (SELECT id FROM investory.assets WHERE exclude_from_import)"));
     }
   }
@@ -776,7 +830,7 @@ class SchemaMigrationCheckpoint2IT {
       assertEquals(
           0,
           singleInt(
-              statement, "SELECT count(*) FROM investory.reporting_price_history_contract_issues"));
+              statement, "SELECT count(*) FROM investory.recon_v_price_history_contract_issues"));
       assertEquals(
           0,
           singleInt(
@@ -816,6 +870,7 @@ class SchemaMigrationCheckpoint2IT {
               'CANONICAL_TEST', 'JGPI.DE', 'MANUAL', 'EUR', 99.00000000, 99,
               'MANUAL', true, false, 1.00000000)
           """);
+      statement.execute("select investory.refresh_app_views();");
       assertTrue(
           singleInt(
                   statement,
@@ -828,14 +883,14 @@ class SchemaMigrationCheckpoint2IT {
           singleInt(
               statement,
               "select count(*) from ("
-                  + "select asset_id, price_date from investory.v_canonical_asset_daily_price "
+                  + "select asset_id, price_date from investory.app_v_canonical_asset_daily_price "
                   + "group by asset_id, price_date having count(*) > 1"
                   + ") duplicate_canonical_rows"));
       assertEquals(
           "CANONICAL_TEST",
           singleString(
               statement,
-              "select source from investory.v_canonical_asset_daily_price "
+              "select source from investory.app_v_canonical_asset_daily_price "
                   + "where asset_id = (select id from investory.assets where symbol = 'JGPI.DE') "
                   + "and price_date = date '2025-01-01'"));
     }
@@ -879,7 +934,13 @@ class SchemaMigrationCheckpoint2IT {
               (-470002, -470000, (select id from investory.assets where symbol = 'PALL.US'),
                'PALL.US', 'BUY', 9, 'USD', 'USD', 'USD', 'USD',
               timestamptz '2026-02-11 10:00:00+00', 0, 0);
-          select investory.refresh_reconciliation_views();
+           select investory.refresh_app_views();
+           select investory.refresh_reconstructed_position_daily();
+           select investory.refresh_reconstructed_account_market_daily();
+           select investory.refresh_reconstructed_cash_daily();
+           select investory.refresh_account_daily_reconciliation();
+           select investory.refresh_app_views();
+           select investory.refresh_reconciliation_reporting_views();
           """);
       assertEquals(
           "100.00000000|100.00000000",
@@ -887,7 +948,7 @@ class SchemaMigrationCheckpoint2IT {
               statement,
               "select string_agg(trim(to_char(reconstructed_market_value_base, 'FM9999999990.00000000')), '|' "
                   + "order by valuation_date) "
-                  + "from investory.v_reconstructed_position_daily "
+                  + "from investory.app_v_reconstructed_position_daily "
                   + "where account_id = -470000 and asset_id = "
                   + "(select id from investory.assets where symbol = 'PALL.US') "
                   + "and valuation_date in (date '2026-02-10', date '2026-02-11')"));
@@ -896,7 +957,7 @@ class SchemaMigrationCheckpoint2IT {
           singleString(
               statement,
               "select trim(to_char(daily_return_pct, 'FM9999999990.00000000')) "
-                  + "from investory.v_canonical_asset_daily_return "
+                  + "from investory.app_v_canonical_asset_daily_return "
                   + "where asset_id = (select id from investory.assets where symbol = 'PALL.US') "
                   + "and price_date = date '2026-02-11'"));
       assertEquals(
@@ -904,14 +965,14 @@ class SchemaMigrationCheckpoint2IT {
           singleInt(
               statement,
               "select count(*) "
-                  + "from investory.v_position_valuation_validation "
+                  + "from investory.recon_v_position_valuation_validation "
                   + "where account_id = -470000 and asset_id = (select id from investory.assets where symbol = 'PALL.US') "
                   + "and valuation_date = date '2026-02-11'"));
       assertEquals(
           0,
           singleInt(
               statement,
-              "select count(*) from investory.v_canonical_asset_daily_return r "
+              "select count(*) from investory.app_v_canonical_asset_daily_return r "
                   + "join investory.assets a on a.id = r.asset_id "
                   + "where a.exclude_from_import"));
     }
@@ -949,7 +1010,13 @@ class SchemaMigrationCheckpoint2IT {
               'US91282CKB62', 'BUY', 'CASH_SETTLED', 1,
               'USD', 'USD', 'USD', 'USD',
               timestamptz '2026-01-15 09:00:00+00', 1000, 1000);
-          select investory.refresh_reconciliation_views();
+           select investory.refresh_app_views();
+           select investory.refresh_reconstructed_position_daily();
+           select investory.refresh_reconstructed_account_market_daily();
+           select investory.refresh_reconstructed_cash_daily();
+           select investory.refresh_account_daily_reconciliation();
+           select investory.refresh_app_views();
+           select investory.refresh_reconciliation_reporting_views();
           """);
 
       assertEquals(
@@ -958,14 +1025,14 @@ class SchemaMigrationCheckpoint2IT {
               statement,
               "select trim(to_char(contract_multiplier, 'FM9999999990.00000000')) || '|' "
                   + "|| trim(to_char(reconstructed_market_value_base, 'FM9999999990.00000000')) "
-                  + "from investory.v_reconstructed_position_daily "
+                  + "from investory.app_v_reconstructed_position_daily "
                   + "where account_id = -458022 and valuation_date = date '2026-01-15'"));
     }
   }
 
-  @DisplayName("current Position Cost Basis Uses Acquisition Date Fx")
+  @DisplayName("current Position Cost Basis Uses Current Valuation Date Fx")
   @Test
-  void currentPositionCostBasisUsesAcquisitionDateFx() throws Exception {
+  void currentPositionCostBasisUsesCurrentValuationDateFx() throws Exception {
     try (Connection connection = openConnection();
         Statement statement = connection.createStatement()) {
       statement.execute(
@@ -974,6 +1041,9 @@ class SchemaMigrationCheckpoint2IT {
           values (-440000, 'Cost basis FX test', 'USD', 1);
           insert into investory.accounts(id, external_account_id, currency, provider, name, owner, portfolio_id)
           values (-440000, '440000', 'USD', 'IBKR', 'Cost basis FX test', 'Test', -440000);
+          insert into investory.account_daily(
+              account_id, snapshot_date, valuation_currency, cash_balance, market_value, equity)
+          values (-440000, current_date - 1, 'USD', 0, 0, 0);
           insert into investory.exchange_rates(
               rate_date, base, to_currency, rate, source, method)
           values
@@ -989,15 +1059,16 @@ class SchemaMigrationCheckpoint2IT {
               'JGPI.DE', 'BUY', 'CASH_SETTLED', 1,
               'EUR', 'EUR', 'EUR', 'EUR',
               (current_date - 1)::timestamptz, 1000, 1000);
+          select investory.refresh_app_views();
           """);
 
       assertEquals(
-          "1100.00000000|1100.00000000",
+          "2000.00000000|2000.00000000",
           singleString(
               statement,
               "select trim(to_char(cost_basis_in_base_currency, 'FM9999999990.00000000')) || '|' "
                   + "|| trim(to_char(cost_basis_in_base_currency, 'FM9999999990.00000000')) "
-                  + "from investory.v_current_open_position_rows "
+                  + "from investory.app_v_current_open_position_rows "
                   + "where account_id = -440000 and asset_id = "
                   + "(select id from investory.assets where symbol = 'JGPI.DE')"));
     }
@@ -1047,7 +1118,7 @@ class SchemaMigrationCheckpoint2IT {
               statement,
               """
               select trim(to_char(round(equity::numeric, 8), 'FM9999999990.00000000'))
-              from investory.v_portfolio_daily
+              from investory.app_v_portfolio_daily
               where portfolio_id = -920001
               """));
     }
@@ -1099,8 +1170,9 @@ class SchemaMigrationCheckpoint2IT {
               'AAPL', 'BUY', 1, 'USD', 'USD', 'USD', 'USD',
               timestamptz '2025-01-01 00:00:00+00', 100, 10
           );
-          select investory.refresh_reporting_views()
+          select investory.refresh_app_views()
           """);
+      statement.execute("select investory.refresh_app_views();");
 
       assertEquals(
           0,
@@ -1108,7 +1180,7 @@ class SchemaMigrationCheckpoint2IT {
               statement,
               """
               select fallback_position_fx_missing_count
-              from investory.v_portfolio_service_fallback_reconciliation
+              from investory.recon_v_portfolio_service_fallback
               where portfolio_id = -930001
               """));
     }
@@ -1147,12 +1219,10 @@ class SchemaMigrationCheckpoint2IT {
               statement,
               """
           select count(*)
-          from investory.v_position_currency_validation
+          from investory.recon_v_position_currency_validation
           where asset_id = (select id from investory.assets where symbol = 'MSFT.US')
             and anomaly_code = 'POSITION_ASSET_CURRENCY_MISMATCH'
           """));
-
-      assertEquals(0, singleInt(statement, "select investory.repair_position_trade_currency()"));
 
       assertEquals(
           "USD",
@@ -1179,7 +1249,7 @@ class SchemaMigrationCheckpoint2IT {
               statement,
               """
               select trim(to_char(round(cost_basis_in_base_currency::numeric, 8), 'FM9999999990.00000000'))
-              from investory.v_open_position_values
+              from investory.app_v_open_position_values
               where asset_symbol = 'MSFT.US'
                 and account_id = 50290466
               """));
@@ -1190,7 +1260,7 @@ class SchemaMigrationCheckpoint2IT {
               statement,
               """
               select trim(to_char(round(sum(cost_basis_in_base_currency)::numeric, 8), 'FM9999999990.00000000'))
-              from investory.v_open_position_values
+              from investory.app_v_open_position_values
               where asset_symbol = 'MSFT.US'
               """));
     }
@@ -1229,13 +1299,14 @@ class SchemaMigrationCheckpoint2IT {
             (-940002, date '2025-01-15', 'EUR', 0, 0, 0);
           """);
 
+      statement.execute("select investory.refresh_app_views()");
       assertEquals(
           "SAME_CURRENCY",
           singleString(
               statement,
               """
               select conversion_status
-              from investory.v_portfolio_daily_fx_rate
+              from investory.app_v_portfolio_daily_fx_rate
               where portfolio_id = -940001
                 and valuation_date = date '2025-01-15'
                 and source_currency = 'USD'
@@ -1247,7 +1318,7 @@ class SchemaMigrationCheckpoint2IT {
               statement,
               """
               select trim(to_char(round(fx_rate_to_base::numeric, 8), 'FM9999999990.00000000'))
-              from investory.v_portfolio_daily_fx_rate
+              from investory.app_v_portfolio_daily_fx_rate
               where portfolio_id = -940001
                 and valuation_date = date '2025-01-15'
                 and source_currency = 'EUR'
@@ -1259,7 +1330,7 @@ class SchemaMigrationCheckpoint2IT {
               statement,
               """
               select trim(to_char(round(fx_rate_to_base::numeric, 8), 'FM9999999990.00000000'))
-              from investory.v_portfolio_daily_fx_rate
+              from investory.app_v_portfolio_daily_fx_rate
               where portfolio_id = -940002
                 and valuation_date = date '2025-01-15'
                 and source_currency = 'USD'
@@ -1271,7 +1342,7 @@ class SchemaMigrationCheckpoint2IT {
               statement,
               """
               select trim(to_char(round(fx_rate_to_base::numeric, 8), 'FM9999999990.00000000'))
-              from investory.v_portfolio_daily_fx_rate
+              from investory.app_v_portfolio_daily_fx_rate
               where portfolio_id = -940002
                 and valuation_date = date '2025-01-15'
                 and source_currency = 'PLN'
@@ -1283,7 +1354,7 @@ class SchemaMigrationCheckpoint2IT {
               statement,
               """
               select conversion_status
-              from investory.v_portfolio_daily_fx_rate
+              from investory.app_v_portfolio_daily_fx_rate
               where portfolio_id = -940001
                 and valuation_date = date '2025-04-20'
                 and source_currency = 'EUR'
@@ -1295,7 +1366,7 @@ class SchemaMigrationCheckpoint2IT {
               statement,
               """
               select conversion_status
-              from investory.v_portfolio_daily_fx_rate
+              from investory.app_v_portfolio_daily_fx_rate
               where portfolio_id = -940001
                 and valuation_date = date '2024-01-10'
                 and source_currency = 'EUR'
@@ -1330,8 +1401,13 @@ class SchemaMigrationCheckpoint2IT {
             account_id, snapshot_date, valuation_currency, cash_balance, market_value, equity
           ) values (-950001, date '2025-01-15', 'USD', 0, 0, 0);
 
-          select investory.refresh_reporting_views();
-          select investory.refresh_reconciliation_views();
+          select investory.refresh_app_views();
+           select investory.refresh_reconstructed_position_daily();
+           select investory.refresh_reconstructed_account_market_daily();
+           select investory.refresh_reconstructed_cash_daily();
+           select investory.refresh_account_daily_reconciliation();
+           select investory.refresh_app_views();
+           select investory.refresh_reconciliation_reporting_views();
           """);
 
       assertEquals(
@@ -1340,7 +1416,7 @@ class SchemaMigrationCheckpoint2IT {
               statement,
               """
               select count(*)
-              from investory.normalized_cash_operations
+              from investory.app_v_normalized_cash_operations
               where account_id = -950001
                 and portfolio_conversion_status = 'MISSING_RATE'
               """));
@@ -1351,7 +1427,7 @@ class SchemaMigrationCheckpoint2IT {
               statement,
               """
               select missing_fx_count
-              from investory.account_statistics
+              from investory.app_v_account_statistics
               where account_id = -950001
               """));
 
@@ -1360,7 +1436,7 @@ class SchemaMigrationCheckpoint2IT {
               statement,
               """
                         select 1
-                        from investory.account_statistics
+                        from investory.app_v_account_statistics
                         where account_id = -950001
                           and total_deposit is null
                           and net_deposit is null
@@ -1372,7 +1448,7 @@ class SchemaMigrationCheckpoint2IT {
               statement,
               """
               select trim(to_char(round(converted_cash_subtotal::numeric, 8), 'FM9999999990.00000000'))
-              from investory.account_statistics
+              from investory.app_v_account_statistics
               where account_id = -950001
               """));
 
@@ -1381,7 +1457,7 @@ class SchemaMigrationCheckpoint2IT {
               statement,
               """
                         select 1
-                        from investory.reporting_account_daily_cashflow_reconciliation
+                        from investory.recon_v_account_daily_cashflow
                         where account_id = -950001
                           and snapshot_date = date '2025-01-15'
                           and ledger_cash_native is null
@@ -1473,7 +1549,12 @@ class SchemaMigrationCheckpoint2IT {
 
           """);
 
-      statement.execute("SELECT investory.refresh_reconciliation_views()");
+      statement.execute("SELECT investory.refresh_app_views()");
+      statement.execute("SELECT investory.refresh_reconstructed_position_daily()");
+      statement.execute("SELECT investory.refresh_reconstructed_account_market_daily()");
+      statement.execute("SELECT investory.refresh_reconstructed_cash_daily()");
+      statement.execute("SELECT investory.refresh_account_daily_reconciliation()");
+      statement.execute("SELECT investory.refresh_reconciliation_reporting_views()");
 
       assertEquals(
           "PASS|OK|null|52.00000000|0.00",
@@ -1485,7 +1566,7 @@ class SchemaMigrationCheckpoint2IT {
                   || position_close_result_base::text || '|'
                   || trim(to_char(result_settlement_difference_base,
                                   'FM9999999990.00'))
-              from investory.reporting_trade_settlement_reconciliation
+              from investory.recon_v_trade_settlement
               where account_id = -200 and asset_id = -200
               """));
 
@@ -1501,7 +1582,7 @@ class SchemaMigrationCheckpoint2IT {
                   || carried_sale_cash_base::text || '|'
                   || same_day_sale_cash_base::text || '|'
                   || symbol_market_bridge_difference_base::text
-              from investory.reporting_trade_settlement_reconciliation
+              from investory.recon_v_trade_settlement
               where account_id = -200 and asset_id = -201
               """));
 
@@ -1510,28 +1591,28 @@ class SchemaMigrationCheckpoint2IT {
           singleString(
               statement,
               "select trim(to_char(open_quantity, 'FM9999999990.00000000')) "
-                  + "from investory.v_reconstructed_position_daily "
+                  + "from investory.app_v_reconstructed_position_daily "
                   + "where account_id = -200 and asset_id = -201 "
                   + "and valuation_date = date '2026-01-04'"));
       assertEquals(
           0,
           singleInt(
               statement,
-              "select count(*) from investory.v_reconstructed_position_daily "
+              "select count(*) from investory.app_v_reconstructed_position_daily "
                   + "where account_id = -200 and asset_id = -200 "
                   + "and valuation_date = date '2026-01-02'"));
       assertEquals(
           1,
           singleInt(
               statement,
-              "select count(*) from investory.v_reconstructed_position_daily "
+              "select count(*) from investory.app_v_reconstructed_position_daily "
                   + "where account_id = -200 and asset_id = -201 "
                   + "and valuation_date = date '2026-01-03'"));
       assertEquals(
           1,
           singleInt(
               statement,
-              "select count(*) from investory.v_reconstructed_position_daily "
+              "select count(*) from investory.app_v_reconstructed_position_daily "
                   + "where account_id = -200 and asset_id = -201 "
                   + "and valuation_date = date '2026-01-01'"));
     }
@@ -1571,7 +1652,7 @@ class SchemaMigrationCheckpoint2IT {
               statement,
               """
               select count(*)
-              from investory.v_position_currency_validation
+              from investory.recon_v_position_currency_validation
               where position_id = -910101
                 and anomaly_code = 'MISSING_ASSET_CURRENCY'
               """));
@@ -1619,7 +1700,7 @@ class SchemaMigrationCheckpoint2IT {
               realized_profit, fees, daily_profit_amount)
           values (-973001, date '2026-01-02', 'USD', 50, 0, 50, 50, 2, 50);
 
-          select investory.refresh_reporting_views();
+          select investory.refresh_app_views();
           select investory.refresh_reconciliation_reporting_views();
           """);
 
@@ -1631,7 +1712,7 @@ class SchemaMigrationCheckpoint2IT {
               select trim(to_char(statistics_realized_profit, 'FM9999999990.00000000')) || '|'
                   || trim(to_char(cumulative_daily_realized_profit, 'FM9999999990.00000000')) || '|'
                   || trim(to_char(realized_profit_difference, 'FM9999999990.00000000'))
-              from investory.reporting_account_statistics_vs_daily_reconciliation
+              from investory.recon_v_account_statistics_vs_daily
               where account_id = -973001
               """));
     }
@@ -1686,45 +1767,45 @@ class SchemaMigrationCheckpoint2IT {
                  price_updated_at = now()
            where symbol = 'AAPL.US';
 
-          select investory.refresh_reporting_views();
+          select investory.refresh_app_views();
           """);
 
       assertEquals(
-          "138.00000000",
+          HappyInvestorReportingFacts.MIXED_CURRENCY_REALIZED_RESULT.toPlainString(),
           singleString(
               statement,
               """
               select trim(to_char(round(realized_profit::numeric, 8), 'FM9999999990.00000000'))
-              from investory.account_statistics
+              from investory.app_v_account_statistics
               where account_id = -960000
               """));
 
       assertEquals(
-          "138.00000000",
+          HappyInvestorReportingFacts.MIXED_CURRENCY_REALIZED_RESULT.toPlainString(),
           singleString(
               statement,
               """
               select trim(to_char(round(sum(amount_in_base_currency)::numeric, 8), 'FM9999999990.00000000'))
-              from investory.portfolio_currency_breakdown
+              from investory.app_v_portfolio_currency_breakdown
               where portfolio_id = -96 and metric_type = 'REALIZED'
               """));
 
       assertEquals(
-          "400.00000000",
+          HappyInvestorReportingFacts.MIXED_CURRENCY_PLN_COMPONENT.toPlainString(),
           singleString(
               statement,
               """
               select trim(to_char(round(amount_local::numeric, 8), 'FM9999999990.00000000'))
-              from investory.portfolio_currency_breakdown
+              from investory.app_v_portfolio_currency_breakdown
               where portfolio_id = -96 and metric_type = 'REALIZED' and currency = 'PLN'
               """));
       assertEquals(
-          "-8.00000000",
+          HappyInvestorReportingFacts.MIXED_CURRENCY_EUR_FEE.toPlainString(),
           singleString(
               statement,
               """
               select trim(to_char(round(amount_local::numeric, 8), 'FM9999999990.00000000'))
-              from investory.portfolio_currency_breakdown
+              from investory.app_v_portfolio_currency_breakdown
               where portfolio_id = -96 and metric_type = 'REALIZED' and currency = 'EUR'
               """));
       assertEquals(
@@ -1733,7 +1814,7 @@ class SchemaMigrationCheckpoint2IT {
               statement,
               """
               select trim(to_char(round(sum(amount_in_base_currency)::numeric, 8), 'FM9999999990.00000000'))
-              from investory.portfolio_currency_breakdown
+              from investory.app_v_portfolio_currency_breakdown
               where portfolio_id = -96 and metric_type = 'UNREALIZED'
               """));
 
@@ -1743,7 +1824,7 @@ class SchemaMigrationCheckpoint2IT {
               statement,
               """
               select trim(to_char(round(cost_basis_in_base_currency::numeric, 8), 'FM9999999990.00000000'))
-              from investory.portfolio_asset_allocation
+              from investory.app_v_portfolio_asset_allocation
               where portfolio_id = -96 and asset_symbol = 'AAPL.US'
               """));
     }
@@ -1802,6 +1883,7 @@ class SchemaMigrationCheckpoint2IT {
                'STALE_CARRY_FORWARD');
           """);
 
+      statement.execute("select investory.refresh_app_views()");
       assertEquals(
           "402.95000000|2030-01-08|2030-01-08|2",
           singleString(
@@ -1811,7 +1893,7 @@ class SchemaMigrationCheckpoint2IT {
                   || selected_price_date::text || '|'
                   || underlying_observation_date::text || '|'
                   || price_age_days::text
-              from investory.v_normalized_daily_price
+              from investory.app_v_normalized_daily_price
               where asset_id = -970001
                 and valuation_date = date '2030-01-10'
               """));
@@ -1825,7 +1907,7 @@ class SchemaMigrationCheckpoint2IT {
                   || selected_price_date::text || '|'
                   || underlying_observation_date::text || '|'
                   || price_age_days::text
-              from investory.v_normalized_daily_price
+              from investory.app_v_normalized_daily_price
               where asset_id = -970002
                 and valuation_date = date '2030-01-10'
               """));
@@ -1872,7 +1954,13 @@ class SchemaMigrationCheckpoint2IT {
               (-972001, date '2030-01-05', 'TEST_TRADE', 'TRADE_CONTINUITY.US',
                'TRADE_OBSERVATION', 'USD', 10, date '2030-01-05', 90,
                'TRADE_OBSERVATION');
-          select investory.refresh_reconciliation_views();
+           select investory.refresh_app_views();
+           select investory.refresh_reconstructed_position_daily();
+           select investory.refresh_reconstructed_account_market_daily();
+           select investory.refresh_reconstructed_cash_daily();
+           select investory.refresh_account_daily_reconciliation();
+           select investory.refresh_app_views();
+           select investory.refresh_reconciliation_reporting_views();
           """);
 
       assertEquals(
@@ -1881,7 +1969,7 @@ class SchemaMigrationCheckpoint2IT {
               statement,
               """
               select validation_code || '|' || coalesce(expected_value::text, 'NULL')
-              from investory.v_position_valuation_validation
+              from investory.recon_v_position_valuation_validation
               where account_id = -972001
                 and asset_id = -972001
                 and valuation_date = date '2030-01-05'
@@ -1928,7 +2016,12 @@ class SchemaMigrationCheckpoint2IT {
                200, 90, 'VERIFIED_ALTERNATE_LISTING', true, true),
               (-973001, date '2030-01-02', 'STOOQ', 'alt_test.uk', 'STOOQ', 'USD',
                250, 90, 'VERIFIED_ALTERNATE_LISTING', true, true);
-          select investory.refresh_reconciliation_views();
+           select investory.refresh_app_views();
+           select investory.refresh_reconstructed_position_daily();
+           select investory.refresh_reconstructed_account_market_daily();
+           select investory.refresh_reconstructed_cash_daily();
+           select investory.refresh_account_daily_reconciliation();
+           select investory.refresh_reconciliation_reporting_views();
           """);
 
       assertEquals(
@@ -1936,7 +2029,7 @@ class SchemaMigrationCheckpoint2IT {
           singleString(
               statement,
               "select validation_code || '|' || coalesce(expected_value::text, 'NULL') "
-                  + "from investory.v_position_valuation_validation "
+                  + "from investory.recon_v_position_valuation_validation "
                   + "where account_id = -973001 and asset_id = -973001 "
                   + "and valuation_date = date '2030-01-02'"));
     }
@@ -1990,7 +2083,12 @@ class SchemaMigrationCheckpoint2IT {
               (-974001, date '2030-01-05', 'TEST_MANUAL', 'MANUAL_WEEKLY_TEST.US',
                'MANUAL_WEEKLY', 'USD', 102, date '2030-01-05', 90,
                'MANUAL_WEEKLY_CLOSE', true);
-          select investory.refresh_reconciliation_views();
+           select investory.refresh_app_views();
+           select investory.refresh_reconstructed_position_daily();
+           select investory.refresh_reconstructed_account_market_daily();
+           select investory.refresh_reconstructed_cash_daily();
+           select investory.refresh_account_daily_reconciliation();
+           select investory.refresh_reconciliation_reporting_views();
           """);
 
       assertEquals(
@@ -1998,9 +2096,9 @@ class SchemaMigrationCheckpoint2IT {
           singleString(
               statement,
               "select validation_code || '|' || coalesce(expected_value::text, 'NULL') || '|' "
-                  + "|| trim(to_char((select selected_price from investory.v_normalized_daily_price "
+                  + "|| trim(to_char((select selected_price from investory.app_v_normalized_daily_price "
                   + "where asset_id = -974001 and valuation_date = date '2030-01-02'), 'FM9999999990.00000000')) "
-                  + "from investory.v_position_valuation_validation "
+                  + "from investory.recon_v_position_valuation_validation "
                   + "where account_id = -974001 and asset_id = -974001 "
                   + "and valuation_date = date '2030-01-02'"));
       assertEquals(
@@ -2008,9 +2106,9 @@ class SchemaMigrationCheckpoint2IT {
           singleString(
               statement,
               "select validation_code || '|' || coalesce(expected_value::text, 'NULL') || '|' "
-                  + "|| trim(to_char((select selected_price from investory.v_normalized_daily_price "
+                  + "|| trim(to_char((select selected_price from investory.app_v_normalized_daily_price "
                   + "where asset_id = -974001 and valuation_date = date '2030-01-03'), 'FM9999999990.00000000')) "
-                  + "from investory.v_position_valuation_validation "
+                  + "from investory.recon_v_position_valuation_validation "
                   + "where account_id = -974001 and asset_id = -974001 "
                   + "and valuation_date = date '2030-01-03'"));
       assertEquals(
@@ -2018,9 +2116,9 @@ class SchemaMigrationCheckpoint2IT {
           singleString(
               statement,
               "select validation_code || '|' || coalesce(expected_value::text, 'NULL') || '|' "
-                  + "|| trim(to_char((select selected_price from investory.v_normalized_daily_price "
+                  + "|| trim(to_char((select selected_price from investory.app_v_normalized_daily_price "
                   + "where asset_id = -974001 and valuation_date = date '2030-01-05'), 'FM9999999990.00000000')) "
-                  + "from investory.v_position_valuation_validation "
+                  + "from investory.recon_v_position_valuation_validation "
                   + "where account_id = -974001 and asset_id = -974001 "
                   + "and valuation_date = date '2030-01-05'"));
     }
@@ -2059,7 +2157,12 @@ class SchemaMigrationCheckpoint2IT {
               account_id, snapshot_date, valuation_currency, cash_balance, market_value,
               equity, realized_profit
           ) values (-971001, date '2030-02-02', 'USD', -10, 0, -10, 88);
-          select investory.refresh_reconciliation_views();
+           select investory.refresh_app_views();
+           select investory.refresh_reconstructed_position_daily();
+           select investory.refresh_reconstructed_account_market_daily();
+           select investory.refresh_reconstructed_cash_daily();
+           select investory.refresh_account_daily_reconciliation();
+           select investory.refresh_reconciliation_reporting_views();
           """);
 
       assertEquals(
@@ -2069,7 +2172,7 @@ class SchemaMigrationCheckpoint2IT {
               """
               select trim(to_char(reconstructed_total_realized_result, 'FM9999999990.00000000')) || '|'
                   || trim(to_char(cash_swap_component, 'FM9999999990.00000000'))
-              from investory.v_realized_result_reconciliation
+              from investory.recon_v_realized_result
               where account_id = -971001
                 and valuation_date = date '2030-02-02'
               """));
@@ -2082,8 +2185,43 @@ class SchemaMigrationCheckpoint2IT {
               select trim(to_char(reconstructed_total_realized_result, 'FM9999999990.00000000')) || '|'
                   || trim(to_char(realized_difference, 'FM9999999990.00000000')) || '|'
                   || status
-              from investory.v_account_daily_reconciliation
+              from investory.recon_v_account_daily
               where account_id = -971001
+                and valuation_date = date '2030-02-02'
+              """));
+    }
+  }
+
+  @DisplayName("zero Realized Difference Does Not Hide Another Reconciliation Failure")
+  @Test
+  void zeroRealizedDifferenceDoesNotHideAnotherReconciliationFailure() throws Exception {
+    try (Connection connection = openConnection();
+        Statement statement = connection.createStatement()) {
+      statement.execute(
+          """
+          insert into investory.portfolios (id, name, base_currency, user_id)
+          values (-971011, 'Aggregate status test', 'USD', 1);
+          insert into investory.accounts (id, external_account_id, currency, provider, name, owner, portfolio_id)
+          values (-971011, '971011', 'USD', 'IBKR', 'Aggregate status account', 'Test', -971011);
+          insert into investory.account_daily (
+              account_id, snapshot_date, valuation_currency, cash_balance, market_value,
+              equity, cost_base, unrealized_profit, realized_profit
+          ) values (-971011, date '2030-02-02', 'USD', 0, 100, 100, 0, 0, 0);
+          select investory.refresh_reconstructed_position_daily();
+          select investory.refresh_reconstructed_account_market_daily();
+          select investory.refresh_reconstructed_cash_daily();
+          select investory.refresh_account_daily_reconciliation();
+          """);
+
+      assertEquals(
+          "0.00000000|FAIL|market value mismatch",
+          singleString(
+              statement,
+              """
+              select trim(to_char(realized_difference, 'FM9999999990.00000000')) || '|'
+                  || status || '|' || validation_message
+              from investory.recon_v_account_daily
+              where account_id = -971011
                 and valuation_date = date '2030-02-02'
               """));
     }
@@ -2103,8 +2241,12 @@ class SchemaMigrationCheckpoint2IT {
           insert into investory.account_daily (
               account_id, snapshot_date, valuation_currency, cash_balance, market_value, equity
           ) values (-972001, current_date - 1, 'USD', 100, 0, 100);
-          select investory.refresh_reporting_views();
-          select investory.refresh_reconciliation_views();
+          select investory.refresh_app_views();
+           select investory.refresh_reconstructed_position_daily();
+           select investory.refresh_reconstructed_account_market_daily();
+           select investory.refresh_reconstructed_cash_daily();
+           select investory.refresh_account_daily_reconciliation();
+           select investory.refresh_reconciliation_reporting_views();
           """);
 
       assertEquals(
@@ -2113,7 +2255,7 @@ class SchemaMigrationCheckpoint2IT {
               statement,
               """
               select reconciliation_status
-              from investory.reporting_account_statistics_vs_daily_reconciliation
+              from investory.recon_v_account_statistics_vs_daily
               where account_id = -972001
               """));
     }
@@ -2134,7 +2276,7 @@ class SchemaMigrationCheckpoint2IT {
               account_id, snapshot_date, valuation_currency, cash_balance, market_value,
               equity, cost_base, unrealized_profit, realized_profit
           ) values (-972011, current_date, 'USD', 100, 0, 100, 0, 0, 10);
-          select investory.refresh_reporting_views();
+          select investory.refresh_app_views();
           select investory.refresh_reconciliation_reporting_views();
           """);
 
@@ -2147,7 +2289,7 @@ class SchemaMigrationCheckpoint2IT {
                   || trim(to_char(realized_profit_difference, 'FM9999999990.00')) || '|'
                   || trim(to_char(market_value_difference, 'FM9999999990.00')) || '|'
                   || trim(to_char(equity_difference, 'FM9999999990.00'))
-              from investory.reporting_account_statistics_vs_daily_reconciliation
+              from investory.recon_v_account_statistics_vs_daily
               where account_id = -972011
               """));
     }

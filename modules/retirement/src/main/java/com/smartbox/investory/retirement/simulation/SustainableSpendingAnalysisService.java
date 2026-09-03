@@ -22,8 +22,7 @@ public class SustainableSpendingAnalysisService {
 
   public SustainableSpendingAnalysis analyze(
       InvestmentProfile profile, SimulationAssumptions assumptions) {
-    BigDecimal current =
-        assumptions.annualLivingExpenses().add(assumptions.annualDiscretionaryExpenses());
+    BigDecimal current = assumptions.annualSpending();
     return new SustainableSpendingAnalysis(
         current,
         find(
@@ -42,8 +41,7 @@ public class SustainableSpendingAnalysisService {
 
   public SustainableSpendingAnalysis analyze(DeterministicAnalysisContext context) {
     SimulationAssumptions assumptions = context.assumptions();
-    BigDecimal current =
-        assumptions.annualLivingExpenses().add(assumptions.annualDiscretionaryExpenses());
+    BigDecimal current = assumptions.annualSpending();
     return new SustainableSpendingAnalysis(
         current,
         find(

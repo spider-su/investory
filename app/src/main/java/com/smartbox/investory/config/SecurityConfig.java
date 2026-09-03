@@ -1,9 +1,11 @@
 package com.smartbox.investory.config;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -13,7 +15,6 @@ import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
@@ -75,16 +76,47 @@ public class SecurityConfig {
       @Value("${app.security.admin-password:change-me-admin}") String adminPassword,
       @Value("${app.security.user-username:user}") String userUsername,
       @Value("${app.security.user-password:change-me-user}") String userPassword,
-      PasswordEncoder passwordEncoder) {
-    return new InMemoryUserDetailsManager(
-        User.withUsername(adminUsername)
-            .password(passwordEncoder.encode(adminPassword))
-            .roles("ADMIN", "USER")
-            .build(),
-        User.withUsername(userUsername)
-            .password(passwordEncoder.encode(userPassword))
-            .roles("USER")
-            .build());
+      PasswordEncoder passwordEncoder,
+      ObjectProvider<JdbcTemplate> jdbcTemplates) {
+    UserDetailsService configuredFallback =
+        username -> {
+          if (adminUsername.equals(username)) {
+            return User.withUsername(adminUsername)
+                .password(passwordEncoder.encode(adminPassword))
+                .roles("ADMIN", "USER")
+                .build();
+          }
+          if (userUsername.equals(username)) {
+            return User.withUsername(userUsername)
+                .password(passwordEncoder.encode(userPassword))
+                .roles("USER")
+                .build();
+          }
+          throw new org.springframework.security.core.userdetails.UsernameNotFoundException(
+              username);
+        };
+    return username -> {
+      JdbcTemplate jdbc = jdbcTemplates.getIfAvailable();
+      if (jdbc == null) return configuredFallback.loadUserByUsername(username);
+      try {
+        return jdbc.queryForObject(
+            "SELECT username, password_hash, role, active FROM investory.app_users WHERE username = ?",
+            (rs, row) -> {
+              if (!rs.getBoolean("active") || rs.getString("password_hash") == null) {
+                throw new org.springframework.security.core.userdetails.UsernameNotFoundException(
+                    username);
+              }
+              String role = rs.getString("role");
+              return User.withUsername(rs.getString("username"))
+                  .password(rs.getString("password_hash"))
+                  .roles(role == null || role.isBlank() ? "USER" : role)
+                  .build();
+            },
+            username);
+      } catch (org.springframework.dao.EmptyResultDataAccessException e) {
+        return configuredFallback.loadUserByUsername(username);
+      }
+    };
   }
 
   @Bean

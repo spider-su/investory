@@ -2,9 +2,10 @@ package com.smartbox.investory.integrations.notifications.application;
 
 import com.smartbox.investory.investment.api.operations.PortfolioExposureReader;
 import com.smartbox.investory.shared.currency.CurrencyType;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -28,7 +29,23 @@ public class ConcentrationAlertRule implements AlertRule {
 
   @Override
   public Optional<String> evaluate() {
-    Map<String, Double> exposureBySymbol = new HashMap<>();
+    List<AlertObservation> observations = evaluateObservations();
+    if (observations.isEmpty()) {
+      return Optional.empty();
+    }
+    return Optional.of(
+        "Concentration alert (>= "
+            + properties.getConcentrationThresholdPct()
+            + "% of portfolio):\n"
+            + observations.stream()
+                .map(AlertObservation::message)
+                .reduce((a, b) -> a + "\n" + b)
+                .orElseThrow());
+  }
+
+  @Override
+  public List<AlertObservation> evaluateObservations() {
+    Map<String, Double> exposureBySymbol = new TreeMap<>();
     double total = 0.0;
     for (var exposure : investment.symbolExposures()) {
       double base = exposure.value().doubleValue();
@@ -36,22 +53,19 @@ public class ConcentrationAlertRule implements AlertRule {
       total += base;
     }
     if (total <= 0.0) {
-      return Optional.empty();
+      return List.of();
     }
     double threshold = properties.getConcentrationThresholdPct();
-    StringBuilder sb = null;
+    List<AlertObservation> observations = new java.util.ArrayList<>();
     for (Map.Entry<String, Double> e : exposureBySymbol.entrySet()) {
       double pct = e.getValue() / total * 100.0;
       if (pct >= threshold) {
-        if (sb == null) {
-          sb =
-              new StringBuilder("Concentration alert (>= ")
-                  .append(threshold)
-                  .append("% of portfolio):\n");
-        }
-        sb.append(String.format("%s: %.1f%% (%,.0f %s)%n", e.getKey(), pct, e.getValue(), BASE));
+        observations.add(
+            new AlertObservation(
+                e.getKey(),
+                String.format("%s: %.1f%% (%,.0f %s)", e.getKey(), pct, e.getValue(), BASE)));
       }
     }
-    return sb == null ? Optional.empty() : Optional.of(sb.toString().trim());
+    return observations;
   }
 }

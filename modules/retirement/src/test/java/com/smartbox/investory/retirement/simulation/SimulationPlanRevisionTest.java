@@ -22,7 +22,11 @@ class SimulationPlanRevisionTest {
       mock(SimulationPlanRevisionEventRepository.class);
   private final SimulationPlanService service =
       new SimulationPlanService(
-          plans, revisions, revisionEvents, new tools.jackson.databind.ObjectMapper());
+          plans,
+          revisions,
+          revisionEvents,
+          new com.smartbox.investory.retirement.infrastructure.simulation.PlanningBaselineJsonCodec(
+              new tools.jackson.databind.ObjectMapper()));
 
   @DisplayName("editing Creates New Revision And Leaves Old Snapshot Untouched")
   @Test
@@ -202,7 +206,6 @@ class SimulationPlanRevisionTest {
         BigDecimal.ZERO,
         BigDecimal.ZERO,
         SimulationAssumptions.DEFAULT_FUNDING_ORDER,
-        ExpenseProfile.EMPTY,
-        ProjectedIncomePolicy.SOURCE);
+        ExpenseProfile.EMPTY);
   }
 }

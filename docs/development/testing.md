@@ -29,6 +29,19 @@ investment tests remains app-hosted because it uses the shared portfolio fixture
 currently depends on investment; moving those tests without first splitting that fixture module
 would create a Maven cycle. App-bound web configuration and browser/template tests remain in app.
 
+Use this ownership split for new tests:
+
+- `modules/<feature>/src/test/java`: feature-owned logic, feature-owned REST adapters, and
+  module-scoped integration tests.
+- `integrations/src/test/java`: provider/plugin adapter tests.
+- `app/src/test/java`: composition wiring, security/configuration wiring, template/browser UI,
+  architecture checks, and cross-module database/reporting contracts.
+- `test-support/src/main/java/com/smartbox/investory/testsupport`: shared deterministic fixtures
+  and reusable database-test infrastructure only.
+
+The current explicit ownership map and temporary app-hosted exceptions are maintained in
+`docs/development/test-ownership.md`.
+
 ## Fast database integration tests
 
 Fast database tests use PostgreSQL Testcontainers but disable Flyway. The database is initialized directly from:
@@ -61,8 +74,8 @@ Do not use this base class for tests whose purpose is migration validation.
 
 ## Browser UI smoke tests
 
-`UiPageSmokeIT` starts the application on a random port, loads the snapshot-backed PostgreSQL
-database plus `ui-page-smoke-fixture.sql`, and visits every rendered page with headless Chromium.
+`UiPageSmokeIT` starts the application on a random port, loads the canonical snapshot-backed
+PostgreSQL database, and visits every rendered page with headless Chromium.
 It checks the response, title, stable page text, browser errors, and failed first-party requests.
 Focused checks also exercise the main JavaScript controls. Failed page cases write a screenshot,
 rendered HTML, and Playwright trace under `app/target/ui-test-results`.
@@ -94,12 +107,17 @@ $env:DOCKER_HOST = "tcp://127.0.0.1:2375"
 ./mvnw.cmd -pl app test-compile failsafe:integration-test failsafe:verify "-Dit.test=UiPageSmokeIT,LongTermAssetCrudUiIT,PlanSimulationCrudUiIT,InvestmentDashboardGoldenUiIT"
 ```
 
-CI installs Chromium explicitly and runs this suite in a dedicated UI integration-test job.
-Backend integration tests run as six independent matrix legs with `fail-fast: false`:
+CI compiles, tests, and installs the reactor once in the unit job, then publishes the packaged
+reactor outputs. Backend and UI matrix legs consume those outputs and do not independently rebuild
+the reactor. Chromium is restored from a versioned cache when available, installed once by the UI
+browser setup job, and published for the UI matrix legs. Browser setup and UI execution are separate
+jobs, so their failures remain distinct; UI failure artifacts include screenshots, HTML, and traces.
+The Maven/Java setup itself is defined in `.github/actions/setup-java-maven`.
+
+Backend integration tests run as five independent matrix legs with `fail-fast: false`:
 
 - `contracts`: valuation, system-audit, reporting, baseline-readiness, and benchmark contracts;
 - `imports`: PostgreSQL FX update plus IBKR/XTB import contracts;
-- `schema`: `SchemaMigrationCheckpoint2IT` by itself;
 - `reconciliation-notifications-longterm`: remaining app-owned database contracts;
 - `investment-rest`: Investment REST boundary integration tests;
 - `retirement-rest`: Retirement REST boundary integration tests.
@@ -108,9 +126,11 @@ Every committed `*IT` class belongs to exactly one backend, UI, or golden-path C
 new integration test is added, add it to the owning leg in the same change; Maven naming alone does
 not make the split CI execute it.
 
-The schema leg is intentionally isolated because the test currently cleans and reapplies the complete
-Flyway chain before each method. Reducing that setup cost is roadmap work; do not weaken its
-disposable-database safety guard to make CI faster.
+The schema migration job remains isolated because the test cleans and reapplies the complete Flyway
+chain. It fingerprints the migration files, schema snapshot, schema checkpoint test, and Flyway
+configuration. A successful result is cached under that exact fingerprint; an unchanged fingerprint
+skips the expensive job. A cache is written only after a green test, and a cache miss always runs
+against a disposable database.
 
 ## Generate the schema snapshot
 
@@ -143,7 +163,8 @@ Review the generated SQL before committing it.
 
 ## Fixture data
 
-Keep scenario-specific data in focused test fixtures and load it with `@Sql`. Committed
+Keep scenario-specific data in focused test fixtures and load it with `@Sql` only when it is not
+part of the canonical snapshot. Committed
 broker-derived fixtures are allowed only when they are reduced, deterministic, anonymized, free of
 credentials and identity-bearing personal data, and limited to regression semantics. Account IDs may
 remain where a regression fixture requires them.

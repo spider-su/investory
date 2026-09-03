@@ -50,14 +50,16 @@ class PlanningTimelineFacadeTest {
         new PlanningTimelineFacade(
             years,
             values,
-            new HistoricalPortfolioActualsReadService(performance),
-            longTermAssets,
+            new PlanningMetricDerivationService(
+                new HistoricalPortfolioActualsReadService(performance), longTermAssets),
             simulations,
             projectionBridge,
             Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC),
             new ForwardSimulationContextFactory(
                 Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC)),
-            currentLongTermAssets);
+            currentLongTermAssets,
+            new PlanningProgressService(),
+            new PlanningYearReviewService(new PlanningProgressService()));
     planningYear = new PlanningYearEntity();
     planningYear.setId(7L);
     planningYear.setPortfolioId(1L);
@@ -372,40 +374,6 @@ class PlanningTimelineFacadeTest {
     verifyNoInteractions(performance);
   }
 
-  @DisplayName(
-      "timeline Orders Past Then Live Then Next Year Projection Without Duplicating Current Year")
-  @Test
-  void timelineOrdersPastThenLiveThenNextYearProjectionWithoutDuplicatingCurrentYear() {
-    PlanningYearEntity past = new PlanningYearEntity();
-    past.setId(8L);
-    past.setPortfolioId(1L);
-    past.setYear(2025);
-    past.setStatus(PlanningYearStatus.CLOSED);
-    when(years.findAllByPortfolioIdOrderByYearAsc(1L)).thenReturn(List.of(past));
-    when(values.findAllByPlanningYearIdAndValueKind(eq(8L), any())).thenReturn(List.of());
-    when(simulations.simulate(eq(profile()), any(), eq(SimulationScenario.BASE), anyInt()))
-        .thenReturn(
-            new SimulationResult(
-                SimulationScenario.BASE,
-                false,
-                null,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                List.of(projected(2027), projected(2028), projected(2029))));
-    PlanningTimeline timeline = facade.loadTimeline(1L, profile(), assumptions());
-    assertEquals(
-        List.of(2025, 2026, 2027, 2028, 2029),
-        timeline.years().stream().map(PlanningTimelineYear::year).toList());
-    assertEquals(
-        List.of(
-            PlanningTimelineState.ACTUAL,
-            PlanningTimelineState.LIVE,
-            PlanningTimelineState.PROJECTED,
-            PlanningTimelineState.PROJECTED,
-            PlanningTimelineState.PROJECTED),
-        timeline.years().stream().map(PlanningTimelineYear::state).toList());
-  }
-
   @DisplayName("forward Timeline Keeps Absolute Projected Years For Older Plan Starts")
   @Test
   void forwardTimelineKeepsAbsoluteProjectedYearsForOlderPlanStarts() {
@@ -494,13 +462,16 @@ class PlanningTimelineFacadeTest {
         new PlanningTimelineFacade(
             years,
             values,
-            new HistoricalPortfolioActualsReadService(performance),
-            longTermAssets,
+            new PlanningMetricDerivationService(
+                new HistoricalPortfolioActualsReadService(performance), longTermAssets),
             simulations,
             projectionBridge,
             Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC),
             new ForwardSimulationContextFactory(
-                Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC)));
+                Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC)),
+            currentLongTermAssets,
+            new PlanningProgressService(),
+            new PlanningYearReviewService(new PlanningProgressService()));
 
     withLongTermSource.createHistoricalDraft(1L, 2025);
 
@@ -622,8 +593,15 @@ class PlanningTimelineFacadeTest {
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
                 List.of(projected())));
-    PlanningTimeline timeline = facade.loadTimeline(1L, profile(), assumptions());
-    assertEquals(2027, timeline.years().getLast().year());
+    ForwardSimulationContext context =
+        new ForwardSimulationContextFactory(
+                Clock.fixed(Instant.parse("2026-08-14T00:00:00Z"), ZoneOffset.UTC))
+            .create(bridged, assumptions());
+    facade.loadForwardTimeline(
+        1L,
+        profile(),
+        new ForwardSimulationInput(context, bridged, context.forwardAssumptions()),
+        SimulationScenario.BASE);
     verify(simulations).simulate(eq(bridged), any(), eq(SimulationScenario.BASE), anyInt());
   }
 
@@ -716,8 +694,7 @@ class PlanningTimelineFacadeTest {
         BigDecimal.ZERO,
         BigDecimal.ZERO,
         SimulationAssumptions.DEFAULT_FUNDING_ORDER,
-        ExpenseProfile.EMPTY,
-        ProjectedIncomePolicy.SOURCE);
+        ExpenseProfile.EMPTY);
   }
 
   private static SimulationAssumptions workingAssumptions() {
@@ -745,8 +722,7 @@ class PlanningTimelineFacadeTest {
         new BigDecimal("240000"),
         new BigDecimal("60000"),
         SimulationAssumptions.DEFAULT_FUNDING_ORDER,
-        ExpenseProfile.EMPTY,
-        ProjectedIncomePolicy.SOURCE);
+        ExpenseProfile.EMPTY);
   }
 
   private static PlanningYearValueEntity stored(PlanningMetric metric, String amount) {

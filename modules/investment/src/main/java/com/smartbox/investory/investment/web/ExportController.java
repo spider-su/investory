@@ -1,6 +1,7 @@
 package com.smartbox.investory.investment.web;
 
 import com.smartbox.investory.investment.api.exporting.YahooPortfolioExportApi;
+import jakarta.validation.constraints.Positive;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
@@ -10,11 +11,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@Validated
 @RequestMapping("/api/v1/investment/export")
 @RequiredArgsConstructor
 public class ExportController {
@@ -26,11 +30,11 @@ public class ExportController {
    * download. No file upload required.
    */
   @GetMapping("/generate")
-  public ResponseEntity<byte[]> generatePortfolioCsv() {
+  public ResponseEntity<byte[]> generatePortfolioCsv(@RequestParam @Positive Long portfolioId) {
     try {
       Path tempFile = Files.createTempFile("yahoo-export-", ".csv");
       try {
-        exportService.exportToYahooCsv(tempFile.toString());
+        exportService.exportToYahooCsv(portfolioId, tempFile.toString());
         byte[] bytes = Files.readAllBytes(tempFile);
         String fileName =
             String.format(

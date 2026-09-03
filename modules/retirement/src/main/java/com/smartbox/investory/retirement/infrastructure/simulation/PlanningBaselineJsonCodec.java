@@ -36,4 +36,24 @@ public final class PlanningBaselineJsonCodec {
       throw new IllegalStateException("Unable to read Long-Term planning baseline", e);
     }
   }
+
+  public String writeSandbox(SandboxSimulationInput input) {
+    try {
+      return json.writeValueAsString(
+          java.util.Map.of("version", 1, "kind", "SANDBOX", "payload", input));
+    } catch (Exception e) {
+      throw new IllegalStateException("Unable to persist sandbox simulation", e);
+    }
+  }
+
+  public SandboxSimulationInput readSandbox(String value) {
+    if (value == null || isBlank(value))
+      throw new IllegalStateException("Sandbox simulation is empty");
+    try {
+      var tree = json.readTree(value);
+      return json.treeToValue(tree.get("payload"), SandboxSimulationInput.class);
+    } catch (Exception e) {
+      throw new IllegalStateException("Unable to read sandbox simulation", e);
+    }
+  }
 }

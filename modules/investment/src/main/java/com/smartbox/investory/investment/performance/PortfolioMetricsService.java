@@ -1,5 +1,7 @@
 package com.smartbox.investory.investment.performance;
 
+import static com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull;
+
 import com.smartbox.investory.investment.api.reporting.model.*;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
@@ -13,9 +15,9 @@ import com.smartbox.investory.investment.infrastructure.persistence.portfolio.Po
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioFallbackReconciliationRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioKpiSummaryEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioKpiSummaryRepository;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioTaxYearRealizedRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceRepository;
-import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
 import com.smartbox.investory.investment.ledger.cash.CashFlowAggregator;
 import com.smartbox.investory.investment.ledger.cash.CashOperationNormalizer;
@@ -32,6 +34,7 @@ import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.Year;
 import java.time.temporal.TemporalAccessor;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -74,11 +77,13 @@ public class PortfolioMetricsService {
   private final PortfolioDataQualityRepository dataQualityRepository;
   private final SymbolPerformanceRepository symbolPerformanceRepository;
   private final TaxCalculator taxCalculator;
+  private final PortfolioTaxYearRealizedRepository taxYearRealizedRepository;
   private final CashFlowAggregator cashFlowAggregator;
   private final CashOperationNormalizer cashOperationNormalizer;
   private final PortfolioProperties properties;
   private final PortfolioPerformanceQueryService performanceQueryService;
   private final PortfolioRiskExposureCalculator riskExposureCalculator;
+  private final ThreadLocal<Long> scopedPortfolio = new ThreadLocal<>();
 
   private static double nz(BigDecimal value) {
     return value == null ? 0.0 : value.doubleValue();
@@ -89,74 +94,93 @@ public class PortfolioMetricsService {
   }
 
   private static BigDecimal bd(BigDecimal value) {
-    return com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull(value);
+    return zeroIfNull(value);
   }
 
   private static double display(BigDecimal value) {
     return value.doubleValue();
   }
 
-  @Cacheable(cacheNames = "portfolioCalculation", key = "'all'")
-  public Portfolio calculateTotalProfitLoss() {
-    Portfolio portfolio = new Portfolio();
-    boolean kpiApplied = applyKpiSummary(portfolio);
-    if (kpiApplied) {
-      applyCashFlowSupplement(portfolio);
-    } else {
-      applyCalculatedTotals(portfolio);
+  @Cacheable(cacheNames = "portfolioCalculation", key = "#portfolioId")
+  public Portfolio calculateTotalProfitLoss(Long portfolioId) {
+    if (portfolioId == null || portfolioId <= 0) {
+      throw new IllegalArgumentException("portfolioId must be positive");
     }
-    portfolio.setAccountBalances(calculateAccountBalances(portfolio.getBaseCurrency()));
-    portfolio.setAccountBalancesTotal(
-        accountBalancesTotal(
-            portfolio.getAccountBalances(),
-            portfolio.getBaseCurrency(),
-            portfolio.getNetDeposits()));
-    List<OpenPositionValue> openPositionValues = calculateOpenPositionValues();
-    portfolio.setOpenPositionValues(openPositionValues);
-    portfolio.setOpenPositionValuesTotal(
-        openPositionValuesTotal(openPositionValues, portfolio.getBaseCurrency()));
-    portfolio.setDividendGainers(calculateDividendGainers(portfolio.getBaseCurrency()));
-    if (properties.isDashboardEnrichmentEnabled()) {
-      applyFallbackReconciliationStatus(portfolio);
-      applyDataQuality(portfolio);
-      riskExposureCalculator.applyTo(portfolio);
-    }
-    if (!kpiApplied && !applyPortfolioCurrencyTotals(portfolio)) {
-      boolean usedAccountStatistics = applyAccountStatisticsTotals(portfolio);
-      if (!usedAccountStatistics) {
-        applyOpenPositionUnrealizedTotal(portfolio);
-      }
-    }
-    applyInvestmentProfitFromComponents(portfolio);
-
-    // Estimated capital-gains tax ("Belka" 19%) for the CURRENT tax year only, applying
-    // loss carry-forward from prior years (Polish rule: losses deductible over the next 5 years).
-    TaxCalculator.TaxSummary tax =
-        taxCalculator.calculate(closedPositionRepository.findClosed(), portfolio.getBaseCurrency());
-    portfolio.setCapitalGainsTax(tax.capitalGainsTax().doubleValue());
-    portfolio.setLossCarryForward(tax.lossCarryForward().doubleValue());
-
-    // Exchange rates for the currencies board (units of each currency per 1 base currency)
-    for (CurrencyType currency : CurrencyType.values()) {
-      if (currency == portfolio.getBaseCurrency()) {
-        continue;
-      }
-      Optional<BigDecimal> rate =
-          currencyRateService.findRate(portfolio.getBaseCurrency(), currency);
-      if (rate.isPresent()) {
-        portfolio.getExchangeRates().put(currency, rate.get().doubleValue());
+    scopedPortfolio.set(portfolioId);
+    try {
+      Portfolio portfolio = new Portfolio();
+      boolean kpiApplied = applyKpiSummary(portfolio);
+      if (kpiApplied) {
+        applyCashFlowSupplement(portfolio);
       } else {
-        log.warn("No FX rate available for {} -> {}", portfolio.getBaseCurrency(), currency);
+        applyCalculatedTotals(portfolio);
       }
-    }
+      portfolio.setAccountBalances(calculateAccountBalances(portfolio.getBaseCurrency()));
+      portfolio.setAccountBalancesTotal(
+          accountBalancesTotal(
+              portfolio.getAccountBalances(),
+              portfolio.getBaseCurrency(),
+              portfolio.getNetDeposits()));
+      List<OpenPositionValue> openPositionValues = calculateOpenPositionValues();
+      portfolio.setOpenPositionValues(openPositionValues);
+      portfolio.setOpenPositionValuesTotal(
+          openPositionValuesTotal(openPositionValues, portfolio.getBaseCurrency()));
+      portfolio.setDividendGainers(calculateDividendGainers(portfolio.getBaseCurrency()));
+      if (properties.isDashboardEnrichmentEnabled()) {
+        applyFallbackReconciliationStatus(portfolio);
+        applyDataQuality(portfolio);
+        riskExposureCalculator.applyTo(portfolio, portfolioId);
+      }
+      if (!kpiApplied && !applyPortfolioCurrencyTotals(portfolio)) {
+        boolean usedAccountStatistics = applyAccountStatisticsTotals(portfolio);
+        if (!usedAccountStatistics) {
+          applyOpenPositionUnrealizedTotal(portfolio);
+        }
+      }
+      applyInvestmentProfitFromComponents(portfolio);
 
-    portfolio.setPerformancePerSymbol(calculatePerformancePerInstrument());
-    portfolio.setMonthlyPerformance(calculateMonthlyPerformance());
-    return portfolio;
+      // Estimated capital-gains tax ("Belka" 19%) for the CURRENT tax year only, applying
+      // loss carry-forward from prior years (Polish rule: losses deductible over the next 5 years).
+      var taxRows =
+          taxYearRealizedRepository.findByPortfolioIdOrderByTaxYearAsc(activePortfolioId());
+      TaxCalculator.TaxSummary tax =
+          taxRows.isEmpty()
+              ? taxCalculator.calculate(closedPositions(), portfolio.getBaseCurrency())
+              : taxCalculator.calculateFromYearResults(
+                  taxRows.stream()
+                      .map(
+                          row ->
+                              new TaxCalculator.TaxYearResult(
+                                  row.getTaxYear(), row.getRealizedResult()))
+                      .toList(),
+                  Year.now().getValue());
+      portfolio.setCapitalGainsTax(tax.capitalGainsTax().doubleValue());
+      portfolio.setLossCarryForward(tax.lossCarryForward().doubleValue());
+
+      // Exchange rates for the currencies board (units of each currency per 1 base currency)
+      for (CurrencyType currency : CurrencyType.values()) {
+        if (currency == portfolio.getBaseCurrency()) {
+          continue;
+        }
+        Optional<BigDecimal> rate =
+            currencyRateService.findRate(portfolio.getBaseCurrency(), currency);
+        if (rate.isPresent()) {
+          portfolio.getExchangeRates().put(currency, rate.get().doubleValue());
+        } else {
+          log.warn("No FX rate available for {} -> {}", portfolio.getBaseCurrency(), currency);
+        }
+      }
+
+      portfolio.setPerformancePerSymbol(calculatePerformancePerInstrument(portfolioId));
+      portfolio.setMonthlyPerformance(calculateMonthlyPerformance(portfolioId));
+      return portfolio;
+    } finally {
+      scopedPortfolio.remove();
+    }
   }
 
   private void applyFallbackReconciliationStatus(Portfolio portfolio) {
-    fallbackReconciliationRepository.findAllStatuses().stream()
+    fallbackReconciliationRepository.findAllStatuses(activePortfolioId()).stream()
         .findFirst()
         .ifPresent(
             row -> {
@@ -174,9 +198,11 @@ public class PortfolioMetricsService {
   private void applyDataQuality(Portfolio portfolio) {
     List<PortfolioDataQualityIssue> issues =
         properties.isDataQualityIssuesEnabled()
-            ? dataQualityRepository.findIssues().stream().map(this::toDataQualityIssue).toList()
+            ? dataQualityRepository.findIssues(activePortfolioId()).stream()
+                .map(this::toDataQualityIssue)
+                .toList()
             : List.of();
-    dataQualityRepository.findSnapshot().stream()
+    dataQualityRepository.findSnapshot(activePortfolioId()).stream()
         .findFirst()
         .ifPresent(
             row ->
@@ -252,7 +278,7 @@ public class PortfolioMetricsService {
 
   private boolean applyKpiSummary(Portfolio portfolio) {
     Optional<PortfolioKpiSummaryEntity> summary =
-        portfolioKpiSummaryRepository.findAll().stream().findFirst();
+        portfolioKpiSummaryRepository.findById(activePortfolioId());
     if (summary.isEmpty()) {
       return false;
     }
@@ -276,30 +302,22 @@ public class PortfolioMetricsService {
     portfolio.setWithdrawals(display(deposits.subtract(netDeposits)));
     portfolio.setCash(display(cash));
     portfolio.setBalance(display(balance));
-    portfolio.setRoi(
-        netDeposits.signum() > 0
-            ? display(
-                balance
-                    .subtract(netDeposits)
-                    .divide(netDeposits, 16, java.math.RoundingMode.HALF_UP)
-                    .movePointRight(2))
-            : 0.0);
+    portfolio.setRoi(display(bd(kpi.getRoiPct())));
 
     return true;
   }
 
   private void applyCashFlowSupplement(Portfolio portfolio) {
-    List<AccountStatisticsEntity> stats = accountStatisticsRepository.findAll();
-    Set<Long> cashOnlyAccounts = cashOnlyAccountIds();
-    stats = stats.stream().filter(stat -> !cashOnlyAccounts.contains(stat.getAccountId())).toList();
+    List<AccountStatisticsEntity> stats = accountStatistics();
+    stats = stats.stream().filter(stat -> !stat.isCashOnly()).toList();
     portfolio.setInterest(
         display(
             stats.stream()
                 .map(stat -> bd(stat.getInterest()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add)));
     List<CashOperationEntity> cashOperations =
-        cashOperationRepository.findAll().stream()
-            .filter(operation -> !cashOnlyAccounts.contains(operation.getAccount()))
+        cashOperations().stream()
+            .filter(operation -> !isCashOnlyAccount(operation.getAccount()))
             .toList();
     if (!CollectionUtils.isEmpty(cashOperations)) {
       CashFlowAggregator.CashFlowSummary cashFlow =
@@ -309,8 +327,8 @@ public class PortfolioMetricsService {
   }
 
   private void applyCalculatedTotals(Portfolio portfolio) {
-    List<PositionEntity> closedPositions = closedPositionRepository.findClosed();
-    List<CashOperationEntity> cashOperations = cashOperationRepository.findAll();
+    List<PositionEntity> closedPositions = closedPositions();
+    List<CashOperationEntity> cashOperations = cashOperations();
 
     // ── Realized P/L from imported closed positions ──────────────────────
     for (PositionEntity position : closedPositions) {
@@ -332,7 +350,7 @@ public class PortfolioMetricsService {
     }
 
     // ── Unrealized P/L (live from open positions — always real-time) ─────
-    for (PositionEntity position : openedPositionRepository.findOpen()) {
+    for (PositionEntity position : openPositions()) {
       CurrencyType profitCurrency = position.getProfitCurrency();
       CurrencyType commissionCurrency = position.getCommissionCurrency();
       BigDecimal profitAndSwap = bd(position.getProfit()).add(bd(position.getSwap()));
@@ -386,22 +404,13 @@ public class PortfolioMetricsService {
         dividendsTotal.signum() > 0 ? display(dividendsTotal) : cashFlow.dividends().doubleValue());
     portfolio.setDividendTax(cashFlow.dividendTax().doubleValue());
     // Balance breakdown from account_statistics.
-    List<AccountStatisticsEntity> stats = accountStatisticsRepository.findAll();
-    Set<Long> cashOnlyAccounts = cashOnlyAccountIds();
-    stats = stats.stream().filter(stat -> !cashOnlyAccounts.contains(stat.getAccountId())).toList();
+    List<AccountStatisticsEntity> stats = accountStatistics();
+    stats = stats.stream().filter(stat -> !stat.isCashOnly()).toList();
     BigDecimal cash;
     BigDecimal balance;
     if (!stats.isEmpty()) {
       List<AccountStatisticsEntity> activeStats =
-          stats.stream()
-              .filter(
-                  s ->
-                      bd(s.getCashBalance())
-                              .add(bd(s.getMarketValue()))
-                              .abs()
-                              .compareTo(ACCOUNT_VISIBILITY_MIN_VALUE)
-                          >= 0)
-              .toList();
+          stats.stream().filter(this::isDashboardVisible).toList();
       BigDecimal marketValue =
           activeStats.stream()
               .map(s -> bd(s.getMarketValue()))
@@ -413,7 +422,7 @@ public class PortfolioMetricsService {
       balance = marketValue.add(cash);
     } else {
       balance =
-          openedPositionRepository.findOpen().stream()
+          openPositions().stream()
               .map(
                   position ->
                       currencyRateService
@@ -467,8 +476,7 @@ public class PortfolioMetricsService {
   }
 
   private List<AccountBalance> calculateAccountBalances(CurrencyType baseCurrency) {
-    List<AccountStatisticsEntity> stats = accountStatisticsRepository.findAll();
-    Set<Long> cashOnlyAccounts = cashOnlyAccountIds();
+    List<AccountStatisticsEntity> stats = accountStatistics();
     if (!CollectionUtils.isEmpty(stats)) {
       Map<Long, AccountEntity> accountsById =
           accountsById(
@@ -479,8 +487,8 @@ public class PortfolioMetricsService {
       Map<Long, AccountNetDeposit> netDepositsByAccount =
           accountNetDeposits(accountsById.keySet(), accountsById, baseCurrency);
       return stats.stream()
-          .filter(stat -> !cashOnlyAccounts.contains(stat.getAccountId()))
-          .filter(this::hasDashboardAccountSurface)
+          .filter(stat -> !stat.isCashOnly())
+          .filter(this::isDashboardVisible)
           .sorted(
               Comparator.comparing(
                       (AccountStatisticsEntity stat) ->
@@ -560,16 +568,6 @@ public class PortfolioMetricsService {
         display(cash));
   }
 
-  private boolean hasDashboardAccountSurface(AccountStatisticsEntity stat) {
-    return bd(stat.getCashBalance())
-                .add(bd(stat.getMarketValue()))
-                .abs()
-                .compareTo(ACCOUNT_VISIBILITY_MIN_VALUE)
-            >= 0
-        || bd(stat.getAccountNetDeposit()).abs().compareTo(ACCOUNT_VISIBILITY_MIN_VALUE) >= 0
-        || bd(stat.getNetDeposit()).abs().compareTo(ACCOUNT_VISIBILITY_MIN_VALUE) >= 0;
-  }
-
   private Map<Long, AccountNetDeposit> accountNetDeposits(
       Collection<Long> accountIds,
       Map<Long, AccountEntity> accountsById,
@@ -636,19 +634,19 @@ public class PortfolioMetricsService {
   }
 
   private List<OpenPositionValue> calculateOpenPositionValues() {
-    List<PortfolioAssetAllocationEntity> allocations = portfolioAssetAllocationRepository.findAll();
+    List<PortfolioAssetAllocationEntity> allocations =
+        portfolioAssetAllocationRepository.findAllByPortfolioId(activePortfolioId());
     if (CollectionUtils.isEmpty(allocations)) {
       return List.of();
     }
-    Map<Long, String> priceSourceByAssetId =
-        assetRepository
-            .findAllById(
-                allocations.stream()
-                    .map(PortfolioAssetAllocationEntity::getAssetId)
-                    .filter(Objects::nonNull)
-                    .toList())
-            .stream()
-            .collect(Collectors.toMap(AssetEntity::getId, AssetEntity::getPriceSource));
+    Map<Long, String> priceSourceByAssetId = new HashMap<>();
+    assetRepository
+        .findAllById(
+            allocations.stream()
+                .map(PortfolioAssetAllocationEntity::getAssetId)
+                .filter(Objects::nonNull)
+                .toList())
+        .forEach(asset -> priceSourceByAssetId.put(asset.getId(), asset.getPriceSource()));
 
     BigDecimal totalValue =
         allocations.stream()
@@ -703,10 +701,10 @@ public class PortfolioMetricsService {
   }
 
   private List<DividendGainer> calculateDividendGainers(CurrencyType baseCurrency) {
-    List<CashOperationEntity> cashOperations = cashOperationRepository.findAll();
+    List<CashOperationEntity> cashOperations = cashOperations();
     if (CollectionUtils.isEmpty(cashOperations)) {
       List<DividendGainer> cached =
-          symbolPerformanceRepository.findAll().stream()
+          symbolPerformanceRepository.findAllByPortfolioId(activePortfolioId()).stream()
               .filter(row -> Math.abs(nz(row.getDividends())) > 0.005)
               .sorted(Comparator.comparing(SymbolPerformanceEntity::getDividends).reversed())
               .map(row -> new DividendGainer(row.getSymbol(), nz(row.getDividends())))
@@ -754,9 +752,8 @@ public class PortfolioMetricsService {
   }
 
   private boolean applyAccountStatisticsTotals(Portfolio portfolio) {
-    List<AccountStatisticsEntity> stats = accountStatisticsRepository.findAll();
-    Set<Long> cashOnlyAccounts = cashOnlyAccountIds();
-    stats = stats.stream().filter(stat -> !cashOnlyAccounts.contains(stat.getAccountId())).toList();
+    List<AccountStatisticsEntity> stats = accountStatistics();
+    stats = stats.stream().filter(stat -> !stat.isCashOnly()).toList();
     if (CollectionUtils.isEmpty(stats)) {
       return false;
     }
@@ -783,7 +780,8 @@ public class PortfolioMetricsService {
   }
 
   private boolean applyPortfolioCurrencyTotals(Portfolio portfolio) {
-    List<PortfolioCurrencyBreakdownEntity> rows = portfolioCurrencyBreakdownRepository.findAll();
+    List<PortfolioCurrencyBreakdownEntity> rows =
+        portfolioCurrencyBreakdownRepository.findAllByPortfolioId(activePortfolioId());
     if (CollectionUtils.isEmpty(rows)) {
       return false;
     }
@@ -831,7 +829,7 @@ public class PortfolioMetricsService {
   private void applyOpenPositionUnrealizedTotal(Portfolio portfolio) {
     BigDecimal unrealizedProfit = BigDecimal.ZERO;
     LocalDate rateDate = LocalDate.now();
-    for (PositionEntity position : openedPositionRepository.findOpen()) {
+    for (PositionEntity position : openPositions()) {
       CurrencyType profitCurrency = position.getProfitCurrency();
       CurrencyType commissionCurrency = position.getCommissionCurrency();
       BigDecimal profitAndSwap = bd(position.getProfit()).add(bd(position.getSwap()));
@@ -898,31 +896,80 @@ public class PortfolioMetricsService {
         null);
   }
 
-  private Set<Long> cashOnlyAccountIds() {
-    return accountRepository.findAll().stream()
-        .filter(AccountEntity::isCashOnly)
+  private boolean isCashOnlyAccount(Long accountId) {
+    return accountRepository.findAllByPortfolioId(activePortfolioId()).stream()
+        .filter(account -> Objects.equals(account.getId(), accountId))
+        .anyMatch(AccountEntity::isCashOnly);
+  }
+
+  private boolean isDashboardVisible(AccountStatisticsEntity stat) {
+    return stat.isVisible()
+        || bd(stat.getCashBalance())
+                .add(bd(stat.getMarketValue()))
+                .abs()
+                .compareTo(ACCOUNT_VISIBILITY_MIN_VALUE)
+            >= 0
+        || bd(stat.getAccountNetDeposit()).abs().compareTo(ACCOUNT_VISIBILITY_MIN_VALUE) >= 0
+        || bd(stat.getNetDeposit()).abs().compareTo(ACCOUNT_VISIBILITY_MIN_VALUE) >= 0;
+  }
+
+  // 2. Monthly Performance
+  public Performance calculateMonthlyPerformance(Long portfolioId) {
+    requirePortfolioId(portfolioId);
+    return performanceQueryService.calculateMonthlyPerformance(portfolioId);
+  }
+
+  // 4. Win Rate (percentage of profitable trades)
+  public double calculateWinRate(Long portfolioId) {
+    requirePortfolioId(portfolioId);
+    return performanceQueryService.calculateWinRate(portfolioId);
+  }
+
+  public List<InstrumentPerformance> calculatePerformancePerInstrument(Long portfolioId) {
+    requirePortfolioId(portfolioId);
+    return performanceQueryService.calculatePerformancePerInstrument(portfolioId);
+  }
+
+  private record AccountNetDeposit(BigDecimal localAmount, BigDecimal baseAmount) {}
+
+  public DailyPerformanceDetail dailyPerformanceDetail(
+      Long portfolioId, LocalDate date, Set<Long> accountIds) {
+    requirePortfolioId(portfolioId);
+    return performanceQueryService.dailyPerformanceDetail(portfolioId, date, accountIds);
+  }
+
+  private Long activePortfolioId() {
+    Long portfolioId = scopedPortfolio.get();
+    if (portfolioId == null) throw new IllegalStateException("No active portfolio");
+    return portfolioId;
+  }
+
+  private Set<Long> activeAccountIds() {
+    return accountRepository.findAllByPortfolioId(activePortfolioId()).stream()
         .map(AccountEntity::getId)
         .filter(Objects::nonNull)
         .collect(Collectors.toSet());
   }
 
-  // 2. Monthly Performance
-  public Performance calculateMonthlyPerformance() {
-    return performanceQueryService.calculateMonthlyPerformance();
+  private List<AccountStatisticsEntity> accountStatistics() {
+    return accountStatisticsRepository.findAllByAccountIdIn(activeAccountIds());
   }
 
-  // 4. Win Rate (percentage of profitable trades)
-  public double calculateWinRate() {
-    return performanceQueryService.calculateWinRate();
+  private List<CashOperationEntity> cashOperations() {
+    return cashOperationRepository.findAllByAccountIn(activeAccountIds());
   }
 
-  public List<InstrumentPerformance> calculatePerformancePerInstrument() {
-    return performanceQueryService.calculatePerformancePerInstrument();
+  private List<PositionEntity> closedPositions() {
+    return closedPositionRepository.findClosedByAccountIn(activeAccountIds());
   }
 
-  private record AccountNetDeposit(BigDecimal localAmount, BigDecimal baseAmount) {}
+  private List<PositionEntity> openPositions() {
+    return openedPositionRepository.findOpenByAccountIn(activeAccountIds());
+  }
 
-  public DailyPerformanceDetail dailyPerformanceDetail(LocalDate date, Set<Long> accountIds) {
-    return performanceQueryService.dailyPerformanceDetail(date, accountIds);
+  private static void requirePortfolioId(Long portfolioId) {
+    if (portfolioId == null || portfolioId <= 0) {
+      throw new IllegalArgumentException("portfolioId must be positive");
+    }
   }
 }

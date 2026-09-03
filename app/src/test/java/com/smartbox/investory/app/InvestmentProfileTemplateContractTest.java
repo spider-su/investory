@@ -23,7 +23,7 @@ class InvestmentProfileTemplateContractTest {
     String html = profileHtml + Files.readString(SHARED_NAV, StandardCharsets.UTF_8);
     assertThat(html)
         .contains("iv-planning-topbar")
-        .contains("planningHeader('profile'")
+        .contains("planningHeader('profile', ${profile.portfolioId}")
         .contains("profileHeaderNetWorth")
         .contains("profileHeaderIncome")
         .contains("profileAnnualCost")
@@ -36,6 +36,11 @@ class InvestmentProfileTemplateContractTest {
         .contains("Income sources")
         .contains("Received YTD")
         .contains("profileLongTermYtdIncome");
+    assertThat(profileHtml)
+        .doesNotContain("Investment result")
+        .doesNotContain("profileMarketInvestmentResult");
+    assertThat(profileHtml)
+        .contains("th:href=\"@{/dashboard(portfolioId=${profile.portfolioId})}\"");
     assertThat(profileHtml)
         .doesNotContain("Investment profile")
         .doesNotContain("Combined view of traded investments")

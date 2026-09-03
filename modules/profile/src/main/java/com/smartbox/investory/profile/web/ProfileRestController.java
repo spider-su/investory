@@ -1,6 +1,7 @@
 package com.smartbox.investory.profile.web;
 
-import com.smartbox.investory.profile.api.ProfileSummaryReader;
+import com.smartbox.investory.profile.api.ProfileSnapshotReader;
+import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
@@ -15,10 +16,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/portfolios/{portfolioId}/profile")
 @RequiredArgsConstructor
 public class ProfileRestController {
-  private final ProfileSummaryReader profiles;
+  private final ProfileSnapshotReader profiles;
 
   @GetMapping
-  public ProfileResponse profile(@PathVariable @Positive Long portfolioId) {
-    return ProfileResponse.from(profiles.loadSummary(portfolioId));
+  public InvestmentProfile profile(@PathVariable @Positive Long portfolioId) {
+    return profiles.loadProfile(portfolioId);
   }
 }

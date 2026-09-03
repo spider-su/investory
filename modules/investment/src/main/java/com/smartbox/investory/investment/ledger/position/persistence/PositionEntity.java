@@ -1,6 +1,5 @@
 package com.smartbox.investory.investment.ledger.position.persistence;
 
-import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.position.PositionQuantities;
 import com.smartbox.investory.investment.ledger.position.PositionSettlementModel;
 import com.smartbox.investory.investment.ledger.position.PositionType;
@@ -10,6 +9,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.ZonedDateTime;
 import lombok.*;
+import org.hibernate.annotations.Formula;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -29,9 +29,9 @@ public class PositionEntity {
   @Column(name = "asset_id", nullable = false)
   private Long assetId;
 
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "asset_id", insertable = false, updatable = false)
-  private AssetEntity asset;
+  @Formula(
+      "coalesce((select asset.symbol from investory.assets asset where asset.id = asset_id), source_asset_symbol)")
+  private String canonicalSymbol;
 
   @Column(name = "source_asset_symbol", nullable = false, length = 128)
   private String sourceAssetSymbol;
@@ -299,7 +299,7 @@ public class PositionEntity {
 
   @PostLoad
   void loadCanonicalSymbol() {
-    this.symbol = asset != null ? asset.getSymbol() : sourceAssetSymbol;
+    this.symbol = canonicalSymbol != null ? canonicalSymbol : sourceAssetSymbol;
   }
 
   public double signedQuantity() {

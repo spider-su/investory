@@ -21,23 +21,23 @@ The relevant paths are:
 
 ```text
 asset_price_history
-  -> reporting_asset_price_quality_issues
+  -> recon_v_asset_price_quality_issues
   -> recon_v_asset_price_quality_issues
 
 asset_price_history
   + assets
   + asset_source_symbols
-  -> reporting_price_history_contract_issues
+  -> recon_v_price_history_contract_issues
 ```
 
-`reporting_asset_price_quality_issues` reports `PRICE_CURRENCY_MISMATCH` when
+`recon_v_asset_price_quality_issues` reports `PRICE_CURRENCY_MISMATCH` when
 the stored price currency differs from the canonical asset currency without an
 intentional FX mapping. It reports `PRICE_SCALE_MAPPING_MISMATCH` when the
 stored scale differs from the mapping, or when the stored currency differs from
 the mapping currency for a non-FX mapping. The latter means the issue name is
 broader than its label; it is not a scale-only count.
 
-`reporting_price_history_contract_issues` independently reports provider
+`recon_v_price_history_contract_issues` independently reports provider
 mapping conflicts, including `STOOQ_CURRENCY_MISMATCH`.
 
 ## Before investigation counts
@@ -118,4 +118,3 @@ rows that overlap a price currency/scale issue. Compare their stored price row,
 source mapping, FX conversion, and selected valuation source. If those six do not
 explain the large valuation differences, continue with the 301 remaining
 valuation mismatches before investigating cash-flow or account/day layers.
-

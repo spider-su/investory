@@ -27,6 +27,12 @@ public final class PortfolioTestData {
   public static final long POLISH_BONDS_PLN_ACCOUNT_ID = 51551301L;
   public static final long CRYPTO_USD_ACCOUNT_ID = 53582946L;
 
+  /** Migration-backed identities for the complete reference scenario. */
+  public static final long HAPPY_XTB_USD_ACCOUNT_ID = 51499241L;
+
+  public static final long HAPPY_XTB_PLN_ACCOUNT_ID = 51551301L;
+  public static final long HAPPY_XTB_EUR_ACCOUNT_ID = 51548444L;
+
   public static final double DEFAULT_USD_DEPOSIT = 100_000.00;
   public static final double DEFAULT_EUR_DEPOSIT = 25_000.00;
   public static final double DEFAULT_PLN_DEPOSIT = 50_000.00;

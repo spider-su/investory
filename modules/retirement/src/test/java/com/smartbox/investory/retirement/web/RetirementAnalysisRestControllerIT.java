@@ -44,7 +44,7 @@ class RetirementAnalysisRestControllerIT {
                 .contentType("application/json")
                 .content("{\"defaultCurrentAge\":40,\"defaultEndAge\":95}"))
         .andExpect(status().isOk());
-    verify(projections).load(eq(7L), isNull(), eq(40), eq(95), any());
+    verify(projections).load(eq(7L), isNull(), eq(40), eq(95));
     verify(analyses).analyze(any());
   }
 }

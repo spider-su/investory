@@ -24,7 +24,6 @@ record InvestmentProfilePageView(
     String longTermAssetsPercentageDisplay,
     String marketAnnualizedReturnDisplay,
     String marketKpiMeta,
-    String marketInvestmentResultDisplay,
     String marketReceivedYtdDisplay,
     String longTermReceivedYtdDisplay,
     String annualCostDisplay,
@@ -65,7 +64,6 @@ record InvestmentProfilePageView(
             ? "Total return"
             : "KPI start · " + performance.kpiStartDate(),
         availableWholeMoney(investmentResult.available(), investmentResult.amount()),
-        UiPresentation.compactMoney(profile.incomeSummary().marketIncomeYtd()),
         plannedYtdMoney(profile.incomeSummary().longTermIncomeToDate(currentMonth)),
         availableMoney(annualCost.available(), annualCost.amount()),
         annualCost.available() ? "planned · " + annualCost.year() : "No retirement plan",

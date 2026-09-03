@@ -2,6 +2,7 @@ package com.smartbox.investory.investment.performance.model;
 
 import com.smartbox.investory.investment.api.reporting.model.MonthlyAttribution;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import java.util.Map;
 import java.util.TreeMap;
 import lombok.AllArgsConstructor;
@@ -12,7 +13,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class Performance {
-  CurrencyType baseCurrency = CurrencyType.USD;
+  CurrencyType baseCurrency = FinancialPolicyDefaults.CANONICAL_CURRENCY;
 
   double totalOpen = 0.0;
 

@@ -1,12 +1,14 @@
 package com.smartbox.investory.retirement.planning;
 
-import com.smartbox.investory.profile.api.ProfileReader;
+import com.smartbox.investory.profile.api.ProfileComposition;
+import com.smartbox.investory.profile.api.ProfilePlanningReader;
+import com.smartbox.investory.profile.api.ProfileSnapshotReader;
+import com.smartbox.investory.profile.api.ProfileSummaryReader;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.retirement.api.RetirementPlanApi;
 import com.smartbox.investory.retirement.api.RetirementProjectionApi;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.SimulationAssumptions;
-import com.smartbox.investory.retirement.api.model.SimulationCustomDeltas;
 import com.smartbox.investory.retirement.api.model.SimulationDecisionSummary;
 import com.smartbox.investory.retirement.api.model.SimulationResult;
 import com.smartbox.investory.retirement.api.model.SimulationScenario;
@@ -15,28 +17,46 @@ import java.time.Clock;
 import java.time.Year;
 import java.util.EnumMap;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /** Prepares the single forward-projection context consumed by both retirement boards. */
 @Service
 public class RetirementProjectionFacade implements RetirementProjectionApi {
-  private final ProfileReader profiles;
+  private final ProfileSummaryReader summaries;
+  private final ProfilePlanningReader planning;
+  private final ProfileSnapshotReader profileSnapshots;
   private final RetirementPlanApi plans;
   private final ForwardSimulationInputService forwardInputs;
   private final RetirementSimulation simulations;
   private final Clock clock;
 
+  @Autowired
   public RetirementProjectionFacade(
-      ProfileReader profiles,
+      ProfileSummaryReader summaries,
+      ProfilePlanningReader planning,
+      ProfileSnapshotReader profileSnapshots,
       RetirementPlanApi plans,
       ForwardSimulationInputService forwardInputs,
       RetirementSimulation simulations,
       Clock clock) {
-    this.profiles = profiles;
+    this.summaries = summaries;
+    this.planning = planning;
+    this.profileSnapshots = profileSnapshots;
     this.plans = plans;
     this.forwardInputs = forwardInputs;
     this.simulations = simulations;
     this.clock = clock;
+  }
+
+  public RetirementProjectionFacade(
+      ProfileSummaryReader summaries,
+      ProfilePlanningReader planning,
+      RetirementPlanApi plans,
+      ForwardSimulationInputService forwardInputs,
+      RetirementSimulation simulations,
+      Clock clock) {
+    this(summaries, planning, null, plans, forwardInputs, simulations, clock);
   }
 
   public RetirementProjectionContext load(Long portfolioId, Long planId) {
@@ -45,17 +65,10 @@ public class RetirementProjectionFacade implements RetirementProjectionApi {
 
   public RetirementProjectionContext load(
       Long portfolioId, Long planId, Integer defaultCurrentAge, Integer defaultEndAge) {
-    return load(
-        portfolioId, planId, defaultCurrentAge, defaultEndAge, SimulationCustomDeltas.zero());
-  }
-
-  public RetirementProjectionContext load(
-      Long portfolioId,
-      Long planId,
-      Integer defaultCurrentAge,
-      Integer defaultEndAge,
-      SimulationCustomDeltas customDeltas) {
-    InvestmentProfile profile = profiles.loadProfile(portfolioId);
+    InvestmentProfile profile =
+        profileSnapshots == null
+            ? ProfileComposition.load(summaries, planning, portfolioId)
+            : profileSnapshots.loadProfile(portfolioId);
     var planDetails = planId == null ? null : plans.details(portfolioId, planId);
     SimulationAssumptions assumptions =
         planDetails == null
@@ -65,8 +78,7 @@ public class RetirementProjectionFacade implements RetirementProjectionApi {
                 defaultEndAge == null ? 95 : defaultEndAge,
                 Year.now(clock).getValue())
             : planDetails.assumptions();
-    return project(
-        profile, assumptions, planDetails == null ? null : planDetails.baseline(), customDeltas);
+    return project(profile, assumptions, planDetails == null ? null : planDetails.baseline());
   }
 
   public RetirementProjectionContext project(
@@ -77,14 +89,6 @@ public class RetirementProjectionFacade implements RetirementProjectionApi {
   /** Projects from a reviewed baseline without substituting newer live balances. */
   public RetirementProjectionContext project(
       InvestmentProfile profile, SimulationAssumptions assumptions, PlanningBaseline baseline) {
-    return project(profile, assumptions, baseline, SimulationCustomDeltas.zero());
-  }
-
-  public RetirementProjectionContext project(
-      InvestmentProfile profile,
-      SimulationAssumptions assumptions,
-      PlanningBaseline baseline,
-      SimulationCustomDeltas customDeltas) {
     InvestmentProfile projectionProfile =
         baseline == null ? profile : PlanningProfileBaseline.apply(profile, baseline);
     ForwardSimulationInput forward = forwardInputs.prepare(projectionProfile, assumptions);
@@ -92,14 +96,8 @@ public class RetirementProjectionFacade implements RetirementProjectionApi {
     InvestmentProfile projectedProfile = forward.bridgedProfile();
     Map<SimulationScenario, SimulationResult> results =
         forward.forwardAssumptions().isPresent()
-            ? (customDeltas == null || customDeltas.isZero()
-                ? simulations.compareScenarios(
-                    projectedProfile, projectedAssumptions, forward.context().asOfYear())
-                : simulations.compareScenarios(
-                    projectedProfile,
-                    projectedAssumptions,
-                    forward.context().asOfYear(),
-                    customDeltas))
+            ? simulations.compareScenarios(
+                projectedProfile, projectedAssumptions, forward.context().asOfYear())
             : new EnumMap<>(SimulationScenario.class);
     Map<SimulationScenario, SimulationDecisionSummary> summaries =
         new EnumMap<>(SimulationScenario.class);

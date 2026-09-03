@@ -3,6 +3,7 @@ package com.smartbox.investory.retirement.simulation;
 import com.smartbox.investory.profile.api.model.EconomicBucket;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.api.model.FrozenBondCashFlowProjection;
 import java.math.BigDecimal;
 import java.util.EnumMap;
 import java.util.Map;
@@ -36,18 +37,7 @@ public class RetirementSimulationService implements RetirementSimulation {
       SimulationAssumptions assumptions,
       SimulationScenario scenario,
       int baselineYear) {
-    return simulate(profile, assumptions, scenario, baselineYear, SimulationCustomDeltas.zero());
-  }
-
-  @Override
-  public SimulationResult simulate(
-      InvestmentProfile profile,
-      SimulationAssumptions assumptions,
-      SimulationScenario scenario,
-      int baselineYear,
-      SimulationCustomDeltas custom) {
-    return simulateWithCustom(
-        profile, assumptions, scenario, baselineYear, custom, BigDecimal.ONE, false);
+    return simulateInternal(profile, assumptions, scenario, baselineYear, BigDecimal.ONE, false);
   }
 
   @Override
@@ -62,30 +52,21 @@ public class RetirementSimulationService implements RetirementSimulation {
         || recurringFraction.compareTo(BigDecimal.ONE) > 0) {
       throw new IllegalArgumentException("Recurring fraction must be between 0 and 1");
     }
-    return simulateWithCustom(
-            profile,
-            assumptions,
-            scenario,
-            baselineYear,
-            SimulationCustomDeltas.zero(),
-            recurringFraction,
-            true)
+    return simulateInternal(profile, assumptions, scenario, baselineYear, recurringFraction, true)
         .years()
         .getFirst();
   }
 
-  private SimulationResult simulateWithCustom(
+  private SimulationResult simulateInternal(
       InvestmentProfile profile,
       SimulationAssumptions assumptions,
       SimulationScenario scenario,
       int baselineYear,
-      SimulationCustomDeltas custom,
       BigDecimal firstYearRecurringFraction,
       boolean firstYearOnly) {
 
     ScenarioEffectiveAssumptions effective =
-        ScenarioEffectiveAssumptions.forScenario(
-            profile, assumptions, scenario, baselineYear, custom);
+        ScenarioEffectiveAssumptions.forScenario(profile, assumptions, scenario, baselineYear);
     PlanningBuckets buckets =
         PlanningBuckets.fromProfileWithBondYield(
             profile, effective.equityReturnRate(), effective.capitalBondReturnRate());
@@ -93,16 +74,11 @@ public class RetirementSimulationService implements RetirementSimulation {
     var years = new java.util.ArrayList<SimulationYear>();
     Integer failureAge = null;
     BigDecimal firstShortfall = ZERO, totalUnfunded = ZERO;
-    BigDecimal spending =
-        assumptions.annualLivingExpenses().add(assumptions.annualDiscretionaryExpenses());
+    BigDecimal spending = assumptions.annualSpending();
     // Profile rental income is the frozen baseline for the explicit baseline year supplied by
     // the forward context. The simulator itself does not resolve calendar time.
     int yearsFromBaseline = Math.max(0, assumptions.startYear() - baselineYear);
-    ProjectedIncomePolicy incomePolicy = assumptions.projectedIncomePolicy();
-    BigDecimal rentalBaseline =
-        incomePolicy.rentalIncomeMode() == ProjectedIncomePolicy.IncomeMode.MANUAL
-            ? nz(incomePolicy.manualRentalIncome())
-            : buckets.rentalCashIncome();
+    BigDecimal rentalBaseline = buckets.rentalCashIncome();
     BigDecimal rental =
         rentalBaseline.multiply(
             BigDecimal.ONE.add(effective.rentalIncomeGrowthRate()).pow(yearsFromBaseline));
@@ -258,21 +234,11 @@ public class RetirementSimulationService implements RetirementSimulation {
   @Override
   public Map<SimulationScenario, SimulationResult> compareScenarios(
       InvestmentProfile profile, SimulationAssumptions assumptions, int baselineYear) {
-    return compareScenarios(profile, assumptions, baselineYear, SimulationCustomDeltas.zero());
-  }
-
-  @Override
-  public Map<SimulationScenario, SimulationResult> compareScenarios(
-      InvestmentProfile profile,
-      SimulationAssumptions assumptions,
-      int baselineYear,
-      SimulationCustomDeltas custom) {
     EnumMap<SimulationScenario, SimulationResult> results = new EnumMap<>(SimulationScenario.class);
     for (SimulationScenario scenario : SimulationScenario.values())
       results.put(
           scenario,
-          simulateWithCustom(
-              profile, assumptions, scenario, baselineYear, custom, BigDecimal.ONE, false));
+          simulateInternal(profile, assumptions, scenario, baselineYear, BigDecimal.ONE, false));
     return results;
   }
 

@@ -42,7 +42,7 @@ The available raw inputs would produce `0.5187 * 203.75 * 1 = 105.685125` base-c
 market value.
 
 The settlement `symbol_values` CTE does not read raw price history. It reads
-`v_canonical_asset_daily_price`. That view joins assets with
+`app_v_canonical_asset_daily_price`. That view joins assets with
 `exclude_from_import = false`; AMT.US is excluded, so the canonical price leg returns no
 row. The previous price is therefore NULL, and the CASE expression produces
 `previous_symbol_market_value_base = NULL`.

@@ -14,6 +14,10 @@ source of truth.
 
 - [`business-epics.md`](business-epics.md): short map of the main business-logic epics and their features.
 
+## Knowledge transfer
+
+- [`kt/business-modules-quick-kt.md`](kt/business-modules-quick-kt.md): index of the business-module KT pages.
+
 ## Domain contracts
 
 These define intended financial semantics. A code mismatch should be investigated, not silently

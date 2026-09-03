@@ -4,6 +4,7 @@ import com.smartbox.investory.investment.api.exporting.PortfolioExportSnapshotRe
 import com.smartbox.investory.investment.api.exporting.PortfolioExportSnapshotReader.ExportCashBalance;
 import com.smartbox.investory.investment.api.exporting.PortfolioExportSnapshotReader.ExportPosition;
 import com.smartbox.investory.investment.api.exporting.PortfolioExportSnapshotReader.PortfolioExportSnapshot;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsRepository;
 import com.smartbox.investory.investment.ledger.position.persistence.PositionRepository;
 import lombok.RequiredArgsConstructor;
@@ -16,11 +17,20 @@ import org.springframework.transaction.annotation.Transactional;
 public class PortfolioExportSnapshotReadService implements PortfolioExportSnapshotReader {
   private final PositionRepository positions;
   private final AccountStatisticsRepository statistics;
+  private final AccountRepository accounts;
 
   @Override
-  public PortfolioExportSnapshot currentSnapshot() {
+  public PortfolioExportSnapshot currentSnapshot(Long portfolioId) {
+    if (portfolioId == null || portfolioId <= 0) {
+      throw new IllegalArgumentException("portfolioId must be positive");
+    }
+    var accountIds =
+        accounts.findAllByPortfolioId(portfolioId).stream()
+            .map(account -> account.getId())
+            .filter(java.util.Objects::nonNull)
+            .collect(java.util.stream.Collectors.toSet());
     return new PortfolioExportSnapshot(
-        positions.findAll().stream()
+        positions.findAllByAccountIn(accountIds).stream()
             .map(
                 position ->
                     new ExportPosition(
@@ -30,7 +40,7 @@ public class PortfolioExportSnapshotReadService implements PortfolioExportSnapsh
                         position.getOpenPrice(),
                         position.getMarketPrice()))
             .toList(),
-        statistics.findAll().stream()
+        statistics.findAllByAccountIdIn(accountIds).stream()
             .filter(statistic -> statistic.getCashBalance() != null)
             .map(
                 statistic ->

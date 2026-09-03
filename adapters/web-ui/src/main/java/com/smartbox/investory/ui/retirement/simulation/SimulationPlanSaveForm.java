@@ -31,10 +31,6 @@ public final class SimulationPlanSaveForm {
   @NotNull private BigDecimal inflation;
   private BigDecimal rentalIncomeGrowthSpread = new BigDecimal("2");
   private BigDecimal spendingGrowthSpread = new BigDecimal("2.5");
-  private String rentalIncomeMode = "SOURCE";
-  private BigDecimal manualRentalIncome;
-  private String bondCashIncomeMode = "SOURCE";
-  private BigDecimal manualBondCashIncome;
   private SimulationFundingStrategy fundingStrategy = SimulationFundingStrategy.SIMPLE_WATERFALL;
   private String fundingOrder = "CASH,BONDS,STOCKS";
   private String expenseProfile = "";
@@ -47,7 +43,7 @@ public final class SimulationPlanSaveForm {
   private Integer pensionStartAge;
   @NotNull private BigDecimal annualPension;
   private BigDecimal capitalGainTaxRate = BigDecimal.ZERO;
-  private CurrencyType planningDisplayCurrency = CurrencyType.PLN;
+  private CurrencyType planningDisplayCurrency;
   private CurrencyType returnPlanningDisplayCurrency;
   private boolean saveAs;
   private SimulationScenario selectedScenario = SimulationScenario.BASE;
@@ -75,10 +71,6 @@ public final class SimulationPlanSaveForm {
         inflation,
         rentalIncomeGrowthSpread,
         spendingGrowthSpread,
-        rentalIncomeMode,
-        manualRentalIncome,
-        bondCashIncomeMode,
-        manualBondCashIncome,
         fundingStrategy,
         fundingOrder,
         expenseProfile,

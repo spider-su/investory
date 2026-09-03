@@ -4,7 +4,6 @@ import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.ExpenseProfile;
 import com.smartbox.investory.retirement.api.model.ExpenseProfileStep;
 import com.smartbox.investory.retirement.api.model.PlanningBaseline;
-import com.smartbox.investory.retirement.api.model.ProjectedIncomePolicy;
 import com.smartbox.investory.retirement.api.model.RetirementFundingSource;
 import com.smartbox.investory.retirement.api.model.SimulationAssumptions;
 import com.smartbox.investory.retirement.api.model.SimulationEvent;
@@ -160,11 +159,7 @@ public final class RetirementPlanContracts {
       @NotNull @PositiveOrZero BigDecimal annualEmploymentIncome,
       @NotNull @PositiveOrZero BigDecimal annualPreRetirementContribution,
       @NotEmpty List<RetirementFundingSource> fundingOrder,
-      @NotNull List<@Valid ExpenseStepDto> expenseProfile,
-      @NotNull ProjectedIncomePolicy.IncomeMode rentalIncomeMode,
-      @PositiveOrZero BigDecimal manualRentalIncome,
-      @NotNull ProjectedIncomePolicy.IncomeMode bondCashIncomeMode,
-      @PositiveOrZero BigDecimal manualBondCashIncome) {
+      @NotNull List<@Valid ExpenseStepDto> expenseProfile) {
 
     SimulationAssumptions toDomain() {
       return new SimulationAssumptions(
@@ -191,9 +186,7 @@ public final class RetirementPlanContracts {
           annualEmploymentIncome,
           annualPreRetirementContribution,
           fundingOrder,
-          new ExpenseProfile(expenseProfile.stream().map(ExpenseStepDto::toDomain).toList()),
-          new ProjectedIncomePolicy(
-              rentalIncomeMode, manualRentalIncome, bondCashIncomeMode, manualBondCashIncome));
+          new ExpenseProfile(expenseProfile.stream().map(ExpenseStepDto::toDomain).toList()));
     }
 
     static AssumptionsDto from(SimulationAssumptions source) {
@@ -221,11 +214,7 @@ public final class RetirementPlanContracts {
           source.annualEmploymentIncome(),
           source.annualPreRetirementContribution(),
           source.fundingOrder(),
-          source.expenseProfile().steps().stream().map(ExpenseStepDto::from).toList(),
-          source.projectedIncomePolicy().rentalIncomeMode(),
-          source.projectedIncomePolicy().manualRentalIncome(),
-          source.projectedIncomePolicy().bondCashIncomeMode(),
-          source.projectedIncomePolicy().manualBondCashIncome());
+          source.expenseProfile().steps().stream().map(ExpenseStepDto::from).toList());
     }
   }
 }

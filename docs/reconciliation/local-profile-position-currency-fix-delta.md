@@ -33,7 +33,7 @@ does not feed that object. It is not attributed to this fix.
 
 ## Root cause
 
-`V01.005__portfolio_views.sql` defined `v_position_currency_validation` with:
+`V01.006__reconciliation_views.sql` defines `recon_v_position_currency_validation` with:
 
 ```sql
 LEFT JOIN investory.assets asset

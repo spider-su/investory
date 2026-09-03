@@ -37,7 +37,7 @@ The first is pre-split scale; the selected open observation is post-split scale.
 
 ## Exact diagnostic error
 
-Before the fix, `v_position_valuation_validation` used:
+Before the fix, `recon_v_position_valuation_validation` used:
 
 ```text
 expected = current open quantity × previous selected price × multiplier × FX

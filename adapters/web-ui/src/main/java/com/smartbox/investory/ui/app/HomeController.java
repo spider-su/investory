@@ -44,7 +44,7 @@ public class HomeController {
       @RequestParam(required = false) List<Long> accountIds,
       @RequestParam(defaultValue = "false") boolean benchmarkAccountsSubmitted,
       @RequestParam(defaultValue = "YTD") String period,
-      @RequestParam(defaultValue = "1") Long portfolioId) {
+      @RequestParam Long portfolioId) {
     DashboardPeriod selectedPeriod = DashboardPeriod.fromUrlValue(period);
     DashboardPageView dashboard =
         investmentDashboardFacade.loadDashboard(

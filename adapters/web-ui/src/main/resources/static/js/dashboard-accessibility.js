@@ -171,7 +171,12 @@ export function initDashboardAccessibility() {
                     target.searchParams.append('accountIds', account.value);
                 });
 
-            window.location.assign(target.pathname + target.search + target.hash);
+            const destination = target.pathname + target.search + target.hash;
+            if (window.Turbo?.session?.drive) {
+                window.Turbo.visit(destination);
+            } else {
+                window.location.assign(destination);
+            }
         });
     });
 

@@ -21,6 +21,7 @@ public class InvestmentDashboardApplicationService implements InvestmentDashboar
   @Override
   public InvestmentDashboardApi.DashboardPageView loadDashboard(
       InvestmentDashboardApi.DashboardQuery query) {
+    requirePortfolio(query.portfolioId());
     return dashboard.loadDashboard(query);
   }
 

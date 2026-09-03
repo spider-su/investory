@@ -4,7 +4,7 @@ Generated: 2026-08-14
 
 ## Root cause
 
-`v_portfolio_data_quality` counted only latest validation rows with status `PASS` as
+`recon_v_portfolio_data_quality` counted only latest validation rows with status `PASS` as
 reconciled. It treated semantic market-value reviews and accounts with no validation snapshot
 as unreconciled. With seven latest market-only reviews and four empty accounts, the aggregate
 reported `0` reconciled and `11` unreconciled accounts.
@@ -18,7 +18,7 @@ reported `0` reconciled and `11` unreconciled accounts.
   multiplier, or residual valuation input.
 
 The seven market-only account/day rows are identified by
-`v_account_daily_market_value_semantic_review` and are not accounting failures.
+`recon_v_account_daily_market_value_semantic_review` and are not accounting failures.
 
 ## Account membership after fix
 

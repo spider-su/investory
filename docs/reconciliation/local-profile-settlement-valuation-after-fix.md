@@ -4,7 +4,8 @@ Generated: 2026-08-14
 
 ## Change
 
-Applied `V01.019__settlement_valuation_asset_scope.sql`. The settlement diagnostic now uses
+Applied the pre-squash settlement-valuation patch. The current equivalent is in
+`V01.006__reconciliation_views.sql`; the settlement diagnostic now uses
 the canonical `exclude_from_import = false` asset scope when building closed lots. Production
 cash, position valuation, settlement formulas, imported facts, FX rules, and materiality were
 not changed.
@@ -49,7 +50,7 @@ positions are priced, with zero missing price and FX counts.
 
 ## Verification
 
-- Flyway applied V01.019 successfully.
+- The pre-squash Flyway settlement patch applied successfully.
 - Dependency-aware reporting stages completed.
 - All 29 open assets have raw and canonical price dates through 2026-08-13.
 - No Yahoo backfill rows were needed or inserted.

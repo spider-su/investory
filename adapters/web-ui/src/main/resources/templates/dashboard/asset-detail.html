@@ -10,12 +10,12 @@
 <body>
 <main class="container-xl py-4">
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
-        <div><a href="/dashboard" class="text-secondary">← Back to Investment</a><h1 class="mt-2 mb-1" th:text="${asset.symbol}">SYMBOL</h1><p class="text-secondary mb-0" th:text="${asset.name}">Asset name</p></div>
+        <div><a href="/dashboard" class="text-secondary" data-turbo="false">← Back to Investment</a><h1 class="mt-2 mb-1" th:text="${asset.symbol}">SYMBOL</h1><p class="text-secondary mb-0" th:text="${asset.name}">Asset name</p></div>
         <a th:if="${asset.hasYahooSymbol()}" th:href="${asset.yahooFinanceUrl()}" class="btn btn-outline-primary" target="_blank" rel="noopener noreferrer">Open in Yahoo Finance</a>
     </div>
 
     <nav class="btn-group flex-wrap mb-4" aria-label="Performance period">
-        <a th:each="period : ${periods}" th:href="@{/dashboard/assets/{symbol}(symbol=${asset.symbol},period=${period.urlValue()})}" data-turbo="false" class="btn btn-outline-secondary" th:classappend="${period == asset.period ? ' active' : ''}" th:attr="aria-current=${period == asset.period ? 'page' : null}" th:text="${period.label()}">1Y</a>
+        <a th:each="period : ${periods}" th:href="@{/dashboard/assets/{symbol}(symbol=${asset.symbol},period=${period.urlValue()},portfolioId=${portfolioId})}" class="btn btn-outline-secondary" th:classappend="${period == asset.period ? ' active' : null}" th:attr="aria-current=${period == asset.period ? 'page' : null}" th:text="${period.label()}">1Y</a>
     </nav>
 
     <section class="row row-cards" aria-label="Asset summary">
@@ -69,7 +69,10 @@
     </details>
 </main>
 
-<script th:inline="javascript">window.investoryAssetDetail = {pricePoints: /*[[${priceHistory}]]*/ [], label: /*[[${asset.symbol + ' close price'}]]*/ 'Close price'};</script>
+<script id="asset-detail-page-data" type="application/json" th:inline="javascript">{
+    "pricePoints": /*[[${priceHistory}]]*/ [],
+    "label": /*[[${asset.symbol + ' close price'}]]*/ "Close price"
+}</script>
 </body>
 </html>
 

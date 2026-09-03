@@ -53,14 +53,6 @@ public class PortfolioCurrencyBreakdownEntity {
   @Column(name = "updated_at", nullable = false)
   private java.time.ZonedDateTime updatedAt;
 
-  public BigDecimal getAmountLocal() {
-    return amountLocal;
-  }
-
-  public BigDecimal getAmountInBaseCurrency() {
-    return amountInBaseCurrency;
-  }
-
   public PortfolioCurrencyBreakdownEntity(
       Long portfolioId,
       CurrencyType baseCurrency,

@@ -9,9 +9,9 @@ import java.util.List;
 /**
  * Persistence-free Long-Term projection input for retirement consumers.
  *
- * <p>All monetary fields, including period amounts, redemption value and tax base, are canonical
- * USD. The currency field is therefore always {@link CurrencyType#USD}; rates and dates are not
- * converted.
+ * <p>All monetary fields, including period amounts, redemption value and tax base, are expressed in
+ * the portfolio base currency (from {@code portfolios.base_currency}). The {@link #currency} field
+ * reports that base currency; conversion happens once at read time and rates are not re-applied.
  */
 public record LongTermAssetProjectionModel(
     Long id,

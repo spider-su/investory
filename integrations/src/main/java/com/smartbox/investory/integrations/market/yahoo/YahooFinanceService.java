@@ -52,8 +52,17 @@ public class YahooFinanceService {
   }
 
   public Optional<YahooQuote> fetchLatestQuote(String symbol) {
+    return fetchLatestQuote(symbol, baseUrl);
+  }
+
+  /** Fetches using a request-specific endpoint without changing the runtime default. */
+  public Optional<YahooQuote> fetchLatestQuote(String symbol, String requestBaseUrl) {
     if (!StringUtils.hasText(symbol)) {
       return Optional.empty();
+    }
+    String previousBaseUrl = baseUrl;
+    if (StringUtils.hasText(requestBaseUrl)) {
+      baseUrl = requestBaseUrl.endsWith("/") ? requestBaseUrl : requestBaseUrl + "/";
     }
     try {
       URI uri =
@@ -99,6 +108,8 @@ public class YahooFinanceService {
       throw new IllegalStateException("Yahoo Finance request interrupted for " + symbol, e);
     } catch (RuntimeException e) {
       throw new IllegalStateException("Yahoo Finance response failed for " + symbol, e);
+    } finally {
+      baseUrl = previousBaseUrl;
     }
   }
 

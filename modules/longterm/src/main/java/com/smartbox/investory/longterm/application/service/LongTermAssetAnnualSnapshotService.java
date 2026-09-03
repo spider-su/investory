@@ -12,7 +12,7 @@ import com.smartbox.investory.longterm.infrastructure.rental.*;
 import com.smartbox.investory.longterm.infrastructure.tax.*;
 import com.smartbox.investory.longterm.infrastructure.valuation.*;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
-import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
@@ -71,10 +71,10 @@ public class LongTermAssetAnnualSnapshotService {
                   // during the requested year; that is the established snapshot contract and
                   // keeps historical planning aligned with the asset summary.
                   amount = row.annualEconomics().netAnnualIncomeAfterTax();
-                  return row.currency() == CurrencyType.USD
+                  return row.currency() == FinancialPolicyDefaults.CANONICAL_CURRENCY
                       ? amount
                       : currencyRates.convertToBaseCurrency(
-                          amount, CurrencyType.USD, row.currency(), date);
+                          amount, FinancialPolicyDefaults.CANONICAL_CURRENCY, row.currency(), date);
                 })
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     BigDecimal bondIncome = sumSpendableBondIncome(rows, date);
@@ -146,10 +146,10 @@ public class LongTermAssetAnnualSnapshotService {
             row -> {
               BigDecimal amount = value.apply(row);
               if (amount == null) return BigDecimal.ZERO;
-              return row.currency() == CurrencyType.USD
+              return row.currency() == FinancialPolicyDefaults.CANONICAL_CURRENCY
                   ? amount
                   : currencyRates.convertToBaseCurrency(
-                      amount, CurrencyType.USD, row.currency(), date);
+                      amount, FinancialPolicyDefaults.CANONICAL_CURRENCY, row.currency(), date);
             })
         .reduce(BigDecimal.ZERO, BigDecimal::add);
   }
@@ -165,10 +165,10 @@ public class LongTermAssetAnnualSnapshotService {
             row -> {
               BigDecimal amount = row.annualEconomics().netAnnualIncomeAfterTax();
               if (amount == null) return BigDecimal.ZERO;
-              return row.currency() == CurrencyType.USD
+              return row.currency() == FinancialPolicyDefaults.CANONICAL_CURRENCY
                   ? amount
                   : currencyRates.convertToBaseCurrency(
-                      amount, CurrencyType.USD, row.currency(), date);
+                      amount, FinancialPolicyDefaults.CANONICAL_CURRENCY, row.currency(), date);
             })
         .reduce(BigDecimal.ZERO, BigDecimal::add);
   }

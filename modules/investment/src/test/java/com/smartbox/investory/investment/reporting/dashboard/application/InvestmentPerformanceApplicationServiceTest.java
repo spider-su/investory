@@ -39,7 +39,9 @@ class InvestmentPerformanceApplicationServiceTest {
                 List.of(),
                 PerformanceAggregation.MONTHLY,
                 PerformanceMetric.RETURN,
-                PerformanceStyle.LINE));
+                PerformanceStyle.LINE,
+                null,
+                1L));
 
     verify(benchmarkService).calculate(1L, null);
     assertEquals("Portfolio", view.series().getFirst().label());
@@ -60,7 +62,9 @@ class InvestmentPerformanceApplicationServiceTest {
                 null,
                 PerformanceAggregation.MONTHLY,
                 PerformanceMetric.RETURN,
-                PerformanceStyle.LINE));
+                PerformanceStyle.LINE,
+                null,
+                1L));
 
     assertEquals(List.of("2026-01", "2026-02"), view.labels());
     assertEquals(List.of(bd(10), bd(21)), view.series().getFirst().values());
@@ -97,7 +101,9 @@ class InvestmentPerformanceApplicationServiceTest {
                 null,
                 PerformanceAggregation.MONTHLY,
                 PerformanceMetric.RETURN,
-                PerformanceStyle.LINE));
+                PerformanceStyle.LINE,
+                null,
+                1L));
 
     assertNull(view.kpis().portfolioProfitLoss());
   }
@@ -118,14 +124,18 @@ class InvestmentPerformanceApplicationServiceTest {
                 null,
                 PerformanceAggregation.QUARTERLY,
                 PerformanceMetric.RETURN,
-                PerformanceStyle.BARS));
+                PerformanceStyle.BARS,
+                null,
+                1L));
     PerformanceBoardView profit =
         service.load(
             new PerformanceBoardQuery(
                 null,
                 PerformanceAggregation.QUARTERLY,
                 PerformanceMetric.PROFIT,
-                PerformanceStyle.BARS));
+                PerformanceStyle.BARS,
+                null,
+                1L));
 
     assertNull(returns.series().getFirst().values().getFirst());
     assertNull(returns.benchmarkValues().getFirst());
@@ -147,7 +157,9 @@ class InvestmentPerformanceApplicationServiceTest {
                 null,
                 PerformanceAggregation.QUARTERLY,
                 PerformanceMetric.RETURN,
-                PerformanceStyle.BARS));
+                PerformanceStyle.BARS,
+                null,
+                1L));
 
     assertEquals(List.of("2026-Q1"), view.labels());
     assertNull(view.series().getFirst().values().getFirst());
@@ -184,7 +196,9 @@ class InvestmentPerformanceApplicationServiceTest {
                 List.of(1L),
                 PerformanceAggregation.MONTHLY,
                 PerformanceMetric.RETURN,
-                PerformanceStyle.LINE));
+                PerformanceStyle.LINE,
+                null,
+                1L));
 
     assertEquals(java.util.Arrays.asList(bd(10), null, null), view.series().getFirst().values());
   }
@@ -219,7 +233,9 @@ class InvestmentPerformanceApplicationServiceTest {
                 List.of(1L),
                 PerformanceAggregation.MONTHLY,
                 PerformanceMetric.RETURN,
-                PerformanceStyle.LINE));
+                PerformanceStyle.LINE,
+                null,
+                1L));
 
     assertEquals(java.util.Arrays.asList(null, bd(10), bd(21)), view.series().getFirst().values());
   }
@@ -237,7 +253,9 @@ class InvestmentPerformanceApplicationServiceTest {
                 null,
                 PerformanceAggregation.MONTHLY,
                 PerformanceMetric.RETURN,
-                PerformanceStyle.LINE));
+                PerformanceStyle.LINE,
+                null,
+                1L));
 
     assertEquals(List.of(), view.labels());
     assertNull(view.kpis().portfolioReturn());
@@ -259,7 +277,8 @@ class InvestmentPerformanceApplicationServiceTest {
                 PerformanceAggregation.MONTHLY,
                 PerformanceMetric.RETURN,
                 PerformanceStyle.LINE,
-                com.smartbox.investory.investment.api.reporting.DashboardPeriod.MAX));
+                com.smartbox.investory.investment.api.reporting.DashboardPeriod.MAX,
+                1L));
 
     assertEquals(benchmark.getLabels(), view.labels());
     assertEquals(
@@ -302,7 +321,9 @@ class InvestmentPerformanceApplicationServiceTest {
                 List.of(1L, 2L),
                 PerformanceAggregation.MONTHLY,
                 PerformanceMetric.RETURN,
-                PerformanceStyle.LINE));
+                PerformanceStyle.LINE,
+                null,
+                1L));
 
     assertEquals(bd(30), view.kpis().portfolioReturn());
     assertEquals(bd(19.75), view.excessValues().getLast());

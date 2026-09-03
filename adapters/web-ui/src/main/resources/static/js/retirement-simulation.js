@@ -1,3 +1,5 @@
+import {readPageData} from './page-data.js';
+
 // Simulation board presentation only. Financial values come from the server.
 let simulationDestroy = () => {};
 export function initSimulationCharts() {
@@ -10,7 +12,7 @@ export function initSimulationCharts() {
   const liquidCanvas = document.getElementById('liquid-capital-chart');
   const switcher = document.querySelector('[data-simulation-chart-mode]');
   const panels = [...document.querySelectorAll('[data-chart-panel]')];
-  const chartState = window.retirementSimulation || {};
+  const chartState = readPageData('simulation-page-data');
   const chartData = chartState.chartData || {};
   const points = chartData.points || [];
   if ((!canvas && !liquidCanvas) || !window.Chart || points.length === 0) return;
@@ -72,8 +74,6 @@ export function initSimulationCharts() {
       ctx.restore();
     }
   };
-  Chart.register(lifecycleMarkerPlugin);
-
   const gapSemanticLabel = (value) => value < 0 ? 'Funding gap' : value > 0 ? 'Surplus' : 'Gap / surplus';
   const tooltipLabel = (context) => {
     const sourceValues = context.dataset.semanticValues;
@@ -163,7 +163,7 @@ export function initSimulationCharts() {
     if (mode === 'LIQUID_CAPITAL' && liquidCanvas && !liquidChart) {
       liquidChart = new Chart(liquidCanvas, {type: 'line', data: liquidCapitalData(), options: {...commonOptions, elements: {...commonOptions.elements, line: {tension: .2, borderWidth: 2}, point: commonOptions.elements.point}}});
     } else if (mode === 'CASH_FLOW' && canvas && !chart) {
-      chart = new Chart(canvas, {type: 'line', data: cashFlowData(), options: commonOptions});
+      chart = new Chart(canvas, {type: 'line', data: cashFlowData(), options: commonOptions, plugins: [lifecycleMarkerPlugin]});
     }
     (mode === 'LIQUID_CAPITAL' ? liquidChart : chart)?.resize();
   };

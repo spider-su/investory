@@ -123,9 +123,7 @@ public class PlanEditorPreviewService {
             displayCurrency),
         displayCanonical(assumptions.annualLivingExpenses(), displayCurrency),
         displayCanonical(assumptions.annualDiscretionaryExpenses(), displayCurrency),
-        displayCanonical(
-            assumptions.annualLivingExpenses().add(assumptions.annualDiscretionaryExpenses()),
-            displayCurrency),
+        displayCanonical(assumptions.annualSpending(), displayCurrency),
         first == null ? null : displayCanonical(first.totalExpenses(), displayCurrency),
         displayCanonical(facts.rentalIncome(), displayCurrency),
         displayCanonical(facts.bondIncome(), displayCurrency),

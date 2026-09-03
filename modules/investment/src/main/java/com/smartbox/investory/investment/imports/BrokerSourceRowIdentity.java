@@ -4,7 +4,9 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.temporal.TemporalAccessor;
+import java.util.HexFormat;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * Importer-owned identity for financial source rows.
@@ -32,6 +34,41 @@ public final class BrokerSourceRowIdentity {
       return value == 0L ? 1L : value;
     } catch (Exception exception) {
       throw new IllegalStateException("Cannot hash broker source row identity", exception);
+    }
+  }
+
+  /**
+   * Stable identity for one logical broker-row observation.
+   *
+   * <p>The physical evidence row is allowed to occur in more than one uploaded file. This hash is
+   * therefore deliberately independent of file, batch, import time, archive-member, and physical
+   * row location. The occurrence distinguishes genuinely repeated identical rows.
+   */
+  public static String logicalRowSha256(
+      Object provider,
+      Object sectionName,
+      Object sheetName,
+      Object sourceRecordId,
+      int occurrence,
+      String rawText,
+      String rawValuesJson) {
+    String fingerprint =
+        String.join(
+            "|",
+            part(provider),
+            part(sectionName),
+            part(sheetName),
+            part(sourceRecordId),
+            Integer.toString(occurrence),
+            part(rawText),
+            Objects.toString(rawValuesJson, ""));
+    try {
+      return HexFormat.of()
+          .formatHex(
+              MessageDigest.getInstance("SHA-256")
+                  .digest(normalize(fingerprint).getBytes(StandardCharsets.UTF_8)));
+    } catch (Exception exception) {
+      throw new IllegalStateException("Cannot hash broker source row", exception);
     }
   }
 

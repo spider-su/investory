@@ -6,11 +6,14 @@ import static org.mockito.Mockito.*;
 
 import com.smartbox.investory.longterm.api.model.InterestTreatment;
 import com.smartbox.investory.longterm.api.model.LongTermAssetType;
-import com.smartbox.investory.profile.api.ProfileReader;
+import com.smartbox.investory.profile.api.ProfilePlanningReader;
+import com.smartbox.investory.profile.api.ProfileSummaryReader;
 import com.smartbox.investory.profile.api.model.EconomicBucket;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.profile.api.model.Liquidity;
 import com.smartbox.investory.profile.api.model.ProfileAssetProjection;
+import com.smartbox.investory.profile.api.model.ProfilePlanning;
+import com.smartbox.investory.profile.api.model.ProfileSummary;
 import com.smartbox.investory.profile.api.model.ProjectedLongTermAsset;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.infrastructure.simulation.*;
@@ -44,13 +47,23 @@ class RetirementFrozenPlanLifecycleIntegrationTest {
     var planService = store.service();
     var plan = planService.create(1L, "Frozen", assumptions, baselineA);
 
-    var profiles = mock(ProfileReader.class);
-    when(profiles.loadProfile(1L)).thenReturn(liveA, liveB, liveB);
+    var summaries = mock(ProfileSummaryReader.class);
+    var planning = mock(ProfilePlanningReader.class);
+    when(summaries.loadSummary(1L))
+        .thenReturn(
+            ProfileSummary.from(liveA), ProfileSummary.from(liveB), ProfileSummary.from(liveB));
+    when(planning.loadPlanning(1L))
+        .thenReturn(
+            new ProfilePlanning(liveA.longTermPlanningState()),
+            new ProfilePlanning(liveB.longTermPlanningState()),
+            new ProfilePlanning(liveB.longTermPlanningState()));
     var simulations = new RetirementSimulationService();
     var contexts = new ForwardSimulationContextFactory(CLOCK);
     var bridge = new CurrentYearProjectionBridge(CLOCK, simulations, contexts);
     var inputs = new ForwardSimulationInputService(contexts, bridge);
-    var facade = new RetirementProjectionFacade(profiles, planService, inputs, simulations, CLOCK);
+    var facade =
+        new RetirementProjectionFacade(
+            summaries, planning, planService, inputs, simulations, CLOCK);
 
     var first = facade.load(1L, plan.getId(), 40, 45);
     var firstFuture = first.scenarioResults().get(SimulationScenario.BASE);
@@ -232,7 +245,10 @@ class RetirementFrozenPlanLifecycleIntegrationTest {
 
     private SimulationPlanService service() {
       return new SimulationPlanService(
-          plans, revisions, revisionEvents, new tools.jackson.databind.ObjectMapper());
+          plans,
+          revisions,
+          revisionEvents,
+          new PlanningBaselineJsonCodec(new tools.jackson.databind.ObjectMapper()));
     }
   }
 }

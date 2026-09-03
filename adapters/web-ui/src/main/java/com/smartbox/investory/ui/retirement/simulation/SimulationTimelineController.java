@@ -1,18 +1,13 @@
 package com.smartbox.investory.ui.retirement.simulation;
 
 import com.smartbox.investory.retirement.api.model.*;
-import com.smartbox.investory.retirement.api.model.PlanningMetricValue;
-import com.smartbox.investory.retirement.api.model.PlanningTimelineState;
-import com.smartbox.investory.retirement.api.model.PlanningTimelineYear;
-import com.smartbox.investory.retirement.api.model.SimulationCustomDeltas;
 import com.smartbox.investory.retirement.api.model.SimulationScenario;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
 import com.smartbox.investory.ui.profile.ProfileClient;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Year;
-import java.util.EnumSet;
-import java.util.Set;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -26,6 +21,9 @@ public class SimulationTimelineController {
   private final RetirementPlanningClient planning;
   private final RetirementProjectionClient projections;
   private final Clock clock;
+  private final SimulationTimelinePageAssembler pageAssembler;
+
+  @org.springframework.beans.factory.annotation.Autowired private PortfolioContextReader portfolios;
 
   public SimulationTimelineController(
       ProfileClient profiles,
@@ -38,14 +36,17 @@ public class SimulationTimelineController {
     this.planning = planning;
     this.projections = projections;
     this.clock = clock;
+    this.pageAssembler =
+        new SimulationTimelinePageAssembler(profiles, plans, planning, projections);
   }
 
   @PostMapping("/simulation/rollover")
   public String rollover(
-      @RequestParam(defaultValue = "1") Long portfolioId,
-      @RequestParam(defaultValue = "PLN") CurrencyType planningDisplayCurrency,
+      @RequestParam Long portfolioId,
+      @RequestParam(required = false) CurrencyType planningDisplayCurrency,
       @RequestParam(required = false) Long planId,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
+    planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
     planning.rollover(portfolioId);
     return SimulationRedirects.simulation(
         portfolioId, planId, planningDisplayCurrency, selectedScenario);
@@ -55,9 +56,10 @@ public class SimulationTimelineController {
   public String createPastYear(
       @RequestParam Long portfolioId,
       @PathVariable int year,
-      @RequestParam(defaultValue = "PLN") CurrencyType planningDisplayCurrency,
+      @RequestParam(required = false) CurrencyType planningDisplayCurrency,
       @RequestParam(required = false) Long planId,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
+    planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
     if (planId == null) {
       planning.createHistoricalDraft(portfolioId, year);
     } else {
@@ -78,8 +80,9 @@ public class SimulationTimelineController {
   public String prefillHistoricalYears(
       @RequestParam Long portfolioId,
       @RequestParam(required = false) Long planId,
-      @RequestParam(defaultValue = "PLN") CurrencyType planningDisplayCurrency,
+      @RequestParam(required = false) CurrencyType planningDisplayCurrency,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
+    planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
     int startYear =
         planId == null
             ? Year.now(clock).getValue()
@@ -96,9 +99,10 @@ public class SimulationTimelineController {
   public String refreshPastDerivedValues(
       @RequestParam Long portfolioId,
       @PathVariable int year,
-      @RequestParam(defaultValue = "PLN") CurrencyType planningDisplayCurrency,
+      @RequestParam(required = false) CurrencyType planningDisplayCurrency,
       @RequestParam(required = false) Long planId,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
+    planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
     planning.refreshHistoricalDerivedValues(portfolioId, year);
     return SimulationRedirects.planningYear(
         portfolioId, year, planningDisplayCurrency, planId, selectedScenario);
@@ -108,92 +112,13 @@ public class SimulationTimelineController {
   public String planningYearDetail(
       @RequestParam Long portfolioId,
       @PathVariable int year,
-      @RequestParam(defaultValue = "PLN") CurrencyType planningDisplayCurrency,
+      @RequestParam(required = false) CurrencyType planningDisplayCurrency,
       @RequestParam(required = false) Long planId,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario,
       Model model) {
-    var profile = profiles.loadProfile(portfolioId);
-    model.addAttribute("profile", profile);
-    model.addAttribute("planningDisplayCurrency", planningDisplayCurrency);
-    model.addAttribute("planningPresentation", planning);
-    model.addAttribute("selectedPlanId", planId);
-    model.addAttribute("selectedScenario", selectedScenario);
-    YearReviewMode reviewMode = planning.reviewMode(portfolioId, year);
-    if (reviewMode == YearReviewMode.LIVE) {
-      var projection = projections.load(portfolioId, planId);
-      PlanningTimeline timeline =
-          planning.loadForwardTimeline(
-              portfolioId,
-              profile,
-              projection.forward(),
-              selectedScenario,
-              SimulationCustomDeltas.zero());
-      PlanningTimelineYear liveRow =
-          timeline.years().stream()
-              .filter(row -> row.state() == PlanningTimelineState.LIVE && row.year() == year)
-              .findFirst()
-              .orElseThrow(() -> new IllegalArgumentException("Live planning year is unavailable"));
-      var money =
-          planning
-              .displayTimelineMoney(
-                  timeline, planningDisplayCurrency, projection.projectedAssumptions())
-              .get(year);
-      model.addAttribute(
-          "liveReview",
-          new LiveYearReviewView(
-              year,
-              liveRow.age(),
-              planningDisplayCurrency,
-              liveRow.current(),
-              money,
-              projection.projectedAssumptions()));
-      return "live-year-review";
-    }
-    if (reviewMode == YearReviewMode.NONE)
-      throw new org.springframework.web.server.ResponseStatusException(
-          org.springframework.http.HttpStatus.NOT_FOUND, "Projected year has no review");
-    var stored = planning.pastYear(portfolioId, year);
-    model.addAttribute("planningYear", planning.display(stored, planningDisplayCurrency));
-    model.addAttribute(
-        "baselineRevision",
-        stored.baselineRevisionId() == null || stored.baselinePlanId() == null
-            ? null
-            : plans.details(portfolioId, stored.baselinePlanId()).currentRevision());
-    HistoricalReconciliation historicalReconciliation = planning.reconcile(portfolioId, stored);
-    model.addAttribute(
-        "planningReconciliation",
-        planning.displayReconciliation(historicalReconciliation, planningDisplayCurrency));
-    model.addAttribute("yearReview", planning.yearReview(stored));
-    Set<PlanningMetric> editableMetrics = EnumSet.noneOf(PlanningMetric.class);
-    stored
-        .values()
-        .keySet()
-        .forEach(
-            metric -> {
-              if (planning.isHistoricalMetricEditable(portfolioId, year, metric))
-                editableMetrics.add(metric);
-            });
-    model.addAttribute("editableMetrics", editableMetrics);
-    model.addAttribute("planningCloseStatus", planning.historicalCloseStatus(portfolioId, year));
-    model.addAttribute(
-        "reviewMetrics",
-        java.util.List.of(
-            PlanningMetric.NET_WORTH,
-            PlanningMetric.MARKET_ASSETS,
-            PlanningMetric.RENTAL_INCOME,
-            PlanningMetric.BOND_INCOME,
-            PlanningMetric.CORE_SPENDING,
-            PlanningMetric.DISCRETIONARY_SPENDING,
-            PlanningMetric.MARKET_RETURN,
-            PlanningMetric.MARKET_WITHDRAWAL));
-    PlanningMetricValue netWorth = stored.values().get(PlanningMetric.NET_WORTH);
-    PlanningMetricValue marketAssets = stored.values().get(PlanningMetric.MARKET_ASSETS);
-    model.addAttribute(
-        "netWorthUnavailableWithMarketAssets",
-        (netWorth == null || !netWorth.available())
-            && marketAssets != null
-            && marketAssets.available());
-    return "planning-year";
+    planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
+    return pageAssembler.assemble(
+        portfolioId, year, planningDisplayCurrency, planId, selectedScenario, model);
   }
 
   @PostMapping("/simulation/timeline/baseline")
@@ -201,8 +126,9 @@ public class SimulationTimelineController {
       @RequestParam Long portfolioId,
       @RequestParam Long planId,
       @RequestParam int year,
-      @RequestParam(defaultValue = "PLN") CurrencyType planningDisplayCurrency,
+      @RequestParam(required = false) CurrencyType planningDisplayCurrency,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
+    planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
     var profile = profiles.loadProfile(portfolioId);
     var plan = plans.details(portfolioId, planId);
     planning.setCurrentBaseline(
@@ -215,8 +141,9 @@ public class SimulationTimelineController {
   public String rebaselinePlan(
       @RequestParam Long portfolioId,
       @PathVariable Long planId,
-      @RequestParam(defaultValue = "PLN") CurrencyType planningDisplayCurrency,
+      @RequestParam(required = false) CurrencyType planningDisplayCurrency,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
+    planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
     PlanningBaseline baseline =
         PlanningBaseline.fromProfile(profiles.loadProfile(portfolioId), Year.now(clock).getValue());
     planning.rebaseline(portfolioId, planId, baseline);
@@ -231,9 +158,10 @@ public class SimulationTimelineController {
       @RequestParam PlanningMetric metric,
       @RequestParam BigDecimal amount,
       @RequestParam(required = false) String note,
-      @RequestParam(defaultValue = "PLN") CurrencyType planningDisplayCurrency,
+      @RequestParam(required = false) CurrencyType planningDisplayCurrency,
       @RequestParam(required = false) Long planId,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
+    planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
     planning.saveCurrentManualValue(
         portfolioId,
         year,
@@ -251,10 +179,11 @@ public class SimulationTimelineController {
       @RequestParam PlanningMetric metric,
       @RequestParam BigDecimal amount,
       @RequestParam(required = false) String note,
-      @RequestParam(defaultValue = "PLN") CurrencyType planningDisplayCurrency,
+      @RequestParam(required = false) CurrencyType planningDisplayCurrency,
       @RequestParam(required = false) Long planId,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario,
       RedirectAttributes redirectAttributes) {
+    planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
     try {
       planning.saveDraftManualValue(
           portfolioId,
@@ -273,9 +202,10 @@ public class SimulationTimelineController {
   public String closeCurrentYear(
       @RequestParam Long portfolioId,
       @PathVariable int year,
-      @RequestParam(defaultValue = "PLN") CurrencyType planningDisplayCurrency,
+      @RequestParam(required = false) CurrencyType planningDisplayCurrency,
       @RequestParam(required = false) Long planId,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
+    planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
     planning.closeCurrentYear(portfolioId, year, profiles.loadProfile(portfolioId));
     return SimulationRedirects.simulation(
         portfolioId, planId, planningDisplayCurrency, selectedScenario);
@@ -285,10 +215,11 @@ public class SimulationTimelineController {
   public String closeHistoricalDraft(
       @RequestParam Long portfolioId,
       @PathVariable int year,
-      @RequestParam(defaultValue = "PLN") CurrencyType planningDisplayCurrency,
+      @RequestParam(required = false) CurrencyType planningDisplayCurrency,
       @RequestParam(required = false) Long planId,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario,
       RedirectAttributes redirectAttributes) {
+    planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
     try {
       planning.closeHistoricalDraft(portfolioId, year);
     } catch (IllegalArgumentException | IllegalStateException error) {
@@ -302,10 +233,11 @@ public class SimulationTimelineController {
   public String reopenPlanningYear(
       @RequestParam Long portfolioId,
       @PathVariable int year,
-      @RequestParam(defaultValue = "PLN") CurrencyType planningDisplayCurrency,
+      @RequestParam(required = false) CurrencyType planningDisplayCurrency,
       @RequestParam(required = false) Long planId,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario,
       RedirectAttributes redirectAttributes) {
+    planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
     try {
       planning.reopenHistoricalYear(portfolioId, year);
     } catch (IllegalArgumentException | IllegalStateException error) {
@@ -313,5 +245,14 @@ public class SimulationTimelineController {
     }
     return SimulationRedirects.planningYear(
         portfolioId, year, planningDisplayCurrency, planId, selectedScenario);
+  }
+
+  private CurrencyType resolveCurrency(Long portfolioId, CurrencyType requested) {
+    if (requested != null) return requested;
+    if (portfolios == null) return CurrencyType.PLN;
+    return portfolios
+        .findById(portfolioId)
+        .map(context -> context.localCurrency())
+        .orElse(CurrencyType.PLN);
   }
 }

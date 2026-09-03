@@ -11,10 +11,19 @@ import org.springframework.stereotype.Repository;
 public interface AccountRepository
     extends JpaRepository<AccountEntity, Long>, AccountRepositoryCustom {
 
+  List<AccountEntity> findAllByPortfolioId(Long portfolioId);
+
+  @Query(
+      "SELECT DISTINCT account.portfolioId FROM AccountEntity account WHERE account.portfolioId IS NOT NULL")
+  List<Long> findDistinctPortfolioIds();
+
   List<AccountEntity> findAllByProviderIgnoreCase(String provider);
 
   java.util.Optional<AccountEntity> findByProviderIgnoreCaseAndExternalAccountId(
       String provider, String externalAccountId);
+
+  java.util.Optional<AccountEntity> findByPortfolioIdAndProviderIgnoreCaseAndExternalAccountId(
+      Long portfolioId, String provider, String externalAccountId);
 
   @Query(
       value =

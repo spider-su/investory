@@ -7,7 +7,7 @@ import java.util.List;
 /**
  * Current brokerage aggregation for application consumers.
  *
- * <p>{@link BrokeragePortfolioReader#currentSharedSnapshot()} returns the complete shared market
+ * <p>{@link BrokeragePortfolioReader#currentSnapshot(Long)} returns the portfolio-scoped market
  * dataset. {@link BrokeragePortfolioReader#currentSnapshot(Long)} returns the same economic shape
  * scoped to one portfolio.
  */

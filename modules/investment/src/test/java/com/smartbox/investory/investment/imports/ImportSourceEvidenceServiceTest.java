@@ -88,6 +88,20 @@ class ImportSourceEvidenceServiceTest {
     assertEquals(42, saved.getSourceRowNumber());
     assertEquals("TX-1", saved.getSourceRecordId());
     assertEquals("{\"Amount\":\"0.1\",\"Currency\":\"USD\"}", saved.getRawValues());
+    assertEquals(64, saved.getLogicalRowSha256().length());
+
+    ImportSourceRowEntity same = new ImportSourceRowEntity();
+    service.open(batch, file, "other-member-name.xlsx");
+    when(rowRepository.save(any(ImportSourceRowEntity.class)))
+        .thenAnswer(
+            invocation -> {
+              ImportSourceRowEntity row = invocation.getArgument(0);
+              same.setLogicalRowSha256(row.getLogicalRowSha256());
+              return row;
+            });
+    service.recordRow(
+        "Cash Operations", "Cash Operations", 999, "TX-1", 1, "original,0.1,USD", values);
+    assertEquals(saved.getLogicalRowSha256(), same.getLogicalRowSha256());
   }
 
   private ImportHistoryEntity batch() {

@@ -12,6 +12,7 @@ import com.smartbox.investory.longterm.infrastructure.tax.RentalTaxPolicyEntity;
 import com.smartbox.investory.longterm.infrastructure.tax.RentalTaxPolicyRepository;
 import com.smartbox.investory.longterm.infrastructure.valuation.LongTermAssetValuationPeriodEntity;
 import com.smartbox.investory.longterm.infrastructure.valuation.LongTermAssetValuationPeriodRepository;
+import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
@@ -24,8 +25,6 @@ import org.springframework.stereotype.Component;
 /** Loads the related rows needed by both summary and projection reads in one batched shape. */
 @Component
 public class LongTermAssetRelatedDataLoader {
-  public static final BigDecimal DEFAULT_RENTAL_TAX_RATE = new BigDecimal("0.085");
-
   private final LongTermAssetValuationPeriodRepository valuations;
   private final LongTermAssetBondRatePeriodRepository bondRates;
   private final LongTermAssetBondDetailsRepository bonds;
@@ -58,7 +57,7 @@ public class LongTermAssetRelatedDataLoader {
                         policy.getValidFrom(), policy.getValidTo(), date))
             .findFirst()
             .map(RentalTaxPolicyEntity::getRate)
-            .orElse(DEFAULT_RENTAL_TAX_RATE);
+            .orElse(FinancialPolicyDefaults.RENTAL_TAX_RATE);
     return new Data(
         group(
             rentalContracts.findAllWithTermsByAssetIdIn(assetIds),
@@ -91,7 +90,13 @@ public class LongTermAssetRelatedDataLoader {
       Map<Long, LongTermAssetDepositDetailsEntity> deposits,
       BigDecimal rentalTaxRate) {
     static Data empty() {
-      return new Data(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), DEFAULT_RENTAL_TAX_RATE);
+      return new Data(
+          Map.of(),
+          Map.of(),
+          Map.of(),
+          Map.of(),
+          Map.of(),
+          FinancialPolicyDefaults.RENTAL_TAX_RATE);
     }
   }
 }

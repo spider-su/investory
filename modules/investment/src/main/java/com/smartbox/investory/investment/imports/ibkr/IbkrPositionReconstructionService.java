@@ -171,7 +171,7 @@ public class IbkrPositionReconstructionService {
       return;
     }
     List<ClosedSlice> slices = closeReconstructedPosition(position, requestedQuantity);
-    addPositionEntitys(closedPositions, dedup, position, tx, slices);
+    addPositionEntities(closedPositions, dedup, position, tx, slices);
   }
 
   private List<PositionEntity> buildOpenPositions(
@@ -274,7 +274,7 @@ public class IbkrPositionReconstructionService {
     return merged;
   }
 
-  private void addPositionEntitys(
+  private void addPositionEntities(
       List<PositionEntity> closedPositions,
       Map<String, Integer> dedup,
       ReconstructedPosition position,

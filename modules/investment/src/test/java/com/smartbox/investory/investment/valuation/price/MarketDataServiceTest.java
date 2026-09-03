@@ -79,8 +79,23 @@ class MarketDataServiceTest {
             });
 
     org.mockito.Mockito.lenient().when(assetRepository.findAll()).thenReturn(List.of());
+    org.mockito.Mockito.lenient()
+        .when(assetRepository.findAllByActiveTrueAndExcludeFromImportFalse())
+        .thenAnswer(invocation -> assetRepository.findAll());
+    org.mockito.Mockito.lenient()
+        .when(assetRepository.findAllByActiveFalseAndSymbolIsNotNull())
+        .thenAnswer(invocation -> assetRepository.findAll());
     org.mockito.Mockito.lenient().when(positionRepository.findOpen()).thenReturn(List.of());
     org.mockito.Mockito.lenient().when(positionRepository.findClosed()).thenReturn(List.of());
+    // updateStocks resolves the portfolio's open positions through the scoped
+    // repository methods. Keep the common fixture aligned with that contract;
+    // the individual tests still control the source data via findAll/findOpen.
+    org.mockito.Mockito.lenient()
+        .when(accountRepository.findAllByPortfolioId(any()))
+        .thenAnswer(invocation -> accountRepository.findAll());
+    org.mockito.Mockito.lenient()
+        .when(positionRepository.findOpenByAccountIn(any()))
+        .thenAnswer(invocation -> positionRepository.findOpen());
   }
 
   @DisplayName("split Into Chunks divides Map Evenly")
@@ -219,7 +234,7 @@ class MarketDataServiceTest {
     // Single-chunk fetch must contain only the supported ticker.
     when(marketDataProvider.fetchQuotes(List.of("AAPL"))).thenReturn(Map.of("AAPL", quote));
 
-    marketDataService.updateStocks();
+    marketDataService.updateStocks(1L);
 
     verify(marketDataProvider, times(1)).fetchQuotes(List.of("AAPL"));
     verify(assetRepository, times(1)).saveAll(org.mockito.ArgumentMatchers.any());
@@ -238,6 +253,40 @@ class MarketDataServiceTest {
     verify(statisticsRefreshService).refreshAll();
   }
 
+  @DisplayName("update Stocks scales Direct Bond Quote From Percent Of Par")
+  @Test
+  void updateStocks_scalesDirectBondQuoteFromPercentOfPar() {
+    AssetEntity bond = newAsset("US91282CKB62", "US91282CKB62", true);
+    bond.setAssetType("BOND");
+    when(assetRepository.findAll()).thenReturn(List.of(bond));
+    when(positionRepository.findOpen()).thenReturn(List.of(openPosition("US91282CKB62")));
+
+    MarketQuote quote = new MarketQuote();
+    quote.setSymbol("US91282CKB62");
+    quote.setClose(100.91284);
+    quote.setCurrency("USD");
+    quote.setDatetime("2026-09-02");
+    when(marketDataProvider.fetchQuotes(List.of("US91282CKB62")))
+        .thenReturn(Map.of("US91282CKB62", quote));
+
+    marketDataService.updateStocks(1L);
+
+    assertEquals(0, bond.getMarketPrice().compareTo(new BigDecimal("1.0091284")));
+    assertEquals(0, bond.getMarketPriceUsd().compareTo(new BigDecimal("1.0091284")));
+    verify(assetPriceHistoryRepository)
+        .upsertObservedPrice(
+            bond.getId(),
+            java.time.LocalDate.of(2026, 9, 2),
+            "TWELVE_DATA",
+            "US91282CKB62",
+            "US91282CKB62",
+            "TWELVE_DATA_MARKET_CLOSE",
+            "USD",
+            BigDecimal.valueOf(100.91284),
+            100,
+            "EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR");
+  }
+
   @DisplayName("update Stocks skips Quotes Updated Within Four Hours")
   @Test
   void updateStocks_skipsQuotesUpdatedWithinFourHours() {
@@ -247,7 +296,7 @@ class MarketDataServiceTest {
     when(assetRepository.findAll()).thenReturn(List.of(recent));
     when(positionRepository.findOpen()).thenReturn(List.of(openPosition("AAPL.US")));
 
-    marketDataService.updateStocks();
+    marketDataService.updateStocks(1L);
 
     verify(marketDataProvider, never()).fetchQuotes(any());
     verify(assetRepository, never()).saveAll(org.mockito.ArgumentMatchers.any());
@@ -266,7 +315,7 @@ class MarketDataServiceTest {
             Optional.of(
                 new LatestQuote("VWRA.L", "USD", java.time.LocalDate.of(2026, 8, 12), 194.80)));
 
-    marketDataService.updateStocks();
+    marketDataService.updateStocks(1L);
 
     verify(marketDataProvider, never()).fetchQuotes(any());
     verify(marketDataProvider).fetchLatestQuote("VWRA.L");
@@ -307,7 +356,7 @@ class MarketDataServiceTest {
             java.time.LocalDate.of(2026, 8, 24)))
         .thenReturn(BigDecimal.valueOf(40.0));
 
-    marketDataService(false, "").updateStocks();
+    marketDataService(false, "").updateStocks(1L);
 
     assertEquals(160.0, supported.getMarketPrice().doubleValue(), 0.00000001);
     assertEquals(40.0, supported.getMarketPriceUsd().doubleValue(), 0.00000001);
@@ -332,7 +381,7 @@ class MarketDataServiceTest {
             java.time.LocalDate.of(2026, 8, 24)))
         .thenReturn(BigDecimal.valueOf(40.0));
 
-    marketDataService.updateStocks();
+    marketDataService.updateStocks(1L);
 
     assertEquals(160.0, inactive.getMarketPrice().doubleValue(), 0.00000001);
     assertEquals(40.0, inactive.getMarketPriceUsd().doubleValue(), 0.00000001);
@@ -347,7 +396,7 @@ class MarketDataServiceTest {
     when(marketDataProvider.fetchLatestQuote("VWRA.L"))
         .thenThrow(new IllegalStateException("network unavailable"));
 
-    assertThrows(IllegalStateException.class, marketDataService::updateStocks);
+    assertThrows(IllegalStateException.class, () -> marketDataService.updateStocks(1L));
 
     verify(statisticsRefreshService).refreshAll();
   }
@@ -361,7 +410,7 @@ class MarketDataServiceTest {
     when(positionRepository.findOpen()).thenReturn(List.of(openPosition("ETFBW20TR.PL")));
     when(marketDataProvider.fetchLatestQuote("ETFBW20TR.WA")).thenReturn(Optional.empty());
 
-    marketDataService.updateStocks();
+    marketDataService.updateStocks(1L);
 
     verify(marketDataProvider).fetchLatestQuote("ETFBW20TR.WA");
   }
@@ -380,7 +429,7 @@ class MarketDataServiceTest {
     quote.setCurrency("USD");
     when(marketDataProvider.fetchQuotes(List.of("AAPL"))).thenReturn(Map.of("AAPL", quote));
 
-    marketDataService.updateStocks();
+    marketDataService.updateStocks(1L);
 
     verify(marketDataProvider).fetchQuotes(List.of("AAPL"));
   }
@@ -396,7 +445,7 @@ class MarketDataServiceTest {
             Optional.of(
                 new LatestQuote("REMX.L", "USD", java.time.LocalDate.of(2026, 8, 24), 12.93)));
 
-    marketDataService.updateStocks();
+    marketDataService.updateStocks(1L);
 
     verify(marketDataProvider, never()).fetchQuotes(any());
     verify(marketDataProvider).fetchLatestQuote("REMX.L");
@@ -435,7 +484,7 @@ class MarketDataServiceTest {
                 openPosition("SGLD.UK"),
                 openPosition("VHYD.UK")));
 
-    marketDataService.updateStocks();
+    marketDataService.updateStocks(1L);
 
     verify(marketDataProvider, never()).fetchQuotes(any());
     verify(statisticsRefreshService).refreshAll();
@@ -469,7 +518,7 @@ class MarketDataServiceTest {
                 "SGLD:LSE", quote,
                 "VHYDl:CBOE", quote));
 
-    marketDataService.updateStocks();
+    marketDataService.updateStocks(1L);
 
     verify(marketDataProvider)
         .fetchQuotes(List.of("JGPI:XETR", "CDR:GPW", "SGLD:LSE", "VHYDl:CBOE"));
@@ -483,7 +532,7 @@ class MarketDataServiceTest {
     when(assetRepository.findAll()).thenReturn(List.of(aapl));
     when(positionRepository.findOpen()).thenReturn(List.of(openPosition("AAPL.US")));
 
-    marketDataService.updateStocks();
+    marketDataService.updateStocks(1L);
 
     verify(marketDataProvider, never()).fetchQuotes(any());
     verify(statisticsRefreshService).refreshAll();
@@ -498,7 +547,7 @@ class MarketDataServiceTest {
     when(assetRepository.findAll()).thenReturn(List.of(excluded));
     when(positionRepository.findOpen()).thenReturn(List.of(openPosition("AIGI.UK")));
 
-    marketDataService.updateStocks();
+    marketDataService.updateStocks(1L);
 
     verify(marketDataProvider, never()).fetchQuotes(any());
     verify(statisticsRefreshService).refreshAll();
@@ -514,7 +563,7 @@ class MarketDataServiceTest {
         .thenReturn(List.of(openPosition("A.US"), openPosition("B.US")));
     when(marketDataProvider.fetchQuotes(any())).thenThrow(new RuntimeException("rate limit"));
 
-    assertThrows(IllegalStateException.class, marketDataService::updateStocks);
+    assertThrows(IllegalStateException.class, () -> marketDataService.updateStocks(1L));
 
     // 1 failed chunk request + 2 per-symbol fallback retries.
     verify(marketDataProvider, times(3)).fetchQuotes(any());
@@ -541,7 +590,7 @@ class MarketDataServiceTest {
     when(marketDataProvider.fetchQuotes(List.of("B")))
         .thenThrow(new RuntimeException("single failed"));
 
-    assertThrows(IllegalStateException.class, marketDataService::updateStocks);
+    assertThrows(IllegalStateException.class, () -> marketDataService.updateStocks(1L));
 
     verify(assetRepository, times(1)).saveAll(org.mockito.ArgumentMatchers.any());
   }
@@ -561,7 +610,7 @@ class MarketDataServiceTest {
     when(marketDataProvider.fetchQuotes(List.of("AAPL"))).thenReturn(Map.of("AAPL", quote));
     when(marketDataProvider.fetchLatestQuote("AAPL")).thenReturn(Optional.empty());
 
-    marketDataService.updateStocks();
+    marketDataService.updateStocks(1L);
 
     assertEquals(100.0, aapl.getMarketPrice().doubleValue());
     verify(marketDataProvider).fetchLatestQuote("AAPL");
@@ -614,7 +663,7 @@ class MarketDataServiceTest {
         new Thread(
             () -> {
               try {
-                marketDataService.updateStocks();
+                marketDataService.updateStocks(1L);
               } catch (Throwable throwable) {
                 failure.set(throwable);
                 interrupted.set(Thread.currentThread().isInterrupted());
@@ -638,24 +687,20 @@ class MarketDataServiceTest {
     when(assetRepository.findAll()).thenReturn(List.of(only));
     when(positionRepository.findOpen()).thenReturn(List.of(openPosition("CSPX.UK")));
 
-    marketDataService.updateStocks();
+    marketDataService.updateStocks(1L);
 
     verify(marketDataProvider, never()).fetchQuotes(any());
     verify(statisticsRefreshService).refreshAll();
   }
 
-  @DisplayName("full Portfolio Update refreshes Statistics After Sync")
+  @DisplayName("full Portfolio Update refreshes Current Market Views After Sync")
   @Test
   void fullPortfolioUpdate_refreshesStatisticsAfterSync() {
     when(assetRepository.findAll()).thenReturn(List.of());
     when(positionRepository.findOpen()).thenReturn(List.of());
-    when(accountRepository.findAllByProviderIgnoreCase("IBKR"))
-        .thenReturn(List.of(account(17959259L, "IBKR")));
-    when(positionRepository.findOpenByAccountIn(List.of(17959259L))).thenReturn(List.of());
+    marketDataService.fullPortfolioUpdate(1L);
 
-    marketDataService.fullPortfolioUpdate();
-
-    verify(statisticsRefreshService, times(1)).refreshAll();
+    verify(statisticsRefreshService, times(1)).refreshCurrentMarketPrices();
   }
 
   private static AssetEntity newAsset(String symbol, String ticker, boolean active) {

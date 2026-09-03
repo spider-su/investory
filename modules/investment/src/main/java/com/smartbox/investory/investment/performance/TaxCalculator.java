@@ -35,6 +35,8 @@ public class TaxCalculator {
   /** Tax result in {@code baseCurrency}, rounded to 2 decimal places. */
   public record TaxSummary(BigDecimal capitalGainsTax, BigDecimal lossCarryForward) {}
 
+  public record TaxYearResult(int year, BigDecimal realizedResult) {}
+
   public TaxSummary calculate(List<PositionEntity> closedPositions, CurrencyType baseCurrency) {
     return calculate(closedPositions, baseCurrency, Year.now().getValue());
   }
@@ -52,7 +54,18 @@ public class TaxCalculator {
           netProfitInBase(position, baseCurrency),
           BigDecimal::add);
     }
+    return calculate(realizedByYear, currentYear);
+  }
 
+  /** Applies the same carry-forward algorithm to the compact database read model. */
+  public TaxSummary calculateFromYearResults(List<TaxYearResult> yearResults, int currentYear) {
+    Map<Integer, BigDecimal> realizedByYear = new TreeMap<>();
+    yearResults.forEach(
+        row -> realizedByYear.merge(row.year(), nz(row.realizedResult()), BigDecimal::add));
+    return calculate(realizedByYear, currentYear);
+  }
+
+  private TaxSummary calculate(Map<Integer, BigDecimal> realizedByYear, int currentYear) {
     // Walk years chronologically: loss years feed a pool; gain years consume losses from the
     // previous 5 years (oldest first). Only the current year's resulting tax is reported.
     Map<Integer, BigDecimal> lossPool = new TreeMap<>();

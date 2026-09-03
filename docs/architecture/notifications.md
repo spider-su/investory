@@ -12,11 +12,13 @@ domain/application state change
   -> candidate with deterministic fingerprint
   -> INSERT notification_event ... ON CONFLICT DO NOTHING
   -> PENDING
+  -> PROCESSING (short database lease, unique worker token)
   -> formatter selected by event type
   -> delivery adapter confirms send
   -> DELIVERED
 
 delivery failure -> RETRYABLE -> bounded delayed retry -> EXHAUSTED
+worker crash -> expired PROCESSING lease -> claimable retry
 ```
 
 Import failure/partial candidates are inserted in the same `REQUIRES_NEW` transaction that finalizes
@@ -30,6 +32,15 @@ Delivery is at-least-once. An event is marked `DELIVERED` only after every confi
 successfully. A process failure after Telegram accepted a message but before the database commit can
 produce a duplicate delivery; Telegram has no transactional acknowledgement protocol with the local
 database. The stable fingerprint prevents duplicate event rows, not this narrow delivery ambiguity.
+Configured channels are currently one delivery unit: if channel A succeeds and channel B fails, the
+event is retried and A may receive the message again. Per-channel delivery state is intentionally
+deferred until a second real channel requires it.
+
+## POC scope and deferred work
+
+The current POC is effectively single-channel (Telegram). The event-level at-least-once contract is
+intentional. Email delivery, notification UI, recovery notifications, richer user preferences, and
+per-channel delivery tracking are deferred until a real second-channel requirement exists.
 
 ## Identity and state
 
@@ -40,11 +51,15 @@ The unique `fingerprint` is producer-owned and must identify one economic event 
 | System audit error | `SYSTEM_AUDIT_ERROR:{auditRunId}` |
 | Failed/partial import | `IMPORT_FAILED_OR_PARTIAL:{importHistoryId}:{finalStatus}` |
 | Plan became unsustainable | `PLAN_BECAME_UNSUSTAINABLE:{planId}:{revisionId}` |
+| Daily digest | `DAILY_DIGEST:{Europe/Warsaw local date}` |
+| Threshold alert | `ALERT:{ruleCode}:{SHA-256 of normalized message}` |
 
-`PENDING` has not been attempted. `RETRYABLE` failed below the configured attempt limit and has a
-future `next_attempt_at`. `EXHAUSTED` reached the attempt limit and requires operator replay or a
-future administration workflow. `DELIVERED` has a confirmation time. Attempts and concise errors are
-retained; stack traces, secrets, raw import rows, and imported payloads are not event payload fields.
+`PENDING` has not been attempted. `PROCESSING` is held by one worker token until its short lease
+expires. `RETRYABLE` failed below the configured attempt limit and has a future `next_attempt_at`.
+An expired processing lease is claimable, so a crashed worker cannot strand an event. `EXHAUSTED`
+reached the attempt limit and requires operator replay. `DELIVERED` has a confirmation time. Attempts
+and concise errors are retained; stack traces, secrets, raw import rows, and imported payloads are not
+event payload fields.
 
 The retirement event is created only by an explicit review/rebaseline and only for a canonical Base
 transition from sustainable to unsustainable. Opening Analysis or recalculating frozen inputs does
@@ -72,5 +87,8 @@ transition and should model cooldown/recovery explicitly rather than emitting ev
 | `app.notifications.dispatch.retry-delay-minutes` | Linear retry-delay unit | `15` |
 | `app.telegram.enabled` | Creates the Telegram adapter and bot | `false` |
 
-Existing scheduled digest/P1 alert rules remain on their legacy path in this batch. Moving them to
-state-transition fingerprints, adding recovery events, and changing digest cadence are deferred.
+Scheduled digest and threshold rules publish candidates into the same outbox. Digest fingerprints
+identify the intended local calendar day. Threshold alert output is deterministically ordered and its
+fingerprint includes a SHA-256 of the normalized message, so an unchanged condition is suppressed by
+the unique outbox fingerprint while a changed condition creates a new event. All delivery is performed
+by the dispatcher.

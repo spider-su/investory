@@ -37,12 +37,12 @@ class ImportHistoryAuditWriterTest {
     completed.setAttemptNo(1);
     completed.setStatus(ImportBatchStatus.COMPLETED);
 
-    when(importRepository.findFirstByBrokerAndFileSha256AndStatusOrderByAttemptNoDesc(
-            BrokerType.IBKR, "abc", ImportBatchStatus.COMPLETED))
+    when(importRepository.findFirstByPortfolioIdAndBrokerAndFileSha256AndStatusOrderByAttemptNoDesc(
+            1L, BrokerType.IBKR, "abc", ImportBatchStatus.COMPLETED))
         .thenReturn(Optional.of(completed));
 
     Optional<ImportHistoryEntity> result =
-        auditWriter.findExistingAppliedBatch(BrokerType.IBKR, "abc");
+        auditWriter.findExistingAppliedBatch(1L, BrokerType.IBKR, "abc");
 
     assertEquals(Optional.of(completed), result);
   }
@@ -59,7 +59,8 @@ class ImportHistoryAuditWriterTest {
             });
 
     ImportHistoryEntity batch =
-        auditWriter.startBatch(BrokerType.IBKR, ImportSourceType.MANUAL, "ref", "ibkr.csv", "abc");
+        auditWriter.startBatch(
+            1L, BrokerType.IBKR, ImportSourceType.MANUAL, "ref", "ibkr.csv", "abc");
 
     assertEquals(101L, batch.getId());
     assertEquals(BrokerType.IBKR, batch.getBroker());
@@ -85,15 +86,15 @@ class ImportHistoryAuditWriterTest {
     failed.setErrorMessage("old error");
     failed.setFinishedAt(java.time.ZonedDateTime.now());
 
-    when(importRepository.findFirstByBrokerAndFileSha256OrderByAttemptNoDesc(
-            BrokerType.IBKR, "abc"))
+    when(importRepository.findFirstByPortfolioIdAndBrokerAndFileSha256OrderByAttemptNoDesc(
+            1L, BrokerType.IBKR, "abc"))
         .thenReturn(Optional.of(failed));
     when(importRepository.save(any(ImportHistoryEntity.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
 
     ImportHistoryEntity batch =
         auditWriter.startBatch(
-            BrokerType.IBKR, ImportSourceType.MANUAL, "ref2", "retry.csv", "abc");
+            1L, BrokerType.IBKR, ImportSourceType.MANUAL, "ref2", "retry.csv", "abc");
 
     assertEquals(55L, batch.getReprocessOf());
     assertEquals(ImportBatchStatus.STARTED, batch.getStatus());

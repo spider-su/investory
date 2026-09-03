@@ -9,7 +9,6 @@ import static org.mockito.Mockito.when;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.ExpenseProfile;
-import com.smartbox.investory.retirement.api.model.ProjectedIncomePolicy;
 import com.smartbox.investory.retirement.api.model.SimulationAssumptions;
 import com.smartbox.investory.retirement.api.model.SimulationChartData;
 import com.smartbox.investory.retirement.api.model.SimulationFunding;
@@ -416,8 +415,7 @@ class PlanningCurrencyPresentationServiceTest {
         new BigDecimal("120000"),
         BigDecimal.ZERO,
         SimulationAssumptions.DEFAULT_FUNDING_ORDER,
-        ExpenseProfile.EMPTY,
-        ProjectedIncomePolicy.SOURCE);
+        ExpenseProfile.EMPTY);
   }
 
   @DisplayName("current Year Review Exposes Source Baseline And Missing Planning Inputs")

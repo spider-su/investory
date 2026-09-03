@@ -7,10 +7,10 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
@@ -21,6 +21,7 @@ public class NotificationEventDispatcher {
   private final Clock clock;
   private final int maxAttempts;
   private final Duration retryDelay;
+  private final Duration processingLease;
 
   public NotificationEventDispatcher(
       NotificationEventRepository events,
@@ -28,57 +29,49 @@ public class NotificationEventDispatcher {
       List<NotificationDeliveryChannel> channels,
       Clock clock,
       @Value("${app.notifications.dispatch.max-attempts:5}") int maxAttempts,
-      @Value("${app.notifications.dispatch.retry-delay-minutes:15}") long retryDelayMinutes) {
+      @Value("${app.notifications.dispatch.retry-delay-minutes:15}") long retryDelayMinutes,
+      @Value("${app.notifications.dispatch.processing-lease-minutes:5}") long leaseMinutes) {
     this.events = events;
     this.formatters = formatters;
     this.channels = List.copyOf(channels);
     this.clock = clock;
     this.maxAttempts = Math.max(1, maxAttempts);
     this.retryDelay = Duration.ofMinutes(Math.max(1, retryDelayMinutes));
+    this.processingLease = Duration.ofMinutes(Math.max(1, leaseMinutes));
   }
 
-  @Transactional
   public int dispatchPending() {
     if (channels.isEmpty()) {
       log.debug("No notification delivery adapter enabled; pending events retained");
       return 0;
     }
     Instant now = clock.instant();
-    List<NotificationEventEntity> pending =
-        events
-            .findTop50ByDeliveryStateInAndAttemptCountLessThanAndNextAttemptAtLessThanEqualOrderByCreatedAtAsc(
-                List.of(NotificationDeliveryState.PENDING, NotificationDeliveryState.RETRYABLE),
-                maxAttempts,
-                now);
+    List<Long> dueIds = events.findDueIds(maxAttempts, now);
     int delivered = 0;
-    for (NotificationEventEntity event : pending) {
+    for (Long id : dueIds) {
+      String token = UUID.randomUUID().toString();
+      if (events.claim(id, token, now, now.plus(processingLease), maxAttempts) != 1) continue;
+      NotificationEventEntity event = events.findById(id).orElse(null);
+      if (event == null) continue;
       try {
         String message = formatters.format(event);
         for (NotificationDeliveryChannel channel : channels) channel.send(message);
-        event.setAttemptCount(event.getAttemptCount() + 1);
-        event.setLastAttemptAt(now);
-        event.setDeliveryState(NotificationDeliveryState.DELIVERED);
-        event.setDeliveredAt(now);
-        event.setLastError(null);
-        delivered++;
+        if (events.markDelivered(id, token, now) == 1) delivered++;
       } catch (Exception exception) {
-        int attempts = event.getAttemptCount() + 1;
-        event.setAttemptCount(attempts);
-        event.setLastAttemptAt(now);
-        event.setLastError(safeError(exception));
-        event.setDeliveryState(
+        int attempts = event.getAttemptCount();
+        String error = safeError(exception);
+        NotificationDeliveryState state =
             attempts >= maxAttempts
                 ? NotificationDeliveryState.EXHAUSTED
-                : NotificationDeliveryState.RETRYABLE);
-        event.setNextAttemptAt(now.plus(retryDelay.multipliedBy(attempts)));
-        log.warn(
-            "Notification delivery failed eventId={} attempt={}: {}",
-            event.getId(),
-            attempts,
-            event.getLastError());
+                : NotificationDeliveryState.RETRYABLE;
+        events.markFailed(
+            id, token, state.name(), now.plus(retryDelay.multipliedBy(attempts)), error);
+        log.warn("Notification delivery failed eventId={} attempt={}: {}", id, attempts, error);
+        if (state == NotificationDeliveryState.EXHAUSTED) {
+          log.error("Notification event exhausted eventId={} attempts={}", id, attempts);
+        }
       }
     }
-    events.saveAll(pending);
     return delivered;
   }
 

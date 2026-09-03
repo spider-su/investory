@@ -5,8 +5,10 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
+import org.springframework.stereotype.Service;
 
 /** Compares each closed year with its own frozen year-end baseline. */
+@Service
 public class PlanningProgressService {
   public PlanProgressPoint compare(PastPlanningYear year) {
     BigDecimal actual = value(year.values(), PlanningMetric.NET_WORTH);

@@ -5,7 +5,6 @@ import com.smartbox.investory.retirement.api.model.ExpenseProfile;
 import com.smartbox.investory.retirement.api.model.ExpenseProfileStep;
 import com.smartbox.investory.retirement.api.model.PlanEditorInput;
 import com.smartbox.investory.retirement.api.model.PlanInputWarning;
-import com.smartbox.investory.retirement.api.model.ProjectedIncomePolicy;
 import com.smartbox.investory.retirement.api.model.SimulationAssumptions;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -111,25 +110,8 @@ public final class PlanEditorInputNormalizer {
             .expenseProfile(
                 expenseProfile(input.expenseProfile(), base.expenseProfile(), ageAtStart, endAge))
             .build();
-    ProjectedIncomePolicy incomePolicy =
-        new ProjectedIncomePolicy(
-            input.rentalIncomeMode() == null
-                ? base.projectedIncomePolicy().rentalIncomeMode()
-                : input.rentalIncomeMode(),
-            money(
-                input.manualRentalIncome(),
-                displayCurrency,
-                base.projectedIncomePolicy().manualRentalIncome()),
-            input.bondCashIncomeMode() == null
-                ? base.projectedIncomePolicy().bondCashIncomeMode()
-                : input.bondCashIncomeMode(),
-            money(
-                input.manualBondCashIncome(),
-                displayCurrency,
-                base.projectedIncomePolicy().manualBondCashIncome()));
-    validateManualIncome(incomePolicy);
     return new Normalized(
-        assumptions.toBuilder().projectedIncomePolicy(incomePolicy).build(),
+        assumptions,
         warnings(
             inflation,
             investmentReturn,
@@ -139,17 +121,6 @@ public final class PlanEditorInputNormalizer {
             ageAtStart,
             ageAtStart + currentYear - startYear,
             retirementAge));
-  }
-
-  private static void validateManualIncome(ProjectedIncomePolicy policy) {
-    if (policy.rentalIncomeMode() == ProjectedIncomePolicy.IncomeMode.MANUAL
-        && policy.manualRentalIncome() == null) {
-      throw new IllegalArgumentException("Manual rental cash income is required");
-    }
-    if (policy.bondCashIncomeMode() == ProjectedIncomePolicy.IncomeMode.MANUAL
-        && policy.manualBondCashIncome() == null) {
-      throw new IllegalArgumentException("Manual bond cash income is required");
-    }
   }
 
   private List<PlanInputWarning> warnings(

@@ -4,5 +4,5 @@ import com.smartbox.investory.investment.api.reporting.model.ReconciliationRepor
 
 /** UI-facing reconciliation report boundary. */
 public interface InvestmentReconciliationApi {
-  ReconciliationReport loadReconciliationReport();
+  ReconciliationReport loadReconciliationReport(Long portfolioId);
 }

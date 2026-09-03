@@ -2,6 +2,7 @@ package com.smartbox.investory.investment.valuation.price;
 
 import static com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull;
 
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
 import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
@@ -9,6 +10,7 @@ import com.smartbox.investory.investment.ledger.position.persistence.PositionRep
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
@@ -19,7 +21,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,20 +28,59 @@ import org.springframework.util.StringUtils;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AssetPriceFallbackService {
 
-  private static final CurrencyType BASE_CURRENCY = CurrencyType.USD;
+  private static final CurrencyType BASE_CURRENCY = FinancialPolicyDefaults.CANONICAL_CURRENCY;
 
   private final PositionRepository openedPositionRepository;
+  private final AccountRepository accountRepository;
   private final AssetRepository assetRepository;
   private final AssetPriceHistoryRepository assetPriceHistoryRepository;
   private final CurrencyRateService currencyRateService;
 
+  @org.springframework.beans.factory.annotation.Autowired
+  public AssetPriceFallbackService(
+      PositionRepository openedPositionRepository,
+      AccountRepository accountRepository,
+      AssetRepository assetRepository,
+      AssetPriceHistoryRepository assetPriceHistoryRepository,
+      CurrencyRateService currencyRateService) {
+    this.openedPositionRepository = openedPositionRepository;
+    this.accountRepository = accountRepository;
+    this.assetRepository = assetRepository;
+    this.assetPriceHistoryRepository = assetPriceHistoryRepository;
+    this.currencyRateService = currencyRateService;
+  }
+
+  public AssetPriceFallbackService(
+      PositionRepository openedPositionRepository,
+      AssetRepository assetRepository,
+      AssetPriceHistoryRepository assetPriceHistoryRepository,
+      CurrencyRateService currencyRateService) {
+    this(
+        openedPositionRepository,
+        null,
+        assetRepository,
+        assetPriceHistoryRepository,
+        currencyRateService);
+  }
+
   @Transactional
   public void populateMissingPricesFromOpenPositions() {
+    populateMissingPricesFromOpenPositions(null);
+  }
+
+  @Transactional
+  public void populateMissingPricesFromOpenPositions(Long portfolioId) {
+    var positions =
+        portfolioId == null
+            ? openedPositionRepository.findOpen()
+            : openedPositionRepository.findOpenByAccountIn(
+                accountRepository.findAllByPortfolioId(portfolioId).stream()
+                    .map(account -> account.getId())
+                    .toList());
     Map<String, WeightedPrice> weightedPrices =
-        openedPositionRepository.findOpen().stream()
+        positions.stream()
             .filter(position -> StringUtils.hasText(position.getSymbol()))
             .filter(position -> zeroIfNull(position.getVolume()).signum() > 0)
             .filter(position -> position.getOpenPrice() != null)

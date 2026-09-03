@@ -65,31 +65,6 @@ class SimulationScenarioComparisonTest {
     assertEquals("N/A", comparison.scenarios().getFirst().minimumReserveCoverageDisplay());
   }
 
-  @DisplayName("zero Delta Custom Is Hidden Unless Custom Is Selected")
-  @Test
-  void zeroDeltaCustomIsHiddenUnlessCustomIsSelected() {
-    var summaries =
-        summaries(
-            summary(SimulationScenario.BASE, false, null, null, "2.0", "100"),
-            summary(SimulationScenario.CONSERVATIVE, false, null, null, "1.0", "90"),
-            summary(SimulationScenario.OPTIMISTIC, false, null, null, "3.0", "110"),
-            summary(SimulationScenario.CUSTOM, false, null, null, "2.0", "100"));
-
-    assertEquals(3, comparison(summaries, SimulationScenario.BASE).scenarios().size());
-    assertEquals(
-        4,
-        SimulationScenarioComparison.from(
-                summaries,
-                summaries.entrySet().stream()
-                    .collect(
-                        java.util.stream.Collectors.toMap(
-                            Map.Entry::getKey, e -> money(e.getValue()))),
-                SimulationScenario.CUSTOM,
-                true)
-            .scenarios()
-            .size());
-  }
-
   private static SimulationScenarioComparison comparison(
       Map<SimulationScenario, SimulationDecisionSummary> summaries, SimulationScenario selected) {
     Map<SimulationScenario, SimulationDecisionSummaryMoney> display =

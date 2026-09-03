@@ -4,6 +4,7 @@ import com.opencsv.CSVReader;
 import com.smartbox.investory.investment.imports.BrokerSourceRowIdentity;
 import com.smartbox.investory.investment.imports.ImportEvidenceContext;
 import com.smartbox.investory.investment.imports.ImportExecutionResult;
+import com.smartbox.investory.investment.imports.ImportPortfolioContext;
 import com.smartbox.investory.investment.imports.ImportSourceEvidenceService;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
@@ -225,7 +226,7 @@ public class IbkrImportService {
             .distinct()
             .toList();
     List<PositionEntity> openPositions = new ArrayList<>();
-    int reconstructedPositionEntitys = 0;
+    int reconstructedPositionEntities = 0;
     String openPositionsSection = findOpenPositionsSection(rows);
     if (openPositionsSection != null) {
       Long openPositionsAccount =
@@ -248,21 +249,21 @@ public class IbkrImportService {
         IbkrPositionReconstructionService.ReconstructionResult rebuild =
             ibkrPositionReconstructionService.rebuildFromCanonicalHistory(
                 accountId, snapshotForAccount);
-        reconstructedPositionEntitys += rebuild.closedPositions().size();
+        reconstructedPositionEntities += rebuild.closedPositions().size();
       }
     } else {
       for (Long accountId : affectedAccounts) {
         IbkrPositionReconstructionService.ReconstructionResult rebuild =
             ibkrPositionReconstructionService.rebuildFromCanonicalHistory(accountId, null);
         openPositions.addAll(rebuild.openedPositions());
-        reconstructedPositionEntitys += rebuild.closedPositions().size();
+        reconstructedPositionEntities += rebuild.closedPositions().size();
       }
     }
 
     String details =
         String.format(
             "IBKR: %d source cash operations, %d reconstructed closed positions, %d open positions, %d skipped",
-            cashOps.size(), reconstructedPositionEntitys, openPositions.size(), failed);
+            cashOps.size(), reconstructedPositionEntities, openPositions.size(), failed);
     log.info(details);
     // Batch audit counters are row-level import metrics, not projection/rebuild output sizes.
     int applied = Math.max(0, total - failed);
@@ -576,13 +577,17 @@ public class IbkrImportService {
   }
 
   private AccountEntity requireIbkrAccount(Long externalAccountId) {
+    var lookup =
+        ImportPortfolioContext.current() == null
+            ? accountRepository.findByProviderIgnoreCaseAndExternalAccountId(
+                "IBKR", String.valueOf(externalAccountId))
+            : accountRepository.findByPortfolioIdAndProviderIgnoreCaseAndExternalAccountId(
+                ImportPortfolioContext.current(), "IBKR", String.valueOf(externalAccountId));
     AccountEntity account =
-        accountRepository
-            .findByProviderIgnoreCaseAndExternalAccountId("IBKR", String.valueOf(externalAccountId))
-            .orElseThrow(
-                () ->
-                    new IllegalArgumentException(
-                        "IBKR account is not configured: " + externalAccountId));
+        lookup.orElseThrow(
+            () ->
+                new IllegalArgumentException(
+                    "IBKR account is not configured: " + externalAccountId));
     if (!"IBKR".equalsIgnoreCase(account.getProvider())) {
       throw new IllegalArgumentException(
           "AccountEntity "

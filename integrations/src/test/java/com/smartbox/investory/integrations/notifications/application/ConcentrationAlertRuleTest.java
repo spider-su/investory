@@ -1,5 +1,6 @@
 package com.smartbox.investory.integrations.notifications.application;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
@@ -47,6 +48,18 @@ class ConcentrationAlertRuleTest {
     assertTrue(result.isPresent());
     // AAPL is ~83% of total -> must trigger.
     assertTrue(result.get().contains("AAPL.US"));
+  }
+
+  @DisplayName("evaluate tracks each symbol as its own observation")
+  @Test
+  void evaluateTracksEachSymbolSeparately() {
+    when(investment.symbolExposures())
+        .thenReturn(
+            List.of(exposure("NVDA", 600.0), exposure("TSLA", 300.0), exposure("MSFT", 100.0)));
+
+    assertThat(rule.evaluateObservations())
+        .extracting(AlertObservation::key)
+        .containsExactly("NVDA", "TSLA");
   }
 
   @DisplayName("evaluate is Quiet For Balanced Portfolio")

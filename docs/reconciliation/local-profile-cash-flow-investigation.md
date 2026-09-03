@@ -61,11 +61,11 @@ internal-transfer-inclusive account statistic, not bond principal plus coupon.
 
 ```text
 account_daily.deposits / withdrawals
-    -> reporting_account_daily_cashflow_reconciliation
+    -> recon_v_account_daily_cashflow
 
 normalized_cash_operations
     -> ledger_daily
-    -> reporting_account_daily_cashflow_reconciliation
+    -> recon_v_account_daily_cashflow
 ```
 
 The current reconciliation compares different scopes for the component checks:
@@ -212,8 +212,8 @@ scope mismatch is resolved or explicitly classified.
 ## Scope-review correction
 
 The narrow correction is diagnostic-only. Migration
-`V01.010__cashflow_scope_reconciliation.sql` adds the materialized diagnostic
-object `reporting_account_daily_cashflow_scope` and its view alias
+The reconciliation baseline adds the materialized diagnostic
+object `recon_v_account_daily_cashflow_scope` and its view alias
 `recon_v_account_daily_cashflow_scope`. It exposes positive and negative
 internal transfer/bookkeeping movement and classifies component gaps on those
 dates as `INTERNAL_TRANSFER_SCOPE_REVIEW`.

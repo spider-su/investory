@@ -50,10 +50,6 @@ class SimulationAssumptionsPersistenceMapperTest {
     persisted.setAnnualPreRetirementContribution(null);
     persisted.setFundingOrder(null);
     persisted.setExpenseProfile(null);
-    persisted.setRentalIncomeMode(null);
-    persisted.setManualRentalIncome(null);
-    persisted.setBondCashIncomeMode(null);
-    persisted.setManualBondCashIncome(null);
 
     SimulationAssumptions restored =
         SimulationAssumptionsPersistenceMapper.read(persisted, List.of());
@@ -73,7 +69,6 @@ class SimulationAssumptionsPersistenceMapperTest {
     assertEquals(BigDecimal.ZERO, restored.annualPreRetirementContribution());
     assertEquals(SimulationAssumptions.DEFAULT_FUNDING_ORDER, restored.fundingOrder());
     assertEquals(ExpenseProfile.EMPTY, restored.expenseProfile());
-    assertEquals(ProjectedIncomePolicy.SOURCE, restored.projectedIncomePolicy());
   }
 
   private static SimulationAssumptions assumptions() {
@@ -111,11 +106,6 @@ class SimulationAssumptionsPersistenceMapperTest {
             RetirementFundingSource.LONG_TERM,
             RetirementFundingSource.RESERVE,
             RetirementFundingSource.INVESTMENT),
-        new ExpenseProfile(List.of(new ExpenseProfileStep(5, new BigDecimal("0.8")))),
-        new ProjectedIncomePolicy(
-            ProjectedIncomePolicy.IncomeMode.MANUAL,
-            new BigDecimal("25000"),
-            ProjectedIncomePolicy.IncomeMode.MANUAL,
-            new BigDecimal("7000")));
+        new ExpenseProfile(List.of(new ExpenseProfileStep(5, new BigDecimal("0.8")))));
   }
 }

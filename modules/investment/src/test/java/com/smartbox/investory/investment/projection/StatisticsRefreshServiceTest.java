@@ -18,13 +18,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class StatisticsRefreshServiceTest {
 
   @Mock private PortfolioProjectionService portfolioProjectionService;
+  @Mock private PortfolioProjectionRefreshService projectionRefreshService;
   @Mock private InvestmentCalculationCache calculationCache;
 
   @DisplayName("refresh All Refreshes Persisted Portfolio Projections")
   @Test
   void refreshAllRefreshesPersistedPortfolioProjections() {
     StatisticsRefreshService service =
-        new StatisticsRefreshService(portfolioProjectionService, calculationCache);
+        new StatisticsRefreshService(
+            portfolioProjectionService, projectionRefreshService, calculationCache);
 
     service.refreshAll();
 
@@ -37,7 +39,8 @@ class StatisticsRefreshServiceTest {
   @Test
   void refreshAfterCommittedMutationUsesAnIndependentProjectionTransaction() {
     StatisticsRefreshService service =
-        new StatisticsRefreshService(portfolioProjectionService, calculationCache);
+        new StatisticsRefreshService(
+            portfolioProjectionService, projectionRefreshService, calculationCache);
 
     service.refreshAllAfterCommittedMutation();
 
@@ -50,7 +53,8 @@ class StatisticsRefreshServiceTest {
   @Test
   void refreshFailureEscapesSoCallersCannotReportSuccess() {
     StatisticsRefreshService service =
-        new StatisticsRefreshService(portfolioProjectionService, calculationCache);
+        new StatisticsRefreshService(
+            portfolioProjectionService, projectionRefreshService, calculationCache);
     doThrow(new IllegalStateException("projection failed"))
         .when(portfolioProjectionService)
         .recalculateAll();

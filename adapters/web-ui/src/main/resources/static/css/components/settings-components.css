@@ -1,0 +1,124 @@
+/* Reusable integration-settings feature components. */
+/* Ownership: shared components/features. Load after tokens.css and base.css. */
+
+/* Integration settings uses the same application shell as the other pages. */
+.iv-settings-topbar__primary {
+    grid-template-columns: minmax(230px, .9fr) minmax(0, 1.8fr) minmax(220px, 1fr);
+    min-height: 104px;
+}
+.iv-settings-heading { align-self: center; min-width: 0; }
+.iv-settings-heading__kicker,
+.iv-settings-card__eyebrow {
+    display: block;
+    color: var(--iv-primary);
+    font-size: .7rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+.iv-settings-heading h2 { margin: 4px 0 2px; font-size: clamp(1.3rem, 2.2vw, 1.8rem); }
+.iv-settings-heading p { margin: 0; color: var(--iv-text-muted); font-size: .82rem; }
+.iv-settings-content {
+    width: min(100%, var(--iv-dashboard-max-width));
+    margin: 0 auto;
+    padding: 8px 16px 40px;
+}
+.iv-settings-list { display: grid; gap: 16px; }
+.iv-settings-card { padding: 0; overflow: hidden; }
+.iv-settings-card__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 20px 22px 16px;
+    border-bottom: 1px solid var(--iv-border);
+}
+.iv-settings-card__header h2 { margin: 5px 0 3px; font-size: 1.1rem; }
+.iv-settings-card__header p { margin: 0; color: var(--iv-text-muted); font-size: .78rem; }
+.iv-status-badge {
+    flex: 0 0 auto;
+    padding: 5px 9px;
+    border: 1px solid var(--iv-border);
+    border-radius: 999px;
+    color: var(--iv-text-muted);
+    font-size: .7rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+.iv-status-badge--enabled { border-color: color-mix(in srgb, var(--iv-green) 45%, var(--iv-border)); color: var(--iv-green); background: var(--iv-green-soft); }
+.iv-status-badge--disabled { background: var(--iv-surface-muted); }
+.iv-settings-card__controls { display: flex; align-items: flex-start; gap: 10px; border-bottom: 1px solid var(--iv-border); }
+.iv-settings-details { flex: 1 1 auto; min-width: 0; }
+.iv-settings-details > summary { display: inline-flex; align-items: center; gap: 8px; margin: 14px 22px; cursor: pointer; list-style: none; }
+.iv-settings-details > summary::-webkit-details-marker { display: none; }
+.iv-settings-details__chevron { color: currentColor; font-size: 1rem; line-height: .7; transition: transform .15s ease; }
+.iv-settings-details[open] > summary { margin-bottom: 0; }
+.iv-settings-details[open] .iv-settings-details__chevron { transform: rotate(180deg); }
+.iv-settings-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 14px 18px; padding: 18px 22px 14px; }
+.iv-settings-field { display: grid; gap: 6px; min-width: 0; }
+.iv-settings-field label { display: grid; gap: 3px; color: var(--iv-text); font-size: .78rem; font-weight: 750; }
+.iv-settings-field label small { color: var(--iv-text-muted); font-size: .7rem; font-weight: 500; }
+.iv-settings-field input:not([type="checkbox"]) { width: 100%; min-height: 36px; padding: 7px 10px; border: 1px solid var(--iv-border); border-radius: 7px; background: var(--iv-surface); color: var(--iv-text); }
+.iv-settings-field input:not([type="checkbox"]):focus { border-color: var(--iv-primary); outline: 2px solid color-mix(in srgb, var(--iv-primary) 25%, transparent); }
+.iv-settings-field--checkbox { display: flex; align-items: center; gap: 9px; }
+.iv-settings-field--checkbox label { display: block; }
+.iv-settings-field--checkbox input { width: 18px; height: 18px; accent-color: var(--iv-primary); }
+.iv-settings-form__actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-start; padding-top: 3px; }
+.iv-settings-toggle { flex: 0 0 auto; padding: 14px 22px 14px 0; }
+.iv-settings-page .btn { display: inline-flex; align-items: center; justify-content: center; min-height: var(--iv-button-height); padding: 7px 12px; border-radius: var(--iv-radius-sm); font-size: .78rem; font-weight: 650; line-height: 1.2; transition: background-color .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease; }
+.iv-settings-page .btn-primary { border-color: var(--iv-primary); background: var(--iv-primary); color: var(--iv-on-accent); }
+.iv-settings-page .btn-primary:hover { border-color: color-mix(in srgb, var(--iv-primary) 85%, var(--iv-text)); background: color-mix(in srgb, var(--iv-primary) 85%, var(--iv-text)); }
+.iv-settings-page .btn-outline-primary { border-color: color-mix(in srgb, var(--iv-primary) 45%, var(--iv-border)); color: var(--iv-primary); background: var(--iv-surface); }
+.iv-settings-page .btn-outline-primary:hover,
+.iv-settings-page .btn-outline-primary:focus-visible { border-color: var(--iv-primary); background: var(--iv-primary-soft); color: var(--iv-primary); }
+.iv-settings-page .btn-outline-secondary { border-color: var(--iv-border-strong); color: var(--iv-text-muted); background: var(--iv-surface); }
+.iv-settings-page .btn-outline-secondary:hover,
+.iv-settings-page .btn-outline-secondary:focus-visible { border-color: var(--iv-border-strong); background: var(--iv-surface-muted); color: var(--iv-text); }
+.iv-settings-page .btn:focus-visible { outline: 3px solid color-mix(in srgb, var(--iv-primary) 24%, transparent); outline-offset: 2px; }
+.iv-alert { margin-bottom: 14px; padding: 10px 13px; border: 1px solid var(--iv-border); border-radius: 8px; font-size: .8rem; }
+.iv-alert--success { border-color: color-mix(in srgb, var(--iv-green) 45%, var(--iv-border)); color: var(--iv-green); background: var(--iv-green-soft); }
+.iv-alert--error { border-color: color-mix(in srgb, var(--iv-red) 45%, var(--iv-border)); color: var(--iv-red); background: var(--iv-red-soft); }
+@media (max-width: 1200px) {
+    .iv-settings-topbar__primary { grid-template-columns: minmax(190px, .7fr) minmax(0, 1.3fr) minmax(170px, .8fr); }
+}
+@media (max-width: 760px) {
+    .iv-settings-topbar__primary { grid-template-columns: 1fr; min-height: 0; gap: 10px; }
+    .iv-settings-topbar__primary > div[aria-hidden="true"] { display: none; }
+    .iv-settings-card__header { padding: 16px; }
+    .iv-settings-form { grid-template-columns: 1fr; padding: 16px; }
+    .iv-settings-card__controls { flex-direction: column; gap: 0; }
+    .iv-settings-details { width: 100%; }
+    .iv-settings-details > summary { margin: 14px 16px; }
+    .iv-settings-toggle { width: 100%; padding: 0 16px 16px; }
+    .iv-settings-toggle .btn { width: 100%; }
+}
+.iv-settings-summary {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+    padding: 14px 16px;
+    border: 1px solid var(--iv-border);
+    border-radius: 12px;
+    background: var(--iv-surface);
+}
+.iv-settings-summary span,
+.iv-settings-diagnostics { color: var(--iv-text-muted); }
+.iv-settings-diagnostics { padding: 0 20px 12px; font-size: .82rem; }
+.iv-settings-jobs { padding: 16px 22px 20px; border-top: 1px solid var(--iv-border); }
+.iv-settings-jobs h3 { margin: 0 0 10px; font-size: .95rem; }
+.iv-settings-jobs form { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; margin-top: 10px; }
+.iv-settings-jobs label { display: grid; gap: 4px; font-size: .78rem; color: var(--iv-text-muted); }
+.iv-settings-jobs input:not([type="checkbox"]):not([type="hidden"]),
+.iv-settings-jobs select { min-width: 180px; min-height: var(--iv-control-height); padding: 6px 9px; border: 1px solid var(--iv-border); border-radius: var(--iv-radius-sm); background: var(--iv-surface); color: var(--iv-text); font: inherit; }
+.iv-settings-jobs input:not([type="checkbox"]):not([type="hidden"]):focus,
+.iv-settings-jobs select:focus { border-color: var(--iv-primary); outline: 2px solid color-mix(in srgb, var(--iv-primary) 25%, transparent); }
+.iv-settings-jobs input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--iv-primary); }
+.iv-settings-jobs button { margin-left: auto; }
+@media (max-width: 640px) {
+    .iv-settings-summary { flex-direction: column; }
+    .iv-settings-jobs form { align-items: stretch; }
+    .iv-settings-jobs input:not([type="checkbox"]):not([type="hidden"]),
+    .iv-settings-jobs select,
+    .iv-settings-jobs button { width: 100%; min-width: 0; margin-left: 0; }
+}

@@ -60,7 +60,7 @@ profile endpoints; summary and planning data are separate application contracts.
 
 ### Reconciliation report
 
-`GET /api/v1/investment/reconciliation` returns a system-wide current-state/current-valuation
+`GET /api/v1/investment/reconciliation?portfolioId={portfolioId}` returns a portfolio-scoped current-state/current-valuation
 diagnostic report and accepts no reconciliation control parameters. Historical reports, golden
 rebuilds, and private-archive verification are release tooling, not REST modes. The server-rendered
 page may retain a `portfolioId` only as navigation context; it does not scope this report.

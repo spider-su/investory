@@ -28,15 +28,15 @@ The production account/day view is:
 
 ```text
 positions + canonical prices + FX
-    -> mv_reconstructed_position_daily
-    -> mv_reconstructed_account_market_daily
+    -> recon_v_reconstructed_position_daily_mv
+    -> recon_v_reconstructed_account_market_daily_mv
 
 normalized cash ledger
-    -> mv_reconstructed_cash_daily
+    -> recon_v_reconstructed_cash_daily_mv
 
 both sides
-    -> mv_account_daily_reconciliation
-    -> v_account_daily_reconciliation
+    -> recon_v_account_daily_reconciliation_mv
+    -> recon_v_account_daily
 ```
 
 The view compares broker `account_daily` values with reconstructed values. In
@@ -85,7 +85,7 @@ bridge happened to cancel.
 
 ## Root cause
 
-**Production reconstruction defect:** `mv_reconstructed_position_daily`
+**Production reconstruction defect:** `recon_v_reconstructed_position_daily_mv`
 calculated market value from `open_quantity * price` for every settlement
 model. This is wrong for `RESULT_ONLY` positions. Their economic exposure is
 the result/cash movement, not the full notional market value.

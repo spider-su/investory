@@ -114,9 +114,10 @@ solely to improve quality counts.
 
 ### Application reconciliation report coverage
 
-The parameterless application endpoint evaluates system-wide current database/current-valuation
-evidence. It does not claim portfolio scope or historical reconstruction. The UI portfolio ID is
-navigation context only and does not filter reconciliation evidence.
+The application endpoint evaluates current database/current-valuation evidence for the requested
+portfolio. Its `portfolioId` is an ownership and calculation boundary, not navigation-only context.
+Administrative system-wide diagnostics are separate operational workflows and are not the normal UI
+report source.
 `GOLDEN` and full `ARCHIVE` reconciliation are release workflows implemented by `GoldenRebuildIT`
 and the private archive tooling, not application REST modes.
 
@@ -149,7 +150,7 @@ performance; checkpoint totals and failure/review counts come from uncapped aggr
 
 ### Current valuation as-of status
 
-`reporting_account_statistics_vs_daily_reconciliation` is a current valuation reconciliation.
+`recon_v_account_statistics_vs_daily` is a current valuation reconciliation.
 `VALUATION_ASOF_DIFFERENCE` intentionally includes a latest `account_daily` snapshot that is not
 `CURRENT_DATE`: Friday/weekend, holiday, pre-close, and refresh-lag views require review but are
 not monetary mismatches. Do not reinterpret it as a latest-completed-market-session reconciliation
@@ -169,7 +170,7 @@ are [`docs/domain/retirement-simulation.md`](../domain/retirement-simulation.md)
   reduced broker corpus, loads deterministic FX data, rebuilds projections, and emits a JSON
   `READY` or `NOT_READY` report. Its IBKR C1 contract checks operation, currency, business date,
   row count, and signed Net Amount. The dedicated CI workflow job runs it with no live market/FX step.
-- `reporting_import_provenance_issues` checks missing/wrong canonical links, orphan evidence, duplicate
+- `recon_v_import_provenance_issues` checks missing/wrong canonical links, orphan evidence, duplicate
   source identities, and source checksum drift. New orchestrated broker imports must produce no
   missing-link errors; legacy/manual rows remain explicitly nullable.
 - Shared deterministic portfolio fixtures live under

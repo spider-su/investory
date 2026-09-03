@@ -1,4 +1,4 @@
-package com.smartbox.investory.ui.investment;
+package com.smartbox.investory.investment.web;
 
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -11,7 +11,6 @@ import com.smartbox.investory.config.MockMvcSecurityTestConfig;
 import com.smartbox.investory.config.SecurityConfig;
 import com.smartbox.investory.investment.api.operations.InvestmentMaintenanceApi;
 import com.smartbox.investory.investment.api.operations.ManualAssetPriceView;
-import com.smartbox.investory.investment.web.DashboardRefreshController;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.ZonedDateTime;

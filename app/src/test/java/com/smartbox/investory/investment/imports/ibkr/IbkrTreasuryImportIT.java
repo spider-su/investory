@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.smartbox.investory.investment.imports.ImportExecutionResult;
+import com.smartbox.investory.investment.imports.ImportPortfolioContext;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
 import com.smartbox.investory.investment.ledger.cash.CashOperationType;
@@ -15,6 +16,8 @@ import com.smartbox.investory.testsupport.FastDatabaseTest;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,18 +57,28 @@ class IbkrTreasuryImportIT extends FastDatabaseTest {
     AssetEntity treasury = treasuryAssets.getFirst();
     assertEquals("US91282CKB62", treasury.getSymbol());
     assertEquals("BOND", treasury.getAssetType());
+    Set<Long> existingCashOperationIds =
+        cashOperationRepository.findAllByAccount(17959259L).stream()
+            .map(CashOperationEntity::getId)
+            .collect(Collectors.toSet());
 
-    ImportExecutionResult result =
-        ibkrImportService.importStatement(
-            new ByteArrayInputStream(TREASURY_ROWS.getBytes(StandardCharsets.UTF_8)),
-            "U17959259.TRANSACTIONS.20250211.20260227.csv");
+    ImportExecutionResult result;
+    try (ImportPortfolioContext.Scope ignored = ImportPortfolioContext.open(1L)) {
+      result =
+          ibkrImportService.importStatement(
+              new ByteArrayInputStream(TREASURY_ROWS.getBytes(StandardCharsets.UTF_8)),
+              "U17959259.TRANSACTIONS.20250211.20260227.csv");
+    }
 
     assertEquals(9, result.rowsTotal());
     assertEquals(9, result.rowsApplied());
     assertEquals(0, result.rowsFailed());
     assertTrue(result.details().contains("0 skipped"));
 
-    List<CashOperationEntity> operations = cashOperationRepository.findAllByAccount(17959259L);
+    List<CashOperationEntity> operations =
+        cashOperationRepository.findAllByAccount(17959259L).stream()
+            .filter(operation -> !existingCashOperationIds.contains(operation.getId()))
+            .toList();
     assertEquals(9, operations.size());
     assertEquals(
         3,

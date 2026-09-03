@@ -4,5 +4,5 @@ import java.io.IOException;
 
 /** Public application boundary for portfolio export. */
 public interface YahooPortfolioExportApi {
-  void exportToYahooCsv(String filePath) throws IOException;
+  void exportToYahooCsv(Long portfolioId, String filePath) throws IOException;
 }

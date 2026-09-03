@@ -5,7 +5,6 @@ import static org.apache.commons.lang3.StringUtils.isBlank;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.ExpenseProfile;
 import com.smartbox.investory.retirement.api.model.ExpenseProfileStep;
-import com.smartbox.investory.retirement.api.model.ProjectedIncomePolicy;
 import com.smartbox.investory.retirement.api.model.SimulationAssumptions;
 import com.smartbox.investory.retirement.api.model.SimulationEvent;
 import com.smartbox.investory.retirement.api.model.SimulationFundingStrategy;
@@ -49,12 +48,7 @@ public final class SimulationAssumptionsPersistenceMapper {
         defaultValue(source.getAnnualEmploymentIncome(), BigDecimal.ZERO),
         defaultValue(source.getAnnualPreRetirementContribution(), BigDecimal.ZERO),
         parseFundingOrder(source.getFundingOrder()),
-        parseExpenseProfile(source.getExpenseProfile()),
-        new ProjectedIncomePolicy(
-            source.getRentalIncomeMode(),
-            source.getManualRentalIncome(),
-            source.getBondCashIncomeMode(),
-            source.getManualBondCashIncome()));
+        parseExpenseProfile(source.getExpenseProfile()));
   }
 
   public static void write(
@@ -70,10 +64,6 @@ public final class SimulationAssumptionsPersistenceMapper {
     target.setInflationRate(assumptions.inflationRate());
     target.setRentalIncomeGrowthSpread(assumptions.rentalIncomeGrowthSpread());
     target.setSpendingGrowthSpread(assumptions.spendingGrowthSpread());
-    target.setRentalIncomeMode(assumptions.projectedIncomePolicy().rentalIncomeMode());
-    target.setManualRentalIncome(assumptions.projectedIncomePolicy().manualRentalIncome());
-    target.setBondCashIncomeMode(assumptions.projectedIncomePolicy().bondCashIncomeMode());
-    target.setManualBondCashIncome(assumptions.projectedIncomePolicy().manualBondCashIncome());
     target.setFundingStrategy(assumptions.fundingStrategy());
     target.setExpenseProfile(serializeExpenseProfile(assumptions.expenseProfile()));
     target.setFundingOrder(

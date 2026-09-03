@@ -39,7 +39,7 @@ class AssetPriceChartServiceTest {
     when(assets.findBySymbol("VWCE")).thenReturn(Optional.of(asset));
     when(prices.findBestPrices(eq(4L), any(), any())).thenReturn(List.of(row));
 
-    var result = service.findBySymbol(" vwce ", DashboardPeriod.MAX);
+    var result = service.findBySymbol(1L, " vwce ", DashboardPeriod.MAX);
 
     assertThat(result)
         .singleElement()
@@ -55,10 +55,10 @@ class AssetPriceChartServiceTest {
   @DisplayName("rejects Blank Or Unknown Symbols Before Price Lookup")
   @Test
   void rejectsBlankOrUnknownSymbolsBeforePriceLookup() {
-    assertThatThrownBy(() -> service.findBySymbol(" ", DashboardPeriod.ONE_YEAR))
+    assertThatThrownBy(() -> service.findBySymbol(1L, " ", DashboardPeriod.ONE_YEAR))
         .isInstanceOf(AssetDetailNotFoundException.class);
     when(assets.findBySymbol("NOPE")).thenReturn(Optional.empty());
-    assertThatThrownBy(() -> service.findBySymbol("nope", DashboardPeriod.ONE_YEAR))
+    assertThatThrownBy(() -> service.findBySymbol(1L, "nope", DashboardPeriod.ONE_YEAR))
         .isInstanceOf(AssetDetailNotFoundException.class);
   }
 }

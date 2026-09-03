@@ -8,7 +8,6 @@ import com.smartbox.investory.investment.infrastructure.persistence.portfolio.Po
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioKpiSummaryEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioKpiSummaryRepository;
 import com.smartbox.investory.investment.performance.PortfolioMetricsService;
-import com.smartbox.investory.investment.performance.model.Portfolio;
 import com.smartbox.investory.investment.reporting.PerformanceResult;
 import com.smartbox.investory.investment.reporting.PortfolioPerformanceQuery;
 import java.math.BigDecimal;
@@ -26,24 +25,6 @@ public class BrokeragePortfolioReadService implements BrokeragePortfolioReader {
   private final PortfolioPerformanceQuery performanceQuery;
   private final PortfolioKpiSummaryRepository portfolioKpis;
   private final PortfolioAssetAllocationRepository portfolioAllocations;
-
-  public SharedBrokeragePortfolioSnapshot currentSharedSnapshot() {
-    Portfolio portfolio = portfolioMetricsService.calculateTotalProfitLoss();
-    return new SharedBrokeragePortfolioSnapshot(
-        portfolio.getBaseCurrency(),
-        money(portfolio.getBalance()),
-        money(portfolio.getCash()),
-        money(portfolio.getDividends()),
-        money(portfolio.getInterest()),
-        portfolio.getOpenPositionValues() == null
-            ? java.util.List.of()
-            : portfolio.getOpenPositionValues().stream()
-                .map(
-                    position ->
-                        new BrokeragePositionSnapshot(
-                            position.getSymbol(), money(position.getValue())))
-                .toList());
-  }
 
   @Override
   public SharedBrokeragePortfolioSnapshot currentSnapshot(Long portfolioId) {

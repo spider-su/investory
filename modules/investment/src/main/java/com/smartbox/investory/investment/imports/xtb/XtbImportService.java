@@ -3,6 +3,7 @@ package com.smartbox.investory.investment.imports.xtb;
 import com.smartbox.investory.investment.imports.BrokerSourceRowIdentity;
 import com.smartbox.investory.investment.imports.ImportEvidenceContext;
 import com.smartbox.investory.investment.imports.ImportExecutionResult;
+import com.smartbox.investory.investment.imports.ImportPortfolioContext;
 import com.smartbox.investory.investment.imports.ImportSourceEvidenceService;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
@@ -222,16 +223,16 @@ public class XtbImportService {
       List<PositionEntity> closedPositions =
           cashOnly
               ? List.of()
-              : parsePositionEntitys(closedSheet, closedColumns, account, sourceName);
+              : parsePositionEntities(closedSheet, closedColumns, account, sourceName);
       normalizeImportedSymbols(cashOperations, closedPositions);
       CurrencyType currency = accountConfiguration.getCurrency();
 
       List<PositionEntity> openedPositions =
           cashOnly
               ? List.of()
-              : reconstructPositionEntitys(
+              : reconstructPositionEntities(
                   operationsForOpenReconstruction(account, cashOperations), account, currency);
-      openedPositions = deduplicatePositionEntitys(openedPositions);
+      openedPositions = deduplicatePositionEntities(openedPositions);
 
       applyPositionCurrencies(closedPositions, openedPositions, currency);
 
@@ -415,7 +416,7 @@ public class XtbImportService {
     }
   }
 
-  private List<PositionEntity> parsePositionEntitys(
+  private List<PositionEntity> parsePositionEntities(
       Sheet sheet, Map<String, Integer> columns, Long account, String sourceName) {
     if (sheet == null || CollectionUtils.isEmpty(columns)) {
       return List.of();
@@ -542,7 +543,7 @@ public class XtbImportService {
     return positions;
   }
 
-  private List<PositionEntity> deduplicatePositionEntitys(List<PositionEntity> positions) {
+  private List<PositionEntity> deduplicatePositionEntities(List<PositionEntity> positions) {
     if (CollectionUtils.isEmpty(positions)) {
       return List.of();
     }
@@ -579,7 +580,7 @@ public class XtbImportService {
         BrokerSourceRowIdentity.part(product));
   }
 
-  List<PositionEntity> reconstructPositionEntitys(
+  List<PositionEntity> reconstructPositionEntities(
       List<CashOperationEntity> cashOperations, Long account, CurrencyType currency) {
     Map<String, Deque<Lot>> buyLots = new HashMap<>();
     Map<String, Deque<Lot>> sellLots = new HashMap<>();
@@ -621,8 +622,8 @@ public class XtbImportService {
             });
 
     List<PositionEntity> openedPositions = new ArrayList<>();
-    appendPositionEntitysForAccount(openedPositions, account, currency, buyLots, PositionType.BUY);
-    appendPositionEntitysForAccount(
+    appendPositionEntitiesForAccount(openedPositions, account, currency, buyLots, PositionType.BUY);
+    appendPositionEntitiesForAccount(
         openedPositions, account, currency, sellLots, PositionType.SELL);
     return openedPositions;
   }
@@ -643,7 +644,7 @@ public class XtbImportService {
     return new ArrayList<>(operationsById.values());
   }
 
-  private void appendPositionEntitysForAccount(
+  private void appendPositionEntitiesForAccount(
       List<PositionEntity> output,
       Long account,
       CurrencyType currency,
@@ -1093,13 +1094,17 @@ public class XtbImportService {
   }
 
   private AccountEntity accountConfiguration(Long externalAccountId, String sourceName) {
+    var lookup =
+        ImportPortfolioContext.current() == null
+            ? accountRepository.findByProviderIgnoreCaseAndExternalAccountId(
+                "XTB", String.valueOf(externalAccountId))
+            : accountRepository.findByPortfolioIdAndProviderIgnoreCaseAndExternalAccountId(
+                ImportPortfolioContext.current(), "XTB", String.valueOf(externalAccountId));
     AccountEntity account =
-        accountRepository
-            .findByProviderIgnoreCaseAndExternalAccountId("XTB", String.valueOf(externalAccountId))
-            .orElseThrow(
-                () ->
-                    new IllegalStateException(
-                        "XTB account " + externalAccountId + " is not configured: " + sourceName));
+        lookup.orElseThrow(
+            () ->
+                new IllegalStateException(
+                    "XTB account " + externalAccountId + " is not configured: " + sourceName));
     if (!"XTB".equalsIgnoreCase(account.getProvider())) {
       throw new IllegalStateException(
           "AccountEntity "

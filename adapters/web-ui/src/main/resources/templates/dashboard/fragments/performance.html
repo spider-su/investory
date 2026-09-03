@@ -1,0 +1,47 @@
+<!-- Dashboard performance board. -->
+<th:block xmlns:th="http://www.thymeleaf.org" th:fragment="performance">
+    <section id="portfolio-performance" class="iv-grid iv-grid--charts" th:if="${benchmark != null}">
+        <div class="iv-card">
+            <div class="iv-card-section-header">
+                <span class="iv-card-section-header__title">Performance</span>
+            </div>
+            <div class="iv-card__body">
+                <div class="iv-benchmark iv-performance-metrics">
+                    <div class="iv-benchmark__stat iv-performance-metric--result"><span class="iv-benchmark__label">Period return</span><span class="iv-benchmark__value" id="performance-board-return">—</span></div>
+                    <div class="iv-benchmark__stat iv-performance-metric--risk iv-performance-metric--group-start"><span class="iv-benchmark__label">Current drawdown</span><span class="iv-benchmark__value" th:text="${dashboard.performance.summary.formatPercent(dashboard.performance.summary.currentDrawdownPct)}">0,0%</span></div>
+                    <div class="iv-benchmark__stat iv-performance-metric--risk"><span class="iv-benchmark__label">Max drawdown</span><span class="iv-benchmark__value" th:text="${dashboard.performance.summary.formatPercent(dashboard.performance.summary.maxDrawdownPct)}">0,0%</span></div>
+                    <div class="iv-benchmark__stat iv-performance-metric--group-start" th:if="${dashboard.performance.summary.timeWeightedReturn.status.name() == 'AVAILABLE'}"><span class="iv-benchmark__label" title="Portfolio performance independent of contribution timing">TWR</span><span class="iv-benchmark__value" th:text="${dashboard.performance.summary.formatSignedPercent(dashboard.performance.summary.timeWeightedReturn.value * 100)}">—</span></div>
+                    <div class="iv-benchmark__stat" th:if="${dashboard.performance.summary.moneyWeightedReturn.status.name() == 'AVAILABLE'}"><span class="iv-benchmark__label" title="Annualized return based on dated investor cash flows">XIRR</span><span class="iv-benchmark__value" th:text="${dashboard.performance.summary.formatSignedPercent(dashboard.performance.summary.moneyWeightedReturn.value * 100)}">—</span></div>
+                    <div class="iv-benchmark__stat iv-performance-metric--relative iv-performance-metric--group-start" id="performance-board-spy-kpi"><span class="iv-benchmark__label">S&amp;P 500 return</span><span class="iv-benchmark__value" id="performance-board-spy">—</span></div>
+                    <div class="iv-benchmark__stat iv-performance-metric--relative" id="performance-board-excess-kpi"><span class="iv-benchmark__label">Excess return</span><span class="iv-benchmark__value" id="performance-board-excess">—</span></div>
+                </div>
+                <div class="iv-card__controls iv-performance-toolbar" role="toolbar" aria-label="Performance controls">
+                    <div class="btn-list" role="group" aria-label="Metric"><button type="button" class="btn btn-sm btn-primary js-performance-board-metric" data-metric="return">Return</button><button type="button" class="btn btn-sm btn-outline-secondary js-performance-board-metric" data-metric="pl">Profit/Loss</button></div>
+                    <div class="btn-list" role="group" aria-label="Chart style"><button type="button" class="btn btn-sm btn-primary js-performance-board-style" data-style="line">Line</button><button type="button" class="btn btn-sm btn-outline-secondary js-performance-board-style" data-style="bars">Bars</button></div>
+                    <label class="iv-select-field iv-performance-aggregation"><select id="performance-board-aggregation" aria-label="Aggregation"><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="annual">Annual</option></select></label>
+                    <details id="performance-board-account-selector" class="iv-balance-popover iv-performance-account-selector" data-disclosure-group="dashboard-popovers">
+                        <summary id="performance-board-account-label" class="iv-balance-popover__trigger">All accounts · 0</summary>
+                        <div class="iv-balance-popover__panel iv-performance-account-panel">
+                            <strong>Accounts</strong>
+                            <div class="iv-account-filter__actions"><button type="button" class="iv-link-button" id="performance-board-check-all">Select all</button><button type="button" class="iv-link-button" id="performance-board-uncheck-all">Reset to all</button></div>
+                            <div class="iv-account-filter">
+                                <label class="iv-account-filter__item" th:each="account : ${benchmark.accountOptions}">
+                                    <input type="checkbox" class="js-performance-board-account" th:value="${account.id}" th:checked="${account.selected}">
+                                    <span th:text="${account.name}">Account</span>
+                                </label>
+                            </div>
+                        </div>
+                    </details>
+                    <label class="iv-account-filter__item iv-account-filter__item--benchmark" id="performance-board-benchmark-field"><input type="checkbox" id="performance-board-show-spy" checked><span>S&amp;P 500</span></label>
+                </div>
+                <div class="iv-empty" id="performance-board-empty" th:style="${benchmark.available} ? 'display:none' : ''">No performance history is available for this period.</div>
+                <div id="performance-board-content" th:style="${benchmark.available} ? '' : 'display:none'">
+                    <div class="iv-chart"><canvas id="performance-board-chart" tabindex="0" role="img" aria-label="Selected portfolio performance. Use View as table for keyboard access."></canvas></div>
+                    <details class="iv-chart-table"><summary>View as table</summary><div id="performance-board-table"></div></details>
+                </div>
+                <span id="performance-scope-aggregation" class="visually-hidden">Monthly</span>
+            </div>
+        </div>
+    </section>
+
+</th:block>

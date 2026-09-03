@@ -32,21 +32,26 @@ public class ImportBatchAuditWriter {
   private ImportNotificationProducer notificationProducer;
 
   @Transactional(readOnly = true)
-  public Optional<ImportHistoryEntity> findExistingAppliedBatch(BrokerType broker, String sha256) {
-    return importRepository.findFirstByBrokerAndFileSha256AndStatusOrderByAttemptNoDesc(
-        broker, sha256, ImportBatchStatus.COMPLETED);
+  public Optional<ImportHistoryEntity> findExistingAppliedBatch(
+      Long portfolioId, BrokerType broker, String sha256) {
+    return importRepository
+        .findFirstByPortfolioIdAndBrokerAndFileSha256AndStatusOrderByAttemptNoDesc(
+            portfolioId, broker, sha256, ImportBatchStatus.COMPLETED);
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public ImportHistoryEntity startBatch(
+      Long portfolioId,
       BrokerType broker,
       ImportSourceType sourceType,
       String sourceRef,
       String fileName,
       String sha256) {
     Optional<ImportHistoryEntity> existing =
-        importRepository.findFirstByBrokerAndFileSha256OrderByAttemptNoDesc(broker, sha256);
+        importRepository.findFirstByPortfolioIdAndBrokerAndFileSha256OrderByAttemptNoDesc(
+            portfolioId, broker, sha256);
     ImportHistoryEntity batch = new ImportHistoryEntity();
+    batch.setPortfolioId(portfolioId);
     batch.setBroker(broker);
     batch.setSourceType(sourceType);
     batch.setSourceRef(sourceRef);
@@ -67,13 +72,16 @@ public class ImportBatchAuditWriter {
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public ImportHistoryEntity startReprocessBatch(ImportHistoryEntity original) {
-    ImportHistoryEntity latest =
-        importRepository
-            .findFirstByBrokerAndFileSha256OrderByAttemptNoDesc(
+    Optional<ImportHistoryEntity> latestLookup =
+        original.getPortfolioId() == null
+            ? importRepository.findFirstByBrokerAndFileSha256OrderByAttemptNoDesc(
                 original.getBroker(), original.getFileSha256())
-            .orElse(original);
+            : importRepository.findFirstByPortfolioIdAndBrokerAndFileSha256OrderByAttemptNoDesc(
+                original.getPortfolioId(), original.getBroker(), original.getFileSha256());
+    ImportHistoryEntity latest = latestLookup.orElse(original);
     ImportHistoryEntity batch = new ImportHistoryEntity();
     batch.setBroker(original.getBroker());
+    batch.setPortfolioId(original.getPortfolioId());
     batch.setSourceType(original.getSourceType());
     batch.setSourceRef(original.getSourceRef());
     batch.setFileName(original.getFileName());

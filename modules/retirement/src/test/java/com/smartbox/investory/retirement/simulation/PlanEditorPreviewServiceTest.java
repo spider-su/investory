@@ -124,8 +124,7 @@ class PlanEditorPreviewServiceTest {
             BigDecimal.ZERO,
             BigDecimal.ZERO,
             SimulationAssumptions.DEFAULT_FUNDING_ORDER,
-            ExpenseProfile.EMPTY,
-            ProjectedIncomePolicy.SOURCE);
+            ExpenseProfile.EMPTY);
     SimulationResult empty =
         new SimulationResult(SimulationScenario.BASE, false, null, BigDecimal.ZERO, List.of());
     when(profile.portfolioId()).thenReturn(7L);

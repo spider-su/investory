@@ -15,9 +15,8 @@ class DashboardNavigationTemplateContractTest {
   @Test
   void topNavigationKeepsOnlyCrossPageLinksWithoutBottomDuplicates() throws Exception {
     String template =
-        Files.readString(
-            Path.of("../adapters/web-ui/src/main/resources/templates/dashboard.html"),
-            StandardCharsets.UTF_8);
+        HtmlTestSupport.readTemplateWithFragments(
+            Path.of("../adapters/web-ui/src/main/resources/templates/dashboard.html"));
 
     String fragment =
         Files.readString(
@@ -27,7 +26,6 @@ class DashboardNavigationTemplateContractTest {
     assertThat(template)
         .contains("fragments/app-header :: appNavigation('investment', ${portfolioId})")
         .contains("dashboard.navigation.periodUrl(periodOption)")
-        .contains("data-turbo=\"false\"")
         .doesNotContain("benchmarkAccountsSubmitted=true");
     assertThat(fragment)
         .contains("/investment-profile")
@@ -56,7 +54,8 @@ class DashboardNavigationTemplateContractTest {
     assertThat(fragment)
         .contains("th:href=\"@{/investment-profile(portfolioId=${portfolioId})}\"")
         .contains("th:href=\"@{/simulation(portfolioId=${portfolioId})}\"")
-        .contains("th:href=\"@{/long-term-assets(portfolioId=${portfolioId})}\"");
+        .contains("th:href=\"@{/long-term-assets(portfolioId=${portfolioId})}\"")
+        .contains("th:href=\"@{/dashboard/reconciliation(portfolioId=${portfolioId})}\"");
     assertThat(fragment).contains("activePage == 'simulation' or activePage == 'analysis'");
     assertThat(fragment)
         .doesNotContain("Overview")

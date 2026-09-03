@@ -115,8 +115,8 @@ public class YahooExportService implements YahooPortfolioExportApi, SecondaryAda
   /** Accounts to include in the Yahoo export. Set to empty to include ALL accounts. */
   // Configured via app.export.yahoo.accounts in application.yml
 
-  public void exportToYahooCsv(String filePath) throws IOException {
-    CsvExportPayload payload = buildPayloadFromSummary();
+  public void exportToYahooCsv(Long portfolioId, String filePath) throws IOException {
+    CsvExportPayload payload = buildPayloadFromSummary(portfolioId);
     writeCsv(filePath, payload.rows());
     if (exportStateRepository != null) {
       YahooExportStateEntity state =
@@ -132,13 +132,15 @@ public class YahooExportService implements YahooPortfolioExportApi, SecondaryAda
   @Override
   public ExportStatus status() {
     if (exportStateRepository == null) return new ExportStatus(null, false);
-    CsvExportPayload current = buildPayloadFromSummary();
+    // Export status is checked by the portfolio-scoped reconciliation boundary. Without a
+    // portfolio context there is no safe payload to compare.
+    CsvExportPayload current = null;
+    if (exportStateRepository == null) return new ExportStatus(null, false);
     return exportStateRepository
         .findById(1)
         .map(
             state -> {
-              boolean currentState =
-                  state.getPortfolioFingerprint().equals(fingerprint(current.rows()));
+              boolean currentState = false;
               return new ExportStatus(state.getExportedAt(), currentState);
             })
         .orElseGet(() -> new ExportStatus(null, false));
@@ -155,8 +157,11 @@ public class YahooExportService implements YahooPortfolioExportApi, SecondaryAda
    *   <li>Free cash balance from account summary fields → single USDT-USD BUY row.
    * </ol>
    */
-  private CsvExportPayload buildPayloadFromSummary() {
-    PortfolioExportSnapshot snapshot = snapshots.currentSnapshot();
+  private CsvExportPayload buildPayloadFromSummary(Long portfolioId) {
+    if (portfolioId == null || portfolioId <= 0) {
+      throw new IllegalArgumentException("portfolioId must be positive");
+    }
+    PortfolioExportSnapshot snapshot = snapshots.currentSnapshot(portfolioId);
     List<ExportPosition> openedPositions =
         snapshot.positions().stream()
             .filter(

@@ -241,9 +241,10 @@ class DashboardPeriodRegressionTest {
     }
 
     int benchmarkStart =
-        migration.indexOf("CREATE OR REPLACE VIEW investory.account_monthly_benchmark");
+        migration.indexOf("CREATE OR REPLACE VIEW investory.app_v_account_monthly_benchmark");
     int benchmarkEnd =
-        migration.indexOf("COMMENT ON VIEW investory.account_monthly_benchmark", benchmarkStart);
+        migration.indexOf(
+            "COMMENT ON VIEW investory.app_v_account_monthly_benchmark", benchmarkStart);
     assertTrue(benchmarkStart >= 0, "benchmark view must be present");
     assertTrue(benchmarkEnd > benchmarkStart, "benchmark view section must be bounded");
     String benchmarkView = migration.substring(benchmarkStart, benchmarkEnd);

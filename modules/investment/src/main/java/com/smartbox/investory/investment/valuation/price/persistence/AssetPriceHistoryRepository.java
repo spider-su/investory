@@ -30,7 +30,7 @@ public interface AssetPriceHistoryRepository extends Repository<AssetEntity, Lon
                  aph.estimated as estimated,
                  aph.interpolation_left_date as interpolationLeftDate,
                  aph.interpolation_right_date as interpolationRightDate
-          from investory.v_canonical_asset_daily_price aph
+          from investory.app_v_canonical_asset_daily_price aph
           join investory.assets a on a.id = aph.asset_id
           where a.exclude_from_import = false
             and a.symbol in (:symbols)

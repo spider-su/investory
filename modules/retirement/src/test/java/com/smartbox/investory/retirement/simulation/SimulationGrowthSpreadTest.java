@@ -75,8 +75,6 @@ class SimulationGrowthSpreadTest {
         SimulationScenarioSettings.forScenario(SimulationScenario.CONSERVATIVE, assumptions);
     SimulationScenarioSettings optimistic =
         SimulationScenarioSettings.forScenario(SimulationScenario.OPTIMISTIC, assumptions);
-    SimulationScenarioSettings custom =
-        SimulationScenarioSettings.forScenario(SimulationScenario.CUSTOM, assumptions);
 
     assertThat(base.effectiveRentalIncomeGrowthRate()).isEqualByComparingTo("0.030");
     assertThat(base.effectiveSpendingGrowthRate()).isEqualByComparingTo("0.040");
@@ -86,29 +84,6 @@ class SimulationGrowthSpreadTest {
     assertThat(optimistic.inflationRate()).isEqualByComparingTo("0.020");
     assertThat(optimistic.effectiveRentalIncomeGrowthRate()).isEqualByComparingTo("0.035");
     assertThat(optimistic.effectiveSpendingGrowthRate()).isEqualByComparingTo("0.035");
-    assertThat(custom).isEqualTo(base);
-  }
-
-  @DisplayName("custom Deltas Are Percentage Point Adjustments To All Supported Drivers")
-  @Test
-  void customDeltasArePercentagePointAdjustmentsToAllSupportedDrivers() {
-    SimulationAssumptions assumptions = assumptions();
-    SimulationCustomDeltas custom =
-        new SimulationCustomDeltas(
-            new BigDecimal("0.010"),
-            new BigDecimal("-0.005"),
-            new BigDecimal("-0.010"),
-            new BigDecimal("-0.020"),
-            BigDecimal.ZERO);
-
-    SimulationScenarioSettings effective =
-        SimulationScenarioSettings.forScenario(SimulationScenario.CUSTOM, assumptions, custom);
-
-    assertThat(effective.inflationRate()).isEqualByComparingTo("0.035");
-    assertThat(effective.effectiveRentalIncomeGrowthRate()).isEqualByComparingTo("0.025");
-    assertThat(effective.fixedIncomeReturnRate()).isEqualByComparingTo("0.030");
-    assertThat(effective.equityReturnRate()).isEqualByComparingTo("0.040");
-    assertThat(effective.effectiveSpendingGrowthRate()).isEqualByComparingTo("0.040");
   }
 
   private static SimulationAssumptions assumptions() {

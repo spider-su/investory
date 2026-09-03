@@ -2,7 +2,6 @@ package com.smartbox.investory.retirement.planning;
 
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.PlanEditorInput;
-import com.smartbox.investory.retirement.api.model.ProjectedIncomePolicy;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,10 +22,6 @@ final class PlanEditorInputTestFactory {
         decimal(values, "fixedIncomeReturn"),
         decimal(values, "rentalIncomeGrowthSpread"),
         decimal(values, "spendingGrowthSpread"),
-        mode(values, "rentalIncomeMode"),
-        decimal(values, "manualRentalIncome"),
-        mode(values, "bondCashIncomeMode"),
-        decimal(values, "manualBondCashIncome"),
         decimal(values, "equityReturn"),
         decimal(values, "safeReserveYears"),
         decimal(values, "equityHarvestThreshold"),
@@ -57,13 +52,6 @@ final class PlanEditorInputTestFactory {
   private static Boolean bool(Map<String, String> values, String name) {
     String value = values.get(name);
     return value == null || value.isBlank() ? null : Boolean.parseBoolean(value);
-  }
-
-  private static ProjectedIncomePolicy.IncomeMode mode(Map<String, String> values, String name) {
-    String value = values.get(name);
-    return value == null || value.isBlank()
-        ? null
-        : ProjectedIncomePolicy.IncomeMode.valueOf(value.trim().toUpperCase());
   }
 
   private static List<PlanEditorInput.ExpenseStageInput> expenseProfile(String raw) {

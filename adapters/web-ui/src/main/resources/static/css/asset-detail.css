@@ -1,3 +1,5 @@
+/* Asset-detail-only overrides. Load after tokens.css, base.css and components.css. */
+
 .iv-asset-page__header {
   display: flex;
   align-items: center;

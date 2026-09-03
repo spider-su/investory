@@ -18,8 +18,8 @@
     },
     {
       "path": "reference/exchange_rates.csv",
-      "sha256": "242e00263b1e2c1ecc1c682e49e31ef69f888f08d8688d858f139c9cd28211ab",
-      "size_bytes": 732
+      "sha256": "23fef3d1c26c83e99b8fa01bec5141862693a51e9e9642293576139b95b1eb78",
+      "size_bytes": 2082
     },
     {
       "path": "xtb/investory_xtb_golden.zip",

@@ -1,7 +1,6 @@
 package com.smartbox.investory.investment.reporting.dashboard.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -79,8 +78,8 @@ class InvestmentDashboardFacadeTest {
             new InstrumentPerformance("LOSS", -2.0, 0.0, -2.0)));
     portfolio.setDividendGainers(List.of(new DividendGainer("AAPL.US", 42.0)));
     Benchmark benchmark = new Benchmark();
-    when(portfolioMetricsService.calculateTotalProfitLoss()).thenReturn(portfolio);
-    when(benchmarkService.calculate()).thenReturn(benchmark);
+    when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
+    when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
 
     DashboardPageView result =
         new InvestmentDashboardFacade(
@@ -109,8 +108,8 @@ class InvestmentDashboardFacadeTest {
       rows.add(new InstrumentPerformance("LOSS-" + value, -value, 0.0, -value));
     }
     portfolio.setPerformancePerSymbol(rows);
-    when(portfolioMetricsService.calculateTotalProfitLoss()).thenReturn(portfolio);
-    when(benchmarkService.calculate()).thenReturn(new Benchmark());
+    when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
+    when(benchmarkService.calculate(1L, null)).thenReturn(new Benchmark());
 
     DashboardPageView result =
         new InvestmentDashboardFacade(
@@ -212,8 +211,8 @@ class InvestmentDashboardFacadeTest {
   void exposesConfiguredPerformanceBoardKpiStart() {
     Portfolio portfolio = new Portfolio();
     Benchmark benchmark = new Benchmark();
-    when(portfolioMetricsService.calculateTotalProfitLoss()).thenReturn(portfolio);
-    when(benchmarkService.calculate()).thenReturn(benchmark);
+    when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
+    when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
 
     DashboardPageView result =
         new InvestmentDashboardFacade(
@@ -238,17 +237,17 @@ class InvestmentDashboardFacadeTest {
             new Benchmark.AccountOption(11L, "One", true),
             new Benchmark.AccountOption(12L, "Two", true),
             new Benchmark.AccountOption(13L, "Three", false)));
-    when(portfolioMetricsService.calculateTotalProfitLoss()).thenReturn(portfolio);
-    when(benchmarkService.calculate(accountIds)).thenReturn(benchmark);
+    when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
+    when(benchmarkService.calculate(1L, accountIds)).thenReturn(benchmark);
 
     DashboardPageView result =
         new InvestmentDashboardFacade(
                 portfolioMetricsService, benchmarkService, periodFilterService)
             .loadDashboard(new DashboardQuery(accountIds, true, DashboardPeriod.YEAR_TO_DATE, 1L));
 
-    verify(benchmarkService).calculate(accountIds);
+    verify(benchmarkService).calculate(1L, accountIds);
     assertEquals(
-        "/dashboard?period=YTD&benchmarkAccountsSubmitted=true&accountIds=11&accountIds=12",
+        "/dashboard?period=YTD&portfolioId=1&benchmarkAccountsSubmitted=true&accountIds=11&accountIds=12",
         result.navigation().periodUrl(DashboardPeriod.YEAR_TO_DATE));
   }
 
@@ -262,21 +261,22 @@ class InvestmentDashboardFacadeTest {
         List.of(
             new Benchmark.AccountOption(1L, "One", true),
             new Benchmark.AccountOption(3L, "Three", true)));
-    when(portfolioMetricsService.calculateTotalProfitLoss()).thenReturn(portfolio);
-    when(benchmarkService.calculate()).thenReturn(benchmark);
+    when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
+    when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
 
     DashboardPageView result =
         new InvestmentDashboardFacade(
                 portfolioMetricsService, benchmarkService, periodFilterService)
             .loadDashboard(new DashboardQuery(List.of(), true, DashboardPeriod.YEAR_TO_DATE, 1L));
 
-    verify(benchmarkService).calculate();
+    verify(benchmarkService).calculate(1L, null);
     assertTrue(result.performance().benchmark().available());
     assertTrue(
         result.performance().benchmark().accountOptions().stream()
             .allMatch(Benchmark.AccountOption::selected));
     assertEquals(
-        "/dashboard?period=YTD", result.navigation().periodUrl(DashboardPeriod.YEAR_TO_DATE));
+        "/dashboard?period=YTD&portfolioId=1",
+        result.navigation().periodUrl(DashboardPeriod.YEAR_TO_DATE));
   }
 
   @DisplayName("does Not Keep Redundant Account Ids In Period Links When All Accounts Are Selected")
@@ -289,8 +289,8 @@ class InvestmentDashboardFacadeTest {
         List.of(
             new Benchmark.AccountOption(1L, "One", true),
             new Benchmark.AccountOption(3L, "Three", true)));
-    when(portfolioMetricsService.calculateTotalProfitLoss()).thenReturn(portfolio);
-    when(benchmarkService.calculate(accountIds)).thenReturn(benchmark);
+    when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
+    when(benchmarkService.calculate(1L, accountIds)).thenReturn(benchmark);
 
     DashboardPageView result =
         new InvestmentDashboardFacade(
@@ -298,7 +298,8 @@ class InvestmentDashboardFacadeTest {
             .loadDashboard(new DashboardQuery(accountIds, true, DashboardPeriod.YEAR_TO_DATE, 1L));
 
     assertEquals(
-        "/dashboard?period=YTD", result.navigation().periodUrl(DashboardPeriod.YEAR_TO_DATE));
+        "/dashboard?period=YTD&portfolioId=1",
+        result.navigation().periodUrl(DashboardPeriod.YEAR_TO_DATE));
   }
 
   @DisplayName("uses Scoped Performance Values Instead Of All Time Portfolio Totals")
@@ -334,8 +335,8 @@ class InvestmentDashboardFacadeTest {
     benchmark.setPortfolioReturnCurve(List.of(2.0, 4.04, 6.12, 8.24));
     benchmark.setBenchmarkReturnCurve(List.of(1.0, 2.01, 3.03, 4.06));
     benchmark.setInvestedCapital(1_000.0);
-    when(portfolioMetricsService.calculateTotalProfitLoss()).thenReturn(portfolio);
-    when(benchmarkService.calculate()).thenReturn(benchmark);
+    when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
+    when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
 
     DashboardPageView result =
         new InvestmentDashboardFacade(
@@ -365,8 +366,8 @@ class InvestmentDashboardFacadeTest {
     benchmark.setPortfolioPerformanceAvailable(true);
     benchmark.setPortfolioPl(999.0);
     benchmark.setPortfolioReturnPct(88.0);
-    when(portfolioMetricsService.calculateTotalProfitLoss()).thenReturn(portfolio);
-    when(benchmarkService.calculate()).thenReturn(benchmark);
+    when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
+    when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
 
     PortfolioPerformanceQuery performanceQuery = mock(PortfolioPerformanceQuery.class);
     PerformanceResult canonical =
@@ -441,8 +442,8 @@ class InvestmentDashboardFacadeTest {
     benchmark.setInvestedCapital(1_000.0);
     benchmark.setPortfolioReturnCurve(List.of(10.0, 5.0, 12.0));
     benchmark.setPortfolioPl(120.0);
-    when(portfolioMetricsService.calculateTotalProfitLoss()).thenReturn(portfolio);
-    when(benchmarkService.calculate()).thenReturn(benchmark);
+    when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
+    when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
 
     DashboardPageView result =
         new InvestmentDashboardFacade(
@@ -487,8 +488,8 @@ class InvestmentDashboardFacadeTest {
     performance.setMonthlyAttributions(attributions);
     portfolio.setMonthlyPerformance(performance);
     Benchmark benchmark = benchmark(labels);
-    when(portfolioMetricsService.calculateTotalProfitLoss()).thenReturn(portfolio);
-    when(benchmarkService.calculate()).thenReturn(benchmark);
+    when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
+    when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
 
     InvestmentDashboardFacade facade =
         new InvestmentDashboardFacade(
@@ -521,28 +522,10 @@ class InvestmentDashboardFacadeTest {
       assertTrue(template != null, "dashboard template must be present");
       String html = new String(template.readAllBytes(), StandardCharsets.UTF_8);
 
-      assertTrue(html.contains("Open positions · before tax"));
-      assertFalse(html.contains("Dividends &amp; cash interest"));
-      assertTrue(html.contains("Dividends"));
-      assertTrue(html.contains("stats.formatBase(stats.unrealizedProfit)"));
-      assertTrue(html.contains("stats.formatBase(stats.realizedProfit)"));
-      assertTrue(html.contains("stats.formatBase(stats.incomeTotal)"));
-      assertTrue(html.contains("selectedPeriod.label() + ' · before tax'"));
-      assertFalse(html.contains("By currency"));
-      assertFalse(html.contains("realizedByCurrency"));
-      assertFalse(html.contains("unrealizedByCurrency"));
-      assertFalse(html.contains("selectedPeriod.label() + ' · before capital-gains tax'"));
-      assertTrue(html.contains("after withholding tax · yield"));
-      assertTrue(
-          html.contains(
-              "selectedPeriod == T(com.smartbox.investory.investment.api.reporting.DashboardPeriod).MAX"));
-      assertTrue(
-          html.contains("fragments/app-header :: appNavigation('investment', ${portfolioId})"));
-      assertFalse(html.contains("iv-risk-summary__links"));
-      assertTrue(html.contains("iv-realized-details"));
-      assertTrue(html.contains("iv-realized-attribution-popover"));
-      assertFalse(html.contains("dashboard/fragments/positions :: heading"));
-      assertFalse(html.contains("iv-attribution-popover"));
+      assertTrue(html.contains("dashboard/fragments/dashboard-header :: dashboardHeader"));
+      assertTrue(html.contains("dashboard/fragments/overview :: overview"));
+      assertTrue(html.contains("dashboard/fragments/performance :: performance"));
+      assertTrue(html.contains("dashboard-page-data"));
     }
   }
 
@@ -624,8 +607,8 @@ class InvestmentDashboardFacadeTest {
                 List.of(100.0, 100.0, 100.0),
                 List.of(5.0, 5.0, 5.0))));
 
-    when(portfolioMetricsService.calculateTotalProfitLoss()).thenReturn(portfolio);
-    when(benchmarkService.calculate()).thenReturn(benchmark);
+    when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
+    when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
 
     DashboardPageView result =
         new InvestmentDashboardFacade(

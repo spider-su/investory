@@ -84,6 +84,15 @@ public class ImportSourceEvidenceService {
     row.setSourceRowOccurrence(occurrence);
     row.setRawText(rawText);
     row.setRawValues(toJson(rawValues));
+    row.setLogicalRowSha256(
+        BrokerSourceRowIdentity.logicalRowSha256(
+            context.broker(),
+            sectionName,
+            sheetName,
+            sourceRecordId,
+            occurrence,
+            rawText,
+            row.getRawValues()));
     row.setCreatedAt(ZonedDateTime.now());
     return rowRepository.save(row).getId();
   }

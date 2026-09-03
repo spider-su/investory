@@ -133,7 +133,11 @@ class RetirementSimulationLifecycleE2ETest {
         .isEqualByComparingTo(original.annualLivingExpenses());
 
     // The rendered UI contract must contain the complete desktop lifecycle surfaces.
-    String simulation = readTemplate("simulation.html");
+    String simulation =
+        readTemplate("simulation.html")
+            + readTemplate("simulation/fragments/timeline.html")
+            + readTemplate("simulation/fragments/charts.html")
+            + readTemplate("simulation/fragments/projection.html");
     String editor = readTemplate("simulation-plan-edit.html");
     assertThat(simulation)
         .contains(
@@ -150,16 +154,18 @@ class RetirementSimulationLifecycleE2ETest {
             "3. Income",
             "4. Events",
             "5. Reserve &amp; funding",
-            "manual-rental-income",
-            "manual-bond-cash-income",
             "Total annual spending",
             "Save");
     assertThat(editor)
         .doesNotContain(
             "new Date()",
             "T(java.math.BigDecimal)",
-            "name=\"manualRentalIncome\" type=\"hidden\"",
-            "name=\"manualBondCashIncome\" type=\"hidden\"");
+            "Manual projected income",
+            "Manual planning value",
+            "id=\"manual-rental-income\"",
+            "id=\"manual-bond-cash-income\"",
+            "id=\"rental-income-mode\"",
+            "id=\"bond-cash-income-mode\"");
   }
 
   private static String readTemplate(String name) throws Exception {
@@ -348,7 +354,11 @@ class RetirementSimulationLifecycleE2ETest {
 
     private SimulationPlanService service() {
       return new SimulationPlanService(
-          plans, revisions, revisionEvents, new tools.jackson.databind.ObjectMapper());
+          plans,
+          revisions,
+          revisionEvents,
+          new com.smartbox.investory.retirement.infrastructure.simulation.PlanningBaselineJsonCodec(
+              new tools.jackson.databind.ObjectMapper()));
     }
 
     private SimulationPlanRevisionEntity persistedRevision() {

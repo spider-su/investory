@@ -17,13 +17,14 @@ public class InProcessInvestmentAssetClient implements InvestmentAssetClient {
   }
 
   @Override
-  public AssetDetailView detail(String symbol, DashboardPeriod period) {
-    return investmentAssetApi.detail(symbol, period);
+  public AssetDetailView detail(Long portfolioId, String symbol, DashboardPeriod period) {
+    return investmentAssetApi.detail(portfolioId, symbol, period);
   }
 
   @Override
-  public java.util.List<AssetPricePointView> priceHistory(String symbol, DashboardPeriod period) {
-    return investmentAssetApi.priceHistory(symbol, period);
+  public java.util.List<AssetPricePointView> priceHistory(
+      Long portfolioId, String symbol, DashboardPeriod period) {
+    return investmentAssetApi.priceHistory(portfolioId, symbol, period);
   }
 
   @Override

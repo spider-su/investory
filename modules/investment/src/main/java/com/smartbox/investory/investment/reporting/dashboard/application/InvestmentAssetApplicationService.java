@@ -21,19 +21,20 @@ public class InvestmentAssetApplicationService implements InvestmentAssetApi {
   private final AssetPriceChartService priceHistory;
 
   @Override
-  public AssetDetailView detail(String symbol, DashboardPeriod period) {
+  public AssetDetailView detail(Long portfolioId, String symbol, DashboardPeriod period) {
     try {
       return assetDetails.findBySymbol(
-          symbol, period == null ? DashboardPeriod.YEAR_TO_DATE : period);
+          portfolioId, symbol, period == null ? DashboardPeriod.YEAR_TO_DATE : period);
     } catch (AssetDetailNotFoundException exception) {
       throw new AssetNotFoundException(exception.getMessage(), exception);
     }
   }
 
   @Override
-  public List<AssetPricePointView> priceHistory(String symbol, DashboardPeriod period) {
+  public List<AssetPricePointView> priceHistory(
+      Long portfolioId, String symbol, DashboardPeriod period) {
     return priceHistory.findBySymbol(
-        symbol, period == null ? DashboardPeriod.YEAR_TO_DATE : period);
+        portfolioId, symbol, period == null ? DashboardPeriod.YEAR_TO_DATE : period);
   }
 
   @Override

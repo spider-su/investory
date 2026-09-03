@@ -1,7 +1,14 @@
+import {readPageData} from './page-data.js';
+
 let assetPriceChart = null;
+let assetDetailController = null;
 export function initAssetDetail() {
-if (!window.investoryAssetDetail) return;
-const pricePoints = window.investoryAssetDetail.pricePoints;
+destroyAssetDetail();
+assetDetailController = new AbortController();
+const {signal} = assetDetailController;
+const data = readPageData('asset-detail-page-data', null);
+if (!data) return;
+const pricePoints = data.pricePoints || [];
 if (pricePoints.length) {
     const context = document.getElementById('asset-price-chart');
     assetPriceChart = new Chart(context, {
@@ -9,7 +16,7 @@ if (pricePoints.length) {
         data: {
             labels: pricePoints.map(point => point.date),
             datasets: [{
-                label: window.investoryAssetDetail.label,
+                label: data.label,
                 data: pricePoints.map(point => point.closePrice),
                 borderWidth: 2,
                 pointRadius: pricePoints.length > 90 ? 0 : 2,
@@ -34,11 +41,11 @@ if (pricePoints.length) {
         }
     });
     const priceHistoryDetails = document.getElementById('price-history');
-    priceHistoryDetails.addEventListener('toggle', () => {
-        if (priceHistoryDetails.open) {
-            requestAnimationFrame(() => assetPriceChart.resize());
-        }
-    });
+        priceHistoryDetails.addEventListener('toggle', () => {
+            if (priceHistoryDetails.open) {
+                requestAnimationFrame(() => assetPriceChart.resize());
+            }
+        }, {signal});
 }
 
 const manualPriceForm = document.getElementById('manual-price-form');
@@ -67,9 +74,11 @@ if (!manualPriceForm) return;
             status.textContent = error.message;
             submitButton.disabled = false;
         }
-    });
+    }, {signal});
 }
 export function destroyAssetDetail() {
+    assetDetailController?.abort();
+    assetDetailController = null;
     assetPriceChart?.destroy();
     assetPriceChart = null;
 }

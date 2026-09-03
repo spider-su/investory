@@ -8,6 +8,10 @@ SNAPSHOT_DB="${SNAPSHOT_DB:-investory_snapshot}"
 MIGRATION_DIR="app/src/main/resources/sql/migration"
 CONTAINER_MIGRATION_DIR="/tmp/investory-snapshot-migrations"
 OUTPUT="test-support/src/main/resources/db/snapshot/schema.sql"
+COMMON_DATA_FILE="test-support/src/main/resources/db/snapshot/happyinvestor-common.sql"
+BROKER_DATA_FILE="test-support/src/main/resources/db/snapshot/happyinvestor-broker.sql"
+CONTAINER_COMMON_DATA_FILE="/tmp/investory-happyinvestor-common.sql"
+CONTAINER_BROKER_DATA_FILE="/tmp/investory-happyinvestor-broker.sql"
 
 compose() {
   docker compose -f "$COMPOSE_FILE" "$@"
@@ -16,6 +20,7 @@ compose() {
 cleanup() {
   compose exec -T "$DB_SERVICE" dropdb --if-exists --username="$DB_USER" "$SNAPSHOT_DB" >/dev/null 2>&1 || true
   compose exec -T "$DB_SERVICE" rm -rf "$CONTAINER_MIGRATION_DIR" >/dev/null 2>&1 || true
+  compose exec -T "$DB_SERVICE" rm -f "$CONTAINER_COMMON_DATA_FILE" "$CONTAINER_BROKER_DATA_FILE" >/dev/null 2>&1 || true
 }
 
 trap cleanup EXIT
@@ -27,12 +32,17 @@ compose exec -T "$DB_SERVICE" dropdb --if-exists --username="$DB_USER" "$SNAPSHO
 compose exec -T "$DB_SERVICE" createdb --username="$DB_USER" "$SNAPSHOT_DB"
 compose exec -T "$DB_SERVICE" mkdir -p "$CONTAINER_MIGRATION_DIR"
 compose cp "$MIGRATION_DIR/." "$DB_SERVICE:$CONTAINER_MIGRATION_DIR"
+compose cp "$COMMON_DATA_FILE" "$DB_SERVICE:$CONTAINER_COMMON_DATA_FILE"
+compose cp "$BROKER_DATA_FILE" "$DB_SERVICE:$CONTAINER_BROKER_DATA_FILE"
 
 compose exec -T "$DB_SERVICE" sh -ceu "
   for migration in \$(find '$CONTAINER_MIGRATION_DIR' -maxdepth 1 -type f -name '*.sql' | sort); do
     echo \"Applying \$migration\"
     psql -v ON_ERROR_STOP=1 --username='$DB_USER' --dbname='$SNAPSHOT_DB' --file=\"\$migration\"
   done
+  psql -v ON_ERROR_STOP=1 --username='$DB_USER' --dbname='$SNAPSHOT_DB' --file='$CONTAINER_COMMON_DATA_FILE'
+  psql -v ON_ERROR_STOP=1 --username='$DB_USER' --dbname='$SNAPSHOT_DB' --file='$CONTAINER_BROKER_DATA_FILE'
+  psql -v ON_ERROR_STOP=1 --username='$DB_USER' --dbname='$SNAPSHOT_DB' --command=\"SELECT investory.refresh_app_views(); SELECT investory.refresh_reconstructed_position_daily(); SELECT investory.refresh_reconstructed_account_market_daily(); SELECT investory.refresh_reconstructed_cash_daily(); SELECT investory.refresh_account_daily_reconciliation(); SELECT investory.refresh_reconciliation_reporting_views();\"
 "
 
 {

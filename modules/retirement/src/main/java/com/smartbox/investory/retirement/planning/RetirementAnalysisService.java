@@ -11,8 +11,6 @@ import com.smartbox.investory.retirement.simulation.DeterministicAnalysisContext
 import com.smartbox.investory.retirement.simulation.RetirementAgeAnalysisService;
 import com.smartbox.investory.retirement.simulation.SimulationSensitivityAnalysisService;
 import com.smartbox.investory.retirement.simulation.SustainableSpendingAnalysisService;
-import java.util.EnumMap;
-import java.util.Map;
 import org.springframework.stereotype.Service;
 
 /** Orchestrates derived retirement analysis without rebuilding the base projection pipeline. */
@@ -33,7 +31,7 @@ public class RetirementAnalysisService implements RetirementAnalysisApi {
 
   public RetirementAnalysisResult analyze(RetirementProjectionContext projection) {
     SimulationChartData charts =
-        SimulationChartData.from(analysisScenarios(projection), projection.projectedAssumptions());
+        SimulationChartData.from(projection.scenarioResults(), projection.projectedAssumptions());
     if (projection.forward().forwardAssumptions().isEmpty())
       return RetirementAnalysisResult.noForwardHorizon(charts);
 
@@ -54,20 +52,5 @@ public class RetirementAnalysisService implements RetirementAnalysisApi {
         new AnalysisAvailability.Available<>(retirementAge.analyze(context)),
         new AnalysisAvailability.Available<>(sensitivity.analyze(context)),
         charts);
-  }
-
-  /** Analysis hides the engine's zero-delta Custom compatibility result. */
-  private static Map<
-          SimulationScenario, com.smartbox.investory.retirement.api.model.SimulationResult>
-      analysisScenarios(RetirementProjectionContext projection) {
-    Map<SimulationScenario, com.smartbox.investory.retirement.api.model.SimulationResult> result =
-        new EnumMap<>(SimulationScenario.class);
-    result.putAll(projection.scenarioResults());
-    var base = result.get(SimulationScenario.BASE);
-    var custom = result.get(SimulationScenario.CUSTOM);
-    if (base != null && custom != null && base.years().equals(custom.years())) {
-      result.remove(SimulationScenario.CUSTOM);
-    }
-    return result;
   }
 }

@@ -84,6 +84,7 @@ class PortfolioProjectionServiceTest {
   @Mock private CurrencyRateService currencyRateService;
   @Mock private NormalizedCashOperationRepository normalizedCashOperationRepository;
   @Mock private AssetPriceHistoryGapFillService assetPriceHistoryGapFillService;
+  @Mock private PortfolioProjectionRefreshService projectionRefreshService;
 
   @InjectMocks private PortfolioProjectionService service;
 
@@ -286,7 +287,6 @@ class PortfolioProjectionServiceTest {
     ArgumentCaptor<Iterable<AccountDailyEntity>> accountDailyCaptor =
         ArgumentCaptor.forClass(Iterable.class);
     verify(accountDailyRepository).saveAll(accountDailyCaptor.capture());
-    verify(accountDailyRepository).refreshReportingViews();
     List<AccountDailyEntity> firstRows = toList(accountDailyCaptor.getValue());
     assertFalse(firstRows.isEmpty());
 
@@ -294,7 +294,6 @@ class PortfolioProjectionServiceTest {
 
     verify(accountDailyRepository, org.mockito.Mockito.times(2))
         .saveAll(accountDailyCaptor.capture());
-    verify(accountDailyRepository, org.mockito.Mockito.times(2)).refreshReportingViews();
     List<AccountDailyEntity> secondRows = toList(accountDailyCaptor.getAllValues().get(1));
     assertEquivalentProjectionRows(firstRows, secondRows);
   }
@@ -305,15 +304,16 @@ class PortfolioProjectionServiceTest {
     when(openedPositionRepository.findOpen()).thenReturn(List.of());
     when(closedPositionRepository.findClosed()).thenReturn(List.of());
     when(cashOperationRepository.findAll()).thenReturn(List.of());
-    org.mockito.Mockito.doThrow(new IllegalStateException("refresh failed"))
+    org.mockito.Mockito.doThrow(new IllegalStateException("gap fill failed"))
         .doNothing()
-        .when(accountDailyRepository)
-        .refreshReportingViews();
+        .when(assetPriceHistoryGapFillService)
+        .fillMissingBusinessDayGaps(any());
 
     assertThrows(IllegalStateException.class, service::recalculateAll);
     assertDoesNotThrow(service::recalculateAll);
 
-    verify(accountDailyRepository, org.mockito.Mockito.times(2)).refreshReportingViews();
+    verify(assetPriceHistoryGapFillService, org.mockito.Mockito.times(2))
+        .fillMissingBusinessDayGaps(any());
   }
 
   @DisplayName("recalculate All handles Empty Inputs")
@@ -325,7 +325,6 @@ class PortfolioProjectionServiceTest {
 
     service.recalculateAll();
 
-    verify(accountDailyRepository).refreshReportingViews();
     verify(accountDailyRepository, never()).saveAll(anyList());
     verify(currencyRateService, never())
         .convertToBaseCurrency(
@@ -1479,8 +1478,6 @@ class PortfolioProjectionServiceTest {
         .thenAnswer(invocation -> invocation.getArgument(0));
 
     service.recalculateAll();
-
-    verify(accountDailyRepository).refreshReportingViews();
   }
 
   @Test
@@ -1543,8 +1540,6 @@ class PortfolioProjectionServiceTest {
         .thenAnswer(invocation -> invocation.getArgument(0));
 
     service.recalculateAll();
-
-    verify(accountDailyRepository).refreshReportingViews();
   }
 
   @DisplayName("recalculate All uses Xtb Currency Conversion Rate For Account Boundary Funding")
@@ -1583,8 +1578,6 @@ class PortfolioProjectionServiceTest {
         .thenAnswer(invocation -> invocation.getArgument(0));
 
     service.recalculateAll();
-
-    verify(accountDailyRepository).refreshReportingViews();
   }
 
   @DisplayName("recalculate All uses Ibkr Forex Base Amount For Cash Flow Valuation")
@@ -1642,8 +1635,6 @@ class PortfolioProjectionServiceTest {
         .thenAnswer(invocation -> invocation.getArgument(0));
 
     service.recalculateAll();
-
-    verify(accountDailyRepository).refreshReportingViews();
   }
 
   @DisplayName("recalculate All converts Native Cash Balance Instead Of Historical Cash Movements")
@@ -1733,8 +1724,6 @@ class PortfolioProjectionServiceTest {
         .thenAnswer(invocation -> invocation.getArgument(0));
 
     service.recalculateAll();
-
-    verify(accountDailyRepository).refreshReportingViews();
   }
 
   @DisplayName(

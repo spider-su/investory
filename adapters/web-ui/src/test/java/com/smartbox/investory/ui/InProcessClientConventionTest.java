@@ -16,6 +16,7 @@ import com.smartbox.investory.ui.retirement.simulation.InProcessRetirementPlanIn
 import com.smartbox.investory.ui.retirement.simulation.InProcessRetirementPresentationClient;
 import com.smartbox.investory.ui.retirement.simulation.InProcessRetirementPreviewClient;
 import com.smartbox.investory.ui.retirement.simulation.InProcessRetirementProjectionClient;
+import com.smartbox.investory.ui.retirement.simulation.InProcessRetirementSandboxPlanClient;
 import com.smartbox.investory.ui.retirement.simulation.InProcessRetirementTimelineClient;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -35,6 +36,7 @@ class InProcessClientConventionTest {
           InProcessRetirementAnalysisClient.class,
           InProcessRetirementPlanInputClient.class,
           InProcessRetirementPlanClient.class,
+          InProcessRetirementSandboxPlanClient.class,
           InProcessRetirementPresentationClient.class,
           InProcessRetirementPreviewClient.class,
           InProcessRetirementProfileClient.class,
@@ -49,9 +51,11 @@ class InProcessClientConventionTest {
       var constructors = client.getDeclaredConstructors();
       assertTrue(constructors.length == 1, client.getName());
       var parameters = constructors[0].getParameters();
-      assertTrue(parameters.length == 1, client.getName());
-      assertNotNull(parameters[0].getAnnotation(Qualifier.class), client.getName());
-      assertFalse(parameters[0].getType().getPackageName().contains(".web"), client.getName());
+      assertTrue(parameters.length > 0, client.getName());
+      for (var parameter : parameters) {
+        assertNotNull(parameter.getAnnotation(Qualifier.class), client.getName());
+        assertFalse(parameter.getType().getPackageName().contains(".web"), client.getName());
+      }
     }
   }
 }

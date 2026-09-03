@@ -2,7 +2,6 @@ package com.smartbox.investory.investment.ledger.position.persistence;
 
 import java.util.Collection;
 import java.util.List;
-import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -13,27 +12,20 @@ import org.springframework.stereotype.Repository;
 public interface PositionRepository extends JpaRepository<PositionEntity, Long> {
 
   @Query("SELECT position FROM PositionEntity position WHERE position.closeTime IS NULL")
-  @EntityGraph(attributePaths = "asset")
   List<PositionEntity> findOpen();
 
   @Query("SELECT position FROM PositionEntity position WHERE position.closeTime IS NOT NULL")
-  @EntityGraph(attributePaths = "asset")
   List<PositionEntity> findClosed();
 
   @Query(
-      "SELECT position FROM PositionEntity position WHERE position.closeTime IS NULL AND position.account = :account")
-  @EntityGraph(attributePaths = "asset")
-  List<PositionEntity> findOpenByAccount(@Param("account") Long account);
-
-  @Query(
       "SELECT position FROM PositionEntity position WHERE position.closeTime IS NULL AND position.account IN :accounts")
-  @EntityGraph(attributePaths = "asset")
   List<PositionEntity> findOpenByAccountIn(@Param("accounts") Collection<Long> accounts);
 
   @Query(
       "SELECT position FROM PositionEntity position WHERE position.closeTime IS NOT NULL AND position.account IN :accounts")
-  @EntityGraph(attributePaths = "asset")
   List<PositionEntity> findClosedByAccountIn(@Param("accounts") Collection<Long> accounts);
+
+  List<PositionEntity> findAllByAccountIn(Collection<Long> accounts);
 
   @Query(
       "SELECT DISTINCT position.account FROM PositionEntity position WHERE position.account IS NOT NULL")
@@ -41,13 +33,21 @@ public interface PositionRepository extends JpaRepository<PositionEntity, Long> 
 
   @Query(
       "SELECT position FROM PositionEntity position WHERE position.closeTime IS NULL AND position.assetId = :assetId ORDER BY position.account, position.openTime")
-  @EntityGraph(attributePaths = "asset")
   List<PositionEntity> findOpenByAssetId(@Param("assetId") Long assetId);
 
   @Query(
+      "SELECT position FROM PositionEntity position WHERE position.closeTime IS NULL AND position.assetId = :assetId AND position.account IN :accounts ORDER BY position.account, position.openTime")
+  List<PositionEntity> findOpenByAssetIdAndAccountIn(
+      @Param("assetId") Long assetId, @Param("accounts") Collection<Long> accounts);
+
+  @Query(
       "SELECT position FROM PositionEntity position WHERE position.closeTime IS NOT NULL AND position.assetId = :assetId ORDER BY position.closeTime DESC")
-  @EntityGraph(attributePaths = "asset")
   List<PositionEntity> findClosedByAssetId(@Param("assetId") Long assetId);
+
+  @Query(
+      "SELECT position FROM PositionEntity position WHERE position.closeTime IS NOT NULL AND position.assetId = :assetId AND position.account IN :accounts ORDER BY position.closeTime DESC")
+  List<PositionEntity> findClosedByAssetIdAndAccountIn(
+      @Param("assetId") Long assetId, @Param("accounts") Collection<Long> accounts);
 
   @Modifying
   @Query(

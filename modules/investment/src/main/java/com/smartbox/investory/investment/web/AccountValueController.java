@@ -1,6 +1,7 @@
 package com.smartbox.investory.investment.web;
 
 import com.smartbox.investory.investment.api.reporting.InvestmentPerformanceApi;
+import jakarta.validation.constraints.Positive;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,7 +20,7 @@ public class AccountValueController {
 
   @GetMapping("/account-values")
   public InvestmentPerformanceApi.AccountValueView accountValues(
-      @RequestParam(required = false) String accountIds, @RequestParam Long portfolioId) {
+      @RequestParam(required = false) String accountIds, @RequestParam @Positive Long portfolioId) {
     List<Long> ids = accountIds == null ? null : AccountIdParser.parse(accountIds);
     return performance.loadAccountValues(portfolioId, ids);
   }

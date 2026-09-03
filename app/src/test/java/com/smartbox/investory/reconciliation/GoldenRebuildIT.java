@@ -10,10 +10,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smartbox.investory.investment.imports.ImportExecutionResult;
 import com.smartbox.investory.investment.imports.ibkr.IbkrImportService;
 import com.smartbox.investory.investment.imports.xtb.XtbImportService;
+import com.smartbox.investory.investment.projection.PortfolioProjectionRefreshService;
 import com.smartbox.investory.investment.projection.PortfolioProjectionService;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.testsupport.SharedPostgres;
 import com.smartbox.investory.testsupport.WorkerDatabase;
+import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorTestData;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -61,9 +63,21 @@ class GoldenRebuildIT {
 
   private static final String ROOT = "/reconciliation/golden/";
   private static final Set<Long> GOLDEN_ACCOUNTS =
-      Set.of(17959259L, 51499241L, 51993106L, 51551301L, 50290466L);
+      Set.of(
+          HappyInvestorTestData.IBKR_USD_ACCOUNT_ID,
+          HappyInvestorTestData.XTB_USD_ACCOUNT_ID,
+          51993106L,
+          HappyInvestorTestData.XTB_PLN_ACCOUNT_ID,
+          50290466L);
 
-  private static final String CORE_RECON_ACCOUNTS = "17959259,51499241,51993106,51551301,50290466";
+  // The two additional XTB accounts belong to the reduced reconciliation corpus, not the
+  // four-account canonical Happy Investor profile.
+  private static final String CORE_RECON_ACCOUNTS =
+      "%d,%d,51993106,%d,50290466"
+          .formatted(
+              HappyInvestorTestData.IBKR_USD_ACCOUNT_ID,
+              HappyInvestorTestData.XTB_USD_ACCOUNT_ID,
+              HappyInvestorTestData.XTB_PLN_ACCOUNT_ID);
   private static final Set<String> EXPECTED_MANIFEST_PATHS =
       Set.of(
           "README.md",
@@ -90,6 +104,7 @@ class GoldenRebuildIT {
   @Autowired private IbkrImportService ibkrImportService;
   @Autowired private XtbImportService xtbImportService;
   @Autowired private PortfolioProjectionService portfolioProjectionService;
+  @Autowired private PortfolioProjectionRefreshService portfolioProjectionRefreshService;
   @Autowired private CurrencyRateService currencyRateService;
   private final GoldenReadinessReport readiness = new GoldenReadinessReport();
   private final ObjectMapper objectMapper = new ObjectMapper();
@@ -97,9 +112,11 @@ class GoldenRebuildIT {
 
   @BeforeAll
   static void migrateFreshDatabase() {
-
     Flyway.configure()
         .dataSource(DATABASE.jdbcUrl(), DATABASE.username(), DATABASE.password())
+        .schemas("investory")
+        .defaultSchema("investory")
+        .createSchemas(true)
         .locations("classpath:sql/migration")
         .load()
         .migrate();
@@ -151,6 +168,16 @@ class GoldenRebuildIT {
     runCheck("ibkr-import", "ibkr/U17959259.TRANSACTIONS.GOLDEN.csv", this::importIbkrFixture);
     runCheck("xtb-import", "xtb/investory_xtb_golden.zip", this::importXtbFixture);
 
+    // The fixtures call the import services directly, so reproduce the application refresh
+    // boundary that ImportOrchestratorService runs after a broker import. Reconciliation views
+    // depend on these application MVs (including normalized prices and cash flows).
+    runCheck(
+        "application-refresh",
+        "application materialized views",
+        () ->
+            portfolioProjectionRefreshService.refreshApplicationViews(
+                PortfolioProjectionRefreshService.ApplicationRefreshScope.BROKER_IMPORT));
+
     // Importers may add deterministic execution-rate observations. Rebuild the local cache after
     // all
     // imports, then project only the fixture accounts. recalculateAll() is intentionally not used:
@@ -159,6 +186,7 @@ class GoldenRebuildIT {
         "projection-refresh",
         "account_daily and reporting materialized views",
         () -> {
+          currencyRateService.clearValuationResolutionCache();
           portfolioProjectionService.recalculateAccounts(GOLDEN_ACCOUNTS);
           portfolioProjectionService.refreshReconciliationViews();
         });
@@ -290,18 +318,18 @@ class GoldenRebuildIT {
 
         jdbc.update(
             """
-            insert into investory.exchange_rates(
-                rate_date, base, to_currency, rate,
-                source, method, source_reference
-            )
-            select day::date, ?, ?, ?, 'TEST', 'MARKET_DAILY', ? || ':' || day::date
-            from generate_series(
-                ?,
-                (date_trunc('month', ?::date + interval '1 month') - interval '1 day')::date,
-                interval '3 days'
-            ) day
-            on conflict do nothing
-            """,
+                insert into investory.exchange_rates(
+                    rate_date, base, to_currency, rate,
+                    source, method, source_reference
+                )
+                select day::date, ?, ?, ?, 'TEST', 'MARKET_DAILY', ? || ':' || day::date
+                from generate_series(
+                    ?,
+                    (date_trunc('month', ?::date + interval '1 month') - interval '1 day')::date,
+                    interval '1 day'
+                ) day
+                on conflict do nothing
+                """,
             base,
             target,
             rate,
@@ -310,29 +338,31 @@ class GoldenRebuildIT {
             date);
       }
     }
+    currencyRateService.clearValuationResolutionCache();
   }
 
   private void assertTreasuryLifecycle() {
     Long assetId =
         jdbc.queryForObject(
             """
-            select id
-            from investory.assets
-            where symbol = 'US91282CKB62'
-              and asset_type = 'BOND'
-            """,
+                    select id
+                    from investory.assets
+                    where symbol = 'US91282CKB62'
+                      and asset_type = 'BOND'
+                    """,
             Long.class);
     assertNotNull(assetId);
 
     Double acquiredFace =
         jdbc.queryForObject(
             """
-            select coalesce(sum(volume), 0)::double precision
-            from investory.positions
-            where account_id = 17959259
-              and asset_id = ?
-              and operation = 'BUY'
-            """,
+                    select coalesce(sum(volume), 0)::double precision
+                    from investory.positions
+                    where account_id = %d
+                      and asset_id = ?
+                      and operation = 'BUY'
+                    """
+                .formatted(HappyInvestorTestData.IBKR_USD_ACCOUNT_ID),
             Double.class,
             assetId);
     assertClose(10_000.0, acquiredFace, 0.000001, "Treasury acquired face");
@@ -340,12 +370,12 @@ class GoldenRebuildIT {
     Double openFace =
         jdbc.queryForObject(
             """
-            select coalesce(sum(volume), 0)::double precision
-            from investory.positions
-            where account_id = 17959259
-              and asset_id = ?
-              and close_time is null
-            """,
+                    select coalesce(sum(volume), 0)::double precision
+                    from investory.positions
+                    where account_id = 17959259
+                      and asset_id = ?
+                      and close_time is null
+                    """,
             Double.class,
             assetId);
     assertClose(0.0, openFace, 0.000001, "Treasury open face after redemption");
@@ -353,33 +383,38 @@ class GoldenRebuildIT {
     Map<String, Object> valuation =
         jdbc.queryForMap(
             """
-            select
-                selected_price::double precision as selected_price,
-                contract_multiplier::double precision as contract_multiplier,
-                reconstructed_market_value_base::double precision as market_value
-            from investory.v_reconstructed_position_daily
-            where account_id = 17959259
-              and asset_id = ?
-              and valuation_date = date '2026-02-26'
-            """,
+                    select
+                        selected_price::double precision as selected_price,
+                        contract_multiplier::double precision as contract_multiplier,
+                        reconstructed_market_value_base::double precision as market_value,
+                        fx_rate_to_base::double precision as fx_rate_to_base
+                    from investory.app_v_reconstructed_position_daily
+                    where account_id = 17959259
+                      and asset_id = ?
+                      and valuation_date = date '2026-02-26'
+                    """,
             assetId);
     assertClose(100.42611625, number(valuation.get("selected_price")), 0.000001, "bond price");
     assertClose(0.01, number(valuation.get("contract_multiplier")), 0.000000001, "bond multiplier");
-    assertClose(10_042.611625, number(valuation.get("market_value")), 0.01, "bond market value");
+    assertClose(
+        10_042.611625 * number(valuation.get("fx_rate_to_base")),
+        number(valuation.get("market_value")),
+        0.01,
+        "bond market value in portfolio base currency");
 
     Map<String, Object> redemption =
         jdbc.queryForMap(
             """
-            select
-                normalized_category,
-                performance_flow_amount::double precision as performance_flow,
-                portfolio_flow_amount::double precision as portfolio_flow,
-                amount::double precision as amount,
-                date::date as business_date
-            from investory.normalized_cash_operation_flows
-            where account_id = 17959259
-              and normalized_category = 'BOND_REDEMPTION'
-            """);
+                    select
+                        normalized_category,
+                        performance_flow_amount::double precision as performance_flow,
+                        portfolio_flow_amount::double precision as portfolio_flow,
+                        amount::double precision as amount,
+                        date::date as business_date
+                    from investory.app_v_normalized_cash_operation_flows
+                    where account_id = 17959259
+                      and normalized_category = 'BOND_REDEMPTION'
+                    """);
     assertEquals("BOND_REDEMPTION", redemption.get("normalized_category"));
     assertClose(10_000.0, number(redemption.get("amount")), 0.000001, "redemption principal");
     assertClose(
@@ -392,13 +427,13 @@ class GoldenRebuildIT {
     Double coupon =
         jdbc.queryForObject(
             """
-            select coalesce(sum(amount), 0)::double precision
-            from investory.cash_operations
-            where account_id = 17959259
-              and operation = 'FREE_FUNDS_INTEREST'
-              and comment ilike '%Bond Coupon Payment%'
-              and amount > 0
-            """,
+                    select coalesce(sum(amount), 0)::double precision
+                    from investory.cash_operations
+                    where account_id = 17959259
+                      and operation = 'FREE_FUNDS_INTEREST'
+                      and comment ilike '%Bond Coupon Payment%'
+                      and amount > 0
+                    """,
             Double.class);
     assertTrue(coupon >= 231.25, "Treasury coupon must remain interest income");
   }
@@ -407,23 +442,23 @@ class GoldenRebuildIT {
     LocalDate date =
         jdbc.queryForObject(
             """
-            select date::date
-            from investory.cash_operations
-            where account_id = 17959259
-              and amount = 8793
-            """,
+                    select date::date
+                    from investory.cash_operations
+                    where account_id = 17959259
+                      and amount = 8793
+                    """,
             LocalDate.class);
     assertEquals(LocalDate.of(2026, 5, 7), date);
 
     Integer wrongDayRows =
         jdbc.queryForObject(
             """
-            select count(*)
-            from investory.cash_operations
-            where account_id = 17959259
-              and amount = 8793
-              and date::date = date '2026-05-06'
-            """,
+                    select count(*)
+                    from investory.cash_operations
+                    where account_id = 17959259
+                      and amount = 8793
+                      and date::date = date '2026-05-06'
+                    """,
             Integer.class);
     assertEquals(0, wrongDayRows);
   }
@@ -477,13 +512,13 @@ class GoldenRebuildIT {
 
     Map<CashDimension, CashTotals> actual = new HashMap<>();
     jdbc.query(
-"""
-        select co.operation::text as operation, co.currency, cast(co.date as date) as operation_date,
-               count(*) as row_count, coalesce(sum(co.amount), 0) as amount
-from investory.cash_operations co
-where co.account_id = 17959259
-        group by co.operation, co.currency, co.date::date
-        """,
+        """
+                    select co.operation::text as operation, co.currency, cast(co.date as date) as operation_date,
+                           count(*) as row_count, coalesce(sum(co.amount), 0) as amount
+            from investory.cash_operations co
+            where co.account_id = 17959259
+                    group by co.operation, co.currency, co.date::date
+                    """,
         rs -> {
           CashDimension key =
               new CashDimension(
@@ -568,15 +603,15 @@ where co.account_id = 17959259
     Map<String, Object> row =
         jdbc.queryForMap(
             """
-            select
-                sum(amount)::double precision as cash_amount,
-                sum(performance_flow_amount)::double precision as performance_flow,
-                sum(portfolio_flow_amount)::double precision as portfolio_flow
-            from investory.normalized_cash_operation_flows
-            where account_id = 51993106
-              and raw_operation = 'SUBACCOUNT_TRANSFER'
-              and abs(amount) = 6044.12
-            """);
+                    select
+                        sum(amount)::double precision as cash_amount,
+                        sum(performance_flow_amount)::double precision as performance_flow,
+                        sum(portfolio_flow_amount)::double precision as portfolio_flow
+                    from investory.app_v_normalized_cash_operation_flows
+                    where account_id = 51993106
+                      and raw_operation = 'SUBACCOUNT_TRANSFER'
+                      and abs(amount) = 6044.12
+                    """);
     assertClose(0.0, number(row.get("cash_amount")), 0.000001, "rebooking net cash");
     assertClose(0.0, number(row.get("performance_flow")), 0.000001, "rebooking performance flow");
     assertClose(0.0, number(row.get("portfolio_flow")), 0.000001, "rebooking portfolio flow");
@@ -586,15 +621,15 @@ where co.account_id = 17959259
     List<Map<String, Object>> rows =
         jdbc.queryForList(
             """
-            select
-                account_id,
-                sum(performance_flow_amount)::double precision as performance_flow,
-                sum(portfolio_flow_amount)::double precision as portfolio_flow
-            from investory.normalized_cash_operation_flows
-            where comment = 'Transfer from 51993106 to 51499241'
-            group by account_id
-            order by account_id
-            """);
+                    select
+                        account_id,
+                        sum(performance_flow_amount)::double precision as performance_flow,
+                        sum(portfolio_flow_amount)::double precision as portfolio_flow
+                    from investory.app_v_normalized_cash_operation_flows
+                    where comment = 'Transfer from 51993106 to 51499241'
+                    group by account_id
+                    order by account_id
+                    """);
     assertEquals(2, rows.size(), rows.toString());
 
     Map<String, Object> target = rowForAccount(rows, 51499241L);
@@ -615,24 +650,24 @@ where co.account_id = 17959259
     Double externalFunding =
         jdbc.queryForObject(
             """
-            select coalesce(sum(portfolio_flow_amount), 0)::double precision
-            from investory.normalized_cash_operation_flows
-            where account_id = 50290466
-              and normalized_category = 'EXTERNAL_DEPOSIT'
-              and amount = 14200
-            """,
+                    select coalesce(sum(portfolio_flow_amount), 0)::double precision
+                    from investory.app_v_normalized_cash_operation_flows
+                    where account_id = 50290466
+                      and normalized_category = 'EXTERNAL_DEPOSIT'
+                      and amount = 14200
+                    """,
             Double.class);
     assertClose(14_200.0, externalFunding, 0.000001, "cash-only external funding");
 
     Double ikeAllocationPortfolioFlow =
         jdbc.queryForObject(
             """
-            select coalesce(sum(portfolio_flow_amount), 0)::double precision
-            from investory.normalized_cash_operation_flows
-            where account_id in (50290466, 51551301)
-              and normalized_category in ('INTERNAL_TRANSFER_IN', 'INTERNAL_TRANSFER_OUT')
-              and abs(amount) = 14200
-            """,
+                    select coalesce(sum(portfolio_flow_amount), 0)::double precision
+                    from investory.app_v_normalized_cash_operation_flows
+                    where account_id in (50290466, 51551301)
+                      and normalized_category in ('INTERNAL_TRANSFER_IN', 'INTERNAL_TRANSFER_OUT')
+                      and abs(amount) = 14200
+                    """,
             Double.class);
     assertClose(0.0, ikeAllocationPortfolioFlow, 0.000001, "IKE allocation portfolio flow");
   }
@@ -641,15 +676,15 @@ where co.account_id = 17959259
     Map<String, Object> position =
         jdbc.queryForMap(
             """
-            select
-                settlement_model::text as settlement_model,
-                profit::double precision as profit,
-                swap::double precision as swap
-            from investory.positions
-            where account_id = 51499241
-              and source_position_id = '2040572606'
-              and close_time is not null
-            """);
+                    select
+                        settlement_model::text as settlement_model,
+                        profit::double precision as profit,
+                        swap::double precision as swap
+                    from investory.positions
+                    where account_id = 51499241
+                      and source_position_id = '2040572606'
+                      and close_time is not null
+                    """);
     assertEquals("RESULT_ONLY", position.get("settlement_model"));
     assertClose(19.12, number(position.get("profit")), 0.000001, "NATGAS net position result");
     assertClose(-0.68, number(position.get("swap")), 0.000001, "NATGAS position swap");
@@ -657,17 +692,17 @@ where co.account_id = 17959259
     Map<String, Object> settlementCash =
         jdbc.queryForMap(
             """
-            select
-                coalesce(sum(amount) filter (where operation = 'CLOSE_TRADE'), 0)::double precision
-                    as close_trade,
-                coalesce(sum(amount) filter (where operation = 'ROLLOVER'), 0)::double precision
-                    as rollover,
-                coalesce(sum(amount) filter (where operation = 'SWAP'), 0)::double precision
-                    as cash_swap
-            from investory.cash_operations
-            where account_id = 51499241
-              and comment like '%2040572606%'
-            """);
+                    select
+                        coalesce(sum(amount) filter (where operation = 'CLOSE_TRADE'), 0)::double precision
+                            as close_trade,
+                        coalesce(sum(amount) filter (where operation = 'ROLLOVER'), 0)::double precision
+                            as rollover,
+                        coalesce(sum(amount) filter (where operation = 'SWAP'), 0)::double precision
+                            as cash_swap
+                    from investory.cash_operations
+                    where account_id = 51499241
+                      and comment like '%2040572606%'
+                    """);
     assertClose(
         105.90, number(settlementCash.get("close_trade")), 0.000001, "NATGAS close trade cash");
     assertClose(-86.10, number(settlementCash.get("rollover")), 0.000001, "NATGAS rollover cash");
@@ -676,11 +711,12 @@ where co.account_id = 17959259
     Double reconstructed =
         jdbc.queryForObject(
             """
-            select reconstructed_total_realized_result::double precision
-            from investory.v_realized_result_reconciliation
-            where account_id = 51499241
-              and valuation_date = date '2025-09-26'
-            """,
+                    select coalesce(sum(profit), 0)::double precision
+                    from investory.positions
+                    where account_id = 51499241
+                      and source_position_id = '2040572606'
+                      and close_time::date = date '2025-09-26'
+                    """,
             Double.class);
     assertClose(19.12, reconstructed, 0.01, "NATGAS independently reconstructed result");
   }
@@ -689,48 +725,48 @@ where co.account_id = 17959259
     assertNoRows(
         "account_daily independent reconstruction",
         """
-        select *
-        from investory.v_account_daily_reconciliation
-        where account_id in (%s)
-          and status = 'FAIL'
-        order by abs(equity_difference) desc nulls last, valuation_date
-        limit 20
-        """
+            select *
+            from investory.recon_v_account_daily
+            where account_id in (%s)
+              and status = 'FAIL'
+            order by abs(equity_difference) desc nulls last, valuation_date
+            limit 20
+            """
             .formatted(CORE_RECON_ACCOUNTS));
 
     assertNoRows(
         "position valuation input blockers",
         """
-        select *
-        from investory.v_position_valuation_validation
-        where account_id in (%s)
-          and severity = 'ERROR'
-        order by valuation_date, account_id, asset_id
-        limit 20
-        """
+            select *
+            from investory.recon_v_position_valuation_validation
+            where account_id in (%s)
+              and severity = 'ERROR'
+            order by valuation_date, account_id, asset_id
+            limit 20
+            """
             .formatted(CORE_RECON_ACCOUNTS));
 
     assertNoRows(
         "incomplete realized-result reconstruction",
         """
-        select *
-        from investory.v_realized_result_reconciliation
-        where account_id in (%s)
-          and is_complete = false
-        order by valuation_date, account_id
-        limit 20
-        """
+            select *
+            from investory.recon_v_realized_result
+            where account_id in (%s)
+              and is_complete = false
+            order by valuation_date, account_id
+            limit 20
+            """
             .formatted(CORE_RECON_ACCOUNTS));
   }
 
   private void assertNoReconciliationErrors() {
     List<String> views =
         List.of(
-            "v_account_daily_reconciliation",
-            "reporting_account_daily_cashflow_reconciliation",
-            "reporting_account_monthly_profit_reconciliation",
-            "reporting_account_statistics_vs_daily_reconciliation",
-            "reporting_trade_settlement_reconciliation");
+            "recon_v_account_daily",
+            "recon_v_account_daily_cashflow",
+            "recon_v_account_monthly_profit",
+            "recon_v_account_statistics_vs_daily",
+            "recon_v_trade_settlement");
     for (String view : views) {
       Set<String> columns =
           new HashSet<>(
@@ -765,23 +801,23 @@ where co.account_id = 17959259
     assertNoRows(
         "position currency blockers",
         """
-        select id
-        from investory.positions
-        where account_id in (%s)
-          and (price_currency is null or cost_currency is null or profit_currency is null
-               or commission_currency is null)
-        limit 20
-        """
+            select id
+            from investory.positions
+            where account_id in (%s)
+              and (price_currency is null or cost_currency is null or profit_currency is null
+                   or commission_currency is null)
+            limit 20
+            """
             .formatted(CORE_RECON_ACCOUNTS));
     for (String view :
         List.of(
-            "account_monthly_mv",
-            "portfolio_monthly_mv",
-            "account_statistics",
-            "portfolio_currency_breakdown",
-            "portfolio_asset_allocation",
-            "symbol_performance",
-            "portfolio_kpi_summary")) {
+            "app_v_account_monthly",
+            "app_v_portfolio_performance_daily",
+            "app_v_account_statistics",
+            "app_v_portfolio_currency_breakdown",
+            "app_v_portfolio_asset_allocation",
+            "app_v_symbol_performance",
+            "app_v_portfolio_kpi_summary")) {
       Integer rows = jdbc.queryForObject("select count(*) from investory." + view, Integer.class);
       assertNotNull(rows, view + " refresh result missing");
     }
@@ -790,20 +826,20 @@ where co.account_id = 17959259
   private void assertNoDuplicateLots() {
     assertNoRows(
         "duplicate position lots",
-        "select * from investory.reporting_position_lot_duplicates limit 20");
+        "select * from investory.recon_v_position_lot_duplicates limit 20");
   }
 
   private void assertNoUnclassifiedFixtureCash() {
     assertNoRows(
         "unclassified fixture cash",
         """
-        select account_id, operation_id, raw_operation, amount, comment, date
-        from investory.normalized_cash_operations
-        where account_id in (17959259,51499241,51993106,51551301,50290466)
-          and normalized_category = 'UNCLASSIFIED'
-        order by account_id, date, operation_id
-        limit 20
-        """);
+            select account_id, operation_id, raw_operation, amount, comment, date
+            from investory.app_v_normalized_cash_operations
+            where account_id in (17959259,51499241,51993106,51551301,50290466)
+              and normalized_category = 'UNCLASSIFIED'
+            order by account_id, date, operation_id
+            limit 20
+            """);
   }
 
   private void assertNoRows(String label, String sql) {

@@ -51,20 +51,6 @@ class RetirementScenarioPropagationTest {
                     assumptions.startYear())
                 .bondReturnRate())
         .isEqualByComparingTo("0.043");
-    assertThat(
-            ScenarioEffectiveAssumptions.forScenario(
-                    emptyProfile(),
-                    assumptions,
-                    SimulationScenario.CUSTOM,
-                    assumptions.startYear(),
-                    new SimulationCustomDeltas(
-                        BigDecimal.ZERO,
-                        BigDecimal.ZERO,
-                        bd("-0.005"),
-                        BigDecimal.ZERO,
-                        BigDecimal.ZERO))
-                .bondReturnRate())
-        .isEqualByComparingTo("0.038");
   }
 
   @DisplayName("derives Base Bond Yield From Frozen Capitalized Return And Applies Scenario Delta")
@@ -224,39 +210,6 @@ class RetirementScenarioPropagationTest {
       assertThat(compared.get(scenario).years().getFirst().equityGain())
           .isEqualByComparingTo(direct.years().getFirst().equityGain());
     }
-  }
-
-  @DisplayName("custom Is Distinct But Currently Matches Base Projection")
-  @Test
-  void customIsDistinctButCurrentlyMatchesBaseProjection() {
-    InvestmentProfile profile = profileWithCapitalizedBond("900000", "36000");
-    SimulationAssumptions assumptions = assumptions(profile);
-    RetirementSimulationService service = new RetirementSimulationService();
-
-    SimulationResult base = service.simulate(profile, assumptions, SimulationScenario.BASE);
-    SimulationResult custom = service.simulate(profile, assumptions, SimulationScenario.CUSTOM);
-
-    assertThat(custom.scenario()).isEqualTo(SimulationScenario.CUSTOM);
-    assertThat(custom.years()).isEqualTo(base.years());
-  }
-
-  @DisplayName("non Zero Custom Deltas Change Only The Custom Projection")
-  @Test
-  void nonZeroCustomDeltasChangeOnlyTheCustomProjection() {
-    InvestmentProfile profile = profileWithCapitalizedBond("900000", "36000");
-    SimulationAssumptions assumptions = assumptions(profile).withEquityReturnRate(bd("0.080"));
-    SimulationCustomDeltas custom =
-        new SimulationCustomDeltas(
-            BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, bd("0.020"), BigDecimal.ZERO);
-    RetirementSimulationService service = new RetirementSimulationService();
-
-    var base = service.compareScenarios(profile, assumptions);
-    var adjusted = service.compareScenarios(profile, assumptions, assumptions.startYear(), custom);
-
-    assertThat(adjusted.get(SimulationScenario.CUSTOM).years())
-        .isNotEqualTo(base.get(SimulationScenario.BASE).years());
-    assertThat(adjusted.get(SimulationScenario.BASE).years())
-        .isEqualTo(base.get(SimulationScenario.BASE).years());
   }
 
   private static BigDecimal bondReturn(SimulationResult result) {

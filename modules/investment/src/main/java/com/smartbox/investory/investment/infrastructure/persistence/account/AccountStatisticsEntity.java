@@ -25,12 +25,18 @@ import org.hibernate.annotations.Immutable;
 @Entity
 @Immutable
 @EqualsAndHashCode(of = "accountId")
-@Table(name = "app_v_account_statistics")
+@Table(name = "app_v_account_statistics_reporting")
 public class AccountStatisticsEntity {
 
   @Id
   @Column(name = "account_id", nullable = false)
   private Long accountId;
+
+  @Column(name = "cash_only", nullable = false)
+  private boolean cashOnly;
+
+  @Column(name = "is_visible", nullable = false)
+  private boolean visible;
 
   @Column(name = "valuation_currency")
   private String valuationCurrency;

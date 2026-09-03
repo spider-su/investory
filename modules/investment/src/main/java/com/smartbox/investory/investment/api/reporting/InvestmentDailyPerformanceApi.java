@@ -6,5 +6,5 @@ import java.util.Set;
 
 /** UI-facing daily attribution read contract. */
 public interface InvestmentDailyPerformanceApi {
-  DailyPerformanceDetail load(LocalDate date, Set<Long> accountIds);
+  DailyPerformanceDetail load(Long portfolioId, LocalDate date, Set<Long> accountIds);
 }

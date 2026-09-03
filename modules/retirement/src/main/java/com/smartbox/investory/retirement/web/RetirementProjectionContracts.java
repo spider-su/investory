@@ -2,7 +2,6 @@ package com.smartbox.investory.retirement.web;
 
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.RetirementProjectionContext;
-import com.smartbox.investory.retirement.api.model.SimulationCustomDeltas;
 import com.smartbox.investory.retirement.api.model.SimulationDecisionSummary;
 import com.smartbox.investory.retirement.api.model.SimulationResult;
 import com.smartbox.investory.retirement.api.model.SimulationScenario;
@@ -21,21 +20,7 @@ public final class RetirementProjectionContracts {
   public record ProjectionParameters(
       Long planId,
       @Min(0) @Max(150) Integer defaultCurrentAge,
-      @Min(0) @Max(150) Integer defaultEndAge,
-      BigDecimal inflationDelta,
-      BigDecimal rentalGrowthDelta,
-      BigDecimal bondReturnDelta,
-      BigDecimal equityReturnDelta,
-      BigDecimal spendingGrowthDelta) {
-    SimulationCustomDeltas customDeltas() {
-      return new SimulationCustomDeltas(
-          inflationDelta,
-          rentalGrowthDelta,
-          bondReturnDelta,
-          equityReturnDelta,
-          spendingGrowthDelta);
-    }
-  }
+      @Min(0) @Max(150) Integer defaultEndAge) {}
 
   public record ProjectionResponse(
       Long portfolioId,

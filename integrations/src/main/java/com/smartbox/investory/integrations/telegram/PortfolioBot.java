@@ -37,6 +37,9 @@ public class PortfolioBot extends TelegramLongPollingBot {
   @Value("${app.telegram.bot-username:}")
   private String botUsername;
 
+  @Value("${app.telegram.portfolio-id:}")
+  private String portfolioId;
+
   private final InvestmentImportApi investmentImports;
   private final AiChat aiChat;
   private final PortfolioCommandRouter portfolioCommandRouter;
@@ -149,10 +152,17 @@ public class PortfolioBot extends TelegramLongPollingBot {
     }
 
     try {
+      long targetPortfolioId = Long.parseLong(portfolioId);
+      if (targetPortfolioId <= 0) throw new NumberFormatException();
       byte[] bytes = downloadDocumentBytes(document);
       ImportResult result =
           investmentImports.importForBroker(
-              ImportBroker.valueOf(broker), fileName, bytes, ImportSource.TELEGRAM, replyChatId);
+              targetPortfolioId,
+              ImportBroker.valueOf(broker),
+              fileName,
+              bytes,
+              ImportSource.TELEGRAM,
+              replyChatId);
       sendTo(replyChatId, formatImportSummary(result));
     } catch (Exception e) {
       log.warn("Telegram import failed for {}", fileName, e);

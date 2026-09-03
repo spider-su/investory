@@ -1,4 +1,4 @@
-# Simulation module --- quick KT
+# Retirement module: simulation --- quick KT
 
 > **Audience:** developer already familiar with Investory's
 > **Investment** and **Long-Term Assets** modules.\
@@ -12,8 +12,9 @@ Simulation answers:
 > **Given today's assets, a retirement plan, and a scenario, can future
 > spending be funded through the planning horizon?**
 
-It does **not** own Investment or Long-Term Assets. It consumes a
-**frozen planning representation** of them.
+It does **not** own Investment or Long-Term Assets. It consumes an
+`InvestmentProfile` and a **frozen planning baseline** assembled through
+their public APIs.
 
 ``` text
 SOURCE MODULES                         SIMULATION
@@ -21,7 +22,10 @@ SOURCE MODULES                         SIMULATION
 Investment --------\
                     +--> Frozen baseline ----\
 Long-Term Assets --/                         |
-                                              +--> RetirementSimulation
+                                              +--> RetirementProjectionApi
+                                                   |
+                                                   v
+                                      RetirementSimulationService
 Plan revision ------------------------------>|
 Scenario ----------------------------------->|
                                               v
@@ -44,7 +48,7 @@ The detailed portfolio is reduced to four retirement buckets:
 ``` text
 Funding order
 
-Cash  ->  Bonds  ->  Equities  ->  Real Estate
+LIQUID_CASH  ->  FIXED_INCOME  ->  EQUITY  ->  REAL_ESTATE
  ^          ^                         ^
  first      may be refilled           last resort
             from Equity gains
@@ -70,15 +74,16 @@ Do not confuse **investment return** with **spendable income**. A return
 may stay capitalized in its bucket instead of becoming cash available
 for spending.
 
-## 3. Year states and continuity
+## 3. Planning timeline and continuity
 
 ``` text
-HISTORICAL  ->  CURRENT  ->  PROJECTED
- facts          live +       simulated
-                remainder
+ACTUAL -> NEEDS_REVIEW -> LIVE -> PROJECTED
+ facts      review       current  simulated
 ```
 
-**Historical:** reviewed facts; scenarios do not modify them.
+`PlanningTimelineState` is the API vocabulary. Historical years are
+`ACTUAL`; a current year can be `NEEDS_REVIEW` or `LIVE`; future years are
+`PROJECTED`. Scenarios do not rewrite actual facts.
 
 **Current:** available current-year facts plus the canonical planned
 remainder.
@@ -145,7 +150,7 @@ unfunded > 0
 Check the simulator/tests for the exact authoritative failure rules
 before modifying them.
 
-## 5. Scenarios
+## 5. Scenarios and funding
 
 Preset scenarios include:
 
@@ -203,8 +208,11 @@ Read these in order:
    Executable documentation for bucket transitions and invariants.
 ```
 
-Analysis should **reuse the canonical simulator**, not reproduce its
-financial formulas.
+`RetirementAnalysisService` and the sensitivity/sustainable-spending
+services should **reuse the canonical evaluation path**, not reproduce
+financial formulas. Funding behavior is selected with
+`SimulationFundingStrategy`: `SIMPLE_WATERFALL` or
+`RESERVE_AND_HARVEST`.
 
 ## 7. Rules for safe changes
 

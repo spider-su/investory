@@ -19,10 +19,6 @@ public record PlanEditorInput(
     BigDecimal fixedIncomeReturn,
     BigDecimal rentalIncomeGrowthSpread,
     BigDecimal spendingGrowthSpread,
-    ProjectedIncomePolicy.IncomeMode rentalIncomeMode,
-    BigDecimal manualRentalIncome,
-    ProjectedIncomePolicy.IncomeMode bondCashIncomeMode,
-    BigDecimal manualBondCashIncome,
     @NotNull BigDecimal equityReturn,
     BigDecimal safeReserveYears,
     BigDecimal equityHarvestThreshold,
@@ -52,10 +48,6 @@ public record PlanEditorInput(
       case "rentalIncomeGrowthSpread" -> text(rentalIncomeGrowthSpread);
       case "spendingGrowthSpread" -> text(spendingGrowthSpread);
       case "equityReturn" -> text(equityReturn);
-      case "rentalIncomeMode" -> text(rentalIncomeMode);
-      case "bondCashIncomeMode" -> text(bondCashIncomeMode);
-      case "manualRentalIncome" -> text(manualRentalIncome);
-      case "manualBondCashIncome" -> text(manualBondCashIncome);
       case "safeReserveYears" -> text(safeReserveYears);
       case "equityHarvestThreshold" -> text(equityHarvestThreshold);
       case "equityHarvestShare" -> text(equityHarvestShare);

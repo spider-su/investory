@@ -21,7 +21,7 @@ public class InvestmentProfileController {
   private final Clock clock;
 
   @GetMapping("/investment-profile")
-  public String profile(@RequestParam(defaultValue = "1") @Positive Long portfolioId, Model model) {
+  public String profile(@RequestParam @Positive Long portfolioId, Model model) {
     var profile = this.profile.loadProfile(portfolioId);
     var performanceKpi = investmentDashboard.loadPerformanceKpi(portfolioId);
     var investmentResult = investmentDashboard.investmentResult(portfolioId);
@@ -40,7 +40,6 @@ public class InvestmentProfileController {
         "profileHeaderIncome", page.incomeSummary().combinedAnnualIncomeCompactDisplay());
     model.addAttribute("profileMarketAnnualizedReturn", page.marketAnnualizedReturnDisplay());
     model.addAttribute("profileMarketKpiMeta", page.marketKpiMeta());
-    model.addAttribute("profileMarketInvestmentResult", page.marketInvestmentResultDisplay());
     model.addAttribute(
         "profileMarketProjectedIncome", page.incomeSummary().marketAnnualIncomeCompactDisplay());
     model.addAttribute(

@@ -2,9 +2,6 @@ package com.smartbox.investory.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -14,10 +11,7 @@ class DashboardBalancePopoverStyleContractTest {
   @DisplayName("balance Popover Owns AVisible Stacking Context Above Floating Navigation")
   @Test
   void balancePopoverOwnsAVisibleStackingContextAboveFloatingNavigation() throws Exception {
-    String css =
-        Files.readString(
-            Path.of("../adapters/web-ui/src/main/resources/static/css/components.css"),
-            StandardCharsets.UTF_8);
+    String css = CssTestSupport.readComposedStylesheet();
 
     assertThat(css)
         .contains(".iv-topbar:has(#balance-cash[open]) { z-index: 1210; }")
