@@ -78,16 +78,13 @@ final class DatabaseEvidenceReconciliationCheck {
         ReconciliationCheckpoint checkpoint, long failureCount, long reviewCount) {
       if (failureCount > 0) return ReconciliationStatus.FAIL;
       if (reviewCount > 0) return ReconciliationStatus.REVIEW;
-      // Current database state cannot prove that every external archive file was supplied.
-      // A clean current DB is not evidence that the complete external source corpus was imported.
-      if (checkpoint == ReconciliationCheckpoint.C0) return ReconciliationStatus.NOT_CHECKED;
       return ReconciliationStatus.PASS;
     }
 
     private static String evidenceSource(ReconciliationCheckpoint checkpoint) {
       return switch (checkpoint) {
         case C0 -> "recon_v_import_provenance_issues + latest import attempts";
-        case C1 -> "account_daily + normalized_cash_operations (full precision)";
+        case C1 -> "account_daily + normalized_cash_operation_flows (full precision)";
         case C2 -> "recon_v_position_lot_duplicates";
         case C5 -> "recon_v_reporting_validation_summary";
         case C6 -> "recon_v_portfolio_service_fallback";

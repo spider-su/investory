@@ -6,8 +6,6 @@ import com.smartbox.investory.retirement.api.model.PlanningTimeline;
 import com.smartbox.investory.retirement.api.model.PlanningTimelineMoney;
 import com.smartbox.investory.retirement.api.model.PlanningTimelineState;
 import com.smartbox.investory.retirement.api.model.SimulationAssumptions;
-import com.smartbox.investory.retirement.api.model.SimulationEvent;
-import com.smartbox.investory.retirement.api.model.SimulationEventType;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -25,10 +23,13 @@ public record CashFlowSectionView(
     BigDecimal fundingGap,
     BigDecimal fundingSurplus,
     BigDecimal unfunded,
-    boolean live) {
+    BigDecimal funded,
+    boolean live,
+    BigDecimal incomeUsed,
+    BigDecimal capitalFunding) {
 
   public BigDecimal fundingRequired() {
-    return RetirementFinancialCalculations.positiveDifference(spending, cashIncome);
+    return fundingGap;
   }
 
   /** Structured names used by the funding summary; values share one temporal basis. */
@@ -49,12 +50,11 @@ public record CashFlowSectionView(
   }
 
   public BigDecimal incomeUsed() {
-    if (spending == null || cashIncome == null) return BigDecimal.ZERO;
-    return cashIncome.min(spending).max(BigDecimal.ZERO);
+    return incomeUsed;
   }
 
   public BigDecimal capitalFunding() {
-    return funding.stream().map(CashFlowFlowView::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
+    return capitalFunding;
   }
 
   public BigDecimal capitalFundingShown() {
@@ -66,7 +66,7 @@ public record CashFlowSectionView(
   }
 
   public BigDecimal totalFunded() {
-    return incomeUsed().add(capitalFunding());
+    return funded;
   }
 
   public BigDecimal fundedAmount() {
@@ -74,14 +74,14 @@ public record CashFlowSectionView(
   }
 
   public BigDecimal remainingUnfunded() {
-    if (unfunded != null) return unfunded.max(BigDecimal.ZERO);
-    if (spending == null) return BigDecimal.ZERO;
-    return RetirementFinancialCalculations.positiveDifference(spending, totalFunded());
+    return unfunded;
   }
 
   public BigDecimal fundingCoveragePercent() {
     if (spending == null || spending.signum() == 0) return BigDecimal.valueOf(100);
-    return RetirementFinancialCalculations.cappedPercentageOf(fundedAmount(), spending);
+    return funded == null
+        ? BigDecimal.ZERO
+        : RetirementFinancialCalculations.cappedPercentageOf(funded, spending);
   }
 
   public BigDecimal incomeFundingPercent() {
@@ -116,7 +116,10 @@ public record CashFlowSectionView(
         fundingGap,
         fundingSurplus,
         unfunded,
-        false);
+        null,
+        false,
+        null,
+        null);
   }
 
   private BigDecimal percentOfSpending(BigDecimal amount) {
@@ -171,28 +174,9 @@ public record CashFlowSectionView(
     add(income, "Bond cash income", "Cash", money.bondIncome(), "INCOME");
     add(income, "Bonds", "Capital", money.bondReturn(), "RETURN");
     add(income, "Equities", "Capital", money.equityReturn(), "RETURN");
-    if (assumptions != null
-        && row.state() != PlanningTimelineState.ACTUAL
-        && row.state() != PlanningTimelineState.NEEDS_REVIEW) {
-      int age = row.age();
-      add(
-          income,
-          "Salary",
-          "Cash",
-          age < assumptions.retirementAge()
-              ? displayMoney.apply(assumptions.annualEmploymentIncome())
-              : null,
-          "INCOME");
-      add(
-          income,
-          "Pension",
-          "Cash",
-          assumptions.pensionStartAge() != null && age >= assumptions.pensionStartAge()
-              ? displayMoney.apply(assumptions.annualPension())
-              : null,
-          "INCOME");
-      add(income, "Events", "Cash", eventIncome(assumptions, row.year(), displayMoney), "INCOME");
-    }
+    add(income, "Salary", "Cash", money.employmentIncome(), "INCOME");
+    add(income, "Pension", "Cash", money.pensionIncome(), "INCOME");
+    add(income, "Events", "Cash", money.eventIncome(), "INCOME");
 
     var funding = new ArrayList<CashFlowFlowView>();
     add(funding, "Cash", "Spending", money.cashWithdrawal(), "FUNDING");
@@ -207,10 +191,6 @@ public record CashFlowSectionView(
     if (incomeTotal != null && spending != null && incomeTotal.compareTo(spending) > 0)
       add(destinations, "Cash", "Surplus", incomeTotal.subtract(spending), "DESTINATION");
 
-    BigDecimal fundingGap =
-        money.fundingGap() == null
-            ? RetirementFinancialCalculations.positiveDifference(spending, incomeTotal)
-            : money.fundingGap();
     BigDecimal economicSources =
         income.stream().map(CashFlowFlowView::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
     return new CashFlowSectionView(
@@ -220,21 +200,13 @@ public record CashFlowSectionView(
         List.copyOf(destinations),
         incomeTotal,
         spending,
-        fundingGap,
-        RetirementFinancialCalculations.positiveDifference(incomeTotal, spending),
+        money.fundingGap(),
+        money.fundingSurplus(),
         money.unfunded(),
-        row.state() == PlanningTimelineState.LIVE);
-  }
-
-  private static BigDecimal eventIncome(
-      SimulationAssumptions assumptions, int year, Function<BigDecimal, BigDecimal> displayMoney) {
-    BigDecimal amount =
-        assumptions.futureEvents().stream()
-            .filter(
-                event -> event.year() == year && event.type() == SimulationEventType.ONE_OFF_INCOME)
-            .map(SimulationEvent::amount)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
-    return displayMoney.apply(amount);
+        money.funded(),
+        row.state() == PlanningTimelineState.LIVE,
+        money.incomeUsed(),
+        money.capitalFunding());
   }
 
   private static void add(

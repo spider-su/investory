@@ -51,5 +51,5 @@ The grouped Testcontainers contract command was previously interrupted during mi
 ## Known debt blocking freeze
 
 1. Migrate the remaining legacy primitive financial calculations/comparisons in cash normalization/funding, IBKR import parsing, market-price adapters, return solving, and compatibility dashboard models to `BigDecimal` where they are canonical calculations.
-2. Repeat the complete clean-container contract batch, including `MaterializedViewRefreshContractIT`, `ValuationInputContractIT`, `SystemAuditContractIT`, `AccountMonthlyBenchmarkContractIT`, and `SchemaMigrationCheckpoint2IT`.
+2. Repeat the complete clean-container contract batch, including `MaterializedViewRefreshContractIT`, `ValuationInputContractIT`, `SystemAuditContractIT`, `AccountMonthlyBenchmarkContractIT`, and the migration-chain, schema-structure, and migration-data-repair contracts.
 3. Only then declare the current Flyway chain frozen and require append-only migrations.

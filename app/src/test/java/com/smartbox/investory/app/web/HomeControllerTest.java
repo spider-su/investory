@@ -134,7 +134,7 @@ class HomeControllerTest {
   private void assertQuery(boolean submitted, List<Long> accountIds, DashboardPeriod period) {
     ArgumentCaptor<DashboardQuery> query = ArgumentCaptor.forClass(DashboardQuery.class);
     verify(investmentDashboard).loadDashboard(query.capture());
-    assertEquals(submitted, query.getValue().benchmarkAccountsSubmitted());
+    assertEquals(Boolean.valueOf(submitted), query.getValue().benchmarkAccountsSubmitted());
     assertEquals(accountIds, query.getValue().accountIds());
     assertEquals(period, query.getValue().period());
     assertEquals(1L, query.getValue().portfolioId());

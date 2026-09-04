@@ -25,13 +25,13 @@
       </div>
       <div class="table-responsive" th:if="${!#lists.isEmpty(group.assets)}">
         <table class="table card-table table-vcenter long-term-assets-table" th:classappend="| long-term-assets-table--${group.key.toLowerCase().replace('_', '-')}|">
-          <thead><tr><th>Name</th><th th:text="${group.key == 'REAL_ESTATE' ? 'Total payment / month' : 'Value'}">Value</th><th>Net yield</th><th th:text="${group.key == 'REAL_ESTATE' ? 'Net income / month' : 'Net income / year'}">Income</th><th>End date</th><th th:text="${group.key == 'REAL_ESTATE' ? 'Tax base / month' : 'Tax / year'}">Tax</th></tr></thead>
+          <thead><tr><th>Name</th><th th:text="${group.key == 'REAL_ESTATE' ? 'Total payment / month' : 'Value'}">Value</th><th>Net yield (gross)</th><th th:text="${group.key == 'REAL_ESTATE' ? 'Net income / month' : 'Net income / year'}">Income</th><th>End date</th><th th:text="${group.key == 'REAL_ESTATE' ? 'Tax base / month' : 'Tax / year'}">Tax</th></tr></thead>
           <tbody>
           <tr th:each="asset : ${group.assets}">
-            <td><a th:href="@{/long-term-assets/{id}(id=${asset.id},portfolioId=${portfolioId})}" th:text="${asset.name}">Asset</a></td>
+            <td><a th:href="@{/portfolios/{portfolioId}/long-term-assets/{id}(id=${asset.id},portfolioId=${portfolioId})}" th:text="${asset.name}">Asset</a></td>
             <td class="text-end" th:if="${group.key == 'REAL_ESTATE'}" th:text="${format.compactMoney(asset.realEstatePlanning.totalPaymentMonthly)}">0</td>
             <td class="text-end" th:if="${group.key != 'REAL_ESTATE'}" th:text="${format.compactMoney(asset.currentValue) + (asset.currency == total.currency ? '' : ' ' + asset.currency)}">0</td>
-            <td class="text-end" th:text="${group.key == 'REAL_ESTATE' ? format.percentage(asset.realEstatePlanning.incomeYield) : format.percentage(asset.annualEconomics.netYieldAfterTax)}">0.0%</td>
+            <td class="text-end" th:text="${format.percentage(group.key == 'REAL_ESTATE' ? asset.realEstatePlanning.incomeYield : asset.annualEconomics.netYieldAfterTax) + ' (' + format.percentage(asset.annualEconomics.grossYield) + ')'}">0.0% (0.0%)</td>
             <td class="text-end" th:if="${group.key == 'REAL_ESTATE'}"><strong th:text="${format.compactMoney(asset.realEstatePlanning.netMonthlyIncome)}">0</strong><small class="iv-report-table__sub" th:text="${'Reduce ' + format.compactMoney(asset.realEstatePlanning.monthlyReduce)}">Reduce 0</small></td>
             <td class="text-end" th:if="${group.key != 'REAL_ESTATE'}" th:text="${format.compactMoney(asset.annualEconomics.netAnnualIncomeAfterTax) + (asset.currency == total.currency ? '' : ' ' + asset.currency)}">0</td>
             <td class="text-end" th:if="${group.key == 'REAL_ESTATE'}" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).date(asset.rentEnd)}">—</td>
@@ -52,7 +52,7 @@
           <td>TOTAL</td>
           <td class="text-end" th:if="${group.key == 'REAL_ESTATE'}" th:text="${format.compactMoney(group.realEstatePlanning.totalPaymentMonthly)}">0</td>
           <td class="text-end" th:if="${group.key != 'REAL_ESTATE'}" th:text="${format.compactMoney(group.totalValue) + (group.currency == total.currency ? '' : ' ' + group.currency)}">0</td>
-          <td class="text-end" th:text="${group.key == 'REAL_ESTATE' ? format.percentage(group.realEstatePlanning.netYield) : format.percentage(group.annualEconomics.netYieldAfterTax)}">0.0%</td>
+          <td class="text-end" th:text="${format.percentage(group.key == 'REAL_ESTATE' ? group.realEstatePlanning.netYield : group.annualEconomics.netYieldAfterTax) + ' (' + format.percentage(group.annualEconomics.grossYield) + ')'}">0.0% (0.0%)</td>
           <td class="text-end" th:if="${group.key == 'REAL_ESTATE'}"><strong th:text="${format.compactMoney(group.realEstatePlanning.netMonthlyIncome)}">0</strong><small class="iv-report-table__sub" th:text="${'Reduce ' + format.compactMoney(group.realEstatePlanning.monthlyReduce)}">Reduce 0</small></td>
           <td class="text-end" th:if="${group.key != 'REAL_ESTATE'}" th:text="${format.compactMoney(group.annualEconomics.netAnnualIncomeAfterTax) + (group.currency == total.currency ? '' : ' ' + group.currency)}">0</td>
           <td class="text-end">—</td>
@@ -73,8 +73,8 @@
         <strong class="iv-collapsed-summary__value" th:if="${group.key != 'REAL_ESTATE'}" th:text="${format.compactMoney(group.annualEconomics.netAnnualIncomeAfterTax) + ' / year'}">0 / year</strong>
       </div>
       <div class="iv-collapsed-summary__metric">
-        <span class="iv-collapsed-summary__label">Net yield</span>
-        <strong class="iv-collapsed-summary__value" th:text="${format.percentage(group.annualEconomics.netYieldAfterTax)}">0.0%</strong>
+        <span class="iv-collapsed-summary__label">Net yield (gross)</span>
+        <strong class="iv-collapsed-summary__value" th:text="${format.percentage(group.annualEconomics.netYieldAfterTax) + ' (' + format.percentage(group.annualEconomics.grossYield) + ')'}">0.0% (0.0%)</strong>
       </div>
       <div class="iv-collapsed-summary__metric">
         <span class="iv-collapsed-summary__label" th:text="${group.key == 'REAL_ESTATE' ? 'Rent tax / month' : 'Tax / year'}">Tax / year</span>

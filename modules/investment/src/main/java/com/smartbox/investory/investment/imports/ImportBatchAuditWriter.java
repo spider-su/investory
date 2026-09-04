@@ -3,7 +3,7 @@ package com.smartbox.investory.investment.imports;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportRepository;
 import com.smartbox.investory.investment.notifications.ImportNotificationProducer;
-import java.time.ZonedDateTime;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -27,6 +27,7 @@ public class ImportBatchAuditWriter {
   static final int RAW_PAYLOAD_LIMIT = 8 * 1024;
 
   private final ImportRepository importRepository;
+  private final ApplicationTime applicationTime;
 
   @org.springframework.beans.factory.annotation.Autowired(required = false)
   private ImportNotificationProducer notificationProducer;
@@ -57,7 +58,7 @@ public class ImportBatchAuditWriter {
     batch.setSourceRef(sourceRef);
     batch.setFileName(fileName);
     batch.setFileSha256(sha256);
-    batch.setStartedAt(ZonedDateTime.now());
+    batch.setStartedAt(applicationTime.now(applicationTime.businessZone()));
     batch.setStatus(ImportBatchStatus.STARTED);
     batch.setRowsTotal(0);
     batch.setRowsApplied(0);
@@ -86,7 +87,7 @@ public class ImportBatchAuditWriter {
     batch.setSourceRef(original.getSourceRef());
     batch.setFileName(original.getFileName());
     batch.setFileSha256(original.getFileSha256());
-    batch.setStartedAt(ZonedDateTime.now());
+    batch.setStartedAt(applicationTime.now(applicationTime.businessZone()));
     batch.setStatus(ImportBatchStatus.STARTED);
     batch.setRowsTotal(0);
     batch.setRowsApplied(0);
@@ -107,7 +108,7 @@ public class ImportBatchAuditWriter {
     batch.setRowsApplied(result.rowsApplied());
     batch.setRowsFailed(result.rowsFailed());
     batch.setErrorMessage(result.details());
-    batch.setFinishedAt(ZonedDateTime.now());
+    batch.setFinishedAt(applicationTime.now(applicationTime.businessZone()));
     ImportHistoryEntity saved = importRepository.save(batch);
     publishFinalized(saved);
     return saved;
@@ -127,7 +128,7 @@ public class ImportBatchAuditWriter {
         payloadPreview == null || !isTextLike(rawPayload)
             ? message
             : message + "\n" + payloadPreview);
-    batch.setFinishedAt(ZonedDateTime.now());
+    batch.setFinishedAt(applicationTime.now(applicationTime.businessZone()));
     ImportHistoryEntity saved = importRepository.save(batch);
     publishFinalized(saved);
     return saved;
@@ -142,7 +143,7 @@ public class ImportBatchAuditWriter {
     batch.setRowsApplied(result.rowsApplied());
     batch.setRowsFailed(result.rowsFailed());
     batch.setErrorMessage(message);
-    batch.setFinishedAt(ZonedDateTime.now());
+    batch.setFinishedAt(applicationTime.now(applicationTime.businessZone()));
     return importRepository.save(batch);
   }
 

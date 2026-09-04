@@ -13,8 +13,12 @@ import com.smartbox.investory.investment.valuation.fx.persistence.CurrencyRateRe
 import com.smartbox.investory.investment.valuation.fx.persistence.FxRateResolutionRow;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.time.ClockApplicationTime;
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -32,13 +36,18 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @DisplayName("Currency Rate Service")
 class CurrencyRateServiceTest {
 
+  private static final ClockApplicationTime TIME =
+      new ClockApplicationTime(
+          Clock.fixed(Instant.parse("2026-09-05T08:00:00Z"), ZoneOffset.UTC),
+          ZoneId.of("Europe/Warsaw"));
+
   @Mock private CurrencyRateRepository currencyRateRepository;
 
   private CurrencyRateService service;
 
   @BeforeEach
   void setUp() {
-    service = new CurrencyRateService(currencyRateRepository);
+    service = new CurrencyRateService(currencyRateRepository, TIME);
   }
 
   @DisplayName("activate Daily History updates only when coverage is supported")
@@ -169,7 +178,7 @@ class CurrencyRateServiceTest {
             List.of(
                 resolution(
                     "EUR", "USD", "1.1", "INVERSE", "STATIC_BOOTSTRAP", "2026-06-01", "OK")));
-    CurrencyRateService freshService = new CurrencyRateService(currencyRateRepository);
+    CurrencyRateService freshService = new CurrencyRateService(currencyRateRepository, TIME);
 
     assertEquals(
         121.0,
@@ -181,7 +190,7 @@ class CurrencyRateServiceTest {
   @DisplayName("convert To Base Currency throws When Rate Missing")
   @Test
   void convertToBaseCurrency_throwsWhenRateMissing() {
-    CurrencyRateService freshService = new CurrencyRateService(currencyRateRepository);
+    CurrencyRateService freshService = new CurrencyRateService(currencyRateRepository, TIME);
     assertThrows(
         FxRateUnavailableException.class,
         () ->
@@ -192,7 +201,7 @@ class CurrencyRateServiceTest {
   @DisplayName("shared Conversion Keeps Missing Rate Failure")
   @Test
   void sharedConversionKeepsMissingRateFailure() {
-    CurrencyConversion conversion = new CurrencyRateService(currencyRateRepository);
+    CurrencyConversion conversion = new CurrencyRateService(currencyRateRepository, TIME);
 
     assertThrows(
         FxRateUnavailableException.class,
@@ -254,7 +263,7 @@ class CurrencyRateServiceTest {
             List.of(
                 resolution(
                     "USD", "EUR", "0.91", "DIRECT", "EXCHANGERATE_HOST", "2026-07-01", "OK")));
-    CurrencyRateService freshService = new CurrencyRateService(currencyRateRepository);
+    CurrencyRateService freshService = new CurrencyRateService(currencyRateRepository, TIME);
 
     assertEquals(
         new BigDecimal("0.91"),
@@ -264,7 +273,7 @@ class CurrencyRateServiceTest {
   @DisplayName("get Rate throws When Missing")
   @Test
   void getRate_throwsWhenMissing() {
-    CurrencyRateService freshService = new CurrencyRateService(currencyRateRepository);
+    CurrencyRateService freshService = new CurrencyRateService(currencyRateRepository, TIME);
     assertThrows(
         RuntimeException.class,
         () -> freshService.getRate(CurrencyType.USD, CurrencyType.PLN, LocalDate.of(2026, 7, 5)));

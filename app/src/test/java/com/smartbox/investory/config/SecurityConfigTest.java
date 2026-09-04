@@ -74,7 +74,7 @@ class SecurityConfigTest {
   @DisplayName("read Endpoint requires Authentication By Default")
   @Test
   void readEndpoint_requiresAuthenticationByDefault() throws Exception {
-    mockMvc.perform(get("/dashboard")).andExpect(status().isUnauthorized());
+    mockMvc.perform(get("/portfolios/1/dashboard")).andExpect(status().isUnauthorized());
   }
 
   @Test

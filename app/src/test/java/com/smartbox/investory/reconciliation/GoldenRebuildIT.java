@@ -54,7 +54,6 @@ import org.springframework.test.context.DynamicPropertySource;
  * reconstruction -> account_daily -> independent reconciliation views. It must not call live
  * market-data or FX providers.
  */
-@Disabled
 @ActiveProfiles("test-fast")
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.NONE,
@@ -189,6 +188,11 @@ class GoldenRebuildIT {
         () -> {
           currencyRateService.clearValuationResolutionCache();
           portfolioProjectionService.recalculateAccounts(GOLDEN_ACCOUNTS);
+          // account_daily supplies the valuation dates used by the FX and normalized-price MVs.
+          // Refresh those dependent MVs after rebuilding the projection; the upstream price MVs
+          // were already refreshed after the imports.
+          jdbc.execute("REFRESH MATERIALIZED VIEW investory.app_v_portfolio_daily_fx_rate_mv");
+          jdbc.execute("REFRESH MATERIALIZED VIEW investory.app_v_normalized_daily_price_mv");
           portfolioProjectionService.refreshReconciliationViews();
         });
 
@@ -339,7 +343,35 @@ class GoldenRebuildIT {
             date);
       }
     }
+    extendDeterministicFxThroughCurrentDate();
     currencyRateService.clearValuationResolutionCache();
+  }
+
+  private void extendDeterministicFxThroughCurrentDate() {
+    jdbc.update(
+        """
+        with latest as (
+            select distinct on (base, to_currency)
+                   rate_date, base, to_currency, rate
+            from investory.exchange_rates
+            where source = 'TEST'
+            order by base, to_currency, rate_date desc, id desc
+        )
+        insert into investory.exchange_rates(
+            rate_date, base, to_currency, rate,
+            source, method, source_reference
+        )
+        select day::date, latest.base, latest.to_currency, latest.rate,
+               'TEST', 'MARKET_DAILY',
+               'GOLDEN:current-coverage:' || latest.base || ':' || latest.to_currency || ':' || day::date
+        from latest
+        cross join lateral generate_series(
+            latest.rate_date + 1,
+            current_date,
+            interval '1 day'
+        ) day
+        on conflict do nothing
+        """);
   }
 
   private void assertTreasuryLifecycle() {
@@ -819,8 +851,10 @@ class GoldenRebuildIT {
             "app_v_portfolio_asset_allocation",
             "app_v_symbol_performance",
             "app_v_portfolio_kpi_summary")) {
-      Integer rows = jdbc.queryForObject("select count(*) from investory." + view, Integer.class);
-      assertNotNull(rows, view + " refresh result missing");
+      Boolean queryable =
+          jdbc.queryForObject(
+              "select exists(select 1 from investory." + view + " limit 1)", Boolean.class);
+      assertNotNull(queryable, view + " refresh result missing");
     }
   }
 

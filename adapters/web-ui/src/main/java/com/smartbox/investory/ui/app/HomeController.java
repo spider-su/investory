@@ -39,12 +39,31 @@ public class HomeController {
   }
 
   @GetMapping("/dashboard")
-  public String getPortfolioDashboard(
+  public String getDashboard(
       Model model,
       @RequestParam(required = false) List<Long> accountIds,
       @RequestParam(defaultValue = "false") boolean benchmarkAccountsSubmitted,
       @RequestParam(defaultValue = "YTD") String period,
       @RequestParam Long portfolioId) {
+    return renderDashboard(model, accountIds, benchmarkAccountsSubmitted, period, portfolioId);
+  }
+
+  @GetMapping("/portfolios/{portfolioId}/dashboard")
+  public String getPortfolioDashboard(
+      Model model,
+      @RequestParam(required = false) List<Long> accountIds,
+      @RequestParam(defaultValue = "false") boolean benchmarkAccountsSubmitted,
+      @RequestParam(defaultValue = "YTD") String period,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId) {
+    return renderDashboard(model, accountIds, benchmarkAccountsSubmitted, period, portfolioId);
+  }
+
+  private String renderDashboard(
+      Model model,
+      List<Long> accountIds,
+      boolean benchmarkAccountsSubmitted,
+      String period,
+      Long portfolioId) {
     DashboardPeriod selectedPeriod = DashboardPeriod.fromUrlValue(period);
     DashboardPageView dashboard =
         investmentDashboardFacade.loadDashboard(

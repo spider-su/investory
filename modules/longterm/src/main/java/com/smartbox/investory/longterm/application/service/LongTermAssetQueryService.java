@@ -280,6 +280,7 @@ public class LongTermAssetQueryService {
         CurrencyConversion rates,
         LocalDate date) {
       return rows.stream()
+          .filter(row -> row.type().contributesToCalculations())
           .map(
               r -> {
                 BigDecimal amount = Optional.ofNullable(f.apply(r)).orElse(BigDecimal.ZERO);

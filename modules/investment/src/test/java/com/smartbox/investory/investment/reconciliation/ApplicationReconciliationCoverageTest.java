@@ -42,6 +42,20 @@ class ApplicationReconciliationCoverageTest {
     assertThat(result.evidenceSource()).contains("recon_v_portfolio_service_fallback");
   }
 
+  @DisplayName("c0Passes When Import Evidence Is Clean")
+  @Test
+  void c0PassesWhenImportEvidenceIsClean() {
+    JdbcTemplate jdbc = mock(JdbcTemplate.class);
+    when(jdbc.query(anyString(), org.mockito.ArgumentMatchers.<RowMapper<Object>>any(), eq(250)))
+        .thenReturn(java.util.List.of());
+
+    ReconciliationCheckResult result =
+        DatabaseEvidenceReconciliationCheck.forCheckpoint(jdbc, ReconciliationCheckpoint.C0)
+            .execute(CONTEXT);
+
+    assertThat(result.status()).isEqualTo(ReconciliationStatus.PASS);
+  }
+
   @DisplayName("c1Uses Effective Tolerances And One Bounded Evidence Query")
   @Test
   @SuppressWarnings({"rawtypes", "unchecked"})

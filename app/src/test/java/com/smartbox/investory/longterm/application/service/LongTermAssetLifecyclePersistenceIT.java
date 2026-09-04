@@ -111,9 +111,9 @@ class LongTermAssetLifecyclePersistenceIT extends FastDatabaseTest {
     Long firstPortfolio = createPortfolio();
     Long secondPortfolio = createPortfolio();
     LongTermAssetEntity first =
-        commands.save(asset(firstPortfolio, LongTermAssetType.OTHER, "First"));
+        commands.save(asset(firstPortfolio, LongTermAssetType.CASH_RESERVE, "First"));
     LongTermAssetEntity second =
-        commands.save(asset(secondPortfolio, LongTermAssetType.OTHER, "Second"));
+        commands.save(asset(secondPortfolio, LongTermAssetType.CASH_RESERVE, "Second"));
     entityFlushAndClear();
 
     assertThat(summaryIds(queries.list(firstPortfolio, ACQUIRED))).containsExactly(first.getId());
@@ -205,9 +205,9 @@ class LongTermAssetLifecyclePersistenceIT extends FastDatabaseTest {
   void profileAndProjectionSharePopulation() {
     Long portfolio = createPortfolio();
     LongTermAssetEntity active =
-        commands.save(asset(portfolio, LongTermAssetType.OTHER, "Profile active"));
+        commands.save(asset(portfolio, LongTermAssetType.CASH_RESERVE, "Profile active"));
     LongTermAssetEntity archived =
-        commands.save(asset(portfolio, LongTermAssetType.OTHER, "Profile archived"));
+        commands.save(asset(portfolio, LongTermAssetType.CASH_RESERVE, "Profile archived"));
     commands.archive(portfolio, archived.getId());
     clock.setDate(LocalDate.of(2026, 7, 2));
     entityFlushAndClear();
@@ -220,7 +220,7 @@ class LongTermAssetLifecyclePersistenceIT extends FastDatabaseTest {
     assertThat(projectionModelIds(snapshot.projectionInputs())).containsExactly(active.getId());
     assertThat(snapshot.assets())
         .extracting(asset -> asset.type())
-        .containsExactly(LongTermAssetType.OTHER);
+        .containsExactly(LongTermAssetType.CASH_RESERVE);
   }
 
   @Test
@@ -278,7 +278,7 @@ class LongTermAssetLifecyclePersistenceIT extends FastDatabaseTest {
             .map(row -> row.annualEconomics().grossAnnualIncome())
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     assertThat(rentalGross)
-        .isEqualByComparingTo(HappyInvestorLongTermFacts.RENTAL_TOTAL_GROSS_ANNUAL);
+        .isEqualByComparingTo(HappyInvestorLongTermFacts.RENTAL_BOUNDARY_DATE_GROSS_ANNUAL);
     assertThat(
             queries
                 .summary(familyCar, HappyInvestorTestData.REFERENCE_DATE)

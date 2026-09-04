@@ -55,7 +55,8 @@ class LongTermAssetAnnualSnapshotServiceTest {
                 "900",
                 InterestTreatment.PAY_OUT),
             summary(4L, LongTermAssetType.CASH_RESERVE, CurrencyType.USD, "7000", "0", null),
-            summary(5L, LongTermAssetType.DEPOSIT, CurrencyType.USD, "3000", "0", null));
+            summary(5L, LongTermAssetType.DEPOSIT, CurrencyType.USD, "3000", "0", null),
+            summary(6L, LongTermAssetType.OTHER, CurrencyType.PLN, "999999", "0", null));
 
     var snapshot = service.currentAnnualSnapshot(rows, date);
 

@@ -72,13 +72,33 @@ The base class:
 
 Do not use this base class for tests whose purpose is migration validation.
 
+## Read-only system contracts
+
+The fast read-only layer starts the real Spring application against the committed database
+snapshot. It uses one canonical persisted HappyInvestor story and independent expected facts from
+`test-support`; tests must not derive expected values from a REST response or rendered page.
+
+- `HappyInvestorReadOnlyRestIT` groups checks by feature and verifies complete stable response
+  fields for dashboard MAX/YTD, profile, long-term list/detail, retirement plan/projection, and
+  investment asset detail. Generated timestamps are checked only when the fixture controls them.
+- `HappyInvestorReadOnlyUiIT` starts the same application and snapshot with Chromium. Its tests are
+  grouped by page/module and verify the financial values users see. It performs navigation only;
+  writes, refreshes, imports, exports, and form submissions belong to action integration tests.
+- `HappyInvestorOverlayIdempotencyIT` proves that reapplying the canonical overlay restores all
+  mutable columns and is idempotent.
+
+REST, UI, and provider/action integration suites run in separate CI matrix jobs. Their databases
+are isolated, so the layers can execute in parallel. UI uses the real REST/application composition;
+mock-fed view-model tests remain unit or web-slice tests and do not replace this system contract.
+
 ## Browser UI smoke tests
 
 `UiPageSmokeIT` starts the application on a random port, loads the canonical snapshot-backed
-PostgreSQL database, and visits every rendered page with headless Chromium.
-It checks the response, title, stable page text, browser errors, and failed first-party requests.
-Focused checks also exercise the main JavaScript controls. Failed page cases write a screenshot,
-rendered HTML, and Playwright trace under `app/target/ui-test-results`.
+PostgreSQL database, and visits every rendered page with headless Chromium. It checks the response,
+title, stable page text, browser errors, and failed first-party requests. Focused checks exercise
+small navigation and JavaScript controls without duplicating canonical financial-value assertions.
+Failed page cases write a screenshot, rendered HTML, and Playwright trace under
+`app/target/ui-test-results`.
 
 `LongTermAssetCrudUiIT` covers the complete browser-to-database lifecycle for other assets,
 bonds, cash reserves, deposits, and rental properties. Every type is created twice through its UI,
@@ -104,7 +124,7 @@ $env:PLAYWRIGHT_BROWSERS_PATH = "$PWD/.playwright"
 ./mvnw.cmd -pl app exec:java "-Dexec.classpathScope=test" "-Dexec.mainClass=com.microsoft.playwright.CLI" "-Dexec.args=install chromium"
 $env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
 $env:DOCKER_HOST = "tcp://127.0.0.1:2375"
-./mvnw.cmd -pl app test-compile failsafe:integration-test failsafe:verify "-Dit.test=UiPageSmokeIT,LongTermAssetCrudUiIT,PlanSimulationCrudUiIT,InvestmentDashboardGoldenUiIT"
+./mvnw.cmd -pl app test-compile failsafe:integration-test failsafe:verify "-Dit.test=UiPageSmokeIT,HappyInvestorReadOnlyUiIT,LongTermAssetCrudUiIT,PlanSimulationCrudUiIT,InvestmentDashboardGoldenUiIT"
 ```
 
 CI compiles, tests, and installs the reactor once in the unit job, then publishes the packaged
@@ -114,9 +134,15 @@ browser setup job, and published for the UI matrix legs. Browser setup and UI ex
 jobs, so their failures remain distinct; UI failure artifacts include screenshots, HTML, and traces.
 The Maven/Java setup itself is defined in `.github/actions/setup-java-maven`.
 
-Backend integration tests run as five independent matrix legs with `fail-fast: false`:
+The application composition job runs `ApplicationContextIT` in parallel with Unit and Docs, before
+the backend, schema, golden-path, and UI fan-out. It starts the complete Spring application against
+the fast snapshot database and has no assertions beyond context startup, so missing beans,
+incompatible module interfaces, and configuration failures fail early.
 
-- `contracts`: valuation, system-audit, reporting, baseline-readiness, and benchmark contracts;
+Backend integration tests run as independent matrix legs with `fail-fast: false`:
+
+- `contracts`: valuation, system-audit, reporting, baseline-readiness, HappyInvestor read-only REST,
+  overlay idempotency, and benchmark contracts;
 - `imports`: PostgreSQL FX update plus IBKR/XTB import contracts;
 - `reconciliation-notifications-longterm`: remaining app-owned database contracts;
 - `investment-rest`: Investment REST boundary integration tests;
@@ -131,6 +157,18 @@ chain. It fingerprints the migration files, schema snapshot, schema checkpoint t
 configuration. A successful result is cached under that exact fingerprint; an unchanged fingerprint
 skips the expensive job. A cache is written only after a green test, and a cache miss always runs
 against a disposable database.
+
+The migration layer stays deliberately small:
+
+- `FlywayMigrationChainIT` proves the complete chain applies to an empty database.
+- `SchemaStructureContractIT` checks the application-facing tables, views, and key columns.
+- `MigrationDataRepairIT` checks the repaired reference-data semantics from the final migration.
+
+Financially critical calculation packages have additional JaCoCo thresholds in
+`docs/quality/coverage-baseline.json`. The existing aggregate 70% line / 50% branch gate remains;
+the extra gate covers investment performance, projection, valuation, and retirement planning
+packages, plus changed executable lines in those packages. It is a targeted protection layer, not
+a reason to add broad end-to-end tests.
 
 ## Generate the schema snapshot
 

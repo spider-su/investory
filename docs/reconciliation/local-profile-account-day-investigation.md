@@ -141,7 +141,7 @@ text formatting (`0` versus the prior expected `0.00`). No production behavior
 failure was shown by that test.
 
 The existing result-only accounting fixture remains in
-`SchemaMigrationCheckpoint2IT` and covers result-only cash/result handling.
+the migration-data-repair contract and covers result-only cash/result handling.
 
 ## Layer conclusion
 

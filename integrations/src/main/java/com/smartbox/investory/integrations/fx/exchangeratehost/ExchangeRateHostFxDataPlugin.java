@@ -11,6 +11,7 @@ import com.smartbox.investory.integrations.management.model.ValidationResult;
 import com.smartbox.investory.investment.port.fx.FxRateProvider.FxQuote;
 import com.smartbox.investory.investment.port.fx.FxRateProvider.FxRequest;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,6 +28,7 @@ public class ExchangeRateHostFxDataPlugin
   private static final String API_KEY = "apiKey";
 
   private final ExchangeRateClient client;
+  private final ApplicationTime applicationTime;
 
   @Override
   public String id() {
@@ -127,7 +129,7 @@ public class ExchangeRateHostFxDataPlugin
   public ConnectionTestResult testConnection(PluginConfig config) {
     try {
       fetchRates(
-          new FxRequest(CurrencyType.USD, List.of(CurrencyType.EUR), java.time.LocalDate.now()),
+          new FxRequest(CurrencyType.USD, List.of(CurrencyType.EUR), applicationTime.today()),
           config);
       return new ConnectionTestResult(true, true, "Connection succeeded");
     } catch (RuntimeException exception) {

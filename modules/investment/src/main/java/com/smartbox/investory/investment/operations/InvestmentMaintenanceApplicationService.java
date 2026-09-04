@@ -8,8 +8,8 @@ import com.smartbox.investory.investment.valuation.fx.CurrencyRateUpdaterService
 import com.smartbox.investory.investment.valuation.price.ManualAssetPriceService;
 import com.smartbox.investory.investment.valuation.price.MarketDataService;
 import com.smartbox.investory.investment.valuation.price.PriceHistoryCoverageService;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import java.math.BigDecimal;
-import java.time.ZonedDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,6 +25,7 @@ public class InvestmentMaintenanceApplicationService implements InvestmentMainte
   private final PortfolioProjectionRefreshService projectionRefreshService;
   private final CurrencyRateUpdaterService currencyRates;
   private final PriceHistoryCoverageService coverage;
+  private final ApplicationTime applicationTime;
 
   @Override
   public MaintenanceResult refreshPrices() {
@@ -106,6 +107,7 @@ public class InvestmentMaintenanceApplicationService implements InvestmentMainte
   }
 
   private MaintenanceResult result(String message) {
-    return new MaintenanceResult("OK", message, ZonedDateTime.now());
+    return new MaintenanceResult(
+        "OK", message, applicationTime.now(applicationTime.businessZone()));
   }
 }

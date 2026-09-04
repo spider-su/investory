@@ -7,6 +7,7 @@ import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi;
 import com.smartbox.investory.investment.web.AccountIdParser;
 import com.smartbox.investory.longterm.api.model.*;
 import com.smartbox.investory.retirement.api.RetirementPlanApi;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import java.time.Instant;
@@ -28,6 +29,12 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @Slf4j
 public class RestApiExceptionHandler {
+
+  private final ApplicationTime applicationTime;
+
+  public RestApiExceptionHandler(ApplicationTime applicationTime) {
+    this.applicationTime = applicationTime;
+  }
 
   @ExceptionHandler({
     HttpMessageNotReadableException.class,
@@ -85,10 +92,11 @@ public class RestApiExceptionHandler {
     return error(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error", request);
   }
 
-  private static ResponseEntity<ApiError> error(
+  private ResponseEntity<ApiError> error(
       HttpStatus status, String message, HttpServletRequest request) {
     return ResponseEntity.status(status)
-        .body(new ApiError(status.value(), message, request.getRequestURI(), Instant.now()));
+        .body(
+            new ApiError(status.value(), message, request.getRequestURI(), applicationTime.now()));
   }
 
   private static String message(Exception exception) {

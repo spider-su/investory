@@ -19,4 +19,9 @@ public class InProcessInvestmentReconciliationClient implements InvestmentReconc
   public ReconciliationReport loadReconciliationReport(Long portfolioId) {
     return investmentReconciliationApi.loadReconciliationReport(portfolioId);
   }
+
+  @Override
+  public void refreshReconciliationViews() {
+    investmentReconciliationApi.refreshReconciliationViews();
+  }
 }

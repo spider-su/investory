@@ -2,6 +2,7 @@ package com.smartbox.investory.integrations.notifications.application;
 
 import com.smartbox.investory.investment.api.operations.ImportOperationsReader;
 import com.smartbox.investory.investment.api.operations.ImportOperationsReader.ImportOperationsSnapshot;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
@@ -17,6 +18,7 @@ public class StaleImportAlertRule implements AlertRule {
 
   private final ImportOperationsReader investment;
   private final NotificationProperties properties;
+  private final ApplicationTime applicationTime;
 
   @Override
   public String code() {
@@ -34,7 +36,10 @@ public class StaleImportAlertRule implements AlertRule {
     if (ts == null) {
       return Optional.empty();
     }
-    long ageDays = ChronoUnit.DAYS.between(ts.toLocalDate(), ZonedDateTime.now().toLocalDate());
+    long ageDays =
+        ChronoUnit.DAYS.between(
+            ts.withZoneSameInstant(applicationTime.businessZone()).toLocalDate(),
+            applicationTime.today());
     int threshold = properties.getStaleImportDays();
     if (ageDays >= threshold || "FAILED".equals(batch.status())) {
       return Optional.of(

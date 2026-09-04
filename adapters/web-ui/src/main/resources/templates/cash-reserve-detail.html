@@ -17,12 +17,12 @@
       <h1 class="h2 mb-0" th:text="${asset.name}">Cash reserve</h1>
       <p class="iv-asset-page__description">Immediately spendable planning reserve. It does not create brokerage accounting activity.</p>
     </div>
-    <a class="btn btn-outline-secondary" th:href="@{/long-term-assets(portfolioId=${portfolioId})}">Back</a>
+    <a class="btn btn-outline-secondary" th:href="@{/portfolios/{portfolioId}/long-term-assets(portfolioId=${portfolioId})}">Back</a>
   </header>
 
   <div class="alert alert-danger" th:if="${error}" th:text="${error}">Validation error.</div>
 
-  <form class="card mb-4" method="post" th:action="@{/long-term-assets/cash-reserve}">
+  <form class="card mb-4" method="post" th:action="@{/portfolios/{portfolioId}/long-term-assets/cash-reserve(portfolioId=${portfolioId})}">
     <div class="card-header"><h2 class="card-title">Reserve details</h2></div>
     <div class="card-body">
       <input type="hidden" name="portfolioId" th:value="${portfolioId}">
@@ -39,8 +39,8 @@
   </form>
 
   <div class="iv-asset-page__actions">
-    <form method="post" th:action="@{/long-term-assets/{id}/archive(id=${asset.id})}"><input type="hidden" name="portfolioId" th:value="${portfolioId}"><button class="btn btn-outline-danger" th:if="${asset.active}">Archive</button></form>
-    <form method="post" th:action="@{/long-term-assets/{id}/reactivate(id=${asset.id})}"><input type="hidden" name="portfolioId" th:value="${portfolioId}"><button class="btn btn-outline-success" th:unless="${asset.active}">Reactivate</button></form>
+    <form method="post" th:action="@{/portfolios/{portfolioId}/long-term-assets/{id}/archive(id=${asset.id},portfolioId=${portfolioId})}"><input type="hidden" name="portfolioId" th:value="${portfolioId}"><button class="btn btn-outline-danger" th:if="${asset.active}">Archive</button></form>
+    <form method="post" th:action="@{/portfolios/{portfolioId}/long-term-assets/{id}/reactivate(id=${asset.id},portfolioId=${portfolioId})}"><input type="hidden" name="portfolioId" th:value="${portfolioId}"><button class="btn btn-outline-success" th:unless="${asset.active}">Reactivate</button></form>
   </div>
 </main>
 </body>

@@ -7,6 +7,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.smartbox.investory.investment.api.reporting.InvestmentDashboardApi;
 import com.smartbox.investory.investment.api.reporting.model.ReconciliationStatus;
 import com.smartbox.investory.longterm.api.model.*;
+import com.smartbox.investory.testsupport.time.MutableApplicationTime;
+import java.time.Instant;
+import java.time.ZoneId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -22,7 +25,10 @@ class RestApiExceptionHandlerTest {
 
   private final MockMvc mvc =
       MockMvcBuilders.standaloneSetup(new FailingController())
-          .setControllerAdvice(new RestApiExceptionHandler())
+          .setControllerAdvice(
+              new RestApiExceptionHandler(
+                  MutableApplicationTime.fixed(
+                      Instant.parse("2026-09-05T08:00:00Z"), ZoneId.of("Europe/Warsaw"))))
           .build();
 
   @DisplayName("maps Client Errors To400")

@@ -8,7 +8,7 @@ import com.smartbox.investory.shared.notifications.NotificationCandidate;
 import com.smartbox.investory.shared.notifications.NotificationEventPublisher;
 import com.smartbox.investory.shared.notifications.NotificationEventType;
 import com.smartbox.investory.shared.notifications.NotificationSeverity;
-import java.time.Instant;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +20,7 @@ import org.springframework.stereotype.Component;
 public class ImportNotificationProducer {
   private final NotificationEventPublisher events;
   private final ApplicationEventPublisher applicationEvents;
+  private final ApplicationTime applicationTime;
 
   public boolean publishFinalized(ImportHistoryEntity batch) {
     if (batch.getStatus() != ImportBatchStatus.FAILED
@@ -54,7 +55,9 @@ public class ImportNotificationProducer {
                 ? "Import failed"
                 : "Import completed partially",
             payload,
-            batch.getFinishedAt() == null ? Instant.now() : batch.getFinishedAt().toInstant());
+            batch.getFinishedAt() == null
+                ? applicationTime.now()
+                : batch.getFinishedAt().toInstant());
     boolean published = events.publish(candidate);
     if (published) applicationEvents.publishEvent(new ImportFinalizedEvent(candidate));
     return published;

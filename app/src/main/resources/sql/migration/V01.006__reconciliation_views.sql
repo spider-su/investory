@@ -34,7 +34,9 @@ GROUP BY
     price_currency,
     cost_currency,
     profit_currency,
-    commission_currency
+    commission_currency,
+    COALESCE(commission, 0),
+    COALESCE(profit, 0)
 HAVING count(*) > 1;
 COMMENT ON VIEW investory.recon_v_position_lot_duplicates IS
     'Diagnostic view for exact duplicate position lots imported under different IDs. Empty result is the expected healthy state.';
@@ -691,14 +693,15 @@ SELECT p.account_id, p.asset_id, p.valuation_date, p.open_quantity,
             WHEN p.selected_price IS NULL OR p.contract_multiplier IS NULL
               OR NOT investory.fx_status_usable(val.conversion_status)
               OR p.reconstructed_cost_base_base IS NULL THEN 'FAIL'
-            WHEN p.selection_priority >= 5 THEN 'WARN' ELSE 'PASS' END::varchar(16)
+            WHEN p.selection_priority >= 5 AND p.selection_priority <> 6 THEN 'WARN' ELSE 'PASS' END::varchar(16)
            AS reconstruction_status,
        CASE WHEN p.open_quantity = 0 THEN 'zero quantity -> zero valuation'
             WHEN p.selected_price IS NULL THEN 'missing valuation price'
             WHEN p.contract_multiplier IS NULL THEN 'missing explicit multiplier metadata'
             WHEN NOT investory.fx_status_usable(val.conversion_status) THEN 'missing or stale valuation FX'
             WHEN p.reconstructed_cost_base_base IS NULL THEN 'missing acquisition FX'
-            WHEN p.selection_priority >= 5 THEN p.price_validation_message
+            WHEN p.selection_priority >= 5 AND p.selection_priority <> 6 THEN p.price_validation_message
+            WHEN p.selection_priority = 6 THEN 'trade observation accepted for position valuation'
             ELSE 'reconstructed from positions + selected daily price + FX' END::text
            AS reconstruction_message
 FROM priced p
@@ -805,6 +808,7 @@ SELECT
     n.valuation_date,
     CASE
         WHEN n.reconstruction_status = 'FAIL' THEN 'ERROR'
+        WHEN n.selection_priority = 6 THEN 'INFO'
         WHEN n.reconstruction_status = 'WARN' THEN 'WARN'
         WHEN n.open_quantity = 0 AND COALESCE(n.reconstructed_market_value_base, 0) <> 0 THEN 'ERROR'
         WHEN n.open_quantity <> 0 AND COALESCE(n.selected_price, 0) = 0 THEN 'ERROR'
@@ -3359,10 +3363,10 @@ WITH ledger_daily AS (
            nco.base_currency::varchar(3) AS base_currency,
            SUM(nco.amount_in_portfolio_base_currency) FILTER (
                WHERE investory.fx_status_usable(nco.portfolio_conversion_status)) AS ledger_cash_base,
-           SUM(nco.amount_in_portfolio_base_currency) FILTER (
-               WHERE nco.normalized_category = 'EXTERNAL_DEPOSIT') AS ledger_deposits,
-           SUM(ABS(nco.amount_in_portfolio_base_currency)) FILTER (
-               WHERE nco.normalized_category = 'EXTERNAL_WITHDRAWAL') AS ledger_withdrawals,
+           SUM(nco.account_flow_amount_in_portfolio_base_currency) FILTER (
+               WHERE nco.account_flow_amount_in_portfolio_base_currency > 0) AS ledger_deposits,
+           SUM(-nco.account_flow_amount_in_portfolio_base_currency) FILTER (
+               WHERE nco.account_flow_amount_in_portfolio_base_currency < 0) AS ledger_withdrawals,
            SUM(nco.amount_in_portfolio_base_currency) FILTER (
                WHERE nco.normalized_category IN ('DIVIDEND', 'DIVIDEND_REVERSAL')) AS ledger_dividends,
            SUM(nco.amount_in_portfolio_base_currency) FILTER (
@@ -3374,7 +3378,7 @@ WITH ledger_daily AS (
            COUNT(*) FILTER (WHERE nco.normalized_category IN
                ('INTERNAL_TRANSFER_IN', 'INTERNAL_TRANSFER_OUT', 'INTERNAL_BOOKKEEPING')) AS internal_operation_count,
            COUNT(*) FILTER (WHERE NOT investory.fx_status_usable(nco.portfolio_conversion_status)) = 0 AS is_complete
-    FROM investory.app_v_normalized_cash_operations nco
+    FROM investory.app_v_normalized_cash_operation_flows nco
     GROUP BY nco.account_id, nco.date::date, nco.account_currency, nco.base_currency
 ), daily_with_prev AS (
     SELECT ad.account_id,
@@ -3429,7 +3433,7 @@ JOIN investory.accounts account ON account.id = ad.account_id
 JOIN investory.portfolios portfolio ON portfolio.id = account.portfolio_id;
 
 COMMENT ON VIEW investory.recon_v_account_daily_cashflow_full_precision IS
-    'Canonical full-precision C1 evidence. Account and portfolio currencies come from stable account metadata, including on days without ledger operations; status decisions use full precision.';
+    'Canonical full-precision C1 evidence. Account-flow ledger values include internal transfer legs; portfolio-flow reporting remains external-only.';
 
 -- Consolidated from post-baseline realized-result FX deduplication work.
 -- Resolve realized-result FX once per valuation-date/currency pair.

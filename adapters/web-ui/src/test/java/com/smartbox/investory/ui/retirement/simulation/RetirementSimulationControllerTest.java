@@ -217,7 +217,7 @@ class RetirementSimulationControllerTest {
   void invalidSandboxInputRendersErrorsWithoutRunningCalculation() throws Exception {
     mockMvc
         .perform(
-            get("/simulation/sandbox")
+            get("/portfolios/1/simulation/sandbox")
                 .param("currentAge", "70")
                 .param("retirementAge", "65")
                 .param("annualSpending", "-1"))
@@ -235,7 +235,7 @@ class RetirementSimulationControllerTest {
     when(simulations.compareScenarios(any(), any(), anyInt())).thenReturn(Map.of());
 
     renderingMockMvc
-        .perform(get("/simulation").param("portfolioId", "1"))
+        .perform(get("/portfolios/1/simulation").param("portfolioId", "1"))
         .andExpect(status().isOk())
         .andExpect(view().name("simulation"))
         .andExpect(content().string(org.hamcrest.Matchers.containsString("Scenario")))
@@ -319,7 +319,7 @@ class RetirementSimulationControllerTest {
         .thenReturn(Map.of());
     var result =
         mockMvc
-            .perform(get("/simulation").param("portfolioId", "1"))
+            .perform(get("/portfolios/1/simulation").param("portfolioId", "1"))
             .andExpect(status().isOk())
             .andExpect(view().name("simulation"))
             .andExpect(model().attributeExists("simulationPage"))
@@ -375,7 +375,7 @@ class RetirementSimulationControllerTest {
     when(simulations.compareScenarios(eq(p), any(), anyInt())).thenReturn(Map.of());
 
     mockMvc
-        .perform(get("/simulation").param("portfolioId", "1").param("planId", "7"))
+        .perform(get("/portfolios/1/simulation").param("portfolioId", "1").param("planId", "7"))
         .andExpect(status().isOk())
         .andExpect(model().attributeExists("simulationPage"));
 
@@ -400,7 +400,7 @@ class RetirementSimulationControllerTest {
 
     var result =
         mockMvc
-            .perform(get("/simulation").param("portfolioId", "1").param("planId", "7"))
+            .perform(get("/portfolios/1/simulation").param("portfolioId", "1").param("planId", "7"))
             .andExpect(status().isOk())
             .andReturn();
     var page =
@@ -420,7 +420,8 @@ class RetirementSimulationControllerTest {
     when(plans.details(1L, 8L)).thenReturn(planDetails(8L, "Plan B", latest));
     when(simulations.compareScenarios(eq(profile), any(), anyInt())).thenReturn(Map.of());
 
-    var result = mockMvc.perform(get("/simulation").param("portfolioId", "1")).andReturn();
+    var result =
+        mockMvc.perform(get("/portfolios/1/simulation").param("portfolioId", "1")).andReturn();
     var page =
         (RetirementSimulationPageView) result.getModelAndView().getModel().get("simulationPage");
 
@@ -441,7 +442,7 @@ class RetirementSimulationControllerTest {
 
     var result =
         mockMvc
-            .perform(get("/simulation").param("portfolioId", "1").param("planId", "7"))
+            .perform(get("/portfolios/1/simulation").param("portfolioId", "1").param("planId", "7"))
             .andReturn();
     var page =
         (RetirementSimulationPageView) result.getModelAndView().getModel().get("simulationPage");
@@ -520,7 +521,7 @@ class RetirementSimulationControllerTest {
             com.smartbox.investory.retirement.api.model.UpdatePlanCommand.class);
     mockMvc
         .perform(
-            post("/simulation/plans")
+            post("/portfolios/1/simulation/plans")
                 .param("portfolioId", "1")
                 .param("planId", "9")
                 .param("name", "Plan")
@@ -576,7 +577,7 @@ class RetirementSimulationControllerTest {
 
     verify(plans).deletePlan(1L, 9L);
     assertEquals(
-        "redirect:/simulation/plan/edit?portfolioId=1&planId=7&planningDisplayCurrency=EUR&selectedScenario=OPTIMISTIC",
+        "redirect:/portfolios/1/simulation/plan/edit?planId=7&planningDisplayCurrency=EUR&selectedScenario=OPTIMISTIC",
         redirect);
   }
 
@@ -589,7 +590,7 @@ class RetirementSimulationControllerTest {
 
     verify(plans).deletePlan(1L, 7L);
     assertEquals(
-        "redirect:/simulation/plan/edit?portfolioId=1&planId=6&planningDisplayCurrency=EUR&selectedScenario=CONSERVATIVE",
+        "redirect:/portfolios/1/simulation/plan/edit?planId=6&planningDisplayCurrency=EUR&selectedScenario=CONSERVATIVE",
         redirect);
   }
 
@@ -630,7 +631,7 @@ class RetirementSimulationControllerTest {
     var result =
         mockMvc
             .perform(
-                get("/simulation")
+                get("/portfolios/1/simulation")
                     .param("portfolioId", "1")
                     .param("planningDisplayCurrency", "PLN")
                     .param("fixedIncomeReturn", "4.5")

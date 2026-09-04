@@ -121,7 +121,7 @@ class DashboardPerformanceTemplateContractTest {
     assertFalse(details.contains("Capital gains tax"));
     assertTrue(
         details.contains(
-            "@{/dashboard/assets/{symbol}(symbol=${symbol.symbol},portfolioId=${portfolioId})}"));
+            "@{/portfolios/{portfolioId}/dashboard/assets/{symbol}(symbol=${symbol.symbol},portfolioId=${portfolioId})}"));
     assertTrue(details.contains("th:if=\"${symbol.symbol != 'Other'}\""));
     assertTrue(css.contains("#investment-overview .iv-realized-details { position: static; }"));
     assertTrue(css.contains("right: 0;"));
@@ -171,6 +171,7 @@ class DashboardPerformanceTemplateContractTest {
     assertTrue(actions.contains("Couldn’t create the export. Try again."));
     assertTrue(html.contains("name=\"portfolioId\""));
     assertTrue(html.contains("data-portfolio-id=${portfolioId}"));
+    assertTrue(html.contains("\"portfolioId\": /*[[${portfolioId}]]*/ null"));
     assertTrue(actions.contains("new FormData(uploadForm)"));
     assertTrue(actions.contains("exportUrl.searchParams.set('portfolioId', exportPortfolioId)"));
     assertTrue(accountValueActions.contains("daily-attribution?date="));
@@ -233,6 +234,7 @@ class DashboardPerformanceTemplateContractTest {
     assertFalse(html.contains("performanceBoardRebasedReturn"));
     assertTrue(charts.contains("selectedDashboardPeriod"));
     assertTrue(charts.contains("period: selectedDashboardPeriod"));
+    assertTrue(charts.contains("data.portfolioId"));
     assertTrue(html.contains("performance-scope-aggregation"));
     assertTrue(charts.contains("const percentValue ="));
     assertFalse(html.contains("toFixed(1)"));
@@ -299,7 +301,8 @@ class DashboardPerformanceTemplateContractTest {
     assertFalse(html.contains("Exposure data unavailable"));
     assertTrue(html.contains("modal-reconciliation-link"));
     assertTrue(
-        html.contains("th:href=\"@{/dashboard/reconciliation(portfolioId=${portfolioId})}\""));
+        html.contains(
+            "th:href=\"@{/portfolios/{portfolioId}/dashboard/reconciliation(portfolioId=${portfolioId})}\""));
     assertFalse(html.contains("Net external contributions: deposits less withdrawals."));
     assertTrue(html.contains("Investment result"));
     assertTrue(html.contains("selectedPeriod.label() + ' investment result'"));

@@ -35,9 +35,9 @@ public class RetirementAnalysisController {
     this.plans = plans;
   }
 
-  @GetMapping("/analysis")
+  @GetMapping("/portfolios/{portfolioId}/analysis")
   public String analysis(
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @RequestParam(required = false) Long planId,
       @RequestParam(required = false) CurrencyType planningDisplayCurrency,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario,

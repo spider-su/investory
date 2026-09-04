@@ -60,6 +60,7 @@ public class LongTermAssetProjectionQueryService {
       LocalDate effectivePolicyDate) {
     List<LongTermAssetProjectionInput> result = new ArrayList<>();
     for (LongTermAssetEntity asset : assetRows) {
+      if (!asset.getType().contributesToCalculations()) continue;
       List<LongTermAssetProjectionInput.Period> periods = new ArrayList<>();
       List<RentalContractProjectionModel> contracts =
           data.contracts().getOrDefault(asset.getId(), List.of()).stream()

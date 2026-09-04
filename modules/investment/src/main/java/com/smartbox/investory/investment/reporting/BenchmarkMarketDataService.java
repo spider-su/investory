@@ -3,6 +3,7 @@ package com.smartbox.investory.investment.reporting;
 import com.smartbox.investory.investment.infrastructure.persistence.benchmark.BenchmarkMonthlyCloseEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.benchmark.BenchmarkMonthlyCloseRepository;
 import com.smartbox.investory.investment.port.market.MarketDataProvider;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -25,20 +26,25 @@ class BenchmarkMarketDataService {
 
   private final BenchmarkMonthlyCloseRepository repository;
   private final MarketDataProvider marketDataProvider;
+  private final ApplicationTime applicationTime;
   private LocalDate fetchAttemptedOn;
 
   BenchmarkMarketDataService(
-      BenchmarkMonthlyCloseRepository repository, MarketDataProvider marketDataProvider) {
+      BenchmarkMonthlyCloseRepository repository,
+      MarketDataProvider marketDataProvider,
+      ApplicationTime applicationTime) {
     this.repository = repository;
     this.marketDataProvider = marketDataProvider;
+    this.applicationTime = applicationTime;
   }
 
   synchronized NavigableMap<String, Double> monthlyCloses(List<String> requiredLabels) {
     NavigableMap<String, Double> cached = loadCachedCloses();
-    if (!hasRequiredCloses(cached, requiredLabels) && !LocalDate.now().equals(fetchAttemptedOn)) {
+    if (!hasRequiredCloses(cached, requiredLabels)
+        && !applicationTime.today().equals(fetchAttemptedOn)) {
       NavigableMap<String, Double> fetched =
           marketDataProvider.fetchMonthlyCloses(SYMBOL, FETCH_MONTHS);
-      fetchAttemptedOn = LocalDate.now();
+      fetchAttemptedOn = applicationTime.today();
       if (!CollectionUtils.isEmpty(fetched)) {
         persistFetchedCloses(fetched);
         cached = loadCachedCloses();
@@ -73,7 +79,7 @@ class BenchmarkMarketDataService {
                     row -> row,
                     (first, ignored) -> first,
                     TreeMap::new));
-    ZonedDateTime now = ZonedDateTime.now();
+    ZonedDateTime now = applicationTime.now(applicationTime.businessZone());
     List<BenchmarkMonthlyCloseEntity> rows = new ArrayList<>();
     fetched.forEach(
         (month, close) -> {

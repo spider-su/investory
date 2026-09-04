@@ -8,7 +8,9 @@ import com.smartbox.investory.integrations.market.twelvedata.TwelveDataService;
 import com.smartbox.investory.integrations.market.yahoo.YahooFinanceService;
 import com.smartbox.investory.investment.port.market.MarketDataProvider;
 import com.smartbox.investory.investment.port.market.MarketQuote;
+import com.smartbox.investory.investment.port.market.YahooSymbolResolver;
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -16,7 +18,12 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-/** Resolves external provider configuration and adapts it to Investment's market-data port. */
+/**
+ * Adapts the configured market providers to Investment's port.
+ *
+ * <p>Routing is intentional: Yahoo supplies current quotes; TwelveData supplies historical
+ * daily/monthly closes. Their configuration is resolved independently by the owning adapter.
+ */
 @Component
 @RequiredArgsConstructor
 public class ConfiguredMarketDataProvider implements MarketDataProvider {
@@ -27,7 +34,14 @@ public class ConfiguredMarketDataProvider implements MarketDataProvider {
 
   @Override
   public Map<String, MarketQuote> fetchQuotes(List<String> symbols) {
-    return twelveData.fetchQuotes(symbols, config());
+    Map<String, MarketQuote> quotes = new LinkedHashMap<>();
+    for (String symbol : symbols) {
+      yahooFinance
+          .fetchLatestQuote(symbol)
+          .map(this::toMarketQuote)
+          .ifPresent(quote -> quotes.put(symbol, quote));
+    }
+    return quotes;
   }
 
   @Override
@@ -56,7 +70,16 @@ public class ConfiguredMarketDataProvider implements MarketDataProvider {
 
   @Override
   public String externalSymbol(String canonicalSymbol, String ticker) {
-    return twelveData.externalSymbol(canonicalSymbol, ticker);
+    return YahooSymbolResolver.resolve(canonicalSymbol, null);
+  }
+
+  private MarketQuote toMarketQuote(YahooFinanceService.YahooQuote quote) {
+    MarketQuote marketQuote = new MarketQuote();
+    marketQuote.setSymbol(quote.symbol());
+    marketQuote.setCurrency(quote.currency());
+    marketQuote.setDatetime(quote.date().toString());
+    marketQuote.setClose(quote.price());
+    return marketQuote;
   }
 
   private PluginConfig config() {

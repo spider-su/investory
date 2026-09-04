@@ -11,6 +11,11 @@ import com.smartbox.investory.investment.infrastructure.persistence.imports.Impo
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceFileRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceRowEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceRowRepository;
+import com.smartbox.investory.shared.time.ClockApplicationTime;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
@@ -33,7 +38,14 @@ class ImportSourceEvidenceServiceTest {
 
   @BeforeEach
   void setUp() {
-    service = new ImportSourceEvidenceService(fileRepository, rowRepository, new ObjectMapper());
+    service =
+        new ImportSourceEvidenceService(
+            fileRepository,
+            rowRepository,
+            new ObjectMapper(),
+            new ClockApplicationTime(
+                Clock.fixed(Instant.parse("2026-09-05T08:00:00Z"), ZoneOffset.UTC),
+                ZoneId.of("Europe/Warsaw")));
   }
 
   @AfterEach

@@ -26,7 +26,9 @@ class PortfolioStructureQueryTest {
                 new AssetAllocationQuery.CanonicalHolding(
                     "BBB", BigDecimal.valueOf(100), BigDecimal.valueOf(-5))));
     Portfolio portfolio = new Portfolio();
-    portfolio.setBalance(300);
+    // The reporting allocation total is the valuation basis; the aggregate Portfolio balance is
+    // deliberately different so this test catches denominator drift.
+    portfolio.setBalance(999);
     portfolio.setCash(0);
     portfolio.setOpenPositionValues(List.of());
 

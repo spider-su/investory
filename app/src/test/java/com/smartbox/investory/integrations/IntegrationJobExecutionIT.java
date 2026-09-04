@@ -10,9 +10,12 @@ import com.smartbox.investory.integrations.management.persistence.IntegrationIns
 import com.smartbox.investory.integrations.management.persistence.IntegrationJobRepository;
 import com.smartbox.investory.integrations.management.scheduling.IntegrationJobScheduler;
 import com.smartbox.investory.investment.port.fx.FxRateProvider;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import com.smartbox.investory.testsupport.FastDatabaseTest;
+import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorTestData;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +31,7 @@ class IntegrationJobExecutionIT extends FastDatabaseTest {
   @Autowired private IntegrationInstanceRepository instances;
   @Autowired private IntegrationJobRepository jobs;
   @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbc;
+  @Autowired private ApplicationTime time;
   @MockitoBean private FxRateProvider fxProvider;
 
   @Test
@@ -40,7 +44,7 @@ class IntegrationJobExecutionIT extends FastDatabaseTest {
 
   @Test
   void dueCanonicalFxJobExecutesProviderRefreshAndPersistsSuccess() {
-    LocalDate today = LocalDate.now();
+    LocalDate today = time.today();
     when(fxProvider.fetchRates(any()))
         .thenReturn(
             List.of(
@@ -63,8 +67,8 @@ class IntegrationJobExecutionIT extends FastDatabaseTest {
     instance.setPluginType(IntegrationType.FX_DATA);
     instance.setEnabled(true);
     instance.setConfigJson("{\"apiKey\":\"test-secret-reference\"}");
-    instance.setCreatedAt(java.time.ZonedDateTime.now());
-    instance.setUpdatedAt(java.time.ZonedDateTime.now());
+    instance.setCreatedAt(time.now(ZoneId.of("Europe/Warsaw")));
+    instance.setUpdatedAt(time.now(ZoneId.of("Europe/Warsaw")));
     instance = instances.saveAndFlush(instance);
 
     var job = new com.smartbox.investory.integrations.management.persistence.IntegrationJobEntity();
@@ -88,6 +92,26 @@ class IntegrationJobExecutionIT extends FastDatabaseTest {
                 BigDecimal.class,
                 today))
         .isEqualByComparingTo("3.601600");
+    assertThat(
+            jdbc.queryForList(
+                """
+                select concat(
+                    day::date, ':', source.id, '->', target.id, ':', fx.conversion_status)
+                from generate_series(cast(? as date), cast(? as date), interval '1 day') day
+                cross join investory.currencies source
+                cross join investory.currencies target
+                cross join lateral investory.resolve_fx_rate(day::date, source.id, target.id) fx
+                where source.id <> target.id
+                  and (fx.fx_rate_to_target is null
+                       or fx.fx_rate_to_target <= 0
+                       or fx.conversion_status = 'MISSING_RATE')
+                order by day, source.id, target.id
+                """,
+                String.class,
+                HappyInvestorTestData.HISTORY_START,
+                today))
+        .as("unavailable FX rates across the canonical test period")
+        .isEmpty();
     verify(fxProvider).fetchRates(any());
   }
 }

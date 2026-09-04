@@ -54,7 +54,7 @@ class LongTermDepositControllerTest {
             "notes",
             feedback);
 
-    assertThat(target).isEqualTo("redirect:/long-term-assets/9?portfolioId=1");
+    assertThat(target).isEqualTo("redirect:/portfolios/1/long-term-assets/9");
     verify(assets)
         .createDeposit(
             new DepositCommand(
@@ -87,7 +87,7 @@ class LongTermDepositControllerTest {
             new BigDecimal("19"),
             null,
             feedback);
-    assertThat(target).isEqualTo("redirect:/long-term-assets?portfolioId=1");
+    assertThat(target).isEqualTo("redirect:/portfolios/1/long-term-assets");
     assertThat(feedback.getFlashAttributes().get("error")).isEqualTo("bad deposit");
   }
 

@@ -32,9 +32,9 @@ import com.smartbox.investory.investment.performance.model.*;
 import com.smartbox.investory.investment.reporting.PortfolioPerformanceQueryService;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.Year;
 import java.time.temporal.TemporalAccessor;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -50,6 +50,7 @@ import org.springframework.util.CollectionUtils;
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class PortfolioMetricsService {
+  private final ApplicationTime applicationTime;
 
   private static final BigDecimal ACCOUNT_VISIBILITY_MIN_VALUE = BigDecimal.valueOf(50);
   private static final Set<String> ACCOUNT_NET_DEPOSIT_CATEGORIES =
@@ -153,7 +154,7 @@ public class PortfolioMetricsService {
                               new TaxCalculator.TaxYearResult(
                                   row.getTaxYear(), row.getRealizedResult()))
                       .toList(),
-                  Year.now().getValue());
+                  applicationTime.today().getYear());
       portfolio.setCapitalGainsTax(tax.capitalGainsTax().doubleValue());
       portfolio.setLossCarryForward(tax.lossCarryForward().doubleValue());
 
@@ -333,7 +334,9 @@ public class PortfolioMetricsService {
     // ── Realized P/L from imported closed positions ──────────────────────
     for (PositionEntity position : closedPositions) {
       LocalDate rateDate =
-          position.getCloseTime() != null ? position.getCloseTime().toLocalDate() : LocalDate.now();
+          position.getCloseTime() != null
+              ? position.getCloseTime().toLocalDate()
+              : applicationTime.today();
       CurrencyType profitCurrency = position.getProfitCurrency();
       CurrencyType commissionCurrency = position.getCommissionCurrency();
       BigDecimal profitAndSwap = bd(position.getProfit()).add(bd(position.getSwap()));
@@ -363,13 +366,13 @@ public class PortfolioMetricsService {
                           profitAndSwap,
                           portfolio.getBaseCurrency(),
                           profitCurrency,
-                          LocalDate.now()))
+                          applicationTime.today()))
                   .add(
                       currencyRateService.convertToBaseCurrency(
                           commission,
                           portfolio.getBaseCurrency(),
                           commissionCurrency,
-                          LocalDate.now()))));
+                          applicationTime.today()))));
     }
 
     // ── Dividends from imported cash operations ──────────────────────────
@@ -383,7 +386,7 @@ public class PortfolioMetricsService {
         LocalDate rateDate =
             cashOperation.getDate() != null
                 ? cashOperation.getDate().toLocalDate()
-                : LocalDate.now();
+                : applicationTime.today();
         BigDecimal amount = bd(cashOperation.getAmount());
         BigDecimal amountInBase =
             currencyRateService.convertToBaseCurrency(
@@ -428,17 +431,17 @@ public class PortfolioMetricsService {
                       currencyRateService
                           .convertToBaseCurrency(
                               bd(position.getPurchaseValue()), portfolio.getBaseCurrency(),
-                              position.getCostCurrency(), java.time.LocalDate.now())
+                              position.getCostCurrency(), applicationTime.today())
                           .add(
                               currencyRateService.convertToBaseCurrency(
                                   bd(position.getProfit()).add(bd(position.getSwap())),
                                   portfolio.getBaseCurrency(),
                                   position.getProfitCurrency(),
-                                  java.time.LocalDate.now()))
+                                  applicationTime.today()))
                           .add(
                               currencyRateService.convertToBaseCurrency(
                                   bd(position.getCommission()), portfolio.getBaseCurrency(),
-                                  position.getCommissionCurrency(), java.time.LocalDate.now())))
+                                  position.getCommissionCurrency(), applicationTime.today())))
               .reduce(BigDecimal.ZERO, BigDecimal::add);
       cash = BigDecimal.ZERO;
     }
@@ -512,10 +515,13 @@ public class PortfolioMetricsService {
                             bd(stat.getNetDeposit())));
                 CurrencyType localCurrency = account.getCurrency();
                 BigDecimal localBalance =
-                    localBalance(balance, baseCurrency, localCurrency, LocalDate.now());
+                    localBalance(balance, baseCurrency, localCurrency, applicationTime.today());
                 BigDecimal localCash =
                     localBalance(
-                        bd(stat.getCashBalance()), baseCurrency, localCurrency, LocalDate.now());
+                        bd(stat.getCashBalance()),
+                        baseCurrency,
+                        localCurrency,
+                        applicationTime.today());
                 BigDecimal localNetDeposit = netDeposit.localAmount();
                 BigDecimal baseNetDeposit = netDeposit.baseAmount();
                 BigDecimal profit = balance.subtract(baseNetDeposit);
@@ -606,7 +612,7 @@ public class PortfolioMetricsService {
             AccountEntity account = accountsById.get(accountId);
             BigDecimal baseAdjustment =
                 currencyRateService.convertToBaseCurrency(
-                    bd(adjustment), baseCurrency, account.getCurrency(), LocalDate.now());
+                    bd(adjustment), baseCurrency, account.getCurrency(), applicationTime.today());
             AccountNetDeposit current =
                 deposits.getOrDefault(
                     accountId, new AccountNetDeposit(BigDecimal.ZERO, BigDecimal.ZERO));
@@ -721,7 +727,7 @@ public class PortfolioMetricsService {
       CurrencyType currency =
           operation.getCurrency() != null ? operation.getCurrency() : baseCurrency;
       LocalDate rateDate =
-          operation.getDate() != null ? operation.getDate().toLocalDate() : LocalDate.now();
+          operation.getDate() != null ? operation.getDate().toLocalDate() : applicationTime.today();
       BigDecimal amountInBase =
           currencyRateService.convertToBaseCurrency(
               bd(operation.getAmount()), baseCurrency, currency, rateDate);
@@ -828,7 +834,7 @@ public class PortfolioMetricsService {
 
   private void applyOpenPositionUnrealizedTotal(Portfolio portfolio) {
     BigDecimal unrealizedProfit = BigDecimal.ZERO;
-    LocalDate rateDate = LocalDate.now();
+    LocalDate rateDate = applicationTime.today();
     for (PositionEntity position : openPositions()) {
       CurrencyType profitCurrency = position.getProfitCurrency();
       CurrencyType commissionCurrency = position.getCommissionCurrency();

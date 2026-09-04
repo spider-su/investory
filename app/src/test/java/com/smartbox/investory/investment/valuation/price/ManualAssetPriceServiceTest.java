@@ -17,8 +17,11 @@ import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceH
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.portfolio.PortfolioBuilders;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestData;
+import com.smartbox.investory.testsupport.time.MutableApplicationTime;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -48,7 +51,9 @@ class ManualAssetPriceServiceTest {
             assetPriceHistoryRepository,
             currencyRateService,
             marketDataService,
-            statisticsRefreshService);
+            statisticsRefreshService,
+            MutableApplicationTime.fixed(
+                Instant.parse("2026-09-05T08:00:00Z"), ZoneId.of("Europe/Warsaw")));
   }
 
   @DisplayName("update Price Saves Manual Price And Refreshes Derived State")

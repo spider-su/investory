@@ -33,22 +33,23 @@ SET valid_to = EXCLUDED.valid_to,
     rate = EXCLUDED.rate;
 
 INSERT INTO long_term_assets (
-    id, portfolio_id, name, asset_type, currency, acquisition_date,
+    id, portfolio_id, name, asset_type, currency, acquisition_date, tax_base,
     acquisition_value, current_value, rental_tax_paid_by_tenant, active, notes
 )
 VALUES
-    (9401, 1, 'Cash reserve', 'CASH_RESERVE', 'PLN', DATE '2024-08-01', 50000, 50000, false, true, 'Happy Investor canonical profile'),
-    (9402, 1, 'Apartment A', 'REAL_ESTATE', 'PLN', DATE '2024-08-01', 400000, 400000, false, true, 'Happy Investor canonical profile'),
-    (9403, 1, 'Apartment B', 'REAL_ESTATE', 'PLN', DATE '2024-08-01', 500000, 500000, false, true, 'Happy Investor canonical profile'),
-    (9404, 1, 'Family Car', 'OTHER', 'PLN', DATE '2024-08-01', 10000, 10000, false, true, 'Happy Investor canonical profile'),
-    (9405, 1, 'Treasury 2026', 'BOND', 'PLN', DATE '2024-07-31', 10000, 10000, false, true, 'Happy Investor canonical fixed income'),
-    (9406, 1, 'Reserve deposit', 'DEPOSIT', 'PLN', DATE '2024-08-01', 50000, 50000, false, true, 'Happy Investor canonical fixed income')
+    (9401, 1, 'Cash reserve', 'CASH_RESERVE', 'PLN', DATE '2024-08-01', NULL, 50000, 50000, false, true, 'Happy Investor canonical profile'),
+    (9402, 1, 'Apartment A', 'REAL_ESTATE', 'PLN', DATE '2024-08-01', 3200, 400000, 400000, false, true, 'Happy Investor canonical profile'),
+    (9403, 1, 'Apartment B', 'REAL_ESTATE', 'PLN', DATE '2024-08-01', 3000, 500000, 500000, false, true, 'Happy Investor canonical profile'),
+    (9404, 1, 'Family Car', 'OTHER', 'PLN', DATE '2024-08-01', NULL, 10000, 10000, false, true, 'Happy Investor canonical profile'),
+    (9405, 1, 'Treasury 2026', 'BOND', 'PLN', DATE '2024-07-31', NULL, 10000, 10000, false, true, 'Happy Investor canonical fixed income'),
+    (9406, 1, 'Reserve deposit', 'DEPOSIT', 'PLN', DATE '2024-08-01', NULL, 50000, 50000, false, true, 'Happy Investor canonical fixed income')
 ON CONFLICT (id) DO UPDATE
 SET portfolio_id = EXCLUDED.portfolio_id,
     name = EXCLUDED.name,
     asset_type = EXCLUDED.asset_type,
     currency = EXCLUDED.currency,
     acquisition_date = EXCLUDED.acquisition_date,
+    tax_base = EXCLUDED.tax_base,
     acquisition_value = EXCLUDED.acquisition_value,
     current_value = EXCLUDED.current_value,
     rental_tax_paid_by_tenant = EXCLUDED.rental_tax_paid_by_tenant,
@@ -96,16 +97,17 @@ VALUES (9406, DATE '2027-08-01', 'CAPITALIZE', 0.04, 0.19)
 ON CONFLICT (asset_id) DO NOTHING;
 
 INSERT INTO long_term_asset_rental_contracts
-    (id, asset_id, start_date, end_date, rental_tax_paid_by_tenant, notes)
+    (id, asset_id, start_date, end_date, rental_tax_paid_by_tenant, monthly_tax_base, notes)
 VALUES
-    (9501, 9402, DATE '2024-08-01', NULL, false, 'Happy Investor canonical profile'),
-    (9502, 9403, DATE '2024-08-01', DATE '2025-06-30', false, 'Happy Investor canonical profile B1'),
-    (9503, 9403, DATE '2025-07-01', NULL, false, 'Happy Investor canonical profile B2')
+    (9501, 9402, DATE '2024-08-01', NULL, false, 3200, 'Happy Investor canonical profile'),
+    (9502, 9403, DATE '2024-08-01', DATE '2025-06-30', false, 2800, 'Happy Investor canonical profile B1'),
+    (9503, 9403, DATE '2025-07-01', NULL, false, 3000, 'Happy Investor canonical profile B2')
 ON CONFLICT (id) DO UPDATE
 SET asset_id = EXCLUDED.asset_id,
     start_date = EXCLUDED.start_date,
     end_date = EXCLUDED.end_date,
     rental_tax_paid_by_tenant = EXCLUDED.rental_tax_paid_by_tenant,
+    monthly_tax_base = EXCLUDED.monthly_tax_base,
     notes = EXCLUDED.notes;
 
 INSERT INTO long_term_asset_rental_contract_terms
@@ -144,9 +146,9 @@ INSERT INTO simulation_plan_revisions (
 )
 SELECT
     9202, id, 1, 40, 2024, 85, 60, 90000, 12000,
-    36000, 6000, 0.025, 0.025, 0.025, 'SIMPLE_WATERFALL',
+    36000, 6000, 0.025, 0.025, 0.035, 'SIMPLE_WATERFALL',
     'CASH,BONDS,STOCKS', 2, 0.05, 0.25, true,
-    0.04, 0.07, 67, 24000, 0.19,
+    0.035, 0.07, 67, 24000, 0.19,
     2025, 50000, 159307.015664, 970000, 74400, 74400, 1
 FROM plan
 ON CONFLICT (id) DO UPDATE
@@ -180,6 +182,7 @@ SET simulation_plan_id = EXCLUDED.simulation_plan_id,
     baseline_long_term_capital = EXCLUDED.baseline_long_term_capital,
     baseline_rental_income = EXCLUDED.baseline_rental_income,
     baseline_long_term_income = EXCLUDED.baseline_long_term_income,
+    baseline_long_term_state = EXCLUDED.baseline_long_term_state,
     baseline_long_term_state_version = EXCLUDED.baseline_long_term_state_version;
 
 UPDATE simulation_plans

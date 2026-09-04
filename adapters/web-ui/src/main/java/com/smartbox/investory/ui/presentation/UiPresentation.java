@@ -21,6 +21,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Collection;
 import java.util.Locale;
 
 /** Stable display formatting and labels for the planning pages. */
@@ -73,6 +74,10 @@ public final class UiPresentation {
     return FinancialPresentation.compactMoney(value);
   }
 
+  public static String compactMoneyTrimmed(BigDecimal value) {
+    return FinancialPresentation.compactMoneyTrimmed(value);
+  }
+
   /** Compact money with an explicit sign for internal transfers and net changes. */
   public static String signedCompactMoney(BigDecimal value) {
     BigDecimal amount = zeroIfNull(value);
@@ -107,6 +112,31 @@ public final class UiPresentation {
   /** Browser-safe numeric form value: no grouping and no database-scale noise. */
   public static String moneyInput(BigDecimal value) {
     return plain(value, 2);
+  }
+
+  /** Browser-safe whole monetary input, retaining blank optional values. */
+  public static String wholeMoneyInput(BigDecimal value) {
+    return value == null
+        ? ""
+        : value.setScale(0, FinancialPrecision.REPORTING_ROUNDING).toPlainString();
+  }
+
+  /** Monthly total for all rental income terms, including parking and other income. */
+  public static BigDecimal monthlyIncome(
+      Collection<com.smartbox.investory.longterm.api.model.RentalTermView> terms) {
+    if (terms == null) return BigDecimal.ZERO;
+    return terms.stream()
+        .filter(
+            term ->
+                term.type() == CashFlowType.RENT
+                    || term.type() == CashFlowType.PARKING_RENT
+                    || term.type() == CashFlowType.OTHER_INCOME)
+        .map(
+            term ->
+                term.frequency() == Frequency.MONTHLY
+                    ? term.amount()
+                    : term.amount().divide(BigDecimal.valueOf(12), 18, RoundingMode.HALF_UP))
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
   }
 
   /** Browser-safe percentage-point input, for example 0.075 becomes 7.5. */

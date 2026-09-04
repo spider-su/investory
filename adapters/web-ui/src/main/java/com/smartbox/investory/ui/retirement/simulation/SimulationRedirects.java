@@ -14,11 +14,11 @@ final class SimulationRedirects {
       CurrencyType displayCurrency,
       Long planId,
       SimulationScenario scenario) {
-    return "redirect:/simulation/timeline/"
-        + year
-        + "?portfolioId="
+    return "redirect:/portfolios/"
         + portfolioId
-        + "&planningDisplayCurrency="
+        + "/simulation/timeline/"
+        + year
+        + "?planningDisplayCurrency="
         + displayCurrency
         + (planId == null ? "" : "&planId=" + planId)
         + ((planId == null && scenario == SimulationScenario.BASE)
@@ -28,10 +28,12 @@ final class SimulationRedirects {
 
   static String simulation(
       Long portfolioId, Long planId, CurrencyType displayCurrency, SimulationScenario scenario) {
-    return "redirect:/simulation?portfolioId="
+    return "redirect:/portfolios/"
         + portfolioId
-        + (planId == null ? "" : "&planId=" + planId)
-        + "&planningDisplayCurrency="
+        + "/simulation"
+        + (planId == null
+            ? "?planningDisplayCurrency="
+            : "?planId=" + planId + "&planningDisplayCurrency=")
         + displayCurrency
         + "&selectedScenario="
         + scenario;
@@ -39,10 +41,12 @@ final class SimulationRedirects {
 
   static String editPlan(
       Long portfolioId, Long planId, CurrencyType displayCurrency, SimulationScenario scenario) {
-    return "redirect:/simulation/plan/edit?portfolioId="
+    return "redirect:/portfolios/"
         + portfolioId
-        + (planId == null ? "" : "&planId=" + planId)
-        + "&planningDisplayCurrency="
+        + "/simulation/plan/edit"
+        + (planId == null
+            ? "?planningDisplayCurrency="
+            : "?planId=" + planId + "&planningDisplayCurrency=")
         + displayCurrency
         + "&selectedScenario="
         + scenario;

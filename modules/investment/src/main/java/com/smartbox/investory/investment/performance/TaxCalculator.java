@@ -4,8 +4,8 @@ import com.smartbox.investory.investment.ledger.position.persistence.PositionEnt
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.shared.presentation.FinancialPrecision;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import java.math.BigDecimal;
-import java.time.Year;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -31,6 +31,7 @@ public class TaxCalculator {
   private static final int LOSS_CARRY_FORWARD_YEARS = 5;
 
   private final CurrencyRateService currencyRateService;
+  private final ApplicationTime applicationTime;
 
   /** Tax result in {@code baseCurrency}, rounded to 2 decimal places. */
   public record TaxSummary(BigDecimal capitalGainsTax, BigDecimal lossCarryForward) {}
@@ -38,7 +39,7 @@ public class TaxCalculator {
   public record TaxYearResult(int year, BigDecimal realizedResult) {}
 
   public TaxSummary calculate(List<PositionEntity> closedPositions, CurrencyType baseCurrency) {
-    return calculate(closedPositions, baseCurrency, Year.now().getValue());
+    return calculate(closedPositions, baseCurrency, applicationTime.today().getYear());
   }
 
   /** Year-injectable overload, used by tests so they don't drift across calendar boundaries. */

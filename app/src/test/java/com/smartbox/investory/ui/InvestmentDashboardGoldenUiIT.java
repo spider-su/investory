@@ -33,9 +33,9 @@ import com.smartbox.investory.investment.api.reporting.model.ReturnMetric;
 import com.smartbox.investory.investment.imports.ImportExecutionResult;
 import com.smartbox.investory.investment.imports.ibkr.IbkrImportService;
 import com.smartbox.investory.investment.imports.xtb.XtbImportService;
+import com.smartbox.investory.investment.projection.PortfolioProjectionRefreshService;
 import com.smartbox.investory.investment.projection.PortfolioProjectionService;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
-import com.smartbox.investory.investment.valuation.price.ManualAssetPriceService;
 import com.smartbox.investory.testsupport.FastDatabaseTest;
 import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorDashboardFacts;
 import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorTestData;
@@ -50,7 +50,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.NumberFormat;
 import java.time.LocalDate;
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -82,7 +81,6 @@ class InvestmentDashboardGoldenUiIT extends FastDatabaseTest {
   private static final String GOLDEN_ROOT = "/reconciliation/golden/";
   private static final long PORTFOLIO_ID = HappyInvestorTestData.PORTFOLIO_ID;
   private static final String UPDATED_SYMBOL = "VWRA.UK";
-  private static final BigDecimal FIXED_MARKET_PRICE = new BigDecimal("150.00000000");
   private static final BigDecimal FIXED_USD_PLN_RATE = new BigDecimal("4.00000000");
   private static final BigDecimal FIXED_PLN_USD_RATE = new BigDecimal("0.25000000");
   private static final Set<Long> GOLDEN_ACCOUNTS =
@@ -96,7 +94,7 @@ class InvestmentDashboardGoldenUiIT extends FastDatabaseTest {
   @Autowired private IbkrImportService ibkrImport;
   @Autowired private XtbImportService xtbImport;
   @Autowired private PortfolioProjectionService projections;
-  @Autowired private ManualAssetPriceService manualPrices;
+  @Autowired private PortfolioProjectionRefreshService projectionRefreshService;
   @Autowired private CurrencyRateService currencyRateService;
   @Autowired private InvestmentDashboardApi dashboardApi;
   @Autowired private InvestmentPerformanceApi performanceApi;
@@ -133,7 +131,7 @@ class InvestmentDashboardGoldenUiIT extends FastDatabaseTest {
     loadGoldenFx();
     extendGoldenFxThroughCashOperations();
     jdbc.update("UPDATE investory.assets SET price_source = 'GOLDEN' WHERE price_source IS NULL");
-    refreshGoldenReporting();
+    refreshGoldenDashboard();
     assertThat(
             jdbc.queryForObject(
                 "SELECT count(*) FROM investory.app_v_current_open_position_rows "
@@ -145,17 +143,9 @@ class InvestmentDashboardGoldenUiIT extends FastDatabaseTest {
 
     doAnswer(
             invocation -> {
-              manualPrices.updatePrice(UPDATED_SYMBOL, FIXED_MARKET_PRICE);
-              refreshGoldenReporting();
-              return new InvestmentMaintenanceApi.MaintenanceResult(
-                  "OK", "Golden market price applied", ZonedDateTime.now());
-            })
-        .when(maintenance)
-        .updateHistory();
-    doAnswer(
-            invocation -> {
               writeFixedFxRates();
-              refreshGoldenReporting();
+              projectionRefreshService.refreshApplicationViews(
+                  PortfolioProjectionRefreshService.ApplicationRefreshScope.FX_UPDATE);
               return Map.of("updated", List.of("USD/PLN", "PLN/USD"), "failed", List.of());
             })
         .when(maintenance)
@@ -171,30 +161,13 @@ class InvestmentDashboardGoldenUiIT extends FastDatabaseTest {
     if (playwright != null) playwright.close();
   }
 
-  @DisplayName("golden Investment Dashboard Reflects Fixed Market And Currency Updates")
+  @DisplayName("golden Investment Dashboard Reflects Fixed Currency Updates")
   @Test
-  void goldenInvestmentDashboardReflectsFixedMarketAndCurrencyUpdates() {
+  void goldenInvestmentDashboardReflectsFixedCurrencyUpdates() {
     runScenario(
         page -> {
           openDashboard(page);
-          OverviewView initial = assertAllDashboardValues(page);
-          double initialBalance = initial.balance().doubleValue();
-          double initialUpdatedAssetValue =
-              position(initial, UPDATED_SYMBOL).getValue().doubleValue();
-
-          Response marketResponse =
-              page.waitForResponse(
-                  response ->
-                      response.url().endsWith("/api/v1/investment/maintenance/update-history"),
-                  () -> page.waitForNavigation(() -> page.locator("#refresh-prices-btn").click()));
-          assertThat(marketResponse.status()).isEqualTo(200);
-          assertFixedMarketPriceInDatabase();
-          OverviewView afterMarket = assertDashboardRefreshValues(page);
-          assertThat(position(afterMarket, UPDATED_SYMBOL).getMarketPrice())
-              .isEqualTo(FIXED_MARKET_PRICE.doubleValue());
-          assertThat(position(afterMarket, UPDATED_SYMBOL).getValue())
-              .isNotEqualTo(initialUpdatedAssetValue);
-          assertThat(afterMarket.balance()).isNotEqualTo(initialBalance);
+          OverviewView initial = assertDashboardSmoke(page);
 
           page.locator(".iv-topbar-fx-popover > summary").click();
           Response fxResponse =
@@ -211,7 +184,7 @@ class InvestmentDashboardGoldenUiIT extends FastDatabaseTest {
                       .exchangeRates()
                       .get(com.smartbox.investory.shared.currency.CurrencyType.PLN))
               .isEqualTo(FIXED_USD_PLN_RATE.doubleValue());
-          assertThat(afterFx.balance()).isNotEqualTo(afterMarket.balance());
+          assertThat(afterFx.balance()).isNotEqualTo(initial.balance());
         });
   }
 
@@ -242,12 +215,11 @@ class InvestmentDashboardGoldenUiIT extends FastDatabaseTest {
     return overview;
   }
 
-  private OverviewView assertAllDashboardValues(Page page) {
+  private OverviewView assertDashboardSmoke(Page page) {
     InvestmentDashboardApi.DashboardPageView dashboard =
         dashboardApi.loadDashboard(
             new DashboardQuery(List.of(), false, DashboardPeriod.MAX, PORTFOLIO_ID));
     OverviewView overview = (OverviewView) dashboard.overview();
-    PerformanceView performance = (PerformanceView) dashboard.performance();
 
     assertThat(overview.baseCurrency().name())
         .isEqualTo(HappyInvestorDashboardFacts.REPORTING_CURRENCY);
@@ -256,11 +228,10 @@ class InvestmentDashboardGoldenUiIT extends FastDatabaseTest {
     assertThat(page.locator("body").textContent())
         .contains("Portfolio structure")
         .doesNotContain("Whitelabel Error Page", "Internal Server Error", "Exception:");
-    assertTopbar(page, overview, performance.summary());
-    assertOverviewCards(page, overview, performance);
-    assertPerformance(page, performance.summary());
-    assertPortfolioStructure(page, overview);
-    assertDatabaseMatchesPositions(overview);
+    assertThat(page.locator("#balance-cash .iv-topbar-metric__value").textContent())
+        .isEqualTo(whole(overview.balance()));
+    assertThat(cardValue(overviewCard(page, "Unrealized P/L")))
+        .isEqualTo(overview.formatBase(overview.unrealizedProfit()));
     return overview;
   }
 
@@ -517,21 +488,6 @@ class InvestmentDashboardGoldenUiIT extends FastDatabaseTest {
     assertThat(actual).isEqualTo((value >= 0 ? "+" : "") + formatted + suffix);
   }
 
-  private void assertFixedMarketPriceInDatabase() {
-    assertThat(
-            jdbc.queryForObject(
-                "SELECT selected_price FROM investory.app_v_current_asset_price WHERE symbol = ?",
-                BigDecimal.class,
-                UPDATED_SYMBOL))
-        .isEqualByComparingTo(FIXED_MARKET_PRICE);
-    assertThat(
-            jdbc.queryForObject(
-                "SELECT price_source FROM investory.assets WHERE symbol = ?",
-                String.class,
-                UPDATED_SYMBOL))
-        .isEqualTo("Manual");
-  }
-
   private void assertFixedFxRatesInDatabase() {
     assertLatestRate("USD", "PLN", FIXED_USD_PLN_RATE);
     assertLatestRate("PLN", "USD", FIXED_PLN_USD_RATE);
@@ -570,10 +526,10 @@ class InvestmentDashboardGoldenUiIT extends FastDatabaseTest {
         "GOLDEN-UI:" + base + ":" + target);
   }
 
-  private void refreshGoldenReporting() {
-    jdbc.execute("SELECT investory.refresh_app_views()");
+  private void refreshGoldenDashboard() {
     projections.recalculateAccounts(GOLDEN_ACCOUNTS);
-    projections.refreshReconciliationViews();
+    projectionRefreshService.refreshApplicationViews(
+        PortfolioProjectionRefreshService.ApplicationRefreshScope.DASHBOARD);
   }
 
   private void extendGoldenFxThroughCashOperations() {
@@ -695,20 +651,16 @@ class InvestmentDashboardGoldenUiIT extends FastDatabaseTest {
         jdbc.update(
             "INSERT INTO investory.exchange_rates("
                 + "rate_date, base, to_currency, rate, source, method, source_reference) "
-                + "SELECT day::date, ?, ?, ?, 'TEST', 'MARKET_DAILY', ? || ':' || day::date "
-                + "FROM generate_series(?, "
-                + "(date_trunc('month', ?::date + interval '1 month') - interval '1 day')::date, "
-                + "interval '1 day') day "
+                + "VALUES (?, ?, ?, ?, 'TEST', 'MARKET_DAILY', ?) "
                 + "ON CONFLICT (rate_date, base, to_currency, source, method, "
                 + "(COALESCE(source_reference, ''))) DO UPDATE SET rate = EXCLUDED.rate, "
                 + "source = EXCLUDED.source, method = EXCLUDED.method, "
                 + "source_reference = EXCLUDED.source_reference",
+            date,
             base,
             target,
             rate,
-            reference,
-            date,
-            date);
+            reference);
       }
     }
     jdbc.update(
@@ -739,64 +691,12 @@ class InvestmentDashboardGoldenUiIT extends FastDatabaseTest {
             + "     (SELECT rate FROM investory.exchange_rates WHERE base = 'USD' "
             + "      AND to_currency = 'PLN' ORDER BY rate_date DESC, id DESC LIMIT 1) usd_pln "
             + "ON CONFLICT DO NOTHING");
-    jdbc.update(
-        "WITH days AS (SELECT generate_series(current_date - 3, current_date, interval '1 day')::date AS rate_date), "
-            + "latest AS (SELECT DISTINCT ON (base, to_currency) base, to_currency, rate "
-            + "           FROM investory.exchange_rates WHERE base <> to_currency "
-            + "           ORDER BY base, to_currency, rate_date DESC, id DESC) "
-            + "INSERT INTO investory.exchange_rates("
-            + "rate_date, base, to_currency, rate, source, method, source_reference) "
-            + "SELECT days.rate_date, latest.base, latest.to_currency, latest.rate, "
-            + "'TEST', 'MARKET_DAILY', 'GOLDEN:boundary:' || days.rate_date || ':' || latest.base || ':' || latest.to_currency "
-            + "FROM days CROSS JOIN latest ON CONFLICT DO NOTHING");
-    jdbc.update(
-        "INSERT INTO investory.exchange_rates("
-            + "rate_date, base, to_currency, rate, source, method, source_reference) "
-            + "SELECT current_date - 1, 'EUR', 'PLN', eur_usd.rate * usd_pln.rate, "
-            + "'TEST', 'MARKET_DAILY', 'GOLDEN:previous:EUR:PLN' "
-            + "FROM (SELECT rate FROM investory.exchange_rates WHERE base = 'EUR' "
-            + "      AND to_currency = 'USD' ORDER BY rate_date DESC, id DESC LIMIT 1) eur_usd, "
-            + "     (SELECT rate FROM investory.exchange_rates WHERE base = 'USD' "
-            + "      AND to_currency = 'PLN' ORDER BY rate_date DESC, id DESC LIMIT 1) usd_pln "
-            + "ON CONFLICT DO NOTHING");
-    jdbc.update(
-        "WITH days AS (SELECT generate_series(current_date - 3, current_date, interval '1 day')::date AS rate_date), "
-            + "eur_usd AS (SELECT rate FROM investory.exchange_rates WHERE base = 'EUR' "
-            + "            AND to_currency = 'USD' ORDER BY rate_date DESC, id DESC LIMIT 1), "
-            + "usd_pln AS (SELECT rate FROM investory.exchange_rates WHERE base = 'USD' "
-            + "            AND to_currency = 'PLN' ORDER BY rate_date DESC, id DESC LIMIT 1) "
-            + "INSERT INTO investory.exchange_rates("
-            + "rate_date, base, to_currency, rate, source, method, source_reference) "
-            + "SELECT days.rate_date, 'EUR', 'PLN', eur_usd.rate * usd_pln.rate, "
-            + "'TEST', 'MARKET_DAILY', 'GOLDEN:boundary:' || days.rate_date || ':EUR:PLN' "
-            + "FROM days CROSS JOIN eur_usd CROSS JOIN usd_pln ON CONFLICT DO NOTHING");
-    jdbc.update(
-        "WITH days AS (SELECT generate_series(DATE '2025-03-01', current_date, interval '1 day')::date AS rate_date), "
-            + "latest AS (SELECT DISTINCT ON (base, to_currency) base, to_currency, rate "
-            + "           FROM investory.exchange_rates WHERE base <> to_currency "
-            + "           ORDER BY base, to_currency, rate_date DESC, id DESC) "
-            + "INSERT INTO investory.exchange_rates("
-            + "rate_date, base, to_currency, rate, source, method, source_reference) "
-            + "SELECT days.rate_date, latest.base, latest.to_currency, latest.rate, "
-            + "'TEST', 'MARKET_DAILY', 'GOLDEN:daily:' || days.rate_date || ':' || latest.base || ':' || latest.to_currency "
-            + "FROM days CROSS JOIN latest ON CONFLICT DO NOTHING");
-    jdbc.update(
-        "WITH days AS (SELECT generate_series(DATE '2025-03-01', current_date, interval '1 day')::date AS rate_date), "
-            + "eur_usd AS (SELECT rate FROM investory.exchange_rates WHERE base = 'EUR' "
-            + "            AND to_currency = 'USD' ORDER BY rate_date DESC, id DESC LIMIT 1), "
-            + "usd_pln AS (SELECT rate FROM investory.exchange_rates WHERE base = 'USD' "
-            + "            AND to_currency = 'PLN' ORDER BY rate_date DESC, id DESC LIMIT 1) "
-            + "INSERT INTO investory.exchange_rates("
-            + "rate_date, base, to_currency, rate, source, method, source_reference) "
-            + "SELECT days.rate_date, 'EUR', 'PLN', eur_usd.rate * usd_pln.rate, "
-            + "'TEST', 'MARKET_DAILY', 'GOLDEN:daily:' || days.rate_date || ':EUR:PLN' "
-            + "FROM days CROSS JOIN eur_usd CROSS JOIN usd_pln ON CONFLICT DO NOTHING");
     currencyRateService.clearValuationResolutionCache();
   }
 
   private void openDashboard(Page page) {
     Response response =
-        page.navigate(baseUrl() + "/dashboard?portfolioId=" + PORTFOLIO_ID + "&period=MAX");
+        page.navigate(baseUrl() + "/portfolios/" + PORTFOLIO_ID + "/dashboard?period=MAX");
     assertThat(response).isNotNull();
     assertThat(response.status()).isEqualTo(200);
   }

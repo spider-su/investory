@@ -14,8 +14,13 @@ import com.smartbox.investory.investment.port.fx.FxRateProviderException;
 import com.smartbox.investory.investment.projection.PortfolioProjectionRefreshService;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateUpdaterService.CurrencyRateRefreshResult;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.time.ClockApplicationTime;
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +35,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @DisplayName("Currency Rate Updater Service")
 class CurrencyRateUpdaterServiceTest {
 
+  private static final LocalDate TODAY = LocalDate.of(2026, 9, 5);
+  private static final ClockApplicationTime TIME =
+      new ClockApplicationTime(
+          Clock.fixed(Instant.parse("2026-09-05T08:00:00Z"), ZoneOffset.UTC),
+          ZoneId.of("Europe/Warsaw"));
+
   @Mock private FxRateProvider fxRateProvider;
   @Mock private CurrencyRateService currencyRateService;
   @Mock private InvestmentCalculationCache calculationCache;
@@ -41,13 +52,13 @@ class CurrencyRateUpdaterServiceTest {
   void setUp() {
     updater =
         new CurrencyRateUpdaterService(
-            fxRateProvider, currencyRateService, calculationCache, projectionRefreshService);
+            fxRateProvider, currencyRateService, calculationCache, projectionRefreshService, TIME);
   }
 
   @DisplayName("update Currency Rates pushes Rates For Usd Eur And Pln")
   @Test
   void updateCurrencyRates_pushesRatesForUsdEurAndPln() {
-    when(fxRateProvider.fetchRates(any())).thenReturn(response(0.9, 4.0, LocalDate.now()));
+    when(fxRateProvider.fetchRates(any())).thenReturn(response(0.9, 4.0, TODAY));
 
     CurrencyRateRefreshResult result = updater.updateCurrencyRates();
 
@@ -78,10 +89,10 @@ class CurrencyRateUpdaterServiceTest {
     assertEquals(
         1.0 / 0.9, java.util.Objects.requireNonNull(eurRates).get(CurrencyType.USD), 0.000001);
     assertEquals(4.0 / 0.9, eurRates.get(CurrencyType.PLN), 0.000001);
-    assertEquals(LocalDate.now(), monthCaptor.getAllValues().getFirst());
+    assertEquals(TODAY, monthCaptor.getAllValues().getFirst());
     assertEquals(List.of("USD", "EUR", "PLN"), result.updated());
     assertTrue(result.failed().isEmpty());
-    verify(currencyRateService).activateDailyHistoryAt(LocalDate.now());
+    verify(currencyRateService).activateDailyHistoryAt(TODAY);
     verify(fxRateProvider).fetchRates(any());
   }
 

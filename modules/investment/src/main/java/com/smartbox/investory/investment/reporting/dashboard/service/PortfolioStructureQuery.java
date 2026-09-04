@@ -34,7 +34,10 @@ public class PortfolioStructureQuery {
 
   private PortfolioStructureView load(
       Long portfolioId, Portfolio portfolio, AssetAllocationView allocation) {
-    double total = portfolio.getBalance();
+    double total =
+        portfolioId == null || assetAllocationQuery == null
+            ? portfolio.getBalance()
+            : allocation.totalValue().doubleValue();
     double cash = portfolio.getCash();
 
     // Symbols are Investory's portfolio-level instrument identifiers. Aggregate across accounts

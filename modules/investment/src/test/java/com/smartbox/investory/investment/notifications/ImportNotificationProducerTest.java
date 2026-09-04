@@ -13,6 +13,11 @@ import com.smartbox.investory.investment.imports.ImportSourceType;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
 import com.smartbox.investory.shared.notifications.NotificationCandidate;
 import com.smartbox.investory.shared.notifications.NotificationEventPublisher;
+import com.smartbox.investory.shared.time.ClockApplicationTime;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,7 +31,12 @@ class ImportNotificationProducerTest {
   private final ApplicationEventPublisher applicationEvents =
       Mockito.mock(ApplicationEventPublisher.class);
   private final ImportNotificationProducer producer =
-      new ImportNotificationProducer(events, applicationEvents);
+      new ImportNotificationProducer(
+          events,
+          applicationEvents,
+          new ClockApplicationTime(
+              Clock.fixed(Instant.parse("2026-09-05T08:00:00Z"), ZoneOffset.UTC),
+              ZoneId.of("Europe/Warsaw")));
 
   @DisplayName("publishes Failed And Partial With Stable Final Status Fingerprint")
   @Test

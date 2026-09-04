@@ -9,6 +9,7 @@ import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
 import com.smartbox.investory.investment.reporting.dashboard.application.InvestmentAssetApplicationService;
 import com.smartbox.investory.testsupport.FastDatabaseTest;
 import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorMarketDataFacts;
+import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -68,13 +69,12 @@ class AssetDetailReadModelIT extends FastDatabaseTest {
     var ytd = assets.priceHistory(1L, "TSLA.US", DashboardPeriod.YEAR_TO_DATE);
     assertThat(all).isNotEmpty();
     assertThat(all)
-        .anySatisfy(
-            point -> {
-              assertThat(point.date()).isEqualTo(java.time.LocalDate.of(2025, 1, 1));
-              assertThat(point.closePrice()).isEqualByComparingTo("403.840");
-              assertThat(point.currency()).isEqualTo("USD");
-              assertThat(point.source()).isEqualTo("STOOQ");
-            });
+        .anyMatch(
+            point ->
+                point.date().equals(java.time.LocalDate.of(2025, 1, 1))
+                    && point.closePrice().compareTo(new BigDecimal("403.840")) == 0
+                    && point.currency().equals("USD")
+                    && point.source().equals("STOOQ"));
     assertThat(ytd).allMatch(point -> !point.date().isBefore(java.time.LocalDate.of(2026, 1, 1)));
     assertThat(assets.detail(999999L, "VWRA.UK", DashboardPeriod.MAX).holdings()).isEmpty();
   }

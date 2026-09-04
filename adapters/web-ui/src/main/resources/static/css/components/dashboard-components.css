@@ -332,6 +332,7 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
+    justify-content: space-between;
     gap: 3px;
     min-height: 56px;
     padding: 5px 8px;
@@ -797,10 +798,13 @@ details.iv-compact-popover.placement-top > .iv-compact-popover__panel {
     .iv-brand__content {
         display: flex;
         flex-direction: column;
-        justify-content: center;
-        gap: 8px;
+        justify-content: space-between;
+        gap: 0;
     }
-    .iv-brand .iv-period-nav { margin-top: 0; }
+    .iv-brand .iv-period-nav {
+        align-self: flex-start;
+        margin-top: 0;
+    }
 
     .iv-topbar-summary {
         display: grid;

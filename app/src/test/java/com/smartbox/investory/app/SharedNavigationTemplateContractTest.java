@@ -14,6 +14,7 @@ class SharedNavigationTemplateContractTest {
         Files.readString(
             Path.of("../adapters/web-ui/src/main/resources/templates/fragments/app-header.html"));
 
-    assertThat(template).contains("th:href=\"@{/dashboard(portfolioId=${portfolioId})}\"");
+    assertThat(template)
+        .contains("th:href=\"@{/portfolios/{portfolioId}/dashboard(portfolioId=${portfolioId})}\"");
   }
 }

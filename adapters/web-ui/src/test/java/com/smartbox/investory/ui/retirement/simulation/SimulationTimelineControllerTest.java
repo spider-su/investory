@@ -41,7 +41,7 @@ class SimulationTimelineControllerTest {
 
     verify(planning).rollover(1L);
     assertEquals(
-        "redirect:/simulation?portfolioId=1&planId=7&planningDisplayCurrency=EUR&selectedScenario=CONSERVATIVE",
+        "redirect:/portfolios/1/simulation?planId=7&planningDisplayCurrency=EUR&selectedScenario=CONSERVATIVE",
         redirect);
   }
 
@@ -72,7 +72,7 @@ class SimulationTimelineControllerTest {
             new BigDecimal("11250"),
             "Actual household spending");
     assertEquals(
-        "redirect:/simulation/timeline/2025?portfolioId=1&planningDisplayCurrency=PLN&planId=7&selectedScenario=CONSERVATIVE",
+        "redirect:/portfolios/1/simulation/timeline/2025?planningDisplayCurrency=PLN&planId=7&selectedScenario=CONSERVATIVE",
         redirect);
   }
 
@@ -88,7 +88,7 @@ class SimulationTimelineControllerTest {
             .closeHistoricalDraft(1L, 2025, CurrencyType.PLN, 7L, SimulationScenario.BASE, flash);
 
     assertEquals(
-        "redirect:/simulation/timeline/2025?portfolioId=1&planningDisplayCurrency=PLN&planId=7&selectedScenario=BASE",
+        "redirect:/portfolios/1/simulation/timeline/2025?planningDisplayCurrency=PLN&planId=7&selectedScenario=BASE",
         redirect);
     assertEquals("Missing CORE_SPENDING", flash.getFlashAttributes().get("planningError"));
   }
@@ -100,7 +100,7 @@ class SimulationTimelineControllerTest {
 
     verify(planning).createHistoricalDraft(1L, 2024);
     assertEquals(
-        "redirect:/simulation/timeline/2024?portfolioId=1&planningDisplayCurrency=PLN", redirect);
+        "redirect:/portfolios/1/simulation/timeline/2024?planningDisplayCurrency=PLN", redirect);
   }
 
   @Test
@@ -111,7 +111,7 @@ class SimulationTimelineControllerTest {
 
     verify(planning).prefillHistoricalYears(1L, 2026);
     assertEquals(
-        "redirect:/simulation?portfolioId=1&planningDisplayCurrency=EUR&selectedScenario=OPTIMISTIC",
+        "redirect:/portfolios/1/simulation?planningDisplayCurrency=EUR&selectedScenario=OPTIMISTIC",
         redirect);
   }
 
@@ -128,7 +128,7 @@ class SimulationTimelineControllerTest {
 
     assertEquals("Year is not closed", flash.getFlashAttributes().get("planningError"));
     assertEquals(
-        "redirect:/simulation/timeline/2025?portfolioId=1&planningDisplayCurrency=PLN&planId=7&selectedScenario=BASE",
+        "redirect:/portfolios/1/simulation/timeline/2025?planningDisplayCurrency=PLN&planId=7&selectedScenario=BASE",
         redirect);
   }
 }

@@ -81,16 +81,20 @@ public class LongTermAssetPageAssembler {
       List<LongTermAssetSummary> rows,
       CurrencyType base,
       LocalDate date) {
-    BigDecimal value = sum(rows, LongTermAssetSummary::currentValue, base, date);
-    BigDecimal income = sum(rows, r -> r.annualEconomics().grossAnnualIncome(), base, date);
-    BigDecimal expenses = sum(rows, r -> r.annualEconomics().annualExpenses(), base, date);
-    BigDecimal tax = sum(rows, r -> r.annualEconomics().annualTax(), base, date);
-    BigDecimal payment = sum(rows, r -> planning(r).totalPaymentMonthly(), base, date);
-    BigDecimal monthlyIncome = sum(rows, r -> planning(r).monthlyIncome(), base, date);
-    BigDecimal monthlyReduce = sum(rows, r -> planning(r).monthlyReduce(), base, date);
-    BigDecimal taxBase = sum(rows, r -> planning(r).taxBase(), base, date);
+    List<LongTermAssetSummary> calculatedRows =
+        rows.stream().filter(row -> row.type().contributesToCalculations()).toList();
+    BigDecimal value = sum(calculatedRows, LongTermAssetSummary::currentValue, base, date);
+    BigDecimal income =
+        sum(calculatedRows, r -> r.annualEconomics().grossAnnualIncome(), base, date);
+    BigDecimal expenses =
+        sum(calculatedRows, r -> r.annualEconomics().annualExpenses(), base, date);
+    BigDecimal tax = sum(calculatedRows, r -> r.annualEconomics().annualTax(), base, date);
+    BigDecimal payment = sum(calculatedRows, r -> planning(r).totalPaymentMonthly(), base, date);
+    BigDecimal monthlyIncome = sum(calculatedRows, r -> planning(r).monthlyIncome(), base, date);
+    BigDecimal monthlyReduce = sum(calculatedRows, r -> planning(r).monthlyReduce(), base, date);
+    BigDecimal taxBase = sum(calculatedRows, r -> planning(r).taxBase(), base, date);
     BigDecimal monthlyRentTax =
-        sum(rows, r -> planning(r).annualTax(), base, date)
+        sum(calculatedRows, r -> planning(r).annualTax(), base, date)
             .divide(BigDecimal.valueOf(12), 18, RoundingMode.HALF_UP);
     RealEstateGroupPlanningSummary planning =
         "REAL_ESTATE".equals(key)

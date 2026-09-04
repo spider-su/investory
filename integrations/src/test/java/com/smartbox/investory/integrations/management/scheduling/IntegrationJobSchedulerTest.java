@@ -1,5 +1,6 @@
 package com.smartbox.investory.integrations.management.scheduling;
 
+import static com.smartbox.investory.integrations.FixedTestTime.TIME;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
@@ -10,6 +11,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.integrations.management.api.model.IntegrationType;
+import com.smartbox.investory.integrations.management.application.handler.RefreshFxJobHandler;
+import com.smartbox.investory.integrations.management.application.handler.RefreshPricesJobHandler;
 import com.smartbox.investory.integrations.management.persistence.IntegrationInstanceEntity;
 import com.smartbox.investory.integrations.management.persistence.IntegrationInstanceRepository;
 import com.smartbox.investory.integrations.management.persistence.IntegrationJobEntity;
@@ -34,13 +37,14 @@ class IntegrationJobSchedulerTest {
   private final IntegrationInstanceRepository instances = mock();
   private final InvestmentMaintenanceApi investmentMaintenance = mock();
   private final JdbcTemplate jdbc = mock();
+  private final IntegrationJobHandlerRegistry handlers = mock();
   private final Connection connection = mock();
   private final PreparedStatement tryLock = mock();
   private final PreparedStatement unlock = mock();
   private final ResultSet tryLockResult = mock();
   private final ResultSet unlockResult = mock();
   private final IntegrationJobScheduler scheduler =
-      new IntegrationJobScheduler(jobs, instances, investmentMaintenance, jdbc);
+      new IntegrationJobScheduler(jobs, instances, handlers, TIME, jdbc);
 
   @DisplayName("skips Disabled Instance And Invalid Cron Without Taking Lock")
   @Test
@@ -63,6 +67,8 @@ class IntegrationJobSchedulerTest {
     when(jobs.findByEnabledTrue()).thenReturn(List.of(job));
     when(instances.findById(anyLong())).thenReturn(Optional.of(instance));
     allowLock();
+    when(handlers.require(IntegrationType.MARKET_DATA, "refresh-prices"))
+        .thenReturn(new RefreshPricesJobHandler(investmentMaintenance));
     doAnswer(
             invocation -> {
               org.assertj.core.api.Assertions.assertThat(job.getLastStatus()).isEqualTo("STARTED");
@@ -88,6 +94,8 @@ class IntegrationJobSchedulerTest {
     when(jobs.findByEnabledTrue()).thenReturn(List.of(job));
     when(instances.findById(anyLong())).thenReturn(Optional.of(instance));
     allowLock();
+    when(handlers.require(IntegrationType.FX_DATA, "refresh-rates"))
+        .thenReturn(new RefreshFxJobHandler(investmentMaintenance));
     when(investmentMaintenance.refreshCurrency())
         .thenReturn(
             new CurrencyRefreshResult(
@@ -107,6 +115,8 @@ class IntegrationJobSchedulerTest {
     when(jobs.findByEnabledTrue()).thenReturn(List.of(job));
     when(instances.findById(anyLong())).thenReturn(Optional.of(instance));
     allowLock();
+    when(handlers.require(IntegrationType.MARKET_DATA, "refresh-prices"))
+        .thenReturn(new RefreshPricesJobHandler(investmentMaintenance));
     doThrow(new IllegalStateException("Market refresh incomplete: ABC"))
         .when(investmentMaintenance)
         .refreshPrices();

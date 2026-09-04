@@ -16,7 +16,7 @@ final class LongTermAssetPageSupport {
   }
 
   static String assetRedirect(Long id, Long portfolioId) {
-    return "redirect:/long-term-assets/" + id + "?portfolioId=" + portfolioId;
+    return "redirect:/portfolios/" + portfolioId + "/long-term-assets/" + id;
   }
 
   static String rentalRedirect(Long id, Long portfolioId) {
@@ -24,7 +24,7 @@ final class LongTermAssetPageSupport {
   }
 
   static String taxPolicyRedirect(Long portfolioId) {
-    return "redirect:/long-term-assets?portfolioId=" + portfolioId + "#rental-tax-policies";
+    return "redirect:/portfolios/" + portfolioId + "/long-term-assets#rental-tax-policies";
   }
 
   static void applyAssetMutation(Runnable action, RedirectAttributes feedback) {

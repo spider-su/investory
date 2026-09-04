@@ -24,7 +24,12 @@ import com.smartbox.investory.investment.ledger.cash.persistence.NormalizedCashO
 import com.smartbox.investory.investment.port.market.MarketDataProvider;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.time.ClockApplicationTime;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -48,6 +53,11 @@ import org.springframework.transaction.annotation.Transactional;
 @DisplayName("Benchmark Service")
 class BenchmarkServiceTest {
 
+  private static final ClockApplicationTime TIME =
+      new ClockApplicationTime(
+          Clock.fixed(Instant.parse("2026-09-05T08:00:00Z"), ZoneOffset.UTC),
+          ZoneId.of("Europe/Warsaw"));
+
   @Mock private AccountDailyRepository accountDailyRepository;
   @Mock private AccountMonthlyPerformanceRepository accountMonthlyPerformanceRepository;
   @Mock private AccountRepository accountRepository;
@@ -68,7 +78,8 @@ class BenchmarkServiceTest {
             accountRepository,
             accountStatisticsRepository,
             new BenchmarkAccountValueService(currencyRateService),
-            new BenchmarkMarketDataService(benchmarkMonthlyCloseRepository, marketDataProvider),
+            new BenchmarkMarketDataService(
+                benchmarkMonthlyCloseRepository, marketDataProvider, TIME),
             "2026-01");
     org.mockito.Mockito.lenient()
         .when(accountRepository.findMapByIdIn(any()))

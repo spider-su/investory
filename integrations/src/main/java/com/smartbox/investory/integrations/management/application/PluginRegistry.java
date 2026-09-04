@@ -27,17 +27,6 @@ public class PluginRegistry {
           || plugin.type() != plugin.descriptor().type()) {
         throw new IllegalStateException("Plugin descriptor mismatch: " + plugin.id());
       }
-      plugin.descriptor().jobDescriptors().stream()
-          .filter(job -> !job.supportedByCurrentScheduler())
-          .findFirst()
-          .ifPresent(
-              job -> {
-                throw new IllegalStateException(
-                    "Integration job has no executable handler: "
-                        + plugin.id()
-                        + "/"
-                        + job.jobType());
-              });
     }
     plugins = byType;
   }

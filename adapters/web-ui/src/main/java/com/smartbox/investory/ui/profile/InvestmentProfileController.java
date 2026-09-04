@@ -9,7 +9,6 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 
 @Controller
 @Validated
@@ -20,8 +19,10 @@ public class InvestmentProfileController {
   private final RetirementProfileClient retirementProfile;
   private final Clock clock;
 
-  @GetMapping("/investment-profile")
-  public String profile(@RequestParam @Positive Long portfolioId, Model model) {
+  @GetMapping("/portfolios/{portfolioId}/investment-profile")
+  public String profile(
+      @org.springframework.web.bind.annotation.PathVariable @Positive Long portfolioId,
+      Model model) {
     var profile = this.profile.loadProfile(portfolioId);
     var performanceKpi = investmentDashboard.loadPerformanceKpi(portfolioId);
     var investmentResult = investmentDashboard.investmentResult(portfolioId);

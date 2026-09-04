@@ -11,7 +11,7 @@
 <main class="iv-app iv-planning-page iv-retirement-surface iv-sandbox-page">
   <div th:replace="~{fragments/app-header :: planningHeader('simulation', ${sandboxPortfolioId}, 'Retirement sandbox', 'Plan status', ${sandbox.result.simulationFailed ? 'Plan fails' : 'Sustainable'}, 'Sandbox', 'Annual income', ${format.money(sandboxAnnualIncome)}, 'rental + pension', 'Planning horizon', ${sandbox.form.currentAge + '–' + sandbox.form.endAge}, 'retire at age ' + sandbox.form.retirementAge, null, 'sandbox', null, null)}"></div>
   <p class="text-secondary iv-sandbox-description">Simple what-if calculation. Save it as a hidden simulation plan for this portfolio.</p>
-  <form class="card iv-sandbox-form" method="get" action="/simulation/sandbox" aria-label="Retirement sandbox inputs" th:object="${sandboxSimulationForm}">
+  <form class="card iv-sandbox-form" method="get" th:action="@{/portfolios/{portfolioId}/simulation/sandbox(portfolioId=${sandboxPortfolioId})}" action="/simulation/sandbox" aria-label="Retirement sandbox inputs" th:object="${sandboxSimulationForm}">
     <input type="hidden" name="portfolioId" th:value="${sandboxPortfolioId}">
     <input type="hidden" name="planId" th:value="${sandbox.form.planId}">
     <div class="card-body">
@@ -32,7 +32,7 @@
       <label>Pension income / month <input name="monthlyPensionIncome" type="number" min="0" step="100" th:value="${sandbox.form.monthlyPensionIncome}"><span class="text-danger" th:errors="*{monthlyPensionIncome}"></span></label>
       <label>Pension age <input name="pensionAge" type="number" min="0" max="120" th:value="${sandbox.form.pensionAge}"><span class="text-danger" th:errors="*{pensionAge}"></span></label>
       <button class="btn btn-primary" type="submit">Calculate</button>
-      <button th:if="${sandboxPortfolioId != null}" class="btn btn-outline-primary" type="submit" formmethod="post" formaction="/simulation/sandbox/save">Save / Update</button>
+      <button th:if="${sandboxPortfolioId != null}" class="btn btn-outline-primary" type="submit" formmethod="post" th:attr="formaction=@{/portfolios/{portfolioId}/simulation/sandbox/save(portfolioId=${sandboxPortfolioId})}" formaction="/simulation/sandbox/save">Save / Update</button>
     </div>
   </form>
   <section class="card iv-sandbox-result" aria-labelledby="sandbox-result-title">

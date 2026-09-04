@@ -20,11 +20,11 @@ public class AssetDetailController {
 
   private final InvestmentAssetClient assets;
 
-  @GetMapping("/dashboard/assets/{symbol}")
+  @GetMapping("/portfolios/{portfolioId}/dashboard/assets/{symbol}")
   public String detail(
       @PathVariable String symbol,
       @RequestParam(defaultValue = "YTD") DashboardPeriod period,
-      @RequestParam @Positive Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable @Positive Long portfolioId,
       Model model) {
     model.addAttribute("asset", assets.detail(portfolioId, symbol, period));
     model.addAttribute("priceHistory", assets.priceHistory(portfolioId, symbol, period));

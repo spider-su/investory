@@ -1,5 +1,6 @@
 package com.smartbox.investory.integrations.management.application;
 
+import static com.smartbox.investory.integrations.FixedTestTime.TIME;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
@@ -20,7 +21,8 @@ class IntegrationConfigurationServiceRuntimeTest {
   private final PluginRegistry registry = mock();
   private final IntegrationSecretCipher cipher = mock();
   private final IntegrationConfigurationService service =
-      new IntegrationConfigurationService(instances, secrets, registry, cipher, new ObjectMapper());
+      new IntegrationConfigurationService(
+          instances, secrets, registry, cipher, new ObjectMapper(), TIME);
 
   @Test
   void disabledPersistedInstanceShadowsEnvironmentFallback() {

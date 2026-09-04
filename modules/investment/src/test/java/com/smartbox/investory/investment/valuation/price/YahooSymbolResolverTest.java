@@ -2,6 +2,7 @@ package com.smartbox.investory.investment.valuation.price;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.smartbox.investory.investment.port.market.YahooSymbolResolver;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

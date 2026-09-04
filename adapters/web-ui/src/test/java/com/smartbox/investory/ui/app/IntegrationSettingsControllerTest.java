@@ -34,7 +34,8 @@ class IntegrationSettingsControllerTest {
     when(settings.list()).thenReturn(List.of(healthy, failed));
     var model = new ConcurrentModel();
 
-    assertThat(controller.page(model)).isEqualTo("integration-settings");
+    assertThat(controller.page(model, 42L)).isEqualTo("integration-settings");
+    assertThat(model.getAttribute("portfolioId")).isEqualTo(42L);
     assertThat(model.getAttribute("activeCount")).isEqualTo(1L);
     assertThat(model.getAttribute("attentionCount")).isEqualTo(1L);
     assertThat(model.getAttribute("setupCount")).isEqualTo(1L);

@@ -15,6 +15,7 @@ import com.smartbox.investory.investment.api.reporting.PerformanceMetric;
 import com.smartbox.investory.investment.api.reporting.PerformanceStyle;
 import com.smartbox.investory.investment.api.reporting.model.Benchmark;
 import com.smartbox.investory.investment.reporting.BenchmarkService;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import java.math.BigDecimal;
 import java.time.YearMonth;
 import java.time.ZonedDateTime;
@@ -33,6 +34,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class InvestmentPerformanceApplicationService implements InvestmentPerformanceApi {
   private final BenchmarkService benchmarkService;
+  private final ApplicationTime applicationTime;
 
   @Value("${app.portfolio.performance-kpi-start}")
   private String kpiStart = "2026-01";
@@ -309,7 +311,7 @@ public class InvestmentPerformanceApplicationService implements InvestmentPerfor
     if (period == null) {
       return kpiStart == null ? "" : kpiStart.substring(0, Math.min(7, kpiStart.length()));
     }
-    ZonedDateTime start = period.startDate(ZonedDateTime.now());
+    ZonedDateTime start = period.startDate(applicationTime.now(applicationTime.businessZone()));
     return start == null ? "" : YearMonth.from(start).toString();
   }
 

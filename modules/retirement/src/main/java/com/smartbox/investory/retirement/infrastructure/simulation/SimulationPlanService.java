@@ -66,8 +66,8 @@ public class SimulationPlanService implements RetirementPlanApi, RetirementSandb
       return plan.isSandbox() ? Optional.empty() : Optional.of(plan.getId());
     }
     return plans
-        .findFirstByPortfolioIdAndArchivedFalseOrderByUpdatedAtDescIdDesc(portfolioId)
-        .filter(plan -> !plan.isSandbox())
+        .findFirstByPortfolioIdAndArchivedFalseAndSandboxFalseOrderByUpdatedAtDescIdDesc(
+            portfolioId)
         .map(SimulationPlanEntity::getId);
   }
 

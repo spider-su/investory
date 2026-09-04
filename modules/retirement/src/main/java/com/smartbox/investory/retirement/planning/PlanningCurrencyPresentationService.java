@@ -426,7 +426,14 @@ public class PlanningCurrencyPresentationService {
           realEstateWithdrawal = null,
           bondReturn = null,
           equityReturn = null,
-          equityRefill = null;
+          equityRefill = null,
+          employmentIncome = null,
+          pensionIncome = null,
+          eventIncome = null,
+          funded = null,
+          fundingSurplus = null,
+          incomeUsed = null,
+          capitalFunding = null;
       if ((row.state() == PlanningTimelineState.ACTUAL
               || row.state() == PlanningTimelineState.NEEDS_REVIEW)
           && row.past() != null) {
@@ -469,14 +476,30 @@ public class PlanningCurrencyPresentationService {
                         ForwardSimulationContextFactory.currentPlanningAge(assumptions, row.year()))
                 ? assumptions.annualPension()
                 : BigDecimal.ZERO;
-        BigDecimal eventIncome =
+        BigDecimal liveEventIncome =
             eventAmount(assumptions, row.year(), SimulationEventType.ONE_OFF_INCOME);
         BigDecimal eventExpenses =
             eventAmount(assumptions, row.year(), SimulationEventType.ONE_OFF_EXPENSE);
         annualCosts = annualCosts == null ? null : annualCosts.add(eventExpenses);
         totalIncome =
-            employment.add(zero(rentalIncome)).add(zero(bondIncome)).add(pension).add(eventIncome);
+            employment
+                .add(zero(rentalIncome))
+                .add(zero(bondIncome))
+                .add(pension)
+                .add(liveEventIncome);
         fundingGap = gap(annualCosts, totalIncome);
+        employmentIncome = employment;
+        pensionIncome = pension;
+        eventIncome = liveEventIncome;
+        funded =
+            annualCosts == null
+                ? null
+                : annualCosts.subtract(zero(fundingGap)).max(BigDecimal.ZERO);
+        fundingSurplus = gap(totalIncome, annualCosts);
+        incomeUsed =
+            totalIncome == null || annualCosts == null
+                ? null
+                : totalIncome.min(annualCosts).max(BigDecimal.ZERO);
         cashStart =
             firstValue(
                 currentValues,
@@ -513,12 +536,25 @@ public class PlanningCurrencyPresentationService {
         rentalIncome = row.projection().rentalIncome();
         bondIncome = row.projection().bondIncome();
         totalIncome = row.projection().totalIncome();
+        employmentIncome = row.projection().employmentIncome();
+        pensionIncome = row.projection().pensionIncome();
+        eventIncome = row.projection().eventIncome();
         SimulationFunding funding = row.projection().funding();
         fundingGap = funding.fundingGap();
         reserveWithdrawal = funding.reserveWithdrawal();
         longTermFunding = funding.longTermFunding();
         investmentWithdrawal = funding.investmentWithdrawal();
         unfunded = funding.unfunded();
+        funded = annualCosts == null ? null : annualCosts.subtract(unfunded).max(BigDecimal.ZERO);
+        fundingSurplus = gap(totalIncome, annualCosts);
+        incomeUsed =
+            totalIncome == null || annualCosts == null
+                ? null
+                : totalIncome.min(annualCosts).max(BigDecimal.ZERO);
+        capitalFunding =
+            zero(funding.reserveWithdrawal())
+                .add(zero(funding.longTermFunding()))
+                .add(zero(funding.investmentWithdrawal()));
         reserveEnd = funding.reserveEnd();
         longTermCapitalEnd = funding.longTermCapitalEnd();
         investmentEnd = funding.investmentEnd();
@@ -570,7 +606,14 @@ public class PlanningCurrencyPresentationService {
               toDisplay(realEstateWithdrawal, currency),
               toDisplay(bondReturn, currency),
               toDisplay(equityReturn, currency),
-              toDisplay(equityRefill, currency)));
+              toDisplay(equityRefill, currency),
+              toDisplay(employmentIncome, currency),
+              toDisplay(pensionIncome, currency),
+              toDisplay(eventIncome, currency),
+              toDisplay(funded, currency),
+              toDisplay(fundingSurplus, currency),
+              toDisplay(incomeUsed, currency),
+              toDisplay(capitalFunding, currency)));
     }
     return result;
   }

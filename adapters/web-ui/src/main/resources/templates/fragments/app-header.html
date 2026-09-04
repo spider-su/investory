@@ -66,21 +66,21 @@
             <div class="iv-planning-summary__item"><strong th:text="${header.kpi3Value}">0</strong><span><span th:text="${header.kpi3Label}">KPI 3</span><small th:if="${header.kpi3Meta != null}" th:text="${header.kpi3Meta}"></small></span></div>
         </div>
         <div class="iv-topbar__meta iv-app-header-shell__actions iv-planning-actions" th:if="${header.actionMode == 'assets'}" aria-label="Long-term asset actions">
-            <a class="iv-topbar-action-button iv-badge iv-badge--muted" aria-label="Create rental asset" th:href="@{/long-term-assets/new/real-estate(portfolioId=${header.portfolioId})}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Rental</a>
-            <a class="iv-topbar-action-button iv-badge iv-badge--muted" aria-label="Create bond asset" th:href="@{/long-term-assets/new/bond(portfolioId=${header.portfolioId})}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Bond</a>
-            <a class="iv-topbar-action-button iv-badge iv-badge--muted" aria-label="Create cash reserve" th:href="@{/long-term-assets/new/cash-reserve(portfolioId=${header.portfolioId})}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Cash</a>
-            <a class="iv-topbar-action-button iv-badge iv-badge--muted" aria-label="Create other asset" th:href="@{/long-term-assets/new(portfolioId=${header.portfolioId})}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Other asset</a>
+            <a class="iv-topbar-action-button iv-badge iv-badge--muted" aria-label="Create rental asset" th:href="@{/portfolios/{portfolioId}/long-term-assets/new/real-estate(portfolioId=${header.portfolioId})}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Rental</a>
+            <a class="iv-topbar-action-button iv-badge iv-badge--muted" aria-label="Create bond asset" th:href="@{/portfolios/{portfolioId}/long-term-assets/new/bond(portfolioId=${header.portfolioId})}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Bond</a>
+            <a class="iv-topbar-action-button iv-badge iv-badge--muted" aria-label="Create cash reserve" th:href="@{/portfolios/{portfolioId}/long-term-assets/new/cash-reserve(portfolioId=${header.portfolioId})}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Cash</a>
+            <a class="iv-topbar-action-button iv-badge iv-badge--muted" aria-label="Create other asset" th:href="@{/portfolios/{portfolioId}/long-term-assets/new(portfolioId=${header.portfolioId})}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Other asset</a>
         </div>
         <div class="iv-topbar__meta iv-app-header-shell__actions iv-planning-actions iv-planning-actions--simulation" th:if="${header.actionMode == 'simulation'}" aria-label="Simulation actions">
             <div class="iv-planning-actions__row">
-                <a th:if="${simulationPage != null}" class="iv-topbar-action-button iv-badge iv-badge--muted" th:href="@{/simulation/plan/edit(portfolioId=${header.portfolioId},planId=${header.contextPlanId},planningDisplayCurrency=${header.currency},selectedScenario=${header.contextScenario})}">Edit plan</a>
-                <a th:unless="${simulationPage != null}" class="iv-topbar-action-button iv-badge iv-badge--muted" th:href="@{/simulation/plan/edit(portfolioId=${header.portfolioId},planId=${header.contextPlanId},planningDisplayCurrency=${header.currency},selectedScenario=${header.contextScenario})}">Edit plan</a>
-                <form th:if="${simulationPage != null}" method="post" action="/simulation/rollover"><input type="hidden" name="portfolioId" th:value="${header.portfolioId}"><input type="hidden" name="planId" th:value="${header.contextPlanId}"><input type="hidden" name="planningDisplayCurrency" th:value="${header.currency}"><input type="hidden" name="selectedScenario" th:value="${header.contextScenario}"><button class="iv-topbar-action-button iv-badge iv-badge--muted" type="submit">Sync years</button></form>
-                <a class="iv-topbar-action-button iv-badge iv-badge--muted" th:href="@{/simulation/sandbox(portfolioId=${header.portfolioId})}">Sandbox</a>
+                <a th:if="${simulationPage != null}" class="iv-topbar-action-button iv-badge iv-badge--muted" th:href="@{/portfolios/{portfolioId}/simulation/plan/edit(portfolioId=${header.portfolioId},planId=${header.contextPlanId},planningDisplayCurrency=${header.currency},selectedScenario=${header.contextScenario})}">Edit plan</a>
+                <a th:unless="${simulationPage != null}" class="iv-topbar-action-button iv-badge iv-badge--muted" th:href="@{/portfolios/{portfolioId}/simulation/plan/edit(portfolioId=${header.portfolioId},planId=${header.contextPlanId},planningDisplayCurrency=${header.currency},selectedScenario=${header.contextScenario})}">Edit plan</a>
+                <form th:if="${simulationPage != null}" method="post" th:action="@{/portfolios/{portfolioId}/simulation/rollover(portfolioId=${header.portfolioId})}" action="/simulation/rollover"><input type="hidden" name="portfolioId" th:value="${header.portfolioId}"><input type="hidden" name="planId" th:value="${header.contextPlanId}"><input type="hidden" name="planningDisplayCurrency" th:value="${header.currency}"><input type="hidden" name="selectedScenario" th:value="${header.contextScenario}"><button class="iv-topbar-action-button iv-badge iv-badge--muted" type="submit">Sync years</button></form>
+                <a class="iv-topbar-action-button iv-badge iv-badge--muted" th:href="@{/portfolios/{portfolioId}/simulation/sandbox(portfolioId=${header.portfolioId})}">Sandbox</a>
             </div>
             <nav class="iv-page-nav iv-planning-scenario-selector" th:if="${simulationPage != null}" aria-label="Simulation scenario">
                 <a th:each="availableScenario : ${simulationPage.availableScenarios}"
-                   th:href="@{/simulation(portfolioId=${header.portfolioId},planId=${simulationPage.selectedPlanId},planningDisplayCurrency=${header.currency},selectedScenario=${availableScenario})}"
+                   th:href="@{/portfolios/{portfolioId}/simulation(portfolioId=${header.portfolioId},planId=${simulationPage.selectedPlanId},planningDisplayCurrency=${header.currency},selectedScenario=${availableScenario})}"
                    th:text="${availableScenario.name().substring(0, 1) + availableScenario.name().substring(1).toLowerCase()}"
                    th:classappend="${availableScenario == simulationPage.selectedScenario} ? ' is-active' : ''"
                    th:attr="aria-current=${availableScenario == simulationPage.selectedScenario ? 'page' : null}">Base</a>
@@ -92,8 +92,8 @@
         <div class="iv-planning-local-nav-slot" th:if="${header.actionMode == 'simulation' or header.actionMode == 'analysis'}">
             <nav class="iv-planning-local-nav" aria-label="Retirement view">
                 <a th:if="${header.actionMode == 'simulation'}" class="is-active" aria-current="page">Projection</a>
-                <a th:if="${header.actionMode == 'analysis'}" th:href="@{/simulation(portfolioId=${analysisPage.portfolioId},planId=${analysisPage.planId},planningDisplayCurrency=${analysisPage.displayCurrency},selectedScenario=${analysisPage.selectedScenario})}">Projection</a>
-                <a th:if="${header.actionMode == 'simulation' and simulationPage != null}" th:href="@{/analysis(portfolioId=${header.portfolioId},planId=${header.contextPlanId},planningDisplayCurrency=${header.currency},selectedScenario=${header.contextScenario})}">Analysis</a>
+                <a th:if="${header.actionMode == 'analysis'}" th:href="@{/portfolios/{portfolioId}/simulation(portfolioId=${analysisPage.portfolioId},planId=${analysisPage.planId},planningDisplayCurrency=${analysisPage.displayCurrency},selectedScenario=${analysisPage.selectedScenario})}">Projection</a>
+                <a th:if="${header.actionMode == 'simulation' and simulationPage != null}" th:href="@{/portfolios/{portfolioId}/analysis(portfolioId=${header.portfolioId},planId=${header.contextPlanId},planningDisplayCurrency=${header.currency},selectedScenario=${header.contextScenario})}">Analysis</a>
                 <a th:if="${header.actionMode == 'analysis'}" class="is-active" aria-current="page">Analysis</a>
             </nav>
         </div>
@@ -108,26 +108,31 @@
 <nav th:fragment="appNavigation(activePage, portfolioId)" class="iv-page-nav" aria-label="Application navigation">
     <span th:if="${activePage == 'investment'}" class="is-active" aria-current="page">Investment</span>
     <a th:unless="${activePage == 'investment'}"
-       href="/dashboard"
-       th:href="@{/dashboard(portfolioId=${portfolioId})}">Investment</a>
+       th:if="${portfolioId != null}"
+       href="/portfolios/1/dashboard"
+       th:href="@{/portfolios/{portfolioId}/dashboard(portfolioId=${portfolioId})}">Investment</a>
     <span th:if="${activePage == 'assets'}" class="is-active" aria-current="page">Long-term assets</span>
     <a th:unless="${activePage == 'assets'}"
+       th:if="${portfolioId != null}"
        href="/long-term-assets"
-       th:href="@{/long-term-assets(portfolioId=${portfolioId})}">Long-term assets</a>
+       th:href="@{/portfolios/{portfolioId}/long-term-assets(portfolioId=${portfolioId})}">Long-term assets</a>
     <span th:if="${activePage == 'profile'}" class="is-active" aria-current="page">Profile</span>
     <a th:unless="${activePage == 'profile'}"
+       th:if="${portfolioId != null}"
        href="/investment-profile"
-       th:href="@{/investment-profile(portfolioId=${portfolioId})}">Profile</a>
+       th:href="@{/portfolios/{portfolioId}/investment-profile(portfolioId=${portfolioId})}">Profile</a>
     <span th:if="${activePage == 'simulation' or activePage == 'analysis'}" class="is-active" aria-current="page">Simulation</span>
     <a th:unless="${activePage == 'simulation' or activePage == 'analysis'}"
+       th:if="${portfolioId != null}"
        href="/simulation"
-       th:href="@{/simulation(portfolioId=${portfolioId})}">Simulation</a>
+       th:href="@{/portfolios/{portfolioId}/simulation(portfolioId=${portfolioId})}">Simulation</a>
     <span th:if="${activePage == 'reconciliation'}" class="is-active" aria-current="page">Reconciliation</span>
     <a th:unless="${activePage == 'reconciliation'}"
-       href="/dashboard/reconciliation"
-       th:href="@{/dashboard/reconciliation(portfolioId=${portfolioId})}">Reconciliation</a>
-    <a href="/settings/integrations">Settings</a>
+       th:if="${portfolioId != null}"
+       href="/portfolios/1/dashboard/reconciliation"
+       th:href="@{/portfolios/{portfolioId}/dashboard/reconciliation(portfolioId=${portfolioId})}">Reconciliation</a>
+    <a href="/settings/integrations"
+       th:href="@{/settings/integrations(portfolioId=${portfolioId})}">Settings</a>
 </nav>
 </body>
 </html>
-

@@ -28,7 +28,7 @@
                 </table>
             </div>
             <div class="iv-modal__footer">
-                <a id="modal-reconciliation-link" class="iv-badge iv-badge--muted" href="/dashboard/reconciliation" th:href="@{/dashboard/reconciliation(portfolioId=${portfolioId})}" style="display:none; padding: 8px 16px;">View reconciliation</a>
+                <a id="modal-reconciliation-link" class="iv-badge iv-badge--muted" href="/portfolios/1/dashboard/reconciliation" th:href="@{/portfolios/{portfolioId}/dashboard/reconciliation(portfolioId=${portfolioId})}" style="display:none; padding: 8px 16px;">View reconciliation</a>
                 <button class="iv-badge iv-badge--pos" style="padding: 8px 16px; cursor: pointer;" onclick="location.reload();">Refresh dashboard</button>
             </div>
         </div>

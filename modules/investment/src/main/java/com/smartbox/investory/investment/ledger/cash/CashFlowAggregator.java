@@ -3,6 +3,7 @@ package com.smartbox.investory.investment.ledger.cash;
 import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationEntity;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -27,6 +28,7 @@ public class CashFlowAggregator {
   private static final int MONEY_SCALE = 8;
 
   private final CurrencyConversion currencyConversion;
+  private final ApplicationTime applicationTime;
 
   /**
    * Result of the aggregation in {@code baseCurrency} (except {@link #dividendsByCurrency()} which
@@ -68,7 +70,8 @@ public class CashFlowAggregator {
         if (op.getType() == null) {
           continue;
         }
-        LocalDate rateDate = op.getDate() != null ? op.getDate().toLocalDate() : LocalDate.now();
+        LocalDate rateDate =
+            op.getDate() != null ? op.getDate().toLocalDate() : applicationTime.today();
         BigDecimal amount = nz(op.getAmount());
         BigDecimal base =
             currencyConversion.convertToBaseCurrency(amount, baseCurrency, currency, rateDate);

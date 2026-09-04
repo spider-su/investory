@@ -405,7 +405,7 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
   }
 
   private long createOther(Page page, BaseAsset asset) {
-    page.navigate(baseUrl() + "/long-term-assets/new?portfolioId=" + PORTFOLIO_ID);
+    page.navigate(baseUrl() + "/portfolios/" + PORTFOLIO_ID + "/long-term-assets/new");
     fill(page, "input[name='name']", asset.name());
     select(page, "[name='currency']", asset.currency());
     fill(page, "[name='currentValue']", asset.currentValue());
@@ -413,12 +413,12 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
     fill(page, "[name='acquisitionValue']", asset.acquisitionValue());
     fill(page, "[name='notes']", asset.notes());
     clickButton(page, "Save");
-    assertThat(page.url()).contains("/long-term-assets?portfolioId=1");
+    assertThat(page.url()).contains("/portfolios/1/long-term-assets");
     return assetId(asset.name());
   }
 
   private long createBond(Page page, BondAsset asset) {
-    page.navigate(baseUrl() + "/long-term-assets/new/bond?portfolioId=" + PORTFOLIO_ID);
+    page.navigate(baseUrl() + "/portfolios/" + PORTFOLIO_ID + "/long-term-assets/new/bond");
     fill(page, "input[name='name']", asset.name());
     select(page, "[name='currency']", asset.currency());
     fill(page, "[name='value']", asset.value());
@@ -436,7 +436,7 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
   }
 
   private long createCash(Page page, CashAsset asset) {
-    page.navigate(baseUrl() + "/long-term-assets/new/cash-reserve?portfolioId=" + PORTFOLIO_ID);
+    page.navigate(baseUrl() + "/portfolios/" + PORTFOLIO_ID + "/long-term-assets/new/cash-reserve");
     fill(page, "input[name='name']", asset.name());
     select(page, "[name='currency']", asset.currency());
     fill(page, "[name='value']", asset.value());
@@ -447,7 +447,7 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
   }
 
   private long createDeposit(Page page, DepositAsset asset) {
-    page.navigate(baseUrl() + "/long-term-assets/new/deposit?portfolioId=" + PORTFOLIO_ID);
+    page.navigate(baseUrl() + "/portfolios/" + PORTFOLIO_ID + "/long-term-assets/new/deposit");
     fill(page, "input[name='name']", asset.name());
     select(page, "[name='currency']", asset.currency());
     fill(page, "[name='value']", asset.value());
@@ -462,7 +462,7 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
   }
 
   private long createProperty(Page page, PropertyAsset asset) {
-    page.navigate(baseUrl() + "/long-term-assets/new/real-estate?portfolioId=" + PORTFOLIO_ID);
+    page.navigate(baseUrl() + "/portfolios/" + PORTFOLIO_ID + "/long-term-assets/new/real-estate");
     fill(page, "input[name='name']", asset.name());
     select(page, "[name='currency']", asset.currency());
     fill(page, "[name='currentValue']", asset.currentValue());
@@ -687,6 +687,7 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
   private void editContract(Page page, long assetId, long contractId, ContractAsset contract) {
     openDetail(page, assetId);
     Locator panel = page.locator("[data-contract-id='" + contractId + "']");
+    openContractPanel(panel);
     panel.locator("[data-edit-contract]").click();
     String prefix = "#edit-" + contractId;
     fill(page, prefix + "-tenant-name", contract.tenantName());
@@ -730,6 +731,7 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
     assertThat(panel.count()).isEqualTo(1);
     if (contract.tenantName() != null)
       assertThat(panel.textContent()).contains(contract.tenantName());
+    openContractPanel(panel);
     panel.locator("[data-edit-contract]").click();
     String prefix = "#edit-" + contractId;
     assertInput(page, prefix + "-tenant-name", nullToEmpty(contract.tenantName()));
@@ -817,10 +819,16 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
         expectedTerms);
   }
 
+  private void openContractPanel(Locator panel) {
+    if (panel.getAttribute("open") == null) panel.locator("summary").click();
+  }
+
   private void deleteContract(Page page, long assetId, long contractId) {
     openDetail(page, assetId);
+    Locator panel = page.locator("[data-contract-id='" + contractId + "']");
+    openContractPanel(panel);
     page.onDialog(dialog -> dialog.accept());
-    page.locator("[data-contract-id='" + contractId + "'] [data-delete-contract] button").click();
+    panel.locator("[data-delete-contract] button").click();
     assertThat(page.locator("[data-contract-id='" + contractId + "']").count()).isZero();
     assertThat(page.locator("[role='status']").textContent()).contains("Rental contract deleted");
     assertCount("investory.long_term_asset_rental_contracts", "id", contractId, 0);
@@ -910,7 +918,7 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
     openDetail(page, id);
     revealPropertySettingsIfNeeded(page, "Archive");
     clickButton(page, "Archive");
-    assertThat(page.url()).contains("/long-term-assets?portfolioId=1");
+    assertThat(page.url()).contains("/portfolios/1/long-term-assets");
     assertThat(exactLink(page, name).count()).isZero();
     assertThat(
             jdbc.queryForObject(
@@ -938,7 +946,7 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
   }
 
   private void assertActiveListContains(Page page, String... names) {
-    page.navigate(baseUrl() + "/long-term-assets?portfolioId=" + PORTFOLIO_ID);
+    page.navigate(baseUrl() + "/portfolios/" + PORTFOLIO_ID + "/long-term-assets");
     for (String name : names) assertThat(exactLink(page, name).count()).isEqualTo(1);
   }
 
@@ -947,7 +955,7 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
   }
 
   private void openDetail(Page page, long id) {
-    page.navigate(baseUrl() + "/long-term-assets/" + id + "?portfolioId=" + PORTFOLIO_ID);
+    page.navigate(baseUrl() + "/portfolios/" + PORTFOLIO_ID + "/long-term-assets/" + id);
     assertThat(page.url()).contains("/long-term-assets/" + id);
     assertThat(page.locator("main").isVisible()).isTrue();
   }

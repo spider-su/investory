@@ -26,15 +26,16 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 public class LongTermDepositController {
   private final LongTermAssetsClient assets;
 
-  @GetMapping("/long-term-assets/new/deposit")
-  public String depositForm(@RequestParam Long portfolioId, Model model) {
+  @GetMapping("/portfolios/{portfolioId}/long-term-assets/new/deposit")
+  public String depositForm(
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId, Model model) {
     model.addAttribute("portfolioId", portfolioId);
     return "deposit-form";
   }
 
-  @PostMapping("/long-term-assets/deposit")
+  @PostMapping("/portfolios/{portfolioId}/long-term-assets/deposit")
   public String createDeposit(
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @RequestParam String name,
       @RequestParam CurrencyType currency,
       @RequestParam BigDecimal value,
@@ -62,14 +63,14 @@ public class LongTermDepositController {
       return LongTermAssetPageSupport.assetRedirect(saved.id(), portfolioId);
     } catch (IllegalArgumentException | ResourceNotFoundException exception) {
       feedback.addFlashAttribute("error", LongTermAssetPageSupport.assetError(exception));
-      return "redirect:/long-term-assets?portfolioId=" + portfolioId;
+      return "redirect:/portfolios/" + portfolioId + "/long-term-assets";
     }
   }
 
-  @PostMapping("/long-term-assets/{id}/deposit-details")
+  @PostMapping("/portfolios/{portfolioId}/long-term-assets/{id}/deposit-details")
   public String saveDepositDetails(
       @PathVariable Long id,
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @ModelAttribute DepositDetailsForm form,
       RedirectAttributes feedback) {
     LongTermAssetPageSupport.applyAssetMutation(

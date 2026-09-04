@@ -61,23 +61,36 @@ F1-F4. Add source facts here and independently specified expected facts at the o
 never calculate expectations through production valuation, FX, projection, or reporting code.
 
 F8-F14 use the same non-investment facts: IDs 9401-9404 are the PLN cash reserve, Apartment A,
-Apartment B, and Family Car, totaling 960000 including the reserve at the 2024-08-01 as-of date.
-The canonical Treasury and reserve deposit add 60000, so the complete profile total is 1020000.
+Apartment B, and Family Car. The notes-only Family Car remains visible but is excluded from
+financial calculations. The calculated subtotal is therefore 950000 including the reserve at the
+2024-08-01 as-of date. The canonical Treasury and reserve deposit add 60000, so the calculated
+profile total is 1010000.
 Apartment A rents for
-3200/month and Apartment B has 2800/month through 2025-06-30, then 3000/month; gross 2025 rental
-income is 74400, total tax is 6324 at 8.5%, and net income is 68076. Apartment A's own annual tax
-is 3264. These facts live in
+3200/month and Apartment B has 2800/month through 2025-06-30, then 3000/month. Calendar-2025
+collected gross rent is 73200. The 2025-12-31 boundary-date annualized gross economics are 74400;
+historical snapshots intentionally use that boundary measure. The persisted rental tax bases are
+3200/month and 3000/month, supporting boundary-date tax 6324 at 8.5% and net income 68076.
+Apartment A's own annual tax is 3264. These facts live in
 `HappyInvestorLongTermFacts`. The persisted planning identity is `Happy Investor Plan`, with its
 independent assumptions in `HappyInvestorPlanFacts`; F11 joins this state to the F1-F4 investment
 facts, and F12-F14 consume the same plan identity. The scenario's tax assumptions are not a full
 Polish tax-law model.
 
-The 1020000 profile amount includes the 50000 reserve; the long-term capital subtotal excluding
-that reserve is 970000. `schema.sql` is generated from the migrations and `canonical-data.sql`,
+The 1010000 profile amount includes the 50000 reserve; the long-term capital subtotal excluding
+that reserve is 960000. `schema.sql` is generated from the migrations and `canonical-data.sql`,
 not hand-maintained. `HappyInvestorSchemaCanonicalTest` checks that the generated snapshot retains
 the canonical asset, rental, tax, plan, and initial planning rows. Investment capital must be
 defined from persisted F1-F4 ledger rows before a nonzero planning baseline is written; zero is
 not a valid substitute for that calculation.
+
+The persisted plan and in-memory `HappyInvestorSimulationSpec` represent the same reviewed
+scenario. The `Happy Investor Plan` starts in 2024 at age 40, retires at 60, ends at age 85,
+contributes 12000/year (1000/month), and has a 2025 baseline. The in-memory specification derives
+its 45-year horizon, monthly contribution, inflation, and reserve from those canonical facts; keep
+it aligned with the persisted plan and its frozen asset payload. For the current Conservative
+overlay, expected nominal rates are inflation 3.5%, fixed income 3%, equity 5%, rental growth 4.5%,
+and spending growth 5%, calculated from the persisted base rates and the overlay deltas in
+`SimulationScenarioSettings`.
 
 ## Fact ownership and verification
 

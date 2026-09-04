@@ -127,7 +127,7 @@ class LongTermAssetControllerTest {
 
     String result = controller.update(7L, form, 1L, null, feedback);
 
-    assertEquals("redirect:/long-term-assets/7?portfolioId=1", result);
+    assertEquals("redirect:/portfolios/1/long-term-assets/7", result);
     assertEquals("Asset type cannot be changed.", feedback.getFlashAttributes().get("error"));
   }
 
@@ -174,7 +174,7 @@ class LongTermAssetControllerTest {
             null,
             feedback);
 
-    assertEquals("redirect:/long-term-assets?portfolioId=1", result);
+    assertEquals("redirect:/portfolios/1/long-term-assets", result);
     assertEquals(
         "Bond maturity must be on or after acquisition",
         feedback.getFlashAttributes().get("error"));
@@ -193,7 +193,7 @@ class LongTermAssetControllerTest {
         realEstate.addValuationPeriod(
             7L, 1L, LocalDate.of(2026, 1, 1), null, new BigDecimal("3.5"), feedback);
 
-    assertEquals("redirect:/long-term-assets/7?portfolioId=1", result);
+    assertEquals("redirect:/portfolios/1/long-term-assets/7", result);
     assertEquals("Overlapping valuation period", feedback.getFlashAttributes().get("error"));
   }
 
@@ -273,14 +273,14 @@ class LongTermAssetControllerTest {
     var result =
         mockMvc
             .perform(
-                post("/long-term-assets/7/rental-contracts")
+                post("/portfolios/1/long-term-assets/7/rental-contracts")
                     .param("portfolioId", "1")
                     .param("tenantName", "Tenant retained")
                     .param("startDate", "not-a-date")
                     .param("rent", "not-an-amount")
                     .param("rentFrequency", "NOT_A_FREQUENCY"))
             .andExpect(status().is3xxRedirection())
-            .andExpect(redirectedUrl("/long-term-assets/7?portfolioId=1#rental-contracts"))
+            .andExpect(redirectedUrl("/portfolios/1/long-term-assets/7#rental-contracts"))
             .andReturn();
 
     var flash = result.getFlashMap();

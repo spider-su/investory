@@ -1,7 +1,6 @@
 package com.smartbox.investory.investment.imports;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -9,13 +8,17 @@ import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportRepository;
+import com.smartbox.investory.shared.time.ClockApplicationTime;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -23,9 +26,19 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @DisplayName("Import History Audit Writer")
 class ImportHistoryAuditWriterTest {
 
+  private static final ZoneId BUSINESS_ZONE = ZoneId.of("Europe/Warsaw");
+  private static final Instant NOW = Instant.parse("2026-08-31T12:00:00Z");
+  private static final ClockApplicationTime TIME =
+      new ClockApplicationTime(Clock.fixed(NOW, BUSINESS_ZONE), BUSINESS_ZONE);
+
   @Mock private ImportRepository importRepository;
 
-  @InjectMocks private ImportBatchAuditWriter auditWriter;
+  private ImportBatchAuditWriter auditWriter;
+
+  @BeforeEach
+  void setUp() {
+    auditWriter = new ImportBatchAuditWriter(importRepository, TIME);
+  }
 
   @DisplayName("find Existing Applied Batch ignores Newer Failed Attempt")
   @Test
@@ -69,7 +82,7 @@ class ImportHistoryAuditWriterTest {
     assertEquals("ibkr.csv", batch.getFileName());
     assertEquals("abc", batch.getFileSha256());
     assertEquals(ImportBatchStatus.STARTED, batch.getStatus());
-    assertNotNull(batch.getStartedAt());
+    assertEquals(TIME.now(BUSINESS_ZONE), batch.getStartedAt());
     assertEquals(0, batch.getRowsTotal());
   }
 
@@ -84,7 +97,7 @@ class ImportHistoryAuditWriterTest {
     failed.setRowsApplied(12);
     failed.setRowsFailed(3);
     failed.setErrorMessage("old error");
-    failed.setFinishedAt(java.time.ZonedDateTime.now());
+    failed.setFinishedAt(TIME.now(BUSINESS_ZONE).minusDays(1));
 
     when(importRepository.findFirstByPortfolioIdAndBrokerAndFileSha256OrderByAttemptNoDesc(
             1L, BrokerType.IBKR, "abc"))
@@ -105,7 +118,7 @@ class ImportHistoryAuditWriterTest {
     assertEquals("ref2", batch.getSourceRef());
     assertNull(batch.getFinishedAt());
     assertNull(batch.getErrorMessage());
-    assertNotNull(batch.getStartedAt());
+    assertEquals(TIME.now(BUSINESS_ZONE), batch.getStartedAt());
   }
 
   @DisplayName("finalize Applied updates Counts And Status")
@@ -126,7 +139,7 @@ class ImportHistoryAuditWriterTest {
     assertEquals(9, result.getRowsApplied());
     assertEquals(1, result.getRowsFailed());
     assertEquals("done", result.getErrorMessage());
-    assertNotNull(result.getFinishedAt());
+    assertEquals(TIME.now(BUSINESS_ZONE), result.getFinishedAt());
   }
 
   @DisplayName("finalize Failed persists Error And Truncates Raw Payload")

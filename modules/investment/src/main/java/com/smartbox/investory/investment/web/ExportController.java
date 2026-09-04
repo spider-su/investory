@@ -1,10 +1,10 @@
 package com.smartbox.investory.investment.web;
 
 import com.smartbox.investory.investment.api.exporting.YahooPortfolioExportApi;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import jakarta.validation.constraints.Positive;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ExportController {
 
   private final YahooPortfolioExportApi exportService;
+  private final ApplicationTime applicationTime;
 
   /**
    * Generates the full Yahoo portfolio CSV from DB (monthly snapshots) and returns it as a browser
@@ -40,7 +41,7 @@ public class ExportController {
             String.format(
                 Locale.ENGLISH,
                 "yahoo-portfolio-%s.csv",
-                LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")));
+                applicationTime.today().format(DateTimeFormatter.ofPattern("yyyyMMdd")));
         return ResponseEntity.ok()
             .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
             .contentType(MediaType.parseMediaType("text/csv"))

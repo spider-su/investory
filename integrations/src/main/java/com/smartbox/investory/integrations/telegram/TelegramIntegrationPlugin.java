@@ -13,6 +13,7 @@ import org.springframework.web.client.RestClient;
 @Component
 public class TelegramIntegrationPlugin implements TestableIntegrationPlugin {
   public static final String ID = "telegram";
+  public static final String LONG_TERM_PAYMENT_AUDIT_JOB = "audit-long-term-payments";
   private static final Duration TEST_TIMEOUT = Duration.ofSeconds(5);
 
   public String id() {
@@ -51,8 +52,19 @@ public class TelegramIntegrationPlugin implements TestableIntegrationPlugin {
                 null,
                 null,
                 null,
+                null),
+            new PluginFieldDescriptor(
+                "portfolioId",
+                PluginFieldType.INTEGER,
+                false,
+                null,
+                List.of(),
+                "Portfolio ID",
+                "Portfolio used by the long-term payment audit",
+                1,
+                null,
                 null)),
-        List.of());
+        List.of(LONG_TERM_PAYMENT_AUDIT_JOB));
   }
 
   public ValidationResult validate(PluginConfig config) {

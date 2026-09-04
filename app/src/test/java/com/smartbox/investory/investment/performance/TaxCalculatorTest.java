@@ -8,8 +8,11 @@ import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.portfolio.PortfolioBuilders;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestData;
+import com.smartbox.investory.testsupport.time.MutableApplicationTime;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,7 +31,11 @@ class TaxCalculatorTest {
 
   @BeforeEach
   void setUp() {
-    taxCalculator = new TaxCalculator(currencyRateService);
+    taxCalculator =
+        new TaxCalculator(
+            currencyRateService,
+            MutableApplicationTime.fixed(
+                Instant.parse("2026-09-05T08:00:00Z"), ZoneId.of("Europe/Warsaw")));
     // lenient() because the empty-trades test never triggers FX conversion.
     org.mockito.Mockito.lenient()
         .when(

@@ -85,7 +85,7 @@ implemented tooling, and known gaps.
 | `BOND` | Contractual fixed income with maturity/redemption and `PAY_OUT` or `CAPITALIZE` interest treatment. |
 | `DEPOSIT` | Contractual deposit; locked until its configured maturity. |
 | `CASH_RESERVE` | Planning-only manual liquid reserve; immediately spendable and used before market cash/fixed income under Reserve + Harvest. |
-| `OTHER` | Generic long-term asset; not automatically sold by retirement simulation. |
+| `OTHER` | Notes-only generic asset; excluded from financial calculations and retirement simulation. |
 
 ## How calculations work
 

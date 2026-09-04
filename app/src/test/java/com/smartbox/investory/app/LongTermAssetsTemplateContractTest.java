@@ -74,7 +74,7 @@ class LongTermAssetsTemplateContractTest {
         () ->
             assertTrue(
                 assetActions.contains(
-                    "@{/long-term-assets/new/real-estate(portfolioId=${header.portfolioId})}")),
+                    "@{/portfolios/{portfolioId}/long-term-assets/new/real-estate(portfolioId=${header.portfolioId})}")),
         () -> assertFalse(assetActions.contains("iv-planning-base")),
         () -> assertFalse(assetActions.contains("th:text=\"${currency}\"")),
         () -> assertFalse(html.contains("iv-planning-section__header-action")),
@@ -116,7 +116,9 @@ class LongTermAssetsTemplateContractTest {
         () -> assertTrue(header.contains("longTermNetMonthlyIncome + ' / month'")),
         () -> assertTrue(header.contains("<span>Gross yield</span>")),
         () -> assertTrue(css.contains(".iv-planning-income-context {")),
-        () -> assertTrue(css.contains("font-size: .7rem;")),
+        () -> assertTrue(css.contains("font-family: inherit;")),
+        () -> assertTrue(css.contains("font-size: .76rem;")),
+        () -> assertTrue(css.contains(".iv-planning-income-context .iv-context-row strong")),
         () -> assertFalse(html.contains("Expected monthly net income")),
         () ->
             assertFalse(
@@ -124,7 +126,7 @@ class LongTermAssetsTemplateContractTest {
         () -> assertFalse(html.contains(">Monthly Reduce</th>")),
         () -> assertFalse(html.contains(">Income Yield</th>")),
         () -> assertFalse(html.contains(">Maturity</th>")),
-        () -> assertTrue(html.contains("<th>Net yield</th>")),
+        () -> assertTrue(html.contains("<th>Net yield (gross)</th>")),
         () -> assertTrue(html.contains("<th>End date</th>")),
         () ->
             assertTrue(
@@ -146,7 +148,7 @@ class LongTermAssetsTemplateContractTest {
             assertTrue(
                 html.contains(
                     "class=\"iv-collapsed-summary\" th:if=\"${!#lists.isEmpty(group.assets)}\"")),
-        () -> assertTrue(html.contains(">Net yield</span>")),
+        () -> assertTrue(html.contains(">Net yield (gross)</span>")),
         () -> assertTrue(html.contains(">Value</span>")),
         () -> assertTrue(html.contains("'Net income / month' : 'Net income / year'")),
         () -> assertTrue(html.contains("? 'Rent tax / month' : 'Tax / year'")),
@@ -164,7 +166,7 @@ class LongTermAssetsTemplateContractTest {
 
     assertTrue(
         html.contains(
-            "<a class=\"btn btn-link\" th:href=\"@{/long-term-assets(portfolioId=${portfolioId})}\">Cancel</a>"));
+            "<a class=\"btn btn-link\" th:href=\"@{/portfolios/{portfolioId}/long-term-assets(portfolioId=${portfolioId})}\">Cancel</a>"));
   }
 
   @DisplayName("asset Type Is Read Only And Effective Dated Records Have Correction Actions")

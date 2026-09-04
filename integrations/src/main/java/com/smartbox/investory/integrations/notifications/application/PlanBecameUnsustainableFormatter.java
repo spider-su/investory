@@ -41,7 +41,6 @@ public class PlanBecameUnsustainableFormatter implements NotificationMessageForm
         + "\nLimit: "
         + p.get("limitingCondition")
         + "\n"
-        + links.link(
-            "/analysis?portfolioId=" + p.get("portfolioId") + "&planId=" + p.get("planId"));
+        + links.link("/portfolios/" + p.get("portfolioId") + "/analysis?planId=" + p.get("planId"));
   }
 }

@@ -15,23 +15,23 @@
   <section class="card iv-profile-section iv-profile-sources" aria-labelledby="sources-title">
     <div class="iv-card-section-header"><span id="sources-title" class="iv-card-section-header__title">Income sources</span></div>
     <div class="iv-profile-sources__grid">
-      <a class="iv-profile-source-card" th:href="@{/dashboard(portfolioId=${profile.portfolioId})}" href="/dashboard">
+      <a class="iv-profile-source-card" th:href="@{/portfolios/{portfolioId}/dashboard(portfolioId=${profile.portfolioId})}" href="/portfolios/1/dashboard">
         <div class="iv-profile-source-card__heading"><span>Market investments</span><small th:text="${profile.marketPortfolioMeta}">0.0% of net worth</small></div>
         <div class="iv-profile-source-card__metrics">
           <div><span>Value</span><strong th:text="${profile.marketPortfolioValueCompactDisplay}">0</strong></div>
-          <div><span>Net income / year</span><strong th:text="${profile.incomeSummary.marketAnnualIncomeCompactDisplay}">0</strong><small>projected · net</small></div>
-          <div><span>Annualized return</span><strong th:text="${profileMarketAnnualizedReturn}">Unavailable</strong><small th:text="${profileMarketKpiMeta}">Total return</small></div>
+          <div><span>Annual income (net)</span><strong th:text="${profile.marketAnnualIncomeDisplay}">0</strong><small>projected</small></div>
+          <div><span>Annualized return <span class="visually-hidden">Annualized performance</span></span><strong th:text="${profileMarketAnnualizedReturn}">Unavailable</strong><small th:text="${profileMarketKpiMeta}">Total return</small></div>
         </div>
-        <div class="iv-profile-source-card__footer"><span>Received YTD</span><strong th:text="${profileMarketYtdIncome}">—</strong></div>
+        <div class="iv-profile-source-card__footer"><span>Received YTD</span><strong><span th:text="${profileMarketYtdIncome}">—</span> <small class="iv-ytd-progress" th:classappend="${profile.marketReceivedYtdProgressClass}" th:if="${profile.marketReceivedYtdProgressDisplay != null and !profile.marketReceivedYtdProgressDisplay.isEmpty()}" th:text="${'(' + profile.marketReceivedYtdProgressDisplay + ')'}">(0.0%)</small></strong></div>
       </a>
-      <a class="iv-profile-source-card" th:href="@{/long-term-assets(portfolioId=${portfolioId})}">
+      <a class="iv-profile-source-card" th:href="@{/portfolios/{portfolioId}/long-term-assets(portfolioId=${portfolioId})}">
         <div class="iv-profile-source-card__heading"><span>Long-term assets</span><small th:text="${profile.longTermAssetMeta}">0.0% of net worth</small></div>
         <div class="iv-profile-source-card__metrics">
           <div><span>Value</span><strong th:text="${profile.longTermAssetValueCompactDisplay}">0</strong></div>
-          <div><span>Net income / year</span><strong th:text="${profile.incomeSummary.longTermAnnualIncomeCompactDisplay}">0</strong><small>expected · net</small></div>
-          <div><span>Expected annual yield</span><strong th:text="${profile.incomeSummary.longTermNetYieldDisplay}">0.0%</strong><small>net · current contracts and rates</small></div>
+          <div><span>Annual income (net)</span><strong th:text="${profile.incomeSummary.longTermAnnualIncomeCompactDisplay}">0</strong><small>projected</small></div>
+          <div><span>Annualized return (net)</span><strong th:text="${profile.incomeSummary.longTermNetYieldDisplay}">0.0%</strong><small>Current contracts &amp; rates</small></div>
         </div>
-        <div class="iv-profile-source-card__footer"><span>Received YTD</span><strong th:text="${profileLongTermYtdIncome}">—</strong></div>
+        <div class="iv-profile-source-card__footer"><span>Received YTD</span><strong><span th:text="${profileLongTermYtdIncome}">—</span> <small class="iv-ytd-progress" th:classappend="${profile.longTermReceivedYtdProgressClass}" th:if="${profile.longTermReceivedYtdProgressDisplay != null and !profile.longTermReceivedYtdProgressDisplay.isEmpty()}" th:text="${'(' + profile.longTermReceivedYtdProgressDisplay + ')'}">(0.0%)</small></strong></div>
       </a>
     </div>
   </section>
@@ -43,8 +43,8 @@
         <div th:each="allocation : ${profile.allocations}" th:if="${allocation.nonZero}" class="iv-allocation-bar__segment" th:classappend="${allocation.allocationCssClass}" th:style="|width:${allocation.percentage * 100}%|" th:title="${allocation.legendLabel}"></div>
       </div>
       <div class="table-responsive">
-        <table class="table card-table table-vcenter"><thead><tr><th>Bucket</th><th>Asset type</th><th class="text-end">Value</th><th class="text-end">Share</th></tr></thead>
-            <tbody><tr th:each="allocation : ${profile.allocations}" th:if="${allocation.nonZero}"><td><span class="iv-profile-allocation__bucket"><i class="iv-profile-allocation__swatch" th:classappend="${allocation.allocationCssClass}" aria-hidden="true"></i><span th:text="${allocation.bucketLabel + ' · ' + (allocation.horizonLabel == 'Long-term asset' ? 'long-term' : 'short-term')}">Other · short-term</span></span></td><td><span class="badge iv-liquidity-badge" th:text="${allocation.horizonLabel}">Short-term asset</span></td><td class="text-end" th:text="${allocation.compactValueDisplay}">0</td><td class="text-end" th:text="${allocation.percentageDisplay}">0.0%</td></tr></tbody>
+        <table class="table card-table table-vcenter"><thead><tr><th>Asset type</th><th class="text-end">Value</th><th class="text-end">Share</th><th class="text-end">Yield</th></tr></thead>
+            <tbody><tr th:each="allocation : ${profile.allocations}" th:if="${allocation.nonZero}"><td><span class="iv-profile-allocation__bucket"><i class="iv-profile-allocation__swatch" th:classappend="${allocation.allocationCssClass}" aria-hidden="true"></i><span th:text="${allocation.bucketLabel + ' · ' + (allocation.horizonLabel == 'Long-term asset' ? 'long-term' : 'short-term')}">Other · short-term</span></span></td><td class="text-end" th:text="${allocation.compactValueDisplay}">0</td><td class="text-end" th:text="${allocation.percentageDisplay}">0.0%</td><td class="text-end" th:text="${allocation.yieldDisplay}">0.0%</td></tr></tbody>
         </table>
       </div>
     </div>

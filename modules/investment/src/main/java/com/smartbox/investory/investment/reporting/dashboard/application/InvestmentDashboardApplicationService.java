@@ -5,6 +5,10 @@ import com.smartbox.investory.investment.api.reporting.model.DashboardPercentage
 import com.smartbox.investory.investment.api.reporting.model.ReturnMetric;
 import com.smartbox.investory.investment.reporting.PortfolioPerformanceQuery;
 import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
+import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.YearMonth;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
@@ -17,6 +21,7 @@ public class InvestmentDashboardApplicationService implements InvestmentDashboar
   private final InvestmentDashboardFacade dashboard;
   private final PortfolioPerformanceQuery performance;
   private final PortfolioContextReader portfolios;
+  private final Clock clock;
 
   @Override
   public InvestmentDashboardApi.DashboardPageView loadDashboard(
@@ -35,8 +40,20 @@ public class InvestmentDashboardApplicationService implements InvestmentDashboar
         available
             ? DashboardPercentageFormatter.signedPercent(annualized.value().doubleValue() * 100)
             : "Unavailable";
+    BigDecimal annualizedIncome = null;
+    if (available) {
+      LocalDate today = LocalDate.now(clock);
+      var yearStart =
+          performance.forPortfolioMonths(
+              portfolioId, YearMonth.of(today.getYear(), 1), YearMonth.from(today));
+      annualizedIncome = yearStart.startValue().multiply(annualized.value());
+    }
     return new InvestmentDashboardApi.PerformanceKpiView(
-        available, available ? annualized.value() : null, display, performanceKpi.startDate());
+        available,
+        available ? annualized.value() : null,
+        display,
+        performanceKpi.startDate(),
+        annualizedIncome);
   }
 
   @Override
