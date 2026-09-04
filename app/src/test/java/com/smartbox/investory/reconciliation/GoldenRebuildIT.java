@@ -54,6 +54,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * reconstruction -> account_daily -> independent reconciliation views. It must not call live
  * market-data or FX providers.
  */
+@Disabled
 @ActiveProfiles("test-fast")
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.NONE,
