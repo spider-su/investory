@@ -70,7 +70,7 @@ class RetirementAnalysisTemplateContractTest {
 
     assertTrue(simulation.contains("planningHeader('simulation'"));
     assertTrue(header.contains("/analysis("));
-    assertTrue(simulation.contains("planId=${simulationPage.selectedPlanId}"));
+    assertTrue(header.contains("planId=${simulationPage.selectedPlanId}"));
     assertTrue(header.contains("/simulation/plan/edit("));
     assertTrue(header.contains("/simulation("));
     assertTrue(header.contains("planId=${analysisPage.planId}"));

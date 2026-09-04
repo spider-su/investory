@@ -13,21 +13,12 @@ public record SimulationScenarioComparison(
       Map<SimulationScenario, SimulationDecisionSummary> summaries,
       Map<SimulationScenario, SimulationDecisionSummaryMoney> displaySummaries,
       SimulationScenario selectedScenario) {
-    return from(summaries, displaySummaries, selectedScenario, false);
-  }
 
-  public static SimulationScenarioComparison from(
-      Map<SimulationScenario, SimulationDecisionSummary> summaries,
-      Map<SimulationScenario, SimulationDecisionSummaryMoney> displaySummaries,
-      SimulationScenario selectedScenario,
-      boolean customVisible) {
     Map<SimulationScenario, SimulationDecisionSummary> available =
         new EnumMap<>(SimulationScenario.class);
     summaries.forEach(
         (scenario, summary) -> {
-          if (scenario != SimulationScenario.CUSTOM || customVisible) {
-            available.put(scenario, summary);
-          }
+          available.put(scenario, summary);
         });
     if (available.isEmpty()) {
       return new SimulationScenarioComparison(List.of(), "No scenario results available.", null);
@@ -38,8 +29,7 @@ public record SimulationScenarioComparison(
         List.of(
                 SimulationScenario.BASE,
                 SimulationScenario.CONSERVATIVE,
-                SimulationScenario.OPTIMISTIC,
-                SimulationScenario.CUSTOM)
+                SimulationScenario.OPTIMISTIC)
             .stream()
             .filter(available::containsKey)
             .map(

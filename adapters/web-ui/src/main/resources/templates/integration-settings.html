@@ -66,9 +66,13 @@
           <span th:if="${integration.lastTestMessage != null}" th:text="${integration.lastTestMessage}"></span>
         </div>
 
-        <details class="iv-settings-details">
-          <summary class="btn btn-outline-primary">Configure provider</summary>
-        <form class="iv-settings-form" method="post"
+        <div class="iv-settings-card__controls">
+          <details class="iv-settings-details">
+            <summary class="btn btn-outline-primary">
+              <span>Configure provider</span>
+              <span class="iv-settings-details__chevron" aria-hidden="true">⌄</span>
+            </summary>
+          <form class="iv-settings-form" method="post"
               th:action="@{'/settings/integrations/' + ${integration.type} + '/' + ${integration.pluginId}}">
           <div th:each="field : ${integration.fields}" class="iv-settings-field"
                th:classappend="${field.type.name() == 'BOOLEAN'} ? ' iv-settings-field--checkbox'">
@@ -96,21 +100,35 @@
             <button class="btn btn-primary" type="submit">Save changes</button>
             <button class="btn btn-outline-primary" type="submit" name="action" value="test" th:if="${integration.testSupported}">Test connection</button>
           </div>
-        </form>
-        </details>
-        <form class="iv-settings-toggle" method="post"
+          </form>
+          </details>
+          <form class="iv-settings-toggle" method="post"
               th:action="@{'/settings/integrations/' + ${integration.type} + '/' + ${integration.pluginId} + '/enabled'}">
           <input type="hidden" name="enabled" th:value="${!integration.enabled}">
           <button class="btn btn-outline-secondary" type="submit"
                   th:text="${integration.enabled ? 'Disable integration' : 'Enable integration'}">Enable integration</button>
-        </form>
+            </form>
+        </div>
         <section th:if="${!integration.availableJobs.isEmpty()}" class="iv-settings-jobs">
           <h3>Automatic refresh</h3>
           <form th:each="jobDescriptor : ${integration.availableJobs}" method="post"
+                class="iv-settings-job-form" data-schedule-form
                 th:action="@{'/settings/integrations/' + ${integration.type} + '/' + ${integration.pluginId} + '/jobs/' + ${jobDescriptor.jobType}}">
             <label><span th:text="${jobDescriptor.label}">Refresh</span>
-              <input name="cron" th:value="${integration.jobCron(jobDescriptor.jobType)}" required></label>
-            <label>Timezone <input name="timezone" th:value="${integration.jobTimezone(jobDescriptor.jobType)}"></label>
+              <select name="frequency" data-schedule-frequency aria-label="Refresh frequency">
+                <option value="1">Once per day</option>
+                <option value="2">Twice per day</option>
+                <option value="4">Four times per day</option>
+              </select>
+            </label>
+            <label><span>First execution</span>
+              <input type="time" name="firstExecution" data-schedule-first-execution required>
+            </label>
+            <input type="hidden" name="cron" data-schedule-cron
+                   th:value="${integration.jobCron(jobDescriptor.jobType)}" required>
+            <label><span>Timezone</span>
+              <input name="timezone" th:value="${integration.jobTimezone(jobDescriptor.jobType)}">
+            </label>
             <label><input type="checkbox" name="enabled" value="true"
                           th:checked="${integration.jobEnabled(jobDescriptor.jobType)}"> Enabled</label>
             <button class="btn btn-sm btn-outline-secondary" type="submit">Save schedule</button>
@@ -125,6 +143,49 @@
   </section>
 </main>
 <div th:replace="~{fragments/app-footer :: buildFooter}"></div>
+<script>
+  (() => {
+    const initializeSchedules = () => {
+      document.querySelectorAll('[data-schedule-form]').forEach((form) => {
+        if (form.dataset.scheduleInitialized) return;
+        form.dataset.scheduleInitialized = 'true';
+
+        const frequency = form.querySelector('[data-schedule-frequency]');
+        const firstExecution = form.querySelector('[data-schedule-first-execution]');
+        const cron = form.querySelector('[data-schedule-cron]');
+        if (!frequency || !firstExecution || !cron) return;
+
+        const fields = cron.value.trim().split(/\s+/);
+        const minute = Number.parseInt(fields[1], 10);
+        const hour = fields.length >= 3 ? fields[2] : '0';
+        const hourValues = hour.split(',').map(Number).filter(Number.isInteger);
+        const stepMatch = hour.match(/^\*\/(6|12)$/);
+        const inferredFrequency = stepMatch ? (stepMatch[1] === '6' ? '4' : '2')
+          : (hourValues.length === 4 ? '4' : (hourValues.length === 2 ? '2' : '1'));
+        frequency.value = ['1', '2', '4'].includes(inferredFrequency) ? inferredFrequency : '1';
+        const firstHour = hourValues.length > 0 ? hourValues[0] : 0;
+        firstExecution.value = `${String(firstHour).padStart(2, '0')}:${String(Number.isInteger(minute) ? minute : 0).padStart(2, '0')}`;
+
+        const updateCron = () => {
+          const [hours = '0', minutes = '0'] = firstExecution.value.split(':');
+          const startHour = Number.parseInt(hours, 10);
+          const startMinute = Number.parseInt(minutes, 10);
+          const count = Number.parseInt(frequency.value, 10);
+          const interval = 24 / count;
+          const scheduleHours = Array.from({length: count}, (_, index) => (startHour + index * interval) % 24);
+          cron.value = `0 ${startMinute} ${scheduleHours.join(',')} * * *`;
+        };
+
+        frequency.addEventListener('change', updateCron);
+        firstExecution.addEventListener('change', updateCron);
+        form.addEventListener('submit', updateCron);
+      });
+    };
+
+    document.addEventListener('DOMContentLoaded', initializeSchedules, {once: true});
+    document.addEventListener('turbo:load', initializeSchedules);
+  })();
+</script>
 </body>
 </html>
 

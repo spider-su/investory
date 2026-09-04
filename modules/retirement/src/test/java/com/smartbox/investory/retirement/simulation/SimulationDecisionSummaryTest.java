@@ -208,8 +208,7 @@ class SimulationDecisionSummaryTest {
         BigDecimal.ZERO,
         BigDecimal.ZERO,
         SimulationAssumptions.DEFAULT_FUNDING_ORDER,
-        ExpenseProfile.EMPTY,
-        ProjectedIncomePolicy.SOURCE);
+        ExpenseProfile.EMPTY);
   }
 
   private static SimulationYear year(

@@ -15,7 +15,7 @@ class RetirementSimulationTemplateContractTest {
   @Test
   void simulationOwnsRawProjectionAndNotAnalysisSections() throws Exception {
     String html =
-        Files.readString(
+        HtmlTestSupport.readTemplateWithFragments(
             Path.of("../adapters/web-ui/src/main/resources/templates/simulation.html"));
     assertTrue(html.contains("Plan and actual scenario assumptions"));
     assertTrue(html.contains("iv-plan-timeline__matrix-label\">PLAN</strong>"));

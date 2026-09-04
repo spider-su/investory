@@ -11,7 +11,6 @@ import com.smartbox.investory.profile.api.model.EconomicBucket;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.SimulationAssumptions;
-import com.smartbox.investory.retirement.api.model.SimulationCustomDeltas;
 import com.smartbox.investory.retirement.api.model.SimulationResult;
 import com.smartbox.investory.retirement.api.model.SimulationScenario;
 import com.smartbox.investory.retirement.api.model.SimulationYear;
@@ -47,7 +46,16 @@ class PlanningTimelineScenarioIsolationTest {
     ForwardSimulationContextFactory contexts = new ForwardSimulationContextFactory(clock);
     PlanningTimelineFacade facade =
         new PlanningTimelineFacade(
-            years, values, historical, historicalLongTerm, simulations, bridge, clock, contexts);
+            years,
+            values,
+            new PlanningMetricDerivationService(historical, historicalLongTerm),
+            simulations,
+            bridge,
+            clock,
+            contexts,
+            null,
+            new PlanningProgressService(),
+            new PlanningYearReviewService(new PlanningProgressService()));
 
     InvestmentProfile profile = profile();
     SimulationAssumptions assumptions =
@@ -65,15 +73,6 @@ class PlanningTimelineScenarioIsolationTest {
         .thenReturn(result(SimulationScenario.CONSERVATIVE, "70"));
     when(simulations.simulate(any(), any(), eq(SimulationScenario.OPTIMISTIC), eq(2026)))
         .thenReturn(result(SimulationScenario.OPTIMISTIC, "110"));
-    var custom =
-        new SimulationCustomDeltas(
-            new BigDecimal("0.04"),
-            new BigDecimal("0.02"),
-            new BigDecimal("0.03"),
-            new BigDecimal("0.05"),
-            new BigDecimal("0.02"));
-    when(simulations.simulate(any(), any(), eq(SimulationScenario.CUSTOM), eq(2026), eq(custom)))
-        .thenReturn(result(SimulationScenario.CUSTOM, "140"));
 
     PlanningTimeline base =
         facade.loadForwardTimeline(1L, profile, forward, SimulationScenario.BASE);
@@ -88,10 +87,6 @@ class PlanningTimelineScenarioIsolationTest {
     assertThat(row(base, 2027).projection().cashEnd()).isEqualByComparingTo("90");
     assertThat(row(conservative, 2027).projection().cashEnd()).isEqualByComparingTo("70");
     assertThat(row(optimistic, 2027).projection().cashEnd()).isEqualByComparingTo("110");
-
-    PlanningTimeline customTimeline =
-        facade.loadForwardTimeline(1L, profile, forward, SimulationScenario.CUSTOM, custom);
-    assertThat(row(customTimeline, 2027).projection().cashEnd()).isEqualByComparingTo("140");
   }
 
   private static void assertSamePastAndLiveRows(

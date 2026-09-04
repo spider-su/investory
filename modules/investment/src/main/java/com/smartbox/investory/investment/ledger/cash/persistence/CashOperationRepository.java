@@ -17,8 +17,9 @@ public interface CashOperationRepository extends JpaRepository<CashOperationEnti
 
   List<CashOperationEntity> findAllByAccountIn(Collection<Long> accounts);
 
-  List<CashOperationEntity> findAllByOrderByDateDescIdDesc();
-
   List<CashOperationEntity> findAllByAssetIdAndTypeInOrderByDateDescIdDesc(
       Long assetId, Collection<CashOperationType> types);
+
+  List<CashOperationEntity> findAllByAssetIdAndAccountInAndTypeInOrderByDateDescIdDesc(
+      Long assetId, Collection<Long> accounts, Collection<CashOperationType> types);
 }

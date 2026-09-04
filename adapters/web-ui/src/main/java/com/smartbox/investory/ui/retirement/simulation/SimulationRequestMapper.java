@@ -3,7 +3,6 @@ package com.smartbox.investory.ui.retirement.simulation;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.ExpenseProfile;
 import com.smartbox.investory.retirement.api.model.PlanEditorInput;
-import com.smartbox.investory.retirement.api.model.ProjectedIncomePolicy;
 import com.smartbox.investory.retirement.api.model.SimulationAssumptions;
 import com.smartbox.investory.retirement.api.model.SimulationFundingStrategy;
 import com.smartbox.investory.shared.currency.CurrencyType;
@@ -12,8 +11,10 @@ import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Year;
 import java.util.List;
+import org.springframework.stereotype.Component;
 
 /** Maps HTTP form/query values into canonical simulation assumptions. */
+@Component
 final class SimulationRequestMapper {
   private final RetirementPresentationClient presentation;
   private final RetirementPlanInputClient planInput;
@@ -167,14 +168,6 @@ final class SimulationRequestMapper {
                     BigDecimal.ZERO))
             .fundingOrder(SimulationInputParser.parseFundingOrder(input.fundingOrder()))
             .expenseProfile(ExpenseProfile.EMPTY)
-            .projectedIncomePolicy(
-                new ProjectedIncomePolicy(
-                    incomeMode(input.rentalIncomeMode()),
-                    presentation.fromDisplay(
-                        input.manualRentalIncome(), input.displayCurrency(), null),
-                    incomeMode(input.bondCashIncomeMode()),
-                    presentation.fromDisplay(
-                        input.manualBondCashIncome(), input.displayCurrency(), null)))
             .build();
 
     if (input.monthlyLivingCosts() == null && input.annualExpenses() != null) {
@@ -234,10 +227,6 @@ final class SimulationRequestMapper {
         input.fixedIncomeReturn(),
         input.rentalIncomeGrowthSpread(),
         input.spendingGrowthSpread(),
-        incomeMode(input.rentalIncomeMode()),
-        input.manualRentalIncome(),
-        incomeMode(input.bondCashIncomeMode()),
-        input.manualBondCashIncome(),
         input.equityReturn(),
         input.safeReserveYears(),
         input.equityHarvestMinimumReturn(),
@@ -267,11 +256,6 @@ final class SimulationRequestMapper {
 
   static BigDecimal percentInputToRate(BigDecimal percent, BigDecimal fallback) {
     return rate(percent, fallback);
-  }
-
-  private static ProjectedIncomePolicy.IncomeMode incomeMode(String value) {
-    return ProjectedIncomePolicy.IncomeMode.valueOf(
-        value.trim().toUpperCase(java.util.Locale.ROOT));
   }
 
   private static Integer normalizePensionStartAge(Integer pensionStartAge) {
@@ -324,10 +308,6 @@ final class SimulationRequestMapper {
       BigDecimal inflation,
       BigDecimal rentalIncomeGrowthSpread,
       BigDecimal spendingGrowthSpread,
-      String rentalIncomeMode,
-      BigDecimal manualRentalIncome,
-      String bondCashIncomeMode,
-      BigDecimal manualBondCashIncome,
       SimulationFundingStrategy fundingStrategy,
       String fundingOrder,
       String expenseProfile,

@@ -2,29 +2,35 @@ package com.smartbox.investory.integrations.notifications.application;
 
 import com.smartbox.investory.investment.api.operations.PortfolioOperationsReader;
 import com.smartbox.investory.investment.api.operations.PortfolioOperationsReader.PortfolioOperationsSnapshot;
+import com.smartbox.investory.shared.notifications.NotificationCandidate;
+import com.smartbox.investory.shared.notifications.NotificationEventPublisher;
+import com.smartbox.investory.shared.notifications.NotificationEventType;
+import com.smartbox.investory.shared.notifications.NotificationSeverity;
+import java.time.Clock;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 /**
- * Aggregates and dispatches portfolio notifications: - {@link #sendDailyDigest()} pushes a snapshot
- * summary after the market-close job. - {@link #runAlerts()} evaluates every {@link AlertRule} and
- * sends only fired ones.
+ * Evaluates scheduled notification producers and persists their channel-neutral candidates.
  *
- * <p>Delivery adapters are optional. When none are enabled, messages are logged instead of sent.
+ * <p>Delivery is handled separately by {@link NotificationEventDispatcher}.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class NotificationService {
 
-  private final ObjectProvider<NotificationDeliveryChannel> channelProvider;
   private final PortfolioOperationsReader investment;
   private final List<AlertRule> alertRules;
   private final NotificationProperties properties;
+  private final NotificationEventPublisher publisher;
+  private final AlertRuleTransactionRunner alertRuleTransactionRunner;
+  private final Clock clock;
 
   public void sendDailyDigest() {
     if (!properties.isEnabled()) {
@@ -33,7 +39,18 @@ public class NotificationService {
     try {
       PortfolioOperationsSnapshot p = investment.portfolio();
       String message = buildDigest(p);
-      send(message);
+      LocalDate day = clock.instant().atZone(java.time.ZoneId.of("Europe/Warsaw")).toLocalDate();
+      publisher.publish(
+          new NotificationCandidate(
+              NotificationEventType.DAILY_DIGEST,
+              NotificationSeverity.WARNING,
+              null,
+              "DAILY_DIGEST",
+              day.toString(),
+              "DAILY_DIGEST:" + day,
+              "Daily digest",
+              Map.of("message", message),
+              clock.instant()));
     } catch (Exception e) {
       log.warn("Failed to build/send daily digest", e);
     }
@@ -45,12 +62,7 @@ public class NotificationService {
     }
     for (AlertRule rule : alertRules) {
       try {
-        rule.evaluate()
-            .ifPresent(
-                message -> {
-                  log.info("Alert fired: {}", rule.code());
-                  send("\u26A0\uFE0F " + message);
-                });
+        alertRuleTransactionRunner.run(rule);
       } catch (Exception e) {
         log.warn("Alert rule {} failed", rule.code(), e);
       }
@@ -78,14 +90,5 @@ public class NotificationService {
 
   private static String fmt(double value) {
     return String.format(Locale.US, "%,.0f", value);
-  }
-
-  private void send(String message) {
-    List<NotificationDeliveryChannel> channels = channelProvider.orderedStream().toList();
-    if (channels.isEmpty()) {
-      log.info("[notification] {}", message.replace('\n', ' '));
-      return;
-    }
-    channels.forEach(channel -> channel.send(message));
   }
 }

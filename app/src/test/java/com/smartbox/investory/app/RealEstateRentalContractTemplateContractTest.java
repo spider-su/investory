@@ -17,7 +17,7 @@ class RealEstateRentalContractTemplateContractTest {
   @DisplayName("contract Management Is Accordion First And Complete")
   @Test
   void contractManagementIsAccordionFirstAndComplete() throws Exception {
-    String html = Files.readString(TEMPLATE);
+    String html = HtmlTestSupport.readTemplateWithFragments(TEMPLATE);
     String script =
         Files.readString(
             Path.of("../adapters/web-ui/src/main/resources/static/js/real-estate-detail.js"));
@@ -60,7 +60,7 @@ class RealEstateRentalContractTemplateContractTest {
   @DisplayName("page Local Script And Responsive Css Keep Accordion Accessible And Scoped")
   @Test
   void pageLocalScriptAndResponsiveCssKeepAccordionAccessibleAndScoped() throws Exception {
-    String html = Files.readString(TEMPLATE);
+    String html = HtmlTestSupport.readTemplateWithFragments(TEMPLATE);
     String css = Files.readString(CSS);
     String script =
         Files.readString(
@@ -85,7 +85,7 @@ class RealEstateRentalContractTemplateContractTest {
   @DisplayName("contract Form Fields Are Safe When Form Model Is Missing")
   @Test
   void contractFormFieldsAreSafeWhenFormModelIsMissing() throws Exception {
-    String html = Files.readString(TEMPLATE);
+    String html = HtmlTestSupport.readTemplateWithFragments(TEMPLATE);
 
     assertThat(html)
         .contains(

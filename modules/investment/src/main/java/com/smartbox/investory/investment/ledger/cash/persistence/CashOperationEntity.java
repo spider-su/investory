@@ -1,6 +1,5 @@
 package com.smartbox.investory.investment.ledger.cash.persistence;
 
-import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.cash.CashOperationType;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import jakarta.persistence.*;
@@ -33,10 +32,6 @@ public class CashOperationEntity {
 
   @Column(name = "asset_id")
   private Long assetId;
-
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "asset_id", insertable = false, updatable = false)
-  private AssetEntity asset;
 
   @Column(name = "source_asset_symbol", length = 128)
   private String sourceAssetSymbol;

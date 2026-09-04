@@ -65,9 +65,8 @@ class GlobalThemeTemplateContractTest {
   @Test
   void dashboardImportRemainsOutsideTurboDrive() throws Exception {
     String html =
-        Files.readString(
-            Path.of("../adapters/web-ui/src/main/resources/templates/dashboard.html"),
-            StandardCharsets.UTF_8);
+        HtmlTestSupport.readTemplateWithFragments(
+            Path.of("../adapters/web-ui/src/main/resources/templates/dashboard.html"));
     assertThat(html).contains("id=\"xtb-upload-form\"").contains("data-turbo=\"false\"");
   }
 }

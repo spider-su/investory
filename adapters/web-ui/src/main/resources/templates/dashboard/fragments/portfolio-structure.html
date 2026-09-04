@@ -1,0 +1,40 @@
+<!-- Dashboard portfolio structure. -->
+<th:block xmlns:th="http://www.thymeleaf.org" th:fragment="portfolioStructure">
+    <section class="iv-risk-summary iv-portfolio-structure" aria-labelledby="portfolio-structure-title">
+        <div class="iv-card-section-header">
+            <span id="portfolio-structure-title" class="iv-card-section-header__title">Portfolio structure</span>
+        </div>
+        <div class="iv-portfolio-structure__grid">
+            <details class="iv-structure-card iv-compact-popover" data-disclosure-group="dashboard-popovers">
+                <summary><span>Cash</span><strong th:text="${stats.formatBase(stats.portfolioStructure.cash)}">0</strong><small th:text="${stats.formatPercent(stats.portfolioStructure.cashWeightPct) + ' portfolio share'}">0,0% portfolio share</small></summary>
+                <div class="iv-structure-popover iv-compact-popover__panel">
+                    <strong class="iv-compact-popover__header">Cash</strong>
+                    <div class="iv-compact-popover__body"><div th:each="account : ${stats.accountBalances}"><span th:text="${account.accountName}">Account</span><span th:text="${stats.formatBase(account.cash)}">0</span></div></div>
+                    <div class="iv-structure-popover__total iv-compact-popover__footer"><span>Total</span><span th:text="${stats.formatBase(stats.portfolioStructure.cash)}">0</span></div>
+                </div>
+            </details>
+            <details class="iv-structure-card iv-compact-popover" data-disclosure-group="dashboard-popovers">
+                <summary><span>Largest holding</span><strong th:text="${stats.portfolioStructure.largestHolding == null ? 'Unavailable' : stats.portfolioStructure.largestHolding.symbol}">Unavailable</strong><small th:if="${stats.portfolioStructure.largestHolding != null}" th:text="${stats.formatPercent(stats.portfolioStructure.largestHolding.weightPct) + ' · ' + stats.formatBase(stats.portfolioStructure.largestHolding.value)}">0,0% · 0</small></summary>
+                <div class="iv-structure-popover iv-compact-popover__panel" th:if="${stats.portfolioStructure.largestHolding != null}">
+                    <strong class="iv-compact-popover__header" th:text="${stats.portfolioStructure.largestHolding.symbol}">Holding</strong>
+                    <div class="iv-compact-popover__body">
+                    <div><span>Value</span><span th:text="${stats.formatBase(stats.portfolioStructure.largestHolding.value)}">0</span></div>
+                    <div><span>Portfolio share</span><span th:text="${#numbers.formatDecimal(stats.portfolioStructure.largestHolding.weightPct, 1, 'NONE', 1, 'COMMA')} + '%'">0.0%</span></div>
+                    <div><span>Unrealized P/L</span><span th:text="${stats.formatBase(stats.portfolioStructure.largestHolding.unrealized)}">0</span></div></div>
+                </div>
+            </details>
+            <details class="iv-structure-card iv-compact-popover" data-disclosure-group="dashboard-popovers">
+                <summary><span>Concentration</span><strong th:text="${'Top 5 · ' + stats.formatPercent(stats.portfolioStructure.topFiveWeightPct)}">Top 5 · 0,0%</strong><small th:text="${'Top 10 · ' + stats.formatPercent(stats.portfolioStructure.topTenWeightPct)}">Top 10 · 0,0%</small></summary>
+                <div class="iv-structure-popover iv-compact-popover__panel"><strong class="iv-compact-popover__header">Top holdings</strong><div class="iv-compact-popover__body"><div th:each="holding : ${stats.portfolioStructure.topHoldings}"><span th:text="${holding.symbol}">Symbol</span><span th:text="${stats.formatPercent(holding.weightPct)}">0,0%</span></div></div></div>
+            </details>
+            <details class="iv-structure-card iv-structure-card--allocation iv-compact-popover" data-disclosure-group="dashboard-popovers">
+                <summary><span>Asset allocation</span><div class="iv-structure-bar" aria-label="Asset allocation by portfolio value"><span th:each="bucket : ${stats.portfolioStructure.assetAllocation.buckets}" class="iv-structure-bar__segment" th:classappend="${' iv-structure-segment--' + T(com.smartbox.investory.ui.presentation.UiPresentation).investmentAllocationCssKey(bucket.name)}" th:style="${'width:' + bucket.weightPct + '%'}" th:title="${bucket.name + ' · ' + stats.formatPercent(bucket.weightPct)}"></span></div><small th:text="${stats.portfolioStructure.assetAllocation.buckets.isEmpty() ? 'Unavailable' : #strings.listJoin(stats.portfolioStructure.assetAllocation.buckets.![name], ' · ')}">Unavailable</small></summary>
+                <div class="iv-structure-popover iv-compact-popover__panel"><strong class="iv-compact-popover__header">Asset allocation</strong><div class="iv-compact-popover__body"><div th:each="bucket : ${stats.portfolioStructure.assetAllocation.buckets}"><span th:text="${bucket.name}">Category</span><span th:text="${stats.formatBase(bucket.value) + ' · ' + stats.formatPercent(bucket.weightPct)}">0 · 0,0%</span></div></div></div>
+            </details>
+        </div>
+        <details class="iv-structure-currency iv-compact-popover" data-disclosure-group="dashboard-popovers">
+            <summary><span>Account currency</span><div class="iv-structure-bar" aria-label="Portfolio value by account currency"><span th:each="bucket : ${stats.portfolioStructure.accountCurrencies}" class="iv-structure-bar__segment" th:classappend="${' iv-structure-currency-segment--' + bucket.currency.name().toLowerCase()}" th:style="${'width:' + bucket.weightPct + '%'}" th:title="${bucket.currency + ' · ' + stats.formatPercent(bucket.weightPct)}"></span></div><small th:text="${stats.portfolioStructure.accountCurrencies.isEmpty() ? 'Unavailable' : #strings.listJoin(stats.portfolioStructure.accountCurrencies.![currency], ' · ')}">Unavailable</small></summary>
+            <div class="iv-structure-popover iv-compact-popover__panel"><strong class="iv-compact-popover__header">Account currency</strong><div class="iv-compact-popover__body"><div th:each="bucket : ${stats.portfolioStructure.accountCurrencies}"><span th:text="${bucket.currency}">USD</span><span th:text="${stats.formatBase(bucket.value) + ' · ' + stats.formatPercent(bucket.weightPct)}">0 · 0,0%</span></div><small>Account currencies, not underlying asset exposure.</small></div></div>
+        </details>
+    </section>
+</th:block>

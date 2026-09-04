@@ -76,9 +76,8 @@ public class RetirementPlanningApplicationService
       Long portfolioId,
       InvestmentProfile profile,
       ForwardSimulationInput forward,
-      SimulationScenario scenario,
-      SimulationCustomDeltas customDeltas) {
-    return timeline.loadForwardTimeline(portfolioId, profile, forward, scenario, customDeltas);
+      SimulationScenario scenario) {
+    return timeline.loadForwardTimeline(portfolioId, profile, forward, scenario);
   }
 
   @Override

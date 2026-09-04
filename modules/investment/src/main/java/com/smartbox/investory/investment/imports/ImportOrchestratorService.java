@@ -1,19 +1,25 @@
 package com.smartbox.investory.investment.imports;
 
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
 import com.smartbox.investory.investment.performance.InvestmentCalculationCache;
+import com.smartbox.investory.investment.port.importing.BrokerImportParser;
+import com.smartbox.investory.investment.projection.PortfolioProjectionRefreshService;
 import com.smartbox.investory.investment.projection.PortfolioProjectionService;
 import com.smartbox.investory.investment.reconciliation.ReconciliationRefreshService;
 import com.smartbox.investory.investment.valuation.price.AssetPriceFallbackService;
 import com.smartbox.investory.investment.valuation.price.PriceHistoryCoverageService;
 import java.io.ByteArrayInputStream;
 import java.security.MessageDigest;
+import java.sql.SQLException;
 import java.util.EnumMap;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.dao.TransientDataAccessException;
 import org.springframework.stereotype.Service;
 
 /**
@@ -27,15 +33,16 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 public class ImportOrchestratorService {
-
   private final Map<BrokerType, BrokerImportParser> parserByBroker;
   private final ImportBatchAuditWriter auditWriter;
   private final ImportSourceEvidenceService sourceEvidenceService;
   private final AssetPriceFallbackService assetPriceFallbackService;
   private final PortfolioProjectionService portfolioProjectionService;
+  private final PortfolioProjectionRefreshService projectionRefreshService;
   private final ReconciliationRefreshService reconciliationRefreshService;
   private final PriceHistoryCoverageService priceHistoryCoverageService;
   private final InvestmentCalculationCache calculationCache;
+  private final AccountRepository accountRepository;
 
   public ImportOrchestratorService(
       List<BrokerImportParser> parsers,
@@ -43,12 +50,15 @@ public class ImportOrchestratorService {
       ImportSourceEvidenceService sourceEvidenceService,
       AssetPriceFallbackService assetPriceFallbackService,
       PortfolioProjectionService portfolioProjectionService,
+      PortfolioProjectionRefreshService projectionRefreshService,
       ReconciliationRefreshService reconciliationRefreshService,
       PriceHistoryCoverageService priceHistoryCoverageService,
-      InvestmentCalculationCache calculationCache) {
+      InvestmentCalculationCache calculationCache,
+      AccountRepository accountRepository) {
     this.parserByBroker = new EnumMap<>(BrokerType.class);
     for (BrokerImportParser parser : parsers) {
-      BrokerImportParser previous = this.parserByBroker.put(parser.brokerType(), parser);
+      BrokerType brokerType = BrokerType.valueOf(parser.brokerType().name());
+      BrokerImportParser previous = this.parserByBroker.put(brokerType, parser);
       if (previous != null) {
         throw new IllegalStateException(
             "Duplicate BrokerImportParser registered for "
@@ -63,38 +73,58 @@ public class ImportOrchestratorService {
     this.sourceEvidenceService = sourceEvidenceService;
     this.assetPriceFallbackService = assetPriceFallbackService;
     this.portfolioProjectionService = portfolioProjectionService;
+    this.projectionRefreshService = projectionRefreshService;
     this.reconciliationRefreshService = reconciliationRefreshService;
     this.priceHistoryCoverageService = priceHistoryCoverageService;
     this.calculationCache = calculationCache;
+    this.accountRepository = accountRepository;
   }
 
   public ImportBatchResponse importFile(
+      Long portfolioId,
       BrokerType broker,
       byte[] fileBytes,
       String fileName,
       ImportSourceType sourceType,
       String sourceRef) {
+    return importFile(portfolioId, broker, fileBytes, fileName, sourceType, sourceRef, true);
+  }
+
+  public ImportBatchResponse importFile(
+      Long portfolioId,
+      BrokerType broker,
+      byte[] fileBytes,
+      String fileName,
+      ImportSourceType sourceType,
+      String sourceRef,
+      boolean refreshAfterImport) {
     long totalStarted = System.nanoTime();
     try {
-      return importFileMeasured(broker, fileBytes, fileName, sourceType, sourceRef);
+      try (ImportPortfolioContext.Scope ignored = ImportPortfolioContext.open(portfolioId)) {
+        return importFileMeasured(
+            portfolioId, broker, fileBytes, fileName, sourceType, sourceRef, refreshAfterImport);
+      }
     } finally {
       log.info("IMPORT PERF total={}ms", elapsedMillis(totalStarted));
     }
   }
 
   private ImportBatchResponse importFileMeasured(
+      Long portfolioId,
       BrokerType broker,
       byte[] fileBytes,
       String fileName,
       ImportSourceType sourceType,
-      String sourceRef) {
+      String sourceRef,
+      boolean refreshAfterImport) {
     BrokerImportParser parser = parserByBroker.get(broker);
     if (parser == null) {
       throw new IllegalArgumentException("No parser registered for broker: " + broker);
     }
 
     String checksum = sha256(fileBytes);
-    Optional<ImportHistoryEntity> existing = auditWriter.findExistingAppliedBatch(broker, checksum);
+    Optional<ImportHistoryEntity> existing =
+        auditWriter.findExistingAppliedBatch(portfolioId, broker, checksum);
     if (existing.isPresent()) {
       if (shouldReprocessDuplicate(broker)) {
         ImportHistoryEntity original = existing.get();
@@ -106,7 +136,7 @@ public class ImportOrchestratorService {
           ImportExecutionResult result = runParser(parser, batch, sourceFile, fileBytes, fileName);
           reloaded = finalizeAppliedTimed(batch.getId(), result);
           throwIfFailed(reloaded);
-          String refreshFailure = refreshDerivedData(reloaded);
+          String refreshFailure = refreshAfterImport ? refreshDerivedData(reloaded) : null;
           if (refreshFailure != null) {
             reloaded = auditWriter.finalizeNotReady(batch.getId(), result, refreshFailure);
             throw new ImportFailedException(
@@ -145,7 +175,7 @@ public class ImportOrchestratorService {
     }
 
     ImportHistoryEntity batch =
-        auditWriter.startBatch(broker, sourceType, sourceRef, fileName, checksum);
+        auditWriter.startBatch(portfolioId, broker, sourceType, sourceRef, fileName, checksum);
     var sourceFile = sourceEvidenceService.storeArtifact(batch, fileBytes, contentType(fileName));
 
     ImportExecutionResult result;
@@ -170,7 +200,7 @@ public class ImportOrchestratorService {
     ImportHistoryEntity finalized = finalizeAppliedTimed(batch.getId(), result);
     throwIfFailed(finalized);
 
-    String refreshFailure = refreshDerivedData(finalized);
+    String refreshFailure = refreshAfterImport ? refreshDerivedData(finalized) : null;
     if (refreshFailure != null) {
       ImportHistoryEntity notReady =
           auditWriter.finalizeNotReady(batch.getId(), result, refreshFailure);
@@ -182,16 +212,23 @@ public class ImportOrchestratorService {
           null);
     }
 
-    try {
-      priceHistoryCoverageService.ensurePortfolioCoverage(null);
-    } catch (Exception e) {
-      log.warn(
-          "Post-import price-history coverage failed (batchId={}): {}",
-          finalized.getId(),
-          e.getMessage());
+    if (refreshAfterImport) {
+      try {
+        priceHistoryCoverageService.ensurePortfolioCoverage(portfolioId);
+      } catch (Exception e) {
+        log.warn(
+            "Post-import price-history coverage failed (batchId={}): {}",
+            finalized.getId(),
+            e.getMessage());
+      }
     }
 
-    return toBatchResponse(finalized, finalized.getErrorMessage(), false);
+    return toBatchResponse(
+        finalized,
+        refreshAfterImport
+            ? finalized.getErrorMessage()
+            : combineMessage("Imported; final refresh pending", finalized.getErrorMessage()),
+        false);
   }
 
   private boolean shouldReprocessDuplicate(BrokerType broker) {
@@ -210,7 +247,9 @@ public class ImportOrchestratorService {
     try {
       try (ImportSourceEvidenceService.Scope ignored =
           sourceEvidenceService.open(batch, sourceFile, null)) {
-        return parser.importFile(new ByteArrayInputStream(fileBytes), fileName);
+        var result = parser.importFile(new ByteArrayInputStream(fileBytes), fileName);
+        return new ImportExecutionResult(
+            result.rowsTotal(), result.rowsApplied(), result.rowsFailed(), result.details());
       }
     } finally {
       // Includes the proxied transaction completion when the parser is a Spring bean.
@@ -240,7 +279,7 @@ public class ImportOrchestratorService {
     boolean projectionSucceeded = false;
     long fallbackStarted = System.nanoTime();
     try {
-      assetPriceFallbackService.populateMissingPricesFromOpenPositions();
+      assetPriceFallbackService.populateMissingPricesFromOpenPositions(batch.getPortfolioId());
     } catch (Exception e) {
       log.warn(
           "AssetEntity price fallback population failed after import (batchId={}): {}",
@@ -253,7 +292,7 @@ public class ImportOrchestratorService {
 
     long projectionStarted = System.nanoTime();
     try {
-      portfolioProjectionService.recalculateAll();
+      runProjectionRecalculationWithRetry(batch);
       projectionSucceeded = true;
     } catch (Exception e) {
       log.warn(
@@ -269,13 +308,98 @@ public class ImportOrchestratorService {
     }
 
     if (projectionSucceeded) {
-      calculationCache.invalidate();
+      calculationCache.invalidatePortfolio(batch.getPortfolioId());
       long reconciliationStarted = System.nanoTime();
       reconciliationRefreshService.refreshAfterImport(batch.getId());
       log.info("IMPORT PERF reconciliation-schedule={}ms", elapsedMillis(reconciliationStarted));
     }
 
     return failures.isEmpty() ? null : failures.toString();
+  }
+
+  /**
+   * Rebuilds the projection, retrying once on a transient database connectivity failure.
+   *
+   * <p>Long rebuilds can outlive a pooled connection when the network path drops it (observed as
+   * SQLSTATE {@code 08006} / {@code java.net.SocketException}). Each attempt runs in its own
+   * transaction and borrows a fresh connection from the pool, and the rebuild is idempotent
+   * (account_daily rows are deleted and re-derived), so a retry with a healthy connection recovers
+   * cleanly instead of failing the whole import.
+   */
+  private void runProjectionRecalculationWithRetry(ImportHistoryEntity batch) {
+    int maxAttempts = 2;
+    for (int attempt = 1; ; attempt++) {
+      try {
+        runProjectionRecalculation(batch);
+        return;
+      } catch (RuntimeException e) {
+        if (attempt >= maxAttempts || !isTransientConnectivityFailure(e)) {
+          throw e;
+        }
+        log.warn(
+            "Projection recalculation hit a transient DB connectivity failure "
+                + "(batchId={}, attempt {}/{}): {} - retrying with a fresh connection",
+            batch.getId(),
+            attempt,
+            maxAttempts,
+            exceptionMessage(e));
+        sleepBeforeRetry(attempt);
+      }
+    }
+  }
+
+  private void runProjectionRecalculation(ImportHistoryEntity batch) {
+    if (batch.getPortfolioId() == null) {
+      portfolioProjectionService.recalculateAll();
+      // account_daily supplies the valuation dates used by the application price and reporting
+      // materialized views, so refresh them after rebuilding the projection.
+      projectionRefreshService.refreshApplicationViews(
+          PortfolioProjectionRefreshService.ApplicationRefreshScope.BROKER_IMPORT);
+      return;
+    }
+    // Projection reads app_v_normalized_cash_operations. Refresh it after the parser commit and
+    // before rebuilding account_daily, otherwise the new import is absent from cash and deposit
+    // calculations until a later import or manual refresh.
+    projectionRefreshService.refreshApplicationViews(
+        PortfolioProjectionRefreshService.ApplicationRefreshScope.BROKER_IMPORT);
+    portfolioProjectionService.recalculateAccounts(
+        accountRepository.findAllByPortfolioId(batch.getPortfolioId()).stream()
+            .map(account -> account.getId())
+            .collect(java.util.stream.Collectors.toSet()));
+    // account_daily supplies the valuation dates used by the application price and reporting
+    // materialized views, so refresh them again after rebuilding the account projection.
+    projectionRefreshService.refreshApplicationViews(
+        PortfolioProjectionRefreshService.ApplicationRefreshScope.BROKER_IMPORT);
+  }
+
+  private static boolean isTransientConnectivityFailure(Throwable throwable) {
+    for (Throwable current = throwable; current != null; current = current.getCause()) {
+      if (current instanceof TransientDataAccessException
+          || current instanceof DataAccessResourceFailureException
+          || current instanceof java.net.SocketException) {
+        return true;
+      }
+      if (current instanceof SQLException sqlException) {
+        String sqlState = sqlException.getSQLState();
+        // Class 08 == connection exception (e.g. 08006 connection failure during I/O).
+        if (sqlState != null && sqlState.startsWith("08")) {
+          return true;
+        }
+      }
+      if (current.getCause() == current) {
+        break;
+      }
+    }
+    return false;
+  }
+
+  private static void sleepBeforeRetry(int attempt) {
+    try {
+      Thread.sleep(Math.min(5_000L, 1_000L * attempt));
+    } catch (InterruptedException interrupted) {
+      Thread.currentThread().interrupt();
+      throw new IllegalStateException("Interrupted while awaiting projection retry", interrupted);
+    }
   }
 
   private static void throwIfFailed(ImportHistoryEntity batch) {

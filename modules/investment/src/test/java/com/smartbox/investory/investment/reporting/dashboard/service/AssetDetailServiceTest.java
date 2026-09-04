@@ -10,6 +10,8 @@ import static org.mockito.Mockito.when;
 import com.smartbox.investory.investment.api.asset.model.*;
 import com.smartbox.investory.investment.api.asset.model.AssetDetailView;
 import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceRepository;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
@@ -40,8 +42,9 @@ class AssetDetailServiceTest {
   private final CashOperationRepository cash = mock();
   private final SymbolPerformanceRepository performance = mock();
   private final CurrencyRateService currencyRates = mock();
+  private final AccountRepository accounts = mock();
   private final AssetDetailService service =
-      new AssetDetailService(assets, open, closed, cash, performance, currencyRates);
+      new AssetDetailService(assets, open, closed, cash, performance, currencyRates, accounts);
 
   @DisplayName("aggregates Signed Quantities And Weighted Cost By Account")
   @Test
@@ -60,13 +63,16 @@ class AssetDetailServiceTest {
     PositionEntity first = position(1L, PositionType.BUY, 2d, 100d);
     PositionEntity second = position(1L, PositionType.BUY, 1d, 130d);
     PositionEntity otherAccount = position(2L, PositionType.SELL, 1d, 90d);
+    when(accounts.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L), account(2L)));
     when(assets.findBySymbol("VWCE")).thenReturn(Optional.of(asset));
-    when(open.findOpenByAssetId(9L)).thenReturn(List.of(first, second, otherAccount));
-    when(closed.findClosedByAssetId(9L)).thenReturn(List.of());
-    when(cash.findAllByAssetIdAndTypeInOrderByDateDescIdDesc(eq(9L), any())).thenReturn(List.of());
-    when(performance.findAllBySymbol("VWCE")).thenReturn(List.of());
+    when(open.findOpenByAssetIdAndAccountIn(eq(9L), any()))
+        .thenReturn(List.of(first, second, otherAccount));
+    when(closed.findClosedByAssetIdAndAccountIn(eq(9L), any())).thenReturn(List.of());
+    when(cash.findAllByAssetIdAndAccountInAndTypeInOrderByDateDescIdDesc(eq(9L), any(), any()))
+        .thenReturn(List.of());
+    when(performance.findAllByPortfolioIdAndSymbol(1L, "VWCE")).thenReturn(List.of());
 
-    AssetDetailView view = service.findBySymbol(" vwce ", DashboardPeriod.MAX);
+    AssetDetailView view = service.findBySymbol(1L, " vwce ", DashboardPeriod.MAX);
 
     assertThat(view.holdings()).hasSize(2);
     assertThat(view.holdings().get(0).accountId()).isEqualTo(1L);
@@ -79,10 +85,11 @@ class AssetDetailServiceTest {
   @DisplayName("rejects Blank And Unknown Symbols")
   @Test
   void rejectsBlankAndUnknownSymbols() {
-    assertThatThrownBy(() -> service.findBySymbol(" "))
+    when(accounts.findAllByPortfolioId(1L)).thenReturn(List.of());
+    assertThatThrownBy(() -> service.findBySymbol(1L, " ", DashboardPeriod.MAX))
         .isInstanceOf(AssetDetailNotFoundException.class);
     when(assets.findBySymbol("NOPE")).thenReturn(Optional.empty());
-    assertThatThrownBy(() -> service.findBySymbol("nope"))
+    assertThatThrownBy(() -> service.findBySymbol(1L, "nope", DashboardPeriod.MAX))
         .isInstanceOf(AssetDetailNotFoundException.class);
   }
 
@@ -98,13 +105,15 @@ class AssetDetailServiceTest {
             .build();
     PositionEntity position = position(1L, PositionType.BUY, 10d, 100d);
     position.setSettlementModel(PositionSettlementModel.RESULT_ONLY);
+    when(accounts.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L)));
     when(assets.findBySymbol("CFD")).thenReturn(Optional.of(asset));
-    when(open.findOpenByAssetId(9L)).thenReturn(List.of(position));
-    when(closed.findClosedByAssetId(9L)).thenReturn(List.of());
-    when(cash.findAllByAssetIdAndTypeInOrderByDateDescIdDesc(eq(9L), any())).thenReturn(List.of());
-    when(performance.findAllBySymbol("CFD")).thenReturn(List.of());
+    when(open.findOpenByAssetIdAndAccountIn(eq(9L), any())).thenReturn(List.of(position));
+    when(closed.findClosedByAssetIdAndAccountIn(eq(9L), any())).thenReturn(List.of());
+    when(cash.findAllByAssetIdAndAccountInAndTypeInOrderByDateDescIdDesc(eq(9L), any(), any()))
+        .thenReturn(List.of());
+    when(performance.findAllByPortfolioIdAndSymbol(1L, "CFD")).thenReturn(List.of());
 
-    AssetDetailView view = service.findBySymbol("CFD", DashboardPeriod.MAX);
+    AssetDetailView view = service.findBySymbol(1L, "CFD", DashboardPeriod.MAX);
 
     assertThat(view.holdings().getFirst().marketValue()).isNull();
     assertThat(view.holdings().getFirst().unrealizedProfitLoss()).isNull();
@@ -119,12 +128,13 @@ class AssetDetailServiceTest {
     CashOperationEntity usdDividend = cash(CashOperationType.DIVIDEND, "10", CurrencyType.USD);
     CashOperationEntity eurDividend = cash(CashOperationType.DIVIDEND, "5", CurrencyType.EUR);
     CashOperationEntity tax = cash(CashOperationType.WITHHOLDING_TAX, "-2", CurrencyType.USD);
+    when(accounts.findAllByPortfolioId(1L)).thenReturn(List.of(account(1L)));
     when(assets.findBySymbol("VWCE")).thenReturn(Optional.of(asset));
-    when(open.findOpenByAssetId(9L)).thenReturn(List.of());
-    when(closed.findClosedByAssetId(9L)).thenReturn(List.of());
-    when(cash.findAllByAssetIdAndTypeInOrderByDateDescIdDesc(eq(9L), any()))
+    when(open.findOpenByAssetIdAndAccountIn(eq(9L), any())).thenReturn(List.of());
+    when(closed.findClosedByAssetIdAndAccountIn(eq(9L), any())).thenReturn(List.of());
+    when(cash.findAllByAssetIdAndAccountInAndTypeInOrderByDateDescIdDesc(eq(9L), any(), any()))
         .thenReturn(List.of(usdDividend, eurDividend, tax));
-    when(performance.findAllBySymbol("VWCE")).thenReturn(List.of());
+    when(performance.findAllByPortfolioIdAndSymbol(1L, "VWCE")).thenReturn(List.of());
     when(currencyRates.convertToBaseCurrency(
             new BigDecimal("10.00000000"),
             CurrencyType.EUR,
@@ -138,7 +148,7 @@ class AssetDetailServiceTest {
             LocalDate.of(2026, 8, 1)))
         .thenReturn(new BigDecimal("-1.80000000"));
 
-    AssetDetailView view = service.findBySymbol("VWCE", DashboardPeriod.MAX);
+    AssetDetailView view = service.findBySymbol(1L, "VWCE", DashboardPeriod.MAX);
 
     assertThat(view.totalGrossDividends()).isEqualTo(14d);
     assertThat(view.totalWithholdingTax()).isEqualTo(1.8d);
@@ -155,6 +165,12 @@ class AssetDetailServiceTest {
     position.setPriceCurrency(CurrencyType.EUR);
     position.setSettlementModel(PositionSettlementModel.CASH_SETTLED);
     return position;
+  }
+
+  private AccountEntity account(Long id) {
+    var account = new AccountEntity();
+    account.setId(id);
+    return account;
   }
 
   private CashOperationEntity cash(CashOperationType type, String amount, CurrencyType currency) {

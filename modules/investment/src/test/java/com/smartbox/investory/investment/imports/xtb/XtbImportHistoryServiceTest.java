@@ -322,7 +322,7 @@ class XtbImportHistoryServiceTest {
   @DisplayName(
       "reconstruct Opened Positions Uses Existing Imported Cash Operations For Partial History")
   @Test
-  void reconstructPositionEntitysUsesExistingImportedCashOperationsForPartialHistory() {
+  void reconstructPositionEntitiesUsesExistingImportedCashOperationsForPartialHistory() {
     Long account = 51707603L;
     CashOperationEntity existingOpen =
         cashOperation(
@@ -335,7 +335,7 @@ class XtbImportHistoryServiceTest {
     List<CashOperationEntity> operations =
         xtbImportService.operationsForOpenReconstruction(account, List.of(currentClose));
     List<PositionEntity> openedPositions =
-        xtbImportService.reconstructPositionEntitys(operations, account, CurrencyType.USD);
+        xtbImportService.reconstructPositionEntities(operations, account, CurrencyType.USD);
 
     assertEquals(1, openedPositions.size());
     assertEquals("AAPL.US", openedPositions.get(0).getSymbol());

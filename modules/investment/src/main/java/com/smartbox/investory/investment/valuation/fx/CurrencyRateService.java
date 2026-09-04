@@ -1,5 +1,7 @@
 package com.smartbox.investory.investment.valuation.fx;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationEntity;
 import com.smartbox.investory.investment.valuation.fx.persistence.CurrencyRateEntity;
 import com.smartbox.investory.investment.valuation.fx.persistence.CurrencyRateRepository;
@@ -9,14 +11,14 @@ import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
@@ -36,11 +38,18 @@ public class CurrencyRateService implements CurrencyConversion {
 
   private static final int FX_SCALE = 8;
   private static final MathContext FX_MATH_CONTEXT = new MathContext(20, RoundingMode.HALF_UP);
+  private static final ZoneId TRANSACTION_ZONE = ZoneId.of("Europe/Warsaw");
 
   private final CurrencyRateRepository currencyRateRepository;
 
-  private final ConcurrentMap<LocalDate, Map<FxPair, FxRateResolution>> valuationMatrices =
-      new ConcurrentHashMap<>();
+  /**
+   * Per-date FX valuation matrices. Bounded and self-evicting via Caffeine so it cannot grow
+   * unbounded across the process lifetime (a projection rebuild can touch years of daily dates).
+   * Entries are invalidated wholesale whenever an FX mutation lands (see {@link
+   * #clearValuationResolutionCache()}).
+   */
+  private final Cache<LocalDate, Map<FxPair, FxRateResolution>> valuationMatrices =
+      Caffeine.newBuilder().maximumSize(50_000).expireAfterAccess(Duration.ofHours(6)).build();
 
   public double convertToBaseCurrency(
       double amount, CurrencyType baseCurrency, CurrencyType positionCurrency) {
@@ -109,12 +118,56 @@ public class CurrencyRateService implements CurrencyConversion {
 
   public void activateDailyHistoryAt(LocalDate firstSupportedDate) {
     currencyRateRepository.flush();
-    currencyRateRepository.setDailyHistoryStart(firstSupportedDate);
+    if (currencyRateRepository.setDailyHistoryStartIfSupported(firstSupportedDate) != 1) {
+      throw new IllegalStateException(
+          "Daily FX history cannot start before supported neutral coverage: " + firstSupportedDate);
+    }
     clearValuationResolutionCache();
   }
 
   public void clearValuationResolutionCache() {
-    valuationMatrices.clear();
+    valuationMatrices.invalidateAll();
+  }
+
+  /**
+   * Preloads the FX valuation matrices for every day in the inclusive {@code [startDate, endDate]}
+   * range with a single batch query, instead of running one {@code resolve_fx_rate} query per date
+   * lazily from {@link #resolveRate}. This avoids the N+1 round-trip pattern that made the
+   * portfolio projection rebuild run for many minutes inside a single transaction.
+   *
+   * <p>Dates already present in the cache are left untouched, so freshly harvested observations
+   * that populated the cache after a mutation are not overwritten by stale batch values.
+   */
+  public void warmValuationMatrices(LocalDate startDate, LocalDate endDate) {
+    if (startDate == null || endDate == null || startDate.isAfter(endDate)) {
+      return;
+    }
+    Map<LocalDate, Map<FxPair, FxRateResolution>> loaded = new HashMap<>();
+    for (FxRateResolutionRow row :
+        currencyRateRepository.resolveFxRatesForDateRange(startDate, endDate)) {
+      LocalDate date = row.getValuationDate();
+      if (date == null) {
+        continue;
+      }
+      loaded
+          .computeIfAbsent(date, ignored -> new HashMap<>())
+          .put(
+              new FxPair(
+                  CurrencyType.valueOf(row.getSourceCurrency()),
+                  CurrencyType.valueOf(row.getTargetCurrency())),
+              toResolution(row));
+    }
+    for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
+      Map<FxPair, FxRateResolution> matrix = loaded.getOrDefault(date, new HashMap<>());
+      for (CurrencyType source : CurrencyType.values()) {
+        for (CurrencyType target : CurrencyType.values()) {
+          if (source != target) {
+            matrix.putIfAbsent(new FxPair(source, target), missingValuationRate());
+          }
+        }
+      }
+      valuationMatrices.asMap().putIfAbsent(date, Map.copyOf(matrix));
+    }
   }
 
   public void harvestXtbExecutionRates(List<CashOperationEntity> operations) {
@@ -237,7 +290,7 @@ public class CurrencyRateService implements CurrencyConversion {
       return new FxRateResolution(
           BigDecimal.ONE.setScale(FX_SCALE, RoundingMode.UNNECESSARY),
           "SAME_CURRENCY",
-          transactionTime.toLocalDate(),
+          transactionTime.withZoneSameInstant(TRANSACTION_ZONE).toLocalDate(),
           0,
           "SAME_CURRENCY",
           "SAME_CURRENCY",
@@ -245,7 +298,10 @@ public class CurrencyRateService implements CurrencyConversion {
     }
     Optional<CurrencyRateEntity> observation =
         currencyRateRepository.findExecutionRateAtOrBefore(
-            transactionTime, sourceCurrency.name(), targetCurrency.name());
+            transactionTime,
+            transactionTime.withZoneSameInstant(TRANSACTION_ZONE).toLocalDate(),
+            sourceCurrency.name(),
+            targetCurrency.name());
     if (observation.isEmpty()) {
       return missingTransactionRate(transactionTime);
     }
@@ -308,7 +364,7 @@ public class CurrencyRateService implements CurrencyConversion {
           "SAME_CURRENCY");
     }
     Map<FxPair, FxRateResolution> matrix =
-        valuationMatrices.computeIfAbsent(effectiveDate, this::loadValuationMatrix);
+        valuationMatrices.get(effectiveDate, this::loadValuationMatrix);
     return matrix.getOrDefault(new FxPair(sourceCurrency, targetCurrency), missingValuationRate());
   }
 

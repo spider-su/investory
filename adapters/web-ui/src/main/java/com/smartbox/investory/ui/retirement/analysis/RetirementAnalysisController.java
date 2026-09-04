@@ -1,13 +1,10 @@
 package com.smartbox.investory.ui.retirement.analysis;
 
 import com.smartbox.investory.retirement.api.model.*;
-import com.smartbox.investory.retirement.api.model.SimulationCustomDeltas;
 import com.smartbox.investory.retirement.api.model.SimulationScenario;
 import com.smartbox.investory.retirement.api.model.SimulationScenarioComparison;
-import com.smartbox.investory.retirement.api.model.SimulationScenarioSettings;
 import com.smartbox.investory.shared.currency.CurrencyType;
-import com.smartbox.investory.ui.retirement.simulation.CustomScenarioInput;
-import com.smartbox.investory.ui.retirement.simulation.CustomScenarioView;
+import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
 import com.smartbox.investory.ui.retirement.simulation.RetirementPlanClient;
 import com.smartbox.investory.ui.retirement.simulation.RetirementPresentationClient;
 import com.smartbox.investory.ui.retirement.simulation.RetirementProjectionClient;
@@ -25,6 +22,8 @@ public class RetirementAnalysisController {
   private final RetirementPresentationClient presentation;
   private final RetirementPlanClient plans;
 
+  @org.springframework.beans.factory.annotation.Autowired private PortfolioContextReader portfolios;
+
   public RetirementAnalysisController(
       RetirementProjectionClient projections,
       RetirementAnalysisClient analyses,
@@ -38,48 +37,17 @@ public class RetirementAnalysisController {
 
   @GetMapping("/analysis")
   public String analysis(
-      @RequestParam(defaultValue = "1") Long portfolioId,
+      @RequestParam Long portfolioId,
       @RequestParam(required = false) Long planId,
-      @RequestParam(defaultValue = "PLN") CurrencyType planningDisplayCurrency,
+      @RequestParam(required = false) CurrencyType planningDisplayCurrency,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario,
-      @RequestParam(required = false) String customInflationDelta,
-      @RequestParam(required = false) String customRentalGrowthDelta,
-      @RequestParam(required = false) String customBondReturnDelta,
-      @RequestParam(required = false) String customEquityReturnDelta,
-      @RequestParam(required = false) String customSpendingGrowthDelta,
       Model model) {
+    planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
     Long selectedPlanId = plans.resolvePlanId(portfolioId, planId).orElse(null);
     var selectedPlan = selectedPlanId == null ? null : plans.details(portfolioId, selectedPlanId);
-    CustomScenarioInput customInput =
-        CustomScenarioInput.parse(
-            customInflationDelta,
-            customRentalGrowthDelta,
-            customBondReturnDelta,
-            customEquityReturnDelta,
-            customSpendingGrowthDelta);
-    SimulationCustomDeltas customDeltas =
-        selectedScenario == SimulationScenario.CUSTOM && customInput.errors().isEmpty()
-            ? customInput.deltas()
-            : SimulationCustomDeltas.zero();
-    if (selectedScenario == SimulationScenario.CUSTOM && customInput.errors().isEmpty()) {
-      try {
-        SimulationScenarioSettings.forScenario(
-            SimulationScenario.CUSTOM,
-            projections
-                .load(portfolioId, selectedPlanId, 40, 95, SimulationCustomDeltas.zero())
-                .projectedAssumptions(),
-            customDeltas);
-      } catch (IllegalArgumentException ex) {
-        customInput =
-            customInput.withError("effective", "Effective assumption is outside the valid range.");
-        customDeltas = SimulationCustomDeltas.zero();
-      }
-    }
-    var projection = projections.load(portfolioId, selectedPlanId, 40, 95, customDeltas);
+    var projection = projections.load(portfolioId, selectedPlanId, 40, 95);
     var result = analyses.analyze(projection);
-    boolean customVisible = selectedScenario == SimulationScenario.CUSTOM && !customDeltas.isZero();
-    SimulationScenario displayedScenario =
-        customVisible ? selectedScenario : SimulationScenario.BASE;
+    SimulationScenario displayedScenario = selectedScenario;
     var displaySummaries =
         new LinkedHashMap<>(
             presentation.displaySummaries(projection.summaries(), planningDisplayCurrency));
@@ -90,14 +58,13 @@ public class RetirementAnalysisController {
             selectedPlanId == null ? "Current assumptions" : selectedPlan.name(),
             planningDisplayCurrency,
             displayedScenario,
-            CustomScenarioView.from(customInput),
             result.available(),
             result.available()
                 ? null
                 : "No future planning years remain after the current-year bridge.",
             displaySummaries.get(displayedScenario),
             SimulationScenarioComparison.from(
-                projection.summaries(), displaySummaries, displayedScenario, customVisible),
+                projection.summaries(), displaySummaries, displayedScenario),
             result.available()
                 ? presentation.displayPlanRisks(
                     result.sensitivity().value().orElseThrow(), planningDisplayCurrency)
@@ -116,5 +83,14 @@ public class RetirementAnalysisController {
                 : "No future years");
     model.addAttribute("analysisPage", page);
     return "retirement-analysis";
+  }
+
+  private CurrencyType resolveCurrency(Long portfolioId, CurrencyType requested) {
+    if (requested != null) return requested;
+    if (portfolios == null) return CurrencyType.PLN;
+    return portfolios
+        .findById(portfolioId)
+        .map(context -> context.localCurrency())
+        .orElse(CurrencyType.PLN);
   }
 }

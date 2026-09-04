@@ -1,0 +1,64 @@
+<!-- Dashboard dialogs. -->
+<th:block xmlns:th="http://www.thymeleaf.org" th:fragment="modals">
+    <div id="status-modal" class="iv-modal" style="display: none;">
+        <div class="iv-modal__content">
+            <div class="iv-modal__header">
+                <h3 id="modal-title" class="iv-card__title">Statement import</h3>
+                <button type="button" class="iv-modal__close" onclick="closeModal()" aria-label="Close import dialog">&times;</button>
+            </div>
+            <div class="iv-modal__body">
+                <div class="iv-badge iv-badge--pos" id="modal-status">COMPLETED</div>
+                <p id="modal-message" style="margin: 15px 0; font-weight: 500; color: #1e2536;"></p>
+
+                <table class="iv-table" style="margin-top: 15px;">
+                    <tbody>
+                    <tr>
+                        <td><strong>Rows found</strong></td>
+                        <td id="modal-rows-total" class="iv-text-right">0</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Rows imported</strong></td>
+                        <td id="modal-rows-applied" class="iv-text-right iv-pos">0</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Rows skipped</strong></td>
+                        <td id="modal-rows-failed" class="iv-text-right">0</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="iv-modal__footer">
+                <a id="modal-reconciliation-link" class="iv-badge iv-badge--muted" href="/dashboard/reconciliation" th:href="@{/dashboard/reconciliation(portfolioId=${portfolioId})}" style="display:none; padding: 8px 16px;">View reconciliation</a>
+                <button class="iv-badge iv-badge--pos" style="padding: 8px 16px; cursor: pointer;" onclick="location.reload();">Refresh dashboard</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="manual-price-modal" class="iv-modal" style="display: none;">
+        <div class="iv-modal__content iv-modal__content--compact">
+            <div class="iv-modal__header">
+                <h3 class="iv-card__title">Update market price</h3>
+                <button type="button" class="iv-modal__close" id="manual-price-close" aria-label="Close price dialog">&times;</button>
+            </div>
+            <form id="manual-price-form" class="iv-manual-price-form">
+                <div class="iv-field">
+                    <label for="manual-price-symbol">Symbol</label>
+                    <input id="manual-price-symbol" type="text" readonly>
+                </div>
+                <div class="iv-field">
+                    <label for="manual-price-open">Average entry price</label>
+                    <input id="manual-price-open" type="text" readonly>
+                </div>
+                <div class="iv-field">
+                    <label for="manual-price-value">Market price</label>
+                    <input id="manual-price-value" type="number" min="0.000001" step="0.000001" required autofocus>
+                </div>
+                <p id="manual-price-status" class="iv-form-status"></p>
+                <div class="iv-modal__footer">
+                    <button type="button" class="iv-badge iv-badge--muted" id="manual-price-cancel">Cancel</button>
+                    <button type="submit" class="iv-badge iv-badge--pos" id="manual-price-save">Save and refresh</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</th:block>

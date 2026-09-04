@@ -12,6 +12,7 @@ import com.smartbox.investory.longterm.infrastructure.rental.*;
 import com.smartbox.investory.longterm.infrastructure.tax.*;
 import com.smartbox.investory.longterm.infrastructure.valuation.*;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -23,7 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional
 public class LongTermAssetCommandService {
-  public static final BigDecimal BOND_TAX_RATE = new BigDecimal("0.19");
   private final LongTermAssetRepository assets;
   private final LongTermAssetValuationPeriodRepository valuations;
   private final LongTermAssetBondRatePeriodRepository bondRates;
@@ -34,8 +34,8 @@ public class LongTermAssetCommandService {
   private final LongTermAssetPeriodService periods;
   private final Clock applicationClock;
 
-  @Value("${app.history-start:2025-01-01}")
-  private LocalDate historyStart = LocalDate.of(2025, 1, 1);
+  @Value("${app.history-start:" + FinancialPolicyDefaults.HISTORY_START_TEXT + "}")
+  private LocalDate historyStart = FinancialPolicyDefaults.HISTORY_START;
 
   public LongTermAssetCommandService(
       LongTermAssetRepository assets,
@@ -177,7 +177,7 @@ public class LongTermAssetCommandService {
             && details.getMaturityDate().isBefore(asset.getAcquisitionDate())))
       throw new IllegalArgumentException("Bond maturity must be on or after acquisition");
     details.setAssetId(assetId);
-    if (details.getTaxRate() == null) details.setTaxRate(BOND_TAX_RATE);
+    if (details.getTaxRate() == null) details.setTaxRate(FinancialPolicyDefaults.BOND_TAX_RATE);
     validateTaxRate(details.getTaxRate(), "Bond tax rate");
     return bonds.save(details);
   }
@@ -197,7 +197,7 @@ public class LongTermAssetCommandService {
         bonds.findById(assetId).orElseGet(LongTermAssetBondDetailsEntity::new);
     details.setMaturityDate(maturityDate);
     details.setInterestTreatment(treatment);
-    if (details.getTaxRate() == null) details.setTaxRate(BOND_TAX_RATE);
+    if (details.getTaxRate() == null) details.setTaxRate(FinancialPolicyDefaults.BOND_TAX_RATE);
     if (details.getRedemptionValue() == null) {
       details.setRedemptionValue(asset.getAcquisitionValue());
     }
@@ -218,7 +218,7 @@ public class LongTermAssetCommandService {
         && details.getMaturityDate().isBefore(asset.getAcquisitionDate()))
       throw new IllegalArgumentException("Deposit maturity must be on or after acquisition");
     details.setAssetId(assetId);
-    if (details.getTaxRate() == null) details.setTaxRate(BOND_TAX_RATE);
+    if (details.getTaxRate() == null) details.setTaxRate(FinancialPolicyDefaults.BOND_TAX_RATE);
     validateTaxRate(details.getTaxRate(), "Deposit tax rate");
     LongTermAssetRateRules.requireReturnRate(
         details.getAnnualInterestRate(), "Deposit interest rate");

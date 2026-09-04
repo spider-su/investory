@@ -1,0 +1,274 @@
+/* Reusable modals, uploads, toasts and interaction feedback. */
+/* Ownership: shared components/features. Load after tokens.css and base.css. */
+
+.iv-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(30, 37, 54, 0.4); /* Dark translucent background */
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+/* Modal Content Card wrapper */
+.iv-modal__content {
+    background: #ffffff;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 440px;
+    padding: 24px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+
+.iv-modal__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(148, 160, 184, 0.15);
+    padding-bottom: 12px;
+}
+
+.iv-modal__close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #94a0b8;
+    line-height: 1;
+}
+
+.iv-modal__close:hover {
+    color: #1e2536;
+}
+
+.iv-modal__body {
+    padding: 16px 0;
+}
+
+.iv-modal__footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 16px;
+    border-top: 1px solid rgba(148, 160, 184, 0.15);
+    padding-top: 16px;
+}
+
+/* Submission polish: clearer hierarchy, navigation and action states */
+html { scroll-behavior: smooth; }
+body { background-color: var(--iv-bg); }
+
+.iv-page-nav {
+    position: sticky;
+    top: 12px;
+    z-index: 15;
+    display: flex;
+    gap: 2px;
+    width: fit-content;
+    max-width: 100%;
+    margin: 0 auto 26px;
+    padding: 3px 4px;
+    overflow-x: auto;
+    border: 1px solid rgba(230, 233, 240, .9);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .88);
+    box-shadow: 0 8px 28px rgba(16, 24, 40, .08);
+    backdrop-filter: blur(16px);
+}
+.iv-page-nav a,
+.iv-page-nav span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 5px 11px;
+    border-radius: 999px;
+    color: #4b5568;
+    font-size: .78rem;
+    font-weight: 750;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.iv-page-nav a:focus-visible { outline: 3px solid rgba(79,70,229,.45); outline-offset: 2px; }
+.iv-chart-table { margin-top: 10px; }
+.iv-chart-table summary { cursor: pointer; color: var(--iv-primary); font-weight: 700; font-size: .82rem; }
+.iv-chart-table__table { margin-top: 8px; font-size: .78rem; }
+.iv-chart-table__table th { color: #4b5568; font-weight: 800; }
+.iv-account-filter__item { min-height: 40px; padding: 8px 10px; }
+.iv-account-filter__item input { width: 18px; height: 18px; accent-color: var(--iv-primary); }
+.iv-link-button:focus-visible, select:focus-visible, button:focus-visible { outline: 3px solid rgba(79,70,229,.45); outline-offset: 2px; }
+.iv-page-nav a:hover,
+.iv-page-nav a:focus-visible {
+    color: var(--iv-primary);
+    background: var(--iv-primary-soft);
+    outline: none;
+}
+
+.iv-section-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 24px;
+    margin: 0 0 var(--iv-dashboard-heading-gap);
+    scroll-margin-top: 82px;
+}
+.iv-section-heading--spaced { margin-top: var(--iv-dashboard-section-gap); }
+.iv-section-heading__eyebrow {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--iv-primary);
+    font-size: .7rem;
+    font-weight: 800;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+}
+.iv-section-heading h2 {
+    margin: 0;
+    font-size: clamp(1.2rem, 2.4vw, 1.65rem);
+    font-weight: 800;
+    letter-spacing: -.025em;
+}
+.iv-section-heading p {
+    max-width: 460px;
+    margin: 0 0 2px;
+    color: var(--iv-text-muted);
+    font-size: .86rem;
+    line-height: 1.5;
+    text-align: right;
+}
+
+.iv-topbar {
+    align-items: center;
+    padding: 18px;
+    border: 1px solid rgba(255,255,255,.75);
+    border-radius: 22px;
+    background: rgba(255,255,255,.72);
+    box-shadow: 0 14px 40px rgba(16,24,40,.07);
+    backdrop-filter: blur(18px);
+}
+.iv-balance { border-color: rgba(79,70,229,.18); }
+.iv-balance__value { font-size: 1.9rem; }
+.iv-topbar__meta { max-width: none; }
+
+.iv-kpi { min-height: 172px; }
+.iv-kpi__meta { position: relative; z-index: 1; }
+.iv-kpi__meta span { line-height: 1.35; }
+
+.iv-card--action { border-style: dashed; }
+.iv-card--action:hover { border-color: rgba(79,70,229,.4); }
+.iv-grid--tools .iv-card__body { min-height: 190px; }
+
+button, summary, input, select, .iv-upload-box { transition: border-color .15s ease, background .15s ease, color .15s ease, box-shadow .15s ease, transform .15s ease; }
+button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-visible, .iv-upload-box:focus-visible {
+    outline: 3px solid rgba(79,70,229,.18);
+    outline-offset: 2px;
+}
+button:disabled { opacity: .55; cursor: wait !important; }
+
+.iv-upload-box { min-height: 138px; display: grid; place-content: center; }
+.iv-upload-box__text span { color: var(--iv-text-muted); }
+.iv-upload-box.is-dragover {
+    border-color: var(--iv-primary);
+    background: var(--iv-primary-soft);
+    transform: translateY(-2px);
+}
+
+.iv-modal { padding: 18px; }
+.iv-modal__content { border: 1px solid rgba(255,255,255,.7); }
+body.iv-modal-open { overflow: hidden; }
+
+.iv-toast-region {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 10000;
+    display: grid;
+    gap: 8px;
+    width: min(360px, calc(100vw - 40px));
+}
+.iv-toast {
+    padding: 12px 14px;
+    border: 1px solid var(--iv-border);
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: var(--iv-shadow-hover);
+    color: var(--iv-text);
+    font-size: .84rem;
+    font-weight: 650;
+    animation: iv-toast-in .18s ease-out;
+}
+.iv-toast--success { border-left: 4px solid var(--iv-green); }
+.iv-toast--error { border-left: 4px solid var(--iv-red); }
+@keyframes iv-toast-in { from { opacity: 0; transform: translateY(8px); } }
+
+@media (max-width: 1200px) and (min-width: 761px) {
+    .iv-topbar__primary {
+        grid-template-columns: minmax(0, 1fr) minmax(420px, 1.5fr);
+    }
+    .iv-topbar-summary {
+        grid-column: 1 / -1;
+        grid-row: 2;
+    }
+    .iv-topbar__meta {
+        grid-column: 2;
+        grid-row: 1;
+    }
+}
+
+@media (max-width: 760px) {
+    .iv-topbar__primary {
+        grid-template-columns: 1fr;
+        gap: 10px;
+        padding: 14px;
+    }
+    .iv-balance { width: 100%; align-items: flex-start; }
+    .iv-topbar__meta {
+        width: 100%;
+        min-height: 0;
+        padding: 0;
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "import"
+            "export"
+            "update"
+            "base";
+        grid-template-rows: auto;
+        align-content: normal;
+    }
+    .iv-topbar__toolbar { justify-content: flex-start; }
+    .iv-action-menu__panel { left: 0; right: auto; }
+    .iv-brand { width: 100%; }
+    .iv-period-nav { margin-top: 8px; }
+    .iv-topbar-summary {
+        grid-template-columns: 1fr;
+        width: 100%;
+        min-height: 0;
+    }
+    .iv-topbar-quality > .iv-balance-popover__trigger { text-align: left; }
+    .iv-brand__summary { grid-template-columns: 1fr; gap: 14px; }
+    .iv-topbar__meta { justify-content: flex-start; max-width: none; }
+    .iv-topbar-actions { grid-template-columns: 1fr; }
+    .iv-kpi__actions { flex-wrap: wrap; }
+    .iv-section-heading { align-items: flex-start; flex-direction: column; gap: 4px; }
+    .iv-section-heading p { text-align: left; }
+    .iv-page-nav { justify-content: flex-start; margin-inline: 0; width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+.iv-page-nav a.is-active { color: var(--iv-primary); background: var(--iv-primary-soft); }
+.iv-report-page__content { width: min(100% - 32px, 1440px); margin: 0 auto; padding: 30px 0 56px; }
+.iv-report-page__subtitle { margin: 4px 0 0; color: var(--iv-text-muted); font-size: .82rem; }
+.iv-report-page__topbar { align-items: center; }
+.iv-report-metrics { margin-bottom: var(--iv-gutter); }
+.iv-report-card { margin-bottom: var(--iv-gutter); }
+.iv-report-table__sub { display: block; color: var(--iv-text-muted); font-size: .72rem; margin-top: 3px; }
+.iv-report-card .iv-table { min-width: 980px; }
+:root[data-theme="dark"] .iv-report-page__subtitle { color: var(--iv-text-soft); }
+
+

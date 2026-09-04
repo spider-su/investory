@@ -20,12 +20,12 @@ class DashboardOperationalContextServiceTest {
   void noImportIsExplicitAndUsesExistingQualityFacts() {
     ImportRepository imports = mock(ImportRepository.class);
     AccountStatisticsRepository accounts = mock(AccountStatisticsRepository.class);
-    when(imports.findFirstByStatusOrderByFinishedAtDesc(
-            com.smartbox.investory.investment.imports.ImportBatchStatus.COMPLETED))
+    when(imports.findFirstByPortfolioIdAndStatusOrderByFinishedAtDesc(
+            1L, com.smartbox.investory.investment.imports.ImportBatchStatus.COMPLETED))
         .thenReturn(java.util.Optional.empty());
     when(accounts.findAll()).thenReturn(List.of());
 
-    var view = new DashboardOperationalContextService(imports, accounts).load(new Portfolio());
+    var view = new DashboardOperationalContextService(imports, accounts).load(1L, new Portfolio());
 
     assertThat(view.importContext().available()).isFalse();
     assertThat(view.freshness().latestTransaction()).isNull();
@@ -38,19 +38,19 @@ class DashboardOperationalContextServiceTest {
     ImportRepository imports = mock(ImportRepository.class);
     AccountStatisticsRepository statistics = mock(AccountStatisticsRepository.class);
     AccountRepository accounts = mock(AccountRepository.class);
-    when(imports.findFirstByStatusOrderByFinishedAtDesc(
-            com.smartbox.investory.investment.imports.ImportBatchStatus.COMPLETED))
+    when(imports.findFirstByPortfolioIdAndStatusOrderByFinishedAtDesc(
+            1L, com.smartbox.investory.investment.imports.ImportBatchStatus.COMPLETED))
         .thenReturn(java.util.Optional.empty());
     when(statistics.findAll()).thenReturn(List.of());
     AccountEntity investment = new AccountEntity();
     investment.setCashOnly(false);
     AccountEntity cashOnly = new AccountEntity();
     cashOnly.setCashOnly(true);
-    when(accounts.findAll()).thenReturn(List.of(investment, cashOnly));
+    when(accounts.findAllByPortfolioId(1L)).thenReturn(List.of(investment, cashOnly));
 
     var view =
         new DashboardOperationalContextService(imports, statistics, null, accounts)
-            .load(new Portfolio());
+            .load(1L, new Portfolio());
 
     assertThat(view.importContext().accountsProcessed()).isEqualTo(1);
     assertThat(view.freshness().accountsUpdated()).isEqualTo(1);

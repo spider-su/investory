@@ -32,6 +32,19 @@ public class CacheConfig {
       if (params.length == 0 || params[0] == null) {
         return "all";
       }
+      if (params.length > 1 && params[0] instanceof Long portfolioId) {
+        Collection<?> accounts = params[1] instanceof Collection<?> values ? values : null;
+        String accountKey =
+            accounts == null
+                ? "all"
+                : accounts.stream()
+                    .filter(Objects::nonNull)
+                    .map(String::valueOf)
+                    .distinct()
+                    .sorted()
+                    .collect(Collectors.joining(",", "accounts:", ""));
+        return "portfolio:" + portfolioId + ":" + accountKey;
+      }
       if (params[0] instanceof Collection<?> values) {
         return values.stream()
             .filter(Objects::nonNull)

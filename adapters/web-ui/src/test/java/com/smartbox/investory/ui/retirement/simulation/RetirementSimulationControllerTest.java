@@ -10,11 +10,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.api.RetirementSandboxApi;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.ForwardSimulationContext;
 import com.smartbox.investory.retirement.api.model.NormalizedPlanInput;
 import com.smartbox.investory.retirement.api.model.PlanEditorPreview;
-import com.smartbox.investory.retirement.api.model.ProjectedIncomePolicy;
 import com.smartbox.investory.retirement.planning.ForwardSimulationInputService;
 import com.smartbox.investory.retirement.simulation.ForwardSimulationContextFactory;
 import com.smartbox.investory.retirement.simulation.RetirementAgeAnalysisService;
@@ -45,6 +45,7 @@ import org.mockito.quality.Strictness;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.ui.ExtendedModelMap;
+import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.servlet.view.InternalResourceViewResolver;
@@ -60,6 +61,7 @@ class RetirementSimulationControllerTest {
   @Mock ProfileClient profiles;
   @Mock RetirementSimulation simulations;
   @Mock RetirementPlanClient plans;
+  @Mock RetirementSandboxPlanClient sandboxPlans;
   @Mock RetirementProjectionClient projections;
   @Mock SustainableSpendingAnalysisService sustainableSpending;
   @Mock SimulationSensitivityAnalysisService sensitivity;
@@ -69,6 +71,7 @@ class RetirementSimulationControllerTest {
   @Mock RetirementPlanInputClient planInput;
   @Mock RetirementPreviewClient planEditorPreview;
   @Mock ScenarioObservationService scenarioObservations;
+  @Mock RetirementSandboxApi sandbox;
   @Mock ForwardSimulationInputService forwardInputs;
   MockMvc mockMvc;
   MockMvc renderingMockMvc;
@@ -87,6 +90,7 @@ class RetirementSimulationControllerTest {
         new RetirementSimulationController(
             profiles,
             plans,
+            sandboxPlans,
             timeline,
             presentation,
             planInput,
@@ -94,9 +98,10 @@ class RetirementSimulationControllerTest {
             Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC),
             planEditorPreview,
             scenarioObservations,
-            new SimulationCommandService(plans));
+            new SimulationCommandService(plans),
+            sandbox);
     lenient()
-        .when(projections.load(anyLong(), nullable(Long.class), anyInt(), anyInt(), any()))
+        .when(projections.load(anyLong(), nullable(Long.class), anyInt(), anyInt()))
         .thenAnswer(
             invocation -> {
               Long portfolioId = invocation.getArgument(0);
@@ -118,7 +123,7 @@ class RetirementSimulationControllerTest {
         .when(planEditorPreview.preview(any(), any(), any()))
         .thenReturn(mock(PlanEditorPreview.class));
     lenient()
-        .when(projections.project(any(), any(), any(), any()))
+        .when(projections.project(any(), any(), any()))
         .thenAnswer(
             invocation -> {
               InvestmentProfile profile = invocation.getArgument(0);
@@ -141,7 +146,7 @@ class RetirementSimulationControllerTest {
               return new NormalizedPlanInput(invocation.getArgument(1), List.of());
             });
     lenient()
-        .when(timeline.loadForwardTimeline(anyLong(), any(), any(), any(), any()))
+        .when(timeline.loadForwardTimeline(anyLong(), any(), any(), any()))
         .thenReturn(new com.smartbox.investory.retirement.api.model.PlanningTimeline(List.of()));
     lenient()
         .when(forwardInputs.prepare(any(), any()))
@@ -191,7 +196,13 @@ class RetirementSimulationControllerTest {
     InternalResourceViewResolver resolver = new InternalResourceViewResolver();
     resolver.setPrefix("/WEB-INF/views/");
     resolver.setSuffix(".jsp");
-    mockMvc = MockMvcBuilders.standaloneSetup(controller).setViewResolvers(resolver).build();
+    var validator = new LocalValidatorFactoryBean();
+    validator.afterPropertiesSet();
+    mockMvc =
+        MockMvcBuilders.standaloneSetup(controller)
+            .setValidator(validator)
+            .setViewResolvers(resolver)
+            .build();
     ThymeleafViewResolver thymeleafResolver = new ThymeleafViewResolver();
     thymeleafResolver.setTemplateEngine(templateEngine());
     thymeleafResolver.setViewNames(new String[] {"*"});
@@ -200,6 +211,21 @@ class RetirementSimulationControllerTest {
             .setControllerAdvice(new TemplateModelAdvice())
             .setViewResolvers(thymeleafResolver)
             .build();
+  }
+
+  @Test
+  void invalidSandboxInputRendersErrorsWithoutRunningCalculation() throws Exception {
+    mockMvc
+        .perform(
+            get("/simulation/sandbox")
+                .param("currentAge", "70")
+                .param("retirementAge", "65")
+                .param("annualSpending", "-1"))
+        .andExpect(status().isOk())
+        .andExpect(view().name("simulation-sandbox"))
+        .andExpect(model().attributeHasFieldErrors("sandboxSimulationForm", "annualSpending"));
+
+    verifyNoInteractions(sandbox);
   }
 
   @DisplayName("simulation Route Renders The Thymeleaf Page")
@@ -216,64 +242,6 @@ class RetirementSimulationControllerTest {
         .andExpect(content().string(org.hamcrest.Matchers.containsString("Yearly projection")))
         .andExpect(
             content().string(org.hamcrest.Matchers.containsString("Planning bucket projection")));
-  }
-
-  @DisplayName("custom Request Uses Submitted Deltas For Page And Simulation")
-  @Test
-  void customRequestUsesSubmittedDeltasForPageAndSimulation() throws Exception {
-    InvestmentProfile p = profile();
-    var saved =
-        SimulationAssumptions.defaults(p, 45, 90, 2026)
-            .withInflationRate(new BigDecimal("0.03"))
-            .withRentalIncomeGrowthSpread(new BigDecimal("-0.027"))
-            .withFixedIncomeReturnRate(new BigDecimal("0.04"))
-            .withEquityReturnRate(new BigDecimal("0.075"))
-            .withSpendingGrowthSpread(new BigDecimal("-0.011"));
-    when(profiles.loadProfile(1L)).thenReturn(p);
-    when(plans.details(1L, 7L)).thenReturn(planDetails(7L, "Plan", saved));
-    when(simulations.compareScenarios(any(), any(), anyInt(), any())).thenReturn(Map.of());
-
-    var result =
-        mockMvc
-            .perform(
-                get("/simulation")
-                    .param("portfolioId", "1")
-                    .param("planId", "7")
-                    .param("selectedScenario", "CUSTOM")
-                    .param("customInflationDelta", "4")
-                    .param("customRentalGrowthDelta", "2")
-                    .param("customBondReturnDelta", "3")
-                    .param("customEquityReturnDelta", "5")
-                    .param("customSpendingGrowthDelta", "2"))
-            .andExpect(status().isOk())
-            .andReturn();
-
-    var page =
-        (RetirementSimulationPageView) result.getModelAndView().getModel().get("simulationPage");
-    assertEquals("4", page.customScenario().inflation());
-    assertEquals("2", page.customScenario().rentalGrowth());
-    assertEquals("3", page.customScenario().bondReturn());
-    assertEquals("5", page.customScenario().equityReturn());
-    assertEquals("2", page.customScenario().spendingGrowth());
-    assertEquals(new BigDecimal("0.07"), row(page, "Inflation").effectiveRate());
-    assertEquals(new BigDecimal("0.023"), row(page, "Rental growth").effectiveRate());
-    assertEquals(new BigDecimal("0.07"), row(page, "Bond return").effectiveRate());
-    assertEquals(new BigDecimal("0.125"), row(page, "Equity return").effectiveRate());
-    assertEquals(new BigDecimal("0.039"), row(page, "Spending growth").effectiveRate());
-
-    var custom = org.mockito.ArgumentCaptor.forClass(SimulationCustomDeltas.class);
-    verify(projections).project(any(), any(), any(), custom.capture());
-    assertEquals(
-        new SimulationCustomDeltas(
-            new BigDecimal("0.04"),
-            new BigDecimal("0.02"),
-            new BigDecimal("0.03"),
-            new BigDecimal("0.05"),
-            new BigDecimal("0.02")),
-        custom.getValue());
-    verify(timeline)
-        .loadForwardTimeline(
-            eq(1L), eq(p), any(), eq(SimulationScenario.CUSTOM), eq(custom.getValue()));
   }
 
   private static ScenarioAssumptionView row(RetirementSimulationPageView page, String name) {
@@ -351,7 +319,7 @@ class RetirementSimulationControllerTest {
         .thenReturn(Map.of());
     var result =
         mockMvc
-            .perform(get("/simulation"))
+            .perform(get("/simulation").param("portfolioId", "1"))
             .andExpect(status().isOk())
             .andExpect(view().name("simulation"))
             .andExpect(model().attributeExists("simulationPage"))
@@ -401,13 +369,7 @@ class RetirementSimulationControllerTest {
         SimulationAssumptions.defaults(p, 45, 90, 2026)
             .withRetirementAge(60)
             .withAnnualEmploymentIncome(new BigDecimal("240000"))
-            .withAnnualPreRetirementContribution(new BigDecimal("50000"))
-            .withProjectedIncomePolicy(
-                new ProjectedIncomePolicy(
-                    ProjectedIncomePolicy.IncomeMode.MANUAL,
-                    new BigDecimal("120000"),
-                    ProjectedIncomePolicy.IncomeMode.MANUAL,
-                    new BigDecimal("24000")));
+            .withAnnualPreRetirementContribution(new BigDecimal("50000"));
     when(profiles.loadProfile(1L)).thenReturn(p);
     when(plans.details(1L, 7L)).thenReturn(planDetails(7L, "Plan", saved));
     when(simulations.compareScenarios(eq(p), any(), anyInt())).thenReturn(Map.of());
@@ -418,11 +380,10 @@ class RetirementSimulationControllerTest {
         .andExpect(model().attributeExists("simulationPage"));
 
     var captured = org.mockito.ArgumentCaptor.forClass(SimulationAssumptions.class);
-    verify(projections).project(eq(p), captured.capture(), any(), any());
+    verify(projections).project(eq(p), captured.capture(), any());
     assertEquals(60, captured.getValue().retirementAge());
     assertEquals(new BigDecimal("240000"), captured.getValue().annualEmploymentIncome());
     assertEquals(new BigDecimal("50000"), captured.getValue().annualPreRetirementContribution());
-    assertEquals(saved.projectedIncomePolicy(), captured.getValue().projectedIncomePolicy());
   }
 
   @DisplayName("simulation Rounds Plan Input Money For Display")
@@ -670,6 +631,7 @@ class RetirementSimulationControllerTest {
         mockMvc
             .perform(
                 get("/simulation")
+                    .param("portfolioId", "1")
                     .param("planningDisplayCurrency", "PLN")
                     .param("fixedIncomeReturn", "4.5")
                     .param("equityReturn", "7.5")

@@ -32,26 +32,13 @@ public class RetirementProjectionRestController {
     this.plans = plans;
   }
 
-  /** Compatibility constructor for narrow standalone controller tests. */
-  public RetirementProjectionRestController(RetirementProjectionApi projections) {
-    this.projections = projections;
-    this.plans = null;
-  }
-
   @PostMapping
   public ProjectionResponse project(
       @PathVariable @NotNull Long portfolioId, @Valid @RequestBody ProjectionParameters request) {
-    Long effectivePlanId =
-        plans == null
-            ? request.planId()
-            : plans.resolvePlanId(portfolioId, request.planId()).orElse(null);
+    Long effectivePlanId = plans.resolvePlanId(portfolioId, request.planId()).orElse(null);
     var projection =
         projections.load(
-            portfolioId,
-            effectivePlanId,
-            request.defaultCurrentAge(),
-            request.defaultEndAge(),
-            request.customDeltas());
+            portfolioId, effectivePlanId, request.defaultCurrentAge(), request.defaultEndAge());
     return ProjectionResponse.from(portfolioId, effectivePlanId, projection);
   }
 }

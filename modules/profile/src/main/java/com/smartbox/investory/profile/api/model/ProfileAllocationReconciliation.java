@@ -18,6 +18,17 @@ public record ProfileAllocationReconciliation(SourceTotal shortTerm, SourceTotal
     return shortTerm.balanced() && longTerm.balanced();
   }
 
+  /**
+   * Whether allocation percentages should be treated as approximate.
+   *
+   * <p>Unbalanced source totals do not alter classified allocation values. In that case,
+   * percentages are calculated from the classified total and this flag exposes the limitation to
+   * consumers.
+   */
+  public boolean percentagesApproximate() {
+    return !balanced();
+  }
+
   public record SourceTotal(BigDecimal classifiedValue, BigDecimal authoritativeValue) {
     public static final SourceTotal EMPTY = new SourceTotal(BigDecimal.ZERO, BigDecimal.ZERO);
 

@@ -23,26 +23,9 @@ public interface RetirementSimulation {
       int baselineYear,
       java.math.BigDecimal recurringFraction);
 
-  default SimulationResult simulate(
-      InvestmentProfile profile,
-      SimulationAssumptions assumptions,
-      SimulationScenario scenario,
-      int baselineYear,
-      SimulationCustomDeltas custom) {
-    return simulate(profile, assumptions, scenario, baselineYear);
-  }
-
   Map<SimulationScenario, SimulationResult> compareScenarios(
       InvestmentProfile profile, SimulationAssumptions assumptions);
 
   Map<SimulationScenario, SimulationResult> compareScenarios(
       InvestmentProfile profile, SimulationAssumptions assumptions, int baselineYear);
-
-  default Map<SimulationScenario, SimulationResult> compareScenarios(
-      InvestmentProfile profile,
-      SimulationAssumptions assumptions,
-      int baselineYear,
-      SimulationCustomDeltas custom) {
-    return compareScenarios(profile, assumptions, baselineYear);
-  }
 }

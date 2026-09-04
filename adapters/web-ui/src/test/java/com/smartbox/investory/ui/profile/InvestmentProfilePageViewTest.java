@@ -92,10 +92,26 @@ class InvestmentProfilePageViewTest {
                 CurrencyType.USD, 2026),
             8);
 
-    assertThat(page.marketReceivedYtdDisplay()).isEqualTo("0");
+    assertThat(page.marketReceivedYtdDisplay()).isEqualTo("—");
     assertThat(page.longTermReceivedYtdDisplay()).isEqualTo("0");
     assertThat(page.annualCostDisplay()).isEqualTo("—");
     assertThat(page.annualCostMeta()).isEqualTo("No retirement plan");
+  }
+
+  @DisplayName("uses Investment Result As Market Received Ytd")
+  @Test
+  void usesInvestmentResultAsMarketReceivedYtd() {
+    InvestmentProfilePageView page =
+        InvestmentProfilePageView.from(
+            emptyProfile(),
+            new InvestmentDashboardApi.PerformanceKpiView(false, null, "Unavailable", null),
+            new InvestmentDashboardApi.InvestmentResultView(
+                true, new BigDecimal("20483"), CurrencyType.USD),
+            com.smartbox.investory.retirement.api.model.AnnualCostView.unavailable(
+                CurrencyType.USD, 2026),
+            8);
+
+    assertThat(page.marketReceivedYtdDisplay()).isEqualTo("20,483");
   }
 
   @DisplayName("source Cards And Allocation Use The Same Horizon Percentages")

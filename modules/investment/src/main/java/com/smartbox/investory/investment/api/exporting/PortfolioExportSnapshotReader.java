@@ -5,7 +5,7 @@ import java.util.List;
 
 /** Typed read boundary for secondary portfolio exporters. */
 public interface PortfolioExportSnapshotReader {
-  PortfolioExportSnapshot currentSnapshot();
+  PortfolioExportSnapshot currentSnapshot(Long portfolioId);
 
   record PortfolioExportSnapshot(
       List<ExportPosition> positions, List<ExportCashBalance> cashBalances) {

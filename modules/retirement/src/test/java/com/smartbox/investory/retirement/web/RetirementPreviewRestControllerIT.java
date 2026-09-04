@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.smartbox.investory.retirement.api.RetirementPreviewApi;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.EditorPreviewResponse;
+import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
@@ -15,15 +16,17 @@ import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
 class RetirementPreviewRestControllerIT {
   private RetirementPreviewApi previews;
+  private PortfolioContextReader portfolios;
   private MockMvc mvc;
 
   @BeforeEach
   void setUp() {
     previews = mock(RetirementPreviewApi.class);
+    portfolios = mock(PortfolioContextReader.class);
     var validator = new LocalValidatorFactoryBean();
     validator.afterPropertiesSet();
     mvc =
-        MockMvcBuilders.standaloneSetup(new RetirementPreviewRestController(previews))
+        MockMvcBuilders.standaloneSetup(new RetirementPreviewRestController(previews, portfolios))
             .setValidator(validator)
             .build();
   }

@@ -3,6 +3,7 @@ package com.smartbox.investory.retirement.planning;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -11,7 +12,7 @@ import org.springframework.stereotype.Service;
 /** Currency-only boundary used by planning presentation models. */
 @Service
 public class PlanningMoneyConversionService {
-  private static final CurrencyType CANONICAL = CurrencyType.USD;
+  private static final CurrencyType CANONICAL = FinancialPolicyDefaults.CANONICAL_CURRENCY;
   private final CurrencyConversion rates;
   private final Clock clock;
 

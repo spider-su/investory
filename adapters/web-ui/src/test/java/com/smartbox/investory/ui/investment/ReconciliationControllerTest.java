@@ -46,14 +46,14 @@ class ReconciliationControllerTest {
             List.of(),
             Instant.parse("2026-08-27T10:00:00Z"),
             LocalDate.of(2026, 8, 27));
-    when(reconciliationApi.loadReconciliationReport()).thenReturn(report);
+    when(reconciliationApi.loadReconciliationReport(7L)).thenReturn(report);
 
     mockMvc
-        .perform(get("/dashboard/reconciliation"))
+        .perform(get("/dashboard/reconciliation").param("portfolioId", "7"))
         .andExpect(status().isOk())
         .andExpect(view().name("reconciliation"))
         .andExpect(model().attribute("report", report));
 
-    verify(reconciliationApi).loadReconciliationReport();
+    verify(reconciliationApi).loadReconciliationReport(7L);
   }
 }

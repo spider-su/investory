@@ -80,10 +80,8 @@ public class InProcessRetirementPlanningClient implements RetirementPlanningClie
       Long portfolioId,
       InvestmentProfile profile,
       ForwardSimulationInput forward,
-      SimulationScenario scenario,
-      SimulationCustomDeltas customDeltas) {
-    return retirementTimelineApi.loadForwardTimeline(
-        portfolioId, profile, forward, scenario, customDeltas);
+      SimulationScenario scenario) {
+    return retirementTimelineApi.loadForwardTimeline(portfolioId, profile, forward, scenario);
   }
 
   @Override

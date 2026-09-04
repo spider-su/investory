@@ -9,10 +9,6 @@ public interface InvestmentPerformanceApi {
 
   AccountValueView loadAccountValues(Long portfolioId, List<Long> accountIds);
 
-  default AccountValueView loadAccountValues(List<Long> accountIds) {
-    return loadAccountValues(1L, accountIds);
-  }
-
   record PerformanceBoardQuery(
       List<Long> accountIds,
       PerformanceAggregation aggregation,
@@ -20,23 +16,6 @@ public interface InvestmentPerformanceApi {
       PerformanceStyle style,
       DashboardPeriod period,
       Long portfolioId) {
-    public PerformanceBoardQuery(
-        List<Long> accountIds,
-        PerformanceAggregation aggregation,
-        PerformanceMetric metric,
-        PerformanceStyle style) {
-      this(accountIds, aggregation, metric, style, null, 1L);
-    }
-
-    public PerformanceBoardQuery(
-        List<Long> accountIds,
-        PerformanceAggregation aggregation,
-        PerformanceMetric metric,
-        PerformanceStyle style,
-        DashboardPeriod period) {
-      this(accountIds, aggregation, metric, style, period, 1L);
-    }
-
     public PerformanceBoardQuery {
       accountIds =
           accountIds == null || accountIds.isEmpty()

@@ -45,6 +45,7 @@ import org.springframework.util.StringUtils;
 public class MarketDataService {
 
   public static final Set<String> NOT_SUPPORTED_SYMBOLS = Set.of("CSPX");
+  private static final BigDecimal PERCENT_OF_PAR_MULTIPLIER = new BigDecimal("0.01");
   private static final String IBKR_PROVIDER = "IBKR";
   private static final String XTB_PROVIDER = "XTB";
   private static final String XTB_RECONSTRUCTED_COMMENT = "Reconstructed from Cash Operations";
@@ -104,20 +105,32 @@ public class MarketDataService {
   }
 
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
-  public void updateStocks() {
-    updateStocks(true);
+  public void updateStocks(Long portfolioId) {
+    requirePortfolioId(portfolioId);
+    updateStocks(portfolioId, true);
   }
 
-  private void updateStocks(boolean refreshAfterUpdate) {
+  private void updateStocks(Long portfolioId, boolean refreshAfterUpdate) {
     log.info("Updating asset prices started");
     List<String> refreshFailures = new ArrayList<>();
 
     refreshAssetActivityFromOpenPositions();
 
+    Set<String> portfolioOpenSymbols =
+        accountRepository.findAllByPortfolioId(portfolioId).stream()
+            .map(AccountEntity::getId)
+            .filter(Objects::nonNull)
+            .collect(
+                Collectors.collectingAndThen(
+                    Collectors.toList(), positionRepository::findOpenByAccountIn))
+            .stream()
+            .map(PositionEntity::getSymbol)
+            .filter(StringUtils::hasText)
+            .collect(Collectors.toSet());
+
     List<AssetEntity> activeAssets =
-        assetRepository.findAll().stream()
-            .filter(a -> Boolean.TRUE.equals(a.getActive()))
-            .filter(a -> !Boolean.TRUE.equals(a.getExcludeFromImport()))
+        assetRepository.findAllByActiveTrueAndExcludeFromImportFalse().stream()
+            .filter(asset -> portfolioOpenSymbols.contains(asset.getSymbol()))
             .filter(this::isNotConfiguredExcluded)
             .toList();
 
@@ -210,10 +223,7 @@ public class MarketDataService {
 
   private void backfillInactiveAssetPricesFromLatestClosedDeals() {
     List<AssetEntity> inactiveAssets =
-        assetRepository.findAll().stream()
-            .filter(asset -> !Boolean.TRUE.equals(asset.getActive()))
-            .filter(asset -> StringUtils.hasText(asset.getSymbol()))
-            .toList();
+        assetRepository.findAllByActiveFalseAndSymbolIsNotNull().stream().toList();
     if (inactiveAssets.isEmpty()) {
       return;
     }
@@ -309,10 +319,12 @@ public class MarketDataService {
               continue;
             }
             double marketPrice = quote.getClose();
-            asset.setMarketPrice(BigDecimal.valueOf(marketPrice));
+            BigDecimal monetaryPrice = monetaryPrice(asset, marketPrice);
+            asset.setMarketPrice(monetaryPrice);
             // Legacy UI/export cache only. Reporting selects price and currency from
-            // v_current_asset_price, then performs the one required FX conversion.
-            updateUsdPriceCache(asset, marketPrice, asset.getCurrency(), quoteDate(quote));
+            // app_v_current_asset_price, then performs the one required FX conversion.
+            updateUsdPriceCache(
+                asset, monetaryPrice.doubleValue(), asset.getCurrency(), quoteDate(quote));
             asset.setPriceSource("TwelveData");
             asset.setPriceUpdatedAt(now);
             toSave.add(asset);
@@ -329,7 +341,7 @@ public class MarketDataService {
                 quoteCurrency(asset, quote),
                 BigDecimal.valueOf(marketPrice),
                 100,
-                "EXACT_LISTING_MARKET_CLOSE");
+                marketPriceQuality(asset));
           }
         });
     assetRepository.saveAll(toSave);
@@ -344,8 +356,10 @@ public class MarketDataService {
           .filter(quote -> quoteCurrencyMatchesAsset(asset, quote))
           .ifPresent(
               quote -> {
-                asset.setMarketPrice(BigDecimal.valueOf(quote.price()));
-                updateUsdPriceCache(asset, quote.price(), asset.getCurrency(), quote.date());
+                BigDecimal monetaryPrice = monetaryPrice(asset, quote.price());
+                asset.setMarketPrice(monetaryPrice);
+                updateUsdPriceCache(
+                    asset, monetaryPrice.doubleValue(), asset.getCurrency(), quote.date());
                 asset.setPriceSource("YahooFinance");
                 asset.setPriceUpdatedAt(ZonedDateTime.now());
                 toSave.add(asset);
@@ -359,7 +373,7 @@ public class MarketDataService {
                     quote.currency(),
                     BigDecimal.valueOf(quote.price()),
                     100,
-                    "EXACT_LISTING_MARKET_CLOSE");
+                    marketPriceQuality(asset));
               });
     }
     if (!toSave.isEmpty()) {
@@ -498,6 +512,21 @@ public class MarketDataService {
     return !(skipNonUsListings && isNonUsExchangeSymbol(symbol));
   }
 
+  private static BigDecimal monetaryPrice(AssetEntity asset, double quotedPrice) {
+    BigDecimal price = BigDecimal.valueOf(quotedPrice);
+    return isBond(asset) ? price.multiply(PERCENT_OF_PAR_MULTIPLIER) : price;
+  }
+
+  private static String marketPriceQuality(AssetEntity asset) {
+    return isBond(asset)
+        ? "EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR"
+        : "EXACT_LISTING_MARKET_CLOSE";
+  }
+
+  private static boolean isBond(AssetEntity asset) {
+    return asset != null && "BOND".equalsIgnoreCase(asset.getAssetType());
+  }
+
   private boolean isNotConfiguredExcluded(AssetEntity asset) {
     return asset != null
         && (!StringUtils.hasText(asset.getSymbol())
@@ -563,14 +592,29 @@ public class MarketDataService {
 
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public void refreshMarketPricesAndPositions() {
-    updateStocks(false);
-    syncIbkrPositions();
+    for (Long portfolioId : accountRepository.findDistinctPortfolioIds()) {
+      refreshMarketPricesAndPositions(portfolioId);
+    }
+  }
+
+  @Transactional(propagation = Propagation.NOT_SUPPORTED)
+  public void refreshMarketPricesAndPositions(Long portfolioId) {
+    requirePortfolioId(portfolioId);
+    updateStocks(portfolioId, false);
+    syncIbkrPositions(portfolioId);
+  }
+
+  @Transactional(propagation = Propagation.NOT_SUPPORTED)
+  public void fullPortfolioUpdate(Long portfolioId) {
+    refreshMarketPricesAndPositions(portfolioId);
+    statisticsRefreshService.refreshCurrentMarketPrices();
   }
 
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public void fullPortfolioUpdate() {
-    refreshMarketPricesAndPositions();
-    statisticsRefreshService.refreshAll();
+    for (Long portfolioId : accountRepository.findDistinctPortfolioIds()) {
+      fullPortfolioUpdate(portfolioId);
+    }
   }
 
   /**
@@ -583,9 +627,11 @@ public class MarketDataService {
             .map(AccountEntity::getId)
             .filter(java.util.Objects::nonNull)
             .toList();
-    if (ibkrAccounts.isEmpty()) {
-      return;
-    }
+    syncIbkrPositionsForAccounts(ibkrAccounts);
+  }
+
+  private void syncIbkrPositionsForAccounts(List<Long> ibkrAccounts) {
+    if (ibkrAccounts.isEmpty()) return;
     List<PositionEntity> positions = positionRepository.findOpenByAccountIn(ibkrAccounts);
     if (positions.isEmpty()) {
       return;
@@ -625,6 +671,17 @@ public class MarketDataService {
     // account statistics will combine broker cash with current market value from assets.
   }
 
+  public void syncIbkrPositions(Long portfolioId) {
+    requirePortfolioId(portfolioId);
+    List<Long> ibkrAccounts =
+        accountRepository.findAllByPortfolioId(portfolioId).stream()
+            .filter(account -> IBKR_PROVIDER.equalsIgnoreCase(account.getProvider()))
+            .map(AccountEntity::getId)
+            .filter(Objects::nonNull)
+            .toList();
+    syncIbkrPositionsForAccounts(ibkrAccounts);
+  }
+
   /** Restores reconstructed XTB open-position profit to its canonical imported value. */
   public int repairXtbReconstructedPositionProfits() {
     List<Long> xtbAccounts =
@@ -650,6 +707,12 @@ public class MarketDataService {
   private void refreshStatisticsIfNeeded(boolean refreshAfterUpdate) {
     if (refreshAfterUpdate) {
       statisticsRefreshService.refreshAll();
+    }
+  }
+
+  private static void requirePortfolioId(Long portfolioId) {
+    if (portfolioId == null || portfolioId <= 0) {
+      throw new IllegalArgumentException("portfolioId must be positive");
     }
   }
 }

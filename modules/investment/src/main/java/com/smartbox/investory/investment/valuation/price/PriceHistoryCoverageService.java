@@ -1,5 +1,6 @@
 package com.smartbox.investory.investment.valuation.price;
 
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
 import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
@@ -7,6 +8,7 @@ import com.smartbox.investory.investment.ledger.position.persistence.PositionRep
 import com.smartbox.investory.investment.performance.InvestmentCalculationCache;
 import com.smartbox.investory.investment.port.market.MarketDataProvider;
 import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryRepository;
+import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -28,6 +30,7 @@ import org.springframework.util.StringUtils;
 public class PriceHistoryCoverageService {
 
   private final PositionRepository openedPositionRepository;
+  private final AccountRepository accountRepository;
   private final AssetRepository assetRepository;
   private final AssetPriceHistoryRepository historyRepository;
   private final MarketDataProvider marketDataProvider;
@@ -43,9 +46,34 @@ public class PriceHistoryCoverageService {
       MarketDataProvider marketDataProvider,
       InvestmentCalculationCache calculationCache,
       Clock clock,
-      @Value("${app.history-start:2025-01-01}") String historyStart,
+      String historyStart,
+      String benchmarkSymbol) {
+    this(
+        openedPositionRepository,
+        null,
+        assetRepository,
+        historyRepository,
+        marketDataProvider,
+        calculationCache,
+        clock,
+        historyStart,
+        benchmarkSymbol);
+  }
+
+  @org.springframework.beans.factory.annotation.Autowired
+  public PriceHistoryCoverageService(
+      PositionRepository openedPositionRepository,
+      AccountRepository accountRepository,
+      AssetRepository assetRepository,
+      AssetPriceHistoryRepository historyRepository,
+      MarketDataProvider marketDataProvider,
+      InvestmentCalculationCache calculationCache,
+      Clock clock,
+      @Value("${app.history-start:" + FinancialPolicyDefaults.HISTORY_START_TEXT + "}")
+          String historyStart,
       @Value("${app.benchmark.symbol:SPY}") String benchmarkSymbol) {
     this.openedPositionRepository = openedPositionRepository;
+    this.accountRepository = accountRepository;
     this.assetRepository = assetRepository;
     this.historyRepository = historyRepository;
     this.marketDataProvider = marketDataProvider;
@@ -100,7 +128,7 @@ public class PriceHistoryCoverageService {
             asset.getCurrency() == null ? null : asset.getCurrency().name(),
             BigDecimal.valueOf(entry.getValue()),
             100,
-            "EXACT_LISTING_MARKET_CLOSE");
+            marketPriceQuality(asset));
         written++;
       }
     }
@@ -115,7 +143,14 @@ public class PriceHistoryCoverageService {
   public PortfolioCoverageResult ensurePortfolioCoverage(Long portfolioId) {
     LocalDate to = LocalDate.now(clock);
     Map<Long, LocalDate> requiredFrom = new LinkedHashMap<>();
-    for (PositionEntity position : openedPositionRepository.findOpen()) {
+    var positions =
+        portfolioId == null || accountRepository == null
+            ? openedPositionRepository.findOpen()
+            : openedPositionRepository.findOpenByAccountIn(
+                accountRepository.findAllByPortfolioId(portfolioId).stream()
+                    .map(account -> account.getId())
+                    .toList());
+    for (PositionEntity position : positions) {
       if (position.getAssetId() == null || position.getOpenTime() == null) continue;
       requiredFrom.merge(
           position.getAssetId(),
@@ -139,6 +174,12 @@ public class PriceHistoryCoverageService {
       CoverageStatus status,
       List<String> warnings) {
     return new CoverageResult(id, from, to, existing, fetched, 0, status, warnings);
+  }
+
+  private static String marketPriceQuality(AssetEntity asset) {
+    return "BOND".equalsIgnoreCase(asset.getAssetType())
+        ? "EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR"
+        : "EXACT_LISTING_MARKET_CLOSE";
   }
 
   public enum CoverageStatus {

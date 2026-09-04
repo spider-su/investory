@@ -4,6 +4,13 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 public interface FxRateResolutionRow {
+
+  /**
+   * The valuation date the row was resolved for. Only populated by batch/range queries that resolve
+   * several dates at once; single-date queries leave it {@code null}.
+   */
+  LocalDate getValuationDate();
+
   String getSourceCurrency();
 
   String getTargetCurrency();

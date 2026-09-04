@@ -5,6 +5,9 @@ import com.smartbox.investory.longterm.infrastructure.asset.*;
 import com.smartbox.investory.longterm.infrastructure.lifecycle.*;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -69,11 +72,36 @@ public class LongTermAssetLifecycleService {
 
   public boolean activeOn(LongTermAssetEntity asset, LocalDate date) {
     var history = periods.findAllByAssetIdOrderByActiveFrom(asset.getId());
-    if (!history.isEmpty())
+    return activeOn(asset, date, history);
+  }
+
+  /** Evaluates a portfolio population after one lifecycle-history query. */
+  public List<LongTermAssetEntity> activeAt(List<LongTermAssetEntity> assets, LocalDate date) {
+    if (assets.isEmpty()) return List.of();
+    Map<Long, List<LongTermAssetLifecyclePeriodEntity>> historyByAssetId =
+        periods
+            .findAllByAssetIdInOrderByAssetIdAscActiveFromAsc(
+                assets.stream().map(LongTermAssetEntity::getId).toList())
+            .stream()
+            .collect(Collectors.groupingBy(LongTermAssetLifecyclePeriodEntity::getAssetId));
+    return assets.stream()
+        .filter(
+            asset -> activeOn(asset, date, historyByAssetId.getOrDefault(asset.getId(), List.of())))
+        .toList();
+  }
+
+  private boolean activeOn(
+      LongTermAssetEntity asset, LocalDate date, List<LongTermAssetLifecyclePeriodEntity> history) {
+    if (!history.isEmpty()) {
+      // A date-only period cannot distinguish archive and reactivation on the same day.
+      // The persisted current flag is therefore authoritative for today's boundary.
+      if (date.equals(LocalDate.now(clock))) return asset.isActive();
       return history.stream()
           .anyMatch(
               p -> LongTermAssetPeriodRules.activeOn(p.getActiveFrom(), p.getActiveTo(), date));
-    return (asset.getAcquisitionDate() == null || !asset.getAcquisitionDate().isAfter(date))
+    }
+    return asset.isActive()
+        && (asset.getAcquisitionDate() == null || !asset.getAcquisitionDate().isAfter(date))
         && (asset.getArchivedAt() == null || asset.getArchivedAt().isAfter(date));
   }
 

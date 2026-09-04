@@ -39,7 +39,6 @@ public class RetirementAnalysisRestController {
                 portfolioId,
                 request.planId(),
                 request.defaultCurrentAge(),
-                request.defaultEndAge(),
-                request.customDeltas())));
+                request.defaultEndAge())));
   }
 }

@@ -15,7 +15,7 @@ public class InvestmentDailyPerformanceApplicationService implements InvestmentD
 
   @Override
   public com.smartbox.investory.investment.api.reporting.model.DailyPerformanceDetail load(
-      LocalDate date, Set<Long> accountIds) {
-    return portfolioMetricsService.dailyPerformanceDetail(date, accountIds);
+      Long portfolioId, LocalDate date, Set<Long> accountIds) {
+    return portfolioMetricsService.dailyPerformanceDetail(portfolioId, date, accountIds);
   }
 }

@@ -1,7 +1,8 @@
-package com.smartbox.investory.ui.investment;
+package com.smartbox.investory.investment.web;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -13,7 +14,6 @@ import com.smartbox.investory.config.MockMvcSecurityTestConfig;
 import com.smartbox.investory.config.RestApiExceptionHandler;
 import com.smartbox.investory.config.SecurityConfig;
 import com.smartbox.investory.investment.api.exporting.YahooPortfolioExportApi;
-import com.smartbox.investory.investment.web.ExportController;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -42,15 +42,15 @@ class ExportControllerTest {
   void generate_returnsPortfolioCsvDownload() throws Exception {
     doAnswer(
             invocation -> {
-              String path = invocation.getArgument(0, String.class);
+              String path = invocation.getArgument(1, String.class);
               Files.writeString(Path.of(path), "Symbol\nAAPL", StandardCharsets.UTF_8);
               return null;
             })
         .when(exportService)
-        .exportToYahooCsv(anyString());
+        .exportToYahooCsv(eq(1L), anyString());
 
     mockMvc
-        .perform(get("/api/v1/investment/export/generate"))
+        .perform(get("/api/v1/investment/export/generate").param("portfolioId", "1"))
         .andExpect(status().isOk())
         .andExpect(content().contentType("text/csv"))
         .andExpect(header().string("Content-Disposition", containsString("attachment")))
@@ -63,12 +63,12 @@ class ExportControllerTest {
   void generate_requiresReadAuthentication() throws Exception {
     doAnswer(
             invocation -> {
-              String path = invocation.getArgument(0, String.class);
+              String path = invocation.getArgument(1, String.class);
               Files.writeString(Path.of(path), "Symbol\nAAPL", StandardCharsets.UTF_8);
               return null;
             })
         .when(exportService)
-        .exportToYahooCsv(anyString());
+        .exportToYahooCsv(eq(1L), anyString());
 
     mockMvc.perform(get("/api/v1/investment/export/generate")).andExpect(status().isUnauthorized());
   }
@@ -79,10 +79,10 @@ class ExportControllerTest {
   void generate_usesStandardErrorContract() throws Exception {
     doThrow(new java.io.IOException("disk detail"))
         .when(exportService)
-        .exportToYahooCsv(anyString());
+        .exportToYahooCsv(eq(1L), anyString());
 
     mockMvc
-        .perform(get("/api/v1/investment/export/generate"))
+        .perform(get("/api/v1/investment/export/generate").param("portfolioId", "1"))
         .andExpect(status().isInternalServerError())
         .andExpect(content().contentType("application/json"))
         .andExpect(

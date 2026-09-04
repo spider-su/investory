@@ -1,7 +1,6 @@
 package com.smartbox.investory.retirement.infrastructure.simulation;
 
 import com.smartbox.investory.retirement.api.model.*;
-import com.smartbox.investory.retirement.api.model.ProjectedIncomePolicy.IncomeMode;
 import com.smartbox.investory.retirement.api.model.SimulationFundingStrategy;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
@@ -64,20 +63,6 @@ public class SimulationPlanRevisionEntity implements PersistedSimulationAssumpti
 
   @Column(name = "spending_growth_rate", nullable = false, precision = 20, scale = 12)
   private BigDecimal spendingGrowthSpread;
-
-  @Enumerated(EnumType.STRING)
-  @Column(name = "rental_income_mode", length = 16)
-  private IncomeMode rentalIncomeMode;
-
-  @Column(name = "manual_rental_income", precision = 30, scale = 12)
-  private BigDecimal manualRentalIncome;
-
-  @Enumerated(EnumType.STRING)
-  @Column(name = "bond_cash_income_mode", length = 16)
-  private IncomeMode bondCashIncomeMode;
-
-  @Column(name = "manual_bond_cash_income", precision = 30, scale = 12)
-  private BigDecimal manualBondCashIncome;
 
   @Enumerated(EnumType.STRING)
   @Column(name = "funding_strategy", length = 32)

@@ -8,13 +8,9 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 public interface AccountDailyRepository extends JpaRepository<AccountDailyEntity, Long> {
-
-  List<AccountDailyEntity> findAllByOrderByDateAscAccountIdAsc();
 
   List<AccountDailyEntity> findByDateOrderByAccountIdAsc(LocalDate date);
 
@@ -23,7 +19,8 @@ public interface AccountDailyRepository extends JpaRepository<AccountDailyEntity
 
   List<AccountDailyEntity> findByDateGreaterThanEqualOrderByDateAscAccountIdAsc(LocalDate from);
 
-  List<AccountDailyEntity> findAllByAccountIdOrderByDateAsc(Long accountId);
+  List<AccountDailyEntity> findByDateGreaterThanEqualAndAccountIdInOrderByDateAscAccountIdAsc(
+      LocalDate from, java.util.Collection<Long> accountIds);
 
   @Query(
       value =
@@ -33,7 +30,7 @@ public interface AccountDailyRepository extends JpaRepository<AccountDailyEntity
               equity AS "endValue",
               deposits AS contributions,
               withdrawals AS withdrawals
-          FROM investory.v_portfolio_performance_daily
+          FROM investory.app_v_portfolio_performance_daily
           WHERE portfolio_id = :portfolioId
             AND snapshot_date BETWEEN :from AND :to
           ORDER BY snapshot_date
@@ -45,10 +42,6 @@ public interface AccountDailyRepository extends JpaRepository<AccountDailyEntity
       @Param("to") LocalDate to);
 
   @Modifying
-  @Query("DELETE FROM AccountDailyEntity")
-  void deleteAllRows();
-
-  @Modifying
   @Query(
       """
       DELETE FROM AccountDailyEntity row
@@ -56,34 +49,6 @@ public interface AccountDailyRepository extends JpaRepository<AccountDailyEntity
       """)
   void deleteByAccountIdAndDateGreaterThanEqual(
       @Param("accountId") Long accountId, @Param("date") LocalDate date);
-
-  @Query(value = "SELECT investory.refresh_app_views()", nativeQuery = true)
-  void refreshReportingViews();
-
-  @Query(value = "SELECT investory.refresh_recon_views()", nativeQuery = true)
-  void refreshReconciliationViews();
-
-  @Query(value = "SELECT investory.refresh_reconstructed_position_daily()", nativeQuery = true)
-  @Transactional(propagation = Propagation.REQUIRES_NEW)
-  void refreshReconstructedPositionDaily();
-
-  @Query(
-      value = "SELECT investory.refresh_reconstructed_account_market_daily()",
-      nativeQuery = true)
-  @Transactional(propagation = Propagation.REQUIRES_NEW)
-  void refreshReconstructedAccountMarketDaily();
-
-  @Query(value = "SELECT investory.refresh_reconstructed_cash_daily()", nativeQuery = true)
-  @Transactional(propagation = Propagation.REQUIRES_NEW)
-  void refreshReconstructedCashDaily();
-
-  @Query(value = "SELECT investory.refresh_account_daily_reconciliation()", nativeQuery = true)
-  @Transactional(propagation = Propagation.REQUIRES_NEW)
-  void refreshAccountDailyReconciliation();
-
-  @Query(value = "SELECT investory.refresh_reconciliation_reporting_views()", nativeQuery = true)
-  @Transactional(propagation = Propagation.REQUIRES_NEW)
-  void refreshReconciliationReportingViews();
 
   /** Base-currency, non-cash-only daily boundary from the canonical performance projection. */
   interface PortfolioPerformanceDailyRow {

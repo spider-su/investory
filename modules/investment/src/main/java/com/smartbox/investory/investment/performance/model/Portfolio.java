@@ -5,6 +5,7 @@ import com.smartbox.investory.investment.api.reporting.model.DividendGainer;
 import com.smartbox.investory.investment.api.reporting.model.InstrumentPerformance;
 import com.smartbox.investory.investment.api.reporting.model.OpenPositionValue;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,7 +17,11 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class Portfolio {
-  CurrencyType baseCurrency = CurrencyType.USD;
+  CurrencyType baseCurrency = FinancialPolicyDefaults.CANONICAL_CURRENCY;
+
+  /** Current household planning currency; reserved for Long-Term and simulation use. */
+  CurrencyType localCurrency = CurrencyType.PLN;
+
   double realizedProfit = 0.0;
 
   double dividends = 0.0;

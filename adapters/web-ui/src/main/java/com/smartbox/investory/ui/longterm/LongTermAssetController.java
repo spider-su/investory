@@ -21,7 +21,7 @@ public class LongTermAssetController {
 
   @GetMapping("/long-term-assets")
   public String list(
-      @RequestParam(defaultValue = "1") Long portfolioId,
+      @RequestParam Long portfolioId,
       @RequestParam(defaultValue = "false") boolean showArchived,
       Model model) {
     LocalDate date = LocalDate.now(clock);
@@ -83,7 +83,7 @@ public class LongTermAssetController {
   }
 
   @GetMapping("/long-term-assets/new")
-  public String createForm(@RequestParam(defaultValue = "1") Long portfolioId, Model model) {
+  public String createForm(@RequestParam Long portfolioId, Model model) {
     LongTermAssetForm asset = new LongTermAssetForm();
     asset.setPortfolioId(portfolioId);
     asset.setActive(true);
@@ -93,7 +93,7 @@ public class LongTermAssetController {
   }
 
   @GetMapping("/long-term-assets/new/cash-reserve")
-  public String cashReserveForm(@RequestParam(defaultValue = "1") Long portfolioId, Model model) {
+  public String cashReserveForm(@RequestParam Long portfolioId, Model model) {
     model.addAttribute("portfolioId", portfolioId);
     return "cash-reserve-form";
   }
@@ -145,8 +145,7 @@ public class LongTermAssetController {
   }
 
   @GetMapping("/long-term-assets/{id}")
-  public String detail(
-      @PathVariable Long id, @RequestParam(defaultValue = "1") Long portfolioId, Model model) {
+  public String detail(@PathVariable Long id, @RequestParam Long portfolioId, Model model) {
     LocalDate today = LocalDate.now(clock);
     var view = assets.details(portfolioId, id, today);
     model.addAttribute("asset", view.asset());

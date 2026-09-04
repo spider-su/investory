@@ -103,7 +103,7 @@ The differences are continuity movements against the previous selected observati
 
 ## Narrow fix
 
-`v_position_valuation_validation` now treats `selection_priority = 3` as an approved alternate-listing review path:
+`recon_v_position_valuation_validation` now treats `selection_priority = 3` as an approved alternate-listing review path:
 
 - `ALTERNATE_LISTING_SELECTED` remains visible;
 - selected price, quantity, FX status, and reconstruction failures remain validated;

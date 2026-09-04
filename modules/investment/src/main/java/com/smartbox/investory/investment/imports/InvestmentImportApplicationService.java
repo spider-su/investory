@@ -18,7 +18,18 @@ public class InvestmentImportApplicationService implements InvestmentImportApi {
 
   @Override
   public ImportResult importAuto(
-      String fileName, byte[] content, ImportSource source, String sourceRef) {
+      Long portfolioId, String fileName, byte[] content, ImportSource source, String sourceRef) {
+    return importAuto(portfolioId, fileName, content, source, sourceRef, false);
+  }
+
+  @Override
+  public ImportResult importAuto(
+      Long portfolioId,
+      String fileName,
+      byte[] content,
+      ImportSource source,
+      String sourceRef,
+      boolean deferRefresh) {
     try {
       String normalized = fileName.toLowerCase(Locale.ROOT);
       BrokerType broker;
@@ -26,7 +37,13 @@ public class InvestmentImportApplicationService implements InvestmentImportApi {
       else if (normalized.endsWith(".xlsx") || normalized.endsWith(".zip")) broker = BrokerType.XTB;
       else throw new IllegalArgumentException("Unsupported import file extension: " + fileName);
       return importForBroker(
-          ImportBroker.valueOf(broker.name()), fileName, content, source, sourceRef);
+          portfolioId,
+          ImportBroker.valueOf(broker.name()),
+          fileName,
+          content,
+          source,
+          sourceRef,
+          deferRefresh);
     } catch (RuntimeException exception) {
       log.error("Investment import failed: file={}", fileName, exception);
       throw exception;
@@ -35,15 +52,34 @@ public class InvestmentImportApplicationService implements InvestmentImportApi {
 
   @Override
   public ImportResult importForBroker(
-      ImportBroker broker, String fileName, byte[] content, ImportSource source, String sourceRef) {
+      Long portfolioId,
+      ImportBroker broker,
+      String fileName,
+      byte[] content,
+      ImportSource source,
+      String sourceRef) {
+    return importForBroker(portfolioId, broker, fileName, content, source, sourceRef, false);
+  }
+
+  @Override
+  public ImportResult importForBroker(
+      Long portfolioId,
+      ImportBroker broker,
+      String fileName,
+      byte[] content,
+      ImportSource source,
+      String sourceRef,
+      boolean deferRefresh) {
     try {
       ImportBatchResponse result =
           importOrchestrator.importFile(
+              portfolioId,
               BrokerType.valueOf(broker.name()),
               content,
               fileName,
               ImportSourceType.valueOf(source.name()),
-              sourceRef);
+              sourceRef,
+              !deferRefresh);
       ImportResult importResult =
           new ImportResult(
               result.batchId(),

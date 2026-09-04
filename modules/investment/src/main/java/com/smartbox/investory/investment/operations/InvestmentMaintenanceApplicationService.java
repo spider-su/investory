@@ -2,6 +2,7 @@ package com.smartbox.investory.investment.operations;
 
 import com.smartbox.investory.investment.api.operations.InvestmentMaintenanceApi;
 import com.smartbox.investory.investment.api.operations.ManualAssetPriceView;
+import com.smartbox.investory.investment.projection.PortfolioProjectionRefreshService;
 import com.smartbox.investory.investment.projection.PortfolioProjectionService;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateUpdaterService;
 import com.smartbox.investory.investment.valuation.price.ManualAssetPriceService;
@@ -21,6 +22,7 @@ public class InvestmentMaintenanceApplicationService implements InvestmentMainte
   private final MarketDataService market;
   private final ManualAssetPriceService manualPrices;
   private final PortfolioProjectionService projections;
+  private final PortfolioProjectionRefreshService projectionRefreshService;
   private final CurrencyRateUpdaterService currencyRates;
   private final PriceHistoryCoverageService coverage;
 
@@ -52,6 +54,8 @@ public class InvestmentMaintenanceApplicationService implements InvestmentMainte
           market.refreshMarketPricesAndPositions();
           coverage.ensurePortfolioCoverage(null);
           projections.recalculateAll();
+          projectionRefreshService.refreshApplicationViews(
+              PortfolioProjectionRefreshService.ApplicationRefreshScope.MARKET_HISTORY);
           projections.refreshReconciliationViews();
           return result("Market prices refreshed and history rebuilt");
         });
@@ -63,6 +67,8 @@ public class InvestmentMaintenanceApplicationService implements InvestmentMainte
         "rebuild monthly statistics",
         () -> {
           projections.recalculateAll();
+          projectionRefreshService.refreshApplicationViews(
+              PortfolioProjectionRefreshService.ApplicationRefreshScope.FULL);
           projections.refreshReconciliationViews();
           return result("AccountEntity stats rebuilt");
         });

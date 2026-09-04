@@ -31,8 +31,8 @@ The canonical monthly profit path is:
 
 ```text
 account_daily.daily_profit_amount
-  -> account_monthly_mv.monthly canonical_profit
-  -> reporting_account_monthly_profit_reconciliation
+  -> app_v_account_monthly.monthly canonical_profit
+  -> recon_v_account_monthly_profit
   -> recon_v_account_monthly_profit
   -> dashboard monthly performance / reconciliation report
 ```
@@ -132,7 +132,7 @@ profit, while the separate boundary diagnostic remains incompatible for
 these rows.
 
 The local refresh was not complete for the preceding account/day correction:
-`mv_account_daily_reconciliation` still contains result-only market-value
+`recon_v_account_daily_reconciliation_mv` still contains result-only market-value
 failures (for example account `51499241` on `2025-11-03`, difference `-4,244`).
 Its source materialized view chain needs the normal dependency-order refresh
 before the projected account/day result can be verified. This does not alter

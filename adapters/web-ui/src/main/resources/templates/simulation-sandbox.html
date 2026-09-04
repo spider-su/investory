@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Retirement sandbox · Investory</title>
+  <link href="/css/tabler.min.css" rel="stylesheet">
+  <th:block th:replace="~{fragments/theme-head :: theme}"></th:block>
+  <link href="/css/planning.css" rel="stylesheet" data-turbo-track="reload">
+</head>
+<body>
+<main class="iv-app iv-planning-page iv-retirement-surface iv-sandbox-page">
+  <div th:replace="~{fragments/app-header :: planningHeader('simulation', ${sandboxPortfolioId}, 'Retirement sandbox', 'Plan status', ${sandbox.result.simulationFailed ? 'Plan fails' : 'Sustainable'}, 'Sandbox', 'Annual income', ${format.money(sandboxAnnualIncome)}, 'rental + pension', 'Planning horizon', ${sandbox.form.currentAge + '–' + sandbox.form.endAge}, 'retire at age ' + sandbox.form.retirementAge, null, 'sandbox', null, null)}"></div>
+  <p class="text-secondary iv-sandbox-description">Simple what-if calculation. Save it as a hidden simulation plan for this portfolio.</p>
+  <form class="card iv-sandbox-form" method="get" action="/simulation/sandbox" aria-label="Retirement sandbox inputs" th:object="${sandboxSimulationForm}">
+    <input type="hidden" name="portfolioId" th:value="${sandboxPortfolioId}">
+    <input type="hidden" name="planId" th:value="${sandbox.form.planId}">
+    <div class="card-body">
+      <h2>Timeline and spending</h2>
+      <div class="text-danger" th:if="${#fields.hasGlobalErrors()}" th:each="error : ${#fields.globalErrors()}" th:text="${error.defaultMessage}"></div>
+      <label>Current age <input name="currentAge" type="number" min="0" max="120" th:value="${sandbox.form.currentAge}"><span class="text-danger" th:errors="*{currentAge}"></span></label>
+      <label>Retirement age <input name="retirementAge" type="number" min="0" max="120" th:value="${sandbox.form.retirementAge}"><span class="text-danger" th:errors="*{retirementAge}"></span></label>
+      <label>End age <input name="endAge" type="number" min="0" max="120" th:value="${sandbox.form.endAge}"><span class="text-danger" th:errors="*{endAge}"></span></label>
+      <label>Annual spending <input name="annualSpending" type="number" min="0" step="1000" th:value="${sandbox.form.annualSpending}"><span class="text-danger" th:errors="*{annualSpending}"></span></label>
+      <label>Inflation <input name="inflationRate" type="number" min="-1" step="0.001" th:value="${sandbox.form.inflationRate}"><span class="text-danger" th:errors="*{inflationRate}"></span></label>
+      <h2>Buckets and expected growth</h2>
+      <label>Cash <input name="cash" type="number" min="0" step="1000" th:value="${sandbox.form.cash}"><span class="text-danger" th:errors="*{cash}"></span></label>
+      <label>Bonds <input name="bonds" type="number" min="0" step="1000" th:value="${sandbox.form.bonds}"><span class="text-danger" th:errors="*{bonds}"></span></label>
+      <label>Bond return <input name="bondReturnRate" type="number" min="-1" step="0.001" th:value="${sandbox.form.bondReturnRate}"><span class="text-danger" th:errors="*{bondReturnRate}"></span></label>
+      <label>Equities <input name="equities" type="number" min="0" step="1000" th:value="${sandbox.form.equities}"><span class="text-danger" th:errors="*{equities}"></span></label>
+      <label>Equity return <input name="equityReturnRate" type="number" min="-1" step="0.001" th:value="${sandbox.form.equityReturnRate}"><span class="text-danger" th:errors="*{equityReturnRate}"></span></label>
+      <label>Rental income / month <input name="monthlyRentalIncome" type="number" min="0" step="100" th:value="${sandbox.form.monthlyRentalIncome}"><span class="text-danger" th:errors="*{monthlyRentalIncome}"></span></label>
+      <label>Pension income / month <input name="monthlyPensionIncome" type="number" min="0" step="100" th:value="${sandbox.form.monthlyPensionIncome}"><span class="text-danger" th:errors="*{monthlyPensionIncome}"></span></label>
+      <label>Pension age <input name="pensionAge" type="number" min="0" max="120" th:value="${sandbox.form.pensionAge}"><span class="text-danger" th:errors="*{pensionAge}"></span></label>
+      <button class="btn btn-primary" type="submit">Calculate</button>
+      <button th:if="${sandboxPortfolioId != null}" class="btn btn-outline-primary" type="submit" formmethod="post" formaction="/simulation/sandbox/save">Save / Update</button>
+    </div>
+  </form>
+  <section class="card iv-sandbox-result" aria-labelledby="sandbox-result-title">
+    <div class="card-body">
+      <h2 id="sandbox-result-title" th:if="${sandbox.result != null}" th:text="${sandbox.result.simulationFailed ? 'NOK — spending is not fully funded' : 'OK — spending is funded'}">OK</h2>
+      <p th:if="${sandbox.result != null and sandbox.result.failureAge != null}" th:text="${'First shortfall at age ' + sandbox.result.failureAge}"></p>
+      <p class="text-secondary" th:text="${'Projection starts at retirement age ' + sandbox.form.retirementAge + '. Earlier years are used only to grow the starting buckets.'}">Projection starts at retirement.</p>
+      <div class="iv-sandbox-chart-frame"><canvas id="sandbox-chart" role="img" aria-label="Spending and bucket values over time"></canvas></div>
+    </div>
+  </section>
+  <section class="card" aria-labelledby="sandbox-table-title">
+    <div class="card-body"><h2 id="sandbox-table-title">Yearly values</h2>
+      <div class="table-responsive"><table class="table"><thead><tr><th>Age</th><th>Year</th><th>Spending</th><th>Rental income</th><th>Pension income</th><th>Cash</th><th>Bonds</th><th>Equities</th><th>Total</th><th>Unfunded</th></tr></thead>
+        <tbody><tr th:each="row : ${sandbox.rows}" th:classappend="${row.gap.signum() > 0 ? 'table-danger' : ''}"><td th:text="${row.age}"></td><td th:text="${row.year}"></td><td th:text="${format.money(row.spending)}"></td><td th:text="${format.money(row.rentalIncome)}"></td><td th:text="${format.money(row.pensionIncome)}"></td><td th:text="${format.money(row.cash)}"></td><td th:text="${format.money(row.bonds)}"></td><td th:text="${format.money(row.equities)}"></td><td th:text="${format.money(row.total)}"></td><td th:text="${format.money(row.gap)}"></td></tr></tbody>
+      </table></div>
+    </div>
+  </section>
+</main>
+<script th:inline="javascript">window.retirementSandbox = {rows: /*[[${sandbox.rows}]]*/ []};</script>
+<script type="module" src="/js/retirement-sandbox.js"></script>
+</body>
+</html>

@@ -265,13 +265,24 @@ public class LongTermAssetsFacade {
         entry.effectiveFrom(),
         null,
         List.of(
-            term(CashFlowType.RENT, entry.monthlyRent(), Frequency.MONTHLY, false),
-            term(CashFlowType.PARKING_RENT, entry.monthlyParkingIncome(), Frequency.MONTHLY, false),
-            term(
-                CashFlowType.ADMIN_FEE, entry.monthlyAdministrationCost(), Frequency.MONTHLY, true),
-            term(CashFlowType.OTHER_EXPENSE, entry.monthlyOtherCost(), Frequency.MONTHLY, false),
-            term(CashFlowType.PROPERTY_TAX, entry.annualPropertyTax(), Frequency.ANNUAL, false),
-            term(CashFlowType.INSURANCE, entry.annualInsurance(), Frequency.ANNUAL, false)));
+                term(CashFlowType.RENT, entry.monthlyRent(), Frequency.MONTHLY, false),
+                term(
+                    CashFlowType.PARKING_RENT,
+                    entry.monthlyParkingIncome(),
+                    Frequency.MONTHLY,
+                    false),
+                term(
+                    CashFlowType.ADMIN_FEE,
+                    entry.monthlyAdministrationCost(),
+                    Frequency.MONTHLY,
+                    true),
+                term(
+                    CashFlowType.OTHER_EXPENSE, entry.monthlyOtherCost(), Frequency.MONTHLY, false),
+                term(CashFlowType.PROPERTY_TAX, entry.annualPropertyTax(), Frequency.ANNUAL, false),
+                term(CashFlowType.INSURANCE, entry.annualInsurance(), Frequency.ANNUAL, false))
+            .stream()
+            .filter(input -> input.amount().signum() > 0)
+            .toList());
     return assetView(saved);
   }
 

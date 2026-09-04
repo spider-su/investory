@@ -6,8 +6,10 @@ import com.smartbox.investory.investment.api.reporting.InvestmentPerformanceApi.
 import com.smartbox.investory.investment.api.reporting.PerformanceAggregation;
 import com.smartbox.investory.investment.api.reporting.PerformanceMetric;
 import com.smartbox.investory.investment.api.reporting.PerformanceStyle;
+import jakarta.validation.constraints.Positive;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /** HTTP adapter for the canonical Investment performance read model. */
 @RestController
+@Validated
 @RequestMapping("/api/v1/investment/performance")
 @RequiredArgsConstructor
 public class InvestmentPerformanceController {
@@ -27,7 +30,7 @@ public class InvestmentPerformanceController {
       @RequestParam(defaultValue = "return") PerformanceMetric metric,
       @RequestParam(defaultValue = "line") PerformanceStyle style,
       @RequestParam(required = false) DashboardPeriod period,
-      @RequestParam Long portfolioId) {
+      @RequestParam @Positive Long portfolioId) {
     List<Long> ids = accountIds == null ? null : AccountIdParser.parse(accountIds);
     return performanceApi.load(
         new PerformanceBoardQuery(ids, aggregation, metric, style, period, portfolioId));
@@ -37,7 +40,7 @@ public class InvestmentPerformanceController {
   public InvestmentPerformanceApi.PerformanceBoardView monthlyPerformance(
       @RequestParam String accountIds,
       @RequestParam(defaultValue = "monthly") PerformanceAggregation aggregation,
-      @RequestParam Long portfolioId) {
+      @RequestParam @Positive Long portfolioId) {
     List<Long> ids = AccountIdParser.parse(accountIds);
     return performanceApi.load(
         new PerformanceBoardQuery(
@@ -50,7 +53,7 @@ public class InvestmentPerformanceController {
   public InvestmentPerformanceApi.PerformanceBoardView accountPerformance(
       @RequestParam String accountIds,
       @RequestParam(defaultValue = "monthly") PerformanceAggregation aggregation,
-      @RequestParam Long portfolioId) {
+      @RequestParam @Positive Long portfolioId) {
     return monthlyPerformance(accountIds, aggregation, portfolioId);
   }
 }

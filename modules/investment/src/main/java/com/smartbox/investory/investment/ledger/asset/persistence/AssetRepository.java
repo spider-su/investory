@@ -20,4 +20,12 @@ public interface AssetRepository extends JpaRepository<AssetEntity, Long> {
   List<AssetEntity> findAllBySymbolIn(Collection<String> symbols);
 
   List<AssetEntity> findAllByTickerIn(Collection<String> tickers);
+
+  List<AssetEntity> findAllByActiveTrueAndExcludeFromImportFalse();
+
+  List<AssetEntity> findAllByActiveFalseAndSymbolIsNotNull();
+
+  List<AssetEntity> findAllByExcludeFromImportTrue();
+
+  List<AssetEntity> findAllByExcludeFromImportFalseAndSymbolIsNotNull();
 }

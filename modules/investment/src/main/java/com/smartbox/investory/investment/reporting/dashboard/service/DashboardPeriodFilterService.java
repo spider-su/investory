@@ -4,6 +4,7 @@ import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
 import com.smartbox.investory.investment.api.reporting.model.Benchmark;
 import com.smartbox.investory.investment.performance.model.Performance;
 import com.smartbox.investory.investment.performance.model.Portfolio;
+import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -30,7 +31,8 @@ public class DashboardPeriodFilterService {
 
   @Autowired
   public DashboardPeriodFilterService(
-      @Value("${app.history-start:2025-01-01}") String historyStart) {
+      @Value("${app.history-start:" + FinancialPolicyDefaults.HISTORY_START_TEXT + "}")
+          String historyStart) {
     this(LocalDate.parse(historyStart), Clock.systemDefaultZone());
   }
 

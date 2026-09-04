@@ -20,6 +20,9 @@ import lombok.Data;
 @Table(name = "import_history")
 public class ImportHistoryEntity {
 
+  @Column(name = "portfolio_id")
+  private Long portfolioId;
+
   @Id
   @SequenceGenerator(
       name = "import_history_id_seq",

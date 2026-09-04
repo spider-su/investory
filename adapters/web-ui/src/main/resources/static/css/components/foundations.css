@@ -1,0 +1,76 @@
+/* Shared visual primitives moved out of base.css. */
+/* Ownership: shared components/features. */
+
+* { box-sizing: border-box; }
+
+/* Shared component language used by every main application view. */
+.iv-section,
+.iv-card {
+    border: 1px solid var(--iv-border);
+    border-radius: var(--iv-radius);
+    background: var(--iv-surface);
+    box-shadow: var(--iv-shadow);
+}
+.iv-section-header,
+.iv-card-section-header {
+    display: flex;
+    min-height: var(--iv-section-header-height);
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--iv-space-4);
+    padding: 9px var(--iv-space-4);
+    border-bottom: 1px solid var(--iv-border);
+}
+.iv-section-header__title,
+.iv-card-section-header__title {
+    color: var(--iv-accent);
+    font-size: .7rem;
+    font-weight: 800;
+    letter-spacing: .09em;
+    line-height: 1.2;
+    text-transform: uppercase;
+}
+.iv-metric { min-width: 0; }
+.iv-metric-label { display: block; color: var(--iv-text-muted); font-size: .68rem; font-weight: 750; line-height: 1.25; }
+.iv-metric-value { display: block; margin-top: 4px; color: var(--iv-text); font-size: 1.05rem; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.iv-metric-context { display: block; margin-top: 3px; color: var(--iv-text-soft); font-size: .7rem; line-height: 1.3; }
+.iv-button,
+.iv-planning-page .btn,
+.iv-report-page .btn { min-height: var(--iv-button-height); border-radius: var(--iv-radius-sm); font-size: .78rem; font-weight: 650; }
+.iv-button--primary { border-color: var(--iv-accent); background: var(--iv-accent); color: var(--iv-on-accent); }
+.iv-button--secondary { border-color: var(--iv-border); background: var(--iv-surface-muted); color: var(--iv-text-muted); }
+.iv-button--danger { border-color: var(--iv-negative); color: var(--iv-negative); }
+.iv-planning-page .form-control,
+.iv-planning-page .form-select,
+.iv-report-page .form-control,
+.iv-report-page .form-select {
+    min-height: var(--iv-control-height);
+    border: 1px solid var(--iv-border);
+    border-radius: var(--iv-radius-sm);
+    background: var(--iv-surface);
+    color: var(--iv-text);
+    font-size: .8rem;
+}
+.iv-planning-page .form-control:focus,
+.iv-planning-page .form-select:focus,
+.iv-report-page .form-control:focus,
+.iv-report-page .form-select:focus {
+    border-color: var(--iv-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--iv-accent) 16%, transparent);
+}
+.iv-planning-page .table,
+.iv-report-page .table { font-variant-numeric: tabular-nums; }
+.iv-planning-page .table thead th,
+.iv-report-page .table thead th { color: var(--iv-text-muted); font-size: .68rem; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; }
+.iv-planning-page .table > :not(caption) > * > *,
+.iv-report-page .table > :not(caption) > * > * { border-color: var(--iv-border); }
+.iv-planning-page .table tbody tr:hover,
+.iv-report-page .table tbody tr:hover { background: var(--iv-surface-muted); }
+.iv-status,
+.iv-badge { border-radius: var(--iv-radius-pill); font-size: .7rem; font-weight: 700; }
+.planning-status-needs-review {
+    color: var(--iv-warning);
+    background: var(--iv-orange-soft);
+    border: 1px solid color-mix(in srgb, var(--iv-warning) 35%, transparent);
+}
+

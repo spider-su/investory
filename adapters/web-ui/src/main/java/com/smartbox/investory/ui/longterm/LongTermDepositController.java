@@ -27,7 +27,7 @@ public class LongTermDepositController {
   private final LongTermAssetsClient assets;
 
   @GetMapping("/long-term-assets/new/deposit")
-  public String depositForm(@RequestParam(defaultValue = "1") Long portfolioId, Model model) {
+  public String depositForm(@RequestParam Long portfolioId, Model model) {
     model.addAttribute("portfolioId", portfolioId);
     return "deposit-form";
   }

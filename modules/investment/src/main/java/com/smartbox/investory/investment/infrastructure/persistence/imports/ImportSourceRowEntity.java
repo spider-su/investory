@@ -4,10 +4,12 @@ import com.smartbox.investory.investment.imports.BrokerType;
 import jakarta.persistence.*;
 import java.time.ZonedDateTime;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 @Data
+@NoArgsConstructor
 @Entity
 @Table(name = "import_source_rows")
 public class ImportSourceRowEntity {
@@ -42,6 +44,10 @@ public class ImportSourceRowEntity {
 
   @Column(name = "source_row_occurrence", nullable = false)
   private Integer sourceRowOccurrence = 1;
+
+  /** Stable logical identity shared by the same broker row in overlapping files. */
+  @Column(name = "logical_row_sha256", length = 64)
+  private String logicalRowSha256;
 
   @Column(name = "raw_text")
   private String rawText;

@@ -5,13 +5,14 @@ import com.smartbox.investory.longterm.api.model.LongTermAssetType;
 import com.smartbox.investory.longterm.api.model.RentalContractModel;
 import com.smartbox.investory.longterm.api.model.RentalContractProjectionModel;
 import com.smartbox.investory.longterm.application.model.LongTermAssetProjectionInput;
-import com.smartbox.investory.longterm.infrastructure.asset.*;
+import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetEntity;
 import com.smartbox.investory.longterm.infrastructure.bond.*;
 import com.smartbox.investory.longterm.infrastructure.deposit.*;
 import com.smartbox.investory.longterm.infrastructure.lifecycle.*;
 import com.smartbox.investory.longterm.infrastructure.rental.*;
 import com.smartbox.investory.longterm.infrastructure.tax.*;
 import com.smartbox.investory.longterm.infrastructure.valuation.*;
+import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
@@ -22,22 +23,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional(readOnly = true)
 public class LongTermAssetProjectionQueryService {
-  public static final BigDecimal REAL_ESTATE_TAX_RATE = new BigDecimal("0.085");
-  public static final BigDecimal BOND_TAX_RATE = new BigDecimal("0.19");
-  private final LongTermAssetRepository assets;
-  private final LongTermAssetRelatedDataLoader relatedData;
-  private final LongTermAssetLifecycleService lifecycle;
+  private final LongTermAssetPopulationLoader population;
 
-  @Value("${app.history-start:2025-01-01}")
-  private LocalDate historyStart = LocalDate.of(2025, 1, 1);
+  @Value("${app.history-start:" + FinancialPolicyDefaults.HISTORY_START_TEXT + "}")
+  private LocalDate historyStart = FinancialPolicyDefaults.HISTORY_START;
 
-  public LongTermAssetProjectionQueryService(
-      LongTermAssetRepository assets,
-      LongTermAssetLifecycleService lifecycle,
-      LongTermAssetRelatedDataLoader relatedData) {
-    this.assets = assets;
-    this.lifecycle = lifecycle;
-    this.relatedData = relatedData;
+  public LongTermAssetProjectionQueryService(LongTermAssetPopulationLoader population) {
+    this.population = population;
   }
 
   /** Builds native-domain projection data; the public reader normalizes its money to USD. */
@@ -49,17 +41,12 @@ public class LongTermAssetProjectionQueryService {
 
   Snapshot snapshot(Long portfolioId, LocalDate policyDate) {
     LocalDate effectivePolicyDate = effectiveDate(policyDate);
-    List<LongTermAssetEntity> assetRows =
-        assets.findAllByPortfolioIdAndActiveTrueOrderByName(portfolioId);
+    List<LongTermAssetEntity> assetRows = population.activeAt(portfolioId, effectivePolicyDate);
     if (assetRows.isEmpty())
       return new Snapshot(assetRows, LongTermAssetRelatedDataLoader.Data.empty(), List.of());
     LongTermAssetRelatedDataLoader.Data data =
-        relatedData.load(
-            portfolioId,
-            assetRows.stream().map(LongTermAssetEntity::getId).toList(),
-            effectivePolicyDate);
-    return new Snapshot(
-        assetRows, data, projectionInputsAt(assetRows, data, effectivePolicyDate, true));
+        population.relatedData(portfolioId, assetRows, effectivePolicyDate);
+    return new Snapshot(assetRows, data, projectionInputsAt(assetRows, data, effectivePolicyDate));
   }
 
   record Snapshot(
@@ -68,27 +55,11 @@ public class LongTermAssetProjectionQueryService {
       List<LongTermAssetProjectionInput> inputs) {}
 
   private List<LongTermAssetProjectionInput> projectionInputsAt(
-      Long portfolioId, LocalDate policyDate, boolean activeOnly) {
-    LocalDate effectivePolicyDate = effectiveDate(policyDate);
-    List<LongTermAssetEntity> assetRows =
-        activeOnly
-            ? assets.findAllByPortfolioIdAndActiveTrueOrderByName(portfolioId)
-            : assets.findAllByPortfolioIdOrderByName(portfolioId);
-    List<Long> assetIds = assetRows.stream().map(LongTermAssetEntity::getId).toList();
-    if (assetIds.isEmpty()) return List.of();
-    LongTermAssetRelatedDataLoader.Data data =
-        relatedData.load(portfolioId, assetIds, effectivePolicyDate);
-    return projectionInputsAt(assetRows, data, effectivePolicyDate, activeOnly);
-  }
-
-  private List<LongTermAssetProjectionInput> projectionInputsAt(
       List<LongTermAssetEntity> assetRows,
       LongTermAssetRelatedDataLoader.Data data,
-      LocalDate effectivePolicyDate,
-      boolean activeOnly) {
+      LocalDate effectivePolicyDate) {
     List<LongTermAssetProjectionInput> result = new ArrayList<>();
     for (LongTermAssetEntity asset : assetRows) {
-      if (!activeOnly && !activeOn(asset, effectivePolicyDate)) continue;
       List<LongTermAssetProjectionInput.Period> periods = new ArrayList<>();
       List<RentalContractProjectionModel> contracts =
           data.contracts().getOrDefault(asset.getId(), List.of()).stream()
@@ -145,7 +116,7 @@ public class LongTermAssetProjectionQueryService {
           maturity = d.getMaturityDate();
           redemption = d.getRedemptionValue();
           treatment = d.getInterestTreatment();
-          tax = d.getTaxRate() == null ? BOND_TAX_RATE : d.getTaxRate();
+          tax = LongTermAssetPolicyRules.bondTaxRate(d.getTaxRate());
         }
       } else if (asset.getType() == LongTermAssetType.DEPOSIT) {
         LongTermAssetDepositDetailsEntity d = data.deposits().get(asset.getId());
@@ -188,9 +159,5 @@ public class LongTermAssetProjectionQueryService {
   private LocalDate effectiveDate(LocalDate date) {
     if (date == null) throw new IllegalArgumentException("date must not be null");
     return date.isBefore(historyStart) ? historyStart : date;
-  }
-
-  private boolean activeOn(LongTermAssetEntity asset, LocalDate date) {
-    return lifecycle.activeOn(asset, date);
   }
 }

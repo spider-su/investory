@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Objects;
 
 /** Period navigation preserves an actual account subset, never an empty submitted selection. */
-public record DashboardNavigationView(List<Long> accountIds) {
+public record DashboardNavigationView(Long portfolioId, List<Long> accountIds) {
 
   public DashboardNavigationView {
     accountIds =
@@ -20,7 +20,11 @@ public record DashboardNavigationView(List<Long> accountIds) {
   }
 
   public String periodUrl(DashboardPeriod period) {
-    StringBuilder url = new StringBuilder("/dashboard?period=").append(period.urlValue());
+    StringBuilder url =
+        new StringBuilder("/dashboard?period=")
+            .append(period.urlValue())
+            .append("&portfolioId=")
+            .append(portfolioId);
     if (accountIds.isEmpty()) {
       return url.toString();
     }

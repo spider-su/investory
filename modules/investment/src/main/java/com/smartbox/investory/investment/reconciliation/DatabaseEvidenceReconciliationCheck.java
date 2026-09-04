@@ -24,7 +24,8 @@ final class DatabaseEvidenceReconciliationCheck {
     @Override
     public ReconciliationCheckResult execute(ReconciliationContext context) {
       List<EvidenceRow> rows =
-          jdbcTemplate.query(query(checkpoint), QueryCheck::mapRow, DETAIL_LIMIT);
+          jdbcTemplate.query(
+              query(checkpoint, context.portfolioId()), QueryCheck::mapRow, DETAIL_LIMIT);
       long issueCount = rows.isEmpty() ? 0 : rows.getFirst().issueCount();
       long failureCount = rows.isEmpty() ? 0 : rows.getFirst().failureCount();
       long reviewCount = rows.isEmpty() ? 0 : rows.getFirst().reviewCount();
@@ -85,16 +86,16 @@ final class DatabaseEvidenceReconciliationCheck {
 
     private static String evidenceSource(ReconciliationCheckpoint checkpoint) {
       return switch (checkpoint) {
-        case C0 -> "reporting_import_provenance_issues + latest import attempts";
+        case C0 -> "recon_v_import_provenance_issues + latest import attempts";
         case C1 -> "account_daily + normalized_cash_operations (full precision)";
-        case C2 -> "reporting_position_lot_duplicates";
-        case C5 -> "v_reporting_validation_summary";
-        case C6 -> "v_portfolio_service_fallback_reconciliation";
+        case C2 -> "recon_v_position_lot_duplicates";
+        case C5 -> "recon_v_reporting_validation_summary";
+        case C6 -> "recon_v_portfolio_service_fallback";
         default -> checkpoint.displayName();
       };
     }
 
-    private static String query(ReconciliationCheckpoint checkpoint) {
+    private static String query(ReconciliationCheckpoint checkpoint, Long portfolioId) {
       String evidence =
           switch (checkpoint) {
             case C0 -> C0_EVIDENCE;
@@ -104,6 +105,28 @@ final class DatabaseEvidenceReconciliationCheck {
             case C6 -> C6_EVIDENCE;
             default -> EMPTY_EVIDENCE;
           };
+      String scopedEvidence = evidence;
+      if (portfolioId != null) {
+        scopedEvidence =
+            evidence
+                .replace(
+                    "FROM investory.recon_v_account_daily_cashflow_full_precision r",
+                    "FROM investory.recon_v_account_daily_cashflow_full_precision r JOIN investory.accounts scoped_account ON scoped_account.id = r.account_id AND scoped_account.portfolio_id = "
+                        + portfolioId)
+                .replace(
+                    "FROM investory.recon_v_position_lot_duplicates r",
+                    "FROM investory.recon_v_position_lot_duplicates r JOIN investory.accounts scoped_account ON scoped_account.id = r.account_id AND scoped_account.portfolio_id = "
+                        + portfolioId)
+                .replace(
+                    "FROM investory.recon_v_reporting_validation_summary r",
+                    "FROM investory.recon_v_reporting_validation_summary r JOIN investory.accounts scoped_account ON scoped_account.id = r.account_id AND scoped_account.portfolio_id = "
+                        + portfolioId)
+                .replace(
+                    "WHERE r.fallback_reconciliation_status <> 'MATCH'",
+                    "WHERE r.portfolio_id = "
+                        + portfolioId
+                        + " AND r.fallback_reconciliation_status <> 'MATCH'");
+      }
       return """
       WITH evidence AS (
       %s
@@ -118,7 +141,7 @@ final class DatabaseEvidenceReconciliationCheck {
       ORDER BY CASE issue_status WHEN 'FAIL' THEN 0 ELSE 1 END, location, check_code
       LIMIT ?
       """
-          .formatted(evidence);
+          .formatted(scopedEvidence);
     }
   }
 
@@ -139,7 +162,7 @@ final class DatabaseEvidenceReconciliationCheck {
              'importHistoryId=' || COALESCE(import_history_id::text, 'none')
                || ', sourceRowId=' || COALESCE(import_source_row_id::text, 'none') AS details,
              'Inspect import provenance and source identity.'::text AS suggested_action
-      FROM investory.reporting_import_provenance_issues
+      FROM investory.recon_v_import_provenance_issues
       UNION ALL
       SELECT 'FAIL',
              'IMPORT_NOT_COMPLETED',
@@ -203,7 +226,7 @@ final class DatabaseEvidenceReconciliationCheck {
                     || ', fees=' || COALESCE(r.fees_gap::text, 'n/a')
                     || ', taxes=' || COALESCE(r.taxes_gap::text, 'n/a') AS details,
              'Inspect normalized cash operations and account_daily flow reconstruction.'::text AS suggested_action
-           FROM investory.reconciliation_account_daily_cashflow_full_precision r
+           FROM investory.recon_v_account_daily_cashflow_full_precision r
        JOIN investory.accounts account ON account.id = r.account_id
        WHERE NOT COALESCE(r.is_complete, false)
               OR (r.account_currency = r.ledger_base_currency
@@ -227,7 +250,7 @@ final class DatabaseEvidenceReconciliationCheck {
              'Multiple position rows share the same canonical lot identity'::text AS cause,
              'positionIds=' || r.position_ids::text AS details,
              'Inspect source identity and duplicate-import handling.'::text AS suggested_action
-      FROM investory.reporting_position_lot_duplicates r
+      FROM investory.recon_v_position_lot_duplicates r
       JOIN investory.accounts account ON account.id = r.account_id
       JOIN investory.assets asset ON asset.id = r.asset_id
       """;
@@ -245,7 +268,7 @@ final class DatabaseEvidenceReconciliationCheck {
              'missingPrices=' || r.missing_prices || ', missingFx=' || r.missing_fx_rates
                || ', reconciliationFailures=' || r.reconciliation_failures AS details,
              'Inspect reporting validation and lower-level valuation evidence.'::text AS suggested_action
-      FROM investory.v_reporting_validation_summary r
+      FROM investory.recon_v_reporting_validation_summary r
       JOIN investory.accounts account ON account.id = r.account_id
       WHERE r.status IN ('FAIL', 'WARN')
       """;
@@ -264,7 +287,7 @@ final class DatabaseEvidenceReconciliationCheck {
                || ', interestDifference=' || COALESCE(r.interest_difference::text, 'n/a')
                || ', missingFx=' || r.missing_fx_count AS details,
              'Use canonical reporting and inspect fallback consumers.'::text AS suggested_action
-      FROM investory.v_portfolio_service_fallback_reconciliation r
+      FROM investory.recon_v_portfolio_service_fallback r
       WHERE r.fallback_reconciliation_status <> 'MATCH'
       """;
 

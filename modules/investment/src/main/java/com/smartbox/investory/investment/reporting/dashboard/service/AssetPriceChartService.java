@@ -19,7 +19,11 @@ public class AssetPriceChartService {
   private final AssetRepository assetRepository;
   private final AssetPriceChartRepository assetPriceChartRepository;
 
-  public List<AssetPricePointView> findBySymbol(String rawSymbol, DashboardPeriod period) {
+  public List<AssetPricePointView> findBySymbol(
+      Long portfolioId, String rawSymbol, DashboardPeriod period) {
+    if (portfolioId == null || portfolioId <= 0) {
+      throw new IllegalArgumentException("portfolioId must be positive");
+    }
     String symbol = normalize(rawSymbol);
     AssetEntity asset =
         assetRepository

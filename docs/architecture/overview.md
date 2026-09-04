@@ -194,13 +194,14 @@ Imports remain the write boundary for broker evidence and normalized ledger rows
 
 Profile composition lives in the downstream `profile` module. `ProfileSummaryReader` and
 `ProfilePlanningReader` expose separate immutable, Profile-owned whole-wealth summary and planning
-models. `ProfileReader` remains a deprecated compatibility aggregate for existing Retirement
-callers, while
-`ProfileQueryService` reads Investment and Long-Term only through public APIs. Profile may reuse
+models. Consumers that need the complete planning context compose the two narrow readers through
+`ProfileComposition`, while
+`ProfileQueryService` reads Investment and Long-Term only through public APIs. `ProfileComposition`
+is a convenience composition of two independent reads and does not guarantee one database
+snapshot. Retirement uses the `ProfileSnapshotReader` boundary for a repeatable-read profile
+snapshot. Profile may reuse
 small, stable Long-Term public value types in `profile.api`; it still never exposes Long-Term
 entities, repositories, or infrastructure types.
-`ProfileReader` remains the compatibility aggregate for callers that need the complete planning
-context.
 `LongTermAssetProfileReader` returns one coherent source snapshot and reuses its summary rows for
 totals, allocation, and annual-income facts. Detailed projection inputs remain a separate batched
 read. Profile's REST adapter maps the internal aggregate to an explicit external response and
@@ -262,9 +263,11 @@ The normalized inputs form an anti-corruption boundary. Simulation operates on t
 semantics and does not reproduce formulas owned by Investment or Long-Term.
 
 `shared.currency.CurrencyType` and `shared.currency.CurrencyConversion` now provide the shared FX
-boundary. `CurrencyRateService` implements the BigDecimal conversion contract; its rate resolution,
-persistence, cache, and double compatibility APIs remain Investment implementation details. Long-Term
-and Retirement consumers use the shared contract.
+boundary. `CurrencyRateService` implements the BigDecimal conversion contract; it reads canonical
+valuation resolutions through `CurrencyRateRepository`, caches valuation matrices by date, persists FX
+observations explicitly, and fails closed for unusable statuses. Its persistence, cache, and double
+compatibility APIs remain Investment implementation details. Long-Term and Retirement consumers use
+the shared contract.
 
 `ui.presentation.UiPresentation` is a Web UI helper and accepts only public API models. Long-Term
 uses only the shared financial presentation primitive; no PlanningPresentation exception or

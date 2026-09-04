@@ -59,14 +59,17 @@ public class PortfolioContextService {
   private final BrokeragePortfolioReader portfolios;
   private final boolean enabled;
   private final int maxCharacters;
+  private final Long portfolioId;
 
   public PortfolioContextService(
       BrokeragePortfolioReader portfolios,
       @Value("${app.openai.portfolio-context.enabled:true}") boolean enabled,
-      @Value("${app.openai.portfolio-context.max-characters:16000}") int maxCharacters) {
+      @Value("${app.openai.portfolio-context.max-characters:16000}") int maxCharacters,
+      @Value("${app.openai.portfolio-context.portfolio-id:}") String portfolioId) {
     this.portfolios = portfolios;
     this.enabled = enabled;
     this.maxCharacters = Math.max(1000, maxCharacters);
+    this.portfolioId = parsePortfolioId(portfolioId);
   }
 
   public String loadIfRelevant(String userMessage) {
@@ -82,12 +85,27 @@ public class PortfolioContextService {
     }
 
     try {
-      String context = format(portfolios.currentSharedSnapshot());
+      if (portfolioId == null) {
+        log.warn(
+            "Portfolio context is enabled but app.openai.portfolio-context.portfolio-id is missing");
+        return "";
+      }
+      String context = format(portfolios.currentSnapshot(portfolioId));
       return context.length() <= maxCharacters ? context : context.substring(0, maxCharacters);
     } catch (RuntimeException e) {
       // A failed context lookup must not prevent general AI replies.
       log.warn("Could not load typed Investment context", e);
       return "";
+    }
+  }
+
+  private static Long parsePortfolioId(String value) {
+    if (value == null || value.isBlank()) return null;
+    try {
+      long parsed = Long.parseLong(value);
+      return parsed > 0 ? parsed : null;
+    } catch (NumberFormatException ignored) {
+      return null;
     }
   }
 

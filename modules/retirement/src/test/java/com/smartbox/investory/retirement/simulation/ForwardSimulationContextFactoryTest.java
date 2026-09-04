@@ -185,8 +185,7 @@ class ForwardSimulationContextFactoryTest {
             original.annualEmploymentIncome(),
             original.annualPreRetirementContribution(),
             original.fundingOrder(),
-            original.expenseProfile(),
-            original.projectedIncomePolicy());
+            original.expenseProfile());
 
     SimulationAssumptions rebased =
         factory("2030-06-01T00:00:00Z")

@@ -135,8 +135,9 @@ Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains fut
   current views only until explicit rebaseline.
 - Preserve bond redemption, reconcile rental-tax inheritance in detail views, require complete deposit
   creation, and retain property-tax and insurance terms across rental-contract rollover.
-- Add append-only `V01.019` full-precision C1 reconciliation evidence and `V01.020` rental-subtype
-  enforcement; keep the generated fast-test schema snapshot aligned with the migration chain.
+- Add full-precision C1 reconciliation evidence and rental-subtype enforcement to the squashed
+  `V01.006__reconciliation_views.sql` and `V01.008__long_term_assets.sql` baseline; keep the
+  generated fast-test schema snapshot aligned with the migration chain.
 - Complete the typed Retirement projection REST request/response migration around
   `ProjectionParameters` and keep HTML plan-editor parsing in the Web UI adapter.
 - Require `portfolioId` on Investment performance and account-value REST reads and filter selected

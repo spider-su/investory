@@ -4,7 +4,7 @@ Generated: 2026-08-13
 
 ## Scope and baseline
 
-This investigation covers rows from `investory.v_position_valuation_validation`
+This investigation covers rows from `investory.recon_v_position_valuation_validation`
 that satisfy the existing materiality rule:
 
 ```text
@@ -32,20 +32,20 @@ scale-factor issue was found in the selected valuation input.
 
 ```text
 asset_price_history
-  -> v_canonical_asset_daily_price
-  -> v_normalized_daily_price
-  -> v_reconstructed_position_daily
-  -> v_position_valuation_validation
+  -> app_v_canonical_asset_daily_price
+  -> app_v_normalized_daily_price
+  -> app_v_reconstructed_position_daily
+  -> recon_v_position_valuation_validation
   -> ReconciliationReport / dashboard diagnostics
 ```
 
-`v_normalized_daily_price` computes `selection_priority` from price metadata.
+`app_v_normalized_daily_price` computes `selection_priority` from price metadata.
 It recognizes `price_origin = 'MANUAL'`, but the affected rows use
 `price_origin = 'MANUAL_WEEKLY'` and `quality_class = 'MANUAL_WEEKLY_CLOSE'`.
 They therefore fall through to priority `9` (`unclassified price source`)
 instead of the intended manual-price priority.
 
-`v_position_valuation_validation` then constructs the previous-price expected
+`recon_v_position_valuation_validation` then constructs the previous-price expected
 value when the dates are consecutive and the source is not one of the already
 classified cases. Its effective formula is:
 
@@ -150,9 +150,9 @@ regression fixture in the next patch.
 The smallest justified next patch is diagnostic-only:
 
 * recognize `MANUAL_WEEKLY` as a manual observed source in
-  `v_normalized_daily_price`;
+  `app_v_normalized_daily_price`;
 * emit an explicit manual-weekly review code in
-  `v_position_valuation_validation`;
+  `recon_v_position_valuation_validation`;
 * preserve selected production price and reconstructed market value;
 * keep the previous-price movement visible as review evidence.
 

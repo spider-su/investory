@@ -19,7 +19,5 @@ public interface LongTermAssetRepository extends JpaRepository<LongTermAssetEnti
   Optional<LongTermAssetEntity> findByPortfolioIdAndExternalKey(
       Long portfolioId, String externalKey);
 
-  List<LongTermAssetEntity> findAllByPortfolioIdAndActiveTrueOrderByName(Long portfolioId);
-
   List<LongTermAssetEntity> findAllByPortfolioIdAndActiveFalseOrderByName(Long portfolioId);
 }

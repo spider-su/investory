@@ -4,8 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
-import com.smartbox.investory.profile.api.ProfileReader;
+import com.smartbox.investory.profile.api.ProfilePlanningReader;
+import com.smartbox.investory.profile.api.ProfileSummaryReader;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.profile.api.model.ProfilePlanning;
+import com.smartbox.investory.profile.api.model.ProfileSummary;
 import com.smartbox.investory.retirement.api.RetirementPlanApi;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.ForwardSimulationContext;
@@ -71,7 +74,8 @@ class RetirementProjectionFacadeTest {
         .thenReturn(new ForwardSimulationInput(context, live, Optional.empty()));
     RetirementProjectionFacade facade =
         new RetirementProjectionFacade(
-            mock(ProfileReader.class),
+            mock(ProfileSummaryReader.class),
+            mock(ProfilePlanningReader.class),
             mock(RetirementPlanApi.class),
             forwardInputs,
             mock(RetirementSimulation.class),
@@ -185,7 +189,8 @@ class RetirementProjectionFacadeTest {
     RetirementSimulation simulations = mock(RetirementSimulation.class);
     RetirementProjectionFacade facade =
         new RetirementProjectionFacade(
-            mock(ProfileReader.class),
+            mock(ProfileSummaryReader.class),
+            mock(ProfilePlanningReader.class),
             mock(RetirementPlanApi.class),
             forwardInputs,
             simulations,
@@ -207,7 +212,8 @@ class RetirementProjectionFacadeTest {
     var liveB = profile(new BigDecimal("900000"), new BigDecimal("900000"));
     var assumptions = SimulationAssumptions.defaults(liveA, 40, 45, 2025);
     var baseline = PlanningBaseline.fromProfile(liveA, 2026);
-    var profiles = mock(ProfileReader.class);
+    var summaries = mock(ProfileSummaryReader.class);
+    var planning = mock(ProfilePlanningReader.class);
     var plans = mock(RetirementPlanApi.class);
     var forwardInputs = mock(ForwardSimulationInputService.class);
     var clock = Clock.fixed(Instant.parse("2026-08-22T00:00:00Z"), ZoneOffset.UTC);
@@ -215,7 +221,12 @@ class RetirementProjectionFacadeTest {
         .thenReturn(
             new com.smartbox.investory.retirement.api.model.PlanDetails(
                 7L, "Saved", assumptions, 1L, null, baseline));
-    when(profiles.loadProfile(1L)).thenReturn(liveA, liveB);
+    when(summaries.loadSummary(1L))
+        .thenReturn(ProfileSummary.from(liveA), ProfileSummary.from(liveB));
+    when(planning.loadPlanning(1L))
+        .thenReturn(
+            new ProfilePlanning(liveA.longTermPlanningState()),
+            new ProfilePlanning(liveB.longTermPlanningState()));
     when(forwardInputs.prepare(any(), eq(assumptions)))
         .thenAnswer(
             invocation -> {
@@ -226,7 +237,7 @@ class RetirementProjectionFacadeTest {
             });
     var facade =
         new RetirementProjectionFacade(
-            profiles, plans, forwardInputs, mock(RetirementSimulation.class), clock);
+            summaries, planning, plans, forwardInputs, mock(RetirementSimulation.class), clock);
 
     RetirementProjectionContext first = facade.load(1L, 7L, 40, 45);
     RetirementProjectionContext second = facade.load(1L, 7L, 40, 45);

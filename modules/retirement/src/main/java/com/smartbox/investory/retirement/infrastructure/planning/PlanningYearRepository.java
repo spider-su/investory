@@ -8,4 +8,7 @@ public interface PlanningYearRepository extends JpaRepository<PlanningYearEntity
   Optional<PlanningYearEntity> findByPortfolioIdAndYear(Long portfolioId, int year);
 
   List<PlanningYearEntity> findAllByPortfolioIdOrderByYearAsc(Long portfolioId);
+
+  List<PlanningYearEntity> findAllByPortfolioIdAndYearLessThanOrderByYearAsc(
+      Long portfolioId, int year);
 }

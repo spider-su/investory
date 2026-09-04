@@ -39,7 +39,7 @@ class ApplicationReconciliationCoverageTest {
             .execute(CONTEXT);
 
     assertThat(result.status()).isEqualTo(ReconciliationStatus.PASS);
-    assertThat(result.evidenceSource()).contains("v_portfolio_service_fallback_reconciliation");
+    assertThat(result.evidenceSource()).contains("recon_v_portfolio_service_fallback");
   }
 
   @DisplayName("c1Uses Effective Tolerances And One Bounded Evidence Query")
@@ -57,7 +57,7 @@ class ApplicationReconciliationCoverageTest {
     verify(jdbc).query(sql.capture(), org.mockito.ArgumentMatchers.any(RowMapper.class), eq(250));
     assertThat(sql.getValue())
         .contains("reconciliation_values_match")
-        .contains("reconciliation_account_daily_cashflow_full_precision")
+        .contains("recon_v_account_daily_cashflow_full_precision")
         .contains("account_cash_delta")
         .contains("COUNT(*) OVER ()")
         .contains("LIMIT ?");

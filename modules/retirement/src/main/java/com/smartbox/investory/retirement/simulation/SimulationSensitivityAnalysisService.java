@@ -3,6 +3,7 @@ package com.smartbox.investory.retirement.simulation;
 import com.smartbox.investory.profile.api.model.EconomicBucket;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.api.model.FrozenBondCashFlowProjection;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Comparator;
@@ -361,7 +362,7 @@ public class SimulationSensitivityAnalysisService {
   }
 
   private static BigDecimal spending(SimulationAssumptions assumptions) {
-    return assumptions.annualLivingExpenses().add(assumptions.annualDiscretionaryExpenses());
+    return assumptions.annualSpending();
   }
 
   private record Definition(

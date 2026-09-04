@@ -1,10 +1,8 @@
 package com.smartbox.investory.retirement.planning;
 
-import com.smartbox.investory.investment.api.reporting.HistoricalPortfolioActualsReader;
 import com.smartbox.investory.investment.api.reporting.HistoricalPortfolioYear;
 import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
 import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
-import com.smartbox.investory.longterm.api.model.LongTermAssetType;
 import com.smartbox.investory.profile.api.model.*;
 import com.smartbox.investory.profile.api.model.EconomicBucket;
 import com.smartbox.investory.retirement.api.model.*;
@@ -27,37 +25,38 @@ public class PlanningTimelineFacade {
   private static final BigDecimal ZERO = BigDecimal.ZERO;
   private final PlanningYearRepository years;
   private final PlanningYearValueRepository values;
-  private final HistoricalPortfolioActualsReader historicalPortfolio;
-  private final HistoricalLongTermAssetYearSource historicalLongTermAssets;
+  private final PlanningMetricDerivationService metrics;
+
   private final RetirementSimulation simulations;
   private final CurrentYearProjectionBridge projectionBridge;
   private final Clock clock;
   private final ForwardSimulationContextFactory forwardContexts;
   private final LongTermAssetProfileReader currentLongTermAssets;
-  private final PlanningProgressService planningProgress = new PlanningProgressService();
-  private final PlanningYearReviewService planningYearReviews =
-      new PlanningYearReviewService(planningProgress);
+  private final PlanningProgressService planningProgress;
+  private final PlanningYearReviewService planningYearReviews;
 
   @Autowired
   public PlanningTimelineFacade(
       PlanningYearRepository years,
       PlanningYearValueRepository values,
-      HistoricalPortfolioActualsReader historicalPortfolio,
-      HistoricalLongTermAssetYearSource historicalLongTermAssets,
+      PlanningMetricDerivationService metrics,
       RetirementSimulation simulations,
       CurrentYearProjectionBridge projectionBridge,
       Clock clock,
       ForwardSimulationContextFactory forwardContexts,
-      LongTermAssetProfileReader currentLongTermAssets) {
+      LongTermAssetProfileReader currentLongTermAssets,
+      PlanningProgressService planningProgress,
+      PlanningYearReviewService planningYearReviews) {
     this.years = years;
     this.values = values;
-    this.historicalPortfolio = historicalPortfolio;
-    this.historicalLongTermAssets = historicalLongTermAssets;
+    this.metrics = metrics;
     this.simulations = simulations;
     this.projectionBridge = projectionBridge;
     this.clock = clock;
     this.forwardContexts = forwardContexts;
     this.currentLongTermAssets = currentLongTermAssets;
+    this.planningProgress = planningProgress;
+    this.planningYearReviews = planningYearReviews;
   }
 
   /** Application read facade for planning progress and year review composition. */
@@ -79,27 +78,6 @@ public class PlanningTimelineFacade {
     return planningYearReviews.review(year);
   }
 
-  public PlanningTimelineFacade(
-      PlanningYearRepository years,
-      PlanningYearValueRepository values,
-      HistoricalPortfolioActualsReader historicalPortfolio,
-      HistoricalLongTermAssetYearSource historicalLongTermAssets,
-      RetirementSimulation simulations,
-      CurrentYearProjectionBridge projectionBridge,
-      Clock clock,
-      ForwardSimulationContextFactory forwardContexts) {
-    this(
-        years,
-        values,
-        historicalPortfolio,
-        historicalLongTermAssets,
-        simulations,
-        projectionBridge,
-        clock,
-        forwardContexts,
-        null);
-  }
-
   @Transactional
   public PastPlanningYear createHistoricalDraft(Long portfolioId, int year) {
     if (year >= activeCurrentYear(portfolioId))
@@ -111,8 +89,8 @@ public class PlanningTimelineFacade {
         .findAllByPlanningYearIdAndValueKind(planningYear.getId(), PlanningValueKind.ACTUAL)
         .isEmpty()) {
       Map<PlanningMetric, PlanningMetricValue> derived = new EnumMap<>(PlanningMetric.class);
-      derived.putAll(deriveHistoricalMarket(portfolioId, year));
-      derived.putAll(deriveHistoricalLongTermAssets(portfolioId, year));
+      derived.putAll(metrics.historicalMarket(portfolioId, year));
+      derived.putAll(metrics.historicalLongTermAssets(portfolioId, year));
       for (PlanningMetric metric :
           List.of(
               PlanningMetric.NET_WORTH,
@@ -197,11 +175,11 @@ public class PlanningTimelineFacade {
     PlanningYearEntity planningYear = year(portfolioId, year);
     if (planningYear.getStatus() == PlanningYearStatus.CLOSED)
       throw new IllegalStateException("Closed planning year cannot refresh accounting values");
-    HistoricalPortfolioYear source = historicalPortfolio.read(portfolioId, year);
+    HistoricalPortfolioYear source = metrics.historicalPortfolio(portfolioId, year);
     Map<PlanningMetric, PlanningMetricValue> refreshed = new EnumMap<>(PlanningMetric.class);
     refreshed.putAll(
         source.complete()
-            ? deriveHistoricalMarket(portfolioId, year)
+            ? metrics.historicalMarket(portfolioId, year)
             : List.of(
                     PlanningMetric.MARKET_ASSETS,
                     PlanningMetric.MARKET_INCOME,
@@ -214,7 +192,7 @@ public class PlanningTimelineFacade {
                         metric -> unavailable(metric),
                         (left, right) -> left,
                         () -> new EnumMap<>(PlanningMetric.class))));
-    refreshed.putAll(deriveHistoricalLongTermAssets(portfolioId, year));
+    refreshed.putAll(metrics.historicalLongTermAssets(portfolioId, year));
     refreshed.forEach(
         (metric, derived) -> {
           PlanningYearValueEntity existing =
@@ -243,9 +221,8 @@ public class PlanningTimelineFacade {
   @Transactional(readOnly = true)
   public List<Integer> historicalYears(Long portfolioId) {
     int current = activeCurrentYear(portfolioId);
-    return years.findAllByPortfolioIdOrderByYearAsc(portfolioId).stream()
+    return years.findAllByPortfolioIdAndYearLessThanOrderByYearAsc(portfolioId, current).stream()
         .map(PlanningYearEntity::getYear)
-        .filter(year -> year < current)
         .toList();
   }
 
@@ -333,7 +310,7 @@ public class PlanningTimelineFacade {
       ensureClosedTimestamp(planningYear);
       return past(planningYear);
     }
-    Map<PlanningMetric, PlanningMetricValue> live = currentActual(profile);
+    Map<PlanningMetric, PlanningMetricValue> live = metrics.currentActual(profile);
     live.forEach(
         (metric, value) -> {
           PlanningYearValueEntity stored =
@@ -377,45 +354,6 @@ public class PlanningTimelineFacade {
     return past(planningYear);
   }
 
-  @Transactional(readOnly = true)
-  @Deprecated
-  public PlanningTimeline loadTimeline(
-      Long portfolioId, InvestmentProfile profile, SimulationAssumptions assumptions) {
-    int current = activeCurrentYear(portfolioId);
-    List<PlanningTimelineYear> result = new ArrayList<>();
-    years.findAllByPortfolioIdOrderByYearAsc(portfolioId).stream()
-        .filter(year -> year.getYear() < current)
-        .forEach(
-            year ->
-                result.add(
-                    new PlanningTimelineYear(
-                        year.getYear(),
-                        age(assumptions, year.getYear()),
-                        state(year),
-                        past(year),
-                        null,
-                        null)));
-    result.add(
-        new PlanningTimelineYear(
-            current,
-            age(assumptions, current),
-            PlanningTimelineState.LIVE,
-            null,
-            currentForTimeline(portfolioId, current, profile, assumptions, null),
-            null));
-    for (SimulationYear projection : future(profile, assumptions, current)) {
-      result.add(
-          new PlanningTimelineYear(
-              projection.year(),
-              projection.age(),
-              PlanningTimelineState.PROJECTED,
-              null,
-              null,
-              projection));
-    }
-    return new PlanningTimeline(result);
-  }
-
   /** Uses the request's already-prepared forward boundary and does not bridge it again. */
   @Transactional(readOnly = true)
   public PlanningTimeline loadForwardTimeline(
@@ -429,18 +367,6 @@ public class PlanningTimelineFacade {
       InvestmentProfile profile,
       ForwardSimulationInput forward,
       SimulationScenario scenario) {
-    return loadForwardTimeline(
-        portfolioId, profile, forward, scenario, SimulationCustomDeltas.zero());
-  }
-
-  /** Uses the same transient scenario overlay as the request's selected simulation. */
-  @Transactional(readOnly = true)
-  public PlanningTimeline loadForwardTimeline(
-      Long portfolioId,
-      InvestmentProfile profile,
-      ForwardSimulationInput forward,
-      SimulationScenario scenario,
-      SimulationCustomDeltas customDeltas) {
     int current = activeCurrentYear(portfolioId);
     List<PlanningTimelineYear> result = new ArrayList<>();
     int planStartYear = forward.context().originalStartYear();
@@ -469,7 +395,7 @@ public class PlanningTimelineFacade {
                 forward.currentYearBridge()),
             null));
     if (forward.forwardAssumptions().isPresent())
-      for (SimulationYear projection : future(forward, current, scenario, customDeltas))
+      for (SimulationYear projection : future(forward, current, scenario))
         result.add(
             new PlanningTimelineYear(
                 projection.year(),
@@ -501,7 +427,7 @@ public class PlanningTimelineFacade {
   public CurrentPlanningYear current(Long portfolioId, int year, InvestmentProfile profile) {
     PlanningYearEntity planningYear =
         years.findByPortfolioIdAndYear(portfolioId, year).orElse(null);
-    Map<PlanningMetric, PlanningMetricValue> live = currentActual(profile);
+    Map<PlanningMetric, PlanningMetricValue> live = metrics.currentActual(profile);
     if (planningYear == null) return new CurrentPlanningYear(year, null, null, live, Map.of());
     Map<PlanningMetric, PlanningMetricValue> manual = actualValues(planningYear);
     manual.forEach(
@@ -556,24 +482,14 @@ public class PlanningTimelineFacade {
   }
 
   private List<SimulationYear> future(
-      ForwardSimulationInput forward,
-      int current,
-      SimulationScenario scenario,
-      SimulationCustomDeltas customDeltas) {
+      ForwardSimulationInput forward, int current, SimulationScenario scenario) {
     if (forward.forwardAssumptions().isEmpty()) return List.of();
     SimulationResult result =
-        customDeltas == null || customDeltas.isZero()
-            ? simulations.simulate(
-                forward.bridgedProfile(),
-                forward.forwardAssumptions().orElseThrow(),
-                scenario,
-                forward.context().asOfYear())
-            : simulations.simulate(
-                forward.bridgedProfile(),
-                forward.forwardAssumptions().orElseThrow(),
-                scenario,
-                forward.context().asOfYear(),
-                customDeltas);
+        simulations.simulate(
+            forward.bridgedProfile(),
+            forward.forwardAssumptions().orElseThrow(),
+            scenario,
+            forward.context().asOfYear());
     return result.years();
   }
 
@@ -594,158 +510,6 @@ public class PlanningTimelineFacade {
                 offset))
         .expenseProfile(assumptions.expenseProfile().rebasedAt(offset))
         .build();
-  }
-
-  private Map<PlanningMetric, PlanningMetricValue> deriveHistoricalMarket(
-      Long portfolioId, int year) {
-    HistoricalPortfolioYear source = historicalPortfolio.read(portfolioId, year);
-    if (!source.complete()) return Map.of();
-    Map<PlanningMetric, PlanningMetricValue> result = new EnumMap<>(PlanningMetric.class);
-    result.put(
-        PlanningMetric.MARKET_ASSETS,
-        derived(
-            PlanningMetric.MARKET_ASSETS,
-            source.endMarketAssets(),
-            PlanningValueSource.ACCOUNTING_DERIVED));
-    result.put(
-        PlanningMetric.MARKET_INCOME,
-        derived(
-            PlanningMetric.MARKET_INCOME,
-            source.marketIncome(),
-            PlanningValueSource.ACCOUNTING_DERIVED));
-    result.put(
-        PlanningMetric.MARKET_WITHDRAWAL,
-        derived(
-            PlanningMetric.MARKET_WITHDRAWAL,
-            source.netWithdrawal(),
-            PlanningValueSource.ACCOUNTING_DERIVED));
-    if (source.marketReturn() != null)
-      result.put(
-          PlanningMetric.MARKET_RETURN,
-          derived(
-              PlanningMetric.MARKET_RETURN,
-              source.marketReturn(),
-              PlanningValueSource.ACCOUNTING_DERIVED));
-    return result;
-  }
-
-  private Map<PlanningMetric, PlanningMetricValue> deriveHistoricalLongTermAssets(
-      Long portfolioId, int year) {
-    if (historicalLongTermAssets == null) return Map.of();
-    HistoricalLongTermAssetYearSource.HistoricalLongTermAssetYear source =
-        historicalLongTermAssets.read(portfolioId, year);
-    Map<PlanningMetric, PlanningMetricValue> result = new EnumMap<>(PlanningMetric.class);
-    putHistoricalLongTerm(
-        result,
-        PlanningMetric.RENTAL_INCOME,
-        source.rentalIncomeAvailable(),
-        source.rentalIncome());
-    putHistoricalLongTerm(
-        result,
-        PlanningMetric.REAL_ESTATE,
-        source.realEstateValueAvailable(),
-        source.realEstateValue());
-    putHistoricalLongTerm(
-        result, PlanningMetric.BOND_VALUE, source.bondValueAvailable(), source.bondValue());
-    putHistoricalLongTerm(
-        result, PlanningMetric.BOND_INCOME, source.bondIncomeAvailable(), source.bondIncome());
-    putHistoricalLongTerm(
-        result,
-        PlanningMetric.CASH_RESERVE_VALUE,
-        source.cashReserveValueAvailable(),
-        source.cashReserveValue());
-    return result;
-  }
-
-  private static void putHistoricalLongTerm(
-      Map<PlanningMetric, PlanningMetricValue> result,
-      PlanningMetric metric,
-      boolean available,
-      BigDecimal value) {
-    result.put(
-        metric,
-        available
-            ? derived(metric, value, PlanningValueSource.LONG_TERM_DERIVED)
-            : unavailable(metric));
-  }
-
-  private Map<PlanningMetric, PlanningMetricValue> currentActual(InvestmentProfile profile) {
-    Map<EconomicBucket, BigDecimal> allocation = new EnumMap<>(EconomicBucket.class);
-    profile
-        .allocations()
-        .forEach(value -> allocation.merge(value.bucket(), value.value(), BigDecimal::add));
-    BigDecimal manualReserve =
-        profile.longTermPlanningState().assets().stream()
-            .filter(asset -> asset.type() == LongTermAssetType.CASH_RESERVE)
-            .map(ProjectedLongTermAsset::currentValue)
-            .reduce(ZERO, BigDecimal::add);
-    BigDecimal locked =
-        profile.longTermPlanningState().assets().stream()
-            .filter(
-                asset ->
-                    asset.type() == LongTermAssetType.BOND
-                        || asset.type() == LongTermAssetType.DEPOSIT)
-            .map(ProjectedLongTermAsset::currentValue)
-            .reduce(ZERO, BigDecimal::add);
-    BigDecimal fixed =
-        allocation
-            .getOrDefault(EconomicBucket.FIXED_INCOME, ZERO)
-            .subtract(
-                profile.longTermPlanningState().assets().stream()
-                    .filter(asset -> asset.type() == LongTermAssetType.BOND)
-                    .map(ProjectedLongTermAsset::currentValue)
-                    .reduce(ZERO, BigDecimal::add))
-            .max(ZERO);
-    BigDecimal safeReserve =
-        allocation
-            .getOrDefault(EconomicBucket.LIQUID_CASH, ZERO)
-            .add(allocation.getOrDefault(EconomicBucket.FIXED_INCOME, ZERO))
-            .subtract(locked)
-            .max(ZERO);
-    Map<PlanningMetric, PlanningMetricValue> result = new EnumMap<>(PlanningMetric.class);
-    result.put(
-        PlanningMetric.NET_WORTH,
-        derived(
-            PlanningMetric.NET_WORTH,
-            profile.totalNetWorth(),
-            PlanningValueSource.PORTFOLIO_DERIVED));
-    result.put(
-        PlanningMetric.MARKET_ASSETS,
-        derived(
-            PlanningMetric.MARKET_ASSETS,
-            profile.marketPortfolioValue(),
-            PlanningValueSource.PORTFOLIO_DERIVED));
-    result.put(
-        PlanningMetric.SAFE_RESERVE,
-        derived(PlanningMetric.SAFE_RESERVE, safeReserve, PlanningValueSource.PORTFOLIO_DERIVED));
-    result.put(
-        PlanningMetric.CASH_RESERVE_VALUE,
-        derived(
-            PlanningMetric.CASH_RESERVE_VALUE,
-            profile.retirementReserve(),
-            PlanningValueSource.PORTFOLIO_DERIVED));
-    result.put(
-        PlanningMetric.MANUAL_LIQUID_RESERVE,
-        derived(
-            PlanningMetric.MANUAL_LIQUID_RESERVE,
-            manualReserve,
-            PlanningValueSource.LONG_TERM_DERIVED));
-    result.put(
-        PlanningMetric.FIXED_INCOME,
-        derived(PlanningMetric.FIXED_INCOME, fixed, PlanningValueSource.PORTFOLIO_DERIVED));
-    result.put(
-        PlanningMetric.EQUITY,
-        derived(
-            PlanningMetric.EQUITY,
-            allocation.getOrDefault(EconomicBucket.EQUITY, ZERO),
-            PlanningValueSource.PORTFOLIO_DERIVED));
-    result.put(
-        PlanningMetric.REAL_ESTATE,
-        derived(
-            PlanningMetric.REAL_ESTATE,
-            allocation.getOrDefault(EconomicBucket.REAL_ESTATE, ZERO),
-            PlanningValueSource.LONG_TERM_DERIVED));
-    return result;
   }
 
   private static Map<PlanningMetric, BigDecimal> expectedValues(SimulationYear row) {
@@ -886,8 +650,7 @@ public class PlanningTimelineFacade {
       putCurrentFact(live, PlanningMetric.BOND_VALUE, facts.bondValue());
       putCurrentFact(live, PlanningMetric.BOND_INCOME, facts.bondIncome());
     }
-    BigDecimal costs =
-        assumptions.annualLivingExpenses().add(assumptions.annualDiscretionaryExpenses());
+    BigDecimal costs = assumptions.annualSpending();
     BigDecimal rental = planningAmount(live, PlanningMetric.RENTAL_INCOME);
     BigDecimal bond = planningAmount(live, PlanningMetric.BOND_INCOME);
     int currentAge = ForwardSimulationContextFactory.currentPlanningAge(assumptions, year);

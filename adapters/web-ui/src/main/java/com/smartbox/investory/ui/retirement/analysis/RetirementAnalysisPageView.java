@@ -8,7 +8,6 @@ import com.smartbox.investory.retirement.api.model.SimulationDecisionSummaryMone
 import com.smartbox.investory.retirement.api.model.SimulationScenario;
 import com.smartbox.investory.retirement.api.model.SimulationScenarioComparison;
 import com.smartbox.investory.shared.currency.CurrencyType;
-import com.smartbox.investory.ui.retirement.simulation.CustomScenarioView;
 import java.util.Locale;
 
 /** Focused Analysis-board model. Values come from one completed simulation projection. */
@@ -18,7 +17,6 @@ public record RetirementAnalysisPageView(
     String activePlanName,
     CurrencyType displayCurrency,
     SimulationScenario selectedScenario,
-    CustomScenarioView customScenario,
     boolean analysisAvailable,
     String analysisMessage,
     SimulationDecisionSummaryMoney selectedSummary,

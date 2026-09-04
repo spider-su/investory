@@ -1,7 +1,6 @@
 package com.smartbox.investory.retirement.infrastructure.simulation;
 
 import com.smartbox.investory.retirement.api.model.*;
-import com.smartbox.investory.retirement.api.model.ProjectedIncomePolicy.IncomeMode;
 import com.smartbox.investory.retirement.api.model.SimulationFundingStrategy;
 import java.math.BigDecimal;
 
@@ -50,22 +49,6 @@ public interface PersistedSimulationAssumptions {
   BigDecimal getSpendingGrowthSpread();
 
   void setSpendingGrowthSpread(BigDecimal value);
-
-  IncomeMode getRentalIncomeMode();
-
-  void setRentalIncomeMode(IncomeMode value);
-
-  BigDecimal getManualRentalIncome();
-
-  void setManualRentalIncome(BigDecimal value);
-
-  IncomeMode getBondCashIncomeMode();
-
-  void setBondCashIncomeMode(IncomeMode value);
-
-  BigDecimal getManualBondCashIncome();
-
-  void setManualBondCashIncome(BigDecimal value);
 
   SimulationFundingStrategy getFundingStrategy();
 

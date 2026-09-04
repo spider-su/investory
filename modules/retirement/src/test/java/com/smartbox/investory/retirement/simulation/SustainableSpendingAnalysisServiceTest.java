@@ -185,7 +185,6 @@ class SustainableSpendingAnalysisServiceTest {
         a.annualEmploymentIncome(),
         a.annualPreRetirementContribution(),
         a.fundingOrder(),
-        a.expenseProfile(),
-        a.projectedIncomePolicy());
+        a.expenseProfile());
   }
 }

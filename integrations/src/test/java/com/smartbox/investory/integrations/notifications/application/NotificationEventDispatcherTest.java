@@ -1,12 +1,8 @@
 package com.smartbox.investory.integrations.notifications.application;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 import com.smartbox.investory.integrations.notifications.persistence.NotificationDeliveryState;
 import com.smartbox.investory.integrations.notifications.persistence.NotificationEventEntity;
@@ -15,11 +11,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-@DisplayName("Notification Event Dispatcher")
 class NotificationEventDispatcherTest {
   private static final Instant NOW = Instant.parse("2026-08-25T10:00:00Z");
   private final NotificationEventRepository events =
@@ -28,65 +22,79 @@ class NotificationEventDispatcherTest {
       Mockito.mock(NotificationMessageFormatterRegistry.class);
   private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
 
-  @DisplayName("confirmed Delivery Marks Event Delivered")
   @Test
-  void confirmedDeliveryMarksEventDelivered() {
-    NotificationDeliveryChannel channel = Mockito.mock(NotificationDeliveryChannel.class);
-    NotificationEventEntity event = pending();
-    when(events
-            .findTop50ByDeliveryStateInAndAttemptCountLessThanAndNextAttemptAtLessThanEqualOrderByCreatedAtAsc(
-                any(), anyInt(), any()))
-        .thenReturn(List.of(event));
+  void onlyTheWorkerThatWinsTheAtomicClaimCanDeliver() {
+    var channel = mock(NotificationDeliveryChannel.class);
+    var event = processing();
+    when(events.findDueIds(3, NOW)).thenReturn(List.of(1L));
+    when(events.claim(eq(1L), anyString(), eq(NOW), any(), eq(3))).thenReturn(1, 0);
+    when(events.findById(1L)).thenReturn(java.util.Optional.of(event));
+    when(events.markDelivered(anyLong(), anyString(), any(Instant.class))).thenReturn(1);
     when(formatters.format(event)).thenReturn("message");
-    NotificationEventDispatcher dispatcher =
-        new NotificationEventDispatcher(events, formatters, List.of(channel), clock, 3, 5);
-
-    assertEquals(1, dispatcher.dispatchPending());
-
-    verify(channel).send("message");
-    assertEquals(NotificationDeliveryState.DELIVERED, event.getDeliveryState());
-    assertEquals(NOW, event.getDeliveredAt());
-    assertEquals(1, event.getAttemptCount());
-    assertNull(event.getLastError());
+    assertThat(dispatcher(channel).dispatchPending()).isEqualTo(1);
+    assertThat(dispatcher(channel).dispatchPending()).isZero();
+    verify(channel, times(1)).send("message");
   }
 
-  @DisplayName("failed Delivery Remains Retryable")
   @Test
-  void failedDeliveryRemainsRetryable() {
-    NotificationDeliveryChannel channel = Mockito.mock(NotificationDeliveryChannel.class);
-    NotificationEventEntity event = pending();
-    when(events
-            .findTop50ByDeliveryStateInAndAttemptCountLessThanAndNextAttemptAtLessThanEqualOrderByCreatedAtAsc(
-                any(), anyInt(), any()))
-        .thenReturn(List.of(event));
+  void failedDeliveryBeforeLimitIsScheduledForRetry() {
+    var channel = mock(NotificationDeliveryChannel.class);
+    var event = processing();
+    event.setAttemptCount(1);
+    when(events.findDueIds(3, NOW)).thenReturn(List.of(1L));
+    when(events.claim(eq(1L), anyString(), eq(NOW), any(), eq(3))).thenReturn(1);
+    when(events.findById(1L)).thenReturn(java.util.Optional.of(event));
     when(formatters.format(event)).thenReturn("message");
-    Mockito.doThrow(new IllegalStateException("temporary failure")).when(channel).send("message");
-    NotificationEventDispatcher dispatcher =
-        new NotificationEventDispatcher(events, formatters, List.of(channel), clock, 3, 5);
+    doThrow(new IllegalStateException("temporary")).when(channel).send("message");
 
-    assertEquals(0, dispatcher.dispatchPending());
-
-    assertEquals(NotificationDeliveryState.RETRYABLE, event.getDeliveryState());
-    assertEquals(1, event.getAttemptCount());
-    assertEquals(NOW.plusSeconds(300), event.getNextAttemptAt());
+    assertThat(dispatcher(channel).dispatchPending()).isZero();
+    verify(events)
+        .markFailed(
+            eq(1L), anyString(), eq("RETRYABLE"), eq(NOW.plusSeconds(300)), eq("temporary"));
   }
 
-  @DisplayName("absent Adapter Leaves Pending Events Untouched")
   @Test
-  void absentAdapterLeavesPendingEventsUntouched() {
-    NotificationEventDispatcher dispatcher =
-        new NotificationEventDispatcher(events, formatters, List.of(), clock, 3, 5);
-
-    assertEquals(0, dispatcher.dispatchPending());
-    verify(events, never())
-        .findTop50ByDeliveryStateInAndAttemptCountLessThanAndNextAttemptAtLessThanEqualOrderByCreatedAtAsc(
-            any(), anyInt(), any());
+  void failureBecomesRetryableAndThenExhausted() {
+    var channel = mock(NotificationDeliveryChannel.class);
+    var event = processing();
+    event.setAttemptCount(2);
+    when(events.findDueIds(2, NOW)).thenReturn(List.of(1L));
+    when(events.claim(eq(1L), anyString(), eq(NOW), any(), eq(2))).thenReturn(1);
+    when(events.findById(1L)).thenReturn(java.util.Optional.of(event));
+    when(formatters.format(event)).thenReturn("message");
+    doThrow(new IllegalStateException("down")).when(channel).send("message");
+    assertThat(dispatcher(channel, 2).dispatchPending()).isZero();
+    verify(events)
+        .markFailed(eq(1L), anyString(), eq("EXHAUSTED"), eq(NOW.plusSeconds(600)), eq("down"));
   }
 
-  private static NotificationEventEntity pending() {
-    NotificationEventEntity event = new NotificationEventEntity();
+  @Test
+  void successfulDeliveryMarksDelivered() {
+    var channel = mock(NotificationDeliveryChannel.class);
+    var event = processing();
+    when(events.findDueIds(3, NOW)).thenReturn(List.of(1L));
+    when(events.claim(eq(1L), anyString(), eq(NOW), any(), eq(3))).thenReturn(1);
+    when(events.findById(1L)).thenReturn(java.util.Optional.of(event));
+    when(events.markDelivered(anyLong(), anyString(), any(Instant.class))).thenReturn(1);
+    when(formatters.format(event)).thenReturn("message");
+    assertThat(dispatcher(channel).dispatchPending()).isEqualTo(1);
+    verify(events).markDelivered(eq(1L), anyString(), eq(NOW));
+  }
+
+  private NotificationEventDispatcher dispatcher(NotificationDeliveryChannel channel) {
+    return dispatcher(channel, 3);
+  }
+
+  private NotificationEventDispatcher dispatcher(
+      NotificationDeliveryChannel channel, int attempts) {
+    return new NotificationEventDispatcher(
+        events, formatters, List.of(channel), clock, attempts, 5, 5);
+  }
+
+  private static NotificationEventEntity processing() {
+    var event = new NotificationEventEntity();
     event.setId(1L);
-    event.setDeliveryState(NotificationDeliveryState.PENDING);
+    event.setDeliveryState(NotificationDeliveryState.PROCESSING);
     event.setCreatedAt(NOW);
     event.setNextAttemptAt(NOW);
     return event;

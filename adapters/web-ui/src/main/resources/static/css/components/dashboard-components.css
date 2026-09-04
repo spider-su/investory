@@ -1,0 +1,1187 @@
+/* Reusable dashboard, performance and portfolio-structure feature components. */
+/* Ownership: shared components/features. Load after tokens.css and base.css. */
+
+/* Calm dashboard header refinement. */
+.iv-metric-context {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    min-width: 0;
+    width: 100%;
+    height: 100%;
+    outline: none;
+    cursor: help;
+}
+.iv-metric-context:focus-visible { box-shadow: inset 0 0 0 2px var(--iv-primary-soft); }
+.iv-metric-context__panel {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    z-index: 1300;
+    display: grid;
+    gap: 6px;
+    width: min(270px, calc(100vw - 32px));
+    padding: 12px 14px;
+    transform: translateX(-50%) translateY(-3px);
+    border: 1px solid var(--iv-border);
+    border-radius: 10px;
+    background: var(--iv-surface);
+    color: var(--iv-text);
+    box-shadow: var(--iv-shadow-hover);
+    font-size: .76rem;
+    line-height: 1.35;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .15s ease, transform .15s ease;
+}
+.iv-metric-context:hover .iv-metric-context__panel,
+.iv-metric-context:focus-within .iv-metric-context__panel,
+.iv-metric-context:focus .iv-metric-context__panel {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(-50%) translateY(0);
+}
+.iv-topbar-summary .iv-topbar-metric__value { color: var(--iv-text); }
+.iv-topbar-summary #cash-flows .iv-topbar-metric__value { color: var(--iv-primary); }
+.iv-topbar-summary #investment-gain .iv-topbar-metric__value-row.iv-pos { color: var(--iv-positive-text); }
+.iv-topbar-summary #investment-gain .iv-topbar-metric__value-row.iv-neg { color: var(--iv-negative-text); }
+.iv-topbar-summary #cash-flows.iv-metric-context:hover > .iv-metric-context__panel,
+.iv-topbar-summary #cash-flows.iv-metric-context:focus > .iv-metric-context__panel,
+.iv-topbar-summary #cash-flows.iv-metric-context:focus-within > .iv-metric-context__panel {
+    left: 0;
+    transform: translateY(0);
+}
+.iv-topbar-summary #investment-gain.iv-metric-context:hover > .iv-metric-context__panel,
+.iv-topbar-summary #investment-gain.iv-metric-context:focus > .iv-metric-context__panel,
+.iv-topbar-summary #investment-gain.iv-metric-context:focus-within > .iv-metric-context__panel {
+    left: 50%;
+    transform: translateX(-50%) translateY(0);
+}
+.iv-topbar-summary #balance-cash.iv-metric-context:hover > .iv-metric-context__panel,
+.iv-topbar-summary #balance-cash.iv-metric-context:focus > .iv-metric-context__panel,
+.iv-topbar-summary #balance-cash.iv-metric-context:focus-within > .iv-metric-context__panel {
+    right: 0;
+    left: auto;
+    transform: translateY(0);
+}
+.iv-header-rail__left { gap: 8px; }
+.iv-header-rail__accounts {
+    position: relative;
+    z-index: 1001;
+    flex: 0 0 auto;
+    width: max-content;
+}
+.iv-topbar__secondary .iv-header-rail__accounts,
+.iv-topbar__secondary .iv-data-quality-popover {
+    margin-top: 0;
+}
+.iv-header-rail__accounts > .iv-balance-popover__trigger {
+    display: inline-flex;
+    align-items: center;
+    width: auto;
+    min-height: 36px;
+    padding-inline: 16px;
+    font-size: .76rem;
+    font-weight: 750;
+}
+.iv-header-rail__accounts > .iv-balance-popover__panel {
+    top: calc(100% + 8px);
+    right: auto;
+    left: 0;
+    z-index: 1000;
+    transform: none;
+}
+.iv-header-rail__right {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    min-width: 0;
+}
+.iv-header-rail__right .iv-data-quality-popover {
+    position: relative;
+    z-index: 1001;
+    width: 100%;
+}
+.iv-header-rail__right .iv-data-quality-popover > .iv-balance-popover__panel {
+    top: calc(100% + 8px);
+    right: 0;
+    left: auto;
+    z-index: 1000;
+    width: min(440px, calc(100vw - 32px));
+    transform: none;
+}
+.iv-header-rail__yahoo {
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+    padding: 0 12px;
+    border: 1px solid var(--iv-border);
+    border-radius: 999px;
+    background: var(--iv-surface-muted);
+    color: var(--iv-text-muted);
+    font-size: .78rem;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.iv-header-rail__yahoo:hover,
+.iv-header-rail__yahoo:focus-visible { color: var(--iv-text); border-color: var(--iv-text-soft); }
+.iv-page-nav span,
+.iv-page-nav a { color: var(--iv-text-muted); }
+.iv-page-nav span.is-active,
+.iv-page-nav a.is-active {
+    background: color-mix(in srgb, var(--iv-primary) 14%, transparent);
+    color: var(--iv-primary);
+    border-radius: 999px;
+    box-shadow: none;
+}
+.iv-page-nav span.is-active { cursor: default; }
+.iv-page-nav a:hover,
+.iv-page-nav a:focus-visible { background: var(--iv-primary-soft); color: var(--iv-text); }
+.iv-topbar-action-button { color: var(--iv-text-muted); background: var(--iv-surface-muted); }
+.iv-topbar-quality > .iv-balance-popover__trigger.iv-badge--neg {
+    border-color: color-mix(in srgb, var(--iv-red) 35%, var(--iv-border));
+    background: color-mix(in srgb, var(--iv-red-soft) 65%, var(--iv-surface));
+    color: var(--iv-red);
+}
+.iv-period-nav a.iv-badge--selected { background: var(--iv-primary-soft); color: var(--iv-primary); }
+
+@media (max-width: 1200px) {
+    .iv-topbar__primary,
+    .iv-topbar__secondary {
+        grid-template-columns: 1fr;
+        row-gap: 10px;
+    }
+}
+
+/* Canonical planning-page rhythm and readable data labels. */
+.iv-planning-page > .iv-topbar,
+.iv-planning-page > .card,
+.iv-planning-page > section.card,
+.iv-planning-page .iv-planning-section,
+.iv-planning-page .iv-risk-summary {
+    border-radius: var(--iv-radius);
+}
+.iv-profile-section,
+.iv-planning-section,
+.iv-risk-summary,
+.iv-grid--portfolio-overview { margin-bottom: var(--iv-space-4) !important; }
+.iv-card-section-header__title,
+.iv-planning-section__header h2,
+.iv-planning-summary__item span,
+.iv-planning-summary__item small,
+.iv-profile-structure__metric > span,
+.iv-profile-structure__metric > small,
+.iv-profile-income-card .iv-kpi__label,
+.iv-collapsed-summary__label,
+.iv-planning-section__count,
+.iv-planning-page .table thead th,
+.iv-retirement-surface .iv-card-section-header__title,
+.iv-retirement-surface .iv-retirement-section-kicker,
+.iv-retirement-surface .iv-state-badge {
+    font-size: .75rem;
+}
+.iv-planning-page .text-secondary,
+.iv-retirement-surface .iv-section-note,
+.iv-simulation-chart-help { color: var(--iv-text-muted) !important; }
+
+@media (max-width: 600px) {
+    .iv-profile-structure__grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 700px) {
+    .iv-simulation-spending-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 12px; }
+    .iv-simulation-flexibility-grid { grid-template-columns: 1fr; gap: 18px; }
+    .iv-simulation-flexibility-grid article + article { padding-left: 0; padding-top: 18px; border-left: 0; border-top: 1px solid var(--iv-metric-divider); }
+    .iv-simulation-spending-grid > div:nth-child(3) { border-left: 0; }
+    .iv-simulation-spending-grid > div:nth-child(odd) { padding-left: 0; }
+    .iv-simulation-sensitivity-list article { grid-template-columns: 1fr; }
+    .iv-simulation-timing-grid { grid-template-columns: 1fr; gap: 12px; }
+    .iv-simulation-timing-grid article { padding: 0; }
+    .iv-simulation-timing-grid article + article { padding-top: 12px; border-top: 1px solid var(--iv-metric-divider); border-left: 0; }
+    .iv-simulation-sensitivity-list article > small:last-child { grid-column: auto; }
+}
+
+/* Performance board: compact metrics and one calm control row. */
+.iv-performance-metrics {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0;
+    margin-bottom: 10px;
+    align-items: stretch;
+    justify-content: normal;
+}
+.iv-performance-metrics .iv-benchmark__stat {
+    display: grid;
+    grid-template-rows: auto auto;
+    row-gap: 4px;
+    align-content: center;
+    min-width: 0;
+    text-align: center;
+}
+.iv-performance-metrics .iv-pos { color: var(--iv-positive-text); }
+.iv-performance-metrics .iv-neg { color: var(--iv-negative-text); }
+.iv-performance-metrics .iv-performance-metric--group-start {
+    margin-left: 4px;
+    padding-left: 14px;
+    border-left: 1px solid var(--iv-metric-divider);
+}
+.iv-performance-metric--risk,
+.iv-performance-metric--relative {
+    margin-left: 0;
+}
+.iv-performance-metric--relative {
+    color: var(--iv-text);
+}
+.iv-performance-metrics .iv-benchmark__value {
+    font-size: 1.08rem;
+    color: var(--iv-text);
+}
+.iv-performance-metrics #performance-board-pl,
+.iv-performance-metrics #performance-board-return,
+.iv-performance-metrics #performance-board-spy {
+    color: var(--iv-text);
+}
+.iv-performance-metrics #performance-board-excess.iv-pos {
+    color: var(--iv-positive-text);
+}
+.iv-performance-metrics #performance-board-excess.iv-neg {
+    color: var(--iv-negative-text);
+}
+.iv-performance-toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    width: 100%;
+    margin: 6px 0 6px;
+    gap: 7px;
+}
+.iv-build-info { position: relative; }
+.iv-build-info summary { cursor: help; list-style: none; }
+.iv-build-info summary::-webkit-details-marker { display: none; }
+.iv-build-info summary:hover,
+.iv-build-info summary:focus-visible { color: var(--iv-text-muted); }
+.iv-build-info__panel {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 8px);
+    z-index: 20;
+    display: grid;
+    gap: 3px;
+    min-width: 210px;
+    padding: 9px 11px;
+    border: 1px solid var(--iv-border);
+    border-radius: 8px;
+    background: var(--iv-surface);
+    box-shadow: var(--iv-shadow);
+    color: var(--iv-text-muted);
+    font-size: .72rem;
+}
+.iv-build-info__panel strong { color: var(--iv-text); }
+
+.iv-portfolio-structure {
+    padding: 0 14px 6px;
+    margin-top: 18px;
+    margin-bottom: 0;
+    min-width: 0;
+}
+.iv-portfolio-structure__grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+.iv-portfolio-structure__grid--long-term { grid-template-columns: minmax(0, 1fr); }
+.iv-portfolio-structure__grid > .iv-structure-card + .iv-structure-card,
+.iv-portfolio-structure__grid > .iv-structure-currency + .iv-structure-currency {
+    padding-left: 10px;
+    border-left: 1px solid var(--iv-metric-divider);
+}
+.iv-card-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-width: 0;
+}
+.iv-card-section-header__title {
+    color: var(--iv-primary);
+    font-size: .7rem;
+    font-weight: 800;
+    letter-spacing: .09em;
+    line-height: 1.2;
+    text-transform: uppercase;
+}
+.iv-card-section-header__meta {
+    min-width: 0;
+    color: var(--iv-text-muted);
+    font-size: .78rem;
+    line-height: 1.35;
+    text-align: right;
+}
+.iv-portfolio-structure > .iv-card-section-header {
+    margin: 0 -14px 8px;
+    padding: 7px 14px;
+    border-bottom: 1px solid var(--iv-border);
+}
+.iv-structure-card,
+.iv-structure-currency { position: relative; min-width: 0; }
+.iv-structure-card > summary,
+.iv-structure-currency > summary {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+    min-height: 56px;
+    padding: 5px 8px;
+    border: 1px solid var(--iv-border);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--iv-surface-muted) 52%, transparent);
+    list-style: none;
+    cursor: pointer;
+}
+.iv-structure-card > summary::-webkit-details-marker,
+.iv-structure-currency > summary::-webkit-details-marker { display: none; }
+.iv-structure-card > summary:hover,
+.iv-structure-card > summary:focus-visible,
+.iv-structure-currency > summary:hover,
+.iv-structure-currency > summary:focus-visible { border-color: var(--iv-primary); }
+.iv-structure-card summary > span,
+.iv-structure-currency summary > span {
+    color: var(--iv-text-muted);
+    font-size: .68rem;
+    font-weight: 750;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+.iv-structure-card summary strong {
+    color: var(--iv-text);
+    font-size: 1rem;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+}
+.iv-structure-card summary small,
+.iv-structure-currency summary small { color: var(--iv-text-soft); font-size: .7rem; }
+.iv-structure-card--allocation > summary,
+.iv-structure-currency > summary { gap: 6px; }
+.iv-portfolio-structure--long-term .iv-structure-card--allocation > summary {
+    min-height: 100%;
+}
+.iv-structure-bar {
+    display: flex;
+    width: 100%;
+    height: 10px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--iv-border);
+}
+.iv-structure-bar__segment {
+    min-width: 2px;
+    border-right: 1px solid var(--iv-surface);
+}
+.iv-portfolio-structure--long-term .iv-structure-bar__segment { min-width: 0; }
+.iv-structure-segment--etf { background: var(--iv-asset-etf); }
+.iv-structure-segment--equity { background: var(--iv-asset-equity); }
+.iv-structure-segment--real-estate { background: var(--iv-asset-real-estate); }
+.iv-structure-segment--fixed-income { background: var(--iv-asset-fixed-income); }
+.iv-structure-segment--commodity { background: var(--iv-asset-commodity); }
+.iv-structure-segment--cash { background: var(--iv-asset-cash); }
+.iv-structure-segment--other { background: var(--iv-asset-other); }
+.iv-structure-currency-segment--usd { background: #5577b8; }
+.iv-structure-currency-segment--pln { background: #4f9b96; }
+.iv-structure-currency-segment--eur { background: #a38a54; }
+.iv-structure-currency-segment--gbp { background: #806aa6; }
+.iv-structure-currency-segment--other { background: #687386; }
+.iv-structure-popover {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 25;
+    display: grid;
+    gap: 4px;
+    width: min(300px, calc(100vw - 32px));
+    padding: 9px 11px;
+    border: 1px solid var(--iv-border);
+    border-radius: 8px;
+    background: var(--iv-surface);
+    box-shadow: var(--iv-shadow);
+    color: var(--iv-text-muted);
+    font-size: .74rem;
+}
+.iv-structure-popover strong { color: var(--iv-text); }
+.iv-structure-popover > div { display: flex; justify-content: space-between; gap: 10px; font-variant-numeric: tabular-nums; }
+.iv-structure-popover > div > :last-child { text-align: right; }
+.iv-structure-popover__total { border-top: 1px solid var(--iv-border); margin-top: 4px; padding-top: 4px; font-weight: 700; }
+.iv-structure-currency { margin-top: 6px; }
+.iv-portfolio-structure > .iv-structure-currency { width: 100%; }
+.iv-structure-currency > summary { min-height: 42px; }
+.iv-structure-currency .iv-structure-popover { top: calc(100% + 6px); }
+.iv-structure-currency summary > small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+/* Shared small read-only overlay. Large account and attribution tables keep their own layout. */
+details.iv-compact-popover { position: relative; }
+details.iv-compact-popover[open] { z-index: 1590; }
+details.iv-compact-popover > .iv-compact-popover__panel {
+    --iv-compact-shift-x: 0px;
+    top: calc(100% + 8px);
+    right: 0;
+    bottom: auto;
+    left: auto;
+    z-index: 1600;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    width: min(320px, calc(100vw - 32px));
+    max-height: min(320px, calc(100vh - 32px));
+    padding: 12px;
+    overflow: hidden;
+    transform: translateX(var(--iv-compact-shift-x));
+    border-radius: 10px;
+}
+details.iv-compact-popover.iv-compact-popover--wide > .iv-compact-popover__panel {
+    width: min(360px, calc(100vw - 32px));
+}
+.iv-portfolio-structure details.iv-compact-popover > .iv-compact-popover__panel {
+    width: max-content;
+    min-width: 220px;
+    max-width: min(320px, calc(100vw - 32px));
+}
+.iv-portfolio-structure details.iv-compact-popover > .iv-structure-popover {
+    width: fit-content;
+    min-width: 0;
+}
+details.iv-compact-popover.placement-top > .iv-compact-popover__panel {
+    top: auto;
+    bottom: calc(100% + 8px);
+}
+.iv-compact-popover__header { min-width: 0; padding-bottom: 8px; }
+.iv-compact-popover__body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.iv-compact-popover__footer { padding-top: 8px; border-top: 1px solid var(--iv-border); }
+.iv-structure-popover .iv-compact-popover__body {
+    display: grid;
+    grid-template-columns: minmax(0, max-content) max-content;
+    gap: 4px 18px;
+    justify-content: start;
+}
+.iv-structure-popover .iv-compact-popover__body > div { display: contents; font-variant-numeric: tabular-nums; }
+.iv-structure-popover .iv-compact-popover__body > div > :last-child { text-align: right; }
+.iv-structure-popover .iv-compact-popover__body > small { grid-column: 1 / -1; }
+.iv-overview-card:has(.iv-compact-popover[open]),
+.iv-portfolio-structure:has(.iv-compact-popover[open]) { position: relative; z-index: 1590; }
+
+@media (max-width: 640px) {
+    details.iv-compact-popover > .iv-compact-popover__panel,
+    details.iv-compact-popover.placement-top > .iv-compact-popover__panel {
+        position: fixed;
+        inset: auto 16px 16px;
+        width: auto;
+        max-height: min(70vh, calc(100vh - 32px));
+        transform: none;
+        border-radius: 14px;
+        box-shadow: 0 18px 48px rgba(15, 23, 42, .3);
+    }
+    .iv-portfolio-structure details.iv-compact-popover > .iv-compact-popover__panel {
+        width: auto;
+        min-width: 0;
+        max-width: none;
+    }
+}
+.iv-long-term-allocation__legend {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px 18px;
+    width: 100%;
+}
+.iv-long-term-allocation__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+    color: var(--iv-text-soft);
+    font-size: .7rem;
+}
+.iv-long-term-allocation__item strong {
+    flex: 0 0 auto;
+    color: var(--iv-text);
+    font-variant-numeric: tabular-nums;
+}
+.iv-long-term-allocation__label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+.iv-long-term-allocation__label > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.iv-long-term-allocation__swatch {
+    width: 8px;
+    height: 8px;
+    flex: 0 0 8px;
+    border-radius: 50%;
+}
+.iv-structure-currency--reporting {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 38px;
+    padding: 7px 10px;
+    border: 1px solid var(--iv-border);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--iv-surface-muted) 52%, transparent);
+}
+.iv-structure-currency--reporting > span {
+    color: var(--iv-text-muted);
+    font-size: .68rem;
+    font-weight: 750;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+}
+.iv-structure-currency--reporting > strong {
+    color: var(--iv-text);
+    font-size: .82rem;
+}
+@media (max-width: 760px) {
+    .iv-long-term-assets-sections {
+        height: auto;
+        grid-template-rows: none;
+        gap: 12px;
+    }
+    .iv-portfolio-structure__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .iv-portfolio-structure__grid--long-term { grid-template-columns: 1fr; }
+    .iv-portfolio-structure__grid--long-term > .iv-structure-card + .iv-structure-card {
+        padding-left: 0;
+        border-left: 0;
+    }
+}
+@media (max-width: 520px) {
+    .iv-long-term-allocation__legend { grid-template-columns: 1fr; }
+}
+.iv-performance-toolbar .btn-list {
+    gap: 0;
+}
+.iv-performance-toolbar .btn {
+    min-height: 30px;
+    padding: 4px 9px;
+    font-size: .76rem;
+}
+.iv-performance-toolbar .iv-select-field select,
+.iv-performance-account-selector > .iv-balance-popover__trigger {
+    min-height: 30px;
+    padding: 4px 9px;
+    font-size: .76rem;
+    font-weight: 650;
+}
+.iv-performance-aggregation {
+    margin-left: 0;
+}
+.iv-performance-account-selector {
+    position: relative;
+}
+.iv-performance-account-panel {
+    left: 0;
+    right: auto;
+    transform: none;
+    width: min(290px, calc(100vw - 32px));
+}
+.iv-performance-account-panel > strong {
+    display: block;
+    margin-bottom: 6px;
+}
+.iv-performance-account-panel .iv-account-filter {
+    max-height: 280px;
+    overflow-y: auto;
+}
+.iv-performance-toolbar .iv-account-filter__item--benchmark {
+    min-height: 0;
+    margin-left: auto;
+    padding: 5px 8px;
+    border: 1px solid var(--iv-border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--iv-text-muted);
+    font-size: .76rem;
+}
+.iv-performance-toolbar .iv-account-filter__item--benchmark input {
+    width: 15px;
+    height: 15px;
+}
+#portfolio-performance .iv-chart {
+    height: 280px;
+}
+#portfolio-performance > .iv-card > .iv-card__body {
+    padding: 10px 16px;
+}
+#portfolio-performance {
+    margin-top: 18px;
+    margin-bottom: 0;
+}
+#portfolio-performance > .iv-card > .iv-card-section-header {
+    padding: 7px 16px;
+    border-bottom: 1px solid var(--iv-border);
+}
+#portfolio-performance .iv-chart-table summary {
+    color: var(--iv-text-muted);
+    font-weight: 600;
+}
+#portfolio-performance .iv-chart-table { margin-top: 6px; }
+@media (max-width: 760px) {
+    .iv-performance-metrics {
+        display: flex;
+        gap: 12px;
+        align-items: baseline;
+    }
+    .iv-performance-metric--risk,
+    .iv-performance-metric--relative { margin-left: 0; }
+    .iv-performance-toolbar .iv-account-filter__item--benchmark { margin-left: 0; }
+    #portfolio-performance .iv-chart { height: 240px; }
+}
+
+/* Compact portfolio overview cards. */
+.iv-grid--portfolio-overview {
+    align-items: stretch;
+    gap: 16px;
+    margin-bottom: 0;
+}
+.iv-grid--long-term-overview {
+    margin-bottom: 18px;
+}
+.iv-grid--long-term-overview .iv-asset-summary__icon--real-estate {
+    color: var(--iv-green);
+    background: color-mix(in srgb, var(--iv-green) 14%, transparent);
+}
+.iv-grid--long-term-overview .iv-asset-summary__icon--bond {
+    color: var(--iv-blue, #0ea5e9);
+    background: color-mix(in srgb, var(--iv-blue, #0ea5e9) 14%, transparent);
+}
+.iv-grid--long-term-overview .iv-asset-summary__icon--cash-reserve {
+    color: var(--iv-orange);
+    background: color-mix(in srgb, var(--iv-orange) 14%, transparent);
+}
+.iv-grid--long-term-overview .iv-kpi__value { color: var(--iv-text); }
+.iv-grid--long-term-overview .iv-kpi__actions .iv-balance-popover__trigger {
+    padding: 3px 7px;
+    font-size: .72rem;
+}
+
+@media (min-width: 761px) {
+    .iv-grid--portfolio-overview {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+.iv-grid--portfolio-overview .iv-kpi {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    column-gap: 16px;
+    min-height: 70px;
+    height: 100%;
+    padding: 9px 16px;
+}
+.iv-grid--portfolio-overview .iv-overview-card__heading {
+    position: relative;
+    width: max-content;
+    max-width: 100%;
+    min-width: 0;
+}
+.iv-grid--portfolio-overview .iv-overview-card__heading:focus-visible {
+    outline: 2px solid var(--iv-primary);
+    outline-offset: 4px;
+    border-radius: 8px;
+}
+.iv-grid--portfolio-overview .iv-kpi__label {
+    gap: 6px;
+    margin: 0;
+    font-size: .72rem;
+}
+.iv-grid--portfolio-overview .iv-kpi__icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+}
+.iv-grid--portfolio-overview .iv-kpi__icon svg {
+    width: 13px;
+    height: 13px;
+}
+.iv-grid--portfolio-overview .iv-kpi__value {
+    grid-column: 2;
+    grid-row: 1;
+    font-size: 1.58rem;
+    line-height: 1.05;
+    white-space: nowrap;
+}
+.iv-grid--portfolio-overview .iv-cash-flow-green { color: var(--iv-positive-text) !important; }
+.iv-grid--portfolio-overview .iv-cash-flow-red { color: var(--iv-negative-text) !important; }
+.iv-grid--portfolio-overview .iv-kpi__actions {
+    grid-column: 3;
+    grid-row: 1;
+    width: auto;
+    margin: 0;
+    gap: 8px;
+}
+.iv-grid--portfolio-overview .iv-overview-card__context {
+    top: calc(100% + 8px);
+    right: auto;
+    left: 0;
+    z-index: 80;
+    width: max-content;
+    min-width: 0;
+    max-width: min(320px, calc(100vw - 32px));
+    padding: 8px 12px;
+    font-size: .78rem;
+    line-height: 1.35;
+}
+.iv-grid--portfolio-overview .iv-kpi__actions .iv-balance-popover__trigger {
+    padding: 3px 7px;
+    font-size: .72rem;
+}
+
+@media (max-width: 760px) {
+    .iv-grid--portfolio-overview .iv-kpi {
+        grid-template-columns: minmax(0, 1fr) auto;
+        row-gap: 10px;
+    }
+    .iv-grid--portfolio-overview .iv-overview-card__heading {
+        grid-column: 1;
+        grid-row: 1;
+    }
+    .iv-grid--portfolio-overview .iv-kpi__value {
+        grid-column: 2;
+        grid-row: 1;
+    }
+    .iv-grid--portfolio-overview .iv-kpi__actions {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        justify-self: start;
+    }
+}
+
+/* Dashboard summary popover: balance owns the free-cash detail. */
+.iv-topbar.iv-app-header-shell {
+    padding-bottom: 0;
+}
+
+@media (min-width: 1201px) {
+    .iv-topbar__primary {
+        display: grid;
+        grid-template-columns: minmax(230px, .9fr) minmax(520px, 1.8fr) minmax(320px, 1fr);
+        gap: 16px;
+        align-items: stretch;
+        min-width: 0;
+        padding: 6px 16px;
+    }
+
+    .iv-topbar__secondary {
+        display: grid;
+        grid-template-columns: minmax(220px, 1fr) auto minmax(220px, 1fr);
+        column-gap: 16px;
+        align-items: center;
+        min-height: 46px;
+        padding: 5px 16px;
+        border-top: 1px solid var(--iv-border);
+        border-radius: 0 0 18px 18px;
+        min-width: 0;
+    }
+
+    .iv-brand,
+    .iv-topbar-summary,
+    .iv-topbar__meta {
+        height: 84px;
+        min-height: 84px;
+    }
+
+    .iv-brand { align-items: stretch; }
+    .iv-brand__content {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 8px;
+    }
+    .iv-brand .iv-period-nav { margin-top: 0; }
+
+    .iv-topbar-summary {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        align-items: stretch;
+        padding: 6px 10px;
+    }
+
+    .iv-topbar-summary > .iv-topbar-metric {
+        display: grid;
+        position: relative;
+        min-width: 0;
+        height: 100%;
+        padding: 0 14px;
+        align-content: center;
+        justify-items: center;
+        text-align: center;
+    }
+
+    .iv-topbar-summary > .iv-topbar-metric + .iv-topbar-metric {
+        border-left: 0;
+    }
+
+    .iv-topbar-summary > .iv-topbar-metric + .iv-topbar-metric::before {
+        position: absolute;
+        top: 8px;
+        bottom: 8px;
+        left: 0;
+        border-left: 1px solid var(--iv-metric-divider);
+        content: "";
+    }
+
+    .iv-topbar-metric__content {
+        display: grid;
+        grid-template-rows: auto auto;
+        align-content: center;
+        justify-items: center;
+        row-gap: 4px;
+        height: 100%;
+    }
+
+    .iv-topbar-metric__value-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: center;
+        white-space: nowrap;
+    }
+
+    .iv-topbar-metric__profit-value-wrap {
+        position: relative;
+        display: inline-block;
+    }
+
+    .iv-topbar-metric__value {
+        font-size: 1.38rem;
+        font-weight: 800;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .iv-topbar-metric__label {
+        margin: 0;
+        color: var(--iv-text-muted);
+        font-size: .7rem;
+        font-weight: 700;
+        letter-spacing: .03em;
+        line-height: 1;
+        text-transform: uppercase;
+    }
+
+    .iv-topbar-metric__percent {
+        position: absolute;
+        top: -3px;
+        left: 100%;
+        margin-left: 4px;
+        font-size: .76rem;
+        font-weight: 700;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+
+    #cash-flows .iv-topbar-metric__value { color: var(--iv-primary); }
+    #investment-gain .iv-topbar-metric__value-row.iv-pos { color: var(--iv-positive-text); }
+    #investment-gain .iv-topbar-metric__value-row.iv-neg { color: var(--iv-negative-text); }
+
+    #cash-flows > .iv-metric-context__panel { left: 0; transform: none; }
+    #investment-gain > .iv-metric-context__panel { left: 50%; transform: translateX(-50%); }
+    #balance-cash > .iv-metric-context__panel { right: 0; left: auto; transform: none; }
+
+    .iv-topbar__meta {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: repeat(2, 34px);
+        grid-template-areas: "import export" "update base";
+        align-content: center;
+        gap: 6px 8px;
+        min-width: 0;
+    }
+
+    .iv-topbar__toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        grid-area: base;
+        min-width: 0;
+        width: 100%;
+    }
+
+    .iv-topbar__toolbar .iv-topbar-fx-popover { width: 100%; }
+    .iv-topbar__toolbar .iv-topbar-fx-popover__trigger { height: 34px; min-height: 34px; }
+
+    .iv-topbar-actions { display: contents; }
+    .iv-topbar-actions > form { grid-area: import; min-width: 0; }
+    .iv-topbar-actions > .iv-hover-context:first-of-type { grid-area: update; }
+    .iv-topbar-actions > .iv-hover-context:last-of-type { grid-area: export; }
+
+    .iv-topbar__meta .iv-topbar-action-button {
+        width: 100%;
+        height: 34px;
+        min-height: 34px;
+    }
+
+    .iv-topbar__meta > #file-chosen-name { display: none !important; }
+
+    .iv-topbar__secondary .iv-header-rail__left,
+    .iv-page-nav-slot,
+    .iv-topbar__secondary .iv-header-rail__right {
+        display: flex;
+        align-items: center;
+        min-width: 0;
+        min-height: 36px;
+    }
+
+    .iv-topbar__secondary .iv-header-rail__left {
+        justify-content: flex-start;
+        gap: 8px;
+    }
+
+    .iv-topbar__secondary .iv-page-nav-slot {
+        justify-content: center;
+        max-width: 100%;
+    }
+    .iv-topbar__secondary .iv-header-rail__right { justify-content: flex-end; }
+
+    .iv-topbar__secondary .iv-header-rail__right > .iv-data-quality-popover { width: auto; min-width: 160px; }
+    .iv-topbar__secondary .iv-header-rail__right > .iv-data-quality-popover > .iv-balance-popover__trigger {
+        width: auto;
+        min-height: 34px;
+        padding-inline: 12px;
+    }
+
+    .iv-topbar__secondary .iv-page-nav-slot > .iv-page-nav {
+        position: static;
+        width: auto;
+        max-width: 100%;
+        margin: 0;
+    }
+
+}
+
+@media (min-width: 1201px) and (max-width: 1400px) {
+    .iv-period-nav { gap: 4px; }
+    .iv-period-nav a {
+        padding-inline: 8px;
+        font-size: .7rem;
+    }
+}
+
+@media (max-width: 1200px) {
+    .iv-topbar__secondary {
+        display: grid;
+        grid-template-columns: 1fr;
+        row-gap: 10px;
+        min-height: 0;
+        padding: 10px 14px;
+    }
+
+    .iv-planning-topbar--assets .iv-planning-topbar__secondary {
+        row-gap: 0;
+        padding-block: 8px;
+    }
+
+    .iv-planning-topbar--assets .iv-planning-topbar__secondary > :empty { display: none; }
+
+    .iv-topbar__secondary .iv-header-rail__left,
+    .iv-topbar__secondary .iv-header-rail__right,
+    .iv-page-nav-slot,
+    .iv-topbar__secondary .iv-page-nav-slot > .iv-page-nav {
+        width: 100%;
+    }
+
+    .iv-topbar__secondary .iv-page-nav-slot > .iv-page-nav {
+        position: relative;
+        top: auto;
+    }
+}
+
+@media (max-width: 600px) {
+    .iv-planning-summary:not(.iv-planning-summary--six) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px 0;
+        height: auto !important;
+        min-height: 0 !important;
+        padding-block: 10px;
+    }
+
+    .iv-planning-summary:not(.iv-planning-summary--six) .iv-planning-summary__item {
+        min-height: 54px;
+        padding-inline: 6px;
+    }
+
+    .iv-planning-summary:not(.iv-planning-summary--six) .iv-planning-summary__item:nth-child(3) {
+        grid-column: 1 / -1;
+        padding-top: 12px;
+        border-top: 1px solid var(--iv-metric-divider);
+    }
+
+    .iv-planning-summary:not(.iv-planning-summary--six) .iv-planning-summary__item:nth-child(3)::before {
+        display: none;
+    }
+
+    .iv-planning-summary__item strong { font-size: 1.12rem; }
+
+    .iv-planning-topbar__secondary .iv-page-nav-slot > .iv-page-nav {
+        flex-wrap: wrap;
+        justify-content: center;
+        width: 100%;
+        overflow: visible;
+        border-radius: var(--iv-radius-sm);
+    }
+}
+
+/* Post-review layout corrections. */
+.iv-portfolio-structure__grid.iv-profile-structure__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.iv-profile-income-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.iv-profile-allocation,
+.iv-profile-allocation > .card-body {
+    min-height: 0;
+}
+
+.iv-card-section-header__action {
+    display: inline-flex;
+    align-items: center;
+    margin-left: auto;
+}
+
+.iv-card-section-header__action .btn {
+    min-height: 30px;
+}
+
+.iv-planning-page.iv-report-page .iv-report-page__content {
+    width: 100%;
+    padding: 0 0 40px;
+}
+
+.iv-report-page .iv-section-heading {
+    margin-bottom: 14px;
+}
+
+.iv-report-page .iv-section-heading p {
+    max-width: 760px;
+    text-align: left;
+}
+
+.iv-reconciliation-state-banner {
+    display: grid;
+    grid-template-columns: minmax(180px, .55fr) minmax(0, 1.45fr);
+    gap: 0;
+    margin-bottom: var(--iv-space-4);
+    overflow: hidden;
+    border: 1px solid var(--iv-border);
+    border-radius: var(--iv-radius);
+    background: var(--iv-surface);
+}
+
+.iv-reconciliation-state-banner > div {
+    display: grid;
+    align-content: center;
+    gap: 5px;
+    min-width: 0;
+    min-height: 78px;
+    padding: 12px 16px;
+}
+
+.iv-reconciliation-state-banner > div + div {
+    border-left: 1px solid var(--iv-metric-divider);
+}
+
+.iv-reconciliation-state-banner .iv-kpi__label,
+.iv-report-table__sub,
+.iv-plan-timeline__matrix-label,
+.iv-plan-timeline__assumption-name,
+.iv-simulation-help,
+.iv-simulation-chart-help {
+    font-size: .75rem;
+}
+
+.iv-reconciliation-state-banner .iv-kpi__value {
+    overflow-wrap: anywhere;
+    font-size: clamp(1rem, 2vw, 1.3rem);
+}
+
+@media (min-width: 761px) {
+    .iv-plan-timeline__assumptions { overflow-x: visible; }
+}
+
+@media (max-width: 1400px) and (min-width: 601px) {
+    .iv-planning-topbar--retirement .iv-planning-actions--simulation > .iv-planning-scenario-selector {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        row-gap: 3px;
+    }
+
+    .iv-planning-topbar--retirement .iv-planning-topbar__secondary {
+        grid-template-areas:
+            "main main"
+            "local context";
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        row-gap: 8px;
+        padding-block: 8px;
+    }
+
+    .iv-planning-topbar--retirement .iv-page-nav-slot {
+        grid-area: main;
+        justify-self: center;
+    }
+
+    .iv-planning-topbar--retirement .iv-planning-local-nav-slot {
+        grid-area: local;
+    }
+
+    .iv-planning-topbar--retirement .iv-planning-context-slot {
+        grid-area: context;
+    }
+}
+
+/* Keep the planning header usable before the full mobile breakpoint. */
+@media (max-width: 1200px) and (min-width: 901px) {
+    .iv-planning-topbar__primary {
+        grid-template-columns: minmax(180px, .75fr) minmax(360px, 1.45fr) minmax(260px, 1fr);
+    }
+
+    .iv-planning-actions--simulation > .iv-planning-scenario-selector {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        row-gap: 3px;
+    }
+}
+
+@media (max-width: 600px) {
+    .iv-portfolio-structure__grid.iv-profile-structure__grid,
+    .iv-profile-income-cards,
+    .iv-profile-sources__grid,
+    .iv-reconciliation-state-banner {
+        grid-template-columns: 1fr;
+    }
+
+    .iv-profile-sources__grid { gap: 12px; padding: 12px; }
+    .iv-profile-source-card__metrics { grid-template-columns: 1fr; padding: 0; }
+    .iv-profile-source-card__metrics > div { padding: 10px 14px; }
+    .iv-profile-source-card__metrics > div + div { border-top: 1px solid var(--iv-metric-divider); border-left: 0; }
+
+    .iv-reconciliation-state-banner > div + div {
+        border-top: 1px solid var(--iv-metric-divider);
+        border-left: 0;
+    }
+
+    .iv-planning-topbar--retirement .iv-planning-topbar__secondary {
+        grid-template-areas:
+            "main"
+            "local"
+            "context";
+    }
+
+    .iv-planning-topbar--retirement .iv-page-nav-slot { grid-area: main; }
+    .iv-planning-topbar--retirement .iv-planning-local-nav-slot { grid-area: local; }
+    .iv-planning-topbar--retirement .iv-planning-context-slot { grid-area: context; }
+}
+

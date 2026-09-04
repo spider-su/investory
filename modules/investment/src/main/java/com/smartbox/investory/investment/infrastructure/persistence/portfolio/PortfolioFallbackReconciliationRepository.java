@@ -11,12 +11,13 @@ public class PortfolioFallbackReconciliationRepository {
   private final EntityManager entityManager;
 
   @SuppressWarnings("unchecked")
-  public List<Object[]> findAllStatuses() {
+  public List<Object[]> findAllStatuses(Long portfolioId) {
     return entityManager
         .createNativeQuery(
             "SELECT fallback_reconciliation_status, realized_profit_difference, "
                 + "unrealized_profit_difference, dividends_difference, interest_difference "
-                + "FROM investory.recon_v_portfolio_service_fallback")
+                + "FROM investory.recon_v_portfolio_service_fallback WHERE portfolio_id = :portfolioId")
+        .setParameter("portfolioId", portfolioId)
         .getResultList();
   }
 }

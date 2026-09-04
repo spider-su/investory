@@ -6,6 +6,8 @@ import java.time.ZonedDateTime;
 
 public final class ReportingDateHelper {
 
+  // Reporting dates follow the household's Polish local calendar, not the JVM or database default
+  // zone.
   public static final ZoneId REPORTING_ZONE = ZoneId.of("Europe/Warsaw");
 
   private ReportingDateHelper() {}

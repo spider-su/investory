@@ -76,7 +76,7 @@ public class PortfolioProjectionService {
     try {
       assetPriceHistoryGapFillService.fillMissingBusinessDayGaps(ReportingDateHelper.today());
       accountIds = allKnownAccountIds();
-      recalculateAccounts(accountIds);
+      recalculateAccountsInternal(accountIds);
       log.info(
           "Portfolio projection rebuild completed mode=all accounts={} durationMs={}",
           accountIds.size(),
@@ -128,15 +128,23 @@ public class PortfolioProjectionService {
   private void recalculateAccountsInternal(Set<Long> accountIds) {
     ZonedDateTime now = ReportingDateHelper.now();
     if (accountIds == null || accountIds.isEmpty()) {
-      rebuildDerivedSummaries();
       return;
     }
 
     Map<Long, LocalDate> dirtyFromByAccount = earliestActivityDateByAccount(accountIds);
     Set<Long> affectedAccounts = dirtyFromByAccount.keySet();
     if (affectedAccounts.isEmpty()) {
-      rebuildDerivedSummaries();
       return;
+    }
+
+    // Preload every FX valuation matrix for the rebuild's date span in one batch query. Without
+    // this warm-up each distinct valuation date would lazily trigger its own resolve_fx_rate
+    // round-trip from convert()/convertBetween(), producing thousands of sequential queries inside
+    // this single transaction (the N+1 that made rebuilds run for ~19 minutes).
+    LocalDate rebuildFrom =
+        dirtyFromByAccount.values().stream().min(Comparator.naturalOrder()).orElse(null);
+    if (rebuildFrom != null) {
+      currencyRateService.warmValuationMatrices(rebuildFrom, now.toLocalDate());
     }
 
     List<AccountEntity> allAccounts = accountRepository.findAllById(affectedAccounts);
@@ -146,10 +154,8 @@ public class PortfolioProjectionService {
             .filter(AccountEntity::isCashOnly)
             .map(AccountEntity::getId)
             .collect(Collectors.toSet());
-    List<AssetEntity> allAssets = assetRepository.findAll();
     Set<Long> excludedAssetIds =
-        allAssets.stream()
-            .filter(asset -> Boolean.TRUE.equals(asset.getExcludeFromImport()))
+        assetRepository.findAllByExcludeFromImportTrue().stream()
             .map(AssetEntity::getId)
             .collect(Collectors.toSet());
     List<PositionEntity> opened =
@@ -163,9 +169,7 @@ public class PortfolioProjectionService {
             .filter(position -> !excludedAssetIds.contains(position.getAssetId()))
             .toList();
     Map<String, AssetEntity> assets =
-        allAssets.stream()
-            .filter(asset -> StringUtils.hasText(asset.getSymbol()))
-            .filter(asset -> !Boolean.TRUE.equals(asset.getExcludeFromImport()))
+        assetRepository.findAllByExcludeFromImportFalseAndSymbolIsNotNull().stream()
             .collect(
                 Collectors.toMap(
                     AssetEntity::getSymbol,
@@ -240,7 +244,6 @@ public class PortfolioProjectionService {
             opened,
             closed);
     replaceAccountDerivedRows(accountRows, dirtyFromByAccount);
-    rebuildDerivedSummaries();
 
     log.info(
         "Portfolio projection account_daily replacement accounts={} rows={} dirtyFromByAccount={}",
@@ -878,8 +881,9 @@ public class PortfolioProjectionService {
     }
   }
 
-  private void rebuildDerivedSummaries() {
-    accountDailyRepository.refreshReportingViews();
+  public void refreshApplicationViews(
+      PortfolioProjectionRefreshService.ApplicationRefreshScope refreshScope) {
+    projectionRefreshService.refreshApplicationViews(refreshScope);
   }
 
   private static BigDecimal decimal(Double value) {

@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - develop
   workflow_dispatch:
 
 permissions:
@@ -39,32 +40,40 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Set up Java 25
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '25'
+      - name: Set up Java and Maven
+        uses: ./.github/actions/setup-java-maven
 
-      - name: Restore Maven cache
-        uses: actions/cache@v5
-        with:
-          path: ${{ github.workspace }}/.m2
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml', '.mvn/wrapper/maven-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
+      - name: Compile, run unit tests, and package reactor
+        run: sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -DskipITs install
 
-      - name: Run tests
-        run: sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -DskipITs verify
+      - name: Upload packaged reactor outputs
+        uses: actions/upload-artifact@v7
+        with:
+          name: packaged-reactor
+          include-hidden-files: true
+          path: |
+            .m2/repository/com/smartbox/**
+            app/target/classes/**
+            app/target/test-classes/**
+            modules/*/target/classes/**
+            modules/*/target/test-classes/**
+            integrations/target/classes/**
+            integrations/target/test-classes/**
+            adapters/web-ui/target/classes/**
+            adapters/web-ui/target/test-classes/**
+            test-support/target/classes/**
+            test-support/target/test-classes/**
+          if-no-files-found: error
 
       - name: Upload coverage reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: jacoco-module-reports
           path: '**/target/site/jacoco/'
           if-no-files-found: error
 
       - name: Upload unit execution data
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: jacoco-unit-exec
           path: '**/target/jacoco.exec'
@@ -74,22 +83,20 @@ jobs:
     name: Backend IT (${{ matrix.suite.name }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs: unit
     strategy:
       fail-fast: false
       matrix:
         suite:
           - name: contracts
             project: app
-            tests: ValuationInputContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT
+            tests: ValuationInputContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,AccountDailyProjectionBoundaryIT,InvestmentProfileCompositionIT,AssetDetailReadModelIT
           - name: imports
             project: app
-            tests: CurrencyRateUpdaterPostgresIT,IbkrTreasuryImportIT,XtbImportIT
-          - name: schema
-            project: app
-            tests: SchemaMigrationCheckpoint2IT
+            tests: CurrencyRateUpdaterPostgresIT,IbkrTreasuryImportIT,XtbImportIT,ImportPortfolioIsolationIT,BrokerImportAccountingBoundaryIT,IntegrationJobExecutionIT
           - name: reconciliation-notifications-longterm
             project: app
-            tests: DatabaseEvidenceReconciliationCheckIT,RentalContractPersistenceIT,NotificationEventContractIT
+            tests: DatabaseEvidenceReconciliationCheckIT,RentalContractPersistenceIT,LongTermAssetLifecyclePersistenceIT,NotificationEventContractIT,NotificationEventClaimContractIT,AlertRuleTransactionContractIT,PlanningTimelineLifecycleIT
           - name: investment-rest
             project: modules/investment
             tests: DailyPerformanceControllerIT,InvestmentAssetRestControllerIT,InvestmentDashboardRestControllerIT,InvestmentPerformanceControllerIT,InvestmentReconciliationRestControllerIT
@@ -101,37 +108,73 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Set up Java 25
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '25'
+      - name: Set up Java and Maven
+        uses: ./.github/actions/setup-java-maven
 
-      - name: Restore Maven cache
-        uses: actions/cache@v5
+      - name: Download packaged reactor outputs
+        uses: actions/download-artifact@v8
         with:
-          path: ${{ github.workspace }}/.m2
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml', '.mvn/wrapper/maven-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
+          name: packaged-reactor
+          path: .
 
       - name: Run backend integration tests
         run: |
-          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl "${{ matrix.suite.project }}" -am -DskipTests install
-          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl "${{ matrix.suite.project }}" test-compile failsafe:integration-test failsafe:verify \
-            "-Dit.test=${{ matrix.suite.tests }}"
+          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl "${{ matrix.suite.project }}" -am initialize test-compile failsafe:integration-test failsafe:verify \
+            "-Dit.test=${{ matrix.suite.tests }}" "-Dfailsafe.failIfNoSpecifiedTests=false"
 
       - name: Upload backend integration execution data
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: jacoco-backend-${{ matrix.suite.name }}
           path: '**/target/jacoco.exec'
+          if-no-files-found: error
+
+  uiSetup:
+    name: UI browser setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: unit
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Java and Maven
+        uses: ./.github/actions/setup-java-maven
+
+      - name: Download packaged reactor outputs
+        uses: actions/download-artifact@v8
+        with:
+          name: packaged-reactor
+          path: .
+
+      - name: Restore Playwright browser cache
+        id: playwright-cache
+        uses: actions/cache@v5
+        with:
+          path: ${{ runner.temp }}/playwright
+          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('pom.xml', 'app/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-chromium-
+
+      - name: Install Playwright Chromium
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/playwright
+        run: |
+          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl app exec:java -Dexec.classpathScope=test -Dexec.mainClass=com.microsoft.playwright.CLI -Dexec.args="install --with-deps chromium"
+
+      - name: Publish Playwright browser for UI matrix
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-chromium
+          path: ${{ runner.temp }}/playwright
           if-no-files-found: error
 
   uiIt:
     name: UI IT (${{ matrix.suite.name }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs: uiSetup
     strategy:
       fail-fast: false
       matrix:
@@ -149,86 +192,92 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Set up Java 25
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '25'
+      - name: Set up Java and Maven
+        uses: ./.github/actions/setup-java-maven
 
-      - name: Restore Maven cache
-        uses: actions/cache@v5
+      - name: Download packaged reactor outputs
+        uses: actions/download-artifact@v8
         with:
-          path: ${{ github.workspace }}/.m2
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml', '.mvn/wrapper/maven-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
+          name: packaged-reactor
+          path: .
 
-      - name: Install Playwright Chromium
+      - name: Download Playwright browser
+        uses: actions/download-artifact@v8
+        with:
+          name: playwright-chromium
+          path: ${{ runner.temp }}/playwright
+
+      - name: Restore Playwright executable permissions
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/playwright
         run: |
-          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl app -am -DskipTests install
-          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl app exec:java -Dexec.classpathScope=test -Dexec.mainClass=com.microsoft.playwright.CLI -Dexec.args="install --with-deps chromium"
+          find "$PLAYWRIGHT_BROWSERS_PATH" -type f -path '*/chrome-linux/*' -exec chmod u+x {} +
 
       - name: Run UI integration tests
+        id: ui-tests
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/playwright
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         run: |
-          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl app -am -DskipTests install
-          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl app test-compile failsafe:integration-test failsafe:verify \
-            "-Dit.test=${{ matrix.suite.test }}"
+          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl app -am initialize failsafe:integration-test failsafe:verify \
+            "-Dit.test=${{ matrix.suite.test }}" "-Dfailsafe.failIfNoSpecifiedTests=false"
+
+      - name: Upload UI failure artifacts
+        if: steps.ui-tests.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ui-failure-${{ matrix.suite.name }}
+          path: |
+            app/target/ui-test-results/
+            app/target/failsafe-reports/
+            app/target/surefire-reports/
+          if-no-files-found: warn
 
       - name: Upload UI integration execution data
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: jacoco-ui-${{ matrix.suite.name }}
           path: '**/target/jacoco.exec'
-          if-no-files-found: error
+          if-no-files-found: ignore
 
   goldenPath:
     name: Golden path
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    needs: unit
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Set up Java 25
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '25'
+      - name: Set up Java and Maven
+        uses: ./.github/actions/setup-java-maven
 
-      - name: Restore Maven cache
-        uses: actions/cache@v5
+      - name: Download packaged reactor outputs
+        uses: actions/download-artifact@v8
         with:
-          path: ${{ github.workspace }}/.m2
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml', '.mvn/wrapper/maven-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
+          name: packaged-reactor
+          path: .
 
       - name: Run offline golden gate
         run: |
-          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl app -am -DskipTests install
-          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl app \
-            "-Dmaven.compiler.useIncrementalCompilation=false" \
-            "-Dtest=GoldenRebuildIT" test
+          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl app -am \
+            initialize test-compile failsafe:integration-test failsafe:verify \
+            "-Dit.test=GoldenRebuildIT" "-Dfailsafe.failIfNoSpecifiedTests=false"
 
       - name: Check formatting
         run: sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" spotless:check
 
       - name: Upload golden-path execution data
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: jacoco-golden-path
           path: '**/target/jacoco.exec'
-          if-no-files-found: error
+          if-no-files-found: ignore
 
   aggregateCoverage:
     name: Aggregate coverage gate
-    needs: [unit, backendIt, uiIt, goldenPath]
+    needs: [unit, backendIt, uiIt, goldenPath, schema]
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -251,7 +300,7 @@ jobs:
             ${{ runner.os }}-maven-
 
       - name: Download execution data
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: jacoco-*
           path: coverage-input
@@ -271,8 +320,72 @@ jobs:
           python3 check_aggregate_coverage.py
 
       - name: Upload aggregate coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: jacoco-aggregate-report
           path: app/target/site/jacoco-aggregate/
+          if-no-files-found: error
+  schema:
+    name: Schema migration
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: unit
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Java and Maven
+        uses: ./.github/actions/setup-java-maven
+
+      - name: Download packaged reactor outputs
+        uses: actions/download-artifact@v8
+        with:
+          name: packaged-reactor
+          path: .
+
+      - name: Calculate schema fingerprint
+        id: fingerprint
+        shell: bash
+        run: |
+          files=$(git ls-files \
+            'app/src/main/resources/sql/migration/**' \
+            'test-support/src/main/resources/db/snapshot/schema.sql' \
+            'app/src/test/java/com/smartbox/investory/infrastructure/SchemaMigrationCheckpoint2IT.java' \
+            'app/src/main/resources/application*.yml' | sort)
+          hash=$(printf '%s\n' "$files" | xargs sha256sum | sha256sum | cut -d' ' -f1)
+          echo "hash=$hash" >> "$GITHUB_OUTPUT"
+
+      - name: Restore last green schema result
+        id: schema-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: .schema-green
+          key: schema-green-${{ steps.fingerprint.outputs.hash }}
+
+      - name: Run schema migration test
+        if: steps.schema-cache.outputs.cache-hit != 'true'
+        run: |
+          sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl app -am initialize test-compile failsafe:integration-test failsafe:verify \
+            "-Dit.test=SchemaMigrationCheckpoint2IT" "-Dfailsafe.failIfNoSpecifiedTests=false"
+
+      - name: Record green schema result
+        if: success() && steps.schema-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: mkdir -p .schema-green && printf '%s\n' '${{ steps.fingerprint.outputs.hash }}' > .schema-green/fingerprint
+
+      - name: Save green schema result
+        if: success() && steps.schema-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@v5
+        with:
+          path: .schema-green
+          key: schema-green-${{ steps.fingerprint.outputs.hash }}
+
+      - name: Upload schema execution data
+        if: steps.schema-cache.outputs.cache-hit != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: jacoco-backend-schema
+          path: app/target/jacoco.exec
           if-no-files-found: error

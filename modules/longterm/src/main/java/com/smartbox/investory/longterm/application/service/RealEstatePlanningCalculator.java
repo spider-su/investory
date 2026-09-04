@@ -4,6 +4,7 @@ import com.smartbox.investory.longterm.api.model.CashFlowType;
 import com.smartbox.investory.longterm.api.model.Frequency;
 import com.smartbox.investory.longterm.api.model.RentalContractModel;
 import com.smartbox.investory.longterm.application.model.RealEstatePlanningSummary;
+import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -12,17 +13,16 @@ import java.util.List;
 
 /** Calculates current apartment planning metrics from effective cash-flow periods. */
 public final class RealEstatePlanningCalculator {
-  private static final BigDecimal TAX_RATE = new BigDecimal("0.085");
   private static final BigDecimal TWELVE = BigDecimal.valueOf(12);
 
   public BigDecimal annualRentalTax(BigDecimal taxBase) {
-    return annualRentalTax(taxBase, TAX_RATE);
+    return annualRentalTax(taxBase, FinancialPolicyDefaults.RENTAL_TAX_RATE);
   }
 
   public BigDecimal annualRentalTax(BigDecimal taxBase, BigDecimal taxRate) {
     return (taxBase == null ? BigDecimal.ZERO : taxBase)
         .multiply(TWELVE)
-        .multiply(taxRate == null ? TAX_RATE : taxRate);
+        .multiply(LongTermAssetPolicyRules.rentalTaxRate(taxRate));
   }
 
   public RealEstatePlanningSummary calculate(

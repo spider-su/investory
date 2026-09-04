@@ -24,7 +24,8 @@ if (importStatementBtn && fileInput) {
 if (fileInput) {
     fileInput.addEventListener('change', function() {
         if (this.files && this.files.length > 0) {
-            const file = this.files[0];
+            const files = Array.from(this.files || []);
+            if (!files.length) return;
             const originalImportText = importStatementBtn ? importStatementBtn.innerHTML : 'Import';
             if (importStatementBtn) {
                 importStatementBtn.disabled = true;
@@ -33,27 +34,26 @@ if (fileInput) {
             }
             if (yahooGenerateBtn) yahooGenerateBtn.disabled = true;
             if (refreshPricesBtn) refreshPricesBtn.disabled = true;
-            fileNameBadge.innerText = "Uploading: " + file.name;
+            fileNameBadge.innerText = "Uploading " + files.length + " file" + (files.length === 1 ? '' : 's') + "…";
             fileNameBadge.style.display = 'inline-block';
 
-            // Prepare multipart data payload
-            const formData = new FormData();
-            formData.append('file', file);
-
-            // Send asynchronous POST request
-            fetch(uploadForm.action, {
-                method: 'POST',
-                body: formData
-                // Browser automatically applies basic auth if logged into localhost:8080
-            })
-                .then(response => {
-                    return response.json().catch(function () { return {}; })
-                        .then(function (body) {
-                            if (!response.ok) throw new Error(body.message || ('HTTP ' + response.status));
-                            return body;
-                        });
-                })
-                .then(data => {
+            // Import files in order. Defer the expensive derived-data rebuild until the last file.
+            let data;
+            Promise.resolve().then(async function () {
+                for (let index = 0; index < files.length; index++) {
+                    const file = files[index];
+                    fileNameBadge.innerText = 'Uploading file ' + (index + 1) + ' of ' + files.length + ': ' + file.name;
+                    const formData = new FormData(uploadForm);
+                    formData.set('file', file);
+                    const url = new URL(uploadForm.action, window.location.origin);
+                    url.searchParams.set('deferRefresh', String(index < files.length - 1));
+                    const response = await fetch(url.toString(), { method: 'POST', body: formData });
+                    const body = await response.json().catch(function () { return {}; });
+                    if (!response.ok) throw new Error(body.message || ('HTTP ' + response.status));
+                    data = body;
+                }
+                return data;
+            }).then(data => {
                     // Populate data into the modal elements
                     document.getElementById('modal-message').innerText = data.message;
                     document.getElementById('modal-rows-total').innerText = data.rowsTotal;
@@ -115,7 +115,12 @@ if (fileInput) {
          yahooGenerateBtn.setAttribute('aria-busy', 'true');
          yahooGenerateBtn.innerHTML = '<span class="iv-spinner" aria-hidden="true"></span> Preparing export…';
 
-         fetch('/api/v1/investment/export/generate', {
+         const exportUrl = new URL('/api/v1/investment/export/generate', window.location.origin);
+         const exportPortfolioId = yahooGenerateBtn.dataset.portfolioId
+             || new URLSearchParams(window.location.search).get('portfolioId');
+         if (exportPortfolioId) exportUrl.searchParams.set('portfolioId', exportPortfolioId);
+
+         fetch(exportUrl.toString(), {
              method: 'GET',
              credentials: 'same-origin'
          })

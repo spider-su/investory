@@ -3,7 +3,7 @@
 This module owns external-system adapters and their runtime management. Package ownership is vertical:
 
 - `management`: integration metadata, base plugin SPI, configuration, persistence, and scheduling;
-- `market`, `fx`, and `export`: Investment port adapters grouped by provider;
+- `market`, `fx`, `export`, and `importing`: external provider/file adapters grouped by provider;
 - `telegram`: Telegram bot, commands, and notification delivery;
 - `notifications`: provider-neutral notification application and persistence;
 - `ai.openai`: OpenAI client and portfolio-analysis orchestration;
@@ -17,6 +17,11 @@ management application -> management SPI/model + persistence
 notification application -> notification delivery interface
 telegram delivery -> notification delivery interface
 integrations -> investment.api / investment.port
+
+Broker file adapters (`importing.ibkr` and `importing.xtb`) are registered here and implement the
+`investment.port.importing.BrokerImportParser` port. Investment retains import orchestration,
+import audit, and canonical ledger writes; the adapter boundary keeps those responsibilities out
+of the integrations module.
 ```
 
 Management contracts must not depend on persistence or provider implementations. Notification

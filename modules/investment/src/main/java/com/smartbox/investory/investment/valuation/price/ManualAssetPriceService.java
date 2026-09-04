@@ -7,6 +7,7 @@ import com.smartbox.investory.investment.reporting.ReportingDateHelper;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
@@ -21,7 +22,7 @@ import org.springframework.util.StringUtils;
 @RequiredArgsConstructor
 public class ManualAssetPriceService {
 
-  private static final CurrencyType BASE_CURRENCY = CurrencyType.USD;
+  private static final CurrencyType BASE_CURRENCY = FinancialPolicyDefaults.CANONICAL_CURRENCY;
 
   private final AssetRepository assetRepository;
   private final AssetPriceHistoryRepository assetPriceHistoryRepository;

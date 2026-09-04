@@ -13,6 +13,10 @@ only routes coding agents to those sources.
 - [ ] **P1 - Make reconciliation operationally durable:** add refresh status/retry/stale visibility,
   archive-manifest evidence, private ARCHIVE integration, separate execution and coverage status, and
   require the golden CI gate before release.
+- [ ] **P1 - Reduce remaining MV refresh cost:** investigate `recon_v_reconstructed_cash_daily_mv`
+  (~53 s), `app_v_normalized_cash_operations` (~32 s), `recon_v_reconstructed_position_daily_mv`
+  (~25 s), and `recon_v_account_daily_reconciliation_mv` (~18 s) using the tracked performance
+  baseline; preserve exact reconciliation output and refresh-order contracts.
 - [ ] **P1 - Complete durable notification transitions:** move drawdown, concentration, and stale-import
   rules onto persisted threshold/recovery state; add maturity and contract-expiry producers.
 - [ ] **P2 - Reduce CI cost:** avoid rebuilding the complete Flyway chain before every
@@ -41,7 +45,7 @@ asset reactivation, and subtype-specific creation are supported.
 
 | Item | Effort | Why |
 |---|---|---|
-| Complete Long-Term database integrity constraints | S | The current Flyway chain ends at `V01.020` and enforces rental-contract subtype consistency. Add any remaining cross-table subtype and lifecycle constraints through a new append-only migration, with matching snapshot and migration-contract coverage. |
+| Complete Long-Term database integrity constraints | S | The current Flyway chain ends at `V01.008` and enforces rental-contract subtype consistency. Add any remaining cross-table subtype and lifecycle constraints through a new append-only migration, with matching snapshot and migration-contract coverage. |
 | Portfolio-scoped market aggregation for planning | M | `InvestmentProfile` currently combines portfolio-scoped manual assets with shared market aggregation; make multi-portfolio planning semantics explicit and safe. |
 | Richer Live-year tracking and longer actual-versus-plan history | M | The current annual baseline/timeline is intentionally compact. Add reliable flow and strategy tracking without turning planning into transaction budgeting. |
 | Assumption calibration from closed years | M | Use approved historical planning data as an optional review input; do not silently alter assumptions. |
@@ -102,6 +106,7 @@ asset reactivation, and subtype-specific creation are supported.
 | Remove null-based dashboard test construction | S | **TODO.** Remove legacy `InvestmentDashboardFacade` overloads that inject `null`; use explicit test fixtures around the single production constructor. |
 | Bound Investment reporting and projection reads | M | **TODO.** Replace remaining broad `findAll()` calls in cash, allocation, account, position, and price paths with portfolio/date/active predicates or database aggregates. |
 | Complete PostgreSQL refresh-function failure coverage | S | Disposable-PostgreSQL tests cover refresh order, separation, queryability, and rounding boundaries. Add explicit transaction rollback/failure behavior around the `AccountDailyRepository` refresh calls. |
+| Optimize remaining large MV refreshes | M | TODO. Current complete baseline is ~194 s for all MVs. Profile and optimize reconstructed cash, normalized cash, reconstructed position daily, and account daily reconciliation in that order; compare exact rows/columns before each migration. |
 | Finish the typed retirement plan-editor boundary | S | HTML form parsing now lives in the Web UI `SimulationRequestMapper`, and `PlanEditorInput` is typed. Remove its remaining string-key compatibility view (`value(String)`) after the last MVC caller is migrated, preserving percentage-point, currency, null/fallback, and expense-stage tests. |
 | Consolidate long-term application orchestration after the POC freeze | L | Post-POC code-structure TODO: (1) consolidate the duplicated `LongTermAssetsApplicationService` / `LongTermAssetsFacade` layers into one composition-based public API with explicit model mappers; (2) relocate `SimulationPlanService` to an application/persistence orchestration package; (3) standardize API model package conventions; (4) break oversized calculation/orchestration classes along existing responsibilities, including `PortfolioProjectionService`, `PortfolioMetricsService`, and `PlanningTimelineFacade`; and (5) remove compatibility constructors and presentation bridges, including the deprecated `SimulationPlanService` constructor and `PlanningPresentation` forwarding bridge. This is planned technical debt and is not a POC blocker; schedule only when there is sufficient regression time. |
 | Bind Spotless to `verify` and add a pre-commit hook | S | Formatting is configured but remains optional and can drift between contributors. |

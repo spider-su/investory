@@ -20,9 +20,8 @@ web layer formats them but never recomputes outcomes.
 
 ## Deterministic results
 
-Scenarios change coherent assumption sets: Base, Conservative, Optimistic, and an optional Custom
-scenario. Custom is shown only when at least one custom delta is non-zero. Sensitivity is separate
-and changes exactly one driver at a time. Historical stress testing replays annual market paths,
+Scenarios change coherent assumption sets: Base, Conservative, and Optimistic. Sensitivity is
+separate and changes exactly one driver at a time. Historical stress testing replays annual market paths,
 and Monte Carlo samples distributions; neither is part of deterministic Analysis. They are future
 Analysis wrappers and must not change the frozen Simulation contract.
 

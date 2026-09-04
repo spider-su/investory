@@ -12,7 +12,6 @@ export function initRetirementAnalysis() {
     BASE: token("--iv-blue", "#376cd5"),
     CONSERVATIVE: token("--iv-negative", "#db2031"),
     OPTIMISTIC: token("--iv-positive", "#00916d"),
-    CUSTOM: token("--iv-asset-other", "#8b5cf6"),
     text: token("--iv-chart-axis", token("--iv-text-muted", "#6b7488")),
     grid: token("--iv-chart-grid", "rgba(31, 31, 31, .10)")
   });
@@ -31,7 +30,7 @@ export function initRetirementAnalysis() {
     label: scenario.charAt(0) + scenario.slice(1).toLowerCase(),
     data: (balances[scenario] || []).map(point => point[property] == null ? null : point[property]),
     borderColor: colors[scenario] || "#adb5bd",
-    borderDash: scenario === "CONSERVATIVE" ? [7, 4] : scenario === "OPTIMISTIC" ? [2, 4] : scenario === "CUSTOM" ? [5, 2] : [],
+    borderDash: scenario === "CONSERVATIVE" ? [7, 4] : scenario === "OPTIMISTIC" ? [2, 4] : [],
     borderWidth: scenario === "BASE" ? 3 : 2,
     pointRadius: 0,
     tension: .2
@@ -65,7 +64,6 @@ export function initRetirementAnalysis() {
         Base: colors.BASE,
         Conservative: colors.CONSERVATIVE,
         Optimistic: colors.OPTIMISTIC,
-        Custom: colors.CUSTOM,
         Income: token("--iv-positive", "#00916d"),
         Spending: token("--iv-text-muted", "rgba(31,31,31,.65)"),
         "Funding need": token("--iv-accent", "#376cd5"),

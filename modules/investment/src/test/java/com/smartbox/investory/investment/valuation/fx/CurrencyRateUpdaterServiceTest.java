@@ -3,6 +3,7 @@ package com.smartbox.investory.investment.valuation.fx;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -10,6 +11,7 @@ import com.smartbox.investory.investment.performance.InvestmentCalculationCache;
 import com.smartbox.investory.investment.port.fx.FxRateProvider;
 import com.smartbox.investory.investment.port.fx.FxRateProvider.FxQuote;
 import com.smartbox.investory.investment.port.fx.FxRateProviderException;
+import com.smartbox.investory.investment.projection.PortfolioProjectionRefreshService;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateUpdaterService.CurrencyRateRefreshResult;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
@@ -31,12 +33,15 @@ class CurrencyRateUpdaterServiceTest {
   @Mock private FxRateProvider fxRateProvider;
   @Mock private CurrencyRateService currencyRateService;
   @Mock private InvestmentCalculationCache calculationCache;
+  @Mock private PortfolioProjectionRefreshService projectionRefreshService;
 
   private CurrencyRateUpdaterService updater;
 
   @BeforeEach
   void setUp() {
-    updater = new CurrencyRateUpdaterService(fxRateProvider, currencyRateService, calculationCache);
+    updater =
+        new CurrencyRateUpdaterService(
+            fxRateProvider, currencyRateService, calculationCache, projectionRefreshService);
   }
 
   @DisplayName("update Currency Rates pushes Rates For Usd Eur And Pln")
@@ -100,6 +105,9 @@ class CurrencyRateUpdaterServiceTest {
         monthCaptor.getAllValues());
     assertEquals(LocalDate.of(2026, 8, 17), result.rateDate());
     verify(currencyRateService).activateDailyHistoryAt(LocalDate.of(2026, 8, 17));
+    verify(projectionRefreshService)
+        .refreshApplicationViews(
+            PortfolioProjectionRefreshService.ApplicationRefreshScope.FX_UPDATE);
   }
 
   @DisplayName("update Currency Rates records Failure When Response Is Null")
@@ -111,6 +119,41 @@ class CurrencyRateUpdaterServiceTest {
 
     assertTrue(result.updated().isEmpty());
     assertEquals(1, result.failed().size());
+  }
+
+  @Test
+  void updateCurrencyRates_rejectsInvalidQuotesBeforePersistence() {
+    LocalDate date = LocalDate.of(2026, 8, 21);
+    when(fxRateProvider.fetchRates(any()))
+        .thenReturn(
+            List.of(
+                new FxQuote(CurrencyType.USD, CurrencyType.EUR, null, date, date),
+                new FxQuote(
+                    CurrencyType.USD, CurrencyType.PLN, BigDecimal.valueOf(4), date, date)));
+
+    CurrencyRateRefreshResult result = updater.updateCurrencyRatesForDate(date);
+
+    assertTrue(result.updated().isEmpty());
+    verify(currencyRateService, never()).updateRates(any(), any(), any());
+    verify(currencyRateService, never()).activateDailyHistoryAt(any());
+  }
+
+  @Test
+  void updateCurrencyRates_rejectsConflictingDuplicateAndInconsistentDates() {
+    LocalDate date = LocalDate.of(2026, 8, 21);
+    when(fxRateProvider.fetchRates(any()))
+        .thenReturn(
+            List.of(
+                new FxQuote(CurrencyType.USD, CurrencyType.EUR, BigDecimal.valueOf(.9), date, date),
+                new FxQuote(
+                    CurrencyType.USD, CurrencyType.EUR, BigDecimal.valueOf(.91), date, date),
+                new FxQuote(
+                    CurrencyType.USD, CurrencyType.PLN, BigDecimal.valueOf(4), date, date)));
+
+    CurrencyRateRefreshResult result = updater.updateCurrencyRatesForDate(date);
+
+    assertTrue(result.updated().isEmpty());
+    verify(currencyRateService, never()).updateRates(any(), any(), any());
   }
 
   @DisplayName("update Currency Rates records Failure When Usd Request Is Rate Limited")

@@ -5,7 +5,6 @@ import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -26,9 +25,6 @@ public interface PortfolioMonthlyPerformanceRepository
       LocalDate from, LocalDate to);
 
   List<PortfolioMonthlyPerformanceEntity> findByPortfolioIdOrderByMonthAsc(Long portfolioId);
-
-  Optional<PortfolioMonthlyPerformanceEntity> findFirstByPortfolioIdOrderByMonthAsc(
-      Long portfolioId);
 
   @Query(
       "select distinct p.baseCurrency from PortfolioMonthlyPerformanceEntity p "

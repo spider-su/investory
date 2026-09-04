@@ -15,6 +15,9 @@ public interface SimulationPlanRepository extends JpaRepository<SimulationPlanEn
   Optional<SimulationPlanEntity> findFirstByPortfolioIdAndArchivedFalseOrderByUpdatedAtDescIdDesc(
       Long portfolioId);
 
+  Optional<SimulationPlanEntity> findFirstByPortfolioIdAndSandboxTrueAndArchivedFalse(
+      Long portfolioId);
+
   Optional<SimulationPlanEntity> findByIdAndPortfolioId(Long id, Long portfolioId);
 
   @Lock(LockModeType.PESSIMISTIC_WRITE)

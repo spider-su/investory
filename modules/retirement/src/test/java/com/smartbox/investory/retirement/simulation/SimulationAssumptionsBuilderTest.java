@@ -48,6 +48,18 @@ class SimulationAssumptionsBuilderTest {
                 .build());
   }
 
+  @Test
+  void rejectsCapitalGainTaxRateOutsideTaxRateBounds() {
+    SimulationAssumptions source = assumptions();
+
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> source.toBuilder().capitalGainTaxRate(new BigDecimal("-0.01")).build());
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> source.toBuilder().capitalGainTaxRate(new BigDecimal("1.01")).build());
+  }
+
   @DisplayName("named Copy Adjusts Recurring Spending Without Changing Its Composition")
   @Test
   void namedCopyAdjustsRecurringSpendingWithoutChangingItsComposition() {
@@ -95,11 +107,6 @@ class SimulationAssumptionsBuilderTest {
             RetirementFundingSource.LONG_TERM,
             RetirementFundingSource.RESERVE,
             RetirementFundingSource.INVESTMENT),
-        new ExpenseProfile(List.of(new ExpenseProfileStep(5, new BigDecimal("0.8")))),
-        new ProjectedIncomePolicy(
-            ProjectedIncomePolicy.IncomeMode.MANUAL,
-            new BigDecimal("25000"),
-            ProjectedIncomePolicy.IncomeMode.MANUAL,
-            new BigDecimal("7000")));
+        new ExpenseProfile(List.of(new ExpenseProfileStep(5, new BigDecimal("0.8")))));
   }
 }

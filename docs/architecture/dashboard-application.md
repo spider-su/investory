@@ -44,7 +44,7 @@ reporting contracts. Existing command routes and the daily attribution interacti
 ## Portfolio benchmark return contract
 
 The dashboard benchmark uses two distinct measures. Absolute account curves contain cumulative
-monthly `account_monthly_mv.total_profit` in the portfolio base currency and are used for P/L
+monthly `app_v_account_monthly.total_profit` in the portfolio base currency and are used for P/L
 amount reconciliation. Percentage curves are cumulative flow-adjusted returns: each monthly
 `compounded_monthly_return` is weighted by that account/month opening equity, then linked as
 `(1 + r1) * (1 + r2) - 1`. Deposits, withdrawals, internal transfers, and FX conversions are not

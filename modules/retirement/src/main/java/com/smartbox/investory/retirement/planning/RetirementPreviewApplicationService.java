@@ -1,6 +1,9 @@
 package com.smartbox.investory.retirement.planning;
 
-import com.smartbox.investory.profile.api.ProfileReader;
+import com.smartbox.investory.profile.api.ProfileComposition;
+import com.smartbox.investory.profile.api.ProfilePlanningReader;
+import com.smartbox.investory.profile.api.ProfileSnapshotReader;
+import com.smartbox.investory.profile.api.ProfileSummaryReader;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.retirement.api.RetirementPlanApi;
 import com.smartbox.investory.retirement.api.RetirementPreviewApi;
@@ -15,29 +18,47 @@ import com.smartbox.investory.shared.presentation.FinancialPresentation;
 import java.time.Clock;
 import java.time.Year;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /** Application orchestration for the plan editor preview use case. */
 @Service
 @Slf4j
 public class RetirementPreviewApplicationService implements RetirementPreviewApi {
-  private final ProfileReader profiles;
+  private final ProfileSummaryReader summaries;
+  private final ProfilePlanningReader planning;
+  private final ProfileSnapshotReader profileSnapshots;
   private final RetirementPlanApi plans;
   private final PlanEditorPreviewService previews;
   private final PlanEditorInputNormalizer normalizer;
   private final Clock clock;
 
+  @Autowired
   public RetirementPreviewApplicationService(
-      ProfileReader profiles,
+      ProfileSummaryReader summaries,
+      ProfilePlanningReader planning,
+      ProfileSnapshotReader profileSnapshots,
       RetirementPlanApi plans,
       PlanEditorPreviewService previews,
       PlanEditorInputNormalizer normalizer,
       Clock clock) {
-    this.profiles = profiles;
+    this.summaries = summaries;
+    this.planning = planning;
+    this.profileSnapshots = profileSnapshots;
     this.plans = plans;
     this.previews = previews;
     this.normalizer = normalizer;
     this.clock = clock;
+  }
+
+  public RetirementPreviewApplicationService(
+      ProfileSummaryReader summaries,
+      ProfilePlanningReader planning,
+      RetirementPlanApi plans,
+      PlanEditorPreviewService previews,
+      PlanEditorInputNormalizer normalizer,
+      Clock clock) {
+    this(summaries, planning, null, plans, previews, normalizer, clock);
   }
 
   @Override
@@ -53,7 +74,10 @@ public class RetirementPreviewApplicationService implements RetirementPreviewApi
     return operation(
         "preview retirement plan editor portfolioId=" + portfolioId,
         () -> {
-          InvestmentProfile profile = profiles.loadProfile(portfolioId);
+          InvestmentProfile profile =
+              profileSnapshots == null
+                  ? ProfileComposition.load(summaries, planning, portfolioId)
+                  : profileSnapshots.loadProfile(portfolioId);
           Long selectedPlanId = plans.resolvePlanId(portfolioId, planId).orElse(null);
           SimulationAssumptions base =
               selectedPlanId == null

@@ -2,6 +2,7 @@ package com.smartbox.investory.longterm.application.model;
 
 import com.smartbox.investory.longterm.api.model.RentalEconomicsModel;
 import com.smartbox.investory.longterm.application.service.LongTermAssetCalculator;
+import com.smartbox.investory.shared.presentation.FinancialPrecision;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 
@@ -21,23 +22,17 @@ public record AnnualEconomics(
 
   public static AnnualEconomics of(
       BigDecimal value, BigDecimal gross, BigDecimal expenses, BigDecimal tax) {
-    RentalEconomicsModel rental = RentalEconomicsModel.of(gross, expenses, tax);
-    BigDecimal netBeforeTax = rental.netIncomeBeforeTax();
-    BigDecimal netAfterTax = rental.netIncome();
-    return new AnnualEconomics(
-        gross,
-        expenses,
-        tax,
-        netBeforeTax,
-        netAfterTax,
-        LongTermAssetCalculator.ratio(gross, value),
-        LongTermAssetCalculator.ratio(netBeforeTax, value),
-        LongTermAssetCalculator.ratio(netAfterTax, value));
+    return calculate(value, gross, expenses, tax, FinancialPrecision.CALCULATION_RATIO_SCALE);
   }
 
   /** Aggregate yields historically retain 12 decimal places. */
   public static AnnualEconomics aggregateOf(
       BigDecimal value, BigDecimal gross, BigDecimal expenses, BigDecimal tax) {
+    return calculate(value, gross, expenses, tax, 12);
+  }
+
+  private static AnnualEconomics calculate(
+      BigDecimal value, BigDecimal gross, BigDecimal expenses, BigDecimal tax, int yieldScale) {
     RentalEconomicsModel rental = RentalEconomicsModel.of(gross, expenses, tax);
     BigDecimal netBeforeTax = rental.netIncomeBeforeTax();
     BigDecimal netAfterTax = rental.netIncome();
@@ -47,14 +42,16 @@ public record AnnualEconomics(
         tax,
         netBeforeTax,
         netAfterTax,
-        ratio(gross, value),
-        ratio(netBeforeTax, value),
-        ratio(netAfterTax, value));
+        ratio(gross, value, yieldScale),
+        ratio(netBeforeTax, value, yieldScale),
+        ratio(netAfterTax, value, yieldScale));
   }
 
-  private static BigDecimal ratio(BigDecimal numerator, BigDecimal denominator) {
+  private static BigDecimal ratio(BigDecimal numerator, BigDecimal denominator, int scale) {
+    if (scale == FinancialPrecision.CALCULATION_RATIO_SCALE)
+      return LongTermAssetCalculator.ratio(numerator, denominator);
     return denominator == null || denominator.signum() == 0
         ? BigDecimal.ZERO
-        : numerator.divide(denominator, 12, RoundingMode.HALF_UP);
+        : numerator.divide(denominator, scale, RoundingMode.HALF_UP);
   }
 }

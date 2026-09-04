@@ -171,7 +171,8 @@ not real transactions. See [`docs/domain/planning-timeline.md`](docs/domain/plan
 - Overlapping but non-identical exports rely on stable broker identifiers or synthetic row IDs.
   Partial-overlap idempotency is not a formal guarantee and needs stronger validation.
 - SPY is the only benchmark. Benchmark selection is limited to accounts and dashboard period.
-- Investory uses one shared portfolio dataset. Per-user data isolation is not implemented.
+- Portfolios belong to application users through the required `app_users` -> `portfolios` relation.
+  Portfolio-backed HTTP reads are ownership-checked; calculations and reports require a portfolio scope.
 - Uploaded broker artifacts and parsed broker rows are retained as immutable provenance evidence in
   `import_source_files` and `import_source_rows`; normalized portfolio rows remain the accounting
   truth consumed by projections and reporting. Failed text payload previews are capped at 8 KB.
@@ -345,7 +346,8 @@ curl --fail-with-body \
   `APP_SECURITY_READ_AUTHENTICATION_REQUIRED=false` only for a trusted local network.
 - `/actuator/health` is public for liveness checks; health details are shown only to authenticated users.
 - CSRF protection is currently disabled.
-- All authenticated users see the same portfolio because per-user data scoping is not implemented.
+- Portfolio routes are scoped by `portfolioId` and checked against the authenticated user's portfolio
+  ownership. Administrators retain explicit cross-portfolio access for operational diagnostics.
 - The `prod` profile requires explicit database credentials and all four `APP_SECURITY_*` variables.
 - This status is appropriate for a trusted single-owner deployment behind network controls. Do not
   expose it as a public multi-user service without addressing the security and isolation roadmap items.
@@ -392,4 +394,4 @@ items.
 
 ## License
 
-MIT License
+[MIT License](LICENSE)

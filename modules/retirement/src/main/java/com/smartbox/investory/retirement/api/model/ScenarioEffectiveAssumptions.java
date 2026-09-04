@@ -17,17 +17,8 @@ public record ScenarioEffectiveAssumptions(
       SimulationAssumptions assumptions,
       SimulationScenario scenario,
       int baselineYear) {
-    return forScenario(profile, assumptions, scenario, baselineYear, SimulationCustomDeltas.zero());
-  }
-
-  public static ScenarioEffectiveAssumptions forScenario(
-      InvestmentProfile profile,
-      SimulationAssumptions assumptions,
-      SimulationScenario scenario,
-      int baselineYear,
-      SimulationCustomDeltas custom) {
     SimulationScenarioSettings selected =
-        SimulationScenarioSettings.forScenario(scenario, assumptions, custom);
+        SimulationScenarioSettings.forScenario(scenario, assumptions);
     FrozenBondCashFlowProjection bondProjection = new FrozenBondCashFlowProjection();
     BigDecimal capitalBondReturnRate;
     if (bondProjection.hasFrozenBondAssets(profile)

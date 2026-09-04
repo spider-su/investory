@@ -14,7 +14,11 @@ public class InvestmentReconciliationApplicationService implements InvestmentRec
   private final ReconciliationReportService reconciliationReportService;
 
   @Override
-  public ReconciliationReport loadReconciliationReport() {
-    return reconciliationReportService.generateReport();
+  public ReconciliationReport loadReconciliationReport(Long portfolioId) {
+    if (portfolioId == null || portfolioId <= 0) {
+      throw new IllegalArgumentException("portfolioId must be positive");
+    }
+    return reconciliationReportService.generateReport(
+        new ReconciliationContext(java.time.Instant.now(), java.time.LocalDate.now(), portfolioId));
   }
 }

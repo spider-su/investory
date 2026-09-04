@@ -439,9 +439,7 @@ planning-bucket starts and yields without mutating Investment or Long-Term sourc
 Sandbox may override Cash start, Bond start/yield/target, Equity start/yield, Real Estate start, and
 rental cash income. When Sandbox is disabled, the immutable reviewed baseline is authoritative.
 
-Sandbox and Custom have different intended ownership. Sandbox changes the what-if starting state or
-baseline. A future Custom scenario, if introduced, should change projected effective rates only; it
-must not rewrite CURRENT or HISTORICAL facts. Custom persistence is not part of the current model.
+Sandbox changes the what-if starting state or baseline without changing CURRENT or HISTORICAL facts.
 
 Analysis is scenario/risk evaluation that prepares inputs; Simulation is plan execution. Analysis
 must not implement a separate funding engine.

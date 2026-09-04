@@ -13,7 +13,7 @@ class SimulationTemplateContractTest {
   @Test
   void simulationTemplateKeepsProjectionPresentationServerBacked() throws Exception {
     String html =
-        Files.readString(
+        HtmlTestSupport.readTemplateWithFragments(
             Path.of("../adapters/web-ui/src/main/resources/templates/simulation.html"));
     assertAll(
         () -> assertTrue(html.contains("Expected year end")),
@@ -66,7 +66,7 @@ class SimulationTemplateContractTest {
   @Test
   void planningTimelineUsesCompactBucketSummaryColumns() throws Exception {
     String html =
-        Files.readString(
+        HtmlTestSupport.readTemplateWithFragments(
             Path.of("../adapters/web-ui/src/main/resources/templates/simulation.html"));
     assertAll(
         () -> assertTrue(html.contains("iv-simulation-projection-table")),
@@ -81,10 +81,8 @@ class SimulationTemplateContractTest {
         () ->
             assertTrue(html.contains("planningDisplayCurrency=${simulationPage.displayCurrency}")),
         () -> assertTrue(html.contains("selectedScenario=${simulationPage.selectedScenario}")),
-        () -> assertTrue(html.contains("customInflationDelta")),
-        () -> assertTrue(html.contains("customRentalGrowthDelta")),
-        () -> assertTrue(html.contains("selectedScenario=CUSTOM")),
-        () -> assertTrue(html.contains(">Reset</a>")),
+        () -> assertFalse(html.contains("customInflationDelta")),
+        () -> assertFalse(html.contains("selectedScenario=CUSTOM")),
         () -> assertTrue(html.contains("year=${summary.year}")),
         () -> assertTrue(html.contains("summary.state == 'Projected' ? summary.status : '—'")),
         () -> assertFalse(html.contains("year == 2025")),
@@ -124,11 +122,38 @@ class SimulationTemplateContractTest {
         () -> assertTrue(html.contains("timelineMoney[row.year].bondReturn")));
   }
 
+  @DisplayName("sandbox exposes simple inputs and the matching chart/table outputs")
+  @Test
+  void sandboxTemplateContract() throws Exception {
+    String html =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/templates/simulation-sandbox.html"));
+    String javascript =
+        Files.readString(
+            Path.of("../adapters/web-ui/src/main/resources/static/js/retirement-sandbox.js"));
+    assertAll(
+        () -> assertTrue(html.contains("/simulation/sandbox")),
+        () -> assertTrue(html.contains("name=\"monthlyRentalIncome\"")),
+        () -> assertTrue(html.contains("name=\"cash\"")),
+        () -> assertTrue(html.contains("name=\"bonds\"")),
+        () -> assertTrue(html.contains("name=\"equities\"")),
+        () -> assertTrue(html.contains("OK — spending is funded")),
+        () -> assertTrue(html.contains("sandbox-chart")),
+        () -> assertTrue(html.contains("Projection starts at retirement age")),
+        () -> assertTrue(html.contains("<th>Unfunded</th>")),
+        () -> assertTrue(html.contains("Yearly values")),
+        () -> assertTrue(javascript.contains("turbo:load")),
+        () -> assertTrue(javascript.contains("sandboxChart?.destroy()")),
+        () -> assertTrue(javascript.contains("label: 'Unfunded'")),
+        () -> assertTrue(html.contains("name=\"portfolioId\"")),
+        () -> assertTrue(html.contains("name=\"planId\"")));
+  }
+
   @DisplayName("simulation Keeps Scenario And Plan Navigation")
   @Test
   void simulationKeepsScenarioAndPlanNavigation() throws Exception {
     String html =
-        Files.readString(
+        HtmlTestSupport.readTemplateWithFragments(
             Path.of("../adapters/web-ui/src/main/resources/templates/simulation.html"));
     String editor =
         Files.readString(
@@ -139,9 +164,7 @@ class SimulationTemplateContractTest {
     String header =
         Files.readString(
             Path.of("../adapters/web-ui/src/main/resources/templates/fragments/app-header.html"));
-    String css =
-        Files.readString(
-            Path.of("../adapters/web-ui/src/main/resources/static/css/components.css"));
+    String css = CssTestSupport.readComposedStylesheet();
     int actionsStart = header.indexOf("iv-planning-actions--simulation");
     int secondaryStart = header.indexOf("iv-planning-topbar__secondary");
     assertAll(
@@ -218,11 +241,9 @@ class SimulationTemplateContractTest {
   @Test
   void simulationKeepsOutcomeSectionsBeforeScenarioDetails() throws Exception {
     String html =
-        Files.readString(
+        HtmlTestSupport.readTemplateWithFragments(
             Path.of("../adapters/web-ui/src/main/resources/templates/simulation.html"));
-    String css =
-        Files.readString(
-            Path.of("../adapters/web-ui/src/main/resources/static/css/components.css"));
+    String css = CssTestSupport.readComposedStylesheet();
     assertFalse(css.contains("aria-labelledby=\"plan-title\""));
     assertTrue(
         html.indexOf("aria-labelledby=\"plan-title\"")
@@ -290,11 +311,9 @@ class SimulationTemplateContractTest {
   @Test
   void assumptionsAndCapitalUseSharedStructuralGrids() throws Exception {
     String html =
-        Files.readString(
+        HtmlTestSupport.readTemplateWithFragments(
             Path.of("../adapters/web-ui/src/main/resources/templates/simulation.html"));
-    String css =
-        Files.readString(
-            Path.of("../adapters/web-ui/src/main/resources/static/css/components.css"));
+    String css = CssTestSupport.readComposedStylesheet();
 
     assertAll(
         () -> assertTrue(html.contains("iv-plan-timeline__assumption-row--header")),
@@ -321,7 +340,13 @@ class SimulationTemplateContractTest {
         () -> assertTrue(editor.contains("plannedRentalIncome")),
         () -> assertTrue(editor.contains("plannedBondIncome")),
         () -> assertFalse(editor.contains("name=\"rentalIncome\"")),
-        () -> assertFalse(editor.contains("name=\"bondIncome\"")));
+        () -> assertFalse(editor.contains("name=\"bondIncome\"")),
+        () -> assertFalse(editor.contains("Manual projected income")),
+        () -> assertFalse(editor.contains("Manual planning value")),
+        () -> assertFalse(editor.contains("id=\"manual-rental-income\"")),
+        () -> assertFalse(editor.contains("id=\"manual-bond-cash-income\"")),
+        () -> assertFalse(editor.contains("manualRentalIncome")),
+        () -> assertFalse(editor.contains("manualBondCashIncome")));
   }
 
   @DisplayName("developer Preview Is Cancelled Before Plan Save")

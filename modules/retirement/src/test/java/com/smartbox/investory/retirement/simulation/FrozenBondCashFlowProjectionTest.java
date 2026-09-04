@@ -9,6 +9,7 @@ import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.profile.api.model.Liquidity;
 import com.smartbox.investory.profile.api.model.ProjectedLongTermAsset;
 import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.api.model.FrozenBondCashFlowProjection;
 import com.smartbox.investory.retirement.planning.PlanningProfileBaseline;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;

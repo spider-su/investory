@@ -9,6 +9,7 @@ import com.smartbox.investory.investment.api.asset.model.AssetSettlementModel;
 import com.smartbox.investory.investment.api.asset.model.AssetTransactionType;
 import com.smartbox.investory.investment.api.asset.model.AssetTransactionView;
 import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceRepository;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
@@ -47,12 +48,16 @@ public class AssetDetailService {
   private final CashOperationRepository cashOperationRepository;
   private final SymbolPerformanceRepository symbolPerformanceRepository;
   private final CurrencyRateService currencyRateService;
+  private final AccountRepository accountRepository;
 
-  public AssetDetailView findBySymbol(String rawSymbol) {
-    return findBySymbol(rawSymbol, DashboardPeriod.ONE_YEAR);
-  }
-
-  public AssetDetailView findBySymbol(String rawSymbol, DashboardPeriod period) {
+  public AssetDetailView findBySymbol(Long portfolioId, String rawSymbol, DashboardPeriod period) {
+    if (portfolioId == null || portfolioId <= 0) {
+      throw new IllegalArgumentException("portfolioId must be positive");
+    }
+    Set<Long> accountIds =
+        accountRepository.findAllByPortfolioId(portfolioId).stream()
+            .map(a -> a.getId())
+            .collect(Collectors.toSet());
     String symbol = normalize(rawSymbol);
     AssetEntity asset =
         assetRepository
@@ -61,15 +66,18 @@ public class AssetDetailService {
     ZonedDateTime startDate = period.startDate(ZonedDateTime.now());
     return toView(
         asset,
-        openedPositionRepository.findOpenByAssetId(asset.getId()),
-        filterPositionEntitys(
-            closedPositionRepository.findClosedByAssetId(asset.getId()), startDate),
+        openedPositionRepository.findOpenByAssetIdAndAccountIn(asset.getId(), accountIds),
+        filterPositionEntities(
+            closedPositionRepository.findClosedByAssetIdAndAccountIn(asset.getId(), accountIds),
+            startDate),
         filterDividendOperations(
-            cashOperationRepository.findAllByAssetIdAndTypeInOrderByDateDescIdDesc(
-                asset.getId(), DIVIDEND_TYPES),
+            cashOperationRepository.findAllByAssetIdAndAccountInAndTypeInOrderByDateDescIdDesc(
+                asset.getId(), accountIds, DIVIDEND_TYPES),
             startDate),
         period,
-        aggregatePerformance(symbolPerformanceRepository.findAllBySymbol(asset.getSymbol())));
+        aggregatePerformance(
+            symbolPerformanceRepository.findAllByPortfolioIdAndSymbol(
+                portfolioId, asset.getSymbol())));
   }
 
   private AssetDetailView toView(
@@ -130,7 +138,7 @@ public class AssetDetailService {
         performance);
   }
 
-  private List<PositionEntity> filterPositionEntitys(
+  private List<PositionEntity> filterPositionEntities(
       List<PositionEntity> positions, ZonedDateTime startDate) {
     if (startDate == null) {
       return positions;

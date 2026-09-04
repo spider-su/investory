@@ -23,6 +23,25 @@ public record InvestmentProfile(
     BigDecimal investmentCapital,
     ProfileIncomeSummary incomeSummary,
     ProfileAllocationReconciliation allocationReconciliation) {
+  public static InvestmentProfile from(ProfileSummary summary, ProfilePlanning planning) {
+    return new InvestmentProfile(
+        summary.portfolioId(),
+        summary.currency(),
+        summary.marketPortfolioValue(),
+        summary.longTermAssetValue(),
+        summary.totalNetWorth(),
+        summary.liquidAssets(),
+        summary.illiquidAssets(),
+        summary.allocations(),
+        summary.currentRentalIncome(),
+        summary.currentBondIncome(),
+        planning.longTermPlanningState(),
+        summary.retirementReserve(),
+        summary.investmentCapital(),
+        summary.incomeSummary(),
+        summary.allocationReconciliation());
+  }
+
   public InvestmentProfile {
     Objects.requireNonNull(portfolioId, "portfolioId");
     Objects.requireNonNull(currency, "currency");

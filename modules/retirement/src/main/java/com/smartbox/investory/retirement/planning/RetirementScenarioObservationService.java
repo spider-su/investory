@@ -44,9 +44,13 @@ public class RetirementScenarioObservationService implements RetirementScenarioO
     Map<String, ScenarioObservation> result = new LinkedHashMap<>();
     result.put("Inflation", unavailable());
     result.put("Spending growth", spendingGrowth(timeline));
-    LongTermAssetAnnualSnapshotModel current = safeHistoricalSnapshot(portfolioId, today.getYear());
+    // Historical annual snapshots are Dec-31 facts.  The current calendar year is not complete
+    // yet, so using today.getYear() would ask FX resolution for a future valuation date.
+    int latestCompletedYear = today.getYear() - 1;
+    LongTermAssetAnnualSnapshotModel current =
+        safeHistoricalSnapshot(portfolioId, latestCompletedYear);
     LongTermAssetAnnualSnapshotModel prior =
-        safeHistoricalSnapshot(portfolioId, today.getYear() - 1);
+        safeHistoricalSnapshot(portfolioId, latestCompletedYear - 1);
     result.put(
         "Rental growth",
         rentalGrowth(

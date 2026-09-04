@@ -37,8 +37,7 @@ public record SimulationAssumptions(
     BigDecimal annualEmploymentIncome,
     BigDecimal annualPreRetirementContribution,
     List<RetirementFundingSource> fundingOrder,
-    ExpenseProfile expenseProfile,
-    ProjectedIncomePolicy projectedIncomePolicy) {
+    ExpenseProfile expenseProfile) {
 
   public int retirementYear() {
     return planStartYear() + retirementAge() - ageAtPlanStart();
@@ -64,14 +63,14 @@ public record SimulationAssumptions(
       throw new IllegalArgumentException("Invalid retirement age");
     for (BigDecimal rate :
         new BigDecimal[] {
-          inflationRate,
-          fixedIncomeReturnRate,
-          equityReturnRate,
-          capitalGainTaxRate,
-          equityHarvestMinimumReturnRate
+          inflationRate, fixedIncomeReturnRate, equityReturnRate, equityHarvestMinimumReturnRate
         })
       if (rate == null || rate.compareTo(BigDecimal.ONE.negate()) < 0)
         throw new IllegalArgumentException("Invalid simulation rate");
+    if (capitalGainTaxRate == null
+        || capitalGainTaxRate.signum() < 0
+        || capitalGainTaxRate.compareTo(BigDecimal.ONE) > 0)
+      throw new IllegalArgumentException("Invalid capital-gains tax rate");
     if (rentalIncomeGrowthSpread == null
         || spendingGrowthSpread == null
         || SimulationScenarioSettings.effectiveGrowthRate(inflationRate, rentalIncomeGrowthSpread)
@@ -105,8 +104,6 @@ public record SimulationAssumptions(
         || futureEvents == null) throw new IllegalArgumentException("Invalid simulation cash flow");
     futureEvents = List.copyOf(futureEvents);
     fundingOrder = List.copyOf(fundingOrder);
-    projectedIncomePolicy =
-        projectedIncomePolicy == null ? ProjectedIncomePolicy.SOURCE : projectedIncomePolicy;
   }
 
   /** The persisted age is the age at the plan start year, not an independently changing age. */
@@ -124,17 +121,9 @@ public record SimulationAssumptions(
     return RetirementFundingPolicy.fromLegacy(this);
   }
 
-  public ProjectedIncomePolicy projectedIncomePolicy() {
-    return projectedIncomePolicy == null ? ProjectedIncomePolicy.SOURCE : projectedIncomePolicy;
-  }
-
   /** Named copy boundary. Use this instead of reconstructing this record positionally. */
   public Builder toBuilder() {
     return new Builder(this);
-  }
-
-  public SimulationAssumptions withProjectedIncomePolicy(ProjectedIncomePolicy policy) {
-    return toBuilder().projectedIncomePolicy(policy).build();
   }
 
   /** Nominal rental growth: economy-wide inflation plus the persisted rental spread. */
@@ -145,6 +134,11 @@ public record SimulationAssumptions(
   /** Nominal spending growth: economy-wide inflation plus the persisted spending spread. */
   public BigDecimal effectiveSpendingGrowthRate() {
     return SimulationScenarioSettings.effectiveGrowthRate(inflationRate, spendingGrowthSpread);
+  }
+
+  /** Combined annual spending used by planning and simulation consumers. */
+  public BigDecimal annualSpending() {
+    return annualLivingExpenses.add(annualDiscretionaryExpenses);
   }
 
   public static SimulationAssumptions defaults(
@@ -182,8 +176,7 @@ public record SimulationAssumptions(
         BigDecimal.ZERO,
         BigDecimal.ZERO,
         DEFAULT_FUNDING_ORDER,
-        ExpenseProfile.EMPTY,
-        ProjectedIncomePolicy.SOURCE);
+        ExpenseProfile.EMPTY);
   }
 
   /** Derive recurring spending while preserving the current living/discretionary proportion. */
@@ -294,7 +287,6 @@ public record SimulationAssumptions(
     private BigDecimal annualPreRetirementContribution;
     private List<RetirementFundingSource> fundingOrder;
     private ExpenseProfile expenseProfile;
-    private ProjectedIncomePolicy projectedIncomePolicy;
 
     private Builder(SimulationAssumptions source) {
       currentAge = source.currentAge;
@@ -321,7 +313,6 @@ public record SimulationAssumptions(
       annualPreRetirementContribution = source.annualPreRetirementContribution;
       fundingOrder = source.fundingOrder;
       expenseProfile = source.expenseProfile;
-      projectedIncomePolicy = source.projectedIncomePolicy();
     }
 
     public Builder currentAge(int value) {
@@ -460,11 +451,6 @@ public record SimulationAssumptions(
       return this;
     }
 
-    public Builder projectedIncomePolicy(ProjectedIncomePolicy value) {
-      projectedIncomePolicy = value;
-      return this;
-    }
-
     public SimulationAssumptions build() {
       return new SimulationAssumptions(
           currentAge,
@@ -490,8 +476,7 @@ public record SimulationAssumptions(
           annualEmploymentIncome,
           annualPreRetirementContribution,
           fundingOrder,
-          expenseProfile,
-          projectedIncomePolicy);
+          expenseProfile);
     }
   }
 }

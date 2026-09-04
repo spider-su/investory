@@ -51,14 +51,26 @@ public class DashboardOperationalContextService {
     this.accountRepository = accountRepository;
   }
 
-  public DashboardOperationalView load(Portfolio portfolio) {
+  public DashboardOperationalView load(Long portfolioId, Portfolio portfolio) {
+    if (portfolioId == null || portfolioId <= 0) {
+      throw new IllegalArgumentException("portfolioId must be positive");
+    }
     PortfolioDataQuality quality =
         portfolio.getDataQuality() == null
             ? PortfolioDataQuality.unknown()
             : portfolio.getDataQuality();
     Optional<ImportHistoryEntity> latestImport =
-        importRepository.findFirstByStatusOrderByFinishedAtDesc(ImportBatchStatus.COMPLETED);
-    List<AccountStatisticsEntity> accounts = accountStatisticsRepository.findAll();
+        importRepository.findFirstByPortfolioIdAndStatusOrderByFinishedAtDesc(
+            portfolioId, ImportBatchStatus.COMPLETED);
+    var portfolioAccountIds =
+        accountRepository == null
+            ? java.util.Set.<Long>of()
+            : accountRepository.findAllByPortfolioId(portfolioId).stream()
+                .map(account -> account.getId())
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+    List<AccountStatisticsEntity> accounts =
+        accountStatisticsRepository.findAllByAccountIdIn(portfolioAccountIds);
     ZonedDateTime latestTransaction =
         accounts.stream()
             .map(AccountStatisticsEntity::getLastActivityAt)
@@ -66,7 +78,7 @@ public class DashboardOperationalContextService {
             .max(Comparator.naturalOrder())
             .orElse(null);
     ImportHistoryEntity imported = latestImport.orElse(null);
-    long updatedAccounts = countReportingAccounts(quality, accounts);
+    long updatedAccounts = countReportingAccounts(portfolioId, quality, accounts);
     var importContext =
         new DashboardOperationalView.ImportContext(
             imported == null ? null : imported.getFinishedAt(),
@@ -93,9 +105,13 @@ public class DashboardOperationalContextService {
   }
 
   private long countReportingAccounts(
-      PortfolioDataQuality quality, List<AccountStatisticsEntity> accountStatistics) {
+      Long portfolioId,
+      PortfolioDataQuality quality,
+      List<AccountStatisticsEntity> accountStatistics) {
     if (accountRepository != null) {
-      return accountRepository.findAll().stream().filter(account -> !account.isCashOnly()).count();
+      return accountRepository.findAllByPortfolioId(portfolioId).stream()
+          .filter(account -> !account.isCashOnly())
+          .count();
     }
     return quality.reconciledAccounts() > 0
         ? quality.reconciledAccounts()

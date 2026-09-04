@@ -6,17 +6,16 @@ import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountDailyRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountMonthlyPerformanceEntity;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountMonthlyPerformanceRepository;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountMonthlyAttributionEntity;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountMonthlyAttributionRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsRepository;
-import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceEntity;
-import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlyPerformanceRepository;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlySummaryEntity;
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioMonthlySummaryRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.SymbolPerformanceRepository;
 import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
 import com.smartbox.investory.investment.ledger.position.persistence.PositionRepository;
-import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -31,13 +30,12 @@ class PortfolioPerformanceQueryServiceTest {
   private final PositionRepository closedPositions = mock();
   private final AccountDailyRepository daily = mock();
   private final AccountRepository accounts = mock();
-  private final AccountMonthlyPerformanceRepository accountMonths = mock();
-  private final AccountStatisticsRepository statistics = mock();
-  private final PortfolioMonthlyPerformanceRepository portfolioMonths = mock();
+  private final AccountMonthlyAttributionRepository accountMonths = mock();
+  private final PortfolioMonthlySummaryRepository portfolioMonths = mock();
   private final SymbolPerformanceRepository symbols = mock();
   private final PortfolioPerformanceQueryService service =
       new PortfolioPerformanceQueryService(
-          closedPositions, daily, accounts, accountMonths, statistics, portfolioMonths, symbols);
+          closedPositions, daily, accounts, portfolioMonths, accountMonths, symbols);
 
   @DisplayName("win Rate Uses Closed Position Profit Sign")
   @Test
@@ -46,21 +44,22 @@ class PortfolioPerformanceQueryServiceTest {
     profitable.setProfit(java.math.BigDecimal.valueOf(10.0));
     PositionEntity loss = new PositionEntity();
     loss.setProfit(java.math.BigDecimal.valueOf(-1.0));
-    when(closedPositions.findClosed()).thenReturn(List.of(profitable, loss));
+    when(accounts.findAllByPortfolioId(1L)).thenReturn(List.of(account(7L)));
+    when(closedPositions.findClosedByAccountIn(List.of(7L))).thenReturn(List.of(profitable, loss));
 
-    assertThat(service.calculateWinRate()).isEqualTo(50.0);
+    assertThat(service.calculateWinRate(1L)).isEqualTo(50.0);
   }
 
   @DisplayName("instrument Performance Returns Symbols For Dashboard Bucketing")
   @Test
   void instrumentPerformanceReturnsSymbolsForDashboardBucketing() {
-    when(symbols.findAll())
+    when(symbols.findAllByPortfolioId(1L))
         .thenReturn(
             List.of(
                 new SymbolPerformanceEntity("major", 100, 0, 100, 0, 0, 0, 10, 20, null),
                 new SymbolPerformanceEntity("minor", 0.5, 0, 1, 0, 0, 0, 5, 6, null)));
 
-    var result = service.calculatePerformancePerInstrument();
+    var result = service.calculatePerformancePerInstrument(1L);
 
     assertThat(result).hasSize(2);
     assertThat(result.get(0).getSymbol()).isEqualTo("major");
@@ -84,8 +83,9 @@ class PortfolioPerformanceQueryServiceTest {
     row.setTaxes(new BigDecimal("-2"));
     when(daily.findByDateAndAccountIdInOrderByAccountIdAsc(date, Set.of(7L)))
         .thenReturn(List.of(row));
+    when(accounts.findAllByPortfolioId(1L)).thenReturn(List.of(account(7L)));
 
-    var result = service.dailyPerformanceDetail(date, Set.of(7L));
+    var result = service.dailyPerformanceDetail(1L, date, Set.of(7L));
 
     assertThat(result.openingEquity()).isEqualTo(95.0);
     assertThat(result.closingEquity()).isEqualTo(120.0);
@@ -100,48 +100,46 @@ class PortfolioPerformanceQueryServiceTest {
     LocalDate month = LocalDate.of(2026, 5, 1);
     ZonedDateTime updated = ZonedDateTime.of(2026, 6, 1, 0, 0, 0, 0, ZoneOffset.UTC);
     var portfolio =
-        new PortfolioMonthlyPerformanceEntity(
+        new PortfolioMonthlySummaryEntity(
+            "1:2026-05",
             1L,
             month,
-            month,
-            LocalDate.of(2026, 5, 31),
-            1000,
-            1150,
-            CurrencyType.USD,
-            100,
-            0,
-            5,
-            2,
-            -1,
-            -2,
-            20,
-            50,
-            0.05,
-            updated);
+            bd(1000),
+            bd(1150),
+            bd(100),
+            bd(0),
+            bd(100),
+            bd(50),
+            bd(23),
+            bd(20),
+            bd(5),
+            bd(2),
+            bd(-1),
+            bd(-2),
+            1L);
     var account =
-        new AccountMonthlyPerformanceEntity(
-            "ignored",
-            7L,
-            month,
-            LocalDate.of(2026, 5, 31),
-            1000,
-            1150,
-            100,
-            0,
-            100,
-            50,
-            0.05,
-            updated);
-    when(accounts.findAll()).thenReturn(List.of());
-    when(statistics.findAll()).thenReturn(List.of());
-    when(portfolioMonths.findAllByOrderByMonthAscPortfolioIdAsc()).thenReturn(List.of(portfolio));
-    when(accountMonths.findAllByOrderByMonthAscAccountIdAsc()).thenReturn(List.of(account));
+        new AccountMonthlyAttributionEntity(
+            "7:2026-05", 1L, 7L, month, bd(1000), bd(1150), bd(100), bd(50), bd(100));
+    when(accounts.findAllByPortfolioId(1L)).thenReturn(List.of(account(7L)));
+    when(portfolioMonths.findByPortfolioIdOrderByMonthAsc(1L)).thenReturn(List.of(portfolio));
+    when(accountMonths.findByPortfolioIdOrderByMonthAscAccountIdAsc(1L))
+        .thenReturn(List.of(account));
 
-    var result = service.calculateMonthlyPerformance();
+    var result = service.calculateMonthlyPerformance(1L);
 
     assertThat(result.getCalculateMonthlyPerformance()).containsEntry("2026-05", 50.0);
     assertThat(result.getMonthlyCashflow()).containsEntry("2026-05", 100.0);
     assertThat(result.getMonthlyOperationsCount()).containsEntry("2026-05", 1L);
     assertThat(result.getMonthlyAttributions().get("2026-05").accounts()).hasSize(1);
+  }
+
+  private static AccountEntity account(Long id) {
+    var account = new AccountEntity();
+    account.setId(id);
+    return account;
+  }
+
+  private static BigDecimal bd(double value) {
+    return BigDecimal.valueOf(value);
   }
 }

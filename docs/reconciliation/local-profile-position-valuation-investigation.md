@@ -11,7 +11,7 @@ Materiality rule:
 The previous report counted six material valuation rows whose asset/date also
 appeared in a price currency diagnostic. This is not a causal overlap. The
 price-quality view reports any stored source row for the asset/date, while
-valuation uses the source selected by `v_normalized_daily_price`.
+valuation uses the source selected by `app_v_normalized_daily_price`.
 
 | Account | Asset | Date | Valuation source | Selected currency | Price-quality source flagged | Quality currency |
 |---|---|---|---|---|---|---|

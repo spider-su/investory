@@ -67,26 +67,6 @@ public class PortfolioAssetAllocationEntity {
   @Column(name = "updated_at", nullable = false)
   private java.time.ZonedDateTime updatedAt;
 
-  public BigDecimal getTotalVolume() {
-    return totalVolume;
-  }
-
-  public BigDecimal getMarketPrice() {
-    return marketPrice;
-  }
-
-  public BigDecimal getCostBasisInBaseCurrency() {
-    return costBasisInBaseCurrency;
-  }
-
-  public BigDecimal getTotalValueInBaseCurrency() {
-    return totalValueInBaseCurrency;
-  }
-
-  public BigDecimal getUnrealizedPlInBaseCurrency() {
-    return unrealizedPlInBaseCurrency;
-  }
-
   public PortfolioAssetAllocationEntity(
       Long portfolioId,
       CurrencyType baseCurrency,

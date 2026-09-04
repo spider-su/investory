@@ -13,13 +13,24 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class InvestmentReconciliationApplicationServiceTest {
   @Mock private ReconciliationReportService reports;
 
-  @DisplayName("loads Current System Wide Report")
+  @DisplayName("loads Portfolio Report")
   @Test
-  void loadsCurrentSystemWideReport() {
+  void loadsPortfolioReport() {
     var service = new InvestmentReconciliationApplicationService(reports);
 
-    service.loadReconciliationReport();
+    service.loadReconciliationReport(7L);
 
-    verify(reports).generateReport();
+    verify(reports).generateReport(org.mockito.ArgumentMatchers.any(ReconciliationContext.class));
+  }
+
+  @Test
+  void rejectsMissingOrInvalidPortfolioId() {
+    var service = new InvestmentReconciliationApplicationService(reports);
+
+    org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.loadReconciliationReport(null))
+        .isInstanceOf(IllegalArgumentException.class);
+    org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.loadReconciliationReport(0L))
+        .isInstanceOf(IllegalArgumentException.class);
+    org.mockito.Mockito.verifyNoInteractions(reports);
   }
 }

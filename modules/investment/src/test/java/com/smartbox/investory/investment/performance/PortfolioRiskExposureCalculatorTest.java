@@ -29,15 +29,15 @@ class PortfolioRiskExposureCalculatorTest {
 
   @Test
   void emptyPortfolioProducesUnavailableRiskWithoutDivision() {
-    when(allocations.findAll()).thenReturn(List.of(allocation(null)));
+    when(allocations.findAllByPortfolioId(1L)).thenReturn(List.of(allocation(null)));
     var portfolio = portfolio();
-    calculator.applyTo(portfolio);
+    calculator.applyTo(portfolio, 1L);
     assertThat(portfolio.getRiskExposure().warnings()).contains("Exposure data unavailable");
   }
 
   @Test
   void exactThresholdsProduceWarningsAndCurrencyExposure() {
-    when(allocations.findAll())
+    when(allocations.findAllByPortfolioId(1L))
         .thenReturn(
             List.of(
                 allocation("20"),
@@ -46,11 +46,11 @@ class PortfolioRiskExposureCalculatorTest {
                 allocation("5"),
                 allocation("5"),
                 allocation("50")));
-    when(currencies.findAllByMetricType("ACCOUNT_LATEST"))
+    when(currencies.findAllByPortfolioIdAndMetricType(1L, "ACCOUNT_LATEST"))
         .thenReturn(List.of(currency(CurrencyType.USD, "70"), currency(CurrencyType.PLN, "30")));
     var portfolio = portfolio();
 
-    calculator.applyTo(portfolio);
+    calculator.applyTo(portfolio, 1L);
 
     assertThat(portfolio.getRiskExposure().largestAssetWeightPct()).isEqualTo(50.0);
     assertThat(portfolio.getRiskExposure().baseCurrencyAccountExposurePct()).isEqualTo(70.0);
@@ -76,6 +76,7 @@ class PortfolioRiskExposureCalculatorTest {
 
   private static PortfolioCurrencyBreakdownEntity currency(CurrencyType currency, String value) {
     var row = new PortfolioCurrencyBreakdownEntity();
+    row.setMetricType("ACCOUNT_LATEST");
     row.setCurrency(currency);
     row.setAmountInBaseCurrency(new BigDecimal(value));
     return row;

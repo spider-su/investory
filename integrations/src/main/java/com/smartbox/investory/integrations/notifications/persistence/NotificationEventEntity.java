@@ -72,6 +72,12 @@ public class NotificationEventEntity {
   @Column(name = "next_attempt_at", nullable = false)
   private Instant nextAttemptAt;
 
+  @Column(name = "processing_lease_until")
+  private Instant processingLeaseUntil;
+
+  @Column(name = "processing_token", length = 64)
+  private String processingToken;
+
   @Column(name = "last_error", length = 1000)
   private String lastError;
 }

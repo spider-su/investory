@@ -40,8 +40,8 @@ class DashboardRenderSmokeTest {
     Benchmark benchmark = new Benchmark();
     PortfolioMetricsService portfolioMetricsService = mock(PortfolioMetricsService.class);
     BenchmarkService benchmarkService = mock(BenchmarkService.class);
-    when(portfolioMetricsService.calculateTotalProfitLoss()).thenReturn(portfolio);
-    when(benchmarkService.calculate()).thenReturn(benchmark);
+    when(portfolioMetricsService.calculateTotalProfitLoss(1L)).thenReturn(portfolio);
+    when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
 
     var dashboard =
         new InvestmentDashboardFacade(

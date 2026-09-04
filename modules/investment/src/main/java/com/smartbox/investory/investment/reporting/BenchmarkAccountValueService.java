@@ -6,6 +6,7 @@ import com.smartbox.investory.investment.infrastructure.persistence.account.Acco
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsEntity;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -26,7 +27,7 @@ import org.springframework.util.CollectionUtils;
 class BenchmarkAccountValueService {
 
   private static final double ACTIVE_ACCOUNT_MIN_VALUE = 50.0;
-  private static final CurrencyType BASE_CURRENCY = CurrencyType.USD;
+  private static final CurrencyType BASE_CURRENCY = FinancialPolicyDefaults.CANONICAL_CURRENCY;
 
   private final CurrencyRateService currencyRateService;
 
@@ -84,10 +85,13 @@ class BenchmarkAccountValueService {
             .collect(
                 Collectors.groupingBy(
                     row -> row.getDate().getYear(), TreeMap::new, Collectors.toList()));
+    Map<LocalDate, Map<Long, AccountDailyEntity>> rowsByDate = indexByDateAndAccount(dailyRows);
     List<Benchmark.AccountValueYear> years = new ArrayList<>();
     rowsByYear
         .descendingMap()
-        .forEach((year, rows) -> addYear(years, year, rows, availableAccounts, accountsById));
+        .forEach(
+            (year, rows) ->
+                addYear(years, year, rows, availableAccounts, accountsById, rowsByDate));
     return years;
   }
 
@@ -96,15 +100,17 @@ class BenchmarkAccountValueService {
       int year,
       List<AccountDailyEntity> rows,
       Set<Long> accountIds,
-      Map<Long, AccountEntity> accountsById) {
+      Map<Long, AccountEntity> accountsById,
+      Map<LocalDate, Map<Long, AccountDailyEntity>> rowsByDate) {
     List<String> labels = dailyLabels(rows);
     List<Benchmark.AccountValueSeries> series =
         accountsById.values().stream()
             .filter(account -> accountIds.contains(account.getId()))
-            .map(account -> dailyAccountValueSeries(account, rows, labels))
+            .map(account -> dailyAccountValueSeries(account, labels, rowsByDate))
             .toList();
     if (!series.isEmpty()) {
-      Benchmark.AccountValueSeries total = sumAccountValueSeries(rows, accountIds, labels, series);
+      Benchmark.AccountValueSeries total =
+          sumAccountValueSeries(accountIds, labels, series, rowsByDate);
       years.add(
           new Benchmark.AccountValueYear(
               year, labels, series, total.profitValues(), total.profitPctValues()));
@@ -112,18 +118,17 @@ class BenchmarkAccountValueService {
   }
 
   private Benchmark.AccountValueSeries dailyAccountValueSeries(
-      AccountEntity account, List<AccountDailyEntity> rows, List<String> labels) {
-    Map<String, AccountDailyEntity> valuesByDay =
-        rows.stream()
-            .filter(row -> account.getId().equals(row.getAccountId()))
-            .collect(Collectors.toMap(row -> row.getDate().toString(), row -> row, (a, b) -> b));
+      AccountEntity account,
+      List<String> labels,
+      Map<LocalDate, Map<Long, AccountDailyEntity>> rowsByDate) {
     List<Double> profitValues = new ArrayList<>();
     List<Double> returnValues = new ArrayList<>();
     double cumulativeProfit = 0.0;
     double factor = 1.0;
     boolean complete = true;
     for (String label : labels) {
-      AccountDailyEntity point = valuesByDay.get(label);
+      AccountDailyEntity point =
+          rowsByDate.getOrDefault(LocalDate.parse(label), Map.of()).get(account.getId());
       if (point != null) {
         cumulativeProfit += dailyProfitInBaseCurrency(point);
         Double dailyReturn = toDouble(point.getDailyReturn());
@@ -138,10 +143,10 @@ class BenchmarkAccountValueService {
   }
 
   private Benchmark.AccountValueSeries sumAccountValueSeries(
-      List<AccountDailyEntity> rows,
       Set<Long> accountIds,
       List<String> labels,
-      List<Benchmark.AccountValueSeries> accountSeries) {
+      List<Benchmark.AccountValueSeries> accountSeries,
+      Map<LocalDate, Map<Long, AccountDailyEntity>> rowsByDate) {
     List<Double> profitValues = new ArrayList<>();
     List<Double> returnValues = new ArrayList<>();
     double factor = 1.0;
@@ -149,9 +154,9 @@ class BenchmarkAccountValueService {
     for (int index = 0; index < labels.size(); index++) {
       String label = labels.get(index);
       List<AccountDailyEntity> dailyRows =
-          rows.stream()
-              .filter(row -> accountIds.contains(row.getAccountId()))
-              .filter(row -> label.equals(row.getDate().toString()))
+          rowsByDate.getOrDefault(LocalDate.parse(label), Map.of()).entrySet().stream()
+              .filter(entry -> accountIds.contains(entry.getKey()))
+              .map(Map.Entry::getValue)
               .toList();
       int valueIndex = index;
       double profit =
@@ -184,6 +189,16 @@ class BenchmarkAccountValueService {
     return Math.abs(nz(stat.getCashBalance()) + nz(stat.getMarketValue()))
             > ACTIVE_ACCOUNT_MIN_VALUE
         || Math.abs(nz(stat.getNetDeposit())) > ACTIVE_ACCOUNT_MIN_VALUE;
+  }
+
+  private static Map<LocalDate, Map<Long, AccountDailyEntity>> indexByDateAndAccount(
+      List<AccountDailyEntity> rows) {
+    Map<LocalDate, Map<Long, AccountDailyEntity>> index = new HashMap<>();
+    for (AccountDailyEntity row : rows) {
+      if (row.getDate() == null || row.getAccountId() == null) continue;
+      index.computeIfAbsent(row.getDate(), ignored -> new HashMap<>()).put(row.getAccountId(), row);
+    }
+    return index;
   }
 
   private static List<String> dailyLabels(List<AccountDailyEntity> rows) {

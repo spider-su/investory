@@ -20,11 +20,11 @@ Future accounting/domain code must keep arithmetic in `BigDecimal` and convert o
 
 ## As-of contract
 
-`reporting_account_statistics_vs_daily_reconciliation` is in `V01.005__portfolio_views.sql`, not the current migration tail. `CURRENT_DATE <> latest_daily.snapshot_date` is retained intentionally: this is a **current valuation reconciliation**, not a latest-completed-market-session reconciliation. Friday viewed Saturday, a holiday, pre-close, or a refresh lag are explicit `VALUATION_ASOF_DIFFERENCE` review states, not monetary mismatches. `DatabaseReportingContractIT.statisticsReconciliationLabelsDifferentAsOfDatesExplicitly` covers this behavior.
+`recon_v_account_statistics_vs_daily` is in `V01.006__reconciliation_views.sql`, not the current migration tail. `CURRENT_DATE <> latest_daily.snapshot_date` is retained intentionally: this is a **current valuation reconciliation**, not a latest-completed-market-session reconciliation. Friday viewed Saturday, a holiday, pre-close, or a refresh lag are explicit `VALUATION_ASOF_DIFFERENCE` review states, not monetary mismatches. `DatabaseReportingContractIT.statisticsReconciliationLabelsDifferentAsOfDatesExplicitly` covers this behavior.
 
 ## Migration strictness
 
-The clean baseline chain ends at **V01.008**: nine versioned migrations. The post-`V01.008` patch history was squashed into the original schema/function/view migrations; existing database compatibility is intentionally not supported.
+The clean baseline chain ends at **V01.008**: nine versioned migrations. Earlier post-baseline patch work was squashed into the original schema/function/view migrations; existing database compatibility is intentionally not supported.
 
 | File | Statement | Classification | Reason |
 | --- | --- | --- | --- |

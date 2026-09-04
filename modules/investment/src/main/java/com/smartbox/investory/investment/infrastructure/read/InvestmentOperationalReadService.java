@@ -28,7 +28,11 @@ public class InvestmentOperationalReadService
 
   @Override
   public PortfolioOperationsSnapshot portfolio() {
-    var value = portfolios.calculateTotalProfitLoss();
+    return portfolio(1L);
+  }
+
+  public PortfolioOperationsSnapshot portfolio(Long portfolioId) {
+    var value = portfolios.calculateTotalProfitLoss(portfolioId);
     return new PortfolioOperationsSnapshot(
         value.getBaseCurrency().name(),
         decimal(value.getBalance()),

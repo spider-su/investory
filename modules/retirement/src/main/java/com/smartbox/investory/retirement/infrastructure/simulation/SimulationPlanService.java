@@ -3,6 +3,7 @@ package com.smartbox.investory.retirement.infrastructure.simulation;
 import static org.apache.commons.lang3.StringUtils.isBlank;
 
 import com.smartbox.investory.retirement.api.RetirementPlanApi;
+import com.smartbox.investory.retirement.api.RetirementSandboxPlanApi;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.CreatePlanCommand;
 import com.smartbox.investory.retirement.api.model.PlanDetails;
@@ -24,7 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Primary
 @Transactional
-public class SimulationPlanService implements RetirementPlanApi {
+public class SimulationPlanService implements RetirementPlanApi, RetirementSandboxPlanApi {
   private final SimulationPlanRepository plans;
   private final SimulationPlanRevisionRepository revisions;
   private final SimulationPlanRevisionEventRepository revisionEvents;
@@ -42,16 +43,6 @@ public class SimulationPlanService implements RetirementPlanApi {
     this.baselineJson = baselineJson;
   }
 
-  /** Source-compatible constructor for unit tests and older in-process callers. */
-  @Deprecated(forRemoval = true)
-  public SimulationPlanService(
-      SimulationPlanRepository plans,
-      SimulationPlanRevisionRepository revisions,
-      SimulationPlanRevisionEventRepository revisionEvents,
-      tools.jackson.databind.ObjectMapper json) {
-    this(plans, revisions, revisionEvents, new PlanningBaselineJsonCodec(json));
-  }
-
   @Transactional(readOnly = true)
   public List<SimulationPlanEntity> list(Long portfolioId) {
     return plans.findAllByPortfolioIdAndArchivedFalseOrderByName(portfolioId);
@@ -60,6 +51,7 @@ public class SimulationPlanService implements RetirementPlanApi {
   @Override
   public List<PlanSummary> listPlans(Long portfolioId) {
     return list(portfolioId).stream()
+        .filter(plan -> !plan.isSandbox())
         .map(plan -> new PlanSummary(plan.getId(), plan.getName()))
         .toList();
   }
@@ -69,10 +61,75 @@ public class SimulationPlanService implements RetirementPlanApi {
    */
   @Transactional(readOnly = true)
   public Optional<Long> resolvePlanId(Long portfolioId, Long requestedPlanId) {
-    if (requestedPlanId != null) return Optional.of(get(portfolioId, requestedPlanId).getId());
+    if (requestedPlanId != null) {
+      SimulationPlanEntity plan = get(portfolioId, requestedPlanId);
+      return plan.isSandbox() ? Optional.empty() : Optional.of(plan.getId());
+    }
     return plans
         .findFirstByPortfolioIdAndArchivedFalseOrderByUpdatedAtDescIdDesc(portfolioId)
+        .filter(plan -> !plan.isSandbox())
         .map(SimulationPlanEntity::getId);
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public Optional<Long> resolve(Long portfolioId) {
+    return plans
+        .findFirstByPortfolioIdAndSandboxTrueAndArchivedFalse(portfolioId)
+        .map(SimulationPlanEntity::getId);
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public SandboxSimulationInput load(Long portfolioId, Long planId) {
+    SimulationPlanEntity plan = get(portfolioId, planId);
+    if (!plan.isSandbox()) throw new PlanNotFoundException();
+    SimulationPlanRevisionEntity revision =
+        revisions
+            .findByIdAndSimulationPlanId(plan.getCurrentRevisionId(), planId)
+            .orElseThrow(RevisionNotFoundException::new);
+    return baselineJson.readSandbox(revision.getBaselineLongTermState());
+  }
+
+  @Override
+  public Long save(Long portfolioId, Long planId, SandboxSimulationInput input) {
+    Objects.requireNonNull(input, "input");
+    SimulationPlanEntity plan;
+    if (planId == null) {
+      plan =
+          plans
+              .findFirstByPortfolioIdAndSandboxTrueAndArchivedFalse(portfolioId)
+              .orElseGet(
+                  () -> {
+                    SimulationPlanEntity created = newPlan(portfolioId, "Sandbox");
+                    created.setSandbox(true);
+                    return plans.save(created);
+                  });
+    } else {
+      plan = getForUpdate(portfolioId, planId);
+      if (!plan.isSandbox()) throw new PlanNotFoundException();
+    }
+    int nextNumber = nextRevisionNumber(plan.getId());
+    SimulationPlanRevisionEntity revision =
+        createRevision(
+            plan, sandboxAssumptions(input), nextNumber, null, baselineJson.writeSandbox(input), 1);
+    plan.setCurrentRevisionId(revision.getId());
+    return plans.save(plan).getId();
+  }
+
+  private static SimulationAssumptions sandboxAssumptions(SandboxSimulationInput input) {
+    return SimulationAssumptions.defaults(input.currentAge(), input.endAge(), input.startYear())
+        .toBuilder()
+        .currentAge(input.currentAge())
+        .endAge(input.endAge())
+        .retirementAge(input.retirementAge())
+        .annualLivingExpenses(input.annualSpending())
+        .inflationRate(input.inflationRate())
+        .fixedIncomeReturnRate(input.bondReturnRate())
+        .equityReturnRate(input.equityReturnRate())
+        .pensionStartAge(input.pensionAge())
+        .annualPension(input.monthlyPensionIncome().multiply(BigDecimal.valueOf(12)))
+        .build();
   }
 
   @Transactional(readOnly = true)
@@ -256,10 +313,24 @@ public class SimulationPlanService implements RetirementPlanApi {
       SimulationAssumptions assumptions,
       int number,
       PlanningBaseline baseline) {
+    return createRevision(plan, assumptions, number, baseline, null, null);
+  }
+
+  private SimulationPlanRevisionEntity createRevision(
+      SimulationPlanEntity plan,
+      SimulationAssumptions assumptions,
+      int number,
+      PlanningBaseline baseline,
+      String baselineLongTermState,
+      Integer baselineLongTermStateVersion) {
     SimulationPlanRevisionEntity revision = new SimulationPlanRevisionEntity();
     revision.setSimulationPlanId(plan.getId());
     revision.setRevisionNumber(number);
     copy(revision, assumptions, baseline);
+    if (baselineLongTermState != null) {
+      revision.setBaselineLongTermState(baselineLongTermState);
+      revision.setBaselineLongTermStateVersion(baselineLongTermStateVersion);
+    }
     return revisions.save(revision);
   }
 

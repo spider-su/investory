@@ -78,6 +78,22 @@ class LongTermAssetLifecycleServiceTest {
 
     assertTrue(service.activeOn(asset, TODAY.minusDays(7)));
     assertTrue(!service.activeOn(asset, TODAY.minusDays(4)));
+    assertTrue(!service.activeOn(asset, TODAY));
+  }
+
+  @DisplayName("today's archive and reactivation boundary follows current state")
+  @Test
+  void todayBoundaryFollowsCurrentState() {
+    LongTermAssetEntity asset = asset(false, TODAY.minusDays(10));
+    LongTermAssetLifecyclePeriodEntity period = period(TODAY.minusDays(10), TODAY);
+    LongTermAssetLifecyclePeriodRepository periods =
+        mock(LongTermAssetLifecyclePeriodRepository.class);
+    when(periods.findAllByAssetIdOrderByActiveFrom(1L)).thenReturn(List.of(period));
+    LongTermAssetLifecycleService service =
+        new LongTermAssetLifecycleService(mock(LongTermAssetRepository.class), periods, CLOCK);
+
+    assertTrue(!service.activeOn(asset, TODAY));
+    asset.setActive(true);
     assertTrue(service.activeOn(asset, TODAY));
   }
 

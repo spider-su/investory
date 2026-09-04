@@ -48,7 +48,7 @@ refresh_reconciliation_reporting_views
 ```
 
 No `pg_stat_activity.wait_event` or lock-wait blocker was observed. Normal refresh does hold
-`AccessExclusiveLock` on `mv_reconstructed_cash_daily`, so concurrent readers can still be
+`AccessExclusiveLock` on `recon_v_reconstructed_cash_daily_mv`, so concurrent readers can still be
 blocked while a stage runs. The main demonstrated issue is synchronous request duration, not a
 deadlock.
 

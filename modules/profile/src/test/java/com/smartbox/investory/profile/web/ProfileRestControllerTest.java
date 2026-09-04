@@ -8,7 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.smartbox.investory.profile.api.ProfileSummaryReader;
+import com.smartbox.investory.profile.api.ProfileSnapshotReader;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation;
 import com.smartbox.investory.profile.api.model.ProfileAssetProjection;
@@ -30,7 +30,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Profile REST contract")
 class ProfileRestControllerTest {
-  @Mock private ProfileSummaryReader profiles;
+  @Mock private ProfileSnapshotReader profiles;
   private MockMvc mvc;
 
   @BeforeEach
@@ -40,12 +40,11 @@ class ProfileRestControllerTest {
 
   @Test
   void returnsCanonicalProfileAndMapsPortfolioId() throws Exception {
-    when(profiles.loadSummary(7L))
-        .thenReturn(com.smartbox.investory.profile.api.model.ProfileSummary.from(profile(7L)));
+    when(profiles.loadProfile(7L)).thenReturn(profile(7L));
 
     mvc.perform(get("/api/v1/portfolios/7/profile"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.*", hasSize(14)))
+        .andExpect(jsonPath("$.*", hasSize(15)))
         .andExpect(jsonPath("$.portfolioId").value(7))
         .andExpect(jsonPath("$.currency").value("USD"))
         .andExpect(jsonPath("$.marketPortfolioValue").value(100))
@@ -58,18 +57,16 @@ class ProfileRestControllerTest {
         .andExpect(jsonPath("$.currentBondIncome").value(0))
         .andExpect(jsonPath("$.retirementReserve").value(0))
         .andExpect(jsonPath("$.investmentCapital").value(100))
-        .andExpect(jsonPath("$.income.marketIncomeYtd").value(0))
-        .andExpect(jsonPath("$.income.combinedAnnualIncome").value(0))
+        .andExpect(jsonPath("$.incomeSummary.marketIncomeYtd").value(0))
+        .andExpect(jsonPath("$.incomeSummary.combinedAnnualIncome").value(0))
         .andExpect(jsonPath("$.allocationReconciliation.shortTerm.authoritativeValue").value(0))
-        .andExpect(jsonPath("$.allocationReconciliation.balanced").value(true))
-        .andExpect(jsonPath("$.longTermPlanningState").doesNotExist())
-        .andExpect(jsonPath("$.longTermAssets").doesNotExist())
+        .andExpect(jsonPath("$.longTermPlanningState").exists())
         .andExpect(jsonPath("$..rentalContracts").doesNotExist())
         .andExpect(jsonPath("$..tenantName").doesNotExist())
         .andExpect(jsonPath("$..tenantEmail").doesNotExist())
         .andExpect(jsonPath("$..tenantPhone").doesNotExist());
 
-    verify(profiles).loadSummary(7L);
+    verify(profiles).loadProfile(7L);
   }
 
   @Test

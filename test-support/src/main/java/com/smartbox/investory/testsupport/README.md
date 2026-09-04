@@ -30,6 +30,15 @@ dates, prices, FX rates, and common operations inside individual tests.
 Keep scenarios minimal. Use the complete/reference scenario pattern only for reporting,
 reconciliation, end-to-end, or regression tests.
 
+## Happy Investor
+
+`happyinvestor/HappyInvestorScenario` is the complete cross-domain reference scenario. Use it for
+reporting, reconciliation, import, UI, E2E, and regression tests; use `portfolio/PortfolioScenarios`
+for focused unit tests. Its identity, migration-backed symbols, fees, taxes, dates, and expected
+cardinalities are centralized in `HappyInvestorTestData` and `HappyInvestorExpected`. It does not
+replace specialized crypto, options, commodities, or bad-price scenarios. See the package README
+for the current domain limitations and migration decisions.
+
 ## Example
 
 ```java

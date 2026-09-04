@@ -30,7 +30,6 @@ public record RetirementSimulationPageView(
     List<SimulationScenario> availableScenarios,
     ScenarioEffectiveAssumptions scenarioAssumptions,
     List<ScenarioAssumptionView> scenarioAssumptionRows,
-    CustomScenarioView customScenario,
     SimulationDecisionSummaryMoney outlook,
     BigDecimal annualCosts,
     BigDecimal annualLivingExpenses,

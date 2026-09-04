@@ -1,5 +1,6 @@
 package com.smartbox.investory.investment.performance;
 
+import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocationEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioAssetAllocationRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.portfolio.PortfolioCurrencyBreakdownRepository;
 import com.smartbox.investory.investment.performance.model.Portfolio;
@@ -20,8 +21,13 @@ final class PortfolioRiskExposureCalculator {
   private final PortfolioAssetAllocationRepository assetAllocations;
   private final PortfolioCurrencyBreakdownRepository currencyBreakdowns;
 
-  void applyTo(Portfolio portfolio) {
-    var allocationRows = assetAllocations.findAll();
+  void applyTo(Portfolio portfolio, Long portfolioId) {
+    var allocationRows = assetAllocations.findAllByPortfolioId(portfolioId);
+    applyExposure(portfolio, portfolioId, allocationRows);
+  }
+
+  private void applyExposure(
+      Portfolio portfolio, Long portfolioId, List<PortfolioAssetAllocationEntity> allocationRows) {
     double total =
         allocationRows.stream()
             .mapToDouble(row -> nonZero(row.getTotalValueInBaseCurrency()))
@@ -38,8 +44,10 @@ final class PortfolioRiskExposureCalculator {
             .toList();
     double largest = weights.isEmpty() ? 0.0 : weights.getFirst();
     double topFive = weights.stream().limit(5).mapToDouble(Double::doubleValue).sum();
-    double baseExposure = exposureFor(portfolio, true) / portfolio.getBalance() * 100.0;
-    double foreignExposure = exposureFor(portfolio, false) / portfolio.getBalance() * 100.0;
+    double baseExposure =
+        exposureFor(portfolio, portfolioId, true) / portfolio.getBalance() * 100.0;
+    double foreignExposure =
+        exposureFor(portfolio, portfolioId, false) / portfolio.getBalance() * 100.0;
     List<String> warnings = new ArrayList<>();
     if (largest >= 20.0) warnings.add("Largest holding exceeds 20% of portfolio.");
     if (topFive >= 50.0) warnings.add("Top five holdings exceed 50% of portfolio.");
@@ -57,9 +65,13 @@ final class PortfolioRiskExposureCalculator {
             warnings));
   }
 
-  private double exposureFor(Portfolio portfolio, boolean baseCurrency) {
+  private double exposureFor(Portfolio portfolio, Long portfolioId, boolean baseCurrency) {
     CurrencyType portfolioCurrency = portfolio.getBaseCurrency();
-    return currencyBreakdowns.findAllByMetricType(ACCOUNT_LATEST).stream()
+    var rows =
+        portfolioId == null
+            ? currencyBreakdowns.findAllByMetricType(ACCOUNT_LATEST)
+            : currencyBreakdowns.findAllByPortfolioIdAndMetricType(portfolioId, ACCOUNT_LATEST);
+    return rows.stream()
         .filter(row -> baseCurrency == (row.getCurrency() == portfolioCurrency))
         .mapToDouble(row -> nonZero(row.getAmountInBaseCurrency()))
         .sum();

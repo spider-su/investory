@@ -47,3 +47,6 @@ src/main/resources/application-k3s.yml
 # GitHub local TODO
 /.github/TODO/
 /tools/
+/.codex-tmp/
+/.tmp-golden-xlb-inspect/
+/.tmp-golden-xtb/

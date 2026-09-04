@@ -16,13 +16,13 @@ The path is:
 
 ```text
 asset_price_history
-  -> v_normalized_daily_price
-  -> v_reconstructed_position_daily
-  -> v_position_valuation_validation
+  -> app_v_normalized_daily_price
+  -> app_v_reconstructed_position_daily
+  -> recon_v_position_valuation_validation
   -> reconciliation aliases/report
 ```
 
-`v_reconstructed_position_daily` is the production valuation source. The validation view reports the selected price, quantity, multiplier, and FX-normalized actual value. Its prior-price continuity check previously used:
+`app_v_reconstructed_position_daily` is the production valuation source. The validation view reports the selected price, quantity, multiplier, and FX-normalized actual value. Its prior-price continuity check previously used:
 
 ```sql
 LAG(selected_price) OVER (PARTITION BY asset_id ORDER BY valuation_date)

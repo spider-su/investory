@@ -19,7 +19,10 @@ public class PositionValuationReconciliationCheck implements ReconciliationCheck
 
   @Override
   public ReconciliationCheckResult execute(ReconciliationContext context) {
-    var rows = repository.findPositionIssues();
+    var rows =
+        context.portfolioId() == null
+            ? repository.findPositionIssues()
+            : repository.findPositionIssuesByPortfolioId(context.portfolioId());
     List<ReconciliationIssue> issues =
         rows.stream().map(RepositoryReconciliationIssueMapper::position).toList();
     long failures =
@@ -38,7 +41,7 @@ public class PositionValuationReconciliationCheck implements ReconciliationCheck
         failures,
         reviews,
         issues,
-        "v_position_valuation_validation",
+        "recon_v_position_valuation_validation",
         context.startedAt());
   }
 

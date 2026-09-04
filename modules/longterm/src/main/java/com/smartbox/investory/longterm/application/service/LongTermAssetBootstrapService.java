@@ -12,6 +12,7 @@ import com.smartbox.investory.longterm.infrastructure.lifecycle.*;
 import com.smartbox.investory.longterm.infrastructure.rental.*;
 import com.smartbox.investory.longterm.infrastructure.tax.*;
 import com.smartbox.investory.longterm.infrastructure.valuation.*;
+import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -541,7 +542,7 @@ public class LongTermAssetBootstrapService {
         .filter(p -> p.validTo() == null || !p.validTo().isBefore(date))
         .max(Comparator.comparing(LongTermAssetBootstrapDocument.TaxPolicy::validFrom))
         .map(LongTermAssetBootstrapDocument.TaxPolicy::rate)
-        .orElse(new BigDecimal("0.085"));
+        .orElse(FinancialPolicyDefaults.RENTAL_TAX_RATE);
   }
 
   private static boolean tenantPaid(LongTermAssetBootstrapDocument.CashFlow flow) {

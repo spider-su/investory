@@ -26,6 +26,9 @@ public class SimulationPlanEntity {
   @Column(name = "archived", nullable = false)
   private boolean archived;
 
+  @Column(name = "sandbox", nullable = false)
+  private boolean sandbox;
+
   @Column(name = "portfolio_id", nullable = false)
   private Long portfolioId;
 

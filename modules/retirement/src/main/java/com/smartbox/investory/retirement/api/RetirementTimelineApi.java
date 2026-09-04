@@ -30,8 +30,7 @@ public interface RetirementTimelineApi {
       Long portfolioId,
       InvestmentProfile profile,
       ForwardSimulationInput forward,
-      SimulationScenario scenario,
-      SimulationCustomDeltas customDeltas);
+      SimulationScenario scenario);
 
   PastPlanningYear pastYear(Long portfolioId, int year);
 

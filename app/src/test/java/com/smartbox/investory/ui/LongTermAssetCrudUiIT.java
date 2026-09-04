@@ -12,6 +12,8 @@ import com.microsoft.playwright.Tracing;
 import com.microsoft.playwright.options.AriaRole;
 import com.microsoft.playwright.options.LoadState;
 import com.smartbox.investory.testsupport.FastDatabaseTest;
+import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorLongTermFacts;
+import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorTestData;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.Files;
@@ -29,10 +31,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.jdbc.Sql;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Sql(scripts = "/ui/ui-page-smoke-fixture.sql")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @DisplayName("Long Term Asset Crud UI")
 class LongTermAssetCrudUiIT extends FastDatabaseTest {
@@ -68,20 +68,20 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
         page -> {
           var first =
               new BaseAsset(
-                  "UI CRUD Other One",
-                  "USD",
-                  "2021-02-03",
-                  "11111.11",
-                  "12345.67",
-                  "other first note");
+                  "UI CRUD Family Car One",
+                  "PLN",
+                  HappyInvestorLongTermFacts.ACQUISITION_DATE.toString(),
+                  HappyInvestorTestData.FAMILY_CAR_VALUE.toPlainString(),
+                  HappyInvestorTestData.FAMILY_CAR_VALUE.toPlainString(),
+                  "Happy Investor canonical profile");
           var second =
               new BaseAsset(
-                  "UI CRUD Other Two",
-                  "EUR",
-                  "2022-03-04",
-                  "21111.12",
-                  "22345.68",
-                  "other second note");
+                  "Happy Investor CRUD temporary asset",
+                  "PLN",
+                  HappyInvestorLongTermFacts.ACQUISITION_DATE.plusYears(1).toString(),
+                  "11000",
+                  "11000",
+                  "temporary mutation");
 
           long firstId = createOther(page, first);
           long secondId = createOther(page, second);
@@ -119,14 +119,14 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
         page -> {
           var first =
               new BondAsset(
-                  "UI CRUD Bond One",
+                  "Happy Investor Treasury 2026",
                   "USD",
-                  "2024-01-15",
-                  "2031-06-30",
-                  "25000.25",
-                  "4.75",
+                  HappyInvestorLongTermFacts.TREASURY_ACQUISITION_DATE.toString(),
+                  "2036-02-28",
+                  HappyInvestorLongTermFacts.TREASURY_PRINCIPAL.toPlainString(),
+                  HappyInvestorLongTermFacts.TREASURY_ANNUAL_RATE.movePointRight(2).toPlainString(),
                   "PAY_OUT",
-                  "bond first note");
+                  "Happy Investor canonical Treasury fact");
           var second =
               new BondAsset(
                   "UI CRUD Bond Two",
@@ -217,15 +217,15 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
         page -> {
           var first =
               new DepositAsset(
-                  "UI CRUD Deposit One",
-                  "USD",
-                  "2025-01-10",
-                  "2028-01-10",
-                  "15000.15",
-                  "0.0415",
-                  "0.17",
+                  "Happy Investor reserve deposit",
+                  "PLN",
+                  HappyInvestorLongTermFacts.ACQUISITION_DATE.toString(),
+                  HappyInvestorLongTermFacts.RESERVE_DEPOSIT_MATURITY_DATE.toString(),
+                  HappyInvestorLongTermFacts.RESERVE_DEPOSIT_PRINCIPAL.toPlainString(),
+                  HappyInvestorLongTermFacts.RESERVE_DEPOSIT_ANNUAL_RATE.toPlainString(),
+                  "0.19",
                   "PAY_OUT",
-                  "deposit first note");
+                  "Happy Investor canonical reserve fact");
           var second =
               new DepositAsset(
                   "UI CRUD Deposit Two",
@@ -283,21 +283,21 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
         page -> {
           var first =
               new PropertyAsset(
-                  "UI CRUD Property One",
-                  "USD",
-                  "2020-04-05",
-                  "210000.10",
-                  "280000.20",
-                  "3200.30",
-                  "2026-01-01",
-                  "2100.10",
-                  "150.20",
-                  "310.30",
-                  "90.40",
-                  "1200.50",
-                  "800.60",
-                  "3.50",
-                  "property first note");
+                  "UI CRUD Apartment One",
+                  "PLN",
+                  HappyInvestorLongTermFacts.ACQUISITION_DATE.toString(),
+                  HappyInvestorTestData.APARTMENT_A_VALUE.toPlainString(),
+                  HappyInvestorTestData.APARTMENT_A_VALUE.toPlainString(),
+                  "3200",
+                  "2024-08-01",
+                  HappyInvestorTestData.APARTMENT_A_MONTHLY_RENT.toPlainString(),
+                  "0",
+                  "0",
+                  "0",
+                  "0",
+                  "0",
+                  "2.50",
+                  "Happy Investor canonical profile");
           var second =
               new PropertyAsset(
                   "UI CRUD Property Two",
@@ -322,6 +322,17 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
           long secondContractId = contractId(secondId);
           assertProperty(page, firstId, first, true);
           assertInitialContract(page, firstId, firstContractId, first);
+          assertThat(
+                  jdbc.queryForObject(
+                      "SELECT rate FROM investory.rental_tax_policies WHERE portfolio_id = ? AND valid_from = DATE '2024-08-01'",
+                      BigDecimal.class,
+                      PORTFOLIO_ID))
+              .isEqualByComparingTo(HappyInvestorLongTermFacts.RENTAL_TAX_RATE);
+          assertThat(
+                  new BigDecimal(first.monthlyRent())
+                      .multiply(BigDecimal.valueOf(12))
+                      .multiply(HappyInvestorLongTermFacts.RENTAL_TAX_RATE))
+              .isEqualByComparingTo(HappyInvestorLongTermFacts.APARTMENT_A_RENTAL_TAX_ANNUAL);
           assertProperty(page, secondId, second, true);
           assertInitialContract(page, secondId, secondContractId, second);
           assertActiveListContains(page, first.name(), second.name());
@@ -395,7 +406,7 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
 
   private long createOther(Page page, BaseAsset asset) {
     page.navigate(baseUrl() + "/long-term-assets/new?portfolioId=" + PORTFOLIO_ID);
-    fill(page, "[name='name']", asset.name());
+    fill(page, "input[name='name']", asset.name());
     select(page, "[name='currency']", asset.currency());
     fill(page, "[name='currentValue']", asset.currentValue());
     fill(page, "[name='acquisitionDate']", asset.acquisitionDate());
@@ -408,7 +419,7 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
 
   private long createBond(Page page, BondAsset asset) {
     page.navigate(baseUrl() + "/long-term-assets/new/bond?portfolioId=" + PORTFOLIO_ID);
-    fill(page, "[name='name']", asset.name());
+    fill(page, "input[name='name']", asset.name());
     select(page, "[name='currency']", asset.currency());
     fill(page, "[name='value']", asset.value());
     fill(page, "[name='acquisitionDate']", asset.acquisitionDate());
@@ -417,12 +428,16 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
     fill(page, "[name='annualRatePercent']", asset.annualRatePercent());
     fill(page, "[name='notes']", asset.notes());
     clickButton(page, "Save bond");
-    return assetId(asset.name());
+    assertThat(page.url()).contains("/long-term-assets/");
+    String path = java.net.URI.create(page.url()).getPath();
+    String id = path.substring(path.lastIndexOf('/') + 1);
+    assertThat(id).matches("\\d+");
+    return Long.parseLong(id);
   }
 
   private long createCash(Page page, CashAsset asset) {
     page.navigate(baseUrl() + "/long-term-assets/new/cash-reserve?portfolioId=" + PORTFOLIO_ID);
-    fill(page, "[name='name']", asset.name());
+    fill(page, "input[name='name']", asset.name());
     select(page, "[name='currency']", asset.currency());
     fill(page, "[name='value']", asset.value());
     fill(page, "[name='annualReturnPercent']", asset.annualReturnPercent());
@@ -433,7 +448,7 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
 
   private long createDeposit(Page page, DepositAsset asset) {
     page.navigate(baseUrl() + "/long-term-assets/new/deposit?portfolioId=" + PORTFOLIO_ID);
-    fill(page, "[name='name']", asset.name());
+    fill(page, "input[name='name']", asset.name());
     select(page, "[name='currency']", asset.currency());
     fill(page, "[name='value']", asset.value());
     fill(page, "[name='acquisitionDate']", asset.acquisitionDate());
@@ -448,7 +463,7 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
 
   private long createProperty(Page page, PropertyAsset asset) {
     page.navigate(baseUrl() + "/long-term-assets/new/real-estate?portfolioId=" + PORTFOLIO_ID);
-    fill(page, "[name='name']", asset.name());
+    fill(page, "input[name='name']", asset.name());
     select(page, "[name='currency']", asset.currency());
     fill(page, "[name='currentValue']", asset.currentValue());
     fill(page, "[name='taxBase']", asset.taxBase());
@@ -964,10 +979,14 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
 
   private static void assertInput(Page page, String selector, String expected) {
     Locator input = page.locator(selector);
-    if ("number".equals(input.getAttribute("type")) && !expected.isEmpty()) {
-      assertThat(new BigDecimal(input.inputValue())).as(selector).isEqualByComparingTo(expected);
+    String actual = input.inputValue();
+    if ("number".equals(input.getAttribute("type"))) {
+      if (actual.isEmpty() && (expected.isEmpty() || new BigDecimal(expected).signum() == 0)) {
+        return;
+      }
+      assertThat(new BigDecimal(actual)).as(selector).isEqualByComparingTo(expected);
     } else {
-      assertThat(input.inputValue()).as(selector).isEqualTo(expected);
+      assertThat(actual).as(selector).isEqualTo(expected);
     }
   }
 
@@ -979,7 +998,8 @@ class LongTermAssetCrudUiIT extends FastDatabaseTest {
 
   private long assetId(String name) {
     return jdbc.queryForObject(
-        "SELECT id FROM investory.long_term_assets WHERE portfolio_id = ? AND name = ?",
+        "SELECT id FROM investory.long_term_assets "
+            + "WHERE portfolio_id = ? AND name = ? ORDER BY id DESC LIMIT 1",
         Long.class,
         PORTFOLIO_ID,
         name);

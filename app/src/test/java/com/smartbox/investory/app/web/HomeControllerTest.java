@@ -56,7 +56,7 @@ class HomeControllerTest {
     when(investmentDashboard.loadDashboard(any())).thenReturn(dashboard);
 
     mockMvc
-        .perform(get("/dashboard"))
+        .perform(get("/dashboard").param("portfolioId", "1"))
         .andExpect(status().isOk())
         .andExpect(view().name("dashboard"))
         .andExpect(model().attribute("dashboard", dashboard))
@@ -68,7 +68,7 @@ class HomeControllerTest {
   void dashboardRequestWithoutAnAccountSelectionUsesAllAccounts() throws Exception {
     stubDashboard();
 
-    mockMvc.perform(get("/dashboard"));
+    mockMvc.perform(get("/dashboard").param("portfolioId", "1"));
 
     assertQuery(false, List.of(), DashboardPeriod.YEAR_TO_DATE);
   }
@@ -78,7 +78,7 @@ class HomeControllerTest {
   void periodOnlyRequestUsesAllAccounts() throws Exception {
     stubDashboard();
 
-    mockMvc.perform(get("/dashboard").param("period", "YTD"));
+    mockMvc.perform(get("/dashboard").param("portfolioId", "1").param("period", "YTD"));
 
     assertQuery(false, List.of(), DashboardPeriod.YEAR_TO_DATE);
   }
@@ -89,7 +89,10 @@ class HomeControllerTest {
     stubDashboard();
 
     mockMvc.perform(
-        get("/dashboard").param("period", "YTD").param("benchmarkAccountsSubmitted", "true"));
+        get("/dashboard")
+            .param("portfolioId", "1")
+            .param("period", "YTD")
+            .param("benchmarkAccountsSubmitted", "true"));
 
     assertQuery(true, List.of(), DashboardPeriod.YEAR_TO_DATE);
   }
@@ -101,6 +104,7 @@ class HomeControllerTest {
 
     mockMvc.perform(
         get("/dashboard")
+            .param("portfolioId", "1")
             .param("period", "YTD")
             .param("benchmarkAccountsSubmitted", "true")
             .param("accountIds", "1", "3"));

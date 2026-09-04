@@ -4,8 +4,10 @@ import com.smartbox.investory.retirement.api.model.*;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import org.springframework.stereotype.Service;
 
 /** Builds the small, non-attributive year review from already-approved values. */
+@Service
 public class PlanningYearReviewService {
   private final PlanningProgressService progress;
 

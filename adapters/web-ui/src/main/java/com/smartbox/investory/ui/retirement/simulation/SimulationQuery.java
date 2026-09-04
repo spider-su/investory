@@ -8,11 +8,11 @@ import java.math.BigDecimal;
 import lombok.Getter;
 import lombok.Setter;
 
-/** Bound query model for the simulation page, including isolated legacy deep-link overrides. */
+/** Bound query model for the simulation page, including legacy plan overrides. */
 @Getter
 @Setter
 public final class SimulationQuery {
-  private Long portfolioId = 1L;
+  private Long portfolioId;
   private Long planId;
   private Integer currentAge;
   private Integer endAge;
@@ -38,14 +38,9 @@ public final class SimulationQuery {
   private BigDecimal annualPensionCanonical;
   private boolean annualPensionEdited;
   private BigDecimal capitalGainTaxRate;
-  private CurrencyType planningDisplayCurrency = CurrencyType.PLN;
+  private CurrencyType planningDisplayCurrency;
   private CurrencyType submittedPlanningDisplayCurrency;
   private SimulationScenario selectedScenario = SimulationScenario.BASE;
-  private String customInflationDelta;
-  private String customRentalGrowthDelta;
-  private String customBondReturnDelta;
-  private String customEquityReturnDelta;
-  private String customSpendingGrowthDelta;
 
   SimulationRequestMapper.LegacyQueryOverrides legacyOverrides() {
     return new SimulationRequestMapper.LegacyQueryOverrides(
@@ -75,14 +70,5 @@ public final class SimulationQuery {
         capitalGainTaxRate,
         planningDisplayCurrency,
         submittedPlanningDisplayCurrency);
-  }
-
-  CustomScenarioInput customScenarioInput() {
-    return CustomScenarioInput.parse(
-        customInflationDelta,
-        customRentalGrowthDelta,
-        customBondReturnDelta,
-        customEquityReturnDelta,
-        customSpendingGrowthDelta);
   }
 }

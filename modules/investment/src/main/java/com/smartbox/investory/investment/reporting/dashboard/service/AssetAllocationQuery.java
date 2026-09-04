@@ -62,6 +62,38 @@ public class AssetAllocationQuery {
     return new AssetAllocationView(total, result);
   }
 
+  /** Canonical valued holdings from app_v_portfolio_asset_allocation. */
+  List<CanonicalHolding> canonicalHoldings(Long portfolioId) {
+    return allocationRepository.findAllByPortfolioId(portfolioId).stream()
+        .filter(
+            row ->
+                row.getAssetSymbol() != null
+                    && Math.abs(nz(row.getTotalValueInBaseCurrency())) >= 0.005)
+        .collect(
+            java.util.stream.Collectors.groupingBy(
+                PortfolioAssetAllocationEntity::getAssetSymbol,
+                LinkedHashMap::new,
+                java.util.stream.Collectors.toList()))
+        .entrySet()
+        .stream()
+        .map(
+            entry ->
+                new CanonicalHolding(
+                    entry.getKey(),
+                    entry.getValue().stream()
+                        .map(PortfolioAssetAllocationEntity::getTotalValueInBaseCurrency)
+                        .filter(java.util.Objects::nonNull)
+                        .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add),
+                    entry.getValue().stream()
+                        .map(PortfolioAssetAllocationEntity::getUnrealizedPlInBaseCurrency)
+                        .filter(java.util.Objects::nonNull)
+                        .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add)))
+        .toList();
+  }
+
+  record CanonicalHolding(
+      String symbol, java.math.BigDecimal value, java.math.BigDecimal unrealized) {}
+
   private static double nz(java.math.BigDecimal value) {
     return value == null ? 0.0 : value.doubleValue();
   }

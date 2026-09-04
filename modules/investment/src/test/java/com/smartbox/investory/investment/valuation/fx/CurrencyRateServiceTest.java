@@ -1,6 +1,8 @@
 package com.smartbox.investory.investment.valuation.fx;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -37,6 +39,35 @@ class CurrencyRateServiceTest {
   @BeforeEach
   void setUp() {
     service = new CurrencyRateService(currencyRateRepository);
+  }
+
+  @DisplayName("activate Daily History updates only when coverage is supported")
+  @Test
+  void activateDailyHistoryUpdatesOnlyWhenCoverageIsSupported() {
+    LocalDate firstSupportedDate = LocalDate.of(2026, 8, 20);
+    when(currencyRateRepository.setDailyHistoryStartIfSupported(firstSupportedDate)).thenReturn(1);
+
+    service.activateDailyHistoryAt(firstSupportedDate);
+
+    verify(currencyRateRepository).flush();
+    verify(currencyRateRepository).setDailyHistoryStartIfSupported(firstSupportedDate);
+  }
+
+  @DisplayName("activate Daily History rejects unsupported coverage")
+  @Test
+  void activateDailyHistoryRejectsUnsupportedCoverage() {
+    LocalDate unsupportedDate = LocalDate.of(2026, 8, 19);
+    when(currencyRateRepository.setDailyHistoryStartIfSupported(unsupportedDate)).thenReturn(0);
+
+    IllegalStateException failure =
+        assertThrows(
+            IllegalStateException.class, () -> service.activateDailyHistoryAt(unsupportedDate));
+
+    assertEquals(
+        "Daily FX history cannot start before supported neutral coverage: 2026-08-19",
+        failure.getMessage());
+    verify(currencyRateRepository).flush();
+    verify(currencyRateRepository).setDailyHistoryStartIfSupported(unsupportedDate);
   }
 
   @DisplayName("convert To Base Currency returns Amount Unchanged For Same Currency")
@@ -303,6 +334,21 @@ class CurrencyRateServiceTest {
     assertEquals("MISSING_RATE", result.conversionStatus());
   }
 
+  @Test
+  void transactionResolverUsesWarsawTransactionDay() {
+    when(currencyRateRepository.findExecutionRateAtOrBefore(
+            any(), eq(LocalDate.of(2026, 1, 2)), eq("USD"), eq("PLN")))
+        .thenReturn(Optional.empty());
+
+    service.resolveTransactionRate(
+        ZonedDateTime.of(2026, 1, 1, 23, 30, 0, 0, ZoneOffset.UTC),
+        CurrencyType.USD,
+        CurrencyType.PLN);
+
+    verify(currencyRateRepository)
+        .findExecutionRateAtOrBefore(any(), eq(LocalDate.of(2026, 1, 2)), eq("USD"), eq("PLN"));
+  }
+
   @DisplayName("caches Complete Matrix For Repeated Same Pair")
   @Test
   void cachesCompleteMatrixForRepeatedSamePair() {
@@ -339,8 +385,7 @@ class CurrencyRateServiceTest {
     assertFalse(service.resolveRate(CurrencyType.USD, CurrencyType.EUR, date).isUsable());
 
     verify(currencyRateRepository, times(1)).resolveFxRatesForDate(date);
-    verify(currencyRateRepository, org.mockito.Mockito.never())
-        .resolveFxRate(date, "USD", "EUR", "VALUATION");
+    verify(currencyRateRepository, org.mockito.Mockito.never()).resolveFxRate(date, "USD", "EUR");
   }
 
   @DisplayName("cache Separates Dates And Invalidates After Clear Or Rate Update")
@@ -381,6 +426,48 @@ class CurrencyRateServiceTest {
     return r;
   }
 
+  @DisplayName("warm Valuation Matrices Preloads Range In One Query And Serves Cache")
+  @Test
+  void warmValuationMatricesPreloadsRangeInOneQueryAndServesCache() {
+    LocalDate start = LocalDate.of(2026, 6, 15);
+    LocalDate end = LocalDate.of(2026, 6, 17);
+    when(currencyRateRepository.resolveFxRatesForDateRange(start, end))
+        .thenReturn(
+            List.of(
+                resolution(
+                    "USD", "PLN", "4.0", "MARKET_DAILY", "FX", "2026-06-15", "OK", "2026-06-15"),
+                resolution(
+                    "USD", "PLN", "4.1", "MARKET_DAILY", "FX", "2026-06-16", "OK", "2026-06-16")));
+
+    service.warmValuationMatrices(start, end);
+
+    // Every date in the range is served from the warmed cache without a per-date lazy query.
+    assertEquals(
+        40.0, service.convertToBaseCurrency(10.0, CurrencyType.PLN, CurrencyType.USD, start), 1e-9);
+    assertEquals(
+        41.0,
+        service.convertToBaseCurrency(
+            10.0, CurrencyType.PLN, CurrencyType.USD, LocalDate.of(2026, 6, 16)),
+        1e-9);
+    // A day with no resolved rows is still cached (as MISSING) so it does not trigger a lazy query.
+    assertFalse(
+        service
+            .findRate(CurrencyType.PLN, CurrencyType.USD, LocalDate.of(2026, 6, 17))
+            .isPresent());
+
+    verify(currencyRateRepository, times(1)).resolveFxRatesForDateRange(start, end);
+    verify(currencyRateRepository, times(0)).resolveFxRatesForDate(any());
+  }
+
+  @DisplayName("warm Valuation Matrices Ignores Invalid Ranges")
+  @Test
+  void warmValuationMatricesIgnoresInvalidRanges() {
+    service.warmValuationMatrices(LocalDate.of(2026, 6, 17), LocalDate.of(2026, 6, 15));
+    service.warmValuationMatrices(null, LocalDate.of(2026, 6, 15));
+
+    verifyNoInteractions(currencyRateRepository);
+  }
+
   private static FxRateResolutionRow resolution(
       String source,
       String target,
@@ -389,7 +476,23 @@ class CurrencyRateServiceTest {
       String rateSource,
       String date,
       String status) {
+    return resolution(source, target, rate, method, rateSource, date, status, null);
+  }
+
+  private static FxRateResolutionRow resolution(
+      String source,
+      String target,
+      String rate,
+      String method,
+      String rateSource,
+      String date,
+      String status,
+      String valuationDate) {
     return new FxRateResolutionRow() {
+      public LocalDate getValuationDate() {
+        return valuationDate == null ? null : LocalDate.parse(valuationDate);
+      }
+
       public String getSourceCurrency() {
         return source;
       }
