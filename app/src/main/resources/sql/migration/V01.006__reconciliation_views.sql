@@ -2256,12 +2256,14 @@ WITH position_components AS (
         pos.close_time::date AS valuation_date,
         pos.profit_currency::varchar(3) AS source_currency,
         pf.base_currency::varchar(3) AS base_currency,
-        COALESCE(pos.profit, 0) + COALESCE(pos.swap, 0) AS amount_native
+        CASE
+            WHEN pos.settlement_model = 'RESULT_ONLY' THEN COALESCE(pos.profit, 0)
+            ELSE COALESCE(pos.profit, 0) + COALESCE(pos.swap, 0)
+        END AS amount_native
     FROM investory.positions pos
     JOIN investory.accounts acc ON acc.id = pos.account_id
     JOIN investory.portfolios pf ON pf.id = acc.portfolio_id
     JOIN investory.assets asset ON asset.id = pos.asset_id
-                               AND asset.exclude_from_import = false
     WHERE pos.close_time IS NOT NULL
     UNION ALL
     SELECT
@@ -2270,12 +2272,14 @@ WITH position_components AS (
         pos.close_time::date AS valuation_date,
         pos.commission_currency::varchar(3) AS source_currency,
         pf.base_currency::varchar(3) AS base_currency,
-        COALESCE(pos.commission, 0) AS amount_native
+        CASE
+            WHEN pos.settlement_model = 'RESULT_ONLY' THEN 0
+            ELSE COALESCE(pos.commission, 0)
+        END AS amount_native
     FROM investory.positions pos
     JOIN investory.accounts acc ON acc.id = pos.account_id
     JOIN investory.portfolios pf ON pf.id = acc.portfolio_id
     JOIN investory.assets asset ON asset.id = pos.asset_id
-                               AND asset.exclude_from_import = false
     WHERE pos.close_time IS NOT NULL
     UNION ALL
     SELECT
