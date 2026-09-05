@@ -44,6 +44,24 @@ public final class FinancialPresentation {
     return number(amount, 0, 0);
   }
 
+  /** Compact summary money without a redundant trailing zero in thousands. */
+  public static String compactMoneyTrimmed(BigDecimal value) {
+    BigDecimal amount = zeroIfNull(value);
+    BigDecimal absolute = amount.abs();
+    if (absolute.compareTo(BigDecimal.valueOf(1_000_000)) >= 0) {
+      return number(amount.divide(BigDecimal.valueOf(1_000_000)), 0, 2) + "M";
+    }
+    if (absolute.compareTo(BigDecimal.valueOf(1_000)) >= 0) {
+      BigDecimal thousands =
+          amount.divide(BigDecimal.valueOf(1_000)).setScale(1, RoundingMode.HALF_UP);
+      if (thousands.abs().compareTo(BigDecimal.valueOf(1_000)) >= 0) {
+        return number(amount.divide(BigDecimal.valueOf(1_000_000)), 0, 2) + "M";
+      }
+      return number(thousands, 0, 1) + "K";
+    }
+    return number(amount, 0, 0);
+  }
+
   public static String decimal(BigDecimal value) {
     return money(value);
   }

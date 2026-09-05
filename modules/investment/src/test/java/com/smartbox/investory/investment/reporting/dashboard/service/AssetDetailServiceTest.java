@@ -24,9 +24,13 @@ import com.smartbox.investory.investment.ledger.position.persistence.PositionEnt
 import com.smartbox.investory.investment.ledger.position.persistence.PositionRepository;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.time.ClockApplicationTime;
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -36,6 +40,11 @@ import org.junit.jupiter.api.Test;
 @DisplayName("Asset Detail Service")
 class AssetDetailServiceTest {
 
+  private static final ClockApplicationTime TIME =
+      new ClockApplicationTime(
+          Clock.fixed(Instant.parse("2026-09-05T08:00:00Z"), ZoneOffset.UTC),
+          ZoneId.of("Europe/Warsaw"));
+
   private final AssetRepository assets = mock();
   private final PositionRepository open = mock();
   private final PositionRepository closed = mock();
@@ -44,7 +53,8 @@ class AssetDetailServiceTest {
   private final CurrencyRateService currencyRates = mock();
   private final AccountRepository accounts = mock();
   private final AssetDetailService service =
-      new AssetDetailService(assets, open, closed, cash, performance, currencyRates, accounts);
+      new AssetDetailService(
+          assets, open, closed, cash, performance, currencyRates, accounts, TIME);
 
   @DisplayName("aggregates Signed Quantities And Weighted Cost By Account")
   @Test

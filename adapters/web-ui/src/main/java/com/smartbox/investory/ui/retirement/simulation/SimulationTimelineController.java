@@ -40,9 +40,9 @@ public class SimulationTimelineController {
         new SimulationTimelinePageAssembler(profiles, plans, planning, projections);
   }
 
-  @PostMapping("/simulation/rollover")
+  @PostMapping("/portfolios/{portfolioId}/simulation/rollover")
   public String rollover(
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @RequestParam(required = false) CurrencyType planningDisplayCurrency,
       @RequestParam(required = false) Long planId,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
@@ -52,9 +52,9 @@ public class SimulationTimelineController {
         portfolioId, planId, planningDisplayCurrency, selectedScenario);
   }
 
-  @PostMapping("/simulation/timeline/past/{year}")
+  @PostMapping("/portfolios/{portfolioId}/simulation/timeline/past/{year}")
   public String createPastYear(
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @PathVariable int year,
       @RequestParam(required = false) CurrencyType planningDisplayCurrency,
       @RequestParam(required = false) Long planId,
@@ -76,9 +76,9 @@ public class SimulationTimelineController {
         portfolioId, year, planningDisplayCurrency, planId, selectedScenario);
   }
 
-  @PostMapping("/simulation/timeline/prefill")
+  @PostMapping("/portfolios/{portfolioId}/simulation/timeline/prefill")
   public String prefillHistoricalYears(
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @RequestParam(required = false) Long planId,
       @RequestParam(required = false) CurrencyType planningDisplayCurrency,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
@@ -93,11 +93,11 @@ public class SimulationTimelineController {
   }
 
   @PostMapping({
-    "/simulation/timeline/past/{year}/refresh-derived",
-    "/simulation/timeline/past/{year}/refresh-accounting"
+    "/portfolios/{portfolioId}/simulation/timeline/past/{year}/refresh-derived",
+    "/portfolios/{portfolioId}/simulation/timeline/past/{year}/refresh-accounting"
   })
   public String refreshPastDerivedValues(
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @PathVariable int year,
       @RequestParam(required = false) CurrencyType planningDisplayCurrency,
       @RequestParam(required = false) Long planId,
@@ -108,9 +108,9 @@ public class SimulationTimelineController {
         portfolioId, year, planningDisplayCurrency, planId, selectedScenario);
   }
 
-  @GetMapping("/simulation/timeline/{year}")
+  @GetMapping("/portfolios/{portfolioId}/simulation/timeline/{year}")
   public String planningYearDetail(
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @PathVariable int year,
       @RequestParam(required = false) CurrencyType planningDisplayCurrency,
       @RequestParam(required = false) Long planId,
@@ -121,9 +121,9 @@ public class SimulationTimelineController {
         portfolioId, year, planningDisplayCurrency, planId, selectedScenario, model);
   }
 
-  @PostMapping("/simulation/timeline/baseline")
+  @PostMapping("/portfolios/{portfolioId}/simulation/timeline/baseline")
   public String setCurrentBaseline(
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @RequestParam Long planId,
       @RequestParam int year,
       @RequestParam(required = false) CurrencyType planningDisplayCurrency,
@@ -137,9 +137,9 @@ public class SimulationTimelineController {
         portfolioId, planId, planningDisplayCurrency, selectedScenario);
   }
 
-  @PostMapping("/simulation/plans/{planId}/rebaseline")
+  @PostMapping("/portfolios/{portfolioId}/simulation/plans/{planId}/rebaseline")
   public String rebaselinePlan(
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @PathVariable Long planId,
       @RequestParam(required = false) CurrencyType planningDisplayCurrency,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario) {
@@ -151,9 +151,9 @@ public class SimulationTimelineController {
         portfolioId, planId, planningDisplayCurrency, selectedScenario);
   }
 
-  @PostMapping("/simulation/timeline/current/{year}/manual")
+  @PostMapping("/portfolios/{portfolioId}/simulation/timeline/current/{year}/manual")
   public String saveCurrentManual(
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @PathVariable int year,
       @RequestParam PlanningMetric metric,
       @RequestParam BigDecimal amount,
@@ -172,9 +172,9 @@ public class SimulationTimelineController {
         portfolioId, planId, planningDisplayCurrency, selectedScenario);
   }
 
-  @PostMapping("/simulation/timeline/past/{year}/manual")
+  @PostMapping("/portfolios/{portfolioId}/simulation/timeline/past/{year}/manual")
   public String savePastManual(
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @PathVariable int year,
       @RequestParam PlanningMetric metric,
       @RequestParam BigDecimal amount,
@@ -198,9 +198,9 @@ public class SimulationTimelineController {
         portfolioId, year, planningDisplayCurrency, planId, selectedScenario);
   }
 
-  @PostMapping("/simulation/timeline/current/{year}/close")
+  @PostMapping("/portfolios/{portfolioId}/simulation/timeline/current/{year}/close")
   public String closeCurrentYear(
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @PathVariable int year,
       @RequestParam(required = false) CurrencyType planningDisplayCurrency,
       @RequestParam(required = false) Long planId,
@@ -211,9 +211,9 @@ public class SimulationTimelineController {
         portfolioId, planId, planningDisplayCurrency, selectedScenario);
   }
 
-  @PostMapping("/simulation/timeline/past/{year}/close")
+  @PostMapping("/portfolios/{portfolioId}/simulation/timeline/past/{year}/close")
   public String closeHistoricalDraft(
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @PathVariable int year,
       @RequestParam(required = false) CurrencyType planningDisplayCurrency,
       @RequestParam(required = false) Long planId,
@@ -229,9 +229,9 @@ public class SimulationTimelineController {
         portfolioId, year, planningDisplayCurrency, planId, selectedScenario);
   }
 
-  @PostMapping("/simulation/timeline/{year}/reopen")
+  @PostMapping("/portfolios/{portfolioId}/simulation/timeline/{year}/reopen")
   public String reopenPlanningYear(
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @PathVariable int year,
       @RequestParam(required = false) CurrencyType planningDisplayCurrency,
       @RequestParam(required = false) Long planId,

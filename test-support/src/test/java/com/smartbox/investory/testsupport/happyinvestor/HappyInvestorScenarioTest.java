@@ -36,8 +36,15 @@ class HappyInvestorScenarioTest {
                         && "RESULT_ONLY".equals(position.getSettlementModel().name())
                         && position.getCloseTime() != null
                         && position.getAccount().equals(investor.xtbUsd().getId())));
-    assertEquals(25, investor.simulation().horizonYears());
+    assertEquals(
+        HappyInvestorPlanFacts.END_AGE - HappyInvestorPlanFacts.CURRENT_AGE,
+        investor.simulation().horizonYears());
+    assertEquals(HappyInvestorTestData.REFERENCE_DATE, investor.simulation().asOfDate());
     assertEquals(HappyInvestorTestData.INFLATION, investor.simulation().inflationRate());
+    assertEquals(
+        HappyInvestorPlanFacts.ANNUAL_PRE_RETIREMENT_CONTRIBUTION.divide(
+            java.math.BigDecimal.valueOf(12)),
+        investor.simulation().monthlyContribution());
     assertEquals(
         HappyInvestorTestData.EUR_USD_AT_HISTORY_START.multiply(
             HappyInvestorTestData.USD_PLN_AT_HISTORY_START),

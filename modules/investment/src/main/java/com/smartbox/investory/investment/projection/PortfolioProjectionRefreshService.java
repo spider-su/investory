@@ -56,6 +56,18 @@ public class PortfolioProjectionRefreshService {
           "app_v_symbol_performance",
           "app_v_portfolio_kpi_summary_mv");
 
+  private static final List<String> DASHBOARD_ORDER =
+      List.of(
+          "app_v_portfolio_daily_fx_rate_mv",
+          "app_v_normalized_cash_operations",
+          "app_v_account_monthly",
+          "app_v_portfolio_monthly",
+          "app_v_account_statistics",
+          "app_v_portfolio_currency_breakdown",
+          "app_v_portfolio_asset_allocation",
+          "app_v_symbol_performance",
+          "app_v_portfolio_kpi_summary_mv");
+
   private static final List<String> RECONCILIATION_ORDER =
       List.of(
           "recon_v_reconstructed_position_daily_mv",
@@ -84,6 +96,7 @@ public class PortfolioProjectionRefreshService {
           case BROKER_IMPORT, MARKET_HISTORY, FULL -> APPLICATION_FULL_ORDER;
           case CURRENT_MARKET_PRICE -> CURRENT_MARKET_PRICE_ORDER;
           case FX_UPDATE -> FX_ORDER;
+          case DASHBOARD -> DASHBOARD_ORDER;
         };
     refreshViews("application", views);
   }
@@ -138,6 +151,7 @@ public class PortfolioProjectionRefreshService {
     BROKER_IMPORT,
     CURRENT_MARKET_PRICE,
     FX_UPDATE,
+    DASHBOARD,
     MARKET_HISTORY,
     FULL
   }

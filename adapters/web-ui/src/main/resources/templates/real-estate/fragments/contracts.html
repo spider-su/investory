@@ -11,13 +11,15 @@
 
     <div class="card-body text-secondary" th:if="${#lists.isEmpty(contracts)}">No rental contracts configured.</div>
     <div class="iv-rental-contracts" th:unless="${#lists.isEmpty(contracts)}">
-      <details class="iv-rental-contract" th:each="contract, contractStat : ${contracts}" th:open="${contractStat.first}" th:attr="data-contract-id=${contract.id}">
+      <div th:each="contract, contractStat : ${contracts}">
+      <div class="iv-rental-contracts__history-heading" th:if="${contractStat.index == 1 and contract.status.name() != 'CURRENT'}">Previous contracts</div>
+      <details class="iv-rental-contract" th:open="${contract.status.name() == 'CURRENT'}" th:attr="data-contract-id=${contract.id},data-contract-status=${contract.status.name()}">
         <summary class="iv-rental-contract__summary">
           <span class="iv-rental-contract__date"><small>Start</small> <strong th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).date(contract.startDate)}">1 Apr 2026</strong></span>
           <span class="iv-rental-contract__date"><small>Effective end</small><strong th:text="${contract.effectiveEndDate == null ? 'Open' : T(com.smartbox.investory.ui.presentation.UiPresentation).date(contract.effectiveEndDate)}">Open</strong></span>
           <span class="iv-rental-contract__tenant" th:text="${contract.tenantName ?: 'Tenant not specified'}">Tenant not specified</span>
           <span class="badge iv-rental-contract__status" th:text="${#strings.capitalize(#strings.toLowerCase(contract.status.name()))}">Current</span>
-          <span class="iv-rental-contract__rent" th:with="rent=${contract.terms.?[type.name() == 'RENT']}" th:text="${#lists.isEmpty(rent) ? 'No rent' : T(com.smartbox.investory.ui.presentation.UiPresentation).money(rent[0].amount, asset.currency) + ' / ' + #strings.toLowerCase(rent[0].frequency.name())}">3,700 PLN / monthly</span>
+          <span class="iv-rental-contract__rent" th:with="monthlyIncome=${T(com.smartbox.investory.ui.presentation.UiPresentation).monthlyIncome(contract.terms)}" th:text="${T(com.smartbox.investory.ui.presentation.UiPresentation).wholeNumber(monthlyIncome) + ' ' + asset.currency + ' / month'}">3,700 PLN / month</span>
           <span class="iv-rental-contract__indicator" aria-hidden="true">›</span>
         </summary>
 
@@ -78,13 +80,13 @@
             <div class="iv-rental-contract__actions">
               <button class="btn btn-outline-primary" type="button" data-edit-contract>Edit</button>
               <button class="btn btn-outline-warning" type="button" data-terminate-contract th:if="${contract.status.name() == 'CURRENT'}">Terminate early</button>
-              <form method="post" th:action="@{/long-term-assets/{id}/rental-contracts/{contractId}/delete(id=${asset.id},contractId=${contract.id})}" data-delete-contract>
+              <form method="post" th:action="@{/portfolios/{portfolioId}/long-term-assets/{id}/rental-contracts/{contractId}/delete(id=${asset.id},contractId=${contract.id},portfolioId=${portfolioId})}" data-delete-contract>
                 <input type="hidden" name="portfolioId" th:value="${portfolioId}">
                 <button class="btn btn-outline-danger" type="submit">Delete</button>
               </form>
             </div>
 
-            <form class="iv-contract-confirm" method="post" th:action="@{/long-term-assets/{id}/rental-contracts/{contractId}/terminate(id=${asset.id},contractId=${contract.id})}" data-terminate-panel hidden>
+            <form class="iv-contract-confirm" method="post" th:action="@{/portfolios/{portfolioId}/long-term-assets/{id}/rental-contracts/{contractId}/terminate(id=${asset.id},contractId=${contract.id},portfolioId=${portfolioId})}" data-terminate-panel hidden>
               <input type="hidden" name="portfolioId" th:value="${portfolioId}">
               <div><label class="form-label" th:for="${'termination-date-' + contract.id}">Termination date</label><input class="form-control" th:id="${'termination-date-' + contract.id}" name="terminationDate" type="date" th:min="${contract.startDate}" th:max="${contract.endDate == null or today.isBefore(contract.endDate) ? today : contract.endDate}" required></div>
               <p class="text-secondary mb-0">This records an actual early termination, not a planned contract end.</p>
@@ -92,16 +94,17 @@
             </form>
           </div>
 
-          <form class="iv-rental-contract__edit" method="post" th:action="@{/long-term-assets/{id}/rental-contracts/{contractId}(id=${asset.id},contractId=${contract.id})}" data-contract-edit th:attr="data-edit-initial=${editContractId == contract.id}" hidden>
+          <form class="iv-rental-contract__edit" method="post" th:action="@{/portfolios/{portfolioId}/long-term-assets/{id}/rental-contracts/{contractId}(id=${asset.id},contractId=${contract.id},portfolioId=${portfolioId})}" data-contract-edit th:attr="data-edit-initial=${editContractId == contract.id}" hidden>
             <input type="hidden" name="portfolioId" th:value="${portfolioId}">
             <div th:replace="~{real-estate/fragments/contract-form :: fields(prefix=${'edit-' + contract.id}, form=${contractForms[contract.id]}, includeRollover=${false})}"></div>
             <div class="iv-contract-form-actions"><button class="btn btn-primary" type="submit">Save changes</button><button class="btn btn-link" type="button" data-cancel-edit>Cancel</button></div>
           </form>
         </div>
       </details>
+      </div>
     </div>
 
-    <form class="iv-add-contract" method="post" th:action="@{/long-term-assets/{id}/rental-contracts(id=${asset.id})}" data-add-contract th:attr="data-suggested-start=${suggestedNextContractStart}" th:hidden="${showAddContract == null}">
+    <form class="iv-add-contract" method="post" th:action="@{/portfolios/{portfolioId}/long-term-assets/{id}/rental-contracts(id=${asset.id},portfolioId=${portfolioId})}" data-add-contract th:attr="data-suggested-start=${suggestedNextContractStart}" th:hidden="${showAddContract == null}">
       <div class="iv-add-contract__heading"><div><h3 class="h3 mb-1">Add contract</h3><p class="text-secondary mb-0">Nothing is saved until you create the contract.</p></div><button class="btn btn-outline-secondary" type="button" data-copy-latest th:if="${!#lists.isEmpty(contracts)}">Copy latest contract</button></div>
       <input type="hidden" name="portfolioId" th:value="${portfolioId}">
       <div th:replace="~{real-estate/fragments/contract-form :: fields(prefix='add', form=${rentalContract}, includeRollover=${true})}"></div>

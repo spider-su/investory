@@ -29,7 +29,7 @@ class InvestmentProfileTemplateContractTest {
         .contains("profileAnnualCost")
         .contains("profileAnnualCostMeta")
         .contains("profileMarketAnnualizedReturn")
-        .contains("Net income / year")
+        .contains("Annual income (net)")
         .contains("Annual cost / year")
         .contains("Market investments")
         .contains("Long-term assets")
@@ -40,7 +40,8 @@ class InvestmentProfileTemplateContractTest {
         .doesNotContain("Investment result")
         .doesNotContain("profileMarketInvestmentResult");
     assertThat(profileHtml)
-        .contains("th:href=\"@{/dashboard(portfolioId=${profile.portfolioId})}\"");
+        .contains(
+            "th:href=\"@{/portfolios/{portfolioId}/dashboard(portfolioId=${profile.portfolioId})}\"");
     assertThat(profileHtml)
         .doesNotContain("Investment profile")
         .doesNotContain("Combined view of traded investments")
@@ -64,11 +65,11 @@ class InvestmentProfileTemplateContractTest {
         .contains("profile.marketPortfolioValueCompactDisplay")
         .contains("profile.longTermAssetValueCompactDisplay")
         .contains("profileMarketYtdIncome")
-        .contains("profile.incomeSummary.marketAnnualIncomeCompactDisplay")
+        .contains("profile.marketAnnualIncomeDisplay")
         .contains("profile.incomeSummary.longTermAnnualIncomeCompactDisplay")
         .contains("Annualized return")
         .contains("profileMarketKpiMeta")
-        .contains("Expected annual yield")
+        .contains("Annualized return (net)")
         .contains("iv-profile-sources__grid")
         .contains("iv-profile-allocation")
         .contains("th:if=\"${allocation.nonZero}\"")

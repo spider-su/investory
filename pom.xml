@@ -29,7 +29,7 @@
         <commons-lang3.version>3.20.0</commons-lang3.version>
         <commons-beanutils.version>1.11.0</commons-beanutils.version>
         <testcontainers.version>2.0.5</testcontainers.version>
-        <playwright.version>1.55.0</playwright.version>
+        <playwright.version>1.62.0</playwright.version>
         <spotless-maven-plugin-google.version>1.35.0</spotless-maven-plugin-google.version>
         <spotless-maven-plugin.version>3.9.0</spotless-maven-plugin.version>
         <git-commit-id-maven-plugin.version>9.2.0</git-commit-id-maven-plugin.version>

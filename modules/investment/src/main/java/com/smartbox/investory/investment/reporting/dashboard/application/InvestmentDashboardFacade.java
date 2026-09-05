@@ -76,7 +76,7 @@ public class InvestmentDashboardFacade {
       BenchmarkService benchmarkService,
       DashboardPeriodFilterService periodFilterService,
       PortfolioPeriodMetricsService periodMetricsService,
-      @Value("${app.portfolio.performance-kpi-start}") String performanceKpiStart) {
+      String performanceKpiStart) {
     this(
         portfolioMetricsService,
         benchmarkService,

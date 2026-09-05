@@ -24,6 +24,7 @@ class ReconciliationC1CurrencyFallbackContractTest {
 
     assertTrue(migration.contains("account.currency::varchar(3) AS account_currency"));
     assertTrue(migration.contains("portfolio.base_currency::varchar(3) AS ledger_base_currency"));
+    assertTrue(migration.contains("nco.account_flow_amount_in_portfolio_base_currency"));
     assertTrue(
         migration.contains(
             "CASE WHEN account.currency = portfolio.base_currency\n"

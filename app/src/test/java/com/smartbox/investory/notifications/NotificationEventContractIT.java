@@ -7,11 +7,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.smartbox.investory.investment.notifications.SystemAuditNotificationProducer;
 import com.smartbox.investory.shared.notifications.NotificationCandidate;
 import com.smartbox.investory.testsupport.FastDatabase;
+import com.smartbox.investory.testsupport.time.MutableApplicationTime;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.DisplayName;
@@ -83,7 +86,9 @@ class NotificationEventContractIT {
         new SystemAuditNotificationProducer(
             jdbc(),
             candidate -> captured.compareAndSet(null, candidate),
-            Mockito.mock(ApplicationEventPublisher.class));
+            Mockito.mock(ApplicationEventPublisher.class),
+            MutableApplicationTime.fixed(
+                Instant.parse("2026-09-05T08:00:00Z"), ZoneId.of("Europe/Warsaw")));
 
     assertTrue(producer.publish(auditId));
     assertEquals("SYSTEM_AUDIT_ERROR:" + auditId, captured.get().fingerprint());

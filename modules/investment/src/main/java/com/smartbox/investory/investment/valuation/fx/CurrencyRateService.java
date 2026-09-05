@@ -8,6 +8,7 @@ import com.smartbox.investory.investment.valuation.fx.persistence.CurrencyRateRe
 import com.smartbox.investory.investment.valuation.fx.persistence.FxRateResolutionRow;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
@@ -41,6 +42,7 @@ public class CurrencyRateService implements CurrencyConversion {
   private static final ZoneId TRANSACTION_ZONE = ZoneId.of("Europe/Warsaw");
 
   private final CurrencyRateRepository currencyRateRepository;
+  private final ApplicationTime applicationTime;
 
   /**
    * Per-date FX valuation matrices. Bounded and self-evicting via Caffeine so it cannot grow
@@ -54,7 +56,7 @@ public class CurrencyRateService implements CurrencyConversion {
   public double convertToBaseCurrency(
       double amount, CurrencyType baseCurrency, CurrencyType positionCurrency) {
     return convertToBaseCurrency(
-            BigDecimal.valueOf(amount), baseCurrency, positionCurrency, LocalDate.now())
+            BigDecimal.valueOf(amount), baseCurrency, positionCurrency, applicationTime.today())
         .doubleValue();
   }
 
@@ -67,7 +69,7 @@ public class CurrencyRateService implements CurrencyConversion {
 
   public BigDecimal convertToBaseCurrency(
       BigDecimal amount, CurrencyType baseCurrency, CurrencyType positionCurrency) {
-    return convertToBaseCurrency(amount, baseCurrency, positionCurrency, LocalDate.now());
+    return convertToBaseCurrency(amount, baseCurrency, positionCurrency, applicationTime.today());
   }
 
   @Override
@@ -331,7 +333,7 @@ public class CurrencyRateService implements CurrencyConversion {
   }
 
   public Optional<BigDecimal> findRate(CurrencyType base, CurrencyType toCurrency) {
-    return findRate(base, toCurrency, LocalDate.now());
+    return findRate(base, toCurrency, applicationTime.today());
   }
 
   public Optional<BigDecimal> findRate(CurrencyType base, CurrencyType toCurrency, LocalDate date) {
@@ -352,7 +354,7 @@ public class CurrencyRateService implements CurrencyConversion {
 
   public FxRateResolution resolveRate(
       CurrencyType sourceCurrency, CurrencyType targetCurrency, LocalDate valuationDate) {
-    LocalDate effectiveDate = valuationDate == null ? LocalDate.now() : valuationDate;
+    LocalDate effectiveDate = valuationDate == null ? applicationTime.today() : valuationDate;
     if (sourceCurrency == targetCurrency) {
       return new FxRateResolution(
           BigDecimal.ONE.setScale(FX_SCALE, RoundingMode.UNNECESSARY),

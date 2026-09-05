@@ -125,7 +125,8 @@ public class LongTermAssetAnnualSnapshotService {
     BigDecimal cashReserveValue =
         sumCanonical(
             rows, LongTermAssetType.CASH_RESERVE, LongTermAssetSummary::currentValue, date);
-    BigDecimal otherAssetValue = sumCanonical(rows, null, LongTermAssetSummary::currentValue, date);
+    BigDecimal otherAssetValue =
+        sumCanonical(rows, LongTermAssetType.DEPOSIT, LongTermAssetSummary::currentValue, date);
     return new LongTermAssetAnnualSnapshotModel(
         realEstateValue, rentalIncome, bondValue, bondIncome, cashReserveValue, otherAssetValue);
   }
@@ -136,12 +137,7 @@ public class LongTermAssetAnnualSnapshotService {
       java.util.function.Function<LongTermAssetSummary, BigDecimal> value,
       LocalDate date) {
     return rows.stream()
-        .filter(
-            row ->
-                type == null
-                    ? row.type() == LongTermAssetType.DEPOSIT
-                        || row.type() == LongTermAssetType.OTHER
-                    : row.type() == type)
+        .filter(row -> type == null ? row.type().contributesToCalculations() : row.type() == type)
         .map(
             row -> {
               BigDecimal amount = value.apply(row);

@@ -17,10 +17,10 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 public class LongTermRentalTaxController {
   private final LongTermAssetsClient assets;
 
-  @PostMapping("/long-term-assets/{id}/tax-base")
+  @PostMapping("/portfolios/{portfolioId}/long-term-assets/{id}/tax-base")
   public String updateTaxBase(
       @PathVariable Long id,
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @RequestParam BigDecimal taxBase,
       RedirectAttributes feedback) {
     LongTermAssetPageSupport.applyAssetMutation(
@@ -28,10 +28,10 @@ public class LongTermRentalTaxController {
     return LongTermAssetPageSupport.assetRedirect(id, portfolioId);
   }
 
-  @PostMapping("/long-term-assets/{id}/rental-tax-ownership")
+  @PostMapping("/portfolios/{portfolioId}/long-term-assets/{id}/rental-tax-ownership")
   public String saveRentalTaxOwnership(
       @PathVariable Long id,
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @RequestParam(defaultValue = "false") boolean paidByTenant,
       RedirectAttributes feedback) {
     LongTermAssetPageSupport.applyAssetMutation(
@@ -39,9 +39,9 @@ public class LongTermRentalTaxController {
     return LongTermAssetPageSupport.assetRedirect(id, portfolioId);
   }
 
-  @PostMapping("/long-term-assets/rental-tax-policy")
+  @PostMapping("/portfolios/{portfolioId}/long-term-assets/rental-tax-policy")
   public String saveRentalTaxPolicy(
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @ModelAttribute RentalTaxForm form,
       @RequestParam BigDecimal ratePercent,
       RedirectAttributes feedback) {
@@ -54,13 +54,13 @@ public class LongTermRentalTaxController {
                     form.getValidTo(),
                     LongTermAssetRateConversion.percentToRate(ratePercent))),
         feedback);
-    return "redirect:/long-term-assets?portfolioId=" + portfolioId;
+    return "redirect:/portfolios/" + portfolioId + "/long-term-assets";
   }
 
-  @PostMapping("/long-term-assets/rental-tax-policy/{policyId}")
+  @PostMapping("/portfolios/{portfolioId}/long-term-assets/rental-tax-policy/{policyId}")
   public String updateRentalTaxPolicy(
       @PathVariable Long policyId,
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @ModelAttribute RentalTaxForm form,
       @RequestParam BigDecimal ratePercent,
       RedirectAttributes feedback) {
@@ -77,9 +77,11 @@ public class LongTermRentalTaxController {
     return LongTermAssetPageSupport.taxPolicyRedirect(portfolioId);
   }
 
-  @PostMapping("/long-term-assets/rental-tax-policy/{policyId}/delete")
+  @PostMapping("/portfolios/{portfolioId}/long-term-assets/rental-tax-policy/{policyId}/delete")
   public String deleteRentalTaxPolicy(
-      @PathVariable Long policyId, @RequestParam Long portfolioId, RedirectAttributes feedback) {
+      @PathVariable Long policyId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
+      RedirectAttributes feedback) {
     LongTermAssetPageSupport.applyAssetMutation(
         () -> assets.deleteRentalTaxPolicy(portfolioId, policyId), feedback);
     return LongTermAssetPageSupport.taxPolicyRedirect(portfolioId);

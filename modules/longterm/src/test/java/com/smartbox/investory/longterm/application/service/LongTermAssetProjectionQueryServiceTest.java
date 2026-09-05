@@ -153,11 +153,11 @@ class LongTermAssetProjectionQueryServiceTest {
   @Test
   void historicalProjectionInputsUseSameLifecyclePopulationAsSummaryReads() {
     LocalDate date = LocalDate.of(2026, 1, 1);
-    var activeNow = asset(1L, LongTermAssetType.OTHER);
-    var archivedToday = asset(2L, LongTermAssetType.OTHER);
-    var archivedBefore = asset(3L, LongTermAssetType.OTHER);
-    var acquiredAfter = asset(4L, LongTermAssetType.OTHER);
-    var reactivated = asset(5L, LongTermAssetType.OTHER);
+    var activeNow = asset(1L, LongTermAssetType.CASH_RESERVE);
+    var archivedToday = asset(2L, LongTermAssetType.CASH_RESERVE);
+    var archivedBefore = asset(3L, LongTermAssetType.CASH_RESERVE);
+    var acquiredAfter = asset(4L, LongTermAssetType.CASH_RESERVE);
+    var reactivated = asset(5L, LongTermAssetType.CASH_RESERVE);
     when(assets.findAllByPortfolioIdOrderByName(1L))
         .thenReturn(List.of(activeNow, archivedToday, archivedBefore, acquiredAfter, reactivated));
     when(lifecycle.activeOn(activeNow, date)).thenReturn(true);
@@ -171,6 +171,17 @@ class LongTermAssetProjectionQueryServiceTest {
     assertThat(service.projectionInputs(1L, date))
         .extracting(LongTermAssetProjectionInput::id)
         .containsExactly(1L, 2L, 5L);
+  }
+
+  @Test
+  void notesOnlyOtherAssetsAreExcludedFromProjectionInputs() {
+    var notes = asset(1L, LongTermAssetType.OTHER);
+    when(assets.findAllByPortfolioIdOrderByName(1L)).thenReturn(List.of(notes));
+    when(lifecycle.activeOn(notes, LocalDate.of(2026, 1, 1))).thenReturn(true);
+    when(relatedData.load(1L, List.of(1L), LocalDate.of(2026, 1, 1)))
+        .thenReturn(LongTermAssetRelatedDataLoader.Data.empty());
+
+    assertThat(service.projectionInputs(1L, LocalDate.of(2026, 1, 1))).isEmpty();
   }
 
   private static LongTermAssetEntity asset(Long id, LongTermAssetType type) {

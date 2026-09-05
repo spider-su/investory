@@ -3,6 +3,7 @@ package com.smartbox.investory.ui.investment;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
@@ -49,11 +50,24 @@ class ReconciliationControllerTest {
     when(reconciliationApi.loadReconciliationReport(7L)).thenReturn(report);
 
     mockMvc
-        .perform(get("/dashboard/reconciliation").param("portfolioId", "7"))
+        .perform(get("/portfolios/7/dashboard/reconciliation").param("portfolioId", "7"))
         .andExpect(status().isOk())
         .andExpect(view().name("reconciliation"))
         .andExpect(model().attribute("report", report));
 
     verify(reconciliationApi).loadReconciliationReport(7L);
+  }
+
+  @DisplayName("reconciliation Refresh Rebuilds Views And Redirects")
+  @Test
+  void reconciliationRefreshRebuildsViewsAndRedirects() throws Exception {
+    MockMvc mockMvc = MockMvcBuilders.standaloneSetup(reconciliationController).build();
+
+    mockMvc
+        .perform(post("/portfolios/7/dashboard/reconciliation/refresh").param("portfolioId", "7"))
+        .andExpect(status().is3xxRedirection())
+        .andExpect(view().name("redirect:/portfolios/7/dashboard/reconciliation?refreshed=true"));
+
+    verify(reconciliationApi).refreshReconciliationViews();
   }
 }

@@ -31,6 +31,7 @@ import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.investment.valuation.price.AssetPriceHistoryGapFillService;
 import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import com.smartbox.investory.testsupport.portfolio.PortfolioBuilders;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestData;
 import java.math.BigDecimal;
@@ -85,11 +86,16 @@ class PortfolioProjectionServiceTest {
   @Mock private NormalizedCashOperationRepository normalizedCashOperationRepository;
   @Mock private AssetPriceHistoryGapFillService assetPriceHistoryGapFillService;
   @Mock private PortfolioProjectionRefreshService projectionRefreshService;
+  @Mock private ApplicationTime applicationTime;
 
   @InjectMocks private PortfolioProjectionService service;
 
   @BeforeEach
   void setUp() {
+    when(applicationTime.today()).thenReturn(ReportingDateHelper.today());
+    when(applicationTime.businessZone()).thenReturn(ReportingDateHelper.REPORTING_ZONE);
+    when(applicationTime.now(any(ZoneId.class)))
+        .thenAnswer(invocation -> ZonedDateTime.now(invocation.getArgument(0, ZoneId.class)));
     openedPositionRepository = positionRepository;
     closedPositionRepository = positionRepository;
     lenient()

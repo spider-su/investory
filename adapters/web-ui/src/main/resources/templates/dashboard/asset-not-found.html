@@ -13,7 +13,7 @@
         <div class="empty-header">404</div>
         <p class="empty-title">Asset not found</p>
         <p class="empty-subtitle text-secondary">We couldn’t find this asset.</p>
-        <div class="empty-action"><a href="/dashboard" class="btn btn-primary">Back to Investment</a></div>
+        <div class="empty-action"><a th:href="@{/portfolios/{portfolioId}/dashboard(portfolioId=${portfolioId})}" href="/portfolios/1/dashboard" class="btn btn-primary">Back to Investment</a></div>
     </div>
 </main>
 </body>

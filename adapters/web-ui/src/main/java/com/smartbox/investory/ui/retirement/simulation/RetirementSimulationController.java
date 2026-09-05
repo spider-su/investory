@@ -70,9 +70,9 @@ public class RetirementSimulationController {
     this.sandbox = sandbox;
   }
 
-  @GetMapping("/simulation/sandbox")
+  @GetMapping("/portfolios/{portfolioId}/simulation/sandbox")
   public String sandbox(
-      @RequestParam(required = false) Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @RequestParam(required = false) Long planId,
       @RequestParam Map<String, String> requestParams,
       @Valid @ModelAttribute SandboxSimulationForm form,
@@ -111,16 +111,16 @@ public class RetirementSimulationController {
     return "simulation-sandbox";
   }
 
-  @PostMapping("/simulation/sandbox/save")
+  @PostMapping("/portfolios/{portfolioId}/simulation/sandbox/save")
   public String saveSandbox(
       @Valid @ModelAttribute SandboxSimulationForm form, BindingResult binding) {
     if (binding.hasErrors() || form.getPortfolioId() == null) {
-      return "redirect:/simulation/sandbox";
+      return "redirect:/portfolios/" + form.getPortfolioId() + "/simulation/sandbox";
     }
     Long savedId = sandboxPlans.save(form.getPortfolioId(), form.getPlanId(), form.input());
-    return "redirect:/simulation/sandbox?portfolioId="
+    return "redirect:/portfolios/"
         + form.getPortfolioId()
-        + "&planId="
+        + "/simulation/sandbox?planId="
         + savedId;
   }
 
@@ -132,17 +132,21 @@ public class RetirementSimulationController {
         .multiply(BigDecimal.valueOf(12));
   }
 
-  @GetMapping("/simulation")
-  public String simulation(@ModelAttribute SimulationQuery query, Model model) {
+  @GetMapping("/portfolios/{portfolioId}/simulation")
+  public String simulation(
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
+      @ModelAttribute SimulationQuery query,
+      Model model) {
+    query.setPortfolioId(portfolioId);
     query.setPlanningDisplayCurrency(
         resolveCurrency(query.getPortfolioId(), query.getPlanningDisplayCurrency()));
     model.addAttribute("simulationPage", simulationPage.assemble(query));
     return "simulation";
   }
 
-  @GetMapping("/simulation/plan/edit")
+  @GetMapping("/portfolios/{portfolioId}/simulation/plan/edit")
   public String editPlan(
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @RequestParam(required = false) Long planId,
       @RequestParam(required = false) CurrencyType planningDisplayCurrency,
       @RequestParam(defaultValue = "BASE") SimulationScenario selectedScenario,
@@ -157,7 +161,7 @@ public class RetirementSimulationController {
     return "simulation-plan-edit";
   }
 
-  @PostMapping("/simulation/plans")
+  @PostMapping("/portfolios/{portfolioId}/simulation/plans")
   public String savePlan(@Valid @ModelAttribute SimulationPlanSaveForm form) {
     int currentYear = Year.now(clock).getValue();
     Long portfolioId = form.getPortfolioId();
@@ -182,18 +186,19 @@ public class RetirementSimulationController {
         form.getReturnPlanningDisplayCurrency() == null
             ? planningDisplayCurrency
             : form.getReturnPlanningDisplayCurrency();
-    return "redirect:/simulation?portfolioId="
+    return "redirect:/portfolios/"
         + portfolioId
-        + (savedPlanId == null ? "" : "&planId=" + savedPlanId)
-        + "&planningDisplayCurrency="
+        + "/simulation"
+        + (savedPlanId == null ? "?" : "?planId=" + savedPlanId + "&")
+        + "planningDisplayCurrency="
         + returnCurrency
         + "&selectedScenario="
         + form.getSelectedScenario();
   }
 
-  @PostMapping("/simulation/plans/{planId}/events")
+  @PostMapping("/portfolios/{portfolioId}/simulation/plans/{planId}/events")
   public String saveEvent(
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @PathVariable Long planId,
       @RequestParam(required = false) Long eventId,
       @RequestParam int year,
@@ -224,9 +229,9 @@ public class RetirementSimulationController {
             portfolioId, planId, planningDisplayCurrency, selectedScenario);
   }
 
-  @PostMapping("/simulation/plans/{planId}/events/{eventId}/delete")
+  @PostMapping("/portfolios/{portfolioId}/simulation/plans/{planId}/events/{eventId}/delete")
   public String deleteEvent(
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @PathVariable Long planId,
       @PathVariable Long eventId,
       @RequestParam(required = false) CurrencyType planningDisplayCurrency,
@@ -241,10 +246,10 @@ public class RetirementSimulationController {
             portfolioId, planId, planningDisplayCurrency, selectedScenario);
   }
 
-  @PostMapping("/simulation/plans/{id}/delete")
+  @PostMapping("/portfolios/{portfolioId}/simulation/plans/{id}/delete")
   public String deletePlan(
       @PathVariable Long id,
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @RequestParam(required = false) CurrencyType planningDisplayCurrency,
       @RequestParam(required = false) Long currentPlanId,
       @RequestParam(defaultValue = "false") boolean returnToEdit,

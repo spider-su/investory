@@ -19,3 +19,7 @@ app:
       enabled: false
   notifications:
     enabled: false
+
+investory:
+  time:
+    fixed-instant: 2026-09-05T12:00:00Z

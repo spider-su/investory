@@ -36,8 +36,9 @@ public class LongTermBondController {
     this.portfolios = portfolios;
   }
 
-  @GetMapping("/long-term-assets/new/bond")
-  public String bondForm(@RequestParam Long portfolioId, Model model) {
+  @GetMapping("/portfolios/{portfolioId}/long-term-assets/new/bond")
+  public String bondForm(
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId, Model model) {
     LongTermAssetForm asset = new LongTermAssetForm();
     asset.setPortfolioId(portfolioId);
     asset.setType(LongTermAssetType.BOND);
@@ -54,9 +55,9 @@ public class LongTermBondController {
     return "bond-form";
   }
 
-  @PostMapping("/long-term-assets/bond")
+  @PostMapping("/portfolios/{portfolioId}/long-term-assets/bond")
   public String createBond(
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @RequestParam String name,
       @RequestParam CurrencyType currency,
       @RequestParam BigDecimal value,
@@ -83,14 +84,14 @@ public class LongTermBondController {
       return LongTermAssetPageSupport.assetRedirect(saved.id(), portfolioId);
     } catch (IllegalArgumentException | ResourceNotFoundException exception) {
       feedback.addFlashAttribute("error", LongTermAssetPageSupport.assetError(exception));
-      return "redirect:/long-term-assets?portfolioId=" + portfolioId;
+      return "redirect:/portfolios/" + portfolioId + "/long-term-assets";
     }
   }
 
-  @PostMapping("/long-term-assets/{id}/bond-details")
+  @PostMapping("/portfolios/{portfolioId}/long-term-assets/{id}/bond-details")
   public String saveBondDetails(
       @PathVariable Long id,
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @ModelAttribute BondDetailsForm form,
       RedirectAttributes feedback) {
     LongTermAssetPageSupport.applyAssetMutation(
@@ -107,10 +108,10 @@ public class LongTermBondController {
     return LongTermAssetPageSupport.assetRedirect(id, portfolioId);
   }
 
-  @PostMapping("/long-term-assets/{id}/bond")
+  @PostMapping("/portfolios/{portfolioId}/long-term-assets/{id}/bond")
   public String updateBond(
       @PathVariable Long id,
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @RequestParam String name,
       @RequestParam CurrencyType currency,
       @RequestParam BigDecimal value,

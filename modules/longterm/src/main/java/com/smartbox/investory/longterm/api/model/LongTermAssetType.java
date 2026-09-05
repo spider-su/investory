@@ -5,5 +5,9 @@ public enum LongTermAssetType {
   BOND,
   DEPOSIT,
   CASH_RESERVE,
-  OTHER
+  OTHER;
+
+  public boolean contributesToCalculations() {
+    return this != OTHER;
+  }
 }

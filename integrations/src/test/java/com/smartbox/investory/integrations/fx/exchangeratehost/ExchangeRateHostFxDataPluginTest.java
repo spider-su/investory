@@ -1,5 +1,6 @@
 package com.smartbox.investory.integrations.fx.exchangeratehost;
 
+import static com.smartbox.investory.integrations.FixedTestTime.TIME;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -27,7 +28,7 @@ class ExchangeRateHostFxDataPluginTest {
   @DisplayName("descriptor And Validation Expose Typed Secret Contract")
   @Test
   void descriptorAndValidationExposeTypedSecretContract() {
-    ExchangeRateHostFxDataPlugin plugin = new ExchangeRateHostFxDataPlugin(client);
+    ExchangeRateHostFxDataPlugin plugin = new ExchangeRateHostFxDataPlugin(client, TIME);
 
     assertEquals("exchangerate-host", plugin.id());
     assertEquals("apiKey", plugin.descriptor().configuration().getFirst().key());
@@ -43,7 +44,7 @@ class ExchangeRateHostFxDataPluginTest {
     response.setDate(LocalDate.of(2026, 8, 11));
     response.setQuotes(Map.of("USDEUR", 0.9, "USDPLN", 4.0));
     when(client.getLatestRates("USD", "EUR,PLN", "secret")).thenReturn(response);
-    ExchangeRateHostFxDataPlugin plugin = new ExchangeRateHostFxDataPlugin(client);
+    ExchangeRateHostFxDataPlugin plugin = new ExchangeRateHostFxDataPlugin(client, TIME);
 
     List<FxQuote> quotes =
         plugin.fetchRates(

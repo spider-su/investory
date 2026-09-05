@@ -1,5 +1,6 @@
 package com.smartbox.investory.integrations.management.application;
 
+import static com.smartbox.investory.integrations.FixedTestTime.TIME;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -19,6 +20,7 @@ import com.smartbox.investory.integrations.management.persistence.IntegrationIns
 import com.smartbox.investory.integrations.management.persistence.IntegrationJobRepository;
 import com.smartbox.investory.integrations.management.persistence.IntegrationSecretEntity;
 import com.smartbox.investory.integrations.management.persistence.IntegrationSecretRepository;
+import com.smartbox.investory.integrations.management.scheduling.IntegrationJobHandlerRegistry;
 import com.smartbox.investory.integrations.management.spi.IntegrationPlugin;
 import com.smartbox.investory.integrations.management.spi.TestableIntegrationPlugin;
 import java.util.List;
@@ -142,13 +144,15 @@ class IntegrationSettingsFacadeTest {
     var facade =
         new IntegrationSettingsFacade(
             new PluginRegistry(List.of(plugin)),
+            mock(IntegrationJobHandlerRegistry.class),
             configurationService,
             instanceRepository,
             mock(IntegrationSecretRepository.class),
             mock(IntegrationJobRepository.class),
             mock(IntegrationSecretCipher.class),
             new ObjectMapper(),
-            recorder);
+            recorder,
+            TIME);
     return new TestContext(facade, recorder);
   }
 
@@ -201,13 +205,15 @@ class IntegrationSettingsFacadeTest {
     var facade =
         new IntegrationSettingsFacade(
             registry,
+            mock(IntegrationJobHandlerRegistry.class),
             config,
             instances,
             secrets,
             jobs,
             cipher,
             new ObjectMapper(),
-            mock(IntegrationTestResultRecorder.class));
+            mock(IntegrationTestResultRecorder.class),
+            TIME);
 
     var view = facade.getIntegration(IntegrationType.FX_DATA, "test");
 

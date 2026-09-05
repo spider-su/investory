@@ -20,9 +20,10 @@ import com.smartbox.investory.investment.ledger.cash.persistence.CashOperationRe
 import com.smartbox.investory.investment.ledger.position.PositionSettlementModel;
 import com.smartbox.investory.investment.ledger.position.persistence.PositionEntity;
 import com.smartbox.investory.investment.ledger.position.persistence.PositionRepository;
+import com.smartbox.investory.investment.port.market.YahooSymbolResolver;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
-import com.smartbox.investory.investment.valuation.price.YahooSymbolResolver;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
@@ -49,6 +50,7 @@ public class AssetDetailService {
   private final SymbolPerformanceRepository symbolPerformanceRepository;
   private final CurrencyRateService currencyRateService;
   private final AccountRepository accountRepository;
+  private final ApplicationTime applicationTime;
 
   public AssetDetailView findBySymbol(Long portfolioId, String rawSymbol, DashboardPeriod period) {
     if (portfolioId == null || portfolioId <= 0) {
@@ -63,7 +65,7 @@ public class AssetDetailService {
         assetRepository
             .findBySymbol(symbol)
             .orElseThrow(() -> new AssetDetailNotFoundException(symbol));
-    ZonedDateTime startDate = period.startDate(ZonedDateTime.now());
+    ZonedDateTime startDate = period.startDate(applicationTime.now(applicationTime.businessZone()));
     return toView(
         asset,
         openedPositionRepository.findOpenByAssetIdAndAccountIn(asset.getId(), accountIds),

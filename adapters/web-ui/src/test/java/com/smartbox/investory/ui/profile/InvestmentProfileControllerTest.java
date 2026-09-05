@@ -53,8 +53,13 @@ class InvestmentProfileControllerTest {
 
     assertThat(template).isEqualTo("investment-profile");
     assertThat(model.getAttribute("portfolioId")).isEqualTo(7L);
-    assertThat(model.getAttribute("profileMarketYtdIncome")).isEqualTo("20,483");
+    assertThat(model.getAttribute("profileMarketYtdIncome")).isEqualTo("20.5K");
     assertThat(model.getAttribute("profileLongTermYtdIncome")).isEqualTo("8.0K");
+    var page = (InvestmentProfilePageView) model.getAttribute("profile");
+    assertThat(page.marketReceivedYtdProgressDisplay()).isEqualTo("620.7%");
+    assertThat(page.marketReceivedYtdProgressClass()).isEqualTo("iv-ytd-progress--positive");
+    assertThat(page.longTermReceivedYtdProgressDisplay()).isEqualTo("66.7%");
+    assertThat(page.longTermReceivedYtdProgressClass()).isEqualTo("iv-ytd-progress--positive");
     assertThat(model.getAttribute("profileAnnualCost")).isEqualTo("42.0K");
     assertThat(model.getAttribute("profileAnnualCostMeta")).isEqualTo("planned · 2026");
     assertThat(model.getAttribute("profileMarketAnnualizedReturn")).isEqualTo("28.1%");

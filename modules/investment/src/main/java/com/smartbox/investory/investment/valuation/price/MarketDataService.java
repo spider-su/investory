@@ -9,12 +9,13 @@ import com.smartbox.investory.investment.ledger.position.persistence.PositionRep
 import com.smartbox.investory.investment.port.market.MarketDataProvider;
 import com.smartbox.investory.investment.port.market.MarketDataProvider.LatestQuote;
 import com.smartbox.investory.investment.port.market.MarketQuote;
+import com.smartbox.investory.investment.port.market.YahooSymbolResolver;
 import com.smartbox.investory.investment.projection.StatisticsRefreshService;
-import com.smartbox.investory.investment.reporting.ReportingDateHelper;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.investment.valuation.fx.FxRateUnavailableException;
 import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -51,13 +52,12 @@ public class MarketDataService {
   private static final String XTB_RECONSTRUCTED_COMMENT = "Reconstructed from Cash Operations";
 
   /**
-   * TwelveData free tier allows 8 calls per minute. Group the symbol fetches into chunks of that
-   * size and pause between them so we don't trip the rate limit.
+   * Group refreshes into bounded transactions so one failed group does not abort the whole sync.
    */
   static final int CHUNK_SIZE = 8;
 
-  /** Default inter-chunk pause matching the free-tier rate window. */
-  static final long DEFAULT_CHUNK_PAUSE_MS = 120_000L;
+  /** Yahoo requests do not use the old TwelveData free-tier pause by default. */
+  static final long DEFAULT_CHUNK_PAUSE_MS = 0L;
 
   static final Duration QUOTE_FRESHNESS = Duration.ofHours(4);
 
@@ -74,6 +74,7 @@ public class MarketDataService {
   private final Set<String> excludedAssetSymbols;
   private final Duration chunkPause;
   private final TransactionTemplate chunkTransactionTemplate;
+  private final ApplicationTime applicationTime;
 
   public MarketDataService(
       MarketDataProvider marketDataProvider,
@@ -85,6 +86,7 @@ public class MarketDataService {
       CurrencyRateService currencyRateService,
       StatisticsRefreshService statisticsRefreshService,
       PlatformTransactionManager transactionManager,
+      ApplicationTime applicationTime,
       @Value("${app.market.chunk-pause-ms:" + DEFAULT_CHUNK_PAUSE_MS + "}") long chunkPauseMs,
       @Value("${app.market.skip-non-us-listings:true}") boolean skipNonUsListings,
       @Value("${app.market.excluded-symbols:}") String excludedSymbolsCsv) {
@@ -96,6 +98,7 @@ public class MarketDataService {
     this.assetPriceHistoryGapFillService = assetPriceHistoryGapFillService;
     this.currencyRateService = currencyRateService;
     this.statisticsRefreshService = statisticsRefreshService;
+    this.applicationTime = applicationTime;
     this.skipNonUsListings = skipNonUsListings;
     this.excludedAssetSymbols = parseSymbolSet(excludedSymbolsCsv);
     this.chunkPause = Duration.ofMillis(Math.max(0L, chunkPauseMs));
@@ -132,17 +135,18 @@ public class MarketDataService {
         assetRepository.findAllByActiveTrueAndExcludeFromImportFalse().stream()
             .filter(asset -> portfolioOpenSymbols.contains(asset.getSymbol()))
             .filter(this::isNotConfiguredExcluded)
+            .filter(asset -> !isBond(asset))
             .toList();
 
-    // Source tickers from assets table; skip unsupported Twelve Data symbols.
-    // TwelveData recognizes the app's US-style tickers, not symbols like NVDA.US.
+    // Resolve source symbols through the configured primary market provider.
     Map<String, List<AssetEntity>> assetsByTicker =
         activeAssets.stream()
             .filter(this::isSupportedForPriceUpdate)
             .collect(
                 Collectors.groupingBy(
                     this::twelveDataSymbol, LinkedHashMap::new, Collectors.toList()));
-    ZonedDateTime quoteFreshnessCutoff = ZonedDateTime.now().minus(QUOTE_FRESHNESS);
+    ZonedDateTime quoteFreshnessCutoff =
+        applicationTime.now(applicationTime.businessZone()).minus(QUOTE_FRESHNESS);
     assetsByTicker
         .entrySet()
         .removeIf(
@@ -162,18 +166,18 @@ public class MarketDataService {
         chunks.size());
 
     AtomicInteger i = new AtomicInteger(1);
-    Set<Long> twelveDataUpdatedAssetIds = new java.util.HashSet<>();
+    Set<Long> updatedAssetIds = new java.util.HashSet<>();
     for (Map<String, List<AssetEntity>> chunk : chunks) {
       int idx = i.getAndIncrement();
       log.info("Updating chunk {} out of {}", idx, chunks.size());
       try {
-        twelveDataUpdatedAssetIds.addAll(runChunkInNewTransaction(chunk));
+        updatedAssetIds.addAll(runChunkInNewTransaction(chunk));
       } catch (Exception e) {
         log.warn("Chunk {} failed ({}). Retrying tickers individually", idx, e.getMessage());
         chunk.forEach(
             (ticker, assets) -> {
               try {
-                twelveDataUpdatedAssetIds.addAll(runChunkInNewTransaction(Map.of(ticker, assets)));
+                updatedAssetIds.addAll(runChunkInNewTransaction(Map.of(ticker, assets)));
               } catch (Exception ex) {
                 refreshFailures.add(ticker + ": " + ex.getMessage());
                 log.warn(
@@ -193,7 +197,7 @@ public class MarketDataService {
     List<AssetEntity> yahooFallbackAssets =
         activeAssets.stream()
             .filter(asset -> !isQuoteFresh(asset, quoteFreshnessCutoff))
-            .filter(asset -> !twelveDataUpdatedAssetIds.contains(asset.getId()))
+            .filter(asset -> !updatedAssetIds.contains(asset.getId()))
             .toList();
     try {
       runYahooFallbackInNewTransaction(yahooFallbackAssets);
@@ -259,11 +263,13 @@ public class MarketDataService {
           latest.getClosePrice().doubleValue(),
           latest.getPriceCurrency(),
           latest.getCloseTime() == null
-              ? ReportingDateHelper.today()
+              ? applicationTime.today()
               : latest.getCloseTime().toLocalDate());
       asset.setPriceSource("PositionEntity");
       asset.setPriceUpdatedAt(
-          latest.getCloseTime() != null ? latest.getCloseTime() : ZonedDateTime.now());
+          latest.getCloseTime() != null
+              ? latest.getCloseTime()
+              : applicationTime.now(applicationTime.businessZone()));
       backfilled.add(asset);
     }
 
@@ -304,7 +310,7 @@ public class MarketDataService {
     }
     log.info("Fetching quotes for: {}", tickers);
     Map<String, MarketQuote> quotes = marketDataProvider.fetchQuotes(tickers);
-    ZonedDateTime now = ZonedDateTime.now();
+    ZonedDateTime now = applicationTime.now(applicationTime.businessZone());
 
     List<AssetEntity> toSave = new ArrayList<>();
     Set<Long> updatedAssetIds = new java.util.HashSet<>();
@@ -325,7 +331,7 @@ public class MarketDataService {
             // app_v_current_asset_price, then performs the one required FX conversion.
             updateUsdPriceCache(
                 asset, monetaryPrice.doubleValue(), asset.getCurrency(), quoteDate(quote));
-            asset.setPriceSource("TwelveData");
+            asset.setPriceSource("YahooFinance");
             asset.setPriceUpdatedAt(now);
             toSave.add(asset);
             if (asset.getId() != null) {
@@ -334,10 +340,10 @@ public class MarketDataService {
             assetPriceHistoryRepository.upsertObservedPrice(
                 asset.getId(),
                 quoteDate(quote),
-                "TWELVE_DATA",
+                "YAHOO_FINANCE",
                 twelveDataSymbol(asset),
                 asset.getSymbol(),
-                "TWELVE_DATA_MARKET_CLOSE",
+                "YAHOO_FINANCE_MARKET_CLOSE",
                 quoteCurrency(asset, quote),
                 BigDecimal.valueOf(marketPrice),
                 100,
@@ -361,7 +367,7 @@ public class MarketDataService {
                 updateUsdPriceCache(
                     asset, monetaryPrice.doubleValue(), asset.getCurrency(), quote.date());
                 asset.setPriceSource("YahooFinance");
-                asset.setPriceUpdatedAt(ZonedDateTime.now());
+                asset.setPriceUpdatedAt(applicationTime.now(applicationTime.businessZone()));
                 toSave.add(asset);
                 assetPriceHistoryRepository.upsertObservedPrice(
                     asset.getId(),
@@ -398,7 +404,8 @@ public class MarketDataService {
 
   private boolean isQuoteFresh(AssetEntity asset, ZonedDateTime cutoff) {
     ZonedDateTime updatedAt = asset.getPriceUpdatedAt();
-    return "TwelveData".equalsIgnoreCase(asset.getPriceSource())
+    return ("YahooFinance".equalsIgnoreCase(asset.getPriceSource())
+            || "TwelveData".equalsIgnoreCase(asset.getPriceSource()))
         && updatedAt != null
         && !updatedAt.isBefore(cutoff);
   }
@@ -412,7 +419,7 @@ public class MarketDataService {
         log.warn("Invalid quote datetime '{}'; using reporting date", datetime);
       }
     }
-    return ReportingDateHelper.today();
+    return applicationTime.today();
   }
 
   private String quoteCurrency(AssetEntity asset, MarketQuote quote) {
@@ -424,14 +431,14 @@ public class MarketDataService {
 
   private boolean isUsableQuote(AssetEntity asset, MarketQuote quote) {
     if (!Double.isFinite(quote.getClose()) || quote.getClose() <= 0.0) {
-      log.warn("TwelveData quote skipped for {}: no positive close price", asset.getSymbol());
+      log.warn("Yahoo Finance quote skipped for {}: no positive close price", asset.getSymbol());
       return false;
     }
     if (asset.getCurrency() == null
         || !StringUtils.hasText(quote.getCurrency())
         || !asset.getCurrency().name().equalsIgnoreCase(quote.getCurrency().trim())) {
       log.warn(
-          "TwelveData quote skipped for {}: quote currency {} differs from asset currency {}",
+          "Yahoo Finance quote skipped for {}: quote currency {} differs from asset currency {}",
           asset.getSymbol(),
           quote.getCurrency(),
           asset.getCurrency());

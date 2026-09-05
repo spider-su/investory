@@ -5,6 +5,7 @@ import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
 import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceChartRepository;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -18,6 +19,7 @@ public class AssetPriceChartService {
 
   private final AssetRepository assetRepository;
   private final AssetPriceChartRepository assetPriceChartRepository;
+  private final ApplicationTime applicationTime;
 
   public List<AssetPricePointView> findBySymbol(
       Long portfolioId, String rawSymbol, DashboardPeriod period) {
@@ -29,7 +31,7 @@ public class AssetPriceChartService {
         assetRepository
             .findBySymbol(symbol)
             .orElseThrow(() -> new AssetDetailNotFoundException(symbol));
-    ZonedDateTime now = ZonedDateTime.now();
+    ZonedDateTime now = applicationTime.now(applicationTime.businessZone());
     ZonedDateTime startDate = period.startDate(now);
     LocalDate dateFrom = startDate == null ? null : startDate.toLocalDate();
     return assetPriceChartRepository

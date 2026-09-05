@@ -8,7 +8,7 @@ import com.smartbox.investory.integrations.management.persistence.IntegrationIns
 import com.smartbox.investory.integrations.management.persistence.IntegrationSecretEntity;
 import com.smartbox.investory.integrations.management.persistence.IntegrationSecretRepository;
 import com.smartbox.investory.integrations.management.spi.IntegrationPlugin;
-import java.time.ZonedDateTime;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -27,6 +27,7 @@ public class IntegrationConfigurationService {
   private final PluginRegistry pluginRegistry;
   private final IntegrationSecretCipher secretCipher;
   private final ObjectMapper objectMapper;
+  private final ApplicationTime applicationTime;
 
   @Autowired
   public IntegrationConfigurationService(
@@ -34,12 +35,14 @@ public class IntegrationConfigurationService {
       IntegrationSecretRepository secretRepository,
       PluginRegistry pluginRegistry,
       IntegrationSecretCipher secretCipher,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      ApplicationTime applicationTime) {
     this.instanceRepository = instanceRepository;
     this.secretRepository = secretRepository;
     this.pluginRegistry = pluginRegistry;
     this.secretCipher = secretCipher;
     this.objectMapper = objectMapper;
+    this.applicationTime = applicationTime;
   }
 
   @Transactional
@@ -100,7 +103,9 @@ public class IntegrationConfigurationService {
       throw new IllegalArgumentException(
           "Invalid integration configuration: " + String.join("; ", validation.errors()));
     }
-    if (instance.getCreatedAt() == null) instance.setCreatedAt(ZonedDateTime.now());
+    if (instance.getCreatedAt() == null) {
+      instance.setCreatedAt(applicationTime.now(applicationTime.businessZone()));
+    }
     instance.setOwnerId(null);
     instance.setPluginId(pluginId);
     instance.setPluginType(type);
@@ -112,7 +117,7 @@ public class IntegrationConfigurationService {
     instance.setLastTestAt(null);
     instance.setLastTestStatus(null);
     instance.setLastTestMessage(null);
-    instance.setUpdatedAt(ZonedDateTime.now());
+    instance.setUpdatedAt(applicationTime.now(applicationTime.businessZone()));
     IntegrationInstanceEntity saved = instanceRepository.save(instance);
     if (secrets != null) {
       for (Map.Entry<String, String> entry : secrets.entrySet()) {
@@ -124,7 +129,7 @@ public class IntegrationConfigurationService {
         secret.setSecretName(entry.getKey());
         secret.setCiphertext(secretCipher.encrypt(entry.getValue()));
         secret.setKeyVersion(secretCipher.keyVersion());
-        secret.setUpdatedAt(ZonedDateTime.now());
+        secret.setUpdatedAt(applicationTime.now(applicationTime.businessZone()));
         secretRepository.save(secret);
       }
     }

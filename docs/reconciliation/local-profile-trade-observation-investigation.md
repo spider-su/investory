@@ -87,9 +87,9 @@ The DNP.PL material row disappeared from the valuation mismatch population. The 
 
 ## Tests
 
-`SchemaMigrationCheckpoint2IT.positionValuationDoesNotBridgeAClosedHoldingGap` creates a disposable inactive interval followed by a new trade observation and asserts that the validation view reports `TRADE_OBSERVATION_SELECTED|NULL`. The production selected price and reconstructed valuation remain untouched.
+The former migration checkpoint scenario created a disposable inactive interval followed by a new trade observation and asserted that the validation view reports `TRADE_OBSERVATION_SELECTED|NULL`. That behavior now belongs with the focused reporting contract; the production selected price and reconstructed valuation remain untouched.
 
-The isolated method passed with PostgreSQL/Testcontainers. The full `SchemaMigrationCheckpoint2IT` class still has unrelated pre-existing checkpoint failures (FX expectation, scale text formatting, corporate-action fixture, and VHYL mapping) and is not a clean signal for this change.
+The isolated method passed with PostgreSQL/Testcontainers. The old mixed migration checkpoint was not a clean signal because it combined unrelated FX, scale, corporate-action, and mapping scenarios.
 
 ## Next target
 

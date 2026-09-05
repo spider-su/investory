@@ -27,6 +27,19 @@ of the integrations module.
 Management contracts must not depend on persistence or provider implementations. Notification
 application code must not depend directly on Telegram.
 
+## Job execution
+
+`IntegrationJobScheduler` owns polling, due-time calculation, PostgreSQL advisory locking, and
+execution state. It delegates every declared job through `IntegrationJobHandlerRegistry`; startup
+validation requires exactly one handler for each plugin-declared job and duplicate keys fail fast.
+Job handlers call public Investment APIs or ports. Financial calculations stay in Investment, while
+notification-specific audit and delivery orchestration stays in its handler.
+
+Provider routing is explicit: `ConfiguredMarketDataProvider` uses Yahoo for current quotes and
+TwelveData for historical daily/monthly closes. FX configuration currently resolves the
+ExchangeRate.host adapter. Provider-specific configuration remains JSON and secrets remain
+encrypted persistence values.
+
 ## Management contract
 
 The persisted `integration_instances.enabled` flag is the only provider enablement

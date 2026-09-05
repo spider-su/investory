@@ -10,9 +10,12 @@ import com.smartbox.investory.testsupport.portfolio.PortfolioBuilders;
 import com.smartbox.investory.testsupport.portfolio.PortfolioScenarios;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestContext;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestData;
+import com.smartbox.investory.testsupport.time.MutableApplicationTime;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -31,7 +34,11 @@ class CashFlowAggregatorTest {
 
   @BeforeEach
   void setUp() {
-    aggregator = new CashFlowAggregator(currencyRateService);
+    aggregator =
+        new CashFlowAggregator(
+            currencyRateService,
+            MutableApplicationTime.fixed(
+                Instant.parse("2026-09-05T08:00:00Z"), ZoneId.of("Europe/Warsaw")));
     // Identity FX so amounts pass through unchanged. lenient() because the empty-input test
     // never triggers conversion.
     org.mockito.Mockito.lenient()

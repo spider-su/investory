@@ -5,20 +5,24 @@ import com.smartbox.investory.integrations.management.api.model.IntegrationSetti
 import com.smartbox.investory.integrations.management.api.model.IntegrationType;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller
-@RequiredArgsConstructor
 public class IntegrationSettingsController {
   private final IntegrationSettingsClient settings;
 
+  /** Compatibility constructor for UI tests that cover provider settings only. */
+  public IntegrationSettingsController(IntegrationSettingsClient settings) {
+    this.settings = settings;
+  }
+
   @GetMapping("/settings/integrations")
-  public String page(Model model) {
+  public String page(Model model, @RequestParam(required = false) Long portfolioId) {
     var integrations = settings.list();
+    model.addAttribute("portfolioId", portfolioId);
     model.addAttribute("integrations", integrations);
     model.addAttribute(
         "activeCount", integrations.stream().filter(IntegrationSettingsView::enabled).count());
@@ -76,14 +80,31 @@ public class IntegrationSettingsController {
       @RequestParam(defaultValue = "false") boolean enabled,
       @RequestParam String cron,
       @RequestParam String timezone,
+      @RequestParam(defaultValue = "save") String action,
       RedirectAttributes redirect) {
     try {
-      settings.saveJob(type, pluginId, jobType, enabled, cron, timezone);
-      redirect.addFlashAttribute("success", "Schedule saved");
+      if ("test".equals(action)) {
+        settings.runJobNow(type, pluginId, jobType);
+        redirect.addFlashAttribute("success", "Test notification sent");
+      } else {
+        settings.saveJob(type, pluginId, jobType, enabled, cron, timezone);
+        redirect.addFlashAttribute("success", "Schedule saved");
+      }
     } catch (RuntimeException e) {
       redirect.addFlashAttribute("error", e.getMessage());
     }
     return "redirect:/settings/integrations";
+  }
+
+  String job(
+      IntegrationType type,
+      String pluginId,
+      String jobType,
+      boolean enabled,
+      String cron,
+      String timezone,
+      RedirectAttributes redirect) {
+    return job(type, pluginId, jobType, enabled, cron, timezone, "save", redirect);
   }
 
   @PostMapping("/settings/integrations/{type}/{pluginId}/enabled")

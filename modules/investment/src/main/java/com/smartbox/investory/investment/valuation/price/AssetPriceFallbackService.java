@@ -11,6 +11,7 @@ import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
@@ -37,6 +38,7 @@ public class AssetPriceFallbackService {
   private final AssetRepository assetRepository;
   private final AssetPriceHistoryRepository assetPriceHistoryRepository;
   private final CurrencyRateService currencyRateService;
+  private final ApplicationTime applicationTime;
 
   @org.springframework.beans.factory.annotation.Autowired
   public AssetPriceFallbackService(
@@ -44,25 +46,29 @@ public class AssetPriceFallbackService {
       AccountRepository accountRepository,
       AssetRepository assetRepository,
       AssetPriceHistoryRepository assetPriceHistoryRepository,
-      CurrencyRateService currencyRateService) {
+      CurrencyRateService currencyRateService,
+      ApplicationTime applicationTime) {
     this.openedPositionRepository = openedPositionRepository;
     this.accountRepository = accountRepository;
     this.assetRepository = assetRepository;
     this.assetPriceHistoryRepository = assetPriceHistoryRepository;
     this.currencyRateService = currencyRateService;
+    this.applicationTime = applicationTime;
   }
 
   public AssetPriceFallbackService(
       PositionRepository openedPositionRepository,
       AssetRepository assetRepository,
       AssetPriceHistoryRepository assetPriceHistoryRepository,
-      CurrencyRateService currencyRateService) {
+      CurrencyRateService currencyRateService,
+      ApplicationTime applicationTime) {
     this(
         openedPositionRepository,
         null,
         assetRepository,
         assetPriceHistoryRepository,
-        currencyRateService);
+        currencyRateService,
+        applicationTime);
   }
 
   @Transactional
@@ -94,7 +100,7 @@ public class AssetPriceFallbackService {
       return;
     }
 
-    ZonedDateTime now = ZonedDateTime.now();
+    ZonedDateTime now = applicationTime.now(applicationTime.businessZone());
     LocalDate rateDate = now.toLocalDate();
     Map<String, AssetEntity> assetsBySymbol =
         assetRepository.findAllBySymbolIn(weightedPrices.keySet()).stream()

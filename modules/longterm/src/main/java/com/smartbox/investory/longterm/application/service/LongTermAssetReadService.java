@@ -85,10 +85,12 @@ public class LongTermAssetReadService
             .toList();
     BigDecimal totalValue =
         rows.stream()
+            .filter(row -> row.type().contributesToCalculations())
             .map(row -> toBase(row.currentValue(), row.currency(), base, date))
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     BigDecimal annualIncome =
         rows.stream()
+            .filter(row -> row.type().contributesToCalculations())
             .map(
                 row ->
                     toBase(

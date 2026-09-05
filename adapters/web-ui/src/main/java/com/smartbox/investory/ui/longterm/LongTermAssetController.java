@@ -19,9 +19,9 @@ public class LongTermAssetController {
   private final LongTermAssetsClient assets;
   private final Clock clock;
 
-  @GetMapping("/long-term-assets")
+  @GetMapping("/portfolios/{portfolioId}/long-term-assets")
   public String list(
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @RequestParam(defaultValue = "false") boolean showArchived,
       Model model) {
     LocalDate date = LocalDate.now(clock);
@@ -36,25 +36,26 @@ public class LongTermAssetController {
     model.addAttribute("total", total);
     model.addAttribute("currency", total.currency());
     model.addAttribute(
-        "longTermHeaderTotal", FinancialPresentation.compactMoney(total.totalCurrentValue()));
+        "longTermHeaderTotal",
+        FinancialPresentation.compactMoneyTrimmed(total.totalCurrentValue()));
     model.addAttribute(
         "longTermHeaderIncome",
-        FinancialPresentation.compactMoney(total.annualEconomics().netAnnualIncomeAfterTax()));
+        FinancialPresentation.wholeNumber(total.annualEconomics().netAnnualIncomeAfterTax()));
     model.addAttribute(
         "longTermHeaderYield",
         FinancialPresentation.percentage(total.annualEconomics().netYieldAfterTax()));
     model.addAttribute(
         "longTermGrossIncome",
-        FinancialPresentation.compactMoney(total.annualEconomics().grossAnnualIncome()));
+        FinancialPresentation.wholeNumber(total.annualEconomics().grossAnnualIncome()));
     model.addAttribute(
         "longTermExpensesTax",
-        FinancialPresentation.compactMoney(total.annualEconomics().annualExpensesAndTax()));
+        FinancialPresentation.wholeNumber(total.annualEconomics().annualExpensesAndTax()));
     model.addAttribute(
         "longTermNetAnnualIncome",
-        FinancialPresentation.compactMoney(total.annualEconomics().netAnnualIncomeAfterTax()));
+        FinancialPresentation.wholeNumber(total.annualEconomics().netAnnualIncomeAfterTax()));
     model.addAttribute(
         "longTermNetMonthlyIncome",
-        FinancialPresentation.compactMoney(total.annualEconomics().monthlyNetIncomeAfterTax()));
+        FinancialPresentation.wholeNumber(total.annualEconomics().monthlyNetIncomeAfterTax()));
     model.addAttribute(
         "longTermGrossYield",
         FinancialPresentation.percentage(total.annualEconomics().grossYield()));
@@ -82,8 +83,9 @@ public class LongTermAssetController {
     return "long-term-assets";
   }
 
-  @GetMapping("/long-term-assets/new")
-  public String createForm(@RequestParam Long portfolioId, Model model) {
+  @GetMapping("/portfolios/{portfolioId}/long-term-assets/new")
+  public String createForm(
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId, Model model) {
     LongTermAssetForm asset = new LongTermAssetForm();
     asset.setPortfolioId(portfolioId);
     asset.setActive(true);
@@ -92,15 +94,16 @@ public class LongTermAssetController {
     return "long-term-asset-form";
   }
 
-  @GetMapping("/long-term-assets/new/cash-reserve")
-  public String cashReserveForm(@RequestParam Long portfolioId, Model model) {
+  @GetMapping("/portfolios/{portfolioId}/long-term-assets/new/cash-reserve")
+  public String cashReserveForm(
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId, Model model) {
     model.addAttribute("portfolioId", portfolioId);
     return "cash-reserve-form";
   }
 
-  @PostMapping("/long-term-assets/cash-reserve")
+  @PostMapping("/portfolios/{portfolioId}/long-term-assets/cash-reserve")
   public String saveCashReserve(
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @RequestParam(required = false) Long id,
       @RequestParam String name,
       @RequestParam CurrencyType currency,
@@ -124,28 +127,31 @@ public class LongTermAssetController {
     } catch (IllegalArgumentException | ResourceNotFoundException exception) {
       feedback.addFlashAttribute("error", LongTermAssetPageSupport.assetError(exception));
       return id == null
-          ? "redirect:/long-term-assets?portfolioId=" + portfolioId
+          ? "redirect:/portfolios/" + portfolioId + "/long-term-assets"
           : LongTermAssetPageSupport.assetRedirect(id, portfolioId);
     }
   }
 
-  @PostMapping("/long-term-assets")
+  @PostMapping("/portfolios/{portfolioId}/long-term-assets")
   public String create(
       @ModelAttribute LongTermAssetForm form,
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       RedirectAttributes feedback) {
     try {
       form.setActive(true);
       assets.create(form.command(portfolioId));
-      return "redirect:/long-term-assets?portfolioId=" + portfolioId;
+      return "redirect:/portfolios/" + portfolioId + "/long-term-assets";
     } catch (IllegalArgumentException | ResourceNotFoundException exception) {
       feedback.addFlashAttribute("error", LongTermAssetPageSupport.assetError(exception));
-      return "redirect:/long-term-assets?portfolioId=" + portfolioId;
+      return "redirect:/portfolios/" + portfolioId + "/long-term-assets";
     }
   }
 
-  @GetMapping("/long-term-assets/{id}")
-  public String detail(@PathVariable Long id, @RequestParam Long portfolioId, Model model) {
+  @GetMapping("/portfolios/{portfolioId}/long-term-assets/{id}")
+  public String detail(
+      @PathVariable Long id,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
+      Model model) {
     LocalDate today = LocalDate.now(clock);
     var view = assets.details(portfolioId, id, today);
     model.addAttribute("asset", view.asset());
@@ -184,11 +190,11 @@ public class LongTermAssetController {
     };
   }
 
-  @PostMapping("/long-term-assets/{id}")
+  @PostMapping("/portfolios/{portfolioId}/long-term-assets/{id}")
   public String update(
       @PathVariable Long id,
       @ModelAttribute LongTermAssetForm form,
-      @RequestParam Long portfolioId,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @RequestParam(required = false) BigDecimal taxBase,
       RedirectAttributes feedback) {
     try {
@@ -199,14 +205,18 @@ public class LongTermAssetController {
     return LongTermAssetPageSupport.assetRedirect(id, portfolioId);
   }
 
-  @PostMapping("/long-term-assets/{id}/archive")
-  public String archive(@PathVariable Long id, @RequestParam Long portfolioId) {
+  @PostMapping("/portfolios/{portfolioId}/long-term-assets/{id}/archive")
+  public String archive(
+      @PathVariable Long id,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId) {
     assets.archive(portfolioId, id);
-    return "redirect:/long-term-assets?portfolioId=" + portfolioId;
+    return "redirect:/portfolios/" + portfolioId + "/long-term-assets";
   }
 
-  @PostMapping("/long-term-assets/{id}/reactivate")
-  public String reactivate(@PathVariable Long id, @RequestParam Long portfolioId) {
+  @PostMapping("/portfolios/{portfolioId}/long-term-assets/{id}/reactivate")
+  public String reactivate(
+      @PathVariable Long id,
+      @org.springframework.web.bind.annotation.PathVariable Long portfolioId) {
     assets.reactivate(portfolioId, id);
     return LongTermAssetPageSupport.assetRedirect(id, portfolioId);
   }

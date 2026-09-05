@@ -54,4 +54,22 @@ class PortfolioProjectionRefreshServiceTest {
         .verify(jdbcTemplate)
         .execute("REFRESH MATERIALIZED VIEW CONCURRENTLY investory.app_v_portfolio_kpi_summary_mv");
   }
+
+  @Test
+  @DisplayName("dashboard refresh omits contribution summary")
+  void dashboardRefreshOmitsContributionSummary() {
+    when(transactionManager.getTransaction(any())).thenReturn(transactionStatus);
+    doNothing().when(jdbcTemplate).execute(any(String.class));
+
+    PortfolioProjectionRefreshService service =
+        new PortfolioProjectionRefreshService(jdbcTemplate, transactionManager);
+
+    service.refreshApplicationViews(
+        PortfolioProjectionRefreshService.ApplicationRefreshScope.DASHBOARD);
+
+    verify(transactionManager, times(9)).getTransaction(any());
+    verify(jdbcTemplate, times(0))
+        .execute(
+            "REFRESH MATERIALIZED VIEW CONCURRENTLY investory.app_v_portfolio_contribution_summary_mv");
+  }
 }

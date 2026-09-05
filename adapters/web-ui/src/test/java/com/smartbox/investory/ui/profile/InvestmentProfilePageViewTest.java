@@ -68,6 +68,22 @@ class InvestmentProfilePageViewTest {
     assertThat(page.allocations().getFirst().horizonLabel()).isEqualTo("Long-term asset");
   }
 
+  @DisplayName("shows Market Value At Start Of Year After Ytd Investment Profit")
+  @Test
+  void showsMarketValueAtStartOfYearAfterYtdInvestmentProfit() {
+    InvestmentProfilePageView page =
+        InvestmentProfilePageView.from(
+            emptyProfile(),
+            new InvestmentDashboardApi.PerformanceKpiView(false, null, "Unavailable", null),
+            new InvestmentDashboardApi.InvestmentResultView(
+                true, new BigDecimal("20483"), CurrencyType.USD),
+            com.smartbox.investory.retirement.api.model.AnnualCostView.unavailable(
+                CurrencyType.USD, 2026),
+            8);
+
+    assertThat(page.marketPortfolioValueCompactDisplay()).isEqualTo("79.5K");
+  }
+
   @DisplayName("formats Profile Return Without Sign Or Annual Suffix")
   @Test
   void formatsProfileReturnWithoutSignOrAnnualSuffix() {
@@ -111,7 +127,7 @@ class InvestmentProfilePageViewTest {
                 CurrencyType.USD, 2026),
             8);
 
-    assertThat(page.marketReceivedYtdDisplay()).isEqualTo("20,483");
+    assertThat(page.marketReceivedYtdDisplay()).isEqualTo("20.5K");
   }
 
   @DisplayName("source Cards And Allocation Use The Same Horizon Percentages")
@@ -192,10 +208,10 @@ class InvestmentProfilePageViewTest {
     return new InvestmentProfile(
         1L,
         CurrencyType.USD,
+        new BigDecimal("100000"),
         BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
+        new BigDecimal("100000"),
+        new BigDecimal("100000"),
         BigDecimal.ZERO,
         List.of(),
         null,

@@ -4,7 +4,7 @@ import com.smartbox.investory.integrations.management.api.model.ConnectionTestRe
 import com.smartbox.investory.integrations.management.api.model.IntegrationType;
 import com.smartbox.investory.integrations.management.persistence.IntegrationInstanceEntity;
 import com.smartbox.investory.integrations.management.persistence.IntegrationInstanceRepository;
-import java.time.ZonedDateTime;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class IntegrationTestResultRecorder {
   private final IntegrationInstanceRepository instanceRepository;
+  private final ApplicationTime applicationTime;
 
   @Transactional
   public void record(
@@ -21,10 +22,10 @@ public class IntegrationTestResultRecorder {
     IntegrationInstanceEntity instance =
         instanceRepository.findByOwnerIdAndPluginIdAndPluginType(null, pluginId, type).orElse(null);
     if (instance == null) return;
-    instance.setLastTestAt(ZonedDateTime.now());
+    instance.setLastTestAt(applicationTime.now(applicationTime.businessZone()));
     instance.setLastTestStatus(result.success() ? "SUCCESS" : "FAILED");
     instance.setLastTestMessage(message);
-    instance.setUpdatedAt(ZonedDateTime.now());
+    instance.setUpdatedAt(applicationTime.now(applicationTime.businessZone()));
     instanceRepository.save(instance);
   }
 }

@@ -22,6 +22,8 @@ class HappyInvestorSchemaCanonicalTest {
     assertTrue(snapshot.contains("9501\t9402\t2024-08-01"));
     assertTrue(snapshot.contains("9502\t9403\t2024-08-01\t2025-06-30"));
     assertTrue(snapshot.contains("9503\t9403\t2025-07-01"));
+    assertTrue(snapshot.contains("9501\t9402\t2024-08-01\t\\N\t\\N\tf\t3200.00"));
+    assertTrue(snapshot.contains("9503\t9403\t2025-07-01\t\\N\t\\N\tf\t3000.00"));
     assertTrue(snapshot.contains("0.085000000000"));
     assertTrue(snapshot.contains("7001\t17959259\tDEPOSIT"));
     assertTrue(snapshot.contains("7106\t51499241\t1001\tTSLA.US"));
@@ -36,10 +38,13 @@ class HappyInvestorSchemaCanonicalTest {
     assertTrue(snapshot.contains("9406\t2027-08-01\tCAPITALIZE\t0.040000000000"));
     assertTrue(snapshot.contains("\t159307.015664000000\t970000.000000000000\t74400.000000000000"));
     assertTrue(snapshot.contains("9201\t1\tHappy Investor Plan\t9202"));
-    assertTrue(snapshot.contains("2025\tDRAFT\t9201\t9202"));
+    assertTrue(
+        snapshot.contains(HappyInvestorPlanFacts.BASELINE_AS_OF_YEAR + "\tDRAFT\t9201\t9202"));
 
     assertTrue(common.contains("(9401, 1, 'Cash reserve'"));
     assertTrue(common.contains("(9501, 9402, DATE '2024-08-01'"));
+    assertTrue(common.contains("DATE '2024-08-01', 3200, 400000, 400000"));
+    assertTrue(common.contains("DATE '2025-07-01', NULL, false, 3000"));
     assertTrue(common.contains("(9201, 1, 'Happy Investor Plan'"));
     assertTrue(broker.contains("(7108, 17959259, 451, 'MSFT.US', 'MSFT', 'BUY', 'CASH_SETTLED'"));
     assertTrue(broker.contains("(7110, 51499241, 501, 'NATGAS', 'NATGAS', 'BUY', 'RESULT_ONLY'"));
@@ -55,9 +60,9 @@ class HappyInvestorSchemaCanonicalTest {
                 + ", "
                 + HappyInvestorPlanFacts.BASELINE_LONG_TERM_CAPITAL.toPlainString()
                 + ", "
-                + HappyInvestorLongTermFacts.RENTAL_TOTAL_GROSS_ANNUAL.toPlainString()
+                + HappyInvestorLongTermFacts.RENTAL_BOUNDARY_DATE_GROSS_ANNUAL.toPlainString()
                 + ", "
-                + HappyInvestorLongTermFacts.RENTAL_TOTAL_GROSS_ANNUAL.toPlainString()
+                + HappyInvestorLongTermFacts.RENTAL_BOUNDARY_DATE_GROSS_ANNUAL.toPlainString()
                 + ", 1"));
   }
 

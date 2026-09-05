@@ -171,7 +171,8 @@
 .iv-planning-income-context {
     min-width: 300px;
     max-width: min(360px, calc(100vw - 32px));
-    font-size: .7rem;
+    font-family: inherit;
+    font-size: .76rem;
     justify-items: stretch;
     text-align: left;
 }
@@ -181,7 +182,12 @@
     justify-content: space-between;
     gap: 18px;
 }
-.iv-context-row strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.iv-planning-income-context .iv-context-row strong {
+    font-size: inherit;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
 .iv-planning-topbar__secondary {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
@@ -892,6 +898,8 @@
     padding: 16px;
 }
 .iv-profile-source-card {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
     min-width: 0;
     overflow: hidden;
     border: 1px solid var(--iv-border);
@@ -926,7 +934,7 @@
 .iv-profile-source-card__footer span { color: var(--iv-text-soft); font-size: .72rem; }
 .iv-profile-source-card__metrics {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     padding: 12px 0;
 }
 .iv-profile-source-card__metrics > div { min-width: 0; padding: 0 14px; }
@@ -955,6 +963,10 @@
     background: color-mix(in srgb, var(--iv-surface) 45%, transparent);
 }
 .iv-profile-source-card__footer strong { font-size: .76rem; font-variant-numeric: tabular-nums; }
+.iv-profile-source-card__footer .iv-ytd-progress { font-size: inherit; font-weight: 700; }
+.iv-profile-source-card__footer .iv-ytd-progress--positive { color: var(--iv-positive, #15803d); }
+.iv-profile-source-card__footer .iv-ytd-progress--warning { color: var(--iv-warning, #b66a00); }
+.iv-profile-source-card__footer .iv-ytd-progress--unavailable { color: var(--iv-text-muted); }
 .iv-profile-allocation .iv-allocation-bar { margin-bottom: 10px; }
 .iv-profile-allocation__bucket { display: inline-flex; align-items: center; gap: 9px; }
 .iv-profile-allocation__swatch {

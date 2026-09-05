@@ -140,6 +140,7 @@ public class PriceHistoryCoverageService {
     return result(assetId, from, to, existing.size(), written, status, List.of());
   }
 
+  @Transactional
   public PortfolioCoverageResult ensurePortfolioCoverage(Long portfolioId) {
     LocalDate to = LocalDate.now(clock);
     Map<Long, LocalDate> requiredFrom = new LinkedHashMap<>();

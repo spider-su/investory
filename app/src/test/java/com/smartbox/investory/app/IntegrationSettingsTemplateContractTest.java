@@ -17,7 +17,7 @@ class IntegrationSettingsTemplateContractTest {
             Path.of("../adapters/web-ui/src/main/resources/templates/integration-settings.html"));
 
     assertTrue(html.contains("fragments/theme-head :: theme"));
-    assertTrue(html.contains("fragments/app-header :: appNavigation('settings', null)"));
+    assertTrue(html.contains("fragments/app-header :: appNavigation('settings', ${portfolioId})"));
     assertTrue(html.contains("iv-settings-page"));
     assertTrue(html.contains("iv-settings-card"));
     assertTrue(html.contains("iv-settings-form"));

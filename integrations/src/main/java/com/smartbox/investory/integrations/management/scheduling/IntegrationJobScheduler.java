@@ -1,11 +1,12 @@
 package com.smartbox.investory.integrations.management.scheduling;
 
+import com.smartbox.investory.integrations.management.api.IntegrationJobExecutionApi;
 import com.smartbox.investory.integrations.management.api.model.IntegrationType;
 import com.smartbox.investory.integrations.management.persistence.IntegrationInstanceEntity;
 import com.smartbox.investory.integrations.management.persistence.IntegrationInstanceRepository;
 import com.smartbox.investory.integrations.management.persistence.IntegrationJobEntity;
 import com.smartbox.investory.integrations.management.persistence.IntegrationJobRepository;
-import com.smartbox.investory.investment.api.operations.InvestmentMaintenanceApi;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -14,6 +15,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -23,16 +25,17 @@ import org.springframework.stereotype.Service;
 /** Polls persisted jobs so changes take effect without an application restart. */
 @Slf4j
 @Service
-@RequiredArgsConstructor
-public class IntegrationJobScheduler {
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
+public class IntegrationJobScheduler implements IntegrationJobExecutionApi {
   private final IntegrationJobRepository jobRepository;
   private final IntegrationInstanceRepository instanceRepository;
-  private final InvestmentMaintenanceApi investmentMaintenance;
+  private final IntegrationJobHandlerRegistry handlerRegistry;
+  private final ApplicationTime applicationTime;
   private final JdbcTemplate jdbcTemplate;
 
   @Scheduled(fixedDelayString = "${app.integrations.scheduler-poll-ms:60000}")
   public void poll() {
-    ZonedDateTime now = ZonedDateTime.now();
+    ZonedDateTime now = applicationTime.now(applicationTime.businessZone());
     for (IntegrationJobEntity job : jobRepository.findByEnabledTrue()) {
       IntegrationInstanceEntity instance =
           instanceRepository.findById(job.getIntegrationInstanceId()).orElse(null);
@@ -55,6 +58,23 @@ public class IntegrationJobScheduler {
                 return null;
               });
     }
+  }
+
+  @Override
+  public void runNow(IntegrationType type, String pluginId, String jobType) {
+    IntegrationInstanceEntity instance =
+        instanceRepository
+            .findByOwnerIdAndPluginIdAndPluginType(null, pluginId, type)
+            .orElseThrow(
+                () -> new IllegalArgumentException("Save integration configuration first"));
+    IntegrationJobEntity job = new IntegrationJobEntity();
+    job.setJobType(jobType);
+    job.setTimezone("Europe/Warsaw");
+    handlerRegistry
+        .require(type, jobType)
+        .execute(
+            new IntegrationJobContext(
+                instance, job, applicationTime.now(applicationTime.businessZone())));
   }
 
   private boolean advisoryLock(Connection connection, String sql, long lockKey)
@@ -94,29 +114,16 @@ public class IntegrationJobScheduler {
     job.setLastError(null);
     jobRepository.save(job);
     try {
-      if (instance.getPluginType() == IntegrationType.FX_DATA
-          && "refresh-rates".equals(job.getJobType())) {
-        InvestmentMaintenanceApi.CurrencyRefreshResult result =
-            investmentMaintenance.refreshCurrency();
-        if (result == null || !result.failed().isEmpty()) {
-          String failure =
-              result == null ? "FX refresh returned no result" : String.join("; ", result.failed());
-          throw new IllegalStateException(failure);
-        }
-      } else if (instance.getPluginType() == IntegrationType.MARKET_DATA
-          && "refresh-prices".equals(job.getJobType())) {
-        investmentMaintenance.refreshPrices();
-      } else {
-        throw new IllegalArgumentException(
-            "Unsupported integration job: " + instance.getPluginType() + "/" + job.getJobType());
-      }
+      handlerRegistry
+          .require(instance.getPluginType(), job.getJobType())
+          .execute(new IntegrationJobContext(instance, job, now));
       job.setLastStatus("SUCCESS");
     } catch (Exception exception) {
       job.setLastStatus("FAILED");
       job.setLastError(sanitizeError(exception.getMessage()));
       log.warn("Integration job {} failed: {}", job.getId(), exception.getMessage());
     } finally {
-      job.setLastCompletedAt(ZonedDateTime.now());
+      job.setLastCompletedAt(applicationTime.now(applicationTime.businessZone()));
       jobRepository.save(job);
     }
   }

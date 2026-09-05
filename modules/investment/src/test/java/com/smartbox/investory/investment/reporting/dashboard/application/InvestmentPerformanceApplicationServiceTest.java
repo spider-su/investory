@@ -12,7 +12,12 @@ import com.smartbox.investory.investment.api.reporting.PerformanceMetric;
 import com.smartbox.investory.investment.api.reporting.PerformanceStyle;
 import com.smartbox.investory.investment.api.reporting.model.Benchmark;
 import com.smartbox.investory.investment.reporting.BenchmarkService;
+import com.smartbox.investory.shared.time.ClockApplicationTime;
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,6 +29,11 @@ import org.springframework.test.util.ReflectionTestUtils;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Investment Performance Application Service")
 class InvestmentPerformanceApplicationServiceTest {
+  private static final ClockApplicationTime TIME =
+      new ClockApplicationTime(
+          Clock.fixed(Instant.parse("2026-09-05T08:00:00Z"), ZoneOffset.UTC),
+          ZoneId.of("Europe/Warsaw"));
+
   @Mock private BenchmarkService benchmarkService;
 
   @DisplayName("empty Account Selection Means All Accounts")
@@ -53,7 +63,7 @@ class InvestmentPerformanceApplicationServiceTest {
     Benchmark benchmark = benchmark();
     when(benchmarkService.calculate(1L, null)).thenReturn(benchmark);
     InvestmentPerformanceApplicationService service =
-        new InvestmentPerformanceApplicationService(benchmarkService);
+        new InvestmentPerformanceApplicationService(benchmarkService, TIME);
     ReflectionTestUtils.setField(service, "kpiStart", "2026-01");
 
     PerformanceBoardView view =
@@ -335,7 +345,7 @@ class InvestmentPerformanceApplicationServiceTest {
 
   private InvestmentPerformanceApplicationService service(String start) {
     InvestmentPerformanceApplicationService service =
-        new InvestmentPerformanceApplicationService(benchmarkService);
+        new InvestmentPerformanceApplicationService(benchmarkService, TIME);
     ReflectionTestUtils.setField(service, "kpiStart", start);
     return service;
   }

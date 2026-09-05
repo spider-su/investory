@@ -20,6 +20,7 @@ import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.investment.valuation.price.AssetPriceHistoryGapFillService;
 import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
@@ -66,6 +67,7 @@ public class PortfolioProjectionService {
   private final NormalizedCashOperationRepository normalizedCashOperationRepository;
   private final AssetPriceHistoryGapFillService assetPriceHistoryGapFillService;
   private final PortfolioProjectionRefreshService projectionRefreshService;
+  private final ApplicationTime applicationTime;
 
   @Transactional
   public void recalculateAll() {
@@ -74,7 +76,7 @@ public class PortfolioProjectionService {
     rebuildLock.lock();
     Set<Long> accountIds = Set.of();
     try {
-      assetPriceHistoryGapFillService.fillMissingBusinessDayGaps(ReportingDateHelper.today());
+      assetPriceHistoryGapFillService.fillMissingBusinessDayGaps(applicationTime.today());
       accountIds = allKnownAccountIds();
       recalculateAccountsInternal(accountIds);
       log.info(
@@ -126,7 +128,7 @@ public class PortfolioProjectionService {
   }
 
   private void recalculateAccountsInternal(Set<Long> accountIds) {
-    ZonedDateTime now = ReportingDateHelper.now();
+    ZonedDateTime now = applicationTime.now(applicationTime.businessZone());
     if (accountIds == null || accountIds.isEmpty()) {
       return;
     }
@@ -144,7 +146,15 @@ public class PortfolioProjectionService {
     LocalDate rebuildFrom =
         dirtyFromByAccount.values().stream().min(Comparator.naturalOrder()).orElse(null);
     if (rebuildFrom != null) {
+      long preloadStarted = System.nanoTime();
+      log.info(
+          "Portfolio projection FX preload started from={} to={}", rebuildFrom, now.toLocalDate());
       currencyRateService.warmValuationMatrices(rebuildFrom, now.toLocalDate());
+      log.info(
+          "Portfolio projection FX preload completed from={} to={} durationMs={}",
+          rebuildFrom,
+          now.toLocalDate(),
+          (System.nanoTime() - preloadStarted) / 1_000_000);
     }
 
     List<AccountEntity> allAccounts = accountRepository.findAllById(affectedAccounts);

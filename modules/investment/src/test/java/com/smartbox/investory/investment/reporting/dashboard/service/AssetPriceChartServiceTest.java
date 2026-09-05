@@ -11,7 +11,12 @@ import com.smartbox.investory.investment.api.reporting.DashboardPeriod;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
 import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceChartRepository;
+import com.smartbox.investory.shared.time.ClockApplicationTime;
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -20,9 +25,14 @@ import org.junit.jupiter.api.Test;
 @DisplayName("Asset Price Chart Service")
 class AssetPriceChartServiceTest {
 
+  private static final ClockApplicationTime TIME =
+      new ClockApplicationTime(
+          Clock.fixed(Instant.parse("2026-09-05T08:00:00Z"), ZoneOffset.UTC),
+          ZoneId.of("Europe/Warsaw"));
+
   private final AssetRepository assets = mock();
   private final AssetPriceChartRepository prices = mock();
-  private final AssetPriceChartService service = new AssetPriceChartService(assets, prices);
+  private final AssetPriceChartService service = new AssetPriceChartService(assets, prices, TIME);
 
   @DisplayName("normalizes Symbol And Maps Canonical Price Rows")
   @Test

@@ -17,7 +17,10 @@ import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceH
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.portfolio.PortfolioBuilders;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestData;
+import com.smartbox.investory.testsupport.time.MutableApplicationTime;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,6 +32,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Asset Price Fallback Service")
 class AssetPriceFallbackServiceTest {
+
+  private static final MutableApplicationTime TIME =
+      MutableApplicationTime.fixed(
+          Instant.parse("2026-09-05T08:00:00Z"), ZoneId.of("Europe/Warsaw"));
 
   private static void assertEquals(double expected, java.math.BigDecimal actual, double delta) {
     org.junit.jupiter.api.Assertions.assertEquals(expected, actual.doubleValue(), delta);
@@ -57,7 +64,8 @@ class AssetPriceFallbackServiceTest {
             openedPositionRepository,
             assetRepository,
             assetPriceHistoryRepository,
-            currencyRateService);
+            currencyRateService,
+            TIME);
 
     PositionEntity first = position(10.0, 200.0);
     PositionEntity second = position(30.0, 220.0);
@@ -91,7 +99,8 @@ class AssetPriceFallbackServiceTest {
             openedPositionRepository,
             assetRepository,
             assetPriceHistoryRepository,
-            currencyRateService);
+            currencyRateService,
+            TIME);
 
     PositionEntity position =
         PortfolioBuilders.openPosition(PortfolioTestData.SPY).quantity(2.0).price(100.0).build();

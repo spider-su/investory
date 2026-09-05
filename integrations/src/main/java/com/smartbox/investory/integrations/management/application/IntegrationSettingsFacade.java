@@ -15,10 +15,11 @@ import com.smartbox.investory.integrations.management.persistence.IntegrationIns
 import com.smartbox.investory.integrations.management.persistence.IntegrationJobEntity;
 import com.smartbox.investory.integrations.management.persistence.IntegrationJobRepository;
 import com.smartbox.investory.integrations.management.persistence.IntegrationSecretRepository;
+import com.smartbox.investory.integrations.management.scheduling.IntegrationJobHandlerRegistry;
 import com.smartbox.investory.integrations.management.spi.IntegrationPlugin;
 import com.smartbox.investory.integrations.management.spi.TestableIntegrationPlugin;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +38,7 @@ import tools.jackson.databind.ObjectMapper;
 @RequiredArgsConstructor
 public class IntegrationSettingsFacade implements IntegrationSettingsApi {
   private final PluginRegistry pluginRegistry;
+  private final IntegrationJobHandlerRegistry handlerRegistry;
   private final IntegrationConfigurationService configurationService;
   private final IntegrationInstanceRepository instanceRepository;
   private final IntegrationSecretRepository secretRepository;
@@ -44,6 +46,7 @@ public class IntegrationSettingsFacade implements IntegrationSettingsApi {
   private final IntegrationSecretCipher secretCipher;
   private final ObjectMapper objectMapper;
   private final IntegrationTestResultRecorder testResultRecorder;
+  private final ApplicationTime applicationTime;
 
   @Value("${app.integrations.allow-private-base-urls:false}")
   private boolean allowPrivateBaseUrls;
@@ -120,7 +123,7 @@ public class IntegrationSettingsFacade implements IntegrationSettingsApi {
     }
     if (enabled) validateEffective(plugin, effective(plugin));
     instance.setEnabled(enabled);
-    instance.setUpdatedAt(ZonedDateTime.now());
+    instance.setUpdatedAt(applicationTime.now(applicationTime.businessZone()));
     instanceRepository.save(instance);
     return view(plugin, instance);
   }
@@ -144,11 +147,20 @@ public class IntegrationSettingsFacade implements IntegrationSettingsApi {
         command.timezone() == null || command.timezone().isBlank()
             ? descriptor.defaultTimezone()
             : command.timezone();
-    if (!descriptor.supportedByCurrentScheduler())
+    if (!handlerRegistry.supports(command.type(), command.jobType()))
       throw new IllegalArgumentException("Job is not enabled by the current scheduler");
+    if ("audit-long-term-payments".equals(command.jobType())) validateMonthlySchedule(cron);
     validateSchedule(cron, timezone);
-    if (!command.parameters().isEmpty())
-      throw new IllegalArgumentException("Unsupported job parameters");
+    if (command.parameters().keySet().stream().anyMatch(key -> !key.equals("portfolioId")))
+      throw new IllegalArgumentException("Unsupported job parameter");
+    if (command.parameters().containsKey("portfolioId")) {
+      try {
+        if (Long.parseLong(command.parameters().get("portfolioId")) < 1)
+          throw new NumberFormatException();
+      } catch (NumberFormatException exception) {
+        throw new IllegalArgumentException("portfolioId must be a positive integer", exception);
+      }
+    }
     IntegrationInstanceEntity instance = instance(plugin);
     if (instance == null)
       throw new IllegalArgumentException("Save integration configuration first");
@@ -167,7 +179,7 @@ public class IntegrationSettingsFacade implements IntegrationSettingsApi {
     job.setEnabled(command.enabled());
     job.setCron(cron);
     job.setTimezone(timezone);
-    job.setParametersJson("{}");
+    job.setParametersJson(toJson(command.parameters()));
     return job(jobRepository.save(job));
   }
 
@@ -372,7 +384,7 @@ public class IntegrationSettingsFacade implements IntegrationSettingsApi {
         instance == null ? null : instance.getLastTestStatus(),
         instance == null ? null : instance.getLastTestMessage(),
         plugin.descriptor().jobDescriptors().stream()
-            .filter(IntegrationJobDescriptor::supportedByCurrentScheduler)
+            .filter(job -> handlerRegistry.supports(plugin.type(), job.jobType()))
             .toList(),
         jobs);
   }
@@ -406,6 +418,26 @@ public class IntegrationSettingsFacade implements IntegrationSettingsApi {
     ZoneId.of(timezone);
   }
 
+  private void validateMonthlySchedule(String cron) {
+    String[] fields = cron.trim().split("\\s+");
+    if (fields.length != 6
+        || !"0".equals(fields[0])
+        || !"*".equals(fields[4])
+        || !"*".equals(fields[5]))
+      throw new IllegalArgumentException(
+          "Payment audit schedule must run once on one day each month");
+    try {
+      int minute = Integer.parseInt(fields[1]);
+      int hour = Integer.parseInt(fields[2]);
+      int day = Integer.parseInt(fields[3]);
+      if (minute < 0 || minute > 59 || hour < 0 || hour > 23 || day < 1 || day > 31)
+        throw new NumberFormatException();
+    } catch (NumberFormatException exception) {
+      throw new IllegalArgumentException(
+          "Payment audit schedule must contain a valid day and time", exception);
+    }
+  }
+
   private String sanitize(String value) {
     return value == null
         ? null
@@ -421,6 +453,14 @@ public class IntegrationSettingsFacade implements IntegrationSettingsApi {
           objectMapper.readValue(json == null ? "{}" : json, new TypeReference<>() {}));
     } catch (JacksonException e) {
       throw new IllegalStateException("Invalid stored integration configuration", e);
+    }
+  }
+
+  private String toJson(Map<String, String> values) {
+    try {
+      return objectMapper.writeValueAsString(values);
+    } catch (JacksonException exception) {
+      throw new IllegalArgumentException("Cannot serialize integration job parameters", exception);
     }
   }
 }

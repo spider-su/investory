@@ -62,7 +62,7 @@ class NotificationFormatterTest {
 
     assertTrue(message.contains("2042 (age 67)"));
     assertTrue(message.contains("12000"));
-    assertTrue(message.contains("https://investory.test/analysis?portfolioId=3&planId=9"));
+    assertTrue(message.contains("https://investory.test/portfolios/3/analysis?planId=9"));
   }
 
   @Test

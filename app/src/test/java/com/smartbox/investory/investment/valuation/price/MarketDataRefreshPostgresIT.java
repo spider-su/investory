@@ -31,7 +31,7 @@ class MarketDataRefreshPostgresIT extends FastDatabaseTest {
   @AfterEach
   void restoreCanonicalMarketData() {
     jdbc.update(
-        "delete from investory.asset_price_history where source = 'TWELVE_DATA' and price_date >= ?",
+        "delete from investory.asset_price_history where source = 'YAHOO_FINANCE' and price_date >= ?",
         HappyInvestorMarketDataFacts.REFRESH_DATE);
     jdbc.update(
         """
@@ -81,12 +81,12 @@ class MarketDataRefreshPostgresIT extends FastDatabaseTest {
 
     assertThat(
             jdbc.queryForObject(
-                "select close_price from investory.asset_price_history where asset_id = 251 and price_date = date '2026-08-20' and source = 'TWELVE_DATA'",
+                "select close_price from investory.asset_price_history where asset_id = 251 and price_date = date '2026-08-20' and source = 'YAHOO_FINANCE'",
                 BigDecimal.class))
         .isEqualByComparingTo("251.25");
     assertThat(
             jdbc.queryForObject(
-                "select count(*) from investory.asset_price_history where asset_id = 1001 and price_date = date '2026-08-20' and source = 'TWELVE_DATA'",
+                "select count(*) from investory.asset_price_history where asset_id = 1001 and price_date = date '2026-08-20' and source = 'YAHOO_FINANCE'",
                 Integer.class))
         .isZero();
   }
@@ -94,32 +94,32 @@ class MarketDataRefreshPostgresIT extends FastDatabaseTest {
   private void assertQuote(long assetId, String symbol, BigDecimal expected) {
     assertThat(
             jdbc.queryForObject(
-                    "select price_date from investory.asset_price_history where asset_id = ? and price_date = date '2026-08-20' and source = 'TWELVE_DATA'",
+                    "select price_date from investory.asset_price_history where asset_id = ? and price_date = date '2026-08-20' and source = 'YAHOO_FINANCE'",
                     java.sql.Date.class,
                     assetId)
                 .toLocalDate())
         .isEqualTo(HappyInvestorMarketDataFacts.REFRESH_DATE);
     assertThat(
             jdbc.queryForObject(
-                "select close_price from investory.asset_price_history where asset_id = ? and price_date = date '2026-08-20' and source = 'TWELVE_DATA'",
+                "select close_price from investory.asset_price_history where asset_id = ? and price_date = date '2026-08-20' and source = 'YAHOO_FINANCE'",
                 BigDecimal.class,
                 assetId))
         .isEqualByComparingTo(expected);
     assertThat(
             jdbc.queryForObject(
-                "select price_currency from investory.asset_price_history where asset_id = ? and price_date = date '2026-08-20' and source = 'TWELVE_DATA'",
+                "select price_currency from investory.asset_price_history where asset_id = ? and price_date = date '2026-08-20' and source = 'YAHOO_FINANCE'",
                 String.class,
                 assetId))
         .isEqualTo("USD");
     assertThat(
             jdbc.queryForObject(
-                "select price_origin from investory.asset_price_history where asset_id = ? and price_date = date '2026-08-20' and source = 'TWELVE_DATA'",
+                "select price_origin from investory.asset_price_history where asset_id = ? and price_date = date '2026-08-20' and source = 'YAHOO_FINANCE'",
                 String.class,
                 assetId))
         .isEqualTo(HappyInvestorMarketDataFacts.PRICE_ORIGIN);
     assertThat(
             jdbc.queryForObject(
-                "select source from investory.asset_price_history where asset_id = ? and price_date = date '2026-08-20' and source = 'TWELVE_DATA'",
+                "select source from investory.asset_price_history where asset_id = ? and price_date = date '2026-08-20' and source = 'YAHOO_FINANCE'",
                 String.class,
                 assetId))
         .isEqualTo(HappyInvestorMarketDataFacts.PROVIDER);
@@ -127,11 +127,15 @@ class MarketDataRefreshPostgresIT extends FastDatabaseTest {
             jdbc.queryForObject(
                 "select symbol from investory.assets where id = ?", String.class, assetId))
         .isEqualTo(symbol);
+    assertThat(
+            jdbc.queryForObject(
+                "select price_source from investory.assets where id = ?", String.class, assetId))
+        .isEqualTo("YahooFinance");
   }
 
   private int countRefreshRows() {
     return jdbc.queryForObject(
-        "select count(*) from investory.asset_price_history where price_date = date '2026-08-20' and source = 'TWELVE_DATA'",
+        "select count(*) from investory.asset_price_history where price_date = date '2026-08-20' and source = 'YAHOO_FINANCE'",
         Integer.class);
   }
 

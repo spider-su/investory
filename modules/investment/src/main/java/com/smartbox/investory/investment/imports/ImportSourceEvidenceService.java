@@ -5,7 +5,7 @@ import com.smartbox.investory.investment.infrastructure.persistence.imports.Impo
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceFileRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceRowEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportSourceRowRepository;
-import java.time.ZonedDateTime;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,15 +20,18 @@ public class ImportSourceEvidenceService {
   private final ImportSourceFileRepository fileRepository;
   private final ImportSourceRowRepository rowRepository;
   private final ObjectMapper objectMapper;
+  private final ApplicationTime applicationTime;
 
   @Autowired
   public ImportSourceEvidenceService(
       ImportSourceFileRepository fileRepository,
       ImportSourceRowRepository rowRepository,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      ApplicationTime applicationTime) {
     this.fileRepository = fileRepository;
     this.rowRepository = rowRepository;
     this.objectMapper = objectMapper;
+    this.applicationTime = applicationTime;
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -47,7 +50,7 @@ public class ImportSourceEvidenceService {
     file.setFileSha256(batch.getFileSha256());
     file.setOriginalSize((long) payload.length);
     file.setRawPayload(payload.clone());
-    file.setCreatedAt(ZonedDateTime.now());
+    file.setCreatedAt(applicationTime.now(applicationTime.businessZone()));
     return fileRepository.save(file);
   }
 
@@ -93,7 +96,7 @@ public class ImportSourceEvidenceService {
             occurrence,
             rawText,
             row.getRawValues()));
-    row.setCreatedAt(ZonedDateTime.now());
+    row.setCreatedAt(applicationTime.now(applicationTime.businessZone()));
     return rowRepository.save(row).getId();
   }
 

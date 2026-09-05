@@ -30,7 +30,9 @@ export function initDashboardCharts() {
     const percentFormatter = new Intl.NumberFormat('en-US', {minimumFractionDigits: 1, maximumFractionDigits: 1});
     const signedBaseFormatter = new Intl.NumberFormat('en-US', {maximumFractionDigits: 0, signDisplay: 'always'});
     const baseCurrency = data.baseCurrency;
-    const portfolioId = new URLSearchParams(window.location.search).get('portfolioId') || '1';
+    const portfolioId = data.portfolioId
+        ?? window.location.pathname.match(/^\/portfolios\/([^/]+)/)?.[1]
+        ?? new URLSearchParams(window.location.search).get('portfolioId');
     const signedValue = value => (Number(value) >= 0 ? '+' : '') + amountFormatter.format(Number(value || 0));
     const signedPercentValue = value => (Number(value) >= 0 ? '+' : '') + percentFormatter.format(Number(value || 0)) + '%';
     const percentValue = value => percentFormatter.format(Number(value || 0)) + '%';

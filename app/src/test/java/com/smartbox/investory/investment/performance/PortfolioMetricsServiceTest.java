@@ -49,8 +49,11 @@ import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.testsupport.portfolio.PortfolioBuilders;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestData;
 import com.smartbox.investory.testsupport.portfolio.PortfolioTestData.AccountDefinition;
+import com.smartbox.investory.testsupport.time.MutableApplicationTime;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
@@ -96,9 +99,13 @@ class PortfolioMetricsServiceTest {
 
   @BeforeEach
   void setUp() {
+    MutableApplicationTime applicationTime =
+        MutableApplicationTime.fixed(
+            Instant.parse("2026-09-05T08:00:00Z"), ZoneId.of("Europe/Warsaw"));
     // Use real helpers so the test still exercises end-to-end behaviour after the extraction.
-    TaxCalculator taxCalculator = new TaxCalculator(currencyRateService);
-    CashFlowAggregator cashFlowAggregator = new CashFlowAggregator(currencyRateService);
+    TaxCalculator taxCalculator = new TaxCalculator(currencyRateService, applicationTime);
+    CashFlowAggregator cashFlowAggregator =
+        new CashFlowAggregator(currencyRateService, applicationTime);
     portfolioProperties = new PortfolioProperties();
     portfolioProperties.setDataQualityIssuesEnabled(false);
     portfolioProperties.setDashboardEnrichmentEnabled(true);
@@ -112,6 +119,7 @@ class PortfolioMetricsServiceTest {
             symbolPerformanceRepository);
     portfolioMetricsService =
         new PortfolioMetricsService(
+            applicationTime,
             currencyRateService,
             closedPositionRepository,
             openedPositionRepository,

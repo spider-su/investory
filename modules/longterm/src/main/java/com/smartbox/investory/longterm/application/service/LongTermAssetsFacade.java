@@ -89,6 +89,17 @@ public class LongTermAssetsFacade {
 
   public DetailView details(Long portfolioId, Long id, LocalDate date) {
     var detail = queries.detail(portfolioId, id, date);
+    var contracts =
+        detail.contracts().stream()
+            .map(contract -> contractView(contract, date))
+            .sorted(
+                java.util.Comparator.comparing(
+                        (RentalContractView contract) ->
+                            contract.status() == RentalContractStatusModel.CURRENT ? 0 : 1)
+                    .thenComparing(
+                        RentalContractView::startDate, java.util.Comparator.reverseOrder())
+                    .thenComparing(RentalContractView::id, java.util.Comparator.reverseOrder()))
+            .toList();
     return new DetailView(
         assetView(detail.asset()),
         summaryView(detail.summary()),
@@ -96,7 +107,7 @@ public class LongTermAssetsFacade {
         detail.depositDetails() == null ? null : depositDetailsView(detail.depositDetails()),
         detail.valuationPeriods().stream().map(LongTermAssetsFacade::valuationView).toList(),
         detail.expectedPropertyGrowth(),
-        detail.contracts().stream().map(contract -> contractView(contract, date)).toList());
+        contracts);
   }
 
   public AssetView create(AssetCommand command) {

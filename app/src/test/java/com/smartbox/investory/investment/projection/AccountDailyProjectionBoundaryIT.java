@@ -5,22 +5,32 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.investment.valuation.fx.FxRateUnavailableException;
-import com.smartbox.investory.testsupport.FastDatabaseTest;
+import com.smartbox.investory.testsupport.FastDatabase;
+import com.smartbox.investory.testsupport.WorkerDatabase;
 import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorDailyFacts;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
 /** Proves that canonical accounting inputs are projected into account_daily. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
+@ActiveProfiles("test-fast")
 @DisplayName("Synthetic Account Daily Projection Boundary")
-class AccountDailyProjectionBoundaryIT extends FastDatabaseTest {
+class AccountDailyProjectionBoundaryIT {
+
+  private static final WorkerDatabase DATABASE =
+      FastDatabase.scopedDatabase("account_daily_projection_boundary");
 
   private static final long PORTFOLIO_ID = -920001L;
   private static final long ACCOUNT_ID = -920002L;
@@ -33,6 +43,18 @@ class AccountDailyProjectionBoundaryIT extends FastDatabaseTest {
   @Autowired private PortfolioProjectionService projections;
   @Autowired private PortfolioProjectionRefreshService refresh;
   @Autowired private CurrencyRateService currencyRateService;
+
+  @AfterAll
+  static void closeDatabase() {
+    DATABASE.close();
+  }
+
+  @DynamicPropertySource
+  protected static void databaseProperties(DynamicPropertyRegistry registry) {
+    registry.add("spring.datasource.url", DATABASE::jdbcUrl);
+    registry.add("spring.datasource.username", DATABASE::username);
+    registry.add("spring.datasource.password", DATABASE::password);
+  }
 
   @AfterEach
   void removeProjectionFixture() {
@@ -99,14 +121,38 @@ class AccountDailyProjectionBoundaryIT extends FastDatabaseTest {
   @DisplayName("missing FX fails closed instead of valuing USD as EUR")
   void missingFxFailsClosed() {
     seedFixture();
-    jdbc.update(
-        "DELETE FROM investory.exchange_rates WHERE ((base = 'USD' AND to_currency = 'EUR') OR (base = 'EUR' AND to_currency = 'USD'))");
-    refresh.refreshApplicationViews(
-        PortfolioProjectionRefreshService.ApplicationRefreshScope.BROKER_IMPORT);
-    currencyRateService.clearValuationResolutionCache();
-    assertThrows(
-        FxRateUnavailableException.class,
-        () -> projections.recalculateAccounts(Set.of(ACCOUNT_ID)));
+    List<Map<String, Object>> removedRates =
+        jdbc.queryForList(
+            "SELECT rate_date, base, to_currency, rate, source, method, observed_at, source_reference "
+                + "FROM investory.exchange_rates "
+                + "WHERE ((base = 'USD' AND to_currency = 'EUR') "
+                + "OR (base = 'EUR' AND to_currency = 'USD'))");
+    try {
+      jdbc.update(
+          "DELETE FROM investory.exchange_rates WHERE ((base = 'USD' AND to_currency = 'EUR') OR (base = 'EUR' AND to_currency = 'USD'))");
+      refresh.refreshApplicationViews(
+          PortfolioProjectionRefreshService.ApplicationRefreshScope.BROKER_IMPORT);
+      currencyRateService.clearValuationResolutionCache();
+      assertThrows(
+          FxRateUnavailableException.class,
+          () -> projections.recalculateAccounts(Set.of(ACCOUNT_ID)));
+    } finally {
+      for (Map<String, Object> row : removedRates) {
+        jdbc.update(
+            "INSERT INTO investory.exchange_rates "
+                + "(rate_date, base, to_currency, rate, source, method, observed_at, source_reference) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            row.get("rate_date"),
+            row.get("base"),
+            row.get("to_currency"),
+            row.get("rate"),
+            row.get("source"),
+            row.get("method"),
+            row.get("observed_at"),
+            row.get("source_reference"));
+      }
+      currencyRateService.clearValuationResolutionCache();
+    }
   }
 
   private void seedFixture() {

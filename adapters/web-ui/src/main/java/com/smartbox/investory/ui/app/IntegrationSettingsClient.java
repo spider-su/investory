@@ -34,4 +34,6 @@ public interface IntegrationSettingsClient {
       boolean enabled,
       String cron,
       String timezone);
+
+  void runJobNow(IntegrationType type, String pluginId, String jobType);
 }

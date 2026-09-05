@@ -1,5 +1,6 @@
 package com.smartbox.investory.integrations.notifications.application;
 
+import static com.smartbox.investory.integrations.FixedTestTime.TIME;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
@@ -29,7 +30,7 @@ class StaleImportHistoryAlertRuleTest {
   void setUp() {
     properties = new NotificationProperties();
     properties.setStaleImportDays(7);
-    rule = new StaleImportAlertRule(investment, properties);
+    rule = new StaleImportAlertRule(investment, properties, TIME);
   }
 
   @DisplayName("evaluate fires When No Batches Exist")

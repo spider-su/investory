@@ -152,6 +152,60 @@ class ValuationInputContractIT {
     }
   }
 
+  @DisplayName("historical cross currency FX remains estimated when legs use different sources")
+  @Test
+  void historicalCrossCurrencyFxRemainsEstimatedWhenLegsUseDifferentSources() throws SQLException {
+    try (Connection connection = connection();
+        Statement statement = connection.createStatement()) {
+      statement.execute(
+          "INSERT INTO investory.exchange_rates(rate_date, base, to_currency, rate, source, method) VALUES "
+              + "(DATE '2199-01-01', 'EUR', 'USD', 1.20, 'STATIC_BOOTSTRAP', 'HISTORICAL_MONTHLY'), "
+              + "(DATE '2199-01-01', 'USD', 'PLN', 4.00, 'NBP', 'HISTORICAL_MONTHLY')");
+
+      try (ResultSet result =
+          statement.executeQuery(
+              "SELECT round(fx_rate_to_target, 8), rate_method, conversion_status "
+                  + "FROM investory.resolve_fx_rate(DATE '2199-01-02', 'PLN', 'EUR')")) {
+        assertTrue(result.next());
+        assertEquals("0.20833333", result.getBigDecimal(1).toPlainString());
+        assertEquals("HISTORICAL_MONTHLY", result.getString("rate_method"));
+        assertEquals("ESTIMATED", result.getString("conversion_status"));
+      } finally {
+        statement.execute(
+            "DELETE FROM investory.exchange_rates WHERE rate_date = DATE '2199-01-01'");
+      }
+    }
+  }
+
+  @DisplayName("snapshot resolves the complete PLN USD EUR historical currency board")
+  @Test
+  void snapshotResolvesPlnUsdEurHistoricalCurrencyBoard() throws SQLException {
+    try (Connection connection = connection();
+        Statement statement = connection.createStatement()) {
+      try (ResultSet result =
+          statement.executeQuery(
+              "SELECT rate_method, conversion_status "
+                  + "FROM investory.resolve_fx_rate(DATE '2026-09-05', 'PLN', 'EUR')")) {
+        assertTrue(result.next());
+        assertEquals("HISTORICAL_MONTHLY", result.getString("rate_method"));
+        assertEquals("ESTIMATED", result.getString("conversion_status"));
+      }
+    }
+  }
+
+  @DisplayName("HappyInvestor snapshot preserves portfolio net deposits")
+  @Test
+  void happyInvestorSnapshotPreservesPortfolioNetDeposits() throws SQLException {
+    try (Connection connection = connection();
+        Statement statement = connection.createStatement();
+        ResultSet result =
+            statement.executeQuery(
+                "SELECT net_deposits FROM investory.app_v_portfolio_kpi_summary WHERE portfolio_id = 1")) {
+      assertTrue(result.next());
+      assertEquals(0, result.getBigDecimal(1).compareTo(new BigDecimal("427285.84")));
+    }
+  }
+
   @DisplayName("current Price Uses Fresh Observed History Then Native Asset Fallback")
   @Test
   void currentPriceUsesFreshObservedHistoryThenNativeAssetFallback() throws SQLException {

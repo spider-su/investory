@@ -59,6 +59,25 @@
 
 .iv-property-page .iv-rental-contracts { border-top: 1px solid var(--iv-border); }
 .iv-property-page .iv-rental-contract { border-bottom: 1px solid var(--iv-border); }
+.iv-property-page .iv-rental-contracts__history-heading {
+  margin-top: 18px;
+  padding: 12px 20px 8px;
+  border-top: 1px solid var(--iv-border);
+  color: var(--iv-text-muted);
+  font-size: .74rem;
+  font-weight: 750;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.iv-property-page .iv-rental-contract[data-contract-status="ENDED"],
+.iv-property-page .iv-rental-contract[data-contract-status="TERMINATED"],
+.iv-property-page .iv-rental-contract[data-contract-status="UPCOMING"] { background: color-mix(in srgb, var(--iv-surface-muted) 72%, var(--iv-surface)); }
+.iv-property-page .iv-rental-contract[data-contract-status="ENDED"] .iv-rental-contract__summary,
+.iv-property-page .iv-rental-contract[data-contract-status="TERMINATED"] .iv-rental-contract__summary,
+.iv-property-page .iv-rental-contract[data-contract-status="UPCOMING"] .iv-rental-contract__summary { color: var(--iv-text-muted); }
+.iv-property-page .iv-rental-contract[data-contract-status="ENDED"] .iv-rental-contract__body,
+.iv-property-page .iv-rental-contract[data-contract-status="TERMINATED"] .iv-rental-contract__body,
+.iv-property-page .iv-rental-contract[data-contract-status="UPCOMING"] .iv-rental-contract__body { opacity: .86; }
 
 .iv-property-page .iv-rental-contract__summary {
   display: grid;

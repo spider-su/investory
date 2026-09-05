@@ -1,5 +1,6 @@
 package com.smartbox.investory.ui.app;
 
+import com.smartbox.investory.integrations.management.api.IntegrationJobExecutionApi;
 import com.smartbox.investory.integrations.management.api.IntegrationSettingsApi;
 import com.smartbox.investory.integrations.management.api.model.ConnectionTestResult;
 import com.smartbox.investory.integrations.management.api.model.IntegrationJobCommand;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class InProcessIntegrationSettingsClient implements IntegrationSettingsClient {
   private final IntegrationSettingsApi integrationSettingsApi;
+  private final IntegrationJobExecutionApi integrationJobExecutionApi;
 
   @Override
   public List<IntegrationSettingsView> list() {
@@ -60,5 +62,10 @@ public class InProcessIntegrationSettingsClient implements IntegrationSettingsCl
       String timezone) {
     return integrationSettingsApi.saveJob(
         new IntegrationJobCommand(type, pluginId, jobType, enabled, cron, timezone, Map.of()));
+  }
+
+  @Override
+  public void runJobNow(IntegrationType type, String pluginId, String jobType) {
+    integrationJobExecutionApi.runNow(type, pluginId, jobType);
   }
 }

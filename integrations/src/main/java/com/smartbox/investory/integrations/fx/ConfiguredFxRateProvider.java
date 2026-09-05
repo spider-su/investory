@@ -10,7 +10,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-/** Resolves external FX configuration and adapts it to Investment's provider-neutral port. */
+/** Resolves the configured ExchangeRate.host adapter for Investment's provider-neutral port. */
 @Component
 @RequiredArgsConstructor
 public class ConfiguredFxRateProvider implements FxRateProvider {

@@ -2,7 +2,6 @@ package com.smartbox.investory.integrations.market;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.integrations.management.api.model.IntegrationType;
@@ -11,7 +10,6 @@ import com.smartbox.investory.integrations.management.model.PluginConfig;
 import com.smartbox.investory.integrations.market.twelvedata.TwelveDataMarketDataPlugin;
 import com.smartbox.investory.integrations.market.twelvedata.TwelveDataService;
 import com.smartbox.investory.integrations.market.yahoo.YahooFinanceService;
-import com.smartbox.investory.investment.port.market.MarketQuote;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -44,8 +42,9 @@ class ConfiguredMarketDataProviderTest {
 
   @Test
   void delegatesQuotesAndHistoryWithResolvedConfiguration() {
-    Map<String, MarketQuote> quotes = Map.of();
-    when(plugin.fetchQuotes(List.of("AAPL"), config)).thenReturn(quotes);
+    var yahooQuote =
+        new YahooFinanceService.YahooQuote("AAPL", "USD", LocalDate.of(2026, 1, 2), 200.0);
+    when(yahoo.fetchLatestQuote("AAPL")).thenReturn(Optional.of(yahooQuote));
     NavigableMap<LocalDate, Double> daily = new TreeMap<>();
     when(twelveData.fetchDailyCloses(
             "AAPL",
@@ -55,7 +54,13 @@ class ConfiguredMarketDataProviderTest {
             "https://market.test"))
         .thenReturn(daily);
 
-    assertThat(provider.fetchQuotes(List.of("AAPL"))).isSameAs(quotes);
+    assertThat(provider.fetchQuotes(List.of("AAPL")).get("AAPL"))
+        .satisfies(
+            quote -> {
+              assertThat(quote.getSymbol()).isEqualTo("AAPL");
+              assertThat(quote.getCurrency()).isEqualTo("USD");
+              assertThat(quote.getClose()).isEqualTo(200.0);
+            });
     assertThat(
             provider.fetchDailyCloses("AAPL", LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 2)))
         .isSameAs(daily);
@@ -65,10 +70,7 @@ class ConfiguredMarketDataProviderTest {
   void adaptsLatestQuoteAndExternalSymbol() {
     var quote = new YahooFinanceService.YahooQuote("AAPL", "USD", LocalDate.of(2026, 1, 2), 200.0);
     when(yahoo.fetchLatestQuote("AAPL")).thenReturn(Optional.of(quote));
-    when(plugin.externalSymbol("AAPL", "AAPL.US")).thenReturn("AAPL.US");
-
     assertThat(provider.fetchLatestQuote("AAPL")).get().extracting("currency").isEqualTo("USD");
-    assertThat(provider.externalSymbol("AAPL", "AAPL.US")).isEqualTo("AAPL.US");
-    verify(plugin).externalSymbol("AAPL", "AAPL.US");
+    assertThat(provider.externalSymbol("AAPL.US", "AAPL")).isEqualTo("AAPL");
   }
 }

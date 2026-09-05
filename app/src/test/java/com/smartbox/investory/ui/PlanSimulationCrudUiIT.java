@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Clock;
 import java.time.Year;
 import java.util.ArrayList;
 import java.util.Map;
@@ -42,6 +43,8 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
 
   @Value("${local.server.port}")
   private int port;
+
+  @Autowired private Clock applicationClock;
 
   @Autowired private JdbcTemplate jdbc;
 
@@ -376,7 +379,7 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
   }
 
   private void assertSimulation(Page page, long planId, PlanData plan) {
-    page.navigate(baseUrl() + "/simulation?portfolioId=1&planId=" + planId);
+    page.navigate(baseUrl() + "/portfolios/1/simulation?&planId=" + planId);
     assertThat(page.title()).contains("Retirement simulation");
     assertThat(page.locator("#simulation-assumptions-form input[name='planId']").inputValue())
         .isEqualTo(String.valueOf(planId));
@@ -386,7 +389,7 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
         .isEqualTo("BASE");
     int firstProjectedAge =
         Integer.parseInt(plan.ageAtPlanStart())
-            + Year.now().getValue()
+            + Year.now(applicationClock).getValue()
             - Integer.parseInt(plan.startYear())
             + 1;
     assertThat(page.locator(".iv-planning-summary").textContent())
@@ -405,7 +408,7 @@ class PlanSimulationCrudUiIT extends FastDatabaseTest {
   private void openEditor(Page page, long planId) {
     Response response =
         page.navigate(
-            baseUrl() + "/simulation/plan/edit?portfolioId=" + PORTFOLIO_ID + "&planId=" + planId);
+            baseUrl() + "/portfolios/" + PORTFOLIO_ID + "/simulation/plan/edit?planId=" + planId);
     assertThat(response).as("edit-plan navigation response").isNotNull();
     assertThat(response.status()).as("edit-plan HTTP status").isEqualTo(200);
     assertThat(page.url()).contains("/simulation/plan/edit").contains("planId=" + planId);

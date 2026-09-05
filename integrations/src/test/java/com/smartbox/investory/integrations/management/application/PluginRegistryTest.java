@@ -35,7 +35,7 @@ class PluginRegistryTest {
   }
 
   @Test
-  void rejectsJobsWithoutAnExecutableHandler() {
+  void permitsPluginDeclarationBeforeHandlerRegistryValidation() {
     IntegrationPlugin plugin =
         new IntegrationPlugin() {
           @Override
@@ -59,7 +59,7 @@ class PluginRegistryTest {
           }
         };
 
-    assertThrows(IllegalStateException.class, () -> new PluginRegistry(List.of(plugin)));
+    assertEquals(1, new PluginRegistry(List.of(plugin)).all().size());
   }
 
   private static IntegrationPlugin plugin(String id, IntegrationType type) {

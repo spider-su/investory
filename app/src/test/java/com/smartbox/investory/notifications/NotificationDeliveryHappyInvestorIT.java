@@ -12,8 +12,8 @@ import com.smartbox.investory.integrations.notifications.persistence.Notificatio
 import com.smartbox.investory.integrations.notifications.persistence.NotificationEventRepository;
 import com.smartbox.investory.shared.notifications.NotificationEventType;
 import com.smartbox.investory.shared.notifications.NotificationSeverity;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import com.smartbox.investory.testsupport.FastDatabaseTest;
-import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -27,6 +27,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 class NotificationDeliveryHappyInvestorIT extends FastDatabaseTest {
   @Autowired private NotificationEventRepository events;
   @Autowired private NotificationEventDispatcher dispatcher;
+  @Autowired private ApplicationTime time;
   @MockitoBean private NotificationDeliveryChannel delivery;
 
   private Long eventId;
@@ -88,10 +89,10 @@ class NotificationDeliveryHappyInvestorIT extends FastDatabaseTest {
             "skippedCount", "0",
             "errorCount", "1",
             "failure", "canonical provider failure"));
-    event.setCreatedAt(Instant.now());
+    event.setCreatedAt(time.now());
     event.setDeliveryState(NotificationDeliveryState.PENDING);
     event.setAttemptCount(0);
-    event.setNextAttemptAt(Instant.now());
+    event.setNextAttemptAt(time.now());
     return events.saveAndFlush(event).getId();
   }
 }

@@ -6,6 +6,7 @@ import com.smartbox.investory.investment.port.fx.FxRateProvider.FxRequest;
 import com.smartbox.investory.investment.port.fx.FxRateProviderException;
 import com.smartbox.investory.investment.projection.PortfolioProjectionRefreshService;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import java.time.LocalDate;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -26,20 +27,23 @@ public class CurrencyRateUpdaterService {
   private final com.smartbox.investory.investment.performance.InvestmentCalculationCache
       calculationCache;
   private final PortfolioProjectionRefreshService projectionRefreshService;
+  private final ApplicationTime applicationTime;
 
   public CurrencyRateUpdaterService(
       FxRateProvider fxRateProvider,
       CurrencyRateService currencyRateService,
       com.smartbox.investory.investment.performance.InvestmentCalculationCache calculationCache,
-      PortfolioProjectionRefreshService projectionRefreshService) {
+      PortfolioProjectionRefreshService projectionRefreshService,
+      ApplicationTime applicationTime) {
     this.fxRateProvider = fxRateProvider;
     this.currencyRateService = currencyRateService;
     this.calculationCache = calculationCache;
     this.projectionRefreshService = projectionRefreshService;
+    this.applicationTime = applicationTime;
   }
 
   public CurrencyRateRefreshResult updateCurrencyRates() {
-    return updateCurrencyRatesForDate(LocalDate.now());
+    return updateCurrencyRatesForDate(applicationTime.today());
   }
 
   public CurrencyRateRefreshResult updateCurrencyRatesForDate(LocalDate effectiveDate) {

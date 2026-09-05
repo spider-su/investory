@@ -5,6 +5,7 @@ import com.smartbox.investory.shared.notifications.NotificationEventPublisher;
 import com.smartbox.investory.shared.notifications.NotificationEventType;
 import com.smartbox.investory.shared.notifications.NotificationSeverity;
 import com.smartbox.investory.shared.notifications.SystemAuditCompletedEvent;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import java.sql.Array;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -22,6 +23,7 @@ public class SystemAuditNotificationProducer {
   private final JdbcTemplate jdbcTemplate;
   private final NotificationEventPublisher events;
   private final ApplicationEventPublisher applicationEvents;
+  private final ApplicationTime applicationTime;
 
   public boolean publish(UUID auditId) {
     java.util.List<AuditFact> matches =
@@ -70,8 +72,8 @@ public class SystemAuditNotificationProducer {
     return published;
   }
 
-  private static Instant instant(Timestamp value) {
-    return value == null ? Instant.now() : value.toInstant();
+  private Instant instant(Timestamp value) {
+    return value == null ? applicationTime.now() : value.toInstant();
   }
 
   private static String codes(Array value) throws java.sql.SQLException {

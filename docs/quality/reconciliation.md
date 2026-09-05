@@ -131,7 +131,8 @@ executed failure produces `UNRECONCILED`.
 
 C0 evaluates incomplete imports only on the latest `(provider, file_sha256)` attempt; superseded
 failed attempts remain immutable audit evidence but do not permanently fail a successful reprocess.
-C1 reconstructs cash-flow differences from `account_daily` and `normalized_cash_operations` and
+C1 reconstructs cash-flow differences from `account_daily` and `normalized_cash_operation_flows`, using
+account-level flow amounts so internal transfer legs are included, and
 uses `reconciliation_values_match` at full precision. Rounded reporting columns are evidence for
 display only.
 

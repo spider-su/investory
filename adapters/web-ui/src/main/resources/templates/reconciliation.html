@@ -19,7 +19,18 @@
                 <h2>Reconciliation pipeline</h2>
                 <p th:text="${'System-wide current-state diagnostic · data as of ' + T(com.smartbox.investory.ui.presentation.UiPresentation).date(report.asOfDate) + '. Later failures and reviews are shown as blocked when an earlier checkpoint fails.'}">System-wide current-state diagnostic.</p>
             </div>
+            <div class="iv-section-heading__actions">
+                <form method="post" th:action="@{/portfolios/{portfolioId}/dashboard/reconciliation/refresh(portfolioId=${portfolioId})}">
+                    <button type="submit" class="btn btn-primary">Recheck now</button>
+                </form>
+            </div>
         </div>
+
+        <div class="alert alert-success" role="status" th:if="${refreshed}">
+            Reconciliation MVs rebuilt in dependency order. Report below is fresh.
+        </div>
+
+        <p class="text-secondary small">Recheck rebuilds the exact C2–C5 diagnostic set: reconstructed positions, account market, reconstructed cash, account daily reconciliation, monthly profit, statistics vs daily, daily cashflow, scoped daily cashflow, and trade settlement.</p>
 
         <section class="iv-reconciliation-state-banner" aria-label="Reconciliation state">
             <div>

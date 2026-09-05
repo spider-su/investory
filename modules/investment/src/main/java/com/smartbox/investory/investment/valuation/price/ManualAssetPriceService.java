@@ -3,13 +3,12 @@ package com.smartbox.investory.investment.valuation.price;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
 import com.smartbox.investory.investment.projection.StatisticsRefreshService;
-import com.smartbox.investory.investment.reporting.ReportingDateHelper;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
+import com.smartbox.investory.shared.time.ApplicationTime;
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -29,6 +28,7 @@ public class ManualAssetPriceService {
   private final CurrencyRateService currencyRateService;
   private final MarketDataService marketDataService;
   private final StatisticsRefreshService statisticsRefreshService;
+  private final ApplicationTime applicationTime;
 
   @Transactional
   public ManualAssetPrice updatePrice(String symbol, BigDecimal marketPrice) {
@@ -53,9 +53,9 @@ public class ManualAssetPriceService {
         currency == BASE_CURRENCY
             ? marketPrice
             : currencyRateService.convertToBaseCurrency(
-                marketPrice, BASE_CURRENCY, currency, LocalDate.now());
+                marketPrice, BASE_CURRENCY, currency, applicationTime.today());
 
-    ZonedDateTime updatedAt = ZonedDateTime.now();
+    ZonedDateTime updatedAt = applicationTime.now(applicationTime.businessZone());
     asset.setMarketPrice(marketPrice);
     asset.setMarketPriceUsd(marketPriceUsd);
     asset.setPriceSource("Manual");
@@ -63,7 +63,7 @@ public class ManualAssetPriceService {
     assetRepository.save(asset);
     assetPriceHistoryRepository.upsertObservedPrice(
         asset.getId(),
-        ReportingDateHelper.today(),
+        applicationTime.today(),
         "MANUAL",
         asset.getSymbol(),
         asset.getSymbol(),

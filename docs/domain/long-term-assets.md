@@ -88,7 +88,9 @@ and does not automatically sell property.
 
 ## Creation and review invariants
 
-Generic asset creation accepts only `OTHER`. Bonds, deposits, cash reserves, and real estate use
+Generic asset creation accepts only `OTHER`. `OTHER` is notes-only: it remains viewable and editable,
+but contributes no value, income, annual result, or retirement projection total. Bonds, deposits,
+cash reserves, and real estate use
 atomic subtype workflows; deposits require a maturity date. Rental contracts are valid only for
 `REAL_ESTATE` assets. New contracts persist only explicitly supplied terms; copying a previous
 contract is a UI prefilling action and never mutates data before submission. Explicit bond redemption

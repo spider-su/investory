@@ -24,7 +24,12 @@ import com.smartbox.investory.investment.projection.StatisticsRefreshService;
 import com.smartbox.investory.investment.valuation.fx.CurrencyRateService;
 import com.smartbox.investory.investment.valuation.price.persistence.AssetPriceHistoryRepository;
 import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.time.ClockApplicationTime;
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -242,10 +247,10 @@ class MarketDataServiceTest {
         .upsertObservedPrice(
             supported.getId(),
             java.time.LocalDate.of(2026, 7, 31),
-            "TWELVE_DATA",
+            "YAHOO_FINANCE",
             "AAPL",
             "AAPL.US",
-            "TWELVE_DATA_MARKET_CLOSE",
+            "YAHOO_FINANCE_MARKET_CLOSE",
             "USD",
             BigDecimal.valueOf(110.0),
             100,
@@ -253,38 +258,20 @@ class MarketDataServiceTest {
     verify(statisticsRefreshService).refreshAll();
   }
 
-  @DisplayName("update Stocks scales Direct Bond Quote From Percent Of Par")
+  @DisplayName("update Stocks skips Direct Bond Quote")
   @Test
-  void updateStocks_scalesDirectBondQuoteFromPercentOfPar() {
+  void updateStocks_skipsDirectBondQuote() {
     AssetEntity bond = newAsset("US91282CKB62", "US91282CKB62", true);
     bond.setAssetType("BOND");
     when(assetRepository.findAll()).thenReturn(List.of(bond));
     when(positionRepository.findOpen()).thenReturn(List.of(openPosition("US91282CKB62")));
 
-    MarketQuote quote = new MarketQuote();
-    quote.setSymbol("US91282CKB62");
-    quote.setClose(100.91284);
-    quote.setCurrency("USD");
-    quote.setDatetime("2026-09-02");
-    when(marketDataProvider.fetchQuotes(List.of("US91282CKB62")))
-        .thenReturn(Map.of("US91282CKB62", quote));
-
     marketDataService.updateStocks(1L);
 
-    assertEquals(0, bond.getMarketPrice().compareTo(new BigDecimal("1.0091284")));
-    assertEquals(0, bond.getMarketPriceUsd().compareTo(new BigDecimal("1.0091284")));
-    verify(assetPriceHistoryRepository)
-        .upsertObservedPrice(
-            bond.getId(),
-            java.time.LocalDate.of(2026, 9, 2),
-            "TWELVE_DATA",
-            "US91282CKB62",
-            "US91282CKB62",
-            "TWELVE_DATA_MARKET_CLOSE",
-            "USD",
-            BigDecimal.valueOf(100.91284),
-            100,
-            "EXACT_LISTING_MARKET_CLOSE_PERCENT_OF_PAR");
+    verify(marketDataProvider, never()).fetchQuotes(any());
+    verify(marketDataProvider, never()).fetchLatestQuote(anyString());
+    verify(assetPriceHistoryRepository, never())
+        .upsertObservedPrice(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
   }
 
   @DisplayName("update Stocks skips Quotes Updated Within Four Hours")
@@ -729,6 +716,9 @@ class MarketDataServiceTest {
         currencyRateService,
         statisticsRefreshService,
         transactionManager,
+        new ClockApplicationTime(
+            Clock.fixed(Instant.parse("2026-09-05T08:00:00Z"), ZoneOffset.UTC),
+            ZoneId.of("Europe/Warsaw")),
         chunkPauseMs,
         skipNonUsListings,
         excludedSymbolsCsv);

@@ -52,10 +52,13 @@ class DashboardNavigationTemplateContractTest {
         .doesNotContain("workspace', current, portfolioId")
         .doesNotContain("'profile', portfolioId, netWorth");
     assertThat(fragment)
-        .contains("th:href=\"@{/investment-profile(portfolioId=${portfolioId})}\"")
-        .contains("th:href=\"@{/simulation(portfolioId=${portfolioId})}\"")
-        .contains("th:href=\"@{/long-term-assets(portfolioId=${portfolioId})}\"")
-        .contains("th:href=\"@{/dashboard/reconciliation(portfolioId=${portfolioId})}\"");
+        .contains(
+            "th:href=\"@{/portfolios/{portfolioId}/investment-profile(portfolioId=${portfolioId})}\"")
+        .contains("th:href=\"@{/portfolios/{portfolioId}/simulation(portfolioId=${portfolioId})}\"")
+        .contains(
+            "th:href=\"@{/portfolios/{portfolioId}/long-term-assets(portfolioId=${portfolioId})}\"")
+        .contains(
+            "th:href=\"@{/portfolios/{portfolioId}/dashboard/reconciliation(portfolioId=${portfolioId})}\"");
     assertThat(fragment).contains("activePage == 'simulation' or activePage == 'analysis'");
     assertThat(fragment)
         .doesNotContain("Overview")

@@ -12,8 +12,9 @@ import org.springframework.data.repository.query.Param;
 public interface SimulationPlanRepository extends JpaRepository<SimulationPlanEntity, Long> {
   List<SimulationPlanEntity> findAllByPortfolioIdAndArchivedFalseOrderByName(Long portfolioId);
 
-  Optional<SimulationPlanEntity> findFirstByPortfolioIdAndArchivedFalseOrderByUpdatedAtDescIdDesc(
-      Long portfolioId);
+  Optional<SimulationPlanEntity>
+      findFirstByPortfolioIdAndArchivedFalseAndSandboxFalseOrderByUpdatedAtDescIdDesc(
+          Long portfolioId);
 
   Optional<SimulationPlanEntity> findFirstByPortfolioIdAndSandboxTrueAndArchivedFalse(
       Long portfolioId);
