@@ -13,6 +13,9 @@ public interface AccountRepository
 
   List<AccountEntity> findAllByPortfolioId(Long portfolioId);
 
+  @Query("select account.id from AccountEntity account where account.portfolioId = :portfolioId")
+  List<Long> findIdsByPortfolioId(@Param("portfolioId") Long portfolioId);
+
   @Query(
       "SELECT DISTINCT account.portfolioId FROM AccountEntity account WHERE account.portfolioId IS NOT NULL")
   List<Long> findDistinctPortfolioIds();

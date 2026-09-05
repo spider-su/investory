@@ -71,7 +71,11 @@ import tools.jackson.databind.ObjectMapper;
 @ActiveProfiles("test-fast")
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    properties = {"spring.jpa.hibernate.ddl-auto=validate", "spring.flyway.enabled=false"})
+    properties = {
+      "spring.jpa.hibernate.ddl-auto=validate",
+      "spring.flyway.enabled=false",
+      "investory.time.fixed-instant=2025-12-31T12:00:00Z"
+    })
 @Import(InvestmentDashboardGoldenUiIT.JacksonTestConfiguration.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @DisplayName("Investment Dashboard Golden UI")
@@ -118,6 +122,9 @@ class InvestmentDashboardGoldenUiIT extends FastDatabaseTest {
     timed(
         "FX preload",
         () -> {
+          jdbc.execute(
+              "CREATE INDEX IF NOT EXISTS ix_exchange_rates_pair_date "
+                  + "ON investory.exchange_rates (base, to_currency, rate_date DESC)");
           loadGoldenFx();
           extendGoldenFxThroughCashOperations();
         });

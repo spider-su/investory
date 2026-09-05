@@ -31,6 +31,7 @@ public class PlanningTimelineFacade {
   private final CurrentYearProjectionBridge projectionBridge;
   private final Clock clock;
   private final ForwardSimulationContextFactory forwardContexts;
+  private final ForwardTimelineProjectionService futureProjections;
   private final LongTermAssetProfileReader currentLongTermAssets;
   private final PlanningProgressService planningProgress;
   private final PlanningYearReviewService planningYearReviews;
@@ -54,6 +55,8 @@ public class PlanningTimelineFacade {
     this.projectionBridge = projectionBridge;
     this.clock = clock;
     this.forwardContexts = forwardContexts;
+    this.futureProjections =
+        new ForwardTimelineProjectionService(simulations, projectionBridge, forwardContexts);
     this.currentLongTermAssets = currentLongTermAssets;
     this.planningProgress = planningProgress;
     this.planningYearReviews = planningYearReviews;
@@ -470,27 +473,12 @@ public class PlanningTimelineFacade {
 
   private List<SimulationYear> future(
       InvestmentProfile profile, SimulationAssumptions assumptions, int current) {
-    ForwardSimulationContext context = forwardContexts.create(profile, assumptions);
-    if (context.forwardAssumptions().isEmpty()) return List.of();
-    return simulations
-        .simulate(
-            projectionBridge.projectCurrentYearEnd(profile, assumptions),
-            context.forwardAssumptions().orElseThrow(),
-            SimulationScenario.BASE,
-            context.asOfYear())
-        .years();
+    return futureProjections.future(profile, assumptions, current);
   }
 
   private List<SimulationYear> future(
       ForwardSimulationInput forward, int current, SimulationScenario scenario) {
-    if (forward.forwardAssumptions().isEmpty()) return List.of();
-    SimulationResult result =
-        simulations.simulate(
-            forward.bridgedProfile(),
-            forward.forwardAssumptions().orElseThrow(),
-            scenario,
-            forward.context().asOfYear());
-    return result.years();
+    return futureProjections.future(forward, current, scenario);
   }
 
   private SimulationAssumptions assumptionsForYear(SimulationAssumptions assumptions, int year) {

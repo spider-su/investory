@@ -25,6 +25,9 @@ public interface AssetRepository extends JpaRepository<AssetEntity, Long> {
 
   List<AssetEntity> findAllByActiveFalseAndSymbolIsNotNull();
 
+  /** Loads only assets whose activity flag may change during open-position refresh. */
+  List<AssetEntity> findAllByActiveTrueOrSymbolIn(Collection<String> symbols);
+
   List<AssetEntity> findAllByExcludeFromImportTrue();
 
   List<AssetEntity> findAllByExcludeFromImportFalseAndSymbolIsNotNull();

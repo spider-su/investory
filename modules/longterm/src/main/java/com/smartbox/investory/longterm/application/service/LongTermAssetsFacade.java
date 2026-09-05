@@ -23,13 +23,13 @@ import java.time.LocalDate;
 import java.util.List;
 
 /** Internal long-term asset orchestration used by the public application service. */
-public class LongTermAssetsFacade {
+final class LongTermAssetsFacade {
   private final LongTermAssetQueryService queries;
   private final LongTermAssetAnnualSnapshotService snapshots;
   private final LongTermAssetCommandService commands;
   private final RentalContractService rentalContracts;
 
-  public LongTermAssetsFacade(
+  LongTermAssetsFacade(
       LongTermAssetQueryService queries,
       LongTermAssetAnnualSnapshotService snapshots,
       LongTermAssetCommandService commands,
@@ -38,10 +38,6 @@ public class LongTermAssetsFacade {
     this.snapshots = snapshots;
     this.commands = commands;
     this.rentalContracts = rentalContracts;
-  }
-
-  protected LongTermAssetsFacade(LongTermAssetsFacade source) {
-    this(source.queries, source.snapshots, source.commands, source.rentalContracts);
   }
 
   public List<LongTermAssetSummary> listSummaries(Long portfolioId, LocalDate date) {

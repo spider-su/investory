@@ -24,8 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Primary
 @Slf4j
 @Transactional(readOnly = true)
-public class LongTermAssetsApplicationService extends LongTermAssetsFacade
+public class LongTermAssetsApplicationService
     implements LongTermAssetsApi, LongTermAssetAnnualSnapshotReader {
+  private final LongTermAssetsFacade facade;
   private final Clock clock;
 
   @Autowired
@@ -35,71 +36,71 @@ public class LongTermAssetsApplicationService extends LongTermAssetsFacade
       LongTermAssetCommandService commands,
       RentalContractService rentalContracts,
       Clock clock) {
-    super(queries, snapshots, commands, rentalContracts);
+    this.facade = new LongTermAssetsFacade(queries, snapshots, commands, rentalContracts);
     this.clock = clock;
   }
 
   LongTermAssetsApplicationService(LongTermAssetsFacade source, Clock clock) {
-    super(source);
+    this.facade = source;
     this.clock = clock;
   }
 
   @Override
   public LongTermAssetAnnualSnapshotModel historicalAnnualSnapshot(Long portfolioId, int year) {
-    return super.historicalAnnualSnapshot(portfolioId, year);
+    return facade.historicalAnnualSnapshot(portfolioId, year);
   }
 
   @Override
   public List<AssetSummaryView> list(Long portfolioId, LocalDate date) {
-    return super.listSummaries(portfolioId, date).stream()
+    return facade.listSummaries(portfolioId, date).stream()
         .map(LongTermAssetsApplicationService::summary)
         .toList();
   }
 
   @Override
   public List<AssetGroupView> grouped(Long portfolioId, LocalDate date) {
-    return super.groupSummaries(portfolioId, date).stream()
+    return facade.groupSummaries(portfolioId, date).stream()
         .map(LongTermAssetsApplicationService::group)
         .toList();
   }
 
   @Override
   public AggregateView aggregate(Long portfolioId, LocalDate date) {
-    return aggregate(super.aggregateSummary(portfolioId, date));
+    return aggregate(facade.aggregateSummary(portfolioId, date));
   }
 
   @Override
   public AssetView asset(Long portfolioId, Long id) {
-    return super.asset(portfolioId, id);
+    return facade.asset(portfolioId, id);
   }
 
   @Override
   public RentalContractView rentalContract(Long portfolioId, Long assetId, Long contractId) {
     return rental(
-        super.rentalContractEntity(portfolioId, assetId, contractId), LocalDate.now(clock));
+        facade.rentalContractEntity(portfolioId, assetId, contractId), LocalDate.now(clock));
   }
 
   @Override
   public ValuationView valuation(Long portfolioId, Long assetId, Long periodId) {
-    var value = super.valuationData(portfolioId, assetId, periodId);
+    var value = facade.valuationData(portfolioId, assetId, periodId);
     return new ValuationView(
         value.id(), value.validFrom(), value.validTo(), value.expectedAnnualGrowthRate());
   }
 
   @Override
   public RentalTaxView rentalTaxPolicy(Long portfolioId, Long policyId) {
-    return super.rentalTaxPolicyData(portfolioId, policyId);
+    return facade.rentalTaxPolicyData(portfolioId, policyId);
   }
 
   @Override
   public DetailView details(Long portfolioId, Long id, LocalDate date) {
-    return super.details(portfolioId, id, date);
+    return facade.details(portfolioId, id, date);
   }
 
   @Override
   @Transactional
   public AssetView create(AssetCommand command) {
-    return command("create asset", command.portfolioId(), () -> super.create(command));
+    return command("create asset", command.portfolioId(), () -> facade.create(command));
   }
 
   @Override
@@ -108,7 +109,7 @@ public class LongTermAssetsApplicationService extends LongTermAssetsFacade
     return command(
         "save cash reserve",
         command.portfolioId(),
-        () -> super.saveCashReserve(command, effectiveFrom));
+        () -> facade.saveCashReserve(command, effectiveFrom));
   }
 
   @Override
@@ -118,13 +119,13 @@ public class LongTermAssetsApplicationService extends LongTermAssetsFacade
         "create bond",
         command.portfolioId(),
         () -> {
-          return super.createBond(command);
+          return facade.createBond(command);
         });
   }
 
   @Override
   public PageSnapshot page(Long portfolioId, LocalDate date) {
-    var page = super.pageData(portfolioId, date);
+    var page = facade.pageData(portfolioId, date);
     return new PageSnapshot(
         page.assets().stream().map(LongTermAssetsApplicationService::summary).toList(),
         page.groups().stream().map(LongTermAssetsApplicationService::group).toList(),
@@ -133,7 +134,7 @@ public class LongTermAssetsApplicationService extends LongTermAssetsFacade
 
   @Override
   public List<AssetSummaryView> archived(Long portfolioId, LocalDate date) {
-    return super.archivedSummaries(portfolioId, date).stream()
+    return facade.archivedSummaries(portfolioId, date).stream()
         .map(LongTermAssetsApplicationService::summary)
         .toList();
   }
@@ -145,39 +146,40 @@ public class LongTermAssetsApplicationService extends LongTermAssetsFacade
         "create deposit",
         command.portfolioId(),
         () -> {
-          return super.createDeposit(command);
+          return facade.createDeposit(command);
         });
   }
 
   @Override
   @Transactional
   public AssetView update(AssetCommand command) {
-    return command("update asset", command.portfolioId(), () -> super.update(command));
+    return command("update asset", command.portfolioId(), () -> facade.update(command));
   }
 
   @Override
   @Transactional
   public AssetView patch(AssetPatchCommand command) {
-    return command("patch asset", command.portfolioId(), () -> super.patch(command));
+    return command("patch asset", command.portfolioId(), () -> facade.patch(command));
   }
 
   @Override
   @Transactional
   public void updateBond(BondCommand command) {
-    runCommand("update bond", command.portfolioId(), () -> super.updateBond(command));
+    runCommand("update bond", command.portfolioId(), () -> facade.updateBond(command));
   }
 
   @Override
   @Transactional
   public AssetView saveRealEstate(Long portfolioId, RealEstateEntryModel entry) {
-    return command("save real estate", portfolioId, () -> super.saveRealEstate(portfolioId, entry));
+    return command(
+        "save real estate", portfolioId, () -> facade.saveRealEstate(portfolioId, entry));
   }
 
   @Override
   @Transactional
   public AssetView updateRealEstate(Long portfolioId, Long id, RealEstateEntryModel entry) {
     return command(
-        "update real estate", portfolioId, () -> super.updateRealEstate(portfolioId, id, entry));
+        "update real estate", portfolioId, () -> facade.updateRealEstate(portfolioId, id, entry));
   }
 
   @Override
@@ -186,7 +188,7 @@ public class LongTermAssetsApplicationService extends LongTermAssetsFacade
     return command(
         "create rental contract",
         command.portfolioId(),
-        () -> rental(super.createRentalContractEntity(command), LocalDate.now(clock)));
+        () -> rental(facade.createRentalContractEntity(command), LocalDate.now(clock)));
   }
 
   @Override
@@ -195,7 +197,7 @@ public class LongTermAssetsApplicationService extends LongTermAssetsFacade
     return command(
         "update rental contract",
         command.portfolioId(),
-        () -> rental(super.updateRentalContractEntity(command), LocalDate.now(clock)));
+        () -> rental(facade.updateRentalContractEntity(command), LocalDate.now(clock)));
   }
 
   @Override
@@ -204,7 +206,7 @@ public class LongTermAssetsApplicationService extends LongTermAssetsFacade
     runCommand(
         "delete rental contract",
         portfolioId,
-        () -> super.deleteRentalContract(portfolioId, assetId, contractId));
+        () -> facade.deleteRentalContract(portfolioId, assetId, contractId));
   }
 
   @Override
@@ -216,7 +218,7 @@ public class LongTermAssetsApplicationService extends LongTermAssetsFacade
         portfolioId,
         () ->
             rental(
-                super.endRentalContractEntity(portfolioId, assetId, contractId, endDate),
+                facade.endRentalContractEntity(portfolioId, assetId, contractId, endDate),
                 LocalDate.now(clock)));
   }
 
@@ -227,13 +229,13 @@ public class LongTermAssetsApplicationService extends LongTermAssetsFacade
     runCommand(
         "terminate rental contract",
         portfolioId,
-        () -> super.terminateRentalContract(portfolioId, assetId, contractId, terminationDate));
+        () -> facade.terminateRentalContract(portfolioId, assetId, contractId, terminationDate));
   }
 
   @Override
   @Transactional
   public void saveTaxBase(Long portfolioId, Long id, BigDecimal value) {
-    runCommand("save tax base", portfolioId, () -> super.saveTaxBase(portfolioId, id, value));
+    runCommand("save tax base", portfolioId, () -> facade.saveTaxBase(portfolioId, id, value));
   }
 
   @Override
@@ -242,19 +244,19 @@ public class LongTermAssetsApplicationService extends LongTermAssetsFacade
     runCommand(
         "save rental tax ownership",
         portfolioId,
-        () -> super.saveRentalTaxOwnership(portfolioId, id, paidByTenant));
+        () -> facade.saveRentalTaxOwnership(portfolioId, id, paidByTenant));
   }
 
   @Override
   @Transactional
   public void archive(Long portfolioId, Long id) {
-    runCommand("archive asset", portfolioId, () -> super.archive(portfolioId, id));
+    runCommand("archive asset", portfolioId, () -> facade.archive(portfolioId, id));
   }
 
   @Override
   @Transactional
   public void reactivate(Long portfolioId, Long id) {
-    runCommand("reactivate asset", portfolioId, () -> super.reactivate(portfolioId, id));
+    runCommand("reactivate asset", portfolioId, () -> facade.reactivate(portfolioId, id));
   }
 
   @Override
@@ -263,14 +265,14 @@ public class LongTermAssetsApplicationService extends LongTermAssetsFacade
     runCommand(
         "save property growth",
         portfolioId,
-        () -> super.savePropertyGrowth(portfolioId, id, rate, from));
+        () -> facade.savePropertyGrowth(portfolioId, id, rate, from));
   }
 
   @Override
   @Transactional
   public void saveBondDetails(Long portfolioId, Long id, BondDetailsCommand command) {
     runCommand(
-        "save bond details", portfolioId, () -> super.saveBondDetails(portfolioId, id, command));
+        "save bond details", portfolioId, () -> facade.saveBondDetails(portfolioId, id, command));
   }
 
   @Override
@@ -279,14 +281,14 @@ public class LongTermAssetsApplicationService extends LongTermAssetsFacade
     runCommand(
         "save deposit details",
         portfolioId,
-        () -> super.saveDepositDetails(portfolioId, id, command));
+        () -> facade.saveDepositDetails(portfolioId, id, command));
   }
 
   @Override
   @Transactional
   public ValuationView addValuation(Long portfolioId, Long id, ValuationCommand command) {
     return command(
-        "add valuation", portfolioId, () -> super.addValuation(portfolioId, id, command));
+        "add valuation", portfolioId, () -> facade.addValuation(portfolioId, id, command));
   }
 
   @Override
@@ -295,14 +297,14 @@ public class LongTermAssetsApplicationService extends LongTermAssetsFacade
     runCommand(
         "update valuation",
         portfolioId,
-        () -> super.updateValuation(portfolioId, id, periodId, command));
+        () -> facade.updateValuation(portfolioId, id, periodId, command));
   }
 
   @Override
   @Transactional
   public void deleteValuation(Long portfolioId, Long id, Long periodId) {
     runCommand(
-        "delete valuation", portfolioId, () -> super.deleteValuation(portfolioId, id, periodId));
+        "delete valuation", portfolioId, () -> facade.deleteValuation(portfolioId, id, periodId));
   }
 
   @Override
@@ -311,7 +313,7 @@ public class LongTermAssetsApplicationService extends LongTermAssetsFacade
     return command(
         "save rental tax policy",
         portfolioId,
-        () -> super.saveRentalTaxPolicy(portfolioId, command));
+        () -> facade.saveRentalTaxPolicy(portfolioId, command));
   }
 
   @Override
@@ -320,7 +322,7 @@ public class LongTermAssetsApplicationService extends LongTermAssetsFacade
     runCommand(
         "update rental tax policy",
         portfolioId,
-        () -> super.saveRentalTaxPolicy(portfolioId, policyId, command));
+        () -> facade.saveRentalTaxPolicy(portfolioId, policyId, command));
   }
 
   @Override
@@ -329,7 +331,7 @@ public class LongTermAssetsApplicationService extends LongTermAssetsFacade
     runCommand(
         "delete rental tax policy",
         portfolioId,
-        () -> super.deleteRentalTaxPolicy(portfolioId, policyId));
+        () -> facade.deleteRentalTaxPolicy(portfolioId, policyId));
   }
 
   private <T> T command(String operation, Long portfolioId, java.util.function.Supplier<T> action) {
@@ -371,7 +373,7 @@ public class LongTermAssetsApplicationService extends LongTermAssetsFacade
 
   @Override
   public List<RentalTaxView> rentalTaxPolicies(Long portfolioId) {
-    return super.rentalTaxPolicies(portfolioId);
+    return facade.rentalTaxPolicies(portfolioId);
   }
 
   private static RentalContractView rental(LongTermAssetRentalContractEntity c, LocalDate date) {

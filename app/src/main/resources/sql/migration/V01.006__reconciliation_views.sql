@@ -2252,8 +2252,8 @@ CREATE OR REPLACE VIEW investory.recon_v_portfolio_service_fallback AS
 WITH position_components AS (
     SELECT
         pf.id AS portfolio_id,
-        CASE WHEN pos.close_time IS NULL THEN 'UNREALIZED' ELSE 'REALIZED' END::varchar(16) AS metric_type,
-        COALESCE(pos.close_time::date, CURRENT_DATE) AS valuation_date,
+        'REALIZED'::varchar(16) AS metric_type,
+        pos.close_time::date AS valuation_date,
         pos.profit_currency::varchar(3) AS source_currency,
         pf.base_currency::varchar(3) AS base_currency,
         COALESCE(pos.profit, 0) + COALESCE(pos.swap, 0) AS amount_native
@@ -2262,11 +2262,12 @@ WITH position_components AS (
     JOIN investory.portfolios pf ON pf.id = acc.portfolio_id
     JOIN investory.assets asset ON asset.id = pos.asset_id
                                AND asset.exclude_from_import = false
+    WHERE pos.close_time IS NOT NULL
     UNION ALL
     SELECT
         pf.id AS portfolio_id,
-        CASE WHEN pos.close_time IS NULL THEN 'UNREALIZED' ELSE 'REALIZED' END::varchar(16) AS metric_type,
-        COALESCE(pos.close_time::date, CURRENT_DATE) AS valuation_date,
+        'REALIZED'::varchar(16) AS metric_type,
+        pos.close_time::date AS valuation_date,
         pos.commission_currency::varchar(3) AS source_currency,
         pf.base_currency::varchar(3) AS base_currency,
         COALESCE(pos.commission, 0) AS amount_native
@@ -2275,6 +2276,21 @@ WITH position_components AS (
     JOIN investory.portfolios pf ON pf.id = acc.portfolio_id
     JOIN investory.assets asset ON asset.id = pos.asset_id
                                AND asset.exclude_from_import = false
+    WHERE pos.close_time IS NOT NULL
+    UNION ALL
+    SELECT
+        pf.id AS portfolio_id,
+        'UNREALIZED'::varchar(16) AS metric_type,
+        r.valuation_date,
+        pf.base_currency::varchar(3) AS source_currency,
+        pf.base_currency::varchar(3) AS base_currency,
+        r.reconstructed_unrealized_profit_base AS amount_native
+    FROM investory.app_v_reconstructed_position_daily r
+    JOIN investory.accounts acc ON acc.id = r.account_id
+    JOIN investory.portfolios pf ON pf.id = acc.portfolio_id
+    WHERE r.valuation_date = (SELECT MAX(valuation_date) FROM investory.app_v_reconstructed_position_daily)
+      AND r.open_quantity <> 0
+      AND r.reconstructed_unrealized_profit_base IS NOT NULL
 ), converted_position_components AS (
     SELECT pc.*, fx.fx_rate_to_target, fx.conversion_status
     FROM position_components pc
