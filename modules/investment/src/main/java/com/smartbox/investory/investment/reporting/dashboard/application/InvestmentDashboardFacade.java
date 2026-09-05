@@ -402,11 +402,6 @@ public class InvestmentDashboardFacade {
         structure);
   }
 
-  private PortfolioStructureView portfolioStructure(
-      Portfolio portfolio, AssetAllocationView assetAllocation) {
-    return portfolioStructureQuery.load(portfolio, assetAllocation);
-  }
-
   private Double incomeYield(PeriodPerformance periodPerformance, Portfolio portfolio) {
     return periodMetricsService.incomeYield(
         periodPerformance.incomeTotal(),

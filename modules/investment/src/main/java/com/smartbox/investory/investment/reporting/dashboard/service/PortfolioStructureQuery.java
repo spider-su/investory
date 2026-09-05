@@ -25,26 +25,13 @@ public class PortfolioStructureQuery {
         assetAllocationQuery == null
             ? new AssetAllocationView(0.0, List.of())
             : assetAllocationQuery.load(portfolioId, portfolio);
-    return load(portfolioId, portfolio, allocation);
-  }
-
-  public PortfolioStructureView load(Portfolio portfolio, AssetAllocationView allocation) {
-    return load(null, portfolio, allocation);
-  }
-
-  private PortfolioStructureView load(
-      Long portfolioId, Portfolio portfolio, AssetAllocationView allocation) {
     double total =
-        portfolioId == null || assetAllocationQuery == null
+        assetAllocationQuery == null
             ? portfolio.getBalance()
             : allocation.totalValue().doubleValue();
-    double cash = portfolio.getCash();
-
-    // Symbols are Investory's portfolio-level instrument identifiers. Aggregate across accounts
-    // before calculating concentration so duplicate account rows do not understate a holding.
     List<PortfolioStructureView.Holding> holdings =
-        portfolioId == null || assetAllocationQuery == null
-            ? legacyHoldings(portfolio, total)
+        assetAllocationQuery == null
+            ? List.of()
             : assetAllocationQuery.canonicalHoldings(portfolioId).stream()
                 .map(
                     row ->
@@ -56,6 +43,15 @@ public class PortfolioStructureQuery {
                 .sorted(
                     Comparator.comparingDouble(PortfolioStructureView.Holding::value).reversed())
                 .toList();
+    return build(portfolio, allocation, total, holdings);
+  }
+
+  private PortfolioStructureView build(
+      Portfolio portfolio,
+      AssetAllocationView allocation,
+      double total,
+      List<PortfolioStructureView.Holding> holdings) {
+    double cash = portfolio.getCash();
 
     // Account-balance exposure; distinct from SQL portfolio_currency_breakdown P/L-by-currency.
     List<PortfolioStructureView.CurrencyBucket> currencies =
@@ -85,41 +81,6 @@ public class PortfolioStructureQuery {
         holdings.stream().limit(10).toList(),
         currencies,
         allocation);
-  }
-
-  private static List<PortfolioStructureView.Holding> legacyHoldings(
-      Portfolio portfolio, double total) {
-    if (portfolio.getOpenPositionValues() == null) return List.of();
-    return portfolio.getOpenPositionValues().stream()
-        .filter(position -> position.getSymbol() != null && !position.getSymbol().isBlank())
-        .collect(
-            Collectors.groupingBy(
-                position -> position.getSymbol(),
-                java.util.LinkedHashMap::new,
-                Collectors.toList()))
-        .entrySet()
-        .stream()
-        .map(
-            entry -> {
-              double value =
-                  entry.getValue().stream()
-                      .mapToDouble(
-                          position ->
-                              position.getValue() == null ? 0.0 : position.getValue().doubleValue())
-                      .sum();
-              double unrealized =
-                  entry.getValue().stream()
-                      .mapToDouble(
-                          position ->
-                              position.getUnrealized() == null
-                                  ? 0.0
-                                  : position.getUnrealized().doubleValue())
-                      .sum();
-              return new PortfolioStructureView.Holding(
-                  entry.getKey(), value, weight(value, total), unrealized);
-            })
-        .sorted(Comparator.comparingDouble(PortfolioStructureView.Holding::value).reversed())
-        .toList();
   }
 
   private static PortfolioStructureView.CurrencyBucket currencyBucket(

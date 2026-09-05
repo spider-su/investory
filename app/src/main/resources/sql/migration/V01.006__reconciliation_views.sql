@@ -2208,7 +2208,7 @@ recon AS (
         MAX(ABS(adr.market_value_difference)) AS maximum_market_value_difference,
         MAX(ABS(adr.equity_difference)) AS maximum_equity_difference,
         MAX(adr.status) AS status_hint
-    FROM investory.recon_v_account_daily adr
+    FROM investory.recon_v_account_daily_diagnostic adr
     GROUP BY adr.valuation_date, adr.account_id
 )
 SELECT
@@ -2235,8 +2235,6 @@ SELECT
           OR ps.residual_positions > 0
           OR COALESCE(r.reconciliation_failures, 0) > 0 THEN 'FAIL'
         WHEN ps.interpolated_prices > 0
-          OR ps.trade_observation_prices > 0
-          OR ps.alternate_listing_prices > 0
           OR COALESCE(vc.price_anomalies, 0) > 0 THEN 'WARN'
         ELSE 'PASS'
     END::varchar(16) AS status
@@ -3306,6 +3304,35 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_mv_recon_account_monthly_profit_key
 
 -- Stable diagnostic codes for the application reconciliation report.
 CREATE OR REPLACE VIEW investory.recon_v_account_daily_diagnostic AS
+WITH raw_cash AS (
+    SELECT ad.account_id, ad.snapshot_date AS valuation_date,
+           ad.cash_balance AS reported_cash_balance_raw,
+           SUM(rc.reconstructed_cash_component_base) AS reconstructed_cash_balance_raw
+    FROM investory.account_daily ad
+    LEFT JOIN investory.recon_v_reconstructed_cash_daily_mv rc
+      ON rc.account_id = ad.account_id AND rc.valuation_date = ad.snapshot_date
+    GROUP BY ad.account_id, ad.snapshot_date, ad.cash_balance
+), classified AS (
+SELECT
+    r.*,
+    c.reported_cash_balance_raw,
+    c.reconstructed_cash_balance_raw,
+    ABS(r.market_value_difference) <= GREATEST(
+        investory.reconciliation_parameter('reconciliation_market_value_absolute_tolerance'),
+        investory.reconciliation_parameter('reconciliation_market_value_relative_tolerance')
+            * GREATEST(ABS(r.reported_market_value), ABS(r.reconstructed_market_value))) AS market_value_within_tolerance,
+    c.reported_cash_balance_raw IS NOT NULL AND c.reconstructed_cash_balance_raw IS NOT NULL
+      AND ABS(c.reported_cash_balance_raw - c.reconstructed_cash_balance_raw) <= GREATEST(
+        investory.reconciliation_parameter('reconciliation_cash_absolute_tolerance'),
+        investory.reconciliation_parameter('reconciliation_relative_tolerance')
+            * GREATEST(ABS(c.reported_cash_balance_raw), ABS(c.reconstructed_cash_balance_raw))) AS cash_within_tolerance,
+    EXISTS (
+        SELECT 1 FROM investory.app_v_reconstructed_position_daily p
+        WHERE p.account_id = r.account_id AND p.valuation_date = r.valuation_date
+          AND p.reconstruction_status = 'WARN') AS has_lower_quality_valuation
+FROM investory.recon_v_account_daily r
+LEFT JOIN raw_cash c ON c.account_id = r.account_id AND c.valuation_date = r.valuation_date
+)
 SELECT
     r.account_id,
     r.valuation_date,
@@ -3333,9 +3360,35 @@ SELECT
     r.cost_base_effective_tolerance,
     r.unrealized_effective_tolerance,
     r.realized_effective_tolerance,
-    r.status,
-    r.severity,
-    r.validation_message,
+    CASE
+        WHEN r.validation_message = 'market value mismatch' AND r.market_value_within_tolerance
+             AND r.has_lower_quality_valuation THEN 'WARN'
+        WHEN r.validation_message = 'market value mismatch' AND r.market_value_within_tolerance THEN 'PASS'
+        WHEN r.validation_message = 'cash mismatch' AND r.cash_within_tolerance
+             AND r.has_lower_quality_valuation THEN 'WARN'
+        WHEN r.validation_message = 'cash mismatch' AND r.cash_within_tolerance THEN 'PASS'
+        ELSE r.status
+    END::varchar(16) AS status,
+    CASE
+        WHEN r.validation_message IN ('market value mismatch', 'cash mismatch')
+             AND ((r.validation_message = 'market value mismatch' AND r.market_value_within_tolerance)
+               OR (r.validation_message = 'cash mismatch' AND r.cash_within_tolerance))
+             AND r.has_lower_quality_valuation THEN 'WARN'
+        WHEN r.validation_message IN ('market value mismatch', 'cash mismatch')
+             AND ((r.validation_message = 'market value mismatch' AND r.market_value_within_tolerance)
+               OR (r.validation_message = 'cash mismatch' AND r.cash_within_tolerance)) THEN 'INFO'
+        ELSE r.severity
+    END::varchar(16) AS severity,
+    CASE
+        WHEN r.validation_message IN ('market value mismatch', 'cash mismatch')
+             AND ((r.validation_message = 'market value mismatch' AND r.market_value_within_tolerance)
+               OR (r.validation_message = 'cash mismatch' AND r.cash_within_tolerance))
+             AND r.has_lower_quality_valuation THEN 'valuation used lower-quality price source'
+        WHEN r.validation_message IN ('market value mismatch', 'cash mismatch')
+             AND ((r.validation_message = 'market value mismatch' AND r.market_value_within_tolerance)
+               OR (r.validation_message = 'cash mismatch' AND r.cash_within_tolerance)) THEN 'reconciliation passed'
+        ELSE r.validation_message
+    END::text AS validation_message,
     CASE r.validation_message
         WHEN 'cash mismatch' THEN 'ACCOUNT_DAILY_CASH_RECONCILIATION'
         WHEN 'cash reconstruction failed' THEN 'ACCOUNT_DAILY_CASH_RECONCILIATION'
@@ -3349,7 +3402,7 @@ SELECT
         WHEN 'equity mismatch' THEN 'ACCOUNT_DAILY_EQUITY_RECONCILIATION'
         ELSE 'UNKNOWN'
     END::varchar(96) AS diagnostic_code
-FROM investory.recon_v_account_daily r;
+FROM classified r;
 
 COMMENT ON VIEW investory.recon_v_account_daily_diagnostic IS
     'Stable diagnostic-code projection for reconciliation consumers; unknown source conditions remain UNKNOWN.';

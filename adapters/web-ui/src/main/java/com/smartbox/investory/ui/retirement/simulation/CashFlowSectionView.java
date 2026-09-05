@@ -188,8 +188,7 @@ public record CashFlowSectionView(
     add(destinations, "Cash", "Spending", money.annualCosts(), "DESTINATION");
     BigDecimal incomeTotal = money.totalIncome();
     BigDecimal spending = money.annualCosts();
-    if (incomeTotal != null && spending != null && incomeTotal.compareTo(spending) > 0)
-      add(destinations, "Cash", "Surplus", incomeTotal.subtract(spending), "DESTINATION");
+    add(destinations, "Cash", "Surplus", money.fundingSurplus(), "DESTINATION");
 
     BigDecimal economicSources =
         income.stream().map(CashFlowFlowView::amount).reduce(BigDecimal.ZERO, BigDecimal::add);

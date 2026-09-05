@@ -68,7 +68,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import tools.jackson.databind.ObjectMapper;
 
-@Disabled
 @ActiveProfiles("test-fast")
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
@@ -115,23 +114,20 @@ class InvestmentDashboardGoldenUiIT extends FastDatabaseTest {
 
   @BeforeAll
   void prepareGoldenPortfolio() throws Exception {
-    loadGoldenFx();
-    try (InputStream input = resource("ibkr/U17959259.TRANSACTIONS.GOLDEN.csv")) {
-      ImportExecutionResult result =
-          ibkrImport.importStatement(input, "U17959259.TRANSACTIONS.GOLDEN.csv");
-      assertThat(result.rowsTotal()).isEqualTo(19);
-      assertThat(result.rowsApplied()).isEqualTo(19);
-      assertThat(result.rowsFailed()).isZero();
-    }
-    try (InputStream input = goldenBinary("xtb/investory_xtb_golden.zip")) {
-      ImportExecutionResult result = xtbImport.importZip(input, "investory_xtb_golden.zip");
-      assertThat(result.rowsApplied()).isPositive();
-      assertThat(result.rowsFailed()).isZero();
-    }
-    loadGoldenFx();
-    extendGoldenFxThroughCashOperations();
+    timed("baseline preparation", this::importGoldenPortfolio);
+    timed(
+        "FX preload",
+        () -> {
+          loadGoldenFx();
+          extendGoldenFxThroughCashOperations();
+        });
     jdbc.update("UPDATE investory.assets SET price_source = 'GOLDEN' WHERE price_source IS NULL");
-    refreshGoldenDashboard();
+    timed("account rebuild", () -> projections.recalculateAccounts(GOLDEN_ACCOUNTS));
+    timed(
+        "reporting refresh",
+        () ->
+            projectionRefreshService.refreshApplicationViews(
+                PortfolioProjectionRefreshService.ApplicationRefreshScope.DASHBOARD));
     assertThat(
             jdbc.queryForObject(
                 "SELECT count(*) FROM investory.app_v_current_open_position_rows "
@@ -163,29 +159,65 @@ class InvestmentDashboardGoldenUiIT extends FastDatabaseTest {
 
   @DisplayName("golden Investment Dashboard Reflects Fixed Currency Updates")
   @Test
-  void goldenInvestmentDashboardReflectsFixedCurrencyUpdates() {
-    runScenario(
-        page -> {
-          openDashboard(page);
-          OverviewView initial = assertDashboardSmoke(page);
+  void goldenInvestmentDashboardReflectsFixedCurrencyUpdates() throws Exception {
+    timed(
+        "browser assertions",
+        () ->
+            runScenario(
+                page -> {
+                  openDashboard(page);
+                  OverviewView initial = assertDashboardSmoke(page);
 
-          page.locator(".iv-topbar-fx-popover > summary").click();
-          Response fxResponse =
-              page.waitForResponse(
-                  response ->
-                      response.url().endsWith("/api/v1/investment/maintenance/refresh-currency"),
-                  () ->
-                      page.waitForNavigation(() -> page.locator("#refresh-currency-btn").click()));
-          assertThat(fxResponse.status()).isEqualTo(200);
-          assertFixedFxRatesInDatabase();
-          OverviewView afterFx = assertDashboardRefreshValues(page);
-          assertThat(
-                  afterFx
-                      .exchangeRates()
-                      .get(com.smartbox.investory.shared.currency.CurrencyType.PLN))
-              .isEqualTo(FIXED_USD_PLN_RATE.doubleValue());
-          assertThat(afterFx.balance()).isNotEqualTo(initial.balance());
-        });
+                  page.locator(".iv-topbar-fx-popover > summary").click();
+                  Response fxResponse =
+                      page.waitForResponse(
+                          response ->
+                              response
+                                  .url()
+                                  .endsWith("/api/v1/investment/maintenance/refresh-currency"),
+                          () ->
+                              page.waitForNavigation(
+                                  () -> page.locator("#refresh-currency-btn").click()));
+                  assertThat(fxResponse.status()).isEqualTo(200);
+                  assertFixedFxRatesInDatabase();
+                  OverviewView afterFx = assertDashboardRefreshValues(page);
+                  assertThat(
+                          afterFx
+                              .exchangeRates()
+                              .get(com.smartbox.investory.shared.currency.CurrencyType.PLN))
+                      .isEqualTo(FIXED_USD_PLN_RATE.doubleValue());
+                  assertThat(afterFx.balance()).isNotEqualTo(initial.balance());
+                }));
+  }
+
+  private void importGoldenPortfolio() throws Exception {
+    try (InputStream input = resource("ibkr/U17959259.TRANSACTIONS.GOLDEN.csv")) {
+      ImportExecutionResult result =
+          ibkrImport.importStatement(input, "U17959259.TRANSACTIONS.GOLDEN.csv");
+      assertThat(result.rowsTotal()).isEqualTo(19);
+      assertThat(result.rowsApplied()).isEqualTo(19);
+      assertThat(result.rowsFailed()).isZero();
+    }
+    try (InputStream input = goldenBinary("xtb/investory_xtb_golden.zip")) {
+      ImportExecutionResult result = xtbImport.importZip(input, "investory_xtb_golden.zip");
+      assertThat(result.rowsApplied()).isPositive();
+      assertThat(result.rowsFailed()).isZero();
+    }
+  }
+
+  private void timed(String phase, ThrowingAction action) throws Exception {
+    long started = System.nanoTime();
+    try {
+      action.run();
+    } finally {
+      System.out.printf(
+          "GOLDEN PHASE: %s durationMs=%d%n", phase, (System.nanoTime() - started) / 1_000_000);
+    }
+  }
+
+  @FunctionalInterface
+  private interface ThrowingAction {
+    void run() throws Exception;
   }
 
   /**
@@ -524,12 +556,6 @@ class InvestmentDashboardGoldenUiIT extends FastDatabaseTest {
         target,
         rate,
         "GOLDEN-UI:" + base + ":" + target);
-  }
-
-  private void refreshGoldenDashboard() {
-    projections.recalculateAccounts(GOLDEN_ACCOUNTS);
-    projectionRefreshService.refreshApplicationViews(
-        PortfolioProjectionRefreshService.ApplicationRefreshScope.DASHBOARD);
   }
 
   private void extendGoldenFxThroughCashOperations() {
