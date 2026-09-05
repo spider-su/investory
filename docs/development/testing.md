@@ -78,9 +78,9 @@ The fast read-only layer starts the real Spring application against the committe
 snapshot. It uses one canonical persisted HappyInvestor story and independent expected facts from
 `test-support`; tests must not derive expected values from a REST response or rendered page.
 
-- `HappyInvestorReadOnlyRestIT` groups checks by feature and verifies complete stable response
-  fields for dashboard MAX/YTD, profile, long-term list/detail, retirement plan/projection, and
-  investment asset detail. Generated timestamps are checked only when the fixture controls them.
+- Feature-owned REST controller tests verify stable API fields without recreating a generic
+  cross-module response contract. `ProfilePersistedFactsIT` verifies the complete Profile
+  composition against persisted HappyInvestor facts.
 - `HappyInvestorReadOnlyUiIT` starts the same application and snapshot with Chromium. Its tests are
   grouped by page/module and verify the financial values users see. It performs navigation only;
   writes, refreshes, imports, exports, and form submissions belong to action integration tests.
@@ -100,13 +100,12 @@ small navigation and JavaScript controls without duplicating canonical financial
 Failed page cases write a screenshot, rendered HTML, and Playwright trace under
 `app/target/ui-test-results`.
 
-`LongTermAssetCrudUiIT` covers the complete browser-to-database lifecycle for other assets,
-bonds, cash reserves, deposits, and rental properties. Every type is created twice through its UI,
-then checked in the rendered detail view and PostgreSQL. The first item is edited and checked
-again; the second item is archived and verified absent from the active list while retained as an
-inactive database row. Rental-property coverage additionally creates and edits rental contracts,
-checks all contract terms and tax ownership fields, and deletes the second property's contract.
-Each scenario uses unique data in the disposable snapshot-backed test database.
+`LongTermAssetCrudUiIT` currently covers a canonical real-estate browser flow through the rendered
+list/detail/create/edit pages, with PostgreSQL assertions for persisted property facts and rental
+term editing. It also checks long-term list rendering for cash reserves. It does not currently
+provide complete browser CRUD coverage for bonds, cash reserves, personal assets, or archive/
+reactivate behavior; those paths are covered by application, REST, and focused unit tests where
+available. Do not treat this test as a complete browser lifecycle test for every Long-Term type.
 
 `InvestmentDashboardGoldenUiIT` rebuilds the investment portfolio from the committed IBKR, XTB,
 and FX golden-path fixtures in an isolated PostgreSQL database. It checks every rendered dashboard
@@ -163,11 +162,15 @@ The migration layer stays deliberately small:
 - `FlywayMigrationChainIT` proves the complete chain applies to an empty database.
 - `SchemaStructureContractIT` checks the application-facing tables, views, and key columns.
 - `MigrationDataRepairIT` checks the repaired reference-data semantics from the final migration.
+- `LongTermHardeningMigrationIT` proves annual rental-tax-base facts remain unchanged and verifies
+  database chronology and lifecycle-provenance constraints.
 
 Financially critical calculation packages have additional JaCoCo thresholds in
 `docs/quality/coverage-baseline.json`. The existing aggregate 70% line / 50% branch gate remains;
 the extra gate covers investment performance, projection, valuation, and retirement planning
-packages, plus changed executable lines in those packages. It is a targeted protection layer, not
+packages, plus changed executable lines in those packages. Long-Term's main command, rental,
+calendar-accrual, and aggregation flows remain module-owned tests and are reviewed in the generated
+module report. It is a targeted protection layer, not
 a reason to add broad end-to-end tests.
 
 ## Generate the schema snapshot

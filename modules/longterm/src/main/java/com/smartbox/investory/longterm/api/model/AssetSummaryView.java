@@ -14,6 +14,28 @@ public record AssetSummaryView(
     LocalDate maturityDate,
     BigDecimal currentAnnualRate,
     AnnualEconomicsView annualEconomics,
-    RealEstatePlanningView realEstatePlanning,
-    BondPlanningView bondPlanning,
-    LocalDate rentEnd) {}
+    BigDecimal totalPaymentMonthly,
+    LocalDate rentEnd) {
+  public AssetSummaryView(
+      Long id,
+      String name,
+      LongTermAssetType type,
+      CurrencyType currency,
+      BigDecimal currentValue,
+      LocalDate maturityDate,
+      BigDecimal currentAnnualRate,
+      AnnualEconomicsView annualEconomics,
+      LocalDate rentEnd) {
+    this(
+        id,
+        name,
+        type,
+        currency,
+        currentValue,
+        maturityDate,
+        currentAnnualRate,
+        annualEconomics,
+        BigDecimal.ZERO,
+        rentEnd);
+  }
+}

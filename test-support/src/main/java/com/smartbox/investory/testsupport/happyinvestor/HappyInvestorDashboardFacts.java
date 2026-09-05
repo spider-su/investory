@@ -5,7 +5,7 @@ import java.math.BigDecimal;
 /** Named F4 facts maintained from the Happy Investor specification, not UI output. */
 public final class HappyInvestorDashboardFacts {
   public static final String REPORTING_CURRENCY = HappyInvestorTestData.REPORTING_CURRENCY.name();
-  public static final BigDecimal BALANCE = BigDecimal.ZERO;
+  public static final BigDecimal BALANCE = new BigDecimal("141326.87");
   public static final BigDecimal NET_DEPOSITS = new BigDecimal("427285.84");
   public static final BigDecimal DEPOSITS = new BigDecimal("451127.99");
   public static final BigDecimal WITHDRAWALS = new BigDecimal("23842.15");

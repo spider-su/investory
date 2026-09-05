@@ -23,12 +23,14 @@ These tests remain app-hosted because they rely on app composition concerns or c
 - `app/src/test/java/com/smartbox/investory/investment/projection/AccountDailyProjectionBoundaryIT.java`
 - `app/src/test/java/com/smartbox/investory/investment/valuation/price/AssetPriceFallbackServiceTest.java`
 - `app/src/test/java/com/smartbox/investory/investment/valuation/price/ManualAssetPriceServiceTest.java`
-- `app/src/test/java/com/smartbox/investory/longterm/application/service/LongTermAssetLifecyclePersistenceIT.java`
-- `app/src/test/java/com/smartbox/investory/longterm/application/service/RentalContractPersistenceIT.java`
 - `app/src/test/java/com/smartbox/investory/investment/asset/AssetDetailReadModelIT.java` (cross-module app context, owned by investment REST)
-- `app/src/test/java/com/smartbox/investory/profile/InvestmentProfileCompositionIT.java` (cross-module profile composition)
+- `app/src/test/java/com/smartbox/investory/profile/ProfilePersistedFactsIT.java` (cross-module profile composition)
 - `app/src/test/java/com/smartbox/investory/retirement/planning/PlanningTimelineLifecycleIT.java` (persisted planning lifecycle)
 - `app/src/test/java/com/smartbox/investory/integrations/IntegrationJobExecutionIT.java` (persisted integration scheduler)
+
+Long-Term command, economics, read aggregation, lifecycle, and rental-contract rules are owned by
+`modules/longterm/src/test`. App owns its migration contracts, Spring composition, templates, and
+browser flows.
 
 ## Completed consistency moves
 
@@ -42,4 +44,3 @@ These tests remain app-hosted because they rely on app composition concerns or c
 1. Move additional adapter-owned tests from `app` to `integrations` when dependencies are already available.
 2. Keep app-hosted feature tests only where module-test dependency cycles still exist.
 3. Revisit `test-support` dependencies before moving app-hosted investment import tests into `modules/investment`.
-

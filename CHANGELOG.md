@@ -2,6 +2,21 @@
 
 Completed project work is recorded here. [`ROADMAP.md`](ROADMAP.md) contains future work only.
 
+## 2026-09-07
+
+### Long-Term module hardening
+
+- Split the oversized Long-Term facade into command, read aggregation, lifecycle, payment-audit,
+  and pure economics responsibilities while keeping persistence behind published APIs.
+- Enforced create/update identity, portfolio ownership, immutable currency, chronology, rental-term,
+  and concurrent rental-history invariants at application and database boundaries.
+- Preserved `real_estate.tax_base` as an annual user-entered value, aligned its labels and schema
+  comment without rewriting data, and restored distinct monthly tax-base and rental-tax views.
+- Added calendar-accrued historical rental income, batch current reads, focused calculation/validation
+  tests, schema migration coverage, and Long-Term architecture rules.
+- Removed unused Long-Term projection/page/aggregate compatibility contracts and redundant JSON
+  dependencies.
+
 ## 2026-08-25
 
 ### Durable notification events

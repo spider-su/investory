@@ -1,67 +1,64 @@
 package com.smartbox.investory.longterm.application.service;
 
 import com.smartbox.investory.longterm.api.LongTermAssetPaymentAuditReader;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetEntity;
-import com.smartbox.investory.longterm.infrastructure.asset.LongTermAssetRepository;
+import com.smartbox.investory.longterm.infrastructure.realestate.RealEstateRepository;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractEntity;
 import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractRepository;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/** Operational payment audit backed only by explicit real-estate persistence. */
 @Service
-@Transactional(readOnly = true)
+@Transactional(
+    readOnly = true,
+    isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
 public class LongTermAssetPaymentAuditService implements LongTermAssetPaymentAuditReader {
-  private final LongTermAssetRepository assets;
+  private final RealEstateRepository realEstates;
   private final LongTermAssetRentalContractRepository contracts;
 
   public LongTermAssetPaymentAuditService(
-      LongTermAssetRepository assets, LongTermAssetRentalContractRepository contracts) {
-    this.assets = assets;
+      RealEstateRepository realEstates, LongTermAssetRentalContractRepository contracts) {
+    this.realEstates = realEstates;
     this.contracts = contracts;
   }
 
   @Override
   public List<PaymentAuditRow> paymentAudit(Long portfolioId, LocalDate date) {
-    List<LongTermAssetEntity> portfolioAssets = assets.findAllByPortfolioIdOrderByName(portfolioId);
-    if (portfolioAssets.isEmpty()) return List.of();
+    var assets = realEstates.findAllByPortfolioIdAndArchivedAtIsNullOrderByName(portfolioId);
+    if (assets.isEmpty()) return List.of();
     var names =
-        portfolioAssets.stream()
-            .filter(LongTermAssetEntity::isActive)
+        assets.stream()
             .collect(
                 java.util.stream.Collectors.toMap(
-                    LongTermAssetEntity::getId, LongTermAssetEntity::getName));
+                    asset -> asset.getId(), asset -> asset.getName()));
     var currencies =
-        portfolioAssets.stream()
-            .filter(LongTermAssetEntity::isActive)
+        assets.stream()
             .collect(
                 java.util.stream.Collectors.toMap(
-                    LongTermAssetEntity::getId, LongTermAssetEntity::getCurrency));
-    var rows =
-        contracts.findAllWithTermsByAssetIdIn(names.keySet()).stream()
-            .filter(contract -> RentalContractService.applies(contract, date))
-            .map(contract -> row(contract, names, currencies))
-            .filter(java.util.Objects::nonNull)
-            .toList();
-    return rows;
+                    asset -> asset.getId(), asset -> asset.getCurrency()));
+    return contracts.findAllWithTermsByAssetIdIn(names.keySet()).stream()
+        .filter(contract -> RentalContractService.applies(contract, date))
+        .map(contract -> row(contract, names, currencies))
+        .filter(java.util.Objects::nonNull)
+        .toList();
   }
 
-  private PaymentAuditRow row(
+  private static PaymentAuditRow row(
       LongTermAssetRentalContractEntity contract,
       java.util.Map<Long, String> names,
       java.util.Map<Long, com.smartbox.investory.shared.currency.CurrencyType> currencies) {
     BigDecimal total =
         contract.getTerms().stream()
-            .filter(term -> term.isPaidByTenant())
             .map(
                 term ->
-                    term.getFrequency()
-                            == com.smartbox.investory.longterm.api.model.Frequency.ANNUAL
-                        ? term.getAmount().divide(BigDecimal.valueOf(12), 12, RoundingMode.HALF_UP)
-                        : term.getAmount())
+                    LongTermAssetEconomics.monthlyTenantPayment(
+                        term.getType(),
+                        term.getAmount(),
+                        term.getFrequency(),
+                        term.isPaidByTenant()))
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     if (total.signum() == 0) return null;
     return new PaymentAuditRow(

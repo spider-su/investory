@@ -143,8 +143,7 @@ composition module:
 
 - **Investment** owns brokerage accounts, imports, accounting, market data, portfolio reporting,
   dashboard, and reconciliation.
-- **Long-Term Assets** owns manually managed real estate, bonds, deposits, cash reserves, and other
-  assets.
+- **Long-Term Assets** owns manually managed real estate, bonds, cash reserves, and personal assets.
 - **Profile** composes current whole-wealth state without owning Investment or Long-Term facts.
 - **Retirement** owns planning, simulation, scenarios, and progress tracking.
 
@@ -172,8 +171,7 @@ Long-Term changes update Current but do not mutate that revision. Accepting thos
 is an explicit review/rebaseline operation that creates a new revision.
 
 `investment.api.portfolio.BrokeragePortfolioReader` publishes immutable brokerage snapshots. Profile
-composition uses the portfolio-scoped `currentSnapshot(portfolioId)` projection; shared integration
-context may use `currentSharedSnapshot()`. The Spring implementation is
+composition uses the portfolio-scoped `currentSnapshot(portfolioId)` projection. The Spring implementation is
 `investment.infrastructure.read.BrokeragePortfolioReadService`.
 `BrokerageAssetClassificationReader` supplies
 the optional symbol classification needed by the profile, and `HistoricalPortfolioActualsReader`
@@ -192,20 +190,17 @@ depend back on valuation or reporting; valuation does not depend on dashboard or
 Refresh/cache coordination between valuation and projections remains a known orchestration seam.
 Imports remain the write boundary for broker evidence and normalized ledger rows.
 
-Profile composition lives in the downstream `profile` module. `ProfileSummaryReader` and
-`ProfilePlanningReader` expose separate immutable, Profile-owned whole-wealth summary and planning
-models. Consumers that need the complete planning context compose the two narrow readers through
-`ProfileComposition`, while
-`ProfileQueryService` reads Investment and Long-Term only through public APIs. `ProfileComposition`
-is a convenience composition of two independent reads and does not guarantee one database
-snapshot. Retirement uses the `ProfileSnapshotReader` boundary for a repeatable-read profile
-snapshot. Profile may reuse
+Profile composition lives in the downstream `profile` module. `ProfileSnapshotReader` is the
+required consumer boundary for the complete immutable Profile read model. `ProfileQueryService`
+reads Investment and Long-Term only through public APIs and assembles the profile inside one
+repeatable-read transaction. The former split summary/planning ports and `ProfileComposition` are
+removed, so downstream consumers cannot accidentally combine independent reads. Profile may reuse
 small, stable Long-Term public value types in `profile.api`; it still never exposes Long-Term
 entities, repositories, or infrastructure types.
-`LongTermAssetProfileReader` returns one coherent source snapshot and reuses its summary rows for
-totals, allocation, and annual-income facts. Detailed projection inputs remain a separate batched
-read. Profile's REST adapter maps the internal aggregate to an explicit external response and
-excludes planning-only details and tenant contact data.
+`LongTermAssetProfileReader` returns one coherent source snapshot containing the summary rows used
+for totals, allocation, annual-income facts, and detailed projection inputs. Profile's REST adapter
+currently returns the public `InvestmentProfile` read model directly; it excludes tenant contact
+data and Retirement implementation types.
 Small stable provenance types are shared when their meaning crosses domain boundaries; projection
 records use `shared.projection.ProjectionSource` for `ACTUAL` and `PROJECTED` rather than defining
 module-specific copies.
@@ -234,6 +229,11 @@ Long-Term publishes `LongTermAssetProfileReader` for profile composition, curren
 projection inputs, and `LongTermAssetAnnualSnapshotReader` for historical planning facts. Its public immutable
 models include the stable Long-Term asset and cash-flow enums. Retirement callers use these contracts;
 Long-Term persistence and application services remain internal.
+
+Inside Long-Term, `LongTermAssetsApplicationService` is the thin management/API facade. Subtype
+command services own validation and mapping, `LongTermAssetReadService` owns repeatable-read batch
+aggregation, `LongTermAssetEconomics` owns pure financial calculations, and the lifecycle and payment
+audit services own their focused workflows. The REST adapter depends on the public API only.
 
 Long-Term has no second annual simulation API. Reviewed retirement revisions freeze normalized
 projection inputs from `LongTermAssetProfileReader`; Retirement owns deterministic scenario execution.

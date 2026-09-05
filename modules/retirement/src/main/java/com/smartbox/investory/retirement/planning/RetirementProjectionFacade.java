@@ -1,9 +1,6 @@
 package com.smartbox.investory.retirement.planning;
 
-import com.smartbox.investory.profile.api.ProfileComposition;
-import com.smartbox.investory.profile.api.ProfilePlanningReader;
 import com.smartbox.investory.profile.api.ProfileSnapshotReader;
-import com.smartbox.investory.profile.api.ProfileSummaryReader;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.retirement.api.RetirementPlanApi;
 import com.smartbox.investory.retirement.api.RetirementProjectionApi;
@@ -23,9 +20,7 @@ import org.springframework.stereotype.Service;
 /** Prepares the single forward-projection context consumed by both retirement boards. */
 @Service
 public class RetirementProjectionFacade implements RetirementProjectionApi {
-  private final ProfileSummaryReader summaries;
-  private final ProfilePlanningReader planning;
-  private final ProfileSnapshotReader profileSnapshots;
+  private final ProfileSnapshotReader profiles;
   private final RetirementPlanApi plans;
   private final ForwardSimulationInputService forwardInputs;
   private final RetirementSimulation simulations;
@@ -33,30 +28,16 @@ public class RetirementProjectionFacade implements RetirementProjectionApi {
 
   @Autowired
   public RetirementProjectionFacade(
-      ProfileSummaryReader summaries,
-      ProfilePlanningReader planning,
-      ProfileSnapshotReader profileSnapshots,
+      ProfileSnapshotReader profiles,
       RetirementPlanApi plans,
       ForwardSimulationInputService forwardInputs,
       RetirementSimulation simulations,
       Clock clock) {
-    this.summaries = summaries;
-    this.planning = planning;
-    this.profileSnapshots = profileSnapshots;
+    this.profiles = profiles;
     this.plans = plans;
     this.forwardInputs = forwardInputs;
     this.simulations = simulations;
     this.clock = clock;
-  }
-
-  public RetirementProjectionFacade(
-      ProfileSummaryReader summaries,
-      ProfilePlanningReader planning,
-      RetirementPlanApi plans,
-      ForwardSimulationInputService forwardInputs,
-      RetirementSimulation simulations,
-      Clock clock) {
-    this(summaries, planning, null, plans, forwardInputs, simulations, clock);
   }
 
   public RetirementProjectionContext load(Long portfolioId, Long planId) {
@@ -65,10 +46,7 @@ public class RetirementProjectionFacade implements RetirementProjectionApi {
 
   public RetirementProjectionContext load(
       Long portfolioId, Long planId, Integer defaultCurrentAge, Integer defaultEndAge) {
-    InvestmentProfile profile =
-        profileSnapshots == null
-            ? ProfileComposition.load(summaries, planning, portfolioId)
-            : profileSnapshots.loadProfile(portfolioId);
+    InvestmentProfile profile = profiles.loadProfile(portfolioId);
     var planDetails = planId == null ? null : plans.details(portfolioId, planId);
     SimulationAssumptions assumptions =
         planDetails == null

@@ -23,8 +23,8 @@ final class ProfileIncomeCalculator {
       CurrencyType incomeCurrency,
       BigDecimal marketValue,
       BigDecimal longTermIncome,
-      BigDecimal longTermValue,
-      BigDecimal total,
+      BigDecimal longTermInvestmentValue,
+      BigDecimal totalInvestmentValue,
       CurrencyType base,
       LocalDate date) {
     BigDecimal projectedMarketIncome = annualize(marketIncome, snapshot, date);
@@ -35,9 +35,9 @@ final class ProfileIncomeCalculator {
         projectedMarketIncome,
         ProfileIncomeSummary.ratio(projectedMarketIncome, basis),
         longTermIncome,
-        ProfileIncomeSummary.ratio(longTermIncome, longTermValue),
+        ProfileIncomeSummary.ratio(longTermIncome, longTermInvestmentValue),
         combined,
-        ProfileIncomeSummary.ratio(combined, total));
+        ProfileIncomeSummary.ratio(combined, totalInvestmentValue));
   }
 
   private BigDecimal annualize(

@@ -5,9 +5,7 @@ import com.smartbox.investory.investment.api.reporting.model.DashboardPercentage
 import com.smartbox.investory.investment.api.reporting.model.ReturnMetric;
 import com.smartbox.investory.investment.reporting.PortfolioPerformanceQuery;
 import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
-import java.math.BigDecimal;
 import java.time.Clock;
-import java.time.LocalDate;
 import java.time.YearMonth;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Primary;
@@ -40,26 +38,15 @@ public class InvestmentDashboardApplicationService implements InvestmentDashboar
         available
             ? DashboardPercentageFormatter.signedPercent(annualized.value().doubleValue() * 100)
             : "Unavailable";
-    BigDecimal annualizedIncome = null;
-    if (available) {
-      LocalDate today = LocalDate.now(clock);
-      var yearStart =
-          performance.forPortfolioMonths(
-              portfolioId, YearMonth.of(today.getYear(), 1), YearMonth.from(today));
-      annualizedIncome = yearStart.startValue().multiply(annualized.value());
-    }
     return new InvestmentDashboardApi.PerformanceKpiView(
-        available,
-        available ? annualized.value() : null,
-        display,
-        performanceKpi.startDate(),
-        annualizedIncome);
+        available, available ? annualized.value() : null, display, performanceKpi.startDate());
   }
 
   @Override
-  public InvestmentDashboardApi.InvestmentResultView investmentResult(Long portfolioId) {
+  public InvestmentDashboardApi.InvestmentResultView investmentResultYtd(Long portfolioId) {
     requirePortfolio(portfolioId);
-    var result = performance.portfolioResult(portfolioId);
+    YearMonth asOf = YearMonth.now(clock);
+    var result = performance.forPortfolioMonths(portfolioId, YearMonth.of(asOf.getYear(), 1), asOf);
     if (result.baseCurrency() == null) {
       return InvestmentDashboardApi.InvestmentResultView.unavailable(null);
     }

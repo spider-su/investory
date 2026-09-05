@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<header th:fragment="header(title, subtitle, portfolioId)" class="iv-topbar iv-app-header-shell iv-form-topbar">
+  <div class="iv-topbar__primary iv-form-topbar__primary">
+    <div class="iv-brand"><div class="iv-brand__content"><div class="iv-brand__title-row">
+      <h1 class="iv-brand__title">Investory</h1>
+      <button id="theme-toggle" class="iv-theme-toggle iv-theme-toggle--brand" type="button" aria-label="Switch to dark mode" title="Switch to dark mode"><svg class="iv-theme-toggle__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><path d="M12 4a8 8 0 0 0 0 16z" fill="currentColor" stroke="none"></path></svg></button>
+    </div></div></div>
+    <div class="iv-form-heading"><span class="iv-form-heading__kicker">Long-term assets</span><h2 th:text="${title}">Asset form</h2><p th:text="${subtitle}">Manage a long-term asset.</p></div>
+    <div aria-hidden="true"></div>
+  </div>
+  <div class="iv-topbar__secondary iv-form-topbar__secondary"><div aria-hidden="true"></div><div class="iv-page-nav-slot"><div th:replace="~{fragments/app-header :: appNavigation('assets', ${portfolioId})}"></div></div><div aria-hidden="true"></div></div>
+</header>
+</body>
+</html>

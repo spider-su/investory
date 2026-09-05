@@ -6,12 +6,12 @@ import com.smartbox.investory.investment.api.portfolio.BrokerageAssetType;
 import com.smartbox.investory.investment.api.portfolio.BrokeragePositionSnapshot;
 import com.smartbox.investory.investment.api.portfolio.SharedBrokeragePortfolioSnapshot;
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileAssetModel;
-import com.smartbox.investory.longterm.api.model.LongTermAssetType;
 import com.smartbox.investory.profile.api.model.AssetHorizon;
 import com.smartbox.investory.profile.api.model.EconomicBucket;
 import com.smartbox.investory.profile.api.model.Liquidity;
 import com.smartbox.investory.profile.api.model.ProfileAllocation;
 import com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation;
+import com.smartbox.investory.shared.assets.AssetEconomicCategory;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
@@ -37,19 +37,25 @@ final class ProfileAllocationCalculator {
               BigDecimal, com.smartbox.investory.shared.currency.CurrencyType, BigDecimal>
           toBase) {
     Map<AllocationKey, BigDecimal> values = new LinkedHashMap<>();
-    values.put(new AllocationKey(EconomicBucket.LIQUID_CASH, AssetHorizon.SHORT_TERM), marketCash);
+    values.put(
+        new AllocationKey(EconomicBucket.LIQUID_CASH, AssetHorizon.SHORT_TERM, Liquidity.LIQUID),
+        marketCash);
     Map<String, EconomicBucket> marketBuckets = marketBuckets(market);
     for (BrokeragePositionSnapshot position : market.openPositions()) {
       values.merge(
           new AllocationKey(
               marketBuckets.getOrDefault(position.symbol(), EconomicBucket.OTHER),
-              AssetHorizon.SHORT_TERM),
+              AssetHorizon.SHORT_TERM,
+              Liquidity.LIQUID),
           toBase.apply(position.value(), market.baseCurrency()),
           BigDecimal::add);
     }
     for (LongTermAssetProfileAssetModel asset : longTermAssets) {
       values.merge(
-          new AllocationKey(classify(asset.type()), AssetHorizon.LONG_TERM),
+          new AllocationKey(
+              classify(asset.category()),
+              AssetHorizon.LONG_TERM,
+              liquidity(asset.category(), asset.fundingAvailable())),
           toBase.apply(asset.currentValue(), asset.currency()),
           BigDecimal::add);
     }
@@ -70,7 +76,7 @@ final class ProfileAllocationCalculator {
       AllocationKey key = entry.getKey();
       result.add(
           new ProfileAllocation(
-              key.bucket(), entry.getValue(), percentage, liquidity(key.bucket()), key.horizon()));
+              key.bucket(), entry.getValue(), percentage, key.liquidity(), key.horizon()));
     }
     return List.copyOf(result);
   }
@@ -85,12 +91,12 @@ final class ProfileAllocationCalculator {
     return new ProfileAllocationReconciliation.SourceTotal(classifiedTotal, authoritativeTotal);
   }
 
-  EconomicBucket classify(LongTermAssetType type) {
-    return switch (type) {
+  EconomicBucket classify(AssetEconomicCategory category) {
+    return switch (category) {
       case REAL_ESTATE -> EconomicBucket.REAL_ESTATE;
-      case BOND -> EconomicBucket.FIXED_INCOME;
-      case DEPOSIT, CASH_RESERVE -> EconomicBucket.LIQUID_CASH;
-      case OTHER -> EconomicBucket.OTHER;
+      case FIXED_INCOME -> EconomicBucket.FIXED_INCOME;
+      case LIQUID_CASH -> EconomicBucket.LIQUID_CASH;
+      case PERSONAL_ASSET -> EconomicBucket.OTHER;
     };
   }
 
@@ -103,12 +109,10 @@ final class ProfileAllocationCalculator {
     };
   }
 
-  Liquidity liquidity(EconomicBucket bucket) {
-    return bucket == EconomicBucket.REAL_ESTATE ? Liquidity.ILLIQUID : Liquidity.LIQUID;
-  }
-
-  boolean isContractual(LongTermAssetProfileAssetModel asset) {
-    return asset.type() == LongTermAssetType.BOND || asset.type() == LongTermAssetType.DEPOSIT;
+  Liquidity liquidity(AssetEconomicCategory category, boolean fundingAvailable) {
+    return category == AssetEconomicCategory.LIQUID_CASH && fundingAvailable
+        ? Liquidity.LIQUID
+        : Liquidity.ILLIQUID;
   }
 
   private Map<String, EconomicBucket> marketBuckets(SharedBrokeragePortfolioSnapshot market) {
@@ -122,5 +126,5 @@ final class ProfileAllocationCalculator {
     return result;
   }
 
-  record AllocationKey(EconomicBucket bucket, AssetHorizon horizon) {}
+  record AllocationKey(EconomicBucket bucket, AssetHorizon horizon, Liquidity liquidity) {}
 }

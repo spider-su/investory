@@ -19,8 +19,6 @@ public final class RentalContractForm {
   private String tenantPhone;
   private LocalDate startDate;
   private LocalDate endDate;
-  private BigDecimal monthlyTaxBase;
-  private String rentalTaxOwnership = "INHERIT";
   private boolean endCurrentContractBeforeStart;
   private BigDecimal rent;
   private Frequency rentFrequency = Frequency.MONTHLY;
@@ -51,11 +49,6 @@ public final class RentalContractForm {
     form.tenantPhone = contract.tenantPhone();
     form.startDate = contract.startDate();
     form.endDate = contract.endDate();
-    form.monthlyTaxBase = contract.monthlyTaxBase();
-    form.rentalTaxOwnership =
-        contract.rentalTaxPaidByTenant() == null
-            ? "INHERIT"
-            : contract.rentalTaxPaidByTenant() ? "TENANT" : "LANDLORD";
     contract.terms().forEach(form::copy);
     return form;
   }
@@ -69,8 +62,6 @@ public final class RentalContractForm {
         tenantPhone,
         startDate,
         endDate,
-        monthlyTaxBase,
-        rentalTaxPaidByTenant(),
         endCurrentContractBeforeStart,
         terms());
   }
@@ -85,64 +76,55 @@ public final class RentalContractForm {
         tenantPhone,
         startDate,
         endDate,
-        monthlyTaxBase,
-        rentalTaxPaidByTenant(),
-        usesPropertyTaxPayerDefault(),
         terms());
   }
 
   private void copy(RentalTermView term) {
     switch (term.type()) {
       case RENT -> {
-        rent = term.amount();
+        rent = inputAmount(term.amount());
         rentFrequency = term.frequency();
       }
       case PARKING_RENT -> {
-        parkingRent = term.amount();
+        parkingRent = inputAmount(term.amount());
         parkingRentFrequency = term.frequency();
       }
       case ADMIN_FEE -> {
-        administrationFee = term.amount();
+        administrationFee = inputAmount(term.amount());
         administrationFeeFrequency = term.frequency();
         administrationFeePaidByTenant = term.paidByTenant();
       }
       case UTILITIES -> {
-        utilities = term.amount();
+        utilities = inputAmount(term.amount());
         utilitiesFrequency = term.frequency();
         utilitiesPaidByTenant = term.paidByTenant();
       }
       case OTHER_INCOME -> {
-        otherIncome = term.amount();
+        otherIncome = inputAmount(term.amount());
         otherIncomeFrequency = term.frequency();
       }
       case OTHER_EXPENSE -> {
-        otherExpense = term.amount();
+        otherExpense = inputAmount(term.amount());
         otherExpenseFrequency = term.frequency();
         otherExpensePaidByTenant = term.paidByTenant();
       }
       case PROPERTY_TAX -> {
-        annualPropertyTax = term.amount();
+        annualPropertyTax = inputAmount(term.amount());
         propertyTaxFrequency = term.frequency();
         propertyTaxPaidByTenant = term.paidByTenant();
       }
       case INSURANCE -> {
-        annualInsurance = term.amount();
+        annualInsurance = inputAmount(term.amount());
         insuranceFrequency = term.frequency();
         insurancePaidByTenant = term.paidByTenant();
       }
     }
   }
 
-  private Boolean rentalTaxPaidByTenant() {
-    return switch (rentalTaxOwnership == null ? "INHERIT" : rentalTaxOwnership) {
-      case "TENANT" -> Boolean.TRUE;
-      case "LANDLORD" -> Boolean.FALSE;
-      default -> null;
-    };
-  }
-
-  private boolean usesPropertyTaxPayerDefault() {
-    return rentalTaxOwnership == null || "INHERIT".equals(rentalTaxOwnership);
+  private static BigDecimal inputAmount(BigDecimal amount) {
+    if (amount == null) return null;
+    BigDecimal normalized = amount.stripTrailingZeros();
+    return normalized.scale() < 0 ? normalized.setScale(0) : normalized;
   }
 
   private List<RentalTermCommand> terms() {

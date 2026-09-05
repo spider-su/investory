@@ -34,11 +34,10 @@ class InvestmentProfileTemplateContractTest {
         .contains("Market investments")
         .contains("Long-term assets")
         .contains("Income sources")
-        .contains("Received YTD")
-        .contains("profileLongTermYtdIncome");
-    assertThat(profileHtml)
-        .doesNotContain("Investment result")
-        .doesNotContain("profileMarketInvestmentResult");
+        .contains("Investment result YTD")
+        .contains("Planned income YTD")
+        .contains("profileLongTermPlannedYtd");
+    assertThat(profileHtml).doesNotContain("profileMarketInvestmentResult");
     assertThat(profileHtml)
         .contains(
             "th:href=\"@{/portfolios/{portfolioId}/dashboard(portfolioId=${profile.portfolioId})}\"");
@@ -64,7 +63,7 @@ class InvestmentProfileTemplateContractTest {
         .contains("allocation.compactValueDisplay")
         .contains("profile.marketPortfolioValueCompactDisplay")
         .contains("profile.longTermAssetValueCompactDisplay")
-        .contains("profileMarketYtdIncome")
+        .contains("profileMarketResultYtd")
         .contains("profile.marketAnnualIncomeDisplay")
         .contains("profile.incomeSummary.longTermAnnualIncomeCompactDisplay")
         .contains("Annualized return")
@@ -77,6 +76,8 @@ class InvestmentProfileTemplateContractTest {
             "Short-term assets ${profile.shortTermAssetsPercentageDisplay} · Long-term assets")
         .contains("allocation.horizonLabel")
         .contains("<th>Asset type</th>")
+        .contains("allocationReconciliationMessage")
+        .doesNotContain("<th class=\"text-end\">Yield</th>")
         .doesNotContain("iv-allocation-legend")
         .doesNotContain("iv-profile-income-cards")
         .doesNotContain("Portfolio structure")

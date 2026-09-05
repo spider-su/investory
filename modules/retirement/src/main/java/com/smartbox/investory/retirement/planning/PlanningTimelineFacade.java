@@ -9,6 +9,8 @@ import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.infrastructure.planning.*;
 import com.smartbox.investory.retirement.simulation.ForwardSimulationContextFactory;
 import com.smartbox.investory.retirement.simulation.RetirementSimulation;
+import com.smartbox.investory.shared.currency.CurrencyType;
+import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import java.math.BigDecimal;
 import java.time.*;
 import java.util.*;
@@ -31,9 +33,11 @@ public class PlanningTimelineFacade {
   private final CurrentYearProjectionBridge projectionBridge;
   private final Clock clock;
   private final ForwardSimulationContextFactory forwardContexts;
+  private final ForwardTimelineProjectionService futureProjections;
   private final LongTermAssetProfileReader currentLongTermAssets;
   private final PlanningProgressService planningProgress;
   private final PlanningYearReviewService planningYearReviews;
+  private final PlanningMoneyConversionService money;
 
   @Autowired
   public PlanningTimelineFacade(
@@ -46,7 +50,8 @@ public class PlanningTimelineFacade {
       ForwardSimulationContextFactory forwardContexts,
       LongTermAssetProfileReader currentLongTermAssets,
       PlanningProgressService planningProgress,
-      PlanningYearReviewService planningYearReviews) {
+      PlanningYearReviewService planningYearReviews,
+      PlanningMoneyConversionService money) {
     this.years = years;
     this.values = values;
     this.metrics = metrics;
@@ -54,9 +59,12 @@ public class PlanningTimelineFacade {
     this.projectionBridge = projectionBridge;
     this.clock = clock;
     this.forwardContexts = forwardContexts;
+    this.futureProjections =
+        new ForwardTimelineProjectionService(simulations, projectionBridge, forwardContexts);
     this.currentLongTermAssets = currentLongTermAssets;
     this.planningProgress = planningProgress;
     this.planningYearReviews = planningYearReviews;
+    this.money = money;
   }
 
   /** Application read facade for planning progress and year review composition. */
@@ -470,27 +478,12 @@ public class PlanningTimelineFacade {
 
   private List<SimulationYear> future(
       InvestmentProfile profile, SimulationAssumptions assumptions, int current) {
-    ForwardSimulationContext context = forwardContexts.create(profile, assumptions);
-    if (context.forwardAssumptions().isEmpty()) return List.of();
-    return simulations
-        .simulate(
-            projectionBridge.projectCurrentYearEnd(profile, assumptions),
-            context.forwardAssumptions().orElseThrow(),
-            SimulationScenario.BASE,
-            context.asOfYear())
-        .years();
+    return futureProjections.future(profile, assumptions, current);
   }
 
   private List<SimulationYear> future(
       ForwardSimulationInput forward, int current, SimulationScenario scenario) {
-    if (forward.forwardAssumptions().isEmpty()) return List.of();
-    SimulationResult result =
-        simulations.simulate(
-            forward.bridgedProfile(),
-            forward.forwardAssumptions().orElseThrow(),
-            scenario,
-            forward.context().asOfYear());
-    return result.years();
+    return futureProjections.future(forward, current, scenario);
   }
 
   private SimulationAssumptions assumptionsForYear(SimulationAssumptions assumptions, int year) {
@@ -498,13 +491,13 @@ public class PlanningTimelineFacade {
     return assumptions.toBuilder()
         .currentAge(assumptions.currentAge() + offset)
         .annualLivingExpenses(
-            growForYears(
+            PlanningTimelineValueSupport.growForYears(
                 assumptions.annualLivingExpenses(),
                 assumptions.effectiveSpendingGrowthRate(),
                 offset))
         .startYear(year)
         .annualDiscretionaryExpenses(
-            growForYears(
+            PlanningTimelineValueSupport.growForYears(
                 assumptions.annualDiscretionaryExpenses(),
                 assumptions.effectiveSpendingGrowthRate(),
                 offset))
@@ -646,9 +639,12 @@ public class PlanningTimelineFacade {
     if (currentLongTermAssets != null) {
       LongTermAssetAnnualSnapshotModel facts =
           currentLongTermAssets.snapshot(portfolioId, LocalDate.now(clock)).annualSnapshot();
-      putCurrentFact(live, PlanningMetric.RENTAL_INCOME, facts.rentalIncome());
-      putCurrentFact(live, PlanningMetric.BOND_VALUE, facts.bondValue());
-      putCurrentFact(live, PlanningMetric.BOND_INCOME, facts.bondIncome());
+      putCurrentFact(
+          live, PlanningMetric.RENTAL_INCOME, canonical(facts.rentalIncome(), facts.currency()));
+      putCurrentFact(
+          live, PlanningMetric.BOND_VALUE, canonical(facts.bondValue(), facts.currency()));
+      putCurrentFact(
+          live, PlanningMetric.BOND_INCOME, canonical(facts.bondIncome(), facts.currency()));
     }
     BigDecimal costs = assumptions.annualSpending();
     BigDecimal rental = planningAmount(live, PlanningMetric.RENTAL_INCOME);
@@ -737,12 +733,10 @@ public class PlanningTimelineFacade {
     return value == null ? ZERO : value;
   }
 
-  private static BigDecimal grow(BigDecimal amount, BigDecimal rate) {
-    return PlanningTimelineValueSupport.grow(amount, rate);
-  }
-
-  private static BigDecimal growForYears(BigDecimal amount, BigDecimal rate, int years) {
-    return PlanningTimelineValueSupport.growForYears(amount, rate, years);
+  private BigDecimal canonical(BigDecimal amount, CurrencyType source) {
+    return source == FinancialPolicyDefaults.CANONICAL_CURRENCY
+        ? amount
+        : money.toCanonical(amount, source);
   }
 
   private int calendarCurrentYear() {
@@ -818,9 +812,5 @@ public class PlanningTimelineFacade {
       Map<PlanningMetric, PlanningMetricValue> values, PlanningMetric metric) {
     PlanningMetricValue value = values.get(metric);
     return value == null ? null : value.value();
-  }
-
-  private static int age(SimulationAssumptions assumptions, int year) {
-    return PlanningTimelineValueSupport.age(assumptions, year);
   }
 }

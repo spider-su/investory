@@ -174,18 +174,6 @@ class PortfolioPerformanceQueryTest {
     assertThat(query.returnPercentage(3L, YearMonth.of(2026, 7), YearMonth.of(2026, 7))).isNull();
   }
 
-  @DisplayName("portfolio Result Uses Narrow Repository Queries")
-  @Test
-  void portfolioResultUsesNarrowRepositoryQueries() {
-    when(repository.findCurrenciesByPortfolioId(1L)).thenReturn(List.of(CurrencyType.USD));
-    when(repository.sumProfitByPortfolioId(1L)).thenReturn(new BigDecimal("12.34"));
-
-    PortfolioPerformanceQuery.PortfolioResult result = query.portfolioResult(1L);
-
-    assertThat(result.investmentResult()).isEqualByComparingTo("12.34");
-    assertThat(result.baseCurrency()).isEqualTo(CurrencyType.USD);
-  }
-
   private static PortfolioPerformanceDailyRow daily(
       String date, BigDecimal endValue, BigDecimal contributions, BigDecimal withdrawals) {
     PortfolioPerformanceDailyRow row = mock();

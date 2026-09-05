@@ -20,14 +20,11 @@ class GlobalThemeTemplateContractTest {
           "simulation.html",
           "planning-year.html",
           "long-term-assets.html",
-          "long-term-asset-form.html",
-          "long-term-asset-detail.html",
           "real-estate-form.html",
           "real-estate-detail.html",
           "bond-form.html",
-          "bond-detail.html",
+          "personal-asset-form.html",
           "cash-reserve-form.html",
-          "cash-reserve-detail.html",
           "dashboard/asset-detail.html",
           "dashboard/asset-not-found.html");
 

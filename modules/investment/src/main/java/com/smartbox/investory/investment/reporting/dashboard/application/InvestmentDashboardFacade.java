@@ -365,6 +365,11 @@ public class InvestmentDashboardFacade {
         : twr ? result.timeWeightedReturn() : result.moneyWeightedReturn();
   }
 
+  private PortfolioStructureView portfolioStructure(
+      Portfolio portfolio, AssetAllocationView allocation) {
+    return portfolioStructureQuery.fromAllocation(portfolio, allocation);
+  }
+
   private OverviewView overview(
       Portfolio portfolio,
       Benchmark benchmark,

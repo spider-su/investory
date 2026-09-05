@@ -1,6 +1,11 @@
 package com.smartbox.investory.ui.longterm;
 
-import java.math.BigDecimal;
+import com.smartbox.investory.longterm.api.LongTermAssetsApi;
+import com.smartbox.investory.longterm.api.model.AssetSummaryView;
+import com.smartbox.investory.longterm.api.model.RealEstateEntryModel;
+import com.smartbox.investory.longterm.api.model.RealEstateView;
+import com.smartbox.investory.longterm.api.model.ResourceNotFoundException;
+import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import java.time.Clock;
 import java.time.LocalDate;
 import org.springframework.stereotype.Controller;
@@ -12,10 +17,12 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 /** HTTP orchestration for real-estate pages. */
 @Controller
 public class LongTermRealEstateController {
-  private final LongTermRealEstateCommandHandler commands;
+  private final LongTermAssetsApi assets;
+  private final Clock clock;
 
-  public LongTermRealEstateController(LongTermAssetsClient assets, Clock clock) {
-    this.commands = new LongTermRealEstateCommandHandler(assets, clock);
+  public LongTermRealEstateController(LongTermAssetsApi assets, Clock clock) {
+    this.assets = assets;
+    this.clock = clock;
   }
 
   @GetMapping("/portfolios/{portfolioId}/long-term-assets/new/real-estate")
@@ -25,14 +32,39 @@ public class LongTermRealEstateController {
     return "real-estate-form";
   }
 
+  @GetMapping("/portfolios/{portfolioId}/long-term-assets/{id}/real-estate")
+  public String realEstateDetail(
+      @PathVariable Long portfolioId, @PathVariable Long id, Model model) {
+    populateDetail(portfolioId, id, model);
+    return "real-estate-detail";
+  }
+
   @PostMapping("/portfolios/{portfolioId}/long-term-assets/real-estate")
   public String saveRealEstate(
       @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @ModelAttribute RealEstateForm form,
-      @RequestParam(name = "expectedAnnualGrowthRatePercent", required = false) BigDecimal growth,
       RedirectAttributes feedback) {
-    commands.save(portfolioId, form, growth, feedback);
-    return redirect(portfolioId);
+    try {
+      var command =
+          new RealEstateEntryModel(
+              portfolioId,
+              form.id(),
+              form.name(),
+              form.currency(),
+              form.value(),
+              form.taxBase(),
+              form.acquisitionDate(),
+              form.landRegisterNumber(),
+              form.notes());
+      RealEstateView saved =
+          form.id() == null ? assets.createRealEstate(command) : assets.updateRealEstate(command);
+      return detail(saved.id(), portfolioId);
+    } catch (IllegalArgumentException | ResourceNotFoundException exception) {
+      feedback.addFlashAttribute("error", LongTermAssetPageSupport.assetError(exception));
+      return form.id() == null
+          ? "redirect:/portfolios/" + portfolioId + "/long-term-assets/new/real-estate"
+          : detail(form.id(), portfolioId);
+    }
   }
 
   @PostMapping("/portfolios/{portfolioId}/long-term-assets/{id}/rental-contracts")
@@ -42,7 +74,13 @@ public class LongTermRealEstateController {
       @ModelAttribute("rentalContract") RentalContractForm form,
       BindingResult binding,
       RedirectAttributes feedback) {
-    commands.add(id, portfolioId, form, binding, feedback);
+    if (!binding.hasErrors()) {
+      try {
+        assets.createRentalContract(form.createCommand(portfolioId, id));
+      } catch (IllegalArgumentException | ResourceNotFoundException exception) {
+        feedback.addFlashAttribute("error", LongTermAssetPageSupport.rentalError(exception));
+      }
+    } else LongTermAssetPageSupport.preserveBindingErrors(binding, feedback);
     return rental(id, portfolioId);
   }
 
@@ -54,7 +92,13 @@ public class LongTermRealEstateController {
       @ModelAttribute("contractEditForm") RentalContractForm form,
       BindingResult binding,
       RedirectAttributes feedback) {
-    commands.update(id, contractId, portfolioId, form, binding, feedback);
+    if (!binding.hasErrors()) {
+      try {
+        assets.updateRentalContract(form.updateCommand(portfolioId, id, contractId));
+      } catch (IllegalArgumentException | ResourceNotFoundException exception) {
+        feedback.addFlashAttribute("error", LongTermAssetPageSupport.rentalError(exception));
+      }
+    } else LongTermAssetPageSupport.preserveBindingErrors(binding, feedback);
     return rental(id, portfolioId);
   }
 
@@ -65,7 +109,11 @@ public class LongTermRealEstateController {
       @PathVariable Long contractId,
       @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       RedirectAttributes feedback) {
-    commands.delete(id, contractId, portfolioId, feedback);
+    try {
+      assets.deleteRentalContract(portfolioId, id, contractId);
+    } catch (IllegalArgumentException | ResourceNotFoundException exception) {
+      feedback.addFlashAttribute("error", LongTermAssetPageSupport.rentalError(exception));
+    }
     return rental(id, portfolioId);
   }
 
@@ -76,7 +124,11 @@ public class LongTermRealEstateController {
       @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @RequestParam LocalDate endDate,
       RedirectAttributes feedback) {
-    commands.end(id, contractId, portfolioId, endDate, feedback);
+    try {
+      assets.endRentalContract(portfolioId, id, contractId, endDate);
+    } catch (IllegalArgumentException | ResourceNotFoundException exception) {
+      feedback.addFlashAttribute("error", LongTermAssetPageSupport.rentalError(exception));
+    }
     return rental(id, portfolioId);
   }
 
@@ -88,68 +140,40 @@ public class LongTermRealEstateController {
       @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
       @RequestParam LocalDate terminationDate,
       RedirectAttributes feedback) {
-    commands.terminate(id, contractId, portfolioId, terminationDate, feedback);
+    try {
+      assets.terminateRentalContract(portfolioId, id, contractId, terminationDate);
+    } catch (IllegalArgumentException | ResourceNotFoundException exception) {
+      feedback.addFlashAttribute("error", LongTermAssetPageSupport.rentalError(exception));
+    }
     return rental(id, portfolioId);
-  }
-
-  @PostMapping("/portfolios/{portfolioId}/long-term-assets/{id}/property-growth")
-  public String savePropertyGrowth(
-      @PathVariable Long id,
-      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
-      @RequestParam(required = false) BigDecimal growthRatePercent,
-      @RequestParam LocalDate effectiveFrom,
-      RedirectAttributes feedback) {
-    commands.propertyGrowth(id, portfolioId, growthRatePercent, effectiveFrom, feedback);
-    return asset(id, portfolioId);
-  }
-
-  @PostMapping("/portfolios/{portfolioId}/long-term-assets/{id}/valuation-periods")
-  public String addValuationPeriod(
-      @PathVariable Long id,
-      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
-      @RequestParam LocalDate validFrom,
-      @RequestParam(required = false) LocalDate validTo,
-      @RequestParam BigDecimal expectedAnnualGrowthRatePercent,
-      RedirectAttributes feedback) {
-    commands.addValuation(
-        id, portfolioId, validFrom, validTo, expectedAnnualGrowthRatePercent, feedback);
-    return asset(id, portfolioId);
-  }
-
-  @PostMapping("/portfolios/{portfolioId}/long-term-assets/{id}/valuation-periods/{periodId}")
-  public String updateValuationPeriod(
-      @PathVariable Long id,
-      @PathVariable Long periodId,
-      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
-      @RequestParam LocalDate validFrom,
-      @RequestParam(required = false) LocalDate validTo,
-      @RequestParam BigDecimal expectedAnnualGrowthRatePercent,
-      RedirectAttributes feedback) {
-    commands.updateValuation(
-        id, periodId, portfolioId, validFrom, validTo, expectedAnnualGrowthRatePercent, feedback);
-    return asset(id, portfolioId);
-  }
-
-  @PostMapping(
-      "/portfolios/{portfolioId}/long-term-assets/{id}/valuation-periods/{periodId}/delete")
-  public String deleteValuationPeriod(
-      @PathVariable Long id,
-      @PathVariable Long periodId,
-      @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
-      RedirectAttributes feedback) {
-    commands.deleteValuation(id, periodId, portfolioId, feedback);
-    return asset(id, portfolioId);
-  }
-
-  private String redirect(Long p) {
-    return "redirect:/portfolios/" + p + "/long-term-assets";
   }
 
   private String rental(Long id, Long p) {
     return LongTermAssetPageSupport.rentalRedirect(id, p);
   }
 
-  private String asset(Long id, Long p) {
-    return LongTermAssetPageSupport.assetRedirect(id, p);
+  private String detail(Long id, Long portfolioId) {
+    return "redirect:/portfolios/" + portfolioId + "/long-term-assets/" + id + "/real-estate";
+  }
+
+  private void populateDetail(Long portfolioId, Long id, Model model) {
+    LocalDate today = LocalDate.now(clock);
+    RealEstateView asset = assets.realEstate(portfolioId, id);
+    AssetSummaryView summary = assets.realEstateSummary(portfolioId, id, today);
+    var contracts = assets.rentalContracts(portfolioId, id, today);
+    var contractForms =
+        contracts.stream()
+            .collect(
+                java.util.stream.Collectors.toMap(
+                    contract -> contract.id(), RentalContractForm::from));
+    model.addAttribute("portfolioId", portfolioId);
+    model.addAttribute("asset", asset);
+    model.addAttribute("summary", summary);
+    model.addAttribute("rentalTaxRate", FinancialPolicyDefaults.RENTAL_TAX_RATE);
+    model.addAttribute("contracts", contracts);
+    model.addAttribute("contractForms", contractForms);
+    model.addAttribute("rentalContract", new RentalContractForm());
+    model.addAttribute("today", today);
+    model.addAttribute("suggestedNextContractStart", today);
   }
 }

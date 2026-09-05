@@ -2,7 +2,8 @@
 
 ## Scope
 
-Read-only whole-wealth composition of Investment and Long-Term facts. UI route: `/investment-profile`.
+Read-only whole-wealth composition of Investment and Long-Term facts. UI route:
+`/portfolios/{portfolioId}/investment-profile`.
 
 ## Preconditions
 
@@ -19,6 +20,10 @@ Read-only whole-wealth composition of Investment and Long-Term facts. UI route: 
 | PRF-04 | Import or alter a test brokerage fact, rebuild required reporting data, then reload profile. | Profile reflects canonical investment reporting result after the normal pipeline completes. | Trace to `account_daily`/reporting sources; ensure profile access did not mutate source facts. |
 | PRF-05 | Compare currency/asset-category allocation against source details. | Categories and converted values are consistent; missing/stale FX is surfaced safely, never hidden as a valid amount. | Sample FX source rows and application logs; check value lineage for a non-base-currency holding. |
 | PRF-06 | Exercise reload, browser back/forward and narrow viewport. | Read-only page remains stable, no duplicated totals/charts and no console/template errors. | Browser console/network and pod logs. |
+| PRF-07 | Compare brokerage equity, cash, positions, and Profile totals. | Market value includes signed cash; investment capital excludes cash; negative cash reduces wealth and never becomes available reserve. | Compare `total_equity`, `total_cash`, allocation rows, Profile reserve, and investment capital. |
+| PRF-08 | Compare free and maturity-locked cash reserves. | Free cash enters reserve and is liquid; future-maturity cash remains locked and outside reserve. | Compare cash-reserve maturity dates with Profile allocation liquidity and reserve. |
+| PRF-09 | Add a personal asset without changing investment assets. | Net worth rises while long-term and combined investment yields remain unchanged. | Compare total Long-Term value with investment-only denominator. |
+| PRF-10 | Open Profile with more than one calendar year of performance. | Current value remains current equity; investment result YTD contains only current-year profit; planned Long-Term YTD is labelled as planned. | Compare current-year monthly performance rows and rendered labels. |
 
 ## Integrity checks
 

@@ -1,6 +1,7 @@
 package com.smartbox.investory.retirement.planning;
 
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.api.RetirementFinancialCalculations;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.simulation.ForwardSimulationContextFactory;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
@@ -657,9 +658,7 @@ public class PlanningCurrencyPresentationService {
   }
 
   private static BigDecimal gap(BigDecimal expenses, BigDecimal income) {
-    return expenses == null || income == null
-        ? null
-        : expenses.subtract(income).max(BigDecimal.ZERO);
+    return RetirementFinancialCalculations.positiveDifference(expenses, income);
   }
 
   private static BigDecimal zero(BigDecimal value) {
@@ -671,7 +670,7 @@ public class PlanningCurrencyPresentationService {
   }
 
   private static BigDecimal difference(BigDecimal costs, BigDecimal income) {
-    return costs == null || income == null ? null : costs.subtract(income).max(BigDecimal.ZERO);
+    return RetirementFinancialCalculations.positiveDifference(costs, income);
   }
 
   private static BigDecimal planningValue(

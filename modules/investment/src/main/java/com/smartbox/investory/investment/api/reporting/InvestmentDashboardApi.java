@@ -23,26 +23,17 @@ public interface InvestmentDashboardApi {
   /** Canonical annualized total return used by every UI that shows the investment KPI. */
   PerformanceKpiView loadPerformanceKpi(Long portfolioId);
 
-  /** Total investment result in the portfolio base currency. */
-  InvestmentResultView investmentResult(Long portfolioId);
+  /** Current-calendar-year investment result in the portfolio base currency. */
+  InvestmentResultView investmentResultYtd(Long portfolioId);
 
   record PerformanceKpiView(
       boolean available,
       BigDecimal annualizedReturn,
       String annualizedReturnDisplay,
-      String kpiStartDate,
-      BigDecimal annualizedIncome) {
+      String kpiStartDate) {
     public PerformanceKpiView(
         boolean available, String annualizedReturnDisplay, String kpiStartDate) {
-      this(available, null, annualizedReturnDisplay, kpiStartDate, null);
-    }
-
-    public PerformanceKpiView(
-        boolean available,
-        BigDecimal annualizedReturn,
-        String annualizedReturnDisplay,
-        String kpiStartDate) {
-      this(available, annualizedReturn, annualizedReturnDisplay, kpiStartDate, null);
+      this(available, null, annualizedReturnDisplay, kpiStartDate);
     }
 
     public PerformanceKpiView {

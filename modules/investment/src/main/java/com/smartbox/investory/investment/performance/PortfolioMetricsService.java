@@ -85,6 +85,7 @@ public class PortfolioMetricsService {
   private final PortfolioPerformanceQueryService performanceQueryService;
   private final PortfolioRiskExposureCalculator riskExposureCalculator;
   private final ThreadLocal<Long> scopedPortfolio = new ThreadLocal<>();
+  private PortfolioMetricsDataReader dataReader;
 
   private static double nz(BigDecimal value) {
     return value == null ? 0.0 : value.doubleValue();
@@ -903,7 +904,7 @@ public class PortfolioMetricsService {
   }
 
   private boolean isCashOnlyAccount(Long accountId) {
-    return accountRepository.findAllByPortfolioId(activePortfolioId()).stream()
+    return dataReader().accounts(activePortfolioId()).stream()
         .filter(account -> Objects.equals(account.getId(), accountId))
         .anyMatch(AccountEntity::isCashOnly);
   }
@@ -951,26 +952,36 @@ public class PortfolioMetricsService {
   }
 
   private Set<Long> activeAccountIds() {
-    return accountRepository.findAllByPortfolioId(activePortfolioId()).stream()
-        .map(AccountEntity::getId)
-        .filter(Objects::nonNull)
-        .collect(Collectors.toSet());
+    return dataReader().accountIds(activePortfolioId());
   }
 
   private List<AccountStatisticsEntity> accountStatistics() {
-    return accountStatisticsRepository.findAllByAccountIdIn(activeAccountIds());
+    return dataReader().statistics(activeAccountIds());
   }
 
   private List<CashOperationEntity> cashOperations() {
-    return cashOperationRepository.findAllByAccountIn(activeAccountIds());
+    return dataReader().cashOperations(activeAccountIds());
   }
 
   private List<PositionEntity> closedPositions() {
-    return closedPositionRepository.findClosedByAccountIn(activeAccountIds());
+    return dataReader().closedPositions(activeAccountIds());
   }
 
   private List<PositionEntity> openPositions() {
-    return openedPositionRepository.findOpenByAccountIn(activeAccountIds());
+    return dataReader().openPositions(activeAccountIds());
+  }
+
+  private PortfolioMetricsDataReader dataReader() {
+    if (dataReader == null) {
+      dataReader =
+          new PortfolioMetricsDataReader(
+              accountRepository,
+              accountStatisticsRepository,
+              cashOperationRepository,
+              closedPositionRepository,
+              openedPositionRepository);
+    }
+    return dataReader;
   }
 
   private static void requirePortfolioId(Long portfolioId) {

@@ -575,7 +575,6 @@ class SimulationSensitivityAnalysisServiceTest {
     return new ProjectedLongTermAsset(
         id,
         "Property " + id,
-        com.smartbox.investory.longterm.api.model.LongTermAssetType.REAL_ESTATE,
         EconomicBucket.REAL_ESTATE,
         CurrencyType.PLN,
         new BigDecimal("100"),
@@ -592,11 +591,6 @@ class SimulationSensitivityAnalysisServiceTest {
                     null,
                     false)),
         java.util.List.of(),
-        null,
-        null,
-        null,
-        BigDecimal.ZERO,
-        null,
-        false);
+        null);
   }
 }

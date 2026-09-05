@@ -19,8 +19,8 @@ export function initRetirementAnalysis() {
   const compact = value => {
     const amount = Number(value);
     const absolute = Math.abs(amount);
-    if (absolute >= 1000000) return `${(amount / 1000000).toFixed(absolute >= 10000000 ? 0 : 1).replace(/\.0$/, "")}M`;
-    if (absolute >= 1000) return `${(amount / 1000).toFixed(absolute >= 100000 ? 0 : 1).replace(/\.0$/, "")}K`;
+    if (absolute >= 1000000) return `${(amount / 1000000).toFixed(absolute < 10000000 ? 2 : 1)}M`;
+    if (absolute >= 1000) return `${(amount / 1000).toFixed(absolute < 10000 ? 2 : 1)}K`;
     return new Intl.NumberFormat("en-US", {maximumFractionDigits: 0}).format(amount);
   };
   const money = value => value == null ? "—" : `${state.currency || "PLN"} ${compact(value)}`;

@@ -8,8 +8,8 @@ import java.util.List;
  * Current brokerage aggregation for application consumers.
  *
  * <p>{@link BrokeragePortfolioReader#currentSnapshot(Long)} returns the portfolio-scoped market
- * dataset. {@link BrokeragePortfolioReader#currentSnapshot(Long)} returns the same economic shape
- * scoped to one portfolio.
+ * dataset. {@code balance} is total brokerage equity, including {@code cash}; open positions carry
+ * the invested part used for allocation reconciliation.
  */
 public record SharedBrokeragePortfolioSnapshot(
     CurrencyType baseCurrency,

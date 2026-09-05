@@ -25,7 +25,7 @@ public class InvestmentProfileController {
       Model model) {
     var profile = this.profile.loadProfile(portfolioId);
     var performanceKpi = investmentDashboard.loadPerformanceKpi(portfolioId);
-    var investmentResult = investmentDashboard.investmentResult(portfolioId);
+    var investmentResult = investmentDashboard.investmentResultYtd(portfolioId);
     var annualCost = retirementProfile.currentYearAnnualCost(portfolioId, profile.currency());
     var page =
         InvestmentProfilePageView.from(
@@ -45,8 +45,10 @@ public class InvestmentProfileController {
         "profileMarketProjectedIncome", page.incomeSummary().marketAnnualIncomeCompactDisplay());
     model.addAttribute(
         "profileLongTermExpectedIncome", page.incomeSummary().longTermAnnualIncomeCompactDisplay());
-    model.addAttribute("profileMarketYtdIncome", page.marketReceivedYtdDisplay());
-    model.addAttribute("profileLongTermYtdIncome", page.longTermReceivedYtdDisplay());
+    model.addAttribute(
+        "profileMarketIncomeYtd", page.incomeSummary().marketIncomeYtdCompactDisplay());
+    model.addAttribute("profileMarketResultYtd", page.marketInvestmentResultYtdDisplay());
+    model.addAttribute("profileLongTermPlannedYtd", page.longTermPlannedIncomeYtdDisplay());
     model.addAttribute("profileAnnualCost", page.annualCostDisplay());
     model.addAttribute("profileAnnualCostMeta", page.annualCostMeta());
     model.addAttribute("profileHeaderCurrency", page.currency());

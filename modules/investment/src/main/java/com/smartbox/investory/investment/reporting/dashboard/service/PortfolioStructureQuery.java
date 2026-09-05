@@ -6,6 +6,7 @@ import com.smartbox.investory.investment.api.reporting.model.PortfolioStructureV
 import com.smartbox.investory.investment.performance.model.Portfolio;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
@@ -44,6 +45,54 @@ public class PortfolioStructureQuery {
                     Comparator.comparingDouble(PortfolioStructureView.Holding::value).reversed())
                 .toList();
     return build(portfolio, allocation, total, holdings);
+  }
+
+  /** Compatibility path for callers that already have an allocation and valued positions. */
+  public PortfolioStructureView fromAllocation(
+      Portfolio portfolio, AssetAllocationView allocation) {
+    double total =
+        allocation == null ? portfolio.getBalance() : allocation.totalValue().doubleValue();
+    List<PortfolioStructureView.Holding> holdings =
+        (portfolio.getOpenPositionValues() == null
+                ? List.<com.smartbox.investory.investment.api.reporting.model.OpenPositionValue>of()
+                : portfolio.getOpenPositionValues())
+            .stream()
+                .filter(position -> position.getSymbol() != null)
+                .collect(
+                    Collectors.groupingBy(
+                        position -> position.getSymbol(), LinkedHashMap::new, Collectors.toList()))
+                .entrySet()
+                .stream()
+                .map(
+                    entry ->
+                        new PortfolioStructureView.Holding(
+                            entry.getKey(),
+                            entry.getValue().stream()
+                                .map(position -> position.getValue())
+                                .filter(java.util.Objects::nonNull)
+                                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add)
+                                .doubleValue(),
+                            0.0,
+                            entry.getValue().stream()
+                                .map(position -> position.getUnrealized())
+                                .filter(java.util.Objects::nonNull)
+                                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add)
+                                .doubleValue()))
+                .map(
+                    holding ->
+                        new PortfolioStructureView.Holding(
+                            holding.symbol(),
+                            holding.value(),
+                            weight(holding.value(), total),
+                            holding.unrealized()))
+                .sorted(
+                    Comparator.comparingDouble(PortfolioStructureView.Holding::value).reversed())
+                .toList();
+    return build(
+        portfolio,
+        allocation == null ? new AssetAllocationView(total, List.of()) : allocation,
+        total,
+        holdings);
   }
 
   private PortfolioStructureView build(

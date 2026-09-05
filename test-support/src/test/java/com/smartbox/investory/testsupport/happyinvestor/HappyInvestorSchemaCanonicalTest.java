@@ -15,16 +15,18 @@ class HappyInvestorSchemaCanonicalTest {
     String common = resource("db/snapshot/happyinvestor-common.sql");
     String broker = resource("db/snapshot/happyinvestor-broker.sql");
 
-    assertTrue(snapshot.contains("9401\t1\tCash reserve\tCASH_RESERVE\tPLN"));
-    assertTrue(snapshot.contains("9402\t1\tApartment A\tREAL_ESTATE\tPLN"));
-    assertTrue(snapshot.contains("9403\t1\tApartment B\tREAL_ESTATE\tPLN"));
-    assertTrue(snapshot.contains("9404\t1\tFamily Car\tOTHER\tPLN"));
+    assertTrue(snapshot.contains("9401\t1\tCash reserve\tPLN\t25000.000000000000"));
+    assertTrue(snapshot.contains("9402\t1\tApartment A\tPLN\t400000.000000000000"));
+    assertTrue(snapshot.contains("9403\t1\tApartment B\tPLN\t500000.000000000000"));
+    assertTrue(snapshot.contains("9404\t1\tFamily Car\tVEHICLE\tPLN\t10000.000000000000"));
+    assertTrue(snapshot.contains("9405\t1\tTreasury 2026\tPLN\t10000.000000000000"));
+    assertTrue(snapshot.contains("9406\t1\tTerm cash reserve\tPLN\t25000.000000000000"));
     assertTrue(snapshot.contains("9501\t9402\t2024-08-01"));
     assertTrue(snapshot.contains("9502\t9403\t2024-08-01\t2025-06-30"));
     assertTrue(snapshot.contains("9503\t9403\t2025-07-01"));
-    assertTrue(snapshot.contains("9501\t9402\t2024-08-01\t\\N\t\\N\tf\t3200.00"));
-    assertTrue(snapshot.contains("9503\t9403\t2025-07-01\t\\N\t\\N\tf\t3000.00"));
-    assertTrue(snapshot.contains("0.085000000000"));
+    assertTrue(snapshot.contains("1\t9501\tRENT\t3200.000000000000\tMONTHLY\tf"));
+    assertTrue(snapshot.contains("3\t9503\tRENT\t3000.000000000000\tMONTHLY\tf"));
+    assertTrue(snapshot.contains("Annual rental-tax base"));
     assertTrue(snapshot.contains("7001\t17959259\tDEPOSIT"));
     assertTrue(snapshot.contains("7106\t51499241\t1001\tTSLA.US"));
     // Broker positions must stay in lockstep with HappyInvestorScenario: MSFT is an open IBKR
@@ -32,19 +34,18 @@ class HappyInvestorSchemaCanonicalTest {
     assertTrue(snapshot.contains("7108\t17959259\t451\tMSFT.US\tMSFT"));
     assertTrue(snapshot.contains("7110\t51499241\t501\tNATGAS\tNATGAS"));
     assertTrue(snapshot.contains("BUY\tRESULT_ONLY\t0.01000000"));
-    assertTrue(snapshot.contains("9405\t1\tTreasury 2026\tBOND\tPLN"));
-    assertTrue(snapshot.contains("9406\t1\tReserve deposit\tDEPOSIT\tPLN"));
-    assertTrue(snapshot.contains("9405\t2026-02-28\tPAY_OUT\t0.190000000000"));
-    assertTrue(snapshot.contains("9406\t2027-08-01\tCAPITALIZE\t0.040000000000"));
+    assertTrue(snapshot.contains("9405\t1\tTreasury 2026\tPLN\t10000.000000000000"));
+    assertTrue(snapshot.contains("9406\t1\tTerm cash reserve\tPLN\t25000.000000000000"));
     assertTrue(snapshot.contains("\t159307.015664000000\t970000.000000000000\t74400.000000000000"));
     assertTrue(snapshot.contains("9201\t1\tHappy Investor Plan\t9202"));
     assertTrue(
         snapshot.contains(HappyInvestorPlanFacts.BASELINE_AS_OF_YEAR + "\tDRAFT\t9201\t9202"));
 
     assertTrue(common.contains("(9401, 1, 'Cash reserve'"));
+    assertTrue(common.contains("(9406, 1, 'Term cash reserve'"));
     assertTrue(common.contains("(9501, 9402, DATE '2024-08-01'"));
-    assertTrue(common.contains("DATE '2024-08-01', 3200, 400000, 400000"));
-    assertTrue(common.contains("DATE '2025-07-01', NULL, false, 3000"));
+    assertTrue(common.contains("(9402, 1, 'Apartment A', 'PLN', 400000, 3200, DATE '2024-08-01'"));
+    assertTrue(common.contains("(9503, 9403, DATE '2025-07-01', NULL, NULL, false"));
     assertTrue(common.contains("(9201, 1, 'Happy Investor Plan'"));
     assertTrue(broker.contains("(7108, 17959259, 451, 'MSFT.US', 'MSFT', 'BUY', 'CASH_SETTLED'"));
     assertTrue(broker.contains("(7110, 51499241, 501, 'NATGAS', 'NATGAS', 'BUY', 'RESULT_ONLY'"));

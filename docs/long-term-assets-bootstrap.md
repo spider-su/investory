@@ -17,17 +17,16 @@ historical and future rows are not added together.
 
 ## Format and behavior
 
-The JSON document contains `portfolioId`, rental-tax policies, and assets. Legacy `cashFlows` input
+The JSON document contains `portfolioId` and assets. Legacy `cashFlows` input
 is accepted only for real-estate assets and is converted transactionally into dated rental contracts
 with contract terms. Other asset types cannot import cash-flow rows. Real estate supports historical
 valuation periods. A cash reserve accepts zero or one current return period, and a bond requires one
-current rate period plus its bond details. Deposit details include a required maturity date. See
+current rate period plus its bond details. Interest-bearing or term cash uses the cash reserve's
+optional current rate and maturity. See
 `app/src/main/resources/bootstrap/example-long-term-assets.json`.
 
-Assets use `externalKey` as a stable identity scoped to a portfolio. Real-estate assets may provide
-`taxBase` and `rentalTaxPaidByTenant`; expense cash-flow entries may provide `paidByTenant`. Omitted
-ownership flags use the compatibility defaults: administration fees and utilities are tenant-paid;
-other expenses and rental tax are landlord-paid. Import behavior is **upsert**:
+Assets use `externalKey` as a stable identity scoped to a portfolio. Expense cash-flow entries may
+provide `paidByTenant`; rental tax is resolved from global policy. Import behavior is **upsert**:
 
 * matching assets are updated;
 * new assets are created;
@@ -41,9 +40,8 @@ manual or pre-ownership contracts. Asset type and currency are immutable after i
 
 Validation runs before writes in one transaction. Invalid portfolio, key, date, rate, currency, type,
 amount, maturity, ownership, or overlapping-period data rolls back the complete import. Rental
-economics are `gross income - landlord-paid expenses - effective rental tax`; a missing tax base means
-zero rental tax. The effective policy is selected by portfolio and calculation date, with an 8.5%
-fallback when no policy applies.
+economics are `gross income - landlord-paid expenses - effective global rental tax`. The effective
+policy is selected by portfolio and calculation date, with an 8.5% fallback when no policy applies.
 
 Asset type is immutable after creation. Bootstrap updates preserve the existing lifecycle history;
 they do not silently convert an archived asset or discard archive/reactivation periods. Rental input

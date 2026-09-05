@@ -1,5 +1,6 @@
 package com.smartbox.investory.infrastructure;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.smartbox.investory.testsupport.WorkerDatabase;
@@ -27,7 +28,12 @@ class SchemaStructureContractIT {
           "positions",
           "asset_price_history",
           "account_daily",
-          "long_term_assets",
+          "bond",
+          "real_estate",
+          "cash_reserve",
+          "personal_asset",
+          "rental_contract",
+          "rental_contract_term",
           "simulation_plans",
           "planning_years");
 
@@ -36,6 +42,7 @@ class SchemaStructureContractIT {
           "app_v_normalized_daily_price",
           "app_v_reconstructed_position_daily",
           "app_v_open_position_values",
+          "app_v_long_term_assets",
           "recon_v_account_daily",
           "recon_v_trade_settlement",
           "recon_v_reporting_validation_summary",
@@ -76,18 +83,28 @@ class SchemaStructureContractIT {
             relation);
       }
 
+      assertFalse(
+          MigrationTestDatabase.exists(
+              statement,
+              "SELECT 1 FROM information_schema.tables "
+                  + "WHERE table_schema = 'investory' AND table_name = 'deposit'"));
+      assertFalse(
+          MigrationTestDatabase.exists(
+              statement,
+              "SELECT 1 FROM information_schema.tables "
+                  + "WHERE table_schema = 'investory' AND table_name = 'real_estate_valuation'"));
+      assertFalse(
+          MigrationTestDatabase.exists(
+              statement,
+              "SELECT 1 FROM investory.app_v_long_term_assets "
+                  + "WHERE asset_type NOT IN ('REAL_ESTATE', 'BOND', 'CASH_RESERVE', 'PERSONAL_ASSET')"));
+
       assertTrue(
           MigrationTestDatabase.exists(
               statement,
               "SELECT 1 FROM information_schema.columns "
                   + "WHERE table_schema = 'investory' AND table_name = 'positions' "
                   + "AND column_name IN ('settlement_model', 'open_conversion_rate', 'close_conversion_rate')"));
-      assertTrue(
-          MigrationTestDatabase.exists(
-              statement,
-              "SELECT 1 FROM pg_trigger "
-                  + "WHERE tgrelid = 'investory.long_term_assets'::regclass "
-                  + "AND tgname = 'longterm_trg_asset_type_consistency'"));
     }
   }
 }

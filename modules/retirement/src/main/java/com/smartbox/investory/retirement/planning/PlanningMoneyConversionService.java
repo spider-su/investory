@@ -33,6 +33,13 @@ public class PlanningMoneyConversionService {
         : rates.convertToBaseCurrency(amount, display, source, LocalDate.now(clock));
   }
 
+  /** Normalize an explicitly denominated source-domain amount for planning calculations. */
+  public BigDecimal toCanonical(BigDecimal amount, CurrencyType source) {
+    return amount == null || source == CANONICAL
+        ? amount
+        : rates.convertToBaseCurrency(amount, CANONICAL, source, LocalDate.now(clock));
+  }
+
   public BigDecimal fromDisplay(BigDecimal amount, CurrencyType display, BigDecimal fallback) {
     return amount == null
         ? fallback

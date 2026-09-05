@@ -287,7 +287,7 @@ public class MarketDataService {
             .collect(Collectors.toSet());
 
     List<AssetEntity> changed = new ArrayList<>();
-    for (AssetEntity asset : assetRepository.findAll()) {
+    for (AssetEntity asset : assetRepository.findAllByActiveTrueOrSymbolIn(openSymbols)) {
       boolean shouldBeActive = openSymbols.contains(asset.getSymbol());
       if (!Objects.equals(asset.getActive(), shouldBeActive)) {
         asset.setActive(shouldBeActive);

@@ -1,6 +1,5 @@
 package com.smartbox.investory.profile.web;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -14,8 +13,6 @@ import com.smartbox.investory.profile.api.model.ProfileAllocationReconciliation;
 import com.smartbox.investory.profile.api.model.ProfileAssetProjection;
 import com.smartbox.investory.profile.api.model.ProfileIncomeSummary;
 import com.smartbox.investory.shared.currency.CurrencyType;
-import jakarta.validation.constraints.Positive;
-import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -71,8 +68,7 @@ class ProfileRestControllerTest {
 
   @Test
   void rejectsNonPositivePortfolioId() throws Exception {
-    Method method = ProfileRestController.class.getDeclaredMethod("profile", Long.class);
-    assertThat(method.getParameters()[0].isAnnotationPresent(Positive.class)).isTrue();
+    mvc.perform(get("/api/v1/portfolios/0/profile")).andExpect(status().isBadRequest());
   }
 
   @Test

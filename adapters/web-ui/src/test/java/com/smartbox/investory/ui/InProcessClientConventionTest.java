@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.smartbox.investory.ui.investment.InProcessInvestmentAssetClient;
 import com.smartbox.investory.ui.investment.InProcessInvestmentDashboardClient;
 import com.smartbox.investory.ui.investment.InProcessInvestmentReconciliationClient;
-import com.smartbox.investory.ui.longterm.InProcessLongTermAssetsClient;
 import com.smartbox.investory.ui.profile.InProcessProfileClient;
 import com.smartbox.investory.ui.profile.InProcessRetirementProfileClient;
 import com.smartbox.investory.ui.retirement.simulation.InProcessRetirementAnalysisClient;
@@ -31,7 +30,6 @@ class InProcessClientConventionTest {
           InProcessInvestmentAssetClient.class,
           InProcessInvestmentDashboardClient.class,
           InProcessInvestmentReconciliationClient.class,
-          InProcessLongTermAssetsClient.class,
           InProcessProfileClient.class,
           InProcessRetirementAnalysisClient.class,
           InProcessRetirementPlanInputClient.class,

@@ -3,6 +3,7 @@ package com.smartbox.investory.retirement.infrastructure.simulation;
 import static org.apache.commons.lang3.StringUtils.isBlank;
 
 import com.smartbox.investory.retirement.api.RetirementPlanApi;
+import com.smartbox.investory.retirement.api.RetirementSandboxInputTranslator;
 import com.smartbox.investory.retirement.api.RetirementSandboxPlanApi;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.CreatePlanCommand;
@@ -112,24 +113,14 @@ public class SimulationPlanService implements RetirementPlanApi, RetirementSandb
     int nextNumber = nextRevisionNumber(plan.getId());
     SimulationPlanRevisionEntity revision =
         createRevision(
-            plan, sandboxAssumptions(input), nextNumber, null, baselineJson.writeSandbox(input), 1);
+            plan,
+            RetirementSandboxInputTranslator.toAssumptions(input),
+            nextNumber,
+            null,
+            baselineJson.writeSandbox(input),
+            1);
     plan.setCurrentRevisionId(revision.getId());
     return plans.save(plan).getId();
-  }
-
-  private static SimulationAssumptions sandboxAssumptions(SandboxSimulationInput input) {
-    return SimulationAssumptions.defaults(input.currentAge(), input.endAge(), input.startYear())
-        .toBuilder()
-        .currentAge(input.currentAge())
-        .endAge(input.endAge())
-        .retirementAge(input.retirementAge())
-        .annualLivingExpenses(input.annualSpending())
-        .inflationRate(input.inflationRate())
-        .fixedIncomeReturnRate(input.bondReturnRate())
-        .equityReturnRate(input.equityReturnRate())
-        .pensionStartAge(input.pensionAge())
-        .annualPension(input.monthlyPensionIncome().multiply(BigDecimal.valueOf(12)))
-        .build();
   }
 
   @Transactional(readOnly = true)

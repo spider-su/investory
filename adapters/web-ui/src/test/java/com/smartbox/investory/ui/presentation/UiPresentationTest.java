@@ -2,6 +2,7 @@ package com.smartbox.investory.ui.presentation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.smartbox.investory.longterm.api.model.LongTermAssetType;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -19,5 +20,16 @@ class UiPresentationTest {
             UiPresentation.dateTime(
                 ZonedDateTime.of(2026, 8, 27, 0, 1, 0, 0, ZoneId.of("Europe/Warsaw"))))
         .isEqualTo("27 Aug 2026, 00:01 CEST");
+  }
+
+  @Test
+  void formatsLongTermGroupsAndAnnualAmountsForPeople() {
+    assertThat(UiPresentation.assetGroupType(LongTermAssetType.BOND)).isEqualTo("Bonds");
+    assertThat(UiPresentation.assetGroupType(LongTermAssetType.PERSONAL_ASSET))
+        .isEqualTo("Personal assets");
+    assertThat(UiPresentation.moneyWhole(new java.math.BigDecimal("177200.9")))
+        .isEqualTo("177,201");
+    assertThat(UiPresentation.monthly(new java.math.BigDecimal("102")))
+        .isEqualByComparingTo("8.50");
   }
 }

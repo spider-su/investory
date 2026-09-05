@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><th:block th:replace="~{fragments/theme-head :: theme}"></th:block><meta charset="UTF-8"><title>Personal asset · Investory</title><meta name="viewport" content="width=device-width, initial-scale=1"><link href="/css/tabler.min.css" rel="stylesheet"><link href="/css/planning.css" rel="stylesheet"></head>
+<body><main class="iv-app iv-planning-page iv-long-term-form-page">
+  <div th:replace="~{fragments/long-term-form-header :: header(${asset?.id == null ? 'Add personal asset' : 'Edit personal asset'}, 'Personal wealth outside investment assets.', ${portfolioId})}"></div>
+  <div class="alert alert-danger" role="alert" th:if="${error}" th:text="${error}">Validation error.</div>
+  <form class="card iv-long-term-form" method="post" th:action="@{/portfolios/{portfolioId}/long-term-assets/personal-asset(portfolioId=${portfolioId})}">
+    <div class="iv-card-section-header"><span class="iv-card-section-header__title">Personal asset details</span></div>
+    <div class="card-body iv-long-term-form__body"><input type="hidden" name="portfolioId" th:value="${portfolioId}"><input type="hidden" name="id" th:value="${asset?.id}"><div class="row g-3">
+      <div class="col-md-6"><label class="form-label" for="personal-name">Name</label><input id="personal-name" class="form-control" name="name" th:value="${asset?.name}" required></div>
+      <div class="col-md-3"><label class="form-label" for="personal-category">Category</label><select id="personal-category" class="form-select" name="category" required><option th:each="category : ${categories}" th:value="${category}" th:text="${category == T(com.smartbox.investory.longterm.api.model.PersonalAssetCategory).HOME ? 'Home' : category == T(com.smartbox.investory.longterm.api.model.PersonalAssetCategory).VEHICLE ? 'Vehicle' : 'Other'}" th:selected="${category == asset?.category}"></option></select></div>
+      <div class="col-md-3"><label class="form-label" for="personal-currency">Currency</label><select id="personal-currency" class="form-select" name="currency" required><option th:each="currency : ${T(com.smartbox.investory.shared.currency.CurrencyType).values()}" th:value="${currency}" th:text="${currency}" th:selected="${currency == asset?.currency}"></option></select></div>
+      <div class="col-md-4"><label class="form-label" for="personal-value">Value</label><input id="personal-value" class="form-control" name="value" type="number" step="0.01" min="0" th:value="${asset?.value == null ? '' : T(com.smartbox.investory.ui.presentation.UiPresentation).moneyInput(asset.value)}" required></div>
+      <div class="col-md-4"><label class="form-label" for="personal-date">Acquisition date</label><input id="personal-date" class="form-control" name="acquisitionDate" type="date" th:value="${asset?.acquisitionDate}"></div>
+      <div class="col-12"><label class="form-label" for="personal-notes">Notes</label><textarea id="personal-notes" class="form-control" name="notes" rows="3" th:text="${asset?.notes}"></textarea></div>
+    </div></div>
+    <div class="card-footer iv-long-term-form__actions"><button class="btn btn-primary">Save personal asset</button><a class="btn btn-link" th:href="@{/portfolios/{portfolioId}/long-term-assets(portfolioId=${portfolioId})}">Cancel</a></div>
+  </form>
+</main><div th:replace="~{fragments/app-footer :: buildFooter}"></div></body></html>

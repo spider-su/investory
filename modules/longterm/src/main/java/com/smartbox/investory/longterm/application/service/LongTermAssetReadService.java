@@ -1,182 +1,537 @@
 package com.smartbox.investory.longterm.application.service;
 
-import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
-import com.smartbox.investory.longterm.api.LongTermAssetProfileSummaryReader;
-import com.smartbox.investory.longterm.api.LongTermAssetProjectionReader;
-import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotModel;
-import com.smartbox.investory.longterm.api.model.LongTermAssetProfileAssetModel;
-import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSnapshotModel;
-import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSummaryModel;
-import com.smartbox.investory.longterm.api.model.LongTermAssetProfileSummarySnapshotModel;
-import com.smartbox.investory.longterm.api.model.LongTermAssetProjectionModel;
-import com.smartbox.investory.longterm.api.model.RentalContractModel;
-import com.smartbox.investory.longterm.api.model.RentalContractProjectionModel;
-import com.smartbox.investory.longterm.application.model.LongTermAssetProjectionInput;
-import com.smartbox.investory.longterm.application.model.LongTermAssetSummary;
+import static com.smartbox.investory.longterm.application.service.LongTermAssetEconomics.*;
+
+import com.smartbox.investory.longterm.api.*;
+import com.smartbox.investory.longterm.api.model.*;
+import com.smartbox.investory.longterm.infrastructure.bond.BondEntity;
+import com.smartbox.investory.longterm.infrastructure.bond.BondRepository;
+import com.smartbox.investory.longterm.infrastructure.cash.CashReserveEntity;
+import com.smartbox.investory.longterm.infrastructure.cash.CashReserveRepository;
+import com.smartbox.investory.longterm.infrastructure.personal.PersonalAssetEntity;
+import com.smartbox.investory.longterm.infrastructure.personal.PersonalAssetRepository;
+import com.smartbox.investory.longterm.infrastructure.realestate.RealEstateEntity;
+import com.smartbox.investory.longterm.infrastructure.realestate.RealEstateRepository;
+import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractEntity;
+import com.smartbox.investory.longterm.infrastructure.rental.LongTermAssetRentalContractRepository;
+import com.smartbox.investory.shared.assets.AssetEconomicCategory;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import com.smartbox.investory.shared.policy.FinancialPolicyDefaults;
 import com.smartbox.investory.shared.portfolio.PortfolioContext;
 import com.smartbox.investory.shared.portfolio.PortfolioContextReader;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
-import lombok.RequiredArgsConstructor;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Adapts Long-Term application calculations to persistence-free public read contracts. */
+/** Loads one portfolio read set and maps its monetary facts in one repeatable-read transaction. */
 @Service
-@Transactional(readOnly = true)
-@RequiredArgsConstructor
-public class LongTermAssetReadService
-    implements LongTermAssetProfileReader,
-        LongTermAssetProfileSummaryReader,
-        LongTermAssetProjectionReader {
-  private final LongTermAssetQueryService queries;
-  private final LongTermAssetProjectionQueryService projections;
-  private final LongTermAssetAnnualSnapshotService annualSnapshots;
-  private final CurrencyConversion currencyRates;
+@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+public class LongTermAssetReadService {
+  private final BondRepository bondRepository;
+  private final RealEstateRepository realEstateRepository;
+  private final CashReserveRepository cashReserveRepository;
+  private final PersonalAssetRepository personalAssetRepository;
+  private final LongTermAssetRentalContractRepository contractRepository;
+  private final CurrencyConversion conversion;
   private final PortfolioContextReader portfolios;
+  private final com.smartbox.investory.longterm.infrastructure.lifecycle
+          .LongTermAssetHistoryRepository
+      lifecycle;
 
-  @Override
-  public LongTermAssetProfileSnapshotModel snapshot(Long portfolioId, LocalDate date) {
-    CurrencyType base = baseCurrency(portfolioId);
-    LongTermAssetProjectionQueryService.Snapshot loaded = projections.snapshot(portfolioId, date);
-    List<LongTermAssetSummary> rows = queries.summaries(loaded.assets(), date, loaded.data());
-    ProfileSummary summary = profileSummary(rows, base, date);
-    List<LongTermAssetProjectionModel> projectionInputs =
-        loaded.inputs().stream().map(input -> toProjectionModel(input, base, date)).toList();
-    return new LongTermAssetProfileSnapshotModel(
-        summary.model(),
-        summary.assets(),
-        projectionInputs,
-        toBase(annualSnapshots.currentAnnualSnapshot(rows, date), base, date));
+  public LongTermAssetReadService(
+      BondRepository bondRepository,
+      RealEstateRepository realEstateRepository,
+      CashReserveRepository cashReserveRepository,
+      PersonalAssetRepository personalAssetRepository,
+      LongTermAssetRentalContractRepository contractRepository,
+      CurrencyConversion conversion,
+      PortfolioContextReader portfolios,
+      com.smartbox.investory.longterm.infrastructure.lifecycle.LongTermAssetHistoryRepository
+          lifecycle) {
+    this.bondRepository = bondRepository;
+    this.realEstateRepository = realEstateRepository;
+    this.cashReserveRepository = cashReserveRepository;
+    this.personalAssetRepository = personalAssetRepository;
+    this.contractRepository = contractRepository;
+    this.conversion = conversion;
+    this.portfolios = portfolios;
+    this.lifecycle = lifecycle;
   }
 
-  @Override
-  public LongTermAssetProfileSummarySnapshotModel summary(Long portfolioId, LocalDate date) {
-    CurrencyType base = baseCurrency(portfolioId);
-    List<LongTermAssetSummary> rows = queries.list(portfolioId, date);
-    ProfileSummary summary = profileSummary(rows, base, date);
-    return new LongTermAssetProfileSummarySnapshotModel(
-        summary.model(),
-        summary.assets(),
-        toBase(annualSnapshots.currentAnnualSnapshot(rows, date), base, date));
-  }
-
-  @Override
-  public List<LongTermAssetProjectionModel> projectionInputs(Long portfolioId, LocalDate date) {
-    CurrencyType base = baseCurrency(portfolioId);
-    LongTermAssetProjectionQueryService.Snapshot loaded = projections.snapshot(portfolioId, date);
-    return loaded.inputs().stream().map(input -> toProjectionModel(input, base, date)).toList();
-  }
-
-  private ProfileSummary profileSummary(
-      List<LongTermAssetSummary> rows, CurrencyType base, LocalDate date) {
-    List<LongTermAssetProfileAssetModel> assets =
-        rows.stream()
-            .map(
-                asset ->
-                    new LongTermAssetProfileAssetModel(
-                        asset.type(),
-                        base,
-                        toBase(asset.currentValue(), asset.currency(), base, date)))
-            .toList();
-    BigDecimal totalValue =
-        rows.stream()
-            .filter(row -> row.type().contributesToCalculations())
-            .map(row -> toBase(row.currentValue(), row.currency(), base, date))
+  public LongTermOverviewView overview(Long portfolioId, LocalDate date) {
+    CurrencyType currency = baseCurrency(portfolioId);
+    List<AssetSummaryView> assets = summaries(portfolioId, date, currency, false);
+    Map<LongTermAssetType, List<AssetSummaryView>> byType =
+        assets.stream().collect(Collectors.groupingBy(AssetSummaryView::type));
+    List<AssetGroupView> groups =
+        List.of(
+            group(LongTermAssetType.REAL_ESTATE, byType, currency),
+            group(LongTermAssetType.BOND, byType, currency),
+            group(LongTermAssetType.CASH_RESERVE, byType, currency),
+            group(LongTermAssetType.PERSONAL_ASSET, byType, currency));
+    BigDecimal total =
+        assets.stream()
+            .map(AssetSummaryView::currentValue)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
-    BigDecimal annualIncome =
+    BigDecimal personal = valueOf(byType.get(LongTermAssetType.PERSONAL_ASSET));
+    BigDecimal investment = total.subtract(personal);
+    List<AssetSummaryView> investmentAssets =
+        assets.stream().filter(asset -> asset.type() != LongTermAssetType.PERSONAL_ASSET).toList();
+    AnnualEconomicsView economics = aggregateEconomics(investmentAssets, currency);
+    AssetGroupView largest =
+        groups.stream()
+            .max(java.util.Comparator.comparing(AssetGroupView::totalValue))
+            .orElse(null);
+    BigDecimal largestShare =
+        largest == null || total.signum() == 0
+            ? BigDecimal.ZERO
+            : largest.totalValue().divide(total, 8, RoundingMode.HALF_UP);
+    return new LongTermOverviewView(
+        currency,
+        total,
+        investment,
+        personal,
+        economics,
+        groups,
+        largest == null ? null : largest.title(),
+        largestShare);
+  }
+
+  public List<AssetSummaryView> archived(Long portfolioId, LocalDate date) {
+    return summaries(portfolioId, date, baseCurrency(portfolioId), true);
+  }
+
+  public AssetSummaryView realEstateSummary(Long portfolioId, Long id, LocalDate date) {
+    CurrencyType currency = baseCurrency(portfolioId);
+    var estate =
+        realEstateRepository
+            .findByIdAndPortfolioId(id, portfolioId)
+            .orElseThrow(() -> new ResourceNotFoundException("Real estate not found"));
+    return realEstate(estate, currency, date, contracts(List.of(estate)));
+  }
+
+  public LongTermAssetProfileSnapshotModel snapshot(Long portfolioId, LocalDate date) {
+    CurrencyType currency = baseCurrency(portfolioId);
+    var data = load(portfolioId, false);
+    var rows = summaries(data, date, currency);
+    var profileAssets =
         rows.stream()
-            .filter(row -> row.type().contributesToCalculations())
             .map(
                 row ->
-                    toBase(
-                        row.annualEconomics().netAnnualIncomeAfterTax(),
-                        row.currency(),
-                        base,
-                        date))
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
-    return new ProfileSummary(
-        new LongTermAssetProfileSummaryModel(base, totalValue, annualIncome), assets);
+                    new LongTermAssetProfileAssetModel(
+                        category(row.type()),
+                        currency,
+                        row.currentValue(),
+                        row.type() == LongTermAssetType.CASH_RESERVE
+                            && (row.maturityDate() == null || !row.maturityDate().isAfter(date))))
+            .toList();
+    var projections =
+        rows.stream()
+            .filter(row -> row.type() != LongTermAssetType.PERSONAL_ASSET)
+            .map(row -> projection(row, date, currency, data))
+            .toList();
+    return new LongTermAssetProfileSnapshotModel(
+        new LongTermAssetProfileSummaryModel(
+            currency, valueOf(rows), aggregateEconomics(rows, currency).netAnnualIncomeAfterTax()),
+        profileAssets,
+        projections,
+        annual(rows, currency));
   }
 
-  private record ProfileSummary(
-      LongTermAssetProfileSummaryModel model, List<LongTermAssetProfileAssetModel> assets) {}
+  public LongTermAssetAnnualSnapshotModel historicalAnnualSnapshot(Long portfolioId, int year) {
+    baseCurrency(portfolioId);
+    LocalDate yearStart = LocalDate.of(year, 1, 1);
+    LocalDate yearEnd = LocalDate.of(year, 12, 31);
+    var estates = realEstateRepository.findAllByPortfolioIdOrderByName(portfolioId);
+    var history = contracts(estates);
+    var ids = estates.stream().map(RealEstateEntity::getId).toList();
+    var complete = lifecycle.completeRealEstateIds(ids);
+    var intervals = lifecycle.intervals(ids);
+    BigDecimal rentalIncome = BigDecimal.ZERO;
+    for (var estate : estates) {
+      if (estate.getAcquisitionDate() != null && estate.getAcquisitionDate().isAfter(yearEnd))
+        continue;
+      if (!complete.contains(estate.getId()) || estate.getAcquisitionDate() == null)
+        return new LongTermAssetAnnualSnapshotModel(null, null, null, null, null, null);
+      var assetIntervals =
+          intervals.stream().filter(interval -> interval.assetId().equals(estate.getId())).toList();
+      // The live archive flag and recorded open interval must agree.
+      var open = assetIntervals.stream().filter(interval -> interval.to() == null).toList();
+      if (open.size() > 1
+          || (estate.getArchivedAt() == null) != open.isEmpty()
+          || (!open.isEmpty() && !open.getFirst().from().equals(estate.getArchivedAt())))
+        return new LongTermAssetAnnualSnapshotModel(null, null, null, null, null, null);
+      LocalDate ownedFrom =
+          estate.getAcquisitionDate().isAfter(yearStart) ? estate.getAcquisitionDate() : yearStart;
+      var assetContracts =
+          history.getOrDefault(estate.getId(), List.of()).stream()
+              .sorted(
+                  java.util.Comparator.comparing(LongTermAssetRentalContractEntity::getStartDate))
+              .toList();
+      LocalDate previousEnd = null;
+      boolean previous = false;
+      for (var contract : assetContracts) {
+        LocalDate end = RentalContractService.effectiveEnd(contract);
+        if (previous && (previousEnd == null || !contract.getStartDate().isAfter(previousEnd)))
+          throw new IllegalStateException(
+              "Overlapping rental contracts for asset " + estate.getId());
+        previous = true;
+        previousEnd = end;
+        LocalDate from =
+            contract.getStartDate().isAfter(ownedFrom) ? contract.getStartDate() : ownedFrom;
+        LocalDate to = end == null || end.isAfter(yearEnd) ? yearEnd : end;
+        if (from.isAfter(to)) continue;
+        var periods = new ArrayList<DatePeriod>();
+        periods.add(new DatePeriod(from, to));
+        for (var interval : assetIntervals) {
+          var remaining = new ArrayList<DatePeriod>();
+          for (var period : periods) {
+            if (interval.from().isAfter(period.to())
+                || (interval.to() != null && !interval.to().isAfter(period.from()))) {
+              remaining.add(period);
+            } else {
+              if (period.from().isBefore(interval.from()))
+                remaining.add(new DatePeriod(period.from(), interval.from().minusDays(1)));
+              if (interval.to() != null && !interval.to().isAfter(period.to()))
+                remaining.add(new DatePeriod(interval.to(), period.to()));
+            }
+          }
+          periods = remaining;
+        }
+        for (var period : periods) {
+          BigDecimal net = BigDecimal.ZERO;
+          for (var term : contract.getTerms()) {
+            BigDecimal accrued =
+                accruedAmount(term.getAmount(), term.getFrequency(), period.from(), period.to());
+            if (isRentalIncome(term.getType())) net = net.add(accrued);
+            if (isRentalExpense(term.getType()) && !term.isPaidByTenant())
+              net = net.subtract(accrued);
+          }
+          BigDecimal tax =
+              accruedAmount(
+                      estate.getTaxBase() == null ? BigDecimal.ZERO : estate.getTaxBase(),
+                      Frequency.ANNUAL,
+                      period.from(),
+                      period.to())
+                  .multiply(FinancialPolicyDefaults.RENTAL_TAX_RATE);
+          rentalIncome =
+              rentalIncome.add(
+                  toBase(net.subtract(tax), estate.getCurrency(), CurrencyType.USD, yearEnd));
+        }
+      }
+    }
+    // Current balances and rates are not historical facts without dated observations.
+    return new LongTermAssetAnnualSnapshotModel(null, rentalIncome, null, null, null, null);
+  }
 
-  private LongTermAssetProjectionModel toProjectionModel(
-      LongTermAssetProjectionInput input, CurrencyType base, LocalDate date) {
+  private record DatePeriod(LocalDate from, LocalDate to) {}
+
+  private record ReadSet(
+      List<BondEntity> bonds,
+      List<RealEstateEntity> estates,
+      List<CashReserveEntity> cash,
+      List<PersonalAssetEntity> personal,
+      Map<Long, List<LongTermAssetRentalContractEntity>> contracts) {}
+
+  private ReadSet load(Long portfolioId, boolean archived) {
+    var bonds =
+        archived
+            ? bondRepository.findAllByPortfolioIdAndArchivedAtIsNotNullOrderByName(portfolioId)
+            : bondRepository.findAllByPortfolioIdAndArchivedAtIsNullOrderByName(portfolioId);
+    var estates =
+        archived
+            ? realEstateRepository.findAllByPortfolioIdAndArchivedAtIsNotNullOrderByName(
+                portfolioId)
+            : realEstateRepository.findAllByPortfolioIdAndArchivedAtIsNullOrderByName(portfolioId);
+    var cash =
+        archived
+            ? cashReserveRepository.findAllByPortfolioIdAndArchivedAtIsNotNullOrderByName(
+                portfolioId)
+            : cashReserveRepository.findAllByPortfolioIdAndArchivedAtIsNullOrderByName(portfolioId);
+    var personal =
+        archived
+            ? personalAssetRepository.findAllByPortfolioIdAndArchivedAtIsNotNullOrderByName(
+                portfolioId)
+            : personalAssetRepository.findAllByPortfolioIdAndArchivedAtIsNullOrderByName(
+                portfolioId);
+    return new ReadSet(bonds, estates, cash, personal, contracts(estates));
+  }
+
+  private Map<Long, List<LongTermAssetRentalContractEntity>> contracts(
+      List<RealEstateEntity> estates) {
+    if (estates.isEmpty()) return Map.of();
+    return contractRepository
+        .findAllWithTermsByAssetIdIn(estates.stream().map(RealEstateEntity::getId).toList())
+        .stream()
+        .collect(Collectors.groupingBy(LongTermAssetRentalContractEntity::getAssetId));
+  }
+
+  private List<AssetSummaryView> summaries(
+      Long portfolioId, LocalDate date, CurrencyType currency, boolean archived) {
+    return summaries(load(portfolioId, archived), date, currency);
+  }
+
+  private List<AssetSummaryView> summaries(ReadSet data, LocalDate date, CurrencyType currency) {
+    List<AssetSummaryView> rows = new ArrayList<>();
+    data.bonds().forEach(row -> rows.add(bond(row, currency, date)));
+    data.estates().forEach(row -> rows.add(realEstate(row, currency, date, data.contracts())));
+    data.cash().forEach(row -> rows.add(cash(row, currency, date)));
+    data.personal().forEach(row -> rows.add(personal(row, currency, date)));
+    return List.copyOf(rows);
+  }
+
+  private AssetSummaryView bond(BondEntity row, CurrencyType currency, LocalDate date) {
+    BigDecimal value = toBase(row.getValue(), row.getCurrency(), currency, date);
+    BigDecimal gross = value.multiply(row.getInterestRate());
+    return new AssetSummaryView(
+        row.getId(),
+        row.getName(),
+        LongTermAssetType.BOND,
+        currency,
+        value,
+        row.getMaturityDate(),
+        row.getInterestRate(),
+        LongTermAssetEconomics.economics(gross, BigDecimal.ZERO, value),
+        BigDecimal.ZERO,
+        null);
+  }
+
+  private AssetSummaryView realEstate(
+      RealEstateEntity row,
+      CurrencyType currency,
+      LocalDate date,
+      Map<Long, List<LongTermAssetRentalContractEntity>> contracts) {
+    BigDecimal value = toBase(row.getValue(), row.getCurrency(), currency, date);
+    var active =
+        contracts.getOrDefault(row.getId(), List.of()).stream()
+            .filter(contract -> RentalContractService.applies(contract, date))
+            .toList();
+    if (active.size() > 1)
+      throw new IllegalStateException("Overlapping rental contracts for asset " + row.getId());
+    var contract = active.isEmpty() ? null : active.getFirst();
+    var terms =
+        contract == null
+            ? List.<RentalContractModel.Term>of()
+            : convertedTerms(contract, row.getCurrency(), currency, date);
+    BigDecimal annualTaxBase =
+        toBase(
+            row.getTaxBase() == null ? BigDecimal.ZERO : row.getTaxBase(),
+            row.getCurrency(),
+            currency,
+            date);
+    var rental = rental(terms, annualTaxBase, value);
+    return new AssetSummaryView(
+        row.getId(),
+        row.getName(),
+        LongTermAssetType.REAL_ESTATE,
+        currency,
+        value,
+        null,
+        null,
+        rental.economics(),
+        rental.monthlyPayment(),
+        contract == null ? null : RentalContractService.effectiveEnd(contract));
+  }
+
+  private AssetSummaryView cash(CashReserveEntity row, CurrencyType currency, LocalDate date) {
+    BigDecimal value = toBase(row.getValue(), row.getCurrency(), currency, date);
+    BigDecimal interestRate =
+        row.getInterestRate() == null ? BigDecimal.ZERO : row.getInterestRate();
+    BigDecimal gross = value.multiply(interestRate);
+    return new AssetSummaryView(
+        row.getId(),
+        row.getName(),
+        LongTermAssetType.CASH_RESERVE,
+        currency,
+        value,
+        row.getMaturityDate(),
+        interestRate,
+        LongTermAssetEconomics.economics(gross, BigDecimal.ZERO, value),
+        BigDecimal.ZERO,
+        null);
+  }
+
+  private AssetSummaryView personal(
+      PersonalAssetEntity row, CurrencyType currency, LocalDate date) {
+    BigDecimal value = toBase(row.getValue(), row.getCurrency(), currency, date);
+    return new AssetSummaryView(
+        row.getId(),
+        row.getName(),
+        LongTermAssetType.PERSONAL_ASSET,
+        currency,
+        value,
+        null,
+        null,
+        LongTermAssetEconomics.economics(BigDecimal.ZERO, BigDecimal.ZERO, value),
+        BigDecimal.ZERO,
+        null);
+  }
+
+  private AssetGroupView group(
+      LongTermAssetType type,
+      Map<LongTermAssetType, List<AssetSummaryView>> byType,
+      CurrencyType currency) {
+    List<AssetSummaryView> rows = byType.getOrDefault(type, List.of());
+    return new AssetGroupView(
+        type.name(),
+        type.name(),
+        currency,
+        rows,
+        valueOf(rows),
+        aggregateEconomics(rows, currency));
+  }
+
+  private AnnualEconomicsView aggregateEconomics(
+      List<AssetSummaryView> rows, CurrencyType currency) {
+    BigDecimal gross =
+        rows.stream()
+            .map(row -> row.annualEconomics().grossAnnualIncome())
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal expenses =
+        rows.stream()
+            .map(row -> row.annualEconomics().annualExpenses())
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal tax =
+        rows.stream()
+            .map(row -> row.annualEconomics().annualTax())
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal monthlyTaxBase =
+        rows.stream()
+            .map(row -> row.annualEconomics().monthlyTaxBase())
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    return LongTermAssetEconomics.economics(gross, expenses, valueOf(rows), tax, monthlyTaxBase);
+  }
+
+  private LongTermAssetProjectionModel projection(
+      AssetSummaryView row, LocalDate date, CurrencyType currency, ReadSet data) {
+    List<LongTermAssetProjectionModel.Period> periods = new ArrayList<>();
+    if (row.type() == LongTermAssetType.BOND || row.type() == LongTermAssetType.CASH_RESERVE)
+      periods.add(
+          new LongTermAssetProjectionModel.Period(
+              date,
+              row.maturityDate(),
+              row.annualEconomics().grossAnnualIncome(),
+              BigDecimal.ZERO,
+              null,
+              null,
+              false));
+    List<RentalContractProjectionModel> rentalContracts =
+        row.type() == LongTermAssetType.REAL_ESTATE
+            ? data.contracts().getOrDefault(row.id(), List.of()).stream()
+                .map(
+                    contract ->
+                        rentalContractProjection(
+                            contract,
+                            data.estates().stream()
+                                .filter(estate -> estate.getId().equals(row.id()))
+                                .findFirst()
+                                .orElseThrow()
+                                .getCurrency(),
+                            currency,
+                            date))
+                .toList()
+            : List.of();
     return new LongTermAssetProjectionModel(
-        input.id(),
-        input.name(),
-        input.type(),
-        base,
-        toBase(input.currentValue(), input.currency(), base, date),
-        input.periods().stream()
-            .map(
-                period ->
-                    new LongTermAssetProjectionModel.Period(
-                        period.validFrom(),
-                        period.validTo(),
-                        toBase(period.annualIncome(), input.currency(), base, date),
-                        toBase(period.annualExpense(), input.currency(), base, date),
-                        period.annualReturnRate(),
-                        period.cashFlowType(),
-                        period.paidByTenant()))
-            .toList(),
-        input.rentalContracts().stream()
-            .map(
-                c ->
-                    new RentalContractProjectionModel(
-                        c.id(),
-                        c.startDate(),
-                        c.endDate(),
-                        c.terminatedDate(),
-                        c.rentalTaxPaidByTenant(),
-                        toBase(c.monthlyTaxBase(), input.currency(), base, date),
-                        c.terms().stream()
-                            .map(
-                                t ->
-                                    new RentalContractModel.Term(
-                                        t.type(),
-                                        toBase(t.amount(), input.currency(), base, date),
-                                        t.frequency(),
-                                        t.paidByTenant()))
-                            .toList()))
-            .toList(),
-        input.maturityDate(),
-        toBase(input.redemptionValue(), input.currency(), base, date),
-        input.interestTreatment(),
-        input.taxRate(),
-        toBase(input.taxBase(), input.currency(), base, date),
-        input.rentalTaxPaidByTenant());
+        row.id(),
+        row.name(),
+        category(row.type()),
+        currency,
+        row.currentValue(),
+        periods,
+        rentalContracts,
+        row.maturityDate(),
+        row.type() == LongTermAssetType.CASH_RESERVE
+            && (row.maturityDate() == null || !row.maturityDate().isAfter(date)));
+  }
+
+  private RentalContractProjectionModel rentalContractProjection(
+      LongTermAssetRentalContractEntity contract,
+      CurrencyType source,
+      CurrencyType target,
+      LocalDate date) {
+    return new RentalContractProjectionModel(
+        contract.getId(),
+        contract.getStartDate(),
+        contract.getEndDate(),
+        contract.getTerminatedDate(),
+        convertedTerms(contract, source, target, date));
+  }
+
+  private List<RentalContractModel.Term> convertedTerms(
+      LongTermAssetRentalContractEntity contract,
+      CurrencyType source,
+      CurrencyType target,
+      LocalDate date) {
+    return contract.getTerms().stream()
+        .map(
+            term ->
+                new RentalContractModel.Term(
+                    term.getType(),
+                    toBase(term.getAmount(), source, target, date),
+                    term.getFrequency(),
+                    term.isPaidByTenant()))
+        .toList();
+  }
+
+  private LongTermAssetAnnualSnapshotModel annual(
+      List<AssetSummaryView> rows, CurrencyType currency) {
+    return new LongTermAssetAnnualSnapshotModel(
+        sumType(rows, LongTermAssetType.REAL_ESTATE),
+        incomeType(rows, LongTermAssetType.REAL_ESTATE),
+        sumType(rows, LongTermAssetType.BOND),
+        incomeType(rows, LongTermAssetType.BOND),
+        sumType(rows, LongTermAssetType.CASH_RESERVE),
+        sumType(rows, LongTermAssetType.PERSONAL_ASSET),
+        currency);
   }
 
   private CurrencyType baseCurrency(Long portfolioId) {
     return portfolios
         .findById(portfolioId)
         .map(PortfolioContext::baseCurrency)
-        .orElse(FinancialPolicyDefaults.CANONICAL_CURRENCY);
-  }
-
-  private LongTermAssetAnnualSnapshotModel toBase(
-      LongTermAssetAnnualSnapshotModel snapshot, CurrencyType base, LocalDate date) {
-    if (snapshot == null || base == FinancialPolicyDefaults.CANONICAL_CURRENCY) return snapshot;
-    return new LongTermAssetAnnualSnapshotModel(
-        toBase(snapshot.realEstateValue(), FinancialPolicyDefaults.CANONICAL_CURRENCY, base, date),
-        toBase(snapshot.rentalIncome(), FinancialPolicyDefaults.CANONICAL_CURRENCY, base, date),
-        toBase(snapshot.bondValue(), FinancialPolicyDefaults.CANONICAL_CURRENCY, base, date),
-        toBase(snapshot.bondIncome(), FinancialPolicyDefaults.CANONICAL_CURRENCY, base, date),
-        toBase(snapshot.cashReserveValue(), FinancialPolicyDefaults.CANONICAL_CURRENCY, base, date),
-        toBase(snapshot.otherAssetValue(), FinancialPolicyDefaults.CANONICAL_CURRENCY, base, date));
+        .orElseThrow(() -> new PortfolioNotFoundException(portfolioId));
   }
 
   private BigDecimal toBase(
-      BigDecimal amount, CurrencyType source, CurrencyType target, LocalDate date) {
-    return amount == null || source == target
-        ? amount
-        : currencyRates.convertToBaseCurrency(amount, target, source, date);
+      BigDecimal value, CurrencyType source, CurrencyType target, LocalDate date) {
+    return value == null || source == target
+        ? value
+        : conversion.convertToBaseCurrency(value, target, source, date);
+  }
+
+  private static BigDecimal valueOf(List<AssetSummaryView> rows) {
+    return rows == null
+        ? BigDecimal.ZERO
+        : rows.stream()
+            .map(AssetSummaryView::currentValue)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+
+  private static BigDecimal sumType(List<AssetSummaryView> rows, LongTermAssetType type) {
+    return valueOf(rows.stream().filter(row -> row.type() == type).toList());
+  }
+
+  private static AssetEconomicCategory category(LongTermAssetType type) {
+    return switch (type) {
+      case REAL_ESTATE -> AssetEconomicCategory.REAL_ESTATE;
+      case BOND -> AssetEconomicCategory.FIXED_INCOME;
+      case CASH_RESERVE -> AssetEconomicCategory.LIQUID_CASH;
+      case PERSONAL_ASSET -> AssetEconomicCategory.PERSONAL_ASSET;
+    };
+  }
+
+  private static BigDecimal incomeType(List<AssetSummaryView> rows, LongTermAssetType type) {
+    return rows.stream()
+        .filter(row -> row.type() == type)
+        .map(row -> row.annualEconomics().netAnnualIncomeAfterTax())
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
   }
 }

@@ -1,122 +1,149 @@
 # Long-Term Assets
 
+## Product model
+
+Long-Term owns four closed asset types: `REAL_ESTATE`, `BOND`, `CASH_RESERVE`, and `PERSONAL_ASSET`.
+They are explicit product concepts, not implementations of a generic persistent
+asset hierarchy.
+
+Persistence uses explicit tables for each type. The read-only internal `app_v_long_term_assets` view
+unifies common factual inventory fields across those tables. It is not a writable persistence root
+and is not exposed across module boundaries. Tax, income, yield, retirement eligibility, and
+projection calculations remain application logic.
+
+`PERSONAL_ASSET` represents non-investment property such as an own home or vehicle. Its closed
+categories are `HOME`, `VEHICLE`, and `OTHER`. Personal assets contribute to whole-wealth/net-worth
+reporting, but not to investment income, the investment-yield denominator, or retirement capital.
+These semantics follow from the type rather than configurable per-row inclusion flags.
+
+Profile yield uses Long-Term investment value as its denominator and therefore excludes personal
+assets. A cash reserve enters current retirement reserve only when it has no future maturity lock.
+Locked cash, bonds, real estate, and personal assets remain in net worth while staying outside the
+current cash reserve. Their availability is a source-domain fact published to Profile.
+
+Long-Term owns the asset taxonomy. Profile/Portfolio consumers receive financial meaning such as
+investment value, personal-asset value, and annual income. Retirement receives only
+retirement-relevant balances, income, and projection facts; it does not receive `PERSONAL_ASSET`.
+
+## Financial assumptions
+
+Tax and planning assumptions are profile/global policy, not per-asset configuration. The current
+policy uses an 8.5% rental-income tax rate and a 19% profit-tax rate for bond and interest-bearing
+cash-reserve income.
+Expected real-estate growth is also a profile/global planning assumption. These values have one
+source of truth and are not copied into individual assets or rental contracts.
+
+Each property stores an annual rental-tax base in its own immutable asset currency. The overview
+displays the monthly rental-tax figure consistently in both expanded and collapsed views. Category
+values are direct sums of their property-row values. `NULL` means unspecified and zero means an
+explicit zero base.
+
+A bond has principal/current value, one current interest rate, and maturity. A cash reserve has an
+optional current interest rate and optional maturity: a null or zero rate is plain cash, while a
+positive rate represents interest-bearing cash under the same global-tax rule. Merely holding a
+cash-reserve value does not create income or yield.
+
+Yield is zero when current asset value is zero; income, expense, and tax amounts remain visible,
+but Long-Term does not invent a denominator for a percentage.
+
+Expected real-estate growth is an assumption, not a valuation fact. Long-Term stores the current
+property value directly; it does not persist a synthetic dated valuation history.
+`land_register_number` is the optional factual property-register identifier.
+
 ## Rental source of truth
 
-Real-estate rental economics are stored and read through rental contracts and their terms. The
-projection, current snapshot, historical snapshot, and asset summary paths read those contracts.
-Contract terms carry dates, cadence, tax ownership,
-and landlord/tenant expense ownership.
+Real-estate rental economics are stored and read through rental contracts and their terms. Projection,
+current snapshot, historical snapshot, and asset-summary paths reuse those facts. Contract terms
+carry dates, cadence, and landlord/tenant expense ownership.
+
+Current snapshots annualize the contract effective on the requested boundary date. Historical
+snapshots accrue each contract only across its calendar-year overlap, prorating partial months or
+annual terms, subtract landlord-paid expenses and rental tax, then normalize the result to canonical
+USD. These two values are intentionally different when rent changes during a year. Current balances
+and current bond rates remain unavailable in a historical snapshot until backed by dated facts.
+
+`paidByTenant` applies to expense terms. Payment Audit includes all rental-income terms plus
+tenant-paid expenses in the tenant's monthly payment; landlord-paid expenses are excluded from that
+payment and reduce property economics instead.
 
 The checked-in bootstrap document may accept `cashFlows` only for `REAL_ESTATE` import input.
 Bootstrap rejects cash-flow rows for every other asset type and converts accepted rows into rental
-contracts before runtime use. This is real-estate import compatibility, not a second runtime model.
+contracts before runtime use. This is import compatibility, not a second runtime model.
 
-There is no generic runtime cash-flow persistence. Existing legacy rows are migrated into rental
-contracts and rental terms before the legacy table is removed.
+There is no generic runtime cash-flow persistence. Rental contracts reference real estate directly
+and their terms are explicit persisted facts.
 
 ## Rental contract lifecycle
 
 Rental contracts support create, read, in-place update, early termination, and explicit deletion.
-Contract identity remains stable during an update. Updating a contract atomically replaces its
-tenant metadata, planned period, contract-level rental-tax ownership, and complete term collection;
-removed terms are deleted. A contract contains at most one term for each cash-flow type.
+Contract identity remains stable during update. Updating a contract atomically replaces its tenant
+metadata, planned period, and complete term collection; removed terms are deleted. A contract
+contains at most one term for each cash-flow type.
 
 `endDate` is the expected, planned end of a contract. `terminatedDate` records an actual early
 termination. The effective end is the earlier of those dates. Ordinary editing changes the expected
 end; early termination is a separate lifecycle action and cannot precede the start or follow the
 expected end.
 
-Contracts for one asset cannot overlap. Creating a contract never silently terminates another
+Contracts for one property cannot overlap. Creating a contract never silently terminates another
 contract. An explicit rollover option may set the immediately preceding contract's expected end to
 the day before the new start, in the same transaction. It does not set `terminatedDate`.
 
 Deletion is correction of incorrectly entered data, not a normal lifecycle transition. It removes
-the selected contract and its terms after portfolio, asset, and real-estate ownership checks. It does
-not reopen or extend adjacent contracts. Because historical projections read contract history,
-deletion may change historical calculations.
+the selected contract and its terms after portfolio and real-estate ownership checks. It does not
+reopen or extend adjacent contracts. Because historical projections read contract history, deletion
+may change historical calculations.
 
 Tenant name, email, and phone belong to the rental contract, not the property. They are optional and
-may differ across successive contracts. Contract-level rental-tax ownership remains tri-state:
-`null` inherits the property default, `false` means landlord-paid, and `true` means tenant-paid.
+may differ across successive contracts. Rental-tax rates are resolved from profile/global policy and
+are not duplicated into each property or contract.
 
-## Bond values
+## Public boundaries
 
-`acquisitionValue` is the historical acquisition/principal value. `currentValue` is the present
-planning valuation. Updating a bond's current value does not overwrite its acquisition history.
+`LongTermAssetsApi` is the Web/REST management boundary for explicit asset and rental commands plus
+persistence-free management views. `LongTermAssetProfileReader`,
+`LongTermAssetAnnualSnapshotReader`, and `LongTermAssetPaymentAuditReader` are smaller consumer
+boundaries for cross-module composition. JPA
+entities, repositories, and `app_v_long_term_assets` remain internal to Long-Term.
 
-Cash reserves and bonds each have one current planning-rate assumption. Saving either asset replaces
-that assumption; users do not maintain effective-dated cash-return or bond-rate history. When a bond
-or cash reserve expires, archive it and create a new asset. Rate-period rows remain an internal
-persistence compatibility detail. Bootstrap accepts at most one cash-reserve valuation period and
-requires exactly one bond-rate period; importing either asset replaces any previously stored rate
-rows. Real-estate valuation growth remains effective-dated.
+The Long-Term overview may expose all four internal asset types and owns totals, allocation, tax,
+income, and yield calculations used by the page.
 
-## Public boundary
+Profile/Portfolio receives semantic aggregated facts, including Long-Term investment value,
+personal-asset value, and annual income as required. It does not consume Long-Term entities,
+repositories, SQL views, or the internal type taxonomy.
 
-The management API exposes rental-contract commands and persistence-free read views. Legacy rental
-period and cash-flow mutation endpoints are not part of the public API. JPA entities and repositories
-remain inside Long-Term Assets.
+Retirement receives only retirement-relevant current and historical financial facts. Long-Term owns
+the translation from real estate, rental contracts, bonds, cash reserves, maturities, and
+global policy into those normalized facts. Retirement does not inspect Long-Term persistence,
+reproduce Long-Term calculations, or receive PersonalAsset data.
 
-For Retirement planning, Long-Term exposes normalized economic contracts rather than concrete asset
-implementations. Long-Term owns the translation from properties, rental contracts, bonds, deposits,
-cash reserves, maturities, tax treatment, and other internal rules into planning-level balances,
-cash flows, capital availability, and projections.
-
-Retirement must not inspect Long-Term entities or reproduce those calculations. A reviewed Retirement
-plan may freeze the normalized values returned by this boundary for reproducibility; that snapshot is
-Retirement planning provenance and does not replace Long-Term as the source of current asset state.
-
-The current normalized Long-Term profile snapshot is the only live input to Retirement planning.
-Reviewed Retirement revisions persist that snapshot before simulation; Long-Term does not maintain
-a second quote/plan transition API or infer projection behavior from legacy object shapes.
-
-Bond interest paid out is a spendable fixed-income cash flow. Capitalized bond interest is retained
-in Long-Term capital and is reported separately from cash income; it is never counted in both places.
-
-Cash-flow rows are supported only as real-estate bootstrap input and are converted directly into
-rental contracts and terms. Non-real-estate assets cannot define or import generic cash-flow rows.
-Persisted contracts carry explicit bootstrap ownership. A repeated import atomically replaces
-only bootstrap-owned contracts; manual and pre-ownership contracts are protected from importer
-rewrites even when tenant identity and notes are empty. The bootstrap document is authoritative for
-its owned contracts: rebuilding them captures the document asset's current tax base and tax-payer
-default for every supplied rental period. Use separate assets or post-import contract corrections
-when historical periods require different tax snapshots; a later bootstrap import will apply its
-authoritative defaults again.
-
-Expected real-estate value growth is informational. Deterministic Retirement ignores appreciation
-and does not automatically sell property.
+A reviewed Retirement revision may freeze normalized Long-Term economic facts for reproducibility.
+That frozen snapshot is Retirement planning provenance and does not replace Long-Term as the source
+of current asset state.
 
 ## Creation and review invariants
 
-Generic asset creation accepts only `OTHER`. `OTHER` is notes-only: it remains viewable and editable,
-but contributes no value, income, annual result, or retirement projection total. Bonds, deposits,
-cash reserves, and real estate use
-atomic subtype workflows; deposits require a maturity date. Rental contracts are valid only for
-`REAL_ESTATE` assets. New contracts persist only explicitly supplied terms; copying a previous
-contract is a UI prefilling action and never mutates data before submission. Explicit bond redemption
-is preserved by ordinary edits; a new bond uses acquisition value only when redemption was not
-supplied.
+Creation is explicit for each supported type. `PERSONAL_ASSET` replaces the old generic financial
+meaning of `OTHER`; `OTHER` remains only as a PersonalAsset category. Bonds, cash reserves, real
+estate, and personal assets use explicit workflows. Rental
+contracts are valid only for `REAL_ESTATE`.
+
+New rental contracts persist only explicitly supplied terms; copying a previous contract is a UI
+prefilling action and never mutates data before submission.
 
 All application-level rates are canonical decimal fractions: `0.085` means 8.5%. HTTP and
-server-rendered form fields use percentage points for display and input, and convert exactly once at
-their boundary. Return, tax, and growth rates are validated again when they enter Long-Term so an
-in-process caller cannot persist percentage points accidentally.
+server-rendered form fields use percentage points for display/input and convert once at the adapter
+boundary. Rates are validated again when entering Long-Term.
 
-Generic asset PATCH requests are partial updates. Omitted fields preserve their current value;
-explicit null is not used to clear a value. Specialized asset workflows remain the contract for
-bond, deposit, cash-reserve, and real-estate fields.
+Asset currency is immutable after creation. Changing denomination requires creating a new asset or
+an explicit conversion workflow; ordinary edits and bootstrap upserts must never relabel stored
+amounts.
 
-Asset currency is immutable after creation. Changing the denomination requires creating a new asset
-or an explicit conversion workflow; ordinary edits and bootstrap upserts must never relabel stored
-amounts. A rental contract captures the property's monthly rental-tax base and tax-payer default when
-the contract is created. Interactive property-default edits apply only to new contracts and do not
-rewrite historical rental economics. Authoritative bootstrap replacement follows the import contract
-described above.
+Historical/date-scoped behavior remains a business requirement where consumed by annual snapshots
+and planning. The persistence representation may be simplified only when the same externally
+observable historical behavior is preserved.
 
-The Long-Term profile reader returns a persistence-free normalized planning snapshot. Retirement
-uses that snapshot for the current view and stores it in a reviewed revision. Forward simulation
-never re-reads live Long-Term records, rates, taxes, contracts, or allocations. A later source edit
-therefore changes CURRENT only until the user explicitly rebaselines and reviews a new revision.
-The snapshot freezes the rental-tax policy effective on its review date. Future-dated policy changes
-become a new planning assumption when the user rebaselines on or after their effective date; they are
-not scheduled automatically inside an already reviewed revision.
+Forward simulation never re-reads live Long-Term persistence after a reviewed revision has frozen
+its economic inputs. A later source edit changes Live/Current state only until the user explicitly
+rebaselines and reviews a new revision.

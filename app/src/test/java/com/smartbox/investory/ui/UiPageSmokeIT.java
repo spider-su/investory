@@ -202,13 +202,19 @@ class UiPageSmokeIT extends FastDatabaseTest {
       Page page = context.newPage();
       page.navigate(baseUrl() + "/portfolios/1/long-term-assets?");
 
-      var other = page.locator("#other-assets");
-      assertThat(other.getByText("Other", new Locator.GetByTextOptions().setExact(true)).count())
+      var personal = page.locator("#personal-assets");
+      assertThat(
+              personal
+                  .getByText("Personal assets", new Locator.GetByTextOptions().setExact(true))
+                  .count())
           .isPositive();
       assertThat(
-              other.getByText("Family Car", new Locator.GetByTextOptions().setExact(true)).count())
+              personal
+                  .getByText("Family Car", new Locator.GetByTextOptions().setExact(true))
+                  .count())
           .isPositive();
-      assertThat(page.locator(".iv-long-term-allocation__legend").textContent()).contains("Other");
+      assertThat(page.locator(".iv-long-term-allocation__legend").textContent())
+          .contains("Personal assets");
 
       page.locator("#cash-reserves .iv-planning-section__header").click();
       assertThat(page.locator("#cash-reserves").textContent()).contains("Cash reserve");
@@ -236,7 +242,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
       String marketCard = sourceCards.nth(0).textContent();
       String longTermCard = sourceCards.nth(1).textContent();
       assertThat(marketCard)
-          .contains("Received YTD", "Annualized performance", "Total return")
+          .contains("Investment result YTD", "Annualized performance", "Total return")
           .doesNotContain("p.a.");
       assertThat(
               sourceCards
@@ -246,13 +252,13 @@ class UiPageSmokeIT extends FastDatabaseTest {
                   .locator("strong")
                   .textContent())
           .matches("-?\\d+\\.\\d%|Unavailable");
-      assertThat(longTermCard).contains("Received YTD").doesNotContain("Basis");
+      assertThat(longTermCard).contains("Planned income YTD").doesNotContain("Basis");
 
       String allocation = page.locator(".iv-profile-allocation").textContent();
       assertThat(allocation)
           .contains("Short-term assets", "Long-term assets", "Asset type")
           .containsAnyOf("Short-term asset", "Long-term asset")
-          .containsAnyOf("Cash · short-term", "Other · long-term")
+          .containsAnyOf("Cash · Long-term asset", "Other · Long-term asset")
           .doesNotContain("Liquid", "Illiquid");
 
       String sourceLongTermPercentage = percentageIn(longTermCard);
@@ -278,7 +284,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
   void realEstateContractEditCanBeOpenedAndCancelled() {
     try (BrowserContext context = authenticatedContext()) {
       Page page = context.newPage();
-      page.navigate(baseUrl() + "/portfolios/1/long-term-assets/9402?");
+      page.navigate(baseUrl() + "/portfolios/1/long-term-assets/9402/real-estate?");
 
       page.locator("[data-edit-contract]").click();
       assertThat(page.locator("[data-contract-edit]").isVisible()).isTrue();
@@ -419,7 +425,7 @@ class UiPageSmokeIT extends FastDatabaseTest {
   void longTermAssetDatesUseReadableDisplayFormat() {
     try (BrowserContext context = authenticatedContext()) {
       Page page = context.newPage();
-      page.navigate(baseUrl() + "/portfolios/1/long-term-assets/9402?");
+      page.navigate(baseUrl() + "/portfolios/1/long-term-assets/9402/real-estate?");
 
       assertThat(page.locator(".iv-rental-contract__date").first().textContent())
           .containsPattern("\\b\\d{1,2} [A-Z][a-z]{2} \\d{4}\\b")
@@ -458,50 +464,52 @@ class UiPageSmokeIT extends FastDatabaseTest {
                 "Long-term assets",
                 "Long-term assets"),
             new PageCase(
-                "new other asset",
-                "/portfolios/1/long-term-assets/new?",
-                200,
-                "Long-term asset",
-                "Long-term asset"),
-            new PageCase(
-                "new bond",
-                "/portfolios/1/long-term-assets/new/bond?",
-                200,
-                "New bond",
-                "New bond"),
+                "new bond", "/portfolios/1/long-term-assets/new/bond?", 200, "Bond", "Add bond"),
             new PageCase(
                 "new cash reserve",
                 "/portfolios/1/long-term-assets/new/cash-reserve?",
                 200,
                 "Cash reserve",
-                "New cash reserve"),
-            new PageCase(
-                "new deposit",
-                "/portfolios/1/long-term-assets/new/deposit?",
-                200,
-                "New deposit",
-                "New deposit"),
+                "Add cash reserve"),
             new PageCase(
                 "new real estate",
                 "/portfolios/1/long-term-assets/new/real-estate?",
                 200,
                 "Real estate",
-                "Rental property"),
+                "Add real estate"),
             new PageCase(
-                "other asset detail",
-                "/portfolios/1/long-term-assets/9404?",
+                "new personal asset",
+                "/portfolios/1/long-term-assets/new/personal-asset?",
                 200,
-                "Family Car",
-                "Family Car"),
+                "Personal asset",
+                "Add personal asset"),
             new PageCase(
                 "cash reserve detail",
-                "/portfolios/1/long-term-assets/9401?",
+                "/portfolios/1/long-term-assets/9401/cash-reserve?",
                 200,
                 "Cash reserve",
-                "Cash reserve"),
+                "Edit cash reserve"),
+            new PageCase(
+                "bond detail",
+                "/portfolios/1/long-term-assets/9405/bond?",
+                200,
+                "Bond",
+                "Edit bond"),
+            new PageCase(
+                "interest-bearing cash reserve detail",
+                "/portfolios/1/long-term-assets/9406/cash-reserve?",
+                200,
+                "Cash reserve",
+                "Edit cash reserve"),
+            new PageCase(
+                "personal asset detail",
+                "/portfolios/1/long-term-assets/9404/personal-asset?",
+                200,
+                "Personal asset",
+                "Edit personal asset"),
             new PageCase(
                 "apartment A detail",
-                "/portfolios/1/long-term-assets/9402?",
+                "/portfolios/1/long-term-assets/9402/real-estate?",
                 200,
                 "Apartment A",
                 "Apartment A"),

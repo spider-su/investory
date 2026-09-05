@@ -57,12 +57,10 @@ Main features:
 Manage important assets that are not represented by broker statements.
 
 Main features:
-- Track real estate values, income, expenses, tax base, and growth.
-- Track bonds with interest and maturity redemption.
-- Track contractual deposits with maturity.
-- Track planning-only cash reserves.
-- Track generic other assets.
-- Support PAY_OUT and CAPITALIZE interest treatment where applicable.
+- Track real estate values and rental income/expenses.
+- Track bonds with current interest and maturity.
+- Track cash reserves, including optional interest and maturity for term cash.
+- Track explicit personal assets.
 
 ## 6. Unified Investment Profile
 

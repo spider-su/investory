@@ -23,7 +23,7 @@ final class SecondaryAdapterReconciliationCheck implements ReconciliationCheck {
 
   @Override
   public ReconciliationCheckResult execute(ReconciliationContext context) {
-    SecondaryAdapterStatusReader.ExportStatus export = statusReader.status();
+    SecondaryAdapterStatusReader.ExportStatus export = statusReader.status(context.portfolioId());
     if (export.lastExport() == null) {
       return result(
           ReconciliationStatus.REVIEW,

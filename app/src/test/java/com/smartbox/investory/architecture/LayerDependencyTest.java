@@ -130,6 +130,19 @@ class LayerDependencyTest {
         .check(MAIN);
   }
 
+  @DisplayName("profile And Retirement Do Not Inspect Long Term Taxonomy")
+  @Test
+  void profileAndRetirementDoNotInspectLongTermTaxonomy() {
+    noClasses()
+        .that()
+        .resideInAnyPackage(
+            "com.smartbox.investory.profile..", "com.smartbox.investory.retirement..")
+        .should()
+        .dependOnClassesThat()
+        .haveSimpleName("LongTermAssetType")
+        .check(MAIN);
+  }
+
   @DisplayName("shared Does Not Depend On Business Domains")
   @Test
   void sharedDoesNotDependOnBusinessDomains() {
@@ -182,6 +195,30 @@ class LayerDependencyTest {
         .dependOnClassesThat()
         .resideInAnyPackage(
             "..longterm.application..", "..longterm.infrastructure..", "..longterm.web..")
+        .check(MAIN);
+  }
+
+  @DisplayName("long Term Web Uses Only Its Public Boundary")
+  @Test
+  void longTermWebUsesOnlyItsPublicBoundary() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..longterm.web..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage("..longterm.application..", "..longterm.infrastructure..")
+        .check(MAIN);
+  }
+
+  @DisplayName("long Term Application Does Not Depend On Web")
+  @Test
+  void longTermApplicationDoesNotDependOnWeb() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..longterm.application..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage("..longterm.web..")
         .check(MAIN);
   }
 
@@ -477,6 +514,18 @@ class LayerDependencyTest {
         .should()
         .dependOnClassesThat()
         .areAnnotatedWith(Service.class)
+        .check(MAIN);
+  }
+
+  @DisplayName("retirement Web Does Not Depend On Simulation Implementations")
+  @Test
+  void retirementWebDoesNotDependOnSimulationImplementations() {
+    noClasses()
+        .that()
+        .resideInAnyPackage("..retirement.web..")
+        .should()
+        .dependOnClassesThat()
+        .resideInAnyPackage("..retirement.simulation..")
         .check(MAIN);
   }
 

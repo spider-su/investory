@@ -1,7 +1,6 @@
 package com.smartbox.investory.longterm.infrastructure.rental;
 
 import jakarta.persistence.*;
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -9,7 +8,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "long_term_asset_rental_contracts")
+@Table(name = "rental_contract")
 @Getter
 @Setter
 public class LongTermAssetRentalContractEntity {
@@ -17,7 +16,7 @@ public class LongTermAssetRentalContractEntity {
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
-  @Column(name = "asset_id", nullable = false)
+  @Column(name = "real_estate_id", nullable = false)
   private Long assetId;
 
   @Column(name = "start_date", nullable = false)
@@ -28,12 +27,6 @@ public class LongTermAssetRentalContractEntity {
 
   @Column(name = "terminated_date")
   private LocalDate terminatedDate;
-
-  @Column(name = "rental_tax_paid_by_tenant")
-  private Boolean rentalTaxPaidByTenant;
-
-  @Column(name = "monthly_tax_base", precision = 20, scale = 2)
-  private BigDecimal monthlyTaxBase;
 
   @Column(name = "bootstrap_managed", nullable = false)
   private boolean bootstrapManaged;

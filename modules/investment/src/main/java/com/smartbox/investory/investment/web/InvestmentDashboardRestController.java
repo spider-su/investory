@@ -31,9 +31,9 @@ public class InvestmentDashboardRestController {
     return dashboard.loadPerformanceKpi(portfolioId);
   }
 
-  @GetMapping("/investment-result")
-  public InvestmentDashboardApi.InvestmentResultView investmentResult(
+  @GetMapping("/investment-result-ytd")
+  public InvestmentDashboardApi.InvestmentResultView investmentResultYtd(
       @RequestParam @Positive Long portfolioId) {
-    return dashboard.investmentResult(portfolioId);
+    return dashboard.investmentResultYtd(portfolioId);
   }
 }

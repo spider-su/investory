@@ -1,6 +1,5 @@
 package com.smartbox.investory.longterm.api.model;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -10,8 +9,6 @@ public record RentalContractProjectionModel(
     LocalDate startDate,
     LocalDate endDate,
     LocalDate terminatedDate,
-    Boolean rentalTaxPaidByTenant,
-    BigDecimal monthlyTaxBase,
     List<RentalContractModel.Term> terms) {
   public RentalContractProjectionModel {
     terms = com.smartbox.investory.shared.util.CollectionUtils.immutableListOrEmpty(terms);

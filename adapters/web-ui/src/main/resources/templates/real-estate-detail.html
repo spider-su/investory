@@ -7,19 +7,20 @@
   <title th:text="${asset.name + ' · Investory'}">Real estate · Investory</title>
   <link href="/css/tabler.min.css" rel="stylesheet">
 
+  <link href="/css/planning.css" rel="stylesheet">
   <link href="/css/asset-detail.css" rel="stylesheet">
 </head>
 <body>
-<main class="container-xl py-4 iv-property-page">
+<main class="iv-app iv-planning-page iv-property-page">
   <div th:replace="~{real-estate/fragments/hero :: hero}"></div>
   <div th:replace="~{real-estate/fragments/alerts :: alerts}"></div>
 
   <div th:replace="~{real-estate/fragments/contracts :: contracts}"></div>
 
   <div th:replace="~{real-estate/fragments/settings :: settings}"></div>
-  <div th:replace="~{real-estate/fragments/advanced :: advanced}"></div>
 
   </main>
+<div th:replace="~{fragments/app-footer :: buildFooter}"></div>
 
 </body>
 </html>

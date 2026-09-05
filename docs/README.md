@@ -31,8 +31,8 @@ resolved by changing the documentation.
   rates, and fail-closed reporting behavior.
 - [`domain/broker-imports.md`](domain/broker-imports.md): shared import provenance, identity,
   idempotency, lifecycle, numeric, and fail-closed semantics for supported brokers.
-- [`domain/long-term-assets.md`](domain/long-term-assets.md): manual real estate, bonds, deposits, cash
-  reserves, lifecycle, rental contracts, valuation periods, and planning-facing semantics.
+- [`domain/long-term-assets.md`](domain/long-term-assets.md): manual real estate, bonds, cash reserves,
+  lifecycle, rental contracts, valuation periods, and planning-facing semantics.
 - [`domain/retirement-simulation.md`](domain/retirement-simulation.md): authoritative deterministic
   retirement model, planning buckets, funding/refill strategy, lifecycle, and growth-rate semantics.
 - [`domain/planning-timeline.md`](domain/planning-timeline.md): Actual/Live/Projected lifecycle,

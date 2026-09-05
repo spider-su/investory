@@ -42,13 +42,13 @@ Rental-income and spending growth assumptions use `effective growth = inflation 
 Sensitivity changes only the stored spread, so inflation stays fixed; Analysis displays the
 effective rate. A stored spread must be labelled as a spread wherever it is shown.
 
-Bond-return sensitivity applies to allocation-only planning fixed income and to CAPITALIZE source
-Bonds only while an effective capital-return period affects the forward horizon. PAY_OUT-only
-source Bonds are excluded even when their principal appears in fixed-income start/end balances.
-Mixed PAY_OUT/CAPITALIZE portfolios apply only when at least one active CAPITALIZE period has
-effective capital return. Expired or inactive periods do not create applicability.
+Bond-return sensitivity applies to allocation-only planning fixed income and to source bond return
+facts only while an effective return period affects the forward horizon. Income-only source bonds are
+excluded even when their principal appears in fixed-income start/end balances. Mixed income/return
+portfolios apply only when at least one active return period has effective capital return. Expired or
+inactive periods do not create applicability.
 
-Allocation-only means the reviewed source snapshot has no Bond/Deposit assets and the planning
+Allocation-only means the reviewed source snapshot has no Bond assets and the planning
 allocation contains fixed income. Once reviewed source assets exist, applicability comes from the
 source treatment and active periods, not from the fixed-income balance alone.
 

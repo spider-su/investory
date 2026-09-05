@@ -63,14 +63,14 @@ never calculate expectations through production valuation, FX, projection, or re
 F8-F14 use the same non-investment facts: IDs 9401-9404 are the PLN cash reserve, Apartment A,
 Apartment B, and Family Car. The notes-only Family Car remains visible but is excluded from
 financial calculations. The calculated subtotal is therefore 950000 including the reserve at the
-2024-08-01 as-of date. The canonical Treasury and reserve deposit add 60000, so the calculated
+2024-08-01 as-of date. The canonical Treasury and interest-bearing cash reserve add 60000, so the calculated
 profile total is 1010000.
 Apartment A rents for
 3200/month and Apartment B has 2800/month through 2025-06-30, then 3000/month. Calendar-2025
-collected gross rent is 73200. The 2025-12-31 boundary-date annualized gross economics are 74400;
-historical snapshots intentionally use that boundary measure. The persisted rental tax bases are
-3200/month and 3000/month, supporting boundary-date tax 6324 at 8.5% and net income 68076.
-Apartment A's own annual tax is 3264. These facts live in
+collected gross rent is 73200; historical snapshots use this calendar measure. The 2025-12-31
+boundary-date annualized gross economics are 74400. The persisted annual rental-tax bases
+are 3200 and 3000, supporting annual tax 527 and boundary-date net annual income 73873 at 8.5%.
+Apartment A's own annual tax is 272. These facts live in
 `HappyInvestorLongTermFacts`. The persisted planning identity is `Happy Investor Plan`, with its
 independent assumptions in `HappyInvestorPlanFacts`; F11 joins this state to the F1-F4 investment
 facts, and F12-F14 consume the same plan identity. The scenario's tax assumptions are not a full
@@ -115,7 +115,7 @@ F4  Reporting -> dashboard                 | -> valuation/reporting inputs
 
 F8  Long-term assets                    F15 Reconciliation <- canonical financial state
 F9  Rental economics                    F16 Integration jobs -> F5/F6/provider updates
-F10 Bond/deposit economics              F17 Notifications <- jobs/reconciliation/events
+F10 Bond/cash-reserve economics         F17 Notifications <- jobs/reconciliation/events
 F11 Unified profile
 F12 Plan persistence
 F13 Retirement simulation

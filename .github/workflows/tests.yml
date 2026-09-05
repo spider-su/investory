@@ -83,7 +83,7 @@ jobs:
           if-no-files-found: error
 
   composition:
-    name: Application composition
+    name: App Startup
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -94,7 +94,7 @@ jobs:
       - name: Set up Java and Maven
         uses: ./.github/actions/setup-java-maven
 
-      - name: Run application composition test
+      - name: App Startup
         run: |
           sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl app -am \
             initialize test-compile failsafe:integration-test failsafe:verify \
@@ -108,7 +108,7 @@ jobs:
           if-no-files-found: error
 
   backendIt:
-    name: Backend IT (${{ matrix.suite.name }})
+    name: BE_IT (${{ matrix.suite.name }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: [unit, composition]
@@ -118,13 +118,13 @@ jobs:
         suite:
           - name: contracts
             project: app
-            tests: ValuationInputContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,AccountDailyProjectionBoundaryIT,InvestmentProfileCompositionIT,AssetDetailReadModelIT,HappyInvestorReadOnlyRestIT,HappyInvestorOverlayIdempotencyIT
+            tests: ValuationInputContractIT,SystemAuditContractIT,MaterializedViewRefreshContractIT,DatabaseReportingContractIT,BaselineReadinessContractIT,AccountMonthlyBenchmarkContractIT,AccountDailyProjectionBoundaryIT,ProfilePersistedFactsIT,AssetDetailReadModelIT,HappyInvestorOverlayIdempotencyIT
           - name: imports
             project: app
             tests: CurrencyRateUpdaterPostgresIT,IbkrTreasuryImportIT,XtbImportIT,ImportPortfolioIsolationIT,BrokerImportAccountingBoundaryIT,IntegrationJobExecutionIT
           - name: reconciliation-notifications-longterm
             project: app
-            tests: DatabaseEvidenceReconciliationCheckIT,RentalContractPersistenceIT,LongTermAssetLifecyclePersistenceIT,NotificationEventContractIT,NotificationEventClaimContractIT,NotificationEventRepositoryContractIT,NotificationDeliveryHappyInvestorIT,AlertRuleTransactionContractIT,PlanningTimelineLifecycleIT
+            tests: DatabaseEvidenceReconciliationCheckIT,NotificationEventContractIT,NotificationEventClaimContractIT,NotificationEventRepositoryContractIT,NotificationDeliveryHappyInvestorIT,AlertRuleTransactionContractIT,PlanningTimelineLifecycleIT
           - name: exports-and-market-data
             project: app
             tests: ExportHappyInvestorIT,MarketDataRefreshPostgresIT
@@ -148,7 +148,7 @@ jobs:
           name: packaged-reactor
           path: .
 
-      - name: Run backend integration tests
+      - name: BE_IT
         run: |
           sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl "${{ matrix.suite.project }}" -am initialize test-compile failsafe:integration-test failsafe:verify \
             "-Dit.test=${{ matrix.suite.tests }}" "-Dfailsafe.failIfNoSpecifiedTests=false"
@@ -164,7 +164,6 @@ jobs:
     name: UI browser setup
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [unit, composition]
 
     steps:
       - name: Check out repository
@@ -172,12 +171,6 @@ jobs:
 
       - name: Set up Java and Maven
         uses: ./.github/actions/setup-java-maven
-
-      - name: Download packaged reactor outputs
-        uses: actions/download-artifact@v8
-        with:
-          name: packaged-reactor
-          path: .
 
       - name: Restore Playwright browser cache
         id: playwright-cache
@@ -202,10 +195,10 @@ jobs:
           if-no-files-found: error
 
   uiIt:
-    name: UI IT (${{ matrix.suite.name }})
+    name: FE_IT (${{ matrix.suite.name }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: uiSetup
+    needs: [unit, composition, uiSetup]
     strategy:
       fail-fast: false
       matrix:
@@ -250,7 +243,7 @@ jobs:
             -name 'chrome' \
           \) -exec chmod u+x {} +
 
-      - name: Run UI integration tests
+      - name: FE_IT
         id: ui-tests
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/playwright
@@ -368,7 +361,7 @@ jobs:
           path: app/target/site/jacoco-aggregate/
           if-no-files-found: error
   schema:
-    name: Schema migration
+    name: DB_IT
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: [unit, composition]
@@ -396,6 +389,8 @@ jobs:
             'app/src/test/java/com/smartbox/investory/infrastructure/FlywayMigrationChainIT.java' \
             'app/src/test/java/com/smartbox/investory/infrastructure/SchemaStructureContractIT.java' \
             'app/src/test/java/com/smartbox/investory/infrastructure/MigrationDataRepairIT.java' \
+            'app/src/test/java/com/smartbox/investory/infrastructure/LongTermExplicitMigrationIT.java' \
+            'app/src/test/java/com/smartbox/investory/infrastructure/LongTermHardeningMigrationIT.java' \
             'app/src/main/resources/application*.yml' | sort)
           hash=$(printf '%s\n' "$files" | xargs sha256sum | sha256sum | cut -d' ' -f1)
           echo "hash=$hash" >> "$GITHUB_OUTPUT"
@@ -407,11 +402,11 @@ jobs:
           path: .schema-green
           key: schema-green-${{ steps.fingerprint.outputs.hash }}
 
-      - name: Run schema migration test
+      - name: DB_IT
         if: steps.schema-cache.outputs.cache-hit != 'true'
         run: |
           sh ./mvnw --batch-mode --no-transfer-progress "-Dmaven.repo.local=$GITHUB_WORKSPACE/.m2/repository" -pl app -am initialize test-compile failsafe:integration-test failsafe:verify \
-            "-Dit.test=FlywayMigrationChainIT,SchemaStructureContractIT,MigrationDataRepairIT" "-Dfailsafe.failIfNoSpecifiedTests=false"
+            "-Dit.test=FlywayMigrationChainIT,SchemaStructureContractIT,MigrationDataRepairIT,LongTermExplicitMigrationIT,LongTermHardeningMigrationIT" "-Dfailsafe.failIfNoSpecifiedTests=false"
 
       - name: Record green schema result
         if: success() && steps.schema-cache.outputs.cache-hit != 'true'

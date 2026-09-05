@@ -6,17 +6,11 @@ import java.time.LocalDate;
 
 /** Real-estate create/update HTML form. */
 public record RealEstateForm(
+    Long id,
     String name,
     CurrencyType currency,
-    LocalDate acquisitionDate,
-    BigDecimal acquisitionValue,
-    BigDecimal currentValue,
+    BigDecimal value,
     BigDecimal taxBase,
-    BigDecimal monthlyRent,
-    BigDecimal monthlyParkingIncome,
-    BigDecimal monthlyAdministrationCost,
-    BigDecimal monthlyOtherCost,
-    BigDecimal annualPropertyTax,
-    BigDecimal annualInsurance,
-    LocalDate effectiveFrom,
+    LocalDate acquisitionDate,
+    String landRegisterNumber,
     String notes) {}

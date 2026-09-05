@@ -19,7 +19,7 @@ Investment and Long-Term reads; Retirement consumes public APIs.
 ## KT pages
 
 - [`investment-module-quick-kt.md`](investment-module-quick-kt.md) --- imported brokerage ledger, valuation, projections, reporting, and reconciliation.
-- [`longterm-module-quick-kt.md`](longterm-module-quick-kt.md) --- manually managed property, bond, deposit, and cash-reserve assets.
+- [`longterm-module-quick-kt.md`](longterm-module-quick-kt.md) --- manually managed property, bond, cash-reserve, and personal assets.
 - [`profile-module-quick-kt.md`](profile-module-quick-kt.md) --- whole-wealth profile facts composed for planning.
 - [`retirement-module-quick-kt.md`](retirement-module-quick-kt.md) --- plans, timeline, deterministic simulation, and analysis.
 - [`simulation-module-quick-kt.md`](simulation-module-quick-kt.md) --- deeper simulation-specific rules and invariants.
