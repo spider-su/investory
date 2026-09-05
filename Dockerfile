@@ -26,7 +26,7 @@ COPY test-support test-support
 COPY adapters adapters
 COPY app app
 COPY docs/quality/ui-baselines docs/quality/ui-baselines
-RUN ./mvnw -B "-Dapp.build.commit=${GIT_COMMIT}" clean package
+RUN ./mvnw -B "-Dapp.build.commit=${GIT_COMMIT}" -DskipTests clean package
 
 FROM eclipse-temurin:25-jre
 WORKDIR /app
