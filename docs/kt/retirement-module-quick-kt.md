@@ -27,7 +27,7 @@ source APIs + saved plan + temporal context
 
 ## Three kinds of state
 
-- **Stored inputs:** `retirement_plans`, `retirement_plan_events`, and `retirement_planning_years`. Plans hold user intent; projections remain runtime output.
+- **Stored inputs:** `retirement_plans`, `retirement_plan_events`, and `retirement_planning_years`. Plans hold user intent and an opaque reviewed baseline; projections remain runtime output. There is no separate persisted SimulationPlan/revision model in the current implementation.
 - **Runtime context:** selected scenario, display currency, current date/year, and projection context. These select how to evaluate a plan.
 - **Generated results:** projections, `SimulationResult`, analysis, sensitivities, and sustainable-spending results. Recalculate these; do not persist them as source facts.
 
