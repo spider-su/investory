@@ -30,11 +30,9 @@ public class InProcessRetirementTimelineClient implements RetirementTimelineClie
       Long portfolioId,
       int year,
       Long planId,
-      Long revisionId,
       InvestmentProfile profile,
       SimulationAssumptions assumptions) {
-    return api.seedHistoricalBaselineFromPlan(
-        portfolioId, year, planId, revisionId, profile, assumptions);
+    return api.seedHistoricalBaselineFromPlan(portfolioId, year, planId, profile, assumptions);
   }
 
   public List<Integer> prefillHistoricalYears(Long portfolioId, int planStartYear) {
@@ -50,11 +48,8 @@ public class InProcessRetirementTimelineClient implements RetirementTimelineClie
   }
 
   public PlanningTimeline loadForwardTimeline(
-      Long portfolioId,
-      InvestmentProfile profile,
-      ForwardSimulationInput forward,
-      SimulationScenario scenario) {
-    return api.loadForwardTimeline(portfolioId, profile, forward, scenario);
+      Long portfolioId, RetirementProjection projection, SimulationScenario scenario) {
+    return api.loadForwardTimeline(portfolioId, projection, scenario);
   }
 
   public PastPlanningYear pastYear(Long portfolioId, int year) {
@@ -77,10 +72,9 @@ public class InProcessRetirementTimelineClient implements RetirementTimelineClie
       Long portfolioId,
       int year,
       Long planId,
-      Long revisionId,
       InvestmentProfile profile,
       SimulationAssumptions assumptions) {
-    api.setCurrentBaseline(portfolioId, year, planId, revisionId, profile, assumptions);
+    api.setCurrentBaseline(portfolioId, year, planId, profile, assumptions);
   }
 
   public void saveCurrentManualValue(
@@ -109,8 +103,7 @@ public class InProcessRetirementTimelineClient implements RetirementTimelineClie
     return api.reconcile(portfolioId, planningYear);
   }
 
-  public com.smartbox.investory.retirement.api.model.RevisionSummary rebaseline(
-      Long portfolioId, Long planId, PlanningBaseline baseline) {
-    return api.rebaseline(portfolioId, planId, baseline);
+  public void rebaseline(Long portfolioId, Long planId, PlanningBaseline baseline) {
+    api.rebaseline(portfolioId, planId, baseline);
   }
 }

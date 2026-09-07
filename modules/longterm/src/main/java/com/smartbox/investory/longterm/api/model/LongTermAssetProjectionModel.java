@@ -10,11 +10,11 @@ import java.util.List;
 /**
  * Persistence-free Long-Term projection input for retirement consumers.
  *
- * <p>All monetary fields, including period amounts, are expressed in the portfolio base currency
- * (from {@code portfolios.base_currency}). The {@link #currency} field reports that base currency;
- * conversion happens once at read time and rates are not re-applied. {@code fundingAvailable} is
- * the Long-Term-owned current funding decision; downstream modules must not reconstruct it from
- * maturity or asset type.
+ * <p>All monetary fields, including period amounts, are expressed in the portfolio local currency
+ * (from {@code portfolios.local_currency}). The {@link #currency} field reports that local
+ * currency; profile composition converts it to the investment base currency. {@code
+ * fundingAvailable} is the Long-Term-owned current funding decision; downstream modules must not
+ * reconstruct it from maturity or asset type.
  */
 public record LongTermAssetProjectionModel(
     Long id,

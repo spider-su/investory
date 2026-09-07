@@ -9,6 +9,7 @@ import com.smartbox.investory.retirement.api.model.SimulationAssumptions;
 import com.smartbox.investory.retirement.api.model.SimulationEvent;
 import com.smartbox.investory.retirement.api.model.SimulationFundingStrategy;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -19,8 +20,9 @@ public final class SimulationAssumptionsPersistenceMapper {
 
   public static SimulationAssumptions read(
       PersistedSimulationAssumptions source, List<SimulationEvent> events) {
+    int currentAge = currentAge(source);
     return new SimulationAssumptions(
-        source.getCurrentAge(),
+        currentAge,
         source.getEndAge(),
         source.getAnnualLivingExpenses(),
         source.getInflationRate(),
@@ -29,7 +31,7 @@ public final class SimulationAssumptionsPersistenceMapper {
         readPensionStartAge(source.getPensionStartAge()),
         source.getAnnualPension(),
         defaultValue(source.getCapitalGainTaxRate(), BigDecimal.ZERO),
-        source.getStartYear(),
+        source.getEffectiveYear(),
         source.getAnnualDiscretionaryExpenses(),
         events,
         defaultValue(
@@ -44,7 +46,7 @@ public final class SimulationAssumptionsPersistenceMapper {
         defaultValue(source.getEquityGainHarvestRate(), BigDecimal.ZERO),
         source.getAllowEmergencyEquityWithdrawal() == null
             || source.getAllowEmergencyEquityWithdrawal(),
-        source.getRetirementAge() == null ? source.getCurrentAge() : source.getRetirementAge(),
+        source.getRetirementAge() == null ? currentAge : source.getRetirementAge(),
         defaultValue(source.getAnnualEmploymentIncome(), BigDecimal.ZERO),
         defaultValue(source.getAnnualPreRetirementContribution(), BigDecimal.ZERO),
         parseFundingOrder(source.getFundingOrder()),
@@ -53,8 +55,8 @@ public final class SimulationAssumptionsPersistenceMapper {
 
   public static void write(
       PersistedSimulationAssumptions target, SimulationAssumptions assumptions) {
-    target.setCurrentAge(assumptions.currentAge());
-    target.setStartYear(assumptions.startYear());
+    target.setEffectiveYear(assumptions.startYear());
+    target.setBirthDate(LocalDate.of(assumptions.startYear() - assumptions.currentAge(), 1, 1));
     target.setEndAge(assumptions.endAge());
     target.setRetirementAge(assumptions.retirementAge());
     target.setAnnualEmploymentIncome(assumptions.annualEmploymentIncome());
@@ -79,6 +81,11 @@ public final class SimulationAssumptionsPersistenceMapper {
     target.setPensionStartAge(writePensionStartAge(assumptions.pensionStartAge()));
     target.setAnnualPension(assumptions.annualPension());
     target.setCapitalGainTaxRate(assumptions.capitalGainTaxRate());
+  }
+
+  private static int currentAge(PersistedSimulationAssumptions source) {
+    LocalDate birthDate = source.getBirthDate();
+    return birthDate == null ? 0 : source.getEffectiveYear() - birthDate.getYear();
   }
 
   static String serializeExpenseProfile(ExpenseProfile profile) {

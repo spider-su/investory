@@ -29,7 +29,7 @@ class ForwardSimulationInputServiceTest {
             .withAnnualEmploymentIncome(new BigDecimal("240000"))
             .withAnnualPreRetirementContribution(new BigDecimal("50000"));
     ForwardSimulationContext context = contexts.create(profile, assumptions);
-    CurrentYearBridgeResult bridged = mock(CurrentYearBridgeResult.class);
+    CurrentYearProjection bridged = mock(CurrentYearProjection.class);
     when(bridged.bridgedProfile()).thenReturn(profile);
     when(bridge.projectCurrentYearEnd(context)).thenReturn(bridged);
 

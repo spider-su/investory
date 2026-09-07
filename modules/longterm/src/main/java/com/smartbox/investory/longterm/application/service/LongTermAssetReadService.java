@@ -67,7 +67,7 @@ public class LongTermAssetReadService {
   }
 
   public LongTermOverviewView overview(Long portfolioId, LocalDate date) {
-    CurrencyType currency = baseCurrency(portfolioId);
+    CurrencyType currency = localCurrency(portfolioId);
     List<AssetSummaryView> assets = summaries(portfolioId, date, currency, false);
     Map<LongTermAssetType, List<AssetSummaryView>> byType =
         assets.stream().collect(Collectors.groupingBy(AssetSummaryView::type));
@@ -106,11 +106,11 @@ public class LongTermAssetReadService {
   }
 
   public List<AssetSummaryView> archived(Long portfolioId, LocalDate date) {
-    return summaries(portfolioId, date, baseCurrency(portfolioId), true);
+    return summaries(portfolioId, date, localCurrency(portfolioId), true);
   }
 
   public AssetSummaryView realEstateSummary(Long portfolioId, Long id, LocalDate date) {
-    CurrencyType currency = baseCurrency(portfolioId);
+    CurrencyType currency = localCurrency(portfolioId);
     var estate =
         realEstateRepository
             .findByIdAndPortfolioId(id, portfolioId)
@@ -119,7 +119,7 @@ public class LongTermAssetReadService {
   }
 
   public LongTermAssetProfileSnapshotModel snapshot(Long portfolioId, LocalDate date) {
-    CurrencyType currency = baseCurrency(portfolioId);
+    CurrencyType currency = localCurrency(portfolioId);
     var data = load(portfolioId, false);
     var rows = summaries(data, date, currency);
     var profileAssets =
@@ -147,7 +147,7 @@ public class LongTermAssetReadService {
   }
 
   public LongTermAssetAnnualSnapshotModel historicalAnnualSnapshot(Long portfolioId, int year) {
-    baseCurrency(portfolioId);
+    CurrencyType currency = localCurrency(portfolioId);
     LocalDate yearStart = LocalDate.of(year, 1, 1);
     LocalDate yearEnd = LocalDate.of(year, 12, 31);
     var estates = realEstateRepository.findAllByPortfolioIdOrderByName(portfolioId);
@@ -223,8 +223,7 @@ public class LongTermAssetReadService {
                       period.to())
                   .multiply(FinancialPolicyDefaults.RENTAL_TAX_RATE);
           rentalIncome =
-              rentalIncome.add(
-                  toBase(net.subtract(tax), estate.getCurrency(), CurrencyType.USD, yearEnd));
+              rentalIncome.add(toBase(net.subtract(tax), estate.getCurrency(), currency, yearEnd));
         }
       }
     }
@@ -493,10 +492,10 @@ public class LongTermAssetReadService {
         currency);
   }
 
-  private CurrencyType baseCurrency(Long portfolioId) {
+  private CurrencyType localCurrency(Long portfolioId) {
     return portfolios
         .findById(portfolioId)
-        .map(PortfolioContext::baseCurrency)
+        .map(PortfolioContext::localCurrency)
         .orElseThrow(() -> new PortfolioNotFoundException(portfolioId));
   }
 

@@ -4,9 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.infrastructure.plan.RetirementPlanEntity;
 import com.smartbox.investory.retirement.infrastructure.simulation.PersistedSimulationAssumptions;
 import com.smartbox.investory.retirement.infrastructure.simulation.SimulationAssumptionsPersistenceMapper;
-import com.smartbox.investory.retirement.infrastructure.simulation.SimulationPlanRevisionEntity;
 import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -15,11 +15,11 @@ import org.junit.jupiter.api.Test;
 @DisplayName("Simulation Assumptions Persistence Mapper")
 class SimulationAssumptionsPersistenceMapperTest {
 
-  @DisplayName("plan And Revision Share The Same Round Trip Boundary")
+  @DisplayName("plan Shares The Simulation Round Trip Boundary")
   @Test
   void planAndRevisionShareTheSameRoundTripBoundary() {
     SimulationAssumptions source = assumptions();
-    PersistedSimulationAssumptions persistedRow = new SimulationPlanRevisionEntity();
+    PersistedSimulationAssumptions persistedRow = new RetirementPlanEntity();
 
     SimulationAssumptionsPersistenceMapper.write(persistedRow, source);
 
@@ -30,13 +30,13 @@ class SimulationAssumptionsPersistenceMapperTest {
     assertEquals(source.equityReturnRate(), restored.equityReturnRate());
     assertEquals(source.capitalGainTaxRate(), restored.capitalGainTaxRate());
 
-    assertInstanceOf(PersistedSimulationAssumptions.class, new SimulationPlanRevisionEntity());
+    assertInstanceOf(PersistedSimulationAssumptions.class, new RetirementPlanEntity());
   }
 
   @DisplayName("legacy Nulls Are Normalized Only At The Persistence Boundary")
   @Test
   void legacyNullsAreNormalizedOnlyAtThePersistenceBoundary() {
-    SimulationPlanRevisionEntity persisted = new SimulationPlanRevisionEntity();
+    RetirementPlanEntity persisted = new RetirementPlanEntity();
     SimulationAssumptionsPersistenceMapper.write(persisted, assumptions());
     persisted.setRentalIncomeGrowthSpread(null);
     persisted.setSpendingGrowthSpread(null);

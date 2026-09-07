@@ -48,6 +48,7 @@ class InvestmentDashboardApplicationServiceTest {
     var view = service.loadPerformanceKpi(7L);
 
     assertThat(view.annualizedReturn()).isEqualByComparingTo("0.281");
+    assertThat(view.ytdReturn()).isEqualByComparingTo("0");
     assertThat(view.kpiStartDate()).isEqualTo("2026-01-01");
   }
 

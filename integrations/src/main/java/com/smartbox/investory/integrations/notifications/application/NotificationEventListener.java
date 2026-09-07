@@ -1,7 +1,7 @@
 package com.smartbox.investory.integrations.notifications.application;
 
 import com.smartbox.investory.shared.notifications.ImportFinalizedEvent;
-import com.smartbox.investory.shared.notifications.PlanRevisionReviewedEvent;
+import com.smartbox.investory.shared.notifications.RetirementPlanReviewedEvent;
 import com.smartbox.investory.shared.notifications.SystemAuditCompletedEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -25,7 +25,7 @@ public class NotificationEventListener {
   }
 
   @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-  public void onPlanRevisionReviewed(PlanRevisionReviewedEvent event) {
+  public void onRetirementPlanReviewed(RetirementPlanReviewedEvent event) {
     dispatcher.dispatchPending();
   }
 }

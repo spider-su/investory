@@ -1,5 +1,6 @@
 package com.smartbox.investory.investment.imports;
 
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.imports.ImportHistoryEntity;
 import com.smartbox.investory.investment.performance.InvestmentCalculationCache;
@@ -364,7 +365,7 @@ public class ImportOrchestratorService {
         PortfolioProjectionRefreshService.ApplicationRefreshScope.BROKER_IMPORT);
     portfolioProjectionService.recalculateAccounts(
         accountRepository.findAllByPortfolioId(batch.getPortfolioId()).stream()
-            .map(account -> account.getId())
+            .map(AccountEntity::getId)
             .collect(java.util.stream.Collectors.toSet()));
     // account_daily supplies the valuation dates used by the application price and reporting
     // materialized views, so refresh them again after rebuilding the account projection.

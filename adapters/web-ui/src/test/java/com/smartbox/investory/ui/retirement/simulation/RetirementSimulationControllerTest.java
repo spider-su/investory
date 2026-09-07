@@ -61,7 +61,6 @@ class RetirementSimulationControllerTest {
   @Mock ProfileClient profiles;
   @Mock RetirementSimulation simulations;
   @Mock RetirementPlanClient plans;
-  @Mock RetirementSandboxPlanClient sandboxPlans;
   @Mock RetirementProjectionClient projections;
   @Mock SustainableSpendingAnalysisService sustainableSpending;
   @Mock SimulationSensitivityAnalysisService sensitivity;
@@ -90,7 +89,6 @@ class RetirementSimulationControllerTest {
         new RetirementSimulationController(
             profiles,
             plans,
-            sandboxPlans,
             timeline,
             presentation,
             planInput,
@@ -114,7 +112,7 @@ class RetirementSimulationControllerTest {
               if (assumptions == null) {
                 assumptions = SimulationAssumptions.defaults(profile, currentAge, endAge, 2026);
               }
-              var projection = mock(RetirementProjectionContext.class);
+              var projection = mock(RetirementProjection.class);
               when(projection.profile()).thenReturn(profile);
               when(projection.assumptions()).thenReturn(assumptions);
               return projection;
@@ -132,7 +130,7 @@ class RetirementSimulationControllerTest {
               var forwardContext = mock(ForwardSimulationContext.class);
               when(forward.context()).thenReturn(forwardContext);
               when(forwardContext.asOfYear()).thenReturn(2026);
-              var projection = mock(RetirementProjectionContext.class);
+              var projection = mock(RetirementProjection.class);
               when(projection.projectedAssumptions()).thenReturn(assumptions);
               when(projection.projectedProfile()).thenReturn(profile);
               when(projection.forward()).thenReturn(forward);
@@ -146,7 +144,7 @@ class RetirementSimulationControllerTest {
               return new NormalizedPlanInput(invocation.getArgument(1), List.of());
             });
     lenient()
-        .when(timeline.loadForwardTimeline(anyLong(), any(), any(), any()))
+        .when(timeline.loadForwardTimeline(anyLong(), any(), any()))
         .thenReturn(new com.smartbox.investory.retirement.api.model.PlanningTimeline(List.of()));
     lenient()
         .when(forwardInputs.prepare(any(), any()))
@@ -653,8 +651,7 @@ class RetirementSimulationControllerTest {
 
   private static com.smartbox.investory.retirement.api.model.PlanDetails planDetails(
       Long id, String name, SimulationAssumptions assumptions) {
-    return new com.smartbox.investory.retirement.api.model.PlanDetails(
-        id, name, assumptions, null, null, null);
+    return new com.smartbox.investory.retirement.api.model.PlanDetails(id, name, assumptions, null);
   }
 
   private static InvestmentProfile profile() {

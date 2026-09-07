@@ -168,4 +168,20 @@ class LongTermAssetEconomicsTest {
     assertThat(result.economics().netYieldAfterTax()).isEqualByComparingTo("-0.00085");
     assertThat(result.monthlyPayment()).isZero();
   }
+
+  @Test
+  void nullAnnualTaxBaseMeansZeroTaxBase() {
+    var result = LongTermAssetEconomics.rental(List.of(), null, new BigDecimal("100000"));
+
+    assertThat(result.economics().annualTax()).isZero();
+    assertThat(result.economics().monthlyTaxBase()).isZero();
+    assertThat(result.economics().monthlyTax()).isZero();
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(Frequency.class)
+  void annualizeSupportsEveryFrequency(Frequency frequency) {
+    assertThat(LongTermAssetEconomics.annualize(new BigDecimal("12"), frequency))
+        .isEqualByComparingTo(frequency == Frequency.MONTHLY ? "144" : "12");
+  }
 }

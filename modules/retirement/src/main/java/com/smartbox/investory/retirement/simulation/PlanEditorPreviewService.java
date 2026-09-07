@@ -8,7 +8,7 @@ import com.smartbox.investory.longterm.api.model.LongTermAssetAnnualSnapshotMode
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.retirement.api.RetirementFinancialCalculations;
 import com.smartbox.investory.retirement.api.model.*;
-import com.smartbox.investory.retirement.api.model.CurrentYearBridgeResult;
+import com.smartbox.investory.retirement.api.model.CurrentYearProjection;
 import com.smartbox.investory.retirement.api.model.ForwardSimulationInput;
 import com.smartbox.investory.retirement.api.model.PlanEditorPreview;
 import com.smartbox.investory.retirement.api.model.PlanEditorPreview.PreviewYear;
@@ -207,7 +207,7 @@ public class PlanEditorPreviewService {
       int age,
       LongTermAssetAnnualSnapshotModel facts,
       SimulationAssumptions assumptions,
-      CurrentYearBridgeResult bridge,
+      CurrentYearProjection bridge,
       CurrencyType displayCurrency) {
     boolean retired = age >= assumptions.retirementAge();
     BigDecimal employment = retired ? BigDecimal.ZERO : assumptions.annualEmploymentIncome();

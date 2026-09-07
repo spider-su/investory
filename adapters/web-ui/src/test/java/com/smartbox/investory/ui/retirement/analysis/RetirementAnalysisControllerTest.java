@@ -6,7 +6,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.smartbox.investory.retirement.api.model.RetirementAnalysisResult;
-import com.smartbox.investory.retirement.api.model.RetirementProjectionContext;
+import com.smartbox.investory.retirement.api.model.RetirementProjection;
 import com.smartbox.investory.retirement.api.model.SimulationChartData;
 import com.smartbox.investory.retirement.api.model.SimulationDecisionSummaryMoney;
 import com.smartbox.investory.retirement.api.model.SimulationScenario;
@@ -27,7 +27,7 @@ class RetirementAnalysisControllerTest {
     RetirementAnalysisClient analyses = mock(RetirementAnalysisClient.class);
     RetirementPresentationClient presentation = mock(RetirementPresentationClient.class);
     RetirementPlanClient plans = mock(RetirementPlanClient.class);
-    RetirementProjectionContext projection = mock(RetirementProjectionContext.class);
+    RetirementProjection projection = mock(RetirementProjection.class);
     when(plans.resolvePlanId(1L, null)).thenReturn(Optional.empty());
     when(projections.load(1L, null, 40, 95)).thenReturn(projection);
     when(projection.summaries()).thenReturn(Map.of());

@@ -34,8 +34,17 @@ class SchemaStructureContractIT {
           "personal_asset",
           "rental_contract",
           "rental_contract_term",
+          "retirement_plans",
+          "retirement_plan_events",
+          "retirement_planning_years");
+
+  private static final Set<String> REMOVED_RETIREMENT_TABLES =
+      Set.of(
           "simulation_plans",
-          "planning_years");
+          "simulation_plan_revisions",
+          "simulation_plan_revision_events",
+          "planning_years",
+          "planning_year_values");
 
   private static final Set<String> REQUIRED_RELATIONS =
       Set.of(
@@ -81,6 +90,16 @@ class SchemaStructureContractIT {
                     + relation
                     + "'"),
             relation);
+      }
+      for (String table : REMOVED_RETIREMENT_TABLES) {
+        assertFalse(
+            MigrationTestDatabase.exists(
+                statement,
+                "SELECT 1 FROM information_schema.tables "
+                    + "WHERE table_schema = 'investory' AND table_name = '"
+                    + table
+                    + "'"),
+            table);
       }
 
       assertFalse(

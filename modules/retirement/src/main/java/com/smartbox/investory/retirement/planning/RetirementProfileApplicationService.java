@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class RetirementProfileApplicationService implements RetirementProfileApi {
   private final RetirementPlanApi plans;
+  private final RetirementProjectionService projections;
   private final PlanningCurrencyPresentationService presentation;
   private final Clock clock;
 
@@ -24,8 +25,8 @@ public class RetirementProfileApplicationService implements RetirementProfileApi
     int year = LocalDate.now(clock).getYear();
     var planId = plans.resolvePlanId(portfolioId, null);
     if (planId.isEmpty()) return AnnualCostView.unavailable(reportingCurrency, year);
-    var assumptions = plans.details(portfolioId, planId.get()).assumptions();
-    var cost = presentation.currentYearAnnualCosts(assumptions, year);
+    var spending = projections.currentYearSpending(portfolioId, planId.get());
+    var cost = spending.annualSpending();
     return new AnnualCostView(
         true,
         presentation.toDisplay(cost, reportingCurrency),

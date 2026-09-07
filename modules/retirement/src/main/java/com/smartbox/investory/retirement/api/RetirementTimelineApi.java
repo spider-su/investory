@@ -2,7 +2,6 @@ package com.smartbox.investory.retirement.api;
 
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.retirement.api.model.*;
-import com.smartbox.investory.retirement.api.model.RevisionSummary;
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -16,7 +15,6 @@ public interface RetirementTimelineApi {
       Long portfolioId,
       int year,
       Long planId,
-      Long revisionId,
       InvestmentProfile profile,
       SimulationAssumptions assumptions);
 
@@ -27,10 +25,7 @@ public interface RetirementTimelineApi {
   YearReviewMode reviewMode(Long portfolioId, int year);
 
   PlanningTimeline loadForwardTimeline(
-      Long portfolioId,
-      InvestmentProfile profile,
-      ForwardSimulationInput forward,
-      SimulationScenario scenario);
+      Long portfolioId, RetirementProjection projection, SimulationScenario scenario);
 
   PastPlanningYear pastYear(Long portfolioId, int year);
 
@@ -44,7 +39,6 @@ public interface RetirementTimelineApi {
       Long portfolioId,
       int year,
       Long planId,
-      Long revisionId,
       InvestmentProfile profile,
       SimulationAssumptions assumptions);
 
@@ -62,5 +56,5 @@ public interface RetirementTimelineApi {
 
   HistoricalReconciliation reconcile(Long portfolioId, PastPlanningYear planningYear);
 
-  RevisionSummary rebaseline(Long portfolioId, Long planId, PlanningBaseline baseline);
+  void rebaseline(Long portfolioId, Long planId, PlanningBaseline baseline);
 }

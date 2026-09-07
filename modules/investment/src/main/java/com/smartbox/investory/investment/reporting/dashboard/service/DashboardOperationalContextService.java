@@ -2,6 +2,7 @@ package com.smartbox.investory.investment.reporting.dashboard.service;
 
 import com.smartbox.investory.investment.api.reporting.model.DashboardOperationalView;
 import com.smartbox.investory.investment.imports.ImportBatchStatus;
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountStatisticsRepository;
@@ -66,7 +67,7 @@ public class DashboardOperationalContextService {
         accountRepository == null
             ? java.util.Set.<Long>of()
             : accountRepository.findAllByPortfolioId(portfolioId).stream()
-                .map(account -> account.getId())
+                .map(AccountEntity::getId)
                 .filter(java.util.Objects::nonNull)
                 .collect(java.util.stream.Collectors.toSet());
     List<AccountStatisticsEntity> accounts =

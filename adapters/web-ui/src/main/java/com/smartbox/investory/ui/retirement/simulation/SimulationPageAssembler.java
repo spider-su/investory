@@ -55,9 +55,7 @@ final class SimulationPageAssembler {
     var projection =
         projections.project(input.profile(), assumptions, plan == null ? null : plan.baseline());
     var projected = projection.projectedAssumptions();
-    var timeline =
-        planningTimeline.loadForwardTimeline(
-            portfolioId, input.profile(), projection.forward(), scenario);
+    var timeline = planningTimeline.loadForwardTimeline(portfolioId, projection, scenario);
     var timelineMoney = presentation.displayTimelineMoney(timeline, currency, projected);
     var yearly = RetirementYearSummaryView.from(timeline, timelineMoney);
     var toDisplay =

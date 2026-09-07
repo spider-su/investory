@@ -4,19 +4,19 @@
 
 ## What it owns
 
-Retirement owns retirement plans, immutable plan revisions and events,
+Retirement owns mutable retirement plans, plan events and reviewed planning years,
 planning timeline state, forward-input preparation, deterministic simulation,
 and analysis. It consumes public Investment, Long-Term, and Profile APIs; it
 does not use their infrastructure or persistence.
 
 ``` text
-source APIs + plan revision + temporal context
+source APIs + saved plan + temporal context
                     |
                     v
        ForwardSimulationInputService
                     |
                     v
-          RetirementProjectionFacade
+          RetirementProjectionService
                     |
                     v
           RetirementSimulationService
@@ -27,14 +27,14 @@ source APIs + plan revision + temporal context
 
 ## Three kinds of state
 
-- **Stored inputs:** `simulation_plans`, immutable `simulation_plan_revisions`, and revision events. These hold plan identity, assumptions, and the frozen baseline.
+- **Stored inputs:** `retirement_plans`, `retirement_plan_events`, and `retirement_planning_years`. Plans hold user intent; projections remain runtime output.
 - **Runtime context:** selected scenario, display currency, current date/year, and projection context. These select how to evaluate a plan.
 - **Generated results:** projections, `SimulationResult`, analysis, sensitivities, and sustainable-spending results. Recalculate these; do not persist them as source facts.
 
 ## Where to start
 
-- Plan boundary: `RetirementPlanApi` and `retirement.infrastructure.simulation.SimulationPlanService`.
-- Projection boundary: `RetirementProjectionApi` and `RetirementProjectionFacade`.
+- Plan boundary: `RetirementPlanApi` and `CanonicalRetirementPlanService`.
+- Projection boundary: `RetirementProjectionApi` and `RetirementProjectionService`.
 - Timeline preparation: `ForwardSimulationInputService` and `CurrentYearProjectionBridge`.
 - Engine: `RetirementSimulationService` and `RetirementBucketEngine`.
 - Interpretation: `RetirementAnalysisService`, `SimulationSensitivityAnalysisService`, and `SustainableSpendingAnalysisService`.

@@ -248,17 +248,18 @@ class DashboardPerformanceTemplateContractTest {
     assertTrue(
         html.contains(
             "th:text=\"${'Base currency: ' + stats.baseCurrency}\">Base currency: USD</span>"));
-    assertTrue(headerControls.contains("stats.formatBase(account.baseNetDeposit)"));
+    assertTrue(headerControls.contains("stats.formatBase(account.netDepositBase)"));
     assertTrue(
-        headerControls.contains("stats.formatMoney(account.netDeposit, account.localCurrency)"));
+        headerControls.contains(
+            "stats.formatMoney(account.netDepositLocal, account.localCurrency)"));
     assertTrue(headerControls.contains("class=\"iv-account-name\""));
     assertTrue(headerControls.contains("class=\"iv-account-id\""));
     assertTrue(headerControls.contains("class=\"iv-account-metric\""));
     assertTrue(headerControls.contains("iv-account-metric iv-account-pl"));
     assertTrue(headerControls.contains("data-sort-key=\"pl\""));
-    assertTrue(headerControls.contains("Net deposit</button>"));
-    assertTrue(headerControls.contains("Balance</button>"));
-    assertTrue(headerControls.contains("Profit/Loss</button>"));
+    assertTrue(headerControls.contains("Net deposit (base)</button>"));
+    assertTrue(headerControls.contains("Balance (base)</button>"));
+    assertTrue(headerControls.contains("Result (base)</button>"));
     assertTrue(headerControls.contains("Return</button>"));
     assertTrue(headerControls.contains("Cash</button>"));
     assertTrue(html.contains("Rates updated:"));

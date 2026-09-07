@@ -2,20 +2,18 @@ package com.smartbox.investory.profile.application;
 
 import com.smartbox.investory.longterm.api.model.LongTermAssetProfileAssetModel;
 import com.smartbox.investory.profile.api.model.Liquidity;
-import com.smartbox.investory.shared.currency.CurrencyConversion;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 
 /** Pure liquidity, reserve, and investable-capital rules for the profile summary. */
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 final class ProfileLiquidityCalculator {
-  private final CurrencyConversion currencyRates;
-
-  ProfileLiquidityCalculator(CurrencyConversion currencyRates) {
-    this.currencyRates = currencyRates;
-  }
+  private final ProfileCurrencyNormalizer currencyNormalizer;
 
   Result calculate(
       Map<ProfileAllocationCalculator.AllocationKey, BigDecimal> values,
@@ -30,7 +28,9 @@ final class ProfileLiquidityCalculator {
     for (LongTermAssetProfileAssetModel asset : longTermAssets) {
       if (asset.category() == com.smartbox.investory.shared.assets.AssetEconomicCategory.LIQUID_CASH
           && asset.fundingAvailable()) {
-        reserve = reserve.add(toBase(asset.currentValue(), asset.currency(), base, date));
+        reserve =
+            reserve.add(
+                currencyNormalizer.toBase(asset.currentValue(), asset.currency(), base, date));
       }
     }
     return new Result(
@@ -46,13 +46,6 @@ final class ProfileLiquidityCalculator {
         .filter(entry -> entry.getKey().liquidity() == liquidity)
         .map(Map.Entry::getValue)
         .reduce(BigDecimal.ZERO, BigDecimal::add);
-  }
-
-  private BigDecimal toBase(
-      BigDecimal value, CurrencyType source, CurrencyType target, LocalDate date) {
-    return value == null || source == target
-        ? value == null ? BigDecimal.ZERO : value
-        : currencyRates.convertToBaseCurrency(value, target, source, date);
   }
 
   record Result(

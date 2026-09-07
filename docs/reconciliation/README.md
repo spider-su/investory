@@ -1,6 +1,6 @@
-# Reconciliation evidence
+# Reconciliation evidence (local database)
 
-This directory contains local-profile reconciliation reports and investigation notes produced while
+This directory contains local-database reconciliation reports and investigation notes produced while
 validating specific defects or freeze-readiness questions. These files are evidence snapshots, not the
 canonical reconciliation contract.
 

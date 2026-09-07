@@ -17,7 +17,6 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.List;
 
 public final class RetirementPlanContracts {
@@ -46,28 +45,13 @@ public final class RetirementPlanContracts {
     }
   }
 
-  public record RevisionDto(Long id, int revisionNumber, Instant createdAt) {
-    static RevisionDto from(com.smartbox.investory.retirement.api.model.RevisionSummary source) {
-      return source == null
-          ? null
-          : new RevisionDto(source.id(), source.revisionNumber(), source.createdAt());
-    }
-  }
-
   public record PlanDetailsDto(
-      Long id,
-      String name,
-      AssumptionsDto assumptions,
-      Long currentRevisionId,
-      RevisionDto currentRevision,
-      BaselineDto baseline) {
+      Long id, String name, AssumptionsDto assumptions, BaselineDto baseline) {
     static PlanDetailsDto from(com.smartbox.investory.retirement.api.model.PlanDetails source) {
       return new PlanDetailsDto(
           source.id(),
           source.name(),
           AssumptionsDto.from(source.assumptions()),
-          source.currentRevisionId(),
-          RevisionDto.from(source.currentRevision()),
           BaselineDto.from(source.baseline()));
     }
   }

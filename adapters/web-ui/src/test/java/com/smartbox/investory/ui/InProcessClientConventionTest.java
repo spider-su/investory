@@ -15,7 +15,6 @@ import com.smartbox.investory.ui.retirement.simulation.InProcessRetirementPlanIn
 import com.smartbox.investory.ui.retirement.simulation.InProcessRetirementPresentationClient;
 import com.smartbox.investory.ui.retirement.simulation.InProcessRetirementPreviewClient;
 import com.smartbox.investory.ui.retirement.simulation.InProcessRetirementProjectionClient;
-import com.smartbox.investory.ui.retirement.simulation.InProcessRetirementSandboxPlanClient;
 import com.smartbox.investory.ui.retirement.simulation.InProcessRetirementTimelineClient;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -34,7 +33,6 @@ class InProcessClientConventionTest {
           InProcessRetirementAnalysisClient.class,
           InProcessRetirementPlanInputClient.class,
           InProcessRetirementPlanClient.class,
-          InProcessRetirementSandboxPlanClient.class,
           InProcessRetirementPresentationClient.class,
           InProcessRetirementPreviewClient.class,
           InProcessRetirementProfileClient.class,

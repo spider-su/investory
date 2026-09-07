@@ -14,6 +14,7 @@ public class InProcessProfileClient implements ProfileClient {
     this.profiles = profiles;
   }
 
+  @Override
   public InvestmentProfile loadProfile(Long portfolioId) {
     return profiles.loadProfile(portfolioId);
   }

@@ -9,7 +9,7 @@ simulation formulas are canonical in [`retirement-simulation.md`](retirement-sim
 |-------|---------|--------|
 | **Actual** | A past reviewed annual fact snapshot. | Immutable planning persistence: derived and approved values. |
 | **Live** | The current calendar year. | Current normalized Investment and Long-Term state plus permitted planning values. |
-| **Projected** | A future planning year. | Deterministic output from one immutable reviewed plan revision. |
+| **Projected** | A future planning year. | Deterministic output from the saved plan and one canonical projection. |
 
 Projected `SimulationYear` values are never persisted as historical or accounting facts.
 
@@ -18,12 +18,12 @@ The states intentionally have different mutability:
 ```text
 Past     = facts = immutable after review/close
 Current  = live state = changes with current Investory data
-Future   = plan = reproducible from an immutable reviewed revision
+Future   = plan = reproducible from canonical plan state
 ```
 
 Source-domain changes do not cross these boundaries implicitly. A new import, market valuation,
 rental-contract edit, bond update, or other source change may alter Live state. It never rewrites a
-closed Actual year and never changes the economic inputs of an existing reviewed plan revision.
+closed Actual year and never changes the source facts recorded for that year.
 
 ## Historical lifecycle
 
@@ -51,7 +51,7 @@ does not recompute or mutate accounting facts automatically.
 
 ## Planned, actual, and unavailable values
 
-`BASELINE` is the planned value captured from the immutable simulation revision. `ACTUAL` is the
+`BASELINE` is the planned value captured from the canonical projection. `ACTUAL` is the
 reviewed historical value: it may be long-term-derived/accounting-derived or explicitly entered by
 the reviewer. Planning values preserve a separate source marker. Important sources include
 accounting-derived, portfolio-derived, long-term-derived, simulation-baseline, user override, and
@@ -81,8 +81,8 @@ history, FX history, or API response data.
 
 The Live year is always the calendar year. It reads current normalized economic state through the
 Investment and Long-Term public planning contracts, then overlays permitted current planning values.
-A baseline stores selected expected metrics from a chosen immutable plan revision together with plan
-identity, revision identity, and capture time.
+A baseline stores selected expected metrics from a chosen plan projection together with plan identity
+and capture time.
 
 The baseline means “expected according to this plan when captured.” Editing the plan, changing the
 calendar year, or switching display currency does not alter it. Only an explicit set/refresh/replace
@@ -113,9 +113,9 @@ from the current Investment and Long-Term public contracts. Reviewing/rebaselini
 that normalized starting state together with Retirement-owned assumptions and event definitions.
 
 A `ForwardSimulationContext` derives the current calendar boundary and uses the economic starting
-state belonging to the selected revision. It never rebuilds today's portfolio by replaying old
+state belonging to the selected projection. It never rebuilds today's portfolio by replaying old
 simulation years and never silently substitutes newer live source-domain state into an older
-reviewed revision.
+reviewed state.
 
 The effective age is:
 
@@ -140,7 +140,7 @@ Future-facing Simulation consumers use one `ForwardSimulationInput` per request:
 
 ```text
 frozen history
-    -> reviewed revision economic snapshot
+    -> normalized economic facts
     -> current-year bridge
     -> first full projected year
     -> canonical annual simulator
@@ -153,7 +153,7 @@ A source-domain change therefore has an explicit lifecycle:
 source state changes
     -> Live state changes
     -> user reviews/rebaselines the plan
-    -> new immutable plan revision
+    -> updated canonical plan
     -> new future projection
 ```
 
@@ -181,8 +181,8 @@ The temporal model is therefore:
 ```text
 historical years  -> frozen/reporting
 current year      -> live derived state
-reviewed revision -> frozen planning decision + economic input snapshot
-future years      -> canonical annual simulation from that revision
+canonical plan   -> planning decision and simulation inputs
+future years      -> canonical annual simulation from that plan
 ```
 
 The Simulation Plan vs Reality section presents an unclosed past year as **Needs review**, with a
@@ -273,40 +273,28 @@ Simulation owns plan configuration, starting position, the selected scenario out
 yearly planning timeline. Analysis owns interpretation: cross-scenario comparison, charts,
 sensitivity, spending flexibility, and retirement-age flexibility.
 
-Both boards consume one `RetirementProjectionContext` prepared by `RetirementProjectionFacade`.
+Both boards consume one `RetirementProjection` prepared by `RetirementProjectionService`.
 That boundary preserves the forward-input and current-year bridge semantics. Analysis derives its
 baseline data from this completed context; it must not create a separate base projection pipeline.
 
-## Plan provenance and revisions
+## Plan provenance
 
-A saved retirement plan has a stable logical identity and an immutable linear revision history. A
-revision contains every Base simulation assumption, its life-event snapshots, and the normalized
-economic planning baseline (as-of year, reserve, Investment capital, Long-Term capital, and canonical
-recurring income) required to reproduce its future projection. Editing assumptions or accepting
-new source-domain state creates a new revision and makes it current; it never edits a revision already
-used by a baseline. Rollover does not create revisions, and scenario transforms remain runtime-only.
+A saved retirement plan has a stable identity, mutable assumptions, and an event collection. The
+canonical projection service combines the saved plan with current normalized facts and the selected
+runtime scenario. Sandbox overrides are transient and are never saved as plans.
 
 ```text
-Logical plan
-   ├─ Revision 1 [assumptions + economic snapshot] ──> 2026 baseline
-   ├─ Revision 2 [assumptions + economic snapshot]
-   └─ Revision 3 [assumptions + economic snapshot] ──> 2027 baseline
+Portfolio
+   └─ Retirement plan [assumptions + events]
+       └─ Retirement projection [facts + plan + scenario]
 ```
 
-Baselines store the exact revision ID used to calculate their expected values. Historical planning
-detail can therefore identify the assumptions behind a baseline independently of later plan edits.
-Save As creates a new logical plan with revision 1 and copies the current event set, not the source
-revision history. Renaming is logical-plan metadata; archiving preserves revisions referenced by
-history. Legacy revisions without a stored economic baseline remain readable for compatibility. They
-are not silently rewritten on page load; the next explicit save/rebaseline records a baseline. Until
-then, their projection uses the existing compatibility path.
+Planning-year records store annual review state and values as one aggregate JSON state. They are
+separate from accounting reconciliation and never become simulated transactions. Stored assumptions
+use canonical currency values; display currency only formats the result.
 
-Plan revision provenance is separate from accounting reconciliation and from annual rollover. Stored
-assumptions use canonical currency values; display currency never creates a revision or changes one.
-
-`SimulationAssumptions` is the active application model. Persisted plan and revision rows share the
-compatibility-shaped `PersistedSimulationAssumptions` contract and cross into that model only through
-`SimulationAssumptionsPersistenceMapper`. This mapper owns legacy null defaults and the serialized
+`SimulationAssumptions` is the active application model. Persisted plan rows cross into that model
+only through `SimulationAssumptionsPersistenceMapper`. This mapper owns nullable database defaults and the serialized
 funding-order and expense-profile formats. Runtime, editor, and timeline changes use the named
 `SimulationAssumptions.toBuilder()` copy boundary; new positional construction outside the assumptions
 type and persistence mapper is not part of the supported architecture.
@@ -321,10 +309,9 @@ For a closed year, Plan Progress is an independent boundary comparison:
 
 `reviewed Actual NET_WORTH at 31 December Y - frozen baseline NET_WORTH for Y`.
 
-Each point keeps its own baseline plan and immutable revision provenance. Points are independent
-boundary measurements, not yearly deltas to sum: the latest comparable point is the historical Plan
-Progress headline. Later plan revisions establish new forward benchmarks and do not rewrite earlier
-comparisons. Missing Actual or baseline net worth makes that point unavailable; `MARKET_ASSETS` is
+Each point keeps its own plan reference and expected value. Points are independent boundary
+measurements, not yearly deltas to sum: the latest comparable point is the historical Plan Progress
+headline. Missing Actual or baseline net worth makes that point unavailable; `MARKET_ASSETS` is
 not a fallback. Investment internals remain outside Simulation. Investment performance and other
 unattributed effects remain inside an explicit **Other changes** residual in Year in review; the
 planning layer does not reconstruct or attribute historical investment activity.

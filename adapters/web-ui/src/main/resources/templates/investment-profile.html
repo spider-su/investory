@@ -10,7 +10,7 @@
 </head>
 <body>
 <main class="iv-app iv-planning-page iv-profile-page">
-  <div th:replace="~{fragments/app-header :: planningHeader('profile', ${profile.portfolioId}, 'Profile summary', 'Net worth', ${profileHeaderNetWorth}, 'all assets', 'Net income / year', ${profileHeaderIncome}, 'projected · net', 'Annual cost / year', ${profileAnnualCost}, ${profileAnnualCostMeta}, ${profileHeaderCurrency}, 'profile', null, null)}"></div>
+  <div th:replace="~{fragments/app-header :: planningHeader('profile', ${profile.portfolioId}, 'Profile summary', 'Net worth', ${profile.totalNetWorthCompactDisplay}, 'all assets', 'Net income / year', ${profile.incomeSummary.combinedAnnualIncomeCompactDisplay}, 'projected · net', 'Annual cost / year', ${profile.annualCostDisplay}, ${profile.annualCostMeta}, ${profile.currency}, 'profile', null, null)}"></div>
 
   <section class="card iv-profile-section iv-profile-sources" aria-labelledby="sources-title">
     <div class="iv-card-section-header"><span id="sources-title" class="iv-card-section-header__title">Income sources</span></div>
@@ -20,18 +20,18 @@
         <div class="iv-profile-source-card__metrics">
           <div><span>Value</span><strong th:text="${profile.marketPortfolioValueCompactDisplay}">0</strong></div>
           <div><span>Annual income (net)</span><strong th:text="${profile.marketAnnualIncomeDisplay}">0</strong><small>projected</small></div>
-          <div><span>Annualized return <span class="visually-hidden">Annualized performance</span></span><strong th:text="${profileMarketAnnualizedReturn}">Unavailable</strong><small th:text="${profileMarketKpiMeta}">Total return</small></div>
+          <div><span>Annualized return <span class="visually-hidden">Annualized performance</span></span><strong th:text="${profile.marketAnnualizedReturnDisplay}">Unavailable</strong><small th:text="${profile.marketKpiMeta}">Total return</small></div>
         </div>
-        <div class="iv-profile-source-card__footer"><span>Investment result YTD</span><strong th:text="${profileMarketResultYtd}">—</strong></div>
+        <div class="iv-profile-source-card__footer"><span>Investment result YTD</span><strong><span th:text="${profile.marketInvestmentResultYtdDisplay}">—</span> <small class="iv-ytd-return" th:if="${profile.marketYtdReturnDisplay != null and !profile.marketYtdReturnDisplay.isEmpty()}" th:text="${'(' + profile.marketYtdReturnDisplay + ')'}">(0.0%)</small></strong></div>
       </a>
-      <a class="iv-profile-source-card" th:href="@{/portfolios/{portfolioId}/long-term-assets(portfolioId=${portfolioId})}">
+      <a class="iv-profile-source-card" th:href="@{/portfolios/{portfolioId}/long-term-assets(portfolioId=${profile.portfolioId})}">
         <div class="iv-profile-source-card__heading"><span>Long-term assets</span><small th:text="${profile.longTermAssetMeta}">0.0% of net worth</small></div>
         <div class="iv-profile-source-card__metrics">
           <div><span>Value</span><strong th:text="${profile.longTermAssetValueCompactDisplay}">0</strong></div>
           <div><span>Annual income (net)</span><strong th:text="${profile.incomeSummary.longTermAnnualIncomeCompactDisplay}">0</strong><small>projected</small></div>
           <div><span>Annualized return (net)</span><strong th:text="${profile.incomeSummary.longTermNetYieldDisplay}">0.0%</strong><small>Current contracts &amp; rates</small></div>
         </div>
-        <div class="iv-profile-source-card__footer"><span>Planned income YTD</span><strong th:text="${profileLongTermPlannedYtd}">—</strong></div>
+        <div class="iv-profile-source-card__footer"><span>Planned income YTD</span><strong><span th:text="${profile.longTermPlannedIncomeYtdDisplay}">—</span> <small class="iv-ytd-progress" th:classappend="${profile.longTermYtdProgressClass}" th:if="${profile.longTermYtdProgressDisplay != null and !profile.longTermYtdProgressDisplay.isEmpty()}" th:text="${'(' + profile.longTermYtdProgressDisplay + ')'}">(0.0%)</small></strong></div>
       </a>
     </div>
   </section>

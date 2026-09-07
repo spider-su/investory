@@ -13,7 +13,7 @@ public class InProcessRetirementPlanClient implements RetirementPlanClient {
   private final RetirementPlanApi retirementPlanApi;
 
   public InProcessRetirementPlanClient(
-      @Qualifier("simulationPlanService") RetirementPlanApi retirementPlanApi) {
+      @Qualifier("canonicalRetirementPlanService") RetirementPlanApi retirementPlanApi) {
     this.retirementPlanApi = retirementPlanApi;
   }
 
@@ -51,7 +51,7 @@ public class InProcessRetirementPlanClient implements RetirementPlanClient {
     retirementPlanApi.deletePlan(portfolioId, planId);
   }
 
-  public RevisionSummary rebaselinePlan(Long portfolioId, Long planId, PlanningBaseline baseline) {
-    return retirementPlanApi.rebaselinePlan(portfolioId, planId, baseline);
+  public void rebaselinePlan(Long portfolioId, Long planId, PlanningBaseline baseline) {
+    retirementPlanApi.rebaselinePlan(portfolioId, planId, baseline);
   }
 }

@@ -56,8 +56,8 @@ class PortfolioProjectionRefreshServiceTest {
   }
 
   @Test
-  @DisplayName("dashboard refresh omits contribution summary")
-  void dashboardRefreshOmitsContributionSummary() {
+  @DisplayName("dashboard refreshes price and reporting dependencies in order")
+  void dashboardRefreshesPriceAndReportingDependenciesInOrder() {
     when(transactionManager.getTransaction(any())).thenReturn(transactionStatus);
     doNothing().when(jdbcTemplate).execute(any(String.class));
 
@@ -67,9 +67,23 @@ class PortfolioProjectionRefreshServiceTest {
     service.refreshApplicationViews(
         PortfolioProjectionRefreshService.ApplicationRefreshScope.DASHBOARD);
 
-    verify(transactionManager, times(9)).getTransaction(any());
+    verify(transactionManager, times(13)).getTransaction(any());
     verify(jdbcTemplate, times(0))
         .execute(
             "REFRESH MATERIALIZED VIEW CONCURRENTLY investory.app_v_portfolio_contribution_summary_mv");
+    InOrder ordered = inOrder(jdbcTemplate);
+    ordered
+        .verify(jdbcTemplate)
+        .execute(
+            "REFRESH MATERIALIZED VIEW CONCURRENTLY investory.app_v_canonical_asset_daily_price_mv");
+    ordered
+        .verify(jdbcTemplate)
+        .execute("REFRESH MATERIALIZED VIEW CONCURRENTLY investory.app_v_current_asset_price_mv");
+    ordered
+        .verify(jdbcTemplate)
+        .execute("REFRESH MATERIALIZED VIEW CONCURRENTLY investory.app_v_account_statistics");
+    ordered
+        .verify(jdbcTemplate)
+        .execute("REFRESH MATERIALIZED VIEW CONCURRENTLY investory.app_v_portfolio_kpi_summary_mv");
   }
 }

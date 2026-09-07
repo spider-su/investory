@@ -27,23 +27,16 @@ record InvestmentProfilePageView(
     String marketAnnualizedReturnDisplay,
     String marketKpiMeta,
     String marketInvestmentResultYtdDisplay,
+    String marketYtdReturnDisplay,
     String longTermPlannedIncomeYtdDisplay,
+    String longTermYtdProgressDisplay,
+    String longTermYtdProgressClass,
     String annualCostDisplay,
     String annualCostMeta,
     IncomeView incomeSummary,
     List<AllocationView> allocations,
     boolean allocationApproximate,
     String allocationReconciliationMessage) {
-
-  static InvestmentProfilePageView from(InvestmentProfile profile) {
-    return from(
-        profile,
-        new InvestmentDashboardApi.PerformanceKpiView(false, null, "Unavailable", null),
-        InvestmentDashboardApi.InvestmentResultView.unavailable(profile.currency()),
-        com.smartbox.investory.retirement.api.model.AnnualCostView.unavailable(
-            profile.currency(), 0),
-        12);
-  }
 
   static InvestmentProfilePageView from(
       InvestmentProfile profile,
@@ -68,7 +61,15 @@ record InvestmentProfilePageView(
             : "Unavailable",
         performance.kpiStartDate() == null ? "Total return" : "Since " + performance.kpiStartDate(),
         money(investmentResult.available() ? investmentResult.amount() : null),
+        performance.ytdReturn() == null ? "" : UiPresentation.percentage(performance.ytdReturn()),
         money(profile.incomeSummary().plannedLongTermIncomeToDate(currentMonth)),
+        ytdProgress(
+            profile.incomeSummary().plannedLongTermIncomeToDate(currentMonth),
+            profile.incomeSummary().longTermAnnualIncome()),
+        ytdProgressClass(
+            profile.incomeSummary().plannedLongTermIncomeToDate(currentMonth),
+            profile.incomeSummary().longTermAnnualIncome(),
+            currentMonth),
         availableMoney(annualCost.available(), annualCost.amount()),
         annualCost.available() ? "planned · " + annualCost.year() : "No retirement plan",
         IncomeView.from(profile.incomeSummary(), marketAnnualIncome),
@@ -86,6 +87,26 @@ record InvestmentProfilePageView(
     return amount == null ? "—" : UiPresentation.compactMoney(amount);
   }
 
+  private static String ytdProgress(BigDecimal amount, BigDecimal annualReference) {
+    if (amount == null || annualReference == null || annualReference.signum() == 0) return "";
+    return UiPresentation.percentage(
+        amount.divide(annualReference, 8, java.math.RoundingMode.HALF_UP));
+  }
+
+  private static String ytdProgressClass(
+      BigDecimal amount, BigDecimal annualReference, int currentMonth) {
+    if (amount == null || annualReference == null || annualReference.signum() == 0) {
+      return "iv-ytd-progress--unavailable";
+    }
+    BigDecimal expectedToDate =
+        annualReference
+            .multiply(BigDecimal.valueOf(currentMonth))
+            .divide(BigDecimal.valueOf(12), 8, java.math.RoundingMode.HALF_UP);
+    return amount.compareTo(expectedToDate) >= 0
+        ? "iv-ytd-progress--positive"
+        : "iv-ytd-progress--warning";
+  }
+
   private static String availableMoney(boolean available, BigDecimal amount) {
     return available && amount != null ? UiPresentation.compactMoney(amount) : "—";
   }
@@ -98,10 +119,6 @@ record InvestmentProfilePageView(
       String longTermNetYieldDisplay,
       String combinedAnnualIncomeCompactDisplay,
       String combinedNetYieldDisplay) {
-
-    static IncomeView from(ProfileIncomeSummary income) {
-      return from(income, income.marketAnnualIncome());
-    }
 
     static IncomeView from(ProfileIncomeSummary income, BigDecimal marketAnnualIncome) {
       BigDecimal combinedAnnualIncome = marketAnnualIncome.add(income.longTermAnnualIncome());

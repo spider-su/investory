@@ -254,6 +254,159 @@ class DatabaseReportingContractIT {
     }
   }
 
+  @DisplayName("open positions remain visible when current price is unavailable")
+  @Test
+  void openPositionsRemainVisibleWhenCurrentPriceIsUnavailable() throws SQLException {
+    try (Connection connection = connection()) {
+      connection.setAutoCommit(false);
+      try {
+        long assetId = insertAsset(connection, "UNPRICED.CONTRACT", "USD");
+        insertPosition(connection, 51499241L, assetId, "USD", LocalDate.of(2026, 1, 31));
+
+        try (PreparedStatement statement =
+            connection.prepareStatement(
+                "SELECT market_price, market_value_in_base_currency "
+                    + "FROM investory.app_v_current_open_position_rows "
+                    + "WHERE asset_id = ?")) {
+          statement.setLong(1, assetId);
+          try (ResultSet result = statement.executeQuery()) {
+            assertTrue(result.next());
+            assertNull(result.getBigDecimal("market_price"));
+            assertNull(result.getBigDecimal("market_value_in_base_currency"));
+          }
+        }
+      } finally {
+        connection.rollback();
+      }
+    }
+  }
+
+  @DisplayName("mixed valued open positions retain known market and unrealized totals")
+  @Test
+  void mixedValuationAggregatesKnownValuesAndKeepsQualityIncomplete() throws SQLException {
+    try (Connection connection = connection()) {
+      connection.setAutoCommit(false);
+      try {
+        long assetId = insertAsset(connection, "UNPRICED.MIXED.CONTRACT", "USD");
+        insertPosition(connection, 51499241L, assetId, "USD", LocalDate.of(2026, 1, 31));
+        refreshDashboardViews(connection);
+
+        try (PreparedStatement statement =
+            connection.prepareStatement(
+                "SELECT s.market_value, s.unrealized_profit, s.missing_fx_count, "
+                    + "SUM(v.market_value_in_base_currency) FILTER "
+                    + "(WHERE v.market_value_in_base_currency IS NOT NULL) AS known_market, "
+                    + "SUM(v.market_value_in_base_currency - v.cost_basis_in_base_currency) "
+                    + "FILTER (WHERE v.market_value_in_base_currency IS NOT NULL "
+                    + "AND v.cost_basis_in_base_currency IS NOT NULL) AS known_unrealized, "
+                    + "COUNT(*) FILTER (WHERE v.market_value_in_base_currency IS NULL) AS missing "
+                    + "FROM investory.app_v_account_statistics s "
+                    + "JOIN investory.app_v_current_open_position_rows v ON v.account_id = s.account_id "
+                    + "WHERE s.account_id = ? GROUP BY s.market_value, s.unrealized_profit, s.missing_fx_count")) {
+          statement.setLong(1, 51499241L);
+          try (ResultSet result = statement.executeQuery()) {
+            assertTrue(result.next(), "fixture account must have open positions");
+            assertTrue(result.getLong("missing") > 0, "fixture must include an unvalued position");
+            assertTrue(result.getLong("missing_fx_count") > 0);
+            assertEquals(
+                0,
+                result
+                    .getBigDecimal("known_market")
+                    .compareTo(result.getBigDecimal("market_value")));
+            assertEquals(
+                0,
+                result
+                    .getBigDecimal("known_unrealized")
+                    .compareTo(result.getBigDecimal("unrealized_profit")));
+          }
+        }
+      } finally {
+        connection.rollback();
+      }
+    }
+  }
+
+  @DisplayName("missing cash FX stays null until the rate is available")
+  @Test
+  void missingCashFxDoesNotBecomeZeroAndRecoversWhenRateArrives() throws SQLException {
+    try (Connection connection = connection()) {
+      connection.setAutoCommit(false);
+      try {
+        try (Statement statement = connection.createStatement()) {
+          statement.execute("INSERT INTO investory.currencies(id) VALUES ('GBP')");
+          statement.execute(
+              "INSERT INTO investory.accounts(id, external_account_id, currency, provider, name, owner, portfolio_id) "
+                  + "SELECT 999997, '999997', 'GBP', 'XTB', 'Missing cash FX', 'Sample User', id "
+                  + "FROM investory.portfolios ORDER BY id LIMIT 1");
+          statement.execute(
+              "INSERT INTO investory.account_daily(account_id, snapshot_date, valuation_currency, cash_balance, market_value, equity) "
+                  + "VALUES (999997, DATE '2099-01-31', 'GBP', 10, 20, 30)");
+        }
+        refreshDashboardViews(connection);
+
+        try (PreparedStatement statement =
+            connection.prepareStatement(
+                "SELECT cash_balance, market_value, equity, missing_fx_count, is_complete "
+                    + "FROM investory.app_v_account_statistics WHERE account_id = 999997")) {
+          try (ResultSet result = statement.executeQuery()) {
+            assertTrue(result.next());
+            assertNull(result.getBigDecimal("cash_balance"));
+            assertNull(result.getBigDecimal("market_value"));
+            assertNull(result.getBigDecimal("equity"));
+            assertTrue(result.getLong("missing_fx_count") > 0);
+            assertFalse(result.getBoolean("is_complete"));
+          }
+        }
+
+        try (Statement statement = connection.createStatement()) {
+          statement.execute(
+              "INSERT INTO investory.exchange_rates(rate_date, base, to_currency, rate, source, method) "
+                  + "VALUES (DATE '2099-01-31', 'GBP', 'PLN', 5, 'TEST', 'MARKET_DAILY')");
+        }
+        refreshDashboardViews(connection);
+
+        try (PreparedStatement statement =
+            connection.prepareStatement(
+                "SELECT cash_balance, market_value, equity, missing_fx_count, is_complete "
+                    + "FROM investory.app_v_account_statistics WHERE account_id = 999997")) {
+          try (ResultSet result = statement.executeQuery()) {
+            assertTrue(result.next());
+            assertEquals(50, result.getBigDecimal("cash_balance").intValue());
+            assertEquals(100, result.getBigDecimal("market_value").intValue());
+            assertEquals(150, result.getBigDecimal("equity").intValue());
+            assertEquals(0, result.getLong("missing_fx_count"));
+            assertTrue(result.getBoolean("is_complete"));
+          }
+        }
+      } finally {
+        connection.rollback();
+      }
+    }
+  }
+
+  private static void refreshDashboardViews(Connection connection) throws SQLException {
+    String[] views = {
+      "app_v_canonical_asset_daily_price_mv",
+      "app_v_canonical_asset_daily_price_ranked_mv",
+      "app_v_normalized_daily_price_mv",
+      "app_v_current_asset_price_mv",
+      "app_v_portfolio_daily_fx_rate_mv",
+      "app_v_normalized_cash_operations",
+      "app_v_account_monthly",
+      "app_v_portfolio_monthly",
+      "app_v_account_statistics",
+      "app_v_portfolio_currency_breakdown",
+      "app_v_portfolio_asset_allocation",
+      "app_v_symbol_performance",
+      "app_v_portfolio_kpi_summary_mv"
+    };
+    try (Statement statement = connection.createStatement()) {
+      for (String view : views) {
+        statement.execute("REFRESH MATERIALIZED VIEW investory." + view);
+      }
+    }
+  }
+
   private static long insertAsset(Connection connection, String symbol, String currency)
       throws SQLException {
     try (PreparedStatement statement =

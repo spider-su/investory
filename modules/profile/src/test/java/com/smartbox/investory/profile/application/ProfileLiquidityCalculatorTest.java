@@ -21,7 +21,7 @@ class ProfileLiquidityCalculatorTest {
 
   @Test
   void separatesBrokerageCashAndInvestedCapitalFromIlliquidAndContractualAssets() {
-    var calculator = new ProfileLiquidityCalculator(mock());
+    var calculator = new ProfileLiquidityCalculator(new ProfileCurrencyNormalizer(mock()));
     Map<ProfileAllocationCalculator.AllocationKey, BigDecimal> values = new LinkedHashMap<>();
     values.put(
         new ProfileAllocationCalculator.AllocationKey(
@@ -70,7 +70,7 @@ class ProfileLiquidityCalculatorTest {
 
   @Test
   void excludesLockedCashFromLiquidAssetsAndRetirementReserve() {
-    var calculator = new ProfileLiquidityCalculator(mock());
+    var calculator = new ProfileLiquidityCalculator(new ProfileCurrencyNormalizer(mock()));
     Map<ProfileAllocationCalculator.AllocationKey, BigDecimal> values =
         Map.of(
             new ProfileAllocationCalculator.AllocationKey(
@@ -91,7 +91,7 @@ class ProfileLiquidityCalculatorTest {
 
   @Test
   void negativeBrokerageCashDoesNotConsumeAnAvailableLongTermReserve() {
-    var calculator = new ProfileLiquidityCalculator(mock());
+    var calculator = new ProfileLiquidityCalculator(new ProfileCurrencyNormalizer(mock()));
     var availableReserve =
         new LongTermAssetProfileAssetModel(
             AssetEconomicCategory.LIQUID_CASH, CurrencyType.USD, new BigDecimal("350"), true);

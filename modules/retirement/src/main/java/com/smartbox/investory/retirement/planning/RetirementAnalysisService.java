@@ -29,7 +29,7 @@ public class RetirementAnalysisService implements RetirementAnalysisApi {
     this.retirementAge = retirementAge;
   }
 
-  public RetirementAnalysisResult analyze(RetirementProjectionContext projection) {
+  public RetirementAnalysisResult analyze(RetirementProjection projection) {
     SimulationChartData charts =
         SimulationChartData.from(projection.scenarioResults(), projection.projectedAssumptions());
     if (projection.forward().forwardAssumptions().isEmpty())

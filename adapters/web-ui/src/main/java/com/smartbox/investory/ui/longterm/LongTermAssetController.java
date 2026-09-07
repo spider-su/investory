@@ -102,10 +102,8 @@ public class LongTermAssetController {
                       : form.getInterestRate()),
               form.getMaturityDate(),
               form.getNotes());
-      var saved =
-          form.getId() == null
-              ? assets.createCashReserve(command)
-              : assets.updateCashReserve(command);
+      if (form.getId() == null) assets.createCashReserve(command);
+      else assets.updateCashReserve(command);
       return "redirect:/portfolios/" + portfolioId + "/long-term-assets";
     } catch (IllegalArgumentException | ResourceNotFoundException exception) {
       feedback.addFlashAttribute("error", LongTermAssetPageSupport.assetError(exception));

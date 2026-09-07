@@ -22,8 +22,8 @@ worker crash -> expired PROCESSING lease -> claimable retry
 ```
 
 Import failure/partial candidates are inserted in the same `REQUIRES_NEW` transaction that finalizes
-the import row. Retirement sustainability candidates are inserted in the explicit reviewed-revision
-transaction. A rollback therefore removes both the state change and its candidate. System audit runs
+the import row. Retirement sustainability candidates are inserted in the explicit saved-plan
+plan-review transaction. A rollback therefore removes both the state change and its candidate. System audit runs
 are created by a committed database function during asynchronous post-import follow-up; their
 notification insertion is a separate best-effort transaction. Failure is logged with the audit ID
 and can be replayed. Telegram availability never affects candidate creation or domain commits.
@@ -50,7 +50,7 @@ The unique `fingerprint` is producer-owned and must identify one economic event 
 | --- | --- |
 | System audit error | `SYSTEM_AUDIT_ERROR:{auditRunId}` |
 | Failed/partial import | `IMPORT_FAILED_OR_PARTIAL:{importHistoryId}:{finalStatus}` |
-| Plan became unsustainable | `PLAN_BECAME_UNSUSTAINABLE:{planId}:{revisionId}` |
+| Plan became unsustainable | `PLAN_BECAME_UNSUSTAINABLE:{planId}` |
 | Daily digest | `DAILY_DIGEST:{Europe/Warsaw local date}` |
 | Threshold alert | `ALERT:{ruleCode}:{SHA-256 of normalized message}` |
 
@@ -61,10 +61,9 @@ reached the attempt limit and requires operator replay. `DELIVERED` has a confir
 and concise errors are retained; stack traces, secrets, raw import rows, and imported payloads are not
 event payload fields.
 
-The retirement event is created only by an explicit review/rebaseline and only for a canonical Base
-transition from sustainable to unsustainable. Opening Analysis or recalculating frozen inputs does
-not publish. A sustainable revision is still observable as the previous reviewed state for a later
-transition, but recovery delivery is deferred.
+The retirement event is created only by an explicit plan review and only for a canonical Base
+transition from sustainable to unsustainable. Opening Analysis or recalculating a projection does
+not publish. Recovery delivery is deferred.
 
 ## Adding an event
 

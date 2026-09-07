@@ -102,7 +102,7 @@ spreads.
 
 ### Scenario overlay
 
-Scenario selection is a runtime overlay on the frozen plan revision. Historical and current rows
+Scenario selection is a runtime overlay on the saved plan. Historical and current rows
 remain factual; only projected rows use the overlay. Active projected modifiers are inflation,
 rental growth, spending growth, Bond return, and Equity return. The BASE Bond yield is derived
 from the frozen Bond capital and the source Bond period active at the explicit planning baseline
@@ -114,7 +114,7 @@ state uses the selected scenario fixed-income rate as its fallback.
 Cash return is retained only for persisted-plan compatibility and is ignored because Cash has a
 canonical 0% yield. Real Estate capital appreciation and `otherReturnRate` are also compatibility
 fields and are not modeled by the aggregate Retirement bucket engine; Real Estate currently changes
-through rental cash income/growth only. Scenario selection never writes a plan revision.
+through rental cash income/growth only. Scenario selection never writes the saved plan.
 
 All values cross the plan boundary in the plan currency. Source-currency asset values are converted
 once, using the shared target-currency-first conversion service, before they become a flow, capital
@@ -289,24 +289,24 @@ Long-Term.
 Current state and reviewed future plans deliberately use different lifecycles.
 
 The current page reads live normalized contracts from Investment and Long-Term. When the user
-reviews/rebaselines a plan, Retirement freezes the normalized economic values required by the
-simulation into a new immutable plan revision. Future simulation consumes that revision snapshot
-rather than re-reading today's source state.
+reviews/rebaselines a plan, Retirement stores the normalized economic values required by the
+simulation on that saved plan. Future simulation consumes the saved baseline rather than re-reading
+today's source state.
 
 ```text
 Investment public API ----\\
                             -> normalized economic state
 Long-Term public API -----/              |
                                          v
-                               reviewed plan revision
+                               saved plan baseline
                                          |
                                          v
                                   annual simulator
 ```
 
 Changing a market position, valuation, rental contract, bond, or other source record therefore
-changes CURRENT immediately but does not change an already reviewed FUTURE projection. Incorporating
-the new source state is an explicit review/rebaseline operation that creates a new revision.
+changes CURRENT immediately but does not change the saved FUTURE baseline. Incorporating the new
+source state is an explicit review/rebaseline operation that updates the plan baseline.
 
 Reviewed Long-Term economics are persisted as an opaque normalized planning snapshot. This includes
 the year-aware cash-flow and return inputs needed to reproduce the reviewed result; Retirement does
@@ -424,7 +424,7 @@ interest is not a cash-flow income source.
 ```text
 immutable historical facts
     -> current live state
-    -> reviewed plan revision
+    -> saved plan baseline
     -> future deterministic projection
 ```
 
@@ -437,9 +437,10 @@ begins at the configured plan start year and includes missing historical rows ex
 Sandbox uses the same deterministic engine with an alternate prepared input. It may override
 planning-bucket starts and yields without mutating Investment or Long-Term source data. At minimum,
 Sandbox may override Cash start, Bond start/yield/target, Equity start/yield, Real Estate start, and
-rental cash income. When Sandbox is disabled, the immutable reviewed baseline is authoritative.
+rental cash income. When Sandbox is disabled, the saved plan baseline is authoritative.
 
-Sandbox changes the what-if starting state or baseline without changing CURRENT or HISTORICAL facts.
+Sandbox changes the what-if starting state or baseline without changing the saved plan, CURRENT, or
+HISTORICAL facts.
 
 Analysis is scenario/risk evaluation that prepares inputs; Simulation is plan execution. Analysis
 must not implement a separate funding engine.
@@ -482,4 +483,4 @@ Bond yield, Equity return, rental income/growth, Bond target, harvest threshold/
 whether Equity principal may be used for spending.
 
 Current/live source changes affect CURRENT immediately. Future changes only after an explicit
-review/rebaseline creates a new immutable revision.
+review/rebaseline updates the saved plan baseline.

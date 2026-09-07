@@ -53,16 +53,6 @@ public class PortfolioMetricsService {
   private final ApplicationTime applicationTime;
 
   private static final BigDecimal ACCOUNT_VISIBILITY_MIN_VALUE = BigDecimal.valueOf(50);
-  private static final Set<String> ACCOUNT_NET_DEPOSIT_CATEGORIES =
-      Set.of(
-          "EXTERNAL_DEPOSIT",
-          "EXTERNAL_WITHDRAWAL",
-          "INTERNAL_TRANSFER_IN",
-          "INTERNAL_TRANSFER_OUT",
-          "INTERNAL_BOOKKEEPING",
-          "FX_CONVERSION",
-          "CORRECTION");
-
   private final CurrencyRateService currencyRateService;
   private final PositionRepository closedPositionRepository;
   private final PositionRepository openedPositionRepository;
@@ -97,6 +87,25 @@ public class PortfolioMetricsService {
 
   private static BigDecimal bd(BigDecimal value) {
     return zeroIfNull(value);
+  }
+
+  /** Portfolio contribution is money crossing the portfolio boundary only. */
+  private static boolean isPortfolioExternalContribution(
+      NormalizedCashOperationRepository.NormalizedCashOperationRow row) {
+    return isCategory(row, "EXTERNAL_DEPOSIT") || isCategory(row, "EXTERNAL_WITHDRAWAL");
+  }
+
+  /** Account funding includes external flows and proven inter-account transfers. */
+  private static boolean isAccountFundingFlow(
+      NormalizedCashOperationRepository.NormalizedCashOperationRow row) {
+    return isPortfolioExternalContribution(row)
+        || isCategory(row, "INTERNAL_TRANSFER_IN")
+        || isCategory(row, "INTERNAL_TRANSFER_OUT");
+  }
+
+  private static boolean isCategory(
+      NormalizedCashOperationRepository.NormalizedCashOperationRow row, String category) {
+    return category.equals(row.getNormalizedCategory());
   }
 
   private static double display(BigDecimal value) {
@@ -527,19 +536,24 @@ public class PortfolioMetricsService {
                 BigDecimal baseNetDeposit = netDeposit.baseAmount();
                 BigDecimal profit = balance.subtract(baseNetDeposit);
                 BigDecimal localProfit = localBalance.subtract(localNetDeposit);
-                return new AccountBalance(
-                    stat.getAccountId(),
-                    account.getName(),
-                    display(localNetDeposit),
-                    display(baseNetDeposit),
-                    display(profit),
-                    display(localProfit),
-                    profitLossPercent(balance, baseNetDeposit),
-                    display(balance),
-                    nz(stat.getCashBalance()),
-                    localCurrency,
-                    display(localBalance),
-                    display(localCash));
+                BigDecimal localProfitAtCurrentFx =
+                    currencyRateService.convertToBaseCurrency(
+                        localProfit, baseCurrency, localCurrency, applicationTime.today());
+                return AccountBalance.builder()
+                    .accountId(stat.getAccountId())
+                    .accountName(account.getName())
+                    .netDepositLocal(decimal(display(localNetDeposit)))
+                    .netDepositBase(decimal(display(baseNetDeposit)))
+                    .balanceLocal(decimal(display(localBalance)))
+                    .balanceBase(decimal(display(balance)))
+                    .profitLocal(decimal(display(localProfit)))
+                    .profitBase(decimal(display(profit)))
+                    .cashLocal(decimal(display(localCash)))
+                    .cashBase(decimal(nz(stat.getCashBalance())))
+                    .localCurrency(localCurrency)
+                    .fxEffect(decimal(display(profit.subtract(localProfitAtCurrentFx))))
+                    .profitLossPercent(decimal(profitLossPercent(balance, baseNetDeposit)))
+                    .build();
               })
           .toList();
     }
@@ -560,19 +574,20 @@ public class PortfolioMetricsService {
             ? display(
                 profit.divide(netDeposit, 16, java.math.RoundingMode.HALF_UP).movePointRight(2))
             : null;
-    return new AccountBalance(
-        null,
-        "Total",
-        display(netDeposit),
-        display(netDeposit),
-        display(profit),
-        display(profit),
-        roi,
-        display(balance),
-        display(cash),
-        baseCurrency,
-        display(balance),
-        display(cash));
+    return AccountBalance.builder()
+        .accountName("Total")
+        .netDepositLocal(decimal(display(netDeposit)))
+        .netDepositBase(decimal(display(netDeposit)))
+        .balanceLocal(decimal(display(balance)))
+        .balanceBase(decimal(display(balance)))
+        .profitLocal(decimal(display(profit)))
+        .profitBase(decimal(display(profit)))
+        .cashLocal(decimal(display(cash)))
+        .cashBase(decimal(display(cash)))
+        .localCurrency(baseCurrency)
+        .fxEffect(BigDecimal.ZERO)
+        .profitLossPercent(decimal(roi))
+        .build();
   }
 
   private Map<Long, AccountNetDeposit> accountNetDeposits(
@@ -587,7 +602,7 @@ public class PortfolioMetricsService {
     Map<Long, AccountNetDeposit> deposits =
         flowRows.stream()
             .filter(row -> row.getAccountId() != null)
-            .filter(row -> ACCOUNT_NET_DEPOSIT_CATEGORIES.contains(row.getNormalizedCategory()))
+            .filter(PortfolioMetricsService::isAccountFundingFlow)
             .collect(
                 Collectors.groupingBy(
                     NormalizedCashOperationRepository.NormalizedCashOperationRow::getAccountId,
@@ -599,10 +614,18 @@ public class PortfolioMetricsService {
                                     .map(row -> bd(row.getAmount()))
                                     .reduce(BigDecimal.ZERO, BigDecimal::add),
                                 rows.stream()
-                                    .map(row -> bd(row.getAmountInBaseCurrency()))
+                                    .map(
+                                        row ->
+                                            bd(
+                                                row.getAccountFlowAmountInPortfolioBaseCurrency()
+                                                        != null
+                                                    ? row
+                                                        .getAccountFlowAmountInPortfolioBaseCurrency()
+                                                    : row.getAmountInBaseCurrency()))
                                     .reduce(BigDecimal.ZERO, BigDecimal::add)))));
     boolean canonicalFlowsPresent =
         flowRows.stream()
+            .filter(PortfolioMetricsService::isAccountFundingFlow)
             .anyMatch(row -> row.getAccountFlowAmountInPortfolioBaseCurrency() != null);
     if (!canonicalFlowsPresent) {
       Map<Long, Double> adjustments =
@@ -610,18 +633,13 @@ public class PortfolioMetricsService {
               .calculate(cashOperationRepository.findAllByAccountIn(accountIds), accountsById);
       adjustments.forEach(
           (accountId, adjustment) -> {
-            AccountEntity account = accountsById.get(accountId);
-            BigDecimal baseAdjustment =
-                currencyRateService.convertToBaseCurrency(
-                    bd(adjustment), baseCurrency, account.getCurrency(), applicationTime.today());
             AccountNetDeposit current =
                 deposits.getOrDefault(
                     accountId, new AccountNetDeposit(BigDecimal.ZERO, BigDecimal.ZERO));
             deposits.put(
                 accountId,
                 new AccountNetDeposit(
-                    current.localAmount().add(bd(adjustment)),
-                    current.baseAmount().add(baseAdjustment)));
+                    current.localAmount().add(bd(adjustment)), current.baseAmount()));
           });
     }
     return deposits;
@@ -638,6 +656,14 @@ public class PortfolioMetricsService {
                 .divide(netDeposit, 16, java.math.RoundingMode.HALF_UP)
                 .movePointRight(2))
         : null;
+  }
+
+  private static BigDecimal decimal(double value) {
+    return BigDecimal.valueOf(value);
+  }
+
+  private static BigDecimal decimal(Double value) {
+    return value == null ? null : BigDecimal.valueOf(value);
   }
 
   private List<OpenPositionValue> calculateOpenPositionValues() {

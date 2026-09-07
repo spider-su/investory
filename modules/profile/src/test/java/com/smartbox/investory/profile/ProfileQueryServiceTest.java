@@ -31,6 +31,7 @@ import com.smartbox.investory.profile.api.model.ProjectedLongTermAsset;
 import com.smartbox.investory.profile.application.ProfileQueryService;
 import com.smartbox.investory.shared.assets.AssetEconomicCategory;
 import com.smartbox.investory.shared.currency.CurrencyConversion;
+import com.smartbox.investory.shared.currency.CurrencyConversionUnavailableException;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -109,6 +110,45 @@ class ProfileQueryServiceTest {
     assertEquals(new BigDecimal("548.15789474"), profile.incomeSummary().combinedAnnualIncome());
     assertEquals(new BigDecimal("260"), profile.currentRentalIncome());
     verify(longTermProfileReader, org.mockito.Mockito.atLeastOnce()).snapshot(PORTFOLIO, DATE);
+  }
+
+  @Test
+  void propagatesUnbalancedSourceTotalsToApproximateAllocationState() {
+    when(brokeragePortfolioReadService.currentSnapshot(PORTFOLIO))
+        .thenReturn(snapshot(CurrencyType.USD, 1000, 100, 0, 0, List.of()));
+    when(brokerageAssetClassificationReader.findBySymbols(any())).thenReturn(Map.of());
+
+    InvestmentProfile profile = facade.loadProfile(PORTFOLIO);
+
+    assertEquals(
+        0,
+        new BigDecimal("100")
+            .compareTo(profile.allocationReconciliation().shortTerm().classifiedValue()));
+    assertEquals(
+        0,
+        new BigDecimal("1000")
+            .compareTo(profile.allocationReconciliation().shortTerm().authoritativeValue()));
+    assertEquals(1, profile.allocationReconciliation().shortTerm().delta().signum());
+    assertEquals(false, profile.allocationReconciliation().balanced());
+    assertEquals(true, profile.allocationReconciliation().percentagesApproximate());
+  }
+
+  @Test
+  void failsClosedWhenProfileNeedsMissingForeignExchangeRate() {
+    when(brokeragePortfolioReadService.currentSnapshot(PORTFOLIO))
+        .thenReturn(snapshot(CurrencyType.USD, 0, 0, 0, 0, List.of()));
+    when(brokerageAssetClassificationReader.findBySymbols(any())).thenReturn(Map.of());
+    longTermSummary =
+        new LongTermAssetProfileSummaryModel(
+            CurrencyType.EUR, new BigDecimal("1000"), new BigDecimal("40"));
+    longTermAssetRows =
+        List.of(summary(LongTermAssetType.REAL_ESTATE, "1000", "40", CurrencyType.EUR));
+    when(currencyRates.convertToBaseCurrency(
+            any(), eq(CurrencyType.USD), eq(CurrencyType.EUR), eq(DATE)))
+        .thenThrow(new CurrencyConversionUnavailableException("MISSING_RATE"));
+
+    org.junit.jupiter.api.Assertions.assertThrows(
+        CurrencyConversionUnavailableException.class, () -> facade.loadProfile(PORTFOLIO));
   }
 
   @DisplayName("snapshot Reads Summary And Planning Once")

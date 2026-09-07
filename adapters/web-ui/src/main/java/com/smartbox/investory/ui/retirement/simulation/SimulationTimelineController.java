@@ -65,12 +65,7 @@ public class SimulationTimelineController {
     } else {
       var plan = plans.details(portfolioId, planId);
       planning.seedHistoricalBaselineFromPlan(
-          portfolioId,
-          year,
-          planId,
-          plan.currentRevisionId(),
-          profiles.loadProfile(portfolioId),
-          plan.assumptions());
+          portfolioId, year, planId, profiles.loadProfile(portfolioId), plan.assumptions());
     }
     return SimulationRedirects.planningYear(
         portfolioId, year, planningDisplayCurrency, planId, selectedScenario);
@@ -131,8 +126,7 @@ public class SimulationTimelineController {
     planningDisplayCurrency = resolveCurrency(portfolioId, planningDisplayCurrency);
     var profile = profiles.loadProfile(portfolioId);
     var plan = plans.details(portfolioId, planId);
-    planning.setCurrentBaseline(
-        portfolioId, year, planId, plan.currentRevisionId(), profile, plan.assumptions());
+    planning.setCurrentBaseline(portfolioId, year, planId, profile, plan.assumptions());
     return SimulationRedirects.simulation(
         portfolioId, planId, planningDisplayCurrency, selectedScenario);
   }

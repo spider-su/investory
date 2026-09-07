@@ -4,6 +4,7 @@ package com.smartbox.investory.testsupport.happyinvestor;
 public final class HappyInvestorExpected {
   public static final int ACCOUNT_COUNT = 4;
   public static final int WITHDRAWAL_ACCOUNT_COUNT = 4;
+  public static final int LEDGER_OPERATION_COUNT = 25;
 
   private HappyInvestorExpected() {}
 }

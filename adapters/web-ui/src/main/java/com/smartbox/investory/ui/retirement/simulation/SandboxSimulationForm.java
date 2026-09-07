@@ -18,7 +18,6 @@ import lombok.Setter;
 @Setter
 public class SandboxSimulationForm {
   private Long portfolioId;
-  private Long planId;
 
   @Min(0)
   @Max(120)
@@ -110,21 +109,5 @@ public class SandboxSimulationForm {
         monthlyPensionIncome,
         pensionAge,
         Year.now().getValue());
-  }
-
-  public void apply(SandboxSimulationInput input) {
-    currentAge = input.currentAge();
-    retirementAge = input.retirementAge();
-    endAge = input.endAge();
-    annualSpending = input.annualSpending();
-    inflationRate = input.inflationRate();
-    cash = input.cash();
-    bonds = input.bonds();
-    bondReturnRate = input.bondReturnRate();
-    equities = input.equities();
-    equityReturnRate = input.equityReturnRate();
-    monthlyRentalIncome = input.monthlyRentalIncome();
-    monthlyPensionIncome = input.monthlyPensionIncome();
-    pensionAge = input.pensionAge();
   }
 }

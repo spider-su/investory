@@ -20,14 +20,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 
 /** Pure allocation rules shared by profile summary and planning composition. */
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 final class ProfileAllocationCalculator {
   private final BrokerageAssetClassificationReader classifications;
-
-  ProfileAllocationCalculator(BrokerageAssetClassificationReader classifications) {
-    this.classifications = classifications;
-  }
 
   Map<AllocationKey, BigDecimal> values(
       SharedBrokeragePortfolioSnapshot market,

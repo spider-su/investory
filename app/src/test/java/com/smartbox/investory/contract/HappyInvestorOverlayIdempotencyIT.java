@@ -35,8 +35,8 @@ class HappyInvestorOverlayIdempotencyIT {
           connection, "UPDATE investory.rental_contract_term " + "SET amount = 1 WHERE id = 9501");
       execute(
           connection,
-          "UPDATE investory.simulation_plan_revisions "
-              + "SET baseline_long_term_state = '{\"drift\":true}'::jsonb WHERE id = 9202");
+          "UPDATE investory.retirement_plans "
+              + "SET baseline_long_term_state = '{\"drift\":true}'::jsonb WHERE id = 9201");
 
       applyOverlay(connection);
       assertCanonicalValues(connection);
@@ -66,8 +66,8 @@ class HappyInvestorOverlayIdempotencyIT {
     assertNull(
         object(
             connection,
-            "SELECT baseline_long_term_state FROM investory.simulation_plan_revisions "
-                + "WHERE id = 9202"));
+            "SELECT baseline_long_term_state FROM investory.retirement_plans "
+                + "WHERE id = 9201"));
   }
 
   private static void execute(Connection connection, String sql) throws Exception {

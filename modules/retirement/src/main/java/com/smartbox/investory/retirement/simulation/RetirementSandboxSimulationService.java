@@ -11,6 +11,7 @@ import com.smartbox.investory.profile.api.model.ProfileIncomeSummary;
 import com.smartbox.investory.retirement.api.RetirementSandboxApi;
 import com.smartbox.investory.retirement.api.RetirementSandboxInputTranslator;
 import com.smartbox.investory.retirement.api.model.*;
+import com.smartbox.investory.retirement.planning.RetirementProjectionService;
 import com.smartbox.investory.shared.currency.CurrencyType;
 import java.math.BigDecimal;
 import java.util.List;
@@ -20,22 +21,24 @@ import org.springframework.stereotype.Service;
 /** Translates the simple sandbox input into the canonical retirement simulation. */
 @Service
 public final class RetirementSandboxSimulationService implements RetirementSandboxApi {
-  private final RetirementSimulationService canonicalSimulation;
-
-  public RetirementSandboxSimulationService() {
-    this(new RetirementSimulationService());
-  }
+  private final RetirementProjectionService projections;
 
   @Autowired
-  public RetirementSandboxSimulationService(RetirementSimulationService canonicalSimulation) {
-    this.canonicalSimulation = canonicalSimulation;
+  public RetirementSandboxSimulationService(RetirementProjectionService projections) {
+    this.projections = projections;
   }
 
   @Override
   public SimulationResult simulate(SandboxSimulationInput input) {
     SimulationAssumptions assumptions = RetirementSandboxInputTranslator.toAssumptions(input);
     SimulationResult result =
-        canonicalSimulation.simulate(profile(input), assumptions, SimulationScenario.BASE);
+        projections
+            .projectSandbox(profile(input), assumptions)
+            .scenarioResults()
+            .get(SimulationScenario.BASE);
+    if (result == null) {
+      throw new IllegalStateException("Sandbox projection did not produce a base result");
+    }
     List<SimulationYear> retiredYears =
         result.years().stream()
             .filter(year -> year.lifecyclePhase() == SimulationLifecyclePhase.RETIRED)

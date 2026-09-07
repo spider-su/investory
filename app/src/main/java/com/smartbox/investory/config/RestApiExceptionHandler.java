@@ -65,7 +65,6 @@ public class RestApiExceptionHandler {
     ResourceNotFoundException.class,
     InvestmentAssetApi.AssetNotFoundException.class,
     InvestmentDashboardApi.PortfolioNotFoundException.class,
-    RetirementPlanApi.RevisionNotFoundException.class,
     RetirementPlanApi.EventNotFoundException.class
   })
   public ResponseEntity<ApiError> resourceNotFound(

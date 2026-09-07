@@ -41,7 +41,7 @@ class LongTermHardeningMigrationIT {
               "SELECT count(*) FROM investory.real_estate WHERE id = 9491 AND tax_base = 3200"));
       assertTrue(columnComment(statement).startsWith("Annual rental-tax base."));
     }
-    MigrationTestDatabase.migrateTo(DATABASE, "01.009");
+    MigrationTestDatabase.migrateTo(DATABASE, "01.012");
   }
 
   @AfterAll
@@ -81,7 +81,7 @@ class LongTermHardeningMigrationIT {
 
   @Test
   void rerunningFlywayDoesNotRewriteAnnualBases() throws Exception {
-    MigrationTestDatabase.migrateTo(DATABASE, "01.009");
+    MigrationTestDatabase.migrateTo(DATABASE, "01.012");
     try (Connection connection = MigrationTestDatabase.connection(DATABASE);
         Statement statement = connection.createStatement();
         var result =
@@ -149,6 +149,34 @@ class LongTermHardeningMigrationIT {
             statement,
             "UPDATE investory.rental_contract SET end_date = DATE '2025-01-30' WHERE id = 9591",
             "ck_rental_contract_termination_before_expected_end");
+      } finally {
+        connection.rollback();
+      }
+    }
+  }
+
+  @Test
+  void rejectsOverlappingEffectivePeriodsAtDatabaseBoundary() throws Exception {
+    try (Connection connection = MigrationTestDatabase.connection(DATABASE);
+        Statement statement = connection.createStatement()) {
+      connection.setAutoCommit(false);
+      try {
+        statement.execute(
+            "INSERT INTO investory.rental_contract (id, real_estate_id, start_date, end_date) "
+                + "VALUES (9594, 9491, DATE '2026-01-01', DATE '2026-01-31'), "
+                + "(9595, 9491, DATE '2026-02-01', DATE '2026-02-28')");
+        SQLException overlap =
+            assertThrows(
+                SQLException.class,
+                () ->
+                    statement.execute(
+                        "INSERT INTO investory.rental_contract "
+                            + "(id, real_estate_id, start_date, end_date) VALUES "
+                            + "(9596, 9491, DATE '2026-01-31', DATE '2026-02-02')"));
+        assertEquals("23P01", overlap.getSQLState());
+        assertTrue(
+            overlap.getMessage().contains("ex_rental_contract_non_overlapping_effective_periods"),
+            overlap.getMessage());
       } finally {
         connection.rollback();
       }

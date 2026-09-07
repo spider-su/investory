@@ -10,7 +10,6 @@ import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Year;
-import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
@@ -22,7 +21,6 @@ import org.springframework.web.bind.annotation.*;
 public class RetirementSimulationController {
   private final ProfileClient profiles;
   private final RetirementPlanClient plans;
-  private final RetirementSandboxPlanClient sandboxPlans;
   private final Clock clock;
   private final SimulationRequestMapper requestMapper;
   private final SimulationPageAssembler simulationPage;
@@ -40,7 +38,6 @@ public class RetirementSimulationController {
   public RetirementSimulationController(
       ProfileClient profiles,
       RetirementPlanClient plans,
-      RetirementSandboxPlanClient sandboxPlans,
       RetirementTimelineClient planningTimeline,
       RetirementPresentationClient presentation,
       RetirementPlanInputClient planInput,
@@ -52,7 +49,6 @@ public class RetirementSimulationController {
       RetirementSandboxApi sandbox) {
     this.profiles = profiles;
     this.plans = plans;
-    this.sandboxPlans = sandboxPlans;
     this.clock = clock;
     this.requestMapper = new SimulationRequestMapper(presentation, planInput, clock);
     this.simulationPage =
@@ -73,16 +69,10 @@ public class RetirementSimulationController {
   @GetMapping("/portfolios/{portfolioId}/simulation/sandbox")
   public String sandbox(
       @org.springframework.web.bind.annotation.PathVariable Long portfolioId,
-      @RequestParam(required = false) Long planId,
-      @RequestParam Map<String, String> requestParams,
       @Valid @ModelAttribute SandboxSimulationForm form,
       BindingResult binding,
       Model model) {
     form.setPortfolioId(portfolioId);
-    form.setPlanId(planId);
-    if (planId != null && portfolioId != null && !requestParams.containsKey("currentAge")) {
-      form.apply(sandboxPlans.load(portfolioId, planId));
-    }
     model.addAttribute("sandboxPortfolioId", portfolioId);
     if (binding.hasErrors()) {
       model.addAttribute("sandbox", new SandboxSimulationPageView(form, null, java.util.List.of()));
@@ -109,19 +99,6 @@ public class RetirementSimulationController {
     model.addAttribute("sandbox", new SandboxSimulationPageView(form, result, rows));
     model.addAttribute("sandboxAnnualIncome", annualIncome(form));
     return "simulation-sandbox";
-  }
-
-  @PostMapping("/portfolios/{portfolioId}/simulation/sandbox/save")
-  public String saveSandbox(
-      @Valid @ModelAttribute SandboxSimulationForm form, BindingResult binding) {
-    if (binding.hasErrors() || form.getPortfolioId() == null) {
-      return "redirect:/portfolios/" + form.getPortfolioId() + "/simulation/sandbox";
-    }
-    Long savedId = sandboxPlans.save(form.getPortfolioId(), form.getPlanId(), form.input());
-    return "redirect:/portfolios/"
-        + form.getPortfolioId()
-        + "/simulation/sandbox?planId="
-        + savedId;
   }
 
   private static BigDecimal annualIncome(SandboxSimulationForm form) {

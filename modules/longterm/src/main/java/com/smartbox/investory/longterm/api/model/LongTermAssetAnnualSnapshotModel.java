@@ -5,8 +5,8 @@ import java.math.BigDecimal;
 /**
  * Canonical annual long-term-asset facts shared by overview and historical planning.
  *
- * <p>The historical-reader contract returns canonical USD. When nested in a current profile
- * snapshot, amounts use that snapshot's explicitly declared portfolio currency.
+ * <p>The historical-reader contract returns values in the portfolio local currency. When nested in
+ * a current profile snapshot, amounts use that snapshot's explicitly declared portfolio currency.
  */
 public record LongTermAssetAnnualSnapshotModel(
     BigDecimal realEstateValue,
@@ -20,7 +20,7 @@ public record LongTermAssetAnnualSnapshotModel(
     java.util.Objects.requireNonNull(currency, "currency");
   }
 
-  /** Historical callers use canonical USD; current snapshots pass their currency explicitly. */
+  /** Compatibility constructor for callers that use the historical default currency. */
   public LongTermAssetAnnualSnapshotModel(
       BigDecimal realEstateValue,
       BigDecimal rentalIncome,

@@ -4,8 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
-import com.smartbox.investory.profile.api.ProfileSnapshotReader;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
+import com.smartbox.investory.retirement.api.RetirementFactsProvider;
 import com.smartbox.investory.retirement.api.RetirementPlanApi;
 import com.smartbox.investory.retirement.api.model.*;
 import com.smartbox.investory.retirement.api.model.ForwardSimulationContext;
@@ -23,7 +23,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 @DisplayName("Retirement Projection Facade")
-class RetirementProjectionFacadeTest {
+class RetirementProjectionServiceTest {
   @DisplayName("future Projection Uses Frozen Baseline Instead Of Live Balances")
   @Test
   void futureProjectionUsesFrozenBaselineInsteadOfLiveBalances() {
@@ -69,9 +69,9 @@ class RetirementProjectionFacadeTest {
     ForwardSimulationInputService forwardInputs = mock(ForwardSimulationInputService.class);
     when(forwardInputs.prepare(any(), eq(assumptions)))
         .thenReturn(new ForwardSimulationInput(context, live, Optional.empty()));
-    RetirementProjectionFacade facade =
-        new RetirementProjectionFacade(
-            mock(ProfileSnapshotReader.class),
+    RetirementProjectionService facade =
+        new RetirementProjectionService(
+            mock(RetirementFactsProvider.class),
             mock(RetirementPlanApi.class),
             forwardInputs,
             mock(RetirementSimulation.class),
@@ -183,15 +183,15 @@ class RetirementProjectionFacadeTest {
     when(forwardInputs.prepare(profile, assumptions))
         .thenReturn(new ForwardSimulationInput(context, profile, Optional.empty()));
     RetirementSimulation simulations = mock(RetirementSimulation.class);
-    RetirementProjectionFacade facade =
-        new RetirementProjectionFacade(
-            mock(ProfileSnapshotReader.class),
+    RetirementProjectionService facade =
+        new RetirementProjectionService(
+            mock(RetirementFactsProvider.class),
             mock(RetirementPlanApi.class),
             forwardInputs,
             simulations,
             Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC));
 
-    RetirementProjectionContext result = facade.project(profile, assumptions);
+    RetirementProjection result = facade.project(profile, assumptions);
 
     assertEquals(profile, result.profile());
     assertEquals(assumptions, result.projectedAssumptions());
@@ -207,15 +207,16 @@ class RetirementProjectionFacadeTest {
     var liveB = profile(new BigDecimal("900000"), new BigDecimal("900000"));
     var assumptions = SimulationAssumptions.defaults(liveA, 40, 45, 2025);
     var baseline = PlanningBaseline.fromProfile(liveA, 2026);
-    var profiles = mock(ProfileSnapshotReader.class);
+    var facts = mock(RetirementFactsProvider.class);
     var plans = mock(RetirementPlanApi.class);
     var forwardInputs = mock(ForwardSimulationInputService.class);
     var clock = Clock.fixed(Instant.parse("2026-08-22T00:00:00Z"), ZoneOffset.UTC);
     when(plans.details(1L, 7L))
         .thenReturn(
             new com.smartbox.investory.retirement.api.model.PlanDetails(
-                7L, "Saved", assumptions, 1L, null, baseline));
-    when(profiles.loadProfile(1L)).thenReturn(liveA, liveB);
+                7L, "Saved", assumptions, baseline));
+    when(facts.load(1L))
+        .thenReturn(new RetirementFacts(liveA, 2026), new RetirementFacts(liveB, 2026));
     when(forwardInputs.prepare(any(), eq(assumptions)))
         .thenAnswer(
             invocation -> {
@@ -225,11 +226,11 @@ class RetirementProjectionFacadeTest {
               return new ForwardSimulationInput(context, prepared, Optional.empty());
             });
     var facade =
-        new RetirementProjectionFacade(
-            profiles, plans, forwardInputs, mock(RetirementSimulation.class), clock);
+        new RetirementProjectionService(
+            facts, plans, forwardInputs, mock(RetirementSimulation.class), clock);
 
-    RetirementProjectionContext first = facade.load(1L, 7L, 40, 45);
-    RetirementProjectionContext second = facade.load(1L, 7L, 40, 45);
+    RetirementProjection first = facade.load(1L, 7L, 40, 45);
+    RetirementProjection second = facade.load(1L, 7L, 40, 45);
 
     assertEquals(liveA, first.profile());
     assertEquals(liveB, second.profile());

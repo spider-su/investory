@@ -8,7 +8,7 @@ import com.smartbox.investory.shared.notifications.NotificationCandidate;
 import com.smartbox.investory.shared.notifications.NotificationEventPublisher;
 import com.smartbox.investory.shared.notifications.NotificationEventType;
 import com.smartbox.investory.shared.notifications.NotificationSeverity;
-import com.smartbox.investory.shared.notifications.PlanRevisionReviewedEvent;
+import com.smartbox.investory.shared.notifications.RetirementPlanReviewedEvent;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.util.LinkedHashMap;
@@ -18,39 +18,30 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Owns the explicit reviewed-revision boundary and its sustainability transition event. */
+/** Owns explicit plan rebaselining and its sustainability transition event. */
 @Service
 @RequiredArgsConstructor
 public class RetirementPlanReviewService {
   private final RetirementPlanApi plans;
-  private final RetirementProjectionFacade projections;
+  private final RetirementProjectionService projections;
   private final NotificationEventPublisher events;
   private final ApplicationEventPublisher applicationEvents;
   private final Clock clock;
 
   @Transactional
-  public com.smartbox.investory.retirement.api.model.RevisionSummary rebaseline(
-      Long portfolioId, Long planId, PlanningBaseline baseline) {
+  public void rebaseline(Long portfolioId, Long planId, PlanningBaseline baseline) {
     SimulationDecisionSummary previous = baseSummary(projections.load(portfolioId, planId));
-    com.smartbox.investory.retirement.api.model.RevisionSummary revision =
-        plans.rebaselinePlan(portfolioId, planId, baseline);
+    plans.rebaselinePlan(portfolioId, planId, baseline);
     SimulationDecisionSummary reviewed = baseSummary(projections.load(portfolioId, planId));
     if (previous != null && !previous.failed() && reviewed != null && reviewed.failed()) {
-      publishTransition(portfolioId, planId, revision, reviewed);
+      publishTransition(portfolioId, planId, reviewed);
     }
-    return revision;
   }
 
-  private void publishTransition(
-      Long portfolioId,
-      Long planId,
-      com.smartbox.investory.retirement.api.model.RevisionSummary revision,
-      SimulationDecisionSummary summary) {
+  private void publishTransition(Long portfolioId, Long planId, SimulationDecisionSummary summary) {
     Map<String, String> payload = new LinkedHashMap<>();
     payload.put("portfolioId", portfolioId.toString());
     payload.put("planId", planId.toString());
-    payload.put("revisionId", revision.id().toString());
-    payload.put("revisionNumber", Integer.toString(revision.revisionNumber()));
     payload.put("firstFailureYear", value(summary.firstFailureYear()));
     payload.put("firstFailureAge", value(summary.firstFailureAge()));
     payload.put("totalUnfundedAmount", money(summary.totalUnfundedAmount()));
@@ -61,18 +52,18 @@ public class RetirementPlanReviewService {
             NotificationEventType.PLAN_BECAME_UNSUSTAINABLE,
             NotificationSeverity.CRITICAL,
             portfolioId,
-            "SIMULATION_PLAN_REVISION",
-            revision.id().toString(),
-            "PLAN_BECAME_UNSUSTAINABLE:" + planId + ":" + revision.id(),
+            "RETIREMENT_PLAN",
+            planId.toString(),
+            "PLAN_BECAME_UNSUSTAINABLE:" + planId,
             "Retirement plan became unsustainable",
             payload,
             clock.instant());
     if (events.publish(candidate)) {
-      applicationEvents.publishEvent(new PlanRevisionReviewedEvent(candidate));
+      applicationEvents.publishEvent(new RetirementPlanReviewedEvent(candidate));
     }
   }
 
-  private static SimulationDecisionSummary baseSummary(RetirementProjectionContext projection) {
+  private static SimulationDecisionSummary baseSummary(RetirementProjection projection) {
     return projection.summaries().get(SimulationScenario.BASE);
   }
 

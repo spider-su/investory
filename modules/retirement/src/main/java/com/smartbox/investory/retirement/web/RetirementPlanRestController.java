@@ -9,7 +9,6 @@ import com.smartbox.investory.retirement.web.RetirementPlanContracts.PlanDetails
 import com.smartbox.investory.retirement.web.RetirementPlanContracts.PlanMutationResponse;
 import com.smartbox.investory.retirement.web.RetirementPlanContracts.PlanSummaryDto;
 import com.smartbox.investory.retirement.web.RetirementPlanContracts.PlanUpdateRequest;
-import com.smartbox.investory.retirement.web.RetirementPlanContracts.RevisionDto;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import java.net.URI;
@@ -35,7 +34,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class RetirementPlanRestController {
   private final RetirementPlanApi plans;
 
-  public RetirementPlanRestController(@Qualifier("simulationPlanService") RetirementPlanApi plans) {
+  public RetirementPlanRestController(
+      @Qualifier("canonicalRetirementPlanService") RetirementPlanApi plans) {
     this.plans = plans;
   }
 
@@ -134,10 +134,11 @@ public class RetirementPlanRestController {
   }
 
   @PostMapping("/{planId}/rebaseline")
-  public RevisionDto rebaselinePlan(
+  public PlanMutationResponse rebaselinePlan(
       @PathVariable @NotNull Long portfolioId,
       @PathVariable @NotNull Long planId,
       @Valid @RequestBody BaselineDto baseline) {
-    return RevisionDto.from(plans.rebaselinePlan(portfolioId, planId, baseline.toDomain()));
+    plans.rebaselinePlan(portfolioId, planId, baseline.toDomain());
+    return new PlanMutationResponse(planId);
   }
 }

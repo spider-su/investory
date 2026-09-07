@@ -88,6 +88,10 @@ expected end.
 Contracts for one property cannot overlap. Creating a contract never silently terminates another
 contract. An explicit rollover option may set the immediately preceding contract's expected end to
 the day before the new start, in the same transaction. It does not set `terminatedDate`.
+The application locks the real-estate row and validates overlap for useful feedback; PostgreSQL also
+enforces non-overlap on each contract's effective date range, including concurrent writers. Expected
+and actual end dates must both be on or after the start, and an actual termination cannot follow a
+planned end.
 
 Deletion is correction of incorrectly entered data, not a normal lifecycle transition. It removes
 the selected contract and its terms after portfolio and real-estate ownership checks. It does not
@@ -100,11 +104,15 @@ are not duplicated into each property or contract.
 
 ## Public boundaries
 
-`LongTermAssetsApi` is the Web/REST management boundary for explicit asset and rental commands plus
-persistence-free management views. `LongTermAssetProfileReader`,
+`LongTermAssetsApi` is the in-process Web management boundary for explicit asset and rental commands
+plus persistence-free management views. The current REST adapter exposes only bond and cash-reserve
+read/update routes. `LongTermAssetProfileReader`,
 `LongTermAssetAnnualSnapshotReader`, and `LongTermAssetPaymentAuditReader` are smaller consumer
 boundaries for cross-module composition. JPA
 entities, repositories, and `app_v_long_term_assets` remain internal to Long-Term.
+
+Long-Term write operations run at `REPEATABLE_READ`; rental mutations additionally serialize on the
+real-estate row before checking and changing contract periods.
 
 The Long-Term overview may expose all four internal asset types and owns totals, allocation, tax,
 income, and yield calculations used by the page.
@@ -118,9 +126,9 @@ the translation from real estate, rental contracts, bonds, cash reserves, maturi
 global policy into those normalized facts. Retirement does not inspect Long-Term persistence,
 reproduce Long-Term calculations, or receive PersonalAsset data.
 
-A reviewed Retirement revision may freeze normalized Long-Term economic facts for reproducibility.
-That frozen snapshot is Retirement planning provenance and does not replace Long-Term as the source
-of current asset state.
+A saved Retirement plan may freeze normalized Long-Term economic facts for reproducibility. That
+saved baseline is Retirement planning provenance and does not replace Long-Term as the source of
+current asset state.
 
 ## Creation and review invariants
 
@@ -144,6 +152,6 @@ Historical/date-scoped behavior remains a business requirement where consumed by
 and planning. The persistence representation may be simplified only when the same externally
 observable historical behavior is preserved.
 
-Forward simulation never re-reads live Long-Term persistence after a reviewed revision has frozen
-its economic inputs. A later source edit changes Live/Current state only until the user explicitly
-rebaselines and reviews a new revision.
+Forward simulation never re-reads live Long-Term persistence after a saved plan has frozen its
+economic inputs. A later source edit changes Live/Current state only until the user explicitly
+rebaselines the saved plan.

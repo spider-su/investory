@@ -25,7 +25,7 @@ public class RetirementAnalysisRestController {
 
   public RetirementAnalysisRestController(
       @Qualifier("retirementAnalysisService") RetirementAnalysisApi analyses,
-      @Qualifier("retirementProjectionFacade") RetirementProjectionApi projections) {
+      @Qualifier("retirementProjectionService") RetirementProjectionApi projections) {
     this.analyses = analyses;
     this.projections = projections;
   }

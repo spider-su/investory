@@ -13,7 +13,7 @@ import com.smartbox.investory.longterm.api.model.AssetSummaryView;
 import com.smartbox.investory.longterm.api.model.CashFlowType;
 import com.smartbox.investory.longterm.api.model.Frequency;
 import com.smartbox.investory.longterm.api.model.LongTermAssetType;
-import com.smartbox.investory.longterm.api.model.RealEstateEntryModel;
+import com.smartbox.investory.longterm.api.model.RealEstateCommand;
 import com.smartbox.investory.longterm.api.model.RealEstateView;
 import com.smartbox.investory.longterm.api.model.RentalContractStatusModel;
 import com.smartbox.investory.longterm.api.model.RentalContractView;
@@ -98,12 +98,11 @@ class LongTermRealEstateControllerTest {
     String result = controller.saveRealEstate(PORTFOLIO_ID, form, mockRedirectAttributes());
 
     assertThat(result).isEqualTo("redirect:/portfolios/7/long-term-assets/9402/real-estate");
-    ArgumentCaptor<RealEstateEntryModel> command =
-        ArgumentCaptor.forClass(RealEstateEntryModel.class);
+    ArgumentCaptor<RealEstateCommand> command = ArgumentCaptor.forClass(RealEstateCommand.class);
     verify(assets).updateRealEstate(command.capture());
     assertThat(command.getValue())
         .isEqualTo(
-            new RealEstateEntryModel(
+            new RealEstateCommand(
                 PORTFOLIO_ID,
                 ASSET_ID,
                 form.name(),

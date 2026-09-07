@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.smartbox.investory.testsupport.FastDatabase;
 import com.smartbox.investory.testsupport.WorkerDatabase;
+import com.smartbox.investory.testsupport.happyinvestor.HappyInvestorDashboardFacts;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -202,7 +203,11 @@ class ValuationInputContractIT {
             statement.executeQuery(
                 "SELECT net_deposits FROM investory.app_v_portfolio_kpi_summary WHERE portfolio_id = 1")) {
       assertTrue(result.next());
-      assertEquals(0, result.getBigDecimal(1).compareTo(new BigDecimal("427285.84")));
+      BigDecimal netDeposits = result.getBigDecimal(1);
+      assertEquals(
+          0,
+          netDeposits.compareTo(HappyInvestorDashboardFacts.NET_DEPOSITS),
+          () -> "net_deposits=" + netDeposits);
     }
   }
 

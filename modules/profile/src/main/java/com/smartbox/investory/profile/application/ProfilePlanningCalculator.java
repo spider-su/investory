@@ -7,14 +7,13 @@ import com.smartbox.investory.shared.projection.ProjectionSource;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 
 /** Maps Long-Term projection facts into the profile planning model. */
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 final class ProfilePlanningCalculator {
   private final ProfileAllocationCalculator allocations;
-
-  ProfilePlanningCalculator(ProfileAllocationCalculator allocations) {
-    this.allocations = allocations;
-  }
 
   ProfileAssetProjection state(List<LongTermAssetProjectionModel> inputs, LocalDate date) {
     return new ProfileAssetProjection(

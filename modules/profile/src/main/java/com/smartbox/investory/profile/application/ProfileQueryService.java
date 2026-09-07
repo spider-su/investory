@@ -30,7 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ProfileQueryService implements ProfileSnapshotReader {
   private final BrokeragePortfolioReader brokeragePortfolioReadService;
   private final LongTermAssetProfileReader longTermAssets;
-  private final CurrencyConversion currencyRates;
+  private final ProfileCurrencyNormalizer currencyNormalizer;
   private final Clock clock;
   private final ProfileAllocationCalculator allocationCalculator;
   private final ProfileIncomeCalculator incomeCalculator;
@@ -46,11 +46,11 @@ public class ProfileQueryService implements ProfileSnapshotReader {
       Clock clock) {
     this.brokeragePortfolioReadService = brokeragePortfolioReadService;
     this.longTermAssets = longTermAssets;
-    this.currencyRates = currencyRates;
     this.clock = clock;
     this.allocationCalculator = new ProfileAllocationCalculator(brokerageAssetClassificationReader);
-    this.incomeCalculator = new ProfileIncomeCalculator(currencyRates);
-    this.liquidityCalculator = new ProfileLiquidityCalculator(currencyRates);
+    this.currencyNormalizer = new ProfileCurrencyNormalizer(currencyRates);
+    this.incomeCalculator = new ProfileIncomeCalculator(currencyNormalizer);
+    this.liquidityCalculator = new ProfileLiquidityCalculator(currencyNormalizer);
     this.planningCalculator = new ProfilePlanningCalculator(allocationCalculator);
   }
 
@@ -75,20 +75,22 @@ public class ProfileQueryService implements ProfileSnapshotReader {
     CurrencyType base = market.baseCurrency();
     LongTermAssetProfileSummaryModel longTerm = longTermSnapshot.summary();
     var longTermAssetRows = longTermSnapshot.assets();
-    BigDecimal marketCash = toBase(market.cash(), market.baseCurrency(), base, date);
+    BigDecimal marketCash = market.cash();
     Map<ProfileAllocationCalculator.AllocationKey, BigDecimal> values =
         allocationCalculator.values(
             market,
             longTermAssetRows,
             marketCash,
-            (value, source) -> toBase(value, source, base, date));
-    BigDecimal marketValue = toBase(market.balance(), market.baseCurrency(), base, date);
+            (value, source) -> currencyNormalizer.toBase(value, source, base, date));
+    BigDecimal marketValue = market.balance();
     BigDecimal longTermValue =
-        toBase(longTerm.totalCurrentValue(), longTerm.currency(), base, date);
+        currencyNormalizer.toBase(longTerm.totalCurrentValue(), longTerm.currency(), base, date);
     BigDecimal longTermInvestmentValue =
         longTermAssetRows.stream()
             .filter(asset -> asset.category() != AssetEconomicCategory.PERSONAL_ASSET)
-            .map(asset -> toBase(asset.currentValue(), asset.currency(), base, date))
+            .map(
+                asset ->
+                    currencyNormalizer.toBase(asset.currentValue(), asset.currency(), base, date))
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     ProfileAllocationReconciliation reconciliation =
         new ProfileAllocationReconciliation(
@@ -105,11 +107,11 @@ public class ProfileQueryService implements ProfileSnapshotReader {
             : incomeSnapshot.baseCurrency();
     BigDecimal marketIncome =
         incomeSnapshot == null
-            ? toBase(market.dividends(), market.baseCurrency(), base, date)
-                .add(toBase(market.interest(), market.baseCurrency(), base, date))
-            : toBase(incomeSnapshot.netIncome(), incomeCurrency, base, date);
+            ? market.dividends().add(market.interest())
+            : currencyNormalizer.toBase(incomeSnapshot.netIncome(), incomeCurrency, base, date);
     BigDecimal longTermIncome =
-        toBase(longTerm.netAnnualIncomeAfterTax(), longTerm.currency(), base, date);
+        currencyNormalizer.toBase(
+            longTerm.netAnnualIncomeAfterTax(), longTerm.currency(), base, date);
     ProfileIncomeSummary income =
         incomeCalculator.calculate(
             marketIncome,
@@ -133,12 +135,12 @@ public class ProfileQueryService implements ProfileSnapshotReader {
         liquidity.liquid(),
         liquidity.illiquid(),
         allocationCalculator.allocations(values),
-        toBase(
+        currencyNormalizer.toBase(
             longTermSnapshot.annualSnapshot().rentalIncome(),
             longTermSnapshot.annualSnapshot().currency(),
             base,
             date),
-        toBase(
+        currencyNormalizer.toBase(
             longTermSnapshot.annualSnapshot().bondIncome(),
             longTermSnapshot.annualSnapshot().currency(),
             base,
@@ -148,12 +150,5 @@ public class ProfileQueryService implements ProfileSnapshotReader {
         liquidity.investmentCapital(),
         income,
         reconciliation);
-  }
-
-  private BigDecimal toBase(
-      BigDecimal value, CurrencyType source, CurrencyType target, java.time.LocalDate date) {
-    return value == null || source == target
-        ? value == null ? BigDecimal.ZERO : value
-        : currencyRates.convertToBaseCurrency(value, target, source, date);
   }
 }

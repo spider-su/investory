@@ -2,6 +2,7 @@ package com.smartbox.investory.investment.valuation.price;
 
 import static com.smartbox.investory.shared.util.BigDecimalUtils.zeroIfNull;
 
+import com.smartbox.investory.investment.infrastructure.persistence.account.AccountEntity;
 import com.smartbox.investory.investment.infrastructure.persistence.account.AccountRepository;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetEntity;
 import com.smartbox.investory.investment.ledger.asset.persistence.AssetRepository;
@@ -83,7 +84,7 @@ public class AssetPriceFallbackService {
             ? openedPositionRepository.findOpen()
             : openedPositionRepository.findOpenByAccountIn(
                 accountRepository.findAllByPortfolioId(portfolioId).stream()
-                    .map(account -> account.getId())
+                    .map(AccountEntity::getId)
                     .toList());
     Map<String, WeightedPrice> weightedPrices =
         positions.stream()

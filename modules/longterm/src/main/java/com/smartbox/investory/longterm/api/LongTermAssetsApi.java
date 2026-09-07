@@ -16,9 +16,9 @@ public interface LongTermAssetsApi {
 
   BondView bond(Long portfolioId, Long id);
 
-  RealEstateView createRealEstate(RealEstateEntryModel command);
+  RealEstateView createRealEstate(RealEstateCommand command);
 
-  RealEstateView updateRealEstate(RealEstateEntryModel command);
+  RealEstateView updateRealEstate(RealEstateCommand command);
 
   RealEstateView realEstate(Long portfolioId, Long id);
 

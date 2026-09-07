@@ -38,7 +38,7 @@ class SustainableSpendingAnalysisServiceTest {
     SustainableSpendingAnalysisService service =
         new SustainableSpendingAnalysisService(evaluations);
     SimulationAssumptions assumptions =
-        SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80)
+        SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80, 2026)
             .withRecurringSpending(new BigDecimal("4000"));
 
     SustainableSpendingAnalysis result =
@@ -63,7 +63,7 @@ class SustainableSpendingAnalysisServiceTest {
     SustainableSpendingAnalysisService service =
         new SustainableSpendingAnalysisService(evaluations);
     SimulationAssumptions assumptions =
-        SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80)
+        SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80, 2026)
             .withRecurringSpending(new BigDecimal("12000"));
 
     SustainableSpendingAnalysis result =
@@ -83,7 +83,7 @@ class SustainableSpendingAnalysisServiceTest {
     SustainableSpendingAnalysisService service =
         new SustainableSpendingAnalysisService(evaluations);
     SimulationAssumptions assumptions =
-        SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80)
+        SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80, 2026)
             .withRecurringSpending(BigDecimal.ZERO);
 
     SustainableSpendingAnalysis result =
@@ -102,7 +102,7 @@ class SustainableSpendingAnalysisServiceTest {
         new SustainableSpendingAnalysisService(thresholdEvaluation(new BigDecimal("-1")))
             .analyze(
                 mock(InvestmentProfile.class),
-                SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80)
+                SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80, 2026)
                     .withRecurringSpending(new BigDecimal("4000")));
 
     assertEquals(SustainableSpendingResultState.NO_SUSTAINABLE_SPENDING, result.base().state());
@@ -116,7 +116,7 @@ class SustainableSpendingAnalysisServiceTest {
         new SustainableSpendingAnalysisService(thresholdEvaluation(new BigDecimal("2000000000")))
             .analyze(
                 mock(InvestmentProfile.class),
-                SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80)
+                SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80, 2026)
                     .withRecurringSpending(new BigDecimal("4000")));
 
     assertEquals(SustainableSpendingResultState.UPPER_BOUND_NOT_FOUND, result.base().state());
@@ -127,7 +127,7 @@ class SustainableSpendingAnalysisServiceTest {
   @Test
   void spendingOverridePreservesTheLivingToDiscretionaryProportion() {
     SimulationAssumptions base =
-        SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80);
+        SimulationAssumptions.defaults(mock(InvestmentProfile.class), 40, 80, 2026);
     SimulationAssumptions assumptions =
         copyWithSpending(base, new BigDecimal("150"), new BigDecimal("50"));
 

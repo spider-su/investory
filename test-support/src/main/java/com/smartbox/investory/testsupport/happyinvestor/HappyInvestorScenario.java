@@ -77,6 +77,20 @@ public final class HappyInvestorScenario {
 
     List<CashOperationEntity> ledger = new ArrayList<>();
     addFunding(ledger, IBKR, 100_000, CurrencyType.USD, 3_000);
+    ledger.add(
+        cashOperation()
+            .forAccount(IBKR)
+            .withdrawal(100_000, CurrencyType.USD)
+            .comment("Happy Investor boundary withdrawal of uninvested IBKR cash")
+            .on(HappyInvestorTestData.REFERENCE_DATE)
+            .build());
+    ledger.add(
+        cashOperation()
+            .forAccount(IBKR)
+            .withdrawal(7934.733313, CurrencyType.USD)
+            .comment("Happy Investor boundary withdrawal of residual brokerage cash")
+            .on(HappyInvestorTestData.REFERENCE_DATE)
+            .build());
     addFunding(ledger, XTB_USD, 4_000, CurrencyType.USD, 1_000);
     addFunding(ledger, XTB_PLN, 4_000, CurrencyType.PLN, 1_000);
     addFunding(ledger, XTB_EUR, 8_000, CurrencyType.EUR, 2_000);

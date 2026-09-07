@@ -1,14 +1,38 @@
 package com.smartbox.investory.retirement.simulation;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
+import com.smartbox.investory.retirement.api.RetirementFactsProvider;
+import com.smartbox.investory.retirement.api.RetirementPlanApi;
 import com.smartbox.investory.retirement.api.model.SandboxSimulationInput;
+import com.smartbox.investory.retirement.planning.CurrentYearProjectionBridge;
+import com.smartbox.investory.retirement.planning.ForwardSimulationInputService;
+import com.smartbox.investory.retirement.planning.RetirementProjectionService;
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import org.junit.jupiter.api.Test;
 
 class RetirementSandboxSimulationServiceTest {
-  private final RetirementSandboxSimulationService service =
-      new RetirementSandboxSimulationService();
+  private final RetirementSandboxSimulationService service = service();
+
+  private static RetirementSandboxSimulationService service() {
+    Clock clock = Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC);
+    RetirementSimulation simulation = new RetirementSimulationService();
+    CurrentYearProjectionBridge bridge = new CurrentYearProjectionBridge(clock, simulation);
+    ForwardSimulationInputService inputs =
+        new ForwardSimulationInputService(new ForwardSimulationContextFactory(clock), bridge);
+    RetirementProjectionService projection =
+        new RetirementProjectionService(
+            mock(RetirementFactsProvider.class),
+            mock(RetirementPlanApi.class),
+            inputs,
+            simulation,
+            clock);
+    return new RetirementSandboxSimulationService(projection);
+  }
 
   @Test
   void reportsOkWhenBucketsFundTheWholeHorizon() {

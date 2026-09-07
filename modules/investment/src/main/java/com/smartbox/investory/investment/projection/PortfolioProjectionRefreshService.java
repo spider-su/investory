@@ -58,6 +58,10 @@ public class PortfolioProjectionRefreshService {
 
   private static final List<String> DASHBOARD_ORDER =
       List.of(
+          "app_v_canonical_asset_daily_price_mv",
+          "app_v_canonical_asset_daily_price_ranked_mv",
+          "app_v_normalized_daily_price_mv",
+          "app_v_current_asset_price_mv",
           "app_v_portfolio_daily_fx_rate_mv",
           "app_v_normalized_cash_operations",
           "app_v_account_monthly",

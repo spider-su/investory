@@ -49,7 +49,7 @@ public class CurrentYearProjectionBridge {
     return projectCurrentYearEnd(contexts.create(profile, assumptions)).bridgedProfile();
   }
 
-  public CurrentYearBridgeResult projectCurrentYearEnd(ForwardSimulationContext context) {
+  public CurrentYearProjection projectCurrentYearEnd(ForwardSimulationContext context) {
     InvestmentProfile profile = context.currentProfile();
     SimulationAssumptions assumptions = context.originalAssumptions();
     if (!context.requiresCurrentYearBridge()) {
@@ -79,7 +79,7 @@ public class CurrentYearProjectionBridge {
     BigDecimal pension = projected.pensionIncome();
     BigDecimal funding = projected.requiredPortfolioFunding();
     BigDecimal contribution = projected.preRetirementContribution();
-    Map<EconomicBucket, CurrentYearBridgeResult.BucketBoundary> boundaries =
+    Map<EconomicBucket, CurrentYearProjection.BucketBoundary> boundaries =
         projectedBoundaries(projected);
     InvestmentProfile bridgedProfile = rebaseSpendableState(profile, boundaries);
     return result(
@@ -100,7 +100,7 @@ public class CurrentYearProjectionBridge {
   /** Carry the returned four-bucket expected end state into the next projected year. */
   private static InvestmentProfile rebaseSpendableState(
       InvestmentProfile profile,
-      Map<EconomicBucket, CurrentYearBridgeResult.BucketBoundary> boundaries) {
+      Map<EconomicBucket, CurrentYearProjection.BucketBoundary> boundaries) {
     BigDecimal cashStart = boundaries.get(EconomicBucket.LIQUID_CASH).startValue();
     BigDecimal cashEnd = boundaries.get(EconomicBucket.LIQUID_CASH).expectedEndValue();
     BigDecimal bondStart = boundaries.get(EconomicBucket.FIXED_INCOME).startValue();
@@ -141,7 +141,7 @@ public class CurrentYearProjectionBridge {
   /** Rebase frozen asset facts so aggregate bucket consumers see the bridged end state. */
   private static ProfileAssetProjection rebasePlanningState(
       ProfileAssetProjection state,
-      Map<EconomicBucket, CurrentYearBridgeResult.BucketBoundary> boundaries) {
+      Map<EconomicBucket, CurrentYearProjection.BucketBoundary> boundaries) {
     if (state.assets().isEmpty()) return state;
     BigDecimal bondTotal =
         state.assets().stream()
@@ -183,7 +183,7 @@ public class CurrentYearProjectionBridge {
 
   private static List<ProfileAllocation> rebaseAllocations(
       List<ProfileAllocation> allocations,
-      Map<EconomicBucket, CurrentYearBridgeResult.BucketBoundary> boundaries) {
+      Map<EconomicBucket, CurrentYearProjection.BucketBoundary> boundaries) {
     if (allocations.isEmpty()) return allocations;
     EnumMap<EconomicBucket, BigDecimal> values = new EnumMap<>(EconomicBucket.class);
     allocations.forEach(a -> values.merge(a.bucket(), zero(a.value()), BigDecimal::add));
@@ -221,10 +221,10 @@ public class CurrentYearProjectionBridge {
         .toList();
   }
 
-  private static Map<EconomicBucket, CurrentYearBridgeResult.BucketBoundary> currentBoundaries(
+  private static Map<EconomicBucket, CurrentYearProjection.BucketBoundary> currentBoundaries(
       InvestmentProfile profile) {
     PlanningBuckets buckets = PlanningBuckets.fromProfileWithBondYield(profile, ZERO, ZERO);
-    EnumMap<EconomicBucket, CurrentYearBridgeResult.BucketBoundary> result =
+    EnumMap<EconomicBucket, CurrentYearProjection.BucketBoundary> result =
         new EnumMap<>(EconomicBucket.class);
     buckets
         .asMap()
@@ -232,14 +232,14 @@ public class CurrentYearProjectionBridge {
             (bucket, value) ->
                 result.put(
                     bucket,
-                    new CurrentYearBridgeResult.BucketBoundary(
+                    new CurrentYearProjection.BucketBoundary(
                         value.startValue(), value.startValue())));
     return result;
   }
 
-  private static Map<EconomicBucket, CurrentYearBridgeResult.BucketBoundary> projectedBoundaries(
+  private static Map<EconomicBucket, CurrentYearProjection.BucketBoundary> projectedBoundaries(
       SimulationYear projected) {
-    EnumMap<EconomicBucket, CurrentYearBridgeResult.BucketBoundary> result =
+    EnumMap<EconomicBucket, CurrentYearProjection.BucketBoundary> result =
         new EnumMap<>(EconomicBucket.class);
     result.put(EconomicBucket.LIQUID_CASH, boundary(projected.cashStart(), projected.cashEnd()));
     result.put(
@@ -252,9 +252,9 @@ public class CurrentYearProjectionBridge {
     return result;
   }
 
-  private static CurrentYearBridgeResult.BucketBoundary boundary(BigDecimal start, BigDecimal end) {
+  private static CurrentYearProjection.BucketBoundary boundary(BigDecimal start, BigDecimal end) {
     BigDecimal actualStart = zero(start);
-    return new CurrentYearBridgeResult.BucketBoundary(actualStart, zero(end));
+    return new CurrentYearProjection.BucketBoundary(actualStart, zero(end));
   }
 
   private static BigDecimal zero(BigDecimal value) {
@@ -272,7 +272,7 @@ public class CurrentYearProjectionBridge {
     return SimulationPeriod.of(today.plusDays(1), yearEnd).yearFraction();
   }
 
-  private static CurrentYearBridgeResult result(
+  private static CurrentYearProjection result(
       ForwardSimulationContext context,
       InvestmentProfile profile,
       BigDecimal fraction,
@@ -284,8 +284,8 @@ public class CurrentYearProjectionBridge {
       BigDecimal contractualIncome,
       BigDecimal redemption,
       BigDecimal investmentAnnualReturn,
-      Map<EconomicBucket, CurrentYearBridgeResult.BucketBoundary> bucketBoundaries) {
-    return new CurrentYearBridgeResult(
+      Map<EconomicBucket, CurrentYearProjection.BucketBoundary> bucketBoundaries) {
+    return new CurrentYearProjection(
         profile,
         context.asOfYear(),
         context.firstProjectedYear(),

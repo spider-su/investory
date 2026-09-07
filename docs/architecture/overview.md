@@ -20,13 +20,13 @@ broker files
   -> Investment public economic contracts
      -> dashboard / APIs / exports / notifications
      -> Retirement current state
-     -> reviewed plan revision
-     -> deterministic retirement simulation
+     -> canonical retirement plan
+     -> deterministic retirement projection
 
 manual long-term assets
   -> Long-Term public economic contracts
      -> Retirement current state
-     -> reviewed plan revision
+     -> canonical retirement plan
 ```
 
 The planning timeline has three deliberately different sources of truth:
@@ -34,7 +34,7 @@ The planning timeline has three deliberately different sources of truth:
 ```text
 Past     -> immutable reviewed facts
 Current  -> live state derived from current domain data
-Future   -> deterministic projection from an immutable reviewed plan revision
+Future   -> deterministic projection from canonical plan state
 ```
 
 The application uses Java, Maven, Spring Data JPA, Flyway, Thymeleaf, and Chart.js. PostgreSQL schema
@@ -53,7 +53,7 @@ changes are owned by Flyway.
   query contract and immutable economic models live under `profile.api`.
 - `retirement`: planning, simulation, scenarios, progress tracking, and their persistence adapters.
   Cross-module plan management, projection, and analysis services are exposed through
-  `retirement.api`; JPA plan and revision entities remain internal.
+  `retirement.api`; JPA entities remain internal.
 - `shared`: domain-neutral currency conversion, portfolio context, notification producer contracts,
   and presentation primitives exposed
   from the Investment public surface where required by the current Maven layout.
@@ -101,10 +101,9 @@ downstream snapshots/overrides; they do not alter positions, cash operations, `a
 prices, FX, or API response data. Manual long-term assets feed `InvestmentProfile` but do
 not become brokerage accounting rows. Simulation transfers are allocation state only, never real trades.
 
-Reviewed retirement-plan revisions are immutable decision snapshots. In addition to Retirement-owned
-assumptions and life events, they retain the normalized economic inputs required to reproduce the
-projection. They do not copy Investment or Long-Term persistence models and do not become a new source
-of accounting truth.
+Saved retirement plans hold the Retirement-owned assumptions, life events, and normalized economic
+inputs required to reproduce the projection. They do not copy Investment or Long-Term persistence
+models and do not become a new source of accounting truth.
 
 See `docs/architecture/reporting-pipeline.md` for the reporting lineage.
 See `docs/architecture/notifications.md` for durable notification lifecycle and adapter boundaries.
@@ -165,10 +164,10 @@ direct access only to focused Investment and Long-Term planning/history APIs. A 
 exposes immutable business read models, never JPA entities, repositories, SQL projections, or
 internal accounting services. Shared contracts stay small and domain-neutral.
 
-Current source state is used to prepare a reviewed plan revision. Once reviewed, the revision freezes
-the normalized economic inputs needed to reproduce its Future projection. Later Investment or
-Long-Term changes update Current but do not mutate that revision. Accepting those changes into Future
-is an explicit review/rebaseline operation that creates a new revision.
+Current source state is used to prepare the baseline stored on a saved Retirement plan. The plan
+stores the normalized economic inputs needed to reproduce its Future projection; plan edits and
+rebaselines update that plan, while later Investment or Long-Term changes do not change it until
+the user explicitly rebaselines it.
 
 `investment.api.portfolio.BrokeragePortfolioReader` publishes immutable brokerage snapshots. Profile
 composition uses the portfolio-scoped `currentSnapshot(portfolioId)` projection. The Spring implementation is
@@ -235,8 +234,8 @@ command services own validation and mapping, `LongTermAssetReadService` owns rep
 aggregation, `LongTermAssetEconomics` owns pure financial calculations, and the lifecycle and payment
 audit services own their focused workflows. The REST adapter depends on the public API only.
 
-Long-Term has no second annual simulation API. Reviewed retirement revisions freeze normalized
-projection inputs from `LongTermAssetProfileReader`; Retirement owns deterministic scenario execution.
+Long-Term has no second annual simulation API. `LongTermAssetProfileReader` supplies normalized
+projection inputs; Retirement owns deterministic scenario execution.
 
 Planning must not become an accounting source of truth or depend on a projected result as an actual fact.
 
@@ -253,7 +252,7 @@ Investment state ----\
                       -> normalized economic inputs
 Long-Term state -----/          |
                                 v
-                       reviewed plan revision
+                       saved plan baseline
                                 |
                                 v
                     deterministic projection
@@ -272,7 +271,7 @@ the shared contract.
 `ui.presentation.UiPresentation` is a Web UI helper and accepts only public API models. Long-Term
 uses only the shared financial presentation primitive; no PlanningPresentation exception or
 Long-Term-to-Retirement presentation dependency remains.
-`SimulationPlanService` is the only documented simulation persistence orchestration adapter; deterministic
+`CanonicalRetirementPlanService` is the simulation persistence orchestration adapter; deterministic
 simulation classes remain persistence-free.
 
 Provider-neutral portfolio context composition lives in `integrations.portfolio`. Telegram and AI

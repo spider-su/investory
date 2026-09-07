@@ -47,10 +47,7 @@ public interface NormalizedCashOperationRepository extends Repository<CashOperat
                 'EXTERNAL_DEPOSIT',
                 'EXTERNAL_WITHDRAWAL',
                 'INTERNAL_TRANSFER_IN',
-                'INTERNAL_TRANSFER_OUT',
-                'INTERNAL_BOOKKEEPING',
-                'FX_CONVERSION',
-                'CORRECTION'
+                'INTERNAL_TRANSFER_OUT'
             )
           group by nco.account_id, nco.date::date, nco.normalized_category
           order by nco.account_id, nco.date::date, nco.normalized_category

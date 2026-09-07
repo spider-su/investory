@@ -26,7 +26,7 @@ Long-Term Assets --/                         |
                                                    |
                                                    v
                                       RetirementSimulationService
-Plan revision ------------------------------>|
+Saved plan baseline ----------------------->|
 Scenario ----------------------------------->|
                                               v
                                       Year-by-year result
@@ -174,9 +174,7 @@ Spending growth
 Mental model:
 
 ``` text
-Frozen baseline
-      +
-Plan revision
+Saved plan baseline
       +
 Scenario overlay
       |
@@ -195,7 +193,7 @@ Read these in order:
 1. RetirementSimulation
    Core deterministic year-by-year engine.
 
-2. RetirementProjectionFacade
+2. RetirementProjectionService
    Prepares/orchestrates planning input and simulation.
 
 3. SimulationEvaluationService
