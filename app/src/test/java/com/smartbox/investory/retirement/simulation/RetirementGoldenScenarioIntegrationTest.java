@@ -1,11 +1,13 @@
 package com.smartbox.investory.retirement.simulation;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 
 import com.smartbox.investory.investment.projection.PortfolioProjectionRefreshService;
 import com.smartbox.investory.investment.projection.PortfolioProjectionService;
 import com.smartbox.investory.longterm.api.LongTermAssetProfileReader;
 import com.smartbox.investory.profile.api.ProfileSnapshotReader;
+import com.smartbox.investory.profile.api.model.EconomicBucket;
 import com.smartbox.investory.profile.api.model.InvestmentProfile;
 import com.smartbox.investory.retirement.api.RetirementPlanApi;
 import com.smartbox.investory.retirement.api.model.AnalysisAvailability;
@@ -129,6 +131,55 @@ class RetirementGoldenScenarioIntegrationTest {
     assertThat(projection.scenarioResults().get(SimulationScenario.BASE).years()).isNotEmpty();
     assertThat(projection.scenarioResults().get(SimulationScenario.BASE).simulationFailed())
         .isFalse();
+    var baseYears = projection.scenarioResults().get(SimulationScenario.BASE).years();
+    var bridge = projection.forward().currentYearBridge();
+    assertThat(bridge.expectedEnd(EconomicBucket.LIQUID_CASH))
+        .isEqualByComparingTo(HappyInvestorRetirementFacts.BRIDGE_CASH_END);
+    assertThat(bridge.expectedEnd(EconomicBucket.FIXED_INCOME))
+        .isEqualByComparingTo(HappyInvestorRetirementFacts.BRIDGE_BONDS_END);
+    assertThat(bridge.expectedEnd(EconomicBucket.EQUITY))
+        .isEqualByComparingTo(HappyInvestorRetirementFacts.BRIDGE_EQUITIES_END);
+    assertThat(bridge.expectedEnd(EconomicBucket.REAL_ESTATE))
+        .isEqualByComparingTo(HappyInvestorRetirementFacts.BRIDGE_REAL_ESTATE_END);
+
+    var firstYear = baseYears.stream().filter(y -> y.year() == 2026).findFirst().orElseThrow();
+    assertThat(firstYear.employmentIncome())
+        .isEqualByComparingTo(HappyInvestorPlanFacts.ANNUAL_EMPLOYMENT_INCOME);
+    assertThat(firstYear.preRetirementContribution())
+        .isEqualByComparingTo(HappyInvestorPlanFacts.ANNUAL_PRE_RETIREMENT_CONTRIBUTION);
+    assertThat(firstYear.rentalIncome())
+        .isEqualByComparingTo(HappyInvestorRetirementFacts.FIRST_PROJECTED_RENTAL_INCOME);
+    assertThat(firstYear.equityGain())
+        .isEqualByComparingTo(HappyInvestorRetirementFacts.FIRST_PROJECTED_EQUITY_RETURN);
+    assertThat(firstYear.fixedIncomeEnd())
+        .isEqualByComparingTo(HappyInvestorRetirementFacts.FIRST_PROJECTED_BOND_END);
+    assertThat(firstYear.equityEnd())
+        .isEqualByComparingTo(HappyInvestorRetirementFacts.FIRST_PROJECTED_EQUITY_END);
+    assertThat(firstYear.endNetWorth())
+        .isEqualByComparingTo(HappyInvestorRetirementFacts.FIRST_PROJECTED_END_NET_WORTH);
+
+    var retirementYear =
+        baseYears.stream()
+            .filter(y -> y.year() == HappyInvestorRetirementFacts.RETIREMENT_BOUNDARY_YEAR)
+            .findFirst()
+            .orElseThrow();
+    assertThat(retirementYear.employmentIncome()).isZero();
+    assertThat(retirementYear.coreExpenses())
+        .isEqualByComparingTo(new java.math.BigDecimal("42000"));
+    var pensionYear =
+        baseYears.stream()
+            .filter(y -> y.year() == HappyInvestorRetirementFacts.PENSION_BOUNDARY_YEAR)
+            .findFirst()
+            .orElseThrow();
+    assertThat(pensionYear.pensionIncome())
+        .isEqualByComparingTo(HappyInvestorPlanFacts.ANNUAL_PENSION);
+
+    var finalYear = baseYears.getLast();
+    assertThat(finalYear.endNetWorth())
+        .isCloseTo(
+            HappyInvestorRetirementFacts.FINAL_END_NET_WORTH,
+            within(new java.math.BigDecimal("0.01")));
+    assertThat(finalYear.unfundedAmount()).isZero();
 
     PlanningTimeline timeline =
         timelines.loadForwardTimeline(
